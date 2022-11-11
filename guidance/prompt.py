@@ -1,7 +1,7 @@
 import re
 from . import generators
 
-class Flow:
+class Prompt:
     def __init__(self, prompt, generator=None):
         self.prompt = prompt
         self.generator = generator
@@ -68,14 +68,14 @@ def parse(prompt, variables={}):
                                 items = variables.get(recurse_group_args[0], [])
                                 for j, var in enumerate(items):
                                     # print("VAR", var)
-                                    out += parse(prompt[recurse_group_start:tag_start-2], variables=variables | {"this": var} | {"@last": j == len(items)-1})
+                                    out += parse(prompt[recurse_group_start:tag_start-2], variables=variables | {"this": var} | {"@last": j == len(items)-1, "@first": j == 0, "@index": j})
                             elif raw_name == "for":
                                 assert recurse_group_args[1] == "in"
                                 items = variables.get(recurse_group_args[2], [])
                                 item_name = recurse_group_args[0]
                                 for j, var in enumerate(items):
                                     # print("VAR", var)
-                                    out += parse(prompt[recurse_group_start:tag_start-2], variables=variables | {item_name: var} | {"@last": j == len(items)-1})
+                                    out += parse(prompt[recurse_group_start:tag_start-2], variables=variables | {item_name: var} | {"@last": j == len(items)-1, "@first": j == 0, "@index": j})
                             elif raw_name == "if":
                                 if variables.get(recurse_group_args[0], False):
                                     out += parse(prompt[recurse_group_start:tag_start-2], variables=variables)

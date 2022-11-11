@@ -21,7 +21,7 @@ def find_version(*file_paths):
 setup(
     name="guidance",
     version=find_version("guidance", "__init__.py"),
-    url="private",
+    url="https://github.com/slundberg/guidance",
     author="Scott Lundberg",
     author_email="scott.lundberg@microsoft.com",
     description="Tools to guide the output of large language models.",
