@@ -26,9 +26,12 @@ class OpenAI():
         key = "_---_".join([str(v) for v in (self.model, prompt, stop, temperature, n, max_tokens, logprobs)])
         if key not in _file_cache or not self.caching:
             print("CALLING LM")
-            _file_cache[key] = openai.Completion.create(
+            out = openai.Completion.create(
                 model=self.model, prompt=prompt, max_tokens=max_tokens,
-                temperature=temperature, top_p=1.0, n=n, stop=stop, logprobs=logprobs
+                temperature=temperature, top_p=1.0, n=n, stop=stop, logprobs=logprobs#, stream=True
             )
+            # for token in generator:
+
+            _file_cache[key] = out
         return _file_cache[key]
 
