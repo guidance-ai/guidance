@@ -19,15 +19,14 @@ from . import generators
 class PromptCompletion:
     ''' Represents the result of an executed prompt.
     '''
-    def __init__(self, results, variables, completed_text, completed_text_html, prompt):
-        self.results = results
+    def __init__(self, variables, completed_text, completed_text_html, prompt):
         self.variables = variables
         self.completed_text = completed_text
         self.completed_text_html = completed_text_html
         self.prompt = prompt
 
     def __getitem__(self, key):
-        return self.results[key]
+        return self.variables[key]
 
     def __repr__(self):
         return self.completed_text
@@ -40,43 +39,44 @@ class Prompt:
     ''' A prompt template that can be compiled and executed to generate a PromptCompletion result.
     '''
 
-    def __init__(self, prompt, generator=None):
+    def __init__(self, prompt, generator=None, execution_method="fixed_prefix"):
         self.prompt = prompt
         self.generator = generator
+        self.execution_method = execution_method
 
         # default to an OpenAI generator
         if self.generator is None:
             self.generator = generators.OpenAI()
     
-    def __call__(self, variables, execution_method="fixed_prefix"):
+    def __call__(self, *args, **variables):
 
-        if execution_method == "fixed_prefix":
+        if self.execution_method == "fixed_prefix":
             out, display_out = parse(self.prompt, self.generator, variables)
-            fixed_prefix = re.sub(r'\{\{get .*', '', out, flags=re.DOTALL)
-            output_template_escaped = re.escape(out[len(fixed_prefix):])
+            # fixed_prefix = re.sub(r'\{\{get .*', '', out, flags=re.DOTALL)
+            # output_template_escaped = re.escape(out[len(fixed_prefix):])
 
-            out2 = self.generator(fixed_prefix, max_tokens=250)
+            # out2 = self.generator(fixed_prefix, max_tokens=250)
 
-            pattern = re.sub(r'\\\{\\\{get\\ ([^\\]+)\\\}\\\}', r'(?P<\1>.*)', output_template_escaped)
-            match = re.match(pattern, out2["choices"][0]["text"], flags=re.DOTALL)
-            if match is None:
-                return None
-            else:
-                captures = match.groupdict()
-                for k, v in captures.items():
-                    out = out.replace(f"{{{{get {k}}}}}", v)
-                    # v = f"<span style='background-color: rgb(0, 165, 0, 0.25); display: inline;' title='get {k}'>" + v + "</span>"
-                    display_out = display_out.replace(f"{{{{get {k}}}}}", v)
-                display_out = html.escape(display_out)
-                display_out = re.sub(r"__VARSPAN_START_([^\$]*)\$___", r"<span style='background-color: rgb(0, 138.56128016, 250.76166089, 0.25); display: inline;' title='{{\1}}'>", display_out)
-                display_out = display_out.replace("__VARSPAN_END___", "</span>")
-                display_out = re.sub(r"__GETSPAN_START_([^\$]*)\$___", r"<span style='background-color: rgb(0, 165, 0, 0.25); display: inline;' title='{{\1}}'>", display_out)
-                display_out = display_out.replace("__GETSPAN_END___", "</span>")
-                display_out = display_out.replace("__LOOP_DIVIDER___", "<div style='border-left: 1px dashed rgb(0, 0, 0, .2); border-top: 0px solid rgb(0, 0, 0, .2); margin-right: -4px; display: inline; width: 4px; height: 24px;'></div>")
-                # display_out = display_out.replace("__LOOP_END___", "<div style='border-right: 1px solid rgb(0, 0, 0, .2); border-top: 0px solid rgb(0, 0, 0, .2); margin-left: -4px; display: inline; width: 4px; height: 24px;'></div>")
-                display_out = "<pre style='padding: 7px; border-radius: 4px; background: white; white-space: pre-wrap; font-family: ColfaxAI, Arial; font-size: 16px; line-height: 24px; color: #000'>"+display_out+"</pre>"
-                # print("display_out", display_out)
-                return PromptCompletion(match.groupdict(), variables, out, display_out, self)
+            # pattern = re.sub(r'\\\{\\\{get\\ ([^\\]+)\\\}\\\}', r'(?P<\1>.*)', output_template_escaped)
+            # match = re.match(pattern, out2["choices"][0]["text"], flags=re.DOTALL)
+            # if match is None:
+            #     return None
+            # else:
+            #     captures = match.groupdict()
+            #     for k, v in captures.items():
+            #         out = out.replace(f"{{{{get {k}}}}}", v)
+            #         # v = f"<span style='background-color: rgb(0, 165, 0, 0.25); display: inline;' title='get {k}'>" + v + "</span>"
+            #         display_out = display_out.replace(f"{{{{get {k}}}}}", v)
+            display_out = html.escape(display_out)
+            display_out = re.sub(r"__VARSPAN_START_([^\$]*)\$___", r"<span style='background-color: rgb(0, 138.56128016, 250.76166089, 0.25); display: inline;' title='{{\1}}'>", display_out)
+            display_out = display_out.replace("__VARSPAN_END___", "</span>")
+            display_out = re.sub(r"__GETSPAN_START_([^\$]*)\$___", r"<span style='background-color: rgb(0, 165, 0, 0.25); display: inline;' title='{{\1}}'>", display_out)
+            display_out = display_out.replace("__GETSPAN_END___", "</span>")
+            display_out = display_out.replace("__LOOP_DIVIDER___", "<div style='border-left: 1px dashed rgb(0, 0, 0, .2); border-top: 0px solid rgb(0, 0, 0, .2); margin-right: -4px; display: inline; width: 4px; height: 24px;'></div>")
+            # display_out = display_out.replace("__LOOP_END___", "<div style='border-right: 1px solid rgb(0, 0, 0, .2); border-top: 0px solid rgb(0, 0, 0, .2); margin-left: -4px; display: inline; width: 4px; height: 24px;'></div>")
+            display_out = "<pre style='padding: 7px; border-radius: 4px; background: white; white-space: pre-wrap; font-family: ColfaxAI, Arial; font-size: 16px; line-height: 24px; color: #000'>"+display_out+"</pre>"
+            # print("display_out", display_out)
+            return PromptCompletion(variables, out, display_out, self)
 
 span_style = "background-color: rgb(0, 138.03019826, 250.62656482, 0.25); display: inline;"
 

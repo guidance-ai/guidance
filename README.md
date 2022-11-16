@@ -18,18 +18,22 @@ Guidance prompts allow you to specifcy the structure of your prompt through a si
 import guidance
 
 # define a guidance prompt
-prompt = guidance.Prompt('''Use the following references to answer the query "{{query}}".
-REFERENCES{{#for ref in references}}
-{{ref}}{{/for}}---
+prompt = guidance.Prompt('''Use the following statements to answer the query "{{query}}".
+STATEMENTS{{#for statement in statements}}
+- {{statement}}{{/for}}
+---
 Now please answer the query "{{query}}":{{get answer}}''')
 
 # execute the prompt
-results = prompt({
-    "references": ["Joe likes Apples", "Joe dislikes Oranges", "Sue likes Bananas"],
-    "query": "What fruits does Joe like?"
-})
-# results now contains {'answer': '\n\nJoe likes apples.'}
+completion = prompt(
+    query="What fruits does Joe like?",
+    statements=["Joe likes Apples", "Joe dislikes Oranges", "Sue likes Bananas"]
+)
+
+# display the completion in a notebook environment
+completion
 ```
+<img width="567" src="https://raw.githubusercontent.com/slundberg/guidance/master/docs/artwork/demo_output.png" />
 
 ## Connecting a language model
 
