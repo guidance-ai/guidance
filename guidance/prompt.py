@@ -168,7 +168,7 @@ def parse(prompt, generator=None, variables={}, unresolved_gets={}, prefix=""):
                 elif tag_name.startswith("/"):
                     raise Exception("Closing tag without opening tag:", tag_name)
                 else:
-                    parts = tag_name.split()
+                    parts = tag_name.split(maxsplit=3)
                     if len(parts) == 1:
                         val = str(parse_var_exp(tag_name, variables, ""))
                         out += val
@@ -180,10 +180,11 @@ def parse(prompt, generator=None, variables={}, unresolved_gets={}, prefix=""):
                                 stop_sequences = None
                             elif parts[2] == "without":
                                 pattern = ast.literal_eval(parts[3])
-                                if re.escape(pattern) ==pattern:
-                                    stop_sequences = [pattern]
-                                else:
-                                    raise Exception("stop sequence must be a literal string, support for REGEX stops is TODO")
+                                stop_sequences = [pattern]
+                                # if re.escape(pattern) == pattern:
+                                #     stop_sequences = [pattern]
+                                # else:
+                                #     raise Exception("stop sequence must be a literal string, support for REGEX stops is TODO")
                             else:
                                 raise Exception("Unknown get option:", parts[2])
                             

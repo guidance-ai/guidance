@@ -12,12 +12,18 @@ try:
 except:
     raise Exception("Warning: No OpenAI api key found, you need to put your OpenAI key in the file ~/.openai_api_key")
 
+try:
+    with open(os.path.expanduser('~/.openai_lm_model_name'), 'r') as file:
+        gpt_model = file.read().replace('\n', '')
+except:
+    raise Exception("Warning: No OpenAI model name found, you need to put your OpenAI model name in the file ~/.openai_lm_model_name")
+
 class OpenAI():
     def __init__(self, model=None, caching=True):
 
         # default to the model specified in the environment variable
         if model is None:
-            model = os.environ.get("OPENAI_MODEL", "text-davinci-002")
+            model = os.environ.get("OPENAI_MODEL", gpt_model)
         
         self.model = model
         self.caching = caching
