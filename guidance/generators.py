@@ -28,7 +28,7 @@ class OpenAI():
         self.model = model
         self.caching = caching
     
-    def __call__(self, prompt, stop=None, temperature=0.0, n=1, max_tokens=250, logprobs=None):
+    def __call__(self, prompt, stop=None, temperature=0.0, n=1, max_tokens=1000, logprobs=None):
         key = "_---_".join([str(v) for v in (self.model, prompt, stop, temperature, n, max_tokens, logprobs)])
         if key not in _file_cache or not self.caching:
             print("CALLING LM")
