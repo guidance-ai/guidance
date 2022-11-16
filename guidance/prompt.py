@@ -127,7 +127,7 @@ def parse(prompt, generator=None, variables={}, unresolved_gets={}, prefix=""):
                                 items = variables.get(recurse_group_args[0], [])
                                 for j, var in enumerate(items):
                                     # print("VAR", var)
-                                    o, do = parse(prompt[recurse_group_start:tag_start-2], generator, variables | {"this": var} | {"@last": j == len(items)-1, "@first": j == 0, "@index": j}, prefix=prefix+out)
+                                    o, do = parse(prompt[recurse_group_start:tag_start-2], generator, {**variables, **{"this": var}, **{"@last": j == len(items)-1, "@first": j == 0, "@index": j}}, prefix=prefix+out)
                                     out += o
                                     display_out += do
                             elif raw_name == "for":
@@ -137,7 +137,7 @@ def parse(prompt, generator=None, variables={}, unresolved_gets={}, prefix=""):
                                 item_name = recurse_group_args[0]
                                 for j, var in enumerate(items):
                                     display_out += "__LOOP_DIVIDER___"
-                                    o, do = parse(prompt[recurse_group_start:tag_start-2], generator, variables | {item_name: var} | {"@last": j == len(items)-1, "@first": j == 0, "@index": j}, prefix=prefix+out)
+                                    o, do = parse(prompt[recurse_group_start:tag_start-2], generator, {**variables, **{item_name: var}, **{"@last": j == len(items)-1, "@first": j == 0, "@index": j}}, prefix=prefix+out)
                                     out += o
                                     display_out += do
                                 display_out += "__LOOP_DIVIDER___"
