@@ -28,6 +28,7 @@ setup(
     packages=find_packages(exclude=["user_studies", "notebooks", "client"]),
     install_requires=[
         "diskcache",
-        "openai"
+        "openai",
+        "pybars3"
     ]
 )

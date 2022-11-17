@@ -19,10 +19,10 @@ import guidance
 
 # define a guidance prompt
 prompt = guidance.Prompt('''Use the following statements to answer the query "{{query}}".
-STATEMENTS{{#for statement in statements}}
-- {{statement}}{{/for}}
+STATEMENTS{{#each statements}}
+- {{this}}{{/each}}
 ---
-Now please answer the query "{{query}}":{{get answer}}''')
+Now please answer the query "{{query}}":{{gen 'answer'}}''')
 
 # execute the prompt
 completion = prompt(
@@ -41,7 +41,7 @@ Note that the example above uses the default language model generator as defined
 
 ```python
 generator = guidance.generators.OpenAI('text-davinci-002')
-prompt = guidance.Prompt(tempalte_string, generator)
+prompt = guidance.Prompt(template_string, generator)
 ```
 
 ## Template syntax
