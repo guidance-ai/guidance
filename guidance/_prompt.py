@@ -42,7 +42,8 @@ class Prompt:
     def __call__(self, **kwargs):
         built_ins = {
             "generate": _gen,
-            "each": _each
+            "each": _each,
+            "select": _select
         }
         variables = {}
         variables.update(built_ins)
@@ -57,9 +58,11 @@ class Prompt:
             del variables[k]
 
         display_out = html.escape(output)
-        display_out = re.sub(r"__GMARKER_START_generate_([^\$]*)\$___", r"<span style='background-color: rgb(0, 165, 0, 0.25); display: inline;' title='{{\1}}'>", display_out)
+        display_out = re.sub(r"__GMARKER_START_generate_([^\$]*)\$___", r"<span style='background-color: rgb(0, 165, 0, 0.25); display: inline;' title='\1'>", display_out)
         display_out = display_out.replace("__GMARKER_END_generate$___", "</span>")
-        display_out = re.sub(r"__GMARKER_START_variable_ref_([^\$]*)\$___", r"<span style='background-color: rgb(0, 138.56128016, 250.76166089, 0.25); display: inline;' title='{{\1}}'>", display_out)
+        display_out = re.sub(r"__GMARKER_START_select_([^\$]*)\$___", r"<span style='background-color: rgb(0, 165, 0, 0.25); display: inline;' title='\1'>", display_out)
+        display_out = display_out.replace("__GMARKER_END_select$___", "</span>")
+        display_out = re.sub(r"__GMARKER_START_variable_ref_([^\$]*)\$___", r"<span style='background-color: rgb(0, 138.56128016, 250.76166089, 0.25); display: inline;' title='\1'>", display_out)
         display_out = display_out.replace("__GMARKER_END_variable_ref$___", "</span>")
         display_out = display_out.replace("__GMARKER_each$___", "<div style='border-left: 1px dashed rgb(0, 0, 0, .2); border-top: 0px solid rgb(0, 0, 0, .2); margin-right: -4px; display: inline; width: 4px; height: 24px;'></div>")
         display_out = "<pre style='padding: 7px; border-radius: 4px; background: white; white-space: pre-wrap; font-family: ColfaxAI, Arial; font-size: 16px; line-height: 24px; color: #000'>"+display_out+"</pre>"
@@ -76,8 +79,9 @@ r"""
 template = template_chunk*
 template_chunk = command / command_block / content
 command = command_start command_content command_end
-command_block = command_block_open template command_block_close
+command_block = command_block_open template (command_block_sep template)* command_block_close
 command_block_open = command_start "#" block_command_call command_end
+command_block_sep = command_start ("or" / "else") command_end
 command_block_close = command_start "/" command_name command_end
 command_start = "{{" "~"?
 command_end = "~"? "}}"
@@ -94,7 +98,7 @@ command_arg_group = "(" command_content ")"
 ws = ~'\s+'
 command_contentasdf = ~"[a-z 0-9]*"i
 command_name = ~"[a-z][a-z_0-9\.]*"i
-variable_ref = ~"[a-z][a-z_0-9\.]*"i
+variable_ref = !"or" !"else" ~"[a-z][a-z_0-9\.]*"i
 variable_name = ~"[a-z][a-z_0-9\.]*"i
 content  = ~"[^{]*"
 literal = ~'"[^\"]*"' / ~"'[^\']*'"
@@ -252,11 +256,15 @@ class TopDownVisitor():
                 if "parser" in sig.parameters:
                     named_args["parser"] = self
                 if "block_content" in sig.parameters:
-                    named_args["block_content"] = node.children[1]
-                print("args", args)
-                return command_function(*positional_args, **named_args)
+                    block_content = [node.children[1]]
+                    for child in node.children[2:-1]:
+                        block_content.append(child.children[0].children[0])
+                        block_content.append(child.children[0].children[1])
+                    named_args["block_content"] = block_content
+                out = command_function(*positional_args, **named_args)
             else:
-                return []
+                out = ""
+            return f"__GMARKER_START_{command_name}_{node.text}$___{out}__GMARKER_END_{command_name}$___"
             start_block(node.children[1], self)
             end_block = self.visit(node.children[2])
 
@@ -280,6 +288,7 @@ def _gen(variable_name, stop=None, max_tokens=500, parser_variables=None, parser
     return generated_value
 
 def _each(list, block_content, parser):
+    assert len(block_content) == 1
     out = []
     parser.variable_stack.append({})
     for i, item in enumerate(list):
@@ -287,9 +296,29 @@ def _each(list, block_content, parser):
         parser.variable_stack[-1]["@first"] = i == 0
         parser.variable_stack[-1]["@last"] = i == len(list) - 1
         parser.variable_stack[-1]["this"] = item
-        out.append(parser.visit(block_content))
+        out.append(parser.visit(block_content[0]))
     parser.variable_stack.pop()
     return "__GMARKER_each$___" + "__GMARKER_each$___".join(out) + "__GMARKER_each$___"
+
+def _select(variable_name, block_content, parser, parser_variables=None, parser_prefix=None):
+    assert len(block_content) > 1
+    options = [parser.visit(block_content[0])]
+    for i in range(1, len(block_content), 2):
+        assert block_content[i].text == "{{or}}"
+        options.append(parser.visit(block_content[i+1]))
+
+    # [TODO] we need to be able force the LM to generate a valid specific option
+    #        for openai this means setting logprobs to valid token ids
+    gen_obj = parser.prompt_object.generator(
+        parser_prefix,
+        max_tokens=int(max([len(o) for o in options] + [9])/3) # [TODO] this is a hack
+    )
+    generated_value = gen_obj["choices"][0]["text"]
+    for option in options:
+        if generated_value.startswith(option):
+            parser_variables[variable_name] = option
+            return option
+    raise Exception(f'Generated value "{generated_value}" did not match any options (this is because we have not force the model as we should TODO)')
 
 # from bv3.dsearch import bing_search
 
