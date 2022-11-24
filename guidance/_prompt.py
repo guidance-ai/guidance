@@ -41,7 +41,7 @@ class Prompt:
     
     def __call__(self, **kwargs):
         built_ins = {
-            "generate": _gen,
+            "generate": _generate,
             "each": _each,
             "select": _select
         }
@@ -95,13 +95,13 @@ command_arg = named_command_arg / positional_command_arg
 positional_command_arg = command_arg_group / variable_ref / literal
 named_command_arg = variable_name "=" (variable_ref / literal)
 command_arg_group = "(" command_content ")"
-ws = ~'\s+'
+ws = ~'\\s+'
 command_contentasdf = ~"[a-z 0-9]*"i
-command_name = ~"[a-z][a-z_0-9\.]*"i
-variable_ref = !"or" !"else" ~"[a-z][a-z_0-9\.]*"i
-variable_name = ~"[a-z][a-z_0-9\.]*"i
+command_name = ~"[a-z][a-z_0-9\\.]*"i
+variable_ref = !"or" !"else" ~"[a-z][a-z_0-9\\.]*"i
+variable_name = ~"[a-z][a-z_0-9\\.]*"i
 content  = ~"[^{]*"
-literal = ~'"[^\"]*"' / ~"'[^\']*'"
+literal = ~'"[^\\"]*"' / ~"'[^\\']*'" / ~"[0-9\\.]+"
 """)
 
 class PositionalArgument:
@@ -258,6 +258,8 @@ class TopDownVisitor():
                 if "block_content" in sig.parameters:
                     block_content = [node.children[1]]
                     for child in node.children[2:-1]:
+                        if child.text == '':
+                            continue
                         block_content.append(child.children[0].children[0])
                         block_content.append(child.children[0].children[1])
                     named_args["block_content"] = block_content
@@ -281,7 +283,7 @@ class TopDownVisitor():
 
 # tree = grammar.parse(s)
 
-def _gen(variable_name, stop=None, max_tokens=500, parser_variables=None, parser_prefix=None, parser=None):
+def _generate(variable_name, stop=None, max_tokens=500, parser_variables=None, parser_prefix=None, parser=None):
     gen_obj = parser.prompt_object.generator(parser_prefix, stop=stop, max_tokens=max_tokens)
     generated_value = gen_obj["choices"][0]["text"]
     parser_variables[variable_name] = generated_value
