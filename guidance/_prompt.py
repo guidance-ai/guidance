@@ -58,13 +58,15 @@ class Prompt:
             del variables[k]
 
         display_out = html.escape(output)
-        display_out = re.sub(r"__GMARKER_START_generate_([^\$]*)\$___", r"<span style='background-color: rgb(0, 165, 0, 0.25); display: inline;' title='\1'>", display_out)
+        display_out = re.sub(r"__GMARKER_START_generate\$([^\$]*)\$___", r"<span style='background-color: rgb(0, 165, 0, 0.25); display: inline;' title='\1'>", display_out)
         display_out = display_out.replace("__GMARKER_END_generate$___", "</span>")
-        display_out = re.sub(r"__GMARKER_START_select_([^\$]*)\$___", r"<span style='background-color: rgb(0, 165, 0, 0.25); display: inline;' title='\1'>", display_out)
+        display_out = re.sub(r"__GMARKER_START_select\$([^\$]*)\$___", r"<span style='background-color: rgb(0, 165, 0, 0.25); display: inline;' title='\1'>", display_out)
         display_out = display_out.replace("__GMARKER_END_select$___", "</span>")
-        display_out = re.sub(r"__GMARKER_START_variable_ref_([^\$]*)\$___", r"<span style='background-color: rgb(0, 138.56128016, 250.76166089, 0.25); display: inline;' title='\1'>", display_out)
+        display_out = re.sub(r"__GMARKER_START_variable_ref\$([^\$]*)\$___", r"<span style='background-color: rgb(0, 138.56128016, 250.76166089, 0.25); display: inline;' title='\1'>", display_out)
         display_out = display_out.replace("__GMARKER_END_variable_ref$___", "</span>")
         display_out = display_out.replace("__GMARKER_each$___", "<div style='border-left: 1px dashed rgb(0, 0, 0, .2); border-top: 0px solid rgb(0, 0, 0, .2); margin-right: -4px; display: inline; width: 4px; height: 24px;'></div>")
+        display_out = re.sub(r"__GMARKER_START_([^\$]*)\$([^\$]*)\$___", r"<span style='background-color: rgb(0, 165, 0, 0.25); display: inline;' title='\2'>", display_out)
+        display_out = re.sub(r"__GMARKER_END_([^\$]*)\$___", "</span>", display_out)
         display_out = "<pre style='padding: 7px; border-radius: 4px; background: white; white-space: pre-wrap; font-family: ColfaxAI, Arial; font-size: 16px; line-height: 24px; color: #000'>"+display_out+"</pre>"
 
         # strip out the markers for the unformatted output
@@ -77,7 +79,7 @@ class Prompt:
 grammar = parsimonious.grammar.Grammar(
 r"""
 template = template_chunk*
-template_chunk = command / command_block / content
+template_chunk = escaped_command / unrelated_escape / command / command_block / content
 command = command_start command_content command_end
 command_block = command_block_open template (command_block_sep template)* command_block_close
 command_block_open = command_start "#" block_command_call command_end
@@ -95,13 +97,16 @@ command_arg = named_command_arg / positional_command_arg
 positional_command_arg = command_arg_group / variable_ref / literal
 named_command_arg = variable_name "=" (variable_ref / literal)
 command_arg_group = "(" command_content ")"
-ws = ~'\\s+'
+ws = ~r'\s+'
 command_contentasdf = ~"[a-z 0-9]*"i
-command_name = ~"[a-z][a-z_0-9\\.]*"i
-variable_ref = !"or" !"else" ~"[a-z][a-z_0-9\\.]*"i
-variable_name = ~"[a-z][a-z_0-9\\.]*"i
-content  = ~"[^{]*"
-literal = ~'"[^\\"]*"' / ~"'[^\\']*'" / ~"[0-9\\.]+"
+command_name = ~r"[a-z][a-z_0-9\.]*"i
+variable_ref = !"or" !"else" ~r"[a-z][a-z_0-9\.]*"i
+variable_name = ~r"[a-z][a-z_0-9\.]*"i
+contentw = ~r'.*'
+content = ~r"[^{\\]*"
+unrelated_escape = "\\" !command_start
+escaped_command = "\\" command_start ~r"[^}]*" command_end
+literal = ~r'"[^\"]*"' / ~r"'[^\']*'" / ~r"[0-9\.]+"
 """)
 
 class PositionalArgument:
@@ -163,13 +168,19 @@ class TopDownVisitor():
         elif node.expr_name == 'command_name':
             return node.text
 
+        elif node.expr_name == 'escaped_command':
+            self.prefix += node.text[1:]
+            return node.text[1:]
+
         elif node.expr_name == 'literal':
             return ast.literal_eval(node.text)
 
         elif node.expr_name == 'command':
-            visited_children = [self.visit(child) for child in node.children]
+            visited_children = [str(self.visit(child)) for child in node.children]
             out = "".join(visited_children) or ""
-            self.prefix += out
+            prefix_out = re.sub(r"__GMARKER_START_([^\$]*)\$([^\$]*)\$___", "", out)
+            prefix_out = re.sub(r"__GMARKER_END_([^\$]*)\$___", "", prefix_out)
+            self.prefix += prefix_out
             command_head = node.children[1].children[0]
             if command_head.expr_name == 'variable_ref':
                 name = "variable_ref"
@@ -178,7 +189,7 @@ class TopDownVisitor():
             else:
                 raise Exception("Unknown command head type: "+command_head.expr_name)
 
-            return f"__GMARKER_START_{name}_{node.text}$___{out}__GMARKER_END_{name}$___"
+            return f"__GMARKER_START_{name}${node.text}$___{out}__GMARKER_END_{name}$___"
 
             return out
 
@@ -266,7 +277,7 @@ class TopDownVisitor():
                 out = command_function(*positional_args, **named_args)
             else:
                 out = ""
-            return f"__GMARKER_START_{command_name}_{node.text}$___{out}__GMARKER_END_{command_name}$___"
+            return f"__GMARKER_START_{command_name}${node.text}$___{out}__GMARKER_END_{command_name}$___"
             start_block(node.children[1], self)
             end_block = self.visit(node.children[2])
 
@@ -287,7 +298,9 @@ def _generate(variable_name, stop=None, max_tokens=500, parser_variables=None, p
     gen_obj = parser.prompt_object.generator(parser_prefix, stop=stop, max_tokens=max_tokens)
     generated_value = gen_obj["choices"][0]["text"]
     parser_variables[variable_name] = generated_value
-    return generated_value
+    subtree = grammar.parse(generated_value)
+    parsed_text = parser.visit(subtree)
+    return parsed_text
 
 def _each(list, block_content, parser):
     assert len(block_content) == 1
