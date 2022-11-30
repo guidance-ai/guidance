@@ -41,3 +41,9 @@ class OpenAI():
             _file_cache[key] = out
         return _file_cache[key]
 
+    def tokenize(self, strings):
+        out = openai.Completion.create(
+            model=self.model, prompt=strings, max_tokens=1, temperature=0, logprobs=0, echo=True
+        )
+        return [choice["logprobs"]["tokens"][:-1] for choice in out["choices"]]
+

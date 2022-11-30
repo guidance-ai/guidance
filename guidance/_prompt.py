@@ -3,6 +3,7 @@ import inspect
 import re
 import html
 import parsimonious
+import warnings
 from . import generators
 import guidance
 
@@ -219,29 +220,13 @@ class TopDownVisitor():
 
                 command_output = command_function(*positional_args, **named_args)
             else:
+                warnings.warn(f"Command '{command_name}' not found")
                 command_output = ""
             return command_output
 
         elif node.expr_name == 'block_command_call':
             command_name, args = [self.visit(child) for child in node.children]
             return command_name, args
-            if command_name in self.variable_stack[-1]:
-                command_function = self.variable_stack[-1][command_name]
-                positional_args = []
-                named_args = {}
-                for arg in args:
-                    if isinstance(arg, PositionalArgument):
-                        positional_args.append(arg.value)
-                    elif isinstance(arg, NamedArgument):
-                        named_args[arg.name] = arg.value
-                if getattr(command_function, "__takes_variables__", False):
-                    named_args["parser_variables"] = self.variable_stack[-1]
-                if getattr(command_function, "__takes_prefix__", False):
-                    named_args["parser_prefix"] = self.prefix
-
-                return command_function(*positional_args, **named_args)
-            else:
-                return []
 
         elif node.expr_name == 'command_block_open':
             visited_children = [self.visit(child) for child in node.children]
@@ -315,25 +300,45 @@ def _each(list, block_content, parser):
     parser.variable_stack.pop()
     return "__GMARKER_each$___" + "__GMARKER_each$___".join(out) + "__GMARKER_each$___"
 
-def _select(variable_name, block_content, parser, parser_variables=None, parser_prefix=None):
+def _select(variable_name, block_content, parser, parser_variables=None, parser_prefix=None, logprobs=None):
     assert len(block_content) > 1
     options = [parser.visit(block_content[0])]
     for i in range(1, len(block_content), 2):
         assert block_content[i].text == "{{or}}"
         options.append(parser.visit(block_content[i+1]))
 
-    # [TODO] we need to be able force the LM to generate a valid specific option
+    option_tokens = parser.prompt_object.generator.tokenize(options)
+
+    option_logprobs = {}
+    for option in option_tokens:
+        option_logprobs["".join(option)] = 0
+
+    # [TODO] we should force the LM to generate a valid specific option
     #        for openai this means setting logprobs to valid token ids
     gen_obj = parser.prompt_object.generator(
         parser_prefix,
-        max_tokens=int(max([len(o) for o in options] + [9])/3) # [TODO] this is a hack
+        max_tokens=max([len(o) for o in option_tokens]),
+        logprobs=10
     )
-    generated_value = gen_obj["choices"][0]["text"]
-    for option in options:
-        if generated_value.startswith(option):
-            parser_variables[variable_name] = option
-            return option
-    raise Exception(f'Generated value "{generated_value}" did not match any options (this is because we have not force the model as we should TODO)')
+
+    # copmute logprobs for each option
+    top_logprobs = gen_obj["choices"][0]["logprobs"]["top_logprobs"]
+    for i in range(len(top_logprobs)):
+        for option in option_tokens:
+            if len(option) > i:
+                option_logprobs["".join(option)] += top_logprobs[i].get(option[i], -100)
+    
+    # penalize options that are too long
+    for option in option_tokens:
+        if len(option) > len(top_logprobs):
+            option_logprobs["".join(option)] -= 100
+
+    selected_option = max(option_logprobs, key=option_logprobs.get)
+    parser_variables[variable_name] = selected_option
+    if logprobs is not None:
+        parser_variables[logprobs] = option_logprobs
+
+    return selected_option
 
 # from bv3.dsearch import bing_search
 
