@@ -31,7 +31,7 @@ class OpenAI():
     def __call__(self, prompt, stop=None, temperature=0.0, n=1, max_tokens=1000, logprobs=None):
         key = "_---_".join([str(v) for v in (self.model, prompt, stop, temperature, n, max_tokens, logprobs)])
         if key not in _file_cache or not self.caching:
-            print("CALLING LM")
+            # print("CALLING LM")
             out = openai.Completion.create(
                 model=self.model, prompt=prompt, max_tokens=max_tokens,
                 temperature=temperature, top_p=1.0, n=n, stop=stop, logprobs=logprobs#, stream=True
