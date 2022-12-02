@@ -173,6 +173,7 @@ class TopDownVisitor():
             
             command_head = node.children[1].children[0]
             if command_head.expr_name == 'variable_ref':
+                self._extend_prefix(out)
                 name = "variable_ref"
             elif command_head.expr_name == 'command_call':
                 name = command_head.children[0].text
