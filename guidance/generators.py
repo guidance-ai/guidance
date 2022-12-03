@@ -2,6 +2,7 @@ import openai
 import pathlib
 import diskcache
 import os
+import time
 
 curr_dir = pathlib.Path(__file__).parent.resolve()
 _file_cache = diskcache.Cache(f"{curr_dir}/../lm.diskcache")
@@ -32,11 +33,20 @@ class OpenAI():
         key = "_---_".join([str(v) for v in (self.model, prompt, stop, temperature, n, max_tokens, logprobs)])
         if key not in _file_cache or not self.caching:
             # print("CALLING LM")
-            out = openai.Completion.create(
-                model=self.model, prompt=prompt, max_tokens=max_tokens,
-                temperature=temperature, top_p=1.0, n=n, stop=stop, logprobs=logprobs#, stream=True
-            )
-            # for token in generator:
+
+            while True:
+                try_again = False
+                try:
+                    out = openai.Completion.create(
+                        model=self.model, prompt=prompt, max_tokens=max_tokens,
+                        temperature=temperature, top_p=1.0, n=n, stop=stop, logprobs=logprobs#, stream=True
+                    )
+                except openai.error.RateLimitError:
+                    time.sleep(5)
+                    try_again = True
+                
+                if not try_again:
+                    break
 
             _file_cache[key] = out
         return _file_cache[key]
