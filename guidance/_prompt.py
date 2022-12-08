@@ -75,8 +75,8 @@ class Prompt:
         display_out = "<pre style='padding: 7px; border-radius: 4px; background: white; white-space: pre-wrap; font-family: ColfaxAI, Arial; font-size: 16px; line-height: 24px; color: #000'>"+display_out+"</pre>"
 
         # strip out the markers for the unformatted output
-        output = re.sub(r"__GMARKER_([^\$]*)\$___", r"", output)
-        output = output.replace("__GMARKER_([^_]+)_END___", "")
+        output = re.sub(r"__GMARKER_([^\$]*)\$([^\$]*)\$___", r"", output)
+        output = re.sub(r"__GMARKER_([^\$]*)\$___", "", output)
 
         return PromptCompletion(variables, output, display_out, self)
 
