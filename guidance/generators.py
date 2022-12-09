@@ -7,11 +7,14 @@ import time
 curr_dir = pathlib.Path(__file__).parent.resolve()
 _file_cache = diskcache.Cache(f"{curr_dir}/../lm.diskcache")
 
-try:
-    with open(os.path.expanduser('~/.openai_api_key'), 'r') as file:
-        openai.api_key = file.read().replace('\n', '')
-except:
-    raise Exception("Warning: No OpenAI api key found, you need to put your OpenAI key in the file ~/.openai_api_key")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", None)
+
+if OPENAI_API_KEY is None:
+    try:
+        with open(os.path.expanduser('~/.openai_api_key'), 'r') as file:
+            openai.api_key = file.read().replace('\n', '')
+    except:
+        raise Exception("Warning: No OpenAI api key found, you need to set the OPENAI_API_KEY environment variable or put your key in the file ~/.openai_api_key")
 
 try:
     with open(os.path.expanduser('~/.openai_lm_model_name'), 'r') as file:
@@ -20,7 +23,7 @@ except:
     raise Exception("Warning: No OpenAI model name found, you need to put your OpenAI model name in the file ~/.openai_lm_model_name")
 
 class OpenAI():
-    def __init__(self, model=None, caching=True):
+    def __init__(self, model=None, caching=True, max_retries=5):
 
         # default to the model specified in the environment variable
         if model is None:
@@ -28,12 +31,13 @@ class OpenAI():
         
         self.model = model
         self.caching = caching
+        self.max_retries = max_retries
     
     def __call__(self, prompt, stop=None, temperature=0.0, n=1, max_tokens=1000, logprobs=None):
         key = "_---_".join([str(v) for v in (self.model, prompt, stop, temperature, n, max_tokens, logprobs)])
         if key not in _file_cache or not self.caching:
-            # print("CALLING LM")
 
+            fail_count = 0
             while True:
                 try_again = False
                 try:
@@ -44,9 +48,13 @@ class OpenAI():
                 except openai.error.RateLimitError:
                     time.sleep(5)
                     try_again = True
+                    fail_count += 1
                 
                 if not try_again:
                     break
+
+                if fail_count > self.max_retries:
+                    raise Exception(f"Too many (more than {self.max_retries}) OpenAI API RateLimitError's in a row!")
 
             _file_cache[key] = out
         return _file_cache[key]
