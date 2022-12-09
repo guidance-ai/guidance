@@ -39,6 +39,11 @@ class OpenAI():
         self.max_retries = max_retries
         self.token = token
         self.endpoint = endpoint
+
+        if self.endpoint is None:
+            self.caller = self._library_call
+        else:
+            self.caller = self._rest_call
     
     def __call__(self, prompt, stop=None, temperature=0.0, n=1, max_tokens=1000, logprobs=None, top_p=1.0):
         key = "_---_".join([str(v) for v in (self.model, prompt, stop, temperature, n, max_tokens, logprobs)])
@@ -48,11 +53,7 @@ class OpenAI():
             while True:
                 try_again = False
                 try:
-                    if self.endpoint is None:
-                        caller = self._library_call
-                    else:
-                        caller = self._rest_call
-                    out = caller(
+                    out = self.caller(
                         model=self.model, prompt=prompt, max_tokens=max_tokens,
                         temperature=temperature, top_p=top_p, n=n, stop=stop, logprobs=logprobs#, stream=True
                     )
@@ -90,7 +91,8 @@ class OpenAI():
             "n": kwargs["n"],
             "stream": False,
             "logprobs": kwargs["logprobs"],
-            'stop': kwargs["stop"]
+            'stop': kwargs["stop"],
+            "echo": kwargs.get("echo", False)
         }
 
         # Send a POST request and get the response
@@ -100,7 +102,7 @@ class OpenAI():
         return response.json()
 
     def tokenize(self, strings):
-        out = openai.Completion.create(
+        out = self.caller(
             model=self.model, prompt=strings, max_tokens=1, temperature=0, logprobs=0, echo=True
         )
         return [choice["logprobs"]["tokens"][:-1] for choice in out["choices"]]
