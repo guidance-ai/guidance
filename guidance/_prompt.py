@@ -64,19 +64,18 @@ class Prompt:
 
         display_out = html.escape(output)
         display_out = re.sub(r"__GMARKER_START_generate\$([^\$]*)\$___", r"<span style='background-color: rgb(0, 165, 0, 0.25); display: inline;' title='\1'>", display_out)
-        display_out = display_out.replace("__GMARKER_END_generate$___", "</span>")
+        display_out = display_out.replace("__GMARKER_END_generate$$___", "</span>")
         display_out = re.sub(r"__GMARKER_START_select\$([^\$]*)\$___", r"<span style='background-color: rgb(0, 165, 0, 0.25); display: inline;' title='\1'>", display_out)
-        display_out = display_out.replace("__GMARKER_END_select$___", "</span>")
+        display_out = display_out.replace("__GMARKER_END_select$$___", "</span>")
         display_out = re.sub(r"__GMARKER_START_variable_ref\$([^\$]*)\$___", r"<span style='background-color: rgb(0, 138.56128016, 250.76166089, 0.25); display: inline;' title='\1'>", display_out)
-        display_out = display_out.replace("__GMARKER_END_variable_ref$___", "</span>")
-        display_out = display_out.replace("__GMARKER_each$___", "<div style='border-left: 1px dashed rgb(0, 0, 0, .2); border-top: 0px solid rgb(0, 0, 0, .2); margin-right: -4px; display: inline; width: 4px; height: 24px;'></div>")
+        display_out = display_out.replace("__GMARKER_END_variable_ref$$___", "</span>")
+        display_out = display_out.replace("__GMARKER_each$$___", "<div style='border-left: 1px dashed rgb(0, 0, 0, .2); border-top: 0px solid rgb(0, 0, 0, .2); margin-right: -4px; display: inline; width: 4px; height: 24px;'></div>")
         display_out = re.sub(r"__GMARKER_START_([^\$]*)\$([^\$]*)\$___", r"<span style='background-color: rgb(0, 165, 0, 0.25); display: inline;' title='\2'>", display_out)
-        display_out = re.sub(r"__GMARKER_END_([^\$]*)\$___", "</span>", display_out)
+        display_out = re.sub(r"__GMARKER_END_([^\$]*)\$\$___", "</span>", display_out)
         display_out = "<pre style='padding: 7px; border-radius: 4px; background: white; white-space: pre-wrap; font-family: ColfaxAI, Arial; font-size: 16px; line-height: 24px; color: #000'>"+display_out+"</pre>"
 
         # strip out the markers for the unformatted output
-        output = re.sub(r"__GMARKER_([^\$]*)\$([^\$]*)\$___", r"", output)
-        output = re.sub(r"__GMARKER_([^\$]*)\$___", "", output)
+        output = re.sub(r"__GMARKER_([^\$]*)\$([^\$]*)\$___", r"", output, flags=re.MULTILINE | re.DOTALL)
 
         return PromptCompletion(variables, output, display_out, self)
 
@@ -180,7 +179,8 @@ class TopDownVisitor():
             else:
                 raise Exception("Unknown command head type: "+command_head.expr_name)
 
-            return f"__GMARKER_START_{name}${node.text}$___{out}__GMARKER_END_{name}$___"
+            node_text = node.text.replace("$", "DOLLAR_SIGN")
+            return f"__GMARKER_START_{name}${node_text}$___{out}__GMARKER_END_{name}$$___"
 
         elif node.expr_name == 'command_arg_group':
             visited_children = [self.visit(child) for child in node.children]
@@ -262,7 +262,9 @@ class TopDownVisitor():
                 command_output = command_function(*positional_args, **named_args)
             else:
                 command_output = ""
-            return f"__GMARKER_START_{command_name}${node.text}$___{command_output}__GMARKER_END_{command_name}$___"
+
+            node_text = node.text.replace("$", "DOLLAR_SIGN")
+            return f"__GMARKER_START_{command_name}${node_text}$___{command_output}__GMARKER_END_{command_name}$$___"
             # start_block(node.children[1], self)
             # end_block = self.visit(node.children[2])
 
@@ -323,8 +325,7 @@ class TopDownVisitor():
             self.variable_stack[0][name] = value
 
     def _extend_prefix(self, text):
-        prefix_out = re.sub(r"__GMARKER_START_([^\$]*)\$([^\$]*)\$___", "", text)
-        prefix_out = re.sub(r"__GMARKER_END_([^\$]*)\$___", "", prefix_out)
+        prefix_out = re.sub(r"__GMARKER_([^\$]*)\$([^\$]*)\$___", "", text)
         self.prefix += prefix_out
         if self.prompt_object.echo:
             print(prefix_out, end='')
@@ -354,7 +355,7 @@ def _each(list, block_content, parser):
         parser.variable_stack[-1]["this"] = item
         out.append(parser.visit(block_content[0]))
     parser.variable_stack.pop()
-    return "__GMARKER_each$___" + "__GMARKER_each$___".join(out) + "__GMARKER_each$___"
+    return "__GMARKER_each$$___" + "__GMARKER_each$$___".join(out) + "__GMARKER_each$$___"
 
 def _select(variable_name, block_content, parser, partial_output, parser_prefix=None, logprobs=None):
     ''' Select a value from a list of choices.
