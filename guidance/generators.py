@@ -4,33 +4,35 @@ import diskcache
 import os
 import time
 import requests
+import warnings
 
 curr_dir = pathlib.Path(__file__).parent.resolve()
 _file_cache = diskcache.Cache(f"{curr_dir}/../lm.diskcache")
 
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", None)
-
-if OPENAI_API_KEY is None:
-    try:
-        with open(os.path.expanduser('~/.openai_api_key'), 'r') as file:
-            openai.api_key = file.read().replace('\n', '')
-    except:
-        raise Exception("Warning: No OpenAI api key found, you need to set the OPENAI_API_KEY environment variable or put your key in the file ~/.openai_api_key")
-
-try:
-    with open(os.path.expanduser('~/.openai_lm_model_name'), 'r') as file:
-        gpt_model = file.read().replace('\n', '')
-except:
-    raise Exception("Warning: No OpenAI model name found, you need to put your OpenAI model name in the file ~/.openai_lm_model_name")
-
 class OpenAI():
     def __init__(self, model=None, caching=True, max_retries=2, token=None, endpoint=None):
 
-        # default to environment variable values
+        # fill in default model value
         if model is None:
-            model = os.environ.get("OPENAI_MODEL", gpt_model)
+            model = os.environ.get("OPENAI_MODEL", None)
+        if model is None:
+            try:
+                with open(os.path.expanduser('~/.openai_model'), 'r') as file:
+                    model = file.read().replace('\n', '')
+            except:
+                pass
+        
+        # fill in default API key value
         if token is None:
-            token = os.environ.get("OPENAI_API_KEY", None)
+            token = os.environ.get("OPENAI_API_KEY", openai.api_key)
+        if token is None:
+            try:
+                with open(os.path.expanduser('~/.openai_api_key'), 'r') as file:
+                    token = file.read().replace('\n', '')
+            except:
+                pass
+        
+        # fill in default endpoint value
         if endpoint is None:
             endpoint = os.environ.get("OPENAI_ENDPOINT", None)
         
@@ -46,6 +48,9 @@ class OpenAI():
             self.caller = self._rest_call
     
     def __call__(self, prompt, stop=None, temperature=0.0, n=1, max_tokens=1000, logprobs=None, top_p=1.0):
+        """ Generate a completion of the given prompt.
+        """
+
         key = "_---_".join([str(v) for v in (self.model, prompt, stop, temperature, n, max_tokens, logprobs)])
         if key not in _file_cache or not self.caching:
 
@@ -73,9 +78,20 @@ class OpenAI():
         return _file_cache[key]
 
     def _library_call(self, **kwargs):
-        return openai.Completion.create(**kwargs)
+        """ Call the OpenAI API using the python package.
+
+        Note that is uses the local auth token, and does not rely on the openai one.
+        """
+        prev_key = openai.api_key
+        openai.api_key = self.token
+        out = openai.Completion.create(**kwargs)
+        openai.api_key = prev_key
+        return out
 
     def _rest_call(self, **kwargs):
+        """ Call the OpenAI API using the REST API.
+        """
+
         # Define the request headers
         headers = {
             'Content-Type': 'application/json',
