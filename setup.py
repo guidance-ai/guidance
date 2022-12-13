@@ -29,6 +29,7 @@ setup(
     install_requires=[
         "diskcache",
         "openai",
-        "pybars3"
+        "pybars3",
+        "parsimonious"
     ]
 )
