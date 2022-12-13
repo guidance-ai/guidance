@@ -332,10 +332,10 @@ class TopDownVisitor():
             sys.stdout.flush()
 
 
-def _generate(variable_name, partial_output, stop=None, max_tokens=500, parser_prefix=None, parser=None, prefix="", suffix=""):
+def _generate(variable_name, partial_output, stop=None, max_tokens=500, temperature=0.0, top_p=1.0, parser_prefix=None, parser=None, prefix="", suffix=""):
     ''' Use the LM to generate a completion string that is stored in the variable `variable_name`.
     '''
-    gen_obj = parser.prompt_object.generator(parser_prefix+prefix, stop=stop, max_tokens=max_tokens)
+    gen_obj = parser.prompt_object.generator(parser_prefix+prefix, stop=stop, max_tokens=max_tokens, temperature=temperature, top_p=top_p)
     generated_value = prefix+gen_obj["choices"][0]["text"]+suffix
     parser.set_variable(variable_name, generated_value)
     subtree = grammar.parse(generated_value)
