@@ -24,7 +24,7 @@ prompt = guidance.Prompt('''Use the following statements to answer the query "{{
 STATEMENTS{{#each statements}}
 - {{this}}{{/each}}
 ---
-Now please answer the query "{{query}}":{{gen 'answer'}}''')
+Now please answer the query "{{query}}":{{generate 'answer'}}''')
 
 # execute the prompt
 completion = prompt(
@@ -63,4 +63,4 @@ Conditionals can be expressed with an opening `#if` tag and a closing `/if` tag.
 Inverted conditionals can be expressed with an opening `#unless` tag and a closing `/unless` tag.
 
 ### {{#each list}} {{/each}}
-Loops can be expressed with an opening `#each` tag and a closing `/each` tag. Inside a loop the special boolean variables`this`, `@first`, `@last`, and `@index` are automatically defined. Where `this` is the current element in the list.
+Loops can be expressed with an opening `#each` tag and a closing `/each` tag. Inside a loop the special boolean variables `this`, `@first`, `@last`, and `@index` are automatically defined. Where `this` is the current element in the list.
