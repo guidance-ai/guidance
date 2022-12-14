@@ -66,3 +66,10 @@ You can force the language model to choose between a restricted set of possible 
 ```python
 Answer Yes/No:{{#select 'answer'}} Yes{{or}} No{{/select}}
 ```
+
+### {{add val1 val2 ...}}
+You can add any number of values together using the `add` function. This can be useful for example to change 0-based indexing to 1-based:
+```python
+{{#each statements}}
+- [{{add @index 1}}] {{this}}{{/each}}
+```

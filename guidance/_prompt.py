@@ -49,6 +49,8 @@ class Prompt:
             "select": _select,
             "if": _if,
             "unless": _unless,
+            "add": _add,
+            "subtract": _subtract,
         }
         variables = {}
         variables.update(built_ins)
@@ -325,7 +327,7 @@ class TopDownVisitor():
             self.variable_stack[0][name] = value
 
     def _extend_prefix(self, text):
-        prefix_out = re.sub(r"__GMARKER_([^\$]*)\$([^\$]*)\$___", "", text)
+        prefix_out = re.sub(r"__GMARKER_([^\$]*)\$([^\$]*)\$___", "", str(text))
         self.prefix += prefix_out
         if self.prompt_object.echo:
             print(prefix_out, end='')
@@ -341,6 +343,16 @@ def _generate(variable_name, partial_output, stop=None, max_tokens=500, temperat
     subtree = grammar.parse(generated_value)
     parsed_text = parser.visit(subtree)
     return parsed_text
+
+def _add(*args):
+    ''' Add the given variables together.
+    '''
+    return sum(args)
+
+def _subtract(arg1, arg2):
+    ''' Subtract the second variable from the first.
+    '''
+    return arg1 - arg2
 
 def _each(list, block_content, parser):
     ''' Iterate over a list and execute a block for each item.
