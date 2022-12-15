@@ -101,13 +101,13 @@ class OpenAI():
         # Define the request data
         data = {
             "prompt": kwargs["prompt"],
-            "max_tokens": kwargs["max_tokens"],
-            "temperature": kwargs["temperature"],
-            "top_p": kwargs["top_p"],
-            "n": kwargs["n"],
+            "max_tokens": kwargs.get("max_tokens", None),
+            "temperature": kwargs.get("temperature", 0.0),
+            "top_p": kwargs.get("top_p", 1.0),
+            "n": kwargs.get("n", 1),
             "stream": False,
-            "logprobs": kwargs["logprobs"],
-            'stop': kwargs["stop"],
+            "logprobs": kwargs.get("logprobs", None),
+            'stop': kwargs.get("stop", None),
             "echo": kwargs.get("echo", False)
         }
 
@@ -123,7 +123,7 @@ class OpenAI():
             try_again = False
             try:
                 out = self.caller(
-                    model=self.model, prompt=strings, max_tokens=1, temperature=0, logprobs=0, echo=True, top_p=1.0
+                    model=self.model, prompt=strings, max_tokens=1, temperature=0, logprobs=0, echo=True
                 )
 
             except openai.error.RateLimitError:
