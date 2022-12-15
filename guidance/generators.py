@@ -118,9 +118,25 @@ class OpenAI():
         return response.json()
 
     def tokenize(self, strings):
-        out = self.caller(
-            model=self.model, prompt=strings, max_tokens=1, temperature=0, logprobs=0, echo=True
-        )
+        fail_count = 0
+        while True:
+            try_again = False
+            try:
+                out = self.caller(
+                    model=self.model, prompt=strings, max_tokens=1, temperature=0, logprobs=0, echo=True
+                )
+
+            except openai.error.RateLimitError:
+                time.sleep(3)
+                try_again = True
+                fail_count += 1
+            
+            if not try_again:
+                break
+
+            if fail_count > self.max_retries:
+                raise Exception(f"Too many (more than {self.max_retries}) OpenAI API RateLimitError's in a row!")
+        
         if isinstance(strings, str):
             return out["choices"][0]["logprobs"]["tokens"][:-1]
         else:
