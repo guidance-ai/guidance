@@ -123,7 +123,7 @@ class OpenAI():
             try_again = False
             try:
                 out = self.caller(
-                    model=self.model, prompt=strings, max_tokens=1, temperature=0, logprobs=0, echo=True
+                    model=self.model, prompt=strings, max_tokens=1, temperature=0, logprobs=0, echo=True, top_p=1.0
                 )
 
             except openai.error.RateLimitError:
