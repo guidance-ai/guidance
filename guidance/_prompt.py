@@ -77,10 +77,12 @@ class Prompt:
         display_out = "<pre style='padding: 7px; border-radius: 4px; background: white; white-space: pre-wrap; font-family: ColfaxAI, Arial; font-size: 16px; line-height: 24px; color: #000'>"+display_out+"</pre>"
 
         # strip out the markers for the unformatted output
-        output = re.sub(r"__GMARKER_([^\$]*)\$([^\$]*)\$___", r"", output, flags=re.MULTILINE | re.DOTALL)
+        output = strip_markers(output)
 
         return PromptCompletion(variables, output, display_out, self)
 
+def strip_markers(s):
+    return re.sub(r"__GMARKER_([^\$]*)\$([^\$]*)\$___", r"", s, flags=re.MULTILINE | re.DOTALL)
 
 grammar = parsimonious.grammar.Grammar(
 r"""
@@ -327,7 +329,7 @@ class TopDownVisitor():
             self.variable_stack[0][name] = value
 
     def _extend_prefix(self, text):
-        prefix_out = re.sub(r"__GMARKER_([^\$]*)\$([^\$]*)\$___", "", str(text))
+        prefix_out = strip_markers(str(text))
         self.prefix += prefix_out
         if self.prompt_object.echo:
             print(prefix_out, end='')
@@ -354,19 +356,44 @@ def _subtract(arg1, arg2):
     '''
     return arg1 - arg2
 
-def _each(list, block_content, parser):
+def _each(list, block_content, parser, parser_prefix=None, stop=None):
     ''' Iterate over a list and execute a block for each item.
     '''
     assert len(block_content) == 1
+
     out = []
-    parser.variable_stack.append({})
-    for i, item in enumerate(list):
-        parser.variable_stack[-1]["@index"] = i
-        parser.variable_stack[-1]["@first"] = i == 0
-        parser.variable_stack[-1]["@last"] = i == len(list) - 1
-        parser.variable_stack[-1]["this"] = item
-        out.append(parser.visit(block_content[0]))
-    parser.variable_stack.pop()
+    
+    # if the list is a string then it is the name of a variable to save a new list to
+    if isinstance(list, str):
+        assert stop is not None, "Must provide a stop token when doing variable length iteration!"
+        stop_tokens = parser.prompt_object.generator.tokenize(stop)
+        i = 0
+        data = []
+        while True:
+            parser.variable_stack.append({})
+            parser.variable_stack[-1]["@index"] = i
+            parser.variable_stack[-1]["@first"] = i == 0
+            parser.variable_stack[-1]["this"] = {}
+            out.append(parser.visit(block_content[0]))
+            data.append(parser.variable_stack.pop()["this"])
+            i += 1
+
+            # we run a quick generation to see if we have reached the end of the list (not the +2 tokens is to help be tolorant to whitespace)
+            gen_obj = parser.prompt_object.generator(parser.prefix, stop=stop, max_tokens=len(stop_tokens)+2, temperature=0)
+            if gen_obj["choices"][0]["finish_reason"] == "stop":
+                break
+        parser.set_variable(list, data)
+
+    # if the list is not a string then it is a list of items to iterate over
+    else:
+        parser.variable_stack.append({})
+        for i, item in enumerate(list):
+            parser.variable_stack[-1]["@index"] = i
+            parser.variable_stack[-1]["@first"] = i == 0
+            parser.variable_stack[-1]["@last"] = i == len(list) - 1
+            parser.variable_stack[-1]["this"] = item
+            out.append(parser.visit(block_content[0]))
+        parser.variable_stack.pop()
     return "__GMARKER_each$$___" + "__GMARKER_each$$___".join(out) + "__GMARKER_each$$___"
 
 def _select(variable_name, block_content, parser, partial_output, parser_prefix=None, logprobs=None):

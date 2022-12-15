@@ -121,4 +121,7 @@ class OpenAI():
         out = self.caller(
             model=self.model, prompt=strings, max_tokens=1, temperature=0, logprobs=0, echo=True
         )
-        return [choice["logprobs"]["tokens"][:-1] for choice in out["choices"]]
+        if isinstance(strings, str):
+            return out["choices"][0]["logprobs"]["tokens"][:-1]
+        else:
+            return [choice["logprobs"]["tokens"][:-1] for choice in out["choices"]]
