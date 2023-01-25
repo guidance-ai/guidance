@@ -5,12 +5,14 @@ import os
 import time
 import requests
 import warnings
+import time
+import collections
 
 curr_dir = pathlib.Path(__file__).parent.resolve()
 _file_cache = diskcache.Cache(f"{curr_dir}/../lm.diskcache")
 
 class OpenAI():
-    def __init__(self, model=None, caching=True, max_retries=2, token=None, endpoint=None):
+    def __init__(self, model=None, caching=True, max_retries=5, max_calls_per_min=60, token=None, endpoint=None):
 
         # fill in default model value
         if model is None:
@@ -39,8 +41,11 @@ class OpenAI():
         self.model = model
         self.caching = caching
         self.max_retries = max_retries
+        self.max_calls_per_min = max_calls_per_min
         self.token = token
         self.endpoint = endpoint
+        self.current_time = time.time()
+        self.call_history = collections.deque()
 
         if self.endpoint is None:
             self.caller = self._library_call
@@ -54,10 +59,15 @@ class OpenAI():
         key = "_---_".join([str(v) for v in (self.model, prompt, stop, temperature, n, max_tokens, logprobs)])
         if key not in _file_cache or not self.caching:
 
+            # ensure we don't exceed the rate limit
+            if self.count_calls() > self.max_calls_per_min:
+                time.sleep(1)        
+
             fail_count = 0
             while True:
                 try_again = False
                 try:
+                    self.add_call()
                     out = self.caller(
                         model=self.model, prompt=prompt, max_tokens=max_tokens,
                         temperature=temperature, top_p=top_p, n=n, stop=stop, logprobs=logprobs#, stream=True
@@ -76,6 +86,23 @@ class OpenAI():
 
             _file_cache[key] = out
         return _file_cache[key]
+
+    # Define a function to add a call to the deque
+    def add_call(self):
+        # Get the current timestamp in seconds
+        now = time.time()
+        # Append the timestamp to the right of the deque
+        self.call_history.append(now)
+
+    # Define a function to count the calls in the last 60 seconds
+    def count_calls(self):
+        # Get the current timestamp in seconds
+        now = time.time()
+        # Remove the timestamps that are older than 60 seconds from the left of the deque
+        while self.call_history and self.call_history[0] < now - 60:
+            self.call_history.popleft()
+        # Return the length of the deque as the number of calls
+        return len(self.call_history)
 
     def _library_call(self, **kwargs):
         """ Call the OpenAI API using the python package.
@@ -141,3 +168,9 @@ class OpenAI():
             return out["choices"][0]["logprobs"]["tokens"][:-1]
         else:
             return [choice["logprobs"]["tokens"][:-1] for choice in out["choices"]]
+
+
+
+# Define a deque to store the timestamps of the calls
+
+
