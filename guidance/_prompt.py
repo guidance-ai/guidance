@@ -217,7 +217,10 @@ class TopDownVisitor():
                 if "partial_output" in sig.parameters:
                     named_args["partial_output"] = self._extend_prefix
                 if "next_text" in sig.parameters:
-                    named_args["next_text"] = next_node.text
+                    if next_node is not None:
+                        named_args["next_text"] = next_node.text
+                    else:
+                        named_args["next_text"] = ""
 
                 command_output = command_function(*positional_args, **named_args)
 
@@ -350,7 +353,7 @@ class TopDownVisitor():
             sys.stdout.flush()
 
 
-def _generate(variable_name, partial_output, stop=None, max_tokens=500, temperature=0.0, top_p=1.0, parser_prefix=None, parser=None, prefix="", suffix="", next_text=None):
+def _generate(variable_name, partial_output, parse=False, stop=None, max_tokens=500, temperature=0.0, top_p=1.0, parser_prefix=None, parser=None, prefix="", suffix="", next_text=None):
     ''' Use the LM to generate a completion string that is stored in the variable `variable_name`.
     '''
 
@@ -361,9 +364,11 @@ def _generate(variable_name, partial_output, stop=None, max_tokens=500, temperat
     gen_obj = parser.prompt_object.generator(parser_prefix+prefix, stop=stop, max_tokens=max_tokens, temperature=temperature, top_p=top_p)
     generated_value = prefix+gen_obj["choices"][0]["text"]+suffix
     parser.set_variable(variable_name, generated_value)
-    subtree = grammar.parse(generated_value)
-    parsed_text = parser.visit(subtree)
-    return parsed_text
+    if parse:
+        subtree = grammar.parse(generated_value)
+        return parser.visit(subtree)
+    else:
+        return generated_value
 
 def _add(*args):
     ''' Add the given variables together.
