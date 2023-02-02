@@ -368,6 +368,7 @@ def _generate(variable_name, partial_output, parse=False, stop=None, max_tokens=
         subtree = grammar.parse(generated_value)
         return parser.visit(subtree)
     else:
+        partial_output(generated_value)
         return generated_value
 
 def _add(*args):

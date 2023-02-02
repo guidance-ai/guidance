@@ -14,6 +14,7 @@ pip install guidance
 
 Guidance prompts allow you to specifcy the structure of your prompt through a simple templating syntax, then compile those into a form that can be executed via a large language model API. 
 
+### Question answering from references
 ```python
 import guidance
 
@@ -38,6 +39,28 @@ print("The answer is", completion["answer"])
 completion
 ```
 <img width="567" src="https://raw.githubusercontent.com/slundberg/guidance/master/docs/artwork/demo_output.png" />
+
+### Claim extraction with a generative loop
+```python
+# define a guidance prompt
+prompt = guidance.Prompt('''<guidance>
+Extract all the factual claims from the following text one by one.
+<text>{{text}}</text>
+---
+<claims>{{#each 'claims' stop="</claims>"}}
+<claim>{{generate 'this' stop='</claim>'}}</claim>{{/each}}
+</claims>''')
+
+# execute the prompt
+completion = prompt(
+    text="An apple is an edible fruit produced by an apple tree. Apple trees are cultivated worldwide and are the most widely grown species in the genus Malus. "
+)
+# completion["claims"] now contains the claims strings as an array
+
+completion # display the completion in a notebook environment
+```
+<img width="625" src="https://raw.githubusercontent.com/slundberg/guidance/master/docs/artwork/gen_loop_demo.png" />
+
 
 ## Template syntax
 
