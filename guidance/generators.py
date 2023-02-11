@@ -7,6 +7,9 @@ import requests
 import warnings
 import time
 import collections
+import json
+import uuid
+import re
 
 curr_dir = pathlib.Path(__file__).parent.resolve()
 _file_cache = diskcache.Cache(f"{curr_dir}/../lm.diskcache")
@@ -174,3 +177,58 @@ class OpenAI():
 # Define a deque to store the timestamps of the calls
 
 
+class AMLBatchScoring():
+    """Class to handle generating payloads for batch scoring on Azure ML. Does not invoke a model directly."""
+
+    def __init__(self, payload_file):
+        self.payload_file = payload_file
+
+    def __call__(self, prompt, template_text="", id=uuid.uuid4(), stop=None, temperature=0.0, n=1, max_tokens=1000, logprobs=None, top_p=1.0):
+        """ Generate a JSON payload with the given prompt.
+        """
+
+        payload = {
+            "prompt": prompt,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "top_p": top_p,
+            "n": n,
+            "logprobs": logprobs,
+            'stop': stop,
+            '_batch_request_metadata': {
+                'batch_id': id,
+                'template_text': template_text
+            }
+        }
+        
+        with open(self.payload_file, "a") as f:
+            f.write(json.dumps(payload) + "\n")
+
+        return payload
+
+    def tokenize(self, strings):
+        """ Tokenize the given strings. #TODO: implement this?
+        """
+        return len(strings)
+    
+    def parse_batch_generation(self, template_text, generated_text):
+        """ Parse a batch generated string into a list of items. For use parsing results from batch AML scoring.
+        """
+        pattern = re.sub(
+            r'{{generate [\'"]([^\'"]+)[\'"][^}]*}}',
+            lambda x: r"(?P<"+x.group(1).replace("this.", "")+">.*?)",
+            template_text
+        )
+
+        data = []
+
+        # parse the generated content (this assumes the generated content is syntactically correct)
+        matches = re.finditer(pattern, generated_text)
+        
+        for m in matches:#f"__GMARKER_START_{name}${node_text}$___{out}__GMARKER_END_{name}$$___"
+            
+            # get the variables that were generated
+            match_dict = m.groupdict()
+            data.append(match_dict)
+
+        return data

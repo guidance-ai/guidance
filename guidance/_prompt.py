@@ -30,13 +30,14 @@ class Prompt:
     ''' A prompt template that can be compiled and executed to generate a PromptCompletion result.
     '''
 
-    def __init__(self, prompt, generator=None, echo=False):
+    def __init__(self, prompt, generator=None, echo=False, id=None):
         """ Create a new Prompt object from a prompt string.
         """
         self.prompt_string = prompt
         self.generator = generator
         self.echo = echo
         self.tree = grammar.parse(self.prompt_string)
+        self.id = id
 
         # default to an OpenAI generator
         if self.generator is None:
@@ -362,14 +363,17 @@ def _generate(variable_name, partial_output, parse=False, stop=None, max_tokens=
         stop = next_text
     
     gen_obj = parser.prompt_object.generator(parser_prefix+prefix, stop=stop, max_tokens=max_tokens, temperature=temperature, top_p=top_p)
-    generated_value = prefix+gen_obj["choices"][0]["text"]+suffix
-    parser.set_variable(variable_name, generated_value)
-    if parse:
-        subtree = grammar.parse(generated_value)
-        return parser.visit(subtree)
+    if "choices" in gen_obj:
+        generated_value = prefix+gen_obj["choices"][0]["text"]+suffix
+        parser.set_variable(variable_name, generated_value)
+        if parse:
+            subtree = grammar.parse(generated_value)
+            return parser.visit(subtree)
+        else:
+            partial_output(generated_value)
+            return generated_value
     else:
-        partial_output(generated_value)
-        return generated_value
+        return ""
 
 def _add(*args):
     ''' Add the given variables together.
@@ -418,25 +422,31 @@ def _each(list, block_content, parser, parser_prefix=None, stop=None, batch_gene
             )
 
             # generate the looped content
-            gen_obj = parser.prompt_object.generator(parser_prefix, stop=stop, max_tokens=batch_generate_max_tokens, temperature=batch_generate_temperature, top_p=batch_generate_top_p)
-            generated_value = gen_obj["choices"][0]["text"]
-
-            # parse the generated content (this assumes the generated content is syntactically correct)
-            matches = re.finditer(pattern, generated_value)
+            gen_obj = parser.prompt_object.generator(parser_prefix, template_text=block_content[0].text, id=parser.prompt_object.id, stop=stop, max_tokens=batch_generate_max_tokens, temperature=batch_generate_temperature, top_p=batch_generate_top_p)
             data = []
-            for m in matches:#f"__GMARKER_START_{name}${node_text}$___{out}__GMARKER_END_{name}$$___"
-                
-                # get the variables that were generated
-                match_dict = m.groupdict()
-                data.append(match_dict)
+            if "choices" in gen_obj:
+                generated_value = gen_obj["choices"][0]["text"]
 
-                # recreate the output string with format markers added
-                item_out = re.sub(
-                    r"{{generate [\'\"]([^\'\"]+)[\'\"][^}]*}}",
-                    lambda x: "__GMARKER_START_generate$"+x.group()+"$___"+match_dict[x.group(1).replace("this.", "")]+"__GMARKER_END_generate$$___",
-                    block_content[0].text
-                )
-                out.append(item_out)
+                # parse the generated content (this assumes the generated content is syntactically correct)
+                matches = re.finditer(pattern, generated_value)
+                
+                for m in matches:#f"__GMARKER_START_{name}${node_text}$___{out}__GMARKER_END_{name}$$___"
+                    
+                    # get the variables that were generated
+                    match_dict = m.groupdict()
+                    data.append(match_dict)
+
+                    # recreate the output string with format markers added
+                    item_out = re.sub(
+                        r"{{generate [\'\"]([^\'\"]+)[\'\"][^}]*}}",
+                        lambda x: "__GMARKER_START_generate$"+x.group()+"$___"+match_dict[x.group(1).replace("this.", "")]+"__GMARKER_END_generate$$___",
+                        block_content[0].text
+                    )
+                    out.append(item_out)
+            else:
+                # this is a payload, not a completion response
+                return ""
+
                 
         parser.set_variable(list, data)
 
