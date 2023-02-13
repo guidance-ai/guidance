@@ -362,7 +362,7 @@ def _generate(variable_name, partial_output, parse=False, stop=None, max_tokens=
     if stop is None:
         stop = next_text
     
-    gen_obj = parser.prompt_object.generator(parser_prefix+prefix, stop=stop, max_tokens=max_tokens, temperature=temperature, top_p=top_p)
+    gen_obj = parser.prompt_object.generator(parser_prefix+prefix, stop=stop, max_tokens=max_tokens, temperature=temperature, top_p=top_p, id=parser.prompt_object.id)
     if "choices" in gen_obj:
         generated_value = prefix+gen_obj["choices"][0]["text"]+suffix
         parser.set_variable(variable_name, generated_value)

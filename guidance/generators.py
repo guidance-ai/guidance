@@ -55,7 +55,7 @@ class OpenAI():
         else:
             self.caller = self._rest_call
     
-    def __call__(self, prompt, stop=None, temperature=0.0, n=1, max_tokens=1000, logprobs=None, top_p=1.0):
+    def __call__(self, prompt, stop=None, temperature=0.0, n=1, max_tokens=1000, logprobs=None, top_p=1.0, id=None):
         """ Generate a completion of the given prompt.
         """
 
@@ -183,10 +183,12 @@ class AMLBatchScoring():
     def __init__(self, payload_file):
         self.payload_file = payload_file
 
-    def __call__(self, prompt, template_text="", id=uuid.uuid4(), stop=None, temperature=0.0, n=1, max_tokens=1000, logprobs=None, top_p=1.0):
+    def __call__(self, prompt, template_text="", id="", stop=None, temperature=0.0, n=1, max_tokens=1000, logprobs=None, top_p=1.0):
         """ Generate a JSON payload with the given prompt.
         """
-
+        if not id:
+            id = str(uuid.uuid4())
+            
         payload = {
             "prompt": prompt,
             "max_tokens": max_tokens,
