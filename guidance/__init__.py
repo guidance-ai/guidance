@@ -1,4 +1,4 @@
-__version__ = "0.0.20"
+__version__ = "0.0.21"
 
 from ._prompt import Prompt
 from . import generators

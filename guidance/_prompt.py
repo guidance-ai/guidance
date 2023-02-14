@@ -5,6 +5,7 @@ import html
 import sys
 import parsimonious
 import warnings
+import copy
 from . import generators
 import guidance
 
@@ -30,19 +31,59 @@ class Prompt:
     ''' A prompt template that can be compiled and executed to generate a PromptCompletion result.
     '''
 
-    def __init__(self, prompt, generator=None, echo=False):
+    def __init__(self, template, call_function=None, generator=None, echo=False):
         """ Create a new Prompt object from a prompt string.
         """
-        self.prompt_string = prompt
+        self.template = template
+        self.call_function = call_function
         self.generator = generator
         self.echo = echo
-        self.tree = grammar.parse(self.prompt_string)
+
+        self.patch_stack = []
 
         # default to an OpenAI generator
         if self.generator is None:
             self.generator = guidance.default_generator
+
+        # if we don't have a custom call function, we parse the string
+        if call_function is None:
+            self.tree = grammar.parse(self.template)
+    
+    def patch(self, patch_functions):
+        """ Add a patch to this prompt.
+        """
+
+        # copy ourself
+        new_self = copy.copy(self)
+
+        if callable(patch_functions):
+            patch_functions = []
+        for patch_function in patch_functions:
+            arg_names = inspect.getfullargspec(patch_function).args
+            new_self.patch_stack.append((patch_function, arg_names))
+        
+        return new_self
     
     def __call__(self, **kwargs):
+
+        # apply any patches
+        patched_kwargs = {k: v for k, v in kwargs.items()}
+        if "template" not in kwargs:
+            patched_kwargs["template"] = self.template
+        for patch, arg_names in self.patch_stack:
+            tmp = patch(**{k: patched_kwargs[k] for k in arg_names})
+            if len(arg_names) == 1:
+                tmp = (tmp,)
+            for k, v in zip(arg_names, tmp):
+                patched_kwargs[k] = v
+        if "template" not in kwargs and (patched_kwargs["template"] == self.template) and self.call_function == None:
+            del patched_kwargs["template"]
+
+        # if we have a custom call function, we call that instead
+        if self.call_function is not None:
+            return self.call_function(**patched_kwargs)
+        
+        # ...otherwise we do the normal parsing
         built_ins = {
             "generate": _generate,
             "each": _each,
@@ -54,7 +95,7 @@ class Prompt:
         }
         variables = {}
         variables.update(built_ins)
-        variables.update(kwargs)
+        variables.update(patched_kwargs)
 
         vi = TopDownVisitor(variables, self)
 
@@ -94,6 +135,8 @@ command_block_open = command_start "#" block_command_call command_end
 command_block_sep = command_start ("or" / "else") command_end
 command_block_close = command_start "/" command_name command_end
 command_start = "{{" "~"?
+not_command_start = "{" !"{"
+not_command_escape = "\\" !"{{"
 command_end = "~"? "}}"
 command_contents = ~'[^{]*'
 block_command_call = command_name command_args
@@ -111,10 +154,36 @@ command_name = ~r"[a-z][a-z_0-9\.]*"i
 variable_ref = !"or" !"else" ~r"[@a-z][a-z_0-9\.]*"i
 variable_name = ~r"[@a-z][a-z_0-9\.]*"i
 contentw = ~r'.*'
-content = ~r"[^{\\]*"
+content = not_command_start / not_command_escape / ~r"[^{\\]*"
 unrelated_escape = "\\" !command_start
 escaped_command = "\\" command_start ~r"[^}]*" command_end
-literal = ~r'"[^\"]*"' / ~r"'[^\']*'" / ~r"[0-9\.]+"
+
+
+literal = string_literal / number_literal / boolean_literal / array_literal / object_literal
+
+string_literal = ~r'"[^\"]*"' / ~r"'[^\']*'"
+
+number_literal = ~r"[0-9\.]+"
+
+boolean_literal = "True" / "False"
+
+array_literal = empty_array / single_item_array / multi_item_array
+empty_array = array_start ws? array_end
+single_item_array = array_start ws? array_item ws? array_end
+array_sep = ws? "," ws?
+multi_item_array = array_start ws? array_item (array_sep array_item)* ws? array_end
+array_start = "["
+array_end = "]"
+array_item = literal
+
+object_literal = empty_object / single_item_object / multi_item_object
+empty_object = object_start ws? object_end
+single_item_object = object_start ws? object_item ws? object_end
+object_sep = ws? "," ws?
+multi_item_object = object_start ws? object_item (object_sep object_item)* ws? object_end
+object_start = "{"
+object_end = "}"
+object_item = string_literal ws? ":" ws? literal
 """)
 
 class PositionalArgument:
@@ -428,7 +497,10 @@ def _each(list, block_content, parser, parser_prefix=None, stop=None, batch_gene
                 
                 # get the variables that were generated
                 match_dict = m.groupdict()
-                data.append(match_dict)
+                if len(match_dict) == 1 and "this" in match_dict:
+                    data.append(match_dict["this"])
+                else:
+                    data.append(match_dict)
 
                 # recreate the output string with format markers added
                 item_out = re.sub(
