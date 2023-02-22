@@ -32,8 +32,7 @@ completion = prompt(
     query="What fruits does Joe like?",
     statements=["Joe likes Apples", "Joe dislikes Oranges", "Sue likes Bananas"]
 )
-
-print("The answer is", completion["answer"])
+# completion["answer"] now contains the generated answer string
 
 # display the completion in a notebook environment
 completion
