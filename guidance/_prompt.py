@@ -2,6 +2,7 @@ import ast
 import inspect
 import re
 import html
+import uuid
 import sys
 import parsimonious
 import warnings
@@ -34,7 +35,7 @@ class Prompt:
     def __init__(self, template, call_function=None, generator=None, echo=False):
         """ Create a new Prompt object from a prompt string.
         """
-        self.template = template
+        self._template = template
         self.call_function = call_function
         self.generator = generator
         self.echo = echo
@@ -47,7 +48,19 @@ class Prompt:
 
         # if we don't have a custom call function, we parse the string
         if call_function is None:
-            self.tree = grammar.parse(self.template)
+            self.tree = grammar.parse(self._template)
+
+    # def __getattribute__(self, name):
+    #     if name == "template":
+    #         patched_kwargs = {k: v for k, v in kwargs.items()}
+    #         if "template" not in kwargs:
+    #             patched_kwargs["template"] = self._template
+    #         for patch, arg_names in self.patch_stack:
+    #             tmp = patch(**{k: patched_kwargs[k] for k in arg_names})
+    #             if len(arg_names) == 1:
+    #                 tmp = (tmp,)
+    #             for k, v in zip(arg_names, tmp):
+    #                 patched_kwargs[k] = v
     
     def patch(self, patch_functions):
         """ Add a patch to this prompt.
@@ -69,14 +82,14 @@ class Prompt:
         # apply any patches
         patched_kwargs = {k: v for k, v in kwargs.items()}
         if "template" not in kwargs:
-            patched_kwargs["template"] = self.template
+            patched_kwargs["template"] = self._template
         for patch, arg_names in self.patch_stack:
             tmp = patch(**{k: patched_kwargs[k] for k in arg_names})
             if len(arg_names) == 1:
                 tmp = (tmp,)
             for k, v in zip(arg_names, tmp):
                 patched_kwargs[k] = v
-        if "template" not in kwargs and (patched_kwargs["template"] == self.template) and self.call_function == None:
+        if "template" not in kwargs and (patched_kwargs["template"] == self._template) and self.call_function == None:
             del patched_kwargs["template"]
 
         # if we have a custom call function, we call that instead
@@ -105,10 +118,57 @@ class Prompt:
         for k in built_ins:
             del variables[k]
 
+        def start_generate_or_select(x):
+            no_echo = "echo=False" in x.group(1)
+            alpha = 1.0 if no_echo else 1.0
+            
+            # script that toggles the viisibility of the next element
+            click_script = 'var e = this.nextElementSibling; if (e.style.display == "inline") { e.style.display = "none"; this.style.borderRight = "1px solid rgb(0, 165, 0, 1)"; } else { e.style.display = "inline"; this.style.borderRight = "0px";}'
+
+            if no_echo:
+                out = f'''<div style='background-color: rgb(0, 165, 0, 0.25); border-radius: 4px 0px 0px 4px; border: 1px solid rgb(0, 165, 0, 1); padding-left: 3px; padding-right: 3px; user-select: none; color: rgb(0, 165, 0, 1.0); display: inline; font-weight: normal; cursor: pointer' onClick='{click_script}'>no echo</div>'''
+                out += "<span style='background-color: rgb(0, 165, 0, 0.25); opacity: {}; display: none;' title='{}'>".format(alpha, x.group(1))
+            else:
+                out = "<span style='background-color: rgb(0, 165, 0, 0.25); opacity: {}; display: inline;' title='{}'>".format(alpha, x.group(1))
+            return out
+
         display_out = html.escape(output)
-        display_out = re.sub(r"__GMARKER_START_generate\$([^\$]*)\$___", r"<span style='background-color: rgb(0, 165, 0, 0.25); display: inline;' title='\1'>", display_out)
+
+        # format the generate command results
+        display_out = re.sub(r"__GMARKER_START_generate\$([^\$]*)\$___", start_generate_or_select, display_out)
         display_out = display_out.replace("__GMARKER_END_generate$$___", "</span>")
-        display_out = re.sub(r"__GMARKER_START_select\$([^\$]*)\$___", r"<span style='background-color: rgb(0, 165, 0, 0.25); display: inline;' title='\1'>", display_out)
+        def gen_many_start(x):
+            total_count = int(x.group(1))
+            id = x.group(2)
+            click_script = '''
+function cycle_IDVAL(button_el) {
+    var i = 0;
+    while (i < 50) {
+        var el = document.getElementById("IDVAL_" + i);
+        if (el.style.display == "inline") {
+            el.style.display = "none";
+            var next_el = document.getElementById("IDVAL_" + (i+1));
+            if (!next_el) {
+                next_el = document.getElementById("IDVAL_0");
+            }
+            if (next_el) {
+                next_el.style.display = "inline";
+            }
+            break;
+        }
+        i += 1;
+    }
+    button_el.innerHTML = (((i+1) % TOTALCOUNT) + 1)  + "/" + TOTALCOUNT;
+}
+cycle_IDVAL(this);'''.replace("IDVAL", id).replace("TOTALCOUNT", str(total_count)).replace("\n", "")
+            out = f'''<div style='background: rgba(255, 255, 255, 0.0); border-radius: 4px 0px 0px 4px; border: 1px solid rgb(0, 165, 0, 1); border-right: 0px; padding-left: 3px; padding-right: 3px; user-select: none; color: rgb(0, 165, 0, 1.0); display: inline; font-weight: normal; cursor: pointer' onClick='{click_script}'>1/3</div>'''
+            out += f"<div style='display: inline;' id='{id}_0'>"
+            return out
+        display_out = re.sub(r"__GMARKER_generate_many_start_([0-9]+)\$([^\$]*)\$___", gen_many_start, display_out)
+        display_out = re.sub(r"__GMARKER_generate_many_([0-9]+)\$([^\$]*)\$___", r"</div><div style='display: none;' id='\2_\1'>", display_out)
+        display_out = re.sub(r"__GMARKER_generate_many_end\$([^\$]*)\$___", "</div>", display_out)
+
+        display_out = re.sub(r"__GMARKER_START_select\$([^\$]*)\$___", start_generate_or_select, display_out)
         display_out = display_out.replace("__GMARKER_END_select$$___", "</span>")
         display_out = re.sub(r"__GMARKER_START_variable_ref\$([^\$]*)\$___", r"<span style='background-color: rgb(0, 138.56128016, 250.76166089, 0.25); display: inline;' title='\1'>", display_out)
         display_out = display_out.replace("__GMARKER_END_variable_ref$$___", "</span>")
@@ -420,25 +480,55 @@ class TopDownVisitor():
         if self.prompt_object.echo:
             print(prefix_out, end='')
             sys.stdout.flush()
+    
+    def _trim_prefix(self, text):
+        prefix_out = strip_markers(str(text))
+        self.prefix = self.prefix[:-len(prefix_out)]
+        # TODO: undo the echo if needed
 
 
-def _generate(variable_name, partial_output, parse=False, stop=None, max_tokens=500, temperature=0.0, top_p=1.0, parser_prefix=None, parser=None, prefix="", suffix="", next_text=None):
+def _generate(variable_name, partial_output, parse=False, stop=None, max_tokens=500, n=1, echo=True, temperature=0.0, top_p=1.0, parser_prefix=None, parser=None, prefix="", suffix="", next_text=None):
     ''' Use the LM to generate a completion string that is stored in the variable `variable_name`.
     '''
+
+    # we can't extend the prefix if we have multiple completions
+    if n > 1:
+        echo = False
 
     # if stop is None then we use the text of the node after the generate command
     if stop is None:
         stop = next_text
     
-    gen_obj = parser.prompt_object.generator(parser_prefix+prefix, stop=stop, max_tokens=max_tokens, temperature=temperature, top_p=top_p)
-    generated_value = prefix+gen_obj["choices"][0]["text"]+suffix
-    parser.set_variable(variable_name, generated_value)
+    gen_obj = parser.prompt_object.generator(parser_prefix+prefix, stop=stop, max_tokens=max_tokens, n=n, temperature=temperature, top_p=top_p)
+    if n == 1:
+        generated_value = prefix+gen_obj["choices"][0]["text"]+suffix
+        parser.set_variable(variable_name, generated_value)
+    else:
+        generated_values = [prefix+choice["text"]+suffix for choice in gen_obj["choices"]]
+        parser.set_variable(variable_name, generated_values)
+
+        # TODO: we could enable the parsing to branch into multiple paths here, but for now we just complete the prompt with the first prefix
+        generated_value = generated_values[0]
+
     if parse:
+        assert echo, "Cannot parse generated text if echo is disabled"
         subtree = grammar.parse(generated_value)
         return parser.visit(subtree)
     else:
-        partial_output(generated_value)
-        return generated_value
+        if echo:
+            partial_output(generated_value)
+            return generated_value
+        else:
+            id = uuid.uuid4().hex
+            l = len(generated_values)
+            out = f"__GMARKER_generate_many_start_{l}${id}$___"
+            for i, value in enumerate(generated_values):
+                if i > 0:
+                    out += f"__GMARKER_generate_many_{i}${id}$___"
+                out += value
+            return out + f"__GMARKER_generate_many_end${id}$___"
+            # return "__GMARKER_generate_many_start$$___" + "__GMARKER_generate_many$$___".join([v for v in generated_values]) + "__GMARKER_generate_many_end$$___"
+            # return "".join([v for v in generated_values])
 
 def _add(*args):
     ''' Add the given variables together.
@@ -450,10 +540,12 @@ def _subtract(arg1, arg2):
     '''
     return arg1 - arg2
 
-def _each(list, block_content, parser, parser_prefix=None, stop=None, batch_generate=False, batch_generate_temperature=0.0, batch_generate_max_tokens=500, batch_generate_top_p=1.0):
+def _each(list, block_content, parser, parser_prefix=None, stop=None, echo=True, batch_generate=False, batch_generate_temperature=0.0, batch_generate_max_tokens=500, batch_generate_top_p=1.0):
     ''' Iterate over a list and execute a block for each item.
     '''
     assert len(block_content) == 1
+    assert not (not echo and batch_generate), "Cannot use echo=False and batch_generate together"
+    assert not (not echo and isinstance(list, str)), "Cannot use echo=False and variable length iteration together" # TODO: perhaps we can relax this?
 
     out = []
     
@@ -520,9 +612,16 @@ def _each(list, block_content, parser, parser_prefix=None, stop=None, batch_gene
             parser.variable_stack[-1]["@first"] = i == 0
             parser.variable_stack[-1]["@last"] = i == len(list) - 1
             parser.variable_stack[-1]["this"] = item
-            out.append(parser.visit(block_content[0]))
+            out = parser.visit(block_content[0])
+            if not echo:
+                parser._trim_prefix(out)
+            out.append(out)
         parser.variable_stack.pop()
-    return "__GMARKER_each$$___" + "__GMARKER_each$$___".join(out) + "__GMARKER_each$$___"
+    if not echo:
+        return "__GMARKER_each$$___" + "__GMARKER_each$$___".join(out) + "__GMARKER_each$$___"    
+    else:
+        return "__GMARKER_each$$___" + "__GMARKER_each$$___".join(out) + "__GMARKER_each$$___"
+        
 
 def _select(variable_name, block_content, parser, partial_output, parser_prefix=None, logprobs=None):
     ''' Select a value from a list of choices.
