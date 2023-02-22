@@ -25,9 +25,12 @@ class OpenAI():
                 pass
         
         # fill in default API key value
-        if token is None:
+        if token is None: # get from environment variable
             token = os.environ.get("OPENAI_API_KEY", openai.api_key)
-        if token is None:
+        if token is not None and not token.startswith("sk-") and os.path.exists(os.path.expanduser(token)): # get from file
+            with open(os.path.expanduser(token), 'r') as file:
+                token = file.read().replace('\n', '')
+        if token is None: # get from default file location
             try:
                 with open(os.path.expanduser('~/.openai_api_key'), 'r') as file:
                     token = file.read().replace('\n', '')
@@ -42,7 +45,7 @@ class OpenAI():
         self.caching = caching
         self.max_retries = max_retries
         self.max_calls_per_min = max_calls_per_min
-        self.token = token
+        self.token = token.replace("Bearer ", "")
         self.endpoint = endpoint
         self.current_time = time.time()
         self.call_history = collections.deque()
@@ -52,12 +55,12 @@ class OpenAI():
         else:
             self.caller = self._rest_call
     
-    def __call__(self, prompt, stop=None, temperature=0.0, n=1, max_tokens=1000, logprobs=None, top_p=1.0):
+    def __call__(self, prompt, stop=None, temperature=0.0, n=1, max_tokens=1000, logprobs=None, top_p=1.0, echo=False):
         """ Generate a completion of the given prompt.
         """
 
-        key = "_---_".join([str(v) for v in (self.model, prompt, stop, temperature, n, max_tokens, logprobs)])
-        if key not in _file_cache or not self.caching:
+        key = "_---_".join([str(v) for v in (self.model, prompt, stop, temperature, n, max_tokens, logprobs, echo)])
+        if key not in _file_cache or not self.caching or temperature > 0:
 
             # ensure we don't exceed the rate limit
             if self.count_calls() > self.max_calls_per_min:
@@ -69,7 +72,7 @@ class OpenAI():
                 try:
                     self.add_call()
                     out = self.caller(
-                        model=self.model, prompt=prompt, max_tokens=max_tokens,
+                        model=self.model, prompt=prompt, max_tokens=max_tokens, echo=echo,
                         temperature=temperature, top_p=top_p, n=n, stop=stop, logprobs=logprobs#, stream=True
                     )
 
@@ -121,9 +124,10 @@ class OpenAI():
 
         # Define the request headers
         headers = {
-            'Content-Type': 'application/json',
-            'Authorization': f'Bearer {self.token}'
+            'Content-Type': 'application/json'
         }
+        if self.token is not None:
+            headers['Authorization'] = f"Bearer {self.token}"
 
         # Define the request data
         data = {
