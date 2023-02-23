@@ -55,12 +55,12 @@ class OpenAI():
         else:
             self.caller = self._rest_call
     
-    def __call__(self, prompt, stop=None, temperature=0.0, n=1, max_tokens=1000, logprobs=None, top_p=1.0, echo=False):
+    def __call__(self, prompt, stop=None, temperature=0.0, n=1, max_tokens=1000, logprobs=None, top_p=1.0, echo=False, cache_seed=0):
         """ Generate a completion of the given prompt.
         """
 
-        key = "_---_".join([str(v) for v in (self.model, prompt, stop, temperature, n, max_tokens, logprobs, echo)])
-        if key not in _file_cache or not self.caching or temperature > 0:
+        key = "_---_".join([str(v) for v in (self.model, prompt, stop, temperature, n, max_tokens, logprobs, echo, cache_seed)])
+        if key not in _file_cache or not self.caching:
 
             # ensure we don't exceed the rate limit
             if self.count_calls() > self.max_calls_per_min:

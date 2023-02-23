@@ -32,13 +32,14 @@ class Prompt:
     ''' A prompt template that can be compiled and executed to generate a PromptCompletion result.
     '''
 
-    def __init__(self, template, call_function=None, generator=None, echo=False):
+    def __init__(self, template, call_function=None, generator=None, echo=False, cache_seed=0):
         """ Create a new Prompt object from a prompt string.
         """
         self._template = template
         self.call_function = call_function
         self.generator = generator
         self.echo = echo
+        self.cache_seed = cache_seed
 
         self.patch_stack = []
 
@@ -507,7 +508,13 @@ def _generate(variable_name, partial_output, parse=False, stop=None, max_tokens=
     if stop is None:
         stop = next_text
     
-    gen_obj = parser.prompt_object.generator(parser_prefix+prefix, stop=stop, max_tokens=max_tokens, n=n, temperature=temperature, top_p=top_p)
+    if temperature > 0:
+        cache_seed = parser.prompt_object.cache_seed
+        parser.prompt_object.cache_seed += 1
+    else:
+        cache_seed = 0
+
+    gen_obj = parser.prompt_object.generator(parser_prefix+prefix, stop=stop, max_tokens=max_tokens, n=n, temperature=temperature, top_p=top_p, cache_seed=cache_seed)
     if n == 1:
         generated_value = prefix+gen_obj["choices"][0]["text"]+suffix
         parser.set_variable(variable_name, generated_value)
@@ -582,7 +589,7 @@ def _each(list, block_content, parser, parser_prefix=None, stop=None, echo=True,
                 i += 1
 
                 # we run a quick generation to see if we have reached the end of the list (not the +2 tokens is to help be tolorant to whitespace)
-                gen_obj = parser.prompt_object.generator(parser.prefix, stop=stop, max_tokens=len(stop_tokens)+2, temperature=0)
+                gen_obj = parser.prompt_object.generator(parser.prefix, stop=stop, max_tokens=len(stop_tokens)+2, temperature=0, cache_seed=0)
                 if gen_obj["choices"][0]["finish_reason"] == "stop":
                     break
         else:
@@ -594,7 +601,12 @@ def _each(list, block_content, parser, parser_prefix=None, stop=None, echo=True,
             )
 
             # generate the looped content
-            gen_obj = parser.prompt_object.generator(parser_prefix, stop=stop, max_tokens=batch_generate_max_tokens, temperature=batch_generate_temperature, top_p=batch_generate_top_p)
+            if batch_generate_temperature > 0:
+                cache_seed = parser.prompt_object.cache_seed
+                parser.prompt_object.cache_seed += 1
+            else:
+                cache_seed = 0
+            gen_obj = parser.prompt_object.generator(parser_prefix, stop=stop, max_tokens=batch_generate_max_tokens, temperature=batch_generate_temperature, top_p=batch_generate_top_p, cache_seed=cache_seed)
             generated_value = gen_obj["choices"][0]["text"]
 
             # parse the generated content (this assumes the generated content is syntactically correct)
@@ -658,7 +670,8 @@ def _select(variable_name, block_content, parser, partial_output, parser_prefix=
     gen_obj = parser.prompt_object.generator(
         parser_prefix,
         max_tokens=max([len(o) for o in option_tokens]),
-        logprobs=10
+        logprobs=10,
+        cache_seed=0
     )
 
     # compute logprobs for each option
