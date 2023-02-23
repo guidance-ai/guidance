@@ -496,7 +496,7 @@ class TopDownVisitor():
         # TODO: undo the echo if needed
 
 
-def _generate(variable_name, partial_output, parse=False, stop=None, max_tokens=500, n=1, echo=True, temperature=0.0, top_p=1.0, parser_prefix=None, parser=None, prefix="", suffix="", next_text=None):
+def _generate(variable_name="generated", partial_output=None, parse=False, stop=None, max_tokens=500, n=1, echo=True, temperature=0.0, top_p=1.0, parser_prefix=None, parser=None, prefix="", suffix="", next_text=None):
     ''' Use the LM to generate a completion string that is stored in the variable `variable_name`.
     '''
 
