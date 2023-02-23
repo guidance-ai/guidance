@@ -138,8 +138,9 @@ class Prompt:
         display_out = re.sub(r"__GMARKER_START_generate\$([^\$]*)\$___", start_generate_or_select, display_out)
         display_out = display_out.replace("__GMARKER_END_generate$$___", "</span>")
         def gen_many_start(x):
-            total_count = int(x.group(1))
-            id = x.group(2)
+            echo = x.group(1) == "True"
+            total_count = int(x.group(2))
+            id = x.group(3)
             click_script = '''
 function cycle_IDVAL(button_el) {
     var i = 0;
@@ -164,8 +165,15 @@ cycle_IDVAL(this);'''.replace("IDVAL", id).replace("TOTALCOUNT", str(total_count
             out = f'''<div style='background: rgba(255, 255, 255, 0.0); border-radius: 4px 0px 0px 4px; border: 1px solid rgb(0, 165, 0, 1); border-right: 0px; padding-left: 3px; padding-right: 3px; user-select: none; color: rgb(0, 165, 0, 1.0); display: inline; font-weight: normal; cursor: pointer' onClick='{click_script}'>1/3</div>'''
             out += f"<div style='display: inline;' id='{id}_0'>"
             return out
-        display_out = re.sub(r"__GMARKER_generate_many_start_([0-9]+)\$([^\$]*)\$___", gen_many_start, display_out)
-        display_out = re.sub(r"__GMARKER_generate_many_([0-9]+)\$([^\$]*)\$___", r"</div><div style='display: none;' id='\2_\1'>", display_out)
+        def gen_many_mid(x):
+            echo = x.group(1) == "True"
+            index = int(x.group(2))
+            id = x.group(3)
+            alpha = 1.0 if not echo else 0.5
+            out = f"</div><div style='display: none; opacity: {alpha}' id='{id}_{index}'>"
+            return out
+        display_out = re.sub(r"__GMARKER_generate_many_start_([^_]+)_([0-9]+)\$([^\$]*)\$___", gen_many_start, display_out)
+        display_out = re.sub(r"__GMARKER_generate_many_([^_]+)_([0-9]+)\$([^\$]*)\$___", gen_many_mid, display_out)
         display_out = re.sub(r"__GMARKER_generate_many_end\$([^\$]*)\$___", "</div>", display_out)
 
         display_out = re.sub(r"__GMARKER_START_select\$([^\$]*)\$___", start_generate_or_select, display_out)
@@ -492,8 +500,8 @@ def _generate(variable_name, partial_output, parse=False, stop=None, max_tokens=
     '''
 
     # we can't extend the prefix if we have multiple completions
-    if n > 1:
-        echo = False
+    # if n > 1:
+    #     echo = False
 
     # if stop is None then we use the text of the node after the generate command
     if stop is None:
@@ -515,16 +523,23 @@ def _generate(variable_name, partial_output, parse=False, stop=None, max_tokens=
         subtree = grammar.parse(generated_value)
         return parser.visit(subtree)
     else:
-        if echo:
+        if n == 1:
             partial_output(generated_value)
             return generated_value
         else:
+
+            # echoing with multipl completions is not standard behavior
+            # this just uses the first generated value for completion and the rest as alternatives only used for the variable storage
+            # we mostly support this so that the echo=False hiding behavior does not make multiple outputs more complicated than it needs to be in the UX
+            if echo:
+                partial_output(generated_value) 
+            
             id = uuid.uuid4().hex
             l = len(generated_values)
-            out = f"__GMARKER_generate_many_start_{l}${id}$___"
+            out = f"__GMARKER_generate_many_start_{echo}_{l}${id}$___"
             for i, value in enumerate(generated_values):
                 if i > 0:
-                    out += f"__GMARKER_generate_many_{i}${id}$___"
+                    out += f"__GMARKER_generate_many_{echo}_{i}${id}$___"
                 out += value
             return out + f"__GMARKER_generate_many_end${id}$___"
             # return "__GMARKER_generate_many_start$$___" + "__GMARKER_generate_many$$___".join([v for v in generated_values]) + "__GMARKER_generate_many_end$$___"
