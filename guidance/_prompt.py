@@ -163,7 +163,7 @@ function cycle_IDVAL(button_el) {
     button_el.innerHTML = (((i+1) % TOTALCOUNT) + 1)  + "/" + TOTALCOUNT;
 }
 cycle_IDVAL(this);'''.replace("IDVAL", id).replace("TOTALCOUNT", str(total_count)).replace("\n", "")
-            out = f'''<div style='background: rgba(255, 255, 255, 0.0); border-radius: 4px 0px 0px 4px; border: 1px solid rgb(0, 165, 0, 1); border-right: 0px; padding-left: 3px; padding-right: 3px; user-select: none; color: rgb(0, 165, 0, 1.0); display: inline; font-weight: normal; cursor: pointer' onClick='{click_script}'>1/3</div>'''
+            out = f'''<div style='background: rgba(255, 255, 255, 0.0); border-radius: 4px 0px 0px 4px; border: 1px solid rgb(0, 165, 0, 1); border-right: 0px; padding-left: 3px; padding-right: 3px; user-select: none; color: rgb(0, 165, 0, 1.0); display: inline; font-weight: normal; cursor: pointer' onClick='{click_script}'>1/{total_count}</div>'''
             out += f"<div style='display: inline;' id='{id}_0'>"
             return out
         def gen_many_mid(x):
@@ -496,7 +496,7 @@ class TopDownVisitor():
         # TODO: undo the echo if needed
 
 
-def _generate(variable_name="generated", partial_output=None, parse=False, stop=None, max_tokens=500, n=1, echo=True, temperature=0.0, top_p=1.0, parser_prefix=None, parser=None, prefix="", suffix="", next_text=None):
+def _generate(variable_name="generated", partial_output=None, parse=False, stop=None, max_tokens=500, n=1, echo=True, temperature=0.0, top_p=1.0, logprobs=None, parser_prefix=None, parser=None, prefix="", suffix="", next_text=None):
     ''' Use the LM to generate a completion string that is stored in the variable `variable_name`.
     '''
 
@@ -514,13 +514,17 @@ def _generate(variable_name="generated", partial_output=None, parse=False, stop=
     else:
         cache_seed = 0
 
-    gen_obj = parser.prompt_object.generator(parser_prefix+prefix, stop=stop, max_tokens=max_tokens, n=n, temperature=temperature, top_p=top_p, cache_seed=cache_seed)
+    gen_obj = parser.prompt_object.generator(parser_prefix+prefix, stop=stop, max_tokens=max_tokens, n=n, temperature=temperature, top_p=top_p, logprobs=logprobs, cache_seed=cache_seed)
     if n == 1:
         generated_value = prefix+gen_obj["choices"][0]["text"]+suffix
         parser.set_variable(variable_name, generated_value)
+        if logprobs is not None:
+            parser.set_variable(variable_name+"_logprobs", gen_obj["choices"][0]["logprobs"])
     else:
         generated_values = [prefix+choice["text"]+suffix for choice in gen_obj["choices"]]
         parser.set_variable(variable_name, generated_values)
+        if logprobs is not None:
+            parser.set_variable(variable_name+"_logprobs", [choice["logprobs"] for choice in gen_obj["choices"]])
 
         # TODO: we could enable the parsing to branch into multiple paths here, but for now we just complete the prompt with the first prefix
         generated_value = generated_values[0]
@@ -639,10 +643,10 @@ def _each(list, block_content, parser, parser_prefix=None, stop=None, echo=True,
             parser.variable_stack[-1]["@first"] = i == 0
             parser.variable_stack[-1]["@last"] = i == len(list) - 1
             parser.variable_stack[-1]["this"] = item
-            out = parser.visit(block_content[0])
+            item_out = parser.visit(block_content[0])
             if not echo:
-                parser._trim_prefix(out)
-            out.append(out)
+                parser._trim_prefix(item_out)
+            out.append(item_out)
         parser.variable_stack.pop()
     if not echo:
         return "__GMARKER_each$$___" + "__GMARKER_each$$___".join(out) + "__GMARKER_each$$___"    
@@ -650,7 +654,7 @@ def _each(list, block_content, parser, parser_prefix=None, stop=None, echo=True,
         return "__GMARKER_each$$___" + "__GMARKER_each$$___".join(out) + "__GMARKER_each$$___"
         
 
-def _select(variable_name, block_content, parser, partial_output, parser_prefix=None, logprobs=None):
+def _select(variable_name="selected", block_content=None, parser=None, partial_output=None, parser_prefix=None, logprobs=None):
     ''' Select a value from a list of choices.
     '''
     assert len(block_content) > 1
