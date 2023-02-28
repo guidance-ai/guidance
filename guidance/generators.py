@@ -143,9 +143,15 @@ class OpenAI():
         }
 
         # Send a POST request and get the response
-        response = requests.post(self.endpoint, headers=headers, json=data)
-        if response.status_code != 200:
-            raise Exception("Response is not 200: " + response.text)
+        # timeout exception is raised if the server has not issued a response for 10 seconds
+        try:
+            response = requests.post(self.endpoint, headers=headers, json=data, timeout=10)
+            if response.status_code != 200:
+                raise Exception("Response is not 200: " + response.text)
+        except requests.Timeout:
+            raise Exception("Request timed out.")
+        except requests.ConnectionError:
+            raise Exception("Connection error occurred.")
         return response.json()
 
     def tokenize(self, strings):
