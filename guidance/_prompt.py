@@ -7,7 +7,7 @@ import sys
 import parsimonious
 import warnings
 import copy
-from . import generators
+from .endpoints import _openai
 import guidance
 
 class PromptCompletion:
@@ -32,20 +32,21 @@ class Prompt:
     ''' A prompt template that can be compiled and executed to generate a PromptCompletion result.
     '''
 
-    def __init__(self, template, call_function=None, generator=None, echo=False, cache_seed=0):
+    def __init__(self, template, call_function=None, endpoint=None, echo=False, cache_seed=0, logprobs=None):
         """ Create a new Prompt object from a prompt string.
         """
         self._template = template
         self.call_function = call_function
-        self.generator = generator
+        self.generator = endpoint
         self.echo = echo
         self.cache_seed = cache_seed
+        self.logprobs = logprobs
 
         self.patch_stack = []
 
         # default to an OpenAI generator
         if self.generator is None:
-            self.generator = guidance.default_generator
+            self.generator = guidance.endpoint
 
         # if we don't have a custom call function, we parse the string
         if call_function is None:
@@ -77,6 +78,18 @@ class Prompt:
             new_self.patch_stack.append((patch_function, arg_names))
         
         return new_self
+    
+    def __repr__(self):
+        return self._template
+
+    def _repr_html_(self):
+        display_out = self._template
+        # add syntax highlighting
+        display_out = re.sub(r"(\{\{generate.*?\}\})", r"<span style='background-color: rgb(0, 165, 0, 0.25);'>\1</span>", display_out)
+        display_out = re.sub(r"(\{\{#select\{\{/select.*?\}\})", r"<span style='background-color: rgb(0, 165, 0, 0.25);'>\1</span>", display_out)
+        display_out = re.sub(r"(\{\{(?!generate)(?!#select).*?\}\})", r"<span style='background-color: rgb(0, 138.56128016, 250.76166089, 0.25);'>\1</span>", display_out)
+        display_out = "<pre style='padding: 7px; border-radius: 4px; background: white; white-space: pre-wrap; font-family: ColfaxAI, Arial; font-size: 16px; line-height: 24px; color: #000'>"+display_out+"</pre>"
+        return display_out
     
     def __call__(self, **kwargs):
 
@@ -132,16 +145,21 @@ class Prompt:
             else:
                 out = "<span style='background-color: rgb(0, 165, 0, 0.25); opacity: {}; display: inline;' title='{}'>".format(alpha, x.group(1))
             return out
+        
+        def start_each(x):
+            no_echo = "echo=False" in x.group(1)
+            alpha = 0.5 if no_echo else 1.0
+            return "<span style='opacity: {}; display: inline;' title='{}'>".format(alpha, x.group(1))
 
         display_out = html.escape(output)
 
         # format the generate command results
         display_out = re.sub(r"__GMARKER_START_generate\$([^\$]*)\$___", start_generate_or_select, display_out)
         display_out = display_out.replace("__GMARKER_END_generate$$___", "</span>")
-        def gen_many_start(x):
-            echo = x.group(1) == "True"
-            total_count = int(x.group(2))
-            id = x.group(3)
+        def click_loop_start(id, total_count, echo, color):
+            # echo = x.group(1) == "True"
+            # total_count = int(x.group(2))
+            # id = x.group(3)
             click_script = '''
 function cycle_IDVAL(button_el) {
     var i = 0;
@@ -163,19 +181,41 @@ function cycle_IDVAL(button_el) {
     button_el.innerHTML = (((i+1) % TOTALCOUNT) + 1)  + "/" + TOTALCOUNT;
 }
 cycle_IDVAL(this);'''.replace("IDVAL", id).replace("TOTALCOUNT", str(total_count)).replace("\n", "")
-            out = f'''<div style='background: rgba(255, 255, 255, 0.0); border-radius: 4px 0px 0px 4px; border: 1px solid rgb(0, 165, 0, 1); border-right: 0px; padding-left: 3px; padding-right: 3px; user-select: none; color: rgb(0, 165, 0, 1.0); display: inline; font-weight: normal; cursor: pointer' onClick='{click_script}'>1/{total_count}</div>'''
+            out = f'''<div style='background: rgba(255, 255, 255, 0.0); border-radius: 4px 0px 0px 4px; border: 1px solid {color}; border-right: 0px; padding-left: 3px; padding-right: 3px; user-select: none; color: {color}; display: inline; font-weight: normal; cursor: pointer' onClick='{click_script}'>1/{total_count}</div>'''
             out += f"<div style='display: inline;' id='{id}_0'>"
             return out
-        def gen_many_mid(x):
-            echo = x.group(1) == "True"
-            index = int(x.group(2))
-            id = x.group(3)
+        def click_loop_mid(id, index, echo):
+            # echo = x.group(1) == "True"
+            # index = int(x.group(2))
+            # id = x.group(3)
             alpha = 1.0 if not echo else 0.5
             out = f"</div><div style='display: none; opacity: {alpha}' id='{id}_{index}'>"
             return out
-        display_out = re.sub(r"__GMARKER_generate_many_start_([^_]+)_([0-9]+)\$([^\$]*)\$___", gen_many_start, display_out)
-        display_out = re.sub(r"__GMARKER_generate_many_([^_]+)_([0-9]+)\$([^\$]*)\$___", gen_many_mid, display_out)
+        display_out = re.sub(
+            r"__GMARKER_generate_many_start_([^_]+)_([0-9]+)\$([^\$]*)\$___",
+            lambda x: click_loop_start(x.group(3), int(x.group(2)), x.group(1) == "True", "rgb(0, 165, 0, 1)"),
+            display_out
+        )
+        display_out = re.sub(
+            r"__GMARKER_generate_many_([^_]+)_([0-9]+)\$([^\$]*)\$___",
+            lambda x: click_loop_mid(x.group(3), int(x.group(2)), x.group(1) == "True"),
+            display_out
+        )
         display_out = re.sub(r"__GMARKER_generate_many_end\$([^\$]*)\$___", "</div>", display_out)
+
+        # format the each command results
+        display_out = re.sub(r"__GMARKER_START_each\$([^\$]*)\$___", start_each, display_out)
+        display_out = re.sub(
+            r"__GMARKER_each_noecho_start_([^_]+)_([0-9]+)\$([^\$]*)\$___",
+            lambda x: click_loop_start(x.group(3), int(x.group(2)), False, "rgb(100, 100, 100, 1)"),
+            display_out
+        )
+        display_out = re.sub(
+            r"__GMARKER_each_noecho_([^_]+)_([0-9]+)\$([^\$]*)\$___",
+            lambda x: click_loop_mid(x.group(3), int(x.group(2)), False),
+            display_out
+        )
+        display_out = re.sub(r"__GMARKER_each_noecho_end\$([^\$]*)\$___", "</div>", display_out)
 
         display_out = re.sub(r"__GMARKER_START_select\$([^\$]*)\$___", start_generate_or_select, display_out)
         display_out = display_out.replace("__GMARKER_END_select$$___", "</span>")
@@ -265,10 +305,12 @@ class NamedArgument:
         self.value = value
 
 class TopDownVisitor():
-    def __init__(self, variables, prompt_object):
-        self.prefix = ''
+    def __init__(self, variables, prompt_object, logprobs=None):
         self.variable_stack = [variables]
         self.prompt_object = prompt_object
+        self.logprobs = logprobs
+        self.prefix = ''
+        self.prefix_tokens = []
     
     def visit(self, node, next_node=None):
 
@@ -500,10 +542,6 @@ def _generate(variable_name="generated", partial_output=None, parse=False, stop=
     ''' Use the LM to generate a completion string that is stored in the variable `variable_name`.
     '''
 
-    # we can't extend the prefix if we have multiple completions
-    # if n > 1:
-    #     echo = False
-
     # if stop is None then we use the text of the node after the generate command
     if stop is None:
         stop = next_text
@@ -514,7 +552,11 @@ def _generate(variable_name="generated", partial_output=None, parse=False, stop=
     else:
         cache_seed = 0
 
-    gen_obj = parser.prompt_object.generator(parser_prefix+prefix, stop=stop, max_tokens=max_tokens, n=n, temperature=temperature, top_p=top_p, logprobs=logprobs, cache_seed=cache_seed)
+    gen_obj = parser.prompt_object.generator(
+        parser_prefix+prefix, stop=stop, max_tokens=max_tokens, n=n,
+        temperature=temperature, top_p=top_p, logprobs=parser.prompt_object.logprobs, cache_seed=cache_seed,
+        echo=parser.prompt_object.logprobs is not None
+    )
     if n == 1:
         generated_value = prefix+gen_obj["choices"][0]["text"]+suffix
         parser.set_variable(variable_name, generated_value)
@@ -648,10 +690,18 @@ def _each(list, block_content, parser, parser_prefix=None, stop=None, echo=True,
                 parser._trim_prefix(item_out)
             out.append(item_out)
         parser.variable_stack.pop()
-    if not echo:
+    if echo:
         return "__GMARKER_each$$___" + "__GMARKER_each$$___".join(out) + "__GMARKER_each$$___"    
     else:
-        return "__GMARKER_each$$___" + "__GMARKER_each$$___".join(out) + "__GMARKER_each$$___"
+        id = uuid.uuid4().hex
+        l = len(out)
+        out_str = f"__GMARKER_each_noecho_start_{echo}_{l}${id}$___"
+        for i, value in enumerate(out):
+            if i > 0:
+                out_str += f"__GMARKER_each_noecho_{echo}_{i}${id}$___"
+            out_str += value
+        return out_str + f"__GMARKER_each_noecho_end${id}$___"
+        # return "__GMARKER_each_noecho$$___" + "__GMARKER_each_noecho$$___".join(out) + "__GMARKER_each_noecho$$___"
         
 
 def _select(variable_name="selected", block_content=None, parser=None, partial_output=None, parser_prefix=None, logprobs=None):

@@ -18,10 +18,10 @@ Guidance prompts allow you to specifcy the structure of your prompt through a si
 ```python
 import guidance
 
-guidance.default_generator = guidance.generators.OpenAI(model="text-davinci-002", token=TOKEN)
+guidance.endpoint = guidance.endpoints.OpenAI(model="text-davinci-003", token=TOKEN)
 
 # define a guidance prompt
-prompt = guidance.Prompt('''Use the following statements to answer the query "{{query}}".
+prompt = guidance('''Use the following statements to answer the query "{{query}}".
 STATEMENTS{{#each statements}}
 - {{this}}{{/each}}
 ---
@@ -42,7 +42,7 @@ completion
 ### Claim extraction with a generative loop
 ```python
 # define a guidance prompt
-prompt = guidance.Prompt('''<guidance>
+prompt = guidance('''<guidance>
 Extract all the factual claims from the following text one by one.
 <text>{{text}}</text>
 ---
