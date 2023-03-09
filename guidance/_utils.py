@@ -35,13 +35,21 @@ def chain(prompts, **kwargs):
             args = ""
             for name,_ in sig.parameters.items():
                 args += f" {name}={name}"
-            fname = find_func_name(sig.parameters)
+            fname = find_func_name(prompt, kwargs)
             kwargs["prompt%d" % i] = Prompt("{{set (%s%s)}}" % (fname, args), **{fname: prompt})
             # kwargs.update({f"func{i}": prompt})
     return Prompt(new_template, **kwargs)
 
-def find_func_name(dict):
-    for i in range(100):
-        fname = f"function{i}"
-        if fname not in dict:
-            return fname
+def find_func_name(f, used_names):
+    if hasattr(f, "__name__"):
+        prefix = f.__name__.replace("<", "").replace(">", "")
+    else:
+        prefix = "function"
+    
+    if prefix not in used_names:
+        return prefix
+    else:
+        for i in range(100):
+            fname = f"{prefix}{i}"
+            if fname not in used_names:
+                return fname

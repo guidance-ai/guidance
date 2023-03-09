@@ -60,7 +60,7 @@ class Prompt:
                 args = ""
                 for name,_ in sig.parameters.items():
                     args += f" {name}={name}"
-                fname = _utils.find_func_name(kwargs)
+                fname = _utils.find_func_name(template, kwargs)
                 kwargs[fname] = template
                 template = "{{set (%s%s)}}" % (fname, args)
 
