@@ -7,46 +7,63 @@ import sys
 import parsimonious
 import warnings
 import copy
-from .endpoints import _openai
+from .llms import _openai
 import guidance
 
 class PromptCompletion:
     ''' Represents the result of an executed prompt.
     '''
-    def __init__(self, variables, completed_text, completed_text_html, prompt):
+    def __init__(self, variables, text, text_html, prompt):
         self.variables = variables
-        self.completed_text = completed_text
-        self.completed_text_html = completed_text_html
+        self.text = text
+        self.text_html = text_html
         self.prompt = prompt
 
     def __getitem__(self, key):
         return self.variables[key]
 
     def __repr__(self):
-        return self.completed_text
+        return self.text
 
     def _repr_html_(self):
-        return self.completed_text_html
+        return self.text_html
+    
+    def __str__(self) -> str:
+        return self.text
 
 class Prompt:
     ''' A prompt template that can be compiled and executed to generate a PromptCompletion result.
     '''
 
-    def __init__(self, template, call_function=None, endpoint=None, echo=False, cache_seed=0, logprobs=None):
+    def __init__(self, template, call_function=None, llm=None, echo=False, cache_seed=0, logprobs=None, **kwargs):
         """ Create a new Prompt object from a prompt string.
         """
         self._template = template
         self.call_function = call_function
-        self.generator = endpoint
+        self.llm = llm
         self.echo = echo
         self.cache_seed = cache_seed
         self.logprobs = logprobs
+        self.default_vars = kwargs
+
+        # find all the handlebars-style partial inclusion tags and replace them with the partial template
+        def replace_partial(match):
+            partial_name,args_string = match.group(1).split(" ", 1)
+            if partial_name not in kwargs:
+                raise ValueError("Partial '%s' not given in the keyword args:" % partial_name)
+            out = "{{#block '"+partial_name+"'"
+            if len(args_string) > 0:
+                out += " " + args_string
+            out += "}}" + kwargs[partial_name]._template + "{{/block}}"
+            self.default_vars = {**kwargs[partial_name].default_vars, **self.default_vars} # pull in the default vars from the partial
+            return out
+        self._template = re.sub(r"{{>(.*?)}}", replace_partial, self._template)
 
         self.patch_stack = []
 
-        # default to an OpenAI generator
-        if self.generator is None:
-            self.generator = guidance.endpoint
+        # default to an OpenAI llm
+        if self.llm is None:
+            self.llm = guidance.llm
 
         # if we don't have a custom call function, we parse the string
         if call_function is None:
@@ -85,13 +102,17 @@ class Prompt:
     def _repr_html_(self):
         display_out = self._template
         # add syntax highlighting
-        display_out = re.sub(r"(\{\{generate.*?\}\})", r"<span style='background-color: rgb(0, 165, 0, 0.25);'>\1</span>", display_out)
-        display_out = re.sub(r"(\{\{#select\{\{/select.*?\}\})", r"<span style='background-color: rgb(0, 165, 0, 0.25);'>\1</span>", display_out)
-        display_out = re.sub(r"(\{\{(?!generate)(?!#select).*?\}\})", r"<span style='background-color: rgb(0, 138.56128016, 250.76166089, 0.25);'>\1</span>", display_out)
+        display_out = re.sub(r"(\{\{generate.*?\}\})", r"<span style='background-color: rgba(0, 165, 0, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
+        display_out = re.sub(r"(\{\{#select\{\{/select.*?\}\})", r"<span style='background-color: rgba(0, 165, 0, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
+        display_out = re.sub(r"(\{\{#each [^'\"].*?\{\{/each.*?\}\})", r"<span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
+        display_out = re.sub(r"(\{\{(?!generate)(?!#select)(?!#each)(?!/each)(?!/select).*?\}\})", r"<span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
         display_out = "<pre style='padding: 7px; border-radius: 4px; background: white; white-space: pre-wrap; font-family: ColfaxAI, Arial; font-size: 16px; line-height: 24px; color: #000'>"+display_out+"</pre>"
         return display_out
     
     def __call__(self, **kwargs):
+
+        # merge in the default variables
+        kwargs = {**self.default_vars, **kwargs}
 
         # apply any patches
         patched_kwargs = {k: v for k, v in kwargs.items()}
@@ -119,6 +140,9 @@ class Prompt:
             "unless": _unless,
             "add": _add,
             "subtract": _subtract,
+            "strip": _strip,
+            "block": _block,
+            "set": _set
         }
         variables = {}
         variables.update(built_ins)
@@ -140,16 +164,17 @@ class Prompt:
             click_script = 'var e = this.nextElementSibling; if (e.style.display == "inline") { e.style.display = "none"; this.style.borderRight = "1px solid rgb(0, 165, 0, 1)"; } else { e.style.display = "inline"; this.style.borderRight = "0px";}'
 
             if no_echo:
-                out = f'''<div style='background-color: rgb(0, 165, 0, 0.25); border-radius: 4px 0px 0px 4px; border: 1px solid rgb(0, 165, 0, 1); padding-left: 3px; padding-right: 3px; user-select: none; color: rgb(0, 165, 0, 1.0); display: inline; font-weight: normal; cursor: pointer' onClick='{click_script}'>no echo</div>'''
-                out += "<span style='background-color: rgb(0, 165, 0, 0.25); opacity: {}; display: none;' title='{}'>".format(alpha, x.group(1))
+                out = f'''<div style='background-color: rgba(0, 165, 0, 0.25); border-radius: 4px 0px 0px 4px; border: 1px solid rgba(0, 165, 0, 1); padding-left: 3px; padding-right: 3px; user-select: none; color: rgb(0, 165, 0, 1.0); display: inline; font-weight: normal; cursor: pointer' onClick='{click_script}'>no echo</div>'''
+                out += "<span style='background-color: rgba(0, 165, 0, 0.25); opacity: {}; display: none;' title='{}'>".format(alpha, x.group(1))
             else:
-                out = "<span style='background-color: rgb(0, 165, 0, 0.25); opacity: {}; display: inline;' title='{}'>".format(alpha, x.group(1))
+                out = "<span style='background-color: rgba(0, 165, 0, 0.25); opacity: {}; display: inline;' title='{}'>".format(alpha, x.group(1))
             return out
         
         def start_each(x):
             no_echo = "echo=False" in x.group(1)
             alpha = 0.5 if no_echo else 1.0
-            return "<span style='opacity: {}; display: inline;' title='{}'>".format(alpha, x.group(1))
+            color = "rgba(0, 138.56128016, 250.76166089, 0.25)" if "each '" not in x.group(1) and "each \"" not in x.group(1) else "rgba(0, 165, 0, 0.25)"
+            return "<span style='opacity: {}; display: inline; background-color: {};' title='{}'>".format(alpha, color, x.group(1))
 
         display_out = html.escape(output)
 
@@ -219,10 +244,12 @@ cycle_IDVAL(this);'''.replace("IDVAL", id).replace("TOTALCOUNT", str(total_count
 
         display_out = re.sub(r"__GMARKER_START_select\$([^\$]*)\$___", start_generate_or_select, display_out)
         display_out = display_out.replace("__GMARKER_END_select$$___", "</span>")
-        display_out = re.sub(r"__GMARKER_START_variable_ref\$([^\$]*)\$___", r"<span style='background-color: rgb(0, 138.56128016, 250.76166089, 0.25); display: inline;' title='\1'>", display_out)
+        display_out = re.sub(r"__GMARKER_START_variable_ref\$([^\$]*)\$___", r"<span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25); display: inline;' title='\1'>", display_out)
         display_out = display_out.replace("__GMARKER_END_variable_ref$$___", "</span>")
         display_out = display_out.replace("__GMARKER_each$$___", "<div style='border-left: 1px dashed rgb(0, 0, 0, .2); border-top: 0px solid rgb(0, 0, 0, .2); margin-right: -4px; display: inline; width: 4px; height: 24px;'></div>")
-        display_out = re.sub(r"__GMARKER_START_([^\$]*)\$([^\$]*)\$___", r"<span style='background-color: rgb(165, 165, 165, 0.25); display: inline;' title='\2'>", display_out)
+        display_out = re.sub(r"__GMARKER_START_block\$([^\$]*)\$___", r"<span style='background-color: rgba(165, 165, 165, 0.15); display: inline;' title='\1'>", display_out)
+        display_out = re.sub(r"__GMARKER_START_([^\$]*)\$([^\$]*)\$___", r"<span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25); display: inline;' title='\2'>", display_out)
+        # display_out = re.sub(r"__GMARKER_START_([^\$]*)\$([^\$]*)\$___", r"<span style='background-color: rgba(165, 165, 165, 0.25); display: inline;' title='\2'>", display_out)
         display_out = re.sub(r"__GMARKER_END_([^\$]*)\$\$___", "</span>", display_out)
         display_out = "<pre style='padding: 7px; border-radius: 4px; background: white; white-space: pre-wrap; font-family: ColfaxAI, Arial; font-size: 16px; line-height: 24px; color: #000'>"+display_out+"</pre>"
 
@@ -311,11 +338,26 @@ class TopDownVisitor():
         self.logprobs = logprobs
         self.prefix = ''
         self.prefix_tokens = []
+        self.block_content = []
     
     def visit(self, node, next_node=None):
 
         if node.expr_name == 'variable_ref':
-            return self.get_variable(node.text)
+            var = self.get_variable(node.text)
+
+            if callable(var):
+                sig = inspect.signature(var)
+                kwargs = {}
+                if "template_context" in sig.parameters:
+                    template_context = {}
+                    if len(self.block_content[-1]) == 1:
+                        template_context["@block_text"] = self.block_content[-1][0].text
+                    if hasattr(self.prompt_object, "tokenizer"):
+                        template_context["@tokenizer"] = self.prompt_object.tokenizer
+                    kwargs["template_context"] = template_context
+                var = var(**kwargs)
+            
+            return var
 
         elif node.expr_name == 'variable_name':
             return node.text
@@ -351,8 +393,10 @@ class TopDownVisitor():
             return ast.literal_eval(node.text)
 
         elif node.expr_name == 'command':
-            visited_children = [str(self.visit(child, next_node)) for child in node.children]
-            out = "".join(visited_children) or ""
+            self.block_content.append([])
+            visited_children = [self.visit(child, next_node) for child in node.children]
+            self.block_content.pop()
+            out = "".join("" if c is None else c for c in visited_children)
             
             command_head = node.children[1].children[0]
             if command_head.expr_name == 'variable_ref':
@@ -420,7 +464,18 @@ class TopDownVisitor():
             return visited_children[2]
 
         elif node.expr_name == 'command_block':
+
+            # create a block content variable
+            block_content = [node.children[1]]
+            for child in node.children[2].children:
+                if child.text == '':
+                    continue
+                block_content.append(child.children[0])
+                block_content.append(child.children[1])
+            self.block_content.append(block_content)
+
             start_block = self.visit(node.children[0])
+            
             command_name, args = start_block
             if self.variable_exists(command_name):
                 command_function = self.get_variable(command_name)
@@ -439,13 +494,7 @@ class TopDownVisitor():
                 if "parser" in sig.parameters:
                     named_args["parser"] = self
                 if "block_content" in sig.parameters:
-                    block_content = [node.children[1]]
-                    for child in node.children[2].children:
-                        if child.text == '':
-                            continue
-                        block_content.append(child.children[0])
-                        block_content.append(child.children[1])
-                    named_args["block_content"] = block_content
+                    named_args["block_content"] = self.block_content[-1]
                 if "partial_output" in sig.parameters:
                     named_args["partial_output"] = self._extend_prefix
                 command_output = command_function(*positional_args, **named_args)
@@ -453,6 +502,7 @@ class TopDownVisitor():
                 command_output = ""
 
             node_text = node.text.replace("$", "DOLLAR_SIGN")
+            self.block_content.pop()
             return f"__GMARKER_START_{command_name}${node_text}$___{command_output}__GMARKER_END_{command_name}$$___"
             # start_block(node.children[1], self)
             # end_block = self.visit(node.children[2])
@@ -470,9 +520,9 @@ class TopDownVisitor():
             if len(visited_children) == 1:
                 return visited_children[0]
             else:
-                return "".join(visited_children) or ""
+                return "".join("" if c is None else c for c in visited_children)
 
-    def get_variable(self, name, default_value=""):
+    def get_variable(self, name, default_value=None):
         if name == "True":
             return True
         elif name == "False":
@@ -552,7 +602,7 @@ def _generate(variable_name="generated", partial_output=None, parse=False, stop=
     else:
         cache_seed = 0
 
-    gen_obj = parser.prompt_object.generator(
+    gen_obj = parser.prompt_object.llm(
         parser_prefix+prefix, stop=stop, max_tokens=max_tokens, n=n,
         temperature=temperature, top_p=top_p, logprobs=parser.prompt_object.logprobs, cache_seed=cache_seed,
         echo=parser.prompt_object.logprobs is not None
@@ -608,19 +658,52 @@ def _subtract(arg1, arg2):
     '''
     return arg1 - arg2
 
-def _each(list, block_content, parser, parser_prefix=None, stop=None, echo=True, batch_generate=False, batch_generate_temperature=0.0, batch_generate_max_tokens=500, batch_generate_top_p=1.0):
+def _strip(arg1):
+    ''' Strip whitespace from the beginning and end of the given string.
+    '''
+    return arg1.strip()
+
+def _each(list, block_content, parser, parser_prefix=None, stop=None, hidden=False, filter=None, batch_generate=False, batch_generate_temperature=0.0, batch_generate_max_tokens=500, batch_generate_top_p=1.0):
     ''' Iterate over a list and execute a block for each item.
     '''
     assert len(block_content) == 1
-    assert not (not echo and batch_generate), "Cannot use echo=False and batch_generate together"
-    assert not (not echo and isinstance(list, str)), "Cannot use echo=False and variable length iteration together" # TODO: perhaps we can relax this?
+    assert not (hidden and batch_generate), "Cannot use hidden=True and batch_generate together"
+    assert not (hidden and isinstance(list, str)), "Cannot use hidden=True and variable length iteration together" # TODO: perhaps we can relax this?
+    echo = not hidden
+
+    # an empty string means the variable was not provided
+    if list is None:
+        list = []
+
+    # Make sure the list is iterable
+    if filter is not None:
+
+        # if the list is callable then we call it to get an iterable
+        if callable(filter):
+            # we support a set of optional arguments to the list function
+            named_args = {}
+            sig = inspect.signature(filter)
+            if "template_context" in sig.parameters:
+                named_args["template_context"] = {
+                    "@block_text": block_content[0].text,
+                    "@tokenizer": parser.prompt_object.tokenizer
+                }
+            list = filter(list, **named_args)
+        else:
+            raise TypeError("Can't apply a non-callable filter: " + str(filter))
+
+    # make sure the list is iterable
+    try:
+        iter(list)
+    except TypeError:
+        raise TypeError("The #each command cannot iterate over a non-iterable value: " + str(list))
 
     out = []
     
     # if the list is a string then it is the name of a variable to save a new list to
     if isinstance(list, str):
         assert stop is not None, "Must provide a stop token when doing variable length iteration!"
-        stop_tokens = parser.prompt_object.generator.tokenize(stop)
+        stop_tokens = [parser.prompt_object.llm.encode(s) for s in stop]
 
         if not batch_generate:
             i = 0
@@ -635,7 +718,7 @@ def _each(list, block_content, parser, parser_prefix=None, stop=None, echo=True,
                 i += 1
 
                 # we run a quick generation to see if we have reached the end of the list (not the +2 tokens is to help be tolorant to whitespace)
-                gen_obj = parser.prompt_object.generator(parser.prefix, stop=stop, max_tokens=len(stop_tokens)+2, temperature=0, cache_seed=0)
+                gen_obj = parser.prompt_object.llm(parser.prefix, stop=stop, max_tokens=len(stop_tokens)+2, temperature=0, cache_seed=0)
                 if gen_obj["choices"][0]["finish_reason"] == "stop":
                     break
         else:
@@ -652,7 +735,7 @@ def _each(list, block_content, parser, parser_prefix=None, stop=None, echo=True,
                 parser.prompt_object.cache_seed += 1
             else:
                 cache_seed = 0
-            gen_obj = parser.prompt_object.generator(parser_prefix, stop=stop, max_tokens=batch_generate_max_tokens, temperature=batch_generate_temperature, top_p=batch_generate_top_p, cache_seed=cache_seed)
+            gen_obj = parser.prompt_object.llm(parser_prefix, stop=stop, max_tokens=batch_generate_max_tokens, temperature=batch_generate_temperature, top_p=batch_generate_top_p, cache_seed=cache_seed)
             generated_value = gen_obj["choices"][0]["text"]
 
             # parse the generated content (this assumes the generated content is syntactically correct)
@@ -713,15 +796,15 @@ def _select(variable_name="selected", block_content=None, parser=None, partial_o
         assert block_content[i].text == "{{or}}"
         options.append(block_content[i+1].text)
 
-    option_tokens = parser.prompt_object.generator.tokenize(options)
+    option_tokens = [parser.prompt_object.llm.encode(option) for option in options]
 
     option_logprobs = {}
     for option in option_tokens:
-        option_logprobs["".join(option)] = 0
+        option_logprobs[parser.prompt_object.llm.decode(option)] = 0
 
     # [TODO] we should force the LM to generate a valid specific option
     #        for openai this means setting logprobs to valid token ids
-    gen_obj = parser.prompt_object.generator(
+    gen_obj = parser.prompt_object.llm(
         parser_prefix,
         max_tokens=max([len(o) for o in option_tokens]),
         logprobs=10,
@@ -733,12 +816,12 @@ def _select(variable_name="selected", block_content=None, parser=None, partial_o
     for i in range(len(top_logprobs)):
         for option in option_tokens:
             if len(option) > i:
-                option_logprobs["".join(option)] += top_logprobs[i].get(option[i], -100)
+                option_logprobs[parser.prompt_object.llm.decode(option)] += top_logprobs[i].get(option[i], -100)
     
     # penalize options that are too long
     for option in option_tokens:
         if len(option) > len(top_logprobs):
-            option_logprobs["".join(option)] -= 100
+            option_logprobs[parser.prompt_object.llm.decode(option)] -= 100
 
     selected_option = max(option_logprobs, key=option_logprobs.get)
     parser.set_variable(variable_name, selected_option)
@@ -777,3 +860,29 @@ def _if(value, block_content, parser, reverse=False):
 
 def _unless(value, block_content, parser):
     return _if(value, block_content, parser, reverse=True)
+
+def _block(name=None, block_content=None, parser=None, hidden=False):
+    ''' Generic block definition.
+    '''
+    assert parser is not None
+    
+    out = parser.visit(block_content[0])
+    if name is not None:
+        parser.set_variable(name, strip_markers(out))
+    if hidden:
+        parser._trim_prefix(out)
+    
+    return out
+
+def _set(name, value=None, parser=None):
+    ''' Standard if/else statement.
+    '''
+    assert parser is not None
+
+    if isinstance(name, dict):
+        for k, v in name.items():
+            parser.set_variable(k, v)
+    else:
+        parser.set_variable(name, value)
+    
+    return ""

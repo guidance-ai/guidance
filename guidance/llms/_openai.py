@@ -7,12 +7,13 @@ import requests
 import warnings
 import time
 import collections
+import tiktoken
 
 curr_dir = pathlib.Path(__file__).parent.resolve()
-_file_cache = diskcache.Cache(f"{curr_dir}/../lm.diskcache")
+_file_cache = diskcache.Cache(f"{curr_dir}/_openai.diskcache")
 
 class OpenAI():
-    def __init__(self, model=None, caching=True, max_retries=5, max_calls_per_min=60, token=None, endpoint=None):
+    def __init__(self, model=None, caching=True, max_retries=5, max_calls_per_min=60, token=None, endpoint=None, temperature=0.0):
 
         # fill in default model value
         if model is None:
@@ -40,6 +41,8 @@ class OpenAI():
         # fill in default endpoint value
         if endpoint is None:
             endpoint = os.environ.get("OPENAI_ENDPOINT", None)
+
+        self._encoding = tiktoken.get_encoding("cl100k_base")
         
         self.model = model
         self.caching = caching
@@ -49,17 +52,21 @@ class OpenAI():
         self.endpoint = endpoint
         self.current_time = time.time()
         self.call_history = collections.deque()
+        self.temperature = temperature
 
         if self.endpoint is None:
             self.caller = self._library_call
         else:
             self.caller = self._rest_call
     
-    def __call__(self, prompt, stop=None, temperature=0.0, n=1, max_tokens=1000, logprobs=None, top_p=1.0, echo=False, cache_seed=0):
+    def __call__(self, prompt, stop=None, temperature=None, n=1, max_tokens=1000, logprobs=None, top_p=1.0, echo=False, logit_bias=None, cache_seed=0):
         """ Generate a completion of the given prompt.
         """
 
-        key = "_---_".join([str(v) for v in (self.model, prompt, stop, temperature, n, max_tokens, logprobs, echo, cache_seed)])
+        if temperature is None:
+            temperature = self.temperature
+
+        key = "_---_".join([str(v) for v in (self.model, prompt, stop, temperature, n, max_tokens, logprobs, echo, logit_bias, cache_seed)])
         if key not in _file_cache or not self.caching:
 
             # ensure we don't exceed the rate limit
@@ -71,10 +78,20 @@ class OpenAI():
                 try_again = False
                 try:
                     self.add_call()
-                    out = self.caller(
-                        model=self.model, prompt=prompt, max_tokens=max_tokens, echo=echo,
-                        temperature=temperature, top_p=top_p, n=n, stop=stop, logprobs=logprobs#, stream=True
-                    )
+                    call_args = {
+                        "model": self.model,
+                        "prompt": prompt,
+                        "max_tokens": max_tokens,
+                        "temperature": temperature,
+                        "top_p": top_p,
+                        "n": n,
+                        "stop": stop,
+                        "logprobs": logprobs,
+                        "echo": echo
+                    }
+                    if logit_bias is not None:
+                        call_args["logit_bias"] = logit_bias
+                    out = self.caller(**call_args)
 
                 except openai.error.RateLimitError:
                     time.sleep(3)
@@ -147,31 +164,37 @@ class OpenAI():
         if response.status_code != 200:
             raise Exception("Response is not 200: " + response.text)
         return response.json()
+    
+    def encode(self, string):
+        return self._encoding.encode(string)
+    
+    def decode(self, tokens):
+        return self._encoding.decode(tokens)
 
-    def tokenize(self, strings):
-        fail_count = 0
-        while True:
-            try_again = False
-            try:
-                out = self.caller(
-                    model=self.model, prompt=strings, max_tokens=1, temperature=0, logprobs=0, echo=True
-                )
+    # def tokenize(self, strings):
+    #     fail_count = 0
+    #     while True:
+    #         try_again = False
+    #         try:
+    #             out = self.caller(
+    #                 model=self.model, prompt=strings, max_tokens=1, temperature=0, logprobs=0, echo=True
+    #             )
 
-            except openai.error.RateLimitError:
-                time.sleep(3)
-                try_again = True
-                fail_count += 1
+    #         except openai.error.RateLimitError:
+    #             time.sleep(3)
+    #             try_again = True
+    #             fail_count += 1
             
-            if not try_again:
-                break
+    #         if not try_again:
+    #             break
 
-            if fail_count > self.max_retries:
-                raise Exception(f"Too many (more than {self.max_retries}) OpenAI API RateLimitError's in a row!")
+    #         if fail_count > self.max_retries:
+    #             raise Exception(f"Too many (more than {self.max_retries}) OpenAI API RateLimitError's in a row!")
         
-        if isinstance(strings, str):
-            return out["choices"][0]["logprobs"]["tokens"][:-1]
-        else:
-            return [choice["logprobs"]["tokens"][:-1] for choice in out["choices"]]
+    #     if isinstance(strings, str):
+    #         return out["choices"][0]["logprobs"]["tokens"][:-1]
+    #     else:
+    #         return [choice["logprobs"]["tokens"][:-1] for choice in out["choices"]]
 
 
 
