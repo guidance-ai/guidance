@@ -31,6 +31,19 @@ class PromptCompletion:
     
     def __str__(self) -> str:
         return self.text
+    
+css = """
+:root {
+  --txt: #000;
+  --inserted: rgba(0, 138.56128016, 250.76166089, 0.25);
+  --generated: rgba(0, 165, 0, 0.25);
+}
+@media screen and (prefers-color-scheme: dark) {
+  :root {
+    --txt: #fff;
+  }
+}
+"""#.replace("\n", "").replace(" ", "")prefers-color-scheme: dark
 
 class Prompt:
     ''' A prompt template that can be compiled and executed to generate a PromptCompletion result.
@@ -117,10 +130,17 @@ class Prompt:
         # add syntax highlighting
         display_out = re.sub(r"(\{\{generate.*?\}\})", r"<span style='background-color: rgba(0, 165, 0, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
         display_out = re.sub(r"(\{\{#select\{\{/select.*?\}\})", r"<span style='background-color: rgba(0, 165, 0, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
-        display_out = re.sub(r"(\{\{#each [^'\"].*?\{\{/each.*?\}\})", r"<span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
-        display_out = re.sub(r"(\{\{(?!generate)(?!#select)(?!#each)(?!/each)(?!/select).*?\}\})", r"<span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
-        display_out = "<pre style='padding: 7px; border-radius: 4px; background: white; white-space: pre-wrap; font-family: ColfaxAI, Arial; font-size: 16px; line-height: 24px; color: #000'>"+display_out+"</pre>"
-        return display_out
+        display_out = re.sub(r"(\{\{#each [^'\"].*?\{\{/each.*?\}\})", r"<span style='background-color: var(--inserted);'>\1</span>", display_out, flags=re.DOTALL)
+        display_out = re.sub(r"(\{\{(?!generate)(?!#select)(?!#each)(?!/each)(?!/select).*?\}\})", r"<span style='background-color: var(--inserted);'>\1</span>", display_out, flags=re.DOTALL)
+        display_out = add_spaces(display_out)
+        display_out = "<pre style='margin: 0px; padding: 0px; padding-left: 8px; margin-left: -8px; border-radius: 0px; border-left: 1px solid rgba(127, 127, 127, 0.2); white-space: pre-wrap; font-family: ColfaxAI, Arial; font-size: 15px; line-height: 22px;'>"+display_out+"</pre>"
+# <script>
+# var r = document.querySelector(':root');
+# if (getComputedStyle(r).getPropertyValue('--vscode-editor-background').split(",")[1] < 100) {
+#     r.style.setProperty('--txt', 'lightblue');
+# }
+# </script>
+        return "<style type='text/css'>"+css+"</style>" + display_out
     
     def __call__(self, **kwargs):
 
@@ -174,7 +194,7 @@ class Prompt:
             alpha = 1.0 if no_echo else 1.0
             
             # script that toggles the viisibility of the next element
-            click_script = 'var e = this.nextElementSibling; if (e.style.display == "inline") { e.style.display = "none"; this.style.borderRight = "1px solid rgb(0, 165, 0, 1)"; } else { e.style.display = "inline"; this.style.borderRight = "0px";}'
+            click_script = 'var e = this.nextElementSibling; if (e.style.display == "inline") { e.style.display = "none"; this.style.borderRight = "1px solid var(--generated)"; } else { e.style.display = "inline"; this.style.borderRight = "0px";}'
 
             if no_echo:
                 out = f'''<div style='background-color: rgba(0, 165, 0, 0.25); border-radius: 4px 0px 0px 4px; border: 1px solid rgba(0, 165, 0, 1); padding-left: 3px; padding-right: 3px; user-select: none; color: rgb(0, 165, 0, 1.0); display: inline; font-weight: normal; cursor: pointer' onClick='{click_script}'>no echo</div>'''
@@ -186,7 +206,7 @@ class Prompt:
         def start_each(x):
             no_echo = "echo=False" in x.group(1)
             alpha = 0.5 if no_echo else 1.0
-            color = "rgba(0, 138.56128016, 250.76166089, 0.25)" if "each '" not in x.group(1) and "each \"" not in x.group(1) else "rgba(0, 165, 0, 0.25)"
+            color = "var(--inserted)" if "each '" not in x.group(1) and "each \"" not in x.group(1) else "rgba(0, 165, 0, 0.25)"
             return "<span style='opacity: {}; display: inline; background-color: {};' title='{}'>".format(alpha, color, x.group(1))
 
         display_out = html.escape(output)
@@ -231,7 +251,7 @@ cycle_IDVAL(this);'''.replace("IDVAL", id).replace("TOTALCOUNT", str(total_count
             return out
         display_out = re.sub(
             r"__GMARKER_generate_many_start_([^_]+)_([0-9]+)\$([^\$]*)\$___",
-            lambda x: click_loop_start(x.group(3), int(x.group(2)), x.group(1) == "True", "rgb(0, 165, 0, 1)"),
+            lambda x: click_loop_start(x.group(3), int(x.group(2)), x.group(1) == "True", "var(--generated)"),
             display_out
         )
         display_out = re.sub(
@@ -261,19 +281,31 @@ cycle_IDVAL(this);'''.replace("IDVAL", id).replace("TOTALCOUNT", str(total_count
 
         display_out = re.sub(r"__GMARKER_START_select\$([^\$]*)\$___", start_generate_or_select, display_out)
         display_out = display_out.replace("__GMARKER_END_select$$___", "</span>")
-        display_out = re.sub(r"__GMARKER_START_variable_ref\$([^\$]*)\$___", r"<span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25); display: inline;' title='\1'>", display_out)
+        display_out = re.sub(r"__GMARKER_START_variable_ref\$([^\$]*)\$___", r"<span style='background-color: var(--inserted); display: inline;' title='\1'>", display_out)
         display_out = display_out.replace("__GMARKER_END_variable_ref$$___", "</span>")
         display_out = display_out.replace("__GMARKER_each$$___", "<div style='border-left: 1px dashed rgb(0, 0, 0, .2); border-top: 0px solid rgb(0, 0, 0, .2); margin-right: -4px; display: inline; width: 4px; height: 24px;'></div>")
         display_out = re.sub(r"__GMARKER_START_block\$([^\$]*)\$___", r"<span style='background-color: rgba(165, 165, 165, 0.15); display: inline;' title='\1'>", display_out)
-        display_out = re.sub(r"__GMARKER_START_([^\$]*)\$([^\$]*)\$___", r"<span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25); display: inline;' title='\2'>", display_out)
+        display_out = re.sub(r"__GMARKER_START_([^\$]*)\$([^\$]*)\$___", r"<span style='background-color: var(--inserted); display: inline;' title='\2'>", display_out)
         # display_out = re.sub(r"__GMARKER_START_([^\$]*)\$([^\$]*)\$___", r"<span style='background-color: rgba(165, 165, 165, 0.25); display: inline;' title='\2'>", display_out)
         display_out = re.sub(r"__GMARKER_END_([^\$]*)\$\$___", "</span>", display_out)
-        display_out = "<pre style='padding: 7px; border-radius: 4px; background: white; white-space: pre-wrap; font-family: ColfaxAI, Arial; font-size: 16px; line-height: 24px; color: #000'>"+display_out+"</pre>"
+        display_out = add_spaces(display_out)
+        display_out = "<pre style='margin: 0px; padding: 0px; padding-left: 8px; margin-left: -8px; border-radius: 0px; border-left: 1px solid rgba(127, 127, 127, 0.2); white-space: pre-wrap; font-family: ColfaxAI, Arial; font-size: 15px; line-height: 23px;'>"+display_out+"</pre>"
+
+        display_out = "<style type='text/css'>"+css+"</style>"+display_out
 
         # strip out the markers for the unformatted output
         output = strip_markers(output)
 
         return PromptCompletion(variables, output, display_out, self)
+
+def add_spaces(s):
+    """ This adds spaces so the browser will show leading and trailing newlines.
+    """
+    if s.startswith("\n"):
+        s = " " + s
+    if s.endswith("\n"):
+        s = s + " "
+    return s
 
 def strip_markers(s):
     return re.sub(r"__GMARKER_([^\$]*)\$([^\$]*)\$___", r"", s, flags=re.MULTILINE | re.DOTALL)
