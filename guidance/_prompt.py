@@ -8,6 +8,7 @@ import parsimonious
 import warnings
 import copy
 from .llms import _openai
+from . import _utils
 import guidance
 
 class PromptCompletion:
@@ -38,6 +39,18 @@ class Prompt:
     def __init__(self, template, call_function=None, llm=None, echo=False, cache_seed=0, logprobs=None, **kwargs):
         """ Create a new Prompt object from a prompt string.
         """
+
+        # see if we were given a raw function instead of a string template
+        if not isinstance(template, str):
+            if callable(template):
+                sig = inspect.signature(template)
+                args = ""
+                for name,_ in sig.parameters.items():
+                    args += f" {name}={name}"
+                fname = _utils.find_func_name(kwargs)
+                kwargs[fname] = template
+                template = "{{set (%s%s)}}" % (fname, args)
+
         self._template = template
         self.call_function = call_function
         self.llm = llm
@@ -241,6 +254,10 @@ cycle_IDVAL(this);'''.replace("IDVAL", id).replace("TOTALCOUNT", str(total_count
             display_out
         )
         display_out = re.sub(r"__GMARKER_each_noecho_end\$([^\$]*)\$___", "</div>", display_out)
+        
+        # format the set command results
+        display_out = re.sub(r"__GMARKER_set\$([^\$]*)\$___", r"<div style='background-color: rgba(165, 165, 165, 0); border-radius: 4px 4px 4px 4px; border: 1px solid rgba(165, 165, 165, 1); border-left: 2px solid rgba(165, 165, 165, 1); border-right: 2px solid rgba(165, 165, 165, 1); padding-left: 0px; padding-right: 3px; color: rgb(165, 165, 165, 1.0); display: inline; font-weight: normal; overflow: hidden;'><div style='display: inline; background: rgba(165, 165, 165, 1); padding-right: 5px; padding-left: 4px; margin-right: 3px; color: #fff'>set</div>\1</div>", display_out)
+        display_out = re.sub(r"__GMARKER_START_set\$([^\$]*)\$___", r"<span style='display: inline;' title='\1'>", display_out)
 
         display_out = re.sub(r"__GMARKER_START_select\$([^\$]*)\$___", start_generate_or_select, display_out)
         display_out = display_out.replace("__GMARKER_END_select$$___", "</span>")
@@ -340,7 +357,7 @@ class TopDownVisitor():
         self.prefix_tokens = []
         self.block_content = []
     
-    def visit(self, node, next_node=None):
+    def visit(self, node, next_node=None, prev_node=None):
 
         if node.expr_name == 'variable_ref':
             var = self.get_variable(node.text)
@@ -394,7 +411,7 @@ class TopDownVisitor():
 
         elif node.expr_name == 'command':
             self.block_content.append([])
-            visited_children = [self.visit(child, next_node) for child in node.children]
+            visited_children = [self.visit(child, next_node, prev_node) for child in node.children]
             self.block_content.pop()
             out = "".join("" if c is None else c for c in visited_children)
             
@@ -445,6 +462,11 @@ class TopDownVisitor():
                         named_args["next_text"] = next_node.text
                     else:
                         named_args["next_text"] = ""
+                if "prev_text" in sig.parameters:
+                    if prev_node is not None:
+                        named_args["prev_text"] = prev_node.text
+                    else:
+                        named_args["prev_text"] = ""
 
                 command_output = command_function(*positional_args, **named_args)
 
@@ -514,7 +536,11 @@ class TopDownVisitor():
                     inner_next_node = node.children[i + 1]
                 else:
                     inner_next_node = next_node
-                visited_children.append(self.visit(child, inner_next_node))
+                if i > 0:
+                    inner_prev_node = node.children[i - 1]
+                else:
+                    inner_prev_node = prev_node
+                visited_children.append(self.visit(child, inner_next_node, inner_prev_node))
             # visited_children = [self.visit(child) for child in node.children]
             
             if len(visited_children) == 1:
@@ -588,13 +614,33 @@ class TopDownVisitor():
         # TODO: undo the echo if needed
 
 
-def _generate(variable_name="generated", partial_output=None, parse=False, stop=None, max_tokens=500, n=1, echo=True, temperature=0.0, top_p=1.0, logprobs=None, parser_prefix=None, parser=None, prefix="", suffix="", next_text=None):
+def _generate(variable_name="generated", partial_output=None, parse=False, stop=None, max_tokens=500, n=1, echo=True, temperature=0.0, top_p=1.0, logprobs=None, parser_prefix=None, parser=None, prefix="", suffix="", next_text=None, prev_text=None, **kwargs):
     ''' Use the LM to generate a completion string that is stored in the variable `variable_name`.
     '''
 
     # if stop is None then we use the text of the node after the generate command
     if stop is None:
-        stop = next_text
+        if next_text is not None and prev_text is not None:
+
+            # auto-detect quote stop tokens
+            quote_types = ['"', "'", "'''", '"""', "`"]
+            for quote_type in quote_types:
+                if next_text.startswith(quote_type) and prev_text.endswith(quote_type):
+                    stop = quote_type
+                    break
+                    
+            # auto-detect XML tag stop tokens
+            if stop is None:
+                m = re.match(r"<([^>]+)>", next_text)
+                if m is not None:
+                    end_tag = "</"+m.group(1)+">"
+                    if next_text.startswith(end_tag):
+                        stop = end_tag
+                else:
+                    stop = next_text
+                
+        else:
+            stop = next_text
     
     if temperature > 0:
         cache_seed = parser.prompt_object.cache_seed
@@ -875,14 +921,33 @@ def _block(name=None, block_content=None, parser=None, hidden=False):
     return out
 
 def _set(name, value=None, parser=None):
-    ''' Standard if/else statement.
+    ''' Set the value of a variable or set of variables.
+
+    Parameters
+    ----------
+    name : str or dict
+        If a string, the name of the variable to set. If a dict, the keys are the variable names and the values are the values to set.
+    value : str, optional
+        The value to set the variable to. Only used if `name` is a string.
     '''
     assert parser is not None
 
     if isinstance(name, dict):
         for k, v in name.items():
             parser.set_variable(k, v)
+        out = ""
+        for k, v in name.items():
+            if isinstance(v, str):
+                if "\n" in v:
+                    v = f'"""{v}"""'
+                elif '"' in v:
+                    v = f"'{v}'"
+                else:
+                    v = f'"{v}"'
+            out += f" {k}={v}"
+        out += ""
+        return f"__GMARKER_set${out}$___"
     else:
         parser.set_variable(name, value)
-    
-    return ""
+        out = "{{set "+name+"=" + value + "}}"
+        return f"__GMARKER_set${out}$___"

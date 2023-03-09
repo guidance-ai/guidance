@@ -1,7 +1,6 @@
 import os
 import requests
 import inspect
-from ._prompt import Prompt
 
 def load(guidance_file):
     ''' Load a guidance prompt from the given text file.
@@ -25,6 +24,8 @@ def chain(prompts, **kwargs):
     This merges them into a single prompt like: {{>prompt1 hidden=True}}{{>prompt2 hidden=True}}
     '''
 
+    from ._prompt import Prompt
+
     new_template = "".join(["{{>prompt%d hidden=True}}" % i for i in range(len(prompts))])
     for i, prompt in enumerate(prompts):
         if isinstance(prompt, Prompt):
@@ -34,6 +35,13 @@ def chain(prompts, **kwargs):
             args = ""
             for name,_ in sig.parameters.items():
                 args += f" {name}={name}"
-            kwargs["prompt%d" % i] = Prompt("{{set (func%d%s)}}" % (i, args), **{f"func{i}": prompt})
+            fname = find_func_name(sig.parameters)
+            kwargs["prompt%d" % i] = Prompt("{{set (%s%s)}}" % (fname, args), **{fname: prompt})
             # kwargs.update({f"func{i}": prompt})
     return Prompt(new_template, **kwargs)
+
+def find_func_name(dict):
+    for i in range(100):
+        fname = f"function{i}"
+        if fname not in dict:
+            return fname
