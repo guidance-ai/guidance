@@ -31,7 +31,8 @@ class PromptCompletion:
     
     def __str__(self) -> str:
         return self.text
-    
+
+# this should work for the Jupyter web browser version, but it if failing in VS Code: https://github.com/microsoft/vscode/issues/176698
 css = """
 :root {
   --txt: #000;
@@ -47,11 +48,17 @@ css = """
 
 class Prompt:
     ''' A prompt template that can be compiled and executed to generate a PromptCompletion result.
+
+    ## TODO: This need to now return a new prompt object that gets filled in until completion. So it does
+    ##       not return an output class but a new object of the same type that starts executing. All the
+    ##       html formatting variables can be stored in {{! handlebars comments }} so this remains a valid
+    ##       template even while markings have been added to it.
     '''
 
     def __init__(self, template, call_function=None, llm=None, echo=False, cache_seed=0, logprobs=None, **kwargs):
         """ Create a new Prompt object from a prompt string.
         """
+        ## TODO: This n
 
         # see if we were given a raw function instead of a string template
         if not isinstance(template, str):
@@ -212,8 +219,8 @@ class Prompt:
         display_out = html.escape(output)
 
         # format the generate command results
-        display_out = re.sub(r"__GMARKER_START_generate\$([^\$]*)\$___", start_generate_or_select, display_out)
-        display_out = display_out.replace("__GMARKER_END_generate$$___", "</span>")
+        display_out = re.sub(r"{{!GMARKER_START_generate\$([^\$]*)\$}}", start_generate_or_select, display_out)
+        display_out = display_out.replace("{{!GMARKER_END_generate$$}}", "</span>")
         def click_loop_start(id, total_count, echo, color):
             # echo = x.group(1) == "True"
             # total_count = int(x.group(2))
@@ -250,44 +257,44 @@ cycle_IDVAL(this);'''.replace("IDVAL", id).replace("TOTALCOUNT", str(total_count
             out = f"</div><div style='display: none; opacity: {alpha}' id='{id}_{index}'>"
             return out
         display_out = re.sub(
-            r"__GMARKER_generate_many_start_([^_]+)_([0-9]+)\$([^\$]*)\$___",
+            r"{{!GMARKER_generate_many_start_([^_]+)_([0-9]+)\$([^\$]*)\$}}",
             lambda x: click_loop_start(x.group(3), int(x.group(2)), x.group(1) == "True", "var(--generated)"),
             display_out
         )
         display_out = re.sub(
-            r"__GMARKER_generate_many_([^_]+)_([0-9]+)\$([^\$]*)\$___",
+            r"{{!GMARKER_generate_many_([^_]+)_([0-9]+)\$([^\$]*)\$}}",
             lambda x: click_loop_mid(x.group(3), int(x.group(2)), x.group(1) == "True"),
             display_out
         )
-        display_out = re.sub(r"__GMARKER_generate_many_end\$([^\$]*)\$___", "</div>", display_out)
+        display_out = re.sub(r"{{!GMARKER_generate_many_end\$([^\$]*)\$}}", "</div>", display_out)
 
         # format the each command results
-        display_out = re.sub(r"__GMARKER_START_each\$([^\$]*)\$___", start_each, display_out)
+        display_out = re.sub(r"{{!GMARKER_START_each\$([^\$]*)\$}}", start_each, display_out)
         display_out = re.sub(
-            r"__GMARKER_each_noecho_start_([^_]+)_([0-9]+)\$([^\$]*)\$___",
+            r"{{!GMARKER_each_noecho_start_([^_]+)_([0-9]+)\$([^\$]*)\$}}",
             lambda x: click_loop_start(x.group(3), int(x.group(2)), False, "rgb(100, 100, 100, 1)"),
             display_out
         )
         display_out = re.sub(
-            r"__GMARKER_each_noecho_([^_]+)_([0-9]+)\$([^\$]*)\$___",
+            r"{{!GMARKER_each_noecho_([^_]+)_([0-9]+)\$([^\$]*)\$}}",
             lambda x: click_loop_mid(x.group(3), int(x.group(2)), False),
             display_out
         )
-        display_out = re.sub(r"__GMARKER_each_noecho_end\$([^\$]*)\$___", "</div>", display_out)
+        display_out = re.sub(r"{{!GMARKER_each_noecho_end\$([^\$]*)\$}}", "</div>", display_out)
         
         # format the set command results
-        display_out = re.sub(r"__GMARKER_set\$([^\$]*)\$___", r"<div style='background-color: rgba(165, 165, 165, 0); border-radius: 4px 4px 4px 4px; border: 1px solid rgba(165, 165, 165, 1); border-left: 2px solid rgba(165, 165, 165, 1); border-right: 2px solid rgba(165, 165, 165, 1); padding-left: 0px; padding-right: 3px; color: rgb(165, 165, 165, 1.0); display: inline; font-weight: normal; overflow: hidden;'><div style='display: inline; background: rgba(165, 165, 165, 1); padding-right: 5px; padding-left: 4px; margin-right: 3px; color: #fff'>set</div>\1</div>", display_out)
-        display_out = re.sub(r"__GMARKER_START_set\$([^\$]*)\$___", r"<span style='display: inline;' title='\1'>", display_out)
+        display_out = re.sub(r"{{!GMARKER_set\$([^\$]*)\$}}", r"<div style='background-color: rgba(165, 165, 165, 0); border-radius: 4px 4px 4px 4px; border: 1px solid rgba(165, 165, 165, 1); border-left: 2px solid rgba(165, 165, 165, 1); border-right: 2px solid rgba(165, 165, 165, 1); padding-left: 0px; padding-right: 3px; color: rgb(165, 165, 165, 1.0); display: inline; font-weight: normal; overflow: hidden;'><div style='display: inline; background: rgba(165, 165, 165, 1); padding-right: 5px; padding-left: 4px; margin-right: 3px; color: #fff'>set</div>\1</div>", display_out)
+        display_out = re.sub(r"{{!GMARKER_START_set\$([^\$]*)\$}}", r"<span style='display: inline;' title='\1'>", display_out)
 
-        display_out = re.sub(r"__GMARKER_START_select\$([^\$]*)\$___", start_generate_or_select, display_out)
-        display_out = display_out.replace("__GMARKER_END_select$$___", "</span>")
-        display_out = re.sub(r"__GMARKER_START_variable_ref\$([^\$]*)\$___", r"<span style='background-color: var(--inserted); display: inline;' title='\1'>", display_out)
-        display_out = display_out.replace("__GMARKER_END_variable_ref$$___", "</span>")
-        display_out = display_out.replace("__GMARKER_each$$___", "<div style='border-left: 1px dashed rgb(0, 0, 0, .2); border-top: 0px solid rgb(0, 0, 0, .2); margin-right: -4px; display: inline; width: 4px; height: 24px;'></div>")
-        display_out = re.sub(r"__GMARKER_START_block\$([^\$]*)\$___", r"<span style='background-color: rgba(165, 165, 165, 0.15); display: inline;' title='\1'>", display_out)
-        display_out = re.sub(r"__GMARKER_START_([^\$]*)\$([^\$]*)\$___", r"<span style='background-color: var(--inserted); display: inline;' title='\2'>", display_out)
-        # display_out = re.sub(r"__GMARKER_START_([^\$]*)\$([^\$]*)\$___", r"<span style='background-color: rgba(165, 165, 165, 0.25); display: inline;' title='\2'>", display_out)
-        display_out = re.sub(r"__GMARKER_END_([^\$]*)\$\$___", "</span>", display_out)
+        display_out = re.sub(r"{{!GMARKER_START_select\$([^\$]*)\$}}", start_generate_or_select, display_out)
+        display_out = display_out.replace("{{!GMARKER_END_select$$}}", "</span>")
+        display_out = re.sub(r"{{!GMARKER_START_variable_ref\$([^\$]*)\$}}", r"<span style='background-color: var(--inserted); display: inline;' title='\1'>", display_out)
+        display_out = display_out.replace("{{!GMARKER_END_variable_ref$$}}", "</span>")
+        display_out = display_out.replace("{{!GMARKER_each$$}}", "<div style='border-left: 1px dashed rgb(0, 0, 0, .2); border-top: 0px solid rgb(0, 0, 0, .2); margin-right: -4px; display: inline; width: 4px; height: 24px;'></div>")
+        display_out = re.sub(r"{{!GMARKER_START_block\$([^\$]*)\$}}", r"<span style='background-color: rgba(165, 165, 165, 0.15); display: inline;' title='\1'>", display_out)
+        display_out = re.sub(r"{{!GMARKER_START_([^\$]*)\$([^\$]*)\$}}", r"<span style='background-color: var(--inserted); display: inline;' title='\2'>", display_out)
+        # display_out = re.sub(r"{{!GMARKER_START_([^\$]*)\$([^\$]*)\$}}", r"<span style='background-color: rgba(165, 165, 165, 0.25); display: inline;' title='\2'>", display_out)
+        display_out = re.sub(r"{{!GMARKER_END_([^\$]*)\$\$}}", "</span>", display_out)
         display_out = add_spaces(display_out)
         display_out = "<pre style='margin: 0px; padding: 0px; padding-left: 8px; margin-left: -8px; border-radius: 0px; border-left: 1px solid rgba(127, 127, 127, 0.2); white-space: pre-wrap; font-family: ColfaxAI, Arial; font-size: 15px; line-height: 23px;'>"+display_out+"</pre>"
 
@@ -308,7 +315,7 @@ def add_spaces(s):
     return s
 
 def strip_markers(s):
-    return re.sub(r"__GMARKER_([^\$]*)\$([^\$]*)\$___", r"", s, flags=re.MULTILINE | re.DOTALL)
+    return re.sub(r"{{!GMARKER_([^\$]*)\$([^\$]*)\$}}", r"", s, flags=re.MULTILINE | re.DOTALL)
 
 grammar = parsimonious.grammar.Grammar(
 r"""
@@ -457,7 +464,7 @@ class TopDownVisitor():
                 raise Exception("Unknown command head type: "+command_head.expr_name)
 
             node_text = node.text.replace("$", "DOLLAR_SIGN")
-            return f"__GMARKER_START_{name}${node_text}$___{out}__GMARKER_END_{name}$$___"
+            return "{{!"+f"GMARKER_START_{name}${node_text}$"+"}}" + out + "{{" + f"!GMARKER_END_{name}$$" + "}}"
 
         elif node.expr_name == 'command_arg_group':
             visited_children = [self.visit(child) for child in node.children]
@@ -557,7 +564,7 @@ class TopDownVisitor():
 
             node_text = node.text.replace("$", "DOLLAR_SIGN")
             self.block_content.pop()
-            return f"__GMARKER_START_{command_name}${node_text}$___{command_output}__GMARKER_END_{command_name}$$___"
+            return "{{!" + f"GMARKER_START_{command_name}${node_text}$" + "}}" + command_output + "{{!" + f"GMARKER_END_{command_name}$$" + "}}"
             # start_block(node.children[1], self)
             # end_block = self.visit(node.children[2])
 
@@ -717,13 +724,13 @@ def _generate(variable_name="generated", partial_output=None, parse=False, stop=
             
             id = uuid.uuid4().hex
             l = len(generated_values)
-            out = f"__GMARKER_generate_many_start_{echo}_{l}${id}$___"
+            out = "{{!" + f"GMARKER_generate_many_start_{echo}_{l}${id}$" + "}}"
             for i, value in enumerate(generated_values):
                 if i > 0:
-                    out += f"__GMARKER_generate_many_{echo}_{i}${id}$___"
+                    out += "{{!" + f"GMARKER_generate_many_{echo}_{i}${id}$" + "}}"
                 out += value
-            return out + f"__GMARKER_generate_many_end${id}$___"
-            # return "__GMARKER_generate_many_start$$___" + "__GMARKER_generate_many$$___".join([v for v in generated_values]) + "__GMARKER_generate_many_end$$___"
+            return out + "{{!" + f"GMARKER_generate_many_end${id}$" + "}}"
+            # return "{{!GMARKER_generate_many_start$$}}" + "{{!GMARKER_generate_many$$}}".join([v for v in generated_values]) + "{{!GMARKER_generate_many_end$$}}"
             # return "".join([v for v in generated_values])
 
 def _add(*args):
@@ -780,7 +787,9 @@ def _each(list, block_content, parser, parser_prefix=None, stop=None, hidden=Fal
     
     # if the list is a string then it is the name of a variable to save a new list to
     if isinstance(list, str):
-        assert stop is not None, "Must provide a stop token when doing variable length iteration!"
+        if stop is None:
+            stop = "<|endoftext|>"
+        # assert stop is not None, "Must provide a stop token when doing variable length iteration!"
         stop_tokens = [parser.prompt_object.llm.encode(s) for s in stop]
 
         if not batch_generate:
@@ -819,7 +828,7 @@ def _each(list, block_content, parser, parser_prefix=None, stop=None, hidden=Fal
             # parse the generated content (this assumes the generated content is syntactically correct)
             matches = re.finditer(pattern, generated_value)
             data = []
-            for m in matches:#f"__GMARKER_START_{name}${node_text}$___{out}__GMARKER_END_{name}$$___"
+            for m in matches:#"{{!" + f"GMARKER_START_{name}${node_text}$}}{out}{{!GMARKER_END_{name}$$" + "}}"
                 
                 # get the variables that were generated
                 match_dict = m.groupdict()
@@ -831,7 +840,7 @@ def _each(list, block_content, parser, parser_prefix=None, stop=None, hidden=Fal
                 # recreate the output string with format markers added
                 item_out = re.sub(
                     r"{{generate [\'\"]([^\'\"]+)[\'\"][^}]*}}",
-                    lambda x: "__GMARKER_START_generate$"+x.group()+"$___"+match_dict[x.group(1).replace("this.", "")]+"__GMARKER_END_generate$$___",
+                    lambda x: "{{!GMARKER_START_generate$"+x.group()+"$}}"+match_dict[x.group(1).replace("this.", "")]+"{{!GMARKER_END_generate$$}}",
                     block_content[0].text
                 )
                 out.append(item_out)
@@ -852,17 +861,17 @@ def _each(list, block_content, parser, parser_prefix=None, stop=None, hidden=Fal
             out.append(item_out)
         parser.variable_stack.pop()
     if echo:
-        return "__GMARKER_each$$___" + "__GMARKER_each$$___".join(out) + "__GMARKER_each$$___"    
+        return "{{!GMARKER_each$$}}" + "{{!GMARKER_each$$}}".join(out) + "{{!GMARKER_each$$}}"    
     else:
         id = uuid.uuid4().hex
         l = len(out)
-        out_str = f"__GMARKER_each_noecho_start_{echo}_{l}${id}$___"
+        out_str = "{{!" + f"GMARKER_each_noecho_start_{echo}_{l}${id}$" + "}}"
         for i, value in enumerate(out):
             if i > 0:
-                out_str += f"__GMARKER_each_noecho_{echo}_{i}${id}$___"
+                out_str += "{{!" + f"GMARKER_each_noecho_{echo}_{i}${id}$" + "}}"
             out_str += value
-        return out_str + f"__GMARKER_each_noecho_end${id}$___"
-        # return "__GMARKER_each_noecho$$___" + "__GMARKER_each_noecho$$___".join(out) + "__GMARKER_each_noecho$$___"
+        return out_str + "{{!" + f"GMARKER_each_noecho_end${id}$" + "}}"
+        # return "{{!GMARKER_each_noecho$$}}" + "{{!GMARKER_each_noecho$$}}".join(out) + "{{!GMARKER_each_noecho$$}}"
         
 
 def _select(variable_name="selected", block_content=None, parser=None, partial_output=None, parser_prefix=None, logprobs=None):
@@ -894,7 +903,8 @@ def _select(variable_name="selected", block_content=None, parser=None, partial_o
     for i in range(len(top_logprobs)):
         for option in option_tokens:
             if len(option) > i:
-                option_logprobs[parser.prompt_object.llm.decode(option)] += top_logprobs[i].get(option[i], -100)
+                option_string = parser.prompt_object.llm.decode(option)
+                option_logprobs[option_string] += top_logprobs[i].get(parser.prompt_object.llm.decode([option[i]]), -100)
     
     # penalize options that are too long
     for option in option_tokens:
@@ -978,8 +988,8 @@ def _set(name, value=None, parser=None):
                     v = f'"{v}"'
             out += f" {k}={v}"
         out += ""
-        return f"__GMARKER_set${out}$___"
+        return "{{!GMARKER_set$" + out + "$}}"
     else:
         parser.set_variable(name, value)
         out = "{{set "+name+"=" + value + "}}"
-        return f"__GMARKER_set${out}$___"
+        return "{{!GMARKER_set$" + out + "$}}"
