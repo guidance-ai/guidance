@@ -1,4 +1,4 @@
-__version__ = "0.0.23"
+__version__ = "0.0.24"
 
 import types
 import sys
@@ -9,6 +9,10 @@ from . import llms
 from . import library
 from ._utils import load, chain
 from . import selectors
+import nest_asyncio
+
+# allows us to start inner event loops within jupyter notebooks
+nest_asyncio.apply()
 
 llm = llms.OpenAI()
 

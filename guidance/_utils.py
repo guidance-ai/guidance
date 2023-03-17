@@ -55,23 +55,27 @@ def find_func_name(f, used_names):
             fname = f"{prefix}{i}"
             if fname not in used_names:
                 return fname
-            
 
 class JupyterComm():
-    def __init__(self, target_name, callback=None, mode="register"):
+    def __init__(self, target_id, callback=None, on_open=None, mode="register"):
         from ipykernel.comm import Comm
         
-        self.target_name = target_name
+        self.target_name = "guidance_interface_target_"+target_id
+        # print("TARGET NAME", self.target_name)
         self.callback = callback
         self.jcomm = None
         if mode == "register":
+            # print("REGISTERING", self.target_name)
             def comm_opened(comm, open_msg):
+                # print("OPENED")
                 self.jcomm = comm
                 self.jcomm.on_msg(self._fire_callback)
+                self._fire_callback({"content": {"data": "opened"}})
             get_ipython().kernel.comm_manager.register_target(self.target_name, comm_opened) # noqa: F821
         elif mode == "open":
-            self.jcomm = Comm(target_name=target_name)
+            self.jcomm = Comm(target_name=self.target_name)
             self.jcomm.on_msg(self._fire_callback)
+            self._fire_callback({"content": {"data": "opened"}})
         else:
             raise Exception("Passed mode must be either 'open' or 'register'!")
 

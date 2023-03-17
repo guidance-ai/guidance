@@ -7,6 +7,8 @@ import sys
 import parsimonious
 import warnings
 import copy
+import asyncio
+import pathlib
 from .llms import _openai
 from . import _utils
 import guidance
@@ -16,21 +18,21 @@ class PromptCompletion:
     '''
     def __init__(self, variables, text, text_html, prompt):
         self.variables = variables
-        self.text = text
-        self.text_html = text_html
+        self._text = text
+        self._text_html = text_html
         self.prompt = prompt
 
     def __getitem__(self, key):
         return self.variables[key]
 
     def __repr__(self):
-        return self.text
+        return self._text
 
     def _repr_html_(self):
-        return self.text_html
+        return self._text_html
     
     def __str__(self) -> str:
-        return self.text
+        return self._text
 
 # this should work for the Jupyter web browser version, but it if failing in VS Code: https://github.com/microsoft/vscode/issues/176698
 css = """
@@ -38,6 +40,11 @@ css = """
   --txt: #000;
   --inserted: rgba(0, 138.56128016, 250.76166089, 0.25);
   --generated: rgba(0, 165, 0, 0.25);
+}
+:root .vscode-dark {
+  --txt: #fff;
+  --inserted: rgba(0, 138.56128016, 255, 0.4);
+  --generated: rgba(0, 255, 0, 0.18);
 }
 @media screen and (prefers-color-scheme: dark) {
   :root {
@@ -51,33 +58,37 @@ class Prompt:
 
     ## TODO: This need to now return a new prompt object that gets filled in until completion. So it does
     ##       not return an output class but a new object of the same type that starts executing. All the
-    ##       html formatting variables can be stored in {{! handlebars comments }} so this remains a valid
+    ##       html formatting variables can be stored in {{!-- handlebars comments --}} so this remains a valid
     ##       template even while markings have been added to it.
     '''
 
-    def __init__(self, template, call_function=None, llm=None, echo=False, cache_seed=0, logprobs=None, **kwargs):
+    def __init__(self, text, call_function=None, llm=None, echo=False, cache_seed=0, logprobs=None, **kwargs):
         """ Create a new Prompt object from a prompt string.
         """
         ## TODO: This n
 
-        # see if we were given a raw function instead of a string template
-        if not isinstance(template, str):
-            if callable(template):
-                sig = inspect.signature(template)
+        # see if we were given a raw function instead of a string text
+        # if so, convert it to a string text that calls the function
+        if not isinstance(text, str):
+            if callable(text):
+                sig = inspect.signature(text)
                 args = ""
                 for name,_ in sig.parameters.items():
                     args += f" {name}={name}"
-                fname = _utils.find_func_name(template, kwargs)
-                kwargs[fname] = template
-                template = "{{set (%s%s)}}" % (fname, args)
-
-        self._template = template
+                fname = _utils.find_func_name(text, kwargs)
+                kwargs[fname] = text
+                text = "{{set (%s%s)}}" % (fname, args)
+        self._id = str(uuid.uuid4())
+        self._text = text
+        self._build_html()
         self.call_function = call_function
         self.llm = llm
         self.echo = echo
         self.cache_seed = cache_seed
         self.logprobs = logprobs
-        self.default_vars = kwargs
+        self.variables = kwargs
+        self.executing = False
+        self.comm = None
 
         # find all the handlebars-style partial inclusion tags and replace them with the partial template
         def replace_partial(match):
@@ -87,10 +98,10 @@ class Prompt:
             out = "{{#block '"+partial_name+"'"
             if len(args_string) > 0:
                 out += " " + args_string
-            out += "}}" + kwargs[partial_name]._template + "{{/block}}"
-            self.default_vars = {**kwargs[partial_name].default_vars, **self.default_vars} # pull in the default vars from the partial
+            out += "}}" + kwargs[partial_name].text + "{{/block}}"
+            self.variables = {**kwargs[partial_name].variables, **self.variables} # pull in the default vars from the partial
             return out
-        self._template = re.sub(r"{{>(.*?)}}", replace_partial, self._template)
+        self._text = re.sub(r"{{>(.*?)}}", replace_partial, self._text)
 
         self.patch_stack = []
 
@@ -100,13 +111,13 @@ class Prompt:
 
         # if we don't have a custom call function, we parse the string
         if call_function is None:
-            self.tree = grammar.parse(self._template)
+            self.tree = grammar.parse(self._text)
 
     # def __getattribute__(self, name):
     #     if name == "template":
     #         patched_kwargs = {k: v for k, v in kwargs.items()}
     #         if "template" not in kwargs:
-    #             patched_kwargs["template"] = self._template
+    #             patched_kwargs["template"] = self._text
     #         for patch, arg_names in self.patch_stack:
     #             tmp = patch(**{k: patched_kwargs[k] for k in arg_names})
     #             if len(arg_names) == 1:
@@ -130,41 +141,76 @@ class Prompt:
         return new_self
     
     def __repr__(self):
-        return self._template
+        return self._text
+    
+    def _interface_event(self, msg):
+        print("interface event", msg)
+        if msg == "opened":
+            # raise Exception("asdf" + msg)
+            self.comm.send({"add_data": self._text_html})
+        pass
 
-    def _repr_html_(self):
-        display_out = self._template
-        # add syntax highlighting
-        display_out = re.sub(r"(\{\{generate.*?\}\})", r"<span style='background-color: rgba(0, 165, 0, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
-        display_out = re.sub(r"(\{\{#select\{\{/select.*?\}\})", r"<span style='background-color: rgba(0, 165, 0, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
-        display_out = re.sub(r"(\{\{#each [^'\"].*?\{\{/each.*?\}\})", r"<span style='background-color: var(--inserted);'>\1</span>", display_out, flags=re.DOTALL)
-        display_out = re.sub(r"(\{\{(?!generate)(?!#select)(?!#each)(?!/each)(?!/select).*?\}\})", r"<span style='background-color: var(--inserted);'>\1</span>", display_out, flags=re.DOTALL)
-        display_out = add_spaces(display_out)
-        display_out = "<pre style='margin: 0px; padding: 0px; padding-left: 8px; margin-left: -8px; border-radius: 0px; border-left: 1px solid rgba(127, 127, 127, 0.2); white-space: pre-wrap; font-family: ColfaxAI, Arial; font-size: 15px; line-height: 22px;'>"+display_out+"</pre>"
+    def _repr_html_(self, environment="jupyter"):
+        # spin up a JupyterComm object if we are called directly (which we assume is in a notebook)
+#         if self.comm is None and environment == "jupyter":
+#             self.comm = _utils.JupyterComm(self._id, self._interface_event)
+
+#         # dump the client javascript to the interface
+#         file_path = pathlib.Path(__file__).parent.parent.absolute()
+#         with open(file_path / "client" / "dist" / "main.js", encoding="utf-8") as f:
+#             js_data = f.read()
+#         interface_html = f"""
+# <div id="guidance_container_{self._id}">blank</div>
+# <script type='text/javascript'>{js_data}; _guidanceInitOutput("{self._id}")</script>
+# """
+        
+#         return interface_html
+        
+        return self._text_html
+        # display_out = self._text
+        # # add syntax highlighting
+        # display_out = re.sub(r"(\{\{generate.*?\}\})", r"<span style='background-color: rgba(0, 165, 0, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
+        # display_out = re.sub(r"(\{\{#select\{\{/select.*?\}\})", r"<span style='background-color: rgba(0, 165, 0, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
+        # display_out = re.sub(r"(\{\{#each [^'\"].*?\{\{/each.*?\}\})", r"<span style='background-color: var(--inserted);'>\1</span>", display_out, flags=re.DOTALL)
+        # display_out = re.sub(r"(\{\{(?!generate)(?!#select)(?!#each)(?!/each)(?!/select).*?\}\})", r"<span style='background-color: var(--inserted);'>\1</span>", display_out, flags=re.DOTALL)
+        # display_out = add_spaces(display_out)
+        # display_out = "<pre style='margin: 0px; padding: 0px; padding-left: 8px; margin-left: -8px; border-radius: 0px; border-left: 1px solid rgba(127, 127, 127, 0.2); white-space: pre-wrap; font-family: ColfaxAI, Arial; font-size: 15px; line-height: 22px;'>"+display_out+"</pre>"
 # <script>
 # var r = document.querySelector(':root');
 # if (getComputedStyle(r).getPropertyValue('--vscode-editor-background').split(",")[1] < 100) {
 #     r.style.setProperty('--txt', 'lightblue');
 # }
 # </script>
-        return "<style type='text/css'>"+css+"</style>" + display_out
+        # return "<style type='text/css'>"+css+"</style>" + display_out
     
-    def __call__(self, **kwargs):
+    def __call__(self, stream=False, **kwargs):
+        new_prompt = Prompt(self._text, self.call_function, self.llm, self.echo, self.cache_seed, self.logprobs, **{**self.variables, **kwargs})
+    
+        if stream:
+            # new_prompt.execute()
+            loop = asyncio.get_event_loop()
+            new_prompt.task = loop.create_task(new_prompt.execute())
+        else:
+            # loop = asyncio.get_event_loop()
+            loop = asyncio.new_event_loop()
+            loop.run_until_complete(new_prompt.execute())
+        
+        return new_prompt
 
-        # merge in the default variables
-        kwargs = {**self.default_vars, **kwargs}
+    async def execute(self):
+        self.executing = True
 
         # apply any patches
-        patched_kwargs = {k: v for k, v in kwargs.items()}
-        if "template" not in kwargs:
-            patched_kwargs["template"] = self._template
+        patched_kwargs = {k: v for k, v in self.variables.items()}
+        if "template" not in self.variables:
+            patched_kwargs["template"] = self._text
         for patch, arg_names in self.patch_stack:
             tmp = patch(**{k: patched_kwargs[k] for k in arg_names})
             if len(arg_names) == 1:
                 tmp = (tmp,)
             for k, v in zip(arg_names, tmp):
                 patched_kwargs[k] = v
-        if "template" not in kwargs and (patched_kwargs["template"] == self._template) and self.call_function == None:
+        if "template" not in self.variables and (patched_kwargs["template"] == self._text) and self.call_function == None:
             del patched_kwargs["template"]
 
         # if we have a custom call function, we call that instead
@@ -190,11 +236,24 @@ class Prompt:
 
         vi = TopDownVisitor(variables, self)
 
-        output = vi.visit(self.tree)
+        self._text = vi.visit(self.tree)
         
         # remove the built-ins from the variables we return
         for k in built_ins:
             del variables[k]
+
+        self._build_html()
+
+        self.executing = False
+        # return PromptCompletion(variables, output, display_out, self)
+    
+    @property
+    def text(self):
+        # strip out the markers for the unformatted output
+        return strip_markers(self._text)
+    
+    def _build_html(self):
+        output = self._text
 
         def start_generate_or_select(x):
             no_echo = "echo=False" in x.group(1)
@@ -204,23 +263,28 @@ class Prompt:
             click_script = 'var e = this.nextElementSibling; if (e.style.display == "inline") { e.style.display = "none"; this.style.borderRight = "1px solid var(--generated)"; } else { e.style.display = "inline"; this.style.borderRight = "0px";}'
 
             if no_echo:
-                out = f'''<div style='background-color: rgba(0, 165, 0, 0.25); border-radius: 4px 0px 0px 4px; border: 1px solid rgba(0, 165, 0, 1); padding-left: 3px; padding-right: 3px; user-select: none; color: rgb(0, 165, 0, 1.0); display: inline; font-weight: normal; cursor: pointer' onClick='{click_script}'>no echo</div>'''
-                out += "<span style='background-color: rgba(0, 165, 0, 0.25); opacity: {}; display: none;' title='{}'>".format(alpha, x.group(1))
+                out = f'''<div style='background-color: var(--generated); border-radius: 4px 0px 0px 4px; border: 1px solid rgba(0, 165, 0, 1); padding-left: 3px; padding-right: 3px; user-select: none; color: rgb(0, 165, 0, 1.0); display: inline; font-weight: normal; cursor: pointer' onClick='{click_script}'>no echo</div>'''
+                out += "<span style='background-color: var(--generated); opacity: {}; display: none;' title='{}'>".format(alpha, x.group(1))
             else:
-                out = "<span style='background-color: rgba(0, 165, 0, 0.25); opacity: {}; display: inline;' title='{}'>".format(alpha, x.group(1))
+                out = "<span style='background-color: var(--generated); opacity: {}; display: inline;' title='{}'>".format(alpha, x.group(1))
             return out
         
         def start_each(x):
             no_echo = "echo=False" in x.group(1)
             alpha = 0.5 if no_echo else 1.0
-            color = "var(--inserted)" if "each '" not in x.group(1) and "each \"" not in x.group(1) else "rgba(0, 165, 0, 0.25)"
+            color = "var(--inserted)" if "each '" not in x.group(1) and "each \"" not in x.group(1) else "var(--generated)"
             return "<span style='opacity: {}; display: inline; background-color: {};' title='{}'>".format(alpha, color, x.group(1))
 
         display_out = html.escape(output)
+        display_out = re.sub(r"(\{\{generate.*?\}\})", r"<span style='background-color: var(--generated);'>\1</span>", display_out, flags=re.DOTALL)
+        display_out = re.sub(r"(\{\{#select\{\{/select.*?\}\})", r"<span style='background-color: var(--generated);'>\1</span>", display_out, flags=re.DOTALL)
+        display_out = re.sub(r"(\{\{#each [^'\"].*?\{\{/each.*?\}\})", r"<span style='background-color: var(--inserted);'>\1</span>", display_out, flags=re.DOTALL)
+        display_out = re.sub(r"(\{\{(?!\!)(?!generate)(?!#select)(?!#each)(?!/each)(?!/select).*?\}\})", r"<span style='background-color: var(--inserted);'>\1</span>", display_out, flags=re.DOTALL)
+                
 
         # format the generate command results
-        display_out = re.sub(r"{{!GMARKER_START_generate\$([^\$]*)\$}}", start_generate_or_select, display_out)
-        display_out = display_out.replace("{{!GMARKER_END_generate$$}}", "</span>")
+        display_out = re.sub(r"{{!--GMARKER_START_generate\$([^\$]*)\$--}}", start_generate_or_select, display_out)
+        display_out = display_out.replace("{{!--GMARKER_END_generate$$--}}", "</span>")
         def click_loop_start(id, total_count, echo, color):
             # echo = x.group(1) == "True"
             # total_count = int(x.group(2))
@@ -257,53 +321,52 @@ cycle_IDVAL(this);'''.replace("IDVAL", id).replace("TOTALCOUNT", str(total_count
             out = f"</div><div style='display: none; opacity: {alpha}' id='{id}_{index}'>"
             return out
         display_out = re.sub(
-            r"{{!GMARKER_generate_many_start_([^_]+)_([0-9]+)\$([^\$]*)\$}}",
+            r"{{!--GMARKER_generate_many_start_([^_]+)_([0-9]+)\$([^\$]*)\$--}}",
             lambda x: click_loop_start(x.group(3), int(x.group(2)), x.group(1) == "True", "var(--generated)"),
             display_out
         )
         display_out = re.sub(
-            r"{{!GMARKER_generate_many_([^_]+)_([0-9]+)\$([^\$]*)\$}}",
+            r"{{!--GMARKER_generate_many_([^_]+)_([0-9]+)\$([^\$]*)\$--}}",
             lambda x: click_loop_mid(x.group(3), int(x.group(2)), x.group(1) == "True"),
             display_out
         )
-        display_out = re.sub(r"{{!GMARKER_generate_many_end\$([^\$]*)\$}}", "</div>", display_out)
+        display_out = re.sub(r"{{!--GMARKER_generate_many_end\$([^\$]*)\$--}}", "</div>", display_out)
 
         # format the each command results
-        display_out = re.sub(r"{{!GMARKER_START_each\$([^\$]*)\$}}", start_each, display_out)
+        display_out = re.sub(r"{{!--GMARKER_START_each\$([^\$]*)\$--}}", start_each, display_out)
         display_out = re.sub(
-            r"{{!GMARKER_each_noecho_start_([^_]+)_([0-9]+)\$([^\$]*)\$}}",
+            r"{{!--GMARKER_each_noecho_start_([^_]+)_([0-9]+)\$([^\$]*)\$--}}",
             lambda x: click_loop_start(x.group(3), int(x.group(2)), False, "rgb(100, 100, 100, 1)"),
             display_out
         )
         display_out = re.sub(
-            r"{{!GMARKER_each_noecho_([^_]+)_([0-9]+)\$([^\$]*)\$}}",
+            r"{{!--GMARKER_each_noecho_([^_]+)_([0-9]+)\$([^\$]*)\$--}}",
             lambda x: click_loop_mid(x.group(3), int(x.group(2)), False),
             display_out
         )
-        display_out = re.sub(r"{{!GMARKER_each_noecho_end\$([^\$]*)\$}}", "</div>", display_out)
+        display_out = re.sub(r"{{!--GMARKER_each_noecho_end\$([^\$]*)\$--}}", "</div>", display_out)
         
         # format the set command results
-        display_out = re.sub(r"{{!GMARKER_set\$([^\$]*)\$}}", r"<div style='background-color: rgba(165, 165, 165, 0); border-radius: 4px 4px 4px 4px; border: 1px solid rgba(165, 165, 165, 1); border-left: 2px solid rgba(165, 165, 165, 1); border-right: 2px solid rgba(165, 165, 165, 1); padding-left: 0px; padding-right: 3px; color: rgb(165, 165, 165, 1.0); display: inline; font-weight: normal; overflow: hidden;'><div style='display: inline; background: rgba(165, 165, 165, 1); padding-right: 5px; padding-left: 4px; margin-right: 3px; color: #fff'>set</div>\1</div>", display_out)
-        display_out = re.sub(r"{{!GMARKER_START_set\$([^\$]*)\$}}", r"<span style='display: inline;' title='\1'>", display_out)
+        display_out = re.sub(r"{{!--GMARKER_set\$([^\$]*)\$--}}", r"<div style='background-color: rgba(165, 165, 165, 0); border-radius: 4px 4px 4px 4px; border: 1px solid rgba(165, 165, 165, 1); border-left: 2px solid rgba(165, 165, 165, 1); border-right: 2px solid rgba(165, 165, 165, 1); padding-left: 0px; padding-right: 3px; color: rgb(165, 165, 165, 1.0); display: inline; font-weight: normal; overflow: hidden;'><div style='display: inline; background: rgba(165, 165, 165, 1); padding-right: 5px; padding-left: 4px; margin-right: 3px; color: #fff'>set</div>\1</div>", display_out)
+        display_out = re.sub(r"{{!--GMARKER_START_set\$([^\$]*)\$--}}", r"<span style='display: inline;' title='\1'>", display_out)
 
-        display_out = re.sub(r"{{!GMARKER_START_select\$([^\$]*)\$}}", start_generate_or_select, display_out)
-        display_out = display_out.replace("{{!GMARKER_END_select$$}}", "</span>")
-        display_out = re.sub(r"{{!GMARKER_START_variable_ref\$([^\$]*)\$}}", r"<span style='background-color: var(--inserted); display: inline;' title='\1'>", display_out)
-        display_out = display_out.replace("{{!GMARKER_END_variable_ref$$}}", "</span>")
-        display_out = display_out.replace("{{!GMARKER_each$$}}", "<div style='border-left: 1px dashed rgb(0, 0, 0, .2); border-top: 0px solid rgb(0, 0, 0, .2); margin-right: -4px; display: inline; width: 4px; height: 24px;'></div>")
-        display_out = re.sub(r"{{!GMARKER_START_block\$([^\$]*)\$}}", r"<span style='background-color: rgba(165, 165, 165, 0.15); display: inline;' title='\1'>", display_out)
-        display_out = re.sub(r"{{!GMARKER_START_([^\$]*)\$([^\$]*)\$}}", r"<span style='background-color: var(--inserted); display: inline;' title='\2'>", display_out)
-        # display_out = re.sub(r"{{!GMARKER_START_([^\$]*)\$([^\$]*)\$}}", r"<span style='background-color: rgba(165, 165, 165, 0.25); display: inline;' title='\2'>", display_out)
-        display_out = re.sub(r"{{!GMARKER_END_([^\$]*)\$\$}}", "</span>", display_out)
+        display_out = re.sub(r"{{!--GMARKER_START_select\$([^\$]*)\$--}}", start_generate_or_select, display_out)
+        display_out = display_out.replace("{{!--GMARKER_END_select$$--}}", "</span>")
+        display_out = re.sub(r"{{!--GMARKER_START_variable_ref\$([^\$]*)\$--}}", r"<span style='background-color: var(--inserted); display: inline;' title='\1'>", display_out)
+        display_out = display_out.replace("{{!--GMARKER_END_variable_ref$$--}}", "</span>")
+        display_out = display_out.replace("{{!--GMARKER_each$$--}}", "<div style='border-left: 1px dashed rgb(0, 0, 0, .2); border-top: 0px solid rgb(0, 0, 0, .2); margin-right: -4px; display: inline; width: 4px; height: 24px;'></div>")
+        display_out = re.sub(r"{{!--GMARKER_START_block\$([^\$]*)\$--}}", r"<span style='background-color: rgba(165, 165, 165, 0.15); display: inline;' title='\1'>", display_out)
+        display_out = re.sub(r"{{!--GMARKER_START_([^\$]*)\$([^\$]*)\$--}}", r"<span style='background-color: var(--inserted); display: inline;' title='\2'>", display_out)
+        # display_out = re.sub(r"{{!--GMARKER_START_([^\$]*)\$([^\$]*)\$}}", r"<span style='background-color: rgba(165, 165, 165, 0.25); display: inline;' title='\2'>", display_out)
+        display_out = re.sub(r"{{!--GMARKER_END_([^\$]*)\$\$--}}", "</span>", display_out)
         display_out = add_spaces(display_out)
         display_out = "<pre style='margin: 0px; padding: 0px; padding-left: 8px; margin-left: -8px; border-radius: 0px; border-left: 1px solid rgba(127, 127, 127, 0.2); white-space: pre-wrap; font-family: ColfaxAI, Arial; font-size: 15px; line-height: 23px;'>"+display_out+"</pre>"
 
         display_out = "<style type='text/css'>"+css+"</style>"+display_out
 
-        # strip out the markers for the unformatted output
-        output = strip_markers(output)
-
-        return PromptCompletion(variables, output, display_out, self)
+        
+        self._text = output
+        self._text_html = display_out
 
 def add_spaces(s):
     """ This adds spaces so the browser will show leading and trailing newlines.
@@ -315,7 +378,7 @@ def add_spaces(s):
     return s
 
 def strip_markers(s):
-    return re.sub(r"{{!GMARKER_([^\$]*)\$([^\$]*)\$}}", r"", s, flags=re.MULTILINE | re.DOTALL)
+    return re.sub(r"{{!--GMARKER_([^\$]*)\$([^\$]*)\$--}}", r"", s, flags=re.MULTILINE | re.DOTALL)
 
 grammar = parsimonious.grammar.Grammar(
 r"""
@@ -326,7 +389,7 @@ command_block = command_block_open template (command_block_sep template)* comman
 command_block_open = command_start "#" block_command_call command_end
 command_block_sep = command_start ("or" / "else") command_end
 command_block_close = command_start "/" command_name command_end
-command_start = "{{" "~"?
+command_start = "{{" !"!" "~"?
 not_command_start = "{" !"{"
 not_command_escape = "\\" !"{{"
 command_end = "~"? "}}"
@@ -452,7 +515,7 @@ class TopDownVisitor():
             self.block_content.append([])
             visited_children = [self.visit(child, next_node, prev_node) for child in node.children]
             self.block_content.pop()
-            out = "".join("" if c is None else c for c in visited_children)
+            out = "".join("" if c is None else str(c) for c in visited_children)
             
             command_head = node.children[1].children[0]
             if command_head.expr_name == 'variable_ref':
@@ -463,8 +526,8 @@ class TopDownVisitor():
             else:
                 raise Exception("Unknown command head type: "+command_head.expr_name)
 
-            node_text = node.text.replace("$", "DOLLAR_SIGN")
-            return "{{!"+f"GMARKER_START_{name}${node_text}$"+"}}" + out + "{{" + f"!GMARKER_END_{name}$$" + "}}"
+            node_text = node.text.replace("$", "&#36;").replace("{", "&#123;").replace("}", "&#125;")
+            return "{{!--"+f"GMARKER_START_{name}${node_text}$"+"--}}" + out + "{{!--" + f"GMARKER_END_{name}$$" + "--}}"
 
         elif node.expr_name == 'command_arg_group':
             visited_children = [self.visit(child) for child in node.children]
@@ -564,7 +627,7 @@ class TopDownVisitor():
 
             node_text = node.text.replace("$", "DOLLAR_SIGN")
             self.block_content.pop()
-            return "{{!" + f"GMARKER_START_{command_name}${node_text}$" + "}}" + command_output + "{{!" + f"GMARKER_END_{command_name}$$" + "}}"
+            return "{{!--" + f"GMARKER_START_{command_name}${node_text}$" + "--}}" + command_output + "{{!--" + f"GMARKER_END_{command_name}$$" + "--}}"
             # start_block(node.children[1], self)
             # end_block = self.visit(node.children[2])
 
@@ -724,13 +787,13 @@ def _generate(variable_name="generated", partial_output=None, parse=False, stop=
             
             id = uuid.uuid4().hex
             l = len(generated_values)
-            out = "{{!" + f"GMARKER_generate_many_start_{echo}_{l}${id}$" + "}}"
+            out = "{{!--" + f"GMARKER_generate_many_start_{echo}_{l}${id}$" + "--}}"
             for i, value in enumerate(generated_values):
                 if i > 0:
-                    out += "{{!" + f"GMARKER_generate_many_{echo}_{i}${id}$" + "}}"
+                    out += "{{!--" + f"GMARKER_generate_many_{echo}_{i}${id}$" + "--}}"
                 out += value
-            return out + "{{!" + f"GMARKER_generate_many_end${id}$" + "}}"
-            # return "{{!GMARKER_generate_many_start$$}}" + "{{!GMARKER_generate_many$$}}".join([v for v in generated_values]) + "{{!GMARKER_generate_many_end$$}}"
+            return out + "{{!--" + f"GMARKER_generate_many_end${id}$" + "--}}"
+            # return "{{!--GMARKER_generate_many_start$$}}" + "{{!--GMARKER_generate_many$$}}".join([v for v in generated_values]) + "{{!--GMARKER_generate_many_end$$}}"
             # return "".join([v for v in generated_values])
 
 def _add(*args):
@@ -828,7 +891,7 @@ def _each(list, block_content, parser, parser_prefix=None, stop=None, hidden=Fal
             # parse the generated content (this assumes the generated content is syntactically correct)
             matches = re.finditer(pattern, generated_value)
             data = []
-            for m in matches:#"{{!" + f"GMARKER_START_{name}${node_text}$}}{out}{{!GMARKER_END_{name}$$" + "}}"
+            for m in matches:#"{{!--" + f"GMARKER_START_{name}${node_text}$}}{out}{{!--GMARKER_END_{name}$$" + "}}"
                 
                 # get the variables that were generated
                 match_dict = m.groupdict()
@@ -840,7 +903,7 @@ def _each(list, block_content, parser, parser_prefix=None, stop=None, hidden=Fal
                 # recreate the output string with format markers added
                 item_out = re.sub(
                     r"{{generate [\'\"]([^\'\"]+)[\'\"][^}]*}}",
-                    lambda x: "{{!GMARKER_START_generate$"+x.group()+"$}}"+match_dict[x.group(1).replace("this.", "")]+"{{!GMARKER_END_generate$$}}",
+                    lambda x: "{{!--GMARKER_START_generate$"+x.group()+"$--}}"+match_dict[x.group(1).replace("this.", "")]+"{{!--GMARKER_END_generate$$--}}",
                     block_content[0].text
                 )
                 out.append(item_out)
@@ -861,17 +924,17 @@ def _each(list, block_content, parser, parser_prefix=None, stop=None, hidden=Fal
             out.append(item_out)
         parser.variable_stack.pop()
     if echo:
-        return "{{!GMARKER_each$$}}" + "{{!GMARKER_each$$}}".join(out) + "{{!GMARKER_each$$}}"    
+        return "{{!--GMARKER_each$$--}}" + "{{!--GMARKER_each$$--}}".join(out) + "{{!--GMARKER_each$$--}}"    
     else:
         id = uuid.uuid4().hex
         l = len(out)
-        out_str = "{{!" + f"GMARKER_each_noecho_start_{echo}_{l}${id}$" + "}}"
+        out_str = "{{!--" + f"GMARKER_each_noecho_start_{echo}_{l}${id}$" + "--}}"
         for i, value in enumerate(out):
             if i > 0:
-                out_str += "{{!" + f"GMARKER_each_noecho_{echo}_{i}${id}$" + "}}"
+                out_str += "{{!--" + f"GMARKER_each_noecho_{echo}_{i}${id}$" + "--}}"
             out_str += value
-        return out_str + "{{!" + f"GMARKER_each_noecho_end${id}$" + "}}"
-        # return "{{!GMARKER_each_noecho$$}}" + "{{!GMARKER_each_noecho$$}}".join(out) + "{{!GMARKER_each_noecho$$}}"
+        return out_str + "{{!--" + f"GMARKER_each_noecho_end${id}$" + "--}}"
+        # return "{{!--GMARKER_each_noecho$$}}" + "{{!--GMARKER_each_noecho$$}}".join(out) + "{{!--GMARKER_each_noecho$$}}"
         
 
 def _select(variable_name="selected", block_content=None, parser=None, partial_output=None, parser_prefix=None, logprobs=None):
@@ -988,8 +1051,8 @@ def _set(name, value=None, parser=None):
                     v = f'"{v}"'
             out += f" {k}={v}"
         out += ""
-        return "{{!GMARKER_set$" + out + "$}}"
+        return "{{!--GMARKER_set$" + out + "$--}}"
     else:
         parser.set_variable(name, value)
         out = "{{set "+name+"=" + value + "}}"
-        return "{{!GMARKER_set$" + out + "$}}"
+        return "{{!--GMARKER_set$" + out + "$--}}"
