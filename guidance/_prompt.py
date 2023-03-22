@@ -241,11 +241,16 @@ class Prompt:
         # remove the built-ins from the variables we return
         for k in built_ins:
             del variables[k]
+            
+        self.variables.update(variables)
 
         self._build_html()
 
         self.executing = False
         # return PromptCompletion(variables, output, display_out, self)
+    
+    def __getitem__(self, key):
+        return self.variables[key]
     
     @property
     def text(self):
