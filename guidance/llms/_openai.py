@@ -18,9 +18,8 @@ def prompt_to_messages(prompt):
     messages = []
     start_tags = re.findall(r'<\|im_start\|>', prompt)
     end_tags = re.findall(r'<\|im_end\|>', prompt)
-
-    if len(start_tags) != len(end_tags):
-        raise MalformedPromptException("Malformed prompt: start and end tags are not properly paired")
+    # if len(start_tags) != len(end_tags):
+    #     raise MalformedPromptException("Malformed prompt: start and end tags are not properly paired")
 
     pattern = r'<\|im_start\|>(\w+)(.*?)(?=<\|im_end\|>)'
     matches = re.findall(pattern, prompt, re.DOTALL)
@@ -37,7 +36,8 @@ def prompt_to_messages(prompt):
 
 def add_text_to_chat_completion(chat_completion):
     for c in chat_completion['choices']:
-        c['text'] = f'<|im_start|>{c["message"]["role"]}\n{c["message"]["content"]}<|im_end|>'
+        c['text'] = c['message']['content']
+        # c['text'] = f'<|im_start|>{c["message"]["role"]}\n{c["message"]["content"]}<|im_end|>'
     
 
     
@@ -168,7 +168,7 @@ class OpenAI():
             del kwargs['prompt']
             del kwargs['echo']
             del kwargs['logprobs']
-            # print(kwargs)
+            print(kwargs)
             out = openai.ChatCompletion.create(**kwargs)
             add_text_to_chat_completion(out)
         else:
