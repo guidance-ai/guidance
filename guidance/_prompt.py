@@ -321,22 +321,10 @@ class Prompt:
         from a template into a completed string (with variables stored). At each point
         in this process the current template remains valid.
         """
-        # print("execute!!")
-        # self.executing = True
-        
-        # self._parse_tree = 
+
         self._executor = PromptExecutor(self)
         self._text = await self._executor.run()
-        
-        print("done executing!")
-        # # remove the built-ins from the variables we return
-        # for k in _built_ins:
-        #     if k in in 
-        #     del variables[k]
 
-        # self._build_html()
-        # self._text = self._executor.prefix
-        # self.executing = False
         self.update_display()
 
         # fire an event noting that execution is complete (this will release any await calls waiting on the prompt)
