@@ -1190,7 +1190,7 @@ def _select(variable_name="selected", block_content=None, parser=None, partial_o
 async def _if(value, block_content, parser, reverse=False):
     ''' Standard if/else statement.
     '''
-    assert len(block_content) in [1,2] # we don't support else if yet...
+    assert len(block_content) in [1,3] # we don't support elseif yet...
     options = [block_content[0]]
     for i in range(1, len(block_content), 2):
         assert block_content[i].text == "{{else}}"
