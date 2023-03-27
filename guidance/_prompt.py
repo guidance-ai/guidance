@@ -576,7 +576,7 @@ class PromptExecutor():
         
         return new_prompt_text
     
-    async def visit(self, node, next_node=None, prev_node=None):
+    async def visit(self, node, next_node=None, prev_node=None, parent_node=None, grandparent_node=None):
 
         if node.expr_name == 'variable_ref':
             var = self.get_variable(node.text)
@@ -642,7 +642,7 @@ class PromptExecutor():
             
             # visit our children
             self.block_content.append([])
-            visited_children = [await self.visit(child, next_node, prev_node) for child in node.children]
+            visited_children = [await self.visit(child, next_node, prev_node, node, parent_node) for child in node.children]
             self.block_content.pop()
             out = "".join("" if c is None else str(c) for c in visited_children)
             
@@ -658,17 +658,16 @@ class PromptExecutor():
             
             # return node.text
 
-            # # if execution became stopped during the command, we just return unchanged
-            # if not self.executing:
-            #     return node.text
+            # if execution became stopped during the command, we just return unchanged
+            if not self.executing:
+                return node.text
 
-            # # otherwise we return with the command contents
-            # else:
-            # self._extend_prefix(out)
-            
-            # return the value and wrap with markers
-            escaped_node_text = node.text.replace("$", "&#36;").replace("{", "&#123;").replace("}", "&#125;")
-            return "{{!--"+f"GMARKER_START_{name}${escaped_node_text}$"+"--}}" + out + "{{!--" + f"GMARKER_END_{name}$$" + "--}}"
+            # otherwise we return with the command contents
+            else:
+                
+                # return the value and wrap with markers
+                escaped_node_text = node.text.replace("$", "&#36;").replace("{", "&#123;").replace("}", "&#125;")
+                return "{{!--"+f"GMARKER_START_{name}${escaped_node_text}$"+"--}}" + out + "{{!--" + f"GMARKER_END_{name}$$" + "--}}"
 
         elif node.expr_name == 'command_arg_group':
             visited_children = [await self.visit(child) for child in node.children]
@@ -683,6 +682,12 @@ class PromptExecutor():
             # merged_variables = {k: v for d in reversed(self.variable_stack) for k, v in d.items()}
 
             if self.variable_exists(command_name):
+
+                if grandparent_node is not None and grandparent_node.expr_name == "command":
+                    extend_prefix = self._extend_prefix
+                else:
+                    extend_prefix = lambda _: None # do nothing if we're not the top level call in a command
+
                 command_function = self.get_variable(command_name)
                 positional_args = []
                 named_args = {}
@@ -699,7 +704,7 @@ class PromptExecutor():
                 if "parser" in sig.parameters:
                     named_args["parser"] = self
                 if "partial_output" in sig.parameters:
-                    named_args["partial_output"] = self._extend_prefix
+                    named_args["partial_output"] = extend_prefix
                 if "next_text" in sig.parameters:
                     if next_node is not None:
                         named_args["next_text"] = next_node.text
@@ -717,7 +722,7 @@ class PromptExecutor():
                     command_output = command_function(*positional_args, **named_args)
 
                 if "partial_output" not in sig.parameters:
-                    self._extend_prefix(command_output)
+                    extend_prefix(command_output)
             else:
                 warnings.warn(f"Command '{command_name}' not found")
                 command_output = ""
@@ -795,7 +800,7 @@ class PromptExecutor():
                     inner_prev_node = node.children[i - 1]
                 else:
                     inner_prev_node = prev_node
-                visited_children.append(await self.visit(child, inner_next_node, inner_prev_node))
+                visited_children.append(await self.visit(child, inner_next_node, inner_prev_node, node, parent_node))
             # visited_children = [self.visit(child) for child in node.children]
             
             if len(visited_children) == 1:
