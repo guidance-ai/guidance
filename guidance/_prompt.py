@@ -899,7 +899,7 @@ class PromptExecutor():
 class StopCompletion(Exception):
     pass
 
-def _generate(variable_name="generated", partial_output=None, parse=False, stop=None, max_tokens=500, n=1, echo=True, temperature=0.0, top_p=1.0, logprobs=None, parser_prefix=None, parser=None, prefix="", suffix="", next_text=None, prev_text=None, **kwargs):
+def _generate(variable_name="generated", partial_output=None, parse=False, stop=None, max_tokens=500, n=1, echo=True, temperature=0.0, top_p=1.0, logprobs=None, hidden=False, parser_prefix=None, parser=None, prefix="", suffix="", next_text=None, prev_text=None, **kwargs):
     ''' Use the LM to generate a completion string that is stored in the variable `variable_name`.
     '''
 
@@ -1212,12 +1212,12 @@ async def _if(value, block_content, parser, reverse=False):
 async def _unless(value, block_content, parser):
     return await _if(value, block_content, parser, reverse=True)
 
-def _block(name=None, block_content=None, parser=None, hidden=False):
+async def _block(name=None, block_content=None, parser=None, hidden=False):
     ''' Generic block definition.
     '''
     assert parser is not None
     
-    out = parser.visit(block_content[0])
+    out = await parser.visit(block_content[0])
     if name is not None:
         parser.set_variable(name, strip_markers(out))
     if hidden:
