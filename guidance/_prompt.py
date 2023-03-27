@@ -1187,7 +1187,7 @@ def _select(variable_name="selected", block_content=None, parser=None, partial_o
 
     return selected_option
 
-def _if(value, block_content, parser, reverse=False):
+async def _if(value, block_content, parser, reverse=False):
     ''' Standard if/else statement.
     '''
     assert len(block_content) in [1,2] # we don't support else if yet...
@@ -1203,15 +1203,14 @@ def _if(value, block_content, parser, reverse=False):
         value = not value
     
     if value:
-        return parser.visit(options[0])
+        return await parser.visit(options[0])
     elif len(options) > 1:
-        return parser.visit(options[1])
+        return await parser.visit(options[1])
     else:
         return ""
 
-
-def _unless(value, block_content, parser):
-    return _if(value, block_content, parser, reverse=True)
+async def _unless(value, block_content, parser):
+    return await _if(value, block_content, parser, reverse=True)
 
 def _block(name=None, block_content=None, parser=None, hidden=False):
     ''' Generic block definition.
