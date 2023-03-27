@@ -738,6 +738,10 @@ class PromptExecutor():
 
         elif node.expr_name == 'command_block':
 
+            # if execution is already stopped before we start the command block we just return unchanged
+            if not self.executing:
+                return node.text
+
             # create a block content variable
             block_content = [node.children[1]]
             for child in node.children[2].children:

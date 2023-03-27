@@ -1,0 +1,10 @@
+notebooks/local_scratch
+__pycache__/
+.vscode
+/build
+/dist
+*.egg-info
+*.diskcache
+.ipynb_checkpoints
+node_modules
+/client
