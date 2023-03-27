@@ -655,18 +655,20 @@ class PromptExecutor():
                 name = command_head.children[0].text
             else:
                 raise Exception("Unknown command head type: "+command_head.expr_name)
+            
+            # return node.text
 
-            # if execution became stopped during the command, we just return unchanged
-            if not self.executing:
-                return node.text
+            # # if execution became stopped during the command, we just return unchanged
+            # if not self.executing:
+            #     return node.text
 
-            # otherwise we return with the command contents
-            else:
-                self._extend_prefix(out)
-                
-                # return the value and wrap with markers
-                escaped_node_text = node.text.replace("$", "&#36;").replace("{", "&#123;").replace("}", "&#125;")
-                return "{{!--"+f"GMARKER_START_{name}${escaped_node_text}$"+"--}}" + out + "{{!--" + f"GMARKER_END_{name}$$" + "--}}"
+            # # otherwise we return with the command contents
+            # else:
+            # self._extend_prefix(out)
+            
+            # return the value and wrap with markers
+            escaped_node_text = node.text.replace("$", "&#36;").replace("{", "&#123;").replace("}", "&#125;")
+            return "{{!--"+f"GMARKER_START_{name}${escaped_node_text}$"+"--}}" + out + "{{!--" + f"GMARKER_END_{name}$$" + "--}}"
 
         elif node.expr_name == 'command_arg_group':
             visited_children = [await self.visit(child) for child in node.children]
@@ -714,8 +716,8 @@ class PromptExecutor():
                 else:
                     command_output = command_function(*positional_args, **named_args)
 
-                # if "partial_output" not in sig.parameters:
-                #     self._extend_prefix(command_output)
+                if "partial_output" not in sig.parameters:
+                    self._extend_prefix(command_output)
             else:
                 warnings.warn(f"Command '{command_name}' not found")
                 command_output = ""
