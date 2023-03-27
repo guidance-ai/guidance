@@ -2,12 +2,12 @@
 
 import PromptDisplay from './prompt-display';
 
-function _guidanceInitOutput(object_id) {
+function _guidanceInitOutput(object_id, element, cell) {
 
     // generate a display id
     var display_id = object_id;// + "____" + Math.random().toString(36).substring(7);
 
-    var display = new PromptDisplay(display_id);
+    var display = new PromptDisplay(display_id, element, cell);
 
     return display.element;
     /* This creates an output div element and build a comm object to communicate. */

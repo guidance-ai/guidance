@@ -2,11 +2,24 @@ import JupyterComm from './jupyter-comm';
 import autoBind from 'auto-bind'; 
 
 export default class PromptDisplay {
-  constructor(id) {
+  constructor(id, element, cell) {
     autoBind(this);
-    // make a new div
-    this.element = document.getElementById("guidance_container_"+id);
+    // make a new divs
+    this.element = element;//document.getElementById("guidance_container_"+id);
     this.element.id = id;
+
+    this.cell = cell;
+
+    this.cell_element = window.$(this.element).parents('.cell');
+    // which cell is it?
+    // var cell_idx = Jupyter.notebook.get_cell_elements().index(cell_element);
+    // // get the cell object
+    // var cell = Jupyter.notebook.get_cell(cell_idx);
+    console.log("cell", this.element);
+    window.gelement = this.element;
+    console.log("cell", this.cell_element);
+    console.log("cell", this.cell_element.data());
+    // debugger;
     // this.the_window = window
     // window.inner_window = window;
     // // window.parent.inner_window = window;
@@ -43,6 +56,12 @@ export default class PromptDisplay {
     // check if add_data is a key
     if (data) {
       this.element.innerHTML = data;
+      // this.cell.outputs[0].data["text/plain"] = "ASDFASDFASDFASDFASD";
+      // this.cell.outputs[0].data["text/html"] = data;
+      this.cell.outputs[0].data = {
+        "text/plain": "ASDFASDFASDFASDFASD",
+        "text/html": data
+      };
     }
   }
 }

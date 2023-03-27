@@ -9,30 +9,10 @@ import warnings
 import copy
 import asyncio
 import pathlib
+import time
 from .llms import _openai
 from . import _utils
 import guidance
-
-class PromptCompletion:
-    ''' Represents the result of an executed prompt.
-    '''
-    def __init__(self, variables, text, text_html, prompt):
-        self.variables = variables
-        self._text = text
-        self._text_html = text_html
-        self.prompt = prompt
-
-    def __getitem__(self, key):
-        return self.variables[key]
-
-    def __repr__(self):
-        return self._text
-
-    def _repr_html_(self):
-        return self._text_html
-    
-    def __str__(self) -> str:
-        return self._text
 
 # this should work for the Jupyter web browser version, but it if failing in VS Code: https://github.com/microsoft/vscode/issues/176698
 css = """
@@ -51,24 +31,21 @@ css = """
     --txt: #fff;
   }
 }
-"""#.replace("\n", "").replace(" ", "")prefers-color-scheme: dark
+""".replace("\n", "").replace(" ", "")
 
 class Prompt:
-    ''' A prompt template that can be compiled and executed to generate a PromptCompletion result.
+    ''' A prompt template that can be compiled and executed to generate a new filled in prompt.
 
-    ## TODO: This need to now return a new prompt object that gets filled in until completion. So it does
-    ##       not return an output class but a new object of the same type that starts executing. All the
-    ##       html formatting variables can be stored in {{!-- handlebars comments --}} so this remains a valid
-    ##       template even while markings have been added to it.
+    ## Note that as the template gets executed {{!-- handlebars comment markers --}} get left in
+    ## the generated output to mark where template tags used to be.
     '''
 
-    def __init__(self, text, call_function=None, llm=None, echo=False, cache_seed=0, logprobs=None, **kwargs):
+    def __init__(self, text, llm=None, cache_seed=0, logprobs=None, stream=False, **kwargs):
         """ Create a new Prompt object from a prompt string.
         """
-        ## TODO: This n
 
-        # see if we were given a raw function instead of a string text
-        # if so, convert it to a string text that calls the function
+        # see if we were given a raw function instead of a string template
+        # if so, convert it to a string template that calls the function
         if not isinstance(text, str):
             if callable(text):
                 sig = inspect.signature(text)
@@ -78,17 +55,37 @@ class Prompt:
                 fname = _utils.find_func_name(text, kwargs)
                 kwargs[fname] = text
                 text = "{{set (%s%s)}}" % (fname, args)
+        
+        # save our starting state variables
         self._id = str(uuid.uuid4())
         self._text = text
-        self._build_html()
-        self.call_function = call_function
         self.llm = llm
-        self.echo = echo
         self.cache_seed = cache_seed
         self.logprobs = logprobs
-        self.variables = kwargs
+        self.variables = {}
+        self.variables.update(_built_ins)
+        self.variables.update(kwargs)
         self.executing = False
-        self.comm = None
+        self._comm = None # front end communication
+        # self._await_queue = asyncio.Queue()
+        # self._await_cache = copy.copy(kwargs)
+        self._displaying_html = False
+        self._display_finish = asyncio.Queue()
+        self._needs_hard_clear = False
+        self._executor = None
+        self._last_display_update = 0
+        self._pending_display_update = False
+        self._sync_mode = False
+        self._execute_complete = asyncio.Event()
+        self.stream = stream
+
+        # get or create an event loop
+        if asyncio.get_event_loop().is_running():
+            # self.outer_event_loop = asyncio.get_event_loop()
+            self.event_loop = asyncio.get_event_loop()
+        else:
+            # self.outer_event_loop = None
+            self.event_loop = asyncio.new_event_loop()
 
         # find all the handlebars-style partial inclusion tags and replace them with the partial template
         def replace_partial(match):
@@ -103,68 +100,60 @@ class Prompt:
             return out
         self._text = re.sub(r"{{>(.*?)}}", replace_partial, self._text)
 
-        self.patch_stack = []
-
-        # default to an OpenAI llm
+        # default to the global llm
         if self.llm is None:
             self.llm = guidance.llm
 
-        # if we don't have a custom call function, we parse the string
-        if call_function is None:
-            self.tree = grammar.parse(self._text)
-
-    # def __getattribute__(self, name):
-    #     if name == "template":
-    #         patched_kwargs = {k: v for k, v in kwargs.items()}
-    #         if "template" not in kwargs:
-    #             patched_kwargs["template"] = self._text
-    #         for patch, arg_names in self.patch_stack:
-    #             tmp = patch(**{k: patched_kwargs[k] for k in arg_names})
-    #             if len(arg_names) == 1:
-    #                 tmp = (tmp,)
-    #             for k, v in zip(arg_names, tmp):
-    #                 patched_kwargs[k] = v
-    
-    def patch(self, patch_functions):
-        """ Add a patch to this prompt.
-        """
-
-        # copy ourself
-        new_self = copy.copy(self)
-
-        if callable(patch_functions):
-            patch_functions = []
-        for patch_function in patch_functions:
-            arg_names = inspect.getfullargspec(patch_function).args
-            new_self.patch_stack.append((patch_function, arg_names))
-        
-        return new_self
+        # build a parse tree
+        # self._parse_tree = grammar.parse(self._text)
     
     def __repr__(self):
-        return self._text
+        # print("repr")
+        # if self._displaying_html:
+        #     return None
+        return self.text
+    
+    def __getitem__(self, key):
+        return self.variables[key]
     
     def _interface_event(self, msg):
         print("interface event", msg)
         if msg == "opened":
             # raise Exception("asdf" + msg)
-            self.comm.send({"add_data": self._text_html})
+            self._build_html()
+            self._comm.send({"add_data": self._text_html})
         pass
 
-    def _repr_html_(self, environment="jupyter"):
-        # spin up a JupyterComm object if we are called directly (which we assume is in a notebook)
-#         if self.comm is None and environment == "jupyter":
-#             self.comm = _utils.JupyterComm(self._id, self._interface_event)
+    # def _save_static_version(self, html):
+    #     from IPython.display import clear_output, display, HTML
 
-#         # dump the client javascript to the interface
-#         file_path = pathlib.Path(__file__).parent.parent.absolute()
-#         with open(file_path / "client" / "dist" / "main.js", encoding="utf-8") as f:
-#             js_data = f.read()
+    #     clear_output()
+    #     display(HTML(html))
+
+    def _repr_html_(self):
+        # print("repr html")
+        self._displaying_html = True
+        if not self.executing:
+            return self._build_html(self.marked_text)
+        else:
+            self.update_display()
+        
+
+    def _repr_javascripts_(self, environment="jupyter"):
+        # spin up a JupyterComm object if we are called directly (which we assume is in a notebook)
+        if self._comm is None and environment == "jupyter":
+            self._comm = _utils.JupyterComm(self._id, self._interface_event)
+
+        # dump the client javascript to the interface
+        file_path = pathlib.Path(__file__).parent.parent.absolute()
+        with open(file_path / "client" / "dist" / "main.js", encoding="utf-8") as f:
+            js_data = f.read()
 #         interface_html = f"""
 # <div id="guidance_container_{self._id}">blank</div>
 # <script type='text/javascript'>{js_data}; _guidanceInitOutput("{self._id}")</script>
 # """
-        
-#         return interface_html
+        # from IPython.display import Javascript
+        return js_data + f'var d = document.createElement("div"); var el = element[0] ? element[0] : element; el.appendChild(d); window._guidanceInitOutput("{self._id}", d, this);'
         
         return self._text_html
         # display_out = self._text
@@ -183,77 +172,195 @@ class Prompt:
 # </script>
         # return "<style type='text/css'>"+css+"</style>" + display_out
     
-    def __call__(self, stream=False, **kwargs):
-        new_prompt = Prompt(self._text, self.call_function, self.llm, self.echo, self.cache_seed, self.logprobs, **{**self.variables, **kwargs})
+    async def _await_finish_execute(self):
+        """ Wait for the call to this prompt to complete.
+        """
+
+        print("awaiting call complete")
+        
+        # wait for the call to complete
+        await self._execute_complete.wait()
+
+        return self
+
+    def __await__(self):
+        return self._await_finish_execute().__await__()
     
-        if stream:
-            # new_prompt.execute()
+    # def finish_execute(self):
+    #     """ Finish the current call to this prompt.
+    #     """
+        
+    #     # stop the event loop if we are in synchronous mode (and hence own the event loop)
+    #     # this allows the __call__ function to return
+    #     # if self._sync_mode:
+    #     #     print("stopping event loop")
+    #     #     self.event_loop.stop()
+        
+    #     # set the call complete flag
+    #     self._execute_complete.set()
+
+    # def __call__(self, **kwargs):
+    #     """ Execute this prompt with the given variable values and return a new executed prompt.
+
+    #     Note that the returned prompt might not be fully executed, as we stream when in a running
+    #     asyncio event loop (use await if you want to ensure it is finished).
+    #     """
+
+    #     if self.executing:
+    #         self._execute_complete.clear()
+    #         self._await_queue.put_nowait(kwargs)
+    #         return self
+    #     else:
+    #         # create the new prompt object that we will execute in-place
+    #         new_prompt = Prompt(
+    #             self._text,
+    #             self.llm,
+    #             self.cache_seed,
+    #             self.logprobs,
+    #             **{**self.variables, **kwargs}
+    #         )
+    #         new_prompt.executing = True
+    #         new_prompt._execute_complete.clear()
+
+    #         new_prompt._running_task = self.event_loop.create_task(new_prompt.execute())
+
+    #         if not self.event_loop.is_running():
+    #             self._sync_mode = True
+    #             self.event_loop.run_forever() # this will return once execution is complete (or paused)
+
+    #         # # if we are in a running event loop, then we stream results
+    #         # if self.event_loop.is_running():
+    #         #     new_prompt._running_task = self.event_loop.create_task(new_prompt.execute())
+            
+    #         # # otherwise we just block until the call is complete
+    #         # else:
+    #         #     # self.event_loop.create_task(new_prompt.execute())
+    #         #     new_prompt._running_task = None
+    #         #     self.event_loop.run_until_complete(new_prompt.execute())
+        
+    #         return new_prompt
+        
+    def __call__(self, **kwargs):
+        """ Execute this prompt with the given variable values and return a new executed prompt.
+
+        Note that the returned prompt might not be fully executed, as we stream when in a running
+        asyncio event loop (use await if you want to ensure it is finished).
+        """
+
+        # create the new prompt object that we will execute in-place
+        new_prompt = Prompt(
+            self._text,
+            self.llm,
+            self.cache_seed,
+            self.logprobs,
+
+            # copy the (non-function) variables so that we don't modify the original prompt
+            **{**{k: v if callable(v) else copy.deepcopy(v) for k,v in self.variables.items()}, **kwargs}
+        )
+        # new_prompt.executing = True
+        # new_prompt._execute_complete.clear()
+
+        # new_prompt._running_task = self.event_loop.create_task(new_prompt.execute())
+
+        # if not self.event_loop.is_running():
+        #     self._sync_mode = True
+        #     self.event_loop.run_forever() # this will return once execution is complete (or paused)
+
+        # if we are in a running event loop, then we stream results
+        # loop = asyncio.get_event_loop()
+        # if loop.is_running():
+            
+        if self.stream:
             loop = asyncio.get_event_loop()
-            new_prompt.task = loop.create_task(new_prompt.execute())
+            assert self.event_loop.is_running()
+            self.event_loop.create_task(new_prompt.execute())
         else:
-            # loop = asyncio.get_event_loop()
             loop = asyncio.new_event_loop()
             loop.run_until_complete(new_prompt.execute())
         
+        # # otherwise we just block until the call is complete
+        # else:
+        #     self.event_loop.run_until_complete(new_prompt.execute())
+    
         return new_prompt
 
+    def _direct_update_display(self):
+        """ Updates the display with the current marked text without any debouncing.
+        """
+        if self._displaying_html:
+            out = self._build_html(self.marked_text)
+            from IPython.display import clear_output, display_html
+            clear_output(wait=False)
+            display_html(out, raw=True)
+        self._pending_display_update = False
+    
+    def update_display(self):
+        """ Updates the display with the current marked text after debouncing.
+        """
+
+        # if we already have a pending display update, then we don't need to do anything
+        if self._pending_display_update:
+            return
+        
+        # mark that we have a pending display update
+        self._pending_display_update = True
+
+        # debounce the display updates
+        now = time.time()
+        debounce_delay = 0.05
+        if now - self._last_display_update < debounce_delay:
+            asyncio.get_event_loop().call_later(debounce_delay, self._direct_update_display)
+        else:
+            self._direct_update_display()
+        self._last_display_update = now
+
     async def execute(self):
-        self.executing = True
+        """ Execute the current prompt.
 
-        # apply any patches
-        patched_kwargs = {k: v for k, v in self.variables.items()}
-        if "template" not in self.variables:
-            patched_kwargs["template"] = self._text
-        for patch, arg_names in self.patch_stack:
-            tmp = patch(**{k: patched_kwargs[k] for k in arg_names})
-            if len(arg_names) == 1:
-                tmp = (tmp,)
-            for k, v in zip(arg_names, tmp):
-                patched_kwargs[k] = v
-        if "template" not in self.variables and (patched_kwargs["template"] == self._text) and self.call_function == None:
-            del patched_kwargs["template"]
-
-        # if we have a custom call function, we call that instead
-        if self.call_function is not None:
-            return self.call_function(**patched_kwargs)
+        Note that as execution progresses the prompt will be incrementally converted
+        from a template into a completed string (with variables stored). At each point
+        in this process the current template remains valid.
+        """
+        # print("execute!!")
+        # self.executing = True
         
-        # ...otherwise we do the normal parsing
-        built_ins = {
-            "generate": _generate,
-            "each": _each,
-            "select": _select,
-            "if": _if,
-            "unless": _unless,
-            "add": _add,
-            "subtract": _subtract,
-            "strip": _strip,
-            "block": _block,
-            "set": _set
-        }
-        variables = {}
-        variables.update(built_ins)
-        variables.update(patched_kwargs)
-
-        vi = TopDownVisitor(variables, self)
-
-        self._text = vi.visit(self.tree)
+        # self._parse_tree = 
+        self._executor = PromptExecutor(self)
+        self._text = await self._executor.run()
         
-        # remove the built-ins from the variables we return
-        for k in built_ins:
-            del variables[k]
+        print("done executing!")
+        # # remove the built-ins from the variables we return
+        # for k in _built_ins:
+        #     if k in in 
+        #     del variables[k]
 
-        self._build_html()
+        # self._build_html()
+        # self._text = self._executor.prefix
+        # self.executing = False
+        self.update_display()
 
-        self.executing = False
-        # return PromptCompletion(variables, output, display_out, self)
+        # fire an event noting that execution is complete (this will release any await calls waiting on the prompt)
+        self._execute_complete.set()
+
+
     
     @property
     def text(self):
         # strip out the markers for the unformatted output
-        return strip_markers(self._text)
+        return strip_markers(self.marked_text)
     
-    def _build_html(self):
-        output = self._text
+    @property
+    def marked_text(self):
+        if self.executing:
+            if self._executor is None:
+                return ""
+            else:
+                return self._executor.prefix
+        else:
+            return self._text
+    
+    def _build_html(self, text):
+        output = text
 
         def start_generate_or_select(x):
             no_echo = "echo=False" in x.group(1)
@@ -363,10 +470,8 @@ cycle_IDVAL(this);'''.replace("IDVAL", id).replace("TOTALCOUNT", str(total_count
         display_out = "<pre style='margin: 0px; padding: 0px; padding-left: 8px; margin-left: -8px; border-radius: 0px; border-left: 1px solid rgba(127, 127, 127, 0.2); white-space: pre-wrap; font-family: ColfaxAI, Arial; font-size: 15px; line-height: 23px;'>"+display_out+"</pre>"
 
         display_out = "<style type='text/css'>"+css+"</style>"+display_out
-
         
-        self._text = output
-        self._text_html = display_out
+        return display_out
 
 def add_spaces(s):
     """ This adds spaces so the browser will show leading and trailing newlines.
@@ -378,12 +483,17 @@ def add_spaces(s):
     return s
 
 def strip_markers(s):
-    return re.sub(r"{{!--GMARKER_([^\$]*)\$([^\$]*)\$--}}", r"", s, flags=re.MULTILINE | re.DOTALL)
+    return re.sub(r"{{!--GMARKER.*?--}}", r"", s, flags=re.MULTILINE | re.DOTALL)
 
 grammar = parsimonious.grammar.Grammar(
 r"""
 template = template_chunk*
-template_chunk = escaped_command / unrelated_escape / command / command_block / content
+template_chunk = comment / escaped_command / unrelated_escape / command / command_block / content
+comment = comment_start comment_content* comment_end
+comment_start = "{{!--"
+comment_content = not_comment_end / ~r"[^-]*"
+not_comment_end = "-" !"-}}"
+comment_end = "--}}"
 command = command_start command_content command_end
 command_block = command_block_open template (command_block_sep template)* command_block_close
 command_block_open = command_start "#" block_command_call command_end
@@ -406,13 +516,12 @@ command_arg_group = "(" command_content ")"
 ws = ~r'\s+'
 command_contentasdf = ~"[a-z 0-9]*"i
 command_name = ~r"[a-z][a-z_0-9\.]*"i
-variable_ref = !"or" !"else" ~r"[@a-z][a-z_0-9\.]*"i
-variable_name = ~r"[@a-z][a-z_0-9\.]*"i
+variable_ref = !"or" !"else" ~r"[@a-z][a-z_0-9\.\[\]\"']*"i
+variable_name = ~r"[@a-z][a-z_0-9]*"i
 contentw = ~r'.*'
 content = not_command_start / not_command_escape / ~r"[^{\\]*"
 unrelated_escape = "\\" !command_start
 escaped_command = "\\" command_start ~r"[^}]*" command_end
-
 
 literal = string_literal / number_literal / boolean_literal / array_literal / object_literal
 
@@ -450,16 +559,33 @@ class NamedArgument:
         self.name = name
         self.value = value
 
-class TopDownVisitor():
-    def __init__(self, variables, prompt_object, logprobs=None):
-        self.variable_stack = [variables]
-        self.prompt_object = prompt_object
-        self.logprobs = logprobs
+class PromptExecutor():
+    def __init__(self, prompt):
+        """ Attaches this executor to a prompt object.
+        """
+
+        self.variable_stack = [prompt.variables]
+        self.prompt = prompt
         self.prefix = ''
         self.prefix_tokens = []
         self.block_content = []
+        self.executing = True
+
+        # parse the prompt text
+        self.parse_tree = grammar.parse(prompt._text)
+
+    async def run(self):
+        """ Execute the prompt.
+        """
+        try:
+            new_prompt_text = await self.visit(self.parse_tree)
+        except Exception as e:
+            print("Error in prompt: ", e)
+            raise e
+        
+        return new_prompt_text
     
-    def visit(self, node, next_node=None, prev_node=None):
+    async def visit(self, node, next_node=None, prev_node=None):
 
         if node.expr_name == 'variable_ref':
             var = self.get_variable(node.text)
@@ -471,8 +597,8 @@ class TopDownVisitor():
                     template_context = {}
                     if len(self.block_content[-1]) == 1:
                         template_context["@block_text"] = self.block_content[-1][0].text
-                    if hasattr(self.prompt_object, "tokenizer"):
-                        template_context["@tokenizer"] = self.prompt_object.tokenizer
+                    if hasattr(self.prompt, "tokenizer"):
+                        template_context["@tokenizer"] = self.prompt.tokenizer
                     kwargs["template_context"] = template_context
                 var = var(**kwargs)
             
@@ -484,21 +610,24 @@ class TopDownVisitor():
         elif node.expr_name == 'content':
             self._extend_prefix(node.text)
             return node.text
+        
+        elif node.expr_name == 'comment':
+            return node.text
 
         elif node.expr_name == 'command_args':
-            visited_children = [self.visit(child) for child in node.children]
+            visited_children = [await self.visit(child) for child in node.children]
             return visited_children
 
         elif node.expr_name == 'command_arg_and_ws':
-            visited_children = [self.visit(child) for child in node.children]
+            visited_children = [await self.visit(child) for child in node.children]
             return visited_children[1]
 
         elif node.expr_name == 'positional_command_arg':
-            visited_children = [self.visit(child) for child in node.children]
+            visited_children = [await self.visit(child) for child in node.children]
             return PositionalArgument(visited_children[0])
 
         elif node.expr_name == 'named_command_arg':
-            visited_children = [self.visit(child) for child in node.children]
+            visited_children = [await self.visit(child) for child in node.children]
             return NamedArgument(visited_children[0], visited_children[2])
 
         elif node.expr_name == 'command_name':
@@ -509,32 +638,50 @@ class TopDownVisitor():
             return node.text[1:]
 
         elif node.expr_name == 'literal':
-            return ast.literal_eval(node.text)
+            try:
+                return ast.literal_eval(node.text)
+            except Exception as e:
+                raise Exception(f"Error parsing literal: {node.text} ({e})")
 
         elif node.expr_name == 'command':
-            self.block_content.append([])
-            visited_children = [self.visit(child, next_node, prev_node) for child in node.children]
-            self.block_content.pop()
-            out = "".join("" if c is None else str(c) for c in visited_children)
+
+            # if execution is already stopped before we start the command we just return unchanged
+            if not self.executing:
+                return node.text
             
+            # find the command name
             command_head = node.children[1].children[0]
             if command_head.expr_name == 'variable_ref':
-                self._extend_prefix(out)
                 name = "variable_ref"
             elif command_head.expr_name == 'command_call':
                 name = command_head.children[0].text
             else:
                 raise Exception("Unknown command head type: "+command_head.expr_name)
 
-            node_text = node.text.replace("$", "&#36;").replace("{", "&#123;").replace("}", "&#125;")
-            return "{{!--"+f"GMARKER_START_{name}${node_text}$"+"--}}" + out + "{{!--" + f"GMARKER_END_{name}$$" + "--}}"
+            # visit our children
+            self.block_content.append([])
+            visited_children = [await self.visit(child, next_node, prev_node) for child in node.children]
+            self.block_content.pop()
+            out = "".join("" if c is None else str(c) for c in visited_children)
+
+            # if execution became stopped during the command, we just return unchanged
+            if not self.executing:
+                return node.text
+
+            # otherwise we return with the command contents
+            else:
+                self._extend_prefix(out)
+                
+                # return the value and wrap with markers
+                escaped_node_text = node.text.replace("$", "&#36;").replace("{", "&#123;").replace("}", "&#125;")
+                return "{{!--"+f"GMARKER_START_{name}${escaped_node_text}$"+"--}}" + out + "{{!--" + f"GMARKER_END_{name}$$" + "--}}"
 
         elif node.expr_name == 'command_arg_group':
-            visited_children = [self.visit(child) for child in node.children]
+            visited_children = [await self.visit(child) for child in node.children]
             return visited_children[1]
 
         elif node.expr_name == 'command_call':
-            visited_children = [self.visit(child) for child in node.children]
+            visited_children = [await self.visit(child) for child in node.children]
             command_name, args = visited_children
 
 
@@ -554,7 +701,7 @@ class TopDownVisitor():
                 # if "parser_variables" in sig.parameters:
                 #     named_args["parser_variables"] = merged_variables
                 if "parser_prefix" in sig.parameters:
-                    named_args["parser_prefix"] = self.prefix
+                    named_args["parser_prefix"] = strip_markers(self.prefix)
                 if "parser" in sig.parameters:
                     named_args["parser"] = self
                 if "partial_output" in sig.parameters:
@@ -570,21 +717,24 @@ class TopDownVisitor():
                     else:
                         named_args["prev_text"] = ""
 
-                command_output = command_function(*positional_args, **named_args)
+                if inspect.iscoroutinefunction(command_function):
+                    command_output = await command_function(*positional_args, **named_args)
+                else:
+                    command_output = command_function(*positional_args, **named_args)
 
-                if "partial_output" not in sig.parameters:
-                    self._extend_prefix(command_output)
+                # if "partial_output" not in sig.parameters:
+                #     self._extend_prefix(command_output)
             else:
                 warnings.warn(f"Command '{command_name}' not found")
                 command_output = ""
             return command_output
 
         elif node.expr_name == 'block_command_call':
-            command_name, args = [self.visit(child) for child in node.children]
+            command_name, args = [await self.visit(child) for child in node.children]
             return command_name, args
 
         elif node.expr_name == 'command_block_open':
-            visited_children = [self.visit(child) for child in node.children]
+            visited_children = [await self.visit(child) for child in node.children]
             return visited_children[2]
 
         elif node.expr_name == 'command_block':
@@ -598,14 +748,13 @@ class TopDownVisitor():
                 block_content.append(child.children[1])
             self.block_content.append(block_content)
 
-            start_block = self.visit(node.children[0])
-            
-            command_name, args = start_block
+            command_name, command_args = await self.visit(node.children[0])
+
             if self.variable_exists(command_name):
                 command_function = self.get_variable(command_name)
                 positional_args = []
                 named_args = {}
-                for arg in args:
+                for arg in command_args:
                     if isinstance(arg, PositionalArgument):
                         positional_args.append(arg.value)
                     elif isinstance(arg, NamedArgument):
@@ -614,22 +763,32 @@ class TopDownVisitor():
                 # if "parser_variables" in sig.parameters:
                 #     named_args["parser_variables"] = self.variable_stack[-1]
                 if "parser_prefix" in sig.parameters:
-                    named_args["parser_prefix"] = self.prefix
+                    named_args["parser_prefix"] = strip_markers(self.prefix)
                 if "parser" in sig.parameters:
                     named_args["parser"] = self
                 if "block_content" in sig.parameters:
                     named_args["block_content"] = self.block_content[-1]
                 if "partial_output" in sig.parameters:
                     named_args["partial_output"] = self._extend_prefix
-                command_output = command_function(*positional_args, **named_args)
+                if "parser_node" in sig.parameters:
+                    named_args["parser_node"] = node
+                
+                if inspect.iscoroutinefunction(command_function):
+                    command_output = await command_function(*positional_args, **named_args)
+                else:
+                    command_output = command_function(*positional_args, **named_args)
+
+                if "partial_output" not in sig.parameters:
+                    self._extend_prefix(command_output)
             else:
                 command_output = ""
 
-            node_text = node.text.replace("$", "DOLLAR_SIGN")
+            # pop off the block content after the command call
             self.block_content.pop()
-            return "{{!--" + f"GMARKER_START_{command_name}${node_text}$" + "--}}" + command_output + "{{!--" + f"GMARKER_END_{command_name}$$" + "--}}"
-            # start_block(node.children[1], self)
-            # end_block = self.visit(node.children[2])
+
+            # return the output and wrap with markers
+            escaped_node_text = node.text.replace("$", "&#36;").replace("{", "&#123;").replace("}", "&#125;")
+            return "{{!--"+f"GMARKER_START_{command_name}${escaped_node_text}$"+"--}}" + command_output + "{{!--" + f"GMARKER_END_{command_name}$$" + "--}}"
 
         else:
             visited_children = []
@@ -642,7 +801,7 @@ class TopDownVisitor():
                     inner_prev_node = node.children[i - 1]
                 else:
                     inner_prev_node = prev_node
-                visited_children.append(self.visit(child, inner_next_node, inner_prev_node))
+                visited_children.append(await self.visit(child, inner_next_node, inner_prev_node))
             # visited_children = [self.visit(child) for child in node.children]
             
             if len(visited_children) == 1:
@@ -677,23 +836,32 @@ class TopDownVisitor():
         return False
 
     def set_variable(self, name, value):
-        parts = name.split(".")
+        parts = re.split(r"\.|\[", name)
+        # parts = name.split(".")
         found = True
         for variables in reversed(self.variable_stack):
             curr_pos = variables
             found = True
             for part in parts:
-                if part in curr_pos:
+                if part.endswith("]"):
+                    var_part = ast.literal_eval(part[:-1])
+                else:
+                    var_part = part
+                try:
+                    next_pos = curr_pos[var_part]
+                    next_found = True
+                except KeyError:
+                    next_found = False
+                
+                if next_found:
                     if part == parts[-1]:
-                        curr_pos[part] = value
+                        curr_pos[var_part] = value
                         break
                     else:
-                        curr_pos = curr_pos[part]
-                        if not isinstance(curr_pos, dict):
-                            raise Exception(f"Cannot set variable '{name}' because '{part}' is not a dict")
+                        curr_pos = next_pos
                 else:
                     if part == parts[-1] and len(parts) > 1: # setting a new property
-                        curr_pos[part] = value
+                        curr_pos[var_part] = value
                     else:
                         found = False
                     break
@@ -704,17 +872,20 @@ class TopDownVisitor():
             self.variable_stack[0][name] = value
 
     def _extend_prefix(self, text):
-        prefix_out = strip_markers(str(text))
+        if text == "":
+            return
+        prefix_out = str(text)
         self.prefix += prefix_out
-        if self.prompt_object.echo:
-            print(prefix_out, end='')
-            sys.stdout.flush()
+        self.prompt.update_display()
     
     def _trim_prefix(self, text):
-        prefix_out = strip_markers(str(text))
+        prefix_out = str(text)
         self.prefix = self.prefix[:-len(prefix_out)]
+        self.prompt.update_display()
         # TODO: undo the echo if needed
 
+class StopCompletion(Exception):
+    pass
 
 def _generate(variable_name="generated", partial_output=None, parse=False, stop=None, max_tokens=500, n=1, echo=True, temperature=0.0, top_p=1.0, logprobs=None, parser_prefix=None, parser=None, prefix="", suffix="", next_text=None, prev_text=None, **kwargs):
     ''' Use the LM to generate a completion string that is stored in the variable `variable_name`.
@@ -745,15 +916,15 @@ def _generate(variable_name="generated", partial_output=None, parse=False, stop=
             stop = next_text
     
     if temperature > 0:
-        cache_seed = parser.prompt_object.cache_seed
-        parser.prompt_object.cache_seed += 1
+        cache_seed = parser.prompt.cache_seed
+        parser.prompt.cache_seed += 1
     else:
         cache_seed = 0
 
-    gen_obj = parser.prompt_object.llm(
+    gen_obj = parser.prompt.llm(
         parser_prefix+prefix, stop=stop, max_tokens=max_tokens, n=n,
-        temperature=temperature, top_p=top_p, logprobs=parser.prompt_object.logprobs, cache_seed=cache_seed,
-        echo=parser.prompt_object.logprobs is not None
+        temperature=temperature, top_p=top_p, logprobs=parser.prompt.logprobs, cache_seed=cache_seed,
+        echo=parser.prompt.logprobs is not None
     )
     if n == 1:
         generated_value = prefix+gen_obj["choices"][0]["text"]+suffix
@@ -779,7 +950,7 @@ def _generate(variable_name="generated", partial_output=None, parse=False, stop=
             return generated_value
         else:
 
-            # echoing with multipl completions is not standard behavior
+            # echoing with multiple completions is not standard behavior
             # this just uses the first generated value for completion and the rest as alternatives only used for the variable storage
             # we mostly support this so that the echo=False hiding behavior does not make multiple outputs more complicated than it needs to be in the UX
             if echo:
@@ -811,7 +982,7 @@ def _strip(arg1):
     '''
     return arg1.strip()
 
-def _each(list, block_content, parser, parser_prefix=None, stop=None, hidden=False, filter=None, batch_generate=False, batch_generate_temperature=0.0, batch_generate_max_tokens=500, batch_generate_top_p=1.0):
+async def _each(list, block_content, parser, parser_prefix=None, parser_node=None, stop=None, hidden=False, filter=None, batch_generate=False, batch_generate_temperature=0.0, batch_generate_max_tokens=500, batch_generate_top_p=1.0):
     ''' Iterate over a list and execute a block for each item.
     '''
     assert len(block_content) == 1
@@ -823,7 +994,7 @@ def _each(list, block_content, parser, parser_prefix=None, stop=None, hidden=Fal
     if list is None:
         list = []
 
-    # Make sure the list is iterable
+    # apply a filter to the list if one was provided
     if filter is not None:
 
         # if the list is callable then we call it to get an iterable
@@ -834,7 +1005,7 @@ def _each(list, block_content, parser, parser_prefix=None, stop=None, hidden=Fal
             if "template_context" in sig.parameters:
                 named_args["template_context"] = {
                     "@block_text": block_content[0].text,
-                    "@tokenizer": parser.prompt_object.tokenizer
+                    "@tokenizer": parser.prompt.tokenizer
                 }
             list = filter(list, **named_args)
         else:
@@ -847,13 +1018,14 @@ def _each(list, block_content, parser, parser_prefix=None, stop=None, hidden=Fal
         raise TypeError("The #each command cannot iterate over a non-iterable value: " + str(list))
 
     out = []
+    partial_out = ""
     
     # if the list is a string then it is the name of a variable to save a new list to
     if isinstance(list, str):
         if stop is None:
             stop = "<|endoftext|>"
         # assert stop is not None, "Must provide a stop token when doing variable length iteration!"
-        stop_tokens = [parser.prompt_object.llm.encode(s) for s in stop]
+        stop_tokens = [parser.prompt.llm.encode(s) for s in stop]
 
         if not batch_generate:
             i = 0
@@ -863,12 +1035,22 @@ def _each(list, block_content, parser, parser_prefix=None, stop=None, hidden=Fal
                 parser.variable_stack[-1]["@index"] = i
                 parser.variable_stack[-1]["@first"] = i == 0
                 parser.variable_stack[-1]["this"] = {}
-                out.append(parser.visit(block_content[0]))
-                data.append(parser.variable_stack.pop()["this"])
+                block_text = await parser.visit(block_content[0])
+                block_variables = parser.variable_stack.pop()["this"]
+                data.append(block_variables)
+                if parser.executing:
+                    out.append(block_text)
+                else:
+                    block_text = block_text.replace("this.", list+"[-1].") # make any unfinished this. references point to the last (unfinished) item
+                    partial_out += block_text
+                    break
                 i += 1
 
-                # we run a quick generation to see if we have reached the end of the list (not the +2 tokens is to help be tolorant to whitespace)
-                gen_obj = parser.prompt_object.llm(parser.prefix, stop=stop, max_tokens=len(stop_tokens)+2, temperature=0, cache_seed=0)
+                if not parser.executing:
+                    break
+
+                # we run a quick generation to see if we have reached the end of the list (note the +2 tokens is to help be tolorant to whitespace)
+                gen_obj = parser.prompt.llm(strip_markers(parser.prefix), stop=stop, max_tokens=len(stop_tokens)+2, temperature=0, cache_seed=0)
                 if gen_obj["choices"][0]["finish_reason"] == "stop":
                     break
         else:
@@ -881,11 +1063,11 @@ def _each(list, block_content, parser, parser_prefix=None, stop=None, hidden=Fal
 
             # generate the looped content
             if batch_generate_temperature > 0:
-                cache_seed = parser.prompt_object.cache_seed
-                parser.prompt_object.cache_seed += 1
+                cache_seed = parser.prompt.cache_seed
+                parser.prompt.cache_seed += 1
             else:
                 cache_seed = 0
-            gen_obj = parser.prompt_object.llm(parser_prefix, stop=stop, max_tokens=batch_generate_max_tokens, temperature=batch_generate_temperature, top_p=batch_generate_top_p, cache_seed=cache_seed)
+            gen_obj = parser.prompt.llm(parser_prefix, stop=stop, max_tokens=batch_generate_max_tokens, temperature=batch_generate_temperature, top_p=batch_generate_top_p, cache_seed=cache_seed)
             generated_value = gen_obj["choices"][0]["text"]
 
             # parse the generated content (this assumes the generated content is syntactically correct)
@@ -907,8 +1089,9 @@ def _each(list, block_content, parser, parser_prefix=None, stop=None, hidden=Fal
                     block_content[0].text
                 )
                 out.append(item_out)
-                
-        parser.set_variable(list, data)
+        
+        # parser.get_variable(list, [])
+        parser.set_variable(list, parser.get_variable(list, default_value=[]) + data)
 
     # if the list is not a string then it is a list of items to iterate over
     else:
@@ -918,24 +1101,30 @@ def _each(list, block_content, parser, parser_prefix=None, stop=None, hidden=Fal
             parser.variable_stack[-1]["@first"] = i == 0
             parser.variable_stack[-1]["@last"] = i == len(list) - 1
             parser.variable_stack[-1]["this"] = item
-            item_out = parser.visit(block_content[0])
+            item_out = await parser.visit(block_content[0])
             if not echo:
                 parser._trim_prefix(item_out)
             out.append(item_out)
         parser.variable_stack.pop()
+    
+    suffix = ""
+    if not parser.executing:
+        if isinstance(list, str):
+            suffix = partial_out + parser_node.text
+    
     if echo:
-        return "{{!--GMARKER_each$$--}}" + "{{!--GMARKER_each$$--}}".join(out) + "{{!--GMARKER_each$$--}}"    
+        return "{{!--GMARKER_each$$--}}" + "{{!--GMARKER_each$$--}}".join(out) + "{{!--GMARKER_each$$--}}" + suffix
     else:
         id = uuid.uuid4().hex
         l = len(out)
-        out_str = "{{!--" + f"GMARKER_each_noecho_start_{echo}_{l}${id}$" + "--}}"
+        out_str = prefix + "{{!--" + f"GMARKER_each_noecho_start_{echo}_{l}${id}$" + "--}}"
         for i, value in enumerate(out):
             if i > 0:
                 out_str += "{{!--" + f"GMARKER_each_noecho_{echo}_{i}${id}$" + "--}}"
             out_str += value
         return out_str + "{{!--" + f"GMARKER_each_noecho_end${id}$" + "--}}"
+
         # return "{{!--GMARKER_each_noecho$$}}" + "{{!--GMARKER_each_noecho$$}}".join(out) + "{{!--GMARKER_each_noecho$$}}"
-        
 
 def _select(variable_name="selected", block_content=None, parser=None, partial_output=None, parser_prefix=None, logprobs=None):
     ''' Select a value from a list of choices.
@@ -946,15 +1135,15 @@ def _select(variable_name="selected", block_content=None, parser=None, partial_o
         assert block_content[i].text == "{{or}}"
         options.append(block_content[i+1].text)
 
-    option_tokens = [parser.prompt_object.llm.encode(option) for option in options]
+    option_tokens = [parser.prompt.llm.encode(option) for option in options]
 
     option_logprobs = {}
     for option in option_tokens:
-        option_logprobs[parser.prompt_object.llm.decode(option)] = 0
+        option_logprobs[parser.prompt.llm.decode(option)] = 0
 
     # [TODO] we should force the LM to generate a valid specific option
     #        for openai this means setting logprobs to valid token ids
-    gen_obj = parser.prompt_object.llm(
+    gen_obj = parser.prompt.llm(
         parser_prefix,
         max_tokens=max([len(o) for o in option_tokens]),
         logprobs=10,
@@ -966,13 +1155,13 @@ def _select(variable_name="selected", block_content=None, parser=None, partial_o
     for i in range(len(top_logprobs)):
         for option in option_tokens:
             if len(option) > i:
-                option_string = parser.prompt_object.llm.decode(option)
-                option_logprobs[option_string] += top_logprobs[i].get(parser.prompt_object.llm.decode([option[i]]), -100)
+                option_string = parser.prompt.llm.decode(option)
+                option_logprobs[option_string] += top_logprobs[i].get(parser.prompt.llm.decode([option[i]]), -100)
     
     # penalize options that are too long
     for option in option_tokens:
         if len(option) > len(top_logprobs):
-            option_logprobs[parser.prompt_object.llm.decode(option)] -= 100
+            option_logprobs[parser.prompt.llm.decode(option)] -= 100
 
     selected_option = max(option_logprobs, key=option_logprobs.get)
     parser.set_variable(variable_name, selected_option)
@@ -1025,7 +1214,7 @@ def _block(name=None, block_content=None, parser=None, hidden=False):
     
     return out
 
-def _set(name, value=None, parser=None):
+def _set(name, value=None, hidden=None, parser=None):
     ''' Set the value of a variable or set of variables.
 
     Parameters
@@ -1034,10 +1223,16 @@ def _set(name, value=None, parser=None):
         If a string, the name of the variable to set. If a dict, the keys are the variable names and the values are the values to set.
     value : str, optional
         The value to set the variable to. Only used if `name` is a string.
+    hidden : bool, optional
+        If True, the variable will be set but not printed in the output.
     '''
     assert parser is not None
 
+    if not parser.executing:
+        return ""
+
     if isinstance(name, dict):
+        assert hidden is not False, "hidden cannot be False if setting multiple variables!"
         for k, v in name.items():
             parser.set_variable(k, v)
         out = ""
@@ -1054,5 +1249,49 @@ def _set(name, value=None, parser=None):
         return "{{!--GMARKER_set$" + out + "$--}}"
     else:
         parser.set_variable(name, value)
-        out = "{{set "+name+"=" + value + "}}"
-        return "{{!--GMARKER_set$" + out + "$--}}"
+        if hidden is not True:
+            return value
+        else:
+            out = "{{set "+name+"=" + str(value) + "}}"
+            return "{{!--GMARKER_set$" + out + "$--}}"
+
+async def _await(name, parser=None):
+    ''' Awaits a value by stopping execution if the value does not yet exist.
+    '''
+
+    # stop the prompt completion if we are waiting for a value to be set
+    # this will result in a partially completed prompt that we can then finish
+    # later (by calling it again with the variable we need)
+    if name not in parser.prompt.variables:
+        parser.executing = False
+    else:
+        value = parser.prompt.variables[name]
+        del parser.prompt.variables[name]
+        return value
+    
+    # cache = parser.prompt._await_cache
+    # while name not in cache:
+    #     parser.prompt.finish_execute() # allow the prompt to finish the current call (since we're waiting for a value from the next call now)
+    #     # TODO: instead of waiting here, we should just single we are stopping the prompt completion here
+    #     #       and then let all the containing elements record their state into a new prompt string that
+    #     #       we can then use to continue the prompt completion later in a new object.
+    #     cache.update(await parser.prompt._await_queue.get())
+    #     pass
+    # value = cache[name]
+    # del cache[name]
+    # return value
+
+
+_built_ins = {
+    "generate": _generate,
+    "each": _each,
+    "select": _select,
+    "if": _if,
+    "unless": _unless,
+    "add": _add,
+    "subtract": _subtract,
+    "strip": _strip,
+    "block": _block,
+    "set": _set,
+    "await": _await
+}
