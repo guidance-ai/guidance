@@ -652,20 +652,21 @@ class PromptExecutor():
             if not self.executing:
                 return node.text
             
-            # find the command name
-            command_head = node.children[1].children[0]
-            if command_head.expr_name == 'variable_ref':
-                name = "variable_ref"
-            elif command_head.expr_name == 'command_call':
-                name = command_head.children[0].text
-            else:
-                raise Exception("Unknown command head type: "+command_head.expr_name)
-
             # visit our children
             self.block_content.append([])
             visited_children = [await self.visit(child, next_node, prev_node) for child in node.children]
             self.block_content.pop()
             out = "".join("" if c is None else str(c) for c in visited_children)
+            
+            # find the command name
+            command_head = node.children[1].children[0]
+            if command_head.expr_name == 'variable_ref':
+                self._extend_prefix(out)
+                name = "variable_ref"
+            elif command_head.expr_name == 'command_call':
+                name = command_head.children[0].text
+            else:
+                raise Exception("Unknown command head type: "+command_head.expr_name)
 
             # if execution became stopped during the command, we just return unchanged
             if not self.executing:
@@ -818,13 +819,22 @@ class PromptExecutor():
         elif name == "False":
             return False
         
-        parts = name.split(".")
+        parts = re.split(r"\.|\[", name)
         for variables in reversed(self.variable_stack):
             curr_pos = variables
             found = True
             for part in parts:
-                if part in curr_pos:
-                    curr_pos = curr_pos[part]
+                if part.endswith("]"):
+                    var_part = ast.literal_eval(part[:-1])
+                else:
+                    var_part = part
+                try:
+                    next_pos = curr_pos[var_part]
+                    next_found = True
+                except KeyError:
+                    next_found = False
+                if next_found:
+                    curr_pos = next_pos
                 else:
                     found = False
                     break
