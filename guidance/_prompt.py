@@ -344,6 +344,9 @@ class Prompt:
 
 
     
+    def __getitem__(self, key):
+        return self.variables[key]
+    
     @property
     def text(self):
         # strip out the markers for the unformatted output

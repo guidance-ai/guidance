@@ -8,12 +8,43 @@ import warnings
 import time
 import collections
 import tiktoken
-
+import re
 curr_dir = pathlib.Path(__file__).parent.resolve()
 _file_cache = diskcache.Cache(f"{curr_dir}/_openai.diskcache")
 
+class MalformedPromptException(Exception):
+    pass
+def prompt_to_messages(prompt):
+    messages = []
+    start_tags = re.findall(r'<\|im_start\|>', prompt)
+    end_tags = re.findall(r'<\|im_end\|>', prompt)
+    # if len(start_tags) != len(end_tags):
+    #     raise MalformedPromptException("Malformed prompt: start and end tags are not properly paired")
+
+    pattern = r'<\|im_start\|>(\w+)(.*?)(?=<\|im_end\|>)'
+    matches = re.findall(pattern, prompt, re.DOTALL)
+
+    if not matches:
+        return [{'role': 'user', 'content': prompt.strip()}]
+
+    for match in matches:
+        role, content = match
+        content = content.strip()
+        messages.append({'role': role, 'content': content})
+
+    return messages
+
+def add_text_to_chat_completion(chat_completion):
+    for c in chat_completion['choices']:
+        c['text'] = c['message']['content']
+        # c['text'] = f'<|im_start|>{c["message"]["role"]}\n{c["message"]["content"]}<|im_end|>'
+    
+
+    
+
+
 class OpenAI():
-    def __init__(self, model=None, caching=True, max_retries=5, max_calls_per_min=60, token=None, endpoint=None, temperature=0.0):
+    def __init__(self, model=None, caching=True, max_retries=5, max_calls_per_min=60, token=None, endpoint=None, temperature=0.0, chat_completion=False):
 
         # fill in default model value
         if model is None:
@@ -43,6 +74,7 @@ class OpenAI():
             endpoint = os.environ.get("OPENAI_ENDPOINT", None)
 
         self._encoding = tiktoken.get_encoding("cl100k_base")
+        self.chat_completion = chat_completion
         
         self.model = model
         self.caching = caching
@@ -131,7 +163,16 @@ class OpenAI():
         """
         prev_key = openai.api_key
         openai.api_key = self.token
-        out = openai.Completion.create(**kwargs)
+        if self.chat_completion:
+            kwargs['messages'] = prompt_to_messages(kwargs['prompt'])
+            del kwargs['prompt']
+            del kwargs['echo']
+            del kwargs['logprobs']
+            print(kwargs)
+            out = openai.ChatCompletion.create(**kwargs)
+            add_text_to_chat_completion(out)
+        else:
+            out = openai.Completion.create(**kwargs)
         openai.api_key = prev_key
         return out
 
@@ -158,12 +199,20 @@ class OpenAI():
             'stop': kwargs.get("stop", None),
             "echo": kwargs.get("echo", False)
         }
+        if self.chat_completion:
+            data['messages'] = prompt_to_messages(data['prompt'])
+            del data['prompt']
+            del data['echo']
+            del data['stream']
 
         # Send a POST request and get the response
         response = requests.post(self.endpoint, headers=headers, json=data)
         if response.status_code != 200:
             raise Exception("Response is not 200: " + response.text)
-        return response.json()
+        response = response.json()
+        if self.chat_completion:
+            add_text_to_chat_completion(response)
+        return response
     
     def encode(self, string):
         return self._encoding.encode(string)
