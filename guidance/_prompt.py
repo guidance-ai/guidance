@@ -15,23 +15,23 @@ from . import _utils
 import guidance
 
 # this should work for the Jupyter web browser version, but it if failing in VS Code: https://github.com/microsoft/vscode/issues/176698
-css = """
-:root {
-  --txt: #000;
-  --inserted: rgba(0, 138.56128016, 250.76166089, 0.25);
-  --generated: rgba(0, 165, 0, 0.25);
-}
-:root .vscode-dark {
-  --txt: #fff;
-  --inserted: rgba(0, 138.56128016, 255, 0.4);
-  --generated: rgba(0, 255, 0, 0.18);
-}
-@media screen and (prefers-color-scheme: dark) {
-  :root {
-    --txt: #fff;
-  }
-}
-""".replace("\n", "").replace(" ", "")
+# css = """
+# :root {
+#   --txt: #000;
+#   --inserted: rgba(0, 138.56128016, 250.76166089, 0.25);
+#   --generated: rgba(0, 165, 0, 0.25);
+# }
+# :root .vscode-dark {
+#   --txt: #fff;
+#   --inserted: rgba(0, 138.56128016, 255, 0.4);
+#   --generated: rgba(0, 255, 0, 0.18);
+# }
+# @media screen and (prefers-color-scheme: dark) {
+#   :root {
+#     --txt: #fff;
+#   }
+# }
+# """.replace("\n", "").replace(" ", "")
 
 class Prompt:
     ''' A prompt template that can be compiled and executed to generate a new filled in prompt.
@@ -160,8 +160,8 @@ class Prompt:
         # # add syntax highlighting
         # display_out = re.sub(r"(\{\{generate.*?\}\})", r"<span style='background-color: rgba(0, 165, 0, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
         # display_out = re.sub(r"(\{\{#select\{\{/select.*?\}\})", r"<span style='background-color: rgba(0, 165, 0, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
-        # display_out = re.sub(r"(\{\{#each [^'\"].*?\{\{/each.*?\}\})", r"<span style='background-color: var(--inserted);'>\1</span>", display_out, flags=re.DOTALL)
-        # display_out = re.sub(r"(\{\{(?!generate)(?!#select)(?!#each)(?!/each)(?!/select).*?\}\})", r"<span style='background-color: var(--inserted);'>\1</span>", display_out, flags=re.DOTALL)
+        # display_out = re.sub(r"(\{\{#each [^'\"].*?\{\{/each.*?\}\})", r"<span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
+        # display_out = re.sub(r"(\{\{(?!generate)(?!#select)(?!#each)(?!/each)(?!/select).*?\}\})", r"<span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
         # display_out = add_spaces(display_out)
         # display_out = "<pre style='margin: 0px; padding: 0px; padding-left: 8px; margin-left: -8px; border-radius: 0px; border-left: 1px solid rgba(127, 127, 127, 0.2); white-space: pre-wrap; font-family: ColfaxAI, Arial; font-size: 15px; line-height: 22px;'>"+display_out+"</pre>"
 # <script>
@@ -358,26 +358,34 @@ class Prompt:
             alpha = 1.0 if no_echo else 1.0
             
             # script that toggles the viisibility of the next element
-            click_script = 'var e = this.nextElementSibling; if (e.style.display == "inline") { e.style.display = "none"; this.style.borderRight = "1px solid var(--generated)"; } else { e.style.display = "inline"; this.style.borderRight = "0px";}'
+            click_script = 'var e = this.nextElementSibling; if (e.style.display == "inline") { e.style.display = "none"; this.style.borderRight = "1px solid rgba(0, 165, 0, 0.25)"; } else { e.style.display = "inline"; this.style.borderRight = "0px";}'
 
             if no_echo:
-                out = f'''<div style='background-color: var(--generated); border-radius: 4px 0px 0px 4px; border: 1px solid rgba(0, 165, 0, 1); padding-left: 3px; padding-right: 3px; user-select: none; color: rgb(0, 165, 0, 1.0); display: inline; font-weight: normal; cursor: pointer' onClick='{click_script}'>no echo</div>'''
-                out += "<span style='background-color: var(--generated); opacity: {}; display: none;' title='{}'>".format(alpha, x.group(1))
+                out = f'''<div style='background-color: rgba(0, 165, 0, 0.25); border-radius: 4px 0px 0px 4px; border: 1px solid rgba(0, 165, 0, 1); padding-left: 3px; padding-right: 3px; user-select: none; color: rgb(0, 165, 0, 1.0); display: inline; font-weight: normal; cursor: pointer' onClick='{click_script}'>no echo</div>'''
+                out += "<span style='background-color: rgba(0, 165, 0, 0.25); opacity: {}; display: none;' title='{}'>".format(alpha, x.group(1))
             else:
-                out = "<span style='background-color: var(--generated); opacity: {}; display: inline;' title='{}'>".format(alpha, x.group(1))
+                out = "<span style='background-color: rgba(0, 165, 0, 0.25); opacity: {}; display: inline;' title='{}'>".format(alpha, x.group(1))
             return out
         
         def start_each(x):
             no_echo = "echo=False" in x.group(1)
             alpha = 0.5 if no_echo else 1.0
-            color = "var(--inserted)" if "each '" not in x.group(1) and "each \"" not in x.group(1) else "var(--generated)"
+            color = "rgba(0, 138.56128016, 250.76166089, 0.25)" if "each '" not in x.group(1) and "each \"" not in x.group(1) else "rgba(0, 165, 0, 0.25)"
             return "<span style='opacity: {}; display: inline; background-color: {};' title='{}'>".format(alpha, color, x.group(1))
+        
+        def start_block(x):
+            escaped_tag = x.group(1)
+            if "hidden=True" in escaped_tag:
+                display = "none"
+            else:
+                display = "inline"
+            return f"<span style='background-color: rgba(165, 165, 165, 0.1); display: {display};' title='{escaped_tag}'>"
 
         display_out = html.escape(output)
-        display_out = re.sub(r"(\{\{generate.*?\}\})", r"<span style='background-color: var(--generated);'>\1</span>", display_out, flags=re.DOTALL)
-        display_out = re.sub(r"(\{\{#select\{\{/select.*?\}\})", r"<span style='background-color: var(--generated);'>\1</span>", display_out, flags=re.DOTALL)
-        display_out = re.sub(r"(\{\{#each [^'\"].*?\{\{/each.*?\}\})", r"<span style='background-color: var(--inserted);'>\1</span>", display_out, flags=re.DOTALL)
-        display_out = re.sub(r"(\{\{(?!\!)(?!generate)(?!#select)(?!#each)(?!/each)(?!/select).*?\}\})", r"<span style='background-color: var(--inserted);'>\1</span>", display_out, flags=re.DOTALL)
+        display_out = re.sub(r"(\{\{generate.*?\}\})", r"<span style='background-color: rgba(0, 165, 0, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
+        display_out = re.sub(r"(\{\{#select\{\{/select.*?\}\})", r"<span style='background-color: rgba(0, 165, 0, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
+        display_out = re.sub(r"(\{\{#each [^'\"].*?\{\{/each.*?\}\})", r"<span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
+        display_out = re.sub(r"(\{\{(?!\!)(?!generate)(?!#select)(?!#each)(?!/each)(?!/select).*?\}\})", r"<span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
                 
 
         # format the generate command results
@@ -420,7 +428,7 @@ cycle_IDVAL(this);'''.replace("IDVAL", id).replace("TOTALCOUNT", str(total_count
             return out
         display_out = re.sub(
             r"{{!--GMARKER_generate_many_start_([^_]+)_([0-9]+)\$([^\$]*)\$--}}",
-            lambda x: click_loop_start(x.group(3), int(x.group(2)), x.group(1) == "True", "var(--generated)"),
+            lambda x: click_loop_start(x.group(3), int(x.group(2)), x.group(1) == "True", "rgba(0, 165, 0, 0.25)"),
             display_out
         )
         display_out = re.sub(
@@ -450,17 +458,21 @@ cycle_IDVAL(this);'''.replace("IDVAL", id).replace("TOTALCOUNT", str(total_count
 
         display_out = re.sub(r"{{!--GMARKER_START_select\$([^\$]*)\$--}}", start_generate_or_select, display_out)
         display_out = display_out.replace("{{!--GMARKER_END_select$$--}}", "</span>")
-        display_out = re.sub(r"{{!--GMARKER_START_variable_ref\$([^\$]*)\$--}}", r"<span style='background-color: var(--inserted); display: inline;' title='\1'>", display_out)
+        display_out = re.sub(r"{{!--GMARKER_START_variable_ref\$([^\$]*)\$--}}", r"<span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25); display: inline;' title='\1'>", display_out)
         display_out = display_out.replace("{{!--GMARKER_END_variable_ref$$--}}", "</span>")
         display_out = display_out.replace("{{!--GMARKER_each$$--}}", "<div style='border-left: 1px dashed rgb(0, 0, 0, .2); border-top: 0px solid rgb(0, 0, 0, .2); margin-right: -4px; display: inline; width: 4px; height: 24px;'></div>")
-        display_out = re.sub(r"{{!--GMARKER_START_block\$([^\$]*)\$--}}", r"<span style='background-color: rgba(165, 165, 165, 0.15); display: inline;' title='\1'>", display_out)
-        display_out = re.sub(r"{{!--GMARKER_START_([^\$]*)\$([^\$]*)\$--}}", r"<span style='background-color: var(--inserted); display: inline;' title='\2'>", display_out)
+        display_out = re.sub(r"{{!--GMARKER_START_block\$([^\$]*)\$--}}", start_block, display_out)
+        display_out = re.sub(r"{{!--GMARKER_START_([^\$]*)\$([^\$]*)\$--}}", r"<span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25); display: inline;' title='\2'>", display_out)
         # display_out = re.sub(r"{{!--GMARKER_START_([^\$]*)\$([^\$]*)\$}}", r"<span style='background-color: rgba(165, 165, 165, 0.25); display: inline;' title='\2'>", display_out)
         display_out = re.sub(r"{{!--GMARKER_END_([^\$]*)\$\$--}}", "</span>", display_out)
+        
+        # strip out comments
+        display_out = re.sub(r"{{~?!.*?}}", "", display_out)
+        
         display_out = add_spaces(display_out)
         display_out = "<pre style='margin: 0px; padding: 0px; padding-left: 8px; margin-left: -8px; border-radius: 0px; border-left: 1px solid rgba(127, 127, 127, 0.2); white-space: pre-wrap; font-family: ColfaxAI, Arial; font-size: 15px; line-height: 23px;'>"+display_out+"</pre>"
 
-        display_out = "<style type='text/css'>"+css+"</style>"+display_out
+        # display_out = "<style type='text/css'>"+css+"</style>"+display_out
         
         return display_out
 
@@ -479,12 +491,20 @@ def strip_markers(s):
 grammar = parsimonious.grammar.Grammar(
 r"""
 template = template_chunk*
-template_chunk = comment / escaped_command / unrelated_escape / command / command_block / content
+template_chunk = comment / slim_comment / escaped_command / unrelated_escape / command / command_block / content
+
 comment = comment_start comment_content* comment_end
 comment_start = "{{!--"
 comment_content = not_comment_end / ~r"[^-]*"
 not_comment_end = "-" !"-}}"
 comment_end = "--}}"
+
+slim_comment = slim_comment_start slim_comment_content* slim_comment_end
+slim_comment_start = "{{" "~"? "!"
+slim_comment_content = not_slim_comment_end / ~r"[^}]*"
+not_slim_comment_end = "}" !"}"
+slim_comment_end = "}}"
+
 command = command_start command_content command_end
 command_block = command_block_open template (command_block_sep template)* command_block_close
 command_block_open = command_start "#" block_command_call command_end
@@ -599,10 +619,19 @@ class PromptExecutor():
             return node.text
 
         elif node.expr_name == 'content':
-            self._extend_prefix(node.text)
-            return node.text
+            if next_node is not None and next_node.text.startswith("{{~"):
+                text = node.text.rstrip()
+            elif prev_node is not None and prev_node.text.endswith("~}}"):
+                text = node.text.lstrip()
+            else:
+                text = node.text
+            self._extend_prefix(text)
+            return text
         
         elif node.expr_name == 'comment':
+            return node.text
+        
+        elif node.expr_name == 'slim_comment':
             return node.text
 
         elif node.expr_name == 'command_args':
@@ -781,8 +810,8 @@ class PromptExecutor():
                 else:
                     command_output = command_function(*positional_args, **named_args)
 
-                if "partial_output" not in sig.parameters:
-                    self._extend_prefix(command_output)
+                # if "partial_output" not in sig.parameters:
+                #     self._extend_prefix(command_output)
             else:
                 command_output = ""
 
@@ -899,7 +928,7 @@ class PromptExecutor():
 class StopCompletion(Exception):
     pass
 
-def _generate(variable_name="generated", partial_output=None, parse=False, stop=None, max_tokens=500, n=1, echo=True, temperature=0.0, top_p=1.0, logprobs=None, hidden=False, parser_prefix=None, parser=None, prefix="", suffix="", next_text=None, prev_text=None, **kwargs):
+async def _generate(variable_name="generated", partial_output=None, parse=False, stop=None, max_tokens=500, n=1, echo=True, temperature=0.0, top_p=1.0, logprobs=None, hidden=False, parser_prefix=None, parser=None, prefix="", suffix="", next_text=None, prev_text=None, **kwargs):
     ''' Use the LM to generate a completion string that is stored in the variable `variable_name`.
     '''
 
@@ -955,7 +984,7 @@ def _generate(variable_name="generated", partial_output=None, parse=False, stop=
     if parse:
         assert echo, "Cannot parse generated text if echo is disabled"
         subtree = grammar.parse(generated_value)
-        return parser.visit(subtree)
+        return await parser.visit(subtree)
     else:
         if n == 1:
             partial_output(generated_value)
@@ -1217,11 +1246,12 @@ async def _block(name=None, block_content=None, parser=None, hidden=False):
     '''
     assert parser is not None
     
+    pos = len(parser.prefix)
     out = await parser.visit(block_content[0])
     if name is not None:
         parser.set_variable(name, strip_markers(out))
     if hidden:
-        parser._trim_prefix(out)
+        parser.prefix = parser.prefix[:pos]
     
     return out
 
