@@ -86,3 +86,13 @@ def test_if_else():
     for flag in [False, "No", "no", "NO", 0, 0.0, "False", "false", "FALSE"]:
         out = prompt(flag=flag)
         assert str(out) == "Answer 'Yes' or 'No': 'No'"
+
+
+def test_hidden_block():
+    """ Test the behavior of `if` with an `else` clause.
+    """
+
+    llm = guidance.llms.OpenAI("text-curie-001")
+    prompt = guidance("""This is a test {{#block hidden=True}}example{{/block}}""", llm=llm)
+    out = prompt()
+    assert out.text == "This is a test "

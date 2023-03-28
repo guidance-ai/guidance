@@ -8,6 +8,7 @@ import warnings
 import time
 import collections
 import tiktoken
+import asyncio
 import re
 curr_dir = pathlib.Path(__file__).parent.resolve()
 _file_cache = diskcache.Cache(f"{curr_dir}/_openai.diskcache")
@@ -39,6 +40,7 @@ def add_text_to_chat_completion(chat_completion):
         c['text'] = c['message']['content']
         # c['text'] = f'<|im_start|>{c["message"]["role"]}\n{c["message"]["content"]}<|im_end|>'
     
+
 
     
 
@@ -91,7 +93,7 @@ class OpenAI():
         else:
             self.caller = self._rest_call
     
-    def __call__(self, prompt, stop=None, temperature=None, n=1, max_tokens=1000, logprobs=None, top_p=1.0, echo=False, logit_bias=None, cache_seed=0):
+    def __call__(self, prompt, stop=None, temperature=None, n=1, max_tokens=1000, logprobs=None, top_p=1.0, echo=False, logit_bias=None, stream=False, cache_seed=0):
         """ Generate a completion of the given prompt.
         """
 
@@ -119,7 +121,8 @@ class OpenAI():
                         "n": n,
                         "stop": stop,
                         "logprobs": logprobs,
-                        "echo": echo
+                        "echo": echo,
+                        "stream": stream
                     }
                     if logit_bias is not None:
                         call_args["logit_bias"] = logit_bias
@@ -136,8 +139,21 @@ class OpenAI():
                 if fail_count > self.max_retries:
                     raise Exception(f"Too many (more than {self.max_retries}) OpenAI API RateLimitError's in a row!")
 
-            _file_cache[key] = out
+            if stream:
+                return self.stream_then_save(out, key)
+            else:
+                _file_cache[key] = out
         return _file_cache[key]
+    
+    def stream_then_save(self, gen, key):
+        list_out = []
+        for out in gen:
+            list_out.append(out)
+            yield out
+        _file_cache[key] = list_out
+    
+    def _stream_completion(self):
+        pass
 
     # Define a function to add a call to the deque
     def add_call(self):
