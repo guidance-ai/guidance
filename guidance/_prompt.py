@@ -9,6 +9,7 @@ import warnings
 import copy
 import asyncio
 import pathlib
+import os
 import time
 from .llms import _openai
 from . import _utils
@@ -311,6 +312,8 @@ class Prompt:
         # debounce the display updates
         now = time.time()
         debounce_delay = 0.1
+        if self.stream and 'VSCODE_CWD' in os.environ:
+            debounce_delay = 2
         if force or (now - self._last_display_update > debounce_delay):
             if self._displaying_html or True:
                 out = self._build_html(self.marked_text)
@@ -319,6 +322,8 @@ class Prompt:
                     from IPython.display import clear_output, display
                     # clear_output(wait=True)
                     # display_html(out, raw=True)
+                    if self.stream and 'VSCODE_CWD' in os.environ:
+                        clear_output(wait=False) # TODO: causes flashing and should be removed when #13199 is fixed in vscode-jupyter
                     display({"text/html": out}, raw=True, clear=True, include=["text/html"])
                 else:
                     # print("_direct_update_display display")
