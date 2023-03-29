@@ -80,6 +80,7 @@ class Prompt:
         self._execute_complete = asyncio.Event()
         self.stream = stream
         self.echo = echo
+        self.displaying = echo
 
         # get or create an event loop
         if asyncio.get_event_loop().is_running():
@@ -133,9 +134,12 @@ class Prompt:
 
     def _repr_html_(self):
         # print("repr html")
+        self.displaying = True
+        if self._comm is None:
+            self._comm = _utils.JupyterComm(self._id, self._interface_event)
         self._displaying_html = True
         if not self.executing:
-            return self._build_html(self.marked_text)
+            return self._build_html(self.marked_text, first_display=True)
         else:
             self.update_display()
         
@@ -310,6 +314,8 @@ class Prompt:
         """
         # print("update display")
         # debounce the display updates
+        if not self.displaying:
+            return
         now = time.time()
         debounce_delay = 0.1
         if self.stream and 'VSCODE_CWD' in os.environ:
@@ -370,7 +376,7 @@ class Prompt:
         else:
             return self._text
     
-    def _build_html(self, text):
+    def _build_html(self, text, first_display=False):
         output = text
 
         def start_generate_or_select(x):
@@ -480,7 +486,7 @@ cycle_IDVAL(this);'''.replace("IDVAL", id).replace("TOTALCOUNT", str(total_count
         display_out = display_out.replace("{{!--GMARKER_END_select$$--}}", "</span>")
         display_out = re.sub(r"{{!--GMARKER_START_variable_ref\$([^\$]*)\$--}}", r"<span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25); display: inline;' title='\1'>", display_out)
         display_out = display_out.replace("{{!--GMARKER_END_variable_ref$$--}}", "</span>")
-        display_out = display_out.replace("{{!--GMARKER_each$$--}}", "<div style='border-left: 1px dashed rgb(0, 0, 0, .2); border-top: 0px solid rgb(0, 0, 0, .2); margin-right: -4px; display: inline; width: 4px; height: 24px;'></div>")
+        display_out = display_out.replace("{{!--GMARKER_each$$--}}", "")#<div style='border-left: 1px dashed rgb(0, 0, 0, .2); border-top: 0px solid rgb(0, 0, 0, .2); margin-right: -4px; display: inline; width: 4px; height: 24px;'></div>")
         display_out = re.sub(r"{{!--GMARKER_START_block\$([^\$]*)\$--}}", start_block, display_out)
         display_out = re.sub(r"{{!--GMARKER_START_([^\$]*)\$([^\$]*)\$--}}", r"<span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25); display: inline;' title='\2'>", display_out)
         # display_out = re.sub(r"{{!--GMARKER_START_([^\$]*)\$([^\$]*)\$}}", r"<span style='background-color: rgba(165, 165, 165, 0.25); display: inline;' title='\2'>", display_out)
@@ -493,6 +499,9 @@ cycle_IDVAL(this);'''.replace("IDVAL", id).replace("TOTALCOUNT", str(total_count
         display_out = "<pre style='margin: 0px; padding: 0px; padding-left: 8px; margin-left: -8px; border-radius: 0px; border-left: 1px solid rgba(127, 127, 127, 0.2); white-space: pre-wrap; font-family: ColfaxAI, Arial; font-size: 15px; line-height: 23px;'>"+display_out+"</pre>"
 
         # display_out = "<style type='text/css'>"+css+"</style>"+display_out
+
+        if first_display or False:
+            display_out = "<script type='text/javascript'>console.log('asdf'); debugger;</script>"+display_out
         
         return display_out
 
@@ -1165,14 +1174,14 @@ async def _each(list, block_content, parser, parser_prefix=None, parser_node=Non
                 parser.variable_stack[-1]["@index"] = i
                 parser.variable_stack[-1]["@first"] = i == 0
                 parser.variable_stack[-1]["this"] = {}
-                block_text = await parser.visit(block_content[0])
+                pos = len(parser.prefix)
+                await parser.visit(block_content[0]) # fills out parser.prefix
                 block_variables = parser.variable_stack.pop()["this"]
                 data.append(block_variables)
-                if parser.executing:
-                    out.append(block_text)
-                else:
-                    block_text = block_text.replace("this.", list+"[-1].") # make any unfinished this. references point to the last (unfinished) item
-                    partial_out += block_text
+                if not parser.executing:
+                    block_text = parser.prefix[pos:]
+                    block_text = block_text # make any unfinished this. references point to the last (unfinished) item
+                    parser.prefix = parser.prefix[:pos] + parser.prefix[pos:].replace("this.", list+"[-1].")
                     break
                 i += 1
 

@@ -143,7 +143,7 @@ def test_chat_echo():
         assert len(out["answer"]) > 0
     loop.run_until_complete(f())
 
-def test_agents()
+def test_agents():
     """Test agentes, calling prompt twice"""
     import guidance
     guidance.llm = guidance.llms.OpenAI("gpt-4", chat_completion=True)

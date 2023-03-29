@@ -200,7 +200,7 @@ class OpenAI():
             del kwargs['prompt']
             del kwargs['echo']
             del kwargs['logprobs']
-            print(kwargs)
+            # print(kwargs)
             out = openai.ChatCompletion.create(**kwargs)
             out = add_text_to_chat_completion(out)
         else:
