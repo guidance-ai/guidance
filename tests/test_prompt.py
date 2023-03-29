@@ -119,3 +119,19 @@ def test_chat_stream():
         out = await chat(command="How do I create a Fasttokenizer with hugging face auto?-a")
         assert len(out["answer"]) > 0
     loop.run_until_complete(f())
+
+def test_agents()
+    """Test agentes, calling prompt twice"""
+    import guidance
+    guidance.llm = guidance.llms.OpenAI("gpt-4", chat_completion=True)
+    prompt = guidance('''<|im_start|>system
+    You are a helpful assistant.<|im_end|>
+    {{#each 'conversation'}}
+    <|im_start|>user
+    {{set 'this.user_text' (await 'user_text')}}<|im_end|>
+    <|im_start|>assistant
+    {{generate 'this.ai_text' n=1 temperature=0 max_tokens=900}}<|im_end|>{{/each}}''', echo=True)
+    prompt = prompt(user_text='Hi there')
+    assert len(prompt['conversation']) == 2
+    prompt = prompt(user_text='Please help')
+    assert len(prompt['conversation']) == 3
