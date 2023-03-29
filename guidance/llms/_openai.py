@@ -276,7 +276,7 @@ class OpenAI():
     #         return out["choices"][0]["logprobs"]["tokens"][:-1]
     #     else:
     #         return [choice["logprobs"]["tokens"][:-1] for choice in out["choices"]]
-
+OpenAI.cache = _file_cache
 
 
 # Define a deque to store the timestamps of the calls
