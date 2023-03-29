@@ -96,3 +96,26 @@ def test_hidden_block():
     prompt = guidance("""This is a test {{#block hidden=True}}example{{/block}}""", llm=llm)
     out = prompt()
     assert out.text == "This is a test "
+
+def test_chat_stream():
+    """ Test the behavior of `stream=True` for an openai chat endpoint.
+    """
+
+    import asyncio
+    loop = asyncio.new_event_loop()
+
+    import guidance
+    guidance.llm = guidance.llms.OpenAI("gpt-4", chat_completion=True)
+
+    async def f():
+        chat = guidance("""<|im_start|>system
+        You are a helpful assistent.
+        <|im_end|>
+        <|im_start|>user
+        {{command}}
+        <|im_end|>
+        <im_start|>assistant
+        {{generate 'answer' max_tokens=10}}""", stream=True)
+        out = await chat(command="How do I create a Fasttokenizer with hugging face auto?-a")
+        assert len(out["answer"]) > 0
+    loop.run_until_complete(f())

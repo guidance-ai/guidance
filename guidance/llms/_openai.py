@@ -6,6 +6,7 @@ import time
 import requests
 import warnings
 import time
+import types
 import collections
 import tiktoken
 import asyncio
@@ -35,14 +36,29 @@ def prompt_to_messages(prompt):
 
     return messages
 
+def add_text_to_chat_completion_generator(chat_completion):
+    for resp in chat_completion:
+        if "choices" in resp:
+            for c in resp['choices']:
+                if "content" in c['delta']:
+                    c['text'] = c['delta']['content']
+                else:
+                    break # the role markers are outside the generation in chat mode right now TODO: consider how this changes for uncontrained generation
+            else:
+                yield resp
+        else:
+            yield resp
+
 def add_text_to_chat_completion(chat_completion):
-    for c in chat_completion['choices']:
-        c['text'] = c['message']['content']
+    if isinstance(chat_completion, types.GeneratorType):
+        return add_text_to_chat_completion_generator(chat_completion)
+    else:
+        for c in chat_completion['choices']:
+            c['text'] = c['message']['content']
+        return chat_completion
+        
+
         # c['text'] = f'<|im_start|>{c["message"]["role"]}\n{c["message"]["content"]}<|im_end|>'
-    
-
-
-    
 
 
 class OpenAI():
@@ -186,7 +202,7 @@ class OpenAI():
             del kwargs['logprobs']
             print(kwargs)
             out = openai.ChatCompletion.create(**kwargs)
-            add_text_to_chat_completion(out)
+            out = add_text_to_chat_completion(out)
         else:
             out = openai.Completion.create(**kwargs)
         openai.api_key = prev_key
@@ -227,7 +243,7 @@ class OpenAI():
             raise Exception("Response is not 200: " + response.text)
         response = response.json()
         if self.chat_completion:
-            add_text_to_chat_completion(response)
+            response = add_text_to_chat_completion(response)
         return response
     
     def encode(self, string):

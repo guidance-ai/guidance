@@ -48,6 +48,7 @@ export default class PromptDisplay {
     this.comm = new JupyterComm(id);
 
     this.comm.subscribe("add_data", this.newData);
+    this.comm.subscribe("set_data", this.setData);
   }
 
   newData(data) {
@@ -60,6 +61,19 @@ export default class PromptDisplay {
       // this.cell.outputs[0].data["text/html"] = data;
       this.cell.outputs[0].data = {
         "text/plain": "ASDFASDFASDFASDFASD",
+        "text/html": data
+      };
+    }
+  }
+
+  setData(data) {
+    console.log("data", data);
+
+    // check if add_data is a key
+    if (data) {
+      this.element.innerHTML = data;
+      this.cell.outputs[0].data = {
+        // "text/plain": "ASDFASDFASDFASDFASD",
         "text/html": data
       };
     }
