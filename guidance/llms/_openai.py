@@ -116,7 +116,16 @@ class OpenAI():
         if temperature is None:
             temperature = self.temperature
 
-        key = "_---_".join([str(v) for v in (self.model, prompt, stop, temperature, n, max_tokens, logprobs, echo, logit_bias, cache_seed)])
+        # define the key for the cache
+        key = "_---_".join([str(v) for v in (self.model, prompt, stop, temperature, n, max_tokens, logprobs, echo, logit_bias, stream, cache_seed)])
+        
+        # allow streaming to use non-streaming cache (the reverse is not true)
+        if key not in _file_cache and stream:
+            key1 = "_---_".join([str(v) for v in (self.model, prompt, stop, temperature, n, max_tokens, logprobs, echo, logit_bias, False, cache_seed)])
+            if key1 in _file_cache:
+                key = key1
+        
+        # check the cache
         if key not in _file_cache or not self.caching:
 
             # ensure we don't exceed the rate limit
@@ -159,6 +168,13 @@ class OpenAI():
                 return self.stream_then_save(out, key)
             else:
                 _file_cache[key] = out
+        
+        # wrap as a list if needed
+        if stream:
+            if isinstance(_file_cache[key], list):
+                return _file_cache[key]
+            return [_file_cache[key]]
+        
         return _file_cache[key]
     
     def stream_then_save(self, gen, key):

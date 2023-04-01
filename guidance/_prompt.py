@@ -10,10 +10,24 @@ import copy
 import asyncio
 import pathlib
 import os
+import traceback
 import time
+import datetime
 from .llms import _openai
 from . import _utils
 import guidance
+
+file_path = pathlib.Path(__file__).parent.parent.absolute()
+with open(file_path / "client" / "dist" / "main.js", encoding="utf-8") as f:
+    js_data = f.read()
+
+log_file = open("log.txt", "a")
+def log(*args):
+    # print(*args)
+    print(datetime.datetime.now().strftime("%H:%M:%S"), *args, file=log_file)
+    log_file.flush()
+
+_comm = None
 
 # this should work for the Jupyter web browser version, but it if failing in VS Code: https://github.com/microsoft/vscode/issues/176698
 # css = """
@@ -81,6 +95,12 @@ class Prompt:
         self.stream = stream
         self.echo = echo
         self.displaying = echo
+        self.log_data = []
+        self._displayed = False
+        try:
+            self._ipython = get_ipython()
+        except:
+            self._ipython = None
 
         # get or create an event loop
         if asyncio.get_event_loop().is_running():
@@ -120,10 +140,20 @@ class Prompt:
         return self.variables[key]
     
     def _interface_event(self, msg):
-        print("interface event", msg)
-        if msg == "opened":
-            # raise Exception("asdf" + msg)
-            self._comm.send({"set_data": self._build_html(self.marked_text)})
+        #log("interface event", msg)
+        self.log_data.append(msg)
+        # if msg == "opened":
+        #     # raise Exception("asdf" + msg)
+        #     self._comm.send({"replace": self._build_html(self.marked_text)})
+        # if "event" in msg:
+        #log("interface event3 `" + msg["event"] + "`")
+        if msg["event"] == "stop":
+            #log("STOPPING EXECUTOR0", self)
+            # #log("STOPPING EXECUTOR1", self.executor.should_stop)
+            self._executor.stop()
+            #log("STOPPED EXECUTOR2", self._executor.should_stop)
+        elif msg["event"] == "opened":
+            pass#self._comm.send({"replace": self._build_html(self.marked_text)})
         pass
 
     # def _save_static_version(self, html):
@@ -132,19 +162,37 @@ class Prompt:
     #     clear_output()
     #     display(HTML(html))
 
-    def _repr_html_(self):
-        # print("repr html")
+    def _ipython_display_(self):
+        from IPython.display import display
+        # from IPython.display import display
         self.displaying = True
-        if self._comm is None:
-            self._comm = _utils.JupyterComm(self._id, self._interface_event)
         self._displaying_html = True
-        if not self.executing:
-            return self._build_html(self.marked_text, first_display=True)
-        else:
-            self.update_display()
+        html = self._build_html(self.marked_text)
+        # if self.executing:
+        #log("executing _ipython_display_")
+        if self._comm is None:
+            self._comm = _utils.JupyterComm(self._id, self._ipython, self._interface_event)
         
+        #log("direct _ipython_display_")
+        
+        html = f"""<div id="guidance-stop-button-{self._id}" style="cursor: pointer; margin: 0px; display: none; float: right; padding: 3px; border-radius: 4px 4px 4px 4px; border: 0px solid rgba(127, 127, 127, 1); padding-left: 10px; padding-right: 10px; font-size: 13px; background-color: rgba(127, 127, 127, 0.25);">Stop program</div><div id="guidance-content-{self._id}">{html}</div>
+    <script type="text/javascript">{js_data}; window._guidanceDisplay("{self._id}");</script>"""
+        display({"text/html": html}, display_id=self._id, raw=True, clear=True, include=["text/html"])
+
+
+
+        # self.displaying = True
+        # self._displaying_html = True
+        # if not self.executing:
+        #     return self._build_html(self.marked_text, first_display=True)
+        # else:
+        #     self.update_display()
+    
+    # def _javascript_client(self):
+    #     return js_data + f'var d = document.createElement("div"); var el = element[0] ? element[0] : element; el.appendChild(d); window._guidanceInitOutput("{self._id}", d, this);'
 
     def _repr_javascripts_(self, environment="jupyter"):
+        return
         # spin up a JupyterComm object if we are called directly (which we assume is in a notebook)
         if self._comm is None and environment == "jupyter":
             self._comm = _utils.JupyterComm(self._id, self._interface_event)
@@ -280,9 +328,14 @@ class Prompt:
         if self.stream:
             loop = asyncio.get_event_loop()
             assert self.event_loop.is_running()
+            new_prompt.executing = True
+            new_prompt._executor = PromptExecutor(new_prompt)
+            # print("starting executor")
             self.event_loop.create_task(new_prompt.execute())
         else:
             loop = asyncio.new_event_loop()
+            new_prompt.executing = True
+            new_prompt._executor = PromptExecutor(new_prompt)
             loop.run_until_complete(new_prompt.execute())
         
         # # otherwise we just block until the call is complete
@@ -309,35 +362,65 @@ class Prompt:
     #     self._pending_display_update = False
         
     
-    def update_display(self, force=False):
+    def update_display(self, last=False):
         """ Updates the display with the current marked text after debouncing.
         """
+        
         # print("update display")
         # debounce the display updates
         if not self.displaying:
             return
         now = time.time()
+        #log("update_display:", last, now - self._last_display_update, self._comm)
         debounce_delay = 0.1
-        if self.stream and 'VSCODE_CWD' in os.environ:
-            debounce_delay = 2
-        if force or (now - self._last_display_update > debounce_delay):
-            if self._displaying_html or True:
+        # if self.stream and 'VSCODE_CWD' in os.environ:
+        #     debounce_delay = 2
+        if last or (now - self._last_display_update > debounce_delay):
+            if self._displaying_html:
                 out = self._build_html(self.marked_text)
                 
-                if self._comm is None:
-                    from IPython.display import clear_output, display
-                    # clear_output(wait=True)
-                    # display_html(out, raw=True)
-                    if self.stream and 'VSCODE_CWD' in os.environ:
-                        clear_output(wait=False) # TODO: causes flashing and should be removed when #13199 is fixed in vscode-jupyter
-                    display({"text/html": out}, raw=True, clear=True, include=["text/html"])
+                # if not self._displayed or last:
+                if last and self._comm:
+                    self._comm.clear_send_queue()
+                
+                if self._comm and (not last or self._comm.is_open):
+                    #log("update_display inner:", out)
+                    self._comm.send({"replace": out})
+                    if last:
+                        self._comm.send({"event": "complete"})
                 else:
-                    # print("_direct_update_display display")
-                    self._comm.send({"text/html": out})
+                    #log("SEND html")
+                    from IPython.display import clear_output, display
+                    if self._displayed:
+                        clear_output(wait=False)
+                    executing = "false" if last else "true"
+                    #log("SEND html", executing)
+                    html = f"""<div id="guidance-stop-button-{self._id}" style="cursor: pointer; margin: 0px; display: none; float: right; padding: 3px; border-radius: 4px 4px 4px 4px; border: 0px solid rgba(127, 127, 127, 1); padding-left: 10px; padding-right: 10px; font-size: 13px; background-color: rgba(127, 127, 127, 0.25);">Stop program</div><div id="guidance-content-{self._id}">{out}</div>
+                    <script type="text/javascript">{js_data}; window._guidanceDisplay("{self._id}");</script>"""
+                    display({"text/html": html}, display_id=self._id, raw=True, clear=True, include=["text/html"])
+                self._displayed = True
+
+                # if False or self._comm is None:
+                #     from IPython.display import clear_output, display
+                #     # clear_output(wait=True)
+                #     # display_html(out, raw=True)
+                #     if self.stream and 'VSCODE_CWD' in os.environ:
+                #         clear_output(wait=False) # TODO: causes flashing and should be removed when #13199 is fixed in vscode-jupyter
+                #     display({"text/html": out}, raw=True, clear=True, include=["text/html"])
+                # else:
+                #     #log("update_display inner:", out)
+                #     # print("_direct_update_display display")
+                #     self._comm.send({"replace": out})
             
             self._last_display_update = time.time()
             self._pending_display_update = False
-            
+
+    def _set_savable_html(self):
+        from IPython.display import update_display
+        #log("FINAL DISPLAY21")
+        #log("FINAL DISPLAY22", self._id)
+        update_display({"text/html": "3dddf"}, display_id=self._id, raw=True, clear=True, include=["text/html"])
+        #log("FINAL DISPLAY23", self._id)
 
     async def execute(self):
         """ Execute the current prompt.
@@ -346,15 +429,39 @@ class Prompt:
         from a template into a completed string (with variables stored). At each point
         in this process the current template remains valid.
         """
-
-        self.executing = True
-        self._executor = PromptExecutor(self)
+        
+        if self._displaying_html:
+            await asyncio.sleep(0) # give the jupyter comm a chance to initialize
+        # self._executor = PromptExecutor(self)
         await self._executor.run()
         self._text = self._executor.prefix
         del self._executor
+
+        
         self.executing = False
 
-        self.update_display(force=True)
+        self.update_display(last=True)
+        # dump a raw html version of the output so that file saves work
+
+        # def test_callback(self):
+        #     from IPython.display import update_display
+        #     #log("FINAL DISPLAY21")
+        #     #log("FINAL DISPLAY22", self._id)
+        #     update_display({"text/html": "3dddf"}, display_id=self._id, raw=True, clear=True, include=["text/html"])
+        #     #log("TEST CALLBACK")
+
+        # await asyncio.sleep(0.1)
+        # if self._displaying_html:
+        #     self.event_loop.call_later(3, test_callback, self)
+        #     self.event_loop.call_later(4, self._set_savable_html, self)
+        #     from IPython.display import clear_output, update_display
+        #     #log("FINAL DISPLAY1")
+            # if 'VSCODE_CWD' in os.environ:
+            #     clear_output(wait=False) # TODO: causes flashing and should be removed when #13199 is fixed in vscode-jupyter
+            # #log("FINAL DISPLAY2", self._id)
+            # update_display({"text/html": "3dddf"}, display_id=self._id, raw=True, clear=True, include=["text/html"])
+            # # update_display({"text/html": "ASDFASDFASDF"}, display_id=self._id, raw=True, clear=True, include=["text/html"])
+            # #log("FINAL DISPLAY1", "ASDFASDFASDF"+self._build_html(self.marked_text))
 
         # fire an event noting that execution is complete (this will release any await calls waiting on the prompt)
         self._execute_complete.set()
@@ -376,7 +483,7 @@ class Prompt:
         else:
             return self._text
     
-    def _build_html(self, text, first_display=False):
+    def _build_html(self, text, last=False):
         output = text
 
         def start_generate_or_select(x):
@@ -495,13 +602,18 @@ cycle_IDVAL(this);'''.replace("IDVAL", id).replace("TOTALCOUNT", str(total_count
         # strip out comments
         display_out = re.sub(r"{{~?!.*?}}", "", display_out)
 
+        # add a "Stop program" button
+        #display_out = f"<div style='display: flex; flex-direction: row; align-items: center;'><div style='flex: 1 1 auto;'></div><button style='flex: 0 0 auto; margin: 0px; padding: 0px; border-radius: 4px 4px 4px 4px; border: 1px solid rgba(127, 127, 127, 1); border-left: 2px solid rgba(127, 127, 127, 1); border-right: 2px solid rgba(127, 127, 127, 1); padding-left: 0px; padding-right: 3px; color: rgb(127, 127, 127, 1.0); display: inline; font-weight: normal; overflow: hidden; background-color: rgba(127, 127, 127, 0.25);' onclick='window._guidanceStopProgram(\"{self._id}\")'>Stop program</button></div>{display_out}"
+        # new button version with spinning icon
+        # display_out = f"<div style='cursor: pointer; margin: 0px; display: inline-block; float: right; padding: 3px; border-radius: 4px 4px 4px 4px; border: 0px solid rgba(127, 127, 127, 1); padding-left: 10px; padding-right: 10px; font-size: 13px; background-color: rgba(127, 127, 127, 0.25);' onclick='console.log(\"{self._id}\"); window._guidanceComms[\"{self._id}\"].send(\"event\", \"stop\")'>Stop program</div>" + display_out
+
         display_out = add_spaces(display_out)
         display_out = "<pre style='margin: 0px; padding: 0px; padding-left: 8px; margin-left: -8px; border-radius: 0px; border-left: 1px solid rgba(127, 127, 127, 0.2); white-space: pre-wrap; font-family: ColfaxAI, Arial; font-size: 15px; line-height: 23px;'>"+display_out+"</pre>"
 
         # display_out = "<style type='text/css'>"+css+"</style>"+display_out
 
-        if first_display or False:
-            display_out = "<script type='text/javascript'>console.log('asdf'); debugger;</script>"+display_out
+        # if first_display:
+        #     display_out = f"<script type='text/javascript'>{js_data}; window._guidanceInitComm('{self._id}');; </script>{display_out}"
         
         return display_out
 
@@ -610,6 +722,8 @@ class PromptExecutor():
         # self.prefix_tokens = []
         self.block_content = []
         self.executing = True
+        self.should_stop = False
+        self.caught_stop_iteration = False
 
         # parse the prompt text
         self.parse_tree = grammar.parse(prompt._text)
@@ -620,8 +734,12 @@ class PromptExecutor():
         try:
             await self.visit(self.parse_tree)
         except Exception as e:
+            print(traceback.format_exc())
             print("Error in prompt: ", e)
             raise e
+        
+    def stop(self):
+        self.should_stop = True
     
     async def visit(self, node, next_node=None, prev_node=None, parent_node=None, grandparent_node=None):
         # expr_name = node.expr_name
@@ -730,16 +848,13 @@ class PromptExecutor():
             self.block_content.pop()
             out = "".join("" if c is None else str(c) for c in visited_children)
 
-            # if execution became stopped during the command, we rewind and return the command text
-            if not self.executing:
-                self.reset_prefix(pos)
-                self.extend_prefix(node.text)
-                return
+            self.extend_prefix(out +  "{{!--" + f"GMARKER_END_{name}$$" + "--}}")
 
-            # otherwise we return with the command contents
-            else:
-                self.extend_prefix(out +  "{{!--" + f"GMARKER_END_{name}$$" + "--}}")
-                return
+            # if execution became stopped during the command, we append the command text
+            if not self.executing:
+                # self.reset_prefix(pos)
+                self.extend_prefix(node.text)
+            return
 
         elif node.expr_name == 'command_arg_group':
             visited_children = [await self.visit(child) for child in node.children]
@@ -808,10 +923,15 @@ class PromptExecutor():
                         named_args["prev_text"] = ""
 
                 # call the command
-                if inspect.iscoroutinefunction(command_function):
-                    command_output = await command_function(*positional_args, **named_args)
-                else:
-                    command_output = command_function(*positional_args, **named_args)
+                try:
+                    if inspect.iscoroutinefunction(command_function):
+                        await asyncio.sleep(0) # give other coroutines a chance to run
+                        command_output = await command_function(*positional_args, **named_args)
+                    else:
+                        command_output = command_function(*positional_args, **named_args)
+                except StopIteration as ret:
+                    command_output = ret.value
+                    self.caught_stop_iteration = True
 
                 # call partial output if the command didn't itself (and we are still executing)
                 if "partial_output" not in sig.parameters:
@@ -1056,12 +1176,17 @@ async def _generate(variable_name="generated", partial_output=None, parse=False,
 
     # else:
     if n == 1:
-        if not stream_generation:
-            gen_obj = [gen_obj]
         generated_value = prefix
         partial_output(prefix)
         logprobs_out = []
+        if not stream_generation:
+            gen_obj = [gen_obj]
         for resp in gen_obj:
+            await asyncio.sleep(0) # allow other tasks to run
+            #log("parser.should_stop = " + str(parser.should_stop))
+            if parser.should_stop:
+                #log("Stopping generation")
+                break
             generated_value += resp["choices"][0]["text"]
             partial_output(resp["choices"][0]["text"])
             if logprobs is not None:
@@ -1069,6 +1194,8 @@ async def _generate(variable_name="generated", partial_output=None, parse=False,
             parser.set_variable(variable_name, generated_value)
             if logprobs is not None:
                 parser.set_variable(variable_name+"_logprobs", logprobs_out)
+        if hasattr(gen_obj, 'close'):
+            gen_obj.close()
         generated_value += suffix
         partial_output(suffix)
         parser.set_variable(variable_name, generated_value)
@@ -1078,8 +1205,14 @@ async def _generate(variable_name="generated", partial_output=None, parse=False,
             subtree = grammar.parse(generated_value)
             return await parser.visit(subtree)
         else:
+            # stop executing if we were interrupted
+            if parser.should_stop:
+                parser.executing = False
+                parser.should_stop = False
             return
     else:
+        assert len(gen_obj) == 1, "Streaming is only supported for n=1"
+        gen_obj[0]
         generated_values = [prefix+choice["text"]+suffix for choice in gen_obj["choices"]]
         parser.set_variable(variable_name, generated_values)
         if logprobs is not None:
@@ -1096,10 +1229,10 @@ async def _generate(variable_name="generated", partial_output=None, parse=False,
         
         id = uuid.uuid4().hex
         l = len(generated_values)
-        out = "{{!--" + f"GMARKER_generate_many_start_{echo}_{l}${id}$" + "--}}"
+        out = "{{!--" + f"GMARKER_generate_many_start_{not hidden}_{l}${id}$" + "--}}"
         for i, value in enumerate(generated_values):
             if i > 0:
-                out += "{{!--" + f"GMARKER_generate_many_{echo}_{i}${id}$" + "--}}"
+                out += "{{!--" + f"GMARKER_generate_many_{not hidden}_{i}${id}$" + "--}}"
             out += value
         partial_output(out + "{{!--" + f"GMARKER_generate_many_end${id}$" + "--}}")
         return
@@ -1185,13 +1318,20 @@ async def _each(list, block_content, parser, parser_prefix=None, parser_node=Non
                     break
                 i += 1
 
+                # see if we hit an await and so are not executing anymore
                 if not parser.executing:
                     break
 
-                # we run a quick generation to see if we have reached the end of the list (note the +2 tokens is to help be tolorant to whitespace)
-                gen_obj = parser.prompt.llm(strip_markers(parser.prefix), stop=stop, max_tokens=len(stop_tokens)+2, temperature=0, cache_seed=0)
-                if gen_obj["choices"][0]["finish_reason"] == "stop":
+                # check if the block has thrown a stop iteration signal
+                if parser.caught_stop_iteration:
+                    parser.caught_stop_iteration = False
                     break
+
+                # we run a quick generation to see if we have reached the end of the list (note the +2 tokens is to help be tolorant to whitespace)
+                if stop is not None:
+                    gen_obj = parser.prompt.llm(strip_markers(parser.prefix), stop=stop, max_tokens=len(stop_tokens)+2, temperature=0, cache_seed=0)
+                    if gen_obj["choices"][0]["finish_reason"] == "stop":
+                        break
         else:
             # create a pattern to match each item
             pattern = re.sub(

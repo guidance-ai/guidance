@@ -10,7 +10,7 @@ export default class JupyterComm {
     this.callbackMap = {};
     this.data = {};
     this.pendingData = {};
-    this.jcomm = new InnerJupyterComm('guidance_interface_target_'+this.interfaceId, this.updateData);
+    this.jcomm = new InnerJupyterComm('guidance_interface_target_'+this.interfaceId, this.updateData, "open");
 
     this.debouncedSendPendingData500 = debounce(this.sendPendingData, 500);
     this.debouncedSendPendingData1000 = debounce(this.sendPendingData, 1000);
@@ -57,7 +57,7 @@ export default class JupyterComm {
 
   updateData(data) {
     data = JSON.parse(data["data"]) // data from Jupyter is wrapped so we get to do our own JSON encoding
-    console.log("updateData", data)
+    // console.log("updateData", data)
 
     // save the data locally
     for (const k in data) {
@@ -78,7 +78,7 @@ export default class JupyterComm {
   }
 
   sendPendingData() {
-    console.log("sending", this.pendingData);
+    // console.log("sending", this.pendingData);
     this.jcomm.send_data(this.pendingData);
     this.pendingData = {};
   }
@@ -98,6 +98,7 @@ class InnerJupyterComm {
       if (mode === "register") {
         Jupyter.notebook.kernel.comm_manager.register_target(target_name, this._register);
       } else {
+        // debugger;
         this.jcomm = Jupyter.notebook.kernel.comm_manager.new_comm(target_name);
         this.jcomm.on_msg(this._fire_callback);
         // console.log("target_name", target_name, this.jcomm)
@@ -107,13 +108,16 @@ class InnerJupyterComm {
       // this.jcomm = window._mgr.widgetManager.proxyKernel.createComm(target_name);
       // this.jcomm.onMsg(this._fire_callback);
       if (mode === "register") {
-        console.error("register not supported in vscode");
+        window._mgr.widgetManager.proxyKernel.registerCommTarget(target_name, this._register)
+        // console.error("register not supported in vscode");
         //Jupyter.notebook.kernel.comm_manager.register_target(target_name, this._register);
       } else {
-        console.log("create comm in vscode", target_name)
+        // debugger;
+        // console.log("create comm in vscode", target_name)
         // WritableStreamDefaultController.asdfk.sd.f.sdf
         this.jcomm = window._mgr.widgetManager.proxyKernel.createComm(target_name);
         this.jcomm.open({}, "");
+
         this.jcomm.onMsg = this._fire_callback;
         // this.jcomm = Jupyter.notebook.kernel.comm_manager.new_comm(target_name);
         // this.jcomm.on_msg(this._fire_callback);
@@ -136,7 +140,7 @@ class InnerJupyterComm {
   }
 
   _fire_callback(msg) {
-    console.log("_fire_callback", msg)
+    // console.log("_fire_callback", msg)
     this.callback(msg.content.data)
   }
 }

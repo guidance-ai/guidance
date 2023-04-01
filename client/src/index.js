@@ -1,15 +1,21 @@
 // import JSON5 from 'json5';
 
 import PromptDisplay from './prompt-display';
+// import JupyterComm from './jupyter-comm';
 
-function _guidanceInitOutput(object_id, element, cell) {
+function _guidanceDisplay(object_id, executing) {
+
+    // if (!window._guidanceComms) {
+    //     window._guidanceComms = {};
+    // }
+    // window._guidanceComms[object_id] = new JupyterComm(object_id);
 
     // generate a display id
-    var display_id = object_id;// + "____" + Math.random().toString(36).substring(7);
+    // var display_id = object_id;// + "____" + Math.random().toString(36).substring(7);
 
-    var display = new PromptDisplay(display_id, element, cell);
+    return new PromptDisplay(object_id, executing);
 
-    return display.element;
+    // return display.element;
     /* This creates an output div element and build a comm object to communicate. */
     // var output = document.createElement('div');
     // output.id = object_id;
@@ -27,4 +33,4 @@ function _guidanceInitOutput(object_id, element, cell) {
     // return output;
 }
 
-window._guidanceInitOutput = _guidanceInitOutput
+window._guidanceDisplay = _guidanceDisplay

@@ -3,6 +3,14 @@ import requests
 import inspect
 import time
 import json
+import datetime
+import asyncio
+
+log_file = open("log.txt", "a")
+def log(*args):
+    # print(*args)
+    print(datetime.datetime.now().strftime("%H:%M:%S"), *args, file=log_file)
+    log_file.flush()
 
 def load(guidance_file):
     ''' Load a guidance prompt from the given text file.
@@ -57,37 +65,86 @@ def find_func_name(f, used_names):
                 return fname
 
 class JupyterComm():
-    def __init__(self, target_id, callback=None, on_open=None, mode="register"):
+    def __init__(self, target_id, ipython_handle, callback=None, on_open=None, mode="register"):
         from ipykernel.comm import Comm
         
         self.target_name = "guidance_interface_target_"+target_id
         # print("TARGET NAME", self.target_name)
         self.callback = callback
         self.jcomm = None
+        self.ipython_handle = ipython_handle
+        self.addd = 1
+        self.send_queue = asyncio.Queue()
+        self.open_event = asyncio.Event()
+        self.is_open = False
+        asyncio.get_event_loop().create_task(self._send_loop())
         if mode == "register":
-            # print("REGISTERING", self.target_name)
+            #log("REGISTERING", self.target_name)
+            # asyncio.get_event_loop().create_task(self._register())
             def comm_opened(comm, open_msg):
-                # print("OPENED")
+                #log("OPENED")
+                self.addd = 2
                 self.jcomm = comm
+                self.is_open = True
                 self.jcomm.on_msg(self._fire_callback)
-                self._fire_callback({"content": {"data": "opened"}})
-            get_ipython().kernel.comm_manager.register_target(self.target_name, comm_opened) # noqa: F821
+                self.open_event.set()
+                self._fire_callback({"content": {"data": {"event": "opened"}}})
+            self.ipython_handle.kernel.comm_manager.register_target(self.target_name, comm_opened)
+            # get_ipython().kernel.comm_manager.register_target(self.target_name, comm_opened) # noqa: F821
         elif mode == "open":
+            #log("OPENING", self.target_name)
             self.jcomm = Comm(target_name=self.target_name)
             self.jcomm.on_msg(self._fire_callback)
-            self._fire_callback({"content": {"data": "opened"}})
+            # self._fire_callback({"content": {"data": "opened"}})
         else:
             raise Exception("Passed mode must be either 'open' or 'register'!")
+        
+    # async def _register(self):
+    #     def comm_opened(comm, open_msg):
+    #         #log("OPENED")
+    #         self.addd = 2
+    #         self.jcomm = comm
+    #         self.jcomm.on_msg(self._fire_callback)
+    #         self.open_event.set()
+    #         self._fire_callback({"content": {"data": {"event": "opened"}}})
+    #     get_ipython().kernel.comm_manager.register_target(self.target_name, comm_opened)
+
+    # def send(self, data, wait=False):
+    #     self.send_queue.append(data)
+    #     if self.jcomm is None:
+    #         return
+    #     for d in self.send_queue:
+    #         self.jcomm.send({"data": json.dumps(d)})
+    #     self.send_queue = []
+
+    def clear_send_queue(self):
+        while not self.send_queue.empty():
+            self.send_queue.get_nowait()
+            self.send_queue.task_done()
 
     def _fire_callback(self, msg):
         self.callback(msg["content"]["data"])
 
     def send(self, data):
-        for _ in range(10):
+        self.send_queue.put_nowait(data)
+
+    async def _send_loop(self):
+        while True:
+            #log("SENDING_LOOP")
             if self.jcomm is None:
-                time.sleep(0.5)
-            else:
-                self.jcomm.send({"data": json.dumps(data)}) # we encode the JSON so iPython doesn't mess it up
-                return
-        raise Exception("The Jupyter comm channel was never opened from the other side, so not message can be sent!")
+                self.open_event.clear()
+                await self.open_event.wait()
+            data = await self.send_queue.get()
+            #log("SENDING_LOOP got one!")
+            self.jcomm.send({"data": json.dumps(data)})
+    
+    # async def _waiting_send(self, data):
+    #     #log("SENDING", self.jcomm, data)
+        
+    #     # await the open event if needed
+    #     if self.jcomm is None:
+    #         self.open_event.clear()
+    #         await self.open_event.wait()
+    #     #log("SENDING_now", self.jcomm, data)
+    #     self.jcomm.send({"data": json.dumps(data)}) # we encode the JSON so iPython doesn't mess it up
 
