@@ -792,16 +792,16 @@ class PromptExecutor():
             return visited_children
 
         elif node.expr_name == 'command_arg_and_ws':
-            visited_children = [await self.visit(child) for child in node.children]
-            return visited_children[1]
+            # visited_children = [await self.visit(child) for child in node.children]
+            return await self.visit(node.children[1]) #visited_children[1]
 
         elif node.expr_name == 'positional_command_arg':
-            visited_children = [await self.visit(child) for child in node.children]
-            return PositionalArgument(visited_children[0])
+            # visited_children = [await self.visit(child) for child in node.children]
+            return PositionalArgument(await self.visit(node.children[0]))
 
         elif node.expr_name == 'named_command_arg':
-            visited_children = [await self.visit(child) for child in node.children]
-            return NamedArgument(visited_children[0], visited_children[2])
+            # visited_children = [await self.visit(child) for child in node.children]
+            return NamedArgument(await self.visit(node.children[0]), await self.visit(node.children[2]))
 
         elif node.expr_name == 'command_name':
             return node.text
@@ -937,7 +937,8 @@ class PromptExecutor():
                 if "partial_output" not in sig.parameters:
                     partial_output(command_output)
             else:
-                warnings.warn(f"Command '{command_name}' not found")
+                warnings.warn(f"Command/variable '{command_name}' not found")
+                return_value = None
             return return_value
 
         elif node.expr_name == 'block_command_call':
@@ -945,8 +946,9 @@ class PromptExecutor():
             return command_name, args
 
         elif node.expr_name == 'command_block_open':
-            visited_children = [await self.visit(child) for child in node.children]
-            return visited_children[2]
+            return await self.visit(node.children[2])
+            # visited_children = [await self.visit(child) for child in node.children]
+            # return visited_children[2]
 
         elif node.expr_name == 'command_block':
 
@@ -1157,24 +1159,13 @@ async def _generate(variable_name="generated", partial_output=None, parse=False,
     else:
         stream_generation = False
 
+    # call the LLM
     gen_obj = parser.prompt.llm(
         parser_prefix+prefix, stop=stop, max_tokens=max_tokens, n=n,
         temperature=temperature, top_p=top_p, logprobs=parser.prompt.logprobs, cache_seed=cache_seed,
         echo=parser.prompt.logprobs is not None, stream=stream_generation
     )
 
-    # if stream:
-    #     generated_value = prefix
-    #     logprobs = []
-    #     for resp in gen_obj:
-    #         generated_value += resp["choices"][0]["text"]
-    #         logprobs.extend(resp["choices"][0]["logprobs"])
-    #     generated_value += suffix
-    #     parser.set_variable(variable_name, generated_value)
-    #     if logprobs is not None:
-    #         parser.set_variable(variable_name+"_logprobs", logprobs)
-
-    # else:
     if n == 1:
         generated_value = prefix
         partial_output(prefix)
@@ -1211,8 +1202,7 @@ async def _generate(variable_name="generated", partial_output=None, parse=False,
                 parser.should_stop = False
             return
     else:
-        assert len(gen_obj) == 1, "Streaming is only supported for n=1"
-        gen_obj[0]
+        assert not isinstance(gen_obj, list), "Streaming is only supported for n=1"
         generated_values = [prefix+choice["text"]+suffix for choice in gen_obj["choices"]]
         parser.set_variable(variable_name, generated_values)
         if logprobs is not None:
@@ -1294,10 +1284,11 @@ async def _each(list, block_content, parser, parser_prefix=None, parser_node=Non
     
     # if the list is a string then it is the name of a variable to save a new list to
     if isinstance(list, str):
-        if stop is None:
-            stop = "<|endoftext|>"
+        # if stop is None:
+        #     stop = "<|endoftext|>"
         # assert stop is not None, "Must provide a stop token when doing variable length iteration!"
-        stop_tokens = [parser.prompt.llm.encode(s) for s in stop]
+        if stop is not None:
+            stop_tokens = [parser.prompt.llm.encode(s) for s in stop]
 
         if not batch_generate:
             i = 0

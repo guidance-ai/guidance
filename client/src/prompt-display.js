@@ -26,7 +26,7 @@ export default class PromptDisplay {
     // }
 
     // add the stop button as the first child of the element
-    this.element.parentNode.insertBefore(this.stop_button, this.element);
+    // this.element.parentNode.insertBefore(this.stop_button, this.element);
 
     // this.cell = cell;
 
@@ -69,15 +69,15 @@ export default class PromptDisplay {
 
   appendData(data) {
     // console.log("appendData", data);
-    this.stop_button.style.display = "inline-block";
 
-    // check if add_data is a key
     if (data) {
+      this.stop_button.style.display = "inline-block";
       this.element.innerHTML += data;
       // this.cell.outputs[0].data["text/plain"] = "ASDFASDFASDFASDFASD";
       // this.cell.outputs[0].data["text/html"] = data;
+      
+      // this sets the data that will be saved in the notebook file (only works in Jupyter notebook, not JupyterLab or VSCode)
       // this.cell.outputs[0].data = {
-      //   "text/plain": "ASDFASDFASDFASDFASD",
       //   "text/html": data
       // };
     }
@@ -85,20 +85,20 @@ export default class PromptDisplay {
 
   replaceData(data) {
     // console.log("replaceData", data);
-    this.stop_button.style.display = "inline-block";
 
-    // check if add_data is a key
     if (data) {
+      this.stop_button.style.display = "inline-block";
       this.element.innerHTML = data;
+
+      // this sets the data that will be saved in the notebook file (only works in Jupyter notebook, not JupyterLab or VSCode)
       // this.cell.outputs[0].data = {
-      //   // "text/plain": "ASDFASDFASDFASDFASD",
       //   "text/html": data
       // };
     }
   }
 
   eventOccurred(name) {
-    console.log("complete", name);
+    // console.log("complete", name);
     if (name === "complete") {
       this.stop_button.style.display = "none";
     }

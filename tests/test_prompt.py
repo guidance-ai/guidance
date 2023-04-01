@@ -158,3 +158,22 @@ def test_agents():
     assert len(prompt['conversation']) == 2
     prompt = prompt(user_text='Please help')
     assert len(prompt['conversation']) == 3
+
+def test_generate_n_greater_than_one():
+    """Test agentes, calling prompt twice"""
+    llm = guidance.llms.OpenAI("text-curie-001")
+    prompt = guidance('''The best thing about the beach is{{generate 'best' n=3 temperature=0.7 max_tokens=5}}''', llm=llm)
+    a = prompt()
+    assert len(a["best"]) == 3
+
+def test_generate_n_greater_than_one():
+    llm = guidance.llms.OpenAI("text-curie-001")
+    prompt = guidance('''The best thing about the beach is{{generate 'best' n=3 temperature=0.7 max_tokens=5}}''', llm=llm)
+    a = prompt()
+    assert len(a["best"]) == 3
+
+def test_missing_list():
+    llm = guidance.llms.OpenAI("text-curie-001")
+    prompt = guidance('''List of ideas:{{#each ideas}}test{{this}}{{/each}}''', llm=llm)
+    out = prompt()
+    assert out.text == "List of ideas:"
