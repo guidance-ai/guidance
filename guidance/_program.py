@@ -410,7 +410,7 @@ def add_spaces(s):
     return s
 
 _built_ins = {
-    "generate": library.gen,
+    "gen": library.gen,
     "each": library.each,
     "select": library.select,
     "if": library.if_,
