@@ -3,6 +3,7 @@ import requests
 import inspect
 import time
 import json
+import re
 import datetime
 import asyncio
 
@@ -63,6 +64,9 @@ def find_func_name(f, used_names):
             fname = f"{prefix}{i}"
             if fname not in used_names:
                 return fname
+
+def strip_markers(s):
+    return re.sub(r"{{!--G.*?--}}", r"", s, flags=re.MULTILINE | re.DOTALL)
 
 class JupyterComm():
     def __init__(self, target_id, ipython_handle, callback=None, on_open=None, mode="register"):
