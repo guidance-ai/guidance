@@ -8,5 +8,6 @@ from ._unless import unless
 from ._add import add
 from ._select import select
 from ._each import each
+from ._geneach import geneach
 from ._strip import strip
 from ._subtract import subtract

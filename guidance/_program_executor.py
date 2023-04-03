@@ -272,6 +272,16 @@ class ProgramExecutor():
                     named_args["partial_output"] = self.extend_prefix
                 if "parser_node" in sig.parameters:
                     named_args["parser_node"] = node
+                if "next_text" in sig.parameters:
+                    if next_node is not None:
+                        named_args["next_text"] = next_node.text
+                    else:
+                        named_args["next_text"] = ""
+                if "prev_text" in sig.parameters:
+                    if prev_node is not None:
+                        named_args["prev_text"] = prev_node.text
+                    else:
+                        named_args["prev_text"] = ""
                 
                 if inspect.iscoroutinefunction(command_function):
                     command_output = await command_function(*positional_args, **named_args)

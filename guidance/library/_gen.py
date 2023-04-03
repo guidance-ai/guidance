@@ -20,7 +20,7 @@ async def gen(variable_name="generated", partial_output=None, parse=False, stop=
                     
             # auto-detect XML tag stop tokens
             if stop is None:
-                m = re.match(r"<([^>]+)>", next_text)
+                m = re.match(r"<([^>\W]+)[^>]+>", next_text)
                 if m is not None:
                     end_tag = "</"+m.group(1)+">"
                     if next_text.startswith(end_tag):

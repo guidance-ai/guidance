@@ -43,6 +43,7 @@ async def each(list, block_content, parser, parser_prefix=None, parser_node=None
     
     # if the list is a string then it is the name of a variable to save a new list to
     if isinstance(list, str):
+        assert False, 'Use #geneach instead of #each for variable length iteration'
         # if stop is None:
         #     stop = "<|endoftext|>"
         # assert stop is not None, "Must provide a stop token when doing variable length iteration!"
@@ -85,7 +86,7 @@ async def each(list, block_content, parser, parser_prefix=None, parser_node=None
         else:
             # create a pattern to match each item
             pattern = re.sub(
-                r'{{generate [\'"]([^\'"]+)[\'"][^}]*}}',
+                r'{{gen [\'"]([^\'"]+)[\'"][^}]*}}',
                 lambda x: r"(?P<"+x.group(1).replace("this.", "")+">.*?)",
                 block_content[0].text
             )
@@ -113,8 +114,8 @@ async def each(list, block_content, parser, parser_prefix=None, parser_node=None
 
                 # recreate the output string with format markers added
                 item_out = re.sub(
-                    r"{{generate [\'\"]([^\'\"]+)[\'\"][^}]*}}",
-                    lambda x: "{{!--GMARKER_START_generate$"+x.group()+"$--}}"+match_dict[x.group(1).replace("this.", "")]+"{{!--GMARKER_END_generate$$--}}",
+                    r"{{gen [\'\"]([^\'\"]+)[\'\"][^}]*}}",
+                    lambda x: "{{!--GMARKER_START_gen$"+x.group()+"$--}}"+match_dict[x.group(1).replace("this.", "")]+"{{!--GMARKER_END_gen$$--}}",
                     block_content[0].text
                 )
                 out.append(item_out)

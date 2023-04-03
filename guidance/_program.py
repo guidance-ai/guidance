@@ -322,8 +322,8 @@ class Program:
                 
 
         # format the generate command results
-        display_out = re.sub(r"{{!--GMARKER_START_generate\$([^\$]*)\$--}}", start_generate_or_select, display_out)
-        display_out = display_out.replace("{{!--GMARKER_END_generate$$--}}", "</span>")
+        display_out = re.sub(r"{{!--GMARKER_START_gen\$([^\$]*)\$--}}", start_generate_or_select, display_out)
+        display_out = display_out.replace("{{!--GMARKER_END_gen$$--}}", "</span>")
         def click_loop_start(id, total_count, echo, color):
             click_script = '''
 function cycle_IDVAL(button_el) {
@@ -412,6 +412,7 @@ def add_spaces(s):
 _built_ins = {
     "gen": library.gen,
     "each": library.each,
+    "geneach": library.geneach,
     "select": library.select,
     "if": library.if_,
     "unless": library.unless,
