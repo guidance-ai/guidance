@@ -23,7 +23,34 @@ class ProgramExecutor():
         self.caught_stop_iteration = False
 
         # parse the program text
-        self.parse_tree = grammar.parse(program._text)
+        try:
+            self.parse_tree = grammar.parse(program._text)
+        except parsimonious.exceptions.ParseError as e:
+            self._check_for_simple_error(program._text)
+            raise e
+            
+    def _check_for_simple_error(self, text):
+        """ Check for a simple errors in the program text, and give nice error messages.
+        """
+
+        vars = self.variable_stack[-1]
+
+        # missing block pound sign
+        for k in vars:
+            if getattr(vars[k], "is_block", False):
+                m = re.search(r"(^|[^\\]){{\s*"+k, text)
+                if m is not None:
+                    # get the context around the matching error
+                    start = max(0, m.start()-30)
+                    end = min(len(text), m.end()+30)
+                    context = text[start:end]
+                    if start > 0:
+                        context = "..."+context
+                    if end < len(text):
+                        context = context+"..."
+                    raise ValueError("The guidance program is missing the opening pound (#) sign or closing slash (/) for the block level command `"+k+"` at:\n"+context) from None
+        
+        
 
     async def run(self):
         """ Execute the program.
