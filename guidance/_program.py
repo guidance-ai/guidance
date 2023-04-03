@@ -103,19 +103,6 @@ class Program:
             self.event_loop = asyncio.get_event_loop()
         else:
             self.event_loop = asyncio.new_event_loop()
-
-        # find all the handlebars-style partial inclusion tags and replace them with the partial template
-        def replace_partial(match):
-            partial_name,args_string = match.group(1).split(" ", 1)
-            if partial_name not in kwargs:
-                raise ValueError("Partial '%s' not given in the keyword args:" % partial_name)
-            out = "{{#block '"+partial_name+"'"
-            if len(args_string) > 0:
-                out += " " + args_string
-            out += "}}" + kwargs[partial_name].text + "{{/block}}"
-            self.variables = {**kwargs[partial_name].variables, **self.variables} # pull in the default vars from the partial
-            return out
-        self._text = re.sub(r"{{>(.*?)}}", replace_partial, self._text)
     
     def __repr__(self):
         return self.text

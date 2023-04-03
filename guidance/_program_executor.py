@@ -22,11 +22,27 @@ class ProgramExecutor():
         self.should_stop = False
         self.caught_stop_iteration = False
 
+        # find all the handlebars-style partial inclusion tags and replace them with the partial template
+        def replace_partial(match):
+            parts = match.group(1).split(" ", 1)
+            partial_name = parts[0]
+            
+            # ,args_string = match.group(1).split(" ", 1)
+            if partial_name not in program.variables:
+                raise ValueError("Partial '%s' not given in the keyword args:" % partial_name)
+            out = "{{#block '"+partial_name+"'"
+            if len(parts) > 1:
+                out += " " + parts[1]
+            out += "}}" + program.variables[partial_name].text + "{{/block}}"
+            program.variables = {**program[partial_name].variables, **program.variables} # pull in the default vars from the partial
+            return out
+        text = re.sub(r"{{>(.*?)}}", replace_partial, program._text)
+
         # parse the program text
         try:
-            self.parse_tree = grammar.parse(program._text)
+            self.parse_tree = grammar.parse(text)
         except parsimonious.exceptions.ParseError as e:
-            self._check_for_simple_error(program._text)
+            self._check_for_simple_error(text)
             raise e
             
     def _check_for_simple_error(self, text):
@@ -416,7 +432,7 @@ class ProgramExecutor():
             self.variable_stack[0][name] = value
 
     def extend_prefix(self, text):
-        if text == "":
+        if text == "" or text is None:
             return
         prefix_out = str(text)
         self.prefix += prefix_out

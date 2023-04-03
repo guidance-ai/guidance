@@ -142,3 +142,4 @@ async def geneach(list, block_content, parser, parser_prefix=None, parser_node=N
         return out_str + "{{!--" + f"GMARKER_each_noecho_end${id}$" + "--}}"
 
         # return "{{!--GMARKER_each_noecho$$}}" + "{{!--GMARKER_each_noecho$$}}".join(out) + "{{!--GMARKER_each_noecho$$}}"
+geneach.is_block = True

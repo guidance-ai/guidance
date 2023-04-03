@@ -155,3 +155,4 @@ async def each(list, block_content, parser, parser_prefix=None, parser_node=None
         return out_str + "{{!--" + f"GMARKER_each_noecho_end${id}$" + "--}}"
 
         # return "{{!--GMARKER_each_noecho$$}}" + "{{!--GMARKER_each_noecho$$}}".join(out) + "{{!--GMARKER_each_noecho$$}}"
+each.is_block = True

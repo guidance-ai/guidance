@@ -15,3 +15,4 @@ async def block(name=None, block_content=None, parser=None, hidden=False):
         parser.extend_prefix("{{!--GHIDDEN:"+new_content.replace("--}}", "--_END_END")+"--}}")
     
     return out
+block.is_block = True

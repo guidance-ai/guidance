@@ -46,3 +46,4 @@ def select(variable_name="selected", block_content=None, parser=None, partial_ou
     partial_output(selected_option)
 
     return selected_option
+select.is_block = True

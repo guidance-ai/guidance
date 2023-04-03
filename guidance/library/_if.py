@@ -20,3 +20,4 @@ async def if_(value, block_content, parser, reverse=False):
         return await parser.visit(options[1])
     else:
         return ""
+if_.is_block = True
