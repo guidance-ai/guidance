@@ -13,7 +13,7 @@ def log(*args):
     log_file.flush()
 
 def load(guidance_file):
-    ''' Load a guidance prompt from the given text file.
+    ''' Load a guidance program from the given text file.
 
     If the passed file is a valid local file it will be loaded directly.
     Otherwise, if it starts with "http://" or "https://" it will be loaded
@@ -28,27 +28,27 @@ def load(guidance_file):
     else:
         raise ValueError('Invalid guidance file: %s' % guidance_file)
     
-def chain(prompts, **kwargs):
-    ''' Chain together multiple prompts into a single prompt.
+def chain(programs, **kwargs):
+    ''' Chain together multiple programs into a single program.
     
-    This merges them into a single prompt like: {{>prompt1 hidden=True}}{{>prompt2 hidden=True}}
+    This merges them into a single program like: {{>program1 hidden=True}}{{>program2 hidden=True}}
     '''
 
-    from ._prompt import Prompt
+    from ._program import Program
 
-    new_template = "".join(["{{>prompt%d hidden=True}}" % i for i in range(len(prompts))])
-    for i, prompt in enumerate(prompts):
-        if isinstance(prompt, Prompt):
-            kwargs["prompt%d" % i] = prompt
+    new_template = "".join(["{{>program%d hidden=True}}" % i for i in range(len(programs))])
+    for i, program in enumerate(programs):
+        if isinstance(program, Program):
+            kwargs["program%d" % i] = program
         else:
-            sig = inspect.signature(prompt)
+            sig = inspect.signature(program)
             args = ""
             for name,_ in sig.parameters.items():
                 args += f" {name}={name}"
-            fname = find_func_name(prompt, kwargs)
-            kwargs["prompt%d" % i] = Prompt("{{set (%s%s)}}" % (fname, args), **{fname: prompt})
-            # kwargs.update({f"func{i}": prompt})
-    return Prompt(new_template, **kwargs)
+            fname = find_func_name(program, kwargs)
+            kwargs["program%d" % i] = Program("{{set (%s%s)}}" % (fname, args), **{fname: program})
+            # kwargs.update({f"func{i}": program})
+    return Program(new_template, **kwargs)
 
 def find_func_name(f, used_names):
     if hasattr(f, "__name__"):

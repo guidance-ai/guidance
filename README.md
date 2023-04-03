@@ -1,6 +1,6 @@
 # Guidance
 
-Build *guidance prompts* to effectively control language models to accomplish specific tasks.
+Build *guidance programs/prompts* to effectively control language models to accomplish specific tasks. 
 
 ## Install
 

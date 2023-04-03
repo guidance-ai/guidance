@@ -17,46 +17,41 @@ from .llms import _openai
 from . import _utils
 import guidance
 
+# load the javascript client code
 file_path = pathlib.Path(__file__).parent.parent.absolute()
-with open(file_path / "client" / "dist" / "main.js", encoding="utf-8") as f:
+with open(file_path / "guidance" / "resources" / "main.js", encoding="utf-8") as f:
     js_data = f.read()
 
-log_file = open("log.txt", "a")
-def log(*args):
-    # print(*args)
-    print(datetime.datetime.now().strftime("%H:%M:%S"), *args, file=log_file)
-    log_file.flush()
+class Program:
+    ''' A program template that can be compiled and executed to generate a new filled in (executed) program.
 
-_comm = None
-
-# this should work for the Jupyter web browser version, but it if failing in VS Code: https://github.com/microsoft/vscode/issues/176698
-# css = """
-# :root {
-#   --txt: #000;
-#   --inserted: rgba(0, 138.56128016, 250.76166089, 0.25);
-#   --generated: rgba(0, 165, 0, 0.25);
-# }
-# :root .vscode-dark {
-#   --txt: #fff;
-#   --inserted: rgba(0, 138.56128016, 255, 0.4);
-#   --generated: rgba(0, 255, 0, 0.18);
-# }
-# @media screen and (prefers-color-scheme: dark) {
-#   :root {
-#     --txt: #fff;
-#   }
-# }
-# """.replace("\n", "").replace(" ", "")
-
-class Prompt:
-    ''' A prompt template that can be compiled and executed to generate a new filled in prompt.
-
-    ## Note that as the template gets executed {{!-- handlebars comment markers --}} get left in
-    ## the generated output to mark where template tags used to be.
+    Note that as the template gets executed {{!-- handlebars comment markers --}} get left in
+    the generated output to mark where template tags used to be.
     '''
 
-    def __init__(self, text, llm=None, cache_seed=0, logprobs=None, stream=None, echo=False, **kwargs):
-        """ Create a new Prompt object from a prompt string.
+    def __init__(self, text, llm=None, cache_seed=0, logprobs=None, stream=False, echo=False, **kwargs):
+        """ Create a new Program object from a program string.
+
+        Parameters
+        ----------
+        text : str
+            The program string to use as a guidance template.
+        llm : guidance.llms.LLM (defaults to guidance.llm)
+            The language model to use for executing the program.
+        cache_seed : int (default 0) or None 
+            The seed to use for the cache. If you want to use the same cache for multiple programs
+            you can set this to the same value for all of them. Set this to None to disable caching.
+            Caching is enabled by default, and saves calls that have tempurature=0, and also saves
+            higher temperature calls but uses different seed for each call.
+        logprobs : int or None (default)
+            The number of logprobs to return from the language model for each token. (not well supported yet,
+            since some endpoints don't support it)
+        stream : bool (default False)
+            If True, the program will be executed in "streaming" mode, where the program is executed
+            asyncronously. If the program is displayed while streaming the output is generated per token.
+        echo : bool (default False)
+            If True, the program will be displayed as it is executed (this is an alternative to using stream=True
+            and then displaying the async object).
         """
 
         # see if we were given a raw function instead of a string template
@@ -71,32 +66,31 @@ class Prompt:
                 kwargs[fname] = text
                 text = "{{set (%s%s)}}" % (fname, args)
         
-        # save our starting state variables
-        self._id = str(uuid.uuid4())
+        # save the given parameters
         self._text = text
-        self.llm = llm
+        self.llm = llm or guidance.llm
         self.cache_seed = cache_seed
         self.logprobs = logprobs
+        self.stream = stream
+        self.echo = echo
+        
+        # set our variables
         self.variables = {}
         self.variables.update(_built_ins)
         self.variables.update(kwargs)
-        self.executing = False
-        self._comm = None # front end communication
-        # self._await_queue = asyncio.Queue()
-        # self._await_cache = copy.copy(kwargs)
-        self._displaying_html = False
-        self._display_finish = asyncio.Queue()
-        self._needs_hard_clear = False
-        self._executor = None
-        self._last_display_update = 0
-        self._pending_display_update = False
-        self._sync_mode = False
-        self._execute_complete = asyncio.Event()
-        self.stream = stream
-        self.echo = echo
-        self.displaying = echo
-        self.log_data = []
-        self._displayed = False
+        
+        # set internal state variables
+        self._id = str(uuid.uuid4())
+        self.display_debounce_delay = 0.1 # the minimum time between display updates
+        self._comm = None # front end communication object
+        self._displaying_html = False # if we are displaying html (vs. text)
+        self._executor = None # the ProgramExecutor object that is running the program
+        self._last_display_update = 0 # the last time we updated the display (used for throttling updates)
+        self._execute_complete = asyncio.Event() # fires when the program is done executing to resolve __await__
+        self._displaying = echo # if we are displaying we need to update the display as we execute
+        self._displayed = False # marks if we have been displayed in the client yet
+
+        # see if we are in an ipython environment
         try:
             self._ipython = get_ipython()
         except:
@@ -104,10 +98,8 @@ class Prompt:
 
         # get or create an event loop
         if asyncio.get_event_loop().is_running():
-            # self.outer_event_loop = asyncio.get_event_loop()
             self.event_loop = asyncio.get_event_loop()
         else:
-            # self.outer_event_loop = None
             self.event_loop = asyncio.new_event_loop()
 
         # find all the handlebars-style partial inclusion tags and replace them with the partial template
@@ -122,186 +114,62 @@ class Prompt:
             self.variables = {**kwargs[partial_name].variables, **self.variables} # pull in the default vars from the partial
             return out
         self._text = re.sub(r"{{>(.*?)}}", replace_partial, self._text)
-
-        # default to the global llm
-        if self.llm is None:
-            self.llm = guidance.llm
-
-        # build a parse tree
-        # self._parse_tree = grammar.parse(self._text)
     
     def __repr__(self):
-        # print("repr")
-        # if self._displaying_html:
-        #     return None
         return self.text
     
     def __getitem__(self, key):
         return self.variables[key]
     
     def _interface_event(self, msg):
-        #log("interface event", msg)
-        self.log_data.append(msg)
-        # if msg == "opened":
-        #     # raise Exception("asdf" + msg)
-        #     self._comm.send({"replace": self._build_html(self.marked_text)})
-        # if "event" in msg:
-        #log("interface event3 `" + msg["event"] + "`")
+        """ Handle an event from the front end.
+        """
         if msg["event"] == "stop":
-            #log("STOPPING EXECUTOR0", self)
-            # #log("STOPPING EXECUTOR1", self.executor.should_stop)
             self._executor.stop()
-            #log("STOPPED EXECUTOR2", self._executor.should_stop)
         elif msg["event"] == "opened":
-            pass#self._comm.send({"replace": self._build_html(self.marked_text)})
+            pass # we don't need to do anything here because the first time we display we'll send the html
         pass
 
-    # def _save_static_version(self, html):
-    #     from IPython.display import clear_output, display, HTML
-
-    #     clear_output()
-    #     display(HTML(html))
-
     def _ipython_display_(self):
-        from IPython.display import display
-        # from IPython.display import display
-        self.displaying = True
+        """ Display the program in the ipython notebook.
+        """
+        
+        # mark that we are displaying (and so future execution updates should be displayed)
+        self._displaying = True
         self._displaying_html = True
-        html = self._build_html(self.marked_text)
-        # if self.executing:
-        #log("executing _ipython_display_")
+        
+        # create the comm object if we don't have one
         if self._comm is None:
             self._comm = _utils.JupyterComm(self._id, self._ipython, self._interface_event)
         
-        #log("direct _ipython_display_")
-        
+        # build the html
+        html = self._build_html(self.marked_text)
         html = f"""<div id="guidance-stop-button-{self._id}" style="cursor: pointer; margin: 0px; display: none; float: right; padding: 3px; border-radius: 4px 4px 4px 4px; border: 0px solid rgba(127, 127, 127, 1); padding-left: 10px; padding-right: 10px; font-size: 13px; background-color: rgba(127, 127, 127, 0.25);">Stop program</div><div id="guidance-content-{self._id}">{html}</div>
     <script type="text/javascript">{js_data}; window._guidanceDisplay("{self._id}");</script>"""
+        
+        # display the html
+        from IPython.display import display
         display({"text/html": html}, display_id=self._id, raw=True, clear=True, include=["text/html"])
 
-
-
-        # self.displaying = True
-        # self._displaying_html = True
-        # if not self.executing:
-        #     return self._build_html(self.marked_text, first_display=True)
-        # else:
-        #     self.update_display()
-    
-    # def _javascript_client(self):
-    #     return js_data + f'var d = document.createElement("div"); var el = element[0] ? element[0] : element; el.appendChild(d); window._guidanceInitOutput("{self._id}", d, this);'
-
-    def _repr_javascripts_(self, environment="jupyter"):
-        return
-        # spin up a JupyterComm object if we are called directly (which we assume is in a notebook)
-        if self._comm is None and environment == "jupyter":
-            self._comm = _utils.JupyterComm(self._id, self._interface_event)
-
-        # dump the client javascript to the interface
-        file_path = pathlib.Path(__file__).parent.parent.absolute()
-        with open(file_path / "client" / "dist" / "main.js", encoding="utf-8") as f:
-            js_data = f.read()
-#         interface_html = f"""
-# <div id="guidance_container_{self._id}">blank</div>
-# <script type='text/javascript'>{js_data}; _guidanceInitOutput("{self._id}")</script>
-# """
-        # from IPython.display import Javascript
-        return js_data + f'var d = document.createElement("div"); var el = element[0] ? element[0] : element; el.appendChild(d); window._guidanceInitOutput("{self._id}", d, this);'
-        
-        return self._text_html
-        # display_out = self._text
-        # # add syntax highlighting
-        # display_out = re.sub(r"(\{\{generate.*?\}\})", r"<span style='background-color: rgba(0, 165, 0, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
-        # display_out = re.sub(r"(\{\{#select\{\{/select.*?\}\})", r"<span style='background-color: rgba(0, 165, 0, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
-        # display_out = re.sub(r"(\{\{#each [^'\"].*?\{\{/each.*?\}\})", r"<span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
-        # display_out = re.sub(r"(\{\{(?!generate)(?!#select)(?!#each)(?!/each)(?!/select).*?\}\})", r"<span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
-        # display_out = add_spaces(display_out)
-        # display_out = "<pre style='margin: 0px; padding: 0px; padding-left: 8px; margin-left: -8px; border-radius: 0px; border-left: 1px solid rgba(127, 127, 127, 0.2); white-space: pre-wrap; font-family: ColfaxAI, Arial; font-size: 15px; line-height: 22px;'>"+display_out+"</pre>"
-# <script>
-# var r = document.querySelector(':root');
-# if (getComputedStyle(r).getPropertyValue('--vscode-editor-background').split(",")[1] < 100) {
-#     r.style.setProperty('--txt', 'lightblue');
-# }
-# </script>
-        # return "<style type='text/css'>"+css+"</style>" + display_out
-    
     async def _await_finish_execute(self):
-        """ Wait for the call to this prompt to complete.
+        """ Used by self.__await__ to wait for the program to complete.
         """
-
-        print("awaiting call complete")
-        
-        # wait for the call to complete
-        await self._execute_complete.wait()
-
+        await self._execute_complete.wait() # wait for the program to finish executing
         return self
 
     def __await__(self):
         return self._await_finish_execute().__await__()
-    
-    # def finish_execute(self):
-    #     """ Finish the current call to this prompt.
-    #     """
-        
-    #     # stop the event loop if we are in synchronous mode (and hence own the event loop)
-    #     # this allows the __call__ function to return
-    #     # if self._sync_mode:
-    #     #     print("stopping event loop")
-    #     #     self.event_loop.stop()
-        
-    #     # set the call complete flag
-    #     self._execute_complete.set()
-
-    # def __call__(self, **kwargs):
-    #     """ Execute this prompt with the given variable values and return a new executed prompt.
-
-    #     Note that the returned prompt might not be fully executed, as we stream when in a running
-    #     asyncio event loop (use await if you want to ensure it is finished).
-    #     """
-
-    #     if self.executing:
-    #         self._execute_complete.clear()
-    #         self._await_queue.put_nowait(kwargs)
-    #         return self
-    #     else:
-    #         # create the new prompt object that we will execute in-place
-    #         new_prompt = Prompt(
-    #             self._text,
-    #             self.llm,
-    #             self.cache_seed,
-    #             self.logprobs,
-    #             **{**self.variables, **kwargs}
-    #         )
-    #         new_prompt.executing = True
-    #         new_prompt._execute_complete.clear()
-
-    #         new_prompt._running_task = self.event_loop.create_task(new_prompt.execute())
-
-    #         if not self.event_loop.is_running():
-    #             self._sync_mode = True
-    #             self.event_loop.run_forever() # this will return once execution is complete (or paused)
-
-    #         # # if we are in a running event loop, then we stream results
-    #         # if self.event_loop.is_running():
-    #         #     new_prompt._running_task = self.event_loop.create_task(new_prompt.execute())
-            
-    #         # # otherwise we just block until the call is complete
-    #         # else:
-    #         #     # self.event_loop.create_task(new_prompt.execute())
-    #         #     new_prompt._running_task = None
-    #         #     self.event_loop.run_until_complete(new_prompt.execute())
-        
-    #         return new_prompt
         
     def __call__(self, **kwargs):
-        """ Execute this prompt with the given variable values and return a new executed prompt.
+        """ Execute this program with the given variable values and return a new executed/executing program.
 
-        Note that the returned prompt might not be fully executed, as we stream when in a running
-        asyncio event loop (use await if you want to ensure it is finished).
+        Note that the returned program might not be fully executed if `stream=True`. When streaming you need to
+        use the python `await` keyword if you want to ensure the program is finished (note that is different than
+        the `await` guidance langauge command, which will cause the program to stop execution at that point).
         """
 
-        # create the new prompt object that we will execute in-place
-        new_prompt = Prompt(
+        # create a new program object that we will execute in-place
+        new_program = Program(
             self._text,
             self.llm,
             self.cache_seed,
@@ -309,164 +177,94 @@ class Prompt:
             self.stream,
             self.echo,
 
-            # copy the (non-function) variables so that we don't modify the original prompt
+            # copy the (non-function) variables so that we don't modify the original program during execution
+            # TODO: what about functions? should we copy them too?
             **{**{k: v if callable(v) else copy.deepcopy(v) for k,v in self.variables.items()}, **kwargs}
         )
-        # new_prompt.executing = True
-        # new_prompt._execute_complete.clear()
 
-        # new_prompt._running_task = self.event_loop.create_task(new_prompt.execute())
-
-        # if not self.event_loop.is_running():
-        #     self._sync_mode = True
-        #     self.event_loop.run_forever() # this will return once execution is complete (or paused)
-
-        # if we are in a running event loop, then we stream results
-        # loop = asyncio.get_event_loop()
-        # if loop.is_running():
-            
+        # create an executor for the new program (this also marks the program as executing)
+        new_program._executor = ProgramExecutor(new_program)
+        
+        # if we are streaming schedule the program in the current event loop
         if self.stream:
             loop = asyncio.get_event_loop()
             assert self.event_loop.is_running()
-            new_prompt.executing = True
-            new_prompt._executor = PromptExecutor(new_prompt)
-            # print("starting executor")
-            self.event_loop.create_task(new_prompt.execute())
+            self.event_loop.create_task(new_program.execute())
+
+        # if we are not streaming, we need to create a new event loop and run the program in it until it is done
         else:
             loop = asyncio.new_event_loop()
-            new_prompt.executing = True
-            new_prompt._executor = PromptExecutor(new_prompt)
-            loop.run_until_complete(new_prompt.execute())
-        
-        # # otherwise we just block until the call is complete
-        # else:
-        #     self.event_loop.run_until_complete(new_prompt.execute())
+            loop.run_until_complete(new_program.execute())
     
-        return new_prompt
-
-    # def _direct_update_display(self):
-    #     """ Updates the display with the current marked text without any debouncing.
-    #     """
-    #     if self._displaying_html or True:
-    #         out = self._build_html(self.marked_text)
-            
-    #         if self._comm is None:
-    #             from IPython.display import clear_output, display
-    #             # clear_output(wait=True)
-    #             # display_html(out, raw=True)
-    #             display({"text/html": out}, raw=True, clear=True, include=["text/html"])
-    #         else:
-    #             # print("_direct_update_display display")
-    #             self._comm.send({"text/html": out})
-    #     self._last_display_update = time.time()
-    #     self._pending_display_update = False
-        
+        return new_program
     
-    def update_display(self, last=False):
+    def _update_display(self, last=False):
         """ Updates the display with the current marked text after debouncing.
+
+        Parameters
+        ----------
+        last : bool
+            If True, this is the last update and we should clear the send queue and prepare the
+            UI for saving etc.
         """
-        
-        # print("update display")
-        # debounce the display updates
-        if not self.displaying:
+
+        # this is always called during execution, and we only want to update the display if we are displaying
+        if not self._displaying:
             return
+        
+        # debounce the display updates
         now = time.time()
-        #log("update_display:", last, now - self._last_display_update, self._comm)
-        debounce_delay = 0.1
-        # if self.stream and 'VSCODE_CWD' in os.environ:
-        #     debounce_delay = 2
-        if last or (now - self._last_display_update > debounce_delay):
+        if last or (now - self._last_display_update > self.display_debounce_delay):
             if self._displaying_html:
                 out = self._build_html(self.marked_text)
                 
-                # if not self._displayed or last:
+                # clear the send queue if this is the last update
                 if last and self._comm:
                     self._comm.clear_send_queue()
                 
+                # send an update to the front end client if we have one...
+                # TODO: we would like to call `display` for the last update so NB saving works, but see https://github.com/microsoft/vscode-jupyter/issues/13243 
                 if self._comm and (not last or self._comm.is_open):
-                    #log("update_display inner:", out)
                     self._comm.send({"replace": out})
                     if last:
                         self._comm.send({"event": "complete"})
+                
+                # ...otherwise dump the client to the font end
                 else:
-                    #log("SEND html")
                     from IPython.display import clear_output, display
                     if self._displayed:
-                        clear_output(wait=False)
-                    executing = "false" if last else "true"
-                    #log("SEND html", executing)
+                        clear_output(wait=False) # should use wait=True but that doesn't work in VSCode until after the April 2023 release
                     html = f"""<div id="guidance-stop-button-{self._id}" style="cursor: pointer; margin: 0px; display: none; float: right; padding: 3px; border-radius: 4px 4px 4px 4px; border: 0px solid rgba(127, 127, 127, 1); padding-left: 10px; padding-right: 10px; font-size: 13px; background-color: rgba(127, 127, 127, 0.25);">Stop program</div><div id="guidance-content-{self._id}">{out}</div>
                     <script type="text/javascript">{js_data}; window._guidanceDisplay("{self._id}");</script>"""
                     display({"text/html": html}, display_id=self._id, raw=True, clear=True, include=["text/html"])
                 self._displayed = True
-
-                # if False or self._comm is None:
-                #     from IPython.display import clear_output, display
-                #     # clear_output(wait=True)
-                #     # display_html(out, raw=True)
-                #     if self.stream and 'VSCODE_CWD' in os.environ:
-                #         clear_output(wait=False) # TODO: causes flashing and should be removed when #13199 is fixed in vscode-jupyter
-                #     display({"text/html": out}, raw=True, clear=True, include=["text/html"])
-                # else:
-                #     #log("update_display inner:", out)
-                #     # print("_direct_update_display display")
-                #     self._comm.send({"replace": out})
             
             self._last_display_update = time.time()
-            self._pending_display_update = False
-
-    def _set_savable_html(self):
-        from IPython.display import update_display
-        #log("FINAL DISPLAY21")
-        #log("FINAL DISPLAY22", self._id)
-        update_display({"text/html": "3dddf"}, display_id=self._id, raw=True, clear=True, include=["text/html"])
-        #log("FINAL DISPLAY23", self._id)
 
     async def execute(self):
-        """ Execute the current prompt.
+        """ Execute the current program.
 
-        Note that as execution progresses the prompt will be incrementally converted
+        Note that as execution progresses the program will be incrementally converted
         from a template into a completed string (with variables stored). At each point
         in this process the current template remains valid.
         """
         
+        # if we are already displaying html, we need to yeild to the event loop so the jupyter comm can initialize
         if self._displaying_html:
-            await asyncio.sleep(0) # give the jupyter comm a chance to initialize
-        # self._executor = PromptExecutor(self)
+            await asyncio.sleep(0)
+        
+        # run the program and capture the output
         await self._executor.run()
         self._text = self._executor.prefix
-        del self._executor
 
-        
-        self.executing = False
+        # delete the executor and so mark the program as not executing
+        self._executor = None
 
-        self.update_display(last=True)
-        # dump a raw html version of the output so that file saves work
+        # update the display with the final output
+        self._update_display(last=True)
 
-        # def test_callback(self):
-        #     from IPython.display import update_display
-        #     #log("FINAL DISPLAY21")
-        #     #log("FINAL DISPLAY22", self._id)
-        #     update_display({"text/html": "3dddf"}, display_id=self._id, raw=True, clear=True, include=["text/html"])
-        #     #log("TEST CALLBACK")
-
-        # await asyncio.sleep(0.1)
-        # if self._displaying_html:
-        #     self.event_loop.call_later(3, test_callback, self)
-        #     self.event_loop.call_later(4, self._set_savable_html, self)
-        #     from IPython.display import clear_output, update_display
-        #     #log("FINAL DISPLAY1")
-            # if 'VSCODE_CWD' in os.environ:
-            #     clear_output(wait=False) # TODO: causes flashing and should be removed when #13199 is fixed in vscode-jupyter
-            # #log("FINAL DISPLAY2", self._id)
-            # update_display({"text/html": "3dddf"}, display_id=self._id, raw=True, clear=True, include=["text/html"])
-            # # update_display({"text/html": "ASDFASDFASDF"}, display_id=self._id, raw=True, clear=True, include=["text/html"])
-            # #log("FINAL DISPLAY1", "ASDFASDFASDF"+self._build_html(self.marked_text))
-
-        # fire an event noting that execution is complete (this will release any await calls waiting on the prompt)
+        # fire an event noting that execution is complete (this will release any await calls waiting on the program)
         self._execute_complete.set()
-
-
     
     def __getitem__(self, key):
         return self.variables[key]
@@ -478,7 +276,7 @@ class Prompt:
     
     @property
     def marked_text(self):
-        if self.executing:
+        if self._executor is not None:
             return self._executor.prefix
         else:
             return self._text
@@ -525,9 +323,6 @@ class Prompt:
         display_out = re.sub(r"{{!--GMARKER_START_generate\$([^\$]*)\$--}}", start_generate_or_select, display_out)
         display_out = display_out.replace("{{!--GMARKER_END_generate$$--}}", "</span>")
         def click_loop_start(id, total_count, echo, color):
-            # echo = x.group(1) == "True"
-            # total_count = int(x.group(2))
-            # id = x.group(3)
             click_script = '''
 function cycle_IDVAL(button_el) {
     var i = 0;
@@ -553,9 +348,6 @@ cycle_IDVAL(this);'''.replace("IDVAL", id).replace("TOTALCOUNT", str(total_count
             out += f"<div style='display: inline;' id='{id}_0'>"
             return out
         def click_loop_mid(id, index, echo):
-            # echo = x.group(1) == "True"
-            # index = int(x.group(2))
-            # id = x.group(3)
             alpha = 1.0 if not echo else 0.5
             out = f"</div><div style='display: none; opacity: {alpha}' id='{id}_{index}'>"
             return out
@@ -596,25 +388,14 @@ cycle_IDVAL(this);'''.replace("IDVAL", id).replace("TOTALCOUNT", str(total_count
         display_out = display_out.replace("{{!--GMARKER_each$$--}}", "")#<div style='border-left: 1px dashed rgb(0, 0, 0, .2); border-top: 0px solid rgb(0, 0, 0, .2); margin-right: -4px; display: inline; width: 4px; height: 24px;'></div>")
         display_out = re.sub(r"{{!--GMARKER_START_block\$([^\$]*)\$--}}", start_block, display_out)
         display_out = re.sub(r"{{!--GMARKER_START_([^\$]*)\$([^\$]*)\$--}}", r"<span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25); display: inline;' title='\2'>", display_out)
-        # display_out = re.sub(r"{{!--GMARKER_START_([^\$]*)\$([^\$]*)\$}}", r"<span style='background-color: rgba(165, 165, 165, 0.25); display: inline;' title='\2'>", display_out)
         display_out = re.sub(r"{{!--GMARKER_END_([^\$]*)\$\$--}}", "</span>", display_out)
         
         # strip out comments
         display_out = re.sub(r"{{~?!.*?}}", "", display_out)
 
-        # add a "Stop program" button
-        #display_out = f"<div style='display: flex; flex-direction: row; align-items: center;'><div style='flex: 1 1 auto;'></div><button style='flex: 0 0 auto; margin: 0px; padding: 0px; border-radius: 4px 4px 4px 4px; border: 1px solid rgba(127, 127, 127, 1); border-left: 2px solid rgba(127, 127, 127, 1); border-right: 2px solid rgba(127, 127, 127, 1); padding-left: 0px; padding-right: 3px; color: rgb(127, 127, 127, 1.0); display: inline; font-weight: normal; overflow: hidden; background-color: rgba(127, 127, 127, 0.25);' onclick='window._guidanceStopProgram(\"{self._id}\")'>Stop program</button></div>{display_out}"
-        # new button version with spinning icon
-        # display_out = f"<div style='cursor: pointer; margin: 0px; display: inline-block; float: right; padding: 3px; border-radius: 4px 4px 4px 4px; border: 0px solid rgba(127, 127, 127, 1); padding-left: 10px; padding-right: 10px; font-size: 13px; background-color: rgba(127, 127, 127, 0.25);' onclick='console.log(\"{self._id}\"); window._guidanceComms[\"{self._id}\"].send(\"event\", \"stop\")'>Stop program</div>" + display_out
-
         display_out = add_spaces(display_out)
         display_out = "<pre style='margin: 0px; padding: 0px; padding-left: 8px; margin-left: -8px; border-radius: 0px; border-left: 1px solid rgba(127, 127, 127, 0.2); white-space: pre-wrap; font-family: ColfaxAI, Arial; font-size: 15px; line-height: 23px;'>"+display_out+"</pre>"
 
-        # display_out = "<style type='text/css'>"+css+"</style>"+display_out
-
-        # if first_display:
-        #     display_out = f"<script type='text/javascript'>{js_data}; window._guidanceInitComm('{self._id}');; </script>{display_out}"
-        
         return display_out
 
 def add_spaces(s):
@@ -711,13 +492,13 @@ class NamedArgument:
         self.name = name
         self.value = value
 
-class PromptExecutor():
-    def __init__(self, prompt):
-        """ Attaches this executor to a prompt object.
+class ProgramExecutor():
+    def __init__(self, program):
+        """ Attaches this executor to a program object.
         """
 
-        self.variable_stack = [prompt.variables]
-        self.prompt = prompt
+        self.variable_stack = [program.variables]
+        self.program = program
         self.prefix = ""
         # self.prefix_tokens = []
         self.block_content = []
@@ -725,45 +506,23 @@ class PromptExecutor():
         self.should_stop = False
         self.caught_stop_iteration = False
 
-        # parse the prompt text
-        self.parse_tree = grammar.parse(prompt._text)
+        # parse the program text
+        self.parse_tree = grammar.parse(program._text)
 
     async def run(self):
-        """ Execute the prompt.
+        """ Execute the program.
         """
         try:
             await self.visit(self.parse_tree)
         except Exception as e:
             print(traceback.format_exc())
-            print("Error in prompt: ", e)
+            print("Error in program: ", e)
             raise e
         
     def stop(self):
         self.should_stop = True
     
     async def visit(self, node, next_node=None, prev_node=None, parent_node=None, grandparent_node=None):
-        # expr_name = node.expr_name
-        
-        # make callable variables command calls
-        # if node.expr_name == 'variable_ref' and callable(self.get_variable(node.text)):
-        #     node.expr_name = 'command_call'
-
-        # if node.expr_name == 'variable_ref':
-        #     var = self.get_variable(node.text)
-
-        #     if callable(var):
-        #         sig = inspect.signature(var)
-        #         kwargs = {}
-        #         if "template_context" in sig.parameters:
-        #             template_context = {}
-        #             if len(self.block_content[-1]) == 1:
-        #                 template_context["@block_text"] = self.block_content[-1][0].text
-        #             if hasattr(self.prompt, "tokenizer"):
-        #                 template_context["@tokenizer"] = self.prompt.tokenizer
-        #             kwargs["template_context"] = template_context
-        #         var = var(**kwargs)
-            
-        #     return var
 
         if node.expr_name == 'variable_name':
             return node.text
@@ -1108,11 +867,11 @@ class PromptExecutor():
             return
         prefix_out = str(text)
         self.prefix += prefix_out
-        self.prompt.update_display()
+        self.program._update_display()
     
     def reset_prefix(self, pos):
         self.prefix = self.prefix[:pos]
-        self.prompt.update_display()
+        self.program._update_display()
         # TODO: undo the echo if needed
 
 class StopCompletion(Exception):
@@ -1148,22 +907,22 @@ async def _generate(variable_name="generated", partial_output=None, parse=False,
     
     # set the cache seed to 0 if temperature is 0
     if temperature > 0:
-        cache_seed = parser.prompt.cache_seed
-        parser.prompt.cache_seed += 1
+        cache_seed = parser.program.cache_seed
+        parser.program.cache_seed += 1
     else:
         cache_seed = 0
 
     # see if we should stream the results
     if n == 1:
-        stream_generation = parser.prompt.stream is True or (parser.prompt.stream is None and parser.prompt.echo is True)
+        stream_generation = parser.program.stream is True or (parser.program.stream is None and parser.program.echo is True)
     else:
         stream_generation = False
 
     # call the LLM
-    gen_obj = parser.prompt.llm(
+    gen_obj = parser.program.llm(
         parser_prefix+prefix, stop=stop, max_tokens=max_tokens, n=n,
-        temperature=temperature, top_p=top_p, logprobs=parser.prompt.logprobs, cache_seed=cache_seed,
-        echo=parser.prompt.logprobs is not None, stream=stream_generation
+        temperature=temperature, top_p=top_p, logprobs=parser.program.logprobs, cache_seed=cache_seed,
+        echo=parser.program.logprobs is not None, stream=stream_generation
     )
 
     if n == 1:
@@ -1208,7 +967,7 @@ async def _generate(variable_name="generated", partial_output=None, parse=False,
         if logprobs is not None:
             parser.set_variable(variable_name+"_logprobs", [choice["logprobs"] for choice in gen_obj["choices"]])
 
-        # TODO: we could enable the parsing to branch into multiple paths here, but for now we just complete the prompt with the first prefix
+        # TODO: we could enable the parsing to branch into multiple paths here, but for now we just complete the program with the first prefix
         generated_value = generated_values[0]
 
         # echoing with multiple completions is not standard behavior
@@ -1267,7 +1026,7 @@ async def _each(list, block_content, parser, parser_prefix=None, parser_node=Non
             if "template_context" in sig.parameters:
                 named_args["template_context"] = {
                     "@block_text": block_content[0].text,
-                    "@tokenizer": parser.prompt.tokenizer
+                    "@tokenizer": parser.program.tokenizer
                 }
             list = filter(list, **named_args)
         else:
@@ -1288,7 +1047,7 @@ async def _each(list, block_content, parser, parser_prefix=None, parser_node=Non
         #     stop = "<|endoftext|>"
         # assert stop is not None, "Must provide a stop token when doing variable length iteration!"
         if stop is not None:
-            stop_tokens = [parser.prompt.llm.encode(s) for s in stop]
+            stop_tokens = [parser.program.llm.encode(s) for s in stop]
 
         if not batch_generate:
             i = 0
@@ -1320,7 +1079,7 @@ async def _each(list, block_content, parser, parser_prefix=None, parser_node=Non
 
                 # we run a quick generation to see if we have reached the end of the list (note the +2 tokens is to help be tolorant to whitespace)
                 if stop is not None:
-                    gen_obj = parser.prompt.llm(strip_markers(parser.prefix), stop=stop, max_tokens=len(stop_tokens)+2, temperature=0, cache_seed=0)
+                    gen_obj = parser.program.llm(strip_markers(parser.prefix), stop=stop, max_tokens=len(stop_tokens)+2, temperature=0, cache_seed=0)
                     if gen_obj["choices"][0]["finish_reason"] == "stop":
                         break
         else:
@@ -1333,11 +1092,11 @@ async def _each(list, block_content, parser, parser_prefix=None, parser_node=Non
 
             # generate the looped content
             if batch_generate_temperature > 0:
-                cache_seed = parser.prompt.cache_seed
-                parser.prompt.cache_seed += 1
+                cache_seed = parser.program.cache_seed
+                parser.program.cache_seed += 1
             else:
                 cache_seed = 0
-            gen_obj = parser.prompt.llm(parser_prefix, stop=stop, max_tokens=batch_generate_max_tokens, temperature=batch_generate_temperature, top_p=batch_generate_top_p, cache_seed=cache_seed)
+            gen_obj = parser.program.llm(parser_prefix, stop=stop, max_tokens=batch_generate_max_tokens, temperature=batch_generate_temperature, top_p=batch_generate_top_p, cache_seed=cache_seed)
             generated_value = gen_obj["choices"][0]["text"]
 
             # parse the generated content (this assumes the generated content is syntactically correct)
@@ -1405,15 +1164,15 @@ def _select(variable_name="selected", block_content=None, parser=None, partial_o
         assert block_content[i].text == "{{or}}"
         options.append(block_content[i+1].text)
 
-    option_tokens = [parser.prompt.llm.encode(option) for option in options]
+    option_tokens = [parser.program.llm.encode(option) for option in options]
 
     option_logprobs = {}
     for option in option_tokens:
-        option_logprobs[parser.prompt.llm.decode(option)] = 0
+        option_logprobs[parser.program.llm.decode(option)] = 0
 
     # [TODO] we should force the LM to generate a valid specific option
     #        for openai this means setting logprobs to valid token ids
-    gen_obj = parser.prompt.llm(
+    gen_obj = parser.program.llm(
         parser_prefix,
         max_tokens=max([len(o) for o in option_tokens]),
         logprobs=10,
@@ -1425,13 +1184,13 @@ def _select(variable_name="selected", block_content=None, parser=None, partial_o
     for i in range(len(top_logprobs)):
         for option in option_tokens:
             if len(option) > i:
-                option_string = parser.prompt.llm.decode(option)
-                option_logprobs[option_string] += top_logprobs[i].get(parser.prompt.llm.decode([option[i]]), -100)
+                option_string = parser.program.llm.decode(option)
+                option_logprobs[option_string] += top_logprobs[i].get(parser.program.llm.decode([option[i]]), -100)
     
     # penalize options that are too long
     for option in option_tokens:
         if len(option) > len(top_logprobs):
-            option_logprobs[parser.prompt.llm.decode(option)] -= 100
+            option_logprobs[parser.program.llm.decode(option)] -= 100
 
     selected_option = max(option_logprobs, key=option_logprobs.get)
     parser.set_variable(variable_name, selected_option)
@@ -1532,23 +1291,23 @@ async def _await(name, parser=None):
     ''' Awaits a value by stopping execution if the value does not yet exist.
     '''
 
-    # stop the prompt completion if we are waiting for a value to be set
-    # this will result in a partially completed prompt that we can then finish
+    # stop the program completion if we are waiting for a value to be set
+    # this will result in a partially completed program that we can then finish
     # later (by calling it again with the variable we need)
-    if name not in parser.prompt.variables:
+    if name not in parser.program.variables:
         parser.executing = False
     else:
-        value = parser.prompt.variables[name]
-        del parser.prompt.variables[name]
+        value = parser.program.variables[name]
+        del parser.program.variables[name]
         return value
     
-    # cache = parser.prompt._await_cache
+    # cache = parser.program._await_cache
     # while name not in cache:
-    #     parser.prompt.finish_execute() # allow the prompt to finish the current call (since we're waiting for a value from the next call now)
-    #     # TODO: instead of waiting here, we should just single we are stopping the prompt completion here
-    #     #       and then let all the containing elements record their state into a new prompt string that
-    #     #       we can then use to continue the prompt completion later in a new object.
-    #     cache.update(await parser.prompt._await_queue.get())
+    #     parser.program.finish_execute() # allow the program to finish the current call (since we're waiting for a value from the next call now)
+    #     # TODO: instead of waiting here, we should just single we are stopping the program completion here
+    #     #       and then let all the containing elements record their state into a new program string that
+    #     #       we can then use to continue the program completion later in a new object.
+    #     cache.update(await parser.program._await_queue.get())
     #     pass
     # value = cache[name]
     # del cache[name]

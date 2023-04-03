@@ -22,10 +22,11 @@ setup(
     name="guidance",
     version=find_version("guidance", "__init__.py"),
     url="https://github.com/slundberg/guidance",
-    author="Scott Lundberg",
+    author="Scott Lundberg and Marco Tulio Ribeiro",
     author_email="scott.lundberg@microsoft.com",
     description="Tools to guide the output of large language models.",
     packages=find_packages(exclude=["user_studies", "notebooks", "client"]),
+    package_data={"guidance": ["resources/*"]},
     install_requires=[
         "diskcache",
         "openai",

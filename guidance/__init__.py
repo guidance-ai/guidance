@@ -1,10 +1,10 @@
-__version__ = "0.0.24"
+__version__ = "0.0.25"
 
 import types
 import sys
 import os
 import requests
-from ._prompt import Prompt
+from ._program import Program
 from . import llms
 from . import library
 from ._utils import load, chain
@@ -19,12 +19,12 @@ llm = llms.OpenAI()
 # This is makes the guidance module callable
 class Guidance(types.ModuleType):
     def __call__(self, template, call_function=None, llm=None, echo=False, cache_seed=0, logprobs=None, **kwargs):
-        return Prompt(template, call_function=call_function, llm=llm, echo=echo, cache_seed=cache_seed, logprobs=logprobs, **kwargs)
+        return Program(template, call_function=call_function, llm=llm, echo=echo, cache_seed=cache_seed, logprobs=logprobs, **kwargs)
 sys.modules[__name__].__class__ = Guidance
 
 
 def load(guidance_file):
-    ''' Load a guidance prompt from the given text file.
+    ''' Load a guidance program from the given text file.
 
     If the passed file is a valid local file it will be loaded directly.
     Otherwise, if it starts with "http://" or "https://" it will be loaded
