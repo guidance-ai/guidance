@@ -29,13 +29,23 @@ async def geneach(list, block_content, parser, parser_prefix=None, parser_node=N
                     
             # auto-detect XML tag stop tokens
             if stop is None:
-                m = re.match(r"<([^>\W]+)[^>]+>", next_text)
+                m = re.match(r"^\s*(</[^>]+>)", next_text, re.DOTALL) #next_text.startswith(end_tag)
                 if m is not None:
-                    end_tag = "</"+m.group(1)+">"
-                    if next_text.startswith(end_tag):
-                        stop = end_tag
-                else:
+                    stop = m.group(1)
+                
+                m = re.match(r"^\s*(<|im_end|>)", next_text, re.DOTALL) #next_text.startswith(end_tag)
+                if m is not None:
+                    stop = "<|im_end|>"
+                
+                if next_text != "":
                     stop = next_text
+                
+                # m = re.match(r"<([^>\s]+)[^>]+>\s*$", prev_text, re.DOTALL)
+                # if m is not None:
+                #     end_tag = "</"+m.group(1)+">"
+                    
+                # else:
+                #     stop = next_text
                 
         else:
             stop = next_text
