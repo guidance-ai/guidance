@@ -17,30 +17,30 @@ async def geneach(list, block_content, parser, parser_prefix=None, parser_node=N
         list = 'generated_list'
 
     # if stop is None then we use the text of the node after the generate command
-    if stop is None:
-        
-        next_text = next_node.text if next_node is not None else ""
-        prev_text = prev_node.text if prev_node is not None else ""
+    # if stop is None:
 
-        # auto-detect quote stop tokens
-        quote_types = ['"', "'", "'''", '"""', "`"]
-        for quote_type in quote_types:
-            if next_text.startswith(quote_type) and prev_text.endswith(quote_type):
-                stop = quote_type
-                break
+    #     next_text = next_node.text if next_node is not None else ""
+    #     prev_text = prev_node.text if prev_node is not None else ""
+
+    #     # auto-detect quote stop tokens
+    #     quote_types = ['"', "'", "'''", '"""', "`"]
+    #     for quote_type in quote_types:
+    #         if next_text.startswith(quote_type) and prev_text.endswith(quote_type):
+    #             stop = quote_type
+    #             break
                 
-        # auto-detect XML tag stop tokens
-        if stop is None:
-            m = re.match(r"^\s*(</[^>]+>)", next_text, re.DOTALL) #next_text.startswith(end_tag)
-            if m is not None:
-                stop = m.group(1)
+    #     # auto-detect XML tag stop tokens
+    #     if stop is None:
+    #         m = re.match(r"^\s*(</[^>]+>)", next_text, re.DOTALL) #next_text.startswith(end_tag)
+    #         if m is not None:
+    #             stop = m.group(1)
             
-            m = re.match(r"^\s*(<|im_end|>)", next_text, re.DOTALL) #next_text.startswith(end_tag)
-            if m is not None:
-                stop = "<|im_end|>"
+    #         m = re.match(r"^\s*(<|im_end|>)", next_text, re.DOTALL) #next_text.startswith(end_tag)
+    #         if m is not None:
+    #             stop = "<|im_end|>"
             
-            if next_text != "":
-                stop = next_text
+    #         if next_text != "":
+    #             stop = next_text
 
     out = []
     partial_out = ""

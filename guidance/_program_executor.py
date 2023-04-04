@@ -247,11 +247,11 @@ class ProgramExecutor():
                 if "partial_output" not in sig.parameters:
                     partial_output(command_output)
             else:
-                # # if the variable does not exist we just pause execution
-                # self.executing = False
-                # return None
+                # if the variable does not exist we just pause execution
+                self.executing = False
+                return None
                 # raise an error if the command doesn't exist
-                raise KeyError("Command/variable '"+command_name+"' not found! Please pass it when calling the program (or set a default value for it when creating the program).")
+                # raise KeyError("Command/variable '"+command_name+"' not found! Please pass it when calling the program (or set a default value for it when creating the program).")
             return return_value
 
         elif node.expr_name == 'block_command_call':
@@ -281,6 +281,11 @@ class ProgramExecutor():
 
             # get the command name and arguments
             command_name, command_args = await self.visit(node.children[0])
+
+            # if execution stops while parsing the start command just return unchanged
+            if not self.executing:
+                self.extend_prefix(node.text)
+                return ""
 
             # mark our position in case we need to rewind
             pos = len(self.prefix)

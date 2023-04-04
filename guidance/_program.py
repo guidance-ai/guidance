@@ -157,14 +157,17 @@ class Program:
         the `await` guidance langauge command, which will cause the program to stop execution at that point).
         """
 
+        kwargs = {**{
+            "stream": self.stream,
+            "echo": self.echo,
+        }, **kwargs}
+
         # create a new program object that we will execute in-place
         new_program = Program(
             self._text,
             self.llm,
             self.cache_seed,
             self.logprobs,
-            self.stream,
-            self.echo,
 
             # copy the (non-function) variables so that we don't modify the original program during execution
             # TODO: what about functions? should we copy them too?
