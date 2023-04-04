@@ -1,106 +1,94 @@
 # Guidance
 
-Build *guidance programs/prompts* to effectively control language models to accomplish specific tasks. 
+Guidance makes it easy to write prompts / programs to control language models with rich output structure.  
+Simple output structure like [Chain of Thought](https://arxiv.org/abs/2201.11903) and its many variants (e.g. with [ART](https://arxiv.org/abs/2303.09014),) has been shown to improve LLM performance.  
+The advent of more powerful LLMs like [GPT-4](https://arxiv.org/abs/2303.12712) allows for even richer output structure, and `guidance` makes that structure easier and cheaper.
 
-## Install
+# Install
 
 ```python
 pip install guidance
 ```
 
-## Getting started
-
-**Note the guidance package is in alpha, and so syntax may change.**
-
-Guidance prompts allow you to specifcy the structure of your prompt through a simple templating syntax, then compile those into a form that can be executed via a large language model API. 
-
-### Question answering from references
+# Quick demos
+## Simple output structure
+Let's take [a simple task](https://github.com/google/BIG-bench/tree/main/bigbench/benchmark_tasks/anachronisms) from BigBench, where the goal is to identify whether a given sentence contains an anachronism.  
+Here is a simple two-shot prompt for it, with a human-crafted chain-of-thought sequence:
 ```python
 import guidance
-
-guidance.endpoint = guidance.endpoints.OpenAI(model="text-davinci-003", token=TOKEN)
-
-# define a guidance prompt
-prompt = guidance('''Use the following statements to answer the query "{{query}}".
-STATEMENTS{{#each statements}}
-- {{this}}{{/each}}
+guidance.llm = guidance.llms.OpenAI("text-davinci-003") 
+instruction = 'Given a sentence tell me whether it contains an anachronism (i.e. whether it could have happened or not based on the time periods associated with the entities).'
+examples = [
+    {'input': 'I wrote about shakespeare',
+    'entities': [{'entity': 'I', 'time': 'present'}, {'entity': 'Shakespeare', 'time': '16th century'}],
+    'reasoning': 'I can write about Shakespeare because he lived in the past with respect to me.',
+    'answer': 'No'},
+    {'input': 'Shakespeare wrote about me',
+    'entities': [{'entity': 'Shakespeare', 'time': '16th century'}, {'entity': 'I', 'time': 'present'}],
+    'reasoning': 'Shakespeare cannot have written about me, because he died before I was born',
+    'answer': 'Yes'}
+    ]
+structure_prompt = guidance(
+'''{{instruction}}
+----
+{{~! Few shot examples here ~}}
+{{~#each examples}}
+Sentence: {{this.input}}
+Entities and dates:{{#each this.entities}}
+{{this.entity}}: {{this.time}}{{/each}}
+Reasoning: {{this.reasoning}}
+Anachronism: {{this.answer}}
 ---
-Answer the query "{{query}}":{{generate 'answer'}}''')
-
-# execute the prompt
-completion = prompt(
-    query="What fruits does Joe like?",
-    statements=["Joe likes Apples", "Joe dislikes Oranges", "Sue likes Bananas"]
-)
-# completion["answer"] now contains the generated answer string
-
-# display the completion in a notebook environment
-completion
+{{~/each}}
+{{~! Input example here}}
+Sentence: {{input}}
+Entities and dates:
+{{gen "entities"}}
+Reasoning:{{gen "reasoning"}}
+Anachronism:{{#select "answer"}} Yes{{or}} No{{/select}}''')
+structure_prompt(examples=examples, input='The T-rex bit my dog', instruction=instruction)
 ```
-<img width="567" src="https://raw.githubusercontent.com/slundberg/guidance/master/docs/artwork/demo_output.png" />
 
-### Claim extraction with a generative loop
-```python
-# define a guidance prompt
-prompt = guidance('''<guidance>
-Extract all the factual claims from the following text one by one.
-<text>{{text}}</text>
+<pre style='margin: 0px; padding: 0px; padding-left: 8px; margin-left: -8px; border-radius: 0px; border-left: 1px solid rgba(127, 127, 127, 0.2); white-space: pre-wrap; font-family: ColfaxAI, Arial; font-size: 15px; line-height: 23px;'><span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25); display: inline;' title='&amp;#123;&amp;#123;instruction&amp;#125;&amp;#125;'>Given a sentence tell me whether it contains an anachronism (i.e. whether it could have happened or not based on the time periods associated with the entities).</span>
+----<span style='opacity: 1.0; display: inline; background-color: rgba(0, 138.56128016, 250.76166089, 0.25);' title='&amp;#123;&amp;#123;~#each examples&amp;#125;&amp;#125;
+Sentence: &amp;#123;&amp;#123;this.input&amp;#125;&amp;#125;
+Entities and dates:&amp;#123;&amp;#123;#each this.entities&amp;#125;&amp;#125;
+&amp;#123;&amp;#123;this.entity&amp;#125;&amp;#125;: &amp;#123;&amp;#123;this.time&amp;#125;&amp;#125;&amp;#123;&amp;#123;/each&amp;#125;&amp;#125;
+Reasoning: &amp;#123;&amp;#123;this.reasoning&amp;#125;&amp;#125;
+Anachronism: &amp;#123;&amp;#123;this.answer&amp;#125;&amp;#125;
 ---
-<claims>{{#each 'claims' stop="</claims>"}}
-<claim>{{generate 'this' stop='</claim>'}}</claim>{{/each}}
-</claims>''')
+&amp;#123;&amp;#123;~/each&amp;#125;&amp;#125;'>
+Sentence: <span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25); display: inline;' title='&amp;#123;&amp;#123;this.input&amp;#125;&amp;#125;'>I wrote about shakespeare</span>
+Entities and dates:<span style='opacity: 1.0; display: inline; background-color: rgba(0, 138.56128016, 250.76166089, 0.25);' title='&amp;#123;&amp;#123;#each this.entities&amp;#125;&amp;#125;
+&amp;#123;&amp;#123;this.entity&amp;#125;&amp;#125;: &amp;#123;&amp;#123;this.time&amp;#125;&amp;#125;&amp;#123;&amp;#123;/each&amp;#125;&amp;#125;'>
+<span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25); display: inline;' title='&amp;#123;&amp;#123;this.entity&amp;#125;&amp;#125;'>I</span>: <span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25); display: inline;' title='&amp;#123;&amp;#123;this.time&amp;#125;&amp;#125;'>present</span>
+<span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25); display: inline;' title='&amp;#123;&amp;#123;this.entity&amp;#125;&amp;#125;'>Shakespeare</span>: <span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25); display: inline;' title='&amp;#123;&amp;#123;this.time&amp;#125;&amp;#125;'>16th century</span></span>
+Reasoning: <span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25); display: inline;' title='&amp;#123;&amp;#123;this.reasoning&amp;#125;&amp;#125;'>I can write about Shakespeare because he lived in the past with respect to me.</span>
+Anachronism: <span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25); display: inline;' title='&amp;#123;&amp;#123;this.answer&amp;#125;&amp;#125;'>No</span>
+---
+Sentence: <span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25); display: inline;' title='&amp;#123;&amp;#123;this.input&amp;#125;&amp;#125;'>Shakespeare wrote about me</span>
+Entities and dates:<span style='opacity: 1.0; display: inline; background-color: rgba(0, 138.56128016, 250.76166089, 0.25);' title='&amp;#123;&amp;#123;#each this.entities&amp;#125;&amp;#125;
+&amp;#123;&amp;#123;this.entity&amp;#125;&amp;#125;: &amp;#123;&amp;#123;this.time&amp;#125;&amp;#125;&amp;#123;&amp;#123;/each&amp;#125;&amp;#125;'>
+<span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25); display: inline;' title='&amp;#123;&amp;#123;this.entity&amp;#125;&amp;#125;'>Shakespeare</span>: <span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25); display: inline;' title='&amp;#123;&amp;#123;this.time&amp;#125;&amp;#125;'>16th century</span>
+<span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25); display: inline;' title='&amp;#123;&amp;#123;this.entity&amp;#125;&amp;#125;'>I</span>: <span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25); display: inline;' title='&amp;#123;&amp;#123;this.time&amp;#125;&amp;#125;'>present</span></span>
+Reasoning: <span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25); display: inline;' title='&amp;#123;&amp;#123;this.reasoning&amp;#125;&amp;#125;'>Shakespeare cannot have written about me, because he died before I was born</span>
+Anachronism: <span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25); display: inline;' title='&amp;#123;&amp;#123;this.answer&amp;#125;&amp;#125;'>Yes</span>
+---</span>
+Sentence: <span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25); display: inline;' title='&amp;#123;&amp;#123;input&amp;#125;&amp;#125;'>The T-rex bit my dog</span>
+Entities and dates:
+<span style='background-color: rgba(0, 165, 0, 0.25); opacity: 1.0; display: inline;' title='&amp;#123;&amp;#123;gen &quot;entities&quot;&amp;#125;&amp;#125;'>T-rex: 65 million years ago
+My dog: present</span>
+Reasoning:<span style='background-color: rgba(0, 165, 0, 0.25); opacity: 1.0; display: inline;' title='&amp;#123;&amp;#123;gen &quot;reasoning&quot;&amp;#125;&amp;#125;'> The T-rex lived millions of years before my dog, so it cannot have bitten my dog.</span>
+Anachronism:<span style='background-color: rgba(0, 165, 0, 0.25); opacity: 1.0; display: inline;' title='&amp;#123;&amp;#123;#select &quot;answer&quot;&amp;#125;&amp;#125; Yes&amp;#123;&amp;#123;or&amp;#125;&amp;#125; No&amp;#123;&amp;#123;/select&amp;#125;&amp;#125;'> Yes</span></pre>
 
-# execute the prompt
-completion = prompt(
-    text="An apple is an edible fruit produced by an apple tree. Apple trees are cultivated worldwide and are the most widely grown species in the genus Malus. "
-)
-# completion["claims"] now contains the claims strings as an array
 
-completion # display the completion in a notebook environment
-```
-<img width="625" src="https://raw.githubusercontent.com/slundberg/guidance/master/docs/artwork/gen_loop_demo.png" />
+We [compute accuracy](notebooks/anachronism.ipynb) on the validation set, and compare it to using the same two-shot examples above **without** the output structure, as well as to the best reported result [here](https://github.com/google/BIG-bench/tree/main/bigbench/benchmark_tasks/anachronisms). The results below agree with existing literature, in that even a very simple output structure drastically improves performance, even compared against much larger models.
+| Model | Accuracy |
+| :---: | :---: |
+| [Few-shot learning with guidance examples, no CoT output structure](notebooks/anachronism.ipynb) | 63.04% |
+| [PALM (3-shot)](https://github.com/google/BIG-bench/tree/main/bigbench/benchmark_tasks/anachronisms) | Around 69% |
+| [Guidance](notebooks/anachronism.ipynb) | **76.01%** |
 
 
-## Template syntax
+## Output structure with OpenAI's Chat models
 
-The guidance templating syntax should feel familar (it is an extension of Handlebars), but it is parsed differently than traditional templating libaries. Every guidance template has a linear execution order associated with it that corresponds to the order in which it is read and/or generated by the language model. This means you can both read and write using the template (as shown in the example above).
-
-### {{variable}}
-A variable name inside double curly braces is substituted directly into the prompt string. In the example above `{{query}}` interpolates the query parameter.
-
-### {{generate 'variable'}}
-The generate command can read in a chunk of text generated by the language model into a variable. For example `{{generate 'answer' max_tokens=100}}` will read in up to 100 tokens from the language model into the 'answer' variable. The prompt given to the language model with be all of the content produces by the template before the call to `{{generate 'answer'}}`. Other parameters like `temperature` and `top_p` are also supported.
-
-### {{#if variable}} {{/if}}
-Conditionals can be expressed with an opening `#if` tag and a closing `/if` tag. For example:
-```python
-{{#if flag_variable}}Yes{{else}}No{{/if}}
-```
-
-### {{#unless variable}} {{/unless}}
-Inverted conditionals can be expressed with an opening `#unless` tag and a closing `/unless` tag just like for `#if`.
-
-### {{#each list}} {{/each}}
-Loops can be expressed with an opening `#each` tag and a closing `/each` tag. Inside a loop the special boolean variables `this`, `@first`, `@last`, and `@index` are automatically defined. Where `this` is the current element in the list.
-
-### {{#each 'variable' stop="stop string"}} {{/each}}
-Generative loops allow the language model to decide the number of iterations. They are expressed by giving a variable name (instead of a variable) as the first argument to `#each` and setting a stop string that ends the loop. This can be used to create rich generative loops, for example:
-```python
-{{#each 'ideas'}}
-Idea {{@index}}: "{{generate 'this' stop='"'}}"
-{{/each}}
-```
-The above template will generate a list of strings that will be saved into the 'ideas' variable.
-
-### {{#select 'variable'}} {{or}} {{/select}}
-You can force the language model to choose between a restricted set of possible completions using the `#select` command. This commands is similar to the `generate` command in that it uses the language model to generate a completion that is then stored in 'variable', but instead of an unconstrained generation, the LM must choose one of the text chunks. For example:
-```python
-Answer Yes/No:{{#select 'answer'}} Yes{{or}} No{{/select}}
-```
-
-### {{add val1 val2 ...}}
-You can add any number of values together using the `add` function. This can be useful for example to change 0-based indexing to 1-based:
-```python
-{{#each statements}}
-- [{{add @index 1}}] {{this}}{{/each}}
-```
