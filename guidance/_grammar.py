@@ -43,7 +43,7 @@ command_name = ~r"[a-z][a-z_0-9\.]*"i
 variable_ref = !"or" !"else" ~r"[@a-z][a-z_0-9\.\[\]\"']*"i
 variable_name = ~r"[@a-z][a-z_0-9]*"i
 contentw = ~r'.*'
-content = not_command_start / not_command_escape / ~r"[^{\\]*"
+content = (not_command_start / not_command_escape / ~r"[^{\\]")+
 unrelated_escape = "\\" !command_start
 escaped_command = "\\" command_start ~r"[^}]*" command_end
 

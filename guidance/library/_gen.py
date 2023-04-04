@@ -3,33 +3,34 @@ import re
 import uuid
 from .._grammar import grammar
 
-async def gen(variable_name="generated", partial_output=None, parse=False, stop=None, max_tokens=500, n=1, temperature=0.0, top_p=1.0, logprobs=None, hidden=False, parser_prefix=None, parser=None, prefix="", suffix="", next_text=None, prev_text=None, **kwargs):
+async def gen(variable_name="generated", partial_output=None, parse=False, stop=None, max_tokens=500, n=1, temperature=0.0, top_p=1.0, logprobs=None, hidden=False, parser_prefix=None, parser=None, prefix="", suffix="", next_node=None, prev_node=None, **kwargs):
     ''' Use the LM to generate a completion string that is stored in the variable `variable_name`.
     '''
 
+    
+
     # if stop is None then we use the text of the node after the generate command
     if stop is None:
-        if next_text is not None and prev_text is not None:
 
-            # auto-detect quote stop tokens
-            quote_types = ['"', "'", "'''", '"""', "`"]
-            for quote_type in quote_types:
-                if next_text.startswith(quote_type) and prev_text.endswith(quote_type):
-                    stop = quote_type
-                    break
-                    
-            # auto-detect XML tag stop tokens
-            if stop is None:
-                m = re.match(r"<([^>\W]+)[^>]+>", next_text)
-                if m is not None:
-                    end_tag = "</"+m.group(1)+">"
-                    if next_text.startswith(end_tag):
-                        stop = end_tag
-                else:
-                    stop = next_text
+        next_text = next_node.text if next_node is not None else ""
+        prev_text = prev_node.text if prev_node is not None else ""
+
+        # auto-detect quote stop tokens
+        quote_types = ['"', "'", "'''", '"""', "`"]
+        for quote_type in quote_types:
+            if next_text.startswith(quote_type) and prev_text.endswith(quote_type):
+                stop = quote_type
+                break
                 
-        else:
-            stop = next_text
+        # auto-detect XML tag stop tokens
+        if stop is None:
+            m = re.match(r"<([^>\W]+)[^>]+>", next_text)
+            if m is not None:
+                end_tag = "</"+m.group(1)+">"
+                if next_text.startswith(end_tag):
+                    stop = end_tag
+            else:
+                stop = next_text
     
     # set the cache seed to 0 if temperature is 0
     if temperature > 0:
