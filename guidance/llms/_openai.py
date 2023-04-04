@@ -60,9 +60,16 @@ def add_text_to_chat_completion(chat_completion):
 
         # c['text'] = f'<|im_start|>{c["message"]["role"]}\n{c["message"]["content"]}<|im_end|>'
 
+# model that need to use the chat completion API
+chat_models = [
+    "gpt-4",
+    "gpt-3.5-turbo",
+    "gpt-4-0314",
+    "gpt-3.5-turbo-0301"
+]
 
 class OpenAI():
-    def __init__(self, model=None, caching=True, max_retries=5, max_calls_per_min=60, token=None, endpoint=None, temperature=0.0, chat_completion=False):
+    def __init__(self, model=None, caching=True, max_retries=5, max_calls_per_min=60, token=None, endpoint=None, temperature=0.0, chat_completion="auto"):
 
         # fill in default model value
         if model is None:
@@ -73,6 +80,13 @@ class OpenAI():
                     model = file.read().replace('\n', '')
             except:
                 pass
+
+        # auto detect chat completion mode
+        if chat_completion == "auto":
+            if model in chat_models:
+                chat_completion = True
+            else:
+                chat_completion = False
         
         # fill in default API key value
         if token is None: # get from environment variable

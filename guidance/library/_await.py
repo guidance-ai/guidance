@@ -1,5 +1,10 @@
 async def await_(name, parser=None):
-    ''' Awaits a value by stopping execution if the value does not yet exist.
+    ''' Awaits a variable by returning its value and then deleting it.
+
+    Note that this is useful for repeatedly getting values since programs
+    will pause when they need a value that is not yet set. This means
+    that putting `await` in a loop will create a stateful "agent" that can
+    repeatedly await values when called multiple times.
     '''
 
     # stop the program completion if we are waiting for a value to be set

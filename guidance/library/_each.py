@@ -11,9 +11,8 @@ async def each(list, block_content, parser, parser_prefix=None, parser_node=None
     assert not (hidden and isinstance(list, str)), "Cannot use hidden=True and variable length iteration together" # TODO: perhaps we can relax this?
     echo = not hidden
 
-    # an empty string means the variable was not provided
-    if list is None:
-        list = []
+    if not parser.executing:
+        return parser_node.text
 
     # apply a filter to the list if one was provided
     if filter is not None:

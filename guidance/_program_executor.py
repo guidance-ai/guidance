@@ -253,6 +253,9 @@ class ProgramExecutor():
                 if "partial_output" not in sig.parameters:
                     partial_output(command_output)
             else:
+                # # if the variable does not exist we just pause execution
+                # self.executing = False
+                # return None
                 # raise an error if the command doesn't exist
                 raise KeyError("Command/variable '"+command_name+"' not found! Please pass it when calling the program (or set a default value for it when creating the program).")
             return return_value
