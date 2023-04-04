@@ -4,6 +4,14 @@ Guidance makes it easy to write prompts / programs to control language models wi
 Simple output structure like [Chain of Thought](https://arxiv.org/abs/2201.11903) and its many variants (e.g. with [ART](https://arxiv.org/abs/2303.09014),) has been shown to improve LLM performance.  
 The advent of more powerful LLMs like [GPT-4](https://arxiv.org/abs/2303.12712) allows for even richer output structure, and `guidance` makes that structure easier and cheaper.
 
+Features:
+- [x] Simple, intuitive syntax, using [handlebars](https://handlebarsjs.com/) templating
+- [x] Rich output structure with multiple generations, selections, and conditionals
+- [x] Playground-like streaming in jupyter notebook
+- [x] Caching of generations for speedup
+- [x] Support for [OpenAI's Chat models](https://beta.openai.com/docs/guides/chat)
+- [x] Easy integration with huggingface models, with speedups due to zero-entropy segment optimization
+
 # Install
 
 ```python
