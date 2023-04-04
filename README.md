@@ -56,7 +56,7 @@ Reasoning:{{gen "reasoning"}}
 Anachronism:{{#select "answer"}} Yes{{or}} No{{/select}}''')
 structure_prompt(examples=examples, input='The T-rex bit my dog', instruction=instruction)
 ```
-![anachronism](figures/anachronism.png)
+![anachronism](docs/figures/anachronism.png)
 
 We [compute accuracy](notebooks/anachronism.ipynb) on the validation set, and compare it to using the same two-shot examples above **without** the output structure, as well as to the best reported result [here](https://github.com/google/BIG-bench/tree/main/bigbench/benchmark_tasks/anachronisms). The results below agree with existing literature, in that even a very simple output structure drastically improves performance, even compared against much larger models.
 | Model | Accuracy |
@@ -163,4 +163,4 @@ Here is the final output:
 ```python
 out
 ```
-![chat_reading](figures/chat_reading.png)
+![chat_reading](docs/figures/chat_reading.png)
