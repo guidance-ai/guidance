@@ -21,5 +21,8 @@ def test_each_with_objects():
 def test_missing_list():
     llm = guidance.llms.OpenAI("text-curie-001")
     prompt = guidance('''List of ideas:{{#each ideas}}test{{this}}{{/each}}''', llm=llm)
-    out = prompt()
-    assert out.text == "List of ideas:"
+    try:
+        out = prompt()
+    except KeyError:
+        return
+    assert False, "An error should have been raised because the list is missing!"

@@ -210,9 +210,7 @@ class ProgramExecutor():
                 
                 # otherwise we keep track of output locally so we can return it
                 else:
-                    partial_output = update_return_value 
-
-                
+                    partial_output = update_return_value
 
                 # create the arguments for the command
                 positional_args = []
@@ -255,8 +253,8 @@ class ProgramExecutor():
                 if "partial_output" not in sig.parameters:
                     partial_output(command_output)
             else:
-                warnings.warn(f"Command/variable '{command_name}' not found")
-                return_value = None
+                # raise an error if the command doesn't exist
+                raise KeyError("Command/variable '"+command_name+"' not found! Please pass it when calling the program (or set a default value for it when creating the program).")
             return return_value
 
         elif node.expr_name == 'block_command_call':
