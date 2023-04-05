@@ -7,9 +7,9 @@ async def if_(value, block_content, parser, reverse=False):
         assert block_content[i].text == "{{else}}"
         options.append(block_content[i+1])
 
-    if isinstance(value, str):
-        value2 = value
-        value = value.lower().strip() in ["true", "yes", "on", "t", "y", "ok", "okay"]
+    # if isinstance(value, str):
+    #     value2 = value
+    #     value = value.lower().strip() in ["true", "yes", "on", "t", "y", "ok", "okay"]
     
     if reverse:
         value = not value
