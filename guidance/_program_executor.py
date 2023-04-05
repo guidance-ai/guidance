@@ -90,15 +90,14 @@ class ProgramExecutor():
             return node.text
 
         elif node.expr_name == 'content':
+            text = node.text
 
             # check for white space stripping commands
             if next_node is not None and next_node.text.startswith("{{~"):
-                text = node.text.rstrip()
-            elif prev_node is not None and prev_node.text.endswith("~}}"):
-                text = node.text.lstrip()
-            else:
-                text = node.text
-            
+                text = text.rstrip()
+            if prev_node is not None and prev_node.text.endswith("~}}"):
+                text = text.lstrip()
+                
             self.extend_prefix(text)
             return ""
         
@@ -265,7 +264,12 @@ class ProgramExecutor():
             return return_value
 
         elif node.expr_name == 'block_command_call':
-            command_name, args = [await self.visit(child) for child in node.children]
+            parts = [await self.visit(child) for child in node.children]
+            if len(parts) > 1:
+                command_name, args = parts
+            else:
+                command_name = parts[0]
+                args = []
             return command_name, args
 
         elif node.expr_name == 'command_block_open':

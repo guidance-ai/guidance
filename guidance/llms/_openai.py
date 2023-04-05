@@ -36,8 +36,8 @@ def prompt_to_messages(prompt):
 
     return messages
 
-def add_text_to_chat_completion_generator(chat_completion):
-    for resp in chat_completion:
+def add_text_to_chat_mode_generator(chat_mode):
+    for resp in chat_mode:
         if "choices" in resp:
             for c in resp['choices']:
                 if "content" in c['delta']:
@@ -49,13 +49,13 @@ def add_text_to_chat_completion_generator(chat_completion):
         else:
             yield resp
 
-def add_text_to_chat_completion(chat_completion):
-    if isinstance(chat_completion, types.GeneratorType):
-        return add_text_to_chat_completion_generator(chat_completion)
+def add_text_to_chat_mode(chat_mode):
+    if isinstance(chat_mode, types.GeneratorType):
+        return add_text_to_chat_mode_generator(chat_mode)
     else:
-        for c in chat_completion['choices']:
+        for c in chat_mode['choices']:
             c['text'] = c['message']['content']
-        return chat_completion
+        return chat_mode
         
 
         # c['text'] = f'<|im_start|>{c["message"]["role"]}\n{c["message"]["content"]}<|im_end|>'
@@ -69,7 +69,7 @@ chat_models = [
 ]
 
 class OpenAI():
-    def __init__(self, model=None, caching=True, max_retries=5, max_calls_per_min=60, token=None, endpoint=None, temperature=0.0, chat_completion="auto"):
+    def __init__(self, model=None, caching=True, max_retries=5, max_calls_per_min=60, token=None, endpoint=None, temperature=0.0, chat_mode="auto"):
 
         # fill in default model value
         if model is None:
@@ -82,11 +82,11 @@ class OpenAI():
                 pass
 
         # auto detect chat completion mode
-        if chat_completion == "auto":
+        if chat_mode == "auto":
             if model in chat_models:
-                chat_completion = True
+                chat_mode = True
             else:
-                chat_completion = False
+                chat_mode = False
         
         # fill in default API key value
         if token is None: # get from environment variable
@@ -106,7 +106,7 @@ class OpenAI():
             endpoint = os.environ.get("OPENAI_ENDPOINT", None)
 
         self._encoding = tiktoken.get_encoding("cl100k_base")
-        self.chat_completion = chat_completion
+        self.chat_mode = chat_mode
         
         self.model = model
         self.caching = caching
@@ -122,6 +122,14 @@ class OpenAI():
             self.caller = self._library_call
         else:
             self.caller = self._rest_call
+
+    def role_start(self, role):
+        assert self.chat_mode, "role_start() can only be used in chat mode"
+        return "<|im_start|>"+role+"\n"
+    
+    def role_end(self, role=None):
+        assert self.chat_mode, "role_end() can only be used in chat mode"
+        return "<|im_end|>"
     
     def __call__(self, prompt, stop=None, temperature=None, n=1, max_tokens=1000, logprobs=None, top_p=1.0, echo=False, logit_bias=None, stream=False, cache_seed=0):
         """ Generate a completion of the given prompt.
@@ -225,14 +233,14 @@ class OpenAI():
         """
         prev_key = openai.api_key
         openai.api_key = self.token
-        if self.chat_completion:
+        if self.chat_mode:
             kwargs['messages'] = prompt_to_messages(kwargs['prompt'])
             del kwargs['prompt']
             del kwargs['echo']
             del kwargs['logprobs']
             # print(kwargs)
             out = openai.ChatCompletion.create(**kwargs)
-            out = add_text_to_chat_completion(out)
+            out = add_text_to_chat_mode(out)
         else:
             out = openai.Completion.create(**kwargs)
         openai.api_key = prev_key
@@ -261,7 +269,7 @@ class OpenAI():
             'stop': kwargs.get("stop", None),
             "echo": kwargs.get("echo", False)
         }
-        if self.chat_completion:
+        if self.chat_mode:
             data['messages'] = prompt_to_messages(data['prompt'])
             del data['prompt']
             del data['echo']
@@ -272,8 +280,8 @@ class OpenAI():
         if response.status_code != 200:
             raise Exception("Response is not 200: " + response.text)
         response = response.json()
-        if self.chat_completion:
-            response = add_text_to_chat_completion(response)
+        if self.chat_mode:
+            response = add_text_to_chat_mode(response)
         return response
     
     def encode(self, string):

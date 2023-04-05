@@ -433,5 +433,9 @@ _built_ins = {
     "strip": library.strip,
     "block": library.block,
     "set": library.set,
-    "await": library.await_
+    "await": library.await_,
+    "role": library.role,
+    "user": library.user,
+    "system": library.system,
+    "assistant": library.assistant
 }

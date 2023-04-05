@@ -3,7 +3,7 @@ import re
 import uuid
 from .._grammar import grammar
 
-async def gen(variable_name="generated", partial_output=None, parse=False, stop=None, max_tokens=500, n=1, temperature=0.0, top_p=1.0, logprobs=None, hidden=False, parser_prefix=None, parser=None, prefix="", suffix="", next_node=None, prev_node=None, **kwargs):
+async def gen(variable_name="generated", partial_output=None, parse=False, stop=None, max_tokens=500, n=1, temperature=0.0, top_p=1.0, logprobs=None, hidden=False, save_prompt=False, parser_prefix=None, parser=None, prefix="", suffix="", next_node=None, prev_node=None, **kwargs):
     ''' Use the LM to generate a completion string that is stored in the variable `variable_name`.
     '''
 
@@ -44,6 +44,10 @@ async def gen(variable_name="generated", partial_output=None, parse=False, stop=
         stream_generation = parser.program.stream is True or parser.program._displaying # (parser.program.stream is None and parser.program.echo is True)
     else:
         stream_generation = False
+
+    # save the prompt if requested
+    if save_prompt:
+        parser.set_variable(save_prompt, parser_prefix+prefix)
 
     # call the LLM
     gen_obj = parser.program.llm(

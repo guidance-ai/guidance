@@ -33,3 +33,9 @@ class Mock():
             return [out]
         else:
             return out
+        
+    def role_start(self, role):
+        return "<|im_start|>"+role+"\n"
+    
+    def role_end(self, role=None):
+        return "<|im_end|>"

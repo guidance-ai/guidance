@@ -11,3 +11,7 @@ from ._each import each
 from ._geneach import geneach
 from ._strip import strip
 from ._subtract import subtract
+from ._role import role
+from ._user import user
+from ._system import system
+from ._assistant import assistant
