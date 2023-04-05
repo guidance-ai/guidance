@@ -94,23 +94,24 @@ async def gen(variable_name="generated", partial_output=None, parse=False, stop=
         if logprobs is not None:
             parser.set_variable(variable_name+"_logprobs", [choice["logprobs"] for choice in gen_obj["choices"]])
 
-        # TODO: we could enable the parsing to branch into multiple paths here, but for now we just complete the program with the first prefix
-        generated_value = generated_values[0]
+        if not hidden:
+            # TODO: we could enable the parsing to branch into multiple paths here, but for now we just complete the program with the first prefix
+            generated_value = generated_values[0]
 
-        # echoing with multiple completions is not standard behavior
-        # this just uses the first generated value for completion and the rest as alternatives only used for the variable storage
-        # we mostly support this so that the echo=False hiding behavior does not make multiple outputs more complicated than it needs to be in the UX
-        # if echo:
-        #     partial_output(generated_value) 
-        
-        id = uuid.uuid4().hex
-        l = len(generated_values)
-        out = "{{!--" + f"GMARKER_generate_many_start_{not hidden}_{l}${id}$" + "--}}"
-        for i, value in enumerate(generated_values):
-            if i > 0:
-                out += "{{!--" + f"GMARKER_generate_many_{not hidden}_{i}${id}$" + "--}}"
-            out += value
-        partial_output(out + "{{!--" + f"GMARKER_generate_many_end${id}$" + "--}}")
-        return
-        # return "{{!--GMARKER_generate_many_start$$}}" + "{{!--GMARKER_generate_many$$}}".join([v for v in generated_values]) + "{{!--GMARKER_generate_many_end$$}}"
-        # return "".join([v for v in generated_values])
+            # echoing with multiple completions is not standard behavior
+            # this just uses the first generated value for completion and the rest as alternatives only used for the variable storage
+            # we mostly support this so that the echo=False hiding behavior does not make multiple outputs more complicated than it needs to be in the UX
+            # if echo:
+            #     partial_output(generated_value) 
+            
+            id = uuid.uuid4().hex
+            l = len(generated_values)
+            out = "{{!--" + f"GMARKERmany_generate_start_{not hidden}_{l}${id}$" + "--}}"
+            for i, value in enumerate(generated_values):
+                if i > 0:
+                    out += "{{!--" + f"GMARKERmany_generate_{not hidden}_{i}${id}$" + "--}}"
+                out += value
+            partial_output(out + "{{!--" + f"GMARKERmany_generate_end${id}$" + "--}}")
+            return
+            # return "{{!--GMARKERmany_generate_start$$}}" + "{{!--GMARKERmany_generate$$}}".join([v for v in generated_values]) + "{{!--GMARKERmany_generate_end$$}}"
+            # return "".join([v for v in generated_values])

@@ -363,16 +363,16 @@ cycle_IDVAL(this);'''.replace("IDVAL", id).replace("TOTALCOUNT", str(total_count
             out = f"</div><div style='display: none; opacity: {alpha}' id='{id}_{index}'>"
             return out
         display_out = re.sub(
-            r"{{!--GMARKER_generate_many_start_([^_]+)_([0-9]+)\$([^\$]*)\$--}}",
+            r"{{!--GMARKERmany_generate_start_([^_]+)_([0-9]+)\$([^\$]*)\$--}}",
             lambda x: click_loop_start(x.group(3), int(x.group(2)), x.group(1) == "True", "rgba(0, 165, 0, 0.25)"),
             display_out
         )
         display_out = re.sub(
-            r"{{!--GMARKER_generate_many_([^_]+)_([0-9]+)\$([^\$]*)\$--}}",
+            r"{{!--GMARKERmany_generate_([^_]+)_([0-9]+)\$([^\$]*)\$--}}",
             lambda x: click_loop_mid(x.group(3), int(x.group(2)), x.group(1) == "True"),
             display_out
         )
-        display_out = re.sub(r"{{!--GMARKER_generate_many_end\$([^\$]*)\$--}}", "</div>", display_out)
+        display_out = re.sub(r"{{!--GMARKERmany_generate_end\$([^\$]*)\$--}}", "</div>", display_out)
 
         # format the each command results
         display_out = re.sub(r"{{!--GMARKER_START_each\$([^\$]*)\$--}}", start_each, display_out)

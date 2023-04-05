@@ -255,6 +255,13 @@ class ProgramExecutor():
                 return None
                 # raise an error if the command doesn't exist
                 # raise KeyError("Command/variable '"+command_name+"' not found! Please pass it when calling the program (or set a default value for it when creating the program).")
+            
+            # see if we got a list of outputs encoded as a string
+            if isinstance(return_value, str):
+                parts = re.split(r"{{!--GMARKERmany[^}]+}}", return_value)
+                if len(parts) > 1:
+                    return parts[1:-1]
+            
             return return_value
 
         elif node.expr_name == 'block_command_call':
