@@ -41,7 +41,7 @@ async def gen(variable_name="generated", partial_output=None, parse=False, stop=
 
     # see if we should stream the results
     if n == 1:
-        stream_generation = parser.program.stream is True or (parser.program.stream is None and parser.program.echo is True)
+        stream_generation = parser.program.stream is True or parser.program._displaying # (parser.program.stream is None and parser.program.echo is True)
     else:
         stream_generation = False
 

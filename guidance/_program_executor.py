@@ -4,9 +4,12 @@ import inspect
 import re
 import asyncio
 import warnings
+import logging
 import parsimonious
 from ._utils import strip_markers
 from ._grammar import grammar
+log = logging.getLogger(__name__)
+
 
 class ProgramExecutor():
     def __init__(self, program):

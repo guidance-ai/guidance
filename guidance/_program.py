@@ -5,7 +5,7 @@ import html
 import uuid
 import sys
 import parsimonious
-import warnings
+import logging
 import copy
 import asyncio
 import pathlib
@@ -18,6 +18,7 @@ from . import _utils
 from ._program_executor import ProgramExecutor
 from . import library
 import guidance
+log = logging.getLogger(__name__)
 
 # load the javascript client code
 file_path = pathlib.Path(__file__).parent.parent.absolute()
@@ -40,7 +41,7 @@ class Program:
             The program string to use as a guidance template.
         llm : guidance.llms.LLM (defaults to guidance.llm)
             The language model to use for executing the program.
-        cache_seed : int (default 0) or None 
+        cache_seed : int (default 0) or None
             The seed to use for the cache. If you want to use the same cache for multiple programs
             you can set this to the same value for all of them. Set this to None to disable caching.
             Caching is enabled by default, and saves calls that have tempurature=0, and also saves
@@ -85,18 +86,22 @@ class Program:
         self._id = str(uuid.uuid4())
         self.display_debounce_delay = 0.1 # the minimum time between display updates
         self._comm = None # front end communication object
-        self._displaying_html = False # if we are displaying html (vs. text)
         self._executor = None # the ProgramExecutor object that is running the program
         self._last_display_update = 0 # the last time we updated the display (used for throttling updates)
         self._execute_complete = asyncio.Event() # fires when the program is done executing to resolve __await__
         self._displaying = echo # if we are displaying we need to update the display as we execute
         self._displayed = False # marks if we have been displayed in the client yet
+        self._displaying_html = False # if we are displaying html (vs. text)
 
         # see if we are in an ipython environment
         try:
             self._ipython = get_ipython()
         except:
             self._ipython = None
+        
+        # if we are echoing in ipython we assume we can display html
+        if self._ipython and echo:
+            self._displaying_html = True
 
         # get or create an event loop
         if asyncio.get_event_loop().is_running():
@@ -122,23 +127,17 @@ class Program:
     def _ipython_display_(self):
         """ Display the program in the ipython notebook.
         """
+
+        log.debug(f"displaying program in _ipython_display_ with self._comm={self._comm}, self.id={self._id}")
         
         # mark that we are displaying (and so future execution updates should be displayed)
         self._displaying = True
         self._displaying_html = True
         
-        # create the comm object if we don't have one
-        if self._comm is None:
-            self._comm = _utils.JupyterComm(self._id, self._ipython, self._interface_event)
-        
-        # build the html
+        # build and display the html
         html = self._build_html(self.marked_text)
-        html = f"""<div id="guidance-stop-button-{self._id}" style="cursor: pointer; margin: 0px; display: none; float: right; padding: 3px; border-radius: 4px 4px 4px 4px; border: 0px solid rgba(127, 127, 127, 1); padding-left: 10px; padding-right: 10px; font-size: 13px; background-color: rgba(127, 127, 127, 0.25);">Stop program</div><div id="guidance-content-{self._id}">{html}</div>
-    <script type="text/javascript">{js_data}; window._guidanceDisplay("{self._id}");</script>"""
+        self._display_html(html)
         
-        # display the html
-        from IPython.display import display
-        display({"text/html": html}, display_id=self._id, raw=True, clear=True, include=["text/html"])
 
     async def _await_finish_execute(self):
         """ Used by self.__await__ to wait for the program to complete.
@@ -162,6 +161,8 @@ class Program:
             "echo": self.echo,
         }, **kwargs}
 
+        log.debug(f"in __call__ with kwargs: {kwargs}")
+
         # create a new program object that we will execute in-place
         new_program = Program(
             self._text,
@@ -178,7 +179,7 @@ class Program:
         new_program._executor = ProgramExecutor(new_program)
         
         # if we are streaming schedule the program in the current event loop
-        if self.stream:
+        if new_program.stream:
             loop = asyncio.get_event_loop()
             assert self.event_loop.is_running()
             self.event_loop.create_task(new_program.execute())
@@ -200,12 +201,15 @@ class Program:
             UI for saving etc.
         """
 
+        log.debug(f"Updating display (last={last}, self._displaying={self._displaying}, self._comm={self._comm})")
+
         # this is always called during execution, and we only want to update the display if we are displaying
         if not self._displaying:
             return
         
         # debounce the display updates
         now = time.time()
+        log.debug(now - self._last_display_update)
         if last or (now - self._last_display_update > self.display_debounce_delay):
             if self._displaying_html:
                 out = self._build_html(self.marked_text)
@@ -217,21 +221,34 @@ class Program:
                 # send an update to the front end client if we have one...
                 # TODO: we would like to call `display` for the last update so NB saving works, but see https://github.com/microsoft/vscode-jupyter/issues/13243 
                 if self._comm and (not last or self._comm.is_open):
+                    log.debug(f"Updating display send message to front end")
                     self._comm.send({"replace": out})
                     if last:
                         self._comm.send({"event": "complete"})
                 
                 # ...otherwise dump the client to the font end
                 else:
+                    log.debug(f"Updating display dump to front end")
                     from IPython.display import clear_output, display
                     if self._displayed:
                         clear_output(wait=False) # should use wait=True but that doesn't work in VSCode until after the April 2023 release
-                    html = f"""<div id="guidance-stop-button-{self._id}" style="cursor: pointer; margin: 0px; display: none; float: right; padding: 3px; border-radius: 4px 4px 4px 4px; border: 0px solid rgba(127, 127, 127, 1); padding-left: 10px; padding-right: 10px; font-size: 13px; background-color: rgba(127, 127, 127, 0.25);">Stop program</div><div id="guidance-content-{self._id}">{out}</div>
-                    <script type="text/javascript">{js_data}; window._guidanceDisplay("{self._id}");</script>"""
-                    display({"text/html": html}, display_id=self._id, raw=True, clear=True, include=["text/html"])
+
+                    self._display_html(out)
                 self._displayed = True
             
             self._last_display_update = time.time()
+
+    def _display_html(self, html):
+        from IPython.display import display
+
+        # create the comm object if we don't have one
+        if self._comm is None:
+            self._comm = _utils.JupyterComm(self._id, self._ipython, self._interface_event)
+        
+        # dump the html to the front end
+        html = f"""<div id="guidance-stop-button-{self._id}" style="cursor: pointer; margin: 0px; display: none; float: right; padding: 3px; border-radius: 4px 4px 4px 4px; border: 0px solid rgba(127, 127, 127, 1); padding-left: 10px; padding-right: 10px; font-size: 13px; background-color: rgba(127, 127, 127, 0.25);">Stop program</div><div id="guidance-content-{self._id}">{html}</div>
+<script type="text/javascript">{js_data}; window._guidanceDisplay("{self._id}");</script>"""
+        display({"text/html": html}, display_id=self._id, raw=True, clear=True, include=["text/html"])
 
     async def execute(self):
         """ Execute the current program.
@@ -240,6 +257,8 @@ class Program:
         from a template into a completed string (with variables stored). At each point
         in this process the current template remains valid.
         """
+
+        log.debug(f"Executing program (self.stream={self.stream}, self.echo={self.echo}, self._displaying_html={self._displaying_html})")
         
         # if we are already displaying html, we need to yeild to the event loop so the jupyter comm can initialize
         if self._displaying_html:
@@ -293,7 +312,7 @@ class Program:
         def start_each(x):
             no_echo = "echo=False" in x.group(1)
             alpha = 0.5 if no_echo else 1.0
-            color = "rgba(0, 138.56128016, 250.76166089, 0.25)" if "each '" not in x.group(1) and "each \"" not in x.group(1) else "rgba(0, 165, 0, 0.25)"
+            color = "rgba(165, 165, 165, 0.1)" #if "geneach" not in x.group(1) else "rgba(0, 165, 0, 0.1)"
             return "<span style='opacity: {}; display: inline; background-color: {};' title='{}'>".format(alpha, color, x.group(1))
         
         def start_block(x):
@@ -368,6 +387,9 @@ cycle_IDVAL(this);'''.replace("IDVAL", id).replace("TOTALCOUNT", str(total_count
             display_out
         )
         display_out = re.sub(r"{{!--GMARKER_each_noecho_end\$([^\$]*)\$--}}", "</div>", display_out)
+
+        # format the geneach command results
+        display_out = re.sub(r"{{!--GMARKER_START_geneach\$([^\$]*)\$--}}", start_each, display_out)
         
         # format the set command results
         display_out = re.sub(r"{{!--GMARKER_set\$([^\$]*)\$--}}", r"<div style='background-color: rgba(165, 165, 165, 0); border-radius: 4px 4px 4px 4px; border: 1px solid rgba(165, 165, 165, 1); border-left: 2px solid rgba(165, 165, 165, 1); border-right: 2px solid rgba(165, 165, 165, 1); padding-left: 0px; padding-right: 3px; color: rgb(165, 165, 165, 1.0); display: inline; font-weight: normal; overflow: hidden;'><div style='display: inline; background: rgba(165, 165, 165, 1); padding-right: 5px; padding-left: 4px; margin-right: 3px; color: #fff'>set</div>\1</div>", display_out)
