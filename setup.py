@@ -31,6 +31,7 @@ setup(
         "diskcache",
         "openai",
         "pybars3",
-        "parsimonious"
+        "parsimonious",
+        "pygtrie"
     ]
 )
