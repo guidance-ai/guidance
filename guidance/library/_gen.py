@@ -3,7 +3,7 @@ import re
 import uuid
 from .._grammar import grammar
 
-async def gen(variable_name="generated", partial_output=None, parse=False, stop=None, max_tokens=500, n=1, temperature=0.0, top_p=1.0, logprobs=None, hidden=False, save_prompt=False, parser_prefix=None, parser=None, prefix="", suffix="", next_node=None, prev_node=None, **kwargs):
+async def gen(variable_name="generated", partial_output=None, parse=False, stop=None, max_tokens=500, n=1, temperature=0.0, top_p=1.0, logprobs=None, hidden=False, save_prompt=False, parser_prefix=None, parser=None, prefix="", suffix="", next_node=None, prev_node=None, next_next_node=None, **kwargs):
     ''' Use the LM to generate a completion string that is stored in the variable `variable_name`.
     '''
 
@@ -14,6 +14,8 @@ async def gen(variable_name="generated", partial_output=None, parse=False, stop=
 
         next_text = next_node.text if next_node is not None else ""
         prev_text = prev_node.text if prev_node is not None else ""
+        if next_next_node and next_next_node.text.startswith("{{~"):
+            next_text = next_text.lstrip()
 
         # auto-detect quote stop tokens
         quote_types = ['"', "'", "'''", '"""', "`"]

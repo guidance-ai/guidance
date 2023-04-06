@@ -3,7 +3,7 @@ import re
 import uuid
 from .._utils import strip_markers
 
-async def each(list, block_content, parser, parser_prefix=None, parser_node=None, stop=None, hidden=False, filter=None, batch_generate=False, batch_generate_temperature=0.0, batch_generate_max_tokens=500, batch_generate_top_p=1.0, prev_node=None, next_node=None):
+async def each(list, block_content, parser, parser_prefix=None, parser_node=None, stop=None, hidden=False, filter=None, batch_generate=False, batch_generate_temperature=0.0, batch_generate_max_tokens=500, batch_generate_top_p=1.0, prev_node=None, next_node=None, next_next_node=None):
     ''' Iterate over a list and execute a block for each item.
     '''
     assert len(block_content) == 1
@@ -46,7 +46,7 @@ async def each(list, block_content, parser, parser_prefix=None, parser_node=None
         parser.variable_stack[-1]["@first"] = i == 0
         parser.variable_stack[-1]["@last"] = i == len(list) - 1
         parser.variable_stack[-1]["this"] = item
-        item_out = await parser.visit(block_content[0], next_node=next_node, prev_node=prev_node)
+        item_out = await parser.visit(block_content[0], next_node=next_node, next_next_node=next_next_node, prev_node=prev_node)
         if not echo:
             parser._trim_prefix(item_out)
         out.append(item_out)

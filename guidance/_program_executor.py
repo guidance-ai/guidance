@@ -75,6 +75,10 @@ class ProgramExecutor():
         """ Execute the program.
         """
         try:
+            # first parse all the whitespace control
+            # self.whitespace_control_visit(self.parse_tree)
+
+            # now execute the program
             await self.visit(self.parse_tree)
         except Exception as e:
             print(traceback.format_exc())
@@ -83,8 +87,36 @@ class ProgramExecutor():
         
     def stop(self):
         self.should_stop = True
+
+    # def process_content(self, text):
+    #     if text.endswith("{{!--GSTRIP--}}"):
+    #         text = text[:-15].rstrip()
+    #     if text.startswith("{{!--GSTRIP--}}"):
+    #         text = text[15:].lstrip()
+    #     return text
+
+    # def whitespace_control_visit(self, node, next_node=None, prev_node=None, parent_node=None, grandparent_node=None):
+    #     if node.expr_name in ('command', 'command_block_open', 'command_block_sep', 'command_block_close'):
+    #         if node.text.startswith("{{~"):
+    #             if prev_node and prev_node.expr_name == "content":
+    #                 prev_node.text = prev_node.text + "{{!--GSTRIP--}}"
+    #         if node.text.endswith("~}}"):
+    #             if next_node and next_node.expr_name == "content":
+    #                 next_node.text = "{{!--GSTRIP--}}" + next_node.text
+
+    #     # visit all our children
+    #     for i, child in enumerate(node.children):
+    #         if len(node.children) > i + 1:
+    #             inner_next_node = node.children[i + 1]
+    #         else:
+    #             inner_next_node = next_node
+    #         if i > 0:
+    #             inner_prev_node = node.children[i - 1]
+    #         else:
+    #             inner_prev_node = prev_node
+    #         self.whitespace_control_visit(child, inner_next_node, inner_prev_node, node, parent_node)
     
-    async def visit(self, node, next_node=None, prev_node=None, parent_node=None, grandparent_node=None):
+    async def visit(self, node, next_node=None, next_next_node=None, prev_node=None, parent_node=None, grandparent_node=None):
 
         if node.expr_name == 'variable_name':
             return node.text
@@ -164,7 +196,7 @@ class ProgramExecutor():
             
             # visit our children
             self.block_content.append([])
-            visited_children = [await self.visit(child, next_node, prev_node, node, parent_node) for child in node.children]
+            visited_children = [await self.visit(child, next_node, next_next_node, prev_node, node, parent_node) for child in node.children]
             self.block_content.pop()
             out = "".join("" if c is None else str(c) for c in visited_children)
 
@@ -231,6 +263,8 @@ class ProgramExecutor():
                     named_args["partial_output"] = partial_output
                 if "next_node" in sig.parameters:
                     named_args["next_node"] = next_node
+                if "next_next_node" in sig.parameters:
+                    named_args["next_next_node"] = next_next_node
                 if "prev_node" in sig.parameters:
                     named_args["prev_node"] = prev_node
 
@@ -331,6 +365,8 @@ class ProgramExecutor():
                     named_args["parser_node"] = node
                 if "next_node" in sig.parameters:
                     named_args["next_node"] = node.children[-1]
+                if "next_next_node" in sig.parameters:
+                    named_args["next_next_node"] = next_node
                 if "prev_node" in sig.parameters:
                     named_args["prev_node"] = node.children[0]
                 
@@ -363,11 +399,19 @@ class ProgramExecutor():
                     inner_next_node = node.children[i + 1]
                 else:
                     inner_next_node = next_node
+                
+                if len(node.children) > i + 2:
+                    inner_next_next_node = node.children[i + 2]
+                elif len(node.children) == i + 2:
+                    inner_next_next_node = next_node
+                else:
+                    inner_next_next_node = next_next_node
+                
                 if i > 0:
                     inner_prev_node = node.children[i - 1]
                 else:
                     inner_prev_node = prev_node
-                visited_children.append(await self.visit(child, inner_next_node, inner_prev_node, node, parent_node))
+                visited_children.append(await self.visit(child, inner_next_node, inner_next_next_node, inner_prev_node, node, parent_node))
             # visited_children = [self.visit(child) for child in node.children]
             
             if len(visited_children) == 1:
