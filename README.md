@@ -199,7 +199,7 @@ Comment: Remember, answer as a {{role}}. Start your utterance with {{role}}:
 {{#assistant~}}
 {{gen 'this.response' stop="<|im_end|>" temperature=0 max_tokens=300}}
 {{~/assistant}}
-{{~/geneach}}''')
+{{~/geneach}}''')jjjjjjjjjjjjjjjjjj
 
 republican = role_simulator(role='Republican')
 democrat = role_simulator(role='Democrat')
@@ -230,6 +230,9 @@ for x in democrat['conversation'][:-1]:
 > Republican: It's important to find a balance between fiscal responsibility and investing in our nation's future. However, we believe that the best way to achieve long-term economic growth and job creation is through free-market principles, such as lower taxes and reduced regulations. This approach encourages businesses to expand and innovate, leading to a more prosperous economy. A progressive tax system can sometimes discourage growth and investment, so we advocate for a simpler, fairer tax system that promotes economic growth. Regarding the Federal Reserve, while promoting full employment is important, we must not lose sight of the primary goal of controlling inflation to maintain a stable and predictable economic environment.
 
 > Democrat: I understand your perspective on free-market principles, but Democrats believe that a certain level of government intervention is necessary to ensure a fair and equitable economy. We support a progressive tax system to reduce income inequality and provide essential services to those in need. Additionally, we believe that regulations are important to protect consumers, workers, and the environment. As for the Federal Reserve, we agree that controlling inflation is crucial, but we also believe that promoting full employment should be a priority. By finding a balance between these goals, we can create a more inclusive and prosperous economy for all Americans.
+
+## GPT4 + Bing
+Last example [here](notebooks/chat.ipynb).
 
 # API reference
 All of the examples below are in [this notebook](notebooks/tutorial.ipynb)
