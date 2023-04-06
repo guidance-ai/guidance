@@ -10,6 +10,7 @@ import collections
 import tiktoken
 import asyncio
 import re
+import pygtrie
 curr_dir = pathlib.Path(__file__).parent.resolve()
 _file_cache = diskcache.Cache(f"{curr_dir}/_transfomers.diskcache")
 
@@ -21,6 +22,7 @@ class TransformersSession():
         self._past_key_values = None
         self._cached_prefix = ""
         self._cached_tokens = torch.zeros(0)
+        self._past_key_values = None
     
     def __enter__(self):
         return self
@@ -38,7 +40,7 @@ class TransformersSession():
         if key not in _file_cache or not self.caching:
 
             # actually run the model
-            out = self.sample(prompt, stop=None, temperature=None, n=1, max_tokens=1000, logprobs=None, top_p=1.0, echo=False, logit_bias=None, stream=False)
+            out = self.sample(prompt, stop=None, temperature=temperature, n=1, max_tokens=max_tokens, logprobs=None, top_p=top_p, echo=False, logit_bias=None, stream=stream)
 
             if stream:
                 return self.stream_then_save(out, key)
@@ -50,7 +52,6 @@ class TransformersSession():
         return False
     
     def sample(self, prompt, stop, temperature, n, max_tokens, logprobs, top_p, echo, logit_bias, stream,
-               logits_warper=None,
                pad_token_id=None,
                eos_token_id=None,
                synced_gpus=False,
@@ -60,7 +61,12 @@ class TransformersSession():
         import transformers
 
         # encode the prompt
-        input_ids = self._model._encoding.encode(prompt, return_tensors="pt")[0]
+        input_ids = self._model._encoding.encode(prompt, return_tensors="pt")
+        max_tokens += len(input_ids[0])
+
+        # when we tokenize the prompt the last token we get is not the last token
+        last_token_str = self._model._encoding.decode(input_ids[0][-1])
+        allowed_first_tokens = self._model.token_prefix_map.values(prefix=last_token_str)
 
         # find how much of the prompt is cached
         for prefix_match_len, token in enumerate(input_ids):
@@ -68,10 +74,12 @@ class TransformersSession():
                 break
 
         # Create logits processor list
-        logits_processor = transformers.LogitsProcessorList([
-            transformers.TopPLogitsWarper(top_p=top_p),
-            transformers.TemperatureLogitsWarper(temperature)
-        ])
+        logits_processor_list = []
+        if top_p != 1:
+            logits_processor_list.append(transformers.TopPLogitsWarper(top_p))
+        if temperature != 0:
+            logits_processor_list.append(transformers.TemperatureLogitsWarper(temperature))
+        logits_processor = transformers.LogitsProcessorList(logits_processor_list)
 
         # Create stopping criteria list
         stopping_criteria = transformers.StoppingCriteriaList([
@@ -79,29 +87,39 @@ class TransformersSession():
         ])
 
         # init values
-        pad_token_id = pad_token_id if pad_token_id is not None else self.config.pad_token_id
-        eos_token_id = eos_token_id if eos_token_id is not None else self.config.eos_token_id
-        output_scores = output_scores if output_scores is not None else self.config.output_scores
-        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
-        output_hidden_states = (
-            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
-        )
-        return_dict_in_generate = (
-            return_dict_in_generate if return_dict_in_generate is not None else self.config.return_dict_in_generate
-        )
+        model_config = self._model.model_obj.config
+        pad_token_id = pad_token_id if pad_token_id is not None else model_config.pad_token_id
+        eos_token_id = eos_token_id if eos_token_id is not None else model_config.eos_token_id
+        if pad_token_id is None and eos_token_id is not None:
+            # if model_kwargs.get("attention_mask", None) is None:
+            #     logger.warning(
+            #         "The attention mask and the pad token id were not set. As a consequence, you may observe "
+            #         "unexpected behavior. Please pass your input's `attention_mask` to obtain reliable results."
+            #     )
+            # logger.warning(f"Setting `pad_token_id` to `eos_token_id`:{eos_token_id} for open-end generation.")
+            pad_token_id = eos_token_id
+        # output_scores = output_scores if output_scores is not None else model_config.output_scores
+        # output_attentions = output_attentions if output_attentions is not None else model_config.output_attentions
+        # output_hidden_states = (
+        #     output_hidden_states if output_hidden_states is not None else model_config.output_hidden_states
+        # )
+        # return_dict_in_generate = (
+        #     return_dict_in_generate if return_dict_in_generate is not None else model_config.return_dict_in_generate
+        # )
 
         # init attention / hidden states / scores tuples
-        scores = () if (return_dict_in_generate and output_scores) else None
-        decoder_attentions = () if (return_dict_in_generate and output_attentions) else None
-        cross_attentions = () if (return_dict_in_generate and output_attentions) else None
-        decoder_hidden_states = () if (return_dict_in_generate and output_hidden_states) else None
+        scores = None
+        # scores = () if (return_dict_in_generate and output_scores) else None
+        # decoder_attentions = () if (return_dict_in_generate and output_attentions) else None
+        # cross_attentions = () if (return_dict_in_generate and output_attentions) else None
+        # decoder_hidden_states = () if (return_dict_in_generate and output_hidden_states) else None
 
         # if model is an encoder-decoder, retrieve encoder attention weights and hidden states
-        if return_dict_in_generate and self.config.is_encoder_decoder:
-            encoder_attentions = model_kwargs["encoder_outputs"].get("attentions") if output_attentions else None
-            encoder_hidden_states = (
-                model_kwargs["encoder_outputs"].get("hidden_states") if output_hidden_states else None
-            )
+        # if return_dict_in_generate and model_config.is_encoder_decoder:
+        #     encoder_attentions = model_kwargs["encoder_outputs"].get("attentions") if output_attentions else None
+        #     encoder_hidden_states = (
+        #         model_kwargs["encoder_outputs"].get("hidden_states") if output_hidden_states else None
+        #     )
 
         # keep track of which sequences are already finished
         unfinished_sequences = input_ids.new(input_ids.shape[0]).fill_(1)
@@ -122,14 +140,14 @@ class TransformersSession():
                     break
 
             # prepare model inputs
-            model_inputs = self.prepare_inputs_for_generation(input_ids, **model_kwargs)
+            # model_inputs = self.prepare_inputs_for_generation(input_ids, **model_kwargs)
 
             # forward pass to get next token
-            outputs = self(
-                **model_inputs,
+            outputs = self._model.model_obj(
+                **{"input_ids": input_ids},
                 return_dict=True,
-                output_attentions=output_attentions,
-                output_hidden_states=output_hidden_states,
+                # output_attentions=output_attentions,
+                # output_hidden_states=output_hidden_states,
             )
 
             if synced_gpus and this_peer_finished:
@@ -143,26 +161,30 @@ class TransformersSession():
             # next_token_scores = logits_warper(input_ids, next_token_scores)
 
             # Store scores, attentions and hidden_states when required
-            if return_dict_in_generate:
-                if output_scores:
-                    scores += (next_token_scores,)
-                if output_attentions:
-                    decoder_attentions += (
-                        (outputs.decoder_attentions,) if self.config.is_encoder_decoder else (outputs.attentions,)
-                    )
-                    if self.config.is_encoder_decoder:
-                        cross_attentions += (outputs.cross_attentions,)
+            # if return_dict_in_generate:
+            #     if output_scores:
+            #         scores += (next_token_scores,)
+            #     if output_attentions:
+            #         decoder_attentions += (
+            #             (outputs.decoder_attentions,) if self.config.is_encoder_decoder else (outputs.attentions,)
+            #         )
+            #         if self.config.is_encoder_decoder:
+            #             cross_attentions += (outputs.cross_attentions,)
 
-                if output_hidden_states:
-                    decoder_hidden_states += (
-                        (outputs.decoder_hidden_states,)
-                        if self.config.is_encoder_decoder
-                        else (outputs.hidden_states,)
-                    )
+            #     if output_hidden_states:
+            #         decoder_hidden_states += (
+            #             (outputs.decoder_hidden_states,)
+            #             if self.config.is_encoder_decoder
+            #             else (outputs.hidden_states,)
+            #         )
 
-            # sample
-            probs = torch.nn.functional.softmax(next_token_scores, dim=-1)
-            next_tokens = torch.multinomial(probs, num_samples=1).squeeze(1)
+            if temperature == 0.0: # greedy sampling
+                next_tokens = torch.argmax(next_token_scores, dim=-1)
+            else: # sample
+                probs = torch.nn.functional.softmax(next_token_scores, dim=-1)
+                next_tokens = torch.multinomial(probs, num_samples=1).squeeze(1)
+
+            
 
             # finished sentences should have their next token be a padding token
             if eos_token_id is not None:
@@ -173,7 +195,7 @@ class TransformersSession():
             # update generated ids, model inputs, and length for next step
             input_ids = torch.cat([input_ids, next_tokens[:, None]], dim=-1)
             model_kwargs = self._update_model_kwargs_for_generation(
-                outputs, model_kwargs, is_encoder_decoder=self.config.is_encoder_decoder
+                outputs, model_kwargs, is_encoder_decoder=model_config.is_encoder_decoder
             )
             cur_len = cur_len + 1
 
@@ -187,6 +209,11 @@ class TransformersSession():
                     break
                 else:
                     this_peer_finished = True
+
+        # save the key values in our cache
+        self._past_key_values = outputs.past_key_values
+        self._cached_tokens = input_ids[0][:-1] # we don't have the KVs for the last token (it's not generated yet)
+
 
         if return_dict_in_generate:
             if self.config.is_encoder_decoder:
@@ -208,6 +235,38 @@ class TransformersSession():
                 )
         else:
             return input_ids
+    
+    @staticmethod
+    def _update_model_kwargs_for_generation(outputs, model_kwargs, is_encoder_decoder = False):
+        """ From transformers.
+        
+        (we have to reimplement because https://github.com/huggingface/transformers/pull/17574 never got merged)
+        """
+        import torch
+        # update past
+        if "past_key_values" in outputs:
+            model_kwargs["past"] = outputs.past_key_values
+        elif "mems" in outputs:
+            model_kwargs["past"] = outputs.mems
+        elif "past_buckets_states" in outputs:
+            model_kwargs["past"] = outputs.past_buckets_states
+        else:
+            model_kwargs["past"] = None
+
+        # update token_type_ids with last value
+        if "token_type_ids" in model_kwargs:
+            token_type_ids = model_kwargs["token_type_ids"]
+            model_kwargs["token_type_ids"] = torch.cat([token_type_ids, token_type_ids[:, -1].unsqueeze(-1)], dim=-1)
+
+        # update attention mask
+        if not is_encoder_decoder:
+            if "attention_mask" in model_kwargs:
+                attention_mask = model_kwargs["attention_mask"]
+                model_kwargs["attention_mask"] = torch.cat(
+                    [attention_mask, attention_mask.new_ones((attention_mask.shape[0], 1))], dim=-1
+                )
+
+        return model_kwargs
 
 class Transformers():
     """ A HuggingFace transformers language model with Guidance support.
@@ -238,6 +297,17 @@ class Transformers():
         self.current_time = time.time()
         self.call_history = collections.deque()
         self.temperature = temperature
+
+        self.token_prefix_map = self._build_token_prefix_map(model)
+
+    def _build_token_prefix_map(self, model_name):
+        """ Build a map from token to index.
+        """
+        token_map = pygtrie.CharTrie()
+        for i in range(self._encoding.vocab_size):
+            token_map[self._encoding.decode([i])] = i
+
+        return token_map
 
     def session(self):
         return TransformersSession(self)

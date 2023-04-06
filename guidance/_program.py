@@ -322,8 +322,39 @@ class Program:
             else:
                 display = "inline"
             return f"<span style='background-color: rgba(165, 165, 165, 0.1); display: {display};' title='{escaped_tag}'>"
+        
+        def role_box(x):
+            name = x.group(1)
+            content = x.group(2)
+            # one div that contains two divs, where the left of the two inner divs has a fixed width of 100px
+            # """<div style='display: flex;'>
+            #     <div style='width: 100px; border-right: 1px solid rgba(127, 127, 127, 0.2); padding-right: 5px; margin-right: 5px;'>{name}</div>
+            #     <div>{content}</div>
+            # </div>"""
+
+            # return f'''<div style="border-left: 1px solid rgba(127, 127, 127, 0.2); margin-top: 10px; padding-left: 5px;"><span style="color: rgba(127,127,127,0.5)">{name}</span>
+# {content}</div>'''
+
+            return f"<div style='display: flex; border-bottom: 1px solid rgba(127, 127, 127, 0.2); align-items: center;'><div style='flex: 0 0 80px; opacity: 0.5;'>{name}</div><div style='flex-grow: 1; padding: 5px; padding-top: 10px; padding-bottom: 10px; margin-top: 0px; white-space: pre-wrap; margin-bottom: 0px;'>{content}</div></div>"
 
         display_out = html.escape(output)
+        # log.debug(display_out)
+
+        
+        # start_pattern = html.escape(self.llm.role_start("(.*?)")).replace("|", r"\|")
+        # end_pattern = html.escape(self.llm.role_end("(.*?)")).replace("|", r"\|")
+        # display_out = re.sub(r"[\s]+({{!--.*?--}})?"+start_pattern, r"\1"+start_pattern.replace("(.*?)", r"\1").replace(r"\|", "|"), display_out, flags=re.DOTALL)
+        # display_out = re.sub(start_pattern + "(.*?)" + end_pattern, role_box, display_out, flags=re.DOTALL)
+        # log.debug(display_out)
+
+        # strip whitespace around role markers
+        start_pattern = html.escape(guidance.llm.role_start("(.*?)")).replace("|", r"\|")
+        end_pattern = html.escape(guidance.llm.role_end("(.*?)")).replace("|", r"\|")
+        display_out = re.sub(r"\s+({{!--[^}]*--}})?"+start_pattern, r"\1"+start_pattern.replace("(.*?)", r"\2").replace(r"\|", "|"), display_out, flags=re.DOTALL)
+
+        # wrap role markers in nice formatting
+        display_out = re.sub(start_pattern + "(.*?)" + end_pattern, role_box, display_out, flags=re.DOTALL)
+        
         display_out = re.sub(r"(\{\{generate.*?\}\})", r"<span style='background-color: rgba(0, 165, 0, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
         display_out = re.sub(r"(\{\{#select\{\{/select.*?\}\})", r"<span style='background-color: rgba(0, 165, 0, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
         display_out = re.sub(r"(\{\{#each [^'\"].*?\{\{/each.*?\}\})", r"<span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
@@ -406,6 +437,8 @@ cycle_IDVAL(this);'''.replace("IDVAL", id).replace("TOTALCOUNT", str(total_count
         
         # strip out comments
         display_out = re.sub(r"{{~?!.*?}}", "", display_out)
+
+        # re.sub(r"<div class='strip_leading_whitespace'")
 
         display_out = add_spaces(display_out)
         display_out = "<pre style='margin: 0px; padding: 0px; padding-left: 8px; margin-left: -8px; border-radius: 0px; border-left: 1px solid rgba(127, 127, 127, 0.2); white-space: pre-wrap; font-family: ColfaxAI, Arial; font-size: 15px; line-height: 23px;'>"+display_out+"</pre>"
