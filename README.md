@@ -49,7 +49,7 @@ executed_program = program(
     verse=14
 )
 
-# executed_program["rewrite"] now contains the new proverb (as well as "chapter" and "verse")
+# executed_program["rewrite"] now contains the new proverb ("chapter" and "verse" are also stored)
 
 # display in the notebook
 executed_program
