@@ -1,10 +1,10 @@
 <div align="center"><img src="docs/figures/guidance_logo_blue.svg" width=300"></div>
 <br/>
 
-> _Where there is no guidance, a model falls, but in an abundance of instructions there is safety_  
-LLM 11:14
+> _Where there is no guidance, a model falls, but in an abundance of instructions there is safety._  
+_\- GPT 11:14_
 
-<b>Guidance</b> goes beyond traditional prompting, templating, and chaining by defining a rich <i>guidance language</i> that expands the API of model language models. It makes it easy to write prompts / programs to control language models with rich output structure.  
+<b>Guidance</b> makes it easy and effcient to control language models using rich output structure, tool use, . goes beyond traditional prompting, templating, and chaining by defining a rich <i>guidance language</i> that expands the API of model language models. It makes it easy to write prompts / programs to control language models with rich output structure.  
 Simple output structure like [Chain of Thought](https://arxiv.org/abs/2201.11903) and its many variants (e.g. with [ART](https://arxiv.org/abs/2303.09014),) has been shown to improve LLM performance.  
 The advent of more powerful LLMs like [GPT-4](https://arxiv.org/abs/2303.12712) allows for even richer output structure, and `guidance` makes that structure easier and cheaper.
 
@@ -23,7 +23,31 @@ Features:
 pip install guidance
 ```
 
+# Basic completion example
+```python
+import guidance
+guidance.llm = guidance.llms.OpenAI("text-davinci-003")
+
+prompt = guidance("""Tweak this proverb to apply to model instructions instead.
+
+{{proverb}}
+- {{book}} {{chapter}}:{{verse}}
+
+UPDATED
+Where there is no guidance{{gen 'completion' stop=" -"}}
+- GPT {{gen 'chapter'}}:{{gen 'verse'}}""")
+
+prompt(
+    proverb="Where there is no guidance, a people falls,\nbut in an abundance of counselors there is safety.",
+    book="Proverbs",
+    chapter=11,
+    verse=14
+)
+```
+<img src="docs/figures/proverb_output.png" width="401">
+
 # Quick demos
+
 ## Simple output structure ([notebook](notebooks/anachronism.ipynb))
 
 Let's take [a simple task](https://github.com/google/BIG-bench/tree/main/bigbench/benchmark_tasks/anachronisms) from BigBench, where the goal is to identify whether a given sentence contains an anachronism.  
