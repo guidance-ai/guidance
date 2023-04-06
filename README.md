@@ -389,3 +389,103 @@ The program is now executed all the way to the end.
 Echo, stream. TODO @SCOTT
 
 ## Chat
+If you use an OpenAI LLM that only allows for ChatCompletion (`gpt-3.5-turbo` or `gpt-4`), you can use the special tags `{{#system}}`, `{{#user}}`, and `{{#assistant}}`:
+```python
+prompt = guidance(
+'''{{#system~}}
+You are a helpful assistant.
+{{~/system}}
+{{#user~}}
+{{conversation_question}}
+{{~/user}}
+{{#assistant~}}
+{{gen 'response'}}
+{{~/assistant}}''')
+prompt = prompt(conversation_question='What is the meaning of life?')
+prompt
+```
+
+Since partial completions are not allowed, you can't really use output structure _inside_ an assistant block, but you can still set up a structure outside of it. Here is an example:
+```python
+experts = guidance('''
+{{#system~}}
+You are a helpful assistant.
+{{~/system}}
+{{#user~}}
+I want a response to the following question:
+{{query}}
+Who are 3 world-class experts (past or present) who would be great at answering this?
+Please don't answer the question or comment on it yet.
+{{~/user}}
+{{#assistant~}}
+{{gen 'experts' stop="<|im_end|>" temperature=0 max_tokens=300}}
+{{~/assistant}}
+{{#user~}}
+Great, now please answer the question as if these experts had collaborated in writing a joint anonymous answer.
+In other words, their identity is not revealed, nor is the fact that there is a panel of experts answering the question.
+If the experts would disagree, just present their different positions as alternatives in the answer itself (e.g. 'some might argue... others might argue...').
+Please start your answer with ANSWER:
+{{~/user}}
+{{#assistant~}}
+{{gen 'answer' stop="<|im_end|>" temperature=0 max_tokens=500}}
+{{~/assistant}}''')
+experts(query='What is the meaning of life?')
+```
+
+You can still use hidden blocks if you want to hide some of the conversation history for following generations:
+```python
+prompt = guidance(
+'''{{#system~}}
+You are a helpful assistant.
+{{~/system}}
+{{#block hidden=True~}}
+{{#user~}}
+Please tell me a joke
+{{~/user}}
+{{#assistant~}}
+{{gen 'joke'}}
+{{~/assistant}}
+{{~/block~}}
+{{#user~}}
+Is the following joke funny? Why or why not?
+{{joke}}
+{{~/user}}
+{{#assistant~}}
+{{gen 'funny'}}
+{{~/assistant}}''')
+prompt()
+```
+
+### Agents with `geneach`
+You can combine the `await` tag with `geneach` (which generates a list) to create an agent easily:
+```
+prompt = guidance(
+'''{{#system~}}
+You are a helpful assistant
+{{~/system}}
+{{~#geneach 'conversation'}}
+{{#user~}}
+{{set 'this.user_text' (await 'user_text')}}
+{{~/user}}
+{{#assistant~}}
+{{gen 'this.ai_text' stop="<|im_end|>" temperature=0 max_tokens=300}}
+{{~/assistant}}
+{{~/geneach}}''')
+prompt= prompt(user_text ='hi there')
+prompt
+```
+
+Notice how the next iteration of the conversation is still templated, and how the conversation list has a placeholder as the last element:
+```python
+prompt['conversation']
+```
+>[{'user_text': 'hi there',
+  'ai_text': 'Hello! How can I help you today? If you have any questions or need assistance, feel free to ask.'},
+ {}]
+
+ We can then execute the prompt again, and it will generate the next round:
+
+ ```python
+ prompt = prompt(user_text = 'What is the meaning of life?')
+prompt
+```
