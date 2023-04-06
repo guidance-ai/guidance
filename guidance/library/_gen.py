@@ -16,6 +16,13 @@ async def gen(variable_name="generated", partial_output=None, parse=False, stop=
         prev_text = prev_node.text if prev_node is not None else ""
         if next_next_node and next_next_node.text.startswith("{{~"):
             next_text = next_text.lstrip()
+            if next_next_node and next_text == "":
+                next_text = next_next_node.text
+
+        # auto-detect role stop tags
+        m = re.match(r"{{~?/(user|assistant|system|role)~?}}", next_text)
+        if m:
+            stop = parser.program.llm.role_end(m.group(1))
 
         # auto-detect quote stop tokens
         quote_types = ['"', "'", "'''", '"""', "`"]
