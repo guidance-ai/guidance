@@ -348,12 +348,13 @@ class Program:
         # log.debug(display_out)
 
         # strip whitespace around role markers
-        start_pattern = html.escape(guidance.llm.role_start("(.*?)")).replace("|", r"\|")
-        end_pattern = html.escape(guidance.llm.role_end("(.*?)")).replace("|", r"\|")
-        display_out = re.sub(r"\s+({{!--[^}]*--}})?"+start_pattern, r"\1"+start_pattern.replace("(.*?)", r"\2").replace(r"\|", "|"), display_out, flags=re.DOTALL)
+        if self.llm.chat_mode:
+            start_pattern = html.escape(self.llm.role_start("(.*?)")).replace("|", r"\|")
+            end_pattern = html.escape(self.llm.role_end("(.*?)")).replace("|", r"\|")
+            display_out = re.sub(r"\s+({{!--[^}]*--}})?"+start_pattern, r"\1"+start_pattern.replace("(.*?)", r"\2").replace(r"\|", "|"), display_out, flags=re.DOTALL)
 
-        # wrap role markers in nice formatting
-        display_out = re.sub(start_pattern + "(.*?)" + end_pattern, role_box, display_out, flags=re.DOTALL)
+            # wrap role markers in nice formatting
+            display_out = re.sub(start_pattern + "(.*?)" + end_pattern, role_box, display_out, flags=re.DOTALL)
         
         display_out = re.sub(r"(\{\{generate.*?\}\})", r"<span style='background-color: rgba(0, 165, 0, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
         display_out = re.sub(r"(\{\{#select\{\{/select.*?\}\})", r"<span style='background-color: rgba(0, 165, 0, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
