@@ -395,7 +395,7 @@ The program is now executed all the way to the end.
 ## Notebook functions
 Echo, stream. TODO @SCOTT
 
-## Chat
+## Chat (see also [this notebook](notebooks/chat.ipynb))
 If you use an OpenAI LLM that only allows for ChatCompletion (`gpt-3.5-turbo` or `gpt-4`), you can use the special tags `{{#system}}`, `{{#user}}`, and `{{#assistant}}`:
 ```python
 prompt = guidance(
@@ -413,7 +413,7 @@ prompt
 ```
 ![chat1](docs/figures/chat1.png)
 
-Since partial completions are not allowed, you can't really use output structure _inside_ an assistant block, but you can still set up a structure outside of it. Here is an example:
+Since partial completions are not allowed, you can't really use output structure _inside_ an assistant block, but you can still set up a structure outside of it. Here is an example (also in [here](notebooks/chat.ipynb)):
 ```python
 experts = guidance(
 '''{{#system~}}
@@ -497,6 +497,7 @@ prompt['conversation']
  prompt = prompt(user_text = 'What is the meaning of life?')
 prompt
 ```
+See a more elaborate example [here](notebooks/chat.ipynb).
 
 ### Using tools
 See the 'Using a search API' example in [this notebook](notebooks/chat.ipynb)
