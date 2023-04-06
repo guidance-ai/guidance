@@ -20,7 +20,8 @@ pip install guidance
 ```
 
 # Quick demos
-## Simple output structure
+## Simple output structure ([notebook](notebooks/anachronism.ipynb))
+
 Let's take [a simple task](https://github.com/google/BIG-bench/tree/main/bigbench/benchmark_tasks/anachronisms) from BigBench, where the goal is to identify whether a given sentence contains an anachronism.  
 Here is a simple two-shot prompt for it, with a human-crafted chain-of-thought sequence:
 ```python
@@ -67,56 +68,59 @@ We [compute accuracy](notebooks/anachronism.ipynb) on the validation set, and co
 | [Guidance](notebooks/anachronism.ipynb) | **76.01%** |
 
 
-## Output structure with OpenAI's Chat models
-Full notebook [here](notebooks/chat_topk.ipynb)
+## Output structure with OpenAI's Chat models ([notebook](notebooks/chat.ipynb))
 ```python
 import guidance
 import re
 
-guidance.llm = guidance.llms.OpenAI("gpt-4", chat_completion=True)
+guidance.llm = guidance.llms.OpenAI("gpt-4")
 
 def parse_best(prosandcons, options):
     best = int(re.findall(r'Best=(\d+)', prosandcons)[0])
     return options[best]
 
-create_plan = guidance('''<|im_start|>system
+create_plan = guidance('''{{#system~}}
 You are a helpful assistant.
-<|im_end|>
-<|im_start|>user
-I want to {{goal}}.
-
-{{~! generate potential options ~}}
+{{~/system}}
 {{#block hidden=True}}
+{{#user~}}
+I want to {{goal}}.
+{{~! generate potential options ~}}
 Can you please generate one option for how to accomplish this?
 Please make the option very short, at most one line.
-<|im_end|>
-<|im_start|>assistant
-{{gen 'options' n=5 temperature=1.0 max_tokens=500}}
-<|im_end|>
+{{~/user}}
+{{#assistant~}}
+{{gen 'options' n=5 temperature=1.0 stop='<|im_end|>' max_tokens=500}}
+{{~/assistant}}
 {{/block}}
-
 {{~! generate pros and cons and select the best option ~}}
 {{#block hidden=True}}
+{{#user~}}
+I want to {{goal}}.
+
 Can you please comment on the pros and cons of each of the following options, and then pick the best option?
 ---{{#each options}}
 Option {{@index}}: {{this}}{{/each}}
 ---
 Please discuss each option very briefly (one line for pros, one for cons), and end by saying Best=X, where X is the best option.
-<|im_end|>
-<|im_start|>assistant
-{{gen 'prosandcons' temperature=0.0 max_tokens=500}}
-<|im_end|>
+{{~/user}}
+{{#assistant~}}
+{{gen 'prosandcons' stop='<|im_end|>' temperature=0.0 max_tokens=500}}
+{{~/assistant}}
 {{/block}}
-
+{{#user~}}
+I want to {{goal}}.
 {{~! Create a plan }}
 Here is my plan:
 {{parse_best prosandcons options}}
 Please elaborate on this plan, and tell me how to best accomplish it.
-<|im_end|>
-<|im_start|>assistant
-{{gen 'plan' max_tokens=500}}
-<|im_end|>''')
+{{~/user}}
+{{#assistant~}}
+{{gen 'plan' max_tokens=500 stop='<|im_end|>'}}
+{{~/assistant}}''')
+
 out = create_plan(goal='read more books', parse_best=parse_best)
+out
 ```
 
 This prompt is a bit more complicated, but we are basically going through 3 steps:
@@ -166,32 +170,36 @@ out
 ```
 ![chat_reading](docs/figures/chat_reading.png)
 
-## Agents
+## Agents ([notebook](notebooks/chat.ipynb))
 We can easily build agents that talk to each other or to a user, via the `await` command. For example, here is how we might get GPT-4 to simulate two agents talking to one another:
 
 ```python
 import guidance
+import re
 guidance.llm = guidance.llms.OpenAI("gpt-4")
-
-role_simulator = guidance('''<|im_start|>system
-You are a helpful assistant<|im_end|>
-<|im_start|>user
+role_simulator = guidance('''{{#system~}}
+You are a helpful assistant
+{{~/system}}
+{{#user~}}
 You will answer the user as {{role}} in the following conversation. At every step, I will provide you with the user input, as well as a comment reminding you of your instructions. Never talk about the fact that you are an AI, even if the user asks you. Always answer as {{role}}.
-{{#if first_question}}You can also start the conversation.{{/if}}<|im_end|>
-
-{{~! The assistant either always starts the conversation }}
-<|im_start|>assistant
+{{#if first_question}}You can also start the conversation.{{/if}}
+{{~/user}}
+{{~! The assistant either starts the conversation or not, depending on if this is the first or second agent }}
+{{#assistant~}}
 Ok, I will follow these instructions.
 {{#if first_question}}Let me start the conversation now:
-{{role}}: {{first_question}}{{/if}}<|im_end|>
-
+{{role}}: {{first_question}}{{/if}}
+{{~/assistant}}
 {{~! Then the conversation unrolls }}
 {{~#geneach 'conversation'}}
-<|im_start|>user
+{{#user~}}
 User: {{set 'this.input' (await 'input')}}
-Comment: Remember, answer as a {{role}}. Start your utterance with {{role}}:<|im_end|>
-<|im_start|>assistant
-{{gen 'this.response' stop="<|im_end|>" temperature=0 max_tokens=300}}<|im_end|>{{~/geneach}}''')
+Comment: Remember, answer as a {{role}}. Start your utterance with {{role}}:
+{{~/user}}
+{{#assistant~}}
+{{gen 'this.response' stop="<|im_end|>" temperature=0 max_tokens=300}}
+{{~/assistant}}
+{{~/geneach}}''')
 
 republican = role_simulator(role='Republican')
 democrat = role_simulator(role='Democrat')
@@ -202,27 +210,26 @@ democrat = democrat(input=republican["conversation"][-2]["response"].strip('Repu
 for i in range(2):
     republican = republican(input=democrat["conversation"][-2]["response"].replace('Democrat: ', ''))
     democrat = democrat(input=republican["conversation"][-2]["response"].replace('Republican: ', ''))
-
 print('Democrat: ' + first_question)
 for x in democrat['conversation'][:-1]:
     print('Republican:', x['input'])
+    print()
     print(x['response'])
-    print('')
 ```
-> Democrat: What do you think is the best way to stop inflation?  
+> Democrat: What do you think is the best way to stop inflation?
 
 > Republican: The best way to stop inflation is by implementing sound fiscal policies, such as reducing government spending, lowering taxes, and promoting economic growth. Additionally, the Federal Reserve should focus on maintaining a stable monetary policy to control inflation.
 
-> Democrat: While I agree that sound fiscal policies are important, as a Democrat, I believe that the government should invest in social programs, education, and infrastructure to promote economic growth and reduce income inequality. Additionally, the Federal Reserve should maintain a stable monetary policy, but also consider the impact of its decisions on employment and overall economic well-being.
+> Democrat: I agree that sound fiscal policies are important in controlling inflation. As a Democrat, I would emphasize the importance of investing in education, healthcare, and infrastructure to promote long-term economic growth. Additionally, we should ensure that the Federal Reserve maintains a balanced approach to monetary policy, focusing on both controlling inflation and promoting full employment.
 
-> Republican: While investing in social programs, education, and infrastructure is important, we must also prioritize fiscal responsibility and avoid excessive government spending. By lowering taxes and reducing regulations, we can encourage private sector growth and job creation, which will ultimately benefit all Americans. Balancing these investments with responsible spending will help maintain a stable economy and address income inequality without causing inflation. The Federal Reserve should continue to focus on maintaining a stable monetary policy, while also considering the impact of its decisions on employment and overall economic well-being.
 
-> Democrat: I understand the importance of fiscal responsibility, but as a Democrat, I believe that strategic government investments in social programs, education, and infrastructure can lead to long-term economic growth and a more equitable society. We can balance these investments with responsible spending by closing tax loopholes and ensuring that corporations and the wealthy pay their fair share. This approach will help address income inequality and provide opportunities for all Americans, while still maintaining a stable economy. The Federal Reserve should continue to focus on maintaining a stable monetary policy, while also considering the impact of its decisions on employment and overall economic well-being.
+> Republican: While investing in education, healthcare, and infrastructure is important, we must also prioritize reducing the national debt and limiting government intervention in the economy. By lowering taxes and reducing regulations, we can encourage businesses to grow and create jobs, which will ultimately lead to long-term economic growth. As for the Federal Reserve, it's crucial to maintain a stable monetary policy that primarily focuses on controlling inflation, as this will create a more predictable economic environment for businesses and consumers.
 
-> Republican: While strategic government investments can contribute to long-term economic growth, it's crucial to ensure that these investments are made efficiently and do not lead to unsustainable spending. As Republicans, we believe in a limited government role and emphasize the importance of private sector growth to drive economic prosperity. By lowering taxes and reducing regulations, we can create a business-friendly environment that encourages innovation and job creation. Closing tax loopholes and ensuring that everyone pays their fair share is important, but we must also prioritize spending cuts and fiscal responsibility to maintain a stable economy. The Federal Reserve should continue to focus on maintaining a stable monetary policy, while also considering the impact of its decisions on employment and overall economic well-being.
+> Democrat: While reducing the national debt and limiting government intervention are valid concerns, Democrats believe that strategic investments in education, healthcare, and infrastructure can lead to long-term economic growth and job creation. We also support a progressive tax system that ensures everyone pays their fair share, which can help fund these investments. As for the Federal Reserve, we believe that a balanced approach to monetary policy, focusing on both controlling inflation and promoting full employment, is essential for a healthy economy. We must strike a balance between fiscal responsibility and investing in our nation's future.
 
-> Democrat: I understand the Republican perspective on limited government and the importance of private sector growth. However, as a Democrat, I believe that the government has a crucial role to play in addressing social and economic issues that the private sector may not prioritize. By investing in social programs, education, and infrastructure, we can create a strong foundation for long-term economic growth and a more equitable society. We can achieve fiscal responsibility by closing tax loopholes, ensuring that everyone pays their fair share, and making smart investments that yield long-term benefits. The Federal Reserve should continue to focus on maintaining a stable monetary policy, while also considering the impact of its decisions on employment and overall economic well-being.
+> Republican: It's important to find a balance between fiscal responsibility and investing in our nation's future. However, we believe that the best way to achieve long-term economic growth and job creation is through free-market principles, such as lower taxes and reduced regulations. This approach encourages businesses to expand and innovate, leading to a more prosperous economy. A progressive tax system can sometimes discourage growth and investment, so we advocate for a simpler, fairer tax system that promotes economic growth. Regarding the Federal Reserve, while promoting full employment is important, we must not lose sight of the primary goal of controlling inflation to maintain a stable and predictable economic environment.
 
+> Democrat: I understand your perspective on free-market principles, but Democrats believe that a certain level of government intervention is necessary to ensure a fair and equitable economy. We support a progressive tax system to reduce income inequality and provide essential services to those in need. Additionally, we believe that regulations are important to protect consumers, workers, and the environment. As for the Federal Reserve, we agree that controlling inflation is crucial, but we also believe that promoting full employment should be a priority. By finding a balance between these goals, we can create a more inclusive and prosperous economy for all Americans.
 
 # API reference
 All of the examples below are in [this notebook](notebooks/tutorial.ipynb)
@@ -404,11 +411,12 @@ You are a helpful assistant.
 prompt = prompt(conversation_question='What is the meaning of life?')
 prompt
 ```
+![chat1](docs/figures/chat1.png)
 
 Since partial completions are not allowed, you can't really use output structure _inside_ an assistant block, but you can still set up a structure outside of it. Here is an example:
 ```python
-experts = guidance('''
-{{#system~}}
+experts = guidance(
+'''{{#system~}}
 You are a helpful assistant.
 {{~/system}}
 {{#user~}}
@@ -489,3 +497,6 @@ prompt['conversation']
  prompt = prompt(user_text = 'What is the meaning of life?')
 prompt
 ```
+
+### Using tools
+See the 'Using a search API' example in [this notebook](notebooks/chat.ipynb)
