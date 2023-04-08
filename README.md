@@ -1,3 +1,4 @@
+<br/>
 <div align="center"><img src="docs/figures/guidance_logo_blue.svg" width=300"></div>
 <br/>
 
