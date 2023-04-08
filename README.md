@@ -1,29 +1,63 @@
 <div align="center"><img src="docs/figures/guidance_logo_blue.svg" width=300"></div>
 <br/>
 
-> _Where there is no guidance, a model falls, but in an abundance of instructions there is safety_  
-LLM 11:14
+> _Where there is no guidance, a model fails, but in an abundance of instructions there is safety._  
+_\- GPT 11:14_
 
-<b>Guidance</b> goes beyond traditional prompting, templating, and chaining by defining a rich <i>guidance language</i> that expands the API of model language models. It makes it easy to write prompts / programs to control language models with rich output structure.  
-Simple output structure like [Chain of Thought](https://arxiv.org/abs/2201.11903) and its many variants (e.g. with [ART](https://arxiv.org/abs/2303.09014),) has been shown to improve LLM performance.  
-The advent of more powerful LLMs like [GPT-4](https://arxiv.org/abs/2303.12712) allows for even richer output structure, and `guidance` makes that structure easier and cheaper.
+<!--It expands the API of language models so you can craft rich output structure, design precise tool use, create multi-agent interactions, and much more all while using clear code and maximum inference efficiency.-->
+<b>Guidance</b> is a language that enables you to easily and efficiently control modern language models. Guidance programs allow you interleave generation, prompting, and logical control into a single continuious flow that matches how the language model actually processes the text.  Simple output structure like [Chain of Thought](https://arxiv.org/abs/2201.11903) and its many variants (e.g. [ART](https://arxiv.org/abs/2303.09014), [Auto-CoT](https://arxiv.org/abs/2210.03493), etc.) has been shown to improve LLM performance. The advent of more powerful LLMs like [GPT-4](https://arxiv.org/abs/2303.12712) allows for even richer structure, and `guidance` makes that structure easier and cheaper.
 
 Features:
-- [x] Simple, intuitive syntax, using [handlebars](https://handlebarsjs.com/) templating
-- [x] Rich output structure with multiple generations, selections, conditionals, tool use, etc
-- [x] Playground-like streaming in Jupyter/VSCode Notebooks
-- [x] Smart seed-based generation caching
-- [x] Support for [OpenAI's Chat models](https://beta.openai.com/docs/guides/chat)
-- [x] Easy integration with huggingface models, with [guidance acceleration](for#internal_docs) speedups over standard prompt
-- [x] [Token healing](for#link_internal_docs) to optimize guidance boundaries.
+- [x] Simple, intuitive syntax, based on [Handlebars](https://handlebarsjs.com/) templating.
+- [x] Rich output structure with multiple generations, selections, conditionals, tool use, etc.
+- [x] Playground-like streaming in Jupyter/VSCode Notebooks.
+- [x] Smart seed-based generation caching.
+- [x] Support for role-based chat models (e.g. [ChatGPT](https://beta.openai.com/docs/guides/chat)).
+- [x] Easy integration with HuggingFace models, including [guidance acceleration](for#internal_docs) speedups over standard prompting, and [token healing](for#link_internal_docs) to optimize prompt boundaries.
 
 # Install
 
 ```python
 pip install guidance
 ```
+<!--The following example defines and executes a guidance program that rewrites proverbs. -->
+
+# Simple completion example
+Just like standard Handlebars templates, you can do variable interpolation (e.g. `{{proverb}}`) and logical control. But unlike standard templating languages, guidance programs have a well defined linear execution order that directly corresponds to the token order as processed by the language model. This means that at any point during execution the language model can be used to generate text (using the `{{gen}}` command) or make logical control flow decisions (shown later). This interleaving of generation and prompting allows for precise output structure that produces clear and parsable results.
+
+```python
+import guidance
+
+# set the default language model used to execute guidance programs
+guidance.llm = guidance.llms.OpenAI("text-davinci-003")
+
+# define a guidance program that adapts proverbs
+program = guidance("""Tweak this proverb to apply to model instructions instead.
+
+{{proverb}}
+- {{book}} {{chapter}}:{{verse}}
+
+UPDATED
+Where there is no guidance{{gen 'rewrite' stop=" -"}}
+- GPT {{gen 'chapter'}}:{{gen 'verse'}}""")
+
+# execute the program on a specific proverb
+executed_program = program(
+    proverb="Where there is no guidance, a people falls,\nbut in an abundance of counselors there is safety.",
+    book="Proverbs",
+    chapter=11,
+    verse=14
+)
+
+# executed_program["rewrite"] now contains the new proverb ("chapter" and "verse" are also stored)
+
+# display in the notebook
+executed_program
+```
+<img src="docs/figures/proverb_output.png" width="401">
 
 # Quick demos
+
 ## Simple output structure ([notebook](notebooks/anachronism.ipynb))
 
 Let's take [a simple task](https://github.com/google/BIG-bench/tree/main/bigbench/benchmark_tasks/anachronisms) from BigBench, where the goal is to identify whether a given sentence contains an anachronism.  
