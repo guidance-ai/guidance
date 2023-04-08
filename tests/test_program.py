@@ -38,7 +38,7 @@ def test_chat_echo():
     loop = asyncio.new_event_loop()
 
     import guidance
-    guidance.llm = guidance.llms.OpenAI("gpt-4")
+    guidance.llm = guidance.llms.OpenAI("gpt-3.5-turbo")
 
     async def f():
         chat = guidance("""<|im_start|>system
@@ -56,7 +56,7 @@ def test_chat_echo():
 def test_agents():
     """Test agentes, calling prompt twice"""
     import guidance
-    guidance.llm = guidance.llms.OpenAI("gpt-4")
+    guidance.llm = guidance.llms.OpenAI("gpt-3.5-turbo")
     prompt = guidance('''<|im_start|>system
     You are a helpful assistant.<|im_end|>
     {{#geneach 'conversation'}}

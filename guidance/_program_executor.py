@@ -24,6 +24,7 @@ class ProgramExecutor():
         self.executing = True
         self.should_stop = False
         self.caught_stop_iteration = False
+        self.llm_session = None
 
         # find all the handlebars-style partial inclusion tags and replace them with the partial template
         def replace_partial(match):
@@ -71,9 +72,10 @@ class ProgramExecutor():
         
         
 
-    async def run(self):
+    async def run(self, llm_session):
         """ Execute the program.
         """
+        self.llm_session = llm_session
         try:
             # first parse all the whitespace control
             # self.whitespace_control_visit(self.parse_tree)

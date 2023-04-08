@@ -265,7 +265,8 @@ class Program:
             await asyncio.sleep(0)
         
         # run the program and capture the output
-        await self._executor.run()
+        with self.llm.session() as llm_session:
+            await self._executor.run(llm_session)
         self._text = self._executor.prefix
 
         # delete the executor and so mark the program as not executing

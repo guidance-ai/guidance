@@ -11,6 +11,7 @@ import collections
 import tiktoken
 import asyncio
 import re
+from ._llm import LLM
 curr_dir = pathlib.Path(__file__).parent.resolve()
 _file_cache = diskcache.Cache(f"{curr_dir}/_openai.diskcache")
 
@@ -68,7 +69,7 @@ chat_models = [
     "gpt-3.5-turbo-0301"
 ]
 
-class OpenAI():
+class OpenAI(LLM):
     def __init__(self, model=None, caching=True, max_retries=5, max_calls_per_min=60, token=None, endpoint=None, temperature=0.0, chat_mode="auto"):
 
         # fill in default model value
@@ -131,19 +132,21 @@ class OpenAI():
         assert self.chat_mode, "role_end() can only be used in chat mode"
         return "<|im_end|>"
     
-    def __call__(self, prompt, stop=None, temperature=None, n=1, max_tokens=1000, logprobs=None, top_p=1.0, echo=False, logit_bias=None, stream=False, cache_seed=0):
+    def __call__(self, prompt, stop=None, temperature=None, n=1, max_tokens=1000, logprobs=None, top_p=1.0, echo=False, logit_bias=None, pattern=None, stream=False, cache_seed=0):
         """ Generate a completion of the given prompt.
         """
+
+        assert not pattern, "The OpenAI API does not support Guidance pattern controls! Please either switch to an endpoint that does, or don't user the `pattern` argument to `gen`."
 
         if temperature is None:
             temperature = self.temperature
 
         # define the key for the cache
-        key = "_---_".join([str(v) for v in (self.model, prompt, stop, temperature, n, max_tokens, logprobs, echo, logit_bias, stream, cache_seed)])
+        key = "_---_".join([str(v) for v in (self.model, prompt, stop, temperature, n, max_tokens, logprobs, top_p, echo, logit_bias, pattern, stream, cache_seed)])
         
         # allow streaming to use non-streaming cache (the reverse is not true)
         if key not in _file_cache and stream:
-            key1 = "_---_".join([str(v) for v in (self.model, prompt, stop, temperature, n, max_tokens, logprobs, echo, logit_bias, False, cache_seed)])
+            key1 = "_---_".join([str(v) for v in (self.model, prompt, stop, temperature, n, max_tokens, logprobs, top_p, echo, logit_bias, pattern, False, cache_seed)])
             if key1 in _file_cache:
                 key = key1
         

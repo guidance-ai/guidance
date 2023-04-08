@@ -1,4 +1,6 @@
-class Mock():
+from ._llm import LLM
+
+class Mock(LLM):
     """ Mock class for testing.
     """
     def __init__(self, output=None):

@@ -3,11 +3,9 @@ import re
 import uuid
 from .._grammar import grammar
 
-async def gen(variable_name="generated", partial_output=None, parse=False, stop=None, max_tokens=500, n=1, temperature=0.0, top_p=1.0, logprobs=None, hidden=False, save_prompt=False, parser_prefix=None, parser=None, prefix="", suffix="", next_node=None, prev_node=None, next_next_node=None, **kwargs):
+async def gen(variable_name="generated", partial_output=None, parse=False, stop=None, max_tokens=500, n=1, temperature=0.0, top_p=1.0, logprobs=None, pattern=None, hidden=False, save_prompt=False, parser_prefix=None, parser=None, prefix="", suffix="", next_node=None, prev_node=None, next_next_node=None, **kwargs):
     ''' Use the LM to generate a completion string that is stored in the variable `variable_name`.
     '''
-
-    
 
     # if stop is None then we use the text of the node after the generate command
     if stop is None:
@@ -40,7 +38,9 @@ async def gen(variable_name="generated", partial_output=None, parse=False, stop=
                     stop = end_tag
             else:
                 stop = next_text
-    
+    if stop == "":
+        stop = None
+
     # set the cache seed to 0 if temperature is 0
     if temperature > 0:
         cache_seed = parser.program.cache_seed
@@ -59,8 +59,8 @@ async def gen(variable_name="generated", partial_output=None, parse=False, stop=
         parser.set_variable(save_prompt, parser_prefix+prefix)
 
     # call the LLM
-    gen_obj = parser.program.llm(
-        parser_prefix+prefix, stop=stop, max_tokens=max_tokens, n=n,
+    gen_obj = parser.llm_session(
+        parser_prefix+prefix, stop=stop, max_tokens=max_tokens, n=n, pattern=pattern,
         temperature=temperature, top_p=top_p, logprobs=parser.program.logprobs, cache_seed=cache_seed,
         echo=parser.program.logprobs is not None, stream=stream_generation
     )
