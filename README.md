@@ -2,6 +2,8 @@
 <div align="center"><img src="docs/figures/guidance_logo_blue.svg" width=300"></div>
 <br/>
 
+<div align="center"><b>Currently in early alpha testing as of v0.0.26</b></div><br>
+
 > _Where there is no guidance, a model fails, but in an abundance of instructions there is safety._  
 _\- GPT 11:14_
 
