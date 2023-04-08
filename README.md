@@ -1,3 +1,4 @@
+<br/>
 <div align="center"><img src="docs/figures/guidance_logo_blue.svg" width=300"></div>
 <br/>
 
@@ -5,7 +6,7 @@
 _\- GPT 11:14_
 
 <!--It expands the API of language models so you can craft rich output structure, design precise tool use, create multi-agent interactions, and much more all while using clear code and maximum inference efficiency.-->
-<b>Guidance</b> is a language that enables you to easily and efficiently control modern language models. Guidance programs allow you interleave generation, prompting, and logical control into a single continuious flow that matches how the language model actually processes the text.  Simple output structure like [Chain of Thought](https://arxiv.org/abs/2201.11903) and its many variants (e.g. [ART](https://arxiv.org/abs/2303.09014), [Auto-CoT](https://arxiv.org/abs/2210.03493), etc.) has been shown to improve LLM performance. The advent of more powerful LLMs like [GPT-4](https://arxiv.org/abs/2303.12712) allows for even richer structure, and `guidance` makes that structure easier and cheaper.
+<b>Guidance</b> is a language that enables you to control modern language models more easily and efficiently. Guidance programs allow you to interleave generation, prompting, and logical control into a single continuious flow that matches how the language model actually processes the text. Simple output structures like [Chain of Thought](https://arxiv.org/abs/2201.11903) and its many variants (e.g. [ART](https://arxiv.org/abs/2303.09014), [Auto-CoT](https://arxiv.org/abs/2210.03493), etc.) have been shown to improve LLM performance. The advent of more powerful LLMs like [GPT-4](https://arxiv.org/abs/2303.12712) allows for even richer structure, and `guidance` makes that structure easier and cheaper.
 
 Features:
 - [x] Simple, intuitive syntax, based on [Handlebars](https://handlebarsjs.com/) templating.
@@ -13,7 +14,7 @@ Features:
 - [x] Playground-like streaming in Jupyter/VSCode Notebooks.
 - [x] Smart seed-based generation caching.
 - [x] Support for role-based chat models (e.g. [ChatGPT](https://beta.openai.com/docs/guides/chat)).
-- [x] Easy integration with HuggingFace models, including [guidance acceleration](for#internal_docs) speedups over standard prompting, and [token healing](for#link_internal_docs) to optimize prompt boundaries.
+- [x] Easy integration with HuggingFace models, including [guidance acceleration](for#internal_docs) for speedups over standard prompting, [token healing](for#link_internal_docs) to optimize prompt boundaries, and [regex pattern guides](asfd#test) to enforce formats.
 
 # Install
 
