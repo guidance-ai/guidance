@@ -14,7 +14,7 @@ Features:
 - [x] Playground-like streaming in Jupyter/VSCode Notebooks.
 - [x] Smart seed-based generation caching.
 - [x] Support for role-based chat models (e.g. [ChatGPT](https://beta.openai.com/docs/guides/chat)).
-- [x] Easy integration with HuggingFace models, including [guidance acceleration](for#internal_docs) speedups over standard prompting, and [token healing](for#link_internal_docs) to optimize prompt boundaries.
+- [x] Easy integration with HuggingFace models, including [guidance acceleration](for#internal_docs) speedups over standard prompting, [token healing](for#link_internal_docs) to optimize prompt boundaries, and [regex pattern guides](asfd#test) to enforce formats.
 
 # Install
 
