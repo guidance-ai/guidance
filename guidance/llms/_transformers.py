@@ -22,7 +22,7 @@ class Transformers(LLM):
     """ A HuggingFace transformers language model with Guidance support.
     """
 
-    def __init__(self, model=None, caching=True, token_healing=True, token_acceleration=True, temperature=0.0, device=None):
+    def __init__(self, model=None, caching=True, token_healing=True, acceleration=True, temperature=0.0, device=None):
         super().__init__()
 
         try:
@@ -49,7 +49,7 @@ class Transformers(LLM):
         self.call_history = collections.deque()
         self.temperature = temperature
         self.token_healing = token_healing
-        self.token_acceleration = token_acceleration
+        self.acceleration = acceleration
         self.device = device
         if self.device is not None:
             self.model_obj = self.model_obj.to(self.device)
@@ -95,7 +95,7 @@ class TransformersSession(LLMSession):
     def __enter__(self):
 
         # we only need decorators if we are using token acceleration
-        if self.llm.token_acceleration:
+        if self.llm.acceleration:
 
             # decorate the prep step to preserve the initial past key values we have passed
             def prep_step_decorator(method):
@@ -271,7 +271,7 @@ class TransformersSession(LLMSession):
         return _file_cache[key]
     
     def __exit__(self, exc_type, exc_value, traceback):
-        if self.llm.token_acceleration:
+        if self.llm.acceleration:
             self.llm.model_obj.prepare_inputs_for_generation = self._prev_prepare_method
             self.llm.model_obj._update_model_kwargs_for_generation = self._prev_update_method
         return False
