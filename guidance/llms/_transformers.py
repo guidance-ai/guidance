@@ -14,13 +14,12 @@ import regex
 import pygtrie
 import logging
 from ._llm import LLM, LLMSession
-curr_dir = pathlib.Path(__file__).parent.resolve()
-_file_cache = diskcache.Cache(f"{curr_dir}/_transfomers.diskcache")
-
 
 class Transformers(LLM):
     """ A HuggingFace transformers language model with Guidance support.
     """
+
+    cache = LLM._open_cache("_transfomers.diskcache")
 
     def __init__(self, model=None, caching=True, token_healing=True, acceleration=True, temperature=0.0, device=None):
         super().__init__()
@@ -82,8 +81,7 @@ class Transformers(LLM):
         for out in gen:
             list_out.append(out)
             yield out
-        _file_cache[key] = list_out
-Transformers.cache = _file_cache
+        self.cache[key] = list_out
 
 class TransformersSession(LLMSession):
     def __init__(self, llm):
@@ -164,7 +162,7 @@ class TransformersSession(LLMSession):
 
         # handle caching
         key = "_---_".join([str(v) for v in (self.llm.model_name, prompt, stop_regex, temperature, n, max_tokens, logprobs, top_p, echo, logit_bias, token_healing, pattern, cache_seed)])
-        if key not in _file_cache or not self.llm.caching:
+        if key not in self.llm.cache or not self.llm.caching:
             import transformers
             import torch
             # encode the prompt
@@ -267,8 +265,8 @@ class TransformersSession(LLMSession):
             if stream:
                 return self.stream_then_save(out, key)
             else:
-                _file_cache[key] = out
-        return _file_cache[key]
+                self.llm.cache[key] = out
+        return self.llm.cache[key]
     
     def __exit__(self, exc_type, exc_value, traceback):
         if self.llm.acceleration:

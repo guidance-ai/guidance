@@ -5,6 +5,7 @@ import os
 import time
 import requests
 import warnings
+import copy
 import time
 import types
 import collections
@@ -12,8 +13,7 @@ import tiktoken
 import asyncio
 import re
 from ._llm import LLM
-curr_dir = pathlib.Path(__file__).parent.resolve()
-_file_cache = diskcache.Cache(f"{curr_dir}/_openai.diskcache")
+
 
 class MalformedPromptException(Exception):
     pass
@@ -70,6 +70,8 @@ chat_models = [
 ]
 
 class OpenAI(LLM):
+    cache = LLM._open_cache("_openai.diskcache")
+
     def __init__(self, model=None, caching=True, max_retries=5, max_calls_per_min=60, token=None, endpoint=None, temperature=0.0, chat_mode="auto"):
 
         # fill in default model value
@@ -113,7 +115,8 @@ class OpenAI(LLM):
         self.caching = caching
         self.max_retries = max_retries
         self.max_calls_per_min = max_calls_per_min
-        self.token = token.replace("Bearer ", "")
+        if isinstance(token, str):
+            self.token = token.replace("Bearer ", "")
         self.endpoint = endpoint
         self.current_time = time.time()
         self.call_history = collections.deque()
@@ -123,6 +126,9 @@ class OpenAI(LLM):
             self.caller = self._library_call
         else:
             self.caller = self._rest_call
+            self._rest_headers = {
+                "Content-Type": "application/json"
+            }
 
     def role_start(self, role):
         assert self.chat_mode, "role_start() can only be used in chat mode"
@@ -145,13 +151,13 @@ class OpenAI(LLM):
         key = "_---_".join([str(v) for v in (self.model, prompt, stop, temperature, n, max_tokens, logprobs, top_p, echo, logit_bias, pattern, stream, cache_seed)])
         
         # allow streaming to use non-streaming cache (the reverse is not true)
-        if key not in _file_cache and stream:
+        if key not in self.__class__.cache and stream:
             key1 = "_---_".join([str(v) for v in (self.model, prompt, stop, temperature, n, max_tokens, logprobs, top_p, echo, logit_bias, pattern, False, cache_seed)])
-            if key1 in _file_cache:
+            if key1 in self.__class__.cache:
                 key = key1
         
         # check the cache
-        if key not in _file_cache or not self.caching:
+        if key not in self.__class__.cache or not self.caching:
 
             # ensure we don't exceed the rate limit
             if self.count_calls() > self.max_calls_per_min:
@@ -192,22 +198,22 @@ class OpenAI(LLM):
             if stream:
                 return self.stream_then_save(out, key)
             else:
-                _file_cache[key] = out
+                self.__class__.cache[key] = out
         
         # wrap as a list if needed
         if stream:
-            if isinstance(_file_cache[key], list):
-                return _file_cache[key]
-            return [_file_cache[key]]
+            if isinstance(self.__class__.cache[key], list):
+                return self.__class__.cache[key]
+            return [self.__class__.cache[key]]
         
-        return _file_cache[key]
+        return self.__class__.cache[key]
     
     def stream_then_save(self, gen, key):
         list_out = []
         for out in gen:
             list_out.append(out)
             yield out
-        _file_cache[key] = list_out
+        self.__class__.cache[key] = list_out
     
     def _stream_completion(self):
         pass
@@ -254,9 +260,7 @@ class OpenAI(LLM):
         """
 
         # Define the request headers
-        headers = {
-            'Content-Type': 'application/json'
-        }
+        headers = copy.copy(self._rest_headers)
         if self.token is not None:
             headers['Authorization'] = f"Bearer {self.token}"
 
@@ -317,7 +321,6 @@ class OpenAI(LLM):
     #         return out["choices"][0]["logprobs"]["tokens"][:-1]
     #     else:
     #         return [choice["logprobs"]["tokens"][:-1] for choice in out["choices"]]
-OpenAI.cache = _file_cache
 
 
 # Define a deque to store the timestamps of the calls

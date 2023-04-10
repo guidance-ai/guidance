@@ -32,6 +32,7 @@ setup(
         "openai",
         "pybars3",
         "parsimonious",
-        "pygtrie"
+        "pygtrie",
+        "platformdirs"
     ]
 )

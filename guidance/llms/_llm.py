@@ -1,4 +1,7 @@
-
+import os
+import pathlib
+import diskcache
+import platformdirs
 
 class LLM():
     def __init__(self):
@@ -24,6 +27,10 @@ class LLM():
     
     def decode(self, tokens, **kwargs):
         return self._encoding.decode(tokens, **kwargs)
+    
+    @staticmethod
+    def _open_cache(file_name):
+        return diskcache.Cache(os.path.join(platformdirs.user_cache_dir("guidance"), file_name))
     
 
 class LLMSession():
