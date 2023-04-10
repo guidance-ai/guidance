@@ -220,8 +220,9 @@ class Program:
                 
                 # send an update to the front end client if we have one...
                 # TODO: we would like to call `display` for the last update so NB saving works, but see https://github.com/microsoft/vscode-jupyter/issues/13243 
-                if self._comm and (not last or self._comm.is_open):
+                if self._displayed and self._comm and (not last or self._comm.is_open):
                     log.debug(f"Updating display send message to front end")
+                    # log.debug(out)
                     self._comm.send({"replace": out})
                     if last:
                         self._comm.send({"event": "complete"})
@@ -234,7 +235,6 @@ class Program:
                         clear_output(wait=False) # should use wait=True but that doesn't work in VSCode until after the April 2023 release
 
                     self._display_html(out)
-                self._displayed = True
             
             self._last_display_update = time.time()
 
@@ -249,6 +249,7 @@ class Program:
         html = f"""<div id="guidance-stop-button-{self._id}" style="cursor: pointer; margin: 0px; display: none; float: right; padding: 3px; border-radius: 4px 4px 4px 4px; border: 0px solid rgba(127, 127, 127, 1); padding-left: 10px; padding-right: 10px; font-size: 13px; background-color: rgba(127, 127, 127, 0.25);">Stop program</div><div id="guidance-content-{self._id}">{html}</div>
 <script type="text/javascript">{js_data}; window._guidanceDisplay("{self._id}");</script>"""
         display({"text/html": html}, display_id=self._id, raw=True, clear=True, include=["text/html"])
+        self._displayed = True
 
     async def execute(self):
         """ Execute the current program.

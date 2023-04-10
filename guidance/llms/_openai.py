@@ -10,6 +10,7 @@ import time
 import types
 import collections
 import tiktoken
+import json
 import asyncio
 import re
 from ._llm import LLM
@@ -265,13 +266,14 @@ class OpenAI(LLM):
             headers['Authorization'] = f"Bearer {self.token}"
 
         # Define the request data
+        stream = kwargs.get("stream", False)
         data = {
             "prompt": kwargs["prompt"],
             "max_tokens": kwargs.get("max_tokens", None),
             "temperature": kwargs.get("temperature", 0.0),
             "top_p": kwargs.get("top_p", 1.0),
             "n": kwargs.get("n", 1),
-            "stream": False,
+            "stream": stream,
             "logprobs": kwargs.get("logprobs", None),
             'stop': kwargs.get("stop", None),
             "echo": kwargs.get("echo", False)
@@ -283,13 +285,26 @@ class OpenAI(LLM):
             del data['stream']
 
         # Send a POST request and get the response
-        response = requests.post(self.endpoint, headers=headers, json=data)
+        response = requests.post(self.endpoint, headers=headers, json=data, stream=stream)
         if response.status_code != 200:
             raise Exception("Response is not 200: " + response.text)
-        response = response.json()
+        if stream:
+            return self._rest_stream_handler(response)
+        else:
+            response = response.json()
         if self.chat_mode:
             response = add_text_to_chat_mode(response)
         return response
+        
+    def _rest_stream_handler(self, response):
+        for line in response.iter_lines():
+            text = line.decode('utf-8')
+            if text.startswith('data: '):
+                text = text[6:]
+                if text == '[DONE]':
+                    break
+                else:
+                    yield json.loads(text)
     
     def encode(self, string):
         return self._encoding.encode(string)
