@@ -1,5 +1,8 @@
 <br/>
-<div align="center"><img src="docs/figures/guidance_logo_blue.svg" width=300"></div>
+<div align="center"><picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/figures/guidance_logo_blue_dark.svg">
+  <img alt="guidance" src="docs/figures/guidance_logo_blue.svg" width=300">
+</picture></div>
 <br/>
 
 <div align="center"><b>Pardon the mess, currently in early alpha testing as of v0.0.26</b></div><br>
