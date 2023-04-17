@@ -9,7 +9,6 @@ import copy
 import time
 import types
 import collections
-import tiktoken
 import json
 import asyncio
 import re
@@ -109,6 +108,7 @@ class OpenAI(LLM):
         if endpoint is None:
             endpoint = os.environ.get("OPENAI_ENDPOINT", None)
 
+        import tiktoken
         self._tokenizer = tiktoken.get_encoding("cl100k_base")
         self.chat_mode = chat_mode
         

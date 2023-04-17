@@ -53,19 +53,29 @@ class Transformers(LLM):
         if "return_tensors" in kwargs:
             return self._tokenizer(string, **kwargs)
         return self._tokenizer.encode(string, **kwargs)
+    
+    # def decode(self, tokens, **kwargs):
+    #     return self._tokenizer.decode(tokens, **kwargs)
 
     def _build_token_prefix_map(self, model_name):
         """ Build a map from token to index.
         """
         token_map = pygtrie.CharTrie()
         for i in range(self._tokenizer.vocab_size):
-            s = self._tokenizer.decode([i])
+            s = self._decode_suffix_token(i)
             if s in token_map:
                 token_map[s].append(i) # handle duplicate token encodings... (GPT2 BPE has this oddly enough)
             else:
                 token_map[s] = [i]
 
         return token_map
+    
+    def _decode_suffix_token(self, token_id):
+        ''' Decode the string corresponding to a single suffix token.
+        
+        Note that we need to decode after the start token for sentence-piece tokenizers so that white space is preserved.
+        '''
+        return self.decode([self._tokenizer.bos_token_id, token_id])[len(self._tokenizer.bos_token):]
     
     def _model_and_tokenizer(self, model, tokenizer):
 
@@ -193,22 +203,29 @@ class TransformersSession(LLMSession):
             processors = []
             stoppers = []
 
+            # save what the prompt looks like when coded and then decoded (this captures added start tokens, etc.)
+            coded_prompt = self.llm.decode(input_ids[0])
+
             # setup token healing
             if token_healing:
                 # pop off the last token since we will regen it
                 last_token_id = input_ids[0][-1]
-                healer = TokenHealingLogitsProcessor(self.llm, model_config.vocab_size, last_token_id)
+                last_token_str = self.llm._decode_suffix_token(last_token_id)
+                healer = TokenHealingLogitsProcessor(self.llm, model_config.vocab_size, last_token_str)
                 if healer.should_bias:
-                    last_token_str = self.llm.decode([last_token_id])
+                    # tokenizer2.decode([tokenizer2.bos_token_id, 9288])[len(tokenizer2.bos_token):]
                     input_ids = input_ids[:,:-1]
                     attention_mask = attention_mask[:,:-1]
                     max_tokens += 1 # add one for the token we regen for token healing
                     processors.append(healer)
+                else:
+                    last_token_str = ""
                 
 
             # make sure we don't run off the end of the model
-            if max_tokens + len(input_ids[0]) > (getattr(model_config, "max_sequence_length") or getattr(model_config, "n_positions")):
-                max_tokens = model_config.n_positions - len(input_ids[0])
+            max_context = (getattr(model_config, "max_sequence_length", None) or getattr(model_config, "n_positions"))
+            if max_tokens + len(input_ids[0]) > max_context:
+                max_tokens = max_context - len(input_ids[0])
 
             # find how much of the prompt is cached
             for prefix_match_len, token in enumerate(input_ids[0]):
@@ -227,10 +244,10 @@ class TransformersSession(LLMSession):
 
             # add support for pattern guidance
             if pattern is not None:
-                processors.append(RegexLogitsProcessor(pattern, stop_regex, self.llm.decode, model_config.vocab_size, temperature == 0, len(prompt), model_config.eos_token_id))
+                processors.append(RegexLogitsProcessor(pattern, stop_regex, self.llm.decode, model_config.vocab_size, temperature == 0, len(coded_prompt), model_config.eos_token_id))
 
             if stop_regex is not None:
-                stoppers.append(RegexStoppingCriteria(stop_regex, self.llm.decode, len(prompt)))
+                stoppers.append(RegexStoppingCriteria(stop_regex, self.llm.decode, len(coded_prompt)))
 
             # call the model
             generated_sequence = self.llm.model_obj.generate(
@@ -253,8 +270,8 @@ class TransformersSession(LLMSession):
             # save the output. note we have to remove the input_ids prefix and the token healing prefix (last token str)
             out = {"choices": []}
             for i in range(len(input_ids)):
-                generated_tokens = generated_sequence[i][len(input_ids[i]):]
-                val = self.llm.decode(generated_tokens)[len(last_token_str):]
+                generated_tokens = list(generated_sequence[i][len(input_ids[i]):])
+                val = self.llm.decode([self.llm._tokenizer.bos_token_id] + generated_tokens)[(len(self.llm._tokenizer.bos_token) + len(last_token_str)):]
                 
                 # trim off the stop regex matches if needed
                 stop_pos = len(val) + 1
@@ -300,7 +317,7 @@ class TokenHealingLogitsProcessor():
     result in the same token as the end of the prompt, or another longer one.
     """
 
-    def __init__(self, model, vocab_size, last_token_id, bias_value=50.):
+    def __init__(self, model, vocab_size, last_token_str, bias_value=50.):
         """ Build a new TokenHealingLogitsProcessor.
 
         Note that bias value is in score space (log-odds normally) and should be
@@ -308,7 +325,7 @@ class TokenHealingLogitsProcessor():
         as to destroy numerical precision.
         """
         import torch
-        last_token_str = model._tokenizer.decode(last_token_id)
+        # last_token_str = model._tokenizer.decode([model._tokenizer.bos_token_id, last_token_id])[len(model._tokenizer.bos_token):]
         allowed_first_tokens = [v for arr in model.token_prefix_map.values(prefix=last_token_str) for v in arr]
         assert len(allowed_first_tokens) > 0, "Error in token healing map! No match found for: `"+last_token_str+"`"
         
