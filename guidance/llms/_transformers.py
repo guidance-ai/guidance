@@ -21,13 +21,8 @@ class Transformers(LLM):
 
     cache = LLM._open_cache("_transfomers.diskcache")
 
-    def __init__(self, model=None, caching=True, token_healing=True, acceleration=True, temperature=0.0, device=None):
+    def __init__(self, model=None, tokenizer=None, caching=True, token_healing=True, acceleration=True, temperature=0.0, device=None):
         super().__init__()
-
-        try:
-            import transformers
-        except:
-            raise Exception("Please install transformers with `pip install transformers` in order to use guidance.llms.Transformers!")
 
         # fill in default model value
         if model is None:
@@ -39,10 +34,9 @@ class Transformers(LLM):
             except:
                 pass
 
-        self._encoding = transformers.AutoTokenizer.from_pretrained(model)
-        
+        self.model_obj, self._tokenizer = self._model_and_tokenizer(model, tokenizer)
+
         self.model_name = model
-        self.model_obj = transformers.AutoModelForCausalLM.from_pretrained(model)
         self.caching = caching
         self.current_time = time.time()
         self.call_history = collections.deque()
@@ -57,21 +51,39 @@ class Transformers(LLM):
 
     def encode(self, string, **kwargs):
         if "return_tensors" in kwargs:
-            return self._encoding(string, **kwargs)
-        return self._encoding.encode(string, **kwargs)
+            return self._tokenizer(string, **kwargs)
+        return self._tokenizer.encode(string, **kwargs)
 
     def _build_token_prefix_map(self, model_name):
         """ Build a map from token to index.
         """
         token_map = pygtrie.CharTrie()
-        for i in range(self._encoding.vocab_size):
-            s = self._encoding.decode([i])
+        for i in range(self._tokenizer.vocab_size):
+            s = self._tokenizer.decode([i])
             if s in token_map:
                 token_map[s].append(i) # handle duplicate token encodings... (GPT2 BPE has this oddly enough)
             else:
                 token_map[s] = [i]
 
         return token_map
+    
+    def _model_and_tokenizer(self, model, tokenizer):
+
+        # make sure transformers is installed
+        try:
+            import transformers
+        except:
+            raise Exception("Please install transformers with `pip install transformers` in order to use guidance.llms.Transformers!")
+
+        # intantiate the model and tokenizer if needed
+        if isinstance(model, str):
+            if tokenizer is None:
+                tokenizer = transformers.AutoTokenizer.from_pretrained(model)
+            model = transformers.AutoModelForCausalLM.from_pretrained(model)
+        
+        assert tokenizer is not None, "You must give a tokenizer object when you provide a model object (as opposed to just a model name)!"
+            
+        return model, tokenizer
 
     def session(self):
         return TransformersSession(self)
@@ -122,6 +134,7 @@ class TransformersSession(LLMSession):
                         return model_kwargs
                     else:
                         return method(input_ids, **kwargs)
+                decorate_prep_step.__func__ = method.__func__ # make us still look like a bound method
                 return decorate_prep_step
             self._prev_prepare_method = self.llm.model_obj.prepare_inputs_for_generation
             self.llm.model_obj.prepare_inputs_for_generation = prep_step_decorator(self.llm.model_obj.prepare_inputs_for_generation)
@@ -194,7 +207,7 @@ class TransformersSession(LLMSession):
                 
 
             # make sure we don't run off the end of the model
-            if max_tokens + len(input_ids[0]) > model_config.n_positions:
+            if max_tokens + len(input_ids[0]) > (getattr(model_config, "max_sequence_length") or getattr(model_config, "n_positions")):
                 max_tokens = model_config.n_positions - len(input_ids[0])
 
             # find how much of the prompt is cached
@@ -207,7 +220,7 @@ class TransformersSession(LLMSession):
                 self._past_key_values = tuple((key[:,:,:prefix_match_len,:],value[:,:,:prefix_match_len,:]) for key,value in self._past_key_values) # TODO: this is specific to the GPT2 tensor layout
                 self._prefix_cache = self._prefix_cache[:prefix_match_len]
 
-            position_ids = torch.arange(prefix_match_len, input_ids.shape[-1], dtype=torch.long).unsqueeze(0)
+            # position_ids = torch.arange(prefix_match_len, input_ids.shape[-1], dtype=torch.long).unsqueeze(0)
                 
             # trim input ids that we will pull from the cache instead of computing keys and values for
             # input_ids = input_ids[:,prefix_match_len:]
@@ -223,7 +236,7 @@ class TransformersSession(LLMSession):
             generated_sequence = self.llm.model_obj.generate(
                 inputs=input_ids,
                 attention_mask=attention_mask,
-                position_ids=position_ids,
+                # position_ids=position_ids,
                 temperature=temperature,
                 max_new_tokens=max_tokens,
                 top_p=top_p,
@@ -295,7 +308,7 @@ class TokenHealingLogitsProcessor():
         as to destroy numerical precision.
         """
         import torch
-        last_token_str = model._encoding.decode(last_token_id)
+        last_token_str = model._tokenizer.decode(last_token_id)
         allowed_first_tokens = [v for arr in model.token_prefix_map.values(prefix=last_token_str) for v in arr]
         assert len(allowed_first_tokens) > 0, "Error in token healing map! No match found for: `"+last_token_str+"`"
         

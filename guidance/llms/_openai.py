@@ -109,7 +109,7 @@ class OpenAI(LLM):
         if endpoint is None:
             endpoint = os.environ.get("OPENAI_ENDPOINT", None)
 
-        self._encoding = tiktoken.get_encoding("cl100k_base")
+        self._tokenizer = tiktoken.get_encoding("cl100k_base")
         self.chat_mode = chat_mode
         
         self.model = model
@@ -307,10 +307,10 @@ class OpenAI(LLM):
                     yield json.loads(text)
     
     def encode(self, string):
-        return self._encoding.encode(string)
+        return self._tokenizer.encode(string)
     
     def decode(self, tokens):
-        return self._encoding.decode(tokens)
+        return self._tokenizer.decode(tokens)
 
     # def tokenize(self, strings):
     #     fail_count = 0

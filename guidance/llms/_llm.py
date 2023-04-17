@@ -23,10 +23,10 @@ class LLM():
         return LLMSession(self) # meant to be overridden
     
     def encode(self, string, **kwargs):
-        return self._encoding.encode(string, **kwargs)
+        return self._tokenizer.encode(string, **kwargs)
     
     def decode(self, tokens, **kwargs):
-        return self._encoding.decode(tokens, **kwargs)
+        return self._tokenizer.decode(tokens, **kwargs)
     
     @staticmethod
     def _open_cache(file_name):
