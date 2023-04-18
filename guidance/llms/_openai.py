@@ -135,11 +135,12 @@ class OpenAI(LLM):
         assert self.chat_mode, "role_end() can only be used in chat mode"
         return "<|im_end|>"
     
-    def __call__(self, prompt, stop=None, temperature=None, n=1, max_tokens=1000, logprobs=None, top_p=1.0, echo=False, logit_bias=None, pattern=None, stream=False, cache_seed=0):
+    def __call__(self, prompt, stop=None, stop_regex=None, temperature=None, n=1, max_tokens=1000, logprobs=None, top_p=1.0, echo=False, logit_bias=None, pattern=None, stream=False, cache_seed=0):
         """ Generate a completion of the given prompt.
         """
 
-        assert not pattern, "The OpenAI API does not support Guidance pattern controls! Please either switch to an endpoint that does, or don't user the `pattern` argument to `gen`."
+        assert not pattern, "The OpenAI API does not support Guidance pattern controls! Please either switch to an endpoint that does, or don't use the `pattern` argument to `gen`."
+        assert not stop_regex, "The OpenAI API does not support Guidance stop_regex controls! Please either switch to an endpoint that does, or don't use the `stop_regex` argument to `gen`."
 
         if temperature is None:
             temperature = self.temperature

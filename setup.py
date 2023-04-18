@@ -33,6 +33,7 @@ setup(
         "pybars3",
         "parsimonious",
         "pygtrie",
-        "platformdirs"
+        "platformdirs",
+        "tiktoken"
     ]
 )

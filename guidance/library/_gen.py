@@ -1,9 +1,12 @@
 import asyncio
 import re
 import uuid
+import logging
 from .._grammar import grammar
 
-async def gen(variable_name="generated", partial_output=None, parse=False, stop=None, max_tokens=500, n=1, temperature=0.0, top_p=1.0, logprobs=None, pattern=None, hidden=False, save_prompt=False, parser_prefix=None, parser=None, prefix="", suffix="", next_node=None, prev_node=None, next_next_node=None, **kwargs):
+log = logging.getLogger(__name__)
+
+async def gen(variable_name="generated", partial_output=None, parse=False, stop=None, stop_regex=None, max_tokens=500, n=1, temperature=0.0, top_p=1.0, logprobs=None, pattern=None, hidden=False, save_prompt=False, parser_prefix=None, parser=None, prefix="", suffix="", next_node=None, prev_node=None, next_next_node=None, **kwargs):
     ''' Use the LM to generate a completion string that is stored in the variable `variable_name`.
     '''
 
@@ -60,7 +63,7 @@ async def gen(variable_name="generated", partial_output=None, parse=False, stop=
 
     # call the LLM
     gen_obj = parser.llm_session(
-        parser_prefix+prefix, stop=stop, max_tokens=max_tokens, n=n, pattern=pattern,
+        parser_prefix+prefix, stop=stop, stop_regex=stop_regex, max_tokens=max_tokens, n=n, pattern=pattern,
         temperature=temperature, top_p=top_p, logprobs=parser.program.logprobs, cache_seed=cache_seed,
         echo=parser.program.logprobs is not None, stream=stream_generation
     )
@@ -77,6 +80,7 @@ async def gen(variable_name="generated", partial_output=None, parse=False, stop=
             if parser.should_stop:
                 #log("Stopping generation")
                 break
+            # log.debug("resp", resp)
             generated_value += resp["choices"][0]["text"]
             partial_output(resp["choices"][0]["text"])
             if logprobs is not None:
