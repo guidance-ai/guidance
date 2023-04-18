@@ -500,11 +500,13 @@ class TransformersStreamer():
                         for s in stop_regex_obj:
                             m = s.search(val, partial=True)
                             if m:
-                                if m.partial: # we might be starting a stop sequence, so we can't emit anything yet
-                                    found_partial = True
-                                    break
-                                else:
-                                    stop_pos = min(m.span()[0], stop_pos)
+                                span = m.span()
+                                if span[1] > span[0]:
+                                    if m.partial: # we might be starting a stop sequence, so we can't emit anything yet
+                                        found_partial = True
+                                        break
+                                    else:
+                                        stop_pos = min(span[0], stop_pos)
 
                     # record the reason we stopped (if we have stopped)
                     if stop_pos <= len(val):
