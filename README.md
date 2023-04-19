@@ -5,7 +5,7 @@
 </picture></div>
 <br/>
 
-<div align="center"><b>Pardon the mess, currently in early alpha testing as of v0.0.26</b></div><br>
+<!--<div align="center"><b>Pardon the mess, currently in early alpha testing as of v0.0.26</b></div><br>-->
 
 > _Where there is no guidance, a model fails, but in an abundance of instructions there is safety._  
 _\- GPT 11:14_
@@ -81,11 +81,12 @@ examples = [
     'entities': [{'entity': 'Shakespeare', 'time': '16th century'}, {'entity': 'I', 'time': 'present'}],
     'reasoning': 'Shakespeare cannot have written about me, because he died before I was born',
     'answer': 'Yes'}
-    ]
+]
 structure_prompt = guidance(
 '''{{instruction}}
 ----
-{{~! Few shot examples here ~}}
+
+{{~! display the few-shot examples ~}}
 {{~#each examples}}
 Sentence: {{this.input}}
 Entities and dates:{{#each this.entities}}
@@ -94,7 +95,8 @@ Reasoning: {{this.reasoning}}
 Anachronism: {{this.answer}}
 ---
 {{~/each}}
-{{~! Input example here}}
+
+{{~! place the real question at the end }}
 Sentence: {{input}}
 Entities and dates:
 {{gen "entities"}}
@@ -102,7 +104,7 @@ Reasoning:{{gen "reasoning"}}
 Anachronism:{{#select "answer"}} Yes{{or}} No{{/select}}''')
 structure_prompt(examples=examples, input='The T-rex bit my dog', instruction=instruction)
 ```
-![anachronism](docs/figures/anachronism.png)
+<img src="docs/figures/anachronism.png" width="837">
 
 We [compute accuracy](notebooks/anachronism.ipynb) on the validation set, and compare it to using the same two-shot examples above **without** the output structure, as well as to the best reported result [here](https://github.com/google/BIG-bench/tree/main/bigbench/benchmark_tasks/anachronisms). The results below agree with existing literature, in that even a very simple output structure drastically improves performance, even compared against much larger models.
 | Model | Accuracy |
