@@ -5,7 +5,7 @@
 </picture></div>
 <br/>
 
-<div align="center"><b>Pardon the mess, currently in early alpha testing as of v0.0.26</b></div><br>
+<!--<div align="center"><b>Pardon the mess, currently in early alpha testing as of v0.0.26</b></div><br>-->
 
 > _Where there is no guidance, a model fails, but in an abundance of instructions there is safety._  
 _\- GPT 11:14_
