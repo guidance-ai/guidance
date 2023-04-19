@@ -25,3 +25,9 @@ def test_pattern():
     program = guidance("""Repeat this. Repeat this. Repeat this. Repeat this. {{gen pattern="[0-9]+" max_tokens=1}}""", llm=llm)
     out = program()
     assert re.match("^Repeat this. Repeat this. Repeat this. Repeat this. [0-9]+$", str(out))
+
+def test_select():
+    llm = guidance.llms.Transformers('gpt2')
+    program = guidance('''Answer "yes" or "no": "{{#select 'answer'}}yes{{or}}no{{/select}}"''', llm=llm)
+    out = program()
+    assert out["answer"] in ["yes", "no"]

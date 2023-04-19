@@ -303,10 +303,11 @@ class OpenAI(LLM):
                 else:
                     yield json.loads(text)
     
-    def encode(self, string):
+    def encode(self, string, is_suffix=False):
+        # note that is_suffix is not used used for this tokenizer
         return self._tokenizer.encode(string)
     
-    def decode(self, tokens):
+    def decode(self, tokens, is_suffix=False):
         return self._tokenizer.decode(tokens)
 
     # def tokenize(self, strings):

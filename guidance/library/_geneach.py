@@ -83,7 +83,7 @@ async def geneach(list, block_content, parser, parser_prefix=None, parser_node=N
 
             # we run a quick generation to see if we have reached the end of the list (note the +2 tokens is to help be tolorant to whitespace)
             if stop is not None:
-                gen_obj = parser.program.llm(strip_markers(parser.prefix), stop=stop, max_tokens=len(stop_tokens)+2, temperature=0, cache_seed=0)
+                gen_obj = parser.llm_session(strip_markers(parser.prefix), stop=stop, max_tokens=len(stop_tokens)+2, temperature=0, cache_seed=0)
                 if gen_obj["choices"][0]["finish_reason"] == "stop":
                     break
     else:
@@ -100,7 +100,7 @@ async def geneach(list, block_content, parser, parser_prefix=None, parser_node=N
             parser.program.cache_seed += 1
         else:
             cache_seed = 0
-        gen_obj = parser.program.llm(parser_prefix, stop=stop, max_tokens=batch_generate_max_tokens, temperature=batch_generate_temperature, top_p=batch_generate_top_p, cache_seed=cache_seed)
+        gen_obj = parser.llm_session(parser_prefix, stop=stop, max_tokens=batch_generate_max_tokens, temperature=batch_generate_temperature, top_p=batch_generate_top_p, cache_seed=cache_seed)
         generated_value = gen_obj["choices"][0]["text"]
 
         # parse the generated content (this assumes the generated content is syntactically correct)

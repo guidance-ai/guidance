@@ -332,6 +332,10 @@ class ProgramExecutor():
             # get the command name and arguments
             command_name, command_args = await self.visit(node.children[0])
 
+            # make sure we have a matching end command
+            if not (node.text.endswith("/"+command_name+"}}") or node.text.endswith("/"+command_name+"~}}")):
+                raise SyntaxError("Guidance command block starting with `"+node.text[:20]+"...` does not end with a matching `{{/"+command_name+"}}` but instead ends with `..."+node.text[-20:]+"!")
+
             # if execution stops while parsing the start command just return unchanged
             if not self.executing:
                 self.extend_prefix(node.text)

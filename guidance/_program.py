@@ -102,12 +102,6 @@ class Program:
         # if we are echoing in ipython we assume we can display html
         if self._ipython and echo:
             self._displaying_html = True
-
-        # get or create an event loop
-        if asyncio.get_event_loop().is_running():
-            self.event_loop = asyncio.get_event_loop()
-        else:
-            self.event_loop = asyncio.new_event_loop()
     
     def __repr__(self):
         return self.text
@@ -181,8 +175,8 @@ class Program:
         # if we are streaming schedule the program in the current event loop
         if new_program.stream:
             loop = asyncio.get_event_loop()
-            assert self.event_loop.is_running()
-            self.event_loop.create_task(new_program.execute())
+            assert loop.is_running(), "The program is streaming but there is no asyncio event loop running."
+            loop.create_task(new_program.execute())
 
         # if we are not streaming, we need to create a new event loop and run the program in it until it is done
         else:

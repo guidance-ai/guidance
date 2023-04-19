@@ -43,34 +43,47 @@ class Transformers(LLM):
 
         self.token_prefix_map = self._build_token_prefix_map(model)
 
-    def encode(self, string, **kwargs):
+    def encode(self, string, is_suffix=False, **kwargs):
+
+        if is_suffix:
+            string = self._tokenizer.bos_token + string
+
         if "return_tensors" in kwargs:
-            return self._tokenizer(string, **kwargs)
-        return self._tokenizer.encode(string, **kwargs)
+            out = self._tokenizer(string, **kwargs)
+        else:
+            out = self._tokenizer.encode(string, **kwargs)
+        
+        # remove the start token when we are encoding a suffix
+        if is_suffix and out[0] == self._tokenizer.bos_token_id:
+            if out[1] == self._tokenizer.bos_token_id:
+                out = out[2:]
+            else:
+                out = out[1:]
+        
+        return out
     
-    # def decode(self, tokens, **kwargs):
-    #     return self._tokenizer.decode(tokens, **kwargs)
+    def decode(self, tokens, is_suffix=False, **kwargs):
+
+        # Decode the string corresponding to a single suffix token.
+        # Note that we need to decode after the start token for sentence-piece tokenizers so that white space is preserved
+        if is_suffix:
+            return self._tokenizer.decode([self._tokenizer.bos_token_id] + tokens)[len(self._tokenizer.bos_token):]
+        else:
+            return self._tokenizer.decode(tokens, **kwargs)
 
     def _build_token_prefix_map(self, model_name):
         """ Build a map from token to index.
         """
         token_map = pygtrie.CharTrie()
         for i in range(self._tokenizer.vocab_size):
-            s = self._decode_suffix_token(i)
+            s = self.decode([i], is_suffix=True)
             if s in token_map:
                 token_map[s].append(i) # handle duplicate token encodings... (GPT2 BPE has this oddly enough)
             else:
                 token_map[s] = [i]
 
         return token_map
-    
-    def _decode_suffix_token(self, token_id):
-        ''' Decode the string corresponding to a single suffix token.
-        
-        Note that we need to decode after the start token for sentence-piece tokenizers so that white space is preserved.
-        '''
-        return self.decode([self._tokenizer.bos_token_id, token_id])[len(self._tokenizer.bos_token):]
-    
+
     def _model_and_tokenizer(self, model, tokenizer):
 
         # make sure transformers is installed
@@ -121,11 +134,12 @@ class TransformersSession(LLMSession):
                         #     kwargs["attention_mask"] = kwargs["attention_mask"][:,len(self._prefix_cache):]
                         model_kwargs = method(input_ids, **kwargs)
 
-                        # restore the past key values for the actual model call
+                        # provide the past key values for the actual model call
                         model_kwargs["past_key_values"] = self._past_key_values
+                        model_kwargs["position_ids"] = model_kwargs["position_ids"][:,len(self._prefix_cache):] # and update position ids
 
                         # we only need to do this first time, after that the past key values will
-                        # be up until the last token, just let transformer models normally expect
+                        # be up until the last token, just like transformer models normally expect
                         # so we can clear our cache and let transformers cache like normal
                         self._prefix_cache = [] # this will get refilled once the generate call is done
                     
@@ -134,8 +148,9 @@ class TransformersSession(LLMSession):
                         return method(input_ids, **kwargs)
                 decorate_prep_step.__func__ = method.__func__ # make us still look like a bound method
                 return decorate_prep_step
-            self._prev_prepare_method = self.llm.model_obj.prepare_inputs_for_generation
-            self.llm.model_obj.prepare_inputs_for_generation = prep_step_decorator(self.llm.model_obj.prepare_inputs_for_generation)
+            if getattr(self.llm.model_obj, "_orig_prepare_method", None) is None:
+                self.llm.model_obj._orig_prepare_method = self.llm.model_obj.prepare_inputs_for_generation
+            self.llm.model_obj.prepare_inputs_for_generation = prep_step_decorator(self.llm.model_obj._orig_prepare_method)
 
             # decorate the update step to save the past key values
             def update_step_decorator(method):
@@ -146,8 +161,9 @@ class TransformersSession(LLMSession):
 
                     return method(outputs, *args, **kwargs)
                 return decorate_update_step
-            self._prev_update_method = self.llm.model_obj._update_model_kwargs_for_generation
-            self.llm.model_obj._update_model_kwargs_for_generation = update_step_decorator(self.llm.model_obj._update_model_kwargs_for_generation)
+            if getattr(self.llm.model_obj, "_orig_update_method", None) is None:
+                self.llm.model_obj._orig_update_method = self.llm.model_obj._update_model_kwargs_for_generation
+            self.llm.model_obj._update_model_kwargs_for_generation = update_step_decorator(self.llm.model_obj._orig_update_method)
 
         return self
 
@@ -196,7 +212,7 @@ class TransformersSession(LLMSession):
             if token_healing:
                 # pop off the last token since we will regen it
                 last_token_id = input_ids[0][-1]
-                last_token_str = self.llm._decode_suffix_token(last_token_id)
+                last_token_str = self.llm.decode([last_token_id], is_suffix=True)
                 healer = TokenHealingLogitsProcessor(self.llm, model_config.vocab_size, last_token_str)
                 if healer.should_bias:
                     # tokenizer2.decode([tokenizer2.bos_token_id, 9288])[len(tokenizer2.bos_token):]
@@ -222,6 +238,9 @@ class TransformersSession(LLMSession):
                 self._past_key_values = tuple((key[:,:,:prefix_match_len,:],value[:,:,:prefix_match_len,:]) for key,value in self._past_key_values) # TODO: this is specific to the GPT2 tensor layout
                 self._prefix_cache = self._prefix_cache[:prefix_match_len]
 
+            # see if we need to returns the scores
+            output_scores = logprobs is not None and logprobs > 0
+
             # position_ids = torch.arange(prefix_match_len, input_ids.shape[-1], dtype=torch.long).unsqueeze(0)
                 
             # trim input ids that we will pull from the cache instead of computing keys and values for
@@ -241,7 +260,8 @@ class TransformersSession(LLMSession):
                 last_token_str=last_token_str,
                 coded_prompt=coded_prompt,
                 llm=self.llm,
-                max_new_tokens=max_tokens
+                max_new_tokens=max_tokens,
+                lobprobs=logprobs
             )
 
             # the args for the transformers generate call
@@ -255,7 +275,9 @@ class TransformersSession(LLMSession):
                 pad_token_id=model_config.pad_token_id if model_config.pad_token_id is not None else model_config.eos_token_id,
                 logits_processor=transformers.LogitsProcessorList(processors),
                 stopping_criteria=transformers.StoppingCriteriaList(stoppers),
-                past_key_values=self._past_key_values
+                # past_key_values=self._past_key_values,
+                output_scores=logprobs is not None and logprobs > 0,
+                return_dict_in_generate=True
             )
 
             # if we are streaming then we need to run the inference process in a separate thread
@@ -270,20 +292,32 @@ class TransformersSession(LLMSession):
                 generated_sequence = self.llm.model_obj.generate(**generate_args)
                 streamer.put(generated_sequence)
                 self.llm.cache[key] = streamer.__next__()
+                self._update_prefix_cache(streamer)
         return self.llm.cache[key]
     
-    def _stream_then_save(self, gen, key, thread):
+    def _update_prefix_cache(self, streamer):
+        # note what we now have cached and ready for our next call in this session
+        if self._past_key_values and len(streamer.generated_sequence) == 1:
+            self._prefix_cache = streamer.generated_sequence[0][:self._past_key_values[0][0].shape[2]] # self._past_key_values is already saved, this just aligns with it
+
+    def _stream_then_save(self, streamer, key, thread):
         list_out = []
-        for out in gen:
+        for out in streamer:
             list_out.append(out)
             yield out
         thread.join() # clean up the thread
         self.llm.cache[key] = list_out
+        self._update_prefix_cache(streamer)
 
     def __exit__(self, exc_type, exc_value, traceback):
-        if self.llm.acceleration:
-            self.llm.model_obj.prepare_inputs_for_generation = self._prev_prepare_method
-            self.llm.model_obj._update_model_kwargs_for_generation = self._prev_update_method
+        """ Restore the model to its original state by removing monkey patches.
+        """
+        if getattr(self.llm.model_obj, "_orig_prepare_method", None) is not None:
+            self.llm.model_obj.prepare_inputs_for_generation = self.llm.model_obj._orig_prepare_method
+            del self.llm.model_obj._orig_prepare_method
+        if getattr(self.llm.model_obj, "_orig_update_method", None) is not None:
+            self.llm.model_obj._update_model_kwargs_for_generation = self.llm.model_obj._orig_update_method
+            del self.llm.model_obj._orig_update_method
         return False
 
 
@@ -453,10 +487,11 @@ class RegexStoppingCriteria():
         return all_done
 
 class TransformersStreamer():
-    def __init__(self, input_ids, stop_regex, last_token_str, coded_prompt, llm, max_new_tokens, timeout=None):
+    def __init__(self, input_ids, stop_regex, last_token_str, coded_prompt, llm, max_new_tokens, lobprobs, timeout=None):
         self.timeout = timeout
         self.input_ids = input_ids
         self.stop_regex = stop_regex
+        self.logprobs = lobprobs
         self.last_token_str = last_token_str
         # self.coded_prompt = coded_prompt
         self.llm = llm
@@ -466,24 +501,53 @@ class TransformersStreamer():
         self.out_queue = queue.Queue()
         self.sequence_pos = [len(self.input_ids[0]) for i in range(len(self.input_ids))]
         self.generated_sequence = [[] for i in range(len(self.input_ids))]
+        self.generated_scores = [[] for i in range(len(self.input_ids))]
         self.generated_string = [coded_prompt for i in range(len(self.input_ids))]
+        self.prefix_cache = []
 
-    def put(self, new_tokens):
+    def put(self, token_obj):
 
+        import torch
+        if isinstance(token_obj, torch.Tensor):
+            new_tokens = token_obj
+        else:
+            new_tokens = token_obj['sequences']
+        
         # if we are given a single sequence, then make it a batch of size 1
         if len(new_tokens.shape) == 1:
             new_tokens = new_tokens.unsqueeze(0)
+        
+        # extract the scores if we are given them (and format them to be the same shape as the tokens)
+        if self.logprobs:
+            assert len(new_tokens) == 1, "logprobs are not supported for batched generation right now in guidance.llms.Transformers"
+            new_scores = list(token_obj['scores'])
+            len_diff = len(new_tokens[0]) - len(new_scores)
+            if len_diff > 0:
+                new_scores = [None for i in range(len_diff)] + new_scores
+            new_scores = [new_scores]
         
         out = {"choices": [None for i in range(len(self.input_ids))]}
         put_data = False
         for i in range(len(self.input_ids)):
             self.generated_sequence[i].extend(list(new_tokens[i]))
+            if self.logprobs:
+                self.generated_scores[i].extend(list(new_scores[i]))
 
             if self.sequence_pos[i] < len(self.generated_sequence[i]):
                 display_tokens = list(self.generated_sequence[i][self.sequence_pos[i]:])
                 val = self.llm.decode([self.llm._tokenizer.bos_token_id] + display_tokens)[len(self.llm._tokenizer.bos_token):]
                 self.generated_string[i] += val
+                
                 if self.str_pos < len(self.generated_string[i]):
+                    
+                    display_logprobs = None
+                    if self.logprobs:
+                        display_scores = self.generated_scores[i][self.sequence_pos[i]:]
+                        display_logprobs = []
+                        for k in range(len(display_scores)):
+                            top_inds = display_scores[k][0].argsort(descending=True)[:self.logprobs] # TODO: verify the [0] is always correct
+                            display_logprobs.append({self.llm.decode([j], is_suffix=True): display_scores[k][0][j] for j in top_inds})
+
                     val = self.generated_string[i][self.str_pos:]
                     finish_reason = None
                     
@@ -493,8 +557,8 @@ class TransformersStreamer():
                         finish_reason = "endoftext"
 
                     # trim off the stop regex matches if needed
-                    stop_pos = len(val) + 1
                     found_partial = False
+                    stop_pos = len(val) + 1
                     if self.stop_regex is not None and finish_reason is None:
                         stop_regex_obj = [regex.compile(s) for s in self.stop_regex]
                         for s in stop_regex_obj:
@@ -513,10 +577,13 @@ class TransformersStreamer():
                         finish_reason = "stop"
                     
                     if not found_partial:
-                        out["choices"][i] = {"text": val[:stop_pos], "finish_reason": finish_reason}
+                        out["choices"][i] = {
+                            "text": val[:stop_pos],
+                            "finish_reason": finish_reason,
+                            "logprobs": {"token_healing_prefix": self.last_token_str, "top_logprobs": display_logprobs}
+                        }
                         self.str_pos = len(self.generated_string[i])
-                if not found_partial:
-                    put_data = True
+                        put_data = True
                 self.sequence_pos[i] = len(self.generated_sequence[i])
         if put_data:
             self.out_queue.put(out)
