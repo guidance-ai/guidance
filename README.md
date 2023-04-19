@@ -125,15 +125,6 @@ def parse_best(prosandcons, options):
     best = int(re.findall(r'Best=(\d+)', prosandcons)[0])
     return options[best]
 
-create_plan = guidance('''import guidance
-import re
-
-guidance.llm = guidance.llms.OpenAI("gpt-4")
-
-def parse_best(prosandcons, options):
-    best = int(re.findall(r'Best=(\d+)', prosandcons)[0])
-    return options[best]
-
 create_plan = guidance('''
 {{#system~}}
 You are a helpful assistant.
@@ -180,9 +171,6 @@ Please elaborate on this plan, and tell me how to best accomplish it.
 {{#assistant~}}
 {{gen 'plan' max_tokens=500}}
 {{~/assistant}}''')
-
-out = create_plan(goal='read more books', parse_best=parse_best)
-out''')
 
 out = create_plan(goal='read more books', parse_best=parse_best)
 out
