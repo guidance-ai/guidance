@@ -4,6 +4,9 @@ import diskcache
 import platformdirs
 
 class LLM():
+
+    cache_version = 1
+
     def __init__(self):
 
         # by default models are not in role-based chat mode
@@ -18,6 +21,13 @@ class LLM():
         with self.session() as s:
             out = s(*args, **kwargs)
         return out
+    
+    def _cache_key(self, args):
+        """ Get a cache key for the given args.
+        """
+        var_names = list(args.keys())[1:] # skip the "self" arg
+        key = "_---_".join([str(v) for v in ([args[k] for k in var_names] + [self.model_name, self.__class__.__name__, self.cache_version])])
+        return key
     
     def session(self):
         return LLMSession(self) # meant to be overridden

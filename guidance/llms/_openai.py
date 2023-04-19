@@ -138,6 +138,7 @@ class OpenAI(LLM):
     def __call__(self, prompt, stop=None, stop_regex=None, temperature=None, n=1, max_tokens=1000, logprobs=None, top_p=1.0, echo=False, logit_bias=None, pattern=None, stream=False, cache_seed=0):
         """ Generate a completion of the given prompt.
         """
+        args = locals().copy()
 
         assert not pattern, "The OpenAI API does not support Guidance pattern controls! Please either switch to an endpoint that does, or don't use the `pattern` argument to `gen`."
         assert not stop_regex, "The OpenAI API does not support Guidance stop_regex controls! Please either switch to an endpoint that does, or don't use the `stop_regex` argument to `gen`."
@@ -146,11 +147,12 @@ class OpenAI(LLM):
             temperature = self.temperature
 
         # define the key for the cache
-        key = "_---_".join([str(v) for v in (self.model, prompt, stop, temperature, n, max_tokens, logprobs, top_p, echo, logit_bias, pattern, stream, cache_seed)])
+        key = self._cache_key(args)
         
         # allow streaming to use non-streaming cache (the reverse is not true)
         if key not in self.__class__.cache and stream:
-            key1 = "_---_".join([str(v) for v in (self.model, prompt, stop, temperature, n, max_tokens, logprobs, top_p, echo, logit_bias, pattern, False, cache_seed)])
+            args["stream"] = False
+            key1 = self._cache_key(args)
             if key1 in self.__class__.cache:
                 key = key1
         

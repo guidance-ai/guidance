@@ -170,7 +170,8 @@ class TransformersSession(LLMSession):
     def __call__(self, prompt, stop=None, stop_regex=None, temperature=None, n=1, max_tokens=1000, logprobs=None, top_p=1.0, echo=False, logit_bias=None, token_healing=None, pattern=None, stream=False, cache_seed=0):
         """ Generate a completion of the given prompt.
         """
-
+        key = self.llm._cache_key(locals())
+        
         # fill in defaults
         if temperature is None:
             temperature = self.llm.temperature
@@ -186,7 +187,6 @@ class TransformersSession(LLMSession):
             stop_regex = [stop_regex]
 
         # handle caching
-        key = "_---_".join([str(v) for v in (self.llm.model_name, prompt, stop_regex, temperature, n, max_tokens, logprobs, top_p, echo, logit_bias, token_healing, pattern, cache_seed)])
         if key not in self.llm.cache or not self.llm.caching:
             import transformers
             import torch
