@@ -108,7 +108,7 @@ class OpenAI(LLM):
         self._tokenizer = tiktoken.get_encoding("cl100k_base")
         self.chat_mode = chat_mode
         
-        self.model = model
+        self.model_name = model
         self.caching = caching
         self.max_retries = max_retries
         self.max_calls_per_min = max_calls_per_min
@@ -169,7 +169,7 @@ class OpenAI(LLM):
                 try:
                     self.add_call()
                     call_args = {
-                        "model": self.model,
+                        "model": self.model_name,
                         "prompt": prompt,
                         "max_tokens": max_tokens,
                         "temperature": temperature,
