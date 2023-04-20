@@ -132,7 +132,7 @@ We [compute accuracy](notebooks/anachronism.ipynb) on the validation set, and co
 
 
 ## Role-based chat model example ([notebook](notebooks/chat.ipynb))
-Modern chat-style models like ChatGPT and Alpaca are trained with special tokens that mark out "roles" for different areas of the prompt. Guidance supports these models through <a href="notebooks/api/role_tags.ipynb">role tags</a> that automatically map to the correct tokens or API calls for the current LLM. Below we show how combining a role-based guidance program with hidden blocks (described below), enables the creation of a simple multi-step reasoning and planning program.
+Modern chat-style models like ChatGPT and Alpaca are trained with special tokens that mark out "roles" for different areas of the prompt. Guidance supports these models through <a href="notebooks/api/role_tags.ipynb">role tags</a> that automatically map to the correct tokens or API calls for the current LLM. Below we show how a role-based guidance program enables simple multi-step reasoning and planning.
 
 ```python
 import guidance
