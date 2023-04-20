@@ -71,6 +71,8 @@ Here is a simple two-shot prompt for it, with a human-crafted chain-of-thought s
 ```python
 import guidance
 guidance.llm = guidance.llms.OpenAI("text-davinci-003") 
+
+# define the few shot examples
 instruction = 'Given a sentence tell me whether it contains an anachronism (i.e. whether it could have happened or not based on the time periods associated with the entities).'
 examples = [
     {'input': 'I wrote about shakespeare',
@@ -82,6 +84,8 @@ examples = [
     'reasoning': 'Shakespeare cannot have written about me, because he died before I was born',
     'answer': 'Yes'}
 ]
+
+# define the guidance program
 structure_prompt = guidance(
 '''{{instruction}}
 ----
@@ -102,7 +106,10 @@ Entities and dates:
 {{gen "entities"}}
 Reasoning:{{gen "reasoning"}}
 Anachronism:{{#select "answer"}} Yes{{or}} No{{/select}}''')
-structure_prompt(examples=examples, input='The T-rex bit my dog', instruction=instruction)
+
+# execute the program
+# (we use `echo=True` to incrementally display the output as it is generated)
+structure_prompt(examples=examples, input='The T-rex bit my dog', instruction=instruction, echo=True)
 ```
 <img src="docs/figures/anachronism.png" width="837">
 
