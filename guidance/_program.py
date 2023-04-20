@@ -85,6 +85,7 @@ class Program:
         # set internal state variables
         self._id = str(uuid.uuid4())
         self.display_debounce_delay = 0.1 # the minimum time between display updates
+        self.display_debounce_delay_low = 2 # the minimum time between display updates when streaming
         self._comm = None # front end communication object
         self._executor = None # the ProgramExecutor object that is running the program
         self._last_display_update = 0 # the last time we updated the display (used for throttling updates)
@@ -204,7 +205,8 @@ class Program:
         # debounce the display updates
         now = time.time()
         log.debug(now - self._last_display_update)
-        if last or (now - self._last_display_update > self.display_debounce_delay):
+        debounce_delay = self.display_debounce_delay if self._comm and self._comm.is_open else self.display_debounce_delay_low
+        if last or (now - self._last_display_update > debounce_delay):
             if self._displaying_html:
                 out = self._build_html(self.marked_text)
                 
@@ -214,7 +216,7 @@ class Program:
                 
                 # send an update to the front end client if we have one...
                 # TODO: we would like to call `display` for the last update so NB saving works, but see https://github.com/microsoft/vscode-jupyter/issues/13243 
-                if self._displayed and self._comm and (not last or self._comm.is_open):
+                if self._displayed and self._comm and self._comm.is_open: #(not last or self._comm.is_open):
                     log.debug(f"Updating display send message to front end")
                     # log.debug(out)
                     self._comm.send({"replace": out})
@@ -317,7 +319,7 @@ class Program:
         def start_block(x):
             escaped_tag = undo_html_encode(x.group(1))
             if "hidden=True" in escaped_tag:
-                display = "none"
+                display = "TO_HIDE_FLAG__"
             else:
                 display = "inline"
             return f"<span style='background-color: rgba(165, 165, 165, 0.1); display: {display};' title='{escaped_tag}'>"
@@ -346,14 +348,19 @@ class Program:
         # display_out = re.sub(start_pattern + "(.*?)" + end_pattern, role_box, display_out, flags=re.DOTALL)
         # log.debug(display_out)
 
-        # strip whitespace around role markers
+        
         if self.llm.chat_mode:
             start_pattern = html.escape(self.llm.role_start("(.*?)")).replace("|", r"\|")
             end_pattern = html.escape(self.llm.role_end("(.*?)")).replace("|", r"\|")
+            
+            # strip whitespace around role markers
             display_out = re.sub(r"\s+({{!--[^}]*--}})?"+start_pattern, r"\1"+start_pattern.replace("(.*?)", r"\2").replace(r"\|", "|"), display_out, flags=re.DOTALL)
 
             # wrap role markers in nice formatting
             display_out = re.sub(start_pattern + "(.*?)" + end_pattern, role_box, display_out, flags=re.DOTALL)
+
+            # wrap unfinished role markers in nice formatting
+            display_out = re.sub(start_pattern + "(.*)", role_box, display_out, flags=re.DOTALL)
         
         display_out = re.sub(r"(\{\{generate.*?\}\})", r"<span style='background-color: rgba(0, 165, 0, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
         display_out = re.sub(r"(\{\{#select\{\{/select.*?\}\})", r"<span style='background-color: rgba(0, 165, 0, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
@@ -435,6 +442,8 @@ cycle_IDVAL(this);'''.replace("IDVAL", id).replace("TOTALCOUNT", str(total_count
         display_out = re.sub(r"{{!--GMARKER_START_([^\$]*)\$([^\$]*)\$--}}", lambda x: "<span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25); display: inline;' title='{}'>".format(undo_html_encode(x.group(2))), display_out)
         display_out = re.sub(r"{{!--GMARKER_END_([^\$]*)\$\$--}}", "</span>", display_out)
         
+        # display_out = re.sub(' and (?=.* and )', ', ', display_out)
+
         # strip out comments
         display_out = re.sub(r"{{~?!.*?}}", "", display_out)
 
