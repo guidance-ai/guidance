@@ -94,7 +94,7 @@ class Program:
         self._displaying_html = False # if we are displaying html (vs. text)
 
         # throttle the display updates
-        if os.environ.get("VSCODE_CWD", None) is None:
+        if os.environ.get("VSCODE_CWD", None) is not None:
             self.display_throttle_limit = 2 # VSCode has a bug that causes flashing, so we slow down the display
         else:
             self.display_throttle_limit = 0.1 # the minimum time between display updates
@@ -330,7 +330,7 @@ class Program:
         def start_block(x):
             escaped_tag = undo_html_encode(x.group(1))
             if "hidden=True" in escaped_tag:
-                display = "TO_HIDE_FLAG__"
+                display = "inline" # none (we actively stip hidden tags right now so we don't need this until we support the UX to show hidden stuff)
             else:
                 display = "inline"
             return f"<span style='background-color: rgba(165, 165, 165, 0.1); display: {display};' title='{escaped_tag}'>"
@@ -359,13 +359,19 @@ class Program:
         # display_out = re.sub(start_pattern + "(.*?)" + end_pattern, role_box, display_out, flags=re.DOTALL)
         # log.debug(display_out)
 
+        # strip out hidden blocks (might want to make a better UI for this at some point)
+        display_out = re.sub(r"{{!--GMARKER_START[^}]*--}}{{!--GHIDDEN:(.*?)--}}{{!--GMARKER_END[^}]*--}}", "", display_out, flags=re.DOTALL)
         
         if self.llm.chat_mode:
             start_pattern = html.escape(self.llm.role_start("(.*?)")).replace("|", r"\|")
             end_pattern = html.escape(self.llm.role_end("(.*?)")).replace("|", r"\|")
             
-            # strip whitespace around role markers
+            # strip whitespace before role markers
             display_out = re.sub(r"\s+({{!--[^}]*--}})?"+start_pattern, r"\1"+start_pattern.replace("(.*?)", r"\2").replace(r"\|", "|"), display_out, flags=re.DOTALL)
+
+            # strip whitespace after role markers
+            # TODO: support end_patterns with capture groups
+            display_out = re.sub(end_pattern+r"({{!--[^}]*--}})?\s+", end_pattern.replace(r"\|", "|")+r"\1", display_out, flags=re.DOTALL)
 
             # wrap role markers in nice formatting
             display_out = re.sub(start_pattern + "(.*?)" + end_pattern, role_box, display_out, flags=re.DOTALL)
@@ -509,6 +515,7 @@ class DisplayThrottler():
             now = time.time()
             if self._done or now - self.last_time >= self.throttle_limit:
                 self.display_function(last=self._done)
+                self.last_time = now
                 self._data_event.clear()
                 if self._done:
                     self._done_event.set()
