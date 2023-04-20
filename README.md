@@ -65,7 +65,7 @@ executed_program
 
 ## Rich output structure example ([notebook](notebooks/anachronism.ipynb))
 
-To demonstrate the value of output structure we take [a simple task](https://github.com/google/BIG-bench/tree/main/bigbench/benchmark_tasks/anachronisms) from BigBench, where the goal is to identify whether a given sentence contains an anachronism (a statement that is impossible because the time periods associated with the entities don't overlap). Below is a simple two-shot prompt for it, with a human-crafted chain-of-thought sequence.
+To demonstrate the value of output structure we take [a simple task](https://github.com/google/BIG-bench/tree/main/bigbench/benchmark_tasks/anachronisms) from BigBench, where the goal is to identify whether a given sentence contains an anachronism (a statement that is impossible because of non-overlaping time periods). Below is a simple two-shot prompt for it, with a human-crafted chain-of-thought sequence.
 
 Guidance programs, like standard Handlebars templates, allow both variable interpolation (e.g. `{{input}}`) and logical control. But unlike standard templating languages, guidance programs have a unique linear execution order that directly corresponds to the token order as processed by the language model. This means that at any point during execution the language model can be used to generate text (the `{{gen}}` command) or make logical control flow decisions (the `{{#select}}...{{or}}...{{/select}}` command). This interleaving of generation and prompting allows for precise output structure that improves accuracy while also producing clear and parsable results.
 ```python
@@ -131,22 +131,28 @@ We [compute accuracy](notebooks/anachronism.ipynb) on the validation set, and co
 | [Guidance](notebooks/anachronism.ipynb) | **76.01%** |
 
 
-## Output structure with OpenAI's Chat models ([notebook](notebooks/chat.ipynb))
+## Role-based chat model example ([notebook](notebooks/chat.ipynb))
+Modern chat-style models like ChatGPT and Alpaca are trained with special tokens that mark out "roles" for different areas of the prompt. Guidance supports these models through <a href="notebooks/api/role_tags.ipynb">role tags</a> that automatically map to the correct tokens or API calls for the current LLM. Below we show how combining a role-based guidance program with hidden blocks (described below), enables the creation of a simple multi-step reasoning and planning program.
+
 ```python
 import guidance
 import re
 
+# we use GPT-4 here, but you could use gpt-3.5-turbo as well
 guidance.llm = guidance.llms.OpenAI("gpt-4")
 
+# a custom function we will call in the guidance program
 def parse_best(prosandcons, options):
     best = int(re.findall(r'Best=(\d+)', prosandcons)[0])
     return options[best]
 
+# define the guidance program using role tags (like `{{#system}}...{{/system}}`)
 create_plan = guidance('''
 {{#system~}}
 You are a helpful assistant.
 {{~/system}}
 
+{{! generate five potential ways to accomplish a goal }}
 {{#block hidden=True}}
 {{#user~}}
 I want to {{goal}}.
@@ -160,7 +166,7 @@ Please make the option very short, at most one line.
 {{~/assistant}}
 {{/block}}
 
-{{~! generate pros and cons and select the best option ~}}
+{{! generate pros and cons for each option and select the best option }}
 {{#block hidden=True}}
 {{#user~}}
 I want to {{goal}}.
@@ -177,6 +183,7 @@ Please discuss each option very briefly (one line for pros, one for cons), and e
 {{~/assistant}}
 {{/block}}
 
+{{! generate a plan to accomplish the chosen option }}
 {{#user~}}
 I want to {{goal}}.
 {{~! Create a plan }}
@@ -189,12 +196,16 @@ Please elaborate on this plan, and tell me how to best accomplish it.
 {{gen 'plan' max_tokens=500}}
 {{~/assistant}}''')
 
-out = create_plan(goal='read more books', parse_best=parse_best)
-out
+# execute the program for a specific goal
+out = create_plan(
+    goal='read more books',
+    parse_best=parse_best, # a custom python function we call in the program
+    echo=True # display live generation in the notebook
+)
 ```
 <img src="docs/figures/chat_reading.png" width="935">
 
-This prompt is a bit more complicated, but we are basically going through 3 steps:
+This prompt/program is a bit more complicated, but we are basically going through 3 steps:
 1. Generate a few options for how to accomplish the goal. Note that we generate with `n=5`, such that each option is a separate generation (and is not impacted by the other options). We set `temperature=1` to encourage diversity.
 2. Generate pros and cons for each option, and select the best one. We set `temperature=0` to encourage the model to be more precise.
 3. Generate a plan for the best option, and ask the model to elaborate on it. Notice that steps 1 and 2 were `hidden`, and thus GPT-4 does not see them. This is a simple way to make the model focus on the current step.
