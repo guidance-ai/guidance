@@ -26,6 +26,7 @@ pip install guidance
 ```
 <!--The following example defines and executes a guidance program that rewrites proverbs. -->
 
+<!--
 # Simple completion example
 Just like standard Handlebars templates, you can do variable interpolation (e.g. `{{proverb}}`) and logical control. But unlike standard templating languages, guidance programs have a well defined linear execution order that directly corresponds to the token order as processed by the language model. This means that at any point during execution the language model can be used to generate text (using the `{{gen}}` command) or make logical control flow decisions (shown later). This interleaving of generation and prompting allows for precise output structure that produces clear and parsable results.
 
@@ -60,14 +61,17 @@ executed_program
 ```
 <img src="docs/figures/proverb_output.png" width="401">
 
-# Quick demos
+# Quick demos-->
 
-## Simple output structure ([notebook](notebooks/anachronism.ipynb))
+## Rich output structure example ([notebook](notebooks/anachronism.ipynb))
 
-Let's take [a simple task](https://github.com/google/BIG-bench/tree/main/bigbench/benchmark_tasks/anachronisms) from BigBench, where the goal is to identify whether a given sentence contains an anachronism.  
-Here is a simple two-shot prompt for it, with a human-crafted chain-of-thought sequence:
+To demonstrate the value of output structure we take [a simple task](https://github.com/google/BIG-bench/tree/main/bigbench/benchmark_tasks/anachronisms) from BigBench, where the goal is to identify whether a given sentence contains an anachronism (a statement that is impossible because the time periods associated with the entities don't overlap). Below is a simple two-shot prompt for it, with a human-crafted chain-of-thought sequence.
+
+Guidance programs, like standard Handlebars templates, allow both variable interpolation (e.g. `{{input}}`) and logical control. But unlike standard templating languages, guidance programs have a unique linear execution order that directly corresponds to the token order as processed by the language model. This means that at any point during execution the language model can be used to generate text (the `{{gen}}` command) or make logical control flow decisions (the `{{#select}}...{{or}}...{{/select}}` command). This interleaving of generation and prompting allows for precise output structure that improves accuracy while also producing clear and parsable results.
 ```python
 import guidance
+                                                      
+# set the default language model used to execute guidance programs
 guidance.llm = guidance.llms.OpenAI("text-davinci-003") 
 
 # define the few shot examples
@@ -83,7 +87,7 @@ examples = [
 ]
 
 # define the guidance program
-structure_prompt = guidance(
+structure_program = guidance(
 '''Given a sentence tell me whether it contains an anachronism (i.e. whether it could have happened or not based on the time periods associated with the entities).
 ----
 
@@ -105,13 +109,19 @@ Reasoning:{{gen "reasoning"}}
 Anachronism:{{#select "answer"}} Yes{{or}} No{{/select}}''')
 
 # execute the program
-structure_prompt(
+out = structure_program(
     examples=examples,
     input='The T-rex bit my dog',
     echo=True # incrementally display the output as it is generated
 )
 ```
 <img src="docs/figures/anachronism.png" width="837">
+
+All of generated program variables are now available in the executed program object:
+```python
+out["answer"]
+```
+> ' Yes'
 
 We [compute accuracy](notebooks/anachronism.ipynb) on the validation set, and compare it to using the same two-shot examples above **without** the output structure, as well as to the best reported result [here](https://github.com/google/BIG-bench/tree/main/bigbench/benchmark_tasks/anachronisms). The results below agree with existing literature, in that even a very simple output structure drastically improves performance, even compared against much larger models.
 | Model | Accuracy |
