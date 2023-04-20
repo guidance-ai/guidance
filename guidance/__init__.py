@@ -1,4 +1,4 @@
-__version__ = "0.0.29"
+__version__ = "0.0.30"
 
 import types
 import sys
