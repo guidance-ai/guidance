@@ -494,11 +494,11 @@ class ProgramExecutor():
             return
         prefix_out = str(text)
         self.prefix += prefix_out
-        self.program._update_display()
+        self.program.update_display()
     
     def reset_prefix(self, pos):
         self.prefix = self.prefix[:pos]
-        self.program._update_display()
+        self.program.update_display()
         # TODO: undo the echo if needed
 
 class PositionalArgument:

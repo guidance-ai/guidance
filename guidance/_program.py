@@ -84,8 +84,7 @@ class Program:
         
         # set internal state variables
         self._id = str(uuid.uuid4())
-        self.display_debounce_delay = 0.1 # the minimum time between display updates
-        self.display_debounce_delay_low = 2 # the minimum time between display updates when streaming
+        
         self._comm = None # front end communication object
         self._executor = None # the ProgramExecutor object that is running the program
         self._last_display_update = 0 # the last time we updated the display (used for throttling updates)
@@ -93,6 +92,13 @@ class Program:
         self._displaying = echo # if we are displaying we need to update the display as we execute
         self._displayed = False # marks if we have been displayed in the client yet
         self._displaying_html = False # if we are displaying html (vs. text)
+
+        # throttle the display updates
+        if os.environ.get("VSCODE_CWD", None) is None:
+            self.display_throttle_limit = 2 # VSCode has a bug that causes flashing, so we slow down the display
+        else:
+            self.display_throttle_limit = 0.1 # the minimum time between display updates
+        self.update_display = DisplayThrottler(self._update_display, self.display_throttle_limit)
 
         # see if we are in an ipython environment
         try:
@@ -177,11 +183,13 @@ class Program:
         if new_program.stream:
             loop = asyncio.get_event_loop()
             assert loop.is_running(), "The program is streaming but there is no asyncio event loop running."
+            loop.create_task(new_program.update_display.run()) # start the display updater
             loop.create_task(new_program.execute())
 
         # if we are not streaming, we need to create a new event loop and run the program in it until it is done
         else:
             loop = asyncio.new_event_loop()
+            loop.create_task(new_program.update_display.run()) # start the display updater
             loop.run_until_complete(new_program.execute())
     
         return new_program
@@ -194,6 +202,8 @@ class Program:
         last : bool
             If True, this is the last update and we should clear the send queue and prepare the
             UI for saving etc.
+        force : bool
+            If True, we will update the display even if it would otherwise be throttled.
         """
 
         log.debug(f"Updating display (last={last}, self._displaying={self._displaying}, self._comm={self._comm})")
@@ -203,36 +213,36 @@ class Program:
             return
         
         # debounce the display updates
-        now = time.time()
-        log.debug(now - self._last_display_update)
-        debounce_delay = self.display_debounce_delay if self._comm and self._comm.is_open else self.display_debounce_delay_low
-        if last or (now - self._last_display_update > debounce_delay):
-            if self._displaying_html:
-                out = self._build_html(self.marked_text)
-                
-                # clear the send queue if this is the last update
-                if last and self._comm:
-                    self._comm.clear_send_queue()
-                
-                # send an update to the front end client if we have one...
-                # TODO: we would like to call `display` for the last update so NB saving works, but see https://github.com/microsoft/vscode-jupyter/issues/13243 
-                if self._displayed and self._comm and self._comm.is_open: #(not last or self._comm.is_open):
-                    log.debug(f"Updating display send message to front end")
-                    # log.debug(out)
-                    self._comm.send({"replace": out})
-                    if last:
-                        self._comm.send({"event": "complete"})
-                
-                # ...otherwise dump the client to the font end
-                else:
-                    log.debug(f"Updating display dump to front end")
-                    from IPython.display import clear_output, display
-                    if self._displayed:
-                        clear_output(wait=False) # should use wait=True but that doesn't work in VSCode until after the April 2023 release
-
-                    self._display_html(out)
+        # now = time.time()
+        # log.debug(now - self._last_display_update)
+        # debounce_delay = self.display_throttle_limit if self._comm and self._comm.is_open else self.display_throttle_limit_low
+        # if last or (now - self._last_display_update > debounce_delay):
+        if self._displaying_html:
+            out = self._build_html(self.marked_text)
             
-            self._last_display_update = time.time()
+            # clear the send queue if this is the last update
+            if last and self._comm:
+                self._comm.clear_send_queue()
+            
+            # send an update to the front end client if we have one...
+            # TODO: we would like to call `display` for the last update so NB saving works, but see https://github.com/microsoft/vscode-jupyter/issues/13243 
+            if self._displayed and self._comm and self._comm.is_open: #(not last or self._comm.is_open):
+                log.debug(f"Updating display send message to front end")
+                # log.debug(out)
+                self._comm.send({"replace": out})
+                if last:
+                    self._comm.send({"event": "complete"})
+            
+            # ...otherwise dump the client to the font end
+            else:
+                log.debug(f"Updating display dump to front end")
+                from IPython.display import clear_output, display
+                if self._displayed:
+                    clear_output(wait=False) # should use wait=True but that doesn't work in VSCode until after the April 2023 release
+
+                self._display_html(out)
+        
+        self._last_display_update = time.time()
 
     def _display_html(self, html):
         from IPython.display import display
@@ -270,7 +280,8 @@ class Program:
         self._executor = None
 
         # update the display with the final output
-        self._update_display(last=True)
+        self.update_display(last=True)
+        await self.update_display.done()
 
         # fire an event noting that execution is complete (this will release any await calls waiting on the program)
         self._execute_complete.set()
@@ -481,3 +492,34 @@ _built_ins = {
     "system": library.system,
     "assistant": library.assistant
 }
+
+class DisplayThrottler():
+    def __init__(self, display_function, throttle_limit):
+        self.display_function = display_function
+        self.throttle_limit = throttle_limit
+        self._data_event = asyncio.Event()
+        self._done_event = asyncio.Event()
+        self._done = False
+        self.last_time = 0
+        # self._done_event = False
+    
+    async def run(self):
+        while True:
+            await self._data_event.wait()
+            now = time.time()
+            if self._done or now - self.last_time >= self.throttle_limit:
+                self.display_function(last=self._done)
+                self._data_event.clear()
+                if self._done:
+                    self._done_event.set()
+                    break
+            else:
+                await asyncio.sleep(self.throttle_limit - (now - self.last_time))
+
+    def __call__(self, last=False):
+        if last:
+            self._done = True
+        self._data_event.set()
+
+    async def done(self):
+        return await self._done_event.wait()
