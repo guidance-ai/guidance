@@ -240,7 +240,7 @@ Comment: Remember, answer as a {{role}}. Start your utterance with {{role}}:
 {{~/user}}
 
 {{#assistant~}}
-{{gen 'this.response' stop="<|im_end|>" temperature=0 max_tokens=300}}
+{{gen 'this.response' temperature=0 max_tokens=300}}
 {{~/assistant}}
 {{~/geneach}}''')
 
@@ -472,7 +472,7 @@ Who are 3 world-class experts (past or present) who would be great at answering 
 Please don't answer the question or comment on it yet.
 {{~/user}}
 {{#assistant~}}
-{{gen 'experts' stop="<|im_end|>" temperature=0 max_tokens=300}}
+{{gen 'experts' temperature=0 max_tokens=300}}
 {{~/assistant}}
 {{#user~}}
 Great, now please answer the question as if these experts had collaborated in writing a joint anonymous answer.
@@ -481,7 +481,7 @@ If the experts would disagree, just present their different positions as alterna
 Please start your answer with ANSWER:
 {{~/user}}
 {{#assistant~}}
-{{gen 'answer' stop="<|im_end|>" temperature=0 max_tokens=500}}
+{{gen 'answer' temperature=0 max_tokens=500}}
 {{~/assistant}}''')
 experts(query='What is the meaning of life?')
 ```
@@ -522,7 +522,7 @@ You are a helpful assistant
 {{set 'this.user_text' (await 'user_text')}}
 {{~/user}}
 {{#assistant~}}
-{{gen 'this.ai_text' stop="<|im_end|>" temperature=0 max_tokens=300}}
+{{gen 'this.ai_text' temperature=0 max_tokens=300}}
 {{~/assistant}}
 {{~/geneach}}''')
 prompt= prompt(user_text ='hi there')
