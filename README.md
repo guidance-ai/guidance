@@ -73,7 +73,6 @@ import guidance
 guidance.llm = guidance.llms.OpenAI("text-davinci-003") 
 
 # define the few shot examples
-instruction = 'Given a sentence tell me whether it contains an anachronism (i.e. whether it could have happened or not based on the time periods associated with the entities).'
 examples = [
     {'input': 'I wrote about shakespeare',
     'entities': [{'entity': 'I', 'time': 'present'}, {'entity': 'Shakespeare', 'time': '16th century'}],
@@ -87,7 +86,7 @@ examples = [
 
 # define the guidance program
 structure_prompt = guidance(
-'''{{instruction}}
+'''Given a sentence tell me whether it contains an anachronism (i.e. whether it could have happened or not based on the time periods associated with the entities).
 ----
 
 {{~! display the few-shot examples ~}}
@@ -108,8 +107,11 @@ Reasoning:{{gen "reasoning"}}
 Anachronism:{{#select "answer"}} Yes{{or}} No{{/select}}''')
 
 # execute the program
-# (we use `echo=True` to incrementally display the output as it is generated)
-structure_prompt(examples=examples, input='The T-rex bit my dog', instruction=instruction, echo=True)
+structure_prompt(
+    examples=examples,
+    input='The T-rex bit my dog',
+    echo=True # incrementally display the output as it is generated
+)
 ```
 <img src="docs/figures/anachronism.png" width="837">
 
