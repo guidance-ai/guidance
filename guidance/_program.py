@@ -291,6 +291,9 @@ class Program:
     def _build_html(self, text, last=False):
         output = text
 
+        def undo_html_encode(x):
+            return x.replace("&amp;#123;", "{").replace("&amp;#125;", "}").replace("&amp;#36;", "$")
+
         def start_generate_or_select(x):
             no_echo = "echo=False" in x.group(1)
             alpha = 1.0 if no_echo else 1.0
@@ -300,19 +303,19 @@ class Program:
 
             if no_echo:
                 out = f'''<div style='background-color: rgba(0, 165, 0, 0.25); border-radius: 4px 0px 0px 4px; border: 1px solid rgba(0, 165, 0, 1); padding-left: 3px; padding-right: 3px; user-select: none; color: rgb(0, 165, 0, 1.0); display: inline; font-weight: normal; cursor: pointer' onClick='{click_script}'>no echo</div>'''
-                out += "<span style='background-color: rgba(0, 165, 0, 0.25); opacity: {}; display: none;' title='{}'>".format(alpha, x.group(1))
+                out += "<span style='background-color: rgba(0, 165, 0, 0.25); opacity: {}; display: none;' title='{}'>".format(alpha, undo_html_encode(x.group(1)))
             else:
-                out = "<span style='background-color: rgba(0, 165, 0, 0.25); opacity: {}; display: inline;' title='{}'>".format(alpha, x.group(1))
+                out = "<span style='background-color: rgba(0, 165, 0, 0.25); opacity: {}; display: inline;' title='{}'>".format(alpha, undo_html_encode(x.group(1)))
             return out
         
         def start_each(x):
             no_echo = "echo=False" in x.group(1)
             alpha = 0.5 if no_echo else 1.0
             color = "rgba(165, 165, 165, 0.1)" #if "geneach" not in x.group(1) else "rgba(0, 165, 0, 0.1)"
-            return "<span style='opacity: {}; display: inline; background-color: {};' title='{}'>".format(alpha, color, x.group(1))
+            return "<span style='opacity: {}; display: inline; background-color: {};' title='{}'>".format(alpha, color, undo_html_encode(x.group(1)))
         
         def start_block(x):
-            escaped_tag = x.group(1)
+            escaped_tag = undo_html_encode(x.group(1))
             if "hidden=True" in escaped_tag:
                 display = "none"
             else:
@@ -421,15 +424,15 @@ cycle_IDVAL(this);'''.replace("IDVAL", id).replace("TOTALCOUNT", str(total_count
         
         # format the set command results
         display_out = re.sub(r"{{!--GMARKER_set\$([^\$]*)\$--}}", r"<div style='background-color: rgba(165, 165, 165, 0); border-radius: 4px 4px 4px 4px; border: 1px solid rgba(165, 165, 165, 1); border-left: 2px solid rgba(165, 165, 165, 1); border-right: 2px solid rgba(165, 165, 165, 1); padding-left: 0px; padding-right: 3px; color: rgb(165, 165, 165, 1.0); display: inline; font-weight: normal; overflow: hidden;'><div style='display: inline; background: rgba(165, 165, 165, 1); padding-right: 5px; padding-left: 4px; margin-right: 3px; color: #fff'>set</div>\1</div>", display_out)
-        display_out = re.sub(r"{{!--GMARKER_START_set\$([^\$]*)\$--}}", r"<span style='display: inline;' title='\1'>", display_out)
+        display_out = re.sub(r"{{!--GMARKER_START_set\$([^\$]*)\$--}}", lambda x: "<span style='display: inline;' title='{}'>".format(undo_html_encode(x.group(1))), display_out)
 
         display_out = re.sub(r"{{!--GMARKER_START_select\$([^\$]*)\$--}}", start_generate_or_select, display_out)
         display_out = display_out.replace("{{!--GMARKER_END_select$$--}}", "</span>")
-        display_out = re.sub(r"{{!--GMARKER_START_variable_ref\$([^\$]*)\$--}}", r"<span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25); display: inline;' title='\1'>", display_out)
+        display_out = re.sub(r"{{!--GMARKER_START_variable_ref\$([^\$]*)\$--}}", lambda x: "<span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25); display: inline;' title='{}'>".format(undo_html_encode(x.group(1))), display_out)
         display_out = display_out.replace("{{!--GMARKER_END_variable_ref$$--}}", "</span>")
         display_out = display_out.replace("{{!--GMARKER_each$$--}}", "")#<div style='border-left: 1px dashed rgb(0, 0, 0, .2); border-top: 0px solid rgb(0, 0, 0, .2); margin-right: -4px; display: inline; width: 4px; height: 24px;'></div>")
         display_out = re.sub(r"{{!--GMARKER_START_block\$([^\$]*)\$--}}", start_block, display_out)
-        display_out = re.sub(r"{{!--GMARKER_START_([^\$]*)\$([^\$]*)\$--}}", r"<span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25); display: inline;' title='\2'>", display_out)
+        display_out = re.sub(r"{{!--GMARKER_START_([^\$]*)\$([^\$]*)\$--}}", lambda x: "<span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25); display: inline;' title='{}'>".format(undo_html_encode(x.group(2))), display_out)
         display_out = re.sub(r"{{!--GMARKER_END_([^\$]*)\$\$--}}", "</span>", display_out)
         
         # strip out comments
