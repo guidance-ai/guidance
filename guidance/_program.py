@@ -503,13 +503,12 @@ class DisplayThrottler():
     def __init__(self, display_function, throttle_limit):
         self.display_function = display_function
         self.throttle_limit = throttle_limit
-        self._data_event = asyncio.Event()
-        self._done_event = asyncio.Event()
         self._done = False
         self.last_time = 0
-        # self._done_event = False
     
     async def run(self):
+        self._data_event = asyncio.Event()
+        self._done_event = asyncio.Event()
         while True:
             await self._data_event.wait()
             now = time.time()

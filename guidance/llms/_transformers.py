@@ -12,7 +12,7 @@ class Transformers(LLM):
     """ A HuggingFace transformers language model with Guidance support.
     """
 
-    cache = LLM._open_cache("_transfomers.diskcache")
+    cache = LLM._open_cache("_transformers.diskcache")
 
     def __init__(self, model=None, tokenizer=None, caching=True, token_healing=True, acceleration=True, temperature=0.0, device=None):
         super().__init__()
@@ -28,6 +28,7 @@ class Transformers(LLM):
                 pass
 
         self.model_obj, self._tokenizer = self._model_and_tokenizer(model, tokenizer)
+        self._generate_call = self.model_obj.generate
 
         self.model_name = model
         self.caching = caching
@@ -36,9 +37,9 @@ class Transformers(LLM):
         self.temperature = temperature
         self.token_healing = token_healing
         self.acceleration = acceleration
-        self.device = device
-        if self.device is not None:
-            self.model_obj = self.model_obj.to(self.device)
+        if device is not None: # set the device if requested
+            self.model_obj = self.model_obj.to(device)
+        self.device = self.model_obj.device # otherwise note the current device
 
         self.token_prefix_map = self._build_token_prefix_map(model)
 
@@ -223,7 +224,7 @@ class TransformersSession(LLMSession):
                     last_token_str = ""
 
             # make sure we don't run off the end of the model
-            max_context = (getattr(model_config, "max_sequence_length", None) or getattr(model_config, "n_positions"))
+            max_context = (getattr(model_config, "max_sequence_length", None) or getattr(model_config, "n_positions", None) or getattr(model_config, "max_position_embeddings"))
             if max_tokens + len(input_ids[0]) > max_context:
                 max_tokens = max_context - len(input_ids[0])
 
@@ -279,16 +280,23 @@ class TransformersSession(LLMSession):
                 return_dict_in_generate=True
             )
 
+            # override the model config for do_sample when the temperature requires it
+            do_sample = getattr(self.llm.model_obj.config, "do_sample", None)
+            if do_sample is True and temperature == 0:
+                generate_args["do_sample"] = False
+            elif do_sample is False and temperature > 0:
+                generate_args["do_sample"] = True
+
             # if we are streaming then we need to run the inference process in a separate thread
             if stream:
                 generate_args["streamer"] = streamer
-                thread = threading.Thread(target=self.llm.model_obj.generate, kwargs=generate_args)
+                thread = threading.Thread(target=self.llm._generate_call, kwargs=generate_args)
                 thread.start()
                 return self._stream_then_save(streamer, key, thread)
 
             # if we are not streaming we still manually use the streamer for consistency
             else:
-                generated_sequence = self.llm.model_obj.generate(**generate_args)
+                generated_sequence = self.llm._generate_call(**generate_args)
                 streamer.put(generated_sequence)
                 self.llm.cache[key] = streamer.__next__()
                 self._update_prefix_cache(streamer)
