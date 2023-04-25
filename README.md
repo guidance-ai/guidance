@@ -74,7 +74,7 @@ Anachronism:{{#select "answer"}} Yes{{or}} No{{/select}}''')
 out = structure_program(
     examples=examples,
     input='The T-rex bit my dog',
-    echo=True # incrementally display the output as it is generated
+    display=True # incrementally display the output as it is generated
 )
 ```
 <img src="docs/figures/anachronism.png" width="837">
@@ -162,7 +162,7 @@ Please elaborate on this plan, and tell me how to best accomplish it.
 out = create_plan(
     goal='read more books',
     parse_best=parse_best, # a custom python function we call in the program
-    echo=True # display live generation in the notebook
+    display=True # display live generation in the notebook
 )
 ```
 <img src="docs/figures/chat_reading.png" width="935">
