@@ -6,10 +6,10 @@
 <br/>
 
 > _Where there is no guidance, a model fails, but in an abundance of instructions there is safety._  
-_\- GPT 11:14_
+_\- <a href="notebooks/proverb.ipynb">GPT 11:14</a>_
 
 <!--It expands the API of language models so you can craft rich output structure, design precise tool use, create multi-agent interactions, and much more all while using clear code and maximum inference efficiency.-->
-<b>Guidance</b> is a language that enables you to control modern language models more easily and efficiently. Guidance programs allow you to interleave generation, prompting, and logical control into a single continuious flow that matches how the language model actually processes the text. Simple output structures like [Chain of Thought](https://arxiv.org/abs/2201.11903) and its many variants (e.g. [ART](https://arxiv.org/abs/2303.09014), [Auto-CoT](https://arxiv.org/abs/2210.03493), etc.) have been shown to improve LLM performance. The advent of more powerful LLMs like [GPT-4](https://arxiv.org/abs/2303.12712) allows for even richer structure, and `guidance` makes that structure easier and cheaper.
+<b>Guidance</b> enables you to control modern language models more effectively and efficiently than traditional prompting or chaining. Guidance programs allow you to interleave generation, prompting, and logical control into a single continuous flow matching how the language model actually processes the text. Simple output structures like [Chain of Thought](https://arxiv.org/abs/2201.11903) and its many variants (e.g. [ART](https://arxiv.org/abs/2303.09014), [Auto-CoT](https://arxiv.org/abs/2210.03493), etc.) have been shown to improve LLM performance. The advent of more powerful LLMs like [GPT-4](https://arxiv.org/abs/2303.12712) allows for even richer structure, and `guidance` makes that structure easier and cheaper.
 
 Features:
 - [x] Simple, intuitive syntax, based on [Handlebars](https://handlebarsjs.com/) templating.
@@ -19,49 +19,11 @@ Features:
 - [x] Support for role-based chat models (e.g. [ChatGPT](https://beta.openai.com/docs/guides/chat)).
 - [x] Easy integration with HuggingFace models, including [guidance acceleration](notebooks/guidance_acceleration.ipynb) for speedups over standard prompting, [token healing](notebooks/token_healing.ipynb) to optimize prompt boundaries, and [regex pattern guides](notebooks/pattern_guides.ipynb) to enforce formats.
 
-# Install
+## Install
 
 ```python
 pip install guidance
 ```
-<!--The following example defines and executes a guidance program that rewrites proverbs. -->
-
-<!--
-# Simple completion example
-Just like standard Handlebars templates, you can do variable interpolation (e.g. `{{proverb}}`) and logical control. But unlike standard templating languages, guidance programs have a well defined linear execution order that directly corresponds to the token order as processed by the language model. This means that at any point during execution the language model can be used to generate text (using the `{{gen}}` command) or make logical control flow decisions (shown later). This interleaving of generation and prompting allows for precise output structure that produces clear and parsable results.
-
-```python
-import guidance
-
-# set the default language model used to execute guidance programs
-guidance.llm = guidance.llms.OpenAI("text-davinci-003")
-
-# define a guidance program that adapts proverbs
-program = guidance("""Tweak this proverb to apply to model instructions instead.
-
-{{proverb}}
-- {{book}} {{chapter}}:{{verse}}
-
-UPDATED
-Where there is no guidance{{gen 'rewrite' stop="\\n-"}}
-- GPT {{gen 'chapter'}}:{{gen 'verse'}}""")
-
-# execute the program on a specific proverb
-executed_program = program(
-    proverb="Where there is no guidance, a people falls,\nbut in an abundance of counselors there is safety.",
-    book="Proverbs",
-    chapter=11,
-    verse=14
-)
-
-# executed_program["rewrite"] now contains the new proverb ("chapter" and "verse" are also stored)
-
-# display in the notebook
-executed_program
-```
-<img src="docs/figures/proverb_output.png" width="401">
-
-# Quick demos-->
 
 ## Rich output structure example ([notebook](notebooks/anachronism.ipynb))
 
@@ -208,9 +170,9 @@ out = create_plan(
 This prompt/program is a bit more complicated, but we are basically going through 3 steps:
 1. Generate a few options for how to accomplish the goal. Note that we generate with `n=5`, such that each option is a separate generation (and is not impacted by the other options). We set `temperature=1` to encourage diversity.
 2. Generate pros and cons for each option, and select the best one. We set `temperature=0` to encourage the model to be more precise.
-3. Generate a plan for the best option, and ask the model to elaborate on it. Notice that steps 1 and 2 were `hidden`, and thus GPT-4 does not see them. This is a simple way to make the model focus on the current step.
+3. Generate a plan for the best option, and ask the model to elaborate on it. Notice that steps 1 and 2 were `hidden`, which means GPT-4 does not see them when generating content that comes later (in this case that means when generating the plan). This is a simple way to make the model focus on the current step.
 
-Since steps 1 and 2 are hidden, they do not appear on the generated output, but we can print them:
+Since steps 1 and 2 are hidden, they do not appear on the generated output (except briefly during stream), but we can print the variables that these steps generated:
 ```python
 print('\n'.join(['Option %d: %s' % (i, x) for i, x in enumerate(out['options'])]))
 ```
@@ -278,7 +240,7 @@ Comment: Remember, answer as a {{role}}. Start your utterance with {{role}}:
 {{~/user}}
 
 {{#assistant~}}
-{{gen 'this.response' stop="<|im_end|>" temperature=0 max_tokens=300}}
+{{gen 'this.response' temperature=0 max_tokens=300}}
 {{~/assistant}}
 {{~/geneach}}''')
 
@@ -510,7 +472,7 @@ Who are 3 world-class experts (past or present) who would be great at answering 
 Please don't answer the question or comment on it yet.
 {{~/user}}
 {{#assistant~}}
-{{gen 'experts' stop="<|im_end|>" temperature=0 max_tokens=300}}
+{{gen 'experts' temperature=0 max_tokens=300}}
 {{~/assistant}}
 {{#user~}}
 Great, now please answer the question as if these experts had collaborated in writing a joint anonymous answer.
@@ -519,7 +481,7 @@ If the experts would disagree, just present their different positions as alterna
 Please start your answer with ANSWER:
 {{~/user}}
 {{#assistant~}}
-{{gen 'answer' stop="<|im_end|>" temperature=0 max_tokens=500}}
+{{gen 'answer' temperature=0 max_tokens=500}}
 {{~/assistant}}''')
 experts(query='What is the meaning of life?')
 ```
@@ -560,7 +522,7 @@ You are a helpful assistant
 {{set 'this.user_text' (await 'user_text')}}
 {{~/user}}
 {{#assistant~}}
-{{gen 'this.ai_text' stop="<|im_end|>" temperature=0 max_tokens=300}}
+{{gen 'this.ai_text' temperature=0 max_tokens=300}}
 {{~/assistant}}
 {{~/geneach}}''')
 prompt= prompt(user_text ='hi there')
