@@ -32,7 +32,7 @@ class Program:
     the generated output to mark where template tags used to be.
     '''
 
-    def __init__(self, text, llm=None, cache_seed=0, logprobs=None, stream=False, echo=False, **kwargs):
+    def __init__(self, text, llm=None, cache_seed=0, logprobs=None, display=False, async_mode=False, stream='auto', **kwargs):
         """ Create a new Program object from a program string.
 
         Parameters
@@ -74,8 +74,14 @@ class Program:
         self.llm = llm or guidance.llm
         self.cache_seed = cache_seed
         self.logprobs = logprobs
+        self.async_mode = async_mode
+        self.display = display
         self.stream = stream
-        self.echo = echo
+        # if self.stream == "auto":
+        #     if self.display or self.async_mode:
+        #         self.stream = True
+        #     else:
+        #         self.stream = False
         
         # set our variables
         self.variables = {}
@@ -89,7 +95,7 @@ class Program:
         self._executor = None # the ProgramExecutor object that is running the program
         self._last_display_update = 0 # the last time we updated the display (used for throttling updates)
         self._execute_complete = asyncio.Event() # fires when the program is done executing to resolve __await__
-        self._displaying = echo # if we are displaying we need to update the display as we execute
+        self._displaying = self.display # if we are displaying we need to update the display as we execute
         self._displayed = False # marks if we have been displayed in the client yet
         self._displaying_html = False # if we are displaying html (vs. text)
 
@@ -107,7 +113,7 @@ class Program:
             self._ipython = None
         
         # if we are echoing in ipython we assume we can display html
-        if self._ipython and echo:
+        if self._ipython and self.display:
             self._displaying_html = True
     
     def __repr__(self):
@@ -158,8 +164,9 @@ class Program:
         """
 
         kwargs = {**{
+            "async_mode": self.async_mode,
             "stream": self.stream,
-            "echo": self.echo,
+            "display": self.display,
         }, **kwargs}
 
         log.debug(f"in __call__ with kwargs: {kwargs}")
@@ -179,14 +186,14 @@ class Program:
         # create an executor for the new program (this also marks the program as executing)
         new_program._executor = ProgramExecutor(new_program)
         
-        # if we are streaming schedule the program in the current event loop
-        if new_program.stream:
+        # if we are in async mode schedule the program in the current event loop
+        if new_program.async_mode:
             loop = asyncio.get_event_loop()
-            assert loop.is_running(), "The program is streaming but there is no asyncio event loop running."
+            assert loop.is_running(), "The program is in async mode but there is no asyncio event loop running! Start one and try again."
             loop.create_task(new_program.update_display.run()) # start the display updater
             loop.create_task(new_program.execute())
 
-        # if we are not streaming, we need to create a new event loop and run the program in it until it is done
+        # if we are not in async mode, we need to create a new event loop and run the program in it until it is done
         else:
             loop = asyncio.new_event_loop()
             loop.create_task(new_program.update_display.run()) # start the display updater
@@ -265,7 +272,7 @@ class Program:
         in this process the current template remains valid.
         """
 
-        log.debug(f"Executing program (self.stream={self.stream}, self.echo={self.echo}, self._displaying_html={self._displaying_html})")
+        log.debug(f"Executing program (self.async_mode={self.async_mode}, self.display={self.display}, self._displaying_html={self._displaying_html})")
         
         # if we are already displaying html, we need to yeild to the event loop so the jupyter comm can initialize
         if self._displaying_html:

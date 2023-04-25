@@ -52,8 +52,10 @@ async def gen(variable_name="generated", partial_output=None, parse=False, stop=
         cache_seed = 0
 
     # see if we should stream the results
-    if n == 1:
-        stream_generation = parser.program.stream is True or parser.program.echo#_displaying # (parser.program.stream is None and parser.program.echo is True)
+    if n == 1: # we can't stream batches right now
+        if parser.program.stream == "auto":
+            stream_generation = parser.program.display or parser.program.async_mode
+        stream_generation = parser.program.stream
     else:
         stream_generation = False
 
