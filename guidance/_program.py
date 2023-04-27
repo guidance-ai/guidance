@@ -32,7 +32,7 @@ class Program:
     the generated output to mark where template tags used to be.
     '''
 
-    def __init__(self, text, llm=None, cache_seed=0, logprobs=None, display=False, async_mode=False, stream='auto', **kwargs):
+    def __init__(self, text, llm=None, cache_seed=0, logprobs=None, display='auto', async_mode=False, stream='auto', caching=None, **kwargs):
         """ Create a new Program object from a program string.
 
         Parameters
@@ -73,15 +73,13 @@ class Program:
         self._text = text
         self.llm = llm or guidance.llm
         self.cache_seed = cache_seed
+        self.caching = caching
         self.logprobs = logprobs
         self.async_mode = async_mode
         self.display = display
         self.stream = stream
-        # if self.stream == "auto":
-        #     if self.display or self.async_mode:
-        #         self.stream = True
-        #     else:
-        #         self.stream = False
+        if self.display == "auto":
+            self.display = _utils.is_interactive()
         
         # set our variables
         self.variables = {}
@@ -163,20 +161,22 @@ class Program:
         the `await` guidance langauge command, which will cause the program to stop execution at that point).
         """
 
+        # merge the given kwargs with the current variables
         kwargs = {**{
             "async_mode": self.async_mode,
             "stream": self.stream,
             "display": self.display,
+            "cache_seed": self.cache_seed,
+            "caching": self.caching,
+            "logprobs": self.logprobs,
         }, **kwargs}
 
         log.debug(f"in __call__ with kwargs: {kwargs}")
 
         # create a new program object that we will execute in-place
         new_program = Program(
-            self._text,
-            self.llm,
-            self.cache_seed,
-            self.logprobs,
+            text=self._text,
+            llm=self.llm,
 
             # copy the (non-function) variables so that we don't modify the original program during execution
             # TODO: what about functions? should we copy them too?
@@ -343,8 +343,8 @@ class Program:
             return f"<span style='background-color: rgba(165, 165, 165, 0.1); display: {display};' title='{escaped_tag}'>"
         
         def role_box(x):
-            name = x.group(1)
-            content = x.group(2)
+            name = x.group(3).lower() # standardize to lowercase for display
+            content = x.group(4)
             # one div that contains two divs, where the left of the two inner divs has a fixed width of 100px
             # """<div style='display: flex;'>
             #     <div style='width: 100px; border-right: 1px solid rgba(127, 127, 127, 0.2); padding-right: 5px; margin-right: 5px;'>{name}</div>
@@ -369,22 +369,22 @@ class Program:
         # strip out hidden blocks (might want to make a better UI for this at some point)
         display_out = re.sub(r"{{!--GMARKER_START[^}]*--}}{{!--GHIDDEN:(.*?)--}}{{!--GMARKER_END[^}]*--}}", "", display_out, flags=re.DOTALL)
         
-        if self.llm.chat_mode:
+        if self.llm.chat_mode or True:
             start_pattern = html.escape(self.llm.role_start("(.*?)")).replace("|", r"\|")
             end_pattern = html.escape(self.llm.role_end("(.*?)")).replace("|", r"\|")
             
             # strip whitespace before role markers
-            display_out = re.sub(r"\s+({{!--[^}]*--}})?"+start_pattern, r"\1"+start_pattern.replace("(.*?)", r"\2").replace(r"\|", "|"), display_out, flags=re.DOTALL)
+            display_out = re.sub(r"\s+{{!--GMARKER_START_(role|system|user|assistant)\$(.*?)--}}", r"{{!--GMARKER_START_\1$\2--}}", display_out, flags=re.DOTALL)
 
             # strip whitespace after role markers
             # TODO: support end_patterns with capture groups
-            display_out = re.sub(end_pattern+r"({{!--[^}]*--}})?\s+", end_pattern.replace(r"\|", "|")+r"\1", display_out, flags=re.DOTALL)
+            display_out = re.sub(r"{{!--GMARKER_END_(role|system|user|assistant)\$(.*?)--}}\s+", r"{{!--GMARKER_END_\1$\2--}}", display_out, flags=re.DOTALL)
 
             # wrap role markers in nice formatting
-            display_out = re.sub(start_pattern + "(.*?)" + end_pattern, role_box, display_out, flags=re.DOTALL)
+            display_out = re.sub(r"{{!--GMARKER_START_(role|system|user|assistant)\$(.*?)--}}" + start_pattern + "(.*?)" + end_pattern + r"{{!--GMARKER_END_(role|system|user|assistant)\$(.*?)--}}", role_box, display_out, flags=re.DOTALL)
 
             # wrap unfinished role markers in nice formatting
-            display_out = re.sub(start_pattern + "(.*)", role_box, display_out, flags=re.DOTALL)
+            display_out = re.sub(r"{{!--GMARKER_START_(role|system|user|assistant)\$(.*?)--}}" + start_pattern + "(.*)", role_box, display_out, flags=re.DOTALL)
         
         display_out = re.sub(r"(\{\{generate.*?\}\})", r"<span style='background-color: rgba(0, 165, 0, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
         display_out = re.sub(r"(\{\{#select\{\{/select.*?\}\})", r"<span style='background-color: rgba(0, 165, 0, 0.25);'>\1</span>", display_out, flags=re.DOTALL)

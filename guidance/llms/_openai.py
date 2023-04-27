@@ -135,7 +135,7 @@ class OpenAI(LLM):
         assert self.chat_mode, "role_end() can only be used in chat mode"
         return "<|im_end|>"
     
-    def __call__(self, prompt, stop=None, stop_regex=None, temperature=None, n=1, max_tokens=1000, logprobs=None, top_p=1.0, echo=False, logit_bias=None, pattern=None, stream=False, cache_seed=0):
+    def __call__(self, prompt, stop=None, stop_regex=None, temperature=None, n=1, max_tokens=1000, logprobs=None, top_p=1.0, echo=False, logit_bias=None, pattern=None, stream=False, cache_seed=0, caching=None):
         """ Generate a completion of the given prompt.
         """
         args = locals().copy()
@@ -157,7 +157,7 @@ class OpenAI(LLM):
                 key = key1
         
         # check the cache
-        if key not in self.__class__.cache or not self.caching:
+        if key not in self.__class__.cache or (caching is not True and not self.caching) or caching is False:
 
             # ensure we don't exceed the rate limit
             if self.count_calls() > self.max_calls_per_min:

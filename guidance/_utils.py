@@ -152,3 +152,7 @@ class JupyterComm():
     #     #log("SENDING_now", self.jcomm, data)
     #     self.jcomm.send({"data": json.dumps(data)}) # we encode the JSON so iPython doesn't mess it up
 
+# https://stackoverflow.com/questions/15411967/how-can-i-check-if-code-is-executed-in-the-ipython-notebook
+def is_interactive():
+    import __main__ as main
+    return not hasattr(main, '__file__')

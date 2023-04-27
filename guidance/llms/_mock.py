@@ -18,7 +18,7 @@ class Mock(LLM):
         self.output = output
         self.index = 0
 
-    def __call__(self, *args, n=1, stream=False, **kwds):
+    def __call__(self, *args, n=1, stream=False, **kwargs):
         choices = []
         for i in range(n):
             if isinstance(self.output, list):

@@ -55,7 +55,8 @@ async def gen(variable_name="generated", partial_output=None, parse=False, stop=
     if n == 1: # we can't stream batches right now
         if parser.program.stream == "auto":
             stream_generation = parser.program.display or parser.program.async_mode
-        stream_generation = parser.program.stream
+        else:
+            stream_generation = parser.program.stream
     else:
         stream_generation = False
 
@@ -67,7 +68,7 @@ async def gen(variable_name="generated", partial_output=None, parse=False, stop=
     gen_obj = parser.llm_session(
         parser_prefix+prefix, stop=stop, stop_regex=stop_regex, max_tokens=max_tokens, n=n, pattern=pattern,
         temperature=temperature, top_p=top_p, logprobs=parser.program.logprobs, cache_seed=cache_seed,
-        echo=parser.program.logprobs is not None, stream=stream_generation
+        echo=parser.program.logprobs is not None, stream=stream_generation, caching=parser.program.caching
     )
 
     if n == 1:

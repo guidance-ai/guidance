@@ -15,7 +15,7 @@ def test_chat_stream():
     loop = asyncio.new_event_loop()
 
     import guidance
-    guidance.llm = guidance.llms.OpenAI("gpt-4")
+    guidance.llm = guidance.llms.OpenAI("gpt-3.5-turbo")
 
     async def f():
         chat = guidance("""<|im_start|>system
@@ -59,7 +59,7 @@ def test_agents():
     guidance.llm = guidance.llms.OpenAI("gpt-3.5-turbo")
     prompt = guidance('''<|im_start|>system
     You are a helpful assistant.<|im_end|>
-    {{#geneach 'conversation'}}
+    {{#geneach 'conversation' stop=False}}
     <|im_start|>user
     {{set 'this.user_text' (await 'user_text')}}<|im_end|>
     <|im_start|>assistant

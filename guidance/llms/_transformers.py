@@ -62,6 +62,16 @@ class Transformers(LLM):
         
         return out
     
+    def role_start(self, role):
+        """ The starting role tag for chat models.
+
+        #TODO Right now this just assumes the StableLM syntax, but this should be expanded later.
+        """
+        return "<|"+role.upper()+"|>"
+    
+    def role_end(self, role=None):
+        return ""
+    
     def decode(self, tokens, is_suffix=False, **kwargs):
 
         # Decode the string corresponding to a single suffix token.
@@ -167,7 +177,7 @@ class TransformersSession(LLMSession):
 
         return self
 
-    def __call__(self, prompt, stop=None, stop_regex=None, temperature=None, n=1, max_tokens=1000, logprobs=None, top_p=1.0, echo=False, logit_bias=None, token_healing=None, pattern=None, stream=False, cache_seed=0):
+    def __call__(self, prompt, stop=None, stop_regex=None, temperature=None, n=1, max_tokens=1000, logprobs=None, top_p=1.0, echo=False, logit_bias=None, token_healing=None, pattern=None, stream=False, cache_seed=0, caching=None):
         """ Generate a completion of the given prompt.
         """
         key = self.llm._cache_key(locals())
@@ -187,11 +197,11 @@ class TransformersSession(LLMSession):
             stop_regex = [stop_regex]
 
         # handle caching
-        if key not in self.llm.cache or not self.llm.caching:
+        if key not in self.llm.cache or (caching is not True and not self.llm.caching) or caching is False:
             import transformers
-            import torch
+            # import torch
             # encode the prompt
-            encoded = self.llm.encode(prompt, return_tensors="pt")
+            encoded = self.llm.encode([prompt for _ in range(n)], return_tensors="pt")
             if self.llm.device is not None:
                 encoded = encoded.to(self.llm.device)
             input_ids = encoded["input_ids"]
@@ -239,7 +249,7 @@ class TransformersSession(LLMSession):
                 self._prefix_cache = self._prefix_cache[:prefix_match_len]
 
             # see if we need to returns the scores
-            output_scores = logprobs is not None and logprobs > 0
+            # output_scores = logprobs is not None and logprobs > 0
 
             # position_ids = torch.arange(prefix_match_len, input_ids.shape[-1], dtype=torch.long).unsqueeze(0)
                 
@@ -504,7 +514,7 @@ class TransformersStreamer():
         self.llm = llm
         self.max_total_tokens = max_new_tokens + len(input_ids[0])
         coded_prompt = coded_prompt[:len(coded_prompt)-len(last_token_str)] # strip off the last token which will be regenerated
-        self.str_pos = len(coded_prompt) + len(self.last_token_str)
+        self.str_pos = [len(coded_prompt) + len(self.last_token_str) for i in range(len(self.input_ids))]
         self.out_queue = queue.Queue()
         self.sequence_pos = [len(self.input_ids[0]) for i in range(len(self.input_ids))]
         self.generated_sequence = [[] for i in range(len(self.input_ids))]
@@ -545,7 +555,7 @@ class TransformersStreamer():
                 val = self.llm.decode([self.llm._tokenizer.bos_token_id] + display_tokens)[len(self.llm._tokenizer.bos_token):]
                 self.generated_string[i] += val
                 
-                if self.str_pos < len(self.generated_string[i]):
+                if self.str_pos[i] < len(self.generated_string[i]):
                     
                     display_logprobs = None
                     if self.logprobs:
@@ -555,7 +565,7 @@ class TransformersStreamer():
                             top_inds = display_scores[k][0].argsort(descending=True)[:self.logprobs] # TODO: verify the [0] is always correct
                             display_logprobs.append({self.llm.decode([j], is_suffix=True): display_scores[k][0][j] for j in top_inds})
 
-                    val = self.generated_string[i][self.str_pos:]
+                    val = self.generated_string[i][self.str_pos[i]:]
                     finish_reason = None
                     
                     if len(self.generated_sequence[i]) >= self.max_total_tokens:
@@ -589,7 +599,7 @@ class TransformersStreamer():
                             "finish_reason": finish_reason,
                             "logprobs": {"token_healing_prefix": self.last_token_str, "top_logprobs": display_logprobs}
                         }
-                        self.str_pos = len(self.generated_string[i])
+                        self.str_pos[i] = len(self.generated_string[i])
                         put_data = True
                 self.sequence_pos[i] = len(self.generated_sequence[i])
         if put_data:

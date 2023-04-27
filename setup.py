@@ -29,11 +29,11 @@ setup(
     package_data={"guidance": ["resources/*"]},
     install_requires=[
         "diskcache",
-        "openai",
+        "openai>=0.27",
         "pybars3",
         "parsimonious",
         "pygtrie",
         "platformdirs",
-        "tiktoken"
+        "tiktoken>=0.3"
     ]
 )
