@@ -1,7 +1,7 @@
 import guidance
 
 def test_geneach():
-    """ Test an each loop.
+    """ Test a geneach loop.
     """
     llm = guidance.llms.OpenAI("text-curie-001")
     prompt = guidance('''<instructions>Generate a list of three names</instructions>
