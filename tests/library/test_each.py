@@ -20,7 +20,7 @@ def test_each_with_objects():
 
 def test_missing_list():
     llm = guidance.llms.OpenAI("text-curie-001")
-    prompt = guidance('''List of ideas:{{#each ideas}}test{{this}}{{/each}}''', llm=llm)
+    prompt = guidance('''List of ideas:{{#each ideas}}test{{this}}{{/each}}''', await_missing=True, llm=llm)
     assert str(prompt()) == "List of ideas:{{#each ideas}}test{{this}}{{/each}}"
     # try:
     #     out = prompt()

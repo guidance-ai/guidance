@@ -32,7 +32,7 @@ class Program:
     the generated output to mark where template tags used to be.
     '''
 
-    def __init__(self, text, llm=None, cache_seed=0, logprobs=None, display='auto', async_mode=False, stream='auto', caching=None, **kwargs):
+    def __init__(self, text, llm=None, cache_seed=0, logprobs=None, display='auto', async_mode=False, stream='auto', caching=None, await_missing=False, **kwargs):
         """ Create a new Program object from a program string.
 
         Parameters
@@ -78,6 +78,7 @@ class Program:
         self.async_mode = async_mode
         self.display = display
         self.stream = stream
+        self.await_missing = await_missing
         if self.display == "auto":
             self.display = _utils.is_interactive()
         
@@ -169,6 +170,7 @@ class Program:
             "cache_seed": self.cache_seed,
             "caching": self.caching,
             "logprobs": self.logprobs,
+            "await_missing": self.await_missing,
         }, **kwargs}
 
         log.debug(f"in __call__ with kwargs: {kwargs}")
@@ -374,11 +376,11 @@ class Program:
             end_pattern = html.escape(self.llm.role_end("(.*?)")).replace("|", r"\|")
             
             # strip whitespace before role markers
-            display_out = re.sub(r"\s+{{!--GMARKER_START_(role|system|user|assistant)\$(.*?)--}}", r"{{!--GMARKER_START_\1$\2--}}", display_out, flags=re.DOTALL)
+            display_out = re.sub(r"\s*{{!--GMARKER_START_(role|system|user|assistant)\$(.*?)--}}", r"{{!--GMARKER_START_\1$\2--}}", display_out, flags=re.DOTALL)
 
             # strip whitespace after role markers
             # TODO: support end_patterns with capture groups
-            display_out = re.sub(r"{{!--GMARKER_END_(role|system|user|assistant)\$(.*?)--}}\s+", r"{{!--GMARKER_END_\1$\2--}}", display_out, flags=re.DOTALL)
+            display_out = re.sub(r"{{!--GMARKER_END_(role|system|user|assistant)\$(.*?)--}}\s*", r"{{!--GMARKER_END_\1$\2--}}", display_out, flags=re.DOTALL)
 
             # wrap role markers in nice formatting
             display_out = re.sub(r"{{!--GMARKER_START_(role|system|user|assistant)\$(.*?)--}}" + start_pattern + "(.*?)" + end_pattern + r"{{!--GMARKER_END_(role|system|user|assistant)\$(.*?)--}}", role_box, display_out, flags=re.DOTALL)
@@ -430,11 +432,11 @@ cycle_IDVAL(this);'''.replace("IDVAL", id).replace("TOTALCOUNT", str(total_count
             display_out
         )
         display_out = re.sub(
-            r"{{!--GMARKERmany_generate_([^_]+)_([0-9]+)\$([^\$]*)\$--}}",
+            r"(?:--}})?{{!--GMARKERmany_generate_([^_]+)_([0-9]+)\$([^\$]*)\$--}}{{!--G ",
             lambda x: click_loop_mid(x.group(3), int(x.group(2)), x.group(1) == "True"),
             display_out
         )
-        display_out = re.sub(r"{{!--GMARKERmany_generate_end\$([^\$]*)\$--}}", "</div>", display_out)
+        display_out = re.sub(r"--}}{{!--GMARKERmany_generate_end\$([^\$]*)\$--}}", "</div>", display_out)
 
         # format the each command results
         display_out = re.sub(r"{{!--GMARKER_START_each\$([^\$]*)\$--}}", start_each, display_out)
@@ -519,6 +521,7 @@ class DisplayThrottler():
         while True:
             await self._data_event.wait()
             now = time.time()
+            log.info("in DisplayThrottler run loop -- now: {}, last_time: {}, throttle_limit: {}".format(now, self.last_time, self.throttle_limit))
             if self._done or now - self.last_time >= self.throttle_limit:
                 self.display_function(last=self._done)
                 self.last_time = now

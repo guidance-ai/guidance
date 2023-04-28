@@ -4,11 +4,12 @@ import time
 import requests
 import copy
 import time
+import asyncio
 import types
 import collections
 import json
 import re
-from ._llm import LLM
+from ._llm import LLM, LLMSession
 
 
 class MalformedPromptException(Exception):
@@ -19,6 +20,8 @@ def prompt_to_messages(prompt):
     end_tags = re.findall(r'<\|im_end\|>', prompt)
     # if len(start_tags) != len(end_tags):
     #     raise MalformedPromptException("Malformed prompt: start and end tags are not properly paired")
+
+    assert prompt.endswith("<|im_start|>assistant\n"), "When calling OpenAI chat models you must generate only directly inside the assistant role! The OpenAI API does not currently support partial assistant prompting."
 
     pattern = r'<\|im_start\|>(\w+)(.*?)(?=<\|im_end\|>)'
     matches = re.findall(pattern, prompt, re.DOTALL)
@@ -69,6 +72,7 @@ class OpenAI(LLM):
     cache = LLM._open_cache("_openai.diskcache")
 
     def __init__(self, model=None, caching=True, max_retries=5, max_calls_per_min=60, token=None, endpoint=None, temperature=0.0, chat_mode="auto"):
+        super().__init__()
 
         # fill in default model value
         if model is None:
@@ -127,6 +131,9 @@ class OpenAI(LLM):
                 "Content-Type": "application/json"
             }
 
+    def session(self):
+        return OpenAISession(self)
+
     def role_start(self, role):
         assert self.chat_mode, "role_start() can only be used in chat mode"
         return "<|im_start|>"+role+"\n"
@@ -135,85 +142,13 @@ class OpenAI(LLM):
         assert self.chat_mode, "role_end() can only be used in chat mode"
         return "<|im_end|>"
     
-    def __call__(self, prompt, stop=None, stop_regex=None, temperature=None, n=1, max_tokens=1000, logprobs=None, top_p=1.0, echo=False, logit_bias=None, pattern=None, stream=False, cache_seed=0, caching=None):
-        """ Generate a completion of the given prompt.
-        """
-        args = locals().copy()
-
-        assert not pattern, "The OpenAI API does not support Guidance pattern controls! Please either switch to an endpoint that does, or don't use the `pattern` argument to `gen`."
-        assert not stop_regex, "The OpenAI API does not support Guidance stop_regex controls! Please either switch to an endpoint that does, or don't use the `stop_regex` argument to `gen`."
-
-        if temperature is None:
-            temperature = self.temperature
-
-        # define the key for the cache
-        key = self._cache_key(args)
-        
-        # allow streaming to use non-streaming cache (the reverse is not true)
-        if key not in self.__class__.cache and stream:
-            args["stream"] = False
-            key1 = self._cache_key(args)
-            if key1 in self.__class__.cache:
-                key = key1
-        
-        # check the cache
-        if key not in self.__class__.cache or (caching is not True and not self.caching) or caching is False:
-
-            # ensure we don't exceed the rate limit
-            if self.count_calls() > self.max_calls_per_min:
-                time.sleep(1)        
-
-            fail_count = 0
-            while True:
-                try_again = False
-                try:
-                    self.add_call()
-                    call_args = {
-                        "model": self.model_name,
-                        "prompt": prompt,
-                        "max_tokens": max_tokens,
-                        "temperature": temperature,
-                        "top_p": top_p,
-                        "n": n,
-                        "stop": stop,
-                        "logprobs": logprobs,
-                        "echo": echo,
-                        "stream": stream
-                    }
-                    if logit_bias is not None:
-                        call_args["logit_bias"] = logit_bias
-                    out = self.caller(**call_args)
-
-                except openai.error.RateLimitError:
-                    time.sleep(3)
-                    try_again = True
-                    fail_count += 1
-                
-                if not try_again:
-                    break
-
-                if fail_count > self.max_retries:
-                    raise Exception(f"Too many (more than {self.max_retries}) OpenAI API RateLimitError's in a row!")
-
-            if stream:
-                return self.stream_then_save(out, key)
-            else:
-                self.__class__.cache[key] = out
-        
-        # wrap as a list if needed
-        if stream:
-            if isinstance(self.__class__.cache[key], list):
-                return self.__class__.cache[key]
-            return [self.__class__.cache[key]]
-        
-        return self.__class__.cache[key]
-    
-    def stream_then_save(self, gen, key):
+    @classmethod
+    def stream_then_save(cls, gen, key):
         list_out = []
         for out in gen:
             list_out.append(out)
             yield out
-        self.__class__.cache[key] = list_out
+        cls.cache[key] = list_out
     
     def _stream_completion(self):
         pass
@@ -340,4 +275,81 @@ class OpenAI(LLM):
 
 # Define a deque to store the timestamps of the calls
 
+class OpenAISession(LLMSession):
+    async def __call__(self, prompt, stop=None, stop_regex=None, temperature=None, n=1, max_tokens=1000, logprobs=None, top_p=1.0, echo=False, logit_bias=None, pattern=None, stream=False, cache_seed=0, caching=None):
+        """ Generate a completion of the given prompt.
+        """
 
+        # set defaults
+        if temperature is None:
+            temperature = self.llm.temperature
+
+        # get the arguments as dictionary for cache key generation
+        args = locals().copy()
+
+        assert not pattern, "The OpenAI API does not support Guidance pattern controls! Please either switch to an endpoint that does, or don't use the `pattern` argument to `gen`."
+        assert not stop_regex, "The OpenAI API does not support Guidance stop_regex controls! Please either switch to an endpoint that does, or don't use the `stop_regex` argument to `gen`."
+
+        # define the key for the cache
+        key = self._cache_key(args)
+        
+        # allow streaming to use non-streaming cache (the reverse is not true)
+        if key not in self.llm.__class__.cache and stream:
+            args["stream"] = False
+            key1 = self._cache_key(args)
+            if key1 in self.llm.__class__.cache:
+                key = key1
+        
+        # check the cache
+        if key not in self.llm.__class__.cache or (caching is not True and not self.llm.caching) or caching is False:
+
+            # ensure we don't exceed the rate limit
+            while self.llm.count_calls() > self.llm.max_calls_per_min:
+                await asyncio.sleep(1)
+
+            fail_count = 0
+            while True:
+                try_again = False
+                try:
+                    self.llm.add_call()
+                    call_args = {
+                        "model": self.llm.model_name,
+                        "prompt": prompt,
+                        "max_tokens": max_tokens,
+                        "temperature": temperature,
+                        "top_p": top_p,
+                        "n": n,
+                        "stop": stop,
+                        "logprobs": logprobs,
+                        "echo": echo,
+                        "stream": stream
+                    }
+                    if logit_bias is not None:
+                        call_args["logit_bias"] = logit_bias
+                    out = self.llm.caller(**call_args)
+
+                except openai.error.RateLimitError:
+                    await asyncio.sleep(3)
+                    try_again = True
+                    fail_count += 1
+                
+                if not try_again:
+                    break
+
+                if fail_count > self.llm.max_retries:
+                    raise Exception(f"Too many (more than {self.llm.max_retries}) OpenAI API RateLimitError's in a row!")
+
+            if stream:
+                return self.llm.stream_then_save(out, key)
+            else:
+                self.llm.__class__.cache[key] = out
+        
+        # wrap as a list if needed
+        if stream:
+            if isinstance(self.llm.__class__.cache[key], list):
+                return self.llm.__class__.cache[key]
+            return [self.llm.__class__.cache[key]]
+        
+        return self.llm.__class__.cache[key]
+    
+    

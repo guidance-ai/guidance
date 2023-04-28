@@ -177,16 +177,18 @@ class TransformersSession(LLMSession):
 
         return self
 
-    def __call__(self, prompt, stop=None, stop_regex=None, temperature=None, n=1, max_tokens=1000, logprobs=None, top_p=1.0, echo=False, logit_bias=None, token_healing=None, pattern=None, stream=False, cache_seed=0, caching=None):
+    async def __call__(self, prompt, stop=None, stop_regex=None, temperature=None, n=1, max_tokens=1000, logprobs=None, top_p=1.0, echo=False, logit_bias=None, token_healing=None, pattern=None, stream=False, cache_seed=0, caching=None):
         """ Generate a completion of the given prompt.
         """
-        key = self.llm._cache_key(locals())
         
         # fill in defaults
         if temperature is None:
             temperature = self.llm.temperature
         if token_healing is None:
             token_healing = self.llm.token_healing
+
+        # generate the cache key
+        key = self._cache_key(locals())
 
         if stop is not None:
             if isinstance(stop, str):
@@ -359,8 +361,12 @@ class TokenHealingLogitsProcessor():
         """
         import torch
         # last_token_str = model._tokenizer.decode([model._tokenizer.bos_token_id, last_token_id])[len(model._tokenizer.bos_token):]
-        allowed_first_tokens = [v for arr in model.token_prefix_map.values(prefix=last_token_str) for v in arr]
-        assert len(allowed_first_tokens) > 0, "Error in token healing map! No match found for: `"+last_token_str+"`"
+        try:
+            allowed_first_tokens = [v for arr in model.token_prefix_map.values(prefix=last_token_str) for v in arr]
+            assert len(allowed_first_tokens) > 0, "Error in token healing map! No match found for: `"+last_token_str+"`"
+        except KeyError:
+            # this must be a special token outside the vocab, so we assume it does not have any valid extensions
+            allowed_first_tokens = []
         
         # if we have multiple possible completions past the last token, then biasing is needed
         if len(allowed_first_tokens) > 1:
@@ -462,7 +468,7 @@ class RegexLogitsProcessor():
                     break # we are done if we are doing greedy sampling and we found the top valid hit
         
         # make only allowed tokens
-        return scores + self.bias_vector
+        return scores + self.bias_vector.to(scores.device)
 
 class RegexStoppingCriteria():
     def __init__(self, stop_pattern, decode, prefix_length):
@@ -568,15 +574,17 @@ class TransformersStreamer():
                     val = self.generated_string[i][self.str_pos[i]:]
                     finish_reason = None
                     
+                    # check why we stopped
+                    stop_pos = len(val) + 1
                     if len(self.generated_sequence[i]) >= self.max_total_tokens:
                         finish_reason = "length"
                     elif self.generated_sequence[i][-1] == self.llm.model_obj.config.eos_token_id:
                         finish_reason = "endoftext"
+                        stop_pos = len(val) - len(self.llm.decode([self.llm.model_obj.config.eos_token_id]))
 
                     # trim off the stop regex matches if needed
                     found_partial = False
-                    stop_pos = len(val) + 1
-                    if self.stop_regex is not None and finish_reason is None:
+                    if self.stop_regex is not None and (finish_reason is None or len(self.input_ids) > 1):
                         stop_regex_obj = [regex.compile(s) for s in self.stop_regex]
                         for s in stop_regex_obj:
                             m = s.search(val, partial=True)
@@ -609,7 +617,7 @@ class TransformersStreamer():
 
         # make sure we have flushed all of the data
         for i in range(len(self.input_ids)):
-            assert self.str_pos >= len(self.generated_string[i]), "Not all data was flushed, this means generation stopped for an unknown reason!"
+            assert self.str_pos[i] >= len(self.generated_string[i]), "Not all data was flushed, this means generation stopped for an unknown reason!"
         
         self.out_queue.put(None)
 

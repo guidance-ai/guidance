@@ -3,6 +3,7 @@ import re
 import uuid
 import logging
 from .._grammar import grammar
+from .._utils import escape_template_block
 
 log = logging.getLogger(__name__)
 
@@ -65,7 +66,7 @@ async def gen(variable_name="generated", partial_output=None, parse=False, stop=
         parser.set_variable(save_prompt, parser_prefix+prefix)
 
     # call the LLM
-    gen_obj = parser.llm_session(
+    gen_obj = await parser.llm_session(
         parser_prefix+prefix, stop=stop, stop_regex=stop_regex, max_tokens=max_tokens, n=n, pattern=pattern,
         temperature=temperature, top_p=top_p, logprobs=parser.program.logprobs, cache_seed=cache_seed,
         echo=parser.program.logprobs is not None, stream=stream_generation, caching=parser.program.caching
@@ -128,10 +129,14 @@ async def gen(variable_name="generated", partial_output=None, parse=False, stop=
             l = len(generated_values)
             out = "{{!--" + f"GMARKERmany_generate_start_{not hidden}_{l}${id}$" + "--}}"
             for i, value in enumerate(generated_values):
+                if i > 1:
+                    out += "--}}"
                 if i > 0:
-                    out += "{{!--" + f"GMARKERmany_generate_{not hidden}_{i}${id}$" + "--}}"
-                out += value
-            partial_output(out + "{{!--" + f"GMARKERmany_generate_end${id}$" + "--}}")
+                    out += "{{!--" + f"GMARKERmany_generate_{not hidden}_{i}${id}$" + "--}}{{!--G "
+                    out += escape_template_block(value)
+                else:
+                    out += value
+            partial_output(out + "--}}{{!--" + f"GMARKERmany_generate_end${id}$" + "--}}")
             return
             # return "{{!--GMARKERmany_generate_start$$}}" + "{{!--GMARKERmany_generate$$}}".join([v for v in generated_values]) + "{{!--GMARKERmany_generate_end$$}}"
             # return "".join([v for v in generated_values])

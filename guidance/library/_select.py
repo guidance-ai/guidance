@@ -1,4 +1,4 @@
-def select(variable_name="selected", block_content=None, parser=None, partial_output=None, parser_prefix=None, logprobs=None):
+async def select(variable_name="selected", block_content=None, parser=None, partial_output=None, parser_prefix=None, logprobs=None):
     ''' Select a value from a list of choices.
     '''
     assert len(block_content) > 1
@@ -11,7 +11,7 @@ def select(variable_name="selected", block_content=None, parser=None, partial_ou
 
     # [TODO] we should force the LM to generate a valid specific option
     #        for openai this means setting logprobs to valid token ids
-    gen_obj = parser.llm_session(
+    gen_obj = await parser.llm_session(
         parser_prefix,
         max_tokens=max([len(o) for o in option_tokens]),
         logprobs=10,

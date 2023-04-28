@@ -9,7 +9,7 @@ async def geneach(list_name, block_content, parser, partial_output=None, parser_
     assert len(block_content) == 1
     assert not (hidden and single_call), "Cannot use hidden=True and single_call together"
     assert isinstance(list_name, str), "Must provide a variable name to save the generated list to"
-    assert not hidden, "Cannot use hidden=True and variable length iteration together yet..." # TODO: perhaps we can relax this?
+    assert not hidden or num_iterations is not None, "Cannot use hidden=True and variable length iteration together yet..."
     echo = not hidden
 
     # num_iterations has priority over max_iterations if they are both set
@@ -69,6 +69,9 @@ async def geneach(list_name, block_content, parser, partial_output=None, parser_
             await parser.visit(block_content[0]) # fills out parser.prefix
             block_variables = parser.variable_stack.pop()["this"]
             data.append(block_variables)
+            if hidden:
+                # new_content = parser.prefix[pos:]
+                parser.reset_prefix(pos)
             if not parser.executing:
                 block_text = parser.prefix[pos:]
                 block_text = block_text # make any unfinished this. references point to the last (unfinished) item
@@ -91,7 +94,7 @@ async def geneach(list_name, block_content, parser, partial_output=None, parser_
 
             # we run a quick generation to see if we have reached the end of the list (note the +2 tokens is to help be tolorant to whitespace)
             if stop is not False and i >= min_iterations:
-                gen_obj = parser.llm_session(strip_markers(parser.prefix), stop=stop, max_tokens=len(stop_tokens)+2, temperature=0, cache_seed=0)
+                gen_obj = await parser.llm_session(strip_markers(parser.prefix), stop=stop, max_tokens=len(stop_tokens)+2, temperature=0, cache_seed=0)
                 if gen_obj["choices"][0]["finish_reason"] == "stop":
                     break
     
@@ -121,7 +124,7 @@ async def geneach(list_name, block_content, parser, partial_output=None, parser_
             parser.program.cache_seed += 1
         else:
             cache_seed = 0
-        gen_stream = parser.llm_session(parser_prefix+fixed_prefix, stop=stop, max_tokens=single_call_max_tokens, temperature=single_call_temperature, top_p=single_call_top_p, cache_seed=cache_seed, stream=True)
+        gen_stream = await parser.llm_session(parser_prefix+fixed_prefix, stop=stop, max_tokens=single_call_max_tokens, temperature=single_call_temperature, top_p=single_call_top_p, cache_seed=cache_seed, stream=True)
         generated_value = fixed_prefix
         num_items = 0
         data = []

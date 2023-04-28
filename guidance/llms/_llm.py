@@ -8,9 +8,8 @@ class LLM():
     cache_version = 1
 
     def __init__(self):
-
-        # by default models are not in role-based chat mode
-        self.chat_mode = False
+        self.chat_mode = False # by default models are not in role-based chat mode
+        self.model_name = "unknown"
     
     def __call__(self, *args, **kwargs):
         """ Creates a session and calls the LLM with the given arguments.
@@ -21,13 +20,6 @@ class LLM():
         with self.session() as s:
             out = s(*args, **kwargs)
         return out
-    
-    def _cache_key(self, args):
-        """ Get a cache key for the given args.
-        """
-        var_names = list(args.keys())[1:] # skip the "self" arg
-        key = "_---_".join([str(v) for v in ([args[k] for k in var_names] + [self.model_name, self.__class__.__name__, self.cache_version])])
-        return key
     
     def session(self):
         return LLMSession(self) # meant to be overridden
@@ -46,12 +38,36 @@ class LLM():
 class LLMSession():
     def __init__(self, llm):
         self.llm = llm
+        self._call_counts = {} # used to track the number of repeated identical calls to the LLM with non-zero temperature
     
     def __enter__(self):
         return self
     
-    def __call__(self, *args, **kwargs):
+    async def __call__(self, *args, **kwargs):
         return self.llm(*args, **kwargs)
 
     def __exit__(self, exc_type, exc_value, traceback):
         pass
+
+    def _gen_key(self, args_dict):
+        var_names = list(args_dict.keys())[1:] # skip the "self" arg
+        return "_---_".join([str(v) for v in ([args_dict[k] for k in var_names] + [self.llm.model_name, self.llm.__class__.__name__, self.llm.cache_version])])
+    
+    def _cache_key(self, args_dict):
+        """ Get a cache key for the given args.
+        """
+
+        # generate the key without the call count included
+        key = self._gen_key(args_dict)
+
+        # if we have non-zero temperature we include the call count in the cache key
+        if args_dict.get("temperature", 0) > 0:
+            args_dict["call_count"] = self._call_counts.get(key, 0)
+
+            # increment the call count
+            self._call_counts[key] = args_dict["call_count"] + 1
+
+            # regenerate the key with the call count in it
+            key = self._gen_key(args_dict)
+
+        return key

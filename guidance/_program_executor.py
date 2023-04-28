@@ -286,10 +286,12 @@ class ProgramExecutor():
                     partial_output(command_output)
             else:
                 # if the variable does not exist we just pause execution
-                self.executing = False
-                return None
-                # raise an error if the command doesn't exist
-                # raise KeyError("Command/variable '"+command_name+"' not found! Please pass it when calling the program (or set a default value for it when creating the program).")
+                if self.program.await_missing:
+                    self.executing = False
+                    return None
+                else:
+                    # raise an error if the command doesn't exist
+                    raise KeyError("Command/variable '"+command_name+"' not found! Please pass it when calling the program (or set a default value for it when creating the program).")
             
             # see if we got a list of outputs encoded as a string
             if isinstance(return_value, str):

@@ -156,3 +156,9 @@ class JupyterComm():
 def is_interactive():
     import __main__ as main
     return not hasattr(main, '__file__')
+
+def escape_template_block(text):
+    return text.replace("$", "&#36;").replace("{", "&#123;").replace("}", "&#125;")
+
+def unescape_template_block(text):
+    return text.replace("&#36;", "$").replace("&#123;", "{").replace("&#125;", "}")
