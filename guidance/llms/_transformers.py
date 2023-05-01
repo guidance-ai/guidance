@@ -41,7 +41,12 @@ class Transformers(LLM):
             self.model_obj = self.model_obj.to(device)
         self.device = self.model_obj.device # otherwise note the current device
 
-        self.token_prefix_map = self._build_token_prefix_map(model)
+        self._token_prefix_map = self._build_token_prefix_map(model)
+
+    def prefix_matches(self, prefix):
+        """ Return the list of tokens that match the given prefix.
+        """
+        return [v for arr in self._token_prefix_map.values(prefix=prefix) for v in arr]
 
     def encode(self, string, is_suffix=False, **kwargs):
 
@@ -362,7 +367,7 @@ class TokenHealingLogitsProcessor():
         import torch
         # last_token_str = model._tokenizer.decode([model._tokenizer.bos_token_id, last_token_id])[len(model._tokenizer.bos_token):]
         try:
-            allowed_first_tokens = [v for arr in model.token_prefix_map.values(prefix=last_token_str) for v in arr]
+            allowed_first_tokens = model.prefix_matches(last_token_str)
             assert len(allowed_first_tokens) > 0, "Error in token healing map! No match found for: `"+last_token_str+"`"
         except KeyError:
             # this must be a special token outside the vocab, so we assume it does not have any valid extensions

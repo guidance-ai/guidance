@@ -136,10 +136,12 @@ class ProgramExecutor():
             return ""
         
         elif node.expr_name == 'comment':
-            return node.text
+            self.extend_prefix(node.text)
+            return ""
         
         elif node.expr_name == 'slim_comment':
-            return node.text
+            self.extend_prefix(node.text)
+            return ""
 
         elif node.expr_name == 'command_args':
             visited_children = [await self.visit(child) for child in node.children]
@@ -387,9 +389,9 @@ class ProgramExecutor():
                     self.extend_prefix(command_output)
 
                 # if we stopped execution we need to remove the start marker
-                if not self.executing:
-                    self.prefix = self.prefix[:pos] + self.prefix[pos+len(start_marker):]
-                    return
+                # if not self.executing:
+                #     self.prefix = self.prefix[:pos] + self.prefix[pos+len(start_marker):]
+                #     return
                 
             else:
                 command_output = ""

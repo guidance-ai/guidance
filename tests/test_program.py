@@ -19,13 +19,13 @@ def test_chat_stream():
 
     async def f():
         chat = guidance("""<|im_start|>system
-        You are a helpful assistent.
-        <|im_end|>
-        <|im_start|>user
-        {{command}}
-        <|im_end|>
-        <im_start|>assistant
-        {{gen 'answer' max_tokens=10}}""", stream=True)
+You are a helpful assistent.
+<|im_end|>
+<|im_start|>user
+{{command}}
+<|im_end|>
+<|im_start|>assistant
+{{gen 'answer' max_tokens=10}}""", stream=True)
         out = await chat(command="How do I create a Fasttokenizer with hugging face auto?-b")
         assert len(out["answer"]) > 0
     loop.run_until_complete(f())
@@ -42,13 +42,13 @@ def test_chat_echo():
 
     async def f():
         chat = guidance("""<|im_start|>system
-        You are a helpful assistent.
-        <|im_end|>
-        <|im_start|>user
-        {{command}}
-        <|im_end|>
-        <im_start|>assistant
-        {{gen 'answer' max_tokens=10}}""", echo=True)
+You are a helpful assistent.
+<|im_end|>
+<|im_start|>user
+{{command}}
+<|im_end|>
+<|im_start|>assistant
+{{gen 'answer' max_tokens=10}}""", echo=True)
         out = await chat(command="How do I create a Fasttokenizer with hugging face auto?")
         assert len(out["answer"]) > 0
     loop.run_until_complete(f())
@@ -58,12 +58,12 @@ def test_agents():
     import guidance
     guidance.llm = guidance.llms.OpenAI("gpt-3.5-turbo")
     prompt = guidance('''<|im_start|>system
-    You are a helpful assistant.<|im_end|>
-    {{#geneach 'conversation' stop=False}}
-    <|im_start|>user
-    {{set 'this.user_text' (await 'user_text')}}<|im_end|>
-    <|im_start|>assistant
-    {{gen 'this.ai_text' n=1 temperature=0 max_tokens=900}}<|im_end|>{{/geneach}}''', echo=True)
+You are a helpful assistant.<|im_end|>
+{{#geneach 'conversation' stop=False}}
+<|im_start|>user
+{{set 'this.user_text' (await 'user_text')}}<|im_end|>
+<|im_start|>assistant
+{{gen 'this.ai_text' n=1 temperature=0 max_tokens=900}}<|im_end|>{{/geneach}}''', echo=True)
     prompt = prompt(user_text='Hi there')
     assert len(prompt['conversation']) == 2
     prompt = prompt(user_text='Please help')

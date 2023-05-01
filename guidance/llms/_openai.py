@@ -276,9 +276,11 @@ class OpenAI(LLM):
 # Define a deque to store the timestamps of the calls
 
 class OpenAISession(LLMSession):
-    async def __call__(self, prompt, stop=None, stop_regex=None, temperature=None, n=1, max_tokens=1000, logprobs=None, top_p=1.0, echo=False, logit_bias=None, pattern=None, stream=False, cache_seed=0, caching=None):
+    async def __call__(self, prompt, stop=None, stop_regex=None, temperature=None, n=1, max_tokens=1000, logprobs=None, top_p=1.0, echo=False, logit_bias=None, token_healing=None, pattern=None, stream=False, cache_seed=0, caching=None):
         """ Generate a completion of the given prompt.
         """
+
+        assert token_healing is None or token_healing is False, "The OpenAI API does not support token healing! Please either switch to an endpoint that does, or don't use the `token_healing` argument to `gen`."
 
         # set defaults
         if temperature is None:

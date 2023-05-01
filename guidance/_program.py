@@ -177,7 +177,7 @@ class Program:
 
         # create a new program object that we will execute in-place
         new_program = Program(
-            text=self._text,
+            text=self.marked_text,
             llm=self.llm,
 
             # copy the (non-function) variables so that we don't modify the original program during execution
@@ -372,8 +372,8 @@ class Program:
         display_out = re.sub(r"{{!--GMARKER_START[^}]*--}}{{!--GHIDDEN:(.*?)--}}{{!--GMARKER_END[^}]*--}}", "", display_out, flags=re.DOTALL)
         
         if self.llm.chat_mode or True:
-            start_pattern = html.escape(self.llm.role_start("(.*?)")).replace("|", r"\|")
-            end_pattern = html.escape(self.llm.role_end("(.*?)")).replace("|", r"\|")
+            start_pattern = html.escape(self.llm.role_start(r"([^\n]*)")).replace("|", r"\|")
+            end_pattern = html.escape(self.llm.role_end(r"([^\n]*)")).replace("|", r"\|")
             
             # strip whitespace before role markers
             display_out = re.sub(r"\s*{{!--GMARKER_START_(role|system|user|assistant)\$(.*?)--}}", r"{{!--GMARKER_START_\1$\2--}}", display_out, flags=re.DOTALL)
