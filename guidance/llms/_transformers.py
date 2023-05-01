@@ -14,7 +14,7 @@ class Transformers(LLM):
 
     cache = LLM._open_cache("_transformers.diskcache")
 
-    def __init__(self, model=None, tokenizer=None, caching=True, token_healing=True, acceleration=True, temperature=0.0, device=None):
+    def __init__(self, model=None, tokenizer=None, caching=True, token_healing=True, acceleration=True, temperature=0.0, device=None, role_start=None, role_end=None):
         super().__init__()
 
         # fill in default model value
@@ -30,6 +30,9 @@ class Transformers(LLM):
         self.model_obj, self._tokenizer = self._model_and_tokenizer(model, tokenizer)
         self._generate_call = self.model_obj.generate
 
+        # fill in default role start and end markers if needed
+        self._auto_detect_role_markers(role_start, role_end)
+
         self.model_name = model
         self.caching = caching
         self.current_time = time.time()
@@ -42,6 +45,30 @@ class Transformers(LLM):
         self.device = self.model_obj.device # otherwise note the current device
 
         self._token_prefix_map = self._build_token_prefix_map(model)
+
+    def _auto_detect_role_markers(self, role_start, role_end):
+        """ Auto-detect the role start and end markers.
+        """
+
+        # check for model types that we support auto detection for
+        auto_role_start = None
+        auto_role_end = None
+        try:
+            if "stablelm-tuned" in self.model_obj.config.name_or_path:
+                auto_role_start = lambda role: "<|"+role.upper()+"|>"
+                auto_role_end = lambda role: ""
+        except KeyError:
+            pass
+
+        if role_start is None:
+            self.role_start = auto_role_start
+        else:
+            self.role_start = role_start
+        
+        if role_end is None:
+            self.role_end = auto_role_end
+        else:
+            self.role_end = role_end
 
     def prefix_matches(self, prefix):
         """ Return the list of tokens that match the given prefix.
