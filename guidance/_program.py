@@ -371,7 +371,7 @@ class Program:
         # strip out hidden blocks (might want to make a better UI for this at some point)
         display_out = re.sub(r"{{!--GMARKER_START[^}]*--}}{{!--GHIDDEN:(.*?)--}}{{!--GMARKER_END[^}]*--}}", "", display_out, flags=re.DOTALL)
         
-        if self.llm.chat_mode or True:
+        if self.llm.chat_mode or (getattr(self.llm, "role_start", None) is not None and getattr(self.llm, "role_end", None) is not None):
             start_pattern = html.escape(self.llm.role_start("system")).replace("|", r"\|").replace(r"system", r"([^\n]*)").replace(r"SYSTEM", r"([^\n]*)")
             end_pattern = html.escape(self.llm.role_end("system")).replace("|", r"\|").replace(r"system", r"([^\n]*)").replace(r"SYSTEM", r"([^\n]*)")
             
