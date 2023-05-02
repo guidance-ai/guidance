@@ -246,7 +246,7 @@ print(out['prosandcons'])
 > Best=0 
 
 ## Agents ([notebook](notebooks/chat.ipynb))
-We can easily build agents that talk to each other or to a user, via the `await` command. For example, here is how we might get GPT-4 to simulate two agents talking to one another:
+We can easily build agents that talk to each other or to a user, via the `await` command. The `await` command allows us to pause execution and return a partially executed a guidance program. By putting `await` in a loop that partially executed program can then be called again and again to form a dialog (or any other structure you design). For example, here is how we might get GPT-4 to simulate two agents talking to one another:
 
 ```python
 import guidance
