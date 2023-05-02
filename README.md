@@ -92,7 +92,44 @@ We [compute accuracy](notebooks/anachronism.ipynb) on the validation set, and co
 | [PALM (3-shot)](https://github.com/google/BIG-bench/tree/main/bigbench/benchmark_tasks/anachronisms) | Around 69% |
 | [Guidance](notebooks/anachronism.ipynb) | **76.01%** |
 
+## Guaranteeing valid syntax JSON example ([notebook](notebooks/guaranteeing_valid_syntax.ipynb))
 
+Large language models are great at generating useful outputs, but they are not great at guaranteeing that those outputs follow a specific format. This can cause problems when we want to use the outputs of a language model as input to another system. For example, if we want to use a language model to generate a JSON object, we need to make sure that the output is valid JSON. With `guidance` we can both [accelerate inference speed](notebooks/guidance_acceleration.ipynb) and ensure that generated JSON is always valid. Below we generate a random character profile for a game with perfect syntax every time:
+```python
+# load a model locally (we use LLaMA here)
+guidance.llm = guidance.llms.Transformers("you_local_path/llama-7b", device=0)
+
+# we can pre-define valid option sets
+valid_weapons = ["sword", "axe", "mace", "spear", "bow", "crossbow"]
+
+# define the prompt
+program = guidance("""The following is a character profile for an RPG game in JSON format.
+```json
+{
+    "description": "{{description}}",
+    "name": "{{gen 'name'}}",
+    "age": {{gen 'age' pattern='[0-9]+' stop=','}},
+    "armor": "{{#select 'armor'}}leather{{or}}chainmail{{or}}plate{{/select}}",
+    "weapon": "{{select 'weapon' options=valid_weapons}}",
+    "class": "{{gen 'class'}}",
+    "mantra": "{{gen 'mantra'}}",
+    "strength": {{gen 'strength' pattern='[0-9]+' stop=','}},
+    "items": [{{#geneach 'items' num_iterations=3}}
+        "{{gen 'this'}}",{{/geneach}}
+    ]
+}```""")
+
+# execute the prompt
+program(description="A quick and nimble fighter.", valid_weapons=valid_weapons)
+```
+<img src="docs/figures/perfect_syntax.png" width="657">
+                                                      
+```python
+# and we also have a valid python dictionary
+out.variables()
+```
+<img src="docs/figures/json_syntax_variables.png" width="714">
+                                                      
 ## Role-based chat model example ([notebook](notebooks/chat.ipynb))
 Modern chat-style models like ChatGPT and Alpaca are trained with special tokens that mark out "roles" for different areas of the prompt. Guidance supports these models through <a href="notebooks/api/role_tags.ipynb">role tags</a> that automatically map to the correct tokens or API calls for the current LLM. Below we show how a role-based guidance program enables simple multi-step reasoning and planning.
 
