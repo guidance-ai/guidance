@@ -371,7 +371,8 @@ class Program:
         # strip out hidden blocks (might want to make a better UI for this at some point)
         display_out = re.sub(r"{{!--GMARKER_START[^}]*--}}{{!--GHIDDEN:(.*?)--}}{{!--GMARKER_END[^}]*--}}", "", display_out, flags=re.DOTALL)
         
-        if self.llm.chat_mode or (getattr(self.llm, "role_start", None) is not None and getattr(self.llm, "role_end", None) is not None):
+        # if we have role markers, we wrap them in special formatting
+        if re.match(r"{{!--GMARKER_START_(role|system|user|assistant)", display_out):
             start_pattern = html.escape(self.llm.role_start("system")).replace("|", r"\|").replace(r"system", r"([^\n]*)").replace(r"SYSTEM", r"([^\n]*)")
             end_pattern = html.escape(self.llm.role_end("system")).replace("|", r"\|").replace(r"system", r"([^\n]*)").replace(r"SYSTEM", r"([^\n]*)")
             
@@ -523,7 +524,13 @@ class DisplayThrottler():
             now = time.time()
             log.info("in DisplayThrottler run loop -- now: {}, last_time: {}, throttle_limit: {}".format(now, self.last_time, self.throttle_limit))
             if self._done or now - self.last_time >= self.throttle_limit:
-                self.display_function(last=self._done)
+                try:
+                    self.display_function(last=self._done)
+                except Exception as e:
+                    raise e
+                finally:
+                    self._done_event.set()
+                    break
                 self.last_time = now
                 self._data_event.clear()
                 if self._done:
