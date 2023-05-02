@@ -21,18 +21,13 @@ async def gen(variable_name="generated", partial_output=None, parse=False, stop=
             if next_next_node and next_text == "":
                 next_text = next_next_node.text
 
-        # auto-detect role stop tags
-        m = re.match(r"{{~?/(user|assistant|system|role)~?}}", next_text)
-        if m:
-            stop = parser.program.llm.role_end(m.group(1))
-
         # auto-detect quote stop tokens
         quote_types = ['"', "'", "'''", '"""', "`"]
         for quote_type in quote_types:
             if next_text.startswith(quote_type) and prev_text.endswith(quote_type):
                 stop = quote_type
                 break
-                
+
         # auto-detect XML tag stop tokens
         if stop is None:
             m = re.match(r"<([^>\W]+)[^>]+>", next_text)
@@ -42,6 +37,13 @@ async def gen(variable_name="generated", partial_output=None, parse=False, stop=
                     stop = end_tag
             else:
                 stop = next_text
+
+        # auto-detect role stop tags
+        if stop is None:
+            m = re.match(r"{{~?/(user|assistant|system|role)~?}}", next_text)
+            if m:
+                stop = parser.program.llm.role_end(m.group(1))
+        
     if stop == "":
         stop = None
 
@@ -55,7 +57,7 @@ async def gen(variable_name="generated", partial_output=None, parse=False, stop=
     # see if we should stream the results
     if n == 1: # we can't stream batches right now
         if parser.program.stream == "auto":
-            stream_generation = parser.program.display or parser.program.async_mode
+            stream_generation = not parser.program.silent or parser.program.async_mode
         else:
             stream_generation = parser.program.stream
     else:

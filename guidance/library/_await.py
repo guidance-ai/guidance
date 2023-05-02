@@ -10,11 +10,11 @@ async def await_(name, parser=None):
     # stop the program completion if we are waiting for a value to be set
     # this will result in a partially completed program that we can then finish
     # later (by calling it again with the variable we need)
-    if name not in parser.program.variables:
+    if name not in parser.program:
         parser.executing = False
     else:
-        value = parser.program.variables[name]
-        del parser.program.variables[name]
+        value = parser.program[name]
+        del parser.program[name]
         return value
     
     # cache = parser.program._await_cache

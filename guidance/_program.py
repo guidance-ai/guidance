@@ -32,7 +32,7 @@ class Program:
     the generated output to mark where template tags used to be.
     '''
 
-    def __init__(self, text, llm=None, cache_seed=0, logprobs=None, display='auto', async_mode=False, stream='auto', caching=None, await_missing=False, **kwargs):
+    def __init__(self, text, llm=None, cache_seed=0, logprobs=None, silent='auto', async_mode=False, stream='auto', caching=None, await_missing=False, **kwargs):
         """ Create a new Program object from a program string.
 
         Parameters
@@ -49,12 +49,23 @@ class Program:
         logprobs : int or None (default)
             The number of logprobs to return from the language model for each token. (not well supported yet,
             since some endpoints don't support it)
+        silent : bool (default False)
+            If True, the program will not display any output. This is useful for programs that are
+            only used to generate variables for other programs.
+        async_mode : bool (default False)
+            If True, the program will be executed asynchronously. This is useful for programs that
+            take a long time to run, or that need to be run in parallel.
         stream : bool (default False)
-            If True, the program will be executed in "streaming" mode, where the program is executed
-            asyncronously. If the program is displayed while streaming the output is generated per token.
-        echo : bool (default False)
-            If True, the program will be displayed as it is executed (this is an alternative to using stream=True
-            and then displaying the async object).
+            If True, the program will try to stream all the results from the LLM token by token.
+        caching : bool (default None)
+            If True, the program will cache the results of the LLM. If False, it will not cache the results.
+            If None, it will use the default caching setting from the LLM.
+        await_missing : bool (default False)
+            If True, the program will automatically await any missing variables. This means the program
+            will stop executation at that point and return a paritally executed program. This is useful
+            for executing programs on different machines, for example shipping a program to a GPU machine
+            then waiting for the results to come back for any local processing, then shipping it back to
+            the GPU machine to continue execution.
         """
 
         # see if we were given a raw function instead of a string template
@@ -76,16 +87,16 @@ class Program:
         self.caching = caching
         self.logprobs = logprobs
         self.async_mode = async_mode
-        self.display = display
+        self.silent = silent
         self.stream = stream
         self.await_missing = await_missing
-        if self.display == "auto":
-            self.display = _utils.is_interactive()
+        if self.silent == "auto":
+            self.silent = not _utils.is_interactive()
         
         # set our variables
-        self.variables = {}
-        self.variables.update(_built_ins)
-        self.variables.update(kwargs)
+        self._variables = {}
+        self._variables.update(_built_ins)
+        self._variables.update(kwargs)
         
         # set internal state variables
         self._id = str(uuid.uuid4())
@@ -94,7 +105,7 @@ class Program:
         self._executor = None # the ProgramExecutor object that is running the program
         self._last_display_update = 0 # the last time we updated the display (used for throttling updates)
         self._execute_complete = asyncio.Event() # fires when the program is done executing to resolve __await__
-        self._displaying = self.display # if we are displaying we need to update the display as we execute
+        self._displaying = not self.silent # if we are displaying we need to update the display as we execute
         self._displayed = False # marks if we have been displayed in the client yet
         self._displaying_html = False # if we are displaying html (vs. text)
 
@@ -112,14 +123,14 @@ class Program:
             self._ipython = None
         
         # if we are echoing in ipython we assume we can display html
-        if self._ipython and self.display:
+        if self._ipython and not self.silent:
             self._displaying_html = True
     
     def __repr__(self):
         return self.text
     
     def __getitem__(self, key):
-        return self.variables[key]
+        return self._variables[key]
     
     def _interface_event(self, msg):
         """ Handle an event from the front end.
@@ -166,7 +177,7 @@ class Program:
         kwargs = {**{
             "async_mode": self.async_mode,
             "stream": self.stream,
-            "display": self.display,
+            "silent": self.silent,
             "cache_seed": self.cache_seed,
             "caching": self.caching,
             "logprobs": self.logprobs,
@@ -182,7 +193,7 @@ class Program:
 
             # copy the (non-function) variables so that we don't modify the original program during execution
             # TODO: what about functions? should we copy them too?
-            **{**{k: v if callable(v) else copy.deepcopy(v) for k,v in self.variables.items()}, **kwargs}
+            **{**{k: v if callable(v) else copy.deepcopy(v) for k,v in self._variables.items()}, **kwargs}
         )
 
         # create an executor for the new program (this also marks the program as executing)
@@ -202,7 +213,7 @@ class Program:
             loop.run_until_complete(new_program.execute())
     
         return new_program
-    
+
     def _update_display(self, last=False):
         """ Updates the display with the current marked text after debouncing.
 
@@ -274,7 +285,7 @@ class Program:
         in this process the current template remains valid.
         """
 
-        log.debug(f"Executing program (self.async_mode={self.async_mode}, self.display={self.display}, self._displaying_html={self._displaying_html})")
+        log.debug(f"Executing program (self.async_mode={self.async_mode}, self.silent={self.silent}, self._displaying_html={self._displaying_html})")
         
         # if we are already displaying html, we need to yeild to the event loop so the jupyter comm can initialize
         if self._displaying_html:
@@ -296,7 +307,23 @@ class Program:
         self._execute_complete.set()
     
     def __getitem__(self, key):
-        return self.variables[key]
+        return self._variables[key]
+    
+    def __contains__(self, key):
+        return key in self._variables
+    
+    def __delitem__(self, key):
+        del self._variables[key]
+    
+    def variables(self, built_ins=False):
+        """ Returns a dictionary of the variables in the program.
+
+        Parameters
+        ----------
+        built_ins : bool
+            If True, built-in variables will be included in the returned dictionary.
+        """
+        return {k: v for k,v in self._variables.items() if built_ins or not (k in _built_ins and callable(_built_ins[k]))}
     
     @property
     def text(self):
@@ -527,15 +554,14 @@ class DisplayThrottler():
                 try:
                     self.display_function(last=self._done)
                 except Exception as e:
+                    self._done = True
                     raise e
                 finally:
-                    self._done_event.set()
-                    break
-                self.last_time = now
-                self._data_event.clear()
-                if self._done:
-                    self._done_event.set()
-                    break
+                    self.last_time = now
+                    self._data_event.clear()
+                    if self._done:
+                        self._done_event.set()
+                        break
             else:
                 await asyncio.sleep(self.throttle_limit - (now - self.last_time))
 

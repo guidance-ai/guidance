@@ -16,7 +16,7 @@ class ProgramExecutor():
         """ Attaches this executor to a program object.
         """
 
-        self.variable_stack = [program.variables]
+        self.variable_stack = [program._variables]
         self.program = program
         self.prefix = ""
         # self.prefix_tokens = []
@@ -32,13 +32,13 @@ class ProgramExecutor():
             partial_name = parts[0]
             
             # ,args_string = match.group(1).split(" ", 1)
-            if partial_name not in program.variables:
+            if partial_name not in program._variables:
                 raise ValueError("Partial '%s' not given in the keyword args:" % partial_name)
             out = "{{#block '"+partial_name+"'"
             if len(parts) > 1:
                 out += " " + parts[1]
-            out += "}}" + program.variables[partial_name].text + "{{/block}}"
-            program.variables = {**program[partial_name].variables, **program.variables} # pull in the default vars from the partial
+            out += "}}" + program._variables[partial_name].text + "{{/block}}"
+            program._variables = {**program[partial_name]._variables, **program._variables} # pull in the default vars from the partial
             return out
         text = re.sub(r"{{>(.*?)}}", replace_partial, program._text)
 

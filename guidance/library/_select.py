@@ -1,11 +1,17 @@
-async def select(variable_name="selected", block_content=None, parser=None, partial_output=None, parser_prefix=None, logprobs=None):
+async def select(variable_name="selected", options=None, block_content=None, parser=None, partial_output=None, parser_prefix=None, logprobs=None):
     ''' Select a value from a list of choices.
     '''
-    assert len(block_content) > 1
-    options = [block_content[0].text]
-    for i in range(1, len(block_content), 2):
-        assert block_content[i].text == "{{or}}"
-        options.append(block_content[i+1].text)
+    if block_content is None:
+        assert options is not None, "You must provide an options list like: {{select 'variable_name' options}} when using the select command in non-block mode."
+    else:
+        assert len(block_content) > 1, "You must provide at least one two options to the select block command."
+        assert options is None, "You cannot provide an options list when using the select command in block mode."
+
+    if options is None:
+        options = [block_content[0].text]
+        for i in range(1, len(block_content), 2):
+            assert block_content[i].text == "{{or}}"
+            options.append(block_content[i+1].text)
 
     option_tokens = [parser.program.llm.encode(option) for option in options]
 

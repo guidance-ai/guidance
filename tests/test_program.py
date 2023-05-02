@@ -48,7 +48,7 @@ You are a helpful assistent.
 {{command}}
 <|im_end|>
 <|im_start|>assistant
-{{gen 'answer' max_tokens=10}}""", display=True)
+{{gen 'answer' max_tokens=10}}""")
         out = await chat(command="How do I create a Fasttokenizer with hugging face auto?")
         assert len(out["answer"]) > 0
     loop.run_until_complete(f())

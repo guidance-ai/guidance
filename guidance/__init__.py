@@ -1,4 +1,4 @@
-__version__ = "0.0.33"
+__version__ = "0.0.34"
 
 import types
 import sys
@@ -18,8 +18,8 @@ llm = llms.OpenAI()
 
 # This is makes the guidance module callable
 class Guidance(types.ModuleType):
-    def __call__(self, template, call_function=None, llm=None, echo=False, cache_seed=0, logprobs=None, **kwargs):
-        return Program(template, call_function=call_function, llm=llm, echo=echo, cache_seed=cache_seed, logprobs=logprobs, **kwargs)
+    def __call__(self, template, llm=None, cache_seed=0, logprobs=None, silent='auto', async_mode=False, stream='auto', caching=None, await_missing=False, **kwargs):
+        return Program(template, llm=llm, cache_seed=cache_seed, logprobs=logprobs, silent=silent, async_mode=async_mode, stream=stream, caching=caching, await_missing=await_missing, **kwargs)
 sys.modules[__name__].__class__ = Guidance
 
 
