@@ -111,7 +111,7 @@ class Program:
 
         # throttle the display updates
         if os.environ.get("VSCODE_CWD", None) is not None:
-            self.display_throttle_limit = 2 # VSCode has a bug that causes flashing, so we slow down the display
+            self.display_throttle_limit = 0.3 # VSCode has a bug that causes flashing, so we slow down the display
         else:
             self.display_throttle_limit = 0.1 # the minimum time between display updates
         self.update_display = DisplayThrottler(self._update_display, self.display_throttle_limit)
@@ -258,7 +258,7 @@ class Program:
                 log.debug(f"Updating display dump to front end")
                 from IPython.display import clear_output, display
                 if self._displayed:
-                    clear_output(wait=False) # should use wait=True but that doesn't work in VSCode until after the April 2023 release
+                    clear_output(wait=True) # TODO: should use wait=True but that doesn't work in VSCode until after the April 2023 release
 
                 self._display_html(out)
         
