@@ -399,7 +399,7 @@ class Program:
         display_out = re.sub(r"{{!--GMARKER_START[^}]*--}}{{!--GHIDDEN:(.*?)--}}{{!--GMARKER_END[^}]*--}}", "", display_out, flags=re.DOTALL)
         
         # if we have role markers, we wrap them in special formatting
-        if re.match(r"{{!--GMARKER_START_(role|system|user|assistant)", display_out):
+        if re.search(r"{{!--GMARKER_START_(role|system|user|assistant)", display_out) is not None:
             start_pattern = html.escape(self.llm.role_start("system")).replace("|", r"\|").replace(r"system", r"([^\n]*)").replace(r"SYSTEM", r"([^\n]*)")
             end_pattern = html.escape(self.llm.role_end("system")).replace("|", r"\|").replace(r"system", r"([^\n]*)").replace(r"SYSTEM", r"([^\n]*)")
             
