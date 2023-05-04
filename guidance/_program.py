@@ -292,7 +292,7 @@ class Program:
             await asyncio.sleep(0)
         
         # run the program and capture the output
-        with self.llm.session() as llm_session:
+        with self.llm.session(asynchronous=True) as llm_session:
             await self._executor.run(llm_session)
         self._text = self._executor.prefix
 

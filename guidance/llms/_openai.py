@@ -9,7 +9,7 @@ import types
 import collections
 import json
 import re
-from ._llm import LLM, LLMSession
+from ._llm import LLM, LLMSession, SyncSession
 
 
 class MalformedPromptException(Exception):
@@ -131,8 +131,11 @@ class OpenAI(LLM):
                 "Content-Type": "application/json"
             }
 
-    def session(self):
-        return OpenAISession(self)
+    def session(self, asynchronous=False):
+        if asynchronous:
+            return OpenAISession(self)
+        else:
+            return SyncSession(OpenAISession(self))
 
     def role_start(self, role):
         assert self.chat_mode, "role_start() can only be used in chat mode"
@@ -240,41 +243,15 @@ class OpenAI(LLM):
                 else:
                     yield json.loads(text)
     
-    def encode(self, string, is_suffix=False):
-        # note that is_suffix is not used used for this tokenizer
+    def encode(self, string, is_fragment=False):
+        # note that is_fragment is not used used for this tokenizer
         return self._tokenizer.encode(string)
     
-    def decode(self, tokens, is_suffix=False):
+    def decode(self, tokens, is_fragment=False):
         return self._tokenizer.decode(tokens)
-
-    # def tokenize(self, strings):
-    #     fail_count = 0
-    #     while True:
-    #         try_again = False
-    #         try:
-    #             out = self.caller(
-    #                 model=self.model, prompt=strings, max_tokens=1, temperature=0, logprobs=0, echo=True
-    #             )
-
-    #         except openai.error.RateLimitError:
-    #             time.sleep(3)
-    #             try_again = True
-    #             fail_count += 1
-            
-    #         if not try_again:
-    #             break
-
-    #         if fail_count > self.max_retries:
-    #             raise Exception(f"Too many (more than {self.max_retries}) OpenAI API RateLimitError's in a row!")
-        
-    #     if isinstance(strings, str):
-    #         return out["choices"][0]["logprobs"]["tokens"][:-1]
-    #     else:
-    #         return [choice["logprobs"]["tokens"][:-1] for choice in out["choices"]]
 
 
 # Define a deque to store the timestamps of the calls
-
 class OpenAISession(LLMSession):
     async def __call__(self, prompt, stop=None, stop_regex=None, temperature=None, n=1, max_tokens=1000, logprobs=None, top_p=1.0, echo=False, logit_bias=None, token_healing=None, pattern=None, stream=False, cache_seed=0, caching=None):
         """ Generate a completion of the given prompt.
@@ -354,4 +331,6 @@ class OpenAISession(LLMSession):
         
         return self.llm.__class__.cache[key]
     
-    
+# class OpenAISession(AsyncOpenAISession):
+#     def __call__(self, *args, **kwargs):
+#         return self._loop.run_until_complete(super().__call__(*args, **kwargs))

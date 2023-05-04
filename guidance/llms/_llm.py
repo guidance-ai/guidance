@@ -1,6 +1,7 @@
 import os
 import pathlib
 import diskcache
+import asyncio
 import platformdirs
 
 class LLM():
@@ -11,18 +12,26 @@ class LLM():
         self.chat_mode = False # by default models are not in role-based chat mode
         self.model_name = "unknown"
     
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *args, asynchronous=False, **kwargs):
         """ Creates a session and calls the LLM with the given arguments.
 
         Note that this is a convenience wrapper so you don't have to call session(),
         for higher performance across multiple calls, use a session directly.
         """
-        with self.session() as s:
+        with self.session(asynchronous=asynchronous) as s:
             out = s(*args, **kwargs)
         return out
     
-    def session(self):
-        return LLMSession(self) # meant to be overridden
+    def session(self, asynchronous=False):
+        """ Creates a session for the LLM.
+
+        This implementation is meant to be overridden by subclasses.
+        """
+        
+        if asynchronous:
+            return LLMSession(self)
+        else:
+            return SyncSession(LLMSession(self))
     
     def encode(self, string, **kwargs):
         return self._tokenizer.encode(string, **kwargs)
@@ -71,3 +80,17 @@ class LLMSession():
             key = self._gen_key(args_dict)
 
         return key
+
+class SyncSession():
+    def __init__(self, session):
+        self._session = session
+    
+    def __enter__(self):
+        self._session.__enter__()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        return self._session.__exit__(exc_type, exc_value, traceback)
+    
+    def __call__(self, *args, **kwargs):
+        return asyncio.get_event_loop().run_until_complete(self._session.__call__(*args, **kwargs))
