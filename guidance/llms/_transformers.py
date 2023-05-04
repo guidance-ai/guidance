@@ -60,15 +60,8 @@ class Transformers(LLM):
         except KeyError:
             pass
 
-        if role_start is None:
-            self.role_start = auto_role_start
-        else:
-            self.role_start = role_start
-        
-        if role_end is None:
-            self.role_end = auto_role_end
-        else:
-            self.role_end = role_end
+        self.role_start = auto_role_start if role_start is None else role_start
+        self.role_end = auto_role_end if role_end is None else role_end
 
     def prefix_matches(self, prefix):
         """ Return the list of tokens that match the given prefix.
