@@ -400,8 +400,9 @@ class Program:
         
         # if we have role markers, we wrap them in special formatting
         if re.search(r"{{!--GMARKER_START_(role|system|user|assistant)", display_out) is not None:
-            start_pattern = html.escape(self.llm.role_start("system")).replace("|", r"\|").replace(r"system", r"([^\n]*)").replace(r"SYSTEM", r"([^\n]*)")
-            end_pattern = html.escape(self.llm.role_end("system")).replace("|", r"\|").replace(r"system", r"([^\n]*)").replace(r"SYSTEM", r"([^\n]*)")
+
+            start_pattern = html.escape(self.llm.role_start("assistant")).replace("|", r"\|").replace(r"assistant", r"([^\n]*)").replace(r"ASSISTANT", r"([^\n]*)")
+            end_pattern = html.escape(self.llm.role_end("assistant")).replace("|", r"\|").replace(r"assistant", r"([^\n]*)").replace(r"ASSISTANT", r"([^\n]*)")
             
             # strip whitespace before role markers
             display_out = re.sub(r"\s*{{!--GMARKER_START_(role|system|user|assistant)\$(.*?)--}}", r"{{!--GMARKER_START_\1$\2--}}", display_out, flags=re.DOTALL)

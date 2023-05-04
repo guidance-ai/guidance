@@ -31,7 +31,7 @@ class Transformers(LLM):
         self._generate_call = self.model_obj.generate
 
         # fill in default role start and end markers if needed
-        self._auto_detect_role_markers(role_start, role_end)
+        # self._auto_detect_role_markers(role_start, role_end)
 
         self.model_name = model
         self.caching = caching
@@ -44,8 +44,8 @@ class Transformers(LLM):
             self.model_obj = self.model_obj.to(device)
         self.device = self.model_obj.device # otherwise note the current device
 
-        self._prefix_token_id = 100 # an arbitrary token id that we use to decode tokens after a prefix
-        self._prefix_token = self._tokenizer.decode([self._prefix_token_id])
+        self._prefix_ids = [self._tokenizer.bos_token_id, 100] # token ids that we use to decode tokens after a prefix
+        self._prefix_str = self._tokenizer.decode(self._prefix_ids)
 
         self._token_prefix_map = self._build_token_prefix_map(model)
 
@@ -74,7 +74,7 @@ class Transformers(LLM):
     def encode(self, string, is_fragment=False, **kwargs):
 
         if is_fragment:
-            string = self._tokenizer.bos_token + string + self._tokenizer.eos_token
+            string = self._prefix_str + string
 
         if "return_tensors" in kwargs:
             out = self._tokenizer(string, **kwargs)
@@ -82,24 +82,23 @@ class Transformers(LLM):
             out = self._tokenizer.encode(string, **kwargs)
         
         # remove the start token when we are encoding a suffix
-        if is_fragment:# and out[0] == self._prefix_token_id:
-            out = out[1:-1]
-            # if out[1] == self._prefix_token_id:
-            #     out = out[2:]
-            # else:
-            #     out = out[1:]
+        if is_fragment:
+            if out[1] == self._tokenizer.bos_token_id: # sometime the tokenizer adds an extra start token
+                out = out[3:]
+            else:
+                out = out[2:]
         
         return out
     
-    def role_start(self, role):
-        """ The starting role tag for chat models.
+    # def role_start(self, role):
+    #     """ The starting role tag for chat models.
 
-        #TODO Right now this just assumes the StableLM syntax, but this should be expanded later.
-        """
-        return "<|"+role.upper()+"|>"
+    #     #TODO Right now this just assumes the StableLM syntax, but this should be expanded later.
+    #     """
+    #     return "<|"+role.upper()+"|>"
     
-    def role_end(self, role=None):
-        return ""
+    # def role_end(self, role=None):
+    #     return ""
     
     def decode(self, tokens, is_fragment=False, **kwargs):
 
@@ -112,7 +111,7 @@ class Transformers(LLM):
         # Decode the string corresponding to a single suffix token.
         # Note that we need to decode after the start token for sentence-piece tokenizers so that white space is preserved
         if is_fragment:
-            return self._tokenizer.decode([self._prefix_token_id] + tokens)[len(self._prefix_token):] + add_eos
+            return self._tokenizer.decode(self._prefix_ids + tokens)[len(self._prefix_str):] + add_eos
         else:
             return self._tokenizer.decode(tokens, **kwargs) + add_eos
 

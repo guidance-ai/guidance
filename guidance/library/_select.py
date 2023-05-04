@@ -13,7 +13,7 @@ async def select(variable_name="selected", options=None, block_content=None, par
             assert block_content[i].text == "{{or}}"
             options.append(block_content[i+1].text)
 
-    option_tokens = [parser.program.llm.encode(option) for option in options]
+    option_tokens = [parser.program.llm.encode(option, is_fragment=True) for option in options]
 
     # [TODO] we should force the LM to generate a valid specific option
     #        for openai this means setting logprobs to valid token ids
