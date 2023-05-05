@@ -15,7 +15,7 @@ class LLaMA(Transformers):
 
     cache = LLM._open_cache("_llama.diskcache")
 
-    def __init__(self, model, tokenizer=None, **kwargs):
+    def __init__(self, model, tokenizer=None, device_map=None, **kwargs):
         """ Create a new LLaMA model.
         """
 
@@ -23,7 +23,7 @@ class LLaMA(Transformers):
         import transformers
         if isinstance(model, str):
             if tokenizer is None:
-                tokenizer = transformers.LlamaTokenizer.from_pretrained(model)
-            model = transformers.LlamaForCausalLM.from_pretrained(model)
+                tokenizer = transformers.LlamaTokenizer.from_pretrained(model, device_map=device_map)
+            model = transformers.LlamaForCausalLM.from_pretrained(model, device_map=device_map)
 
-        super().__init__(model, tokenizer=tokenizer, **kwargs)
+        super().__init__(model, tokenizer=tokenizer, device_map=device_map, **kwargs)
