@@ -15,3 +15,5 @@ from ._role import role
 from ._user import user
 from ._system import system
 from ._assistant import assistant
+from ._break import break_
+from ._equal import equal

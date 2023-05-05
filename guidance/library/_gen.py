@@ -7,7 +7,7 @@ from .._utils import escape_template_block
 
 log = logging.getLogger(__name__)
 
-async def gen(variable_name="generated", partial_output=None, parse=False, stop=None, stop_regex=None, max_tokens=500, n=1, temperature=0.0, top_p=1.0, logprobs=None, pattern=None, hidden=False, save_prompt=False, parser_prefix=None, parser=None, prefix="", suffix="", token_healing=None, next_node=None, prev_node=None, next_next_node=None, **kwargs):
+async def gen(variable_name="generated", partial_output=None, parse=False, list_append=False, stop=None, stop_regex=None, max_tokens=500, n=1, temperature=0.0, top_p=1.0, logprobs=None, pattern=None, hidden=False, save_prompt=False, parser_prefix=None, parser=None, prefix="", suffix="", token_healing=None, next_node=None, prev_node=None, next_next_node=None, **kwargs):
     ''' Use the LM to generate a completion string that is stored in the variable `variable_name`.
     '''
 
@@ -80,6 +80,12 @@ async def gen(variable_name="generated", partial_output=None, parse=False, stop=
         logprobs_out = []
         if not stream_generation:
             gen_obj = [gen_obj]
+        if list_append:
+            value_list = parser.get_variable(variable_name, [])
+            value_list.append("")
+            if logprobs is not None:
+                logprobs_list = parser.get_variable(variable_name+"_logprobs", [])
+                logprobs_list.append([])
         for resp in gen_obj:
             await asyncio.sleep(0) # allow other tasks to run
             #log("parser.should_stop = " + str(parser.should_stop))
@@ -91,14 +97,25 @@ async def gen(variable_name="generated", partial_output=None, parse=False, stop=
             partial_output(resp["choices"][0]["text"])
             if logprobs is not None:
                 logprobs_out.extend(resp["choices"][0]["logprobs"])
-            parser.set_variable(variable_name, generated_value)
-            if logprobs is not None:
-                parser.set_variable(variable_name+"_logprobs", logprobs_out)
+            if list_append:
+                value_list[-1] = generated_value
+                parser.set_variable(variable_name, value_list)
+                if logprobs is not None:
+                    logprobs_list[-1] = logprobs_out
+                    parser.set_variable(variable_name+"_logprobs", logprobs_list)
+            else:
+                parser.set_variable(variable_name, generated_value)
+                if logprobs is not None:
+                    parser.set_variable(variable_name+"_logprobs", logprobs_out)
         if hasattr(gen_obj, 'close'):
             gen_obj.close()
         generated_value += suffix
         partial_output(suffix)
-        parser.set_variable(variable_name, generated_value)
+        if list_append:
+            value_list[-1] = generated_value
+            parser.set_variable(variable_name, value_list)
+        else:
+            parser.set_variable(variable_name, generated_value)
         
         if parse:
             assert not hidden, "Cannot parse generated text if we are hiding the output" # TODO: fix this?
@@ -113,9 +130,16 @@ async def gen(variable_name="generated", partial_output=None, parse=False, stop=
     else:
         assert not isinstance(gen_obj, list), "Streaming is only supported for n=1"
         generated_values = [prefix+choice["text"]+suffix for choice in gen_obj["choices"]]
-        parser.set_variable(variable_name, generated_values)
-        if logprobs is not None:
-            parser.set_variable(variable_name+"_logprobs", [choice["logprobs"] for choice in gen_obj["choices"]])
+        if list_append:
+            value_list = parser.get_variable(variable_name, [])
+            value_list.append(generated_values)
+            if logprobs is not None:
+                logprobs_list = parser.get_variable(variable_name+"_logprobs", [])
+                logprobs_list.append([choice["logprobs"] for choice in gen_obj["choices"]])
+        else:
+            parser.set_variable(variable_name, generated_values)
+            if logprobs is not None:
+                parser.set_variable(variable_name+"_logprobs", [choice["logprobs"] for choice in gen_obj["choices"]])
 
         if not hidden:
             # TODO: we could enable the parsing to branch into multiple paths here, but for now we just complete the program with the first prefix

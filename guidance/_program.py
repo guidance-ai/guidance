@@ -551,7 +551,9 @@ _built_ins = {
     "role": library.role,
     "user": library.user,
     "system": library.system,
-    "assistant": library.assistant
+    "assistant": library.assistant,
+    "break": library.break_,
+    "equal": library.equal,
 }
 
 class DisplayThrottler():

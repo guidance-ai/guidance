@@ -58,7 +58,9 @@ class ProgramExecutor():
         # missing block pound sign
         for k in vars:
             if getattr(vars[k], "is_block", False):
-                m = re.search(r"(^|[^\\]){{\s*"+k, text)
+
+                # look for block commands that are missing the opening pound sign or closing slash
+                m = re.search(r"(^|[^\\]){{\s*"+k+"(\s|}|~)", text)
                 if m is not None:
                     # get the context around the matching error
                     start = max(0, m.start()-30)
@@ -69,6 +71,14 @@ class ProgramExecutor():
                     if end < len(text):
                         context = context+"..."
                     raise ValueError("The guidance program is missing the opening pound (#) sign or closing slash (/) for the block level command `"+k+"` at:\n"+context) from None
+                
+                # look for block commands that are missing the closing tag
+                num_opens = len(re.findall(r"(^|[^\\]){{~?#\s*"+k+"(\s|}|~)", text))
+                num_closes = len(re.findall(r"(^|[^\\]){{~?/\s*"+k+"(\s|}|~)", text))
+                if num_opens > num_closes:
+                    raise ValueError("The guidance program is missing a closing tag for the block level command `"+k+"`.") from None
+                if num_opens < num_closes:
+                    raise ValueError("The guidance program is missing an opening tag for the block level command `"+k+"`.") from None
         
         
 
