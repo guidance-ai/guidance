@@ -372,8 +372,25 @@ class Program:
             return f"<span style='background-color: rgba(165, 165, 165, 0.1); display: {display};' title='{escaped_tag}'>"
         
         def role_box(x):
-            name = x.group(3).lower() # standardize to lowercase for display
-            content = x.group(4)
+            # name = x.group(3).lower() # standardize to lowercase for display
+            # content = x.group(4)
+
+            content = x.group(3)
+            tag_text = undo_html_encode(x.group(2))
+            role_name = x.group(1)
+            
+            # if we have a generic role tag then the role name is an attribute
+            if role_name == "role":
+                role_name = re.search(r"name=([^ ]*)", tag_text).group(1)
+            
+            start_pattern = html.escape(self.llm.role_start(role_name)).replace("|", r"\|")
+            end_pattern = html.escape(self.llm.role_end(role_name)).replace("|", r"\|")
+
+            # strip the start and end patterns from the content
+            content = re.sub("^" + start_pattern, "", content, flags=re.DOTALL)
+            content = re.sub(end_pattern + "$", "", content, flags=re.DOTALL)
+
+            
             # one div that contains two divs, where the left of the two inner divs has a fixed width of 100px
             # """<div style='display: flex;'>
             #     <div style='width: 100px; border-right: 1px solid rgba(127, 127, 127, 0.2); padding-right: 5px; margin-right: 5px;'>{name}</div>
@@ -383,7 +400,7 @@ class Program:
             # return f'''<div style="border-left: 1px solid rgba(127, 127, 127, 0.2); margin-top: 10px; padding-left: 5px;"><span style="color: rgba(127,127,127,0.5)">{name}</span>
 # {content}</div>'''
 
-            return f"<div style='display: flex; border-bottom: 1px solid rgba(127, 127, 127, 0.2); align-items: center;'><div style='flex: 0 0 80px; opacity: 0.5;'>{name}</div><div style='flex-grow: 1; padding: 5px; padding-top: 10px; padding-bottom: 10px; margin-top: 0px; white-space: pre-wrap; margin-bottom: 0px;'>{content}</div></div>"
+            return f"<div style='display: flex; border-bottom: 1px solid rgba(127, 127, 127, 0.2); align-items: center;'><div style='flex: 0 0 80px; opacity: 0.5;'>{role_name.lower()}</div><div style='flex-grow: 1; padding: 5px; padding-top: 10px; padding-bottom: 10px; margin-top: 0px; white-space: pre-wrap; margin-bottom: 0px;'>{content}</div></div>"
 
         display_out = html.escape(output)
         # log.debug(display_out)
@@ -401,8 +418,8 @@ class Program:
         # if we have role markers, we wrap them in special formatting
         if re.search(r"{{!--GMARKER_START_(role|system|user|assistant)", display_out) is not None:
 
-            start_pattern = html.escape(self.llm.role_start("assistant")).replace("|", r"\|").replace(r"assistant", r"([^\n]*)").replace(r"ASSISTANT", r"([^\n]*)")
-            end_pattern = html.escape(self.llm.role_end("assistant")).replace("|", r"\|").replace(r"assistant", r"([^\n]*)").replace(r"ASSISTANT", r"([^\n]*)")
+            # start_pattern = html.escape(self.llm.role_start("assistant")).replace("|", r"\|").replace(r"assistant", r"([^\n]*)").replace(r"ASSISTANT", r"([^\n]*)")
+            # end_pattern = html.escape(self.llm.role_end("assistant")).replace("|", r"\|").replace(r"assistant", r"([^\n]*)").replace(r"ASSISTANT", r"([^\n]*)")
             
             # strip whitespace before role markers
             display_out = re.sub(r"\s*{{!--GMARKER_START_(role|system|user|assistant)\$(.*?)--}}", r"{{!--GMARKER_START_\1$\2--}}", display_out, flags=re.DOTALL)
@@ -412,10 +429,10 @@ class Program:
             display_out = re.sub(r"{{!--GMARKER_END_(role|system|user|assistant)\$(.*?)--}}\s*", r"{{!--GMARKER_END_\1$\2--}}", display_out, flags=re.DOTALL)
 
             # wrap role markers in nice formatting
-            display_out = re.sub(r"{{!--GMARKER_START_(role|system|user|assistant)\$(.*?)--}}" + start_pattern + "(.*?)" + end_pattern + r"{{!--GMARKER_END_(role|system|user|assistant)\$(.*?)--}}", role_box, display_out, flags=re.DOTALL)
+            display_out = re.sub(r"{{!--GMARKER_START_(role|system|user|assistant)\$(.*?)--}}" + "(.*?)" + r"{{!--GMARKER_END_(role|system|user|assistant)\$(.*?)--}}", role_box, display_out, flags=re.DOTALL)
 
             # wrap unfinished role markers in nice formatting
-            display_out = re.sub(r"{{!--GMARKER_START_(role|system|user|assistant)\$(.*?)--}}" + start_pattern + "(.*)", role_box, display_out, flags=re.DOTALL)
+            display_out = re.sub(r"{{!--GMARKER_START_(role|system|user|assistant)\$(.*?)--}}" + "(.*)", role_box, display_out, flags=re.DOTALL)
         
         display_out = re.sub(r"(\{\{generate.*?\}\})", r"<span style='background-color: rgba(0, 165, 0, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
         display_out = re.sub(r"(\{\{#select\{\{/select.*?\}\})", r"<span style='background-color: rgba(0, 165, 0, 0.25);'>\1</span>", display_out, flags=re.DOTALL)

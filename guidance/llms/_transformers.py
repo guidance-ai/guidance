@@ -102,18 +102,23 @@ class Transformers(LLM):
     
     def decode(self, tokens, is_fragment=False, **kwargs):
 
-        # if the last token is the end of string token, remove it because it cause odd spacing decoding of fragments
+        # if the last token is the end of string token, or the first is a start of string we remove it because it cause odd spacing decoding of fragments
         add_eos = ""
-        if is_fragment and tokens[-1] == self._tokenizer.eos_token_id:
-            add_eos = self._tokenizer.eos_token
-            tokens = tokens[:-1]
+        add_bos = ""
+        if is_fragment:
+            if len(tokens) > 0 and tokens[-1] == self._tokenizer.eos_token_id:
+                add_eos = self._tokenizer.eos_token
+                tokens = tokens[:-1]
+            if len(tokens) > 0 and tokens[0] == self._tokenizer.bos_token_id:
+                add_bos = self._tokenizer.bos_token
+                tokens = tokens[1:]
         
         # Decode the string corresponding to a single suffix token.
         # Note that we need to decode after the start token for sentence-piece tokenizers so that white space is preserved
         if is_fragment:
-            return self._tokenizer.decode(self._prefix_ids + tokens)[len(self._prefix_str):] + add_eos
+            return add_bos + self._tokenizer.decode(self._prefix_ids + tokens)[len(self._prefix_str):] + add_eos
         else:
-            return self._tokenizer.decode(tokens, **kwargs) + add_eos
+            return add_bos + self._tokenizer.decode(tokens, **kwargs) + add_eos
 
     def _build_token_prefix_map(self, model_name):
         """ Build a map from token to index.
