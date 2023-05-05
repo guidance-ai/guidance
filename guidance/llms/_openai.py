@@ -117,7 +117,8 @@ class OpenAI(LLM):
         self.max_retries = max_retries
         self.max_calls_per_min = max_calls_per_min
         if isinstance(token, str):
-            self.token = token.replace("Bearer ", "")
+            token = token.replace("Bearer ", "")
+        self.token = token
         self.endpoint = endpoint
         self.current_time = time.time()
         self.call_history = collections.deque()
@@ -179,6 +180,7 @@ class OpenAI(LLM):
         Note that is uses the local auth token, and does not rely on the openai one.
         """
         prev_key = openai.api_key
+        assert self.token is not None, "You must provide an OpenAI API key to use the OpenAI LLM. Either pass it in the constructor, set the OPENAI_API_KEY environment variable, or create the file ~/.openai_api_key with your key in it."
         openai.api_key = self.token
         if self.chat_mode:
             kwargs['messages'] = prompt_to_messages(kwargs['prompt'])
