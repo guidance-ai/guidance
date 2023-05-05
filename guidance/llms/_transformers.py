@@ -45,7 +45,7 @@ class Transformers(LLM):
         self.device = self.model_obj.device # otherwise note the current device
 
         self._prefix_ids = [self._tokenizer.bos_token_id, 100] # token ids that we use to decode tokens after a prefix
-        self._prefix_str = self._tokenizer.decode(self._prefix_ids)
+        self._prefix_str = self._tokenizer.decode(self._prefix_ids, fragment=False)
 
         self._token_prefix_map = self._build_token_prefix_map(model)
 
@@ -71,9 +71,9 @@ class Transformers(LLM):
         """
         return [v for arr in self._token_prefix_map.values(prefix=prefix) for v in arr]
 
-    def encode(self, string, is_fragment=False, **kwargs):
+    def encode(self, string, fragment=True, **kwargs):
 
-        if is_fragment:
+        if fragment:
             string = self._prefix_str + string
 
         if "return_tensors" in kwargs:
@@ -82,7 +82,7 @@ class Transformers(LLM):
             out = self._tokenizer.encode(string, **kwargs)
         
         # remove the start token when we are encoding a suffix
-        if is_fragment:
+        if fragment:
             if out[1] == self._tokenizer.bos_token_id: # sometime the tokenizer adds an extra start token
                 out = out[3:]
             else:
@@ -100,12 +100,12 @@ class Transformers(LLM):
     # def role_end(self, role=None):
     #     return ""
     
-    def decode(self, tokens, is_fragment=False, **kwargs):
+    def decode(self, tokens, fragment=True, **kwargs):
 
         # if the last token is the end of string token, or the first is a start of string we remove it because it cause odd spacing decoding of fragments
         add_eos = ""
         add_bos = ""
-        if is_fragment:
+        if fragment:
             if len(tokens) > 0 and tokens[-1] == self._tokenizer.eos_token_id:
                 add_eos = self._tokenizer.eos_token
                 tokens = tokens[:-1]
@@ -115,8 +115,8 @@ class Transformers(LLM):
         
         # Decode the string corresponding to a single suffix token.
         # Note that we need to decode after the start token for sentence-piece tokenizers so that white space is preserved
-        if is_fragment:
-            return add_bos + self._tokenizer.decode(self._prefix_ids + tokens)[len(self._prefix_str):] + add_eos
+        if fragment:
+            return add_bos + self._tokenizer.decode(self._prefix_ids + list(tokens))[len(self._prefix_str):] + add_eos
         else:
             return add_bos + self._tokenizer.decode(tokens, **kwargs) + add_eos
 
@@ -125,7 +125,7 @@ class Transformers(LLM):
         """
         token_map = pygtrie.CharTrie()
         for i in range(self._tokenizer.vocab_size):
-            s = self.decode([i], is_fragment=True)
+            s = self.decode([i])
             if s in token_map:
                 token_map[s].append(i) # handle duplicate token encodings... (GPT2 BPE has this oddly enough)
             else:
@@ -248,7 +248,7 @@ class TransformersSession(LLMSession):
             import transformers
             # import torch
             # encode the prompt
-            encoded = self.llm.encode([prompt for _ in range(n)], return_tensors="pt")
+            encoded = self.llm.encode([prompt for _ in range(n)], return_tensors="pt", fragment=False)
             if self.llm.device is not None:
                 encoded = encoded.to(self.llm.device)
             input_ids = encoded["input_ids"]
@@ -269,7 +269,7 @@ class TransformersSession(LLMSession):
             if token_healing:
                 # pop off the last token since we will regen it
                 last_token_id = input_ids[0][-1]
-                last_token_str = self.llm.decode([last_token_id], is_fragment=True)
+                last_token_str = self.llm.decode([last_token_id])
                 healer = TokenHealingLogitsProcessor(self.llm, model_config.vocab_size, last_token_str)
                 if healer.should_bias:
                     input_ids = input_ids[:,:-1]
@@ -602,7 +602,7 @@ class TransformersStreamer():
 
             if self.sequence_pos[i] < len(self.generated_sequence[i]):
                 display_tokens = list(self.generated_sequence[i][self.sequence_pos[i]:])
-                val = self.llm.decode(display_tokens, is_fragment=True)#[self.llm._prefix_token_id] + display_tokens)[len(self.llm._prefix_token):]
+                val = self.llm.decode(display_tokens)#[self.llm._prefix_token_id] + display_tokens)[len(self.llm._prefix_token):]
                 self.generated_string[i] += val
                 
                 if self.str_pos[i] < len(self.generated_string[i]):
@@ -613,7 +613,7 @@ class TransformersStreamer():
                         display_logprobs = []
                         for k in range(len(display_scores)):
                             top_inds = display_scores[k][0].argsort(descending=True)[:self.logprobs] # TODO: verify the [0] is always correct
-                            display_logprobs.append({self.llm.decode([j], is_fragment=True): display_scores[k][0][j] for j in top_inds})
+                            display_logprobs.append({self.llm.decode([j]): display_scores[k][0][j] for j in top_inds})
 
                     val = self.generated_string[i][self.str_pos[i]:]
                     finish_reason = None

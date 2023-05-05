@@ -13,7 +13,7 @@ async def select(variable_name="selected", options=None, block_content=None, par
             assert block_content[i].text == "{{or}}"
             options.append(block_content[i+1].text)
 
-    option_tokens = [parser.program.llm.encode(option, is_fragment=True) for option in options]
+    option_tokens = [parser.program.llm.encode(option) for option in options]
 
     # [TODO] we should force the LM to generate a valid specific option
     #        for openai this means setting logprobs to valid token ids
@@ -31,12 +31,12 @@ async def select(variable_name="selected", options=None, block_content=None, par
     if gen_obj is not None and "token_healing_prefix" in logprobs_result:
         remove_prefix = len(logprobs_result["token_healing_prefix"])
         options = [logprobs_result["token_healing_prefix"] + option for option in options]
-        option_tokens = [parser.program.llm.encode(option, is_fragment=True) for option in options]
+        option_tokens = [parser.program.llm.encode(option) for option in options]
     
     # initialize the option logprobs
     option_logprobs = {}
     for option in option_tokens:
-        option_logprobs[parser.program.llm.decode(option, is_fragment=True)] = 0
+        option_logprobs[parser.program.llm.decode(option)] = 0
 
     # compute logprobs for each option
     for i in range(len(top_logprobs)):
@@ -45,7 +45,7 @@ async def select(variable_name="selected", options=None, block_content=None, par
                 # if i == 0 and "token_healing_prefix" in logprobs_result:
                 #     logprobs_result
                 # option_string = parser.program.llm.decode(option_ids)
-                option_logprobs[option_str] += top_logprobs[i].get(parser.program.llm.decode([option_ids[i]], is_fragment=True), -1000)
+                option_logprobs[option_str] += top_logprobs[i].get(parser.program.llm.decode([option_ids[i]]), -1000)
     
     # penalize options that are too long
     for option in option_tokens:

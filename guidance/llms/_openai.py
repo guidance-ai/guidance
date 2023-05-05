@@ -245,11 +245,11 @@ class OpenAI(LLM):
                 else:
                     yield json.loads(text)
     
-    def encode(self, string, is_fragment=False):
+    def encode(self, string, fragment=True):
         # note that is_fragment is not used used for this tokenizer
         return self._tokenizer.encode(string)
     
-    def decode(self, tokens, is_fragment=False):
+    def decode(self, tokens, fragment=True):
         return self._tokenizer.decode(tokens)
 
 
