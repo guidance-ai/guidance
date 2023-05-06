@@ -64,7 +64,7 @@ executed_program["rewrite"]
 
 ## Chat dialog (<a href="https://github.com/microsoft/guidance/blob/main/notebooks/chat.ipynb">notebook</a>)
 
-Guidance supports API based chat models like GPT-4, as well as open chat models like Vicuna through a unified API based on role tags (e.g. `{{#system}}...{{/system}}`). This allows interactive dialog development that combines rich templating and logical control with modern chat roles.
+Guidance supports API based chat models like GPT-4, as well as open chat models like Vicuna through a unified API based on role tags (e.g. `{{#system}}...{{/system}}`). This allows interactive dialog development that combines rich templating and logical control with modern chat models.
 
 ```python
 # connect to a chat model like GPT-4 or Vicuna
