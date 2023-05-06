@@ -22,7 +22,7 @@ async def gen(variable_name="generated", partial_output=None, parse=False, list_
                 next_text = next_next_node.text
 
         # auto-detect quote stop tokens
-        quote_types = ['"', "'", "'''", '"""', "`"]
+        quote_types = ["'''", '"""', '```', '"', "'", "`"]
         for quote_type in quote_types:
             if next_text.startswith(quote_type) and prev_text.endswith(quote_type):
                 stop = quote_type

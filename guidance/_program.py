@@ -111,7 +111,7 @@ class Program:
 
         # throttle the display updates
         if os.environ.get("VSCODE_CWD", None) is not None:
-            self.display_throttle_limit = 0.3 # VSCode has a bug that causes flashing, so we slow down the display
+            self.display_throttle_limit = 0.1 # VSCode has a bug that causes flashing, so we slow down the display
         else:
             self.display_throttle_limit = 0.1 # the minimum time between display updates
         self.update_display = DisplayThrottler(self._update_display, self.display_throttle_limit)
@@ -182,6 +182,7 @@ class Program:
             "caching": self.caching,
             "logprobs": self.logprobs,
             "await_missing": self.await_missing,
+            "llm": self.llm,
         }, **kwargs}
 
         log.debug(f"in __call__ with kwargs: {kwargs}")
@@ -189,7 +190,6 @@ class Program:
         # create a new program object that we will execute in-place
         new_program = Program(
             text=self.marked_text,
-            llm=self.llm,
 
             # copy the (non-function) variables so that we don't modify the original program during execution
             # TODO: what about functions? should we copy them too?

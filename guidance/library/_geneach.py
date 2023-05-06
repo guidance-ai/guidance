@@ -3,7 +3,7 @@ import re
 import uuid
 from .._utils import strip_markers
 
-async def geneach(list_name, block_content, parser, partial_output=None, parser_prefix=None, parser_node=None, stop=None, max_iterations=100, min_iterations=0, num_iterations=None, hidden=False, filter=None, single_call=False, single_call_temperature=0.0, single_call_max_tokens=500, single_call_top_p=1.0, next_node=None, prev_node=None):
+async def geneach(list_name, block_content, parser, partial_output=None, parser_prefix=None, parser_node=None, stop=None, max_iterations=100, min_iterations=0, num_iterations=None, hidden=False, filter=None, join="", single_call=False, single_call_temperature=0.0, single_call_max_tokens=500, single_call_top_p=1.0, next_node=None, prev_node=None):
     ''' Generate a list of items.
     '''
     assert len(block_content) == 1
@@ -66,6 +66,11 @@ async def geneach(list_name, block_content, parser, partial_output=None, parser_
             parser.variable_stack[-1]["@first"] = i == 0
             parser.variable_stack[-1]["this"] = {}
             pos = len(parser.prefix)
+            
+            # add the join string if we are not on the first iteration
+            if len(data) > 0 and join != "":
+                partial_output(join)
+            
             await parser.visit(block_content[0]) # fills out parser.prefix
             block_variables = parser.variable_stack.pop()["this"]
             data.append(block_variables)
