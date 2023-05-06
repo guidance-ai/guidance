@@ -62,8 +62,44 @@ executed_program["rewrite"]
 ```
 > ', a model fails,\nbut in an abundance of instructions there is safety.'
 
+## Chat dialog (<a href="https://github.com/microsoft/guidance/blob/main/notebooks/chat.ipynb">notebook</a>)
 
+Guidance supports chat models like ChatGPT and GPT-4, as well as open chat models like Vicuna through a unified API based on role tags (e.g. `{{#system}}...{{/system}}`). This allows interactive dialog development that combines rich templating and logical control with modern chat models.
 
+```python
+# connect to a chat model like GPT-4 or Vicuna
+gpt4 = guidance.llms.OpenAI("gpt-4")
+# vicuna = guidance.llms.transformers.Vicuna("your_path/vicuna_13B", device_map="auto")
+
+experts = guidance('''
+{{#system~}}
+You are a helpful and terse assistant.
+{{~/system}}
+
+{{#user~}}
+I want a response to the following question:
+{{query}}
+Name 3 world-class experts (past or present) who would be great at answering this?
+Don't answer the question yet.
+{{~/user}}
+
+{{#assistant~}}
+{{gen 'expert_names' temperature=0 max_tokens=300}}
+{{~/assistant}}
+
+{{#user~}}
+Great, now please answer the question as if these experts had collaborated in writing a joint anonymous answer.
+{{~/user}}
+
+{{#assistant~}}
+{{gen 'answer' temperature=0 max_tokens=500}}
+{{~/assistant}}
+''', llm=gpt4)
+
+experts(query='How can I be more productive?')
+```
+<img src="docs/figures/chat_animation.gif" width="619">
+                                                         
 ## Rich output structure example ([notebook](notebooks/anachronism.ipynb))
 
 To demonstrate the value of output structure we take [a simple task](https://github.com/google/BIG-bench/tree/main/bigbench/benchmark_tasks/anachronisms) from BigBench, where the goal is to identify whether a given sentence contains an anachronism (a statement that is impossible because of non-overlaping time periods). Below is a simple two-shot prompt for it, with a human-crafted chain-of-thought sequence.
