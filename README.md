@@ -106,7 +106,7 @@ When multiple generation or LLM-directed control flow statements are used in a s
 
 ````python
 # we use LLaMA here, but any GPT-style model will do
-llama = guidance.llms.Transformers("huggyllama/llama-7b", device=0)
+llama = guidance.llms.Transformers("your_path/llama-7b", device=0)
 
 # we can pre-define valid option sets
 valid_weapons = ["sword", "axe", "mace", "spear", "bow", "crossbow"]
