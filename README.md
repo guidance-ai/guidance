@@ -25,10 +25,44 @@ Features:
 pip install guidance
 ```
                                      
-## Live notebook streaming
+## Live streaming (<a href="https://github.com/microsoft/guidance/blob/main/notebooks/proverb.ipynb">notebook</a>)
 
-Guidance makes prompt development nicer by streaming complex templates and generations live in your notebook. At first glance Guidance feels like a templating language, and just like standard <a href="https://handlebarsjs.com">Handlebars</a> templates, you can do variable interpolation (e.g. `{{proverb}}`) and logical control. But unlike standard templating languages, guidance programs have a well defined linear execution order that directly corresponds to the token order as processed by the language model. This means that at any point during execution the language model can be used to generate text (using the `{{gen}}` command) or make logical control flow decisions. This interleaving of generation and prompting allows for precise output structure that produces clear and parsable results.
+Speed up your prompt development cycle by streaming complex templates and generations live in your notebook. At first glance Guidance feels like a templating language, and just like standard <a href="https://handlebarsjs.com">Handlebars</a> templates, you can do variable interpolation (e.g. `{{proverb}}`) and logical control. But unlike standard templating languages, guidance programs have a well defined linear execution order that directly corresponds to the token order as processed by the language model. This means that at any point during execution the language model can be used to generate text (using the `{{gen}}` command) or make logical control flow decisions. This interleaving of generation and prompting allows for precise output structure that produces clear and parsable results.
+
+```python
+import guidance
+
+# set the default language model used to execute guidance programs
+guidance.llm = guidance.llms.OpenAI("text-davinci-003")
+
+# define a guidance program that adapts proverbs
+program = guidance("""Tweak this proverb to apply to model instructions instead.
+
+{{proverb}}
+- {{book}} {{chapter}}:{{verse}}
+
+UPDATED
+Where there is no guidance{{gen 'rewrite' stop="\\n-"}}
+- GPT {{gen 'chapter'}}:{{gen 'verse'}}""")
+
+# execute the program on a specific proverb
+executed_program = program(
+    proverb="Where there is no guidance, a people falls,\nbut in an abundance of counselors there is safety.",
+    book="Proverbs",
+    chapter=11,
+    verse=14
+)
+```
 <img src="docs/figures/proverb_animation.gif" width="404">
+
+After a program is executed all the generated variables are now easily accessable:
+
+```python
+executed_program["rewrite"]
+```
+> ', a model fails,\nbut in an abundance of instructions there is safety.'
+
+
 
 ## Rich output structure example ([notebook](notebooks/anachronism.ipynb))
 
