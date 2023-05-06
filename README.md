@@ -33,7 +33,7 @@ Speed up your prompt development cycle by streaming complex templates and genera
 import guidance
 
 # set the default language model used to execute guidance programs
-guidance.llm = guidance.llms.OpenAI("text-davinci-003", caching=False)
+guidance.llm = guidance.llms.OpenAI("text-davinci-003")
 
 # define a guidance program that adapts proverbs
 program = guidance("""Tweak this proverb to apply to model instructions instead.
