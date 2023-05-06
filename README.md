@@ -24,6 +24,11 @@ Features:
 ```python
 pip install guidance
 ```
+                                     
+## Live notebook streaming
+
+Guidance makes prompt development nicer by streaming complex templates and generations live in your notebook. At first glance Guidance feels like a templating language, and just like standard <a href="https://handlebarsjs.com">Handlebars</a> templates, you can do variable interpolation (e.g. `{{proverb}}`) and logical control. But unlike standard templating languages, guidance programs have a well defined linear execution order that directly corresponds to the token order as processed by the language model. This means that at any point during execution the language model can be used to generate text (using the `{{gen}}` command) or make logical control flow decisions. This interleaving of generation and prompting allows for precise output structure that produces clear and parsable results.
+<img src="docs/figures/proverb_animation.gif" width="404">
 
 ## Rich output structure example ([notebook](notebooks/anachronism.ipynb))
 
