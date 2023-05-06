@@ -99,7 +99,45 @@ Great, now please answer the question as if these experts had collaborated in wr
 experts(query='How can I be more productive?')
 ```
 <img src="docs/figures/chat_animation.gif" width="619">
-                                                         
+
+## Guidance acceleration (<a href="https://github.com/microsoft/guidance/blob/main/notebooks/guidance_acceleration.ipynb">notebook</a>)
+
+When multiple generation or LLM-directed control flow statements are used in a single Guidance program then we can significantly improve inference performance by optimally reusing the Key/Value caches as we progress through the prompt. This means Guidance only asks the LLM to generate the green text below, not the entire program. **This cuts this prompt's runtime in half vs. a standard generation approach.** 
+
+````python
+# we use LLaMA here, but any GPT-style model will do
+llama = guidance.llms.Transformers("huggyllama/llama-7b", device=0)
+
+# we can pre-define valid option sets
+valid_weapons = ["sword", "axe", "mace", "spear", "bow", "crossbow"]
+
+# define the prompt
+character_maker = guidance("""The following is a character profile for an RPG game in JSON format.
+```json
+{
+    "id": "{{id}}",
+    "description": "{{description}}",
+    "name": "{{gen 'name'}}",
+    "age": {{gen 'age' pattern='[0-9]+' stop=','}},
+    "armor": "{{#select 'armor'}}leather{{or}}chainmail{{or}}plate{{/select}}",
+    "weapon": "{{select 'weapon' options=valid_weapons}}",
+    "class": "{{gen 'class'}}",
+    "mantra": "{{gen 'mantra' temperature=0.7}}",
+    "strength": {{gen 'strength' pattern='[0-9]+' stop=','}},
+    "items": [{{#geneach 'items' num_iterations=5 join=', '}}"{{gen 'this' temperature=0.7}}"{{/geneach}}]
+}```""")
+
+# generate a character
+character_maker(
+    id="e1f491f7-7ab8-4dac-8c20-c92b5e7d883d",
+    description="A quick and nimble fighter.",
+    valid_weapons=valid_weapons, llm=llama
+)
+````
+<img src="docs/figures/json_animation.gif" width="565">
+
+The prompt above typically takes just over 2.5 seconds to complete on a A6000 GPU when using LLaMA 7B. If we were to run the same prompt adapted to be a single generation call (the standard practice today) it takes about 5 seconds to complete (4 of which is token generation and 1 of which is prompt processing). *This means Guidance acceleration delivers a 2x speedup over the standard approach for this prompt.* In practice the exact speed-up factor depends on the format of your specific prompt and the size of your model (larger models benefit more). See the [notebook](https://github.com/microsoft/guidance/blob/main/notebooks/guidance_acceleration.ipynb) for more details.
+
 ## Rich output structure example ([notebook](notebooks/anachronism.ipynb))
 
 To demonstrate the value of output structure we take [a simple task](https://github.com/google/BIG-bench/tree/main/bigbench/benchmark_tasks/anachronisms) from BigBench, where the goal is to identify whether a given sentence contains an anachronism (a statement that is impossible because of non-overlaping time periods). Below is a simple two-shot prompt for it, with a human-crafted chain-of-thought sequence.
