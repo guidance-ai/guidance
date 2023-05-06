@@ -35,7 +35,7 @@ import guidance
 # set the default language model used to execute guidance programs
 guidance.llm = guidance.llms.OpenAI("text-davinci-003")
 
-# define a guidance program that adapts proverbs
+# define a guidance program that adapts a proverb
 program = guidance("""Tweak this proverb to apply to model instructions instead.
 
 {{proverb}}
