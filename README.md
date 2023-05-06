@@ -145,7 +145,7 @@ The standard greedy tokenizations used by most language models introduce a subtl
 Consider the following example, where we are trying to generate an HTTP URL string:
 
 ```python
-# we use StableLM as an open source example, but these issues impact all models to varying degrees
+# we use StableLM as an open example, but these issues impact all models to varying degrees
 guidance.llm = guidance.llms.Transformers("stabilityai/stablelm-base-alpha-3b", device=0)
 
 # we turn token healing off so that guidance acts like a normal prompting library
