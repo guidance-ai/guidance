@@ -28,6 +28,12 @@ async def gen(variable_name="generated", partial_output=None, parse=False, list_
                 stop = quote_type
                 break
 
+        # auto-detect role stop tags
+        if stop is None:
+            m = re.match(r"^{{~?/(user|assistant|system|role)~?}}.*", next_text)
+            if m:
+                stop = parser.program.llm.role_end(m.group(1))
+
         # auto-detect XML tag stop tokens
         if stop is None:
             m = re.match(r"<([^>\W]+)[^>]+>", next_text)
@@ -35,14 +41,12 @@ async def gen(variable_name="generated", partial_output=None, parse=False, list_
                 end_tag = "</"+m.group(1)+">"
                 if next_text.startswith(end_tag):
                     stop = end_tag
-            else:
-                stop = next_text
-
-        # auto-detect role stop tags
+        
+        # fall back to the next node's text
         if stop is None:
-            m = re.match(r"{{~?/(user|assistant|system|role)~?}}", next_text)
-            if m:
-                stop = parser.program.llm.role_end(m.group(1))
+            stop = next_text
+
+        
         
     if stop == "":
         stop = None

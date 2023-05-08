@@ -219,8 +219,8 @@ class TransformersSession(LLMSession):
 
         return self
 
-    def __call__(self, *args, **kwargs):
-        return self.__call__(*args, **kwargs)
+    # def __call__(self, *args, **kwargs):
+    #     return self.__call__(*args, **kwargs)
     
     async def __call__(self, prompt, stop=None, stop_regex=None, temperature=None, n=1, max_tokens=1000, logprobs=None, top_p=1.0, echo=False, logit_bias=None, token_healing=None, pattern=None, stream=False, cache_seed=0, caching=None):
         """ Generate a completion of the given prompt.
@@ -235,6 +235,7 @@ class TransformersSession(LLMSession):
         # generate the cache key
         key = self._cache_key(locals())
 
+        # set the stop patterns
         if stop is not None:
             if isinstance(stop, str):
                 stop_regex = [regex.escape(stop)]
@@ -242,6 +243,9 @@ class TransformersSession(LLMSession):
                 stop_regex = [regex.escape(s) for s in stop]
         if isinstance(stop_regex, str):
             stop_regex = [stop_regex]
+        if stop_regex is None:
+            stop_regex = []
+        stop_regex.append(self.llm._tokenizer.eos_token) # make sure the end of sequence token is always included
 
         # handle caching
         if key not in self.llm.cache or (caching is not True and not self.llm.caching) or caching is False:
