@@ -280,7 +280,7 @@ class TransformersSession(LLMSession):
                     last_token_str = ""
 
             # make sure we don't run off the end of the model
-            max_context = (getattr(model_config, "max_sequence_length", None) or getattr(model_config, "n_positions", None) or getattr(model_config, "max_position_embeddings"))
+            max_context = (getattr(model_config, "max_sequence_length", None) or getattr(model_config, "max_seq_len", None) or getattr(model_config, "n_positions", None) or getattr(model_config, "max_position_embeddings"))
             if max_tokens + len(input_ids[0]) > max_context:
                 max_tokens = max_context - len(input_ids[0])
 
