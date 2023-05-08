@@ -52,3 +52,16 @@ class MPT(Transformers):
             )
 
         super().__init__(model, tokenizer=tokenizer, device_map=device_map, **kwargs)
+
+class MPTChat(MPT):
+    @staticmethod
+    def role_start(role):
+       return  {
+        'user': '<|im_start|>user ',
+        'system': '<|im_start|>system\n',
+        'assistant': '<|im_start|>assistant ',
+        }[role]
+    
+    @staticmethod
+    def role_end(role):
+        return '<|im_end|>\n'
