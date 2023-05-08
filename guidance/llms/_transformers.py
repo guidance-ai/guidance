@@ -288,7 +288,7 @@ class TransformersSession(LLMSession):
 
             # add support for pattern guidance
             if pattern is not None:
-                processors.append(RegexLogitsProcessor(pattern, stop_regex, self.llm.decode, model_config.vocab_size, temperature == 0, len(coded_prompt), model_config.eos_token_id))
+                processors.append(RegexLogitsProcessor(pattern, stop_regex, self.llm.decode, model_config.vocab_size, temperature == 0, len(coded_prompt), self.llm._tokenizer.eos_token_id))
 
             if stop_regex is not None:
                 stoppers.append(RegexStoppingCriteria(stop_regex, self.llm.decode, len(coded_prompt)))
@@ -312,7 +312,7 @@ class TransformersSession(LLMSession):
                 temperature=temperature,
                 max_new_tokens=max_tokens,
                 top_p=top_p,
-                pad_token_id=model_config.pad_token_id if model_config.pad_token_id is not None else model_config.eos_token_id,
+                pad_token_id=model_config.pad_token_id if model_config.pad_token_id is not None else self.llm._tokenizer.eos_token_id,
                 logits_processor=transformers.LogitsProcessorList(processors),
                 stopping_criteria=transformers.StoppingCriteriaList(stoppers),
                 # past_key_values=self._past_key_values,
@@ -606,9 +606,9 @@ class TransformersStreamer():
                     stop_pos = len(val) + 1
                     if len(self.generated_sequence[i]) >= self.max_total_tokens:
                         finish_reason = "length"
-                    elif self.generated_sequence[i][-1] == self.llm.model_obj.config.eos_token_id:
+                    elif self.generated_sequence[i][-1] == self.llm._tokenizer.eos_token_id:
                         finish_reason = "endoftext"
-                        stop_pos = len(val) - len(self.llm.decode([self.llm.model_obj.config.eos_token_id]))
+                        stop_pos = len(val) - len(self.llm.decode([self.llm._tokenizer.eos_token_id]))
 
                     # trim off the stop regex matches if needed
                     found_partial = False
