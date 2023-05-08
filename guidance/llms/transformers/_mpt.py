@@ -64,4 +64,4 @@ class MPTChat(MPT):
     
     @staticmethod
     def role_end(role):
-        return '<|im_end|>\n'
+        return '<|im_end|>'
