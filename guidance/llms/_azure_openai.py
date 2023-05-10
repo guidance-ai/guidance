@@ -31,7 +31,7 @@ class AzureOpenAI(OpenAI):
         if os.path.exists(self._token_cache_path):
             self._token_cache.deserialize(open(self._token_cache_path, 'r').read())
 
-        self._rest_headers["X-ModelType"] = self.model
+        self._rest_headers["X-ModelType"] = self.model_name
 
     @property
     def token(self):
