@@ -93,7 +93,7 @@ class OpenAI(LLM):
         
         # fill in default API key value
         if token is None: # get from environment variable
-            token = os.environ.get("OPENAI_API_KEY", openai.api_key)
+            token = os.environ.get("OPENAI_API_KEY", getattr(openai, "api_key", None))
         if token is not None and not token.startswith("sk-") and os.path.exists(os.path.expanduser(token)): # get from file
             with open(os.path.expanduser(token), 'r') as file:
                 token = file.read().replace('\n', '')
