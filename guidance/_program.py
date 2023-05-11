@@ -96,6 +96,9 @@ class Program:
         # set our variables
         self._variables = {}
         self._variables.update(_built_ins)
+        self._variables.update({
+            "llm": llm
+        })
         self._variables.update(kwargs)
         
         # set internal state variables

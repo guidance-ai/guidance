@@ -23,6 +23,11 @@ class LLM():
             out = s(*args, **kwargs)
         return out
     
+    def __getitem__(self, key):
+        """ Gets an attribute from the LLM.
+        """
+        return getattr(self, key)
+    
     def session(self, asynchronous=False):
         """ Creates a session for the LLM.
 
