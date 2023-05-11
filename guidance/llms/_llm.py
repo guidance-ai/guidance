@@ -33,8 +33,6 @@ class LLM():
             return LLMSession(self)
         else:
             return SyncSession(LLMSession(self))
-        
-    def auto_format(self, program)
     
     def encode(self, string, **kwargs):
         return self._tokenizer.encode(string, **kwargs)
