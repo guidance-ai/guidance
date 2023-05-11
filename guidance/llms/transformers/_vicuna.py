@@ -15,6 +15,8 @@ class Vicuna(LLaMA):
 
     cache = LLM._open_cache("_vicuna.diskcache")
 
+    default_system_prompt = """A chat between a curious user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user's questions."""
+
     @staticmethod
     def role_start(role):
         if role == 'user':

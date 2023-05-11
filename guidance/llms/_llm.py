@@ -7,6 +7,7 @@ import platformdirs
 class LLM():
 
     cache_version = 1
+    default_system_prompt = "You are a helpful assistant."
 
     def __init__(self):
         self.chat_mode = False # by default models are not in role-based chat mode
@@ -32,6 +33,8 @@ class LLM():
             return LLMSession(self)
         else:
             return SyncSession(LLMSession(self))
+        
+    def auto_format(self, program)
     
     def encode(self, string, **kwargs):
         return self._tokenizer.encode(string, **kwargs)
