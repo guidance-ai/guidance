@@ -34,7 +34,8 @@ setup(
         "parsimonious",
         "pygtrie",
         "platformdirs",
-        "tiktoken" #>=0.3"
+        "tiktoken>=0.3",
+        "nest_asyncio"
     ],
     extras_require={
         'docs': [
