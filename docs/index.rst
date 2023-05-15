@@ -1,7 +1,8 @@
 
-.. image:: figures/guidance_logo_blue_dark.svg
+.. image:: figures/guidance_logo_blue.svg
    :width: 300px
    :align: center
+
 
 **Guidance** <b>Guidance</b> enables you to control modern language models more effectively and efficiently than traditional prompting or chaining. Guidance programs allow you to interleave generation, prompting, and logical control into a single continuous flow matching how the language model actually processes the text.
 
