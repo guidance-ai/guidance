@@ -387,6 +387,7 @@ texinfo_documents = [
 def setup(app):
     import guidance
     app.connect('build-finished', build_finished)
+    app.add_stylesheet("custom_styles.css")
 
 
 def build_finished(app, exception):

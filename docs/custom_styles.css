@@ -1,5 +1,9 @@
 .wy-side-nav-search > a img.logo, .wy-side-nav-search .wy-dropdown > a img.logo {
-    width: 262.1px;
+    width: 250px;
     margin-top: 20px;
     margin-bottom: 15px;
+}
+
+.highlight {
+    background: #f8f8f8;
 }
