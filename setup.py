@@ -34,6 +34,15 @@ setup(
         "parsimonious",
         "pygtrie",
         "platformdirs",
-        "tiktoken>=0.3"
-    ]
+        "tiktoken" #>=0.3"
+    ],
+    extras_require={
+        'docs': [
+            'ipython',
+            'numpydoc',
+            'sphinx_rtd_theme',
+            'sphinx',
+            'nbsphinx'
+        ]
+    }
 )
