@@ -111,8 +111,7 @@ language = None
 # directories to ignore when looking for source files.
 # This patterns also effect to html_static_path and html_extra_path
 exclude_patterns = [
-    '_build', 'Thumbs.db', '.DS_Store',
-    'notebooks/local_scratch'
+    '_build', 'Thumbs.db', '.DS_Store'
 ]
 
 # The reST default role (used for this markup: `text`) to use for all
@@ -175,7 +174,7 @@ html_theme_options = {
 }
 # The name of an image file (relative to this directory) to place at the top
 # of the sidebar.
-html_logo = 'artwork/guidance_logo_white_dark.svg'
+html_logo = 'figures/guidance_logo_white_dark.svg'
 
 # Add any paths that contain custom themes here, relative to this directory.
 # html_theme_path = []

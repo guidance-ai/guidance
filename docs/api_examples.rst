@@ -20,7 +20,7 @@ library
     :glob:
     :maxdepth: 1
 
-    notebooks/api_examples/library/*
+    example_notebooks/api_examples/library/*
 
 
 .. _llms_examples:
@@ -33,4 +33,4 @@ llms
     :glob:
     :maxdepth: 1
 
-    notebooks/api_examples/llms/*
+    example_notebooks/api_examples/llms/*
