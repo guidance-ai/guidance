@@ -2,6 +2,11 @@ import getpass
 import sys
 import subprocess
 import shlex
+import os
+import subprocess
+import pty
+import asyncio
+
 
 def shell(command, partial_output, safe=True):
     """ Execute a shell command on the local machine (with user confirmation by default).
@@ -25,7 +30,7 @@ def shell(command, partial_output, safe=True):
     all_output = "\n"
     partial_output(all_output)
     try:
-        process = subprocess.Popen(shlex.split(command), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         while True:
             output = process.stdout.readline().decode("utf-8") 
             all_output += output
@@ -81,3 +86,59 @@ class _GetchWindows:
 
 
 getch = _Getch()
+
+
+class Shell:
+    """ A stateful shell object can be used to execute commands and get the output.
+    """
+
+    def __init__(self):
+        self.shell_cmd = os.environ.get('SHELL', '/bin/sh')
+        self.master_fd, self.slave_fd = pty.openpty()
+        my_env = os.environ.copy()
+        self.p = subprocess.Popen(
+            self.shell_cmd,
+            preexec_fn=os.setsid,
+            stdin=self.slave_fd,
+            stdout=self.slave_fd,
+            stderr=self.slave_fd,
+            text=True,
+            env=my_env
+        )
+        self._env_inited = False
+        self.loop = asyncio.get_event_loop()
+        self.loop.add_reader(self.master_fd, self.read)
+
+        # an event that the command has finished
+        self.command_finished = asyncio.Event()
+        self._current_output = ""
+
+    def read(self):
+        """ Read the next chunk of output from the shell.
+        """
+        new_text = os.read(self.master_fd, 10240).decode()
+        self._current_output += new_text
+        if self._current_output.endswith('autosh$ '):
+            self.command_finished.set()
+    
+    async def __call__(self, command):
+        ''' Send a command to the shell and return the output.
+        '''
+
+        # set up the environment if it hasn't been done yet
+        if not self._env_inited:
+            self._env_inited = True
+            await self('export set PS1="autosh$ "')
+        
+        # send the command to the shell
+        command = command + '\n'
+        os.write(self.master_fd, command.encode())
+
+        # wait for the command to finish
+        await self.command_finished.wait()
+        self.command_finished.clear()
+
+        # return the collected output
+        out = self._current_output
+        self._current_output = ""
+        return out
