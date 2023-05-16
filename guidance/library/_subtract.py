@@ -1,4 +1,11 @@
-def subtract(arg1, arg2):
+def subtract(minuend, subtrahend):
     ''' Subtract the second variable from the first.
+
+    Parameters
+    ----------
+    minuend : int or float
+        The number to subtract from.
+    subtrahend : int or float
+        The number to subtract.
     '''
-    return arg1 - arg2
+    return minuend - subtrahend

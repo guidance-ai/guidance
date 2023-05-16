@@ -1,15 +1,21 @@
-async def await_(name, parser=None):
+async def await_(name, _parser_context=None):
     ''' Awaits a variable by returning its value and then deleting it.
 
     Note that this is useful for repeatedly getting values since programs
     will pause when they need a value that is not yet set. This means
     that putting `await` in a loop will create a stateful "agent" that can
     repeatedly await values when called multiple times.
+
+    Parameters
+    ----------
+    name : str
+        The name of the variable to await.
     '''
 
     # stop the program completion if we are waiting for a value to be set
     # this will result in a partially completed program that we can then finish
     # later (by calling it again with the variable we need)
+    parser = _parser_context['parser']
     if name not in parser.program:
         parser.executing = False
     else:

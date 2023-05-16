@@ -1,7 +1,9 @@
-async def role(name, block_content, partial_output, parser, next_node, prev_node, next_next_node, hidden=False):
+async def role(name, hidden=False, _parser_context=None):
     ''' A chat role block.
     '''
-    assert parser is not None
+    block_content = _parser_context['block_content']
+    parser = _parser_context['parser']
+    partial_output = _parser_context['partial_output']
     
     # record where we are in the prefix in case we need to rewind
     pos = len(parser.prefix)
@@ -9,7 +11,12 @@ async def role(name, block_content, partial_output, parser, next_node, prev_node
     # send the role-start special tokens
     partial_output(parser.program.llm.role_start(name))
 
-    out = await parser.visit(block_content[0], next_node=next_node, prev_node=prev_node, next_next_node=next_next_node)
+    out = await parser.visit(
+        block_content[0],
+        next_node=_parser_context["next_node"],
+        prev_node=_parser_context["prev_node"],
+        next_next_node=_parser_context["next_next_node"]
+    )
 
     # send the role-end special tokens
     partial_output(parser.program.llm.role_end(name))

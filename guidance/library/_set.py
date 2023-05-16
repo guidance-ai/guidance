@@ -1,4 +1,4 @@
-def set(name, value=None, hidden=None, parser=None):
+def set(name, value=None, hidden=None, _parser_context=None):
     ''' Set the value of a variable or set of variables.
 
     Parameters
@@ -10,7 +10,7 @@ def set(name, value=None, hidden=None, parser=None):
     hidden : bool, optional
         If True, the variable will be set but not printed in the output.
     '''
-    assert parser is not None
+    parser = _parser_context['parser']
 
     if not parser.executing:
         return ""

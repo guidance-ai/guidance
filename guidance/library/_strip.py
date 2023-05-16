@@ -1,4 +1,9 @@
-def strip(arg1):
+def strip(string):
     ''' Strip whitespace from the beginning and end of the given string.
+
+    Parameters
+    ----------
+    string : str
+        The string to strip.
     '''
-    return arg1.strip()
+    return string.strip()

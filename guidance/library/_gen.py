@@ -7,9 +7,64 @@ from .._utils import escape_template_block
 
 log = logging.getLogger(__name__)
 
-async def gen(variable_name="generated", partial_output=None, parse=False, list_append=False, stop=None, stop_regex=None, max_tokens=500, n=1, temperature=0.0, top_p=1.0, logprobs=None, pattern=None, hidden=False, save_prompt=False, parser_prefix=None, parser=None, prefix="", suffix="", token_healing=None, next_node=None, prev_node=None, next_next_node=None, **kwargs):
-    ''' Use the LM to generate a completion string that is stored in the variable `variable_name`.
+async def gen(variable_name="generated", stop=None, stop_regex=None, max_tokens=500, n=1, temperature=0.0, top_p=1.0,
+              logprobs=None, pattern=None, hidden=False, parse=False, list_append=False, save_prompt=False,
+              token_healing=None, _parser_context=None):
+    ''' Use the LLM to generate a completion.
+
+    Parameters
+    ----------
+    variable_name : str
+        The name of the variable to store the generated value in.
+    stop : str
+        The stop string to use for stopping generation. If not provided, the next node's text will be used if
+        that text matches a closing quote, XML tag, or role end. Note that the stop string is not included in
+        the generated value.
+    stop_regex : str
+        A regular expression to use for stopping generation. If not provided, the stop string will be used.
+    max_tokens : int
+        The maximum number of tokens to generate in this completion.
+    n : int
+        The number of completions to generate. If you generate more than one completion, the variable will be
+        set to a list of generated values. Only the first completion will be used for future context for the LLM,
+        but you may often want to use hidden=True when using n > 1.
+    temperature : float
+        The temperature to use for generation. A higher temperature will result in more random completions. Note
+        that caching is always on for temperature=0, and is seed-based for other temperatures.
+    top_p : float
+        The top_p value to use for generation. A higher top_p will result in more random completions.
+    logprobs : int or None
+        If set to an integer, the LLM will return that number of top log probabilities for the generated tokens
+        which will be stored in a variable named `variable_name+"_logprobs"`. If set to None, the log
+        probabilities will not be returned.
+    pattern : str or None
+        A regular expression pattern guide to use for generation. If set the LLM will be forced (through guided
+        decoding) to only generate completions that match the regular expression.
+    hidden : bool
+        Whether to hide the generated value from future LLM context. This is useful for generating completions
+        that you just want to save in a variable and not use for future context.
+    parse : bool
+        Whether to parse the generated value. If set to True, the generated value will be parsed as a guidance
+        program. Warning: This has not been tested for security yet, and needs to controls added to be safe. If
+        you need to use this, consider a PR to add the necessary security controls.
+    list_append : bool
+        Whether to append the generated value to a list stored in the variable. If set to True, the variable
+        must be a list, and the generated value will be appended to the list.
+    save_prompt : str or bool
+        If set to a string, the exact prompt given to the LLM will be saved in a variable with the given name.
+    token_healing : bool or None
+        If set to a bool this overrides the token_healing setting for the LLM.
     '''
+    prefix = ""
+    suffix = ""
+
+    # get the parser context variables we will need
+    parser = _parser_context['parser']
+    next_node = _parser_context["next_node"]
+    next_next_node = _parser_context["next_next_node"]
+    prev_node = _parser_context["prev_node"]
+    parser_prefix = _parser_context["parser_prefix"]
+    partial_output = _parser_context["partial_output"]
 
     # if stop is None then we use the text of the node after the generate command
     if stop is None:
@@ -71,10 +126,13 @@ async def gen(variable_name="generated", partial_output=None, parse=False, list_
     if save_prompt:
         parser.set_variable(save_prompt, parser_prefix+prefix)
 
+    if logprobs is None:
+        logprobs = parser.program.logprobs
+
     # call the LLM
     gen_obj = await parser.llm_session(
         parser_prefix+prefix, stop=stop, stop_regex=stop_regex, max_tokens=max_tokens, n=n, pattern=pattern,
-        temperature=temperature, top_p=top_p, logprobs=parser.program.logprobs, cache_seed=cache_seed, token_healing=token_healing,
+        temperature=temperature, top_p=top_p, logprobs=logprobs, cache_seed=cache_seed, token_healing=token_healing,
         echo=parser.program.logprobs is not None, stream=stream_generation, caching=parser.program.caching
     )
 

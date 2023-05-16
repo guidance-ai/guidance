@@ -1,5 +1,5 @@
 from ._if import if_
 
-async def unless(value, block_content, parser):
-    return await if_(value, block_content, parser, reverse=True)
+async def unless(value, _parser_context=None):
+    return await if_(value, invert=True, _parser_context=_parser_context)
 unless.is_block = True

@@ -1,6 +1,20 @@
-async def select(variable_name="selected", options=None, block_content=None, parser=None, partial_output=None, parser_prefix=None, logprobs=None):
+async def select(variable_name="selected", options=None, logprobs=None, _parser_context=None):
     ''' Select a value from a list of choices.
+
+    Parameters
+    ----------
+    variable_name : str
+        The name of the variable to set with the selected value.
+    options : list of str or None
+        An optional list of options to select from. This argument is only used when select is used in non-block mode.
+    logprobs : str or None
+        An optional variable name to set with the logprobs for each option.
     '''
+    parser = _parser_context['parser']
+    block_content = _parser_context['block_content']
+    parser_prefix = _parser_context['parser_prefix']
+    partial_output = _parser_context['partial_output']
+
     if block_content is None:
         assert options is not None, "You must provide an options list like: {{select 'variable_name' options}} when using the select command in non-block mode."
     else:

@@ -7,10 +7,18 @@ import subprocess
 import asyncio
 
 
-def shell(command, partial_output, safe=True):
+def shell(command, safe=True, _parser_context=None):
     """ Execute a shell command on the local machine (with user confirmation by default).
+
+    Parameters
+    ----------
+    command : str
+        The command to execute.
+    safe : bool
+        If True, the user will be asked to confirm the command before it is executed.
     """
     
+    partial_output = _parser_context['partial_output']
     partial_output("{{execute '"+command+"'}}")
     
     # before running the command we need to get confirmation from user through keyboard input
@@ -92,7 +100,7 @@ class Shell:
     """
 
     def __init__(self):
-        import pty
+        import pty # TODO: Make this work on Windows
         self.shell_cmd = os.environ.get('SHELL', '/bin/sh')
         self.master_fd, self.slave_fd = pty.openpty()
         my_env = os.environ.copy()

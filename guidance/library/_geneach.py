@@ -3,9 +3,49 @@ import re
 import uuid
 from .._utils import strip_markers
 
-async def geneach(list_name, block_content, parser, partial_output=None, parser_prefix=None, parser_node=None, stop=None, max_iterations=100, min_iterations=0, num_iterations=None, hidden=False, filter=None, join="", single_call=False, single_call_temperature=0.0, single_call_max_tokens=500, single_call_top_p=1.0, next_node=None, prev_node=None):
-    ''' Generate a list of items.
+async def geneach(list_name, stop=None, max_iterations=100, min_iterations=0, num_iterations=None, hidden=False, join="", single_call=False, single_call_temperature=0.0, single_call_max_tokens=500, single_call_top_p=1.0, _parser_context=None):
+    ''' Generate a potentially variable length list of items using the LLM.
+
+    Parameters
+    ----------
+    list_name : str
+        The name of the variable to save the generated list to.
+    stop : str or list of str
+        A string or list of strings that will stop the generation of the list. For example if stop="</ul>"
+        then the list will be generated until the first "</ul>" is generated.
+    max_iterations : int
+        The maximum number of items to generate.
+    min_iterations : int
+        The minimum number of items to generate.
+    num_iterations : int
+        The exact number of items to generate (this overrides max_iterations and min_iterations).
+    hidden : bool
+        If True, the generated list items will not be added to the LLMs input context. This means that each
+        item will be generated independently of the others. Note that if you use hidden=True you must also
+        set num_iterations to a fixed number (since without adding items the context there is not way for the
+        LLM to know when to stop on its own).
+    join : str
+        A string to join the generated items with.
+    single_call : bool
+        This is an option designed to make look generation more convienent for LLMs that don't support guidance
+        acceleration. If True, the LLM will be called once to generate the entire list. This only works if the
+        LLM has already been prompted to generate content that matches the format of the list. After the single
+        call, the generated list variables will be parsed out of the generated text using a regex. (note that only
+        basic template tags are supported in the list items when using single_call=True).
+    single_call_temperature : float
+        Only used with single_call=True. The temperature to use when generating the list items in a single call.
+    single_call_max_tokens : int
+        Only used with single_call=True. The maximum number of tokens to generate when generating the list items.
+    single_call_top_p : float
+        Only used with single_call=True. The top_p to use when generating the list items in a single call.
+    
     '''
+    block_content = _parser_context["block_content"]
+    parser = _parser_context["parser"]
+    partial_output = _parser_context["partial_output"]
+    parser_prefix = _parser_context["parser_prefix"]
+    parser_node = _parser_context["parser_node"]
+
     assert len(block_content) == 1
     assert not (hidden and single_call), "Cannot use hidden=True and single_call together"
     assert isinstance(list_name, str), "Must provide a variable name to save the generated list to"

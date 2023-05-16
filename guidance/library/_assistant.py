@@ -1,9 +1,14 @@
 from ._role import role
 
-async def assistant(block_content, partial_output, parser, prev_node, next_node, next_next_node, hidden=False):
+async def assistant(hidden=False, _parser_context=None):
     ''' A chat role block for the 'assistant' role.
 
     This is just a shorthand for {{#role 'assistant'}}...{{/role}}.
+
+    Parameters
+    ----------
+    hidden : bool
+        Whether to include the assistant block in future LLM context. 
     '''
-    return await role(name="assistant", block_content=block_content, partial_output=partial_output, parser=parser, prev_node=prev_node, next_node=next_node, next_next_node=next_next_node, hidden=hidden)
+    return await role(name="assistant", hidden=hidden, _parser_context=_parser_context)
 assistant.is_block = True
