@@ -35,7 +35,8 @@ setup(
         "pygtrie",
         "platformdirs",
         "tiktoken>=0.3",
-        "nest_asyncio"
+        "nest_asyncio",
+        "aiohttp"
     ],
     extras_require={
         'docs': [
