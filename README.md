@@ -1,4 +1,4 @@
-<br/>
+<div align="right"><a href="https://guidance.readthedocs.org"><img src="https://readthedocs.org/projects/guidance/badge/?version=latest&style=flat" /></a></div>
 <div align="center"><picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/figures/guidance_logo_blue_dark.svg">
   <img alt="guidance" src="docs/figures/guidance_logo_blue.svg" width=300">
@@ -24,6 +24,8 @@ Features:
 ```python
 pip install guidance
 ```
+
+
                                      
 ## Live streaming (<a href="https://github.com/microsoft/guidance/blob/main/notebooks/proverb.ipynb">notebook</a>)
 
