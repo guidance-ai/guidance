@@ -30,7 +30,6 @@ setup(
     install_requires=[
         "diskcache",
         "openai>=0.27",
-        "pybars3",
         "parsimonious",
         "pygtrie",
         "platformdirs",
