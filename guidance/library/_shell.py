@@ -4,7 +4,6 @@ import subprocess
 import shlex
 import os
 import subprocess
-import pty
 import asyncio
 
 
@@ -93,6 +92,7 @@ class Shell:
     """
 
     def __init__(self):
+        import pty
         self.shell_cmd = os.environ.get('SHELL', '/bin/sh')
         self.master_fd, self.slave_fd = pty.openpty()
         my_env = os.environ.copy()
