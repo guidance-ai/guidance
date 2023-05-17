@@ -19,6 +19,16 @@ def test_select_longtext():
     out = program()
     assert out["name"] in ["No because of all the other ones.", "Yes because I saw it."]
 
+def test_select_longtext_transformers():
+    """ Test the behavior of `select`.
+    """
+
+    llm = guidance.llms.Transformers("gpt2", caching=False)
+    program = guidance("""Is Everest very tall?\nAnswer:
+{{#select 'name'}}No because of all the other ones.{{or}}Yes because I saw it.{{/select}}""", llm=llm)
+    out = program()
+    assert out["name"] in ["No because of all the other ones.", "Yes because I saw it."]
+
 def test_select_with_list():
     """ Test the behavior of `select` in non-block mode.
     """
