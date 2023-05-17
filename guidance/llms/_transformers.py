@@ -425,7 +425,7 @@ class RegexLogitsProcessor():
     TODO: currently slow, could be made much faster by doing rejection sampling inline with the sampling/greedy process.
     """
 
-    def __init__(self, pattern, stop_regex, decode, vocab_size, is_greedy, prefix_length, eos_token_id, max_consider=10000, bias_value=30.):
+    def __init__(self, pattern, stop_regex, decode, vocab_size, is_greedy, prefix_length, eos_token_id, max_consider=10000):
         """ Build a new TokenHealingLogitsProcessor.
 
         Parameters
@@ -462,7 +462,6 @@ class RegexLogitsProcessor():
         self.is_greedy = is_greedy
         self.prefix_length = prefix_length
         self.max_consider = max_consider
-        self.bias_value = bias_value
         self.bias_vector = torch.zeros(vocab_size)
         self.current_strings = None
         self.current_length = 0
@@ -488,13 +487,19 @@ class RegexLogitsProcessor():
         # compute the bias values
         self.bias_vector[:] = 0
         sort_inds = torch.argsort(scores, 1, True)
+        to_bias = []
         for i in range(min(sort_inds.shape[1], self.max_consider)):
             m = self.pattern.fullmatch((self.current_strings[0] + self.decode([sort_inds[0,i]]))[self.forced_chars:], partial=True) # partial means we don't match currently but might as the string grows
             if m:
-                self.bias_vector[sort_inds[0,i]] = self.bias_value
+                to_bias.append(int(sort_inds[0, i]))
                 if self.is_greedy:
                     break # we are done if we are doing greedy sampling and we found the top valid hit
-        
+        bias_value = 0
+        if len(to_bias):
+            min_to_bias = float(scores[0, to_bias].min())
+            bias_value = scores[0, sort_inds[0, 0]] - min_to_bias + 1 # make sure the tokens that fit the pattern have higher scores than the top value
+        for x in to_bias:
+            self.bias_vector[x] = bias_value
         # make only allowed tokens
         return scores + self.bias_vector.to(scores.device)
 
