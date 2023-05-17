@@ -38,3 +38,15 @@ def test_select_with_list():
     program = guidance("Is Everest very tall?\nAnswer 'Yes' or 'No': '{{select 'name' options=options}}", llm=llm)
     out = program(options=["Yes", "No"])
     assert out["name"] in ["Yes", "No"]
+
+def test_select_list_append():
+    """ Test the behavior of `select` with list_append=True.
+    """
+
+    # llm = guidance.llms.Mock("Yes")
+    llm = guidance.llms.OpenAI("text-curie-001", caching=False)
+    program = guidance("Is Everest very tall?\n{{select 'name' options=options list_append=True}}\n{{select 'name' options=options list_append=True}}", llm=llm)
+    out = program(options=["Yes", "No"])
+    assert len(out["name"]) == 2
+    for v in out["name"]:
+        assert v in ["Yes", "No"]

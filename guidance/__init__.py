@@ -1,4 +1,4 @@
-__version__ = "0.0.44"
+__version__ = "0.0.46"
 
 import types
 import sys
@@ -12,7 +12,10 @@ from . import selectors
 import nest_asyncio
 
 # allows us to start inner event loops within jupyter notebooks
-nest_asyncio.apply()
+try:
+    nest_asyncio.apply()
+except RuntimeError:
+    pass
 
 llm = None
 
