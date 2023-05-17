@@ -14,7 +14,7 @@ class Transformers(LLM):
 
     cache = LLM._open_cache("_transformers.diskcache")
 
-    def __init__(self, model=None, tokenizer=None, caching=True, token_healing=True, acceleration=True, temperature=0.0, device=None, device_map=None, role_start=None, role_end=None):
+    def __init__(self, model=None, tokenizer=None, caching=True, token_healing=True, acceleration=True, temperature=0.0, device=None, device_map=None, role_start=None, role_end=None, trust_remote_code=False):
         super().__init__()
 
         # fill in default model value
@@ -27,7 +27,7 @@ class Transformers(LLM):
             except:
                 pass
 
-        self.model_obj, self._tokenizer = self._model_and_tokenizer(model, tokenizer, device_map)
+        self.model_obj, self._tokenizer = self._model_and_tokenizer(model, tokenizer, device_map, trust_remote_code)
         self._generate_call = self.model_obj.generate
 
         self.model_name = model
@@ -113,7 +113,7 @@ class Transformers(LLM):
 
         return token_map
 
-    def _model_and_tokenizer(self, model, tokenizer, device_map):
+    def _model_and_tokenizer(self, model, tokenizer, device_map, trust_remote_code):
 
         # make sure transformers is installed
         try:
@@ -125,7 +125,7 @@ class Transformers(LLM):
         if isinstance(model, str):
             if tokenizer is None:
                 tokenizer = transformers.AutoTokenizer.from_pretrained(model, device_map=device_map)
-            model = transformers.AutoModelForCausalLM.from_pretrained(model, device_map=device_map)
+            model = transformers.AutoModelForCausalLM.from_pretrained(model, device_map=device_map, trust_remote_code=trust_remote_code)
         
         assert tokenizer is not None, "You must give a tokenizer object when you provide a model object (as opposed to just a model name)!"
             
