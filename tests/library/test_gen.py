@@ -10,7 +10,6 @@ def test_gen():
     assert len(out["name"]) > 1
 
 def test_gen_n_greater_than_one():
-    """Test agentes, calling prompt twice"""
     llm = guidance.llms.OpenAI("text-curie-001")
     prompt = guidance('''The best thing about the beach is{{gen 'best' n=3 temperature=0.7 max_tokens=5}}''', llm=llm)
     a = prompt()
@@ -31,3 +30,9 @@ def test_gen_n_greater_than_one_hidden():
 {{aggregate best}}''', llm=llm)
     a = prompt(aggregate=aggregate)
     assert str(a) == 'The best thing about the beach is\n- mock output 0\n- mock output 1\n- mock output 2'
+
+def test_pattern():
+    import re
+    llm = guidance.llms.Transformers("gpt2")
+    out = guidance('''On a scale of 1-10 I would say it is: {{gen 'score' pattern="[0-9]+"}}''', llm=llm)()
+    assert re.match(r'[0-9]+', out["score"])
