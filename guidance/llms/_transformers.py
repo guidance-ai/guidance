@@ -225,7 +225,7 @@ class TransformersSession(LLMSession):
             stop_regex = [stop_regex]
         if stop_regex is None:
             stop_regex = []
-        stop_regex.append(self.llm._tokenizer.eos_token) # make sure the end of sequence token is always included
+        stop_regex.append(regex.escape(self.llm._tokenizer.eos_token)) # make sure the end of sequence token is always included
 
         # handle caching
         if key not in self.llm.cache or (caching is not True and not self.llm.caching) or caching is False:
@@ -446,15 +446,15 @@ class RegexLogitsProcessor():
     TODO: currently slow, could be made much faster by doing rejection sampling inline with the sampling/greedy process.
     """
 
-    def __init__(self, pattern, stop_regex, decode, vocab_size, is_greedy, prefix_length, eos_token_id, max_consider=10000, bias_value=30.):
+    def __init__(self, pattern, stop_regex, decode, vocab_size, is_greedy, prefix_length, eos_token_id, max_consider=100000):
         """ Build a new TokenHealingLogitsProcessor.
 
         Parameters
         ----------
         pattern : str
             The regex pattern we are seeking to match.
-        stop_regex : str
-            The stop regex that is allowed to come after this pattern.
+        stop_regex : str or list of str
+            The stop regex(s) allowed to come after this pattern.
         decode : function
             The token decoding function.
         vocab_size : int
@@ -462,32 +462,27 @@ class RegexLogitsProcessor():
         is_greedy : bool
             The token selection mode currently in use. We need to know this so we can
             effectively take over that sampling process inside this logit processor.
+        eos_token_id : int
+            The end of the stop token of the model.
         max_consider : int
             How many top values to bias. Note that we could remove this option once this
             processor is performance optimized (by integrating it into the sampling/greedy process).
-        bias_value : float
-            The bias value is in score space (log-odds normally) and should be
-            enough to ensure those tokens are the only ones used. But not so high
-            as to destroy numerical precision.
-        eos_token_id : int
-            The end of the stop token of the model.
         """
         import torch
         
-        if stop_regex is not None:
-            pattern += "(" + "|".join(stop_regex) + ")?"
-        stop_token_str = regex.escape(decode([eos_token_id]))
-        pattern += "(" + stop_token_str + ")?"
-        self.pattern = regex.compile(pattern)
+        if isinstance(stop_regex, str):
+            stop_regex = [stop_regex]
+        self.pattern_no_stop = regex.compile(pattern)
+        self.pattern = regex.compile(pattern + "(" + "|".join(stop_regex) + ")?")
         self.decode = decode
         self.is_greedy = is_greedy
         self.prefix_length = prefix_length
         self.max_consider = max_consider
-        self.bias_value = bias_value
         self.bias_vector = torch.zeros(vocab_size)
         self.current_strings = None
         self.current_length = 0
         self.forced_chars = 0
+        self.eos_token_id = eos_token_id
 
     def __call__(self, input_ids, scores):
         import torch
@@ -509,14 +504,24 @@ class RegexLogitsProcessor():
         # compute the bias values
         self.bias_vector[:] = 0
         sort_inds = torch.argsort(scores, 1, True)
+        to_bias = []
         for i in range(min(sort_inds.shape[1], self.max_consider)):
-            m = self.pattern.fullmatch((self.current_strings[0] + self.decode([sort_inds[0,i]]))[self.forced_chars:], partial=True) # partial means we don't match currently but might as the string grows
+            proposed_string = (self.current_strings[0] + self.decode([sort_inds[0,i]]))[self.forced_chars:]
+            m = self.pattern.fullmatch(proposed_string, partial=True) # partial means we don't match currently but might as the string grows
             if m:
-                self.bias_vector[sort_inds[0,i]] = self.bias_value
+                to_bias.append(int(sort_inds[0, i]))
                 if self.is_greedy:
                     break # we are done if we are doing greedy sampling and we found the top valid hit
         
-        # make only allowed tokens
+        # if we found no more valid tokens then we just end the sequence
+        if not len(to_bias):
+            to_bias = [self.eos_token_id]
+        
+        # bias allowed tokens
+        min_to_bias = float(scores[0, to_bias].min())
+        bias_value = scores[0, sort_inds[0, 0]] - min_to_bias + 10 # make sure the tokens that fit the pattern have higher scores than the top value
+        for x in to_bias:
+            self.bias_vector[x] = bias_value
         return scores + self.bias_vector.to(scores.device)
 
 class RegexStoppingCriteria():

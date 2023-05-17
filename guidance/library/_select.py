@@ -2,7 +2,7 @@ import itertools
 import pygtrie
 import numpy as np
 
-async def select(variable_name="selected", options=None, logprobs=None, _parser_context=None):
+async def select(variable_name="selected", options=None, logprobs=None, list_append=False, _parser_context=None):
     ''' Select a value from a list of choices.
 
     Parameters
@@ -13,6 +13,9 @@ async def select(variable_name="selected", options=None, logprobs=None, _parser_
         An optional list of options to select from. This argument is only used when select is used in non-block mode.
     logprobs : str or None
         An optional variable name to set with the logprobs for each option.
+    list_append : bool
+        Whether to append the generated value to a list stored in the variable. If set to True, the variable
+        must be a list, and the generated value will be appended to the list.
     '''
     parser = _parser_context['parser']
     block_content = _parser_context['block_content']
@@ -116,9 +119,20 @@ async def select(variable_name="selected", options=None, logprobs=None, _parser_
     option_logprobs = await recursive_select("") 
 
     selected_option = max(option_logprobs, key=option_logprobs.get)
-    parser.set_variable(variable_name, selected_option)
-    if logprobs is not None:
-        parser.set_variable(logprobs, option_logprobs)
+    
+    # see if we are appending to a list or not
+    if list_append:
+        value_list = parser.get_variable(variable_name, [])
+        value_list.append(selected_option)
+        parser.set_variable(variable_name, value_list)
+        if logprobs is not None:
+            logprobs_list = parser.get_variable(logprobs, [])
+            logprobs_list.append(option_logprobs)
+            parser.set_variable(logprobs, logprobs_list)
+    else:
+        parser.set_variable(variable_name, selected_option)
+        if logprobs is not None:
+            parser.set_variable(logprobs, option_logprobs)
     
     if max(option_logprobs.values()) <= -1000:
         raise ValueError("No valid option generated in #select! Please post a GitHub issue since this should not happen :)")
