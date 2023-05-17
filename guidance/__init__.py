@@ -1,4 +1,4 @@
-__version__ = "0.0.42"
+__version__ = "0.0.43"
 
 import types
 import sys
@@ -14,7 +14,7 @@ import nest_asyncio
 # allows us to start inner event loops within jupyter notebooks
 nest_asyncio.apply()
 
-llm = llms.OpenAI()
+llm = None
 
 # This is makes the guidance module callable
 class Guidance(types.ModuleType):

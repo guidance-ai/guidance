@@ -1,3 +1,5 @@
+import itertools
+
 async def select(variable_name="selected", options=None, logprobs=None, _parser_context=None):
     ''' Select a value from a list of choices.
 
@@ -28,12 +30,31 @@ async def select(variable_name="selected", options=None, logprobs=None, _parser_
             options.append(block_content[i+1].text)
 
     option_tokens = [parser.program.llm.encode(option) for option in options]
+    ids_used = set(itertools.chain.from_iterable(option_tokens))
 
-    # [TODO] we should force the LM to generate a valid specific option
-    #        for openai this means setting logprobs to valid token ids
+    # find the common prefix of all the options BROKEN STILLL
+    max_tokens = max([len(o) for o in option_tokens])
+    # for i in range(max_tokens):
+    #     all_match = True
+    #     pos_val = None
+    #     for j in range(len(option_tokens)):
+    #         if len(option_tokens[j]) <= i:
+    #             if pos_val is None:
+    #                 pos_val = option_tokens[j][i]
+    #             elif option_tokens[j][i] != pos_val:
+    #                 all_match = False
+    #                 break
+    #     if not all_match:
+    #         max_tokens = i
+    #         break
+
+
+
+    # call the session to get the logprobs for each option
     gen_obj = await parser.llm_session(
         parser_prefix,
         max_tokens=max([len(o) for o in option_tokens]),
+        logit_bias={str(id): 50 for id in ids_used},
         logprobs=10,
         cache_seed=0
     )

@@ -82,7 +82,7 @@ class Program:
         
         # save the given parameters
         self._text = text
-        self.llm = llm or guidance.llm
+        self.llm = llm or getattr(guidance, "llm", None)
         self.cache_seed = cache_seed
         self.caching = caching
         self.logprobs = logprobs
@@ -295,8 +295,11 @@ class Program:
             await asyncio.sleep(0)
         
         # run the program and capture the output
-        with self.llm.session(asynchronous=True) as llm_session:
-            await self._executor.run(llm_session)
+        if self.llm is None:
+            await self._executor.run(None)
+        else:
+            with self.llm.session(asynchronous=True) as llm_session:
+                await self._executor.run(llm_session)
         self._text = self._executor.prefix
 
         # delete the executor and so mark the program as not executing

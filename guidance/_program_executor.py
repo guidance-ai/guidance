@@ -269,18 +269,16 @@ class ProgramExecutor():
                     elif isinstance(arg, NamedArgument):
                         named_args[arg.name] = arg.value
                 sig = inspect.signature(command_function)
-                if "parser_prefix" in sig.parameters:
-                    named_args["parser_prefix"] = strip_markers(self.prefix)
-                if "parser" in sig.parameters:
-                    named_args["parser"] = self
-                if "partial_output" in sig.parameters:
-                    named_args["partial_output"] = partial_output
-                if "next_node" in sig.parameters:
-                    named_args["next_node"] = next_node
-                if "next_next_node" in sig.parameters:
-                    named_args["next_next_node"] = next_next_node
-                if "prev_node" in sig.parameters:
-                    named_args["prev_node"] = prev_node
+                if "_parser_context" in sig.parameters:
+                    named_args["_parser_context"] = {
+                        "parser_prefix": strip_markers(self.prefix),
+                        "parser": self,
+                        "partial_output": partial_output,
+                        "next_node": next_node,
+                        "next_next_node": next_next_node,
+                        "prev_node": prev_node,
+                        "block_content": None
+                    }
 
                 # call the command
                 try:
@@ -294,7 +292,7 @@ class ProgramExecutor():
                     self.caught_stop_iteration = True
 
                 # call partial output if the command didn't itself (and we are still executing)
-                if "partial_output" not in sig.parameters:
+                if command_output is not None:
                     partial_output(command_output)
             else:
                 # if the variable does not exist we just pause execution
@@ -372,39 +370,30 @@ class ProgramExecutor():
                         positional_args.append(arg.value)
                     elif isinstance(arg, NamedArgument):
                         named_args[arg.name] = arg.value
-                sig = inspect.signature(command_function)
-                if "parser_prefix" in sig.parameters:
-                    named_args["parser_prefix"] = strip_markers(self.prefix)
-                if "parser" in sig.parameters:
-                    named_args["parser"] = self
-                if "block_content" in sig.parameters:
-                    named_args["block_content"] = self.block_content[-1]
-                if "partial_output" in sig.parameters:
-                    named_args["partial_output"] = self.extend_prefix
-                if "parser_node" in sig.parameters:
-                    named_args["parser_node"] = node
-                if "next_node" in sig.parameters:
-                    named_args["next_node"] = node.children[-1]
-                if "next_next_node" in sig.parameters:
-                    named_args["next_next_node"] = next_node
-                if "prev_node" in sig.parameters:
-                    named_args["prev_node"] = node.children[0]
                 
+                # see if the command expects parser context
+                sig = inspect.signature(command_function)
+                if "_parser_context" in sig.parameters:
+                    named_args["_parser_context"] = {
+                        "parser_prefix": strip_markers(self.prefix),
+                        "parser": self,
+                        "block_content": self.block_content[-1],
+                        "partial_output": self.extend_prefix,
+                        "parser_node": node,
+                        "next_node": node.children[-1],
+                        "next_next_node": next_node,
+                        "prev_node": node.children[0]
+                    }
+                
+                # call the optionally asyncronous command
                 if inspect.iscoroutinefunction(command_function):
                     command_output = await command_function(*positional_args, **named_args)
                 else:
                     command_output = command_function(*positional_args, **named_args)
 
-                if "partial_output" not in sig.parameters:
+                # if the command didn't send partial output we do it here
+                if command_output is not None:
                     self.extend_prefix(command_output)
-
-                # if we stopped execution we need to remove the start marker
-                # if not self.executing:
-                #     self.prefix = self.prefix[:pos] + self.prefix[pos+len(start_marker):]
-                #     return
-                
-            else:
-                command_output = ""
 
             # pop off the block content after the command call
             self.block_content.pop()

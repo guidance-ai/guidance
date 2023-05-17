@@ -23,7 +23,7 @@ def prompt_to_messages(prompt):
 
     assert prompt.endswith("<|im_start|>assistant\n"), "When calling OpenAI chat models you must generate only directly inside the assistant role! The OpenAI API does not currently support partial assistant prompting."
 
-    pattern = r'<\|im_start\|>(\w+)(.*?)(?=<\|im_end\|>)'
+    pattern = r'<\|im_start\|>(\w+)(.*?)(?=<\|im_end\|>|$)'
     matches = re.findall(pattern, prompt, re.DOTALL)
 
     if not matches:
@@ -31,7 +31,7 @@ def prompt_to_messages(prompt):
 
     for match in matches:
         role, content = match
-        content = content.strip()
+        content = content.strip() # should we do this?
         messages.append({'role': role, 'content': content})
 
     return messages
@@ -109,7 +109,7 @@ class OpenAI(LLM):
             endpoint = os.environ.get("OPENAI_ENDPOINT", None)
 
         import tiktoken
-        self._tokenizer = tiktoken.get_encoding("cl100k_base")
+        self._tokenizer = tiktoken.get_encoding(tiktoken.encoding_for_model(model).name)
         self.chat_mode = chat_mode
         
         self.model_name = model

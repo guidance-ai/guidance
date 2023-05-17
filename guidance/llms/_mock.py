@@ -17,6 +17,7 @@ class Mock(LLM):
             output = [f"mock output {i}" for i in range(100)]
         self.output = output
         self.index = 0
+        self._tokenizer = MockTokenizer()
 
     def __call__(self, *args, n=1, stream=False, **kwargs):
         choices = []
@@ -41,3 +42,13 @@ class Mock(LLM):
     
     def role_end(self, role=None):
         return "<|im_end|>"
+    
+class MockTokenizer():
+    def __init__(self):
+        pass
+
+    def encode(self, text):
+        return [s for s in text.encode("utf-8")]
+    
+    def decode(self, ids):
+        return "".join([chr(i) for i in ids])
