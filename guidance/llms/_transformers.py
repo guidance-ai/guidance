@@ -263,6 +263,10 @@ class TransformersSession(LLMSession):
                 else:
                     last_token_str = ""
 
+            # setup logit biasing
+            if logit_bias is not None:
+                processors.append(BiasLogitsProcessor(self.llm, model_config.vocab_size, logit_bias))
+
             # make sure we don't run off the end of the model
             max_context = (getattr(model_config, "max_sequence_length", None) or getattr(model_config, "max_seq_len", None) or getattr(model_config, "n_positions", None) or getattr(model_config, "max_position_embeddings"))
             if max_tokens + len(input_ids[0]) > max_context:
@@ -418,6 +422,23 @@ class TokenHealingLogitsProcessor():
         # make only allowed tokens possible
         return scores + self.first_token_mask
     
+class BiasLogitsProcessor():
+    """ Simple token biasing.
+    """
+
+    def __init__(self, model, vocab_size, logit_bias):
+        """ Build a new BiasLogitsProcessor.
+        """
+        import torch
+        
+        self.bias_vector = torch.zeros(vocab_size)
+        for token, bias in logit_bias.items():
+            self.bias_vector[token] = bias
+        self.bias_vector = self.bias_vector.to(model.device)
+
+    def __call__(self, input_ids, scores):
+        return scores + self.bias_vector
+    
 class RegexLogitsProcessor():
     """ Pattern guiding.
     
@@ -564,14 +585,19 @@ class TransformersStreamer():
         else:
             new_tokens = token_obj['sequences']
         
+
+        if isinstance(new_tokens, torch.Tensor):
+            new_tokens = new_tokens.cpu()
+        
         # if we are given a single sequence, then make it a batch of size 1
         if len(new_tokens.shape) == 1:
             new_tokens = new_tokens.unsqueeze(0)
         
+        
         # extract the scores if we are given them (and format them to be the same shape as the tokens)
         if self.logprobs:
             assert len(new_tokens) == 1, "logprobs are not supported for batched generation right now in guidance.llms.Transformers"
-            new_scores = list(token_obj['scores'])
+            new_scores = [x.cpu() for x in token_obj['scores']]
             len_diff = len(new_tokens[0]) - len(new_scores)
             if len_diff > 0:
                 new_scores = [None for i in range(len_diff)] + new_scores

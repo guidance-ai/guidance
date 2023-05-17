@@ -39,13 +39,9 @@ async def select(variable_name="selected", options=None, logprobs=None, _parser_
     for i,option in enumerate(options):
         token_map[option] = i
     
-    async def rec_select(current_prefix):
+    async def recursive_select(current_prefix):
         """ This returns a dictionary of scores for each option (keyed by the option index).
         """
-
-        # this is the dictionary of logprobs for each option we will return
-        # note that the logprobs are just for this branch point and below in the decision tree
-        # logprobs_out = {option: -100 for option in options}
 
         # find which select options are possible
         try:
@@ -68,11 +64,21 @@ async def select(variable_name="selected", options=None, logprobs=None, _parser_
                     break
             current_prefix = extension_options[0][0][:i]
 
+        # bias the logits towards valid options
+        tmp_prefix = (parser_prefix + current_prefix)[-50:] # this is so we get the right tokenization at the boundary
+        tmp_prefix_token_len = len(parser.program.llm.encode(tmp_prefix))
+        logit_bias = {}
+        for option,index in extension_options:
+            option_tokens = parser.program.llm.encode(tmp_prefix+option)
+            logit_bias[option_tokens[tmp_prefix_token_len-1]] = 50
+            if len(option_tokens) > tmp_prefix_token_len:
+                logit_bias[option_tokens[tmp_prefix_token_len]] = 50
+
         # extend the prefix by one token using the model
         gen_obj = await parser.llm_session(
             parser_prefix + current_prefix,
             max_tokens=1,
-            # logit_bias={str(id): 50 for id in ids_used},
+            logit_bias=logit_bias,
             logprobs=10,
             cache_seed=0
         )
@@ -84,7 +90,7 @@ async def select(variable_name="selected", options=None, logprobs=None, _parser_
         # for each possible next token, see if it grows the prefix in a valid way
         for token_str,logprob in top_logprobs.items():
             if len(token_str[remove_prefix:]) > 0:
-                sub_logprobs = await rec_select(current_prefix + token_str[remove_prefix:])
+                sub_logprobs = await recursive_select(current_prefix + token_str[remove_prefix:])
                 for k in sub_logprobs:
                     logprobs_out[k] = sub_logprobs[k] + logprob
 
@@ -95,7 +101,7 @@ async def select(variable_name="selected", options=None, logprobs=None, _parser_
         if len(logprobs_result["top_logprobs"]) > 1 and len(first_token_str) == remove_prefix:            
             top_logprobs = logprobs_result["top_logprobs"][1]
             for token_str,logprob in top_logprobs.items():
-                sub_logprobs = await rec_select(current_prefix + token_str)
+                sub_logprobs = await recursive_select(current_prefix + token_str)
                 for k in sub_logprobs:
 
                     # compute the probability of a logical OR between the new extension and the previous possible ones
@@ -107,7 +113,7 @@ async def select(variable_name="selected", options=None, logprobs=None, _parser_
         return logprobs_out
         
     # recursively compute the logprobs for each option
-    option_logprobs = await rec_select("") 
+    option_logprobs = await recursive_select("") 
 
     selected_option = max(option_logprobs, key=option_logprobs.get)
     parser.set_variable(variable_name, selected_option)
@@ -115,7 +121,7 @@ async def select(variable_name="selected", options=None, logprobs=None, _parser_
         parser.set_variable(logprobs, option_logprobs)
     
     if max(option_logprobs.values()) <= -1000:
-        raise ValueError("No valid option generated in #select, this could be fixed if we used a tokenizer and forced the LM to use a valid option! The top logprobs were" + str(top_logprobs))
+        raise ValueError("No valid option generated in #select! Please post a GitHub issue since this should not happen :)")
     
     partial_output(selected_option)
 
