@@ -13,6 +13,7 @@ import os
 import traceback
 import time
 import datetime
+import nest_asyncio
 from .llms import _openai
 from . import _utils
 from ._program_executor import ProgramExecutor
@@ -211,6 +212,14 @@ class Program:
 
         # if we are not in async mode, we need to create a new event loop and run the program in it until it is done
         else:
+
+            # apply the nested event loop patch if needed
+            try:
+                other_loop = asyncio.get_event_loop()
+                nest_asyncio.apply(other_loop)
+            except RuntimeError:
+                pass
+            
             loop = asyncio.new_event_loop()
             loop.create_task(new_program.update_display.run()) # start the display updater
             loop.run_until_complete(new_program.execute())

@@ -12,13 +12,7 @@ from . import selectors
 import nest_asyncio
 import asyncio
 
-# allows us to start inner event loops within jupyter notebooks
-try:
-    asyncio.get_running_loop()
-    nest_asyncio.apply()
-except RuntimeError:
-    pass
-
+# the user needs to set an LLM before they can use guidance
 llm = None
 
 # This is makes the guidance module callable
