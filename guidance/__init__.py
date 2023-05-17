@@ -10,9 +10,11 @@ from . import library
 from ._utils import load, chain
 from . import selectors
 import nest_asyncio
+import asyncio
 
 # allows us to start inner event loops within jupyter notebooks
 try:
+    asyncio.get_running_loop()
     nest_asyncio.apply()
 except RuntimeError:
     pass
