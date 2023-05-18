@@ -421,8 +421,8 @@ Comment: Remember, answer as a {{role}}. Start your utterance with {{role}}:
 {{~/assistant}}
 {{~/geneach}}''')
 
-republican = role_simulator(role='Republican')
-democrat = role_simulator(role='Democrat')
+republican = role_simulator(role='Republican', await_missing=True)
+democrat = role_simulator(role='Democrat', await_missing=True)
 
 first_question = '''What do you think is the best way to stop inflation?'''
 republican = republican(input=first_question, first_question=None)
