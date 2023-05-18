@@ -48,7 +48,8 @@ setup(
         ],
         'test': [
             'pytest',
-            'transformers'
+            'transformers',
+            'torch'
         ]
     }
 )
