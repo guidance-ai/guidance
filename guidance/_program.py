@@ -203,7 +203,7 @@ class Program:
         # create an executor for the new program (this also marks the program as executing)
         new_program._executor = ProgramExecutor(new_program)
         
-        # if we are in async mode schedule the program in the current event loop
+        # if we are in async mode, schedule the program in the current event loop
         if new_program.async_mode:
             loop = asyncio.get_event_loop()
             assert loop.is_running(), "The program is in async mode but there is no asyncio event loop running! Start one and try again."
@@ -299,7 +299,7 @@ class Program:
 
         log.debug(f"Executing program (self.async_mode={self.async_mode}, self.silent={self.silent}, self._displaying_html={self._displaying_html})")
         
-        # if we are already displaying html, we need to yeild to the event loop so the jupyter comm can initialize
+        # if we are already displaying html, we need to yield to the event loop so the jupyter comm can initialize
         if self._displaying_html:
             await asyncio.sleep(0)
         
