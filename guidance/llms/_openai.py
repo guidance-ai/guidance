@@ -71,7 +71,7 @@ chat_models = [
 class OpenAI(LLM):
     cache = LLM._open_cache("_openai.diskcache")
 
-    def __init__(self, model=None, caching=True, max_retries=5, max_calls_per_min=60, token=None, endpoint=None, temperature=0.0, chat_mode="auto"):
+    def __init__(self, model=None, caching=True, max_retries=5, max_calls_per_min=60, token=None, endpoint=None, temperature=0.0, chat_mode="auto", organization=None):
         super().__init__()
 
         # fill in default model value
@@ -103,7 +103,8 @@ class OpenAI(LLM):
                     token = file.read().replace('\n', '')
             except:
                 pass
-        
+        if organization is None:
+            organization = os.environ.get("OPENAI_ORGANIZATION", None)
         # fill in default endpoint value
         if endpoint is None:
             endpoint = os.environ.get("OPENAI_ENDPOINT", None)
@@ -123,6 +124,7 @@ class OpenAI(LLM):
         self.current_time = time.time()
         self.call_history = collections.deque()
         self.temperature = temperature
+        self.organization = organization
 
         if self.endpoint is None:
             self.caller = self._library_call
@@ -180,8 +182,10 @@ class OpenAI(LLM):
         Note that is uses the local auth token, and does not rely on the openai one.
         """
         prev_key = openai.api_key
+        prev_org = openai.organization
         assert self.token is not None, "You must provide an OpenAI API key to use the OpenAI LLM. Either pass it in the constructor, set the OPENAI_API_KEY environment variable, or create the file ~/.openai_api_key with your key in it."
         openai.api_key = self.token
+        openai.organization = self.organization
         if self.chat_mode:
             kwargs['messages'] = prompt_to_messages(kwargs['prompt'])
             del kwargs['prompt']
@@ -193,6 +197,7 @@ class OpenAI(LLM):
         else:
             out = openai.Completion.create(**kwargs)
         openai.api_key = prev_key
+        openai.organization = prev_org
         return out
 
     def _rest_call(self, **kwargs):
