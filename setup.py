@@ -35,7 +35,6 @@ setup(
         "platformdirs",
         "tiktoken>=0.3",
         "nest_asyncio",
-        "aiohttp",
         "requests"
     ],
     extras_require={
