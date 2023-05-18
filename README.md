@@ -410,7 +410,7 @@ Ok, I will follow these instructions.
 {{~/assistant}}
 
 {{~! Then the conversation unrolls }}
-{{~#geneach 'conversation'}}
+{{~#geneach 'conversation' stop=False}}
 {{#user~}}
 User: {{set 'this.input' (await 'input')}}
 Comment: Remember, answer as a {{role}}. Start your utterance with {{role}}:
