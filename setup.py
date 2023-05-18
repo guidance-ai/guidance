@@ -45,6 +45,10 @@ setup(
             'sphinx_rtd_theme',
             'sphinx',
             'nbsphinx'
+        ],
+        'test': [
+            'pytest',
+            'transformers'
         ]
     }
 )
