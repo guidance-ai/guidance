@@ -1,4 +1,5 @@
 import guidance
+from .utils import get_openai_llm
 
 def test_variable_interpolation():
     """ Test variable interpolation in prompt
@@ -14,8 +15,7 @@ def test_chat_stream():
     import asyncio
     loop = asyncio.new_event_loop()
 
-    import guidance
-    guidance.llm = guidance.llms.OpenAI("gpt-3.5-turbo", caching=False)
+    guidance.llm = get_openai_llm("gpt-3.5-turbo")
 
     async def f():
         chat = guidance("""<|im_start|>system
@@ -26,7 +26,7 @@ You are a helpful assistent.
 <|im_end|>
 <|im_start|>assistant
 {{gen 'answer' max_tokens=10}}""", stream=True)
-        out = await chat(command="How do I create a Fasttokenizer with hugging face auto?-b")
+        out = await chat(command="How do I create a Fasttokenizer with hugging face auto?")
         assert len(out["answer"]) > 0
     loop.run_until_complete(f())
 
@@ -37,8 +37,7 @@ def test_chat_display():
     import asyncio
     loop = asyncio.new_event_loop()
 
-    import guidance
-    guidance.llm = guidance.llms.OpenAI("gpt-3.5-turbo", caching=False)
+    guidance.llm = get_openai_llm("gpt-3.5-turbo")
 
     async def f():
         chat = guidance("""<|im_start|>system
@@ -55,8 +54,9 @@ You are a helpful assistent.
 
 def test_agents():
     """Test agentes, calling prompt twice"""
-    import guidance
-    guidance.llm = guidance.llms.OpenAI("gpt-3.5-turbo", caching=False)
+
+    guidance.llm = get_openai_llm("gpt-3.5-turbo")
+
     prompt = guidance('''<|im_start|>system
 You are a helpful assistant.<|im_end|>
 {{#geneach 'conversation' stop=False}}

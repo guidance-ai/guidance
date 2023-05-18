@@ -569,6 +569,11 @@ _built_ins = {
     "assistant": library.assistant,
     "break": library.break_,
     "equal": library.equal,
+    "==": library.equal,
+    "greater": library.greater,
+    ">": library.greater,
+    "less": library.less,
+    "<": library.less
 }
 
 class DisplayThrottler():

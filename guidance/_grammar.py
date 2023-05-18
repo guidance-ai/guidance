@@ -39,7 +39,7 @@ named_command_arg = variable_name "=" (literal / variable_ref)
 command_arg_group = "(" command_content ")"
 ws = ~r'\s+'
 command_contentasdf = ~"[a-z 0-9]*"i
-command_name = ~r"[a-z][a-z_0-9\.]*"i
+command_name = ~r"[a-z][a-z_0-9\.]*"i / "<" / ">" / "==" / "!=" / ">=" / "<="
 variable_ref = !"or" !"else" ~r"[@a-z][a-z_0-9\.\[\]\"'-]*"i
 variable_name = ~r"[@a-z][a-z_0-9]*"i
 contentw = ~r'.*'

@@ -1,10 +1,11 @@
 import guidance
+from ..utils import get_openai_llm
 
 def test_select():
     """ Test the behavior of `select`.
     """
 
-    llm = guidance.llms.OpenAI("text-curie-001", caching=False)
+    llm = get_openai_llm("text-curie-001")
     program = guidance("Is Everest very tall?\nAnswer 'Yes' or 'No': '{{#select 'name'}}Yes{{or}}No{{/select}}", llm=llm)
     out = program()
     assert out["name"] in ["Yes", "No"]
@@ -13,7 +14,7 @@ def test_select_longtext():
     """ Test the behavior of `select`.
     """
 
-    llm = guidance.llms.OpenAI("text-curie-001", caching=False)
+    llm = get_openai_llm("text-curie-001")
     program = guidance("""Is Everest very tall?\nAnswer:
 {{#select 'name'}}No because of all the other ones.{{or}}Yes because I saw it.{{/select}}""", llm=llm)
     out = program()
@@ -33,8 +34,7 @@ def test_select_with_list():
     """ Test the behavior of `select` in non-block mode.
     """
 
-    # llm = guidance.llms.Mock("Yes")
-    llm = guidance.llms.OpenAI("text-curie-001", caching=False)
+    llm = get_openai_llm("text-curie-001")
     program = guidance("Is Everest very tall?\nAnswer 'Yes' or 'No': '{{select 'name' options=options}}", llm=llm)
     out = program(options=["Yes", "No"])
     assert out["name"] in ["Yes", "No"]
@@ -43,8 +43,7 @@ def test_select_list_append():
     """ Test the behavior of `select` with list_append=True.
     """
 
-    # llm = guidance.llms.Mock("Yes")
-    llm = guidance.llms.OpenAI("text-curie-001", caching=False)
+    llm = get_openai_llm("text-curie-001")
     program = guidance("Is Everest very tall?\n{{select 'name' options=options list_append=True}}\n{{select 'name' options=options list_append=True}}", llm=llm)
     out = program(options=["Yes", "No"])
     assert len(out["name"]) == 2

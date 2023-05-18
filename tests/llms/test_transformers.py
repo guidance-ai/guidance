@@ -31,26 +31,3 @@ def test_select():
     program = guidance('''Answer "yes" or "no": "{{#select 'answer'}}yes{{or}}no{{/select}}"''', llm=llm)
     out = program()
     assert out["answer"] in ["yes", "no"]
-
-def test_chat_stream():
-    """ Test the behavior of `stream=True` for an openai chat endpoint.
-    """
-
-    import asyncio
-    loop = asyncio.new_event_loop()
-
-    import guidance
-    guidance.llm = guidance.llms.OpenAI("gpt-3.5-turbo", caching=False)
-
-    async def f():
-        chat = guidance("""<|im_start|>system
-You are a helpful assistent.
-<|im_end|>
-<|im_start|>user
-{{command}}
-<|im_end|>
-<|im_start|>assistant
-{{gen 'answer' max_tokens=10}}""", stream=True)
-        out = await chat(command="How do I create a Fasttokenizer with hugging face auto?-b")
-        assert len(out["answer"]) > 0
-    loop.run_until_complete(f())
