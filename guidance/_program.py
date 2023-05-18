@@ -71,15 +71,14 @@ class Program:
 
         # see if we were given a raw function instead of a string template
         # if so, convert it to a string template that calls the function
-        if not isinstance(text, str):
-            if callable(text):
-                sig = inspect.signature(text)
-                args = ""
-                for name,_ in sig.parameters.items():
-                    args += f" {name}={name}"
-                fname = _utils.find_func_name(text, kwargs)
-                kwargs[fname] = text
-                text = "{{set (%s%s)}}" % (fname, args)
+        if not isinstance(text, str) and callable(text):
+            sig = inspect.signature(text)
+            args = ""
+            for name,_ in sig.parameters.items():
+                args += f" {name}={name}"
+            fname = _utils.find_func_name(text, kwargs)
+            kwargs[fname] = text
+            text = "{{set (%s%s)}}" % (fname, args)
         
         # save the given parameters
         self._text = text
