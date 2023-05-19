@@ -49,3 +49,14 @@ def test_select_list_append():
     assert len(out["name"]) == 2
     for v in out["name"]:
         assert v in ["Yes", "No"]
+
+def test_select_odd_spacing():
+    """ Test the behavior of `select` with list_append=True.
+    """
+
+    llm = get_openai_llm("text-curie-001")
+    prompt = guidance('''Is the following sentence offensive? Please answer with a single word, either "Yes", "No", or "Maybe".
+    Sentence: {{example}}
+    Answer: {{#select "answer" logprobs='logprobs'}} Yes{{or}} Nein{{or}} Maybe{{/select}}''', llm=llm)
+    prompt = prompt(example='I hate tacos.')
+    assert prompt["answer"] in [" Yes", " Nein", " Maybe"]
