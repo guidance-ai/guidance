@@ -647,7 +647,7 @@ class TransformersStreamer():
 
                     # trim off the stop regex matches if needed
                     found_partial = False
-                    if self.stop_regex is not None and (finish_reason is None or len(self.input_ids) > 1):
+                    if self.stop_regex is not None:# and (finish_reason is None or len(self.input_ids) > 1):
                         stop_regex_obj = [regex.compile(s) for s in self.stop_regex]
                         for s in stop_regex_obj:
                             m = s.search(val, partial=True)
