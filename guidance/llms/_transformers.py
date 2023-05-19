@@ -79,6 +79,10 @@ class Transformers(LLM):
     
     # def role_end(self, role=None):
     #     return ""
+
+    @staticmethod
+    def role_start(role):
+        raise NotImplementedError("In order to use chat role tags you need to use a chat-specific subclass of Transformers for your LLM from guidance.transformers.*!")
     
     def decode(self, tokens, fragment=True, **kwargs):
 
