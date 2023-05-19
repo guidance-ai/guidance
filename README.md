@@ -605,7 +605,7 @@ prompt
 ```
 ![await1](docs/figures/await1.png)
 
-Notice how the lest `gen` is not executed because it depends on `instruction`. Let's provide `instruction` now.
+Notice how the last `gen` is not executed because it depends on `instruction`. Let's provide `instruction` now.
 
 ```python
 prompt = prompt(instruction='Please translate the response above to Portuguese.')
