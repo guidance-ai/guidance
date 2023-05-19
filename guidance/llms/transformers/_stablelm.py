@@ -11,7 +11,7 @@ from .._llm import LLM, LLMSession, SyncSession
 from .._transformers import Transformers, TransformersSession
 
 class StableLMChat(Transformers):
-    """ A HuggingFace transformers version of the Vicuna language model with Guidance support.
+    """ A HuggingFace transformers version of the StableLM language model with Guidance support.
     """
 
     cache = LLM._open_cache("_stablelm.diskcache")
