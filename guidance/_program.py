@@ -121,6 +121,7 @@ class Program:
 
         # see if we are in an ipython environment
         try:
+            from IPython import get_ipython
             self._ipython = get_ipython()
         except:
             self._ipython = None
