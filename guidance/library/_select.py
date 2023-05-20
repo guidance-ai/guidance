@@ -72,7 +72,7 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
         tmp_prefix_token_len = len(parser.program.llm.encode(tmp_prefix))
         logit_bias = {}
         for option,index in extension_options:
-            option_tokens = parser.program.llm.encode(tmp_prefix+option)
+            option_tokens = option_tokens = parser.program.llm.encode(parser_prefix[-50:]) + parser.program.llm.encode(option)
             logit_bias[option_tokens[tmp_prefix_token_len-1]] = 50
             if len(option_tokens) > tmp_prefix_token_len:
                 logit_bias[option_tokens[tmp_prefix_token_len]] = 50
