@@ -62,11 +62,13 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
             logprobs_out[extension_options[0][0]] = 0 # probability of 1.0 that we will select the only valid option
             return logprobs_out
         else:
+            match_index = 0
             for i in range(len(current_prefix), min([len(o[0]) for o in extension_options])):
                 if len(set([o[0][i] for o in extension_options])) > 1:
+                    match_index = i
                     break
-            if i > 0:
-                current_prefix += extension_options[0][0][:i]
+            if match_index > len(current_prefix):
+                current_prefix += extension_options[0][0][len(current_prefix):match_index]
                 # extension_options = [(option[i:], index) for option,index in extension_options]
 
         # bias the logits towards valid options
