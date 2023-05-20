@@ -60,3 +60,15 @@ def test_select_odd_spacing():
     Answer: {{#select "answer" logprobs='logprobs'}} Yes{{or}} Nein{{or}} Maybe{{/select}}''', llm=llm)
     prompt = prompt(example='I hate tacos.')
     assert prompt["answer"] in [" Yes", " Nein", " Maybe"]
+
+def test_select_subtoken():
+    """ Test the behavior of `select` with tokens that are sub-tokens of other tokens.
+    """
+
+    llm = get_openai_llm("text-ada-001")
+    prompt = guidance('''Generate a person's information based on the following schema:
+    {
+    is_student: {{#select 'is_student'}}True{{or}}False{{/select}},
+    } ''', llm=llm)
+    prompt = prompt()
+    assert prompt["answer"] in ["True", "False"]
