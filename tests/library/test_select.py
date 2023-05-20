@@ -72,3 +72,26 @@ def test_select_subtoken():
     } ''', llm=llm)
     prompt = prompt()
     assert prompt["is_student"] in ["True", "False"]
+
+def test_overlapping_options():
+    """ Test the behavior of `select` when one option is a prefix of another.
+    """
+
+    llm = get_transformers_llm("gpt2")
+    options = ['a', 'aa']
+    program = guidance("'{{select options=options}}", llm=llm)
+    out = program(options=options)
+    assert out["selected"] in options
+
+# TODO: fix this next
+# def test_unexpected_tokens():
+#     """ Test the behavior of `select` when the next tokens are hard to predict.
+#     """
+
+#     llm = get_transformers_llm("gpt2")
+#     options = ['a', 'b']
+#     program = guidance("some word xy{{select options=options}}", llm=llm)
+#     out = program(options=options)
+#     assert out["selected"] in options
+
+# TODO: test when we have few starting tokens
