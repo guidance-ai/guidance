@@ -9,22 +9,21 @@ import queue
 import threading
 import logging
 
-from llama_cpp import Llama
+from llama_cpp import Llama, llama_n_vocab
 
 from ._llm import LLM, LLMSession, SyncSession
 
 
 class LlamaCppSettings:
-    model: str = "../ggml-v2-models/Manticore-13B.ggmlv2.q4_1.bin"
+    model: str = "../ggml-model.q4_1.bin"
     n_ctx: int = 2048
     n_batch: int = 8
-    n_threads: int = 12
+    n_threads: int = 4
     f16_kv: bool = True
     use_mlock: bool = True
     embedding: bool = False
     last_n_tokens_size: int = 256
-    n_gpu_layers: int = 12
-    vocab_size: int = 32000
+    n_gpu_layers: int = 0
     logits_all: bool = True
 
 
@@ -52,7 +51,7 @@ class LlamaCpp(LLM):
             logits_all=settings.logits_all
         )
         self.device = None
-        self.vocab_size = settings.vocab_size
+        self.vocab_size = llama_n_vocab(self.model_obj.ctx)
         self._generate_call = self.model_obj.create_completion
         base_name = os.path.basename(settings.model)  # get the name of the file
         file_name_without_extension, _ = os.path.splitext(base_name)
