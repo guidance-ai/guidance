@@ -294,7 +294,7 @@ class LlamaCppSession(LLMSession):
 
             # setup logit biasing
             if logit_bias is not None:
-                processors.append(BiasLogitsProcessor(self.llm, model_config.vocab_size, logit_bias))
+                processors.append(BiasLogitsProcessor(self.llm, self.llm.vocab_size, logit_bias))
 
             # make sure we don't run off the end of the model
             max_context = (getattr(model_config, "n_ctx", None) or getattr(model_config, "max_seq_len",
@@ -327,7 +327,7 @@ class LlamaCppSession(LLMSession):
 
             # add support for pattern guidance
             if pattern is not None:
-                processors.append(RegexLogitsProcessor(pattern, stop_regex, self.llm.decode, model_config.vocab_size,
+                processors.append(RegexLogitsProcessor(pattern, stop_regex, self.llm.decode, self.llm.vocab_size,
                                                        temperature == 0, len(coded_prompt),
                                                        self.llm.model_obj.token_eos()))
 
