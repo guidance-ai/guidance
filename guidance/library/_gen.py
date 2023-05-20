@@ -2,14 +2,15 @@ import asyncio
 import re
 import uuid
 import logging
+import types
 from .._grammar import grammar
 from .._utils import escape_template_block
 
 log = logging.getLogger(__name__)
 
-async def gen(variable_name="generated", stop=None, stop_regex=None, max_tokens=500, n=1, temperature=0.0, top_p=1.0,
-              logprobs=None, pattern=None, hidden=False, parse=False, list_append=False, save_prompt=False,
-              token_healing=None, _parser_context=None):
+async def gen(variable_name="generated", stop=None, stop_regex=None, save_stop_text=False, max_tokens=500, n=1,
+              temperature=0.0, top_p=1.0, logprobs=None, pattern=None, hidden=False, parse=False, list_append=False,
+              save_prompt=False, token_healing=None, _parser_context=None):
     ''' Use the LLM to generate a completion.
 
     Parameters
@@ -22,6 +23,10 @@ async def gen(variable_name="generated", stop=None, stop_regex=None, max_tokens=
         the generated value.
     stop_regex : str
         A regular expression to use for stopping generation. If not provided, the stop string will be used.
+    save_stop_text : str or bool
+        If set to a string, the exact stop text used will be saved in a variable with the given name. If set to
+        True, the stop text will be saved in a variable named `variable_name+"_stop_text"`. If set to False,
+        the stop text will not be saved.
     max_tokens : int
         The maximum number of tokens to generate in this completion.
     n : int
@@ -113,14 +118,8 @@ async def gen(variable_name="generated", stop=None, stop_regex=None, max_tokens=
     else:
         cache_seed = 0
 
-    # see if we should stream the results
-    if n == 1: # we can't stream batches right now
-        if parser.program.stream == "auto":
-            stream_generation = not parser.program.silent or parser.program.async_mode
-        else:
-            stream_generation = parser.program.stream
-    else:
-        stream_generation = False
+    # we can't stream batches right now
+    stream_generation = parser.program.stream if n == 1 else False
 
     # save the prompt if requested
     if save_prompt:
@@ -140,7 +139,7 @@ async def gen(variable_name="generated", stop=None, stop_regex=None, max_tokens=
         generated_value = prefix
         partial_output(prefix)
         logprobs_out = []
-        if not stream_generation:
+        if not isinstance(gen_obj, types.GeneratorType):
             gen_obj = [gen_obj]
         if list_append:
             value_list = parser.get_variable(variable_name, [])
@@ -169,6 +168,13 @@ async def gen(variable_name="generated", stop=None, stop_regex=None, max_tokens=
                 parser.set_variable(variable_name, generated_value)
                 if logprobs is not None:
                     parser.set_variable(variable_name+"_logprobs", logprobs_out)
+        
+        # save the final stopping text if requested
+        if save_stop_text is not False:
+            if save_stop_text is True:
+                save_stop_text = variable_name+"_stop_text"
+            parser.set_variable(save_stop_text, resp["choices"][0].get('stop_text', None))
+        
         if hasattr(gen_obj, 'close'):
             gen_obj.close()
         generated_value += suffix

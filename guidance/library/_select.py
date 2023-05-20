@@ -80,7 +80,7 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
             option_tokens = parser.program.llm.encode(parser_prefix[-50:] + option)
             
             # if we extended the last token to a longer one
-            if option_tokens[len(tmp_prefix_tokens)-1] != tmp_prefix_tokens[-1]:
+            if len(tmp_prefix_tokens) > 0 and option_tokens[len(tmp_prefix_tokens)-1] != tmp_prefix_tokens[-1]:
                 if allow_token_extension: # this is a valid extension only if we are not allowed to extend the token
                     logit_bias1[option_tokens[len(tmp_prefix_tokens)-1]] = 100
             
