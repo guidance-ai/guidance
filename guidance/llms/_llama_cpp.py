@@ -9,7 +9,7 @@ import queue
 import threading
 import logging
 
-from llama_cpp import Llama, llama_n_vocab
+
 
 from ._llm import LLM, LLMSession, SyncSession
 
@@ -26,7 +26,7 @@ class LlamaCppSettings:
     n_gpu_layers: int = 0
     logits_all: bool = True
     use_mmap: bool = False
-
+    verbose: bool = False
 
 class LlamaCpp(LLM):
     """ A HuggingFace transformers language model with Guidance support.
@@ -38,6 +38,8 @@ class LlamaCpp(LLM):
                  temperature=0.25,
                  role_start=None, role_end=None):
         super().__init__()
+
+        from llama_cpp import Llama, llama_n_vocab
         self.settings = settings
         self.model_obj = Llama(
             settings.model,
@@ -50,7 +52,8 @@ class LlamaCpp(LLM):
             n_ctx=settings.n_ctx,
             last_n_tokens_size=settings.last_n_tokens_size,
             logits_all=settings.logits_all,
-            use_mmap=settings.use_mmap
+            use_mmap=settings.use_mmap,
+            verbose=settings.verbose
         )
         self.device = None
         self.vocab_size = llama_n_vocab(self.model_obj.ctx)
