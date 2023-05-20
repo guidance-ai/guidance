@@ -33,8 +33,8 @@ class LlamaCpp(LLM):
 
     cache = LLM._open_cache("_llama_cpp.diskcache")
 
-    def __init__(self, settings=LlamaCppSettings(), caching=True, token_healing=True, acceleration=True,
-                 temperature=0.0,
+    def __init__(self, settings=LlamaCppSettings(), caching=True, token_healing=False, acceleration=False,
+                 temperature=0.25,
                  role_start=None, role_end=None):
         super().__init__()
         self.settings = settings
@@ -62,9 +62,9 @@ class LlamaCpp(LLM):
         self.temperature = temperature
         self.token_healing = token_healing
         self.acceleration = acceleration
-
-        self._prefix_ids = [self.model_obj.token_bos(), 100]  # token ids that we use to decode tokens after a prefix
-        self._prefix_str = self.model_obj.detokenize(tokens=self._prefix_ids).decode()
+        temp = self.model_obj.tokenize("temp".encode(), True)
+        self._prefix_ids = [temp[0], 100]  # token ids that we use to decode tokens after a prefix
+        self._prefix_str = self.model_obj.detokenize(tokens=self._prefix_ids).decode("utf-8")
 
         self._token_prefix_map = self._build_token_prefix_map()
 
@@ -74,6 +74,9 @@ class LlamaCpp(LLM):
         return [v for arr in self._token_prefix_map.values(prefix=prefix) for v in arr]
 
     def encode(self, string, fragment=True, **kwargs):
+
+        if isinstance(string, bytes):
+            string = string.decode("utf-8")
 
         if fragment:
             string = self._prefix_str + string
@@ -114,29 +117,17 @@ class LlamaCpp(LLM):
         add_bos = ""
         if fragment:
             if len(tokens) > 0 and tokens[-1] == self.model_obj.token_eos():
-                add_eos = self.model_obj.token_eos()
+                add_eos = self.model_obj.detokenize([self.model_obj.token_eos()]).decode("utf-8")
                 tokens = tokens[:-1]
             if len(tokens) > 0 and tokens[0] == self.model_obj.token_bos():
-                add_bos = self.model_obj.token_bos()
+                add_bos = self.model_obj.detokenize([self.model_obj.token_bos()]).decode("utf-8")
                 tokens = tokens[1:]
 
-        # Decode the string corresponding to a single suffix token.
-        # Note that we need to decode after the start token for sentence-piece tokenizers so that white space is preserved
-        if isinstance(add_bos, str):
-            add_bos = add_bos.encode('utf-8')
-        else:
-            add_bos = self.model_obj.detokenize([add_bos])
-
-        if isinstance(add_eos, str):
-            add_eos = add_eos.encode('utf-8')
-        else:
-            add_eos = self.model_obj.detokenize([add_eos])
-
         if fragment:
-            return add_bos + self.model_obj.detokenize(self._prefix_ids + list(tokens))[
-                             len(self._prefix_str):] + add_eos
+            return add_bos + (self.model_obj.detokenize(self._prefix_ids + list(tokens))[
+                             len(self._prefix_str):]).decode("utf-8", errors="ignore") + add_eos
         else:
-            return add_bos + self.model_obj.detokenize(tokens) + add_eos
+            return add_bos + ( self.model_obj.detokenize(tokens).decode("utf-8", errors="ignore")) + add_eos
 
     def _build_token_prefix_map(self):
         """ Build a map from token to index.
@@ -254,8 +245,7 @@ class LlamaCppSession(LLMSession):
         if stop_regex is None:
             stop_regex = []
         stop_regex.append(
-            regex.escape(self.llm.model_obj.detokenize(
-                [self.llm.model_obj.token_eos()]).decode()))  # make sure the end of sequence token is always included
+            regex.escape("</s>"))  # make sure the end of sequence token is always included
 
         # handle caching
         if key not in self.llm.cache or (caching is not True and not self.llm.caching) or caching is False:
@@ -277,13 +267,13 @@ class LlamaCppSession(LLMSession):
             stoppers = []
 
             # save what the prompt looks like when coded and then decoded (this captures added start tokens, etc.)
-            coded_prompt = self.llm.decode(input_ids).decode('utf-8')
+            coded_prompt = self.llm.decode(input_ids)
 
             # setup token healing
             if token_healing:
                 # pop off the last token since we will regen it
                 last_token_id = input_ids[-1]
-                last_token_str = self.llm.decode([last_token_id]).decode('utf-8')
+                last_token_str = self.llm.decode([last_token_id])
                 healer = TokenHealingLogitsProcessor(self.llm, self.llm.vocab_size, last_token_str)
                 if healer.should_bias:
                     input_ids = input_ids[0:-1]
@@ -328,7 +318,7 @@ class LlamaCppSession(LLMSession):
             # add support for pattern guidance
             if pattern is not None:
                 processors.append(RegexLogitsProcessor(pattern, stop_regex, self.llm.decode, self.llm.vocab_size,
-                                                       temperature == 0, len(coded_prompt),
+                                                       False, len(coded_prompt),
                                                        self.llm.model_obj.token_eos()))
 
             if stop_regex is not None:
@@ -342,9 +332,11 @@ class LlamaCppSession(LLMSession):
                 coded_prompt=coded_prompt,
                 llm=self.llm,
                 max_new_tokens=max_tokens,
-                logprobs=logprobs
+                logprobs=logprobs,
+                timeout=10
             )
-
+            if isinstance(prompt, bytes):
+                prompt = prompt.decode("utf-8")
             # the args for the transformers generate call
             generate_args = dict(
                 prompt=prompt,
@@ -352,10 +344,11 @@ class LlamaCppSession(LLMSession):
                 temperature=temperature,
                 max_tokens=max_tokens,
                 top_p=top_p,
+                stop=[],
                 # pad_token_id=self.llm.model_obj.token_eos(),
                 logprobs=logprobs,
-                # logits_processor=transformers.LogitsProcessorList(processors),
-                # stopping_criteria=transformers.StoppingCriteriaList(stoppers),
+                logits_processors=processors,
+                stopping_criterias=stoppers,
                 # past_key_values=self._past_key_values,
                 # output_scores=logprobs is not None and logprobs > 0,
                 # return_dict_in_generate=True
@@ -386,7 +379,7 @@ class LlamaCppSession(LLMSession):
     def _update_prefix_cache(self, streamer):
         # note what we now have cached and ready for our next call in this session
         if self._past_key_values and len(streamer.generated_sequence) == 1:
-            self._prefix_cache = streamer.generated_sequence[0][:self._past_key_values[0][0].shape[
+            self._prefix_cache = streamer.generated_sequence[:self._past_key_values[0][0].shape[
                 2]]  # self._past_key_values is already saved, this just aligns with it
 
     def _stream_then_save(self, streamer, key, thread):
@@ -520,7 +513,10 @@ class LlamaCppStreamer():
         return self
 
     def __next__(self):
-        value = self.out_queue.get(timeout=self.timeout)
+        try:
+            value = self.out_queue.get(timeout=self.timeout)
+        except queue.Empty:
+            value = None
         if value is None:
             raise StopIteration()
         else:
@@ -568,14 +564,14 @@ class TokenHealingLogitsProcessor():
             self.should_bias = False
 
     def __call__(self, input_ids, scores):
-
+        import torch
         # we only bias the first token generated
         if not self.should_bias:
             return scores
         self.should_bias = False
 
         # make only allowed tokens possible
-        return scores + self.first_token_mask
+        return (torch.tensor(scores) + self.first_token_mask).tolist()
 
 
 class BiasLogitsProcessor():
@@ -590,10 +586,11 @@ class BiasLogitsProcessor():
         self.bias_vector = torch.zeros(vocab_size)
         for token, bias in logit_bias.items():
             self.bias_vector[token] = bias
-        self.bias_vector = self.bias_vector.to(model.device)
+        self.bias_vector = self.bias_vector
 
     def __call__(self, input_ids, scores):
-        return scores + self.bias_vector
+        import torch
+        return (torch.tensor(scores) + self.bias_vector).tolist()
 
 
 class RegexLogitsProcessor():
@@ -647,29 +644,29 @@ class RegexLogitsProcessor():
 
         # extend our current strings
         if self.current_strings is None:
-            self.current_strings = ["" for _ in range(len(input_ids))]
-        for i in range(len(self.current_strings)):
-            self.current_strings[i] += self.decode(input_ids[i][self.current_length:])
+            self.current_strings = ""
+        self.current_strings += self.decode(input_ids[self.current_length:])
+
 
         # trim off the prefix string so we don't look for stop matches in the prompt
         if self.current_length == 0:
             self.forced_chars = self.prefix_length - len(
-                self.current_strings[i])  # account for token healing forced prefixes
-            for i in range(len(self.current_strings)):
-                self.current_strings[i] = self.current_strings[i][self.prefix_length:]
+                self.current_strings)  # account for token healing forced prefixes
+            self.current_strings = self.current_strings[self.prefix_length:]
 
-        self.current_length = len(input_ids[0])
+
+        self.current_length = len(input_ids)
 
         # compute the bias values
         self.bias_vector[:] = 0
-        sort_inds = torch.argsort(scores, 1, True)
+
+        sort_inds = torch.argsort(torch.tensor(scores), 0, True)
         to_bias = []
-        for i in range(min(sort_inds.shape[1], self.max_consider)):
-            proposed_string = (self.current_strings[0] + self.decode([sort_inds[0, i]]).decode("utf-8"))[self.forced_chars:]
-            m = self.pattern.fullmatch(proposed_string,
-                                       partial=True)  # partial means we don't match currently but might as the string grows
+        for i in range(min(sort_inds.shape[0], self.max_consider)):
+            proposed_string = (self.current_strings + (self.decode([sort_inds[i].item()])))[self.forced_chars:]
+            m = self.pattern.fullmatch(proposed_string, partial=True)  # partial means we don't match currently but might as the string grows
             if m:
-                to_bias.append(int(sort_inds[0, i]))
+                to_bias.append(int(sort_inds[i]))
                 if self.is_greedy:
                     break  # we are done if we are doing greedy sampling and we found the top valid hit
 
@@ -678,12 +675,12 @@ class RegexLogitsProcessor():
             to_bias = [self.eos_token_id]
 
         # bias allowed tokens
-        min_to_bias = float(scores[0, to_bias].min())
-        bias_value = scores[0, sort_inds[
-            0, 0]] - min_to_bias + 10  # make sure the tokens that fit the pattern have higher scores than the top value
+        min_to_bias = float(torch.tensor(scores)[to_bias].min())
+        bias_value = torch.tensor(scores)[sort_inds[0]] - min_to_bias + 10  # make sure the tokens that fit the pattern have higher scores than the top value
         for x in to_bias:
             self.bias_vector[x] = bias_value
-        return scores + self.bias_vector.to(scores.device)
+        import torch
+        return (torch.tensor(scores) + self.bias_vector).tolist()
 
 
 class RegexStoppingCriteria():
@@ -701,26 +698,25 @@ class RegexStoppingCriteria():
 
         # extend our current strings
         if self.current_strings is None:
-            self.current_strings = ["" for _ in range(len(input_ids))]
-        for i in range(len(self.current_strings)):
-            self.current_strings[i] += self.decode(input_ids[i][self.current_length:]).decode("utf-8")
+            self.current_strings = ""
+        self.current_strings += self.decode(input_ids[self.current_length:])
+
 
         # trim off the prefix string so we don't look for stop matches in the prompt
         if self.current_length == 0:
-            for i in range(len(self.current_strings)):
-                self.current_strings[i] = self.current_strings[i][self.prefix_length:]
+            self.current_strings = self.current_strings[self.prefix_length:]
 
-        self.current_length = len(input_ids[0])
+
+        self.current_length = len(input_ids)
 
         # check if all of the strings match a stop string (and hence we can stop the batch inference)
         all_done = True
-        for i in range(len(self.current_strings)):
-            found = False
-            for s in self.stop_patterns:
-                if s.search(self.current_strings[i]):
-                    found = True
-            if not found:
-                all_done = False
-                break
+        found = False
+        for s in self.stop_patterns:
+            if s.search(self.current_strings):
+                found = True
+        if not found:
+            all_done = False
+
 
         return all_done
