@@ -284,7 +284,7 @@ class LlamaCppSession(LLMSession):
                 # pop off the last token since we will regen it
                 last_token_id = input_ids[-1]
                 last_token_str = self.llm.decode([last_token_id]).decode('utf-8')
-                healer = TokenHealingLogitsProcessor(self.llm, model_config.vocab_size, last_token_str)
+                healer = TokenHealingLogitsProcessor(self.llm, self.llm.vocab_size, last_token_str)
                 if healer.should_bias:
                     input_ids = input_ids[0:-1]
                     max_tokens += 1  # add one for the token we regen for token healing
