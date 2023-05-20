@@ -27,6 +27,7 @@ class LlamaCppSettings:
     logits_all: bool = True
     use_mmap: bool = False
 
+
 class LlamaCpp(LLM):
     """ A HuggingFace transformers language model with Guidance support.
     """
@@ -126,9 +127,9 @@ class LlamaCpp(LLM):
 
         if fragment:
             return add_bos + (self.model_obj.detokenize(self._prefix_ids + list(tokens))[
-                             len(self._prefix_str):]).decode("utf-8", errors="ignore") + add_eos
+                              len(self._prefix_str):]).decode("utf-8", errors="ignore") + add_eos
         else:
-            return add_bos + ( self.model_obj.detokenize(tokens).decode("utf-8", errors="ignore")) + add_eos
+            return add_bos + (self.model_obj.detokenize(tokens).decode("utf-8", errors="ignore")) + add_eos
 
     def _build_token_prefix_map(self):
         """ Build a map from token to index.
@@ -245,7 +246,7 @@ class LlamaCppSession(LLMSession):
             stop_regex = [stop_regex]
         if stop_regex is None:
             stop_regex = []
-        #stop_regex.append(
+        # stop_regex.append(
         #    regex.escape("</s>"))  # make sure the end of sequence token is always included
 
         # handle caching
@@ -648,13 +649,11 @@ class RegexLogitsProcessor():
             self.current_strings = ""
         self.current_strings += self.decode(input_ids[self.current_length:])
 
-
         # trim off the prefix string so we don't look for stop matches in the prompt
         if self.current_length == 0:
             self.forced_chars = self.prefix_length - len(
                 self.current_strings)  # account for token healing forced prefixes
             self.current_strings = self.current_strings[self.prefix_length:]
-
 
         self.current_length = len(input_ids)
 
@@ -665,7 +664,8 @@ class RegexLogitsProcessor():
         to_bias = []
         for i in range(min(sort_inds.shape[0], self.max_consider)):
             proposed_string = (self.current_strings + (self.decode([sort_inds[i].item()])))[self.forced_chars:]
-            m = self.pattern.fullmatch(proposed_string, partial=True)  # partial means we don't match currently but might as the string grows
+            m = self.pattern.fullmatch(proposed_string,
+                                       partial=True)  # partial means we don't match currently but might as the string grows
             if m:
                 to_bias.append(int(sort_inds[i]))
                 if self.is_greedy:
@@ -677,7 +677,8 @@ class RegexLogitsProcessor():
 
         # bias allowed tokens
         min_to_bias = float(torch.tensor(scores)[to_bias].min())
-        bias_value = torch.tensor(scores)[sort_inds[0]] - min_to_bias + 10  # make sure the tokens that fit the pattern have higher scores than the top value
+        bias_value = torch.tensor(scores)[sort_inds[
+            0]] - min_to_bias + 10  # make sure the tokens that fit the pattern have higher scores than the top value
         for x in to_bias:
             self.bias_vector[x] = bias_value
         import torch
@@ -702,11 +703,9 @@ class RegexStoppingCriteria():
             self.current_strings = ""
         self.current_strings += self.decode(input_ids[self.current_length:])
 
-
         # trim off the prefix string so we don't look for stop matches in the prompt
         if self.current_length == 0:
             self.current_strings = self.current_strings[self.prefix_length:]
-
 
         self.current_length = len(input_ids)
 
@@ -718,6 +717,5 @@ class RegexStoppingCriteria():
                 found = True
         if not found:
             all_done = False
-
 
         return all_done
