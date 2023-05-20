@@ -25,7 +25,7 @@ class LlamaCppSettings:
     last_n_tokens_size: int = 256
     n_gpu_layers: int = 0
     logits_all: bool = True
-
+    use_mmap: bool = False
 
 class LlamaCpp(LLM):
     """ A HuggingFace transformers language model with Guidance support.
@@ -48,7 +48,8 @@ class LlamaCpp(LLM):
             n_batch=settings.n_batch,
             n_ctx=settings.n_ctx,
             last_n_tokens_size=settings.last_n_tokens_size,
-            logits_all=settings.logits_all
+            logits_all=settings.logits_all,
+            use_mmap=settings.use_mmap
         )
         self.device = None
         self.vocab_size = llama_n_vocab(self.model_obj.ctx)
@@ -244,8 +245,8 @@ class LlamaCppSession(LLMSession):
             stop_regex = [stop_regex]
         if stop_regex is None:
             stop_regex = []
-        stop_regex.append(
-            regex.escape("</s>"))  # make sure the end of sequence token is always included
+        #stop_regex.append(
+        #    regex.escape("</s>"))  # make sure the end of sequence token is always included
 
         # handle caching
         if key not in self.llm.cache or (caching is not True and not self.llm.caching) or caching is False:
