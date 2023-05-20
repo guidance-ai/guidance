@@ -6,13 +6,18 @@ from ._openai import OpenAI
 
 
 class AzureOpenAI(OpenAI):
-    """ Azure OpenAI integration.
+    """ Azure OpenAI style integration.
+
+    Warning: This class is not finalized and may change in the future.
     """
 
     cache = OpenAI._open_cache("_azure_openai.diskcache")
 
     def __init__(self, model=None, client_id=None, authority=None, caching=True, max_retries=5, max_calls_per_min=60, token=None,
                  endpoint=None, scopes=None, temperature=0.0, chat_mode="auto"):
+        
+
+        assert endpoint is not None, "An endpoint must be specified!"
         
         # build a standard OpenAI LLM object
         super().__init__(

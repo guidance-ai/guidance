@@ -15,7 +15,7 @@ class DeepSpeed(Transformers):
     cache = Transformers._open_cache("_deep_speed.diskcache")
 
     def __init__(self, model=None, tokenizer=None, caching=True, token_healing=True, acceleration=True, temperature=0.0, device=None, **deep_speed_kwargs):
-        assert False, "DeepSpeed does not yet work! (this class is a work in progress)"
+        assert False, "DeepSpeed does not yet work! (this class is a work in progress and is currently waiting on supporting changes in DeepSpeed)"
         # parse alrady wrapped deepspeed objects
         import deepspeed
         if isinstance(model, deepspeed.InferenceEngine):
