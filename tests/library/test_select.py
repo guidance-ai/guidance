@@ -71,4 +71,4 @@ def test_select_subtoken():
     is_student: {{#select 'is_student'}}True{{or}}False{{/select}},
     } ''', llm=llm)
     prompt = prompt()
-    assert prompt["answer"] in ["True", "False"]
+    assert prompt["is_student"] in ["True", "False"]
