@@ -24,6 +24,8 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
     block_content = _parser_context['block_content']
     parser_prefix = _parser_context['parser_prefix']
     partial_output = _parser_context['partial_output']
+    next_node = _parser_context["next_node"]
+    next_next_node = _parser_context["next_next_node"]
 
     if block_content is None:
         assert options is not None, "You must provide an options list like: {{select 'variable_name' options}} when using the select command in non-block mode."
@@ -36,6 +38,17 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
         for i in range(1, len(block_content), 2):
             assert block_content[i].text == "{{or}}"
             options.append(block_content[i+1].text)
+
+    # find what text follows the select command and append it to the options.
+    # we do this so we can differentiate between select options where one is a prefix of another
+    next_text = next_node.text if next_node is not None else ""
+    if next_next_node and next_next_node.text.startswith("{{~"):
+        next_text = next_text.lstrip()
+        if next_next_node and next_text == "":
+            next_text = next_next_node.text
+    if next_text == "": # if we have nothing after us then we are at the end of the text
+        next_text = parser.program.llm.end_of_text()
+    options = [option + next_text for option in options]
 
     # build a trie of the options
     token_map = pygtrie.CharTrie()
@@ -62,7 +75,7 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
             logprobs_out[extension_options[0][0]] = 0 # probability of 1.0 that we will select the only valid option
             return logprobs_out
         else:
-            match_index = 0
+            match_index = len(current_prefix)
             for i in range(len(current_prefix), min([len(o[0]) for o in extension_options])):
                 if len(set([o[0][i] for o in extension_options])) > 1:
                     break
@@ -155,6 +168,11 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
     # recursively compute the logprobs for each option
     option_logprobs = await recursive_select("")
 
+    # trim off the suffix we added to the options
+    if next_text != "":
+        option_logprobs = {k[:-len(next_text)]: v for k,v in option_logprobs.items()}
+
+    # select the option with the highest logprob
     selected_option = max(option_logprobs, key=option_logprobs.get)
     
     # see if we are appending to a list or not

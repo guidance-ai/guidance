@@ -65,7 +65,8 @@ chat_models = [
 class OpenAI(LLM):
     cache = LLM._open_cache("_openai.diskcache")
 
-    def __init__(self, model=None, caching=True, max_retries=5, max_calls_per_min=60, token=None, endpoint=None, temperature=0.0, chat_mode="auto", organization=None):
+    def __init__(self, model=None, caching=True, max_retries=5, max_calls_per_min=60, token=None, endpoint=None,
+                 temperature=0.0, chat_mode="auto", organization=None, allowed_special_tokens={"<|endoftext|>", "<|endofprompt|>"}):
         super().__init__()
 
         # fill in default model value
@@ -107,6 +108,7 @@ class OpenAI(LLM):
         self._tokenizer = tiktoken.get_encoding(tiktoken.encoding_for_model(model).name)
         self.chat_mode = chat_mode
         
+        self.allowed_special_tokens = allowed_special_tokens
         self.model_name = model
         self.caching = caching
         self.max_retries = max_retries
@@ -141,6 +143,9 @@ class OpenAI(LLM):
     def role_end(self, role=None):
         assert self.chat_mode, "role_end() can only be used in chat mode"
         return "<|im_end|>"
+    
+    def end_of_text(self):
+        return "<|endoftext|>"
     
     @classmethod
     def stream_then_save(cls, gen, key, stop_regex, n):
@@ -323,7 +328,7 @@ class OpenAI(LLM):
     
     def encode(self, string, fragment=True):
         # note that is_fragment is not used used for this tokenizer
-        return self._tokenizer.encode(string)
+        return self._tokenizer.encode(string, allowed_special=self.allowed_special_tokens)
     
     def decode(self, tokens, fragment=True):
         return self._tokenizer.decode(tokens)
