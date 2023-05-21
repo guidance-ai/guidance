@@ -266,7 +266,7 @@ class Program:
                 if last:
                     self._comm.send({"event": "complete"})
             
-            # ...otherwise dump the client to the font end
+            # ...otherwise dump the client to the front end
             else:
                 log.debug(f"Updating display dump to front end")
                 from IPython.display import clear_output, display
@@ -574,7 +574,8 @@ _built_ins = {
     "greater": library.greater,
     ">": library.greater,
     "less": library.less,
-    "<": library.less
+    "<": library.less,
+    "contains": library.contains
 }
 
 class DisplayThrottler():

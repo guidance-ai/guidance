@@ -59,6 +59,48 @@ def test_select_names(llm):
     )()
     assert out["name"] in ["Alice", "Bob"]
 
+def test_select_multi_path():
+    """ Test the behavior of `select` and confirm the returns probability distribution sums to 1.
+    """
+    import numpy as np
+
+    options = [
+        "This is one sentence about fish and dogs.",
+        "This is another sentence about fish and dogs.",
+        "Sure, here is a sentence about cats.",
+        "Sure thing, here is a sentence about cats.",
+        "This is one"
+    ]
+
+    llm = get_llm("transformers:gpt2")
+    out = guidance(
+        "Hello, write me a sentence. {{select 'sentence' logprobs='probs' options=options}}",
+        llm=llm
+    )(options=options)
+    assert abs(1 - np.exp([l for l in out["probs"].values()]).sum()) < 1e-5
+    assert out["sentence"] in options
+
+def test_select_multi_path_with_suffix():
+    """ Test the behavior of `select` and confirm the returns probability distribution sums to 1.
+    """
+    import numpy as np
+
+    options = [
+        "This is one sentence about fish and dogs.",
+        "This is another sentence about fish and dogs.",
+        "Sure, here is a sentence about cats.",
+        "Sure thing, here is a sentence about cats.",
+        "This is one"
+    ]
+
+    llm = get_llm("transformers:gpt2")
+    out = guidance(
+        "Hello, write me a sentence. {{select 'sentence' logprobs='probs' options=options}} And this is the suffix.",
+        llm=llm
+    )(options=options)
+    assert abs(1 - np.exp([l for l in out["probs"].values()]).sum()) < 1e-5
+    assert out["sentence"] in options
+
 @pytest.mark.parametrize("llm", ["transformers:gpt2", "openai:text-curie-001"])
 def test_select_odd_spacing(llm):
     """ Test the behavior of `select` with list_append=True.
