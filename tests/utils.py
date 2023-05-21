@@ -3,6 +3,14 @@ import pytest
 
 opanai_model_cache = {}
 
+def get_llm(model_name):
+    """ Get an LLM by name.
+    """
+    if model_name.startswith("openai:"):
+        return get_openai_llm(model_name[7:])
+    elif model_name.startswith("transformers:"):
+        return get_transformers_llm(model_name[13:])
+
 def get_openai_llm(model_name, caching=False):
     """ Get an OpenAI LLM with model reuse and smart test skipping.
     """

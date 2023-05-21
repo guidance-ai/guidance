@@ -60,3 +60,27 @@ def test_select_odd_spacing():
     Answer: {{#select "answer" logprobs='logprobs'}} Yes{{or}} Nein{{or}} Maybe{{/select}}''', llm=llm)
     prompt = prompt(example='I hate tacos.')
     assert prompt["answer"] in [" Yes", " Nein", " Maybe"]
+
+
+def test_overlapping_options():
+    """ Test the behavior of `select` when one option is a prefix of another.
+    """
+
+    llm = get_transformers_llm("gpt2")
+    options = ['a', 'aa']
+    program = guidance("'{{select options=options}}", llm=llm)
+    out = program(options=options)
+    assert out["selected"] in options
+
+# TODO: fix this next
+# def test_unexpected_tokens():
+#     """ Test the behavior of `select` when the next tokens are hard to predict.
+#     """
+
+#     llm = get_transformers_llm("gpt2")
+#     options = ['a', 'b']
+#     program = guidance("some word xy{{select options=options}}", llm=llm)
+#     out = program(options=options)
+#     assert out["selected"] in options
+
+# TODO: test when we have few starting tokens

@@ -12,7 +12,10 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
     options : list of str or None
         An optional list of options to select from. This argument is only used when select is used in non-block mode.
     logprobs : str or None
-        An optional variable name to set with the logprobs for each option.
+        An optional variable name to set with the logprobs for each option. If this is set the log probs of every option
+        is fully evaluated. When this is None (the default) we use a greedy max approach to select the option (similar to
+        how greedy decoding works in a language model). So in some cases the selected option can change when logprobs is
+        set since it will be more like an exhaustive beam search scoring than a greedy max scoring.
     list_append : bool
         Whether to append the generated value to a list stored in the variable. If set to True, the variable
         must be a list, and the generated value will be appended to the list.
@@ -33,9 +36,6 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
         for i in range(1, len(block_content), 2):
             assert block_content[i].text == "{{or}}"
             options.append(block_content[i+1].text)
-
-    option_tokens = [parser.program.llm.encode(option) for option in options]
-    ids_used = set(itertools.chain.from_iterable(option_tokens))
 
     # build a trie of the options
     token_map = pygtrie.CharTrie()
@@ -72,15 +72,16 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
                 # extension_options = [(option[i:], index) for option,index in extension_options]
 
         # bias the logits towards valid options
-        tmp_prefix = (parser_prefix[-50:] + current_prefix) # this is so we get the right tokenization at the boundary
+        # TODO: this retokenizes the whole prefix many times, perhaps this could become a bottleneck?
+        tmp_prefix = parser_prefix + current_prefix # this is so we get the right tokenization at the boundary
         tmp_prefix_tokens = parser.program.llm.encode(tmp_prefix)
         logit_bias1 = {} # token extension biases
         logit_bias2 = {} # next token biases
         for option,index in extension_options:
-            option_tokens = parser.program.llm.encode(parser_prefix[-50:] + option)
+            option_tokens = parser.program.llm.encode(parser_prefix + option)
             
             # if we extended the last token to a longer one
-            if option_tokens[len(tmp_prefix_tokens)-1] != tmp_prefix_tokens[-1]:
+            if len(tmp_prefix_tokens) > 0 and option_tokens[len(tmp_prefix_tokens)-1] != tmp_prefix_tokens[-1]:
                 if allow_token_extension: # this is a valid extension only if we are not allowed to extend the token
                     logit_bias1[option_tokens[len(tmp_prefix_tokens)-1]] = 100
             
@@ -107,7 +108,7 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
 
         # generate the token logprobs
         gen_obj = await parser.llm_session(
-            call_prefix, # TODO: perhaps we should allow passing of token ids directly?
+            call_prefix, # TODO: perhaps we should allow passing of token ids directly? (this could allow us to avoid retokenizing the whole prefix many times)
             max_tokens=1,
             logit_bias=logit_bias,
             logprobs=10,
@@ -116,12 +117,16 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
         )
         logprobs_result = gen_obj["choices"][0]["logprobs"]
         top_logprobs = logprobs_result["top_logprobs"][0]
+        
+        # no need to explore all branches if we are just taking the greedy max
+        if logprobs is None:
+            max_key = max(top_logprobs, key=top_logprobs.get)
+            top_logprobs = {max_key: top_logprobs[max_key]}
 
         # for each possible next token, see if it grows the prefix in a valid way
         for token_str,logprob in top_logprobs.items():
 
             # build our recursive call prefix
-            rec_prefix = call_prefix + token_str
             if len(last_token_str) > 0:
                 rec_prefix = current_prefix[:-len(last_token_str)]
             else:
