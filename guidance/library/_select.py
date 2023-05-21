@@ -127,11 +127,7 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
         for token_str,logprob in top_logprobs.items():
 
             # build our recursive call prefix
-            if len(last_token_str) > 0:
-                rec_prefix = current_prefix[:-len(last_token_str)]
-            else:
-                rec_prefix = current_prefix
-            rec_prefix += token_str
+            rec_prefix = token_str[len(last_token_str):]
             
             # if we did not extend the last token then we recurse while ignoring the possibility of extending the last token
             if token_str == last_token_str:
@@ -141,7 +137,7 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
             
             # we add the logprob of this token to the logprob of the suffix
             for k in sub_logprobs:
-                
+
                 # compute the probability of a logical OR between the new extension and the previous possible ones
                 p1 = np.exp(logprobs_out[k])
                 p2 = np.exp(sub_logprobs[k] + logprob)
