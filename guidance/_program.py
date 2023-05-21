@@ -574,7 +574,8 @@ _built_ins = {
     "greater": library.greater,
     ">": library.greater,
     "less": library.less,
-    "<": library.less
+    "<": library.less,
+    "contains": library.contains
 }
 
 class DisplayThrottler():
