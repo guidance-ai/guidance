@@ -15,7 +15,8 @@ class MPT(Transformers):
 
     cache = LLM._open_cache("_mpt.diskcache")
 
-    def __init__(self, model, tokenizer=None, max_seq_len=None, attn_impl=None, device_map=None, **kwargs):
+    def __init__(self, model, tokenizer=None, max_seq_len=None, attn_impl=None, caching=True, \
+                 token_healing=True, acceleration=True, temperature=0.0, device=None, device_map=None, **kwargs):
         """ Create a new LLaMA model.
         """
 
@@ -25,7 +26,7 @@ class MPT(Transformers):
 
             # MPT uses the same tokenizer as GPT-NeoX
             if tokenizer is None:
-                tokenizer = tokenizer = transformers.AutoTokenizer.from_pretrained("EleutherAI/gpt-neox-20b", device_map=device_map)
+                tokenizer = tokenizer = transformers.AutoTokenizer.from_pretrained("EleutherAI/gpt-neox-20b", device_map=device_map, **kwargs)
             
             dynamic_kwargs = {}
 
@@ -48,10 +49,12 @@ class MPT(Transformers):
             model = transformers.AutoModelForCausalLM.from_pretrained(
                 model,
                 config=config,
-                trust_remote_code=True
+                trust_remote_code=True,
+                **kwargs
             )
 
-        super().__init__(model, tokenizer=tokenizer, device_map=device_map, **kwargs)
+        super().__init__(model, tokenizer=tokenizer, caching=caching, token_healing=token_healing, \
+                         acceleration=acceleration, temperature=temperature, device=device, device_map=device_map, **kwargs)
 
 class MPTChat(MPT):
 
