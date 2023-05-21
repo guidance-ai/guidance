@@ -141,7 +141,12 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
             
             # we add the logprob of this token to the logprob of the suffix
             for k in sub_logprobs:
-                logprobs_out[k] = sub_logprobs[k] + logprob
+                
+                # compute the probability of a logical OR between the new extension and the previous possible ones
+                p1 = np.exp(logprobs_out[k])
+                p2 = np.exp(sub_logprobs[k] + logprob)
+                or_prob = p1 + p2 - p1*p2
+                logprobs_out[k] = np.log(or_prob)
 
         # if we did token healing and did not extend past our prefix we need to consider the next token
         # TODO: when returning all logprobs we need to consider all the options, which means we should
