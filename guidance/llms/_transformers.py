@@ -196,7 +196,7 @@ class TransformersSession(LLMSession):
                 def decorate_update_step(outputs, *args, **kwargs):
 
                     # save the past key values
-                    self._past_key_values = outputs.past_key_values
+                    self._past_key_values = getattr(outputs, "past_key_values", None)
 
                     return method(outputs, *args, **kwargs)
                 return decorate_update_step
