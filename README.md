@@ -27,7 +27,9 @@ pip install guidance
 ## Set API key
 
 Remember to get your OpenAI API key from [here](https://platform.openai.com/account/api-keys) and set it as:
+```                                     
 openai.api_key = 'sk-'
+```                                     
                                    
 ## Live streaming (<a href="https://github.com/microsoft/guidance/blob/main/notebooks/proverb.ipynb">notebook</a>)
 
