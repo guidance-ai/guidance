@@ -58,6 +58,7 @@ def add_text_to_chat_mode(chat_mode):
 chat_models = [
     "gpt-4",
     "gpt-3.5-turbo",
+    "gpt-4-32k",
     "gpt-4-0314",
     "gpt-3.5-turbo-0301"
 ]
