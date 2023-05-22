@@ -57,9 +57,10 @@ def add_text_to_chat_mode(chat_mode):
 # model that need to use the chat completion API
 chat_models = [
     "gpt-4",
-    "gpt-3.5-turbo",
     "gpt-4-32k",
     "gpt-4-0314",
+    "gpt-4-32k-0314",
+    "gpt-3.5-turbo",
     "gpt-3.5-turbo-0301"
 ]
 
