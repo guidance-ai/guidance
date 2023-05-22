@@ -1,4 +1,5 @@
 import guidance
+import pytest
 
 @pytest.mark.parametrize("flag, expected_output", [
     (True, "Answer: "),
