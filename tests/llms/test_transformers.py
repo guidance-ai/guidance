@@ -14,8 +14,6 @@ def test_repeat():
         out2 = s("this is a test like another", max_tokens=5)
         print(out2)
 
-
-
 def test_select():
     llm = get_transformers_llm('gpt2')
     program = guidance('''Answer "yes" or "no": "{{#select 'answer'}}yes{{or}}no{{/select}}"''', llm=llm)
