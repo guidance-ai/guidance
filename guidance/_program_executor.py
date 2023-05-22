@@ -385,8 +385,8 @@ class ProgramExecutor():
                         "block_content": self.block_content[-1],
                         "partial_output": self.extend_prefix,
                         "parser_node": node,
-                        "next_node": node.children[-1],
-                        "next_next_node": next_node,
+                        "next_node": next_node,
+                        "next_next_node": next_next_node,
                         "prev_node": node.children[0]
                     }
                 
