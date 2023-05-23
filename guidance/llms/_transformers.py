@@ -374,7 +374,7 @@ class TransformersSession(LLMSession):
     def _update_prefix_cache(self, streamer):
         # note what we now have cached and ready for our next call in this session
         if self._past_key_values and len(streamer.generated_sequence) == 1:
-            self._prefix_cache = streamer.generated_sequence[0][:self._past_key_values[0][0].shape[2]] # self._past_key_values is already saved, this just aligns with it
+            self._prefix_cache = streamer.generated_sequence[0][:self._past_key_values[0][0].shape[-2]] # self._past_key_values is already saved, this just aligns with it
 
     def _stream_then_save(self, streamer, key, thread):
         list_out = []

@@ -304,7 +304,7 @@ class OpenAI(LLM):
             data['messages'] = prompt_to_messages(data['prompt'])
             del data['prompt']
             del data['echo']
-            del data['stream']
+            del data['logprobs']
 
         # Send a POST request and get the response
         response = requests.post(self.endpoint, headers=headers, json=data, stream=stream)
