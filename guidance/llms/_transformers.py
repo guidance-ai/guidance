@@ -71,6 +71,12 @@ class Transformers(LLM):
         
         return out
     
+    def id_to_token(self, id):
+        return self._tokenizer.convert_ids_to_tokens([id])[0]
+    
+    def token_to_id(self, token):
+        return self._tokenizer.convert_tokens_to_ids([token])[0]
+    
     # def role_start(self, role):
     #     """ The starting role tag for chat models.
 
@@ -648,7 +654,7 @@ class TransformersStreamer():
                         display_logprobs = []
                         for k in range(len(display_scores)):
                             top_inds = display_scores[k][0].argsort(descending=True)[:self.logprobs] # TODO: verify the [0] is always correct
-                            display_logprobs.append({self.llm.decode([j]): display_scores[k][0][j] for j in top_inds})
+                            display_logprobs.append({self.llm.id_to_token(j): float(display_scores[k][0][j]) for j in top_inds})
 
                     val = self.generated_string[i][self.str_pos[i]:]
                     finish_reason = None
