@@ -7,11 +7,30 @@ import re
 import datetime
 import asyncio
 
-log_file = open("log.txt", "a")
+log_file = None
+
+
+def open_log_file():
+    global log_file
+    if log_file is None:
+        log_file = open("log.txt", "a")
+    return log_file
+
+
+def close_log_file():
+    global log_file
+    if log_file is not None:
+        log_file.close()
+        log_file = None
+
+
 def log(*args):
     # print(*args)
+    log_file = open_log_file()
     print(datetime.datetime.now().strftime("%H:%M:%S"), *args, file=log_file)
     log_file.flush()
+    # Currently never gets closed
+
 
 def load(guidance_file):
     ''' Load a guidance program from the given text file.
@@ -28,7 +47,8 @@ def load(guidance_file):
         return requests.get(guidance_file).text
     else:
         raise ValueError('Invalid guidance file: %s' % guidance_file)
-    
+
+
 def chain(programs, **kwargs):
     ''' Chain together multiple programs into a single program.
     
@@ -44,19 +64,20 @@ def chain(programs, **kwargs):
         else:
             sig = inspect.signature(program)
             args = ""
-            for name,_ in sig.parameters.items():
+            for name, _ in sig.parameters.items():
                 args += f" {name}={name}"
             fname = find_func_name(program, kwargs)
             kwargs["program%d" % i] = Program("{{set (%s%s)}}" % (fname, args), **{fname: program})
             # kwargs.update({f"func{i}": program})
     return Program(new_template, **kwargs)
 
+
 def find_func_name(f, used_names):
     if hasattr(f, "__name__"):
         prefix = f.__name__.replace("<", "").replace(">", "")
     else:
         prefix = "function"
-    
+
     if prefix not in used_names:
         return prefix
     else:
@@ -65,14 +86,16 @@ def find_func_name(f, used_names):
             if fname not in used_names:
                 return fname
 
+
 def strip_markers(s):
     return re.sub(r"{{!--G.*?--}}", r"", s, flags=re.MULTILINE | re.DOTALL)
+
 
 class JupyterComm():
     def __init__(self, target_id, ipython_handle, callback=None, on_open=None, mode="register"):
         from ipykernel.comm import Comm
-        
-        self.target_name = "guidance_interface_target_"+target_id
+
+        self.target_name = "guidance_interface_target_" + target_id
         # print("TARGET NAME", self.target_name)
         self.callback = callback
         self.jcomm = None
@@ -83,26 +106,27 @@ class JupyterComm():
         self.is_open = False
         asyncio.get_event_loop().create_task(self._send_loop())
         if mode == "register":
-            #log("REGISTERING", self.target_name)
+            # log("REGISTERING", self.target_name)
             # asyncio.get_event_loop().create_task(self._register())
             def comm_opened(comm, open_msg):
-                #log("OPENED")
+                # log("OPENED")
                 self.addd = 2
                 self.jcomm = comm
                 self.is_open = True
                 self.jcomm.on_msg(self._fire_callback)
                 self.open_event.set()
                 self._fire_callback({"content": {"data": {"event": "opened"}}})
+
             self.ipython_handle.kernel.comm_manager.register_target(self.target_name, comm_opened)
             # get_ipython().kernel.comm_manager.register_target(self.target_name, comm_opened) # noqa: F821
         elif mode == "open":
-            #log("OPENING", self.target_name)
+            # log("OPENING", self.target_name)
             self.jcomm = Comm(target_name=self.target_name)
             self.jcomm.on_msg(self._fire_callback)
             # self._fire_callback({"content": {"data": "opened"}})
         else:
             raise Exception("Passed mode must be either 'open' or 'register'!")
-        
+
     # async def _register(self):
     #     def comm_opened(comm, open_msg):
     #         #log("OPENED")
@@ -134,17 +158,17 @@ class JupyterComm():
 
     async def _send_loop(self):
         while True:
-            #log("SENDING_LOOP")
+            # log("SENDING_LOOP")
             if self.jcomm is None:
                 self.open_event.clear()
                 await self.open_event.wait()
             data = await self.send_queue.get()
-            #log("SENDING_LOOP got one!")
+            # log("SENDING_LOOP got one!")
             self.jcomm.send({"data": json.dumps(data)})
-    
+
     # async def _waiting_send(self, data):
     #     #log("SENDING", self.jcomm, data)
-        
+
     #     # await the open event if needed
     #     if self.jcomm is None:
     #         self.open_event.clear()
@@ -152,13 +176,16 @@ class JupyterComm():
     #     #log("SENDING_now", self.jcomm, data)
     #     self.jcomm.send({"data": json.dumps(data)}) # we encode the JSON so iPython doesn't mess it up
 
+
 # https://stackoverflow.com/questions/15411967/how-can-i-check-if-code-is-executed-in-the-ipython-notebook
 def is_interactive():
     import __main__ as main
     return not hasattr(main, '__file__')
 
+
 def escape_template_block(text):
     return text.replace("$", "&#36;").replace("{", "&#123;").replace("}", "&#125;")
+
 
 def unescape_template_block(text):
     return text.replace("&#36;", "$").replace("&#123;", "{").replace("&#125;", "}")
