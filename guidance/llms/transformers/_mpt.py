@@ -15,9 +15,7 @@ class MPT(Transformers):
 
     cache = LLM._open_cache("_mpt.diskcache")
 
-    def __init__(self, model, tokenizer=None, max_seq_len=None, attn_impl=None, device_map=None, **kwargs):
-        """ Create a new LLaMA model.
-        """
+    def _model_and_tokenizer(self, model, tokenizer, **kwargs):
 
         # load the MPT specific tokenizer and model
         import transformers
@@ -25,7 +23,7 @@ class MPT(Transformers):
 
             # MPT uses the same tokenizer as GPT-NeoX
             if tokenizer is None:
-                tokenizer = tokenizer = transformers.AutoTokenizer.from_pretrained("EleutherAI/gpt-neox-20b", device_map=device_map)
+                tokenizer = tokenizer = transformers.AutoTokenizer.from_pretrained("EleutherAI/gpt-neox-20b", **kwargs)
             
             dynamic_kwargs = {}
 
@@ -36,22 +34,23 @@ class MPT(Transformers):
             )
 
             # allow for a custom attention implementation
-            if attn_impl is not None:
+            if kwargs.get("attn_impl", None) is not None:
                 import torch
-                config.attn_config['attn_impl'] = attn_impl
+                config.attn_config['attn_impl'] = kwargs["attn_impl"]
                 dynamic_kwargs["torch_dtype"] = torch.bfloat16
 
             # allow for a custom max_seq_len (enabled by ALiBi)
-            if max_seq_len is not None:
-                config.update({"max_seq_len": max_seq_len})
+            if kwargs.get("max_seq_len", None) is not None:
+                config.update({"max_seq_len": kwargs["max_seq_len"]})
 
             model = transformers.AutoModelForCausalLM.from_pretrained(
                 model,
                 config=config,
-                trust_remote_code=True
+                trust_remote_code=True,
+                **kwargs
             )
-
-        super().__init__(model, tokenizer=tokenizer, device_map=device_map, **kwargs)
+            
+        return super()._model_and_tokenizer(model, tokenizer, **kwargs)
 
 class MPTChat(MPT):
 

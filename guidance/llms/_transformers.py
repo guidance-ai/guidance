@@ -14,7 +14,8 @@ class Transformers(LLM):
 
     cache = LLM._open_cache("_transformers.diskcache")
 
-    def __init__(self, model=None, tokenizer=None, caching=True, token_healing=True, acceleration=True, temperature=0.0, device=None, device_map=None, role_start=None, role_end=None):
+    def __init__(self, model=None, tokenizer=None, caching=True, token_healing=True, acceleration=True, \
+                 temperature=0.0, device=None, **kwargs):
         super().__init__()
 
         # fill in default model value
@@ -27,7 +28,7 @@ class Transformers(LLM):
             except:
                 pass
 
-        self.model_obj, self._tokenizer = self._model_and_tokenizer(model, tokenizer, device_map)
+        self.model_obj, self._tokenizer = self._model_and_tokenizer(model, tokenizer, **kwargs)
         self._generate_call = self.model_obj.generate
 
         self.model_name = model
@@ -120,7 +121,7 @@ class Transformers(LLM):
 
         return token_map
 
-    def _model_and_tokenizer(self, model, tokenizer, device_map):
+    def _model_and_tokenizer(self, model, tokenizer, **kwargs):
 
         # make sure transformers is installed
         try:
@@ -131,8 +132,8 @@ class Transformers(LLM):
         # intantiate the model and tokenizer if needed
         if isinstance(model, str):
             if tokenizer is None:
-                tokenizer = transformers.AutoTokenizer.from_pretrained(model, device_map=device_map)
-            model = transformers.AutoModelForCausalLM.from_pretrained(model, device_map=device_map)
+                tokenizer = transformers.AutoTokenizer.from_pretrained(model, **kwargs)
+            model = transformers.AutoModelForCausalLM.from_pretrained(model, **kwargs)
         
         assert tokenizer is not None, "You must give a tokenizer object when you provide a model object (as opposed to just a model name)!"
             
@@ -196,7 +197,7 @@ class TransformersSession(LLMSession):
                 def decorate_update_step(outputs, *args, **kwargs):
 
                     # save the past key values
-                    self._past_key_values = outputs.past_key_values
+                    self._past_key_values = getattr(outputs, "past_key_values", None)
 
                     return method(outputs, *args, **kwargs)
                 return decorate_update_step

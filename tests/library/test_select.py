@@ -124,6 +124,28 @@ def test_overlapping_options(llm):
     out = program(options=options)
     assert out["selected"] in options
 
+@pytest.mark.parametrize("llm", ["transformers:gpt2", "openai:text-curie-001"])
+def test_non_greedy_tokenize(llm):
+    """ Test the behavior of `select` when the GPT tokenizer is not greedy (odd space handling).
+    """
+
+    llm = get_llm(llm)
+    program = guidance('''Is the following sentence offensive? Please answer with a single word, either "Yes", "No", or "Maybe".
+Sentence: {{example}}
+Answer:{{#select "answer" logprobs='logprobs'}} 
+    Yes{{or}} 
+    No{{or}} 
+    Maybe
+{{/select}}''', llm=llm)
+    executed_program = program(example='I hate tacos')
+    assert executed_program["answer"] in [" \n    Yes", " \n    No", " \n    Maybe\n"]
+
+import guidance
+
+guidance.llm = guidance.llms.OpenAI("text-davinci-003")
+# the {{#select}} command allows you to use the LLM to select from a set of options
+
+
 # TODO: fix this next
 # def test_unexpected_tokens():
 #     """ Test the behavior of `select` when the next tokens are hard to predict.

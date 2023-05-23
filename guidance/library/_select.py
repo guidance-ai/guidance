@@ -50,9 +50,12 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
         next_text = parser.program.llm.end_of_text()
     options = [option + next_text for option in options]
 
+    # TODO: this retokenizes the whole prefix many times, perhaps this could become a bottleneck?
+    options_tokens = [parser.program.llm.encode(parser_prefix + option) for option in options]
+
     # build a trie of the options
-    token_map = pygtrie.CharTrie()
-    for i,option in enumerate(options):
+    token_map = pygtrie.Trie()
+    for i,option in enumerate(options_tokens):
         token_map[option] = i
     
     async def recursive_select(current_prefix, allow_token_extension=True):
@@ -85,38 +88,9 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
                 # extension_options = [(option[i:], index) for option,index in extension_options]
 
         # bias the logits towards valid options
-        # TODO: this retokenizes the whole prefix many times, perhaps this could become a bottleneck?
-        tmp_prefix = parser_prefix + current_prefix # this is so we get the right tokenization at the boundary
-        tmp_prefix_tokens = parser.program.llm.encode(tmp_prefix)
-        logit_bias1 = {} # token extension biases
-        logit_bias2 = {} # next token biases
-        for option,index in extension_options:
-            option_tokens = parser.program.llm.encode(parser_prefix + option)
-            
-            # if we extended the last token to a longer one
-            if len(tmp_prefix_tokens) > 0 and option_tokens[len(tmp_prefix_tokens)-1] != tmp_prefix_tokens[-1] or len(option_tokens) == len(tmp_prefix_tokens):
-                if allow_token_extension: # this is a valid extension only if we are not allowed to extend the token
-                    logit_bias1[option_tokens[len(tmp_prefix_tokens)-1]] = 100
-            
-            # if we did not extend the last token to a longer one we can bias the next token
-            else:
-                logit_bias2[option_tokens[len(tmp_prefix_tokens)]] = 100
-
-            # logit_bias[option_tokens[len(tmp_prefix_tokens)-1]] = tmp_prefix_tokens[-1]
-            # if len(option_tokens) > len(tmp_prefix_tokens) and :
-            #     logit_bias[option_tokens[len(tmp_prefix_tokens)]] = 100
-
-        # extend the prefix by extending the last token
-        if len(logit_bias1) > 0:
-            call_prefix = parser.program.llm.decode(tmp_prefix_tokens[:-1])
-            logit_bias = logit_bias1
-            last_token_str = parser.program.llm.decode(tmp_prefix_tokens[-1:])
-
-        # extend the prefix by adding the next token
-        else:
-            call_prefix = tmp_prefix
-            logit_bias = logit_bias2
-            last_token_str = ""
+        logit_bias = {}
+        for option_tokens,index in extension_options:
+            logit_bias[option_tokens[match_index]] = 100
 
         # check for where we are at the end of the prefix
         if len(logit_bias) == 0 and current_prefix in [o[0] for o in extension_options]:
@@ -125,7 +99,7 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
 
         # generate the token logprobs
         gen_obj = await parser.llm_session(
-            call_prefix, # TODO: perhaps we should allow passing of token ids directly? (this could allow us to avoid retokenizing the whole prefix many times)
+            parser.program.llm.decode(current_prefix), # TODO: perhaps we should allow passing of token ids directly? (this could allow us to avoid retokenizing the whole prefix many times)
             max_tokens=1,
             logit_bias=logit_bias,
             logprobs=len(logit_bias),
@@ -133,7 +107,13 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
             token_healing=False # we manage token boundary healing ourselves for this function
         )
         logprobs_result = gen_obj["choices"][0]["logprobs"]
-        top_logprobs = logprobs_result["top_logprobs"][0]
+        
+        # convert the logprobs keys from string back to token ids
+        top_logprobs = {}
+        for k,v in logprobs_result["top_logprobs"][0].items():
+            ids = parser.program.llm.encode(k)
+            assert len(ids) == 1
+            top_logprobs[ids[0]] = v
         
         # no need to explore all branches if we are just taking the greedy max
         if logprobs is None:
@@ -141,19 +121,9 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
             top_logprobs = {max_key: top_logprobs[max_key]}
 
         # for each possible next token, see if it grows the prefix in a valid way
-        for token_str,logprob in top_logprobs.items():
+        for token,logprob in top_logprobs.items():
+            sub_logprobs = await recursive_select(current_prefix + [token])
 
-            # build our recursive call prefix
-            if not token_str.startswith(last_token_str):
-                continue
-            rec_prefix = current_prefix + token_str[len(last_token_str):]
-            
-            # if we did not extend the last token then we recurse while ignoring the possibility of extending the last token
-            if token_str == last_token_str:
-                sub_logprobs = await recursive_select(rec_prefix, allow_token_extension=False)
-            else:
-                sub_logprobs = await recursive_select(rec_prefix)
-            
             # we add the logprob of this token to the logprob of the suffix
             for k in sub_logprobs:
 
@@ -166,11 +136,13 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
         return logprobs_out
         
     # recursively compute the logprobs for each option
-    option_logprobs = await recursive_select("")
+    option_logprobs = await recursive_select([])
 
-    # trim off the suffix we added to the options
-    if next_text != "":
-        option_logprobs = {k[:-len(next_text)]: v for k,v in option_logprobs.items()}
+    # convert the key from a token list to a string
+    option_logprobs = {parser.program.llm.decode(k): v for k,v in option_logprobs.items()}
+
+    # trim off the prefix and suffix we added to the options
+    option_logprobs = {k[len(parser_prefix):len(k)-len(next_text)]: v for k,v in option_logprobs.items()}
 
     # select the option with the highest logprob
     selected_option = max(option_logprobs, key=option_logprobs.get)
