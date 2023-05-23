@@ -45,6 +45,12 @@ class LLM():
     def decode(self, tokens, **kwargs):
         return self._tokenizer.decode(tokens, **kwargs)
     
+    def id_to_token(self, id):
+        return self.decode([id])
+    
+    def token_to_id(self, token):
+        return self.encode(token)[0]
+    
     @staticmethod
     def _open_cache(file_name):
         return diskcache.Cache(os.path.join(platformdirs.user_cache_dir("guidance"), file_name))

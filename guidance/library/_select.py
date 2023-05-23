@@ -108,12 +108,11 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
         )
         logprobs_result = gen_obj["choices"][0]["logprobs"]
         
-        # convert the logprobs keys from string back to token ids
+        # convert the logprobs keys from string back to token ids if needed
         top_logprobs = {}
         for k,v in logprobs_result["top_logprobs"][0].items():
-            ids = parser.program.llm.encode(k)
-            assert len(ids) == 1
-            top_logprobs[ids[0]] = v
+            id = parser.program.llm.token_to_id(k)
+            top_logprobs[id] = v
         
         # no need to explore all branches if we are just taking the greedy max
         if logprobs is None:
