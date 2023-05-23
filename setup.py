@@ -37,7 +37,8 @@ setup(
         "tiktoken>=0.3",
         "nest_asyncio",
         "requests",
-        "numpy"
+        "numpy",
+        "anthropic"
     ],
     extras_require={
         'docs': [
