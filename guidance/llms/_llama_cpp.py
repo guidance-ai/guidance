@@ -9,7 +9,7 @@ import queue
 import threading
 import logging
 
-
+import torch
 
 from ._llm import LLM, LLMSession, SyncSession
 
@@ -27,6 +27,7 @@ class LlamaCppSettings:
     logits_all: bool = True
     use_mmap: bool = False
     verbose: bool = False
+    tokenizer_name: str = ""
 
 class LlamaCpp(LLM):
     """ A HuggingFace transformers language model with Guidance support.
@@ -40,6 +41,7 @@ class LlamaCpp(LLM):
         super().__init__()
 
         from llama_cpp import Llama, llama_n_vocab
+        from transformers import AutoTokenizer
         self.settings = settings
         self.model_obj = Llama(
             settings.model,
@@ -67,11 +69,11 @@ class LlamaCpp(LLM):
         self.temperature = temperature
         self.token_healing = token_healing
         self.acceleration = acceleration
-        temp = self.model_obj.tokenize("temp".encode(), True)
-        self._prefix_ids = [temp[0], 100]  # token ids that we use to decode tokens after a prefix
-        self._prefix_str = self.model_obj.detokenize(tokens=self._prefix_ids).decode("utf-8")
+        self._tokenizer = AutoTokenizer.from_pretrained(settings.tokenizer_name)
+        self._prefix_ids = [self._tokenizer.bos_token_id, 100]  # token ids that we use to decode tokens after a prefix
+        self._prefix_str = self._tokenizer.decode(self._prefix_ids, fragment=False)
 
-        self._token_prefix_map = self._build_token_prefix_map()
+        self._token_prefix_map = self._build_token_prefix_map(settings.tokenizer_name)
 
     def prefix_matches(self, prefix):
         """ Return the list of tokens that match the given prefix.
@@ -80,35 +82,47 @@ class LlamaCpp(LLM):
 
     def encode(self, string, fragment=True, **kwargs):
 
-        if isinstance(string, bytes):
-            string = string.decode("utf-8")
-
         if fragment:
             string = self._prefix_str + string
-        out = {}
+
         if "return_tensors" in kwargs:
-            out['input_ids'] = self.model_obj.tokenize(string.encode("utf-8"))
+            out = self._tokenizer(string, **kwargs)
         else:
-            out['input_ids'] = self.model_obj.tokenize(string.encode('utf-8'))
+            out = self._tokenizer.encode(string, **kwargs)
 
         # remove the start token when we are encoding a suffix
         if fragment:
-            if out['input_ids'][1] == self.model_obj.token_bos():  # sometime the tokenizer adds an extra start token
-                out = out['input_ids'][3:]
-            else:
-                out = out['input_ids'][2:]
+            if isinstance(out, list):
+                if out[1] == self._tokenizer.bos_token_id:  # sometime the tokenizer adds an extra start token
+                    out = out[3:]
+                else:
+                    out = out[2:]
+            else:  # Assuming out is a tensor
+                if out[0, 1] == self._tokenizer.bos_token_id:  # sometime the tokenizer adds an extra start token
+                    out = out[:, 3:]
+                else:
+                    out = out[:, 2:]
 
         return out
 
-    # def role_start(self, role):
-    #     """ The starting role tag for chat models.
+    def id_to_token(self, id):
+        return self._tokenizer.convert_ids_to_tokens([id])[0]
 
-    #     #TODO Right now this just assumes the StableLM syntax, but this should be expanded later.
-    #     """
-    #     return "<|"+role.upper()+"|>"
+    def token_to_id(self, token):
+        return self._tokenizer.convert_tokens_to_ids([token])[0]
 
-    # def role_end(self, role=None):
-    #     return ""
+        # def role_start(self, role):
+        #     """ The starting role tag for chat models.
+
+        #     #TODO Right now this just assumes the StableLM syntax, but this should be expanded later.
+        #     """
+        #     return "<|"+role.upper()+"|>"
+
+        # def role_end(self, role=None):
+        #     return ""
+
+    def end_of_text(self):
+        return self._tokenizer.eos_token
 
     @staticmethod
     def role_start(role):
@@ -121,24 +135,45 @@ class LlamaCpp(LLM):
         add_eos = ""
         add_bos = ""
         if fragment:
-            if len(tokens) > 0 and tokens[-1] == self.model_obj.token_eos():
-                add_eos = self.model_obj.detokenize([self.model_obj.token_eos()]).decode("utf-8")
-                tokens = tokens[:-1]
-            if len(tokens) > 0 and tokens[0] == self.model_obj.token_bos():
-                add_bos = self.model_obj.detokenize([self.model_obj.token_bos()]).decode("utf-8")
-                tokens = tokens[1:]
+            if isinstance(tokens, list):
+                if len(tokens) > 0 and tokens[-1] == self._tokenizer.eos_token_id:
+                    add_eos = self._tokenizer.eos_token
+                    tokens = tokens[:-1]
+                if len(tokens) > 0 and tokens[0] == self._tokenizer.bos_token_id:
+                    add_bos = self._tokenizer.bos_token
+                    tokens = tokens[1:]
+            elif isinstance(tokens, torch.Tensor):  # Assuming tokens is a tensor
+                if len(tokens) > 0 and tokens[0, -1].item() == self._tokenizer.eos_token_id:
+                    add_eos = self._tokenizer.eos_token
+                    tokens = tokens[:-1]
+                if len(tokens) > 0 and tokens[0, 0].item() == self._tokenizer.bos_token_id:
+                    add_bos = self._tokenizer.bos_token
+                    tokens = tokens[1:]
+            elif isinstance(tokens, tuple):  # Assuming tokens is a tensor
+                if len(tokens) > 0 and tokens[-1] == self._tokenizer.eos_token_id:
+                    add_eos = self._tokenizer.eos_token
+                    tokens = tokens[:-1]
+                if len(tokens) > 0 and tokens[0] == self._tokenizer.bos_token_id:
+                    add_bos = self._tokenizer.bos_token
+                    tokens = tokens[1:]
 
+        # Decode the string corresponding to a single suffix token.
+        # Note that we need to decode after the start token for sentence-piece tokenizers so that white space is preserved
         if fragment:
-            return add_bos + (self.model_obj.detokenize(self._prefix_ids + list(tokens))[
-                              len(self._prefix_str):]).decode("utf-8", errors="ignore") + add_eos
+            if isinstance(tokens, list):
+                return add_bos + self._tokenizer.decode(self._prefix_ids + tokens)[len(self._prefix_str):] + add_eos
+            elif isinstance(tokens, torch.Tensor):
+                return add_bos + self._tokenizer.decode(self._prefix_ids + tokens[0].tolist())[len(self._prefix_str):] + add_eos
+            elif isinstance(tokens, tuple):
+                return add_bos + self._tokenizer.decode(self._prefix_ids + list(tokens))[len(self._prefix_str):] + add_eos
         else:
-            return add_bos + (self.model_obj.detokenize(tokens).decode("utf-8", errors="ignore")) + add_eos
+            return add_bos + self._tokenizer.decode(tokens, **kwargs) + add_eos
 
-    def _build_token_prefix_map(self):
+    def _build_token_prefix_map(self, model_name):
         """ Build a map from token to index.
         """
         token_map = pygtrie.CharTrie()
-        for i in range(self.vocab_size):
+        for i in range(self._tokenizer.vocab_size):
             s = self.decode([i])
             if s in token_map:
                 token_map[s].append(i)  # handle duplicate token encodings... (GPT2 BPE has this oddly enough)
@@ -277,11 +312,11 @@ class LlamaCppSession(LLMSession):
             # setup token healing
             if token_healing:
                 # pop off the last token since we will regen it
-                last_token_id = input_ids[-1]
+                last_token_id = input_ids[0, -1].item()
                 last_token_str = self.llm.decode([last_token_id])
                 healer = TokenHealingLogitsProcessor(self.llm, self.llm.vocab_size, last_token_str)
                 if healer.should_bias:
-                    input_ids = input_ids[0:-1]
+                    input_ids = input_ids[:, :-1]
                     max_tokens += 1  # add one for the token we regen for token healing
                     processors.append(healer)
                 else:
@@ -589,13 +624,16 @@ class BiasLogitsProcessor():
         import torch
 
         self.bias_vector = torch.zeros(vocab_size)
+        self.logit_bias = logit_bias
         for token, bias in logit_bias.items():
             self.bias_vector[token] = bias
         self.bias_vector = self.bias_vector
+        self.model = model
 
     def __call__(self, input_ids, scores):
         import torch
-        return (torch.tensor(scores) + self.bias_vector).tolist()
+        new_score = torch.tensor(scores)
+        return (new_score + self.bias_vector).tolist()
 
 
 class RegexLogitsProcessor():
