@@ -145,10 +145,10 @@ class LlamaCpp(LLM):
             elif isinstance(tokens, torch.Tensor):  # Assuming tokens is a tensor
                 if len(tokens) > 0 and tokens[0, -1].item() == self._tokenizer.eos_token_id:
                     add_eos = self._tokenizer.eos_token
-                    tokens = tokens[:-1]
+                    tokens = tokens[0:, :-1]
                 if len(tokens) > 0 and tokens[0, 0].item() == self._tokenizer.bos_token_id:
                     add_bos = self._tokenizer.bos_token
-                    tokens = tokens[1:]
+                    tokens = tokens[0:, 1:]
             elif isinstance(tokens, tuple):  # Assuming tokens is a tensor
                 if len(tokens) > 0 and tokens[-1] == self._tokenizer.eos_token_id:
                     add_eos = self._tokenizer.eos_token
