@@ -109,7 +109,7 @@ class LlamaCpp(LLM):
         return self._tokenizer.convert_ids_to_tokens([id])[0]
 
     def token_to_id(self, token):
-        return self._tokenizer.convert_tokens_to_ids([token])[0]
+        return self.model_obj.tokenize(token.encode("utf-8"), False)[0]
 
         # def role_start(self, role):
         #     """ The starting role tag for chat models.
