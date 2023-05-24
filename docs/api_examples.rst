@@ -7,7 +7,7 @@ API Examples
 
 These examples parallel the namespace structure of Guidance. Each object or function in Guidance has a 
 corresponding example notebook here that demonstrates its API usage. The source notebooks
-are `available on GitHub <https://github.com/microsfot/guidance/tree/master/notebooks/api_examples>`_.
+are `available on GitHub <https://github.com/microsoft/guidance/tree/master/notebooks/api_examples>`_.
 
 
 .. _library_examples:

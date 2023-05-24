@@ -55,3 +55,4 @@ llms
     guidance.llms.transformers.MPT
     guidance.llms.transformers.StableLM
     guidance.llms.transformers.Vicuna
+    guidance.llms.transformers.Koala

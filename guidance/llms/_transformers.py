@@ -14,7 +14,8 @@ class Transformers(LLM):
 
     cache = LLM._open_cache("_transformers.diskcache")
 
-    def __init__(self, model=None, tokenizer=None, caching=True, token_healing=True, acceleration=True, temperature=0.0, device=None, device_map=None, role_start=None, role_end=None):
+    def __init__(self, model=None, tokenizer=None, caching=True, token_healing=True, acceleration=True, \
+                 temperature=0.0, device=None, **kwargs):
         super().__init__()
 
         # fill in default model value
@@ -27,7 +28,7 @@ class Transformers(LLM):
             except:
                 pass
 
-        self.model_obj, self._tokenizer = self._model_and_tokenizer(model, tokenizer, device_map)
+        self.model_obj, self._tokenizer = self._model_and_tokenizer(model, tokenizer, **kwargs)
         self._generate_call = self.model_obj.generate
 
         self.model_name = model
@@ -70,6 +71,12 @@ class Transformers(LLM):
         
         return out
     
+    def id_to_token(self, id):
+        return self._tokenizer.convert_ids_to_tokens([id])[0]
+    
+    def token_to_id(self, token):
+        return self._tokenizer.convert_tokens_to_ids([token])[0]
+    
     # def role_start(self, role):
     #     """ The starting role tag for chat models.
 
@@ -79,6 +86,13 @@ class Transformers(LLM):
     
     # def role_end(self, role=None):
     #     return ""
+
+    def end_of_text(self):
+        return self._tokenizer.eos_token
+
+    @staticmethod
+    def role_start(role):
+        raise NotImplementedError("In order to use chat role tags you need to use a chat-specific subclass of Transformers for your LLM from guidance.transformers.*!")
     
     def decode(self, tokens, fragment=True, **kwargs):
 
@@ -113,7 +127,7 @@ class Transformers(LLM):
 
         return token_map
 
-    def _model_and_tokenizer(self, model, tokenizer, device_map):
+    def _model_and_tokenizer(self, model, tokenizer, **kwargs):
 
         # make sure transformers is installed
         try:
@@ -124,8 +138,8 @@ class Transformers(LLM):
         # intantiate the model and tokenizer if needed
         if isinstance(model, str):
             if tokenizer is None:
-                tokenizer = transformers.AutoTokenizer.from_pretrained(model, device_map=device_map)
-            model = transformers.AutoModelForCausalLM.from_pretrained(model, device_map=device_map)
+                tokenizer = transformers.AutoTokenizer.from_pretrained(model, **kwargs)
+            model = transformers.AutoModelForCausalLM.from_pretrained(model, **kwargs)
         
         assert tokenizer is not None, "You must give a tokenizer object when you provide a model object (as opposed to just a model name)!"
             
@@ -189,7 +203,7 @@ class TransformersSession(LLMSession):
                 def decorate_update_step(outputs, *args, **kwargs):
 
                     # save the past key values
-                    self._past_key_values = outputs.past_key_values
+                    self._past_key_values = getattr(outputs, "past_key_values", None)
 
                     return method(outputs, *args, **kwargs)
                 return decorate_update_step
@@ -228,9 +242,13 @@ class TransformersSession(LLMSession):
         stop_regex.append(regex.escape(self.llm._tokenizer.eos_token)) # make sure the end of sequence token is always included
 
         # handle caching
-        if key not in self.llm.cache or (caching is not True and not self.llm.caching) or caching is False:
+        in_cache = key in self.llm.cache
+        not_caching = (caching is not True and not self.llm.caching) or caching is False
+        if not in_cache or not_caching:
             import transformers
-            # import torch
+
+            assert prompt != "", "You must provide a non-zero length prompt to the Transformers language model!"
+
             # encode the prompt
             encoded = self.llm.encode([prompt for _ in range(n)], return_tensors="pt", fragment=False)
             if self.llm.device is not None:
@@ -273,12 +291,19 @@ class TransformersSession(LLMSession):
                 max_tokens = max_context - len(input_ids[0])
 
             # find how much of the prompt is cached
-            for prefix_match_len, token in enumerate(input_ids[0]):
+            prefix_match_len = 0
+            for token in input_ids[0]:
                 if prefix_match_len >= len(self._prefix_cache) or token != self._prefix_cache[prefix_match_len]:
                     break
+                else:
+                    prefix_match_len += 1
+
+            # we always need to run the model on at least one token so transformers is happy
+            if prefix_match_len == len(input_ids[0]):
+                prefix_match_len -= 1
 
             # trim the cache to what we can use
-            if prefix_match_len > 0 and prefix_match_len < len(self._prefix_cache):
+            if prefix_match_len < len(self._prefix_cache): # prefix_match_len > 0 and 
                 self._past_key_values = tuple((key[:,:,:prefix_match_len,:],value[:,:,:prefix_match_len,:]) for key,value in self._past_key_values) # TODO: this is specific to the GPT2 tensor layout
                 self._prefix_cache = self._prefix_cache[:prefix_match_len]
 
@@ -349,7 +374,7 @@ class TransformersSession(LLMSession):
     def _update_prefix_cache(self, streamer):
         # note what we now have cached and ready for our next call in this session
         if self._past_key_values and len(streamer.generated_sequence) == 1:
-            self._prefix_cache = streamer.generated_sequence[0][:self._past_key_values[0][0].shape[2]] # self._past_key_values is already saved, this just aligns with it
+            self._prefix_cache = streamer.generated_sequence[0][:self._past_key_values[0][0].shape[-2]] # self._past_key_values is already saved, this just aligns with it
 
     def _stream_then_save(self, streamer, key, thread):
         list_out = []
@@ -359,6 +384,7 @@ class TransformersSession(LLMSession):
         thread.join() # clean up the thread
         self.llm.cache[key] = list_out
         self._update_prefix_cache(streamer)
+        self._last_computed_key = key
 
     def __exit__(self, exc_type, exc_value, traceback):
         """ Restore the model to its original state by removing monkey patches.
@@ -602,7 +628,7 @@ class TransformersStreamer():
         # extract the scores if we are given them (and format them to be the same shape as the tokens)
         if self.logprobs:
             assert len(new_tokens) == 1, "logprobs are not supported for batched generation right now in guidance.llms.Transformers"
-            new_scores = [x.cpu() for x in token_obj['scores']]
+            new_scores = [torch.nn.functional.log_softmax(x, dim=-1).cpu() for x in token_obj['scores']]
             len_diff = len(new_tokens[0]) - len(new_scores)
             if len_diff > 0:
                 new_scores = [None for i in range(len_diff)] + new_scores
@@ -628,7 +654,7 @@ class TransformersStreamer():
                         display_logprobs = []
                         for k in range(len(display_scores)):
                             top_inds = display_scores[k][0].argsort(descending=True)[:self.logprobs] # TODO: verify the [0] is always correct
-                            display_logprobs.append({self.llm.decode([j]): display_scores[k][0][j] for j in top_inds})
+                            display_logprobs.append({self.llm.id_to_token(j): float(display_scores[k][0][j]) for j in top_inds})
 
                     val = self.generated_string[i][self.str_pos[i]:]
                     finish_reason = None
@@ -643,7 +669,8 @@ class TransformersStreamer():
 
                     # trim off the stop regex matches if needed
                     found_partial = False
-                    if self.stop_regex is not None and (finish_reason is None or len(self.input_ids) > 1):
+                    stop_text = None
+                    if self.stop_regex is not None:# and (finish_reason is None or len(self.input_ids) > 1):
                         stop_regex_obj = [regex.compile(s) for s in self.stop_regex]
                         for s in stop_regex_obj:
                             m = s.search(val, partial=True)
@@ -654,7 +681,9 @@ class TransformersStreamer():
                                         found_partial = True
                                         break
                                     else:
+                                        stop_text = val[span[0]:span[1]]
                                         stop_pos = min(span[0], stop_pos)
+                                        break
 
                     # record the reason we stopped (if we have stopped)
                     if stop_pos <= len(val):
@@ -664,6 +693,7 @@ class TransformersStreamer():
                         out["choices"][i] = {
                             "text": val[:stop_pos],
                             "finish_reason": finish_reason,
+                            "stop_text": stop_text,
                             "logprobs": {"token_healing_prefix": self.last_token_str, "top_logprobs": display_logprobs}
                         }
                         self.str_pos[i] = len(self.generated_string[i])

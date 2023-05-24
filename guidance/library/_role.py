@@ -13,9 +13,9 @@ async def role(name, hidden=False, _parser_context=None):
 
     out = await parser.visit(
         block_content[0],
-        next_node=_parser_context["next_node"],
+        next_node=_parser_context["block_close_node"],
         prev_node=_parser_context["prev_node"],
-        next_next_node=_parser_context["next_next_node"]
+        next_next_node=_parser_context["next_node"]
     )
 
     # send the role-end special tokens

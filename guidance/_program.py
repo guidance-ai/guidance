@@ -33,7 +33,7 @@ class Program:
     the generated output to mark where template tags used to be.
     '''
 
-    def __init__(self, text, llm=None, cache_seed=0, logprobs=None, silent='auto', async_mode=False, stream='auto', caching=None, await_missing=False, **kwargs):
+    def __init__(self, text, llm=None, cache_seed=0, logprobs=None, silent='auto', async_mode=False, stream=None, caching=None, await_missing=False, **kwargs):
         """ Create a new Program object from a program string.
 
         Parameters
@@ -56,8 +56,9 @@ class Program:
         async_mode : bool (default False)
             If True, the program will be executed asynchronously. This is useful for programs that
             take a long time to run, or that need to be run in parallel.
-        stream : bool (default False)
-            If True, the program will try to stream all the results from the LLM token by token.
+        stream : bool (default None)
+            If True, the program will try to stream all the results from the LLM token by token. If None
+            streaming will be enabled if is needed for funtionality. (Warning: this param may change a bit in the future)
         caching : bool (default None)
             If True, the program will cache the results of the LLM. If False, it will not cache the results.
             If None, it will use the default caching setting from the LLM.
@@ -71,15 +72,14 @@ class Program:
 
         # see if we were given a raw function instead of a string template
         # if so, convert it to a string template that calls the function
-        if not isinstance(text, str):
-            if callable(text):
-                sig = inspect.signature(text)
-                args = ""
-                for name,_ in sig.parameters.items():
-                    args += f" {name}={name}"
-                fname = _utils.find_func_name(text, kwargs)
-                kwargs[fname] = text
-                text = "{{set (%s%s)}}" % (fname, args)
+        if not isinstance(text, str) and callable(text):
+            sig = inspect.signature(text)
+            args = ""
+            for name,_ in sig.parameters.items():
+                args += f" {name}={name}"
+            fname = _utils.find_func_name(text, kwargs)
+            kwargs[fname] = text
+            text = "{{set (%s%s)}}" % (fname, args)
         
         # save the given parameters
         self._text = text
@@ -122,6 +122,7 @@ class Program:
 
         # see if we are in an ipython environment
         try:
+            from IPython import get_ipython
             self._ipython = get_ipython()
         except:
             self._ipython = None
@@ -265,7 +266,7 @@ class Program:
                 if last:
                     self._comm.send({"event": "complete"})
             
-            # ...otherwise dump the client to the font end
+            # ...otherwise dump the client to the front end
             else:
                 log.debug(f"Updating display dump to front end")
                 from IPython.display import clear_output, display
@@ -573,7 +574,8 @@ _built_ins = {
     "greater": library.greater,
     ">": library.greater,
     "less": library.less,
-    "<": library.less
+    "<": library.less,
+    "contains": library.contains
 }
 
 class DisplayThrottler():

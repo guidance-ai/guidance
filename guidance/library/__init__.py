@@ -19,3 +19,4 @@ from ._break import break_
 from ._equal import equal
 from ._greater import greater
 from ._less import less
+from ._contains import contains

@@ -1,7 +1,9 @@
 import guidance
+import pytest
+from ..utils import get_llm
 
 def test_gen():
-    """ Test that LM geneation works.
+    """ Test that LM generation works.
     """
 
     llm = guidance.llms.Mock(" Sue")
@@ -27,6 +29,50 @@ def test_gen_n_greater_than_one_hidden():
 
 def test_pattern():
     import re
-    llm = guidance.llms.Transformers("gpt2")
+    llm = get_llm("transformers:gpt2")
     out = guidance('''On a scale of 1-10 I would say it is: {{gen 'score' pattern="[0-9]+"}}''', llm=llm)()
     assert re.match(r'[0-9]+', out["score"])
+
+def test_pattern2():
+    import re
+
+    prompt = '''
+    Tweak this proverb to apply to machine learning model instructions instead.
+
+    {{proverb}}
+    - {{book}} {{chapter}}:{{verse}}
+
+    UPDATED
+    Where there is no guidance, a people falls, but in an abundance of counselors there is safety.
+    - GPT {{gen 'chapter' pattern='[0-9]' max_tokens=1}}:{{gen 'verse' pattern='[0-9]+' stop='\\n'}}
+    '''[1:-1]
+
+    llm = get_llm("transformers:gpt2")
+    program = guidance(prompt, llm=llm)
+    executed_program = program(
+        proverb="Where there is no guidance, a people falls,\nbut in an abundance of counselors there is safety.",
+        book="Proverbs",
+        chapter=11,
+        verse=14
+    )
+
+    assert re.fullmatch(r"[0-9]", executed_program["chapter"])
+    assert re.fullmatch(r"[0-9]+", executed_program["verse"])
+
+@pytest.mark.parametrize("llm", ["transformers:gpt2", "openai:text-curie-001"])
+def test_stop(llm):
+    """ Test that the stop argument works as expected.
+    """
+    llm = get_llm(llm)
+    program = guidance("""Write "repeat this. " 10 times: repeat this. repeat this. repeat this. repeat this. repeat this. repeat this.{{gen stop="this" max_tokens=10}}""", llm=llm)
+    out = program()
+    assert str(out) == "Write \"repeat this. \" 10 times: repeat this. repeat this. repeat this. repeat this. repeat this. repeat this. repeat "
+
+@pytest.mark.parametrize("llm", ["transformers:gpt2", "openai:text-curie-001"])
+def test_stop_regex(llm):
+    """ Test that the stop_regex argument works as expected.
+    """
+    llm = get_llm(llm)
+    program = guidance("""Write "repeat this. " 10 times: repeat this. repeat this. repeat this. repeat this. repeat this. repeat this.{{gen stop_regex="th.s" max_tokens=10}}""", llm=llm)
+    out = program()
+    assert str(out) == "Write \"repeat this. \" 10 times: repeat this. repeat this. repeat this. repeat this. repeat this. repeat this. repeat "
