@@ -9,7 +9,7 @@ import queue
 import threading
 import logging
 
-import torch
+
 
 from ._llm import LLM, LLMSession, SyncSession
 
@@ -130,7 +130,7 @@ class LlamaCpp(LLM):
             "In order to use chat role tags you need to use a chat-specific subclass of Transformers for your LLM from guidance.transformers.*!")
 
     def decode(self, tokens, fragment=True, **kwargs):
-
+        import torch
         # if the last token is the end of string token, or the first is a start of string we remove it because it cause odd spacing decoding of fragments
         add_eos = ""
         add_bos = ""
