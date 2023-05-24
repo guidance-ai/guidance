@@ -28,6 +28,12 @@ class LlamaCppSettings:
     use_mmap: bool = False
     verbose: bool = False
     tokenizer_name: str = ""
+    before_role: str = "<"
+    after_role: str = ">"
+    role_end: str = ""
+    include_role_in_end: bool = False
+    before_role_end: str = "</"
+    after_role_end: str = ">"
 
 class LlamaCpp(LLM):
     """ A HuggingFace transformers language model with Guidance support.
@@ -111,23 +117,18 @@ class LlamaCpp(LLM):
     def token_to_id(self, token):
         return self.model_obj.tokenize(token.encode("utf-8"), False)[0]
 
-        # def role_start(self, role):
-        #     """ The starting role tag for chat models.
-
-        #     #TODO Right now this just assumes the StableLM syntax, but this should be expanded later.
-        #     """
-        #     return "<|"+role.upper()+"|>"
-
-        # def role_end(self, role=None):
-        #     return ""
-
     def end_of_text(self):
         return self._tokenizer.eos_token
 
-    @staticmethod
-    def role_start(role):
-        raise NotImplementedError(
-            "In order to use chat role tags you need to use a chat-specific subclass of Transformers for your LLM from guidance.transformers.*!")
+    def role_start(self, role):
+        """ The starting role tag for chat models."""
+        return self.settings.before_role + role + self.settings.after_role
+
+    def role_end(self, role):
+        if self.settings.include_role_in_end:
+            return self.settings.before_role_end + role + self.settings.after_role_end
+        else:
+            return self.settings.role_end
 
     def decode(self, tokens, fragment=True, **kwargs):
         import torch
