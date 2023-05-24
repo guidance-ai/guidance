@@ -77,9 +77,9 @@ def add_text_to_chat_mode(chat_mode):
 
 # From here this is just a copy paste
 class Claude(LLM):
-    cache = LLM._open_cache("_claude.diskcache")  # not really sure what I am doing here
+    cache = LLM._open_cache("_claude.diskcache") 
 
-    def __init__(self, model=None, caching=True, max_retries=5, max_calls_per_min=60, token=None, endpoint=None,
+    def __init__(self, model='claude-v1-100k', caching=True, max_retries=5, max_calls_per_min=60, token=None, endpoint=None,
                  temperature=0.0, chat_mode="auto", organization=None, allowed_special_tokens={"<|endoftext|>", "<|endofprompt|>"}):
         super().__init__()
 
@@ -88,35 +88,30 @@ class Claude(LLM):
             model = os.environ.get("CLAUDE_MODEL", None)
         if model is None:
             try:
-                with open(os.path.expanduser('~/.openai_model'), 'r') as file:
+                with open(os.path.expanduser('~/.claude_model'), 'r') as file:
                     model = file.read().replace('\n', '')
             except:
                 pass
 
-        # auto detect chat completion mode
-        if chat_mode == "auto":
-            if model in chat_models:
-                chat_mode = True
-            else:
-                chat_mode = False
+        chat_mode = True
         
         # fill in default API key value
         if token is None: # get from environment variable
-            token = os.environ.get("OPENAI_API_KEY", getattr(openai, "api_key", None))
+            token = os.environ.get("ANTHROPIC_API_KEY", getattr(claude, "api_key", None))
         if token is not None and not token.startswith("sk-") and os.path.exists(os.path.expanduser(token)): # get from file
             with open(os.path.expanduser(token), 'r') as file:
                 token = file.read().replace('\n', '')
         if token is None: # get from default file location
             try:
-                with open(os.path.expanduser('~/.openai_api_key'), 'r') as file:
+                with open(os.path.expanduser('~/.anthropic_api_key'), 'r') as file:
                     token = file.read().replace('\n', '')
             except:
                 pass
         if organization is None:
-            organization = os.environ.get("OPENAI_ORGANIZATION", None)
+            organization = os.environ.get("ANTHROPIC_ORGANIZATION", None)
         # fill in default endpoint value
         if endpoint is None:
-            endpoint = os.environ.get("OPENAI_ENDPOINT", None)
+            endpoint = os.environ.get("ANTHROPIC_ENDPOINT", None)
 
         import tiktoken
         self._tokenizer = tiktoken.get_encoding(tiktoken.encoding_for_model(model).name)
@@ -127,8 +122,6 @@ class Claude(LLM):
         self.caching = caching
         self.max_retries = max_retries
         self.max_calls_per_min = max_calls_per_min
-        if isinstance(token, str):
-            token = token.replace("Bearer ", "")
         self.token = token
         self.endpoint = endpoint
         self.current_time = time.time()
@@ -143,4 +136,355 @@ class Claude(LLM):
             self._rest_headers = {
                 "Content-Type": "application/json"
             }
+
+    def session(self, asynchronous=False):
+        if asynchronous:
+            return ClaudeSession(self)
+        else:
+            return SyncSession(ClaudeSession(self))
+
+    def role_start(self, role):
+        assert self.chat_mode, "role_start() can only be used in chat mode"
+        return "<|im_start|>"+role+"\n"
+
+    def role_end(self, role=None):
+        assert self.chat_mode, "role_end() can only be used in chat mode"
+        return "<|im_end|>"
+
+    def end_of_text(self):
+        return "<|endoftext|>"
+
+    @classmethod
+    def stream_then_save(cls, gen, key, stop_regex, n):
+        list_out = []
+        cached_out = None
+
+        # init stop_regex variables
+        if stop_regex is not None:
+            if isinstance(stop_regex, str):
+                stop_patterns = [regex.compile(stop_regex)]
+            else:
+                stop_patterns = [regex.compile(pattern) for pattern in stop_regex]
+
+            current_strings = ["" for _ in range(n)]
+            # last_out_pos = ["" for _ in range(n)]
+        
+        # iterate through the stream
+        all_done = False
+        for out in gen:
+
+            # if we have a cached output, extend it with the current output
+            if cached_out is not None:
+                out = merge_stream_chunks(cached_out, out)
+            
+            # check if we have stop_regex matches
+            found_partial = False
+            if stop_regex is not None:
+
+                # keep track of the generated text so far
+                for i,choice in enumerate(out['choices']):
+                    current_strings[i] += choice['text']
+
+                # check if all of the strings match a stop string (and hence we can stop the batch inference)
+                all_done = True
+                for i in range(len(current_strings)):
+                    found = False
+                    for s in stop_patterns:
+                        if s.search(current_strings[i]):
+                            found = True
+                    if not found:
+                        all_done = False
+                        break
+
+                # find where trim off the stop regex matches if needed (and look for partial matches)
+                stop_pos = [1e10 for _ in range(n)]
+                stop_text = [None for _ in range(n)]
+                for i in range(len(current_strings)):
+                    for s in stop_patterns:
+                        m = s.search(current_strings[i], partial=True)
+                        if m:
+                            span = m.span()
+                            if span[1] > span[0]:
+                                if m.partial: # we might be starting a stop sequence, so we can't emit anything yet
+                                    found_partial = True
+                                    break
+                                else:
+                                    stop_text[i] = current_strings[i][span[0]:span[1]]
+                                    stop_pos[i] = min(span[0], stop_pos[i])
+                    if stop_pos != 1e10:
+                        stop_pos[i] = stop_pos[i] - len(current_strings[i]) # convert to relative position from the end
+            
+            # if we might be starting a stop sequence, we need to cache the output and continue to wait and see
+            if found_partial:
+                cached_out = out
+                continue
+            
+            # if we get here, we are not starting a stop sequence, so we can emit the output
+            else:
+                cached_out = None
+
+                if stop_regex is not None:
+                    for i in range(len(out['choices'])):
+                        if stop_pos[i] < len(out['choices'][i]['text']):
+                            out['choices'][i] = out['choices'][i].to_dict() # because sometimes we might need to set the text to the empty string (and OpenAI's object does not like that)
+                            out['choices'][i]['text'] = out['choices'][i]['text'][:stop_pos[i]]
+                            out['choices'][i]['stop_text'] = stop_text[i]
+                            out['choices'][i]['finish_reason'] = "stop"
+            
+                list_out.append(out)
+                yield out
+                if all_done:
+                    gen.close()
+                    break
+        
+        cls.cache[key] = list_out
+    
+    def _stream_completion(self):
+        pass
+
+    # Define a function to add a call to the deque
+    def add_call(self):
+        # Get the current timestamp in seconds
+        now = time.time()
+        # Append the timestamp to the right of the deque
+        self.call_history.append(now)
+
+    # Define a function to count the calls in the last 60 seconds
+    def count_calls(self):
+        # Get the current timestamp in seconds
+        now = time.time()
+        # Remove the timestamps that are older than 60 seconds from the left of the deque
+        while self.call_history and self.call_history[0] < now - 60:
+            self.call_history.popleft()
+        # Return the length of the deque as the number of calls
+        return len(self.call_history)
+
+    def _library_call(self, **kwargs):
+        """ Call the Antropic API using the python package.
+        """
+        prev_key = openai.api_key
+        prev_org = openai.organization
+        assert self.token is not None, "You must provide an Anthropic API key to use the Claude LLM. Either pass it in the constructor, set the ANTHROPIC_API_KEY environment variable, or create the file ~/.anthropic_api_key with your key in it."
+        c = anthropic.Client(self.token)
+        if self.chat_mode:
+            kwargs['messages'] = prompt_to_messages(kwargs['prompt'])
+            del kwargs['prompt']
+            del kwargs['echo']
+            del kwargs['logprobs']
+            # print(kwargs)
+            out = c.acompletion.create(**kwargs)
+            out = add_text_to_chat_mode(out)
+        return out
+    # To be Done...
+    def _rest_call(self, **kwargs):
+        """ Call the Antropic API using the REST API.
+        """
+
+        # Define the request headers
+        headers = copy.copy(self._rest_headers)
+        if self.token is not None:
+            headers['Authorization'] = f"Bearer {self.token}"
+
+        # Define the request data
+        stream = kwargs.get("stream", False)
+        data = {
+            "prompt": kwargs["prompt"],
+            "max_tokens": kwargs.get("max_tokens", None),
+            "temperature": kwargs.get("temperature", 0.0),
+            "top_p": kwargs.get("top_p", 1.0),
+            "n": kwargs.get("n", 1),
+            "stream": stream,
+            "logprobs": kwargs.get("logprobs", None),
+            'stop': kwargs.get("stop", None),
+            "echo": kwargs.get("echo", False)
+        }
+        if self.chat_mode:
+            data['messages'] = prompt_to_messages(data['prompt'])
+            del data['prompt']
+            del data['echo']
+            del data['stream']
+
+        # Send a POST request and get the response
+        response = requests.post(self.endpoint, headers=headers, json=data, stream=stream)
+        if response.status_code != 200:
+            raise Exception("Response is not 200: " + response.text)
+        if stream:
+            return self._rest_stream_handler(response)
+        else:
+            response = response.json()
+        if self.chat_mode:
+            response = add_text_to_chat_mode(response)
+        return response
+        
+    def _rest_stream_handler(self, response):
+        for line in response.iter_lines():
+            text = line.decode('utf-8')
+            if text.startswith('data: '):
+                text = text[6:]
+                if text == '[DONE]':
+                    break
+                else:
+                    yield json.loads(text)
+    
+    def encode(self, string, fragment=True):
+        # note that is_fragment is not used used for this tokenizer
+        return self._tokenizer.encode(string, allowed_special=self.allowed_special_tokens)
+    
+    def decode(self, tokens, fragment=True):
+        return self._tokenizer.decode(tokens)
+
+
+def merge_stream_chunks(first_chunk, second_chunk):
+    """ This merges two stream responses together.
+    """
+
+    out = copy.deepcopy(first_chunk)
+
+    # merge the choices
+    for i in range(len(out['choices'])):
+        out_choice = out['choices'][i]
+        second_choice = second_chunk['choices'][i]
+        out_choice['text'] += second_choice['text']
+        if 'index' in second_choice:
+            out_choice['index'] = second_choice['index']
+        if 'finish_reason' in second_choice:
+            out_choice['finish_reason'] = second_choice['finish_reason']
+        if out_choice.get('logprobs', None) is not None:
+            out_choice['logprobs']['token_logprobs'] += second_choice['logprobs']['token_logprobs']
+            out_choice['logprobs']['top_logprobs'] += second_choice['logprobs']['top_logprobs']
+            out_choice['logprobs']['text_offset'] = second_choice['logprobs']['text_offset']
+    
+    return out
+
+
+class AnthropicStreamer():
+    def __init__(self, stop_regex, n):
+        self.stop_regex = stop_regex
+        self.n = n
+        self.current_strings = ["" for _ in range(n)]
+        self.current_length = 0
+
+class RegexStopChecker():
+    def __init__(self, stop_pattern, decode, prefix_length):
+        if isinstance(stop_pattern, str):
+            self.stop_patterns = [regex.compile(stop_pattern)]
+        else:
+            self.stop_patterns = [regex.compile(pattern) for pattern in stop_pattern]
+        self.prefix_length = prefix_length
+        self.decode = decode
+        self.current_strings = None
+        self.current_length = 0
+
+    def __call__(self, input_ids, scores, **kwargs):
+
+        # extend our current strings
+        if self.current_strings is None:
+            self.current_strings = ["" for _ in range(len(input_ids))]
+        for i in range(len(self.current_strings)):
+            self.current_strings[i] += self.decode(input_ids[i][self.current_length:])
+        
+        # trim off the prefix string so we don't look for stop matches in the prompt
+        if self.current_length == 0:
+            for i in range(len(self.current_strings)):
+                self.current_strings[i] = self.current_strings[i][self.prefix_length:]
+        
+        self.current_length = len(input_ids[0])
+        
+        # check if all of the strings match a stop string (and hence we can stop the batch inference)
+        all_done = True
+        for i in range(len(self.current_strings)):
+            found = False
+            for s in self.stop_patterns:
+                if s.search(self.current_strings[i]):
+                    found = True
+            if not found:
+                all_done = False
+                break
+        
+        return all_done
+
+# Define a deque to store the timestamps of the calls
+class ClaudeSession(LLMSession):
+    async def __call__(self, prompt, stop=None, stop_regex=None, temperature=None, n=1, max_tokens=1000, logprobs=None, top_p=1.0, echo=False, logit_bias=None, token_healing=None, pattern=None, stream=None, cache_seed=0, caching=None):
+        """ Generate a completion of the given prompt.
+        """
+
+        # we need to stream in order to support stop_regex
+        if stream is None:
+            stream = stop_regex is not None
+        assert stop_regex is None or stream, "We can only support stop_regex for the Anthropic API when stream=True!"
+        assert stop_regex is None or n == 1, "We don't yet support stop_regex combined with n > 1 with the Antropic API!"
+
+
+        # set defaults
+        if temperature is None:
+            temperature = self.llm.temperature
+
+        # get the arguments as dictionary for cache key generation
+        args = locals().copy()
+
+        assert not pattern, "The Antropic API does not support Guidance pattern controls! Please either switch to an endpoint that does, or don't use the `pattern` argument to `gen`."
+        # assert not stop_regex, "The OpenAI API does not support Guidance stop_regex controls! Please either switch to an endpoint that does, or don't use the `stop_regex` argument to `gen`."
+
+        # define the key for the cache
+        key = self._cache_key(args)
+        
+        # allow streaming to use non-streaming cache (the reverse is not true)
+        if key not in self.llm.__class__.cache and stream:
+            args["stream"] = False
+            key1 = self._cache_key(args)
+            if key1 in self.llm.__class__.cache:
+                key = key1
+        
+        # check the cache
+        if key not in self.llm.__class__.cache or (caching is not True and not self.llm.caching) or caching is False:
+
+            # ensure we don't exceed the rate limit
+            while self.llm.count_calls() > self.llm.max_calls_per_min:
+                await asyncio.sleep(1)
+
+            fail_count = 0
+            while True:
+                try_again = False
+                try:
+                    self.llm.add_call()
+                    call_args = {
+                        "model": self.llm.model_name,
+                        "prompt": prompt,
+                        "max_tokens": max_tokens,
+                        "temperature": temperature,
+                        "top_p": top_p,
+                        "n": n,
+                        "stop": stop,
+                        "logprobs": logprobs,
+                        "echo": echo,
+                        "stream": stream
+                    }
+                    if logit_bias is not None:
+                        call_args["logit_bias"] = {str(k): v for k,v in logit_bias.items()} # convert keys to strings since that's the open ai api's format
+                    out = self.llm.caller(**call_args)
+
+                except claude.error.RateLimitError:
+                    await asyncio.sleep(3)
+                    try_again = True
+                    fail_count += 1
+                
+                if not try_again:
+                    break
+
+                if fail_count > self.llm.max_retries:
+                    raise Exception(f"Too many (more than {self.llm.max_retries}) Anthropic API RateLimitError's in a row!")
+
+            if stream:
+                return self.llm.stream_then_save(out, key, stop_regex, n)
+            else:
+                self.llm.__class__.cache[key] = out
+        
+        # wrap as a list if needed
+        if stream:
+            if isinstance(self.llm.__class__.cache[key], list):
+                return self.llm.__class__.cache[key]
+            return [self.llm.__class__.cache[key]]
+        
+        return self.llm.__class__.cache[key]
 
