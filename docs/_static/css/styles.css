@@ -66,6 +66,6 @@ section h2 {
    margin-top: 30px;
 }
 
-code .pre {
+.rst-content code.literal, .rst-content tt.literal {
    color: #008bfb;
 }

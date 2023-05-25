@@ -182,7 +182,8 @@ class TransformersSession(LLMSession):
 
                         # provide the past key values for the actual model call
                         model_kwargs["past_key_values"] = self._past_key_values
-                        model_kwargs["position_ids"] = model_kwargs["position_ids"][:,len(self._prefix_cache):] # and update position ids
+                        if "position_ids" in model_kwargs: # models like OPT update the position ids internally
+                            model_kwargs["position_ids"] = model_kwargs["position_ids"][:,len(self._prefix_cache):] # and update position ids
 
                         # we only need to do this first time, after that the past key values will
                         # be up until the last token, just like transformer models normally expect
