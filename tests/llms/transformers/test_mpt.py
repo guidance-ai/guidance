@@ -11,7 +11,7 @@ def test_basic():
         pytest.skip("No GPU, so skipping large model test.")
 
     # just make sure it runs
-    llm = guidance.llms.transformers.MPTChat('mosaicml/mpt-7b-chat', device=1)
+    llm = guidance.llms.transformers.MPTChat('mosaicml/mpt-7b-chat', device=0)
     out = guidance("""
 {{#system~}}
 You are an assistant.

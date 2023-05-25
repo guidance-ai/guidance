@@ -433,14 +433,14 @@ class OpenAISession(LLMSession):
         key = self._cache_key(args)
         
         # allow streaming to use non-streaming cache (the reverse is not true)
-        if key not in self.llm.__class__.cache and stream:
+        if key not in self.llm.cache and stream:
             args["stream"] = False
             key1 = self._cache_key(args)
-            if key1 in self.llm.__class__.cache:
+            if key1 in self.llm.cache:
                 key = key1
         
         # check the cache
-        if key not in self.llm.__class__.cache or (caching is not True and not self.llm.caching) or caching is False:
+        if key not in self.llm.cache or (caching is not True and not self.llm.caching) or caching is False:
 
             # ensure we don't exceed the rate limit
             while self.llm.count_calls() > self.llm.max_calls_per_min:
@@ -481,12 +481,12 @@ class OpenAISession(LLMSession):
             if stream:
                 return self.llm.stream_then_save(out, key, stop_regex, n)
             else:
-                self.llm.__class__.cache[key] = out
+                self.llm.cache[key] = out
         
         # wrap as a list if needed
         if stream:
-            if isinstance(self.llm.__class__.cache[key], list):
-                return self.llm.__class__.cache[key]
-            return [self.llm.__class__.cache[key]]
+            if isinstance(self.llm.cache[key], list):
+                return self.llm.cache[key]
+            return [self.llm.cache[key]]
         
-        return self.llm.__class__.cache[key]
+        return self.llm.cache[key]
