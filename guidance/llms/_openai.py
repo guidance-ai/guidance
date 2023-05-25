@@ -10,11 +10,14 @@ import collections
 import json
 import re
 import regex
+
 from ._llm import LLM, LLMSession, SyncSession
 
 
 class MalformedPromptException(Exception):
     pass
+
+
 def prompt_to_messages(prompt):
     messages = []
 
@@ -65,7 +68,7 @@ chat_models = [
 ]
 
 class OpenAI(LLM):
-    cache = LLM._open_cache("_openai.diskcache")
+    llm_name: str = "openai"
 
     def __init__(self, model=None, caching=True, max_retries=5, max_calls_per_min=60,
                  api_key=None, api_type="open_ai", api_base=None, api_version=None,
@@ -482,17 +485,22 @@ class OpenAISession(LLMSession):
         # assert not stop_regex, "The OpenAI API does not support Guidance stop_regex controls! Please either switch to an endpoint that does, or don't use the `stop_regex` argument to `gen`."
 
         # define the key for the cache
-        key = self._cache_key(args)
+        cache_params = self._cache_params(args)
+        llm_cache = self.llm.__class__.cache()
+        key = llm_cache.create_key(self.llm.llm_name, **cache_params)
         
         # allow streaming to use non-streaming cache (the reverse is not true)
-        if key not in self.llm.cache and stream:
-            args["stream"] = False
-            key1 = self._cache_key(args)
-            if key1 in self.llm.cache:
+        if key not in llm_cache and stream:
+            cache_params["stream"] = False
+            key1 = llm_cache.create_key(self.llm.llm_name, **cache_params)
+            if key1 in llm_cache:
                 key = key1
         
         # check the cache
-        if key not in self.llm.cache or (caching is not True and not self.llm.caching) or caching is False:
+        if key not in llm_cache \
+                or caching is False \
+                or (caching is not True or llm_cache.default_cache_state is False) \
+                or (caching is not True and not self.llm.caching):
 
             # ensure we don't exceed the rate limit
             while self.llm.count_calls() > self.llm.max_calls_per_min:
@@ -533,12 +541,12 @@ class OpenAISession(LLMSession):
             if stream:
                 return self.llm.stream_then_save(out, key, stop_regex, n)
             else:
-                self.llm.cache[key] = out
+                llm_cache[key] = out
         
         # wrap as a list if needed
         if stream:
-            if isinstance(self.llm.cache[key], list):
-                return self.llm.cache[key]
-            return [self.llm.cache[key]]
+            if isinstance(llm_cache[key], list):
+                return llm_cache[key]
+            return [llm_cache[key]]
         
-        return self.llm.cache[key]
+        return llm_cache[key]

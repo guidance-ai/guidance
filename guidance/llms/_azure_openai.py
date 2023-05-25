@@ -11,7 +11,7 @@ class AzureOpenAI(OpenAI):
     Warning: This class is not finalized and may change in the future.
     """
 
-    cache = OpenAI._open_cache("_azure_openai.diskcache")
+    llm_name: str = "azure_openai"
 
     def __init__(self, model=None, client_id=None, authority=None, caching=True, max_retries=5, max_calls_per_min=60, token=None,
                  endpoint=None, scopes=None, temperature=0.0, chat_mode="auto"):
