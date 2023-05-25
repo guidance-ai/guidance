@@ -6,13 +6,15 @@ import pygtrie
 import queue
 import threading
 import logging
+
 from ._llm import LLM, LLMSession, SyncSession
+
 
 class Transformers(LLM):
     """ A HuggingFace transformers language model with Guidance support.
     """
 
-    cache = LLM._open_cache("_transformers.diskcache")
+    llm_name: str = "transformers"
 
     def __init__(self, model=None, tokenizer=None, caching=True, token_healing=True, acceleration=True, \
                  temperature=0.0, device=None, **kwargs):
@@ -228,7 +230,11 @@ class TransformersSession(LLMSession):
             token_healing = self.llm.token_healing
 
         # generate the cache key
-        key = self._cache_key(locals())
+        cache_params = self._cache_params(locals().copy())
+        # if not self.llm.__class__.cache:
+        #     self.llm.__class__.cache = cache_creator(self.llm.llm_name)
+        llm_cache = self.llm.__class__.cache()
+        key = llm_cache.create_key(self.llm.llm_name, **cache_params)
 
         # set the stop patterns
         if stop is not None:
@@ -243,7 +249,7 @@ class TransformersSession(LLMSession):
         stop_regex.append(regex.escape(self.llm._tokenizer.eos_token)) # make sure the end of sequence token is always included
 
         # handle caching
-        in_cache = key in self.llm.cache
+        in_cache = key in llm_cache
         not_caching = (caching is not True and not self.llm.caching) or caching is False
         if not in_cache or not_caching:
             import transformers
@@ -370,7 +376,7 @@ class TransformersSession(LLMSession):
                 streamer.put(generated_sequence)
                 self.llm.cache[key] = streamer.__next__()
                 self._update_prefix_cache(streamer)
-        return self.llm.cache[key]
+        return llm_cache[key]
     
     def _update_prefix_cache(self, streamer):
         # note what we now have cached and ready for our next call in this session
