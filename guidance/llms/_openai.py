@@ -352,13 +352,20 @@ class OpenAI(LLM):
             del data['logprobs']
 
         # Send a POST request and get the response
-        response = requests.post(self.endpoint, headers=headers, json=data, stream=stream)
-        if response.status_code != 200:
-            raise Exception("Response is not 200: " + response.text)
-        if stream:
-            return self._rest_stream_handler(response)
-        else:
-            response = response.json()
+        # An exception for timeout is raised if the server has not issued a response for 10 seconds
+        try:
+            response = requests.post(self.endpoint, headers=headers, json=data, stream=stream, timeout=60)
+            if response.status_code != 200:
+                raise Exception("Response is not 200: " + response.text)
+            if stream:
+                return self._rest_stream_handler(response)
+            else:
+                response = response.json()
+        except requests.Timeout:
+            raise Exception("Request timed out.")
+        except requests.ConnectionError:
+            raise Exception("Connection error occurred.")
+
         if self.chat_mode:
             response = add_text_to_chat_mode(response)
         return response
