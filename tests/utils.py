@@ -22,7 +22,7 @@ def get_openai_llm(model_name, caching=False):
         opanai_model_cache[key] = guidance.llms.OpenAI(model_name, caching=caching)
     llm = opanai_model_cache[key]
 
-    if llm.token is None:
+    if llm.api_key is None:
         pytest.skip("OpenAI token not found")
 
     return llm

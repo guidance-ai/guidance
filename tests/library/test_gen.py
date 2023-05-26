@@ -3,8 +3,7 @@ import pytest
 from ..utils import get_llm
 
 def test_gen():
-    """ Test that LM generation works.
-    """
+    """Test that LM generation works."""
 
     llm = guidance.llms.Mock(" Sue")
     prompt = guidance("Hello my name is{{gen 'name' max_tokens=5}}", llm=llm)
@@ -61,8 +60,7 @@ def test_pattern2():
 
 @pytest.mark.parametrize("llm", ["transformers:gpt2", "openai:text-curie-001"])
 def test_stop(llm):
-    """ Test that the stop argument works as expected.
-    """
+    """Test that the stop argument works as expected."""
     llm = get_llm(llm)
     program = guidance("""Write "repeat this. " 10 times: repeat this. repeat this. repeat this. repeat this. repeat this. repeat this.{{gen stop="this" max_tokens=10}}""", llm=llm)
     out = program()
@@ -70,9 +68,21 @@ def test_stop(llm):
 
 @pytest.mark.parametrize("llm", ["transformers:gpt2", "openai:text-curie-001"])
 def test_stop_regex(llm):
-    """ Test that the stop_regex argument works as expected.
-    """
+    """Test that the stop_regex argument works as expected."""
     llm = get_llm(llm)
     program = guidance("""Write "repeat this. " 10 times: repeat this. repeat this. repeat this. repeat this. repeat this. repeat this.{{gen stop_regex="th.s" max_tokens=10}}""", llm=llm)
     out = program()
     assert str(out) == "Write \"repeat this. \" 10 times: repeat this. repeat this. repeat this. repeat this. repeat this. repeat this. repeat "
+
+@pytest.mark.parametrize("llm", ["transformers:gpt2", "openai:text-curie-001"])
+def test_save_stop_text(llm):
+    llm = get_llm(llm)
+    out = guidance("""Repeat this ten times: "s38 kdjksid sk slk", "s38 kdjksid sk slk", "s38 kdjksid sk slk", "s38 kdjksid sk slk", "{{gen 'text' stop_regex="kdj.*slk" max_tokens=10 save_stop_text=True}}""", llm=llm)()
+    assert out["text_stop_text"] == "kdjksid sk slk"
+
+@pytest.mark.parametrize("llm", ["transformers:gpt2", "openai:text-curie-001"])
+def test_stop_regex_cut_short(llm):
+    """Test that the stop_regex argument works as expected even when max_tokens cuts it short."""
+    llm = get_llm(llm)
+    out = guidance("""Repeat this ten times: "s38 kdjksid", "s38 kdjksid", "s38 kdjksid", "s38 kdjksid", "{{gen 'text' stop_regex="s38 kdjksid" max_tokens=5 save_stop_text=True}}""", llm=llm)()
+    assert len(out["text"]) > 0 # make sure we got some output (it is not a stop string until it is a full match)
