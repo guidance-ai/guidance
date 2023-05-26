@@ -33,7 +33,7 @@ class Program:
     the generated output to mark where template tags used to be.
     '''
 
-    def __init__(self, text, llm=None, cache_seed=0, logprobs=None, silent='auto', async_mode=False, stream=None, caching=None, await_missing=False, **kwargs):
+    def __init__(self, text, llm=None, cache_seed=0, logprobs=None, silent=None, async_mode=False, stream=None, caching=None, await_missing=False, **kwargs):
         """ Create a new Program object from a program string.
 
         Parameters
@@ -50,9 +50,10 @@ class Program:
         logprobs : int or None (default)
             The number of logprobs to return from the language model for each token. (not well supported yet,
             since some endpoints don't support it)
-        silent : bool (default False)
+        silent : bool (default None)
             If True, the program will not display any output. This is useful for programs that are
-            only used to generate variables for other programs.
+            only used to generate variables for other programs. If None we automatically set this based
+            on if we are streaming and if we are in interactive mode.
         async_mode : bool (default False)
             If True, the program will be executed asynchronously. This is useful for programs that
             take a long time to run, or that need to be run in parallel.
@@ -91,8 +92,8 @@ class Program:
         self.silent = silent
         self.stream = stream
         self.await_missing = await_missing
-        if self.silent == "auto":
-            self.silent = not _utils.is_interactive()
+        if self.silent is None:
+            self.silent = self.stream is True or not _utils.is_interactive()
         
         # set our variables
         self._variables = {}
