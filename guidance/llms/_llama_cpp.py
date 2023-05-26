@@ -2,6 +2,7 @@ import os
 import time
 import collections
 
+
 import numpy as np
 import regex
 import pygtrie
@@ -325,7 +326,7 @@ class LlamaCppSession(LLMSession):
 
             # setup logit biasing
             if logit_bias is not None:
-                processors.append(BiasLogitsProcessor(self.llm, self.llm.vocab_size, logit_bias))
+                processors.append(BiasLogitsProcessor(self.llm.model_obj, self.llm.vocab_size, logit_bias))
 
             # make sure we don't run off the end of the model
             max_context = (getattr(model_config, "n_ctx", None) or getattr(model_config, "max_seq_len",
@@ -376,6 +377,7 @@ class LlamaCppSession(LLMSession):
                 logprobs=logprobs,
                 timeout=10
             )
+            from llama_cpp import LogitsProcessorList, StoppingCriteriaList
             if isinstance(prompt, bytes):
                 prompt = prompt.decode("utf-8")
             # the args for the transformers generate call
@@ -388,8 +390,8 @@ class LlamaCppSession(LLMSession):
                 stop=[],
                 # pad_token_id=self.llm.model_obj.token_eos(),
                 logprobs=logprobs,
-                logits_processors=processors,
-                stopping_criterias=stoppers,
+                logits_processor=LogitsProcessorList(processors),
+                stopping_criteria=StoppingCriteriaList(stoppers),
                 # past_key_values=self._past_key_values,
                 # output_scores=logprobs is not None and logprobs > 0,
                 # return_dict_in_generate=True
@@ -618,7 +620,6 @@ class TokenHealingLogitsProcessor():
 class BiasLogitsProcessor():
     """ Simple token biasing.
     """
-
     def __init__(self, model, vocab_size, logit_bias):
         """ Build a new BiasLogitsProcessor.
         """
