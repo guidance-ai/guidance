@@ -56,7 +56,9 @@ executed_program = program(
 )
 ```
 <img src="docs/figures/proverb_animation.gif" width="404">
-
+                                                         
+<img src="docs/figures/proverb_playground.png" width="404">
+                                                         
 After a program is executed all the generated variables are now easily accessable:
 
 ```python
