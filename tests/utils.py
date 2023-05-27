@@ -10,6 +10,8 @@ def get_llm(model_name):
         return get_openai_llm(model_name[7:])
     elif model_name.startswith("transformers:"):
         return get_transformers_llm(model_name[13:])
+    elif model_name.startswith("llama_cpp:"):
+        return get_llama_cpp_llm(model_name[10:])
 
 def get_openai_llm(model_name, caching=False):
     """ Get an OpenAI LLM with model reuse and smart test skipping.
@@ -41,18 +43,16 @@ def get_transformers_llm(model_name, caching=False):
 
     return transformers_model_cache[key]
 
-llamacpp_model_cache = {}
+llama_cpp_model_cache = {}
 
-def get_llamacpp_llm(model_name, caching=False):
+def get_llama_cpp_llm(model_name, caching=False):
     """ Get a llama.cpp LLM with model reuse.
     """
 
     # we cache the models so lots of tests using the same model don't have to
     # load it over and over again
     key = model_name+"_"+str(caching)
-    if key not in llamacpp_model_cache:
-        settings = guidance.llms.LlamaCppSettings()
-        settings.model = model_name
-        llamacpp_model_cache[key] = guidance.llms.LlamaCpp(settings, caching=caching)
+    if key not in llama_cpp_model_cache:
+        llama_cpp_model_cache[key] = guidance.llms.LlamaCpp(model_name, caching=caching)
 
-    return llamacpp_model_cache[key]
+    return llama_cpp_model_cache[key]

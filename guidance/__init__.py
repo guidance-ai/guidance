@@ -17,7 +17,7 @@ llm = None
 
 # This makes the guidance module callable
 class Guidance(types.ModuleType):
-    def __call__(self, template, llm=None, cache_seed=0, logprobs=None, silent='auto', async_mode=False, stream=None, caching=None, await_missing=False, **kwargs):
+    def __call__(self, template, llm=None, cache_seed=0, logprobs=None, silent=None, async_mode=False, stream=None, caching=None, await_missing=False, **kwargs):
         return Program(template, llm=llm, cache_seed=cache_seed, logprobs=logprobs, silent=silent, async_mode=async_mode, stream=stream, caching=caching, await_missing=await_missing, **kwargs)
 sys.modules[__name__].__class__ = Guidance
 

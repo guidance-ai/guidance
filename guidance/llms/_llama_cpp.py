@@ -14,60 +14,62 @@ import logging
 
 from ._llm import LLM, LLMSession, SyncSession
 
-
-class LlamaCppSettings:
-    model: str = "../ggml-model.q4_1.bin"
-    n_ctx: int = 2048
-    n_batch: int = 8
-    n_threads: int = 4
-    f16_kv: bool = True
-    use_mlock: bool = True
-    embedding: bool = False
-    last_n_tokens_size: int = 256
-    n_gpu_layers: int = 0
-    logits_all: bool = True
-    use_mmap: bool = False
-    verbose: bool = False
-    tokenizer_name: str = ""
-    before_role: str = "<"
-    after_role: str = ">"
-    role_end: str = ""
-    include_role_in_end: bool = False
-    before_role_end: str = "</"
-    after_role_end: str = ">"
-
 class LlamaCpp(LLM):
     """ A HuggingFace transformers language model with Guidance support.
     """
 
     cache = LLM._open_cache("_llama_cpp.diskcache")
 
-    def __init__(self, settings=LlamaCppSettings(), caching=True, token_healing=False, acceleration=False,
-                 temperature=0.25,
-                 role_start=None, role_end=None):
+    def __init__(self, model: str = "../ggml-model.q4_1.bin",
+                 n_ctx: int = 2048,
+                 n_batch: int = 8,
+                 n_threads: int = 4,
+                 f16_kv: bool = True,
+                 use_mlock: bool = True,
+                 embedding: bool = False,
+                 last_n_tokens_size: int = 256,
+                 n_gpu_layers: int = 0,
+                 logits_all: bool = True,
+                 use_mmap: bool = False,
+                 verbose: bool = False,
+                 tokenizer = "", # string or transformers tokenizer
+                 before_role: str = "<",
+                 after_role: str = ">",
+                 role_end: str = "",
+                 include_role_in_end: bool = False,
+                 before_role_end: str = "</",
+                 after_role_end: str = ">",
+                 caching=True, token_healing=False, acceleration=False,
+                 temperature=0.25):
         super().__init__()
 
         from llama_cpp import Llama, llama_n_vocab
         from transformers import AutoTokenizer
-        self.settings = settings
         self.model_obj = Llama(
-            settings.model,
-            n_gpu_layers=settings.n_gpu_layers,
-            f16_kv=settings.f16_kv,
-            use_mlock=settings.use_mlock,
-            embedding=settings.embedding,
-            n_threads=settings.n_threads,
-            n_batch=settings.n_batch,
-            n_ctx=settings.n_ctx,
-            last_n_tokens_size=settings.last_n_tokens_size,
-            logits_all=settings.logits_all,
-            use_mmap=settings.use_mmap,
-            verbose=settings.verbose
+            model,
+            n_gpu_layers=n_gpu_layers,
+            f16_kv=f16_kv,
+            use_mlock=use_mlock,
+            embedding=embedding,
+            n_threads=n_threads,
+            n_batch=n_batch,
+            n_ctx=n_ctx,
+            last_n_tokens_size=last_n_tokens_size,
+            logits_all=logits_all,
+            use_mmap=use_mmap,
+            verbose=verbose
         )
+        self.before_role = before_role
+        self.after_role = after_role
+        self.role_end = role_end
+        self.include_role_in_end = include_role_in_end
+        self.before_role_end = before_role_end
+        self.after_role_end = after_role_end
         self.device = None
+        self.n_ctx = n_ctx
         self.vocab_size = llama_n_vocab(self.model_obj.ctx)
         self._generate_call = self.model_obj.create_completion
-        base_name = os.path.basename(settings.model)  # get the name of the file
+        base_name = os.path.basename(model)  # get the name of the file
         file_name_without_extension, _ = os.path.splitext(base_name)
         self.model_name = file_name_without_extension
         self.caching = caching
@@ -76,11 +78,12 @@ class LlamaCpp(LLM):
         self.temperature = temperature
         self.token_healing = token_healing
         self.acceleration = acceleration
-        self._tokenizer = AutoTokenizer.from_pretrained(settings.tokenizer_name)
+        if isinstance(tokenizer, str):
+            self._tokenizer = AutoTokenizer.from_pretrained(tokenizer)
         self._prefix_ids = [self._tokenizer.bos_token_id, 100]  # token ids that we use to decode tokens after a prefix
         self._prefix_str = self._tokenizer.decode(self._prefix_ids, fragment=False)
 
-        self._token_prefix_map = self._build_token_prefix_map(settings.tokenizer_name)
+        self._token_prefix_map = self._build_token_prefix_map()
 
     def prefix_matches(self, prefix):
         """ Return the list of tokens that match the given prefix.
@@ -123,13 +126,13 @@ class LlamaCpp(LLM):
 
     def role_start(self, role):
         """ The starting role tag for chat models."""
-        return self.settings.before_role + role + self.settings.after_role
+        return self.before_role + role + self.after_role
 
     def role_end(self, role):
-        if self.settings.include_role_in_end:
-            return self.settings.before_role_end + role + self.settings.after_role_end
+        if self.include_role_in_end:
+            return self.before_role_end + role + self.after_role_end
         else:
-            return self.settings.role_end
+            return self.role_end
 
     def decode(self, tokens, fragment=True, **kwargs):
         import torch
@@ -171,7 +174,7 @@ class LlamaCpp(LLM):
         else:
             return add_bos + self._tokenizer.decode(tokens, **kwargs) + add_eos
 
-    def _build_token_prefix_map(self, model_name):
+    def _build_token_prefix_map(self):
         """ Build a map from token to index.
         """
         token_map = pygtrie.CharTrie()
@@ -298,7 +301,7 @@ class LlamaCppSession(LLMSession):
             if self.llm.device is not None:
                 encoded = encoded.to(self.llm.device)
             input_ids = encoded["input_ids"]
-            model_config = self.llm.settings
+            # model_config = self.llm.settings
 
             # ensure that we are extending a common sequence batch (our token healing assumes this right now)
             # assert (input_ids[0, -1] == input_ids[:,
@@ -329,11 +332,11 @@ class LlamaCppSession(LLMSession):
                 processors.append(BiasLogitsProcessor(self.llm.model_obj, self.llm.vocab_size, logit_bias))
 
             # make sure we don't run off the end of the model
-            max_context = (getattr(model_config, "n_ctx", None) or getattr(model_config, "max_seq_len",
-                                                                           None) or getattr(model_config,
+            max_context = (getattr(self.llm, "n_ctx", None) or getattr(self.llm, "max_seq_len",
+                                                                           None) or getattr(self.llm,
                                                                                             "n_positions",
                                                                                             None) or getattr(
-                model_config, "max_position_embeddings"))
+                self.llm, "max_position_embeddings"))
             if max_tokens + len(input_ids) > max_context:
                 max_tokens = max_context - len(input_ids)
 
@@ -398,7 +401,7 @@ class LlamaCppSession(LLMSession):
             )
 
             # override the model config for do_sample when the temperature requires it
-            do_sample = getattr(self.llm.settings, "do_sample", None)
+            do_sample = getattr(self.llm, "do_sample", None)
             if do_sample is True and temperature == 0:
                 generate_args["do_sample"] = False
             elif do_sample is False and temperature > 0:
