@@ -138,6 +138,7 @@ class OpenAI(LLM):
         self.temperature = temperature
         self.organization = organization
         self.rest_call = rest_call
+        self.reset_usage()
 
         if not self.rest_call:
             self.caller = self._library_call
@@ -146,6 +147,13 @@ class OpenAI(LLM):
             self._rest_headers = {
                 "Content-Type": "application/json"
             }
+
+    def reset_usage(self):
+        self.usage = {
+            "completion_tokens": 0,
+            "prompt_tokens": 0,
+            "total_tokens": 0,
+        }
 
     def session(self, asynchronous=False):
         if asynchronous:
@@ -310,6 +318,10 @@ class OpenAI(LLM):
             del kwargs['logprobs']
             # print(kwargs)
             out = openai.ChatCompletion.create(**kwargs)
+            if out.get('usage'):
+                self.usage['completion_tokens'] += out['usage']['completion_tokens']
+                self.usage['prompt_tokens'] += out['usage']['prompt_tokens']
+                self.usage['total_tokens'] += out['usage']['total_tokens']
             out = add_text_to_chat_mode(out)
         else:
             out = openai.Completion.create(**kwargs)
