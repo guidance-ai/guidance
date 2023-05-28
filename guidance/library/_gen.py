@@ -144,7 +144,7 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
         generated_value = prefix
         partial_output(prefix)
         logprobs_out = []
-        if not isinstance(gen_obj, types.GeneratorType):
+        if not isinstance(gen_obj, (types.GeneratorType, list, tuple)):
             gen_obj = [gen_obj]
         if list_append:
             value_list = parser.get_variable(name, [])

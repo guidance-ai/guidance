@@ -93,9 +93,9 @@ async def geneach(list_name, stop=None, max_iterations=100, min_iterations=0, nu
     # convert stop strings to tokens
     if stop is not False:
         if stop is None:
-            stop_tokens = []
+            max_stop_tokens = 2
         else:
-            stop_tokens = [parser.program.llm.encode(s) for s in stop]
+            max_stop_tokens = max([len(parser.program.llm.encode(s)) for s in stop]) + 2
 
     if not single_call:
         i = 0
@@ -143,7 +143,7 @@ async def geneach(list_name, stop=None, max_iterations=100, min_iterations=0, nu
             # we run a quick generation to see if we have reached the end of the list (note the +2 tokens is to help be tolorant to whitespace)
             if stop is not False and i >= min_iterations:
                 try:
-                    gen_obj = await parser.llm_session(strip_markers(parser.prefix), stop=stop, max_tokens=len(stop_tokens)+2, temperature=0, cache_seed=0)
+                    gen_obj = await parser.llm_session(strip_markers(parser.prefix), stop=stop, max_tokens=max_stop_tokens, temperature=0, cache_seed=0)
                 except Exception:
                     raise Exception(f"Error generating stop tokens for geneach loop. Perhaps you are outside of role tags (assistant/user/system)? If you don't want the loop to check for stop tokens, set stop=False or set num_iterations.")
                 if gen_obj["choices"][0]["finish_reason"] == "stop":
