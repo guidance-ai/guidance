@@ -109,13 +109,20 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
             cache_seed=0,
             token_healing=False # we manage token boundary healing ourselves for this function
         )
-        logprobs_result = gen_obj["choices"][0]["logprobs"]
+        gen_obj = gen_obj["choices"][0] # get the first choice (we only asked for one)
+        if "logprobs" in gen_obj:
+            logprobs_result = gen_obj["logprobs"]
+            
+            # convert the logprobs keys from string back to token ids
+            top_logprobs = {}
+            for k,v in logprobs_result["top_logprobs"][0].items():
+                id = parser.program.llm.token_to_id(k)
+                top_logprobs[id] = v
         
-        # convert the logprobs keys from string back to token ids if needed
-        top_logprobs = {}
-        for k,v in logprobs_result["top_logprobs"][0].items():
-            id = parser.program.llm.token_to_id(k)
-            top_logprobs[id] = v
+        # this happens if LLM does not return logprobs (like an OpenAI chat model)
+        else:
+            assert logprobs is None, "You cannot ask for the logprobs in a select call when using a model that does not return logprobs!"
+            top_logprobs = {parser.program.llm.token_to_id(gen_obj["text"]): 0}
         
         # no need to explore all branches if we are just taking the greedy max
         if logprobs is None:
