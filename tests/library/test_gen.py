@@ -86,3 +86,18 @@ def test_stop_regex_cut_short(llm):
     llm = get_llm(llm)
     out = guidance("""Repeat this ten times: "s38 kdjksid", "s38 kdjksid", "s38 kdjksid", "s38 kdjksid", "{{gen 'text' stop_regex="s38 kdjksid" max_tokens=5 save_stop_text=True}}""", llm=llm)()
     assert len(out["text"]) > 0 # make sure we got some output (it is not a stop string until it is a full match)
+
+@pytest.mark.parametrize("llm", ["transformers:gpt2", "openai:text-curie-001"])
+def test_gen_stream(llm):
+    """Test that streaming the generation works."""
+
+    llm1 = get_llm(llm, caching=False)
+    prompt = guidance("Hello my name is{{gen 'name' max_tokens=10 stream=True}}", llm=llm1)
+    out = prompt()
+    assert len(out["name"]) > 1
+
+    # make sure it also works with caching
+    llm2 = get_llm(llm, caching=True)
+    prompt = guidance("Hello my name is{{gen 'name' max_tokens=10 stream=True}}", llm=llm2)
+    out = prompt()
+    assert len(out["name"]) > 1
