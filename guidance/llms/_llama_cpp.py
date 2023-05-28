@@ -61,7 +61,7 @@ class LlamaCpp(LLM):
         )
         self.before_role = before_role
         self.after_role = after_role
-        self.role_end = role_end
+        self.role_end_str = role_end
         self.include_role_in_end = include_role_in_end
         self.before_role_end = before_role_end
         self.after_role_end = after_role_end
@@ -132,7 +132,7 @@ class LlamaCpp(LLM):
         if self.include_role_in_end:
             return self.before_role_end + role + self.after_role_end
         else:
-            return self.role_end
+            return self.role_end_str
 
     def decode(self, tokens, fragment=True, **kwargs):
         import torch
@@ -409,10 +409,10 @@ class LlamaCppSession(LLMSession):
 
             # if we are streaming then we need to run the inference process in a separate thread
             if stream:
-                generate_args["streamer"] = streamer
-                thread = threading.Thread(target=self.llm._generate_call, kwargs=generate_args)
-                thread.start()
-                return self._stream_then_save(streamer, key, thread)
+                generate_args["stream"] = True
+                stream_generator = self.llm._generate_call(**generate_args)
+                streamer.set_streamer(stream_generator)
+                return self._stream_then_save(streamer, key)
 
             # if we are not streaming we still manually use the streamer for consistency
             else:
@@ -428,14 +428,15 @@ class LlamaCppSession(LLMSession):
             self._prefix_cache = streamer.generated_sequence[:self._past_key_values[0][0].shape[
                 2]]  # self._past_key_values is already saved, this just aligns with it
 
-    def _stream_then_save(self, streamer, key, thread):
+    def _stream_then_save(self, streamer, key):
         list_out = []
         for out in streamer:
             list_out.append(out)
             yield out
-        thread.join()  # clean up the thread
+
         self.llm.cache[key] = list_out
         self._update_prefix_cache(streamer)
+
 
     def __exit__(self, exc_type, exc_value, traceback):
         """ Restore the model to its original state by removing monkey patches.
@@ -469,6 +470,10 @@ class LlamaCppStreamer():
         self.generated_scores = []
         self.generated_string = coded_prompt
         self.prefix_cache = []
+        self.streamer = None
+
+    def set_streamer(self, streamer):
+        self.streamer = streamer
 
     def put(self, token_obj):
 
@@ -559,14 +564,17 @@ class LlamaCppStreamer():
         return self
 
     def __next__(self):
-        try:
-            value = self.out_queue.get(timeout=self.timeout)
-        except queue.Empty:
-            value = None
-        if value is None:
-            raise StopIteration()
+        if self.streamer:
+            return next(self.streamer)
         else:
-            return value
+            try:
+                value = self.out_queue.get(timeout=self.timeout)
+            except queue.Empty:
+                value = None
+            if value is None:
+                raise StopIteration()
+            else:
+                return value
 
 
 class TokenHealingLogitsProcessor():
