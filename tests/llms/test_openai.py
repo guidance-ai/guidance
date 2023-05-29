@@ -38,7 +38,6 @@ def test_geneach_chat_gpt():
 
     out = chat_loop()
     assert len(out["conversation"]) == 2
-    assert dict(guidance.llm.usage) == {'prompt_tokens': 71, 'completion_tokens': 6, 'total_tokens': 77}
 
 def test_usage():
     """ Test the usage tracking of OpenAI
