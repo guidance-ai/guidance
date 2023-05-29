@@ -724,3 +724,33 @@ See a more elaborate example [here](notebooks/chat.ipynb).
 
 ### Using tools
 See the 'Using a search API' example in [this notebook](notebooks/chat.ipynb)
+
+## LLM specific functionality
+
+### OpenAI Usage and cost tracking
+
+OpenAI usage is tracked and available in `usage` attribute on the llm object. The usage is aggregated since the initialization of the llm object.
+
+```python
+guidance.llm = guidance.llms.OpenAI("gpt-3.5-turbo")
+# run some prompts
+guidance.llm.usage
+```
+> defaultdict(<class 'int'>, {'prompt_tokens': 71, 'completion_tokens': 6, 'total_tokens': 77})
+
+You can get the cost (in USD) of the usage using the `get_usage_cost_usd` method:
+
+```python
+guidance.llm.get_usage_cost_usd()
+```
+> 0.000462
+
+If you use caching, you can also get the usage and cost of the cached completions, this will be calls which were 
+not made to the OpenAI API, but were instead retrieved from the cache:
+
+```python
+guidance.llm = guidance.llms.OpenAI("gpt-3.5-turbo", caching=True)
+# run some prompts
+guidance.llm.get_cached_usage_cost_usd(guidance.llm.usage_cached), guidance.llm.usage_cached
+```
+> (0.000462, defaultdict(<class 'int'>, {'prompt_tokens': 71, 'completion_tokens': 6, 'total_tokens': 77}))

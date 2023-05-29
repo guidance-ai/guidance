@@ -1,6 +1,5 @@
 import openai
 import os
-import time
 import requests
 import copy
 import time
@@ -63,6 +62,40 @@ chat_models = [
     "gpt-3.5-turbo",
     "gpt-3.5-turbo-0301"
 ]
+
+MODEL_COST_PER_1K_TOKENS = {
+    "gpt-4": 0.03,
+    "gpt-4-0314": 0.03,
+    "gpt-4-completion": 0.06,
+    "gpt-4-0314-completion": 0.06,
+    "gpt-4-32k": 0.06,
+    "gpt-4-32k-0314": 0.06,
+    "gpt-4-32k-completion": 0.12,
+    "gpt-4-32k-0314-completion": 0.12,
+    "gpt-3.5-turbo": 0.002,
+    "gpt-3.5-turbo-0301": 0.002,
+    "text-ada-001": 0.0004,
+    "ada": 0.0004,
+    "text-babbage-001": 0.0005,
+    "babbage": 0.0005,
+    "text-curie-001": 0.002,
+    "curie": 0.002,
+    "text-davinci-003": 0.02,
+    "text-davinci-002": 0.02,
+    "code-davinci-002": 0.02,
+}
+
+def get_openai_token_cost_for_model(
+    model_name: str, num_tokens: int, is_completion: bool = False
+) -> float:
+    suffix = "-completion" if is_completion and model_name.startswith("gpt-4") else ""
+    model = model_name.lower() + suffix
+    if model not in MODEL_COST_PER_1K_TOKENS:
+        raise ValueError(
+            f"Unknown model: {model_name}. Please provide a valid OpenAI model name."
+            "Known models are: " + ", ".join(MODEL_COST_PER_1K_TOKENS.keys())
+        )
+    return MODEL_COST_PER_1K_TOKENS[model] * num_tokens / 1000
 
 class OpenAI(LLM):
     cache = LLM._open_cache("_openai.diskcache")
@@ -131,6 +164,9 @@ class OpenAI(LLM):
             self._rest_headers = {
                 "Content-Type": "application/json"
             }
+
+        self.usage = collections.defaultdict(int)
+        self.usage_cached = collections.defaultdict(int)
 
     def session(self, asynchronous=False):
         if asynchronous:
@@ -335,6 +371,12 @@ class OpenAI(LLM):
     def decode(self, tokens, fragment=True):
         return self._tokenizer.decode(tokens)
 
+    def get_usage_cost_usd(self, usage=None):
+        usage = self.usage if usage is None else usage
+        return (
+            get_openai_token_cost_for_model(self.model_name, usage['completion_tokens'], is_completion=True)
+            + get_openai_token_cost_for_model(self.model_name, usage['prompt_tokens'])
+        )
 
 def merge_stream_chunks(first_chunk, second_chunk):
     """ This merges two stream responses together.
@@ -441,6 +483,7 @@ class OpenAISession(LLMSession):
         
         # check the cache
         if key not in self.llm.__class__.cache or (caching is not True and not self.llm.caching) or caching is False:
+            from_cache = False
 
             # ensure we don't exceed the rate limit
             while self.llm.count_calls() > self.llm.max_calls_per_min:
@@ -482,11 +525,17 @@ class OpenAISession(LLMSession):
                 return self.llm.stream_then_save(out, key, stop_regex, n)
             else:
                 self.llm.__class__.cache[key] = out
+        else:
+            from_cache = True
         
         # wrap as a list if needed
         if stream:
             if isinstance(self.llm.__class__.cache[key], list):
                 return self.llm.__class__.cache[key]
             return [self.llm.__class__.cache[key]]
-        
+
+        result = self.llm.__class__.cache[key]
+        llm_usage = self.llm.usage_cached if from_cache else self.llm.usage
+        for k, v in result.get('usage', {}).items():
+            llm_usage[k] += v
         return self.llm.__class__.cache[key]
