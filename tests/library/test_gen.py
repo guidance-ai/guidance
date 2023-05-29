@@ -101,3 +101,9 @@ def test_gen_stream(llm):
     prompt = guidance("Hello my name is{{gen 'name' max_tokens=10 stream=True}}", llm=llm2)
     out = prompt()
     assert len(out["name"]) > 1
+
+def test_gen_llm_kwargs():
+    llm = guidance.llms.Mock(" Sue")
+    prompt = guidance("Hello my name is{{gen 'name' mock_llm_out_override=' Tom'}}", llm=llm)
+    out = prompt()
+    assert out["name"] == ' Tom'

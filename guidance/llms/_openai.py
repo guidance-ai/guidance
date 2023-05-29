@@ -10,6 +10,7 @@ import collections
 import json
 import re
 import regex
+import tiktoken
 from ._llm import LLM, LLMSession, SyncSession
 
 
@@ -63,6 +64,39 @@ chat_models = [
     "gpt-3.5-turbo",
     "gpt-3.5-turbo-0301"
 ]
+
+def num_tokens_from_messages(messages, model):
+    encoding = tiktoken.encoding_for_model(model)
+    tokens_per_name = -1
+    if model.startswith('gpt-3.5-turbo'):
+        tokens_per_message = 4
+    elif model.startswith('gpt-4'):
+        tokens_per_message = 3
+        tokens_per_name = 1
+    else:
+        raise NotImplementedError(f"""num_tokens_from_messages() is not implemented for model {model}.""")
+    num_tokens = 0
+    for message in messages:
+        num_tokens += tokens_per_message
+        for key, value in message.items():
+            num_tokens += len(encoding.encode(value))
+            if key == "name":
+                num_tokens += tokens_per_name
+    num_tokens += 3
+    return num_tokens
+
+def get_model_max_tokens(model):
+    if model.startswith('gpt-4'):
+        return 32768 if '-32k' in model else 8192
+    elif model.startswith('gpt-3.5-turbo'):
+        return 4096
+    elif model.startswith('text-davinci'):
+        return 4097
+    elif model.startswith('code-davinci'):
+        return 8001
+    else:
+        return 2049
+
 
 class OpenAI(LLM):
     cache = LLM._open_cache("_openai.diskcache")
@@ -146,6 +180,8 @@ class OpenAI(LLM):
             self._rest_headers = {
                 "Content-Type": "application/json"
             }
+
+        self.max_tokens_callbacks = {}
 
     def session(self, asynchronous=False):
         if asynchronous:
@@ -387,6 +423,8 @@ class OpenAI(LLM):
     def decode(self, tokens, fragment=True):
         return self._tokenizer.decode(tokens)
 
+    def register_max_tokens_callback(self, name, callback):
+        self.max_tokens_callbacks[name] = callback
 
 def merge_stream_chunks(first_chunk, second_chunk):
     """ This merges two stream responses together.
@@ -459,7 +497,7 @@ class RegexStopChecker():
 
 # Define a deque to store the timestamps of the calls
 class OpenAISession(LLMSession):
-    async def __call__(self, prompt, stop=None, stop_regex=None, temperature=None, n=1, max_tokens=1000, logprobs=None, top_p=1.0, echo=False, logit_bias=None, token_healing=None, pattern=None, stream=None, cache_seed=0, caching=None):
+    async def __call__(self, prompt, stop=None, stop_regex=None, temperature=None, n=1, max_tokens=1000, logprobs=None, top_p=1.0, echo=False, logit_bias=None, token_healing=None, pattern=None, stream=None, cache_seed=0, caching=None, max_tokens_callback=None):
         """ Generate a completion of the given prompt.
         """
 
@@ -474,6 +512,13 @@ class OpenAISession(LLMSession):
         # set defaults
         if temperature is None:
             temperature = self.llm.temperature
+
+        if max_tokens_callback:
+            if self.llm.chat_mode:
+                num_prompt_tokens = num_tokens_from_messages(prompt_to_messages(prompt), self.llm.model_name)
+            else:
+                num_prompt_tokens = len(tiktoken.encoding_for_model(self.llm.model_name).encode(prompt))
+            max_tokens = self.llm.max_tokens_callbacks[max_tokens_callback](get_model_max_tokens(self.llm.model_name), num_prompt_tokens)
 
         # get the arguments as dictionary for cache key generation
         args = locals().copy()

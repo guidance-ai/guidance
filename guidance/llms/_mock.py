@@ -41,12 +41,12 @@ class Mock(LLM):
             if prompt.endswith(key):
                 return key
 
-    def __call__(self, prompt, *args, n=1, stream=False, **kwargs):
+    def __call__(self, prompt, *args, n=1, stream=False, mock_llm_out_override=None, **kwargs):
         key = self._find_suffix_match(prompt)
         output = self.output[key]
         choices = []
         for i in range(n):
-            out = output[min(self.counts[key], len(output)-1)]
+            out = mock_llm_out_override if mock_llm_out_override else output[min(self.counts[key], len(output)-1)]
             self.counts[key] += 1
             if isinstance(out, str):
                 choices.append({"text": out, "finish_reason": "stop"})
