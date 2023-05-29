@@ -72,7 +72,6 @@ def num_tokens_from_messages(messages, model):
         tokens_per_message = 4
     elif model.startswith('gpt-4'):
         tokens_per_message = 3
-        tokens_per_name = 1
     else:
         raise NotImplementedError(f"""num_tokens_from_messages() is not implemented for model {model}.""")
     num_tokens = 0

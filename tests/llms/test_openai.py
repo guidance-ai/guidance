@@ -48,7 +48,7 @@ def test_dynamic_max_tokens():
         "text-davinci-003",
         '''
         Short story about cars:
-        {{gen 'res' max_tokens=500 max_tokens_callback='test'}}
+        {{gen 'res' max_tokens_callback='test'}}
         ''',
         {'model_max_tokens': 4097, 'prompt_num_tokens': 9}
     )
@@ -62,7 +62,7 @@ def test_dynamic_max_tokens():
         Hello, please write a short story
         {{~/user}}
         {{#assistant~}}
-        {{gen 'res' max_tokens=500 max_tokens_callback='test'}}
+        {{gen 'res' max_tokens_callback='test'}}
         {{~/assistant}}
         ''',
         {'model_max_tokens': 4096, 'prompt_num_tokens': 30}
