@@ -751,6 +751,6 @@ not made to the OpenAI API, but were instead retrieved from the cache:
 ```python
 guidance.llm = guidance.llms.OpenAI("gpt-3.5-turbo", caching=True)
 # run some prompts
-guidance.llm.get_cached_usage_cost_usd(guidance.llm.usage_cached), guidance.llm.usage_cached
+guidance.llm.get_usage_cost_usd(guidance.llm.usage_cached), guidance.llm.usage_cached
 ```
 > (0.000462, defaultdict(<class 'int'>, {'prompt_tokens': 71, 'completion_tokens': 6, 'total_tokens': 77}))
