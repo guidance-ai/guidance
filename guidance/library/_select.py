@@ -51,7 +51,10 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
     options = [option + next_text for option in options]
 
     # TODO: this retokenizes the whole prefix many times, perhaps this could become a bottleneck?
-    options_tokens = [parser.program.llm.encode(parser_prefix + option) for option in options]
+    options_tokens = [parser.program.llm.encode(parser_prefix + option, fragment=False) for option in options]
+
+    # encoding the prefix and then decoding it might change the length, so we need to account for that
+    recoded_parser_prefix_length = len(parser.program.llm.decode(parser.program.llm.encode(parser_prefix, fragment=False), fragment=False))
 
     # build a trie of the options
     token_map = pygtrie.Trie()
@@ -99,20 +102,27 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
 
         # generate the token logprobs
         gen_obj = await parser.llm_session(
-            parser.program.llm.decode(current_prefix), # TODO: perhaps we should allow passing of token ids directly? (this could allow us to avoid retokenizing the whole prefix many times)
+            parser.program.llm.decode(current_prefix, fragment=False), # TODO: perhaps we should allow passing of token ids directly? (this could allow us to avoid retokenizing the whole prefix many times)
             max_tokens=1,
             logit_bias=logit_bias,
             logprobs=len(logit_bias),
             cache_seed=0,
             token_healing=False # we manage token boundary healing ourselves for this function
         )
-        logprobs_result = gen_obj["choices"][0]["logprobs"]
+        gen_obj = gen_obj["choices"][0] # get the first choice (we only asked for one)
+        if "logprobs" in gen_obj:
+            logprobs_result = gen_obj["logprobs"]
+            
+            # convert the logprobs keys from string back to token ids
+            top_logprobs = {}
+            for k,v in logprobs_result["top_logprobs"][0].items():
+                id = parser.program.llm.token_to_id(k)
+                top_logprobs[id] = v
         
-        # convert the logprobs keys from string back to token ids if needed
-        top_logprobs = {}
-        for k,v in logprobs_result["top_logprobs"][0].items():
-            id = parser.program.llm.token_to_id(k)
-            top_logprobs[id] = v
+        # this happens if LLM does not return logprobs (like an OpenAI chat model)
+        else:
+            assert logprobs is None, "You cannot ask for the logprobs in a select call when using a model that does not return logprobs!"
+            top_logprobs = {parser.program.llm.token_to_id(gen_obj["text"]): 0}
         
         # no need to explore all branches if we are just taking the greedy max
         if logprobs is None:
@@ -138,10 +148,10 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
     option_logprobs = await recursive_select([])
 
     # convert the key from a token list to a string
-    option_logprobs = {parser.program.llm.decode(k): v for k,v in option_logprobs.items()}
+    option_logprobs = {parser.program.llm.decode(k, fragment=False): v for k,v in option_logprobs.items()}
 
     # trim off the prefix and suffix we added to the options
-    option_logprobs = {k[len(parser_prefix):len(k)-len(next_text)]: v for k,v in option_logprobs.items()}
+    option_logprobs = {k[recoded_parser_prefix_length:len(k)-len(next_text)]: v for k,v in option_logprobs.items()}
 
     # select the option with the highest logprob
     selected_option = max(option_logprobs, key=option_logprobs.get)

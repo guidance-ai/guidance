@@ -100,9 +100,21 @@ def get_openai_token_cost_for_model(
 class OpenAI(LLM):
     cache = LLM._open_cache("_openai.diskcache")
 
-    def __init__(self, model=None, caching=True, max_retries=5, max_calls_per_min=60, token=None, endpoint=None,
-                 temperature=0.0, chat_mode="auto", organization=None, allowed_special_tokens={"<|endoftext|>", "<|endofprompt|>"}):
+    def __init__(self, model=None, caching=True, max_retries=5, max_calls_per_min=60,
+                 api_key=None, api_type="open_ai", api_base=None, api_version=None,
+                 temperature=0.0, chat_mode="auto", organization=None, rest_call=False,
+                 allowed_special_tokens={"<|endoftext|>", "<|endofprompt|>"},
+                 token=None, endpoint=None):
         super().__init__()
+
+        # map old param values
+        # TODO: add deprecated warnings after some time
+        if token is not None:
+            if api_key is None:
+                api_key = token
+        if endpoint is not None:
+            if api_base is None:
+                api_base = endpoint
 
         # fill in default model value
         if model is None:
@@ -122,22 +134,22 @@ class OpenAI(LLM):
                 chat_mode = False
         
         # fill in default API key value
-        if token is None: # get from environment variable
-            token = os.environ.get("OPENAI_API_KEY", getattr(openai, "api_key", None))
-        if token is not None and not token.startswith("sk-") and os.path.exists(os.path.expanduser(token)): # get from file
-            with open(os.path.expanduser(token), 'r') as file:
-                token = file.read().replace('\n', '')
-        if token is None: # get from default file location
+        if api_key is None: # get from environment variable
+            api_key = os.environ.get("OPENAI_API_KEY", getattr(openai, "api_key", None))
+        if api_key is not None and not api_key.startswith("sk-") and os.path.exists(os.path.expanduser(api_key)): # get from file
+            with open(os.path.expanduser(api_key), 'r') as file:
+                api_key = file.read().replace('\n', '')
+        if api_key is None: # get from default file location
             try:
                 with open(os.path.expanduser('~/.openai_api_key'), 'r') as file:
-                    token = file.read().replace('\n', '')
+                    api_key = file.read().replace('\n', '')
             except:
                 pass
         if organization is None:
             organization = os.environ.get("OPENAI_ORGANIZATION", None)
         # fill in default endpoint value
-        if endpoint is None:
-            endpoint = os.environ.get("OPENAI_ENDPOINT", None)
+        if api_base is None:
+            api_base = os.environ.get("OPENAI_API_BASE", None) or os.environ.get("OPENAI_ENDPOINT", None) # ENDPOINT is deprecated
 
         import tiktoken
         self._tokenizer = tiktoken.get_encoding(tiktoken.encoding_for_model(model).name)
@@ -148,16 +160,19 @@ class OpenAI(LLM):
         self.caching = caching
         self.max_retries = max_retries
         self.max_calls_per_min = max_calls_per_min
-        if isinstance(token, str):
-            token = token.replace("Bearer ", "")
-        self.token = token
-        self.endpoint = endpoint
+        if isinstance(api_key, str):
+            api_key = api_key.replace("Bearer ", "")
+        self.api_key = api_key
+        self.api_type = api_type
+        self.api_base = api_base
+        self.api_version = api_version
         self.current_time = time.time()
         self.call_history = collections.deque()
         self.temperature = temperature
         self.organization = organization
+        self.rest_call = rest_call
 
-        if self.endpoint is None:
+        if not self.rest_call:
             self.caller = self._library_call
         else:
             self.caller = self._rest_call
@@ -202,18 +217,20 @@ class OpenAI(LLM):
         
         # iterate through the stream
         all_done = False
-        for out in gen:
+        for curr_out in gen:
 
             # if we have a cached output, extend it with the current output
             if cached_out is not None:
-                out = merge_stream_chunks(cached_out, out)
+                out = merge_stream_chunks(cached_out, curr_out)
+            else:
+                out = curr_out
             
             # check if we have stop_regex matches
             found_partial = False
             if stop_regex is not None:
 
                 # keep track of the generated text so far
-                for i,choice in enumerate(out['choices']):
+                for i,choice in enumerate(curr_out['choices']):
                     current_strings[i] += choice['text']
 
                 # check if all of the strings match a stop string (and hence we can stop the batch inference)
@@ -268,6 +285,11 @@ class OpenAI(LLM):
                     gen.close()
                     break
         
+        # if we have a cached output, emit it
+        if cached_out is not None:
+            list_out.append(cached_out)
+            yield out
+
         cls.cache[key] = list_out
     
     def _stream_completion(self):
@@ -295,11 +317,28 @@ class OpenAI(LLM):
 
         Note that is uses the local auth token, and does not rely on the openai one.
         """
+
+        # save the params of the openai library
         prev_key = openai.api_key
         prev_org = openai.organization
-        assert self.token is not None, "You must provide an OpenAI API key to use the OpenAI LLM. Either pass it in the constructor, set the OPENAI_API_KEY environment variable, or create the file ~/.openai_api_key with your key in it."
-        openai.api_key = self.token
-        openai.organization = self.organization
+        prev_type = openai.api_type
+        prev_version = openai.api_version
+        prev_base = openai.api_base
+
+        # set the params of the openai library if we have them
+        if self.api_key is not None:
+            openai.api_key = self.api_key
+        if self.organization is not None:
+            openai.organization = self.organization
+        if self.api_type is not None:
+            openai.api_type = self.api_type
+        if self.api_version is not None:
+            openai.api_version = self.api_version
+        if self.api_base is not None:
+            openai.api_base = self.api_base
+
+        assert openai.api_key is not None, "You must provide an OpenAI API key to use the OpenAI LLM. Either pass it in the constructor, set the OPENAI_API_KEY environment variable, or create the file ~/.openai_api_key with your key in it."
+
         if self.chat_mode:
             kwargs['messages'] = prompt_to_messages(kwargs['prompt'])
             del kwargs['prompt']
@@ -310,8 +349,14 @@ class OpenAI(LLM):
             out = add_text_to_chat_mode(out)
         else:
             out = openai.Completion.create(**kwargs)
+
+        # restore the params of the openai library
         openai.api_key = prev_key
         openai.organization = prev_org
+        openai.api_type = prev_type
+        openai.api_version = prev_version
+        openai.api_base = prev_base
+
         return out
 
     def _rest_call(self, **kwargs):
@@ -320,8 +365,8 @@ class OpenAI(LLM):
 
         # Define the request headers
         headers = copy.copy(self._rest_headers)
-        if self.token is not None:
-            headers['Authorization'] = f"Bearer {self.token}"
+        if self.api_key is not None:
+            headers['Authorization'] = f"Bearer {self.api_key}"
 
         # Define the request data
         stream = kwargs.get("stream", False)
@@ -340,16 +385,23 @@ class OpenAI(LLM):
             data['messages'] = prompt_to_messages(data['prompt'])
             del data['prompt']
             del data['echo']
-            del data['stream']
+            del data['logprobs']
 
         # Send a POST request and get the response
-        response = requests.post(self.endpoint, headers=headers, json=data, stream=stream)
-        if response.status_code != 200:
-            raise Exception("Response is not 200: " + response.text)
-        if stream:
-            return self._rest_stream_handler(response)
-        else:
-            response = response.json()
+        # An exception for timeout is raised if the server has not issued a response for 10 seconds
+        try:
+            response = requests.post(self.endpoint, headers=headers, json=data, stream=stream, timeout=60)
+            if response.status_code != 200:
+                raise Exception("Response is not 200: " + response.text)
+            if stream:
+                return self._rest_stream_handler(response)
+            else:
+                response = response.json()
+        except requests.Timeout:
+            raise Exception("Request timed out.")
+        except requests.ConnectionError:
+            raise Exception("Connection error occurred.")
+
         if self.chat_mode:
             response = add_text_to_chat_mode(response)
         return response
@@ -475,14 +527,14 @@ class OpenAISession(LLMSession):
         key = self._cache_key(args)
         
         # allow streaming to use non-streaming cache (the reverse is not true)
-        if key not in self.llm.__class__.cache and stream:
+        if key not in self.llm.cache and stream:
             args["stream"] = False
             key1 = self._cache_key(args)
-            if key1 in self.llm.__class__.cache:
+            if key1 in self.llm.cache:
                 key = key1
         
         # check the cache
-        if key not in self.llm.__class__.cache or (caching is not True and not self.llm.caching) or caching is False:
+        if key not in self.llm.cache or (caching is not True and not self.llm.caching) or caching is False:
             from_cache = False
 
             # ensure we don't exceed the rate limit
@@ -524,18 +576,18 @@ class OpenAISession(LLMSession):
             if stream:
                 return self.llm.stream_then_save(out, key, stop_regex, n)
             else:
-                self.llm.__class__.cache[key] = out
+                self.llm.cache[key] = out
         else:
             from_cache = True
-        
+
         # wrap as a list if needed
         if stream:
-            if isinstance(self.llm.__class__.cache[key], list):
-                return self.llm.__class__.cache[key]
-            return [self.llm.__class__.cache[key]]
+            if isinstance(self.llm.cache[key], list):
+                return self.llm.cache[key]
+            return [self.llm.cache[key]]
 
-        result = self.llm.__class__.cache[key]
+        result = self.llm.cache[key]
         llm_usage = self.llm.usage_cached if from_cache else self.llm.usage
         for k, v in result.get('usage', {}).items():
             llm_usage[k] += v
-        return self.llm.__class__.cache[key]
+        return result

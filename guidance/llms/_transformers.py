@@ -182,7 +182,8 @@ class TransformersSession(LLMSession):
 
                         # provide the past key values for the actual model call
                         model_kwargs["past_key_values"] = self._past_key_values
-                        model_kwargs["position_ids"] = model_kwargs["position_ids"][:,len(self._prefix_cache):] # and update position ids
+                        if "position_ids" in model_kwargs: # models like OPT update the position ids internally
+                            model_kwargs["position_ids"] = model_kwargs["position_ids"][:,len(self._prefix_cache):] # and update position ids
 
                         # we only need to do this first time, after that the past key values will
                         # be up until the last token, just like transformer models normally expect
@@ -374,7 +375,7 @@ class TransformersSession(LLMSession):
     def _update_prefix_cache(self, streamer):
         # note what we now have cached and ready for our next call in this session
         if self._past_key_values and len(streamer.generated_sequence) == 1:
-            self._prefix_cache = streamer.generated_sequence[0][:self._past_key_values[0][0].shape[2]] # self._past_key_values is already saved, this just aligns with it
+            self._prefix_cache = streamer.generated_sequence[0][:self._past_key_values[0][0].shape[-2]] # self._past_key_values is already saved, this just aligns with it
 
     def _stream_then_save(self, streamer, key, thread):
         list_out = []
@@ -596,7 +597,6 @@ class TransformersStreamer():
         self.stop_regex = stop_regex
         self.logprobs = lobprobs
         self.last_token_str = last_token_str
-        # self.coded_prompt = coded_prompt
         self.llm = llm
         self.max_total_tokens = max_new_tokens + len(input_ids[0])
         coded_prompt = coded_prompt[:len(coded_prompt)-len(last_token_str)] # strip off the last token which will be regenerated
@@ -604,7 +604,7 @@ class TransformersStreamer():
         self.out_queue = queue.Queue()
         self.sequence_pos = [len(self.input_ids[0]) for i in range(len(self.input_ids))]
         self.generated_sequence = [[] for i in range(len(self.input_ids))]
-        self.generated_scores = [[] for i in range(len(self.input_ids))]
+        self.display_logprobs = [[] for i in range(len(self.input_ids))]
         self.generated_string = [coded_prompt for i in range(len(self.input_ids))]
         self.prefix_cache = []
 
@@ -638,8 +638,15 @@ class TransformersStreamer():
         put_data = False
         for i in range(len(self.input_ids)):
             self.generated_sequence[i].extend(list(new_tokens[i]))
+            
+            # save logprobs if needed
             if self.logprobs:
-                self.generated_scores[i].extend(list(new_scores[i]))
+                for scores in new_scores[i]:
+                    if scores is None:
+                        self.display_logprobs[i].append(None)
+                    else:
+                        top_inds = scores[0].argsort(descending=True)[:self.logprobs] # TODO: verify the [0] is always correct
+                        self.display_logprobs[i].append({self.llm.id_to_token(j): float(scores[0][j]) for j in top_inds})
 
             if self.sequence_pos[i] < len(self.generated_sequence[i]):
                 display_tokens = list(self.generated_sequence[i][self.sequence_pos[i]:])
@@ -647,15 +654,6 @@ class TransformersStreamer():
                 self.generated_string[i] += val
                 
                 if self.str_pos[i] < len(self.generated_string[i]):
-                    
-                    display_logprobs = None
-                    if self.logprobs:
-                        display_scores = self.generated_scores[i][self.sequence_pos[i]:]
-                        display_logprobs = []
-                        for k in range(len(display_scores)):
-                            top_inds = display_scores[k][0].argsort(descending=True)[:self.logprobs] # TODO: verify the [0] is always correct
-                            display_logprobs.append({self.llm.id_to_token(j): float(display_scores[k][0][j]) for j in top_inds})
-
                     val = self.generated_string[i][self.str_pos[i]:]
                     finish_reason = None
                     
@@ -689,16 +687,21 @@ class TransformersStreamer():
                     if stop_pos <= len(val):
                         finish_reason = "stop"
                     
-                    if not found_partial:
+                    # emit the data if we are not potentially in the middle of a stop sequence
+                    if not found_partial or finish_reason is not None:
                         out["choices"][i] = {
                             "text": val[:stop_pos],
                             "finish_reason": finish_reason,
                             "stop_text": stop_text,
-                            "logprobs": {"token_healing_prefix": self.last_token_str, "top_logprobs": display_logprobs}
+                            "logprobs": {
+                                "token_healing_prefix": self.last_token_str,
+                                "top_logprobs": self.display_logprobs[i][self.sequence_pos[i]:]
+                            }
                         }
                         self.str_pos[i] = len(self.generated_string[i])
                         put_data = True
                 self.sequence_pos[i] = len(self.generated_sequence[i])
+        
         if put_data:
             self.out_queue.put(out)
 
