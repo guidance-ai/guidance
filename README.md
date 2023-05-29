@@ -694,7 +694,7 @@ prompt = guidance(
 '''{{#system~}}
 You are a helpful assistant
 {{~/system}}
-{{~#geneach 'conversation'}}
+{{~#geneach 'conversation' stop=False}}
 {{#user~}}
 {{set 'this.user_text' (await 'user_text')}}
 {{~/user}}
