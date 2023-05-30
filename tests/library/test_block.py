@@ -14,7 +14,7 @@ def test_empty_block():
     """
 
     prompt = guidance(
-        "{{#block}}{{#if nonempty}}nonempty{{/if}}{{/block}}",
+        "{{#block}}{{#if nonempty}}{{nonempty}}{{/if}}{{/block}}",
     )
     out = prompt(nonempty=False)
     assert out.text == ''
