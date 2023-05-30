@@ -467,8 +467,7 @@ class ProgramExecutor():
         return default_value # variable not found
 
     def variable_exists(self, name):
-        out = self.get_variable(name, 849203984939)
-        return out != 849203984939
+        return self.get_variable(name, _NO_VALUE) != _NO_VALUE
 
     def set_variable(self, name, value):
         parts = re.split(r"\.|\[", name)
