@@ -10,6 +10,7 @@ from ._utils import strip_markers
 from ._grammar import grammar
 log = logging.getLogger(__name__)
 
+_NO_VALUE = object()
 
 class ProgramExecutor():
     def __init__(self, program):
@@ -38,7 +39,14 @@ class ProgramExecutor():
             if len(parts) > 1:
                 out += " " + parts[1]
             out += "}}" + program._variables[partial_name].text + "{{/block}}"
-            program._variables = {**program[partial_name]._variables, **program._variables} # pull in the default vars from the partial
+            # Update the current program variables using those from the partial, but do not overwrite.
+            # (Rebuilding the _variables map here would break returning new values to the program variables later, e.g. from gen.)
+            update_variables = {
+                k: v
+                for k, v in program[partial_name]._variables.items()
+                if k not in program._variables
+            }
+            program._variables.update(update_variables)
             return out
         text = re.sub(r"{{>(.*?)}}", replace_partial, program._text)
 
