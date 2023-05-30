@@ -31,7 +31,7 @@ def test_guidance_capture_include():
     )
     assert len(output["response"]) > 1
 
-@pytest.mark.skipif(SKIP_BASELINE_TESTS, reason="Does not test include tag; provides a baseline for in the event of a regression.")
+@pytest.mark.skipif(SKIP_BASELINE_TESTS, reason="Does not test include tag; provides a baseline for comparison in the event of a regression.")
 def test_guidance_capture_baseline():
     program = guidance(
         "{{#if context}}It is {{context.holiday}}! {{/if}}{{input}} {{gen 'response'}}",
