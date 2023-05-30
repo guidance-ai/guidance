@@ -5,7 +5,7 @@ from ..utils import get_llm
 
 SKIP_BASELINE_TESTS=True
 
-@pytest.mark.skipif(SKIP_BASELINE_TESTS, reason="Does not test include tag; provides a baseline for in the event of a regression.")
+@pytest.mark.skipif(SKIP_BASELINE_TESTS, reason="Does not test include tag; provides a baseline for comparison in the event of a regression.")
 def test_guidance_capture_baseline():
     program = guidance(
         "It is {{context.holiday}}! {{input}} {{gen 'response'}}",
