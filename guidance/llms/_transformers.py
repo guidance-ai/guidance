@@ -6,6 +6,7 @@ import pygtrie
 import queue
 import threading
 import logging
+import collections.abc
 from ._llm import LLM, LLMSession, SyncSession
 
 class Transformers(LLM):
@@ -425,6 +426,7 @@ class TokenHealingLogitsProcessor():
         if self.num_extensions > 1 and input_ids[0][-1] != self.healed_token_ids[self.num_extensions-2]:
             return scores
 
+        # handle list inputs
         if isinstance(scores, list):
             import torch
             scores = torch.tensor(scores)
@@ -447,6 +449,12 @@ class BiasLogitsProcessor():
         self.bias_vector = self.bias_vector.to(model.device)
 
     def __call__(self, input_ids, scores):
+        
+        # handle list inputs
+        if isinstance(scores, list):
+            import torch
+            scores = torch.tensor(scores)
+
         return scores + self.bias_vector
     
 class RegexLogitsProcessor():
@@ -498,7 +506,9 @@ class RegexLogitsProcessor():
         import torch
 
         # handle 1D inputs
-        if len(input_ids[0].shape) == 0:
+        one_dim = False
+        if not isinstance(input_ids[0], collections.abc.Sequence):
+            one_dim = True
             input_ids = torch.tensor(input_ids).unsqueeze(0)
             scores = torch.tensor(scores).unsqueeze(0)
 
@@ -535,7 +545,11 @@ class RegexLogitsProcessor():
         bias_value = scores[0, sort_inds[0, 0]] - min_to_bias + 10 # make sure the tokens that fit the pattern have higher scores than the top value
         for x in to_bias:
             self.bias_vector[x] = bias_value
-        return scores + self.bias_vector.to(scores.device)
+        out = scores + self.bias_vector.to(scores.device)
+        if one_dim:
+            return out[0]
+        else:
+            return out
 
 class RegexStoppingCriteria():
     def __init__(self, stop_pattern, llm, prefix_length):
@@ -549,9 +563,9 @@ class RegexStoppingCriteria():
         self.current_length = 0
 
     def __call__(self, input_ids, scores, **kwargs):
-
+        
         # handle 1D inputs
-        if len(input_ids[0].shape) == 0:
+        if not isinstance(input_ids[0], collections.abc.Sequence):
             input_ids = [input_ids]
 
         # extend our current strings
@@ -647,7 +661,7 @@ class TransformersStreamer():
             if len_diff > 0:
                 new_scores = [None for i in range(len_diff)] + new_scores
             new_scores = [new_scores]
-        
+
         out = {"choices": [None for i in range(len(self.input_ids))]}
         put_data = False
         for i in range(len(self.input_ids)):

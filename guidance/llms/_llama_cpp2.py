@@ -98,7 +98,7 @@ class LlamaCppInnerModel():
         self.device = None # this stops the transformers code from trying to move the model to a device
     
     def generate(self, inputs, temperature, max_new_tokens, top_p, pad_token_id, logits_processor, stopping_criteria,
-                 output_scores, return_dict_in_generate, streamer, do_sample=None):
+                 output_scores, return_dict_in_generate, streamer=None, do_sample=None):
         
         assert len(inputs) == 1, "LlamaCpp only supports one input sequence at a time, so n > 1 is not supported right now."
 
@@ -125,33 +125,45 @@ class LlamaCppInnerModel():
         )
 
         # to match the ways transformers works we add the input sequence to the beginning of the output
-        streamer.put({
-            "sequences": inputs
-        })
-
-        tokens = []
-        scores = []
+        if streamer is not None:
+            streamer.put({
+                "sequences": inputs
+            })
+            tokens = []
+            scores = []
+        else:
+            tokens = [v for v in inputs[0]]
+            scores = [torch.empty(self.config.vocab_size)*float('nan') for _ in range(len(inputs))]
+        
         i = 0
         for token in token_generator:
             tokens.append(token)
             scores.append(self.llama_model.eval_logits[-1])
             if streamer is not None:
                 streamer.put({
-                    "sequences": torch.tensor(tokens).unsqueeze(0),
-                    "scores": scores,
+                    "sequences": ensure_tensor(tokens).unsqueeze(0), # unsqueeze to add batch dimension like transformers would have
+                    "scores": torch.stack([ensure_tensor(s) for s in scores]).unsqueeze(0)
                 })
                 tokens = []
                 scores = []
 
-            if i >= max_new_tokens:
+            if i > max_new_tokens:
                 break
+            i += 1
         
         if len(tokens) > 0:
             return {
-                "sequences": torch.tensor(tokens).unsqueeze(0),
-                "scores": scores
+                "sequences": ensure_tensor(tokens).unsqueeze(0),
+                "scores": torch.stack([ensure_tensor(s) for s in scores]).unsqueeze(0)
             }
         streamer.end()
+
+def ensure_tensor(x):
+    import torch
+    if isinstance(x, torch.Tensor):
+        return x
+    else:
+        return torch.tensor(x)
 
 class LlamaCppInnerModelConfig():
     pass
