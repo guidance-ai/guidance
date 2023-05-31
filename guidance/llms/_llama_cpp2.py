@@ -151,6 +151,7 @@ class LlamaCppInnerModel():
                 "sequences": torch.tensor(tokens).unsqueeze(0),
                 "scores": scores
             }
+        streamer.end()
 
 class LlamaCppInnerModelConfig():
     pass

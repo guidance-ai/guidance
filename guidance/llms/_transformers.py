@@ -497,6 +497,11 @@ class RegexLogitsProcessor():
     def __call__(self, input_ids, scores):
         import torch
 
+        # handle 1D inputs
+        if len(input_ids[0].shape) == 0:
+            input_ids = torch.tensor(input_ids).unsqueeze(0)
+            scores = torch.tensor(scores).unsqueeze(0)
+
         # extend our current strings
         if self.current_strings is None:
             self.current_strings = [self.llm.new_string_builder() for i in range(len(input_ids))]
@@ -545,6 +550,7 @@ class RegexStoppingCriteria():
 
     def __call__(self, input_ids, scores, **kwargs):
 
+        # handle 1D inputs
         if len(input_ids[0].shape) == 0:
             input_ids = [input_ids]
 
