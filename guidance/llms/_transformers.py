@@ -28,7 +28,7 @@ class Transformers(LLM):
             except:
                 pass
 
-        self.model_obj, self._tokenizer = self._model_and_tokenizer(model, tokenizer, **kwargs)
+        self.model_obj, self.tokenizer = self._model_and_tokenizer(model, tokenizer, **kwargs)
 
         self.model_name = model
         self.caching = caching
@@ -44,7 +44,7 @@ class Transformers(LLM):
         self._token_prefix_map = self._build_token_prefix_map(model)
 
     def new_string_builder(self, starting_ids=None):
-        return TransformersStringBuilder(self._tokenizer, starting_ids)
+        return TransformersStringBuilder(self.tokenizer, starting_ids)
 
     def prefix_matches(self, prefix):
         """ Return the list of tokens that match the given prefix.
@@ -52,32 +52,29 @@ class Transformers(LLM):
         return [v for arr in self._token_prefix_map.values(prefix=prefix) for v in arr]
 
     def encode(self, string, **kwargs):
-        if "return_tensors" in kwargs:
-            return self._tokenizer(string, **kwargs)
-        else:
-            return self._tokenizer.encode(string, **kwargs)
+        return self.tokenizer.encode(string, **kwargs)
+        
+    def decode(self, tokens, **kwargs):
+        return self.tokenizer.decode(tokens, **kwargs)
     
     def id_to_token(self, id):
-        return self._tokenizer.convert_ids_to_tokens([id])[0]
+        return self.tokenizer.convert_ids_to_tokens([id])[0]
     
     def token_to_id(self, token):
-        return self._tokenizer.convert_tokens_to_ids([token])[0]
+        return self.tokenizer.convert_tokens_to_ids([token])[0]
 
     def end_of_text(self):
-        return self._tokenizer.eos_token
+        return self.tokenizer.eos_token
 
     @staticmethod
     def role_start(role):
         raise NotImplementedError("In order to use chat role tags you need to use a chat-specific subclass of Transformers for your LLM from guidance.transformers.*!")
-    
-    def decode(self, tokens, **kwargs):
-        return self._tokenizer.decode(tokens, **kwargs)
 
     def _build_token_prefix_map(self, model_name):
         """ Build a map from token to index.
         """
         token_map = pygtrie.CharTrie()
-        for i in range(self._tokenizer.vocab_size):
+        for i in range(self.tokenizer.vocab_size):
             s = self.id_to_token(i)
             if s in token_map:
                 token_map[s].append(i) # handle duplicate token encodings... (GPT2 BPE has this oddly enough)
@@ -197,7 +194,7 @@ class TransformersSession(LLMSession):
             stop_regex = [stop_regex]
         if stop_regex is None:
             stop_regex = []
-        stop_regex.append(regex.escape(self.llm._tokenizer.eos_token)) # make sure the end of sequence token is always included
+        stop_regex.append(regex.escape(self.llm.tokenizer.eos_token)) # make sure the end of sequence token is always included
 
         # handle caching
         in_cache = key in self.llm.cache
@@ -208,11 +205,14 @@ class TransformersSession(LLMSession):
             assert prompt != "", "You must provide a non-zero length prompt to the Transformers language model!"
 
             # encode the prompt
-            encoded = self.llm.encode([prompt for _ in range(n)], return_tensors="pt")
+            import torch
+            # encoded2 = self.llm.encode([prompt for _ in range(n)], return_tensors="pt")
+            encoded = self.llm.encode(prompt)
+            encoded = torch.tensor([encoded for _ in range(n)])
             if self.llm.device is not None:
                 encoded = encoded.to(self.llm.device)
-            input_ids = encoded["input_ids"]
-            attention_mask = encoded["attention_mask"]
+            input_ids = encoded#["input_ids"]
+            # attention_mask = encoded["attention_mask"]
             model_config = self.llm.model_obj.config
 
             # ensure that we are extending a common sequence batch (our token healing assumes this right now)
@@ -231,7 +231,7 @@ class TransformersSession(LLMSession):
                 healed_token_ids = healer.healed_token_ids
                 if len(healed_token_ids) > 0:
                     input_ids = input_ids[:,:-len(healed_token_ids)]
-                    attention_mask = attention_mask[:,:-len(healed_token_ids)]
+                    # attention_mask = attention_mask[:,:-len(healed_token_ids)]
                     max_tokens += len(healed_token_ids) # increase to account for the tokens we regen for token healing
                     processors.append(healer)
 
@@ -270,7 +270,7 @@ class TransformersSession(LLMSession):
 
             # add support for pattern guidance
             if pattern is not None:
-                processors.append(RegexLogitsProcessor(pattern, stop_regex, self.llm, model_config.vocab_size, temperature == 0, len(coded_prompt), self.llm._tokenizer.eos_token_id))
+                processors.append(RegexLogitsProcessor(pattern, stop_regex, self.llm, model_config.vocab_size, temperature == 0, len(coded_prompt), self.llm.tokenizer.eos_token_id))
 
             if stop_regex is not None:
                 stoppers.append(RegexStoppingCriteria(stop_regex, self.llm, len(coded_prompt)))
@@ -289,12 +289,12 @@ class TransformersSession(LLMSession):
             # the args for the transformers generate call
             generate_args = dict(
                 inputs=input_ids,
-                attention_mask=attention_mask,
+                # attention_mask=attention_mask,
                 # position_ids=position_ids,
                 temperature=temperature,
                 max_new_tokens=max_tokens,
                 top_p=top_p,
-                pad_token_id=model_config.pad_token_id if model_config.pad_token_id is not None else self.llm._tokenizer.eos_token_id,
+                pad_token_id=model_config.pad_token_id if model_config.pad_token_id is not None else self.llm.tokenizer.eos_token_id,
                 logits_processor=transformers.LogitsProcessorList(processors),
                 stopping_criteria=transformers.StoppingCriteriaList(stoppers),
                 # past_key_values=self._past_key_values,
@@ -425,6 +425,10 @@ class TokenHealingLogitsProcessor():
         if self.num_extensions > 1 and input_ids[0][-1] != self.healed_token_ids[self.num_extensions-2]:
             return scores
 
+        if isinstance(scores, list):
+            import torch
+            scores = torch.tensor(scores)
+
         # make only allowed tokens possible
         return scores + self.token_masks[self.num_extensions-1]
     
@@ -541,6 +545,9 @@ class RegexStoppingCriteria():
 
     def __call__(self, input_ids, scores, **kwargs):
 
+        if len(input_ids[0].shape) == 0:
+            input_ids = [input_ids]
+
         # extend our current strings
         if self.current_strings is None:
             self.current_strings = [self.llm.new_string_builder() for _ in range(len(input_ids))]
@@ -618,7 +625,6 @@ class TransformersStreamer():
             new_tokens = token_obj
         else:
             new_tokens = token_obj['sequences']
-        
 
         if isinstance(new_tokens, torch.Tensor):
             new_tokens = new_tokens.cpu()
@@ -626,7 +632,6 @@ class TransformersStreamer():
         # if we are given a single sequence, then make it a batch of size 1
         if len(new_tokens.shape) == 1:
             new_tokens = new_tokens.unsqueeze(0)
-        
         
         # extract the scores if we are given them (and format them to be the same shape as the tokens)
         if self.logprobs:
@@ -665,7 +670,7 @@ class TransformersStreamer():
                     stop_pos = len(val) + 1
                     if len(self.generated_sequence[i]) >= self.max_total_tokens:
                         finish_reason = "length"
-                    elif self.generated_sequence[i][-1] == self.llm._tokenizer.eos_token_id:
+                    elif self.generated_sequence[i][-1] == self.llm.tokenizer.eos_token_id:
                         finish_reason = "endoftext"
                         eos_str = self.generated_string[i].pop() # remove the end of text token
                         stop_pos = len(val) - len(eos_str)

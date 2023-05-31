@@ -67,22 +67,22 @@ class LlamaCppTokenizer():
         self.model_obj = model_obj
         self.vocab_size = llama_n_vocab(self.model_obj.ctx)
         self.eos_token_id = llama_token_eos()
-        self.eos_token = self.decode([self.eos_token_id])
-
-    def __call__(self, string, **kwargs):
-        return self.encode(string, **kwargs)
+        self.eos_token = "</s>" # TODO: is there a way to get this from llama-cpp-python?
 
     def encode(self, string, **kwargs):
-        return self.model_obj.tokenize(string)
+        return self.model_obj.tokenize(string.encode("utf-8"))
     
     def decode(self, tokens, **kwargs):
-        return self.model_obj.detokenize(tokens)
+        return self.model_obj.detokenize(tokens).decode("utf-8", errors="ignore") # errors="ignore" is copied from llama-cpp-python
     
     def convert_ids_to_tokens(self, ids):
         return [self.decode([id]) for id in ids]
     
     def convert_tokens_to_ids(self, tokens):
         return [self.encode(token)[0] for token in tokens]
+    
+    def convert_tokens_to_string(self, tokens):
+        return "".join(tokens)
     
 class LlamaCppInnerModel():
     """This simulates a HuggingFace model for llama_cpp models."""
@@ -97,24 +97,60 @@ class LlamaCppInnerModel():
         self.config.pad_token_id = None
         self.device = None # this stops the transformers code from trying to move the model to a device
     
-    def generate(self, inputs, attention_mask, temperature, max_new_tokens, top_p, pad_token_id, logits_processor, stopping_criteria,
-                 output_scores, return_dict_in_generate, do_sample, streamer):
+    def generate(self, inputs, temperature, max_new_tokens, top_p, pad_token_id, logits_processor, stopping_criteria,
+                 output_scores, return_dict_in_generate, streamer, do_sample=None):
+        
+        assert len(inputs) == 1, "LlamaCpp only supports one input sequence at a time, so n > 1 is not supported right now."
+
+        import torch
+        
+        # gen_args = {}
+        # if do_sample is not None:
+        #     gen_args["do_sample"] = do_sample
         
         # TODO: this is not all working yet :)
-        return self.llama_model.create_completion(
-            inputs=inputs,
-            attention_mask=attention_mask,
-            temperature=temperature,
-            max_new_tokens=max_new_tokens,
+        token_generator = self.llama_model.generate(
+            tokens=inputs[0],
+            temp=temperature,
+            # max_new_tokens=max_new_tokens,
             top_p=top_p,
-            pad_token_id=pad_token_id,
+            # pad_token_id=pad_token_id,
             logits_processor=logits_processor,
             stopping_criteria=stopping_criteria,
-            output_scores=output_scores,
-            return_dict_in_generate=return_dict_in_generate,
-            do_sample=do_sample,
-            streamer=streamer
+            # output_scores=output_scores,
+            # return_dict_in_generate=return_dict_in_generate,
+            # do_sample=do_sample,
+            # streamer=streamer,
+            # **gen_args
         )
+
+        # to match the ways transformers works we add the input sequence to the beginning of the output
+        streamer.put({
+            "sequences": inputs
+        })
+
+        tokens = []
+        scores = []
+        i = 0
+        for token in token_generator:
+            tokens.append(token)
+            scores.append(self.llama_model.eval_logits[-1])
+            if streamer is not None:
+                streamer.put({
+                    "sequences": torch.tensor(tokens).unsqueeze(0),
+                    "scores": scores,
+                })
+                tokens = []
+                scores = []
+
+            if i >= max_new_tokens:
+                break
+        
+        if len(tokens) > 0:
+            return {
+                "sequences": torch.tensor(tokens).unsqueeze(0),
+                "scores": scores
+            }
 
 class LlamaCppInnerModelConfig():
     pass
