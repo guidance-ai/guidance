@@ -6,3 +6,4 @@ from ._azure_openai import AzureOpenAI
 from ._deep_speed import DeepSpeed
 from . import transformers
 from ._llama_cpp import LlamaCpp
+from ._llama_cpp2 import LlamaCpp2

@@ -43,7 +43,13 @@ class LlamaCpp(LLM):
                  temperature=0.25):
         super().__init__()
 
-        from llama_cpp import Llama, llama_n_vocab
+        try:
+            from llama_cpp import Llama, llama_n_vocab
+            import pkg_resources
+            from packaging import version
+            assert version.parse(pkg_resources.get_distribution("llama-cpp-python").version) >= version.parse("0.1.55"), "llama-cpp-python version must be >= 0.1.55"
+        except ImportError:
+            raise ImportError("llama_cpp >= 0.1.55 must be installed to use the LlamaCpp LLM in Gudiance! Install with `pip install llama-cpp-python`") 
         from transformers import AutoTokenizer
         self.model_obj = Llama(
             model,
@@ -450,132 +456,6 @@ class LlamaCppSession(LLMSession):
         return False
 
 
-class LlamaCppStreamer():
-    def __init__(self, input_ids, stop_regex, last_token_str, coded_prompt, llm, max_new_tokens, logprobs,
-                 timeout=None):
-        self.timeout = timeout
-        self.input_ids = input_ids
-        self.stop_regex = stop_regex
-        self.logprobs = logprobs
-        self.last_token_str = last_token_str
-        # self.coded_prompt = coded_prompt
-        self.llm = llm
-        self.max_total_tokens = max_new_tokens + len(input_ids)
-        coded_prompt = coded_prompt[:len(coded_prompt) - len(
-            last_token_str)]  # strip off the last token which will be regenerated
-        self.str_pos = len(coded_prompt) + len(self.last_token_str)
-        self.out_queue = queue.Queue()
-        self.sequence_pos = 0
-        self.generated_sequence = []
-        self.generated_scores = []
-        self.generated_string = coded_prompt
-        self.prefix_cache = []
-        self.streamer = None
-
-    def set_streamer(self, streamer):
-        self.streamer = streamer
-
-    def put(self, token_obj):
-
-        import torch
-        if isinstance(token_obj, torch.Tensor):
-            new_tokens = token_obj
-        else:
-            new_tokens = token_obj['choices'][0]['text']
-
-        # extract the scores if we are given them (and format them to be the same shape as the tokens)
-        if self.logprobs:
-            new_scores = token_obj['choices'][0]['logprobs']['token_logprobs']
-            len_diff = len(new_tokens) - len(new_scores)
-            if len_diff > 0:
-                new_scores = [0.0 for i in range(len_diff)] + new_scores
-            new_scores = [new_scores]
-
-        out = {"choices": []}
-        put_data = False
-        self.generated_sequence.extend(new_tokens)
-        if self.logprobs:
-            self.generated_scores.extend(list(new_scores))
-
-        if self.sequence_pos < len(self.generated_sequence):
-            val = new_tokens  # [self.llm._prefix_token_id] + display_tokens)[len(self.llm._prefix_token):]
-            self.generated_string += val
-
-            if self.str_pos < len(self.generated_string):
-
-                display_logprobs = None
-                if self.logprobs:
-                    display_logprobs = token_obj['choices'][0]['logprobs']['top_logprobs']
-
-                val = self.generated_string[self.str_pos:]
-                finish_reason = None
-
-                # check why we stopped
-                stop_pos = len(val) + 1
-                if len(self.generated_sequence) >= self.max_total_tokens:
-                    finish_reason = "length"
-                elif self.generated_sequence[-1] == self.llm.model_obj.token_eos():
-                    finish_reason = "endoftext"
-                    stop_pos = len(val) - len(self.llm.decode([self.llm.model_obj.token_eos()]))
-
-                # trim off the stop regex matches if needed
-                found_partial = False
-                if self.stop_regex is not None and (finish_reason is None or len(self.input_ids) > 1):
-                    stop_regex_obj = [regex.compile(s) for s in self.stop_regex]
-                    for s in stop_regex_obj:
-                        m = s.search(val)
-                        if m:
-                            span = m.span()
-                            if span[1] > span[0]:
-                                if m.partial:  # we might be starting a stop sequence, so we can't emit anything yet
-                                    found_partial = True
-                                    break
-                                else:
-                                    stop_pos = min(span[0], stop_pos)
-
-                # record the reason we stopped (if we have stopped)
-                if stop_pos <= len(val):
-                    finish_reason = "stop"
-
-                if not found_partial:
-                    out["choices"].append({
-                        "text": val[:stop_pos],
-                        "finish_reason": finish_reason,
-                        "logprobs": {"token_healing_prefix": self.last_token_str,
-                                     "top_logprobs": display_logprobs}
-                    })
-                    self.str_pos = len(self.generated_string)
-                    put_data = True
-            self.sequence_pos = len(self.generated_sequence)
-
-        if put_data:
-            self.out_queue.put(out)
-
-    def end(self):
-
-        # make sure we have flushed all of the data
-        for i in range(len(self.input_ids)):
-            assert self.str_pos[i] >= len(self.generated_string[
-                                              i]), "Not all data was flushed, this means generation stopped for an unknown reason!"
-
-        self.out_queue.put(None)
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        if self.streamer:
-            return next(self.streamer)
-        else:
-            try:
-                value = self.out_queue.get(timeout=self.timeout)
-            except queue.Empty:
-                value = None
-            if value is None:
-                raise StopIteration()
-            else:
-                return value
-
 
 class TokenHealingLogitsProcessor():
     """ Token healing.
@@ -773,3 +653,129 @@ class RegexStoppingCriteria():
             all_done = False
 
         return all_done
+
+class LlamaCppStreamer():
+    def __init__(self, input_ids, stop_regex, last_token_str, coded_prompt, llm, max_new_tokens, logprobs,
+                 timeout=None):
+        self.timeout = timeout
+        self.input_ids = input_ids
+        self.stop_regex = stop_regex
+        self.logprobs = logprobs
+        self.last_token_str = last_token_str
+        # self.coded_prompt = coded_prompt
+        self.llm = llm
+        self.max_total_tokens = max_new_tokens + len(input_ids)
+        coded_prompt = coded_prompt[:len(coded_prompt) - len(
+            last_token_str)]  # strip off the last token which will be regenerated
+        self.str_pos = len(coded_prompt) + len(self.last_token_str)
+        self.out_queue = queue.Queue()
+        self.sequence_pos = 0
+        self.generated_sequence = []
+        self.generated_scores = []
+        self.generated_string = coded_prompt
+        self.prefix_cache = []
+        self.streamer = None
+
+    def set_streamer(self, streamer):
+        self.streamer = streamer
+
+    def put(self, token_obj):
+
+        import torch
+        if isinstance(token_obj, torch.Tensor):
+            new_tokens = token_obj
+        else:
+            new_tokens = token_obj['choices'][0]['text']
+
+        # extract the scores if we are given them (and format them to be the same shape as the tokens)
+        if self.logprobs:
+            new_scores = token_obj['choices'][0]['logprobs']['token_logprobs']
+            len_diff = len(new_tokens) - len(new_scores)
+            if len_diff > 0:
+                new_scores = [0.0 for i in range(len_diff)] + new_scores
+            new_scores = [new_scores]
+
+        out = {"choices": []}
+        put_data = False
+        self.generated_sequence.extend(new_tokens)
+        if self.logprobs:
+            self.generated_scores.extend(list(new_scores))
+
+        if self.sequence_pos < len(self.generated_sequence):
+            val = new_tokens  # [self.llm._prefix_token_id] + display_tokens)[len(self.llm._prefix_token):]
+            self.generated_string += val
+
+            if self.str_pos < len(self.generated_string):
+
+                display_logprobs = None
+                if self.logprobs:
+                    display_logprobs = token_obj['choices'][0]['logprobs']['top_logprobs']
+
+                val = self.generated_string[self.str_pos:]
+                finish_reason = None
+
+                # check why we stopped
+                stop_pos = len(val) + 1
+                if len(self.generated_sequence) >= self.max_total_tokens:
+                    finish_reason = "length"
+                elif self.generated_sequence[-1] == self.llm.model_obj.token_eos():
+                    finish_reason = "endoftext"
+                    stop_pos = len(val) - len(self.llm.decode([self.llm.model_obj.token_eos()]))
+
+                # trim off the stop regex matches if needed
+                found_partial = False
+                if self.stop_regex is not None and (finish_reason is None or len(self.input_ids) > 1):
+                    stop_regex_obj = [regex.compile(s) for s in self.stop_regex]
+                    for s in stop_regex_obj:
+                        m = s.search(val)
+                        if m:
+                            span = m.span()
+                            if span[1] > span[0]:
+                                if m.partial:  # we might be starting a stop sequence, so we can't emit anything yet
+                                    found_partial = True
+                                    break
+                                else:
+                                    stop_pos = min(span[0], stop_pos)
+
+                # record the reason we stopped (if we have stopped)
+                if stop_pos <= len(val):
+                    finish_reason = "stop"
+
+                if not found_partial:
+                    out["choices"].append({
+                        "text": val[:stop_pos],
+                        "finish_reason": finish_reason,
+                        "logprobs": {"token_healing_prefix": self.last_token_str,
+                                     "top_logprobs": display_logprobs}
+                    })
+                    self.str_pos = len(self.generated_string)
+                    put_data = True
+            self.sequence_pos = len(self.generated_sequence)
+
+        if put_data:
+            self.out_queue.put(out)
+
+    def end(self):
+
+        # make sure we have flushed all of the data
+        for i in range(len(self.input_ids)):
+            assert self.str_pos[i] >= len(self.generated_string[
+                                              i]), "Not all data was flushed, this means generation stopped for an unknown reason!"
+
+        self.out_queue.put(None)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self.streamer:
+            return next(self.streamer)
+        else:
+            try:
+                value = self.out_queue.get(timeout=self.timeout)
+            except queue.Empty:
+                value = None
+            if value is None:
+                raise StopIteration()
+            else:
+                return value

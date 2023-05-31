@@ -51,10 +51,10 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
     options = [option + next_text for option in options]
 
     # TODO: this retokenizes the whole prefix many times, perhaps this could become a bottleneck?
-    options_tokens = [parser.program.llm.encode(parser_prefix + option, fragment=False) for option in options]
+    options_tokens = [parser.program.llm.encode(parser_prefix + option) for option in options]
 
     # encoding the prefix and then decoding it might change the length, so we need to account for that
-    recoded_parser_prefix_length = len(parser.program.llm.decode(parser.program.llm.encode(parser_prefix, fragment=False), fragment=False))
+    recoded_parser_prefix_length = len(parser.program.llm.decode(parser.program.llm.encode(parser_prefix)))
 
     # build a trie of the options
     token_map = pygtrie.Trie()
@@ -102,7 +102,7 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
 
         # generate the token logprobs
         gen_obj = await parser.llm_session(
-            parser.program.llm.decode(current_prefix, fragment=False), # TODO: perhaps we should allow passing of token ids directly? (this could allow us to avoid retokenizing the whole prefix many times)
+            parser.program.llm.decode(current_prefix), # TODO: perhaps we should allow passing of token ids directly? (this could allow us to avoid retokenizing the whole prefix many times)
             max_tokens=1,
             logit_bias=logit_bias,
             logprobs=len(logit_bias),
@@ -148,7 +148,7 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
     option_logprobs = await recursive_select([])
 
     # convert the key from a token list to a string
-    option_logprobs = {parser.program.llm.decode(k, fragment=False): v for k,v in option_logprobs.items()}
+    option_logprobs = {parser.program.llm.decode(k): v for k,v in option_logprobs.items()}
 
     # trim off the prefix and suffix we added to the options
     option_logprobs = {k[recoded_parser_prefix_length:len(k)-len(next_text)]: v for k,v in option_logprobs.items()}

@@ -52,6 +52,9 @@ setup(
             'pytest',
             'transformers',
             'torch'
+        ],
+        'llama_cpp': [
+            'llama-cpp-python>=0.1.55'
         ]
     }
 )
