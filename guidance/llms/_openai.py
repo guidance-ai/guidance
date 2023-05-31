@@ -380,11 +380,11 @@ class OpenAI(LLM):
                 else:
                     yield json.loads(text)
     
-    def encode(self, string, fragment=True):
+    def encode(self, string):
         # note that is_fragment is not used used for this tokenizer
         return self._tokenizer.encode(string, allowed_special=self.allowed_special_tokens)
     
-    def decode(self, tokens, fragment=True):
+    def decode(self, tokens):
         return self._tokenizer.decode(tokens)
 
 
