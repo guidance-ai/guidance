@@ -22,7 +22,7 @@ async def block(name=None, hidden=False, _parser_context=None):
         prev_node=_parser_context["prev_node"]
     )
     if name is not None:
-        variable_value = strip_markers(out) if out is not None else None
+        variable_value = strip_markers(out)
         parser.set_variable(name, variable_value)
     if hidden:
         new_content = parser.prefix[pos:]
