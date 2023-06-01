@@ -8,7 +8,7 @@ from .._utils import escape_template_block, strip_markers
 
 log = logging.getLogger(__name__)
 
-async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_tokens=500, n=1,
+async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_tokens=500, n=1, stream=None,
               temperature=0.0, top_p=1.0, logprobs=None, pattern=None, hidden=False, list_append=False,
               save_prompt=False, token_healing=None, _parser_context=None):
     ''' Use the LLM to generate a completion.
@@ -102,9 +102,9 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
                 if next_text.startswith(end_tag):
                     stop = end_tag
         
-        # fall back to the next node's text
-        if stop is None:
-            stop = next_text
+        # fall back to the next node's text (this was too easy to accidentally trigger, so we disable it now)
+        # if stop is None:
+        #     stop = next_text
 
     if stop == "":
         stop = None
@@ -116,8 +116,13 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
     else:
         cache_seed = 0
 
-    # we can't stream batches right now
-    stream_generation = parser.program.stream if n == 1 else False
+    # set streaming default
+    if stream is None:
+        stream = parser.program.stream or parser.program._displaying or stop_regex is not None if n == 1 else False
+
+    # we can't stream batches right now TODO: fix this
+    assert not (stream and n > 1), "You can't stream batches of completions right now."
+    # stream_generation = parser.program.stream if n == 1 else False
 
     # save the prompt if requested
     if save_prompt:
@@ -132,14 +137,14 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
     gen_obj = await parser.llm_session(
         parser_prefix+prefix, stop=stop, stop_regex=stop_regex, max_tokens=max_tokens, n=n, pattern=pattern,
         temperature=temperature, top_p=top_p, logprobs=logprobs, cache_seed=cache_seed, token_healing=token_healing,
-        echo=parser.program.logprobs is not None, stream=stream_generation, caching=parser.program.caching
+        echo=parser.program.logprobs is not None, stream=stream, caching=parser.program.caching
     )
 
     if n == 1:
         generated_value = prefix
         partial_output(prefix)
         logprobs_out = []
-        if not isinstance(gen_obj, types.GeneratorType):
+        if not isinstance(gen_obj, (types.GeneratorType, list, tuple)):
             gen_obj = [gen_obj]
         if list_append:
             value_list = parser.get_variable(name, [])

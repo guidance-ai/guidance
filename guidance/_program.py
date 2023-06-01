@@ -33,7 +33,7 @@ class Program:
     the generated output to mark where template tags used to be.
     '''
 
-    def __init__(self, text, llm=None, cache_seed=0, logprobs=None, silent='auto', async_mode=False, stream=None, caching=None, await_missing=False, **kwargs):
+    def __init__(self, text, llm=None, cache_seed=0, logprobs=None, silent=None, async_mode=False, stream=None, caching=None, await_missing=False, **kwargs):
         """ Create a new Program object from a program string.
 
         Parameters
@@ -50,9 +50,10 @@ class Program:
         logprobs : int or None (default)
             The number of logprobs to return from the language model for each token. (not well supported yet,
             since some endpoints don't support it)
-        silent : bool (default False)
+        silent : bool (default None)
             If True, the program will not display any output. This is useful for programs that are
-            only used to generate variables for other programs.
+            only used to generate variables for other programs. If None we automatically set this based
+            on if we are streaming and if we are in interactive mode.
         async_mode : bool (default False)
             If True, the program will be executed asynchronously. This is useful for programs that
             take a long time to run, or that need to be run in parallel.
@@ -91,8 +92,8 @@ class Program:
         self.silent = silent
         self.stream = stream
         self.await_missing = await_missing
-        if self.silent == "auto":
-            self.silent = not _utils.is_interactive()
+        if self.silent is None:
+            self.silent = self.stream is True or not _utils.is_interactive()
         
         # set our variables
         self._variables = {}
@@ -109,6 +110,7 @@ class Program:
         self._executor = None # the ProgramExecutor object that is running the program
         self._last_display_update = 0 # the last time we updated the display (used for throttling updates)
         self._execute_complete = asyncio.Event() # fires when the program is done executing to resolve __await__
+        self._emit_stream_event = asyncio.Event() # fires when we need to emit a stream event
         self._displaying = not self.silent # if we are displaying we need to update the display as we execute
         self._displayed = False # marks if we have been displayed in the client yet
         self._displaying_html = False # if we are displaying html (vs. text)
@@ -162,16 +164,19 @@ class Program:
         
 
     async def _await_finish_execute(self):
-        """ Used by self.__await__ to wait for the program to complete.
-        """
+        """Used by self.__await__ to wait for the program to complete."""
         await self._execute_complete.wait() # wait for the program to finish executing
         return self
 
     def __await__(self):
         return self._await_finish_execute().__await__()
+    
+    def __aiter__(self):
+        """Return an async iterator that yields the program in partial states as it is run."""
+        return self._stream_run_async()
         
     def __call__(self, **kwargs):
-        """ Execute this program with the given variable values and return a new executed/executing program.
+        """Execute this program with the given variable values and return a new executed/executing program.
 
         Note that the returned program might not be fully executed if `stream=True`. When streaming you need to
         use the python `await` keyword if you want to ensure the program is finished (note that is different than
@@ -214,7 +219,7 @@ class Program:
         # if we are not in async mode, we need to create a new event loop and run the program in it until it is done
         else:
 
-            # apply the nested event loop patch if needed
+            # apply nested event loop patch if needed
             try:
                 other_loop = asyncio.get_event_loop()
                 nest_asyncio.apply(other_loop)
@@ -223,12 +228,68 @@ class Program:
             
             loop = asyncio.new_event_loop()
             loop.create_task(new_program.update_display.run()) # start the display updater
-            loop.run_until_complete(new_program.execute())
-    
+            if new_program.stream:
+                return self._stream_run(loop, new_program)
+            else:
+                loop.run_until_complete(new_program.execute())
+
         return new_program
+    
+    def get(self, key, default=None):
+        """Get the value of a variable by name."""
+        return self._variables.get(key, default)
+    
+    def _stream_run(self, loop, new_program):
+        """This feels a bit hacky at the moment. TODO: clean this up."""
+
+        # add the program execution to the event loop
+        execute_task = loop.create_task(new_program.execute())
+
+        # run the event loop until the program is done executing
+        while new_program._executor is not None:
+            try:
+                loop.run_until_complete(execute_task) # this will stop each time the program wants to emit a new state
+            except RuntimeError as e:
+                # we don't mind that the task is not yet done, we will restart the loop
+                if str(e) != "Event loop stopped before Future completed.":
+                    raise e
+            if getattr(loop, "_stopping", False):
+                loop._stopping = False # clean up the stopping flag
+            if new_program._executor is not None and new_program._executor.executing:
+                try:
+                    yield new_program
+                except GeneratorExit:
+                    # this will cause the program to stop executing and finish as a valid partial execution
+                    if new_program._executor.executing:
+                        new_program._executor.executing = False
+        yield new_program
+
+        # cancel all tasks and close the loop
+        for task in asyncio.all_tasks(loop=loop):
+            task.cancel()
+        loop.run_until_complete(asyncio.sleep(0)) # give the loop a chance to cancel the tasks
+        loop.close() # we are done with the loop (note that the loop is already stopped)
+
+    async def _stream_run_async(self):
+
+        # run the event loop until the program is done executing
+        while self._executor is not None:
+            if self._executor.executing:
+                await self._emit_stream_event.wait()
+                self._emit_stream_event.clear()
+            try:
+                yield self
+            except GeneratorExit as e:
+                # this will cause the program to stop executing and finish as a valid partial execution
+                if self._executor.executing:
+                    self._executor.executing = False
+                await self._execute_complete.wait()
+
+                raise e
+        yield self
 
     def _update_display(self, last=False):
-        """ Updates the display with the current marked text after debouncing.
+        """Updates the display with the current marked text after debouncing.
 
         Parameters
         ----------
@@ -240,6 +301,18 @@ class Program:
         """
 
         log.debug(f"Updating display (last={last}, self._displaying={self._displaying}, self._comm={self._comm})")
+
+        
+        if self.stream:
+            if self.async_mode:
+                # if we are streaming in async mode then we set the event to let the generator know it can yield
+                self._emit_stream_event.set()
+                
+            else:
+                # if we are streaming not in async mode then we pause the event loop to let the generator
+                # that is controlling execution return (it will restart the event loop when it is ready)
+                if self._executor is not None:
+                    asyncio.get_event_loop().stop()
 
         # this is always called during execution, and we only want to update the display if we are displaying
         if not self._displaying:
