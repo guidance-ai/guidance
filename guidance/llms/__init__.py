@@ -5,3 +5,4 @@ from ._llm import LLM, LLMSession, SyncSession
 from ._azure_openai import AzureOpenAI
 from ._deep_speed import DeepSpeed
 from . import transformers
+from . import caches
