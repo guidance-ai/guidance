@@ -507,7 +507,7 @@ class RegexLogitsProcessor():
 
         # handle 1D inputs
         one_dim = False
-        if not isinstance(input_ids[0], collections.abc.Sequence):
+        if not isinstance(input_ids[0], collections.abc.Sequence) and not (hasattr(input_ids[0], "shape") and len(input_ids[0].shape) > 0):
             one_dim = True
             input_ids = torch.tensor(input_ids).unsqueeze(0)
             scores = torch.tensor(scores).unsqueeze(0)
@@ -565,7 +565,7 @@ class RegexStoppingCriteria():
     def __call__(self, input_ids, scores, **kwargs):
         
         # handle 1D inputs
-        if not isinstance(input_ids[0], collections.abc.Sequence):
+        if not isinstance(input_ids[0], collections.abc.Sequence) and not (hasattr(input_ids[0], "shape") and len(input_ids[0].shape) > 0):
             input_ids = [input_ids]
 
         # extend our current strings
