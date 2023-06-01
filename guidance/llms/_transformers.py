@@ -241,11 +241,14 @@ class TransformersSession(LLMSession):
                 processors.append(BiasLogitsProcessor(self.llm, model_config.vocab_size, logit_bias))
 
             # find the max context length
-            possible_attributes = ["max_sequence_length", "max_seq_len", "n_positions", "max_position_embeddings"]
+            possible_attributes = ["max_sequence_length", "max_seq_len", "model_max_length", "n_positions", "max_position_embeddings"]
             max_context = None
-            for attr in possible_attributes:
-                if max_context is None:
-                    max_context = getattr(model_config, attr, None)
+            for obj in [model_config, self.llm.tokenizer]:
+                for attr in possible_attributes:
+                    if max_context is None:
+                        max_context = getattr(obj, attr, None)
+                    else:
+                        break
             assert max_context is not None, "Could not find a max context length for the model! Tried: "+", ".join(possible_attributes)
 
             # make sure we don't run off the end of the model
