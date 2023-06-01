@@ -730,10 +730,12 @@ See the 'Using a search API' example in [this notebook](notebooks/chat.ipynb).
 ### OpenAI Usage and cost tracking
 
 OpenAI usage is tracked and available in `usage` attribute on the llm object. The usage is aggregated since the initialization of the llm object.
+OpenAI returns usage data only for non-streaming calls, so make sure to set stream=False in gen tags you want to track usage for.
 
 ```python
-guidance.llm = guidance.llms.OpenAI("gpt-3.5-turbo")
-# run some prompts
+guidance.llm = guidance.llms.OpenAI("text-davinci-003")
+guidance.llm.cache.clear()
+guidance("""The best thing about the beach is {{~gen 'best' temperature=0.7 max_tokens=7 stream=False}}""")()
 guidance.llm.usage
 ```
 > defaultdict(<class 'int'>, {'prompt_tokens': 71, 'completion_tokens': 6, 'total_tokens': 77})
@@ -749,8 +751,8 @@ If you use caching, you can also get the usage and cost of the cached completion
 not made to the OpenAI API, but were instead retrieved from the cache:
 
 ```python
-guidance.llm = guidance.llms.OpenAI("gpt-3.5-turbo", caching=True)
-# run some prompts
+guidance.llm = guidance.llms.OpenAI("text-davinci-003")
+guidance("""The best thing about the beach is {{~gen 'best' temperature=0.7 max_tokens=7 stream=False}}""")()
 guidance.llm.get_usage_cost_usd(guidance.llm.usage_cached), guidance.llm.usage_cached
 ```
 > (0.000462, defaultdict(<class 'int'>, {'prompt_tokens': 71, 'completion_tokens': 6, 'total_tokens': 77}))
