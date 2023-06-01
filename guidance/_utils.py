@@ -88,6 +88,9 @@ def find_func_name(f, used_names):
 
 
 def strip_markers(s):
+    """This strips out the comment markers used by guidance."""
+    if s is None:
+        return None
     return re.sub(r"{{!--G.*?--}}", r"", s, flags=re.MULTILINE | re.DOTALL)
 
 
