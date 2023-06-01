@@ -185,9 +185,7 @@ class TransformersSession(LLMSession):
 
         # generate the cache key
         cache_params = self._cache_params(locals().copy())
-        # if not self.llm.__class__.cache:
-        #     self.llm.__class__.cache = cache_creator(self.llm.llm_name)
-        llm_cache = self.llm.__class__.cache()
+        llm_cache = self.llm.cache
         key = llm_cache.create_key(self.llm.llm_name, **cache_params)
 
         # set the stop patterns

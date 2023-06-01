@@ -2,14 +2,24 @@ from typing import Any, Dict, Optional, Callable
 
 import asyncio
 
-from .caches import Cache, cache_creator
+from .caches import Cache, DiskCache
 
+class LLMMeta(type):
+    def __init__(cls, *args, **kwargs):
+        cls._cache = None
+    @property
+    def cache(cls):
+        if cls._cache is None:
+            cls._cache = DiskCache(cls.llm_name)
+        return cls._cache
+    @cache.setter
+    def cache(cls, value):
+        cls._cache = value
 
-class LLM:
+class LLM(metaclass=LLMMeta):
     cache_version = 1
     default_system_prompt = "You are a helpful assistant."
     llm_name: str = "unknown"
-    _cache: Optional[Cache] = None
 
     def __init__(self):
         self.chat_mode = False  # by default models are not in role-based chat mode
@@ -51,26 +61,23 @@ class LLM:
 
     def token_to_id(self, token):
         return self.encode(token)[0]
-
-    @classmethod
-    def cache(cls):
-        if not cls._cache:
-            cls._cache = cache_creator(cls.llm_name)
-        return cls._cache
-
-    # @staticmethod
-    # def _open_cache(file_name):
-    #     return diskcache.Cache(
-    #         os.path.join(platformdirs.user_cache_dir("guidance"), file_name)
-    #     )
+    
+    # allow for caches to be get and set on the object as well as the class
+    @property
+    def cache(self):
+        if self._cache is not None:
+            return self._cache
+        else:
+            return self.__class__.cache
+    @cache.setter
+    def cache(self, value):
+        self._cache = value
 
 
 class LLMSession:
     def __init__(self, llm):
         self.llm = llm
-        self._call_counts = (
-            {}
-        )  # used to track the number of repeated identical calls to the LLM with non-zero temperature
+        self._call_counts = {} # tracks the number of repeated identical calls to the LLM with non-zero temperature
 
     def __enter__(self):
         return self

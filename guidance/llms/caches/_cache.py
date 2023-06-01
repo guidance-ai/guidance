@@ -20,13 +20,6 @@ class Cache(ABC):
         """see if we can return a cached value for the passed key"""
         pass
 
-    def default_cache_state(self) -> Optional[bool]:
-        """return True if caching is enabled by default,
-        return false means that the `caching` parameter needs to be added to use the cache,
-        because using the semantic cache should be careful
-        """
-        return True
-
     def create_key(self, llm: str, **kwargs: Dict[str, Any]) -> str:
         """Define a lookup key for a call to the given llm with the given kwargs.
         One of the keyword args could be `cache_key` in which case this function should respect that

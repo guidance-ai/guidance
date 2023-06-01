@@ -23,7 +23,3 @@ class DiskCache(Cache):
 
     def __contains__(self, key: str) -> bool:
         return key in self._diskcache
-
-    @staticmethod
-    def default_cache_creator(llm_name: str) -> Cache:
-        return DiskCache(llm_name)
