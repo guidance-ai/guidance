@@ -13,7 +13,7 @@ class Vicuna(LLaMA):
     """ A HuggingFace transformers version of the Vicuna language model with Guidance support.
     """
 
-    cache = LLM._open_cache("_vicuna.diskcache")
+    llm_name: str = "vicuna"
 
     default_system_prompt = """A chat between a curious user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user's questions."""
 

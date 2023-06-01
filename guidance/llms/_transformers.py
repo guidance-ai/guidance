@@ -9,11 +9,12 @@ import logging
 import collections.abc
 from ._llm import LLM, LLMSession, SyncSession
 
+
 class Transformers(LLM):
     """ A HuggingFace transformers language model with Guidance support.
     """
 
-    cache = LLM._open_cache("_transformers.diskcache")
+    llm_name: str = "transformers"
 
     def __init__(self, model=None, tokenizer=None, caching=True, token_healing=True, acceleration=True, \
                  temperature=0.0, device=None, **kwargs):
@@ -183,7 +184,9 @@ class TransformersSession(LLMSession):
             token_healing = self.llm.token_healing
 
         # generate the cache key
-        key = self._cache_key(locals())
+        cache_params = self._cache_params(locals().copy())
+        llm_cache = self.llm.cache
+        key = llm_cache.create_key(self.llm.llm_name, **cache_params)
 
         # set the stop patterns
         if stop is not None:
@@ -198,7 +201,7 @@ class TransformersSession(LLMSession):
         stop_regex.append(regex.escape(self.llm.tokenizer.eos_token)) # make sure the end of sequence token is always included
 
         # handle caching
-        in_cache = key in self.llm.cache
+        in_cache = key in llm_cache
         not_caching = (caching is not True and not self.llm.caching) or caching is False
         if not in_cache or not_caching:
             import transformers
@@ -323,7 +326,7 @@ class TransformersSession(LLMSession):
                 streamer.put(generated_sequence)
                 self.llm.cache[key] = streamer.__next__()
                 self._update_prefix_cache(streamer)
-        return self.llm.cache[key]
+        return llm_cache[key]
     
     def _update_prefix_cache(self, streamer):
         # note what we now have cached and ready for our next call in this session
@@ -370,7 +373,7 @@ class TokenHealingLogitsProcessor():
         Note that bias_value is in score space (log-odds normally) and should be
         enough to ensure those tokens are the only ones used.
         """
-        
+
         # loop backwards through the prompt tokens looking for places where there are possible
         # extensions that cross the prompt boundary
         prefix_str = ""
@@ -449,7 +452,7 @@ class BiasLogitsProcessor():
         self.bias_vector = self.bias_vector.to(model.device)
 
     def __call__(self, input_ids, scores):
-        
+
         # handle list inputs
         if isinstance(scores, list):
             import torch
@@ -563,7 +566,7 @@ class RegexStoppingCriteria():
         self.current_length = 0
 
     def __call__(self, input_ids, scores, **kwargs):
-        
+
         # handle 1D inputs
         if not isinstance(input_ids[0], collections.abc.Sequence) and not (hasattr(input_ids[0], "shape") and len(input_ids[0].shape) > 0):
             input_ids = [input_ids]
@@ -605,7 +608,7 @@ class TransformersStringBuilder():
         diff_str = new_str[len(self._joint_string):]
         self._joint_string = new_str
         return diff_str
-    
+
     def pop(self):
         """Remove the last token from the string and return text it removed."""
         self.token_strings.pop()
@@ -613,16 +616,16 @@ class TransformersStringBuilder():
         diff_str = self._joint_string[len(new_str):]
         self._joint_string = new_str
         return diff_str
-    
+
     def __str__(self):
         return self._joint_string
-    
+
     def __len__(self):
         return len(self._joint_string)
 
 class TransformersStreamer():
     def __init__(self, input_ids, stop_regex, healed_token_ids, prefix_length, llm, max_new_tokens, logprobs, timeout=None):
-        
+
         self.input_ids = input_ids
         self.stop_regex = stop_regex
         self.healed_token_ids = healed_token_ids
@@ -652,7 +655,7 @@ class TransformersStreamer():
         # if we are given a single sequence, then make it a batch of size 1
         if len(new_tokens.shape) == 1:
             new_tokens = new_tokens.unsqueeze(0)
-        
+
         # extract the scores if we are given them (and format them to be the same shape as the tokens)
         if self.logprobs:
             assert len(new_tokens) == 1, "logprobs are not supported for batched generation right now in guidance.llms.Transformers"

@@ -14,7 +14,7 @@ class StableLMChat(Transformers):
     """ A HuggingFace transformers version of the StableLM language model with Guidance support.
     """
 
-    cache = LLM._open_cache("_stablelm.diskcache")
+    llm_name: str = "stablelm"
 
     @staticmethod
     def role_start(role):
