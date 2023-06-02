@@ -32,7 +32,7 @@ class Transformers(LLM):
 
         self.model_obj, self.tokenizer = self._model_and_tokenizer(model, tokenizer, **kwargs)
 
-        self.model_name = model
+        self.model_name = model if isinstance(model, str) else model.__class__.__name__
         self.caching = caching
         self.current_time = time.time()
         self.call_history = collections.deque()
