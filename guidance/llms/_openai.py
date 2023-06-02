@@ -71,7 +71,7 @@ class OpenAI(LLM):
     llm_name: str = "openai"
 
     def __init__(self, model=None, caching=True, max_retries=5, max_calls_per_min=60,
-                 api_key=None, api_type="open_ai", api_base=None, api_version=None,
+                 api_key=None, api_type="open_ai", api_base=None, api_version=None, deployment_id=None,
                  temperature=0.0, chat_mode="auto", organization=None, rest_call=False,
                  allowed_special_tokens={"<|endoftext|>", "<|endofprompt|>"},
                  token=None, endpoint=None):
@@ -95,6 +95,10 @@ class OpenAI(LLM):
                     model = file.read().replace('\n', '')
             except:
                 pass
+
+        # fill in default deployment_id value
+        if deployment_id is None:
+            deployment_id = os.environ.get("OPENAI_DEPLOYMENT_ID", None)
 
         # auto detect chat completion mode
         if chat_mode == "auto":
@@ -127,6 +131,7 @@ class OpenAI(LLM):
         
         self.allowed_special_tokens = allowed_special_tokens
         self.model_name = model
+        self.deployment_id = deployment_id
         self.caching = caching
         self.max_retries = max_retries
         self.max_calls_per_min = max_calls_per_min
@@ -510,6 +515,7 @@ class OpenAISession(LLMSession):
                     self.llm.add_call()
                     call_args = {
                         "model": self.llm.model_name,
+                        "deployment_id": self.llm.deployment_id,
                         "prompt": prompt,
                         "max_tokens": max_tokens,
                         "temperature": temperature,
