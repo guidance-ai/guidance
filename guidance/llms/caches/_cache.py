@@ -35,3 +35,6 @@ class Cache(ABC):
 
         hasher.update(combined)
         return hasher.hexdigest()
+    
+    def clear(self):
+        raise NotImplementedError()

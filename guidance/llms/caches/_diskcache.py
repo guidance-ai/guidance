@@ -23,3 +23,6 @@ class DiskCache(Cache):
 
     def __contains__(self, key: str) -> bool:
         return key in self._diskcache
+    
+    def clear(self):
+        self._diskcache.clear()

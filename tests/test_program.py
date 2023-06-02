@@ -54,7 +54,7 @@ You are a helpful assistent.
     loop.run_until_complete(f())
 
 def test_agents():
-    """Test agentes, calling prompt twice"""
+    """Test agents, calling prompt twice"""
 
     guidance.llm = get_llm("openai:gpt-3.5-turbo")
 
