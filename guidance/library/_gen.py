@@ -10,7 +10,7 @@ log = logging.getLogger(__name__)
 
 async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_tokens=500, n=1, stream=None,
               temperature=0.0, top_p=1.0, logprobs=None, pattern=None, hidden=False, list_append=False,
-              save_prompt=False, token_healing=None, _parser_context=None):
+              save_prompt=False, token_healing=None, exclude=None, _parser_context=None):
     ''' Use the LLM to generate a completion.
 
     Parameters
@@ -55,6 +55,9 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
         If set to a string, the exact prompt given to the LLM will be saved in a variable with the given name.
     token_healing : bool or None
         If set to a bool this overrides the token_healing setting for the LLM.
+    exclude : list
+        If set, the LLM will be forced to avoid generating each token in the list (through logit biasing).
+        Each list element must be exactly one token.
     '''
     prefix = ""
     suffix = ""
@@ -130,13 +133,20 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
 
     if logprobs is None:
         logprobs = parser.program.logprobs
+    
+    logit_bias = {}
+    if exclude:
+         for token in exclude:
+             encoded = parser.program.llm.encode(token)
+             assert len(encoded) == 1, "Every element in the exclude list must must be exactly one token long."
+             logit_bias[encoded[0]] = -100
 
     assert parser.llm_session is not None, "You must set an LLM for the program to use (use the `llm=` parameter) before you can use the `gen` command."
 
     # call the LLM
     gen_obj = await parser.llm_session(
         parser_prefix+prefix, stop=stop, stop_regex=stop_regex, max_tokens=max_tokens, n=n, pattern=pattern,
-        temperature=temperature, top_p=top_p, logprobs=logprobs, cache_seed=cache_seed, token_healing=token_healing,
+        temperature=temperature, top_p=top_p, logprobs=logprobs, cache_seed=cache_seed, token_healing=token_healing, logit_bias=logit_bias,
         echo=parser.program.logprobs is not None, stream=stream, caching=parser.program.caching
     )
 
