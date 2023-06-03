@@ -6,7 +6,7 @@ import platformdirs
 from guidance.llms.caches import Cache
 
 def user_cache_dir(appname):
-    return "\tmp"
+    return "\\tmp"
 
 class DiskCache(Cache):
     """DiskCache is a cache that uses diskcache lib."""
