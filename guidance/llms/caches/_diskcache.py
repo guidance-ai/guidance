@@ -5,24 +5,17 @@ import platformdirs
 
 from guidance.llms.caches import Cache
 
+def user_cache_dir(appname):
+    return "\tmp"
 
 class DiskCache(Cache):
     """DiskCache is a cache that uses diskcache lib."""
-    local = os.getenv('IS_LOCAL')
-    if local is not None:
-        def __init__(self, llm_name: str):
-            self._diskcache = diskcache.Cache(
-                os.path.join(
-                    platformdirs.user_cache_dir("guidance"), f"_{llm_name}.diskcache"
-                )
+    def __init__(self, llm_name: str):
+        self._diskcache = diskcache.Cache(
+            os.path.join(
+                user_cache_dir("guidance"), f"{llm_name}.diskcache"
             )
-    else:
-        def __init__(self, llm_name: str):
-            self._diskcache = diskcache.Cache(
-                os.path.join(
-                    "/tmp", f"_{llm_name}.diskcache"
-                )
-            )
+        )
 
     def __getitem__(self, key: str) -> str:
         return self._diskcache[key]
