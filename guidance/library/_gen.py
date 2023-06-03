@@ -56,7 +56,7 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
     token_healing : bool or None
         If set to a bool this overrides the token_healing setting for the LLM.
     exclude : list
-        If set, the LLM will be forced to avoid generating each token in the list (through logit biasing).
+        If set, the LLM will be forced to avoid generating each token id in the list (through logit biasing).
         Each list element must be exactly one token.
     '''
     prefix = ""
@@ -137,9 +137,7 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
     logit_bias = {}
     if exclude:
          for token in exclude:
-             encoded = parser.program.llm.encode(token)
-             assert len(encoded) == 1, "Every element in the exclude list must must be exactly one token long."
-             logit_bias[encoded[0]] = -100
+             logit_bias[token] = -100
 
     assert parser.llm_session is not None, "You must set an LLM for the program to use (use the `llm=` parameter) before you can use the `gen` command."
 
