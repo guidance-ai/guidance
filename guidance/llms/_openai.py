@@ -467,7 +467,9 @@ class RegexStopChecker():
 
 # Define a deque to store the timestamps of the calls
 class OpenAISession(LLMSession):
-    async def __call__(self, prompt, stop=None, stop_regex=None, temperature=None, n=1, max_tokens=1000, logprobs=None, top_p=1.0, echo=False, logit_bias=None, token_healing=None, pattern=None, stream=None, cache_seed=0, caching=None):
+    async def __call__(self, prompt, stop=None, stop_regex=None, temperature=None, n=1, max_tokens=1000, logprobs=None,
+                       top_p=1.0, echo=False, logit_bias=None, token_healing=None, pattern=None, stream=None,
+                       cache_seed=0, caching=None, **completion_kwargs):
         """ Generate a completion of the given prompt.
         """
 
@@ -524,7 +526,8 @@ class OpenAISession(LLMSession):
                         "stop": stop,
                         "logprobs": logprobs,
                         "echo": echo,
-                        "stream": stream
+                        "stream": stream,
+                        **completion_kwargs
                     }
                     if logit_bias is not None:
                         call_args["logit_bias"] = {str(k): v for k,v in logit_bias.items()} # convert keys to strings since that's the open ai api's format

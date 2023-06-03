@@ -79,6 +79,16 @@ Where there is no guidanc{{gen 'completion' max_tokens=4}}'''
 
     assert executed_program["completion"].startswith("e, a")
 
+@pytest.mark.parametrize("llm", ["transformers:gpt2", "transformers:facebook/opt-350m"])
+def test_custom_kwargs_transformers(llm):
+    """Test if we can pass model specific kwargs."""
+
+    llm = get_llm(llm)
+    program = guidance('''Repeat the following 10 times: Repeat this. Repeat this. Repeat this. Repeat this.{{gen 'completion' max_tokens=4 repetition_penalty=10.0}}''', llm=llm)
+    executed_program = program()
+
+    assert not executed_program["completion"].startswith(" Repeat this.")
+
 @pytest.mark.parametrize("llm", ["transformers:gpt2", "openai:text-curie-001"])
 def test_stop(llm):
     """Test that the stop argument works as expected."""
