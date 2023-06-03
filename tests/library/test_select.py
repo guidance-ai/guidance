@@ -147,7 +147,7 @@ def test_variable_starts_with_or(llm):
 
     llm = get_llm(llm)
     organizations = ["Microsoft", "Apple", "Meta", "Google", "Amazon"]
-    program = guidance("{{select options=organizations}}", llm=llm)
+    program = guidance("They work at: {{select options=organizations}}", llm=llm)
     out = program(organizations=organizations)
     assert out["selected"] in organizations
 
