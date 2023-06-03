@@ -140,6 +140,17 @@ Answer:{{#select "answer" logprobs='logprobs'}}
     executed_program = program(example='I hate tacos')
     assert executed_program["answer"] in [" \n    Yes", " \n    No", " \n    Maybe\n"]
 
+@pytest.mark.parametrize("llm", ["transformers:gpt2", "openai:text-curie-001"])
+def test_variable_starts_with_or(llm):
+    """ Test the behavior of `select` when the variable starts with or.
+    """
+
+    llm = get_llm(llm)
+    organizations = ["Microsoft", "Apple", "Meta", "Google", "Amazon"]
+    program = guidance("They work at: {{select options=organizations}}", llm=llm)
+    out = program(organizations=organizations)
+    assert out["selected"] in organizations
+
 import guidance
 
 guidance.llm = guidance.llms.OpenAI("text-davinci-003")

@@ -40,7 +40,9 @@ command_arg_group = "(" command_content ")"
 ws = ~r'\s+'
 command_contentasdf = ~"[a-z 0-9]*"i
 command_name = ~r"[a-z][a-z_0-9\.]*"i / "<" / ">" / "==" / "!=" / ">=" / "<="
-variable_ref = !"or" !"else" ~r"[@a-z][a-z_0-9\.\[\]\"'-]*"i
+variable_ref = not_exact_or not_exact_else ~r"[@a-z][a-z_0-9\.\[\]\"'-]*"i
+not_exact_or = ~r"or[@a-z][a-z_0-9\.\[\]\"'-]"i / !"or"
+not_exact_else = ~r"else[@a-z][a-z_0-9\.\[\]\"'-]"i / !"else"
 variable_name = ~r"[@a-z][a-z_0-9]*"i
 contentw = ~r'.*'
 content = (not_command_start / not_command_escape / ~r"[^{\\]")+
