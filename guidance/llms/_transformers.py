@@ -173,7 +173,9 @@ class TransformersSession(LLMSession):
 
         return self
     
-    async def __call__(self, prompt, stop=None, stop_regex=None, temperature=None, n=1, max_tokens=1000, logprobs=None, top_p=1.0, echo=False, logit_bias=None, token_healing=None, pattern=None, stream=False, cache_seed=0, caching=None):
+    async def __call__(self, prompt, stop=None, stop_regex=None, temperature=None, n=1, max_tokens=1000, logprobs=None,
+                       top_p=1.0, echo=False, logit_bias=None, token_healing=None, pattern=None, stream=False,
+                       cache_seed=0, caching=None, **generate_kwargs):
         """ Generate a completion of the given prompt.
         """
         
@@ -306,7 +308,8 @@ class TransformersSession(LLMSession):
                 stopping_criteria=transformers.StoppingCriteriaList(stoppers),
                 # past_key_values=self._past_key_values,
                 output_scores=logprobs is not None and logprobs > 0,
-                return_dict_in_generate=True
+                return_dict_in_generate=True,
+                **generate_kwargs
             )
 
             # override the model config for do_sample when the temperature requires it
