@@ -245,7 +245,8 @@ class TransformersSession(LLMSession):
 
             # enforce minimum tokens
             if min_tokens > 0:
-                processors.append(transformers.MinLengthLogitsProcessor(min_length=min_tokens, eos_token_id=self.llm.tokenizer.eos_token_id))
+                input_ids_seq_length = input_ids.shape[-1]
+                processors.append(transformers.MinNewTokensLengthLogitsProcessor(prompt_length_to_skip=input_ids_seq_length,min_new_tokens=min_tokens, eos_token_id=self.llm.tokenizer.eos_token_id))
 
             # find the max context length
             possible_attributes = ["max_sequence_length", "max_seq_len", "model_max_length", "n_positions", "max_position_embeddings"]
