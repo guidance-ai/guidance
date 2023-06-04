@@ -10,6 +10,7 @@ import collections
 import json
 import re
 import regex
+import warnings
 
 from ._llm import LLM, LLMSession, SyncSession
 
@@ -146,6 +147,7 @@ class OpenAI(LLM):
         self.temperature = temperature
         self.organization = organization
         self.rest_call = rest_call
+        self.endpoint = endpoint
 
         if not self.rest_call:
             self.caller = self._library_call
@@ -154,6 +156,20 @@ class OpenAI(LLM):
             self._rest_headers = {
                 "Content-Type": "application/json"
             }
+        
+        if endpoint is None:
+            if self.rest_call:
+                if self.chat_mode:
+                    endpoint = 'https://api.openai.com/v1/chat/completions'
+                else:
+                    endpoint = 'https://api.openai.com/v1/completions'
+                msg = (
+                    "When using the OpenAI REST API, please specify the required endpoint.
+                    f" Defaulting to: {endpoint}"
+                )
+                warnings.warn(msg)
+         self.endpoint = endpoint
+                
 
     def session(self, asynchronous=False):
         if asynchronous:
