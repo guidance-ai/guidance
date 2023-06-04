@@ -21,11 +21,10 @@ async def block(name=None, hidden=False, _parser_context=None):
         next_next_node=_parser_context["next_next_node"],
         prev_node=_parser_context["prev_node"]
     )
+    new_content = parser.prefix[pos:]
     if name is not None:
-        variable_value = strip_markers(out)
-        parser.set_variable(name, variable_value)
+        parser.set_variable(name, strip_markers(new_content))
     if hidden:
-        new_content = parser.prefix[pos:]
         parser.reset_prefix(pos)
         parser.extend_prefix("{{!--GHIDDEN:"+new_content.replace("--}}", "--_END_END")+"--}}")
     
