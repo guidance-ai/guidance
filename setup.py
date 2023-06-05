@@ -52,7 +52,8 @@ setup(
         'test': [
             'pytest',
             'transformers',
-            'torch'
+            'torch',
+            'pytest-cov'
         ]
     }
 )
