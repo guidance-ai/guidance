@@ -383,7 +383,7 @@ class Program:
         else:
             with self.llm.session(asynchronous=True) as llm_session:
                 await self._executor.run(llm_session)
-        self._text = self._executor.prefix
+        self._text = self._variables["_prefix"]
 
         # delete the executor and so mark the program as not executing
         self._executor = None
@@ -422,7 +422,7 @@ class Program:
     @property
     def marked_text(self):
         if self._executor is not None:
-            return self._executor.prefix
+            return self._variables["_prefix"]
         else:
             return self._text
     
