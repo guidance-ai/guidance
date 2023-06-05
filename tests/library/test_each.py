@@ -26,3 +26,20 @@ def test_missing_list():
     # except KeyError:
     #     return
     # assert False, "An error should have been raised because the list is missing!"
+
+def test_each_after_await():
+    """ Test an each loop when we are not executing.
+    """
+
+    prompt = guidance("Hello, {{name}}!{{await 'some_var'}}{{#each names}} {{this}}{{/each}}")
+    assert str(prompt(name="Guidance", names=["Bob", "Sue"])) == "Hello, Guidance!{{await 'some_var'}}{{#each names}} {{this}}{{/each}}"
+
+def test_each_over_an_await():
+    """ Test an each loop when we are not executing.
+    """
+
+    program = guidance("Hello, {{name}}!{{#each (await 'names')}} {{this}}{{/each}}")
+    partial_execution = program(name="Guidance")
+    assert str(partial_execution) == "Hello, Guidance!{{#each (await 'names')}} {{this}}{{/each}}"
+    full_execution = partial_execution(names=["Bob", "Sue"])
+    assert str(full_execution) == "Hello, Guidance! Bob Sue"

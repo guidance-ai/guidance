@@ -404,15 +404,23 @@ class Program:
     def __delitem__(self, key):
         del self._variables[key]
     
-    def variables(self, built_ins=False):
+    def variables(self, built_ins=False, show_hidden=False):
         """ Returns a dictionary of the variables in the program.
 
         Parameters
         ----------
         built_ins : bool
             If True, built-in variables will be included in the returned dictionary.
+        show_hidden : bool
+            If True, hidden variables will be included in the returned dictionary.
         """
-        return {k: v for k,v in self._variables.items() if built_ins or not (k in _built_ins and callable(_built_ins[k]))}
+        out = {}
+        for k,v in self._variables.items():
+            if show_hidden or not k.startswith("_"):
+                if built_ins or not (k in _built_ins and callable(_built_ins[k])):
+                    out[k] = v
+            
+        return out
     
     @property
     def text(self):

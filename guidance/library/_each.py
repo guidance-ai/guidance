@@ -33,9 +33,6 @@ async def each(list, hidden=False, parallel=False, filter=None, _parser_context=
 
     assert not parallel or hidden is True, "parallel=True is only compatible with hidden=True (since if hidden=False earlier items are contex for later items)"
 
-    if not parser.executing:
-        return parser_node.text
-
     # apply a filter to the list if one was provided
     if filter is not None:
 
