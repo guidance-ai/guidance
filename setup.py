@@ -30,12 +30,14 @@ setup(
     package_data={"guidance": ["resources/*"]},
     install_requires=[
         "diskcache",
+        "gptcache",
         "openai>=0.27",
         "parsimonious",
         "pygtrie",
         "platformdirs",
         "tiktoken>=0.3",
         "nest_asyncio",
+        "msal",
         "requests",
         "numpy",
         "anthropic"

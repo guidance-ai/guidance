@@ -13,7 +13,7 @@ class LLaMA(Transformers):
     """ A HuggingFace transformers version of the LLaMA language model with Guidance support.
     """
 
-    cache = LLM._open_cache("_llama.diskcache")
+    llm_name: str = "llama"
 
     def _model_and_tokenizer(self, model, tokenizer, **kwargs):
 
