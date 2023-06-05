@@ -71,7 +71,7 @@ class OpenAI(LLM):
     llm_name: str = "openai"
 
     def __init__(self, model=None, caching=True, max_retries=5, max_calls_per_min=60,
-                 api_key=None, api_type="open_ai", api_base=None, api_version=None,
+                 api_key=None, api_type="open_ai", api_base=None, api_version=None, deployment_id=None,
                  temperature=0.0, chat_mode="auto", organization=None, rest_call=False,
                  allowed_special_tokens={"<|endoftext|>", "<|endofprompt|>"},
                  token=None, endpoint=None):
@@ -95,6 +95,10 @@ class OpenAI(LLM):
                     model = file.read().replace('\n', '')
             except:
                 pass
+
+        # fill in default deployment_id value
+        if deployment_id is None:
+            deployment_id = os.environ.get("OPENAI_DEPLOYMENT_ID", None)
 
         # auto detect chat completion mode
         if chat_mode == "auto":
@@ -127,6 +131,7 @@ class OpenAI(LLM):
         
         self.allowed_special_tokens = allowed_special_tokens
         self.model_name = model
+        self.deployment_id = deployment_id
         self.caching = caching
         self.max_retries = max_retries
         self.max_calls_per_min = max_calls_per_min
@@ -462,7 +467,9 @@ class RegexStopChecker():
 
 # Define a deque to store the timestamps of the calls
 class OpenAISession(LLMSession):
-    async def __call__(self, prompt, stop=None, stop_regex=None, temperature=None, n=1, max_tokens=1000, logprobs=None, top_p=1.0, echo=False, logit_bias=None, token_healing=None, pattern=None, stream=None, cache_seed=0, caching=None):
+    async def __call__(self, prompt, stop=None, stop_regex=None, temperature=None, n=1, max_tokens=1000, logprobs=None,
+                       top_p=1.0, echo=False, logit_bias=None, token_healing=None, pattern=None, stream=None,
+                       cache_seed=0, caching=None, **completion_kwargs):
         """ Generate a completion of the given prompt.
         """
 
@@ -510,6 +517,7 @@ class OpenAISession(LLMSession):
                     self.llm.add_call()
                     call_args = {
                         "model": self.llm.model_name,
+                        "deployment_id": self.llm.deployment_id,
                         "prompt": prompt,
                         "max_tokens": max_tokens,
                         "temperature": temperature,
@@ -518,7 +526,8 @@ class OpenAISession(LLMSession):
                         "stop": stop,
                         "logprobs": logprobs,
                         "echo": echo,
-                        "stream": stream
+                        "stream": stream,
+                        **completion_kwargs
                     }
                     if logit_bias is not None:
                         call_args["logit_bias"] = {str(k): v for k,v in logit_bias.items()} # convert keys to strings since that's the open ai api's format
@@ -547,3 +556,83 @@ class OpenAISession(LLMSession):
             return [llm_cache[key]]
         
         return llm_cache[key]
+
+
+import os
+import atexit
+import json
+import platformdirs
+from ._openai import OpenAI
+
+class AzureOpenAI(OpenAI):
+    def __init__(self, *args, **kwargs):
+        raise NotImplementedError("The AzureOpenAI class has been merged with the OpenAI class for Azure usage. Please use the OpenAI class instead: https://guidance.readthedocs.io/en/latest/example_notebooks/api_examples/llms/OpenAI.html")
+
+class MSALOpenAI(OpenAI):
+    """ Microsoft Authentication Library (MSAL) OpenAI style integration.
+
+    Warning: This class is not finalized and may change in the future.
+    """
+
+    llm_name: str = "azure_openai"
+
+    def __init__(self, model=None, client_id=None, authority=None, caching=True, max_retries=5, max_calls_per_min=60, token=None,
+                 endpoint=None, scopes=None, temperature=0.0, chat_mode="auto"):
+        
+
+        assert endpoint is not None, "An endpoint must be specified!"
+        
+        # build a standard OpenAI LLM object
+        super().__init__(
+            model=model, caching=caching, max_retries=max_retries, max_calls_per_min=max_calls_per_min,
+            token=token, endpoint=endpoint, temperature=temperature, chat_mode=chat_mode
+        )
+
+        self.client_id = client_id
+        self.authority = authority
+        self.scopes = scopes
+
+        from msal import PublicClientApplication, SerializableTokenCache
+        self._token_cache = SerializableTokenCache()
+        self._token_cache_path = os.path.join(platformdirs.user_cache_dir("guidance"), "_azure_openai.token")
+        self._app = PublicClientApplication(client_id=self.client_id, authority=self.authority, token_cache=self._token_cache)
+        if os.path.exists(self._token_cache_path):
+            self._token_cache.deserialize(open(self._token_cache_path, 'r').read())
+
+        self._rest_headers["X-ModelType"] = self.model_name
+
+    @property
+    def token(self):
+        return self._get_token()
+    @token.setter
+    def token(self, value):
+        pass # ignored for now
+
+    def _get_token(self):
+        accounts = self._app.get_accounts()
+        result = None
+
+        if accounts:
+            # Assuming the end user chose this one
+            chosen = accounts[0]
+
+            # Now let's try to find a token in cache for this account
+            result = self._app.acquire_token_silent(self.scopes, account=chosen)
+    
+        if not result:
+            # So no suitable token exists in cache. Let's get a new one from AAD.
+            flow = self._app.initiate_device_flow(scopes=self.scopes)
+
+            if "user_code" not in flow:
+                raise ValueError(
+                    "Fail to create device flow. Err: %s" % json.dumps(flow, indent=4))
+
+            print(flow["message"])
+
+            result = self._app.acquire_token_by_device_flow(flow)
+
+            # save the aquired token
+            with open(self._token_cache_path, "w") as f:
+                f.write(self._token_cache.serialize())
+
+        return result["access_token"]
