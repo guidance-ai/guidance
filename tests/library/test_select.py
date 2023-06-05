@@ -154,6 +154,7 @@ def test_variable_starts_with_or(llm):
 import guidance
 
 guidance.llm = guidance.llms.OpenAI("text-davinci-003")
+
 # the {{#select}} command allows you to use the LLM to select from a set of options
 
 
