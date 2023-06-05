@@ -9,14 +9,14 @@
 _\- <a href="notebooks/proverb.ipynb">GPT 11:14</a>_
 
 <!--It expands the API of language models so you can craft rich output structure, design precise tool use, create multi-agent interactions, and much more all while using clear code and maximum inference efficiency.-->
-<b>Guidance</b> enables you to control modern language models more effectively and efficiently than traditional prompting or chaining. Guidance programs allow you to interleave generation, prompting, and logical control into a single continuous flow matching how the language model actually processes the text. Simple output structures like [Chain of Thought](https://arxiv.org/abs/2201.11903) and its many variants (e.g. [ART](https://arxiv.org/abs/2303.09014), [Auto-CoT](https://arxiv.org/abs/2210.03493), etc.) have been shown to improve LLM performance. The advent of more powerful LLMs like [GPT-4](https://openai.com/research/gpt-4) allows for even richer structure, and `guidance` makes that structure easier and cheaper.
+<b>Guidance</b> enables you to control modern language models more effectively and efficiently than traditional prompting or chaining. Guidance programs allow you to interleave generation, prompting, and logical control into a single continuous flow matching how the language model actually processes the text. Simple output structures like [Chain of Thought](https://arxiv.org/abs/2201.11903) and its many variants (e.g., [ART](https://arxiv.org/abs/2303.09014), [Auto-CoT](https://arxiv.org/abs/2210.03493), etc.) have been shown to improve LLM performance. The advent of more powerful LLMs like [GPT-4](https://openai.com/research/gpt-4) allows for even richer structure, and `guidance` makes that structure easier and cheaper.
 
 Features:
 - [x] Simple, intuitive syntax, based on [Handlebars](https://handlebarsjs.com/) templating.
 - [x] Rich output structure with multiple generations, selections, conditionals, tool use, etc.
 - [x] Playground-like streaming in Jupyter/VSCode Notebooks.
 - [x] Smart seed-based generation caching.
-- [x] Support for role-based chat models (e.g. [ChatGPT](https://beta.openai.com/docs/guides/chat)).
+- [x] Support for role-based chat models (e.g., [ChatGPT](https://beta.openai.com/docs/guides/chat)).
 - [x] Easy integration with Hugging Face models, including [guidance acceleration](notebooks/guidance_acceleration.ipynb) for speedups over standard prompting, [token healing](notebooks/token_healing.ipynb) to optimize prompt boundaries, and [regex pattern guides](notebooks/pattern_guides.ipynb) to enforce formats.
 
 ## Install
@@ -29,7 +29,7 @@ pip install guidance
                                      
 ## Live streaming (<a href="https://github.com/microsoft/guidance/blob/main/notebooks/proverb.ipynb">notebook</a>)
 
-Speed up your prompt development cycle by streaming complex templates and generations live in your notebook. At first glance Guidance feels like a templating language, and just like standard <a href="https://handlebarsjs.com">Handlebars</a> templates, you can do variable interpolation (e.g. `{{proverb}}`) and logical control. But unlike standard templating languages, guidance programs have a well defined linear execution order that directly corresponds to the token order as processed by the language model. This means that at any point during execution the language model can be used to generate text (using the `{{gen}}` command) or make logical control flow decisions. This interleaving of generation and prompting allows for precise output structure that produces clear and parsable results.
+Speed up your prompt development cycle by streaming complex templates and generations live in your notebook. At first glance, Guidance feels like a templating language, and just like standard <a href="https://handlebarsjs.com">Handlebars</a> templates, you can do variable interpolation (e.g., `{{proverb}}`) and logical control. But unlike standard templating languages, guidance programs have a well defined linear execution order that directly corresponds to the token order as processed by the language model. This means that at any point during execution the language model can be used to generate text (using the `{{gen}}` command) or make logical control flow decisions. This interleaving of generation and prompting allows for precise output structure that produces clear and parsable results.
 
 ```python
 import guidance
@@ -45,7 +45,7 @@ program = guidance("""Tweak this proverb to apply to model instructions instead.
 
 UPDATED
 Where there is no guidance{{gen 'rewrite' stop="\\n-"}}
-- GPT {{gen 'chapter'}}:{{gen 'verse'}}""")
+- GPT {{gen 'chapter' stop=":"}}:{{gen 'verse'}}""")
 
 # execute the program on a specific proverb
 executed_program = program(
@@ -57,7 +57,7 @@ executed_program = program(
 ```
 <img src="docs/figures/proverb_animation.gif" width="404">
 
-After a program is executed all the generated variables are now easily accessable:
+After a program is executed, all the generated variables are now easily accessible:
 
 ```python
 executed_program["rewrite"]
@@ -66,7 +66,7 @@ executed_program["rewrite"]
 
 ## Chat dialog (<a href="https://github.com/microsoft/guidance/blob/main/notebooks/chat.ipynb">notebook</a>)
 
-Guidance supports API based chat models like GPT-4, as well as open chat models like Vicuna through a unified API based on role tags (e.g. `{{#system}}...{{/system}}`). This allows interactive dialog development that combines rich templating and logical control with modern chat models.
+Guidance supports API-based chat models like GPT-4, as well as open chat models like Vicuna through a unified API based on role tags (e.g., `{{#system}}...{{/system}}`). This allows interactive dialog development that combines rich templating and logical control with modern chat models.
 
 ```python
 # connect to a chat model like GPT-4 or Vicuna
@@ -156,9 +156,9 @@ program()
 ```
 <img src="docs/figures/url_with_space.png" width="372">
 
-Note that the output generated by the LLM does not complete the URL with the obvious next characters (two forward slashes). It instead creates an invalid URL string with a space in the middle. Why? Because the string "://" is its own token (`1358`), and so once the model sees a colon by itself (token `27`), it assumes that the next characters cannot be "//", otherwise the tokenizer would not have used `27` it would have used `1358` (the token for "://").
+Note that the output generated by the LLM does not complete the URL with the obvious next characters (two forward slashes). It instead creates an invalid URL string with a space in the middle. Why? Because the string "://" is its own token (`1358`), and so once the model sees a colon by itself (token `27`), it assumes that the next characters cannot be "//"; otherwise, the tokenizer would not have used `27` and instead would have used `1358` (the token for "://").
 
-This bias is not just limited to the colon character, it happens everywhere. *Over 70% of the 10k most common tokens for the StableLM model used above are prefixes of longer possible tokens, and so cause token boundary bias when they are the last token in a prompt.* For example the ":" token `27` has **34** possible extensions, " the" token `1735` has **51** extensions, and the " " (space) token `209` has **28,802** extensions).
+This bias is not just limited to the colon character -- it happens everywhere. *Over 70% of the 10k most common tokens for the StableLM model used above are prefixes of longer possible tokens, and so cause token boundary bias when they are the last token in a prompt.* For example the ":" token `27` has **34** possible extensions, the " the" token `1735` has **51** extensions, and the " " (space) token `209` has **28,802** extensions).
 
 `guidance` eliminates these biases by backing up the model by one token then allowing the model to step forward while constraining it to only generate tokens whose prefix matches the last token. This "token healing" process eliminates token boundary biases and allows any prompt to be completed naturally:
 
@@ -169,9 +169,9 @@ guidance('The link is <a href="http:{{gen max_tokens=10}}')()
 
 ## Rich output structure example ([notebook](notebooks/anachronism.ipynb))
 
-To demonstrate the value of output structure we take [a simple task](https://github.com/google/BIG-bench/tree/main/bigbench/benchmark_tasks/anachronisms) from BigBench, where the goal is to identify whether a given sentence contains an anachronism (a statement that is impossible because of non-overlaping time periods). Below is a simple two-shot prompt for it, with a human-crafted chain-of-thought sequence.
+To demonstrate the value of output structure, we take [a simple task](https://github.com/google/BIG-bench/tree/main/bigbench/benchmark_tasks/anachronisms) from BigBench, where the goal is to identify whether a given sentence contains an anachronism (a statement that is impossible because of non-overlapping time periods). Below is a simple two-shot prompt for it, with a human-crafted chain-of-thought sequence.
 
-Guidance programs, like standard Handlebars templates, allow both variable interpolation (e.g. `{{input}}`) and logical control. But unlike standard templating languages, guidance programs have a unique linear execution order that directly corresponds to the token order as processed by the language model. This means that at any point during execution the language model can be used to generate text (the `{{gen}}` command) or make logical control flow decisions (the `{{#select}}...{{or}}...{{/select}}` command). This interleaving of generation and prompting allows for precise output structure that improves accuracy while also producing clear and parsable results.
+Guidance programs, like standard Handlebars templates, allow both variable interpolation (e.g., `{{input}}`) and logical control. But unlike standard templating languages, guidance programs have a unique linear execution order that directly corresponds to the token order as processed by the language model. This means that at any point during execution the language model can be used to generate text (the `{{gen}}` command) or make logical control flow decisions (the `{{#select}}...{{or}}...{{/select}}` command). This interleaving of generation and prompting allows for precise output structure that improves accuracy while also producing clear and parsable results.
 ```python
 import guidance
                                                       
@@ -220,7 +220,7 @@ out = structure_program(
 ```
 <img src="docs/figures/anachronism.png" width="837">
 
-All of generated program variables are now available in the executed program object:
+All of the generated program variables are now available in the executed program object:
 ```python
 out["answer"]
 ```
@@ -238,7 +238,7 @@ We [compute accuracy](notebooks/anachronism.ipynb) on the validation set, and co
 Large language models are great at generating useful outputs, but they are not great at guaranteeing that those outputs follow a specific format. This can cause problems when we want to use the outputs of a language model as input to another system. For example, if we want to use a language model to generate a JSON object, we need to make sure that the output is valid JSON. With `guidance` we can both [accelerate inference speed](notebooks/guidance_acceleration.ipynb) and ensure that generated JSON is always valid. Below we generate a random character profile for a game with perfect syntax every time:
 ```python
 # load a model locally (we use LLaMA here)
-guidance.llm = guidance.llms.Transformers("you_local_path/llama-7b", device=0)
+guidance.llm = guidance.llms.Transformers("your_local_path/llama-7b", device=0)
 
 # we can pre-define valid option sets
 valid_weapons = ["sword", "axe", "mace", "spear", "bow", "crossbow"]
@@ -266,7 +266,7 @@ program(description="A quick and nimble fighter.", valid_weapons=valid_weapons)
 <img src="docs/figures/perfect_syntax.png" width="657">
                                                       
 ```python
-# and we also have a valid python dictionary
+# and we also have a valid Python dictionary
 out.variables()
 ```
 <img src="docs/figures/json_syntax_variables.png" width="714">
@@ -339,7 +339,7 @@ Please elaborate on this plan, and tell me how to best accomplish it.
 # execute the program for a specific goal
 out = create_plan(
     goal='read more books',
-    parse_best=parse_best # a custom python function we call in the program
+    parse_best=parse_best # a custom Python function we call in the program
 )
 ```
 <img src="docs/figures/chat_reading.png" width="935">
@@ -347,7 +347,7 @@ out = create_plan(
 This prompt/program is a bit more complicated, but we are basically going through 3 steps:
 1. Generate a few options for how to accomplish the goal. Note that we generate with `n=5`, such that each option is a separate generation (and is not impacted by the other options). We set `temperature=1` to encourage diversity.
 2. Generate pros and cons for each option, and select the best one. We set `temperature=0` to encourage the model to be more precise.
-3. Generate a plan for the best option, and ask the model to elaborate on it. Notice that steps 1 and 2 were `hidden`, which means GPT-4 does not see them when generating content that comes later (in this case that means when generating the plan). This is a simple way to make the model focus on the current step.
+3. Generate a plan for the best option, and ask the model to elaborate on it. Notice that steps 1 and 2 were `hidden`, which means GPT-4 does not see them when generating content that comes later (in this case, that means when generating the plan). This is a simple way to make the model focus on the current step.
 
 Since steps 1 and 2 are hidden, they do not appear on the generated output (except briefly during stream), but we can print the variables that these steps generated:
 ```python
@@ -386,7 +386,7 @@ print(out['prosandcons'])
 > Best=0 
 
 ## Agents ([notebook](notebooks/chat.ipynb))
-We can easily build agents that talk to each other or to a user, via the `await` command. The `await` command allows us to pause execution and return a partially executed a guidance program. By putting `await` in a loop that partially executed program can then be called again and again to form a dialog (or any other structure you design). For example, here is how we might get GPT-4 to simulate two agents talking to one another:
+We can easily build agents that talk to each other or to a user, via the `await` command. The `await` command allows us to pause execution and return a partially executed guidance program. By putting `await` in a loop, that partially executed program can then be called again and again to form a dialog (or any other structure you design). For example, here is how we might get GPT-4 to simulate two agents talking to one another:
 
 ```python
 import guidance
@@ -455,7 +455,7 @@ for x in democrat['conversation'][:-1]:
 Last example [here](notebooks/chat.ipynb).
 
 # API reference
-All of the examples below are in [this notebook](notebooks/tutorial.ipynb)
+All of the examples below are in [this notebook](notebooks/tutorial.ipynb).
 ## Template syntax
 The template syntax is based on [Handlebars](https://handlebarsjs.com/), with a few additions.   
 When `guidance` is called, it returns a Program:
@@ -490,7 +490,7 @@ prompt(people=people, ideas=ideas)
 Notice the special `~` character after `{{/each}}`.  
 This can be added before or after any tag to remove all adjacent whitespace. Notice also the comment syntax: `{{! This is a comment }}`.
 
-You can also include prompts / programs inside other prompts, e.g. here is how you could rewrite the prompt above:
+You can also include prompts/programs inside other prompts; e.g., here is how you could rewrite the prompt above:
 ```python
 prompt1 = guidance('''List of people:
 {{#each people}}- {{this}}
@@ -533,7 +533,7 @@ prompt['logprobs']
 ```
 >{' Yes': -1.5689583, ' No': -7.332395, ' Maybe': -0.23746304}
 
-### Sequences of generate / select
+### Sequences of generate/select
 A prompt may contain multiple generations or selections, which will be executed in order:
 ```python
 prompt = guidance('''Generate a response to the following email:
@@ -570,7 +570,7 @@ prompt
 Notice that nothing inside the hidden block shows up in the output (or was used by the `select`), even though we used the `response` generated variable in the subsequent generation.
 
 ### Generate with `n>1`
-If you use `n>1`, the variable will contain a list (there is a visualization that lets you navigate the list too):
+If you use `n>1`, the variable will contain a list (there is a visualization that lets you navigate the list, too):
 ```python
 prompt = guidance('''The best thing about the beach is {{~gen 'best' n=3 temperature=0.7 max_tokens=7}}''')
 prompt = prompt()
@@ -581,7 +581,7 @@ prompt['best']
  " that it's a great place to"]
 
  ## Calling functions
- You can call any python function using generated variables as arguments. The function will be called when the prompt is executed:
+ You can call any Python function using generated variables as arguments. The function will be called when the prompt is executed:
  ```python
 def aggregate(best):
     return '\n'.join(['- ' + x for x in best])
@@ -605,7 +605,7 @@ prompt
 ```
 ![await1](docs/figures/await1.png)
 
-Notice how the last `gen` is not executed because it depends on `instruction`. Let's provide `instruction` now.
+Notice how the last `gen` is not executed because it depends on `instruction`. Let's provide `instruction` now:
 
 ```python
 prompt = prompt(instruction='Please translate the response above to Portuguese.')
@@ -654,7 +654,7 @@ Please don't answer the question or comment on it yet.
 {{#user~}}
 Great, now please answer the question as if these experts had collaborated in writing a joint anonymous answer.
 In other words, their identity is not revealed, nor is the fact that there is a panel of experts answering the question.
-If the experts would disagree, just present their different positions as alternatives in the answer itself (e.g. 'some might argue... others might argue...').
+If the experts would disagree, just present their different positions as alternatives in the answer itself (e.g., 'some might argue... others might argue...').
 Please start your answer with ANSWER:
 {{~/user}}
 {{#assistant~}}
@@ -694,7 +694,7 @@ prompt = guidance(
 '''{{#system~}}
 You are a helpful assistant
 {{~/system}}
-{{~#geneach 'conversation'}}
+{{~#geneach 'conversation' stop=False}}
 {{#user~}}
 {{set 'this.user_text' (await 'user_text')}}
 {{~/user}}
@@ -723,4 +723,4 @@ prompt
 See a more elaborate example [here](notebooks/chat.ipynb).
 
 ### Using tools
-See the 'Using a search API' example in [this notebook](notebooks/chat.ipynb)
+See the 'Using a search API' example in [this notebook](notebooks/chat.ipynb).

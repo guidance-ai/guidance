@@ -13,7 +13,7 @@ class MPT(Transformers):
     """ A HuggingFace transformers version of the MosaicML MPT language model with Guidance support.
     """
 
-    cache = LLM._open_cache("_mpt.diskcache")
+    llm_name: str = "mpt"
 
     def _model_and_tokenizer(self, model, tokenizer, **kwargs):
 

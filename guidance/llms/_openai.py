@@ -10,11 +10,14 @@ import collections
 import json
 import re
 import regex
+
 from ._llm import LLM, LLMSession, SyncSession
 
 
 class MalformedPromptException(Exception):
     pass
+
+
 def prompt_to_messages(prompt):
     messages = []
 
@@ -65,11 +68,23 @@ chat_models = [
 ]
 
 class OpenAI(LLM):
-    cache = LLM._open_cache("_openai.diskcache")
+    llm_name: str = "openai"
 
-    def __init__(self, model=None, caching=True, max_retries=5, max_calls_per_min=60, token=None, endpoint=None,
-                 temperature=0.0, chat_mode="auto", organization=None, allowed_special_tokens={"<|endoftext|>", "<|endofprompt|>"}):
+    def __init__(self, model=None, caching=True, max_retries=5, max_calls_per_min=60,
+                 api_key=None, api_type="open_ai", api_base=None, api_version=None, deployment_id=None,
+                 temperature=0.0, chat_mode="auto", organization=None, rest_call=False,
+                 allowed_special_tokens={"<|endoftext|>", "<|endofprompt|>"},
+                 token=None, endpoint=None):
         super().__init__()
+
+        # map old param values
+        # TODO: add deprecated warnings after some time
+        if token is not None:    
+            if api_key is None:
+                api_key = token
+        if endpoint is not None:
+            if api_base is None:
+                api_base = endpoint
 
         # fill in default model value
         if model is None:
@@ -81,6 +96,10 @@ class OpenAI(LLM):
             except:
                 pass
 
+        # fill in default deployment_id value
+        if deployment_id is None:
+            deployment_id = os.environ.get("OPENAI_DEPLOYMENT_ID", None)
+
         # auto detect chat completion mode
         if chat_mode == "auto":
             if model in chat_models:
@@ -89,22 +108,22 @@ class OpenAI(LLM):
                 chat_mode = False
         
         # fill in default API key value
-        if token is None: # get from environment variable
-            token = os.environ.get("OPENAI_API_KEY", getattr(openai, "api_key", None))
-        if token is not None and not token.startswith("sk-") and os.path.exists(os.path.expanduser(token)): # get from file
-            with open(os.path.expanduser(token), 'r') as file:
-                token = file.read().replace('\n', '')
-        if token is None: # get from default file location
+        if api_key is None: # get from environment variable
+            api_key = os.environ.get("OPENAI_API_KEY", getattr(openai, "api_key", None))
+        if api_key is not None and not api_key.startswith("sk-") and os.path.exists(os.path.expanduser(api_key)): # get from file
+            with open(os.path.expanduser(api_key), 'r') as file:
+                api_key = file.read().replace('\n', '')
+        if api_key is None: # get from default file location
             try:
                 with open(os.path.expanduser('~/.openai_api_key'), 'r') as file:
-                    token = file.read().replace('\n', '')
+                    api_key = file.read().replace('\n', '')
             except:
                 pass
         if organization is None:
             organization = os.environ.get("OPENAI_ORGANIZATION", None)
         # fill in default endpoint value
-        if endpoint is None:
-            endpoint = os.environ.get("OPENAI_ENDPOINT", None)
+        if api_base is None:
+            api_base = os.environ.get("OPENAI_API_BASE", None) or os.environ.get("OPENAI_ENDPOINT", None) # ENDPOINT is deprecated
 
         import tiktoken
         self._tokenizer = tiktoken.get_encoding(tiktoken.encoding_for_model(model).name)
@@ -112,19 +131,23 @@ class OpenAI(LLM):
         
         self.allowed_special_tokens = allowed_special_tokens
         self.model_name = model
+        self.deployment_id = deployment_id
         self.caching = caching
         self.max_retries = max_retries
         self.max_calls_per_min = max_calls_per_min
-        if isinstance(token, str):
-            token = token.replace("Bearer ", "")
-        self.token = token
-        self.endpoint = endpoint
+        if isinstance(api_key, str):
+            api_key = api_key.replace("Bearer ", "")
+        self.api_key = api_key
+        self.api_type = api_type
+        self.api_base = api_base
+        self.api_version = api_version
         self.current_time = time.time()
         self.call_history = collections.deque()
         self.temperature = temperature
         self.organization = organization
+        self.rest_call = rest_call
 
-        if self.endpoint is None:
+        if not self.rest_call:
             self.caller = self._library_call
         else:
             self.caller = self._rest_call
@@ -166,18 +189,20 @@ class OpenAI(LLM):
         
         # iterate through the stream
         all_done = False
-        for out in gen:
+        for curr_out in gen:
 
             # if we have a cached output, extend it with the current output
             if cached_out is not None:
-                out = merge_stream_chunks(cached_out, out)
+                out = merge_stream_chunks(cached_out, curr_out)
+            else:
+                out = curr_out
             
             # check if we have stop_regex matches
             found_partial = False
             if stop_regex is not None:
 
                 # keep track of the generated text so far
-                for i,choice in enumerate(out['choices']):
+                for i,choice in enumerate(curr_out['choices']):
                     current_strings[i] += choice['text']
 
                 # check if all of the strings match a stop string (and hence we can stop the batch inference)
@@ -232,6 +257,11 @@ class OpenAI(LLM):
                     gen.close()
                     break
         
+        # if we have a cached output, emit it
+        if cached_out is not None:
+            list_out.append(cached_out)
+            yield out
+
         cls.cache[key] = list_out
     
     def _stream_completion(self):
@@ -259,11 +289,28 @@ class OpenAI(LLM):
 
         Note that is uses the local auth token, and does not rely on the openai one.
         """
+
+        # save the params of the openai library
         prev_key = openai.api_key
         prev_org = openai.organization
-        assert self.token is not None, "You must provide an OpenAI API key to use the OpenAI LLM. Either pass it in the constructor, set the OPENAI_API_KEY environment variable, or create the file ~/.openai_api_key with your key in it."
-        openai.api_key = self.token
-        openai.organization = self.organization
+        prev_type = openai.api_type
+        prev_version = openai.api_version
+        prev_base = openai.api_base
+        
+        # set the params of the openai library if we have them
+        if self.api_key is not None:
+            openai.api_key = self.api_key
+        if self.organization is not None:
+            openai.organization = self.organization
+        if self.api_type is not None:
+            openai.api_type = self.api_type
+        if self.api_version is not None:
+            openai.api_version = self.api_version
+        if self.api_base is not None:
+            openai.api_base = self.api_base
+
+        assert openai.api_key is not None, "You must provide an OpenAI API key to use the OpenAI LLM. Either pass it in the constructor, set the OPENAI_API_KEY environment variable, or create the file ~/.openai_api_key with your key in it."
+        
         if self.chat_mode:
             kwargs['messages'] = prompt_to_messages(kwargs['prompt'])
             del kwargs['prompt']
@@ -274,8 +321,14 @@ class OpenAI(LLM):
             out = add_text_to_chat_mode(out)
         else:
             out = openai.Completion.create(**kwargs)
+        
+        # restore the params of the openai library
         openai.api_key = prev_key
         openai.organization = prev_org
+        openai.api_type = prev_type
+        openai.api_version = prev_version
+        openai.api_base = prev_base
+        
         return out
 
     def _rest_call(self, **kwargs):
@@ -284,8 +337,8 @@ class OpenAI(LLM):
 
         # Define the request headers
         headers = copy.copy(self._rest_headers)
-        if self.token is not None:
-            headers['Authorization'] = f"Bearer {self.token}"
+        if self.api_key is not None:
+            headers['Authorization'] = f"Bearer {self.api_key}"
 
         # Define the request data
         stream = kwargs.get("stream", False)
@@ -304,16 +357,23 @@ class OpenAI(LLM):
             data['messages'] = prompt_to_messages(data['prompt'])
             del data['prompt']
             del data['echo']
-            del data['stream']
+            del data['logprobs']
 
         # Send a POST request and get the response
-        response = requests.post(self.endpoint, headers=headers, json=data, stream=stream)
-        if response.status_code != 200:
-            raise Exception("Response is not 200: " + response.text)
-        if stream:
-            return self._rest_stream_handler(response)
-        else:
-            response = response.json()
+        # An exception for timeout is raised if the server has not issued a response for 10 seconds
+        try:
+            response = requests.post(self.endpoint, headers=headers, json=data, stream=stream, timeout=60)
+            if response.status_code != 200:
+                raise Exception("Response is not 200: " + response.text)
+            if stream:
+                return self._rest_stream_handler(response)
+            else:
+                response = response.json()
+        except requests.Timeout:
+            raise Exception("Request timed out.")
+        except requests.ConnectionError:
+            raise Exception("Connection error occurred.")
+
         if self.chat_mode:
             response = add_text_to_chat_mode(response)
         return response
@@ -328,11 +388,11 @@ class OpenAI(LLM):
                 else:
                     yield json.loads(text)
     
-    def encode(self, string, fragment=True):
+    def encode(self, string):
         # note that is_fragment is not used used for this tokenizer
         return self._tokenizer.encode(string, allowed_special=self.allowed_special_tokens)
     
-    def decode(self, tokens, fragment=True):
+    def decode(self, tokens):
         return self._tokenizer.decode(tokens)
 
 
@@ -407,7 +467,9 @@ class RegexStopChecker():
 
 # Define a deque to store the timestamps of the calls
 class OpenAISession(LLMSession):
-    async def __call__(self, prompt, stop=None, stop_regex=None, temperature=None, n=1, max_tokens=1000, logprobs=None, top_p=1.0, echo=False, logit_bias=None, token_healing=None, pattern=None, stream=None, cache_seed=0, caching=None):
+    async def __call__(self, prompt, stop=None, stop_regex=None, temperature=None, n=1, max_tokens=1000, logprobs=None,
+                       top_p=1.0, echo=False, logit_bias=None, token_healing=None, pattern=None, stream=None,
+                       cache_seed=0, caching=None, **completion_kwargs):
         """ Generate a completion of the given prompt.
         """
 
@@ -430,17 +492,19 @@ class OpenAISession(LLMSession):
         # assert not stop_regex, "The OpenAI API does not support Guidance stop_regex controls! Please either switch to an endpoint that does, or don't use the `stop_regex` argument to `gen`."
 
         # define the key for the cache
-        key = self._cache_key(args)
+        cache_params = self._cache_params(args)
+        llm_cache = self.llm.cache
+        key = llm_cache.create_key(self.llm.llm_name, **cache_params)
         
         # allow streaming to use non-streaming cache (the reverse is not true)
-        if key not in self.llm.__class__.cache and stream:
-            args["stream"] = False
-            key1 = self._cache_key(args)
-            if key1 in self.llm.__class__.cache:
+        if key not in llm_cache and stream:
+            cache_params["stream"] = False
+            key1 = llm_cache.create_key(self.llm.llm_name, **cache_params)
+            if key1 in llm_cache:
                 key = key1
         
         # check the cache
-        if key not in self.llm.__class__.cache or (caching is not True and not self.llm.caching) or caching is False:
+        if key not in llm_cache or caching is False or (caching is not True and not self.llm.caching):
 
             # ensure we don't exceed the rate limit
             while self.llm.count_calls() > self.llm.max_calls_per_min:
@@ -453,6 +517,7 @@ class OpenAISession(LLMSession):
                     self.llm.add_call()
                     call_args = {
                         "model": self.llm.model_name,
+                        "deployment_id": self.llm.deployment_id,
                         "prompt": prompt,
                         "max_tokens": max_tokens,
                         "temperature": temperature,
@@ -461,7 +526,8 @@ class OpenAISession(LLMSession):
                         "stop": stop,
                         "logprobs": logprobs,
                         "echo": echo,
-                        "stream": stream
+                        "stream": stream,
+                        **completion_kwargs
                     }
                     if logit_bias is not None:
                         call_args["logit_bias"] = {str(k): v for k,v in logit_bias.items()} # convert keys to strings since that's the open ai api's format
@@ -481,12 +547,92 @@ class OpenAISession(LLMSession):
             if stream:
                 return self.llm.stream_then_save(out, key, stop_regex, n)
             else:
-                self.llm.__class__.cache[key] = out
+                llm_cache[key] = out
         
         # wrap as a list if needed
         if stream:
-            if isinstance(self.llm.__class__.cache[key], list):
-                return self.llm.__class__.cache[key]
-            return [self.llm.__class__.cache[key]]
+            if isinstance(llm_cache[key], list):
+                return llm_cache[key]
+            return [llm_cache[key]]
         
-        return self.llm.__class__.cache[key]
+        return llm_cache[key]
+
+
+import os
+import atexit
+import json
+import platformdirs
+from ._openai import OpenAI
+
+class AzureOpenAI(OpenAI):
+    def __init__(self, *args, **kwargs):
+        raise NotImplementedError("The AzureOpenAI class has been merged with the OpenAI class for Azure usage. Please use the OpenAI class instead: https://guidance.readthedocs.io/en/latest/example_notebooks/api_examples/llms/OpenAI.html")
+
+class MSALOpenAI(OpenAI):
+    """ Microsoft Authentication Library (MSAL) OpenAI style integration.
+
+    Warning: This class is not finalized and may change in the future.
+    """
+
+    llm_name: str = "azure_openai"
+
+    def __init__(self, model=None, client_id=None, authority=None, caching=True, max_retries=5, max_calls_per_min=60, token=None,
+                 endpoint=None, scopes=None, temperature=0.0, chat_mode="auto"):
+        
+
+        assert endpoint is not None, "An endpoint must be specified!"
+        
+        # build a standard OpenAI LLM object
+        super().__init__(
+            model=model, caching=caching, max_retries=max_retries, max_calls_per_min=max_calls_per_min,
+            token=token, endpoint=endpoint, temperature=temperature, chat_mode=chat_mode
+        )
+
+        self.client_id = client_id
+        self.authority = authority
+        self.scopes = scopes
+
+        from msal import PublicClientApplication, SerializableTokenCache
+        self._token_cache = SerializableTokenCache()
+        self._token_cache_path = os.path.join(platformdirs.user_cache_dir("guidance"), "_azure_openai.token")
+        self._app = PublicClientApplication(client_id=self.client_id, authority=self.authority, token_cache=self._token_cache)
+        if os.path.exists(self._token_cache_path):
+            self._token_cache.deserialize(open(self._token_cache_path, 'r').read())
+
+        self._rest_headers["X-ModelType"] = self.model_name
+
+    @property
+    def token(self):
+        return self._get_token()
+    @token.setter
+    def token(self, value):
+        pass # ignored for now
+
+    def _get_token(self):
+        accounts = self._app.get_accounts()
+        result = None
+
+        if accounts:
+            # Assuming the end user chose this one
+            chosen = accounts[0]
+
+            # Now let's try to find a token in cache for this account
+            result = self._app.acquire_token_silent(self.scopes, account=chosen)
+    
+        if not result:
+            # So no suitable token exists in cache. Let's get a new one from AAD.
+            flow = self._app.initiate_device_flow(scopes=self.scopes)
+
+            if "user_code" not in flow:
+                raise ValueError(
+                    "Fail to create device flow. Err: %s" % json.dumps(flow, indent=4))
+
+            print(flow["message"])
+
+            result = self._app.acquire_token_by_device_flow(flow)
+
+            # save the aquired token
+            with open(self._token_cache_path, "w") as f:
+                f.write(self._token_cache.serialize())
+
+        return result["access_token"]
