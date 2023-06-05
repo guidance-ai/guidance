@@ -14,6 +14,7 @@ async def block(name=None, hidden=False, _parser_context=None):
     '''
 
     parser = _parser_context['parser']
+    variable_stack = _parser_context['variable_stack']
     
     # capture the content of the block
     with ContentCapture(variable_stack, hidden) as new_content:
