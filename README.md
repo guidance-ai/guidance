@@ -634,7 +634,7 @@ You are a helpful assistant.
 prompt = prompt(conversation_question='What is the meaning of life?')
 prompt
 ```
-![chat1](docs/figures/chat1.png)
+![chat1](docs/figures/chat_reading.png)
 
 Since partial completions are not allowed, you can't really use output structure _inside_ an assistant block, but you can still set up a structure outside of it. Here is an example (also in [here](notebooks/chat.ipynb)):
 ```python
