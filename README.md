@@ -45,7 +45,7 @@ program = guidance("""Tweak this proverb to apply to model instructions instead.
 
 UPDATED
 Where there is no guidance{{gen 'rewrite' stop="\\n-"}}
-- GPT {{gen 'chapter' stop=":"}}:{{gen 'verse'}}""")
+- GPT {{#select 'chapter'}}9{{or}}10{{or}}11{{/select}}:{{gen 'verse'}}""")
 
 # execute the program on a specific proverb
 executed_program = program(
