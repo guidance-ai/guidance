@@ -7,30 +7,6 @@ import re
 import datetime
 import asyncio
 
-log_file = None
-
-
-def open_log_file():
-    global log_file
-    if log_file is None:
-        log_file = open("log.txt", "a")
-    return log_file
-
-
-def close_log_file():
-    global log_file
-    if log_file is not None:
-        log_file.close()
-        log_file = None
-
-
-def log(*args):
-    # print(*args)
-    log_file = open_log_file()
-    print(datetime.datetime.now().strftime("%H:%M:%S"), *args, file=log_file)
-    log_file.flush()
-    # Currently never gets closed
-
 
 def load(guidance_file):
     ''' Load a guidance program from the given text file.

@@ -116,5 +116,5 @@ def test_logging_on():
 
 def test_logging_off():
     program = guidance("""This is a test prompt{{#if flag}} yes.{{/if}}""", log=False)
-    executed_program = program(my_var=True)
+    executed_program = program(flag=True)
     assert executed_program.log is False

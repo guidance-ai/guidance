@@ -23,6 +23,7 @@ class ProgramExecutor():
         self.should_stop = False
         self.caught_stop_iteration = False
         self.llm_session = None
+        self._logging = hasattr(self.program.log, "append")
 
         # find all the handlebars-style partial inclusion tags and replace them with the partial template
         def replace_partial(match):
@@ -296,7 +297,7 @@ class ProgramExecutor():
                     }
 
                 # call the command
-                if self.program.log is not False:
+                if self._logging:
                     self.program.log.append({
                         "type": "start",
                         "name": command_name,
@@ -315,7 +316,7 @@ class ProgramExecutor():
                 except StopIteration as ret:
                     command_output = ret.value
                     self.caught_stop_iteration = True
-                if self.program.log is not False:
+                if self._logging:
                     self.program.log.append({"type": "end", "name": command_name, "new_prefix": variable_stack["prefix"][pos:]})
 
                 # call partial output if the command didn't itself (and we are still executing)
@@ -432,7 +433,7 @@ class ProgramExecutor():
                     }
                 
                 # call the optionally asyncronous command
-                if self.program.log is not False:
+                if self._logging:
                     self.program.log.append({
                         "type": "start",
                         "name": command_name,
@@ -446,7 +447,7 @@ class ProgramExecutor():
                     command_output = await command_function(*positional_args, **named_args)
                 else:
                     command_output = command_function(*positional_args, **named_args)
-                if self.program.log is not False:
+                if self._logging:
                     self.program.log.append({"type": "end", "name": command_name, "new_prefix": variable_stack["prefix"][pos:]})
 
                 # if the command didn't send partial output we do it here
