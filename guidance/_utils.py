@@ -93,6 +93,13 @@ def strip_markers(s):
         return None
     return re.sub(r"{{!--G.*?--}}", r"", s, flags=re.MULTILINE | re.DOTALL)
 
+class AsyncIter():    
+    def __init__(self, items):    
+        self.items = items    
+
+    async def __aiter__(self):    
+        for item in self.items:    
+            yield item
 
 class ContentCapture:
     def __init__(self, variable_stack, hidden=False):

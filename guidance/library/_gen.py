@@ -4,7 +4,7 @@ import uuid
 import logging
 import types
 from .._grammar import grammar
-from .._utils import escape_template_block, strip_markers
+from .._utils import escape_template_block, AsyncIter
 
 log = logging.getLogger(__name__)
 
@@ -141,7 +141,7 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
 
     # call the LLM
     gen_obj = await parser.llm_session(
-        strip_markers(variable_stack["prefix"])+prefix, stop=stop, stop_regex=stop_regex, max_tokens=max_tokens, n=n, pattern=pattern,
+        variable_stack["prefix"]+prefix, stop=stop, stop_regex=stop_regex, max_tokens=max_tokens, n=n, pattern=pattern,
         temperature=temperature, top_p=top_p, logprobs=logprobs, cache_seed=cache_seed, token_healing=token_healing,
         echo=parser.program.logprobs is not None, stream=stream, caching=parser.program.caching, **llm_kwargs
     )
@@ -150,8 +150,10 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
         generated_value = prefix
         variable_stack["_prefix"] += prefix
         logprobs_out = []
-        if not isinstance(gen_obj, (types.GeneratorType, list, tuple)):
+        if not isinstance(gen_obj, (types.AsyncGeneratorType, types.GeneratorType, list, tuple)):
             gen_obj = [gen_obj]
+        if not isinstance(gen_obj, types.AsyncGeneratorType):
+            gen_obj = AsyncIter(gen_obj)
         if list_append:
             variable_stack[name] = variable_stack.get(name, [])
             variable_stack[name].append("")
@@ -160,7 +162,7 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
                 variable_stack[name+"_logprobs"] = variable_stack.get(name+"_logprobs", [])
                 variable_stack[name+"_logprobs"].append([])
                 assert len(len(variable_stack[name])) == len(len(variable_stack[name+"_logprobs"]))
-        for resp in gen_obj:
+        async for resp in gen_obj:
             await asyncio.sleep(0) # allow other tasks to run
             #log("parser.should_stop = " + str(parser.should_stop))
             if parser.should_stop:

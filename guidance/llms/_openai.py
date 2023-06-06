@@ -36,8 +36,8 @@ def prompt_to_messages(prompt):
 
     return messages
 
-def add_text_to_chat_mode_generator(chat_mode):
-    for resp in chat_mode:
+async def add_text_to_chat_mode_generator(chat_mode):
+    async for resp in chat_mode:
         if "choices" in resp:
             for c in resp['choices']:
                 if "content" in c['delta']:
@@ -50,7 +50,7 @@ def add_text_to_chat_mode_generator(chat_mode):
             yield resp
 
 def add_text_to_chat_mode(chat_mode):
-    if isinstance(chat_mode, types.GeneratorType):
+    if isinstance(chat_mode, (types.AsyncGeneratorType, types.GeneratorType)):
         return add_text_to_chat_mode_generator(chat_mode)
     else:
         for c in chat_mode['choices']:
@@ -173,7 +173,7 @@ class OpenAI(LLM):
         return "<|endoftext|>"
     
     @classmethod
-    def stream_then_save(cls, gen, key, stop_regex, n):
+    async def stream_then_save(cls, gen, key, stop_regex, n):
         list_out = []
         cached_out = None
 
@@ -189,7 +189,7 @@ class OpenAI(LLM):
         
         # iterate through the stream
         all_done = False
-        for curr_out in gen:
+        async for curr_out in gen:
 
             # if we have a cached output, extend it with the current output
             if cached_out is not None:
@@ -254,7 +254,7 @@ class OpenAI(LLM):
                 list_out.append(out)
                 yield out
                 if all_done:
-                    gen.close()
+                    gen.aclose()
                     break
         
         # if we have a cached output, emit it
@@ -284,7 +284,7 @@ class OpenAI(LLM):
         # Return the length of the deque as the number of calls
         return len(self.call_history)
 
-    def _library_call(self, **kwargs):
+    async def _library_call(self, **kwargs):
         """ Call the OpenAI API using the python package.
 
         Note that is uses the local auth token, and does not rely on the openai one.
@@ -317,10 +317,10 @@ class OpenAI(LLM):
             del kwargs['echo']
             del kwargs['logprobs']
             # print(kwargs)
-            out = openai.ChatCompletion.create(**kwargs)
+            out = await openai.ChatCompletion.acreate(**kwargs)
             out = add_text_to_chat_mode(out)
         else:
-            out = openai.Completion.create(**kwargs)
+            out = await openai.Completion.acreate(**kwargs)
         
         # restore the params of the openai library
         openai.api_key = prev_key
@@ -331,7 +331,7 @@ class OpenAI(LLM):
         
         return out
 
-    def _rest_call(self, **kwargs):
+    async def _rest_call(self, **kwargs):
         """ Call the OpenAI API using the REST API.
         """
 
@@ -531,7 +531,7 @@ class OpenAISession(LLMSession):
                     }
                     if logit_bias is not None:
                         call_args["logit_bias"] = {str(k): v for k,v in logit_bias.items()} # convert keys to strings since that's the open ai api's format
-                    out = self.llm.caller(**call_args)
+                    out = await self.llm.caller(**call_args)
 
                 except openai.error.RateLimitError:
                     await asyncio.sleep(3)

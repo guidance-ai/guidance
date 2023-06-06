@@ -296,6 +296,16 @@ class ProgramExecutor():
                     }
 
                 # call the command
+                if self.program.log is not False:
+                    self.program.log.append({
+                        "type": "start",
+                        "name": command_name,
+                        "positional_args": positional_args,
+                        "named_args": {k:v for k,v in named_args.items() if k != "_parser_context"},
+                        "prefix": variable_stack["prefix"],
+                        # "node_id": id(node)
+                    })
+                    pos = len(variable_stack["prefix"])
                 try:
                     if inspect.iscoroutinefunction(command_function):
                         await asyncio.sleep(0) # give other coroutines a chance to run
@@ -305,6 +315,8 @@ class ProgramExecutor():
                 except StopIteration as ret:
                     command_output = ret.value
                     self.caught_stop_iteration = True
+                if self.program.log is not False:
+                    self.program.log.append({"type": "end", "name": command_name, "new_prefix": variable_stack["prefix"][pos:]})
 
                 # call partial output if the command didn't itself (and we are still executing)
                 if not top_level:
@@ -420,10 +432,22 @@ class ProgramExecutor():
                     }
                 
                 # call the optionally asyncronous command
+                if self.program.log is not False:
+                    self.program.log.append({
+                        "type": "start",
+                        "name": command_name,
+                        "positional_args": positional_args,
+                        "named_args": {k:v for k,v in named_args.items() if k != "_parser_context"},
+                        "prefix": variable_stack["prefix"],
+                        # "node_id": id(node)
+                    })
+                    pos = len(variable_stack["prefix"])
                 if inspect.iscoroutinefunction(command_function):
                     command_output = await command_function(*positional_args, **named_args)
                 else:
                     command_output = command_function(*positional_args, **named_args)
+                if self.program.log is not False:
+                    self.program.log.append({"type": "end", "name": command_name, "new_prefix": variable_stack["prefix"][pos:]})
 
                 # if the command didn't send partial output we do it here
                 if command_output is not None:
