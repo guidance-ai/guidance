@@ -99,3 +99,6 @@ class VariableStack:
         # if we changed the _prefix variable, update the display
         if changed and key == "_prefix" and not self.get("_no_display", False):
             self._executor.program.update_display()
+
+    def copy(self):
+        return VariableStack(self._stack.copy(), self._executor)

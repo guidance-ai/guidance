@@ -153,11 +153,13 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
         if not isinstance(gen_obj, (types.GeneratorType, list, tuple)):
             gen_obj = [gen_obj]
         if list_append:
-            value_list = variable_stack.get(name, [])
-            value_list.append("")
+            variable_stack[name] = variable_stack.get(name, [])
+            variable_stack[name].append("")
+            list_ind = len(variable_stack[name])-1
             if logprobs is not None:
-                logprobs_list = variable_stack.get(name+"_logprobs", [])
-                logprobs_list.append([])
+                variable_stack[name+"_logprobs"] = variable_stack.get(name+"_logprobs", [])
+                variable_stack[name+"_logprobs"].append([])
+                assert len(len(variable_stack[name])) == len(len(variable_stack[name+"_logprobs"]))
         for resp in gen_obj:
             await asyncio.sleep(0) # allow other tasks to run
             #log("parser.should_stop = " + str(parser.should_stop))
@@ -170,11 +172,9 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
             if logprobs is not None:
                 logprobs_out.extend(resp["choices"][0]["logprobs"]["top_logprobs"])
             if list_append:
-                value_list[-1] = generated_value
-                variable_stack[name] = value_list
+                variable_stack[name][list_ind] = generated_value
                 if logprobs is not None:
-                    logprobs_list[-1] = logprobs_out
-                    variable_stack[name+"_logprobs"] = logprobs_list
+                    variable_stack[name+"_logprobs"][list_ind] = logprobs_out
             elif name is not None:
                 variable_stack[name] = generated_value
                 if logprobs is not None:
@@ -191,8 +191,7 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
         generated_value += suffix
         variable_stack["_prefix"] += suffix
         if list_append:
-            value_list[-1] = generated_value
-            variable_stack[name] = value_list
+            variable_stack[name][list_ind] = generated_value
         elif name is not None:
             variable_stack[name] = generated_value
 
