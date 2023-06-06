@@ -1,4 +1,4 @@
-from .._utils import strip_markers
+from .._utils import ContentCapture
 
 async def block(name=None, hidden=False, _parser_context=None):
     ''' Generic block-level element.
@@ -14,20 +14,22 @@ async def block(name=None, hidden=False, _parser_context=None):
     '''
 
     parser = _parser_context['parser']
-    pos = len(parser.prefix)
-    out = await parser.visit(
-        _parser_context['block_content'][0],
-        next_node=_parser_context["next_node"],
-        next_next_node=_parser_context["next_next_node"],
-        prev_node=_parser_context["prev_node"]
-    )
-    if name is not None:
-        variable_value = strip_markers(out)
-        parser.set_variable(name, variable_value)
-    if hidden:
-        new_content = parser.prefix[pos:]
-        parser.reset_prefix(pos)
-        parser.extend_prefix("{{!--GHIDDEN:"+new_content.replace("--}}", "--_END_END")+"--}}")
+    variable_stack = _parser_context['variable_stack']
     
-    return out
+    # capture the content of the block
+    with ContentCapture(variable_stack, hidden) as new_content:
+
+        # visit the block content
+        new_content += await parser.visit(
+            _parser_context['block_content'][0],
+            variable_stack,
+            next_node=_parser_context["next_node"],
+            next_next_node=_parser_context["next_next_node"],
+            prev_node=_parser_context["prev_node"]
+        )
+
+        # set the variable if needed
+        if name is not None:
+            variable_value = str(new_content)
+            variable_stack[name] = variable_value
 block.is_block = True
