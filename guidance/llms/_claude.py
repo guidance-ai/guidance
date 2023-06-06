@@ -10,23 +10,8 @@ import collections
 import json
 import re
 import regex
+
 from ._llm import LLM, LLMSession, SyncSession
-
-# # example from Claude
-# # https://github.com/anthropics/anthropic-sdk-python/blob/main/examples/basic_async.py
-# async def main(max_tokens_to_sample: int = 100):
-#     c = anthropic.Client(os.environ["ANTHROPIC_API_KEY"])
-#     resp = await c.acompletion(
-#         prompt=f"{anthropic.HUMAN_PROMPT} How many toes do dogs have?{anthropic.AI_PROMPT}",
-#         stop_sequences=[anthropic.HUMAN_PROMPT],
-#         model="claude-v1-100k",
-#         max_tokens_to_sample=max_tokens_to_sample,
-#     )
-#     print(resp)
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
 
 
 class MalformedPromptException(Exception):
@@ -36,7 +21,7 @@ class MalformedPromptException(Exception):
 def prompt_to_messages(prompt):
     messages = []
 
-    assert prompt.endswith("<|im_start|>nAssistant\n"), ""
+    assert prompt.endswith("<|im_start|>Assistant\n"), "When calling Claude chat models you must generate only directly inside the assistant role!"
 
     pattern = r'<\|im_start\|>(\w+)(.*?)(?=<\|im_end\|>|$)'
     matches = re.findall(pattern, prompt, re.DOTALL)
@@ -46,13 +31,11 @@ def prompt_to_messages(prompt):
 
     for match in matches:
         role, content = match
-        content = content.strip()  # should we do this?
+        content = content.strip() # should we do this?
         messages.append({'role': role, 'content': content})
 
     return messages
 
-
-# Should we do this?
 def add_text_to_chat_mode_generator(chat_mode):
     for resp in chat_mode:
         if "choices" in resp:
@@ -66,7 +49,6 @@ def add_text_to_chat_mode_generator(chat_mode):
         else:
             yield resp
 
-
 def add_text_to_chat_mode(chat_mode):
     if isinstance(chat_mode, types.GeneratorType):
         return add_text_to_chat_mode_generator(chat_mode)
@@ -75,43 +57,71 @@ def add_text_to_chat_mode(chat_mode):
             c['text'] = c['message']['content']
         return chat_mode
 
-# From here this is just a copy paste
-class Claude(LLM):
-    cache = LLM._open_cache("_claude.diskcache") 
+# model that need to use the chat completion API
+chat_models = [
+    "claude-v1",
+    "claude-v1-100k",
+    "claude-instant-v1",
+    "claude-instant-v1-100k"
+]
 
-    def __init__(self, model='claude-v1-100k', caching=True, max_retries=5, max_calls_per_min=60, token=None, endpoint=None,
-                 temperature=0.0, chat_mode="auto", organization=None, allowed_special_tokens={"<|endoftext|>", "<|endofprompt|>"}):
+class Claude(LLM):
+    llm_name: str = "claude"
+
+    def __init__(self, model=None, caching=True, max_retries=5, max_calls_per_min=60,
+                 api_key=None, api_type="claude", api_base=None, api_version=None, deployment_id=None,
+                 temperature=0.0, chat_mode="auto", organization=None, rest_call=False,
+                 allowed_special_tokens={"<|endoftext|>", "<|endofprompt|>"},
+                 token=None, endpoint=None):
         super().__init__()
+
+        # map old param values
+        # TODO: add deprecated warnings after some time
+        if token is not None:    
+            if api_key is None:
+                api_key = token
+        if endpoint is not None:
+            if api_base is None:
+                api_base = endpoint
 
         # fill in default model value
         if model is None:
-            model = os.environ.get("CLAUDE_MODEL", None)
+            model = os.environ.get("ANTHROPIC_MODEL", None)
         if model is None:
             try:
-                with open(os.path.expanduser('~/.claude_model'), 'r') as file:
+                with open(os.path.expanduser('~/.anthropic_model'), 'r') as file:
                     model = file.read().replace('\n', '')
             except:
                 pass
 
-        chat_mode = True
+        # fill in default deployment_id value
+        if deployment_id is None:
+            deployment_id = os.environ.get("ANTHROPIC_DEPLOYMENT_ID", None)
+
+        # auto detect chat completion mode
+        if chat_mode == "auto":
+            if model in chat_models:
+                chat_mode = True
+            else:
+                chat_mode = False
         
         # fill in default API key value
-        if token is None: # get from environment variable
-            token = os.environ.get("ANTHROPIC_API_KEY", getattr(claude, "api_key", None))
-        if token is not None and not token.startswith("sk-") and os.path.exists(os.path.expanduser(token)): # get from file
-            with open(os.path.expanduser(token), 'r') as file:
-                token = file.read().replace('\n', '')
-        if token is None: # get from default file location
+        if api_key is None: # get from environment variable
+            api_key = os.environ.get("OPENAI_API_KEY", getattr(claude, "api_key", None))
+        if api_key is not None and not api_key.startswith("sk-") and os.path.exists(os.path.expanduser(api_key)): # get from file
+            with open(os.path.expanduser(api_key), 'r') as file:
+                api_key = file.read().replace('\n', '')
+        if api_key is None: # get from default file location
             try:
                 with open(os.path.expanduser('~/.anthropic_api_key'), 'r') as file:
-                    token = file.read().replace('\n', '')
+                    api_key = file.read().replace('\n', '')
             except:
                 pass
         if organization is None:
             organization = os.environ.get("ANTHROPIC_ORGANIZATION", None)
         # fill in default endpoint value
-        if endpoint is None:
-            endpoint = os.environ.get("ANTHROPIC_ENDPOINT", None)
+        if api_base is None:
+            api_base = os.environ.get("ANTHROPIC_API_BASE", None) or os.environ.get("ANTHROPIC_ENDPOINT", None) # ENDPOINT is deprecated
 
         import tiktoken
         self._tokenizer = tiktoken.get_encoding(tiktoken.encoding_for_model(model).name)
@@ -119,17 +129,23 @@ class Claude(LLM):
         
         self.allowed_special_tokens = allowed_special_tokens
         self.model_name = model
+        self.deployment_id = deployment_id
         self.caching = caching
         self.max_retries = max_retries
         self.max_calls_per_min = max_calls_per_min
-        self.token = token
-        self.endpoint = endpoint
+        if isinstance(api_key, str):
+            api_key = api_key
+        self.api_key = api_key
+        self.api_type = api_type
+        self.api_base = api_base
+        self.api_version = api_version
         self.current_time = time.time()
         self.call_history = collections.deque()
         self.temperature = temperature
         self.organization = organization
+        self.rest_call = rest_call
 
-        if self.endpoint is None:
+        if not self.rest_call:
             self.caller = self._library_call
         else:
             self.caller = self._rest_call
@@ -146,14 +162,14 @@ class Claude(LLM):
     def role_start(self, role):
         assert self.chat_mode, "role_start() can only be used in chat mode"
         return "<|im_start|>"+role+"\n"
-
+    
     def role_end(self, role=None):
         assert self.chat_mode, "role_end() can only be used in chat mode"
         return "<|im_end|>"
-
+    
     def end_of_text(self):
         return "<|endoftext|>"
-
+    
     @classmethod
     def stream_then_save(cls, gen, key, stop_regex, n):
         list_out = []
@@ -171,18 +187,20 @@ class Claude(LLM):
         
         # iterate through the stream
         all_done = False
-        for out in gen:
+        for curr_out in gen:
 
             # if we have a cached output, extend it with the current output
             if cached_out is not None:
-                out = merge_stream_chunks(cached_out, out)
+                out = merge_stream_chunks(cached_out, curr_out)
+            else:
+                out = curr_out
             
             # check if we have stop_regex matches
             found_partial = False
             if stop_regex is not None:
 
                 # keep track of the generated text so far
-                for i,choice in enumerate(out['choices']):
+                for i,choice in enumerate(curr_out['choices']):
                     current_strings[i] += choice['text']
 
                 # check if all of the strings match a stop string (and hence we can stop the batch inference)
@@ -237,6 +255,11 @@ class Claude(LLM):
                     gen.close()
                     break
         
+        # if we have a cached output, emit it
+        if cached_out is not None:
+            list_out.append(cached_out)
+            yield out
+
         cls.cache[key] = list_out
     
     def _stream_completion(self):
@@ -260,30 +283,59 @@ class Claude(LLM):
         return len(self.call_history)
 
     def _library_call(self, **kwargs):
-        """ Call the Antropic API using the python package.
+        """ Call the OpenAI API using the python package.
+
+        Note that is uses the local auth token, and does not rely on the openai one.
         """
-        prev_key = openai.api_key
-        prev_org = openai.organization
-        assert self.token is not None, "You must provide an Anthropic API key to use the Claude LLM. Either pass it in the constructor, set the ANTHROPIC_API_KEY environment variable, or create the file ~/.anthropic_api_key with your key in it."
-        c = anthropic.Client(self.token)
+
+        # save the params of the openai library
+        prev_key = anthropic.api_key
+        prev_org = anthropic.organization
+        prev_type = anthropic.api_type
+        prev_version = anthropic.api_version
+        prev_base = anthropic.api_base
+        
+        # set the params of the openai library if we have them
+        if self.api_key is not None:
+            anthropic.api_key = self.api_key
+        if self.organization is not None:
+            anthropic.organization = self.organization
+        if self.api_type is not None:
+            anthropic.api_type = self.api_type
+        if self.api_version is not None:
+            anthropic.api_version = self.api_version
+        if self.api_base is not None:
+            anthropic.api_base = self.api_base
+        
         if self.chat_mode:
             kwargs['messages'] = prompt_to_messages(kwargs['prompt'])
             del kwargs['prompt']
             del kwargs['echo']
             del kwargs['logprobs']
             # print(kwargs)
-            out = c.acompletion.create(**kwargs)
+            # TODO: not sure about this
+            out = anthropic.ChatCompletion.create(**kwargs)
             out = add_text_to_chat_mode(out)
+        else:
+            out = anthropic.Completion.create(**kwargs)
+        
+        # restore the params of the anthropic library
+        anthropic.api_key = prev_key
+        anthropic.organization = prev_org
+        anthropic.api_type = prev_type
+        anthropic.api_version = prev_version
+        anthropic.api_base = prev_base
+        
         return out
-    # To be Done...
+
     def _rest_call(self, **kwargs):
-        """ Call the Antropic API using the REST API.
+        """ Call the ANTHROPIC API using the REST API.
         """
 
         # Define the request headers
         headers = copy.copy(self._rest_headers)
-        if self.token is not None:
-            headers['Authorization'] = f"Bearer {self.token}"
+        if self.api_key is not None:
+            headers['Authorization'] = f"Bearer {self.api_key}"
 
         # Define the request data
         stream = kwargs.get("stream", False)
@@ -302,16 +354,23 @@ class Claude(LLM):
             data['messages'] = prompt_to_messages(data['prompt'])
             del data['prompt']
             del data['echo']
-            del data['stream']
+            del data['logprobs']
 
         # Send a POST request and get the response
-        response = requests.post(self.endpoint, headers=headers, json=data, stream=stream)
-        if response.status_code != 200:
-            raise Exception("Response is not 200: " + response.text)
-        if stream:
-            return self._rest_stream_handler(response)
-        else:
-            response = response.json()
+        # An exception for timeout is raised if the server has not issued a response for 10 seconds
+        try:
+            response = requests.post(self.endpoint, headers=headers, json=data, stream=stream, timeout=60)
+            if response.status_code != 200:
+                raise Exception("Response is not 200: " + response.text)
+            if stream:
+                return self._rest_stream_handler(response)
+            else:
+                response = response.json()
+        except requests.Timeout:
+            raise Exception("Request timed out.")
+        except requests.ConnectionError:
+            raise Exception("Connection error occurred.")
+
         if self.chat_mode:
             response = add_text_to_chat_mode(response)
         return response
@@ -326,11 +385,11 @@ class Claude(LLM):
                 else:
                     yield json.loads(text)
     
-    def encode(self, string, fragment=True):
+    def encode(self, string):
         # note that is_fragment is not used used for this tokenizer
         return self._tokenizer.encode(string, allowed_special=self.allowed_special_tokens)
     
-    def decode(self, tokens, fragment=True):
+    def decode(self, tokens):
         return self._tokenizer.decode(tokens)
 
 
@@ -405,7 +464,9 @@ class RegexStopChecker():
 
 # Define a deque to store the timestamps of the calls
 class ClaudeSession(LLMSession):
-    async def __call__(self, prompt, stop=None, stop_regex=None, temperature=None, n=1, max_tokens=1000, logprobs=None, top_p=1.0, echo=False, logit_bias=None, token_healing=None, pattern=None, stream=None, cache_seed=0, caching=None):
+    async def __call__(self, prompt, stop=None, stop_regex=None, temperature=None, n=1, max_tokens=1000, logprobs=None,
+                       top_p=1.0, echo=False, logit_bias=None, token_healing=None, pattern=None, stream=None,
+                       cache_seed=0, caching=None, **completion_kwargs):
         """ Generate a completion of the given prompt.
         """
 
@@ -413,8 +474,9 @@ class ClaudeSession(LLMSession):
         if stream is None:
             stream = stop_regex is not None
         assert stop_regex is None or stream, "We can only support stop_regex for the Anthropic API when stream=True!"
-        assert stop_regex is None or n == 1, "We don't yet support stop_regex combined with n > 1 with the Antropic API!"
+        assert stop_regex is None or n == 1, "We don't yet support stop_regex combined with n > 1 with the Anthropic API!"
 
+        assert token_healing is None or token_healing is False, "The Anthropic API does not yet support token healing! Please either switch to an endpoint that does, or don't use the `token_healing` argument to `gen`."
 
         # set defaults
         if temperature is None:
@@ -423,21 +485,23 @@ class ClaudeSession(LLMSession):
         # get the arguments as dictionary for cache key generation
         args = locals().copy()
 
-        assert not pattern, "The Antropic API does not support Guidance pattern controls! Please either switch to an endpoint that does, or don't use the `pattern` argument to `gen`."
+        assert not pattern, "The Anthropic API does not support Guidance pattern controls! Please either switch to an endpoint that does, or don't use the `pattern` argument to `gen`."
         # assert not stop_regex, "The OpenAI API does not support Guidance stop_regex controls! Please either switch to an endpoint that does, or don't use the `stop_regex` argument to `gen`."
 
         # define the key for the cache
-        key = self._cache_key(args)
+        cache_params = self._cache_params(args)
+        llm_cache = self.llm.cache
+        key = llm_cache.create_key(self.llm.llm_name, **cache_params)
         
         # allow streaming to use non-streaming cache (the reverse is not true)
-        if key not in self.llm.__class__.cache and stream:
-            args["stream"] = False
-            key1 = self._cache_key(args)
-            if key1 in self.llm.__class__.cache:
+        if key not in llm_cache and stream:
+            cache_params["stream"] = False
+            key1 = llm_cache.create_key(self.llm.llm_name, **cache_params)
+            if key1 in llm_cache:
                 key = key1
         
         # check the cache
-        if key not in self.llm.__class__.cache or (caching is not True and not self.llm.caching) or caching is False:
+        if key not in llm_cache or caching is False or (caching is not True and not self.llm.caching):
 
             # ensure we don't exceed the rate limit
             while self.llm.count_calls() > self.llm.max_calls_per_min:
@@ -450,6 +514,7 @@ class ClaudeSession(LLMSession):
                     self.llm.add_call()
                     call_args = {
                         "model": self.llm.model_name,
+                        "deployment_id": self.llm.deployment_id,
                         "prompt": prompt,
                         "max_tokens": max_tokens,
                         "temperature": temperature,
@@ -458,13 +523,14 @@ class ClaudeSession(LLMSession):
                         "stop": stop,
                         "logprobs": logprobs,
                         "echo": echo,
-                        "stream": stream
+                        "stream": stream,
+                        **completion_kwargs
                     }
                     if logit_bias is not None:
                         call_args["logit_bias"] = {str(k): v for k,v in logit_bias.items()} # convert keys to strings since that's the open ai api's format
                     out = self.llm.caller(**call_args)
 
-                except claude.error.RateLimitError:
+                except anthropic.error.RateLimitError:
                     await asyncio.sleep(3)
                     try_again = True
                     fail_count += 1
@@ -478,13 +544,12 @@ class ClaudeSession(LLMSession):
             if stream:
                 return self.llm.stream_then_save(out, key, stop_regex, n)
             else:
-                self.llm.__class__.cache[key] = out
+                llm_cache[key] = out
         
         # wrap as a list if needed
         if stream:
-            if isinstance(self.llm.__class__.cache[key], list):
-                return self.llm.__class__.cache[key]
-            return [self.llm.__class__.cache[key]]
+            if isinstance(llm_cache[key], list):
+                return llm_cache[key]
+            return [llm_cache[key]]
         
-        return self.llm.__class__.cache[key]
-
+        return llm_cache[key]
