@@ -22,8 +22,7 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
     '''
     parser = _parser_context['parser']
     block_content = _parser_context['block_content']
-    parser_prefix = _parser_context['parser_prefix']
-    partial_output = _parser_context['partial_output']
+    variable_stack = _parser_context['variable_stack']
     next_node = _parser_context["next_node"]
     next_next_node = _parser_context["next_next_node"]
 
@@ -51,10 +50,10 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
     options = [option + next_text for option in options]
 
     # TODO: this retokenizes the whole prefix many times, perhaps this could become a bottleneck?
-    options_tokens = [parser.program.llm.encode(parser_prefix + option) for option in options]
+    options_tokens = [parser.program.llm.encode(variable_stack["prefix"] + option) for option in options]
 
     # encoding the prefix and then decoding it might change the length, so we need to account for that
-    recoded_parser_prefix_length = len(parser.program.llm.decode(parser.program.llm.encode(parser_prefix)))
+    recoded_parser_prefix_length = len(parser.program.llm.decode(parser.program.llm.encode(variable_stack["prefix"])))
 
     # build a trie of the options
     token_map = pygtrie.Trie()
@@ -158,21 +157,21 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
     
     # see if we are appending to a list or not
     if list_append:
-        value_list = parser.get_variable(variable_name, [])
+        value_list = variable_stack.get(variable_name, [])
         value_list.append(selected_option)
-        parser.set_variable(variable_name, value_list)
+        variable_stack[variable_name] =  value_list
         if logprobs is not None:
-            logprobs_list = parser.get_variable(logprobs, [])
+            logprobs_list = variable_stack.get(logprobs, [])
             logprobs_list.append(option_logprobs)
-            parser.set_variable(logprobs, logprobs_list)
+            variable_stack[logprobs] =  logprobs_list
     else:
-        parser.set_variable(variable_name, selected_option)
+        variable_stack[variable_name] =  selected_option
         if logprobs is not None:
-            parser.set_variable(logprobs, option_logprobs)
+            variable_stack[logprobs] = option_logprobs
     
     if max(option_logprobs.values()) <= -1000:
         raise ValueError("No valid option generated in #select! Please post a GitHub issue since this should not happen :)")
     
-    partial_output(selected_option)
+    variable_stack["_prefix"] += selected_option
 
 select.is_block = True

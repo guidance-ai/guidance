@@ -108,3 +108,13 @@ def test_stream_loop_async(llm):
         assert len(partials[0]) < 5
         assert len(partials[-1]) == 5
     loop.run_until_complete(f())
+
+def test_logging_on():
+    program = guidance("""This is a test prompt{{#if flag}} yes.{{/if}}""", log=True)
+    executed_program = program(flag=True)
+    assert len(executed_program.log) > 0
+
+def test_logging_off():
+    program = guidance("""This is a test prompt{{#if flag}} yes.{{/if}}""", log=False)
+    executed_program = program(flag=True)
+    assert executed_program.log is False
