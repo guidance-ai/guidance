@@ -12,6 +12,7 @@ async def if_(value, invert=False, _parser_context=None):
         If `True` then the value will be inverted before checking.
     '''
     block_content = _parser_context['block_content']
+    variable_stack = _parser_context['variable_stack']
     assert len(block_content) in [1,3] # we don't support elseif yet...
     options = [block_content[0]]
     for i in range(1, len(block_content), 2):
@@ -26,9 +27,9 @@ async def if_(value, invert=False, _parser_context=None):
         value = not value
     
     if value:
-        return await _parser_context['parser'].visit(options[0])
+        return await _parser_context['parser'].visit(options[0], variable_stack)
     elif len(options) > 1:
-        return await _parser_context['parser'].visit(options[1])
+        return await _parser_context['parser'].visit(options[1], variable_stack)
     else:
         return ""
 if_.is_block = True
