@@ -1,4 +1,5 @@
 import guidance
+from ..utils import get_llm
 
 def test_each():
     """ Test an each loop.
@@ -65,7 +66,7 @@ def test_each_parallel_with_gen():
 def test_each_parallel_with_gen_openai():
     """Test an each loop run in parallel with generations inside using OpenAI."""
 
-    llm = guidance.llms.OpenAI("text-curie-001")
+    llm = get_llm("openai:text-curie-001")
 
     program = guidance("""Hello, {{name}}! Here are 5 names and their favorite food:
 {{#each names parallel=True hidden=True}}{{this}}: {{gen 'foods' list_append=True}}
