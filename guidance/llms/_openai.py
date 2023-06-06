@@ -146,6 +146,7 @@ class OpenAI(LLM):
         self.temperature = temperature
         self.organization = organization
         self.rest_call = rest_call
+        self.endpoint = endpoint
 
         if not self.rest_call:
             self.caller = self._library_call
