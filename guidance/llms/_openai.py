@@ -374,7 +374,8 @@ class OpenAI(LLM):
                 status = response.status_code
                 text = response.text
             if status != 200:
-                text = await response.text()
+                if stream:
+                    text = await response.text()
                 raise Exception("Response is not 200: " + text)
             if stream:
                 response = self._rest_stream_handler(response, session)
