@@ -48,7 +48,7 @@ You are a helpful assistant.
 {{conversation_question}}
 {{~/user}}
 {{#assistant~}}
-{{gen "answer" stream=False}}
+{{gen "answer" max_tokens=5 stream=False}}
 {{~/assistant}}''')
     prompt = prompt(conversation_question='Whats is the meaning of life??')
     assert len(prompt['answer']) > 0
@@ -63,7 +63,7 @@ You are a helpful assistant.
 {{conversation_question}}
 {{~/user}}
 {{#assistant~}}
-{{gen "answer" stream=True}}
+{{gen "answer" max_tokens=5 stream=True}}
 {{~/assistant}}''')
     prompt = prompt(conversation_question='Whats is the meaning of life??')
     assert len(prompt['answer']) > 0
