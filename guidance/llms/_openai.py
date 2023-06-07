@@ -379,7 +379,6 @@ class OpenAI(LLM):
                 raise Exception("Response is not 200: " + text)
             if stream:
                 response = self._rest_stream_handler(response, session)
-                # return self._rest_stream_handler(response, session)
             else:
                 response = response.json()
         except requests.Timeout:
@@ -405,11 +404,6 @@ class OpenAI(LLM):
                     break
                 else:
                     yield json.loads(text)
-                    # j = json.loads(text)
-                    # if self.chat_mode:
-                    #     yield add_text_to_chat_mode(j)
-                    # else:
-                    #     yield j
     
     def encode(self, string):
         # note that is_fragment is not used used for this tokenizer
