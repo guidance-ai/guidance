@@ -26,6 +26,38 @@ file_path = pathlib.Path(__file__).parent.parent.absolute()
 with open(file_path / "guidance" / "resources" / "main.js", encoding="utf-8") as f:
     js_data = f.read()
 
+class Log:
+    def __init__(self) -> None:
+        self._entries = []
+    
+    def append(self, entry):
+        if not hasattr(entry, "time"):
+            entry["time"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self._entries.append(entry)
+
+    def __str__(self) -> str:
+        string_entries = []
+        for entry in self._entries:
+            type_str = "["+entry.get("type", "")+"]"
+            string_entries.append(
+                f"{entry.get('time', '')}{type_str: >10s}{entry.get('name', ''): >15s}: " + str({k:v for k,v in entry.items() if k not in ["type", "name", "time"]})
+            )
+        return "\n".join(string_entries)
+    
+    def __repr__(self) -> str:
+        return str(self)
+    
+    def __len__(self) -> int:
+        return len(self._entries)
+    
+    def __getitem__(self, key):
+        return self._entries[key]
+    
+    def copy(self):
+        new_log = Log()
+        new_log._entries = [copy.copy(v) for v in self._entries]
+        return new_log
+
 class Program:
     ''' A program template that can be compiled and executed to generate a new filled in (executed) program.
 
@@ -33,7 +65,7 @@ class Program:
     the generated output to mark where template tags used to be.
     '''
 
-    def __init__(self, text, llm=None, cache_seed=0, logprobs=None, silent=None, async_mode=False, stream=None, caching=None, await_missing=False, **kwargs):
+    def __init__(self, text, llm=None, cache_seed=0, logprobs=None, silent=None, async_mode=False, stream=None, caching=None, await_missing=False, log=None, **kwargs):
         """ Create a new Program object from a program string.
 
         Parameters
@@ -69,6 +101,9 @@ class Program:
             for executing programs on different machines, for example shipping a program to a GPU machine
             then waiting for the results to come back for any local processing, then shipping it back to
             the GPU machine to continue execution.
+        log : bool or Log
+            If True, the program will log all the commands that are executed into the `program.log` property.
+            If a Log object is passed in, it will be used as the log instead of creating a new one.
         """
 
         # see if we were given a raw function instead of a string template
@@ -92,8 +127,13 @@ class Program:
         self.silent = silent
         self.stream = stream
         self.await_missing = await_missing
+        self.log = log
         if self.silent is None:
             self.silent = self.stream is True or not _utils.is_interactive()
+
+        # build or capture the log
+        if self.log is True:
+            self.log = Log()
         
         # set our variables
         self._variables = {}
@@ -192,6 +232,7 @@ class Program:
             "caching": self.caching,
             "logprobs": self.logprobs,
             "await_missing": self.await_missing,
+            "log": self.log.copy() if hasattr(self.log, "copy") else self.log,
             "llm": self.llm,
         }, **kwargs}
 
@@ -383,7 +424,7 @@ class Program:
         else:
             with self.llm.session(asynchronous=True) as llm_session:
                 await self._executor.run(llm_session)
-        self._text = self._executor.prefix
+        self._text = self._variables["_prefix"]
 
         # delete the executor and so mark the program as not executing
         self._executor = None
@@ -404,15 +445,23 @@ class Program:
     def __delitem__(self, key):
         del self._variables[key]
     
-    def variables(self, built_ins=False):
+    def variables(self, built_ins=False, show_hidden=False):
         """ Returns a dictionary of the variables in the program.
 
         Parameters
         ----------
         built_ins : bool
             If True, built-in variables will be included in the returned dictionary.
+        show_hidden : bool
+            If True, hidden variables will be included in the returned dictionary.
         """
-        return {k: v for k,v in self._variables.items() if built_ins or not (k in _built_ins and callable(_built_ins[k]))}
+        out = {}
+        for k,v in self._variables.items():
+            if show_hidden or not k.startswith("_"):
+                if built_ins or not (k in _built_ins and callable(_built_ins[k])):
+                    out[k] = v
+            
+        return out
     
     @property
     def text(self):
@@ -422,7 +471,7 @@ class Program:
     @property
     def marked_text(self):
         if self._executor is not None:
-            return self._executor.prefix
+            return self._variables["_prefix"]
         else:
             return self._text
     

@@ -30,6 +30,7 @@ setup(
     package_data={"guidance": ["resources/*"]},
     install_requires=[
         "diskcache",
+        "gptcache",
         "openai>=0.27",
         "parsimonious",
         "pygtrie",
@@ -51,7 +52,8 @@ setup(
         'test': [
             'pytest',
             'transformers',
-            'torch'
+            'torch',
+            'pytest-cov'
         ]
     }
 )

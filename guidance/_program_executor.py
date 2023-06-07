@@ -8,6 +8,7 @@ import logging
 import parsimonious
 from ._utils import strip_markers
 from ._grammar import grammar
+from ._variable_stack import VariableStack
 log = logging.getLogger(__name__)
 
 
@@ -16,15 +17,13 @@ class ProgramExecutor():
         """ Attaches this executor to a program object.
         """
 
-        self.variable_stack = [program._variables]
         self.program = program
-        self.prefix = ""
-        # self.prefix_tokens = []
         self.block_content = []
         self.executing = True
         self.should_stop = False
         self.caught_stop_iteration = False
         self.llm_session = None
+        self._logging = hasattr(self.program.log, "append")
 
         # find all the handlebars-style partial inclusion tags and replace them with the partial template
         def replace_partial(match):
@@ -38,7 +37,14 @@ class ProgramExecutor():
             if len(parts) > 1:
                 out += " " + parts[1]
             out += "}}" + program._variables[partial_name].text + "{{/block}}"
-            program._variables = {**program[partial_name]._variables, **program._variables} # pull in the default vars from the partial
+            # Update the current program variables using those from the partial, but do not overwrite.
+            # (Rebuilding the _variables map here would break returning new values to the program variables later, e.g. from gen.)
+            update_variables = {
+                k: v
+                for k, v in program[partial_name]._variables.items()
+                if k not in program._variables
+            }
+            program._variables.update(update_variables)
             return out
         text = re.sub(r"{{>(.*?)}}", replace_partial, program._text)
 
@@ -53,7 +59,7 @@ class ProgramExecutor():
         """ Check for a simple errors in the program text, and give nice error messages.
         """
 
-        vars = self.variable_stack[-1]
+        vars = self.program._variables
 
         # missing block pound sign
         for k in vars:
@@ -91,7 +97,8 @@ class ProgramExecutor():
             # self.whitespace_control_visit(self.parse_tree)
 
             # now execute the program
-            await self.visit(self.parse_tree)
+            self.program._variables["_prefix"] = ""
+            await self.visit(self.parse_tree, VariableStack([self.program._variables], self))
         except Exception as e:
             print(traceback.format_exc())
             print("Error in program: ", e)
@@ -128,7 +135,7 @@ class ProgramExecutor():
     #             inner_prev_node = prev_node
     #         self.whitespace_control_visit(child, inner_next_node, inner_prev_node, node, parent_node)
     
-    async def visit(self, node, next_node=None, next_next_node=None, prev_node=None, parent_node=None, grandparent_node=None):
+    async def visit(self, node, variable_stack, next_node=None, next_next_node=None, prev_node=None, parent_node=None, grandparent_node=None):
 
         # if we are after a break point then we return nothing
         # (note that this flag will be cleared once the loop is ended)
@@ -147,38 +154,38 @@ class ProgramExecutor():
             if prev_node is not None and prev_node.text.endswith("~}}"):
                 text = text.lstrip()
                 
-            self.extend_prefix(text)
+            variable_stack["_prefix"] += text
             return ""
         
         elif node.expr_name == 'comment':
-            self.extend_prefix(node.text)
+            variable_stack["_prefix"] += node.text
             return ""
         
         elif node.expr_name == 'slim_comment':
-            self.extend_prefix(node.text)
+            variable_stack["_prefix"] += node.text
             return ""
 
         elif node.expr_name == 'command_args':
-            visited_children = [await self.visit(child) for child in node.children]
+            visited_children = [await self.visit(child, variable_stack) for child in node.children]
             return visited_children
 
         elif node.expr_name == 'command_arg_and_ws':
             # visited_children = [await self.visit(child) for child in node.children]
-            return await self.visit(node.children[1]) #visited_children[1]
+            return await self.visit(node.children[1], variable_stack) #visited_children[1]
 
         elif node.expr_name == 'positional_command_arg':
             # visited_children = [await self.visit(child) for child in node.children]
-            return PositionalArgument(await self.visit(node.children[0]))
+            return PositionalArgument(await self.visit(node.children[0], variable_stack))
 
         elif node.expr_name == 'named_command_arg':
             # visited_children = [await self.visit(child) for child in node.children]
-            return NamedArgument(await self.visit(node.children[0]), await self.visit(node.children[2]))
+            return NamedArgument(await self.visit(node.children[0], variable_stack), await self.visit(node.children[2], variable_stack))
 
         elif node.expr_name == 'command_name':
             return node.text
 
         elif node.expr_name == 'escaped_command':
-            self.extend_prefix(node.text[1:])
+            variable_stack["_prefix"] += node.text[1:]
             return
 
         elif node.expr_name == 'literal':
@@ -191,16 +198,16 @@ class ProgramExecutor():
 
             # if execution is already stopped before we start the command we just keep the command text
             if not self.executing:
-                self.extend_prefix(node.text)
+                variable_stack["_prefix"] += node.text
                 return
             
             # mark our position in case we need to rewind
-            pos = len(self.prefix)
+            # pos = len(self.prefix)
 
             # find the command name
             command_head = node.children[1].children[0]
             if command_head.expr_name == 'variable_ref':
-                if callable(self.get_variable(command_head.children[0].text)):
+                if callable(variable_stack[command_head.children[0].text]):
                     name = command_head.children[0].text
                 else:
                     name = "variable_ref"
@@ -211,59 +218,62 @@ class ProgramExecutor():
 
             # add the start marker
             escaped_node_text = node.text.replace("$", "&#36;").replace("{", "&#123;").replace("}", "&#125;")
-            self.extend_prefix("{{!--"+f"GMARKER_START_{name}${escaped_node_text}$"+"--}}")
+            variable_stack["_prefix"] += "{{!--"+f"GMARKER_START_{name}${escaped_node_text}$"+"--}}"
             
             # visit our children
             self.block_content.append([])
-            visited_children = [await self.visit(child, next_node, next_next_node, prev_node, node, parent_node) for child in node.children]
+            visited_children = [await self.visit(child, variable_stack, next_node, next_next_node, prev_node, node, parent_node) for child in node.children]
             self.block_content.pop()
             out = "".join("" if c is None else str(c) for c in visited_children)
 
-            self.extend_prefix(out +  "{{!--" + f"GMARKER_END_{name}$$" + "--}}")
+            variable_stack["_prefix"] += out +  "{{!--" + f"GMARKER_END_{name}$$" + "--}}"
 
             # if execution became stopped during the command, we append the command text
             if not self.executing:
                 # self.reset_prefix(pos)
-                self.extend_prefix(node.text)
+                variable_stack["_prefix"] += node.text
             return
 
         elif node.expr_name == 'command_arg_group':
-            visited_children = [await self.visit(child) for child in node.children]
+            visited_children = [await self.visit(child, variable_stack) for child in node.children]
             return visited_children[1]
 
         elif node.expr_name == 'command_call' or node.expr_name == 'variable_ref':
             if node.expr_name == 'command_call':
-                visited_children = [await self.visit(child) for child in node.children]
+                visited_children = [await self.visit(child, variable_stack) for child in node.children]
                 command_name, args = visited_children
             else:
                 command_name = node.text
                 args = []
             
-            return_value = ""
-            if self.variable_exists(command_name):
-                command_function = self.get_variable(command_name)
+            # return_value = ""
+            if command_name in variable_stack:
+                command_function = variable_stack[command_name]
 
                 # we convert a variable reference to a function that returns the variable value
                 if node.expr_name == "variable_ref" and not callable(command_function):
                     command_value = command_function
                     command_function = lambda: command_value
 
-                def update_return_value(s):
-                    nonlocal return_value
-                    if return_value == "":
-                        return_value = s
+                # def update_return_value(s):
+                #     nonlocal return_value
+                #     if return_value == "":
+                #         return_value = s
                     
-                    # convert to strings if we are concatenating
-                    else:
-                        return_value += "" if s is None else str(s)
+                #     # convert to strings if we are concatenating
+                #     else:
+                #         return_value += "" if s is None else str(s)
 
                 # If we are a top level command we extend the prefix
-                if grandparent_node is not None and grandparent_node.expr_name == "command":
-                    partial_output = self.extend_prefix
+                top_level = grandparent_node is not None and grandparent_node.expr_name == "command"
+                    # partial_output = self.extend_prefix
+                    # pass
                 
                 # otherwise we keep track of output locally so we can return it
-                else:
-                    partial_output = update_return_value
+                if not top_level:
+                    # partial_output = update_return_value
+                    pos = len(variable_stack["_prefix"])
+                    variable_stack.push({"_prefix": variable_stack["_prefix"], "_no_display": True})
 
                 # create the arguments for the command
                 positional_args = []
@@ -276,9 +286,10 @@ class ProgramExecutor():
                 sig = inspect.signature(command_function)
                 if "_parser_context" in sig.parameters:
                     named_args["_parser_context"] = {
-                        "parser_prefix": strip_markers(self.prefix),
+                        # "parser_prefix": strip_markers(self.prefix),
                         "parser": self,
-                        "partial_output": partial_output,
+                        "variable_stack": variable_stack,
+                        # "partial_output": partial_output,
                         "next_node": next_node,
                         "next_next_node": next_next_node,
                         "prev_node": prev_node,
@@ -286,6 +297,16 @@ class ProgramExecutor():
                     }
 
                 # call the command
+                if self._logging:
+                    self.program.log.append({
+                        "type": "start",
+                        "name": command_name,
+                        "positional_args": positional_args,
+                        "named_args": {k:v for k,v in named_args.items() if k != "_parser_context"},
+                        "prefix": variable_stack["prefix"],
+                        # "node_id": id(node)
+                    })
+                    pos = len(variable_stack["prefix"])
                 try:
                     if inspect.iscoroutinefunction(command_function):
                         await asyncio.sleep(0) # give other coroutines a chance to run
@@ -295,10 +316,27 @@ class ProgramExecutor():
                 except StopIteration as ret:
                     command_output = ret.value
                     self.caught_stop_iteration = True
+                if self._logging:
+                    self.program.log.append({"type": "end", "name": command_name, "new_prefix": variable_stack["prefix"][pos:]})
 
                 # call partial output if the command didn't itself (and we are still executing)
-                if command_output is not None:
-                    partial_output(command_output)
+                if not top_level:
+                    curr_prefix = variable_stack.pop()["_prefix"] # pop the variable stack we pushed earlier becuause we were hidden
+                    if command_output is not None:
+                        return command_output
+                    else:
+                        new_content = curr_prefix[pos:]
+
+                        # see if we got a list of outputs encoded as a string
+                        parts = re.split(r"{{!--GMARKERmany[^}]+}}", new_content)
+                        if len(parts) > 1:
+                            return parts[1:-1]
+                        else:
+                            return new_content
+                else:
+                    if command_output is not None:
+                        variable_stack["_prefix"] += str(command_output)
+                    return ""
             else:
                 # if the variable does not exist we just pause execution
                 if self.program.await_missing:
@@ -308,16 +346,21 @@ class ProgramExecutor():
                     # raise an error if the command doesn't exist
                     raise KeyError("Command/variable '"+command_name+"' not found! Please pass it when calling the program (or set a default value for it when creating the program).")
             
-            # see if we got a list of outputs encoded as a string
-            if isinstance(return_value, str):
-                parts = re.split(r"{{!--GMARKERmany[^}]+}}", return_value)
-                if len(parts) > 1:
-                    return parts[1:-1]
-            
-            return return_value
+            # # if we are not a top level command we return the output instead of displaying it
+            # if not top_level:
+            #     return_value = variable_stack.pop()["_prefix"][pos:]
+
+            #     # see if we got a list of outputs encoded as a string
+            #     parts = re.split(r"{{!--GMARKERmany[^}]+}}", return_value)
+            #     if len(parts) > 1:
+            #         return parts[1:-1]
+            #     else:
+            #         return return_value
+            # else:
+            #     return ""
 
         elif node.expr_name == 'block_command_call':
-            parts = [await self.visit(child) for child in node.children]
+            parts = [await self.visit(child, variable_stack) for child in node.children]
             if len(parts) > 1:
                 command_name, args = parts
             else:
@@ -326,7 +369,7 @@ class ProgramExecutor():
             return command_name, args
 
         elif node.expr_name == 'command_block_open':
-            return await self.visit(node.children[2])
+            return await self.visit(node.children[2], variable_stack)
             # visited_children = [await self.visit(child) for child in node.children]
             # return visited_children[2]
 
@@ -334,7 +377,7 @@ class ProgramExecutor():
 
             # if execution is already stopped before we start the command block we just return unchanged
             if not self.executing:
-                self.extend_prefix(node.text)
+                variable_stack["_prefix"] += node.text
                 return ""
 
             # create a block content variable
@@ -347,7 +390,7 @@ class ProgramExecutor():
             self.block_content.append(block_content)
 
             # get the command name and arguments
-            command_name, command_args = await self.visit(node.children[0])
+            command_name, command_args = await self.visit(node.children[0], variable_stack)
 
             # make sure we have a matching end command
             if not (node.text.endswith("/"+command_name+"}}") or node.text.endswith("/"+command_name+"~}}")):
@@ -355,19 +398,16 @@ class ProgramExecutor():
 
             # if execution stops while parsing the start command just return unchanged
             if not self.executing:
-                self.extend_prefix(node.text)
+                variable_stack["_prefix"] += node.text
                 return ""
-
-            # mark our position in case we need to rewind
-            pos = len(self.prefix)
 
             # add the start marker
             escaped_node_text = node.text.replace("$", "&#36;").replace("{", "&#123;").replace("}", "&#125;")
             start_marker = "{{!--"+f"GMARKER_START_{command_name}${escaped_node_text}$"+"--}}"
-            self.extend_prefix(start_marker)
+            variable_stack["_prefix"] += start_marker
 
-            if self.variable_exists(command_name):
-                command_function = self.get_variable(command_name)
+            if command_name in variable_stack:
+                command_function = variable_stack[command_name]
                 positional_args = []
                 named_args = {}
                 for arg in command_args:
@@ -380,10 +420,11 @@ class ProgramExecutor():
                 sig = inspect.signature(command_function)
                 if "_parser_context" in sig.parameters:
                     named_args["_parser_context"] = {
-                        "parser_prefix": strip_markers(self.prefix),
+                        "parser_prefix": strip_markers(variable_stack["_prefix"]),
                         "parser": self,
                         "block_content": self.block_content[-1],
-                        "partial_output": self.extend_prefix,
+                        # "partial_output": self.extend_prefix,
+                        "variable_stack": variable_stack,
                         "parser_node": node,
                         "block_close_node": node.children[-1],
                         "next_node": next_node,
@@ -392,19 +433,31 @@ class ProgramExecutor():
                     }
                 
                 # call the optionally asyncronous command
+                if self._logging:
+                    self.program.log.append({
+                        "type": "start",
+                        "name": command_name,
+                        "positional_args": positional_args,
+                        "named_args": {k:v for k,v in named_args.items() if k != "_parser_context"},
+                        "prefix": variable_stack["prefix"],
+                        # "node_id": id(node)
+                    })
+                    pos = len(variable_stack["prefix"])
                 if inspect.iscoroutinefunction(command_function):
                     command_output = await command_function(*positional_args, **named_args)
                 else:
                     command_output = command_function(*positional_args, **named_args)
+                if self._logging:
+                    self.program.log.append({"type": "end", "name": command_name, "new_prefix": variable_stack["prefix"][pos:]})
 
                 # if the command didn't send partial output we do it here
                 if command_output is not None:
-                    self.extend_prefix(command_output)
+                    variable_stack["_prefix"] += command_output
 
             # pop off the block content after the command call
             self.block_content.pop()
 
-            self.extend_prefix("{{!--" + f"GMARKER_END_{command_name}$$" + "--}}")
+            variable_stack["_prefix"] += "{{!--" + f"GMARKER_END_{command_name}$$" + "--}}"
             return
 
         else:
@@ -426,7 +479,7 @@ class ProgramExecutor():
                     inner_prev_node = node.children[i - 1]
                 else:
                     inner_prev_node = prev_node
-                visited_children.append(await self.visit(child, inner_next_node, inner_next_next_node, inner_prev_node, node, parent_node))
+                visited_children.append(await self.visit(child, variable_stack, inner_next_node, inner_next_next_node, inner_prev_node, node, parent_node))
             # visited_children = [self.visit(child) for child in node.children]
             
             if len(visited_children) == 1:
@@ -434,81 +487,79 @@ class ProgramExecutor():
             else:
                 return "".join("" if c is None else c for c in visited_children)
 
-    def get_variable(self, name, default_value=None):
-        parts = re.split(r"\.|\[", name)
-        for variables in reversed(self.variable_stack):
-            curr_pos = variables
-            found = True
-            for part in parts:
-                if part.endswith("]"):
-                    var_part = ast.literal_eval(part[:-1])
-                else:
-                    var_part = part
-                try:
-                    next_pos = curr_pos[var_part]
-                    next_found = True
-                except KeyError:
-                    next_found = False
-                if next_found:
-                    curr_pos = next_pos
-                else:
-                    found = False
-                    break
-            if found:
-                return curr_pos
-        return default_value # variable not found
+    # def get_variable(self, name, default_value=None):
+    #     parts = re.split(r"\.|\[", name)
+    #     for variables in reversed(self.variable_stack):
+    #         curr_pos = variables
+    #         found = True
+    #         for part in parts:
+    #             if part.endswith("]"):
+    #                 var_part = ast.literal_eval(part[:-1])
+    #             else:
+    #                 var_part = part
+    #             try:
+    #                 next_pos = curr_pos[var_part]
+    #                 next_found = True
+    #             except KeyError:
+    #                 next_found = False
+    #             if next_found:
+    #                 curr_pos = next_pos
+    #             else:
+    #                 found = False
+    #                 break
+    #         if found:
+    #             return curr_pos
+    #     return default_value # variable not found
 
-    def variable_exists(self, name):
-        out = self.get_variable(name, 849203984939)
-        return out != 849203984939
+    # def variable_exists(self, name):
+    #     return self.get_variable(name, _NO_VALUE) != _NO_VALUE
 
-    def set_variable(self, name, value):
-        parts = re.split(r"\.|\[", name)
-        # parts = name.split(".")
-        found = True
-        for variables in reversed(self.variable_stack):
-            curr_pos = variables
-            found = True
-            for part in parts:
-                if part.endswith("]"):
-                    var_part = ast.literal_eval(part[:-1])
-                else:
-                    var_part = part
-                try:
-                    next_pos = curr_pos[var_part]
-                    next_found = True
-                except KeyError:
-                    next_found = False
+    # def set_variable(self, name, value):
+    #     parts = re.split(r"\.|\[", name)
+    #     # parts = name.split(".")
+    #     found = True
+    #     for variables in reversed(self.variable_stack):
+    #         curr_pos = variables
+    #         found = True
+    #         for part in parts:
+    #             if part.endswith("]"):
+    #                 var_part = ast.literal_eval(part[:-1])
+    #             else:
+    #                 var_part = part
+    #             try:
+    #                 next_pos = curr_pos[var_part]
+    #                 next_found = True
+    #             except KeyError:
+    #                 next_found = False
                 
-                if next_found:
-                    if part == parts[-1]:
-                        curr_pos[var_part] = value
-                        break
-                    else:
-                        curr_pos = next_pos
-                else:
-                    if part == parts[-1] and len(parts) > 1: # setting a new property
-                        curr_pos[var_part] = value
-                    else:
-                        found = False
-                    break
-            if found:
-                break
-        if not found:
-            assert len(parts) == 1, "Can't set a property of a non-existing variable: " + name
-            self.variable_stack[0][name] = value
+    #             if next_found:
+    #                 if part == parts[-1]:
+    #                     curr_pos[var_part] = value
+    #                     break
+    #                 else:
+    #                     curr_pos = next_pos
+    #             else:
+    #                 if part == parts[-1] and len(parts) > 1: # setting a new property
+    #                     curr_pos[var_part] = value
+    #                 else:
+    #                     found = False
+    #                 break
+    #         if found:
+    #             break
+    #     if not found:
+    #         assert len(parts) == 1, "Can't set a property of a non-existing variable: " + name
+    #         self.variable_stack[0][name] = value
 
-    def extend_prefix(self, text):
-        if text == "" or text is None:
-            return
-        prefix_out = str(text)
-        self.prefix += prefix_out
-        self.program.update_display()
+    # def extend_prefix(self, text, variable_stack):
+    #     if text == "" or text is None:
+    #         return
+    #     variable_stack["_prefix"] += str(text)
+    #     self.program.update_display()
     
-    def reset_prefix(self, pos):
-        self.prefix = self.prefix[:pos]
-        self.program.update_display()
-        # TODO: undo the echo if needed
+    # def reset_prefix(self, pos):
+    #     self.prefix = self.prefix[:pos]
+    #     self.program.update_display()
+    #     # TODO: undo the echo if needed
 
 class PositionalArgument:
     def __init__(self, value):

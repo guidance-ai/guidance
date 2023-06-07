@@ -35,16 +35,14 @@ def test_pattern():
 def test_pattern2():
     import re
 
-    prompt = '''
-    Tweak this proverb to apply to machine learning model instructions instead.
+    prompt = '''Tweak this proverb to apply to machine learning model instructions instead.
 
-    {{proverb}}
-    - {{book}} {{chapter}}:{{verse}}
+{{proverb}}
+- {{book}} {{chapter}}:{{verse}}
 
-    UPDATED
-    Where there is no guidance, a people falls, but in an abundance of counselors there is safety.
-    - GPT {{gen 'chapter' pattern='[0-9]' max_tokens=1}}:{{gen 'verse' pattern='[0-9]+' stop='\\n'}}
-    '''[1:-1]
+UPDATED
+Where there is no guidance, a people falls, but in an abundance of counselors there is safety.
+- GPT {{gen 'chapter' pattern='[0-9]' max_tokens=1}}:{{gen 'verse' pattern='[0-9]+' stop='\\n'}}'''
 
     llm = get_llm("transformers:gpt2")
     program = guidance(prompt, llm=llm)
@@ -57,6 +55,39 @@ def test_pattern2():
 
     assert re.fullmatch(r"[0-9]", executed_program["chapter"])
     assert re.fullmatch(r"[0-9]+", executed_program["verse"])
+
+@pytest.mark.parametrize("llm", ["transformers:gpt2", "transformers:facebook/opt-350m"])
+def test_multi_token_healing(llm):
+    """Test if we can heal prompt boundaries where we need to back up two tokens."""
+
+    prompt = '''Tweak this proverb to apply to machine learning model instructions instead.
+
+{{proverb}}
+- {{book}} {{chapter}}:{{verse}}
+
+UPDATED
+Where there is no guidanc{{gen 'completion' max_tokens=4}}'''
+
+    llm = get_llm(llm)
+    program = guidance(prompt, llm=llm)
+    executed_program = program(
+        proverb="Where there is no guidance, a people falls,\nbut in an abundance of counselors there is safety.",
+        book="Proverbs",
+        chapter=11,
+        verse=14
+    )
+
+    assert executed_program["completion"].startswith("e, a")
+
+@pytest.mark.parametrize("llm", ["transformers:gpt2", "transformers:facebook/opt-350m"])
+def test_custom_kwargs_transformers(llm):
+    """Test if we can pass model specific kwargs."""
+
+    llm = get_llm(llm)
+    program = guidance('''Repeat the following 10 times: Repeat this. Repeat this. Repeat this. Repeat this.{{gen 'completion' max_tokens=4 repetition_penalty=10.0}}''', llm=llm)
+    executed_program = program()
+
+    assert not executed_program["completion"].startswith(" Repeat this.")
 
 @pytest.mark.parametrize("llm", ["transformers:gpt2", "openai:text-curie-001"])
 def test_stop(llm):
