@@ -2,6 +2,7 @@ import openai
 import os
 import time
 import requests
+import aiohttp
 import copy
 import time
 import asyncio
@@ -344,6 +345,7 @@ class OpenAI(LLM):
         # Define the request data
         stream = kwargs.get("stream", False)
         data = {
+            "model": self.model_name,
             "prompt": kwargs["prompt"],
             "max_tokens": kwargs.get("max_tokens", None),
             "temperature": kwargs.get("temperature", 0.0),
@@ -363,28 +365,42 @@ class OpenAI(LLM):
         # Send a POST request and get the response
         # An exception for timeout is raised if the server has not issued a response for 10 seconds
         try:
-            response = requests.post(self.endpoint, headers=headers, json=data, stream=stream, timeout=60)
-            if response.status_code != 200:
-                raise Exception("Response is not 200: " + response.text)
             if stream:
-                return self._rest_stream_handler(response)
+                session = aiohttp.ClientSession()
+                response = await session.post(self.endpoint, json=data, headers=headers, timeout=60)
+                status = response.status
+            else:
+                response = requests.post(self.endpoint, headers=headers, json=data, timeout=60)
+                status = response.status_code
+                text = response.text
+            if status != 200:
+                if stream:
+                    text = await response.text()
+                raise Exception("Response is not 200: " + text)
+            if stream:
+                response = self._rest_stream_handler(response, session)
             else:
                 response = response.json()
         except requests.Timeout:
             raise Exception("Request timed out.")
         except requests.ConnectionError:
             raise Exception("Connection error occurred.")
-
         if self.chat_mode:
             response = add_text_to_chat_mode(response)
         return response
         
-    def _rest_stream_handler(self, response):
-        for line in response.iter_lines():
+    async def _close_response_and_session(self, response, session):
+        await response.release()
+        await session.close()
+
+    async def _rest_stream_handler(self, response, session):
+        # async for line in response.iter_lines():
+        async for line in response.content:
             text = line.decode('utf-8')
             if text.startswith('data: '):
                 text = text[6:]
-                if text == '[DONE]':
+                if text.strip() == '[DONE]':
+                    await self._close_response_and_session(response, session)
                     break
                 else:
                     yield json.loads(text)
