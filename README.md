@@ -66,7 +66,7 @@ Features include the following (and more), detailed below.
 pip install guidance
 ```
 
-[Guidance's documentation](https://guidance.readthedocs.io/en/latest/) has an API reference and examples use cases.
+[Guidance's documentation](https://guidance.readthedocs.io/en/latest/) has an API reference and example use cases.
 
 # Why guidance?
 ## Output structure
