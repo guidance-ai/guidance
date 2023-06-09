@@ -48,6 +48,19 @@ Features include the following (and more), detailed below.
 - Easy integration with Hugging Face models, including [guidance acceleration](notebooks/guidance_acceleration.ipynb) for speedups over standard prompting, [token healing](https://towardsdatascience.com/the-art-of-prompt-design-prompt-boundaries-and-token-healing-3b2448b0be38) to optimize prompt boundaries, and [regex pattern guides](notebooks/pattern_guides.ipynb) to enforce formats.
 
 # Table of contents
+* [Table of contents](#table-of-contents)
+* [Install, docs](#install-docs)
+* [Why guidance?](#why-guidance)
+   * [Output structure](#output-structure)
+   * [Constrained decoding, parsing outputs (<a href="notebooks/guaranteeing_valid_syntax.ipynb">notebook</a>)](#constrained-decoding-parsing-outputs-notebook)
+   * [Acceleration](#acceleration)
+   * [Token healing (<a href="https://github.com/microsoft/guidance/blob/main/notebooks/art_of_prompt_design/prompt_boundaries_and_token_healing.ipynb">notebook</a>, <a href="https://towardsdatascience.com/the-art-of-prompt-design-prompt-boundaries-and-token-healing-3b2448b0be38" rel="nofollow">blog</a>)](#token-healing-notebook-blog)
+   * [Unified chat interface](#unified-chat-interface)
+   * [Tool use / external calls](#tool-use--external-calls)
+   * [Partial execution](#partial-execution)
+   * [Playground on notebook](#playground-on-notebook)
+* [Additional examples](#additional-examples)
+* [Citation](#citation)
 
 # Install, docs
 Installing with pip:
@@ -191,10 +204,47 @@ program(utterance='Hi there, how are you?')
 ```
 TODO: Make gif here
 <!-- <img src="docs/figures/chat_animation.gif" width="619"> -->
+## Tool use / external calls
+- Bing example (maybe cleanup)
+## Partial execution
+- A simple multi-step ChatGPT example:
+```python
+ask_chatgpt = guidance('''
+{{~#system~}}
+{{llm.default_system_prompt}}
+{{~/system}}
 
+{{~#geneach 'conversation' stop=False~}
 
+{{#user~}}
+{{set 'this.input' (await 'input')}}
+{{~/user}}
 
+{{#assistant~}}
+{{gen 'this.response' temperature=temperature max_tokens=max_tokens n=n}}
+{{~/assistant}}
 
+{{~/geneach}}''', temperature=0, max_tokens=300)
+```
+## Playground on notebook
+- Streaming
+- cache
+
+# Additional examples
+- Role-based chat model example (notebook), discuss hidden
+- Agents (republican vs democrat)
+- ?
+
+# Citation
+@software{guidance_2022,
+author = {Lundberg, Scott and Ribeiro, Marco Tulio},
+month = {11},
+title = {{guidance}},
+url = {https://github.com/microsoft/guidance},
+year = {2022}
+}
+
+# Below here is all old stuff
 
                                      
 ## Live streaming (<a href="https://github.com/microsoft/guidance/blob/main/notebooks/proverb.ipynb">notebook</a>)
