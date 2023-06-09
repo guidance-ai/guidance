@@ -61,12 +61,12 @@ Features include the following (and more), detailed below.
 * [Additional examples](#additional-examples)
 * [Citation](#citation)
 
-# Install, [documentation](https://guidance.readthedocs.io/en/latest/)
+# Install, docs
 ```python
 pip install guidance
 ```
 
-[Guidance's documentation](https://guidance.readthedocs.io/en/latest/) has and API reference and examples use cases.
+[Guidance's documentation](https://guidance.readthedocs.io/en/latest/) has an API reference and examples use cases.
 
 # Why guidance?
 ## Output structure
