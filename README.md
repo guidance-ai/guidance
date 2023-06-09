@@ -8,23 +8,117 @@
 > _Where there is no guidance, a model fails, but in an abundance of instructions there is safety._  
 _\- <a href="notebooks/proverb.ipynb">GPT 11:14</a>_
 
-<!--It expands the API of language models so you can craft rich output structure, design precise tool use, create multi-agent interactions, and much more all while using clear code and maximum inference efficiency.-->
-<b>Guidance</b> enables you to control modern language models more effectively and efficiently than traditional prompting or chaining. Guidance programs allow you to interleave generation, prompting, and logical control into a single continuous flow matching how the language model actually processes the text. Simple output structures like [Chain of Thought](https://arxiv.org/abs/2201.11903) and its many variants (e.g., [ART](https://arxiv.org/abs/2303.09014), [Auto-CoT](https://arxiv.org/abs/2210.03493), etc.) have been shown to improve LLM performance. The advent of more powerful LLMs like [GPT-4](https://openai.com/research/gpt-4) allows for even richer structure, and `guidance` makes that structure easier and cheaper.
+<b>Guidance</b> is a language / tool to control language models by _specifying_ output structure, and guiding generation according to it. Rather than traditional prompting or chaining, guidance programs allow you to interleave generation, prompting, and logical control into a single continuous flow matching how the language model actually processes the text. For example, consider this prompt:
 
-Features:
-- [x] Simple, intuitive syntax, based on [Handlebars](https://handlebarsjs.com/) templating.
-- [x] Rich output structure with multiple generations, selections, conditionals, tool use, etc.
-- [x] Playground-like streaming in Jupyter/VSCode Notebooks.
-- [x] Smart seed-based generation caching.
-- [x] Support for role-based chat models (e.g., [ChatGPT](https://beta.openai.com/docs/guides/chat)).
-- [x] Easy integration with Hugging Face models, including [guidance acceleration](notebooks/guidance_acceleration.ipynb) for speedups over standard prompting, [token healing](notebooks/token_healing.ipynb) to optimize prompt boundaries, and [regex pattern guides](notebooks/pattern_guides.ipynb) to enforce formats.
+```python
+import guidance
 
-## Install
+# set the default language model used to execute guidance programs
+guidance.llm = guidance.llms.OpenAI("text-davinci-003")
 
+# define a guidance program that adapts a proverb
+program = guidance("""Tweak this proverb to apply to model instructions instead.
+
+{{proverb}}
+- {{book}} {{chapter}}:{{verse}}
+
+UPDATED
+Where there is no guidance{{gen 'rewrite' stop="\\n-"}}
+- GPT {{#select 'chapter'}}9{{or}}10{{or}}11{{/select}}:{{gen 'verse'}}""")
+
+# execute the program on a specific proverb
+executed_program = program(
+    proverb="Where there is no guidance, a people falls,\nbut in an abundance of counselors there is safety.",
+    book="Proverbs",
+    chapter=11,
+    verse=14
+)
+```
+<img src="docs/figures/proverb_animation.gif" width="404">
+
+The model is generating at specific points in the template (with interleaved text prompts), and the output is sometimes unconstrained (`rewrite`) and sometimes constrained (`chapter` can be one of `9`, `10`, `11`).
+
+Features include the following (and more), detailed below.
+
+- Simple, intuitive syntax, based on [Handlebars](https://handlebarsjs.com/) templating.
+- Rich output structure with multiple generations, selections, conditionals, tool use, etc.
+- Playground-like streaming in Jupyter/VSCode Notebooks.
+- Smart seed-based generation caching.
+- Support for role-based chat models (e.g., [ChatGPT](https://beta.openai.com/docs/guides/chat)).
+- Easy integration with Hugging Face models, including [guidance acceleration](notebooks/guidance_acceleration.ipynb) for speedups over standard prompting, [token healing](https://towardsdatascience.com/the-art-of-prompt-design-prompt-boundaries-and-token-healing-3b2448b0be38) to optimize prompt boundaries, and [regex pattern guides](notebooks/pattern_guides.ipynb) to enforce formats.
+
+# Table of contents
+
+# Install, docs
+Installing with pip:
 ```python
 pip install guidance
 ```
 
+Documentation: [here](https://guidance.readthedocs.io/en/latest/)
+
+# Why guidance?
+## Output structure
+Simple output structures like [Chain of Thought](https://arxiv.org/abs/2200.11903) and its many variants (e.g., [ART](https://arxiv.org/abs/2303.09014), [Auto-CoT](https://arxiv.org/abs/2210.03493), etc.) have been shown to improve LLM performance. For example, in [this notebook](https://github.com/microsoft/guidance/blob/main/notebooks/anachronism.ipynb) we craft a simple chain-of-thought structure with two-shot examples, compute accuracy on the validation set, and compare it to using the same two-shot examples without the output structure, as well as to the best reported result [listed by the benchmark](https://github.com/google/BIG-bench/tree/main/bigbench/benchmark_tasks/anachronisms), with a much larger model. Here are the results:
+
+| Model | Accuracy |
+| :---: | :---: |
+| [Few-shot learning, no CoT output structure](notebooks/anachronism.ipynb) | 63.04% |
+| [PALM (3-shot)](https://github.com/google/BIG-bench/tree/main/bigbench/benchmark_tasks/anachronisms) | Around 69% |
+| [Guidance prompt](notebooks/anachronism.ipynb) | **76.01%** |
+
+
+The advent of more powerful LLMs like [GPT-4](https://openai.com/research/gpt-4) allows for even richer structure, where model generations are used to call tools, control the flow of execution, and much more (we have many examples below). `guidance` makes it easier to craft prompts / programs with such structures, and to run them faster (when the model API allows for acceleration)
+
+## Constrained decoding, parsing outputs ([notebook](notebooks/guaranteeing_valid_syntax.ipynb))
+
+Large language models are great at generating useful outputs, but they are not great at guaranteeing that those outputs follow a specific format. This can cause problems when we want to use the outputs of a language model as input to another system. For example, if we want to use a language model to generate a JSON object, we need to make sure that the output is valid JSON. Below we generate a random character profile for a game with perfect syntax every time:
+```python
+# load a model locally (we use LLaMA here)
+guidance.llm = guidance.llms.Transformers("your_local_path/llama-7b", device=0)
+
+# we can pre-define valid option sets
+valid_weapons = ["sword", "axe", "mace", "spear", "bow", "crossbow"]
+
+# define the prompt
+program = guidance("""The following is a character profile for an RPG game in JSON format.
+```json
+{
+    "description": "{{description}}",
+    "name": "{{gen 'name'}}",
+    "age": {{gen 'age' pattern='[0-9]+' stop=','}},
+    "armor": "{{#select 'armor'}}leather{{or}}chainmail{{or}}plate{{/select}}",
+    "weapon": "{{select 'weapon' options=valid_weapons}}",
+    "class": "{{gen 'class'}}",
+    "mantra": "{{gen 'mantra'}}",
+    "strength": {{gen 'strength' pattern='[0-9]+' stop=','}},
+    "items": [{{#geneach 'items' num_iterations=3}}
+        "{{gen 'this'}}",{{/geneach}}
+    ]
+}```""")
+
+# execute the prompt
+out = program(description="A quick and nimble fighter.", valid_weapons=valid_weapons)
+```
+<img src="docs/figures/perfect_syntax.png" width="657">
+
+Even in cases where the whole output does not follow a constrained format, it is helpful to be able to access each generated text individually (rather than having to write a regex parser for the output):
+
+```python
+# It's easy to access both the input variables (description, valid_weapons) and the output if each gen command
+out.variables()
+```
+<img src="docs/figures/json_syntax_variables.png" width="714">
+
+## Acceleration
+
+When multiple generation or LLM-directed control flow statements are used in a single Guidance program, we can significantly improve inference performance by optimally reusing the Key/Value caches as we progress through the prompt. This means Guidance only asks the LLM to generate the green text above, not the entire program. **This cuts this prompt's runtime (sometimes in half) vs. a standard generation approach.** 
+
+The json prompt above typically runs in ~2.5 seconds on a A6000 GPU when using LLaMA 7B.
+If we were adapt the prompt to a single generation call (the standard practice today), it runs in ~5 seconds (4 seconds of generation, 1 second of prompt processing), i.e. *guidance acceleration speeds up this prompt by 2x.*  
+In practice the exact speed-up factor depends on the format of your specific prompt and the size of your model (larger models benefit more). More details [here](notebooks/guidance_acceleration.ipynb)
+
+**A caveat**: Acceleration is also only supported for Transformers LLMs at the moment. 
 
                                      
 ## Live streaming (<a href="https://github.com/microsoft/guidance/blob/main/notebooks/proverb.ipynb">notebook</a>)
@@ -102,43 +196,6 @@ experts(query='How can I be more productive?')
 ```
 <img src="docs/figures/chat_animation.gif" width="619">
 
-## Guidance acceleration (<a href="https://github.com/microsoft/guidance/blob/main/notebooks/guidance_acceleration.ipynb">notebook</a>)
-
-When multiple generation or LLM-directed control flow statements are used in a single Guidance program then we can significantly improve inference performance by optimally reusing the Key/Value caches as we progress through the prompt. This means Guidance only asks the LLM to generate the green text below, not the entire program. **This cuts this prompt's runtime in half vs. a standard generation approach.** 
-
-````python
-# we use LLaMA here, but any GPT-style model will do
-llama = guidance.llms.Transformers("your_path/llama-7b", device=0)
-
-# we can pre-define valid option sets
-valid_weapons = ["sword", "axe", "mace", "spear", "bow", "crossbow"]
-
-# define the prompt
-character_maker = guidance("""The following is a character profile for an RPG game in JSON format.
-```json
-{
-    "id": "{{id}}",
-    "description": "{{description}}",
-    "name": "{{gen 'name'}}",
-    "age": {{gen 'age' pattern='[0-9]+' stop=','}},
-    "armor": "{{#select 'armor'}}leather{{or}}chainmail{{or}}plate{{/select}}",
-    "weapon": "{{select 'weapon' options=valid_weapons}}",
-    "class": "{{gen 'class'}}",
-    "mantra": "{{gen 'mantra' temperature=0.7}}",
-    "strength": {{gen 'strength' pattern='[0-9]+' stop=','}},
-    "items": [{{#geneach 'items' num_iterations=5 join=', '}}"{{gen 'this' temperature=0.7}}"{{/geneach}}]
-}```""")
-
-# generate a character
-character_maker(
-    id="e1f491f7-7ab8-4dac-8c20-c92b5e7d883d",
-    description="A quick and nimble fighter.",
-    valid_weapons=valid_weapons, llm=llama
-)
-````
-<img src="docs/figures/json_animation.gif" width="565">
-
-The prompt above typically takes just over 2.5 seconds to complete on a A6000 GPU when using LLaMA 7B. If we were to run the same prompt adapted to be a single generation call (the standard practice today) it takes about 5 seconds to complete (4 of which is token generation and 1 of which is prompt processing). *This means Guidance acceleration delivers a 2x speedup over the standard approach for this prompt.* In practice the exact speed-up factor depends on the format of your specific prompt and the size of your model (larger models benefit more). Acceleration is also only supported for Transformers LLMs at the moment. See the [notebook](https://github.com/microsoft/guidance/blob/main/notebooks/guidance_acceleration.ipynb) for more details.
 
 ## Token healing (<a href="https://github.com/microsoft/guidance/blob/main/notebooks/art_of_prompt_design/prompt_boundaries_and_token_healing.ipynb">notebook</a>)
 
@@ -233,43 +290,6 @@ We [compute accuracy](notebooks/anachronism.ipynb) on the validation set, and co
 | [PALM (3-shot)](https://github.com/google/BIG-bench/tree/main/bigbench/benchmark_tasks/anachronisms) | Around 69% |
 | [Guidance](notebooks/anachronism.ipynb) | **76.01%** |
 
-## Guaranteeing valid syntax JSON example ([notebook](notebooks/guaranteeing_valid_syntax.ipynb))
-
-Large language models are great at generating useful outputs, but they are not great at guaranteeing that those outputs follow a specific format. This can cause problems when we want to use the outputs of a language model as input to another system. For example, if we want to use a language model to generate a JSON object, we need to make sure that the output is valid JSON. With `guidance` we can both [accelerate inference speed](notebooks/guidance_acceleration.ipynb) and ensure that generated JSON is always valid. Below we generate a random character profile for a game with perfect syntax every time:
-```python
-# load a model locally (we use LLaMA here)
-guidance.llm = guidance.llms.Transformers("your_local_path/llama-7b", device=0)
-
-# we can pre-define valid option sets
-valid_weapons = ["sword", "axe", "mace", "spear", "bow", "crossbow"]
-
-# define the prompt
-program = guidance("""The following is a character profile for an RPG game in JSON format.
-```json
-{
-    "description": "{{description}}",
-    "name": "{{gen 'name'}}",
-    "age": {{gen 'age' pattern='[0-9]+' stop=','}},
-    "armor": "{{#select 'armor'}}leather{{or}}chainmail{{or}}plate{{/select}}",
-    "weapon": "{{select 'weapon' options=valid_weapons}}",
-    "class": "{{gen 'class'}}",
-    "mantra": "{{gen 'mantra'}}",
-    "strength": {{gen 'strength' pattern='[0-9]+' stop=','}},
-    "items": [{{#geneach 'items' num_iterations=3}}
-        "{{gen 'this'}}",{{/geneach}}
-    ]
-}```""")
-
-# execute the prompt
-program(description="A quick and nimble fighter.", valid_weapons=valid_weapons)
-```
-<img src="docs/figures/perfect_syntax.png" width="657">
-                                                      
-```python
-# and we also have a valid Python dictionary
-out.variables()
-```
-<img src="docs/figures/json_syntax_variables.png" width="714">
                                                       
 ## Role-based chat model example ([notebook](notebooks/chat.ipynb))
 Modern chat-style models like ChatGPT and Alpaca are trained with special tokens that mark out "roles" for different areas of the prompt. Guidance supports these models through <a href="notebooks/api_examples/library/role.ipynb">role tags</a> that automatically map to the correct tokens or API calls for the current LLM. Below we show how a role-based guidance program enables simple multi-step reasoning and planning.
