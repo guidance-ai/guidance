@@ -8,7 +8,7 @@
 > _Where there is no guidance, a model fails, but in an abundance of instructions there is safety._  
 _\- <a href="notebooks/proverb.ipynb">GPT 11:14</a>_
 
-<b>Guidance</b> is a language / tool to control language models by _specifying_ output structure, and guiding generation according to it. Rather than traditional prompting or chaining, guidance programs allow you to interleave generation, prompting, and logical control into a single continuous flow matching how the language model actually processes the text. For example, consider this prompt:
+<b>Guidance</b> is a language / tool to control language models by _specifying_ output structure, and guiding generation according to it. Rather than traditional prompting or chaining, guidance programs allow you to interleave generation, prompting, and logical control into a single continuous flow matching how the language model actually processes the text. For example, consider this program:
 
 ```python
 import guidance
@@ -48,7 +48,6 @@ Features include the following (and more), detailed below.
 - Easy integration with Hugging Face models, including [guidance acceleration](notebooks/guidance_acceleration.ipynb) for speedups over standard prompting, [token healing](https://towardsdatascience.com/the-art-of-prompt-design-prompt-boundaries-and-token-healing-3b2448b0be38) to optimize prompt boundaries, and [regex pattern guides](notebooks/pattern_guides.ipynb) to enforce formats.
 
 # Table of contents
-* [Table of contents](#table-of-contents)
 * [Install, docs](#install-docs)
 * [Why guidance?](#why-guidance)
    * [Output structure](#output-structure)
@@ -62,13 +61,12 @@ Features include the following (and more), detailed below.
 * [Additional examples](#additional-examples)
 * [Citation](#citation)
 
-# Install, docs
-Installing with pip:
+# Install, [documentation](https://guidance.readthedocs.io/en/latest/)
 ```python
 pip install guidance
 ```
 
-Documentation: [here](https://guidance.readthedocs.io/en/latest/)
+[Guidance's documentation](https://guidance.readthedocs.io/en/latest/) has and API reference and examples use cases.
 
 # Why guidance?
 ## Output structure
