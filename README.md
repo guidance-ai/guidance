@@ -236,13 +236,13 @@ ask_chatgpt = guidance('''
 - ?
 
 # Citation
-@software{guidance_2022,
-author = {Lundberg, Scott and Ribeiro, Marco Tulio},
-month = {11},
-title = {{guidance}},
-url = {https://github.com/microsoft/guidance},
-year = {2022}
-}
+> @software{guidance_2022,  
+> author = {Lundberg, Scott and Ribeiro, Marco Tulio},  
+> month = {11},  
+> title = {{guidance}},  
+> url = {https://github.com/microsoft/guidance},  
+> year = {2022}  
+> }
 
 # Below here is all old stuff
 
