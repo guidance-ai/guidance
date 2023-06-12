@@ -24,7 +24,7 @@ def prompt_to_messages(prompt):
 
     assert prompt.endswith("<|im_start|>assistant\n"), "When calling OpenAI chat models you must generate only directly inside the assistant role! The OpenAI API does not currently support partial assistant prompting."
 
-    pattern = r'<\|im_start\|>(\w+)(.*?)(?=<\|im_end\|>|$)'
+    pattern = r'<\|im_start\|>(\w+)(.*?)(?=<\|im_end\|>)'
     matches = re.findall(pattern, prompt, re.DOTALL)
 
     if not matches:
