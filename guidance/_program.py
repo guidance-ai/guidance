@@ -419,23 +419,25 @@ class Program:
             await asyncio.sleep(0)
         
         # run the program and capture the output
-        if self.llm is None:
-            await self._executor.run(None)
-        else:
-            with self.llm.session(asynchronous=True) as llm_session:
-                await self._executor.run(llm_session)
-        self._text = self._variables["_prefix"]
+        try:
+            if self.llm is None:
+                await self._executor.run(None)
+            else:
+                with self.llm.session(asynchronous=True) as llm_session:
+                    await self._executor.run(llm_session)
+            self._text = self._variables["_prefix"]
 
-        # delete the executor and so mark the program as not executing
-        self._executor = None
+        finally:
+            # delete the executor and so mark the program as not executing
+            self._executor = None
 
-        # update the display with the final output
-        self.update_display(last=True)
-        await self.update_display.done()
+            # update the display with the final output
+            self.update_display(last=True)
+            await self.update_display.done()
 
-        # fire an event noting that execution is complete (this will release any await calls waiting on the program)
-        self._execute_complete.set()
-    
+            # fire an event noting that execution is complete (this will release any await calls waiting on the program)
+            self._execute_complete.set()
+
     def __getitem__(self, key):
         return self._variables[key]
     
