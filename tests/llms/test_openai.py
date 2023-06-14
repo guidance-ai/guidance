@@ -20,7 +20,7 @@ def test_geneach_chat_gpt():
     {{#assistant~}}
     {{gen 'this.response' temperature=0 max_tokens=3}}
     {{~/assistant}}
-    {{#if (> @index 0)}}{{break}}{{/if}}
+    {{#if @index > 0}}{{break}}{{/if}}
     {{~/geneach}}''')
 
     out = chat_loop()

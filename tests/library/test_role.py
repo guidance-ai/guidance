@@ -15,7 +15,7 @@ What is the weather?
 {{~/role}}
 
 {{#role 'assistant'~}}
-{{gen}}
+{{gen(max_tokens=23)}}
 {{~/role}}
 """, llm=llm)
 
@@ -37,7 +37,7 @@ What is the weather?
 {{~/user}}
 
 {{#assistant~}}
-{{gen}}
+{{gen()}}
 {{~/assistant}}
 """, llm=llm)
 

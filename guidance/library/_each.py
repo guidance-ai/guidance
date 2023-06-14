@@ -44,11 +44,11 @@ async def each(list, hidden=False, parallel=False, _parser_context=None):
                 "@first": i == 0,
                 "@last": i == len(list) - 1,
                 "this": item,
-                "_prefix": variable_stack["_prefix"], # create a local copy of the prefix since we are hidden
+                "@raw_prefix": variable_stack["@raw_prefix"], # create a local copy of the prefix since we are hidden
                 "_no_display": True
             })
             coroutines.append(parser.visit(
-                block_content[0],
+                block_content,
                 variable_stack.copy(),
                 next_node=_parser_context["next_node"],
                 next_next_node=_parser_context["next_next_node"],
@@ -78,7 +78,7 @@ async def each(list, hidden=False, parallel=False, _parser_context=None):
             })
             with ContentCapture(variable_stack, hidden) as new_content:
                 new_content += await parser.visit(
-                    block_content[0],
+                    block_content,
                     variable_stack,
                     next_node=_parser_context["next_node"],
                     next_next_node=_parser_context["next_next_node"],

@@ -424,7 +424,7 @@ class Program:
         else:
             with self.llm.session(asynchronous=True) as llm_session:
                 await self._executor.run(llm_session)
-        self._text = self._variables["_prefix"]
+        self._text = self._variables["@raw_prefix"]
 
         # delete the executor and so mark the program as not executing
         self._executor = None
@@ -471,7 +471,7 @@ class Program:
     @property
     def marked_text(self):
         if self._executor is not None:
-            return self._variables["_prefix"]
+            return self._variables["@raw_prefix"]
         else:
             return self._text
     
@@ -681,7 +681,9 @@ _built_ins = {
     "if": library.if_,
     "unless": library.unless,
     "add": library.add,
+    "BINARY_OPERATOR_+": library.add,
     "subtract": library.subtract,
+    "BINARY_OPERATOR_-": library.subtract,
     "strip": library.strip,
     "block": library.block,
     "set": library.set,
@@ -692,11 +694,13 @@ _built_ins = {
     "assistant": library.assistant,
     "break": library.break_,
     "equal": library.equal,
-    "==": library.equal,
+    "BINARY_OPERATOR_==": library.equal,
+    "notequal": library.notequal,
+    "BINARY_OPERATOR_!=": library.notequal,
     "greater": library.greater,
-    ">": library.greater,
+    "BINARY_OPERATOR_>": library.greater,
     "less": library.less,
-    "<": library.less,
+    "BINARY_OPERATOR_<": library.less,
     "contains": library.contains,
     "parse": library.parse
 }

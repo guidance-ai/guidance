@@ -1,6 +1,7 @@
 import itertools
 import pygtrie
 import numpy as np
+from .._utils import ContentCapture
 
 async def select(variable_name="selected", options=None, logprobs=None, list_append=False, _parser_context=None):
     ''' Select a value from a list of choices.
@@ -33,10 +34,14 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
         assert options is None, "You cannot provide an options list when using the select command in block mode."
 
     if options is None:
-        options = [block_content[0].text]
+        with ContentCapture(variable_stack) as new_content:
+            new_content += await parser.visit(block_content[0], variable_stack)
+        options = [str(new_content)]
         for i in range(1, len(block_content), 2):
-            assert block_content[i].text == "{{or}}"
-            options.append(block_content[i+1].text)
+            assert block_content[i][0][0] == "or", "You must provide a {{or}} between each option in a select block."
+            with ContentCapture(variable_stack) as new_content:
+                new_content += await parser.visit(block_content[i+1], variable_stack)
+            options.append(str(new_content))#block_content[i+1].text)
 
     # find what text follows the select command and append it to the options.
     # we do this so we can differentiate between select options where one is a prefix of another
@@ -50,10 +55,10 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
     options = [option + next_text for option in options]
 
     # TODO: this retokenizes the whole prefix many times, perhaps this could become a bottleneck?
-    options_tokens = [parser.program.llm.encode(variable_stack["prefix"] + option) for option in options]
+    options_tokens = [parser.program.llm.encode(variable_stack["@prefix"] + option) for option in options]
 
     # encoding the prefix and then decoding it might change the length, so we need to account for that
-    recoded_parser_prefix_length = len(parser.program.llm.decode(parser.program.llm.encode(variable_stack["prefix"])))
+    recoded_parser_prefix_length = len(parser.program.llm.decode(parser.program.llm.encode(variable_stack["@prefix"])))
 
     # build a trie of the options
     token_map = pygtrie.Trie()
@@ -172,6 +177,6 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
     if max(option_logprobs.values()) <= -1000:
         raise ValueError("No valid option generated in #select! Please post a GitHub issue since this should not happen :)")
     
-    variable_stack["_prefix"] += selected_option
+    variable_stack["@raw_prefix"] += selected_option
 
 select.is_block = True
