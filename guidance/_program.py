@@ -4,7 +4,7 @@ import re
 import html
 import uuid
 import sys
-import parsimonious
+# import parsimonious
 import logging
 import copy
 import asyncio
@@ -14,7 +14,7 @@ import traceback
 import time
 import datetime
 import nest_asyncio
-from .llms import _openai
+# from .llms import _openai
 from . import _utils
 from ._program_executor import ProgramExecutor
 from . import library
