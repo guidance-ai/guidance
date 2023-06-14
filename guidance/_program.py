@@ -155,7 +155,7 @@ class Program:
         self._displaying = not self.silent # if we are displaying we need to update the display as we execute
         self._displayed = False # marks if we have been displayed in the client yet
         self._displaying_html = False # if we are displaying html (vs. text)
-        self._tasks = []
+        self._tasks = [] # list of children tasks
 
         # throttle the display updates
         if os.environ.get("VSCODE_CWD", None) is not None:
@@ -209,12 +209,14 @@ class Program:
         """Used by self.__await__ to wait for the program to complete."""
         try:
             await self._execute_complete.wait() # wait for the program to finish executing
+
         except asyncio.CancelledError:
+            # if this task gets canceled, cancel all sub-tasks
             for task in self._tasks:
                 task.cancel()
 
-        # if the program finished executing with an exception, re-raise the exception
-        # in the main coroutine
+        # if the program finished executing with an exception
+        # re-raise the exception in the main coroutine
         if self._exception:
             raise self._exception
 
