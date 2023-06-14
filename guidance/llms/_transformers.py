@@ -262,6 +262,10 @@ class TransformersSession(LLMSession):
             # make sure we don't run off the end of the model
             if max_tokens + len(input_ids[0]) > max_context:
                 max_tokens = max_context - len(input_ids[0])
+                
+            # make sure we can fit the minimum tokens
+            if max_tokens < min_tokens:
+                raise Exception("Program specified a minimum number of tokens which cannot fit in this model.")
 
             # find how much of the prompt is cached
             prefix_match_len = 0
