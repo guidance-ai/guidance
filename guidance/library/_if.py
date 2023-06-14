@@ -15,6 +15,11 @@ async def if_(value, *, invert=False, _parser_context=None):
     variable_stack = _parser_context['variable_stack']
     parser = _parser_context['parser']
 
+    # see if we have a single block or multiple blocks TODO: this is a bit hacky, could be cleaned up with a better parsing I think...
+    if len(block_content) > 1:
+        if not (hasattr(block_content[1], "text") and re.match(r"{{~?\w*else\w*~?}}",  block_content[1].text) or re.search(r"${{~?\w*elif\w",  block_content[1].text)):
+            block_content = [block_content]
+    
     assert len(block_content) % 2 == 1, "Unexpected number of blocks for `if` command: " + str(len(block_content))
 
     # parse the first block
@@ -27,7 +32,7 @@ async def if_(value, *, invert=False, _parser_context=None):
     for i in range(1, len(block_content), 2):
 
         # elif block
-        if re.match(r"{{~?\w*elif\w",  block_content[i].text):
+        if re.search(r"${{~?\w*elif\w",  block_content[i].text): # TODO: should probably depend on the parser not regex for this
             if parser.visit(block_content[i][1]):
                 return await parser.visit(block_content[i+1], variable_stack)
 

@@ -80,12 +80,10 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
     # if stop is None then we use the text of the node after the generate command
     if stop is None:
 
-        next_text = next_node.text if next_node is not None else ""
-        prev_text = prev_node.text if prev_node is not None else ""
-        if next_next_node and next_next_node.text.startswith("{{~"):
-            next_text = next_text.lstrip()
-            if next_next_node and next_text == "":
-                next_text = next_next_node.text
+        next_text = getattr(next_node, "text", next_node) if next_node is not None else ""
+        prev_text = getattr(prev_node, "text", prev_node) if prev_node is not None else ""
+        if next_next_node and next_text == "":
+            next_text = getattr(next_next_node, "text", next_next_node)
 
         # auto-detect quote stop tokens
         quote_types = ["'''", '"""', '```', '"', "'", "`"]
@@ -96,7 +94,7 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
 
         # auto-detect role stop tags
         if stop is None:
-            m = re.match(r"^{{~?/(user|assistant|system|role)~?}}.*", next_text)
+            m = re.match(r"^{{~?/\w*(user|assistant|system|role)\w*~?}}.*", next_text)
             if m:
                 stop = parser.program.llm.role_end(m.group(1))
 

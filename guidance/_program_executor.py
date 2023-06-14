@@ -479,7 +479,7 @@ class ProgramExecutor():
                         # "partial_output": self.extend_prefix,
                         "variable_stack": variable_stack,
                         "parser_node": node,
-                        "block_close_node": None,
+                        "block_close_node": node[-1],
                         "next_node": next_node,
                         "next_next_node": next_next_node,
                         "prev_node": node[0]

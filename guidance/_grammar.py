@@ -174,8 +174,8 @@ block_command_open = pp.Suppress(pp.Combine(command_start + "#")) + block_comman
 # else_sep = "else"
 # elif_sep = "elif" + ws_command_args
 # block_command_sep = command_start + pp.MatchFirst(or_sep | else_sep | elif_sep) + command_end
-block_command_close = command_start + pp.Suppress("/") + command_name + command_end
-block_command <<= (block_command_open + SavedText(pp.Group(program)("block_content")) + pp.Suppress(block_command_close)).leave_whitespace()
+block_command_close = SavedText(pp.Group(command_start + pp.Suppress("/") + command_name + command_end)("block_command_close"))
+block_command <<= (block_command_open + SavedText(pp.Group(program)("block_content")) + block_command_close).leave_whitespace()
 block_command = SavedText(pp.Group(block_command)("block_command"))
 
 # block partial {{#>my_command arg1 arg2=val}}...{{/my_command}}
