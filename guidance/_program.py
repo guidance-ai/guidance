@@ -4,17 +4,18 @@ import re
 import html
 import uuid
 import sys
-import parsimonious
+# import parsimonious
 import logging
 import copy
 import asyncio
 import pathlib
 import os
 import traceback
+import importlib
 import time
 import datetime
 import nest_asyncio
-from .llms import _openai
+# from .llms import _openai
 from . import _utils
 from ._program_executor import ProgramExecutor
 from . import library
@@ -163,10 +164,10 @@ class Program:
         self.update_display = DisplayThrottler(self._update_display, self.display_throttle_limit)
 
         # see if we are in an ipython environment
-        try:
-            from IPython import get_ipython
+        # check if get_ipython variable exists
+        if hasattr(__builtins__, "get_ipython"):
             self._ipython = get_ipython()
-        except:
+        else:
             self._ipython = None
         
         # if we are echoing in ipython we assume we can display html
@@ -424,7 +425,7 @@ class Program:
         else:
             with self.llm.session(asynchronous=True) as llm_session:
                 await self._executor.run(llm_session)
-        self._text = self._variables["_prefix"]
+        self._text = self._variables["@raw_prefix"]
 
         # delete the executor and so mark the program as not executing
         self._executor = None
@@ -471,7 +472,7 @@ class Program:
     @property
     def marked_text(self):
         if self._executor is not None:
-            return self._variables["_prefix"]
+            return self._variables["@raw_prefix"]
         else:
             return self._text
     
@@ -681,7 +682,11 @@ _built_ins = {
     "if": library.if_,
     "unless": library.unless,
     "add": library.add,
+    "BINARY_OPERATOR_+": library.add,
     "subtract": library.subtract,
+    "BINARY_OPERATOR_-": library.subtract,
+    "multiply": library.multiply,
+    "BINARY_OPERATOR_*": library.multiply,
     "strip": library.strip,
     "block": library.block,
     "set": library.set,
@@ -692,11 +697,13 @@ _built_ins = {
     "assistant": library.assistant,
     "break": library.break_,
     "equal": library.equal,
-    "==": library.equal,
+    "BINARY_OPERATOR_==": library.equal,
+    "notequal": library.notequal,
+    "BINARY_OPERATOR_!=": library.notequal,
     "greater": library.greater,
-    ">": library.greater,
+    "BINARY_OPERATOR_>": library.greater,
     "less": library.less,
-    "<": library.less,
+    "BINARY_OPERATOR_<": library.less,
     "contains": library.contains,
     "parse": library.parse
 }

@@ -6,6 +6,7 @@ from ._block import block
 from ._if import if_
 from ._unless import unless
 from ._add import add
+from ._multiply import multiply
 from ._select import select
 from ._each import each
 from ._geneach import geneach
@@ -21,3 +22,4 @@ from ._greater import greater
 from ._less import less
 from ._contains import contains
 from ._parse import parse
+from ._notequal import notequal

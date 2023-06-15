@@ -15,7 +15,7 @@ async def role(name, hidden=False, _parser_context=None):
 
         # visit the block content
         new_content += await parser.visit(
-            block_content[0],
+            block_content,
             variable_stack,
             next_node=_parser_context["block_close_node"],
             prev_node=_parser_context["prev_node"],
