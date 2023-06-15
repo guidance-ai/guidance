@@ -11,6 +11,7 @@ import asyncio
 import pathlib
 import os
 import traceback
+import importlib
 import time
 import datetime
 import nest_asyncio
@@ -163,10 +164,10 @@ class Program:
         self.update_display = DisplayThrottler(self._update_display, self.display_throttle_limit)
 
         # see if we are in an ipython environment
-        try:
-            from IPython import get_ipython
+        # check if get_ipython variable exists
+        if hasattr(__builtins__, "get_ipython"):
             self._ipython = get_ipython()
-        except:
+        else:
             self._ipython = None
         
         # if we are echoing in ipython we assume we can display html
@@ -684,6 +685,8 @@ _built_ins = {
     "BINARY_OPERATOR_+": library.add,
     "subtract": library.subtract,
     "BINARY_OPERATOR_-": library.subtract,
+    "multiply": library.multiply,
+    "BINARY_OPERATOR_*": library.multiply,
     "strip": library.strip,
     "block": library.block,
     "set": library.set,

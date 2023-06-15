@@ -6,7 +6,7 @@ pp.ParserElement.enable_packrat()
 # pp.autoname_elements()
 
 program = pp.Forward()
-
+program_chunk = pp.Forward()
 
 ## whitespace ##
 
@@ -22,7 +22,7 @@ long_comment_start = pp.Suppress(pp.Literal("{{!--"))
 long_comment_end =  pp.Suppress(pp.Literal("--") + command_end)
 not_long_comment_end = "-" + ~pp.FollowedBy("-}}") + ~pp.FollowedBy("-~}}")
 long_comment_content = not_long_comment_end | pp.OneOrMore(pp.CharsNotIn("-"))
-long_comment = pp.Group(pp.Combine(long_comment_start + pp.ZeroOrMore(long_comment_content) + long_comment_end))("long_comment")
+long_comment = pp.Group(pp.Combine(long_comment_start + pp.ZeroOrMore(long_comment_content) + long_comment_end))("long_comment").set_name("long_comment")
 
 # short-form comments  {{! my comment }}
 comment_start = pp.Suppress("{{" + pp.Optional("~") + "!")
@@ -103,16 +103,20 @@ infix_operator_block = pp.infix_notation(code_chunk_no_infix, [
 ## commands ##
 
 code_chunk = pp.Forward().set_name("code_chunk")
-command_name = pp.Word(pp.srange("[A-Za-z_]"), pp.srange("[A-Za-z_0-9]"))
+not_keyword = ~pp.FollowedBy(pp.Keyword("or") | pp.Keyword("else") | pp.Keyword("elif"))
+command_name = pp.Combine(not_keyword + pp.Word(pp.srange("[A-Za-z_]"), pp.srange("[A-Za-z_0-9]")))
 variable_name = pp.Word(pp.srange("[@A-Za-z_]"), pp.srange("[A-Za-z_0-9]"))
-variable_ref = pp.Group(pp.Word(pp.srange("[@A-Za-z_]"), pp.srange("[A-Za-z_0-9\.\[\]\"'-]")))("variable_ref")
-keyword = pp.Group((pp.Literal("break") | pp.Literal("else") | pp.Literal("or")) + ~pp.FollowedBy(pp.Char(pp.srange("[@A-Za-z_]"))))("keyword")
+variable_ref = not_keyword + pp.Group(pp.Word(pp.srange("[@A-Za-z_]"), pp.srange("[A-Za-z_0-9\.\[\]\"'-]")))("variable_ref").set_name("variable_ref")
+keyword = pp.Group(pp.Keyword("break") | pp.Keyword("continue"))("keyword")
 
 class SavedTextNode:
     """A node that saves the text it matches."""
     def __init__(self, s, loc, tokens):
         start_pos = tokens[0]
-        end_pos = tokens[2]
+        if len(tokens) == 3:
+            end_pos = tokens[2]
+        else:
+            end_pos = loc
         self.text = s[start_pos:end_pos]
         assert len(tokens[1]) == 1
         self.tokens = tokens[1][0]
@@ -136,7 +140,7 @@ def SavedText(node):
 # command arguments
 command_arg = pp.Forward()
 named_command_arg = variable_name + "=" + code_chunk
-command_arg <<= pp.Group(named_command_arg)("named_command_arg") | pp.Group(code_chunk)("positional_command_arg")
+command_arg <<= pp.Group(named_command_arg)("named_command_arg").set_name("named_command_arg") | pp.Group(code_chunk)("positional_command_arg").set_name("positional_command_arg")
 
 # whitespace command format {{my_command arg1 arg2=val}}
 ws_command_call = pp.Forward().set_name("ws_command_call")
@@ -149,34 +153,37 @@ ws_command_call <<= command_name("name") + ~pp.FollowedBy(pp.one_of("+ - * / or 
 paren_command_call = pp.Forward().set_name("paren_command_call")
 command_arg_and_comma_ws = pp.Suppress(",") + command_arg
 paren_command_args = pp.Optional(command_arg) + pp.ZeroOrMore(command_arg_and_comma_ws)
-paren_command_call <<= command_name("name") + pp.Suppress("(") - paren_command_args + pp.Suppress(")")
+paren_command_call <<= (command_name("name") + pp.Suppress("(")).leave_whitespace() - paren_command_args + pp.Suppress(")")
 
 # code chunks
 enclosed_code_chunk = pp.Forward().set_name("enclosed_code_chunk")
 paren_group = (pp.Suppress("(") - enclosed_code_chunk + pp.Suppress(")")).set_name("paren_group")
-enclosed_code_chunk <<= pp.Group(ws_command_call)("command_call") | pp.Group(paren_command_call)("command_call") | infix_operator_block | keyword | variable_ref | literal | paren_group
-code_chunk_no_infix <<= paren_group | pp.Group(paren_command_call)("command_call") | literal | keyword | variable_ref # used to nest infix operators
-code_chunk <<= infix_operator_block | paren_group | pp.Group(paren_command_call)("command_call") | literal | keyword | variable_ref
+enclosed_code_chunk_cant_infix = (pp.Group(ws_command_call)("command_call") | pp.Group(paren_command_call)("command_call") | literal | keyword | variable_ref | paren_group) + ~pp.FollowedBy(pp.one_of("+ - * / or not is and <= == >= != < >"))
+enclosed_code_chunk <<= enclosed_code_chunk_cant_infix | infix_operator_block
+code_chunk_no_infix <<= (paren_group | pp.Group(paren_command_call)("command_call") | literal | keyword | variable_ref) # used by infix_operator_block
+code_chunk_cant_infix = code_chunk_no_infix + ~pp.FollowedBy(pp.one_of("+ - * / or not is and <= == >= != < >")) # don't match infix operators so we can run this before infix_operator_block
+code_chunk_cant_infix.set_name("code_chunk_cant_infix")
+code_chunk <<= code_chunk_cant_infix | infix_operator_block
 
 # command/variable
 command_start = pp.Suppress("{{" + ~pp.FollowedBy("!") + pp.Optional("~"))
-command = SavedText(pp.Group(command_start + enclosed_code_chunk + command_end)("command"))
+simple_command_start = pp.Suppress("{{" + ~pp.FollowedBy("!") + pp.Optional("~")) + ~pp.FollowedBy(pp.one_of("# / >"))
+command = SavedText(pp.Group(simple_command_start + enclosed_code_chunk + command_end)("command"))
 
 # partial
-always_call = pp.Group(ws_command_call | paren_command_call | command_name("name") + pp.Optional(ws_command_args))
+always_call = pp.Group(paren_command_call | command_name("name") + pp.Optional(ws_command_args))
 partial = pp.Group(pp.Suppress(pp.Combine(command_start + ">")) + always_call("command_call") + command_end)("partial")
 
 # block command {{#my_command arg1 arg2=val}}...{{/my_command}}
+separator = pp.Group(pp.Keyword("or") | pp.Keyword("else") | (pp.Keyword("elif") + ws_command_args))("separator").set_name("separator")
 block_command = pp.Forward()
 block_command_call = always_call("command_call")
 block_command_open = pp.Suppress(pp.Combine(command_start + "#")) + block_command_call + command_end
-# or_sep = pp.Literal("or")
-# else_sep = "else"
-# elif_sep = "elif" + ws_command_args
-# block_command_sep = command_start + pp.MatchFirst(or_sep | else_sep | elif_sep) + command_end
-block_command_close = SavedText(pp.Group(command_start + pp.Suppress("/") + command_name + command_end)("block_command_close"))
-block_command <<= (block_command_open + SavedText(pp.Group(program)("block_content")) + block_command_close).leave_whitespace()
-block_command = SavedText(pp.Group(block_command)("block_command"))
+block_command_sep = (command_start + separator + command_end)("block_command_sep").set_name("block_command_sep")
+block_command_close = SavedText(pp.Group(command_start + pp.Suppress("/") + command_name + command_end)("block_command_close").set_name("block_command_close"))
+block_command_content = (pp.Group(program)("block_content_chunk") + pp.ZeroOrMore(block_command_sep + pp.Group(program)("block_content_chunk"))).set_name("block_content")
+block_command <<= (block_command_open + SavedText(pp.Group(block_command_content)("block_content")) + block_command_close).leave_whitespace()
+block_command = SavedText(pp.Group(block_command)("block_command")).set_name("block_command")
 
 # block partial {{#>my_command arg1 arg2=val}}...{{/my_command}}
 block_partial = pp.Forward()
@@ -198,10 +205,14 @@ not_command_start = "{" + ~pp.FollowedBy("{")
 not_command_escape = "\\" + ~pp.FollowedBy("{{")
 stripped_whitespace = pp.Suppress(pp.Word(" \t\r\n")) + pp.FollowedBy("{{~")
 unstripped_whitespace = pp.Word(" \t\r\n") # no need for a negative FollowedBy because stripped_whitespace will match first
-content = pp.Group(pp.Combine(pp.OneOrMore(stripped_whitespace | unstripped_whitespace | not_command_start | not_command_escape | pp.CharsNotIn("{\\ \t\r\n"))))("content")
+content = pp.Group(pp.Combine(pp.OneOrMore(stripped_whitespace | unstripped_whitespace | not_command_start | not_command_escape | pp.CharsNotIn("{\\ \t\r\n"))))("content").set_name("content")
+
+# keyword_command = SavedText(pp.Group(command_start + keyword + ws_command_args + command_end)("keyword_command"))
+# block_content_chunk = long_comment | comment | escaped_command | unrelated_escape | block_partial | block_command | partial | command | content
+# block_content <<= pp.ZeroOrMore(block_content_chunk)("program").leave_whitespace()
 
 ## global program ##
 
-program_chunk = long_comment | comment | escaped_command | unrelated_escape | block_partial | block_command | partial | command | content
-program <<= pp.ZeroOrMore(program_chunk)("program").leave_whitespace()
+program_chunk <<= (long_comment | comment | escaped_command | unrelated_escape | block_partial | block_command | partial | command | content).leave_whitespace()
+program <<= pp.ZeroOrMore(program_chunk)("program").leave_whitespace().set_name("program")
 grammar = (program + pp.StringEnd()).parse_with_tabs()

@@ -38,7 +38,7 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
             new_content += await parser.visit(block_content[0], variable_stack)
         options = [str(new_content)]
         for i in range(1, len(block_content), 2):
-            assert block_content[i][0][0] == "or", "You must provide a {{or}} between each option in a select block."
+            assert block_content[i][0] == "or", "You must provide a {{or}} between each option in a select block."
             with ContentCapture(variable_stack) as new_content:
                 new_content += await parser.visit(block_content[i+1], variable_stack)
             options.append(str(new_content))#block_content[i+1].text)
