@@ -22,7 +22,7 @@ class MalformedPromptException(Exception):
 def prompt_to_messages(prompt):
     messages = []
 
-    assert prompt.endswith("<|im_start|>assistant\n"), "When calling OpenAI chat models you must generate only directly inside the assistant role! The OpenAI API does not currently support partial assistant prompting."
+    # assert prompt.endswith("<|im_start|>assistant\n"), "When calling OpenAI chat models you must generate only directly inside the assistant role! The OpenAI API does not currently support partial assistant prompting."
 
     pattern = r'<\|im_start\|>(\w+)(.*?)(?=<\|im_end\|>|$)'
     matches = re.findall(pattern, prompt, re.DOTALL)
@@ -51,6 +51,7 @@ async def add_text_to_chat_mode_generator(chat_mode):
             yield resp
 
 def add_text_to_chat_mode(chat_mode):
+    print("add_text_to_chat_mode", chat_mode)
     if isinstance(chat_mode, (types.AsyncGeneratorType, types.GeneratorType)):
         return add_text_to_chat_mode_generator(chat_mode)
     else:
@@ -65,7 +66,10 @@ chat_models = [
     "gpt-4-0314",
     "gpt-4-32k-0314",
     "gpt-3.5-turbo",
-    "gpt-3.5-turbo-0301"
+    "gpt-3.5-turbo-0301",
+    "gpt-4-0613",
+    "gpt-3.5-turbo-0613",
+    "gpt-4-32k-0613",
 ]
 
 class OpenAI(LLM):
@@ -298,7 +302,7 @@ class OpenAI(LLM):
         prev_type = openai.api_type
         prev_version = openai.api_version
         prev_base = openai.api_base
-        
+    
         # set the params of the openai library if we have them
         if self.api_key is not None:
             openai.api_key = self.api_key
@@ -312,17 +316,15 @@ class OpenAI(LLM):
             openai.api_base = self.api_base
 
         assert openai.api_key is not None, "You must provide an OpenAI API key to use the OpenAI LLM. Either pass it in the constructor, set the OPENAI_API_KEY environment variable, or create the file ~/.openai_api_key with your key in it."
-        
         if self.chat_mode:
             kwargs['messages'] = prompt_to_messages(kwargs['prompt'])
             del kwargs['prompt']
             del kwargs['echo']
             del kwargs['logprobs']
-            # print(kwargs)
-            out = await openai.ChatCompletion.acreate(**kwargs)
+            out = openai.ChatCompletion.create(**kwargs)
             out = add_text_to_chat_mode(out)
         else:
-            out = await openai.Completion.acreate(**kwargs)
+            out = openai.Completion.create(**kwargs)
         
         # restore the params of the openai library
         openai.api_key = prev_key
@@ -354,7 +356,7 @@ class OpenAI(LLM):
             "stream": stream,
             "logprobs": kwargs.get("logprobs", None),
             'stop': kwargs.get("stop", None),
-            "echo": kwargs.get("echo", False)
+            "echo": kwargs.get("echo", False),
         }
         if self.chat_mode:
             data['messages'] = prompt_to_messages(data['prompt'])
@@ -489,7 +491,7 @@ class OpenAISession(LLMSession):
                        cache_seed=0, caching=None, **completion_kwargs):
         """ Generate a completion of the given prompt.
         """
-
+        # check if we need to stream
         # we need to stream in order to support stop_regex
         if stream is None:
             stream = stop_regex is not None

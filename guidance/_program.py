@@ -104,8 +104,17 @@ class Program:
         log : bool or Log
             If True, the program will log all the commands that are executed into the `program.log` property.
             If a Log object is passed in, it will be used as the log instead of creating a new one.
+        functions : List[Dict[str, Any]]
+            If given, this is a list of functions that can be called from the program. Each function
+            should be a dict with the following keys:
+                name: str
+                    The name of the function. This is what you will call from the program.
+                description: str
+                    A description of what the function does.
+                parameters: List[Dict[str, Any]]
+                    A dict of the params the function takes 
         """
-
+        
         # see if we were given a raw function instead of a string template
         # if so, convert it to a string template that calls the function
         if not isinstance(text, str) and callable(text):
@@ -222,6 +231,7 @@ class Program:
         use the python `await` keyword if you want to ensure the program is finished (note that is different than
         the `await` guidance langauge command, which will cause the program to stop execution at that point).
         """
+        # print("Calling program", self.functions)
 
         # merge the given kwargs with the current variables
         kwargs = {**{
@@ -236,6 +246,7 @@ class Program:
             "llm": self.llm,
         }, **kwargs}
 
+        print("Calling program with kwargs", kwargs)
         log.debug(f"in __call__ with kwargs: {kwargs}")
 
         # create a new program object that we will execute in-place
@@ -411,6 +422,7 @@ class Program:
         from a template into a completed string (with variables stored). At each point
         in this process the current template remains valid.
         """
+        # print("Executing program", self.functions)
 
         log.debug(f"Executing program (self.async_mode={self.async_mode}, self.silent={self.silent}, self._displaying_html={self._displaying_html})")
         
@@ -690,6 +702,7 @@ _built_ins = {
     "user": library.user,
     "system": library.system,
     "assistant": library.assistant,
+    "function": library.function,
     "break": library.break_,
     "equal": library.equal,
     "==": library.equal,

@@ -3,7 +3,7 @@ import re
 import uuid
 from .._utils import ContentCapture
 
-async def geneach(list_name, stop=None, max_iterations=100, min_iterations=0, num_iterations=None, hidden=False, join="", single_call=False, single_call_temperature=0.0, single_call_max_tokens=500, single_call_top_p=1.0, _parser_context=None):
+async def geneach(list_name, stop=None, max_iterations=100, min_iterations=0, num_iterations=None, hidden=False, join="", single_call=False, single_call_temperature=0.0, single_call_max_tokens=500, single_call_top_p=1.0, _parser_context=None, functions=None):
     ''' Generate a potentially variable length list of items using the LLM.
 
     Parameters
@@ -145,9 +145,9 @@ async def geneach(list_name, stop=None, max_iterations=100, min_iterations=0, nu
             # we run a quick generation to see if we have reached the end of the list (note the +2 tokens is to help be tolorant to whitespace)
             if stop is not False and i >= min_iterations and i < max_iterations:
                 try:
-                    gen_obj = await parser.llm_session(variable_stack["prefix"], stop=stop, max_tokens=max_stop_tokens, temperature=0, cache_seed=0)
+                    gen_obj = await parser.llm_session(variable_stack["prefix"], stop=stop, max_tokens=max_stop_tokens, temperature=0, cache_seed=0, functions=functions)
                 except Exception:
-                    raise Exception(f"Error generating stop tokens for geneach loop. Perhaps you are outside of role tags (assistant/user/system)? If you don't want the loop to check for stop tokens, set stop=False or set num_iterations.")
+                    raise Exception(f"Error generating stop tokens for geneach loop. Perhaps you are outside of role tags (assistant/user/system/function)? If you don't want the loop to check for stop tokens, set stop=False or set num_iterations.")
                 if gen_obj["choices"][0]["finish_reason"] == "stop":
                     break
     
@@ -177,7 +177,7 @@ async def geneach(list_name, stop=None, max_iterations=100, min_iterations=0, nu
             parser.program.cache_seed += 1
         else:
             cache_seed = 0
-        gen_stream = await parser.llm_session(variable_stack["_prefix"]+fixed_prefix, stop=stop, max_tokens=single_call_max_tokens, temperature=single_call_temperature, top_p=single_call_top_p, cache_seed=cache_seed, stream=True)
+        gen_stream = await parser.llm_session(variable_stack["_prefix"]+fixed_prefix, stop=stop, max_tokens=single_call_max_tokens, temperature=single_call_temperature, top_p=single_call_top_p, cache_seed=cache_seed, stream=True, functions=functions)
         generated_value = fixed_prefix
         num_items = 0
         data = []

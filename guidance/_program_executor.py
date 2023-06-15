@@ -3,7 +3,6 @@ import ast
 import inspect
 import re
 import asyncio
-import warnings
 import logging
 import parsimonious
 from ._utils import strip_markers
@@ -293,8 +292,11 @@ class ProgramExecutor():
                         "next_node": next_node,
                         "next_next_node": next_next_node,
                         "prev_node": prev_node,
-                        "block_content": None
+                        "block_content": None,
                     }
+                    if "functions" in self.program._variables:
+                        named_args["functions"] = self.program._variables["functions"]
+
 
                 # call the command
                 if self._logging:

@@ -10,7 +10,8 @@ log = logging.getLogger(__name__)
 
 async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_tokens=500, n=1, stream=None,
               temperature=0.0, top_p=1.0, logprobs=None, pattern=None, hidden=False, list_append=False,
-              save_prompt=False, token_healing=None, _parser_context=None, **llm_kwargs):
+              save_prompt=False, token_healing=None, _parser_context=None, 
+                **llm_kwargs):
     ''' Use the LLM to generate a completion.
 
     Parameters
@@ -96,7 +97,7 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
 
         # auto-detect role stop tags
         if stop is None:
-            m = re.match(r"^{{~?/(user|assistant|system|role)~?}}.*", next_text)
+            m = re.match(r"^{{~?/(user|assistant|system|role|function)~?}}.*", next_text)
             if m:
                 stop = parser.program.llm.role_end(m.group(1))
 
@@ -169,6 +170,9 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
                 #log("Stopping generation")
                 break
             # log.debug("resp", resp)
+            print("----------------------------------")
+            print(resp["choices"])
+            print("----------------------------------")
             generated_value += resp["choices"][0]["text"]
             variable_stack["_prefix"] += resp["choices"][0]["text"]
             if logprobs is not None:

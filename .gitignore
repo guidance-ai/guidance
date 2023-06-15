@@ -8,3 +8,4 @@ __pycache__/
 .ipynb_checkpoints
 node_modules
 /client
+.eggs/

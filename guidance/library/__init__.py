@@ -15,6 +15,7 @@ from ._role import role
 from ._user import user
 from ._system import system
 from ._assistant import assistant
+from ._function import function
 from ._break import break_
 from ._equal import equal
 from ._greater import greater
