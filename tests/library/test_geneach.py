@@ -14,3 +14,30 @@ def test_geneach():
 <item index="{{@index}}">{{gen 'this'}}</item>{{/geneach}}</list>"''', llm=llm)
     out = prompt()
     assert len(out["names"]) == 3
+
+def test_geneach_with_index():
+    """ Test a geneach loop.
+    """
+
+    llm = guidance.llms.Mock(["Qs", "A1", "A2", "A3", "A4", "A5"])
+    program = guidance('''
+{{~#system~}}You are a teacher.{{~/system~}}
+
+{{~#user~}}
+Make a list of questions.
+{{~/user~}}
+
+{{~#assistant~}}
+{{gen 'qmap' temperature=1.0 max_tokens=50}}
+{{~/assistant~}}
+
+{{#geneach 'answers' num_iterations=5}}"
+{{#user~}}
+answer The following question: {{questions[@index]}}
+{{~/user}}
+{{#assistant~}}
+{{gen 'this' temperature=0.7}}
+{{~/assistant}}"
+{{/geneach}}''', llm=llm)
+
+    executed_program = program(questions=["Q1", "Q2", "Q3", "Q4", "Q5"])
