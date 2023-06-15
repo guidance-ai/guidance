@@ -39,7 +39,7 @@ class VariableStack:
             found = True
             for part in parts:
                 if part.endswith("]"):
-                    if re.match(r"$'\"[0-9].*", part):
+                    if re.match(r"['\"0-9].*", part):
                         var_part = ast.literal_eval(part[:-1])
                     else:
                         var_part = self.get(part[:-1])
@@ -82,7 +82,10 @@ class VariableStack:
             found = True
             for part in parts:
                 if part.endswith("]"):
-                    var_part = ast.literal_eval(part[:-1])
+                    if re.match(r"['\"0-9].*", part):
+                        var_part = ast.literal_eval(part[:-1])
+                    else:
+                        var_part = self.get(part[:-1])
                 else:
                     var_part = part
                 try:
