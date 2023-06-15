@@ -100,6 +100,7 @@ class Claude(LLM):
 
         # auto detect chat completion mode
         if chat_mode == "auto":
+            print("model", chat_models)
             if model in chat_models:
                 chat_mode = True
             else:
@@ -107,7 +108,7 @@ class Claude(LLM):
         
         # fill in default API key value
         if api_key is None: # get from environment variable
-            api_key = os.environ.get("OPENAI_API_KEY", getattr(claude, "api_key", None))
+            api_key = os.environ.get("ANTHROPIC_API_KEY", getattr(Claude, "api_key", None))
         if api_key is not None and not api_key.startswith("sk-") and os.path.exists(os.path.expanduser(api_key)): # get from file
             with open(os.path.expanduser(api_key), 'r') as file:
                 api_key = file.read().replace('\n', '')
@@ -124,7 +125,7 @@ class Claude(LLM):
             api_base = os.environ.get("ANTHROPIC_API_BASE", None) or os.environ.get("ANTHROPIC_ENDPOINT", None) # ENDPOINT is deprecated
 
         import tiktoken
-        self._tokenizer = tiktoken.get_encoding(tiktoken.encoding_for_model(model).name)
+        self._tokenizer = tiktoken.get_encoding("cl100k_base")
         self.chat_mode = chat_mode
         
         self.allowed_special_tokens = allowed_special_tokens
@@ -528,6 +529,7 @@ class ClaudeSession(LLMSession):
                     }
                     if logit_bias is not None:
                         call_args["logit_bias"] = {str(k): v for k,v in logit_bias.items()} # convert keys to strings since that's the open ai api's format
+                    print("call_args: ", call_args)
                     out = self.llm.caller(**call_args)
 
                 except anthropic.error.RateLimitError:
