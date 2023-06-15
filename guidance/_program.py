@@ -165,9 +165,9 @@ class Program:
 
         # see if we are in an ipython environment
         # check if get_ipython variable exists
-        if hasattr(__builtins__, "get_ipython"):
+        try:
             self._ipython = get_ipython()
-        else:
+        except NameError:
             self._ipython = None
         
         # if we are echoing in ipython we assume we can display html
