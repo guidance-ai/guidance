@@ -19,7 +19,7 @@ class VariableStack:
         out = self._stack.pop()
 
         # if we are popping a _prefix variable state we need to update the display
-        if "_prefix" in self._stack[-1]:
+        if "@raw_prefix" in self._stack[-1]:
             self._executor.program.update_display()
         
         return out
@@ -30,8 +30,8 @@ class VariableStack:
     def get(self, name, default_value=None):
 
         # prefix is a special variable that returns the current prefix without the marker tags
-        if name == "prefix":
-            return strip_markers(self.get("_prefix", ""))
+        if name == "@prefix":
+            return strip_markers(self.get("@raw_prefix", ""))
 
         parts = re.split(r"\.|\[", name)
         for variables in reversed(self._stack):
@@ -61,6 +61,17 @@ class VariableStack:
 
     def __contains__(self, name):
         return self.get(name, _NO_VALUE) != _NO_VALUE
+    
+    def __delitem__(self, key):
+        """Note this only works for simple variables, not nested variables."""
+        found = True
+        for variables in reversed(self._stack):
+            if key in variables:
+                del variables[key]
+                found = True
+                break
+        if not found:
+            raise KeyError(key)
 
     def __setitem__(self, key, value):
         parts = re.split(r"\.|\[", key)
@@ -100,7 +111,7 @@ class VariableStack:
             self._stack[0][key] = value
         
         # if we changed the _prefix variable, update the display
-        if changed and key == "_prefix" and not self.get("_no_display", False):
+        if changed and key == "@raw_prefix" and not self.get("_no_display", False):
             self._executor.program.update_display()
 
     def copy(self):

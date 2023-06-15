@@ -16,11 +16,12 @@ async def await_(name, _parser_context=None):
     # this will result in a partially completed program that we can then finish
     # later (by calling it again with the variable we need)
     parser = _parser_context['parser']
-    if name not in parser.program:
+    variable_stack = _parser_context['variable_stack']
+    if name not in variable_stack:
         parser.executing = False
     else:
-        value = parser.program[name]
-        del parser.program[name]
+        value = variable_stack[name]
+        del variable_stack[name]
         return value
     
     # cache = parser.program._await_cache

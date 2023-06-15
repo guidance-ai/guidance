@@ -21,7 +21,7 @@ async def parse(string, name=None, hidden=False, _parser_context=None):
     with ContentCapture(variable_stack, hidden) as new_content:
 
         # parse and visit the given string
-        subtree = grammar.parse(string)
+        subtree = grammar.parse_string(string)
         new_content += await parser.visit(subtree, variable_stack)
 
         # save the content in a variable if needed
