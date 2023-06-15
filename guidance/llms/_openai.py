@@ -58,16 +58,6 @@ def add_text_to_chat_mode(chat_mode):
             c['text'] = c['message']['content']
         return chat_mode
 
-# model that need to use the chat completion API
-chat_models = [
-    "gpt-4",
-    "gpt-4-32k",
-    "gpt-4-0314",
-    "gpt-4-32k-0314",
-    "gpt-3.5-turbo",
-    "gpt-3.5-turbo-0301"
-]
-
 class OpenAI(LLM):
     llm_name: str = "openai"
 
@@ -103,7 +93,9 @@ class OpenAI(LLM):
 
         # auto detect chat completion mode
         if chat_mode == "auto":
-            if model in chat_models:
+            # parse to determin if the model need to use the chat completion API
+            chat_model_pattern = r'^(gpt-3\.5-turbo|gpt-4)(-\d+k)?(-\d{4})?$'
+            if re.match(chat_model_pattern, model):
                 chat_mode = True
             else:
                 chat_mode = False
