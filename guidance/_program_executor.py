@@ -3,7 +3,6 @@ import ast
 import inspect
 import re
 import asyncio
-import warnings
 import logging
 import pyparsing as pp
 from ._utils import strip_markers

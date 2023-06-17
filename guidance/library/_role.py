@@ -1,4 +1,4 @@
-from .._utils import strip_markers, ContentCapture
+from .._utils import ContentCapture
 
 async def role(name, hidden=False, _parser_context=None):
     ''' A chat role block.

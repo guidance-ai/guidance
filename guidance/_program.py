@@ -1,17 +1,13 @@
-import ast
 import inspect
 import re
 import html
 import uuid
-import sys
 # import parsimonious
 import logging
 import copy
 import asyncio
 import pathlib
 import os
-import traceback
-import importlib
 import time
 import datetime
 import nest_asyncio
@@ -384,7 +380,7 @@ class Program:
             # ...otherwise dump the client to the front end
             else:
                 log.debug(f"Updating display dump to front end")
-                from IPython.display import clear_output, display
+                from IPython.display import clear_output
                 if self._displayed:
                     clear_output(wait=True) # TODO: should use wait=True but that doesn't work in VSCode until after the April 2023 release
 

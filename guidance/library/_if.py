@@ -1,4 +1,3 @@
-import re
 
 async def if_(value, *, invert=False, _parser_context=None):
     ''' Standard if/else statement.

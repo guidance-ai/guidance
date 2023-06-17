@@ -3,7 +3,6 @@ import re
 import uuid
 import logging
 import types
-from .._grammar import grammar
 from .._utils import escape_template_block, AsyncIter
 
 log = logging.getLogger(__name__)
