@@ -46,7 +46,7 @@ async def geneach(list_name, stop=None, max_iterations=100, min_iterations=0, nu
     # parser_prefix = _parser_context["parser_prefix"]
     parser_node = _parser_context["parser_node"]
 
-    assert len(block_content) == 1
+    # assert len(block_content) == 1
     assert not (hidden and single_call), "Cannot use hidden=True and single_call together"
     assert isinstance(list_name, str), "Must provide a variable name to save the generated list to"
     assert not hidden or num_iterations is not None, "Cannot use hidden=True and variable length iteration together yet..."
@@ -61,8 +61,8 @@ async def geneach(list_name, stop=None, max_iterations=100, min_iterations=0, nu
         max_iterations = 1e10
 
     # give the list a default name
-    if list_name is None:
-        list_name = 'generated_list'
+    # if list_name is None:
+    #     list_name = 'generated_list'
 
     # if stop is None then we use the text of the node after the generate command
     # if stop is None:
@@ -119,7 +119,7 @@ async def geneach(list_name, stop=None, max_iterations=100, min_iterations=0, nu
 
                 # visit the block content
                 new_content += await parser.visit(
-                    block_content[0],
+                    block_content,
                     variable_stack,
                     next_node=_parser_context["next_node"],
                     next_next_node=_parser_context["next_next_node"],
@@ -145,7 +145,7 @@ async def geneach(list_name, stop=None, max_iterations=100, min_iterations=0, nu
             # we run a quick generation to see if we have reached the end of the list (note the +2 tokens is to help be tolorant to whitespace)
             if stop is not False and i >= min_iterations and i < max_iterations:
                 try:
-                    gen_obj = await parser.llm_session(variable_stack["prefix"], stop=stop, max_tokens=max_stop_tokens, temperature=0, cache_seed=0, functions=functions)
+                    gen_obj = await parser.llm_session(variable_stack["@prefix"], stop=stop, max_tokens=max_stop_tokens, temperature=0, cache_seed=0)
                 except Exception:
                     raise Exception(f"Error generating stop tokens for geneach loop. Perhaps you are outside of role tags (assistant/user/system/function)? If you don't want the loop to check for stop tokens, set stop=False or set num_iterations.")
                 if gen_obj["choices"][0]["finish_reason"] == "stop":
@@ -157,7 +157,7 @@ async def geneach(list_name, stop=None, max_iterations=100, min_iterations=0, nu
         pattern = re.sub(
             r'{{gen [\'"]([^\'"]+)[\'"][^}]*}}',
             lambda x: r"(?P<"+_escape_group_name(x.group(1))+">.*?)",
-            block_content[0].text
+            block_content.text
         )
 
         # fixed prefixes can be used if we know we have at least one iteration
@@ -177,7 +177,7 @@ async def geneach(list_name, stop=None, max_iterations=100, min_iterations=0, nu
             parser.program.cache_seed += 1
         else:
             cache_seed = 0
-        gen_stream = await parser.llm_session(variable_stack["_prefix"]+fixed_prefix, stop=stop, max_tokens=single_call_max_tokens, temperature=single_call_temperature, top_p=single_call_top_p, cache_seed=cache_seed, stream=True, functions=functions)
+        gen_stream = await parser.llm_session(variable_stack["@raw_prefix"]+fixed_prefix, stop=stop, max_tokens=single_call_max_tokens, temperature=single_call_temperature, top_p=single_call_top_p, cache_seed=cache_seed, stream=True)
         generated_value = fixed_prefix
         num_items = 0
         data = []
@@ -205,20 +205,20 @@ async def geneach(list_name, stop=None, max_iterations=100, min_iterations=0, nu
                     next_item = d
 
                 # update the list variable (we do this each time we get a new item so that streaming works)
-                parser.set_variable(list_name, parser.get_variable(list_name, default_value=[]) + [next_item])
+                variable_stack[list_name] = variable_stack.get(list_name, []) + [next_item]
 
                 # recreate the output string with format markers added
                 item_out = re.sub(
                     r"{{(?!~?gen)(.*?)}}",
                     lambda x: match_dict[_escape_group_name(x.group(1))],
-                    block_content[0].text
+                    block_content.text
                 )
                 item_out = re.sub(
                     r"{{gen [\'\"]([^\'\"]+)[\'\"][^}]*}}",
                     lambda x: "{{!--GMARKER_START_gen$"+x.group().replace("$", "&#36;").replace("{", "&#123;").replace("}", "&#125;")+"$--}}"+match_dict[_escape_group_name(x.group(1))]+"{{!--GMARKER_END_gen$$--}}",
                     item_out
                 )
-                partial_output("{{!--GMARKER_each$$--}}" + item_out) # marker and content of the item
+                variable_stack["@raw_prefix"] += "{{!--GMARKER_each$$--}}" + item_out # marker and content of the item
                 num_items += 1
                 # out.append(item_out)
 
@@ -233,7 +233,7 @@ async def geneach(list_name, stop=None, max_iterations=100, min_iterations=0, nu
    
     # if we have stopped executing, we need to add the loop to the output so it can be executed later
     if not parser.executing:
-        variable_stack["_prefix"] += parser_node.text
+        variable_stack["@raw_prefix"] += parser_node.text
 
     # return ""
     
