@@ -104,7 +104,7 @@ infix_operator_block = pp.infix_notation(code_chunk_no_infix, [
 
 code_chunk = pp.Forward().set_name("code_chunk")
 not_keyword = ~pp.FollowedBy(pp.Keyword("or") | pp.Keyword("else") | pp.Keyword("elif"))
-command_name = pp.Combine(not_keyword + pp.Word(pp.srange("[@A-Za-z_]"), pp.srange("[A-Za-z_0-9]")))
+command_name = pp.Combine(not_keyword + pp.Word(pp.srange("[@A-Za-z_]"), pp.srange("[A-Za-z_0-9\.]")))
 variable_name = pp.Word(pp.srange("[@A-Za-z_]"), pp.srange("[A-Za-z_0-9]"))
 variable_ref = not_keyword + pp.Group(pp.Word(pp.srange("[@A-Za-z_]"), pp.srange("[@A-Za-z_0-9\.\[\]\"'-]")))("variable_ref").set_name("variable_ref")
 keyword = pp.Group(pp.Keyword("break") | pp.Keyword("continue"))("keyword")

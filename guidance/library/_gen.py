@@ -10,7 +10,7 @@ log = logging.getLogger(__name__)
 
 async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_tokens=500, n=1, stream=None,
               temperature=0.0, top_p=1.0, logprobs=None, pattern=None, hidden=False, list_append=False,
-              save_prompt=False, token_healing=None, function_call="auto", _parser_context=None, **llm_kwargs):
+              save_prompt=False, token_healing=None, function_call="none", _parser_context=None, **llm_kwargs):
     ''' Use the LLM to generate a completion.
 
     Parameters

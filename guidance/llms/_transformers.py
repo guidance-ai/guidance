@@ -204,7 +204,7 @@ class TransformersSession(LLMSession):
 
         # handle function calling
         if "function_call" in generate_kwargs:
-            assert generate_kwargs["function_call"] == "auto", "Transformers only supports auto function calling right now!"
+            assert generate_kwargs["function_call"] in ["none"], "Transformers does not yet have function call support!"
             del generate_kwargs["function_call"]
 
         # handle caching

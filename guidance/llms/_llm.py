@@ -26,8 +26,7 @@ class LLM(metaclass=LLMMeta):
         self.model_name = "unknown"
 
         # these should all start with the @ symbol and are variables programs can use when running with this LLM
-        self.program_variables = {
-            "@tool_def": guidance("""
+        self.tool_def = guidance("""
 # Tools
 
 {{#if len(functions) > 0~}}
@@ -47,9 +46,15 @@ type {{function.name}} = (_: {
 
 {{/each~}}
 } // namespace functions
-{{~/if~}}""", functions=[]),
-            "@extract_function_call": extract_function_call
-        }
+{{~/if~}}""", functions=[])
+
+    def extract_function_call(self, text):
+        m = re.match(r"\n?\n?```typescript\nfunctions.([^\(]+)\((.*?)\)```", text, re.DOTALL)
+        if m:
+            return {
+                "name": m.group(1),
+                "kwargs": json.loads(m.group(2))
+            }
 
     def __call__(self, *args, asynchronous=False, **kwargs):
         """Creates a session and calls the LLM with the given arguments.
@@ -114,10 +119,6 @@ class LLMSession:
     def __exit__(self, exc_type, exc_value, traceback):
         pass
 
-    @property
-    def program_variables(self):
-        return self.llm.program_variables
-
     def _gen_key(self, args_dict):
         del args_dict["self"]  # skip the "self" arg
         return "_---_".join([str(v) for v in ([args_dict[k] for k in args_dict] + [self.llm.model_name, self.llm.__class__.__name__, self.llm.cache_version])])
@@ -157,10 +158,3 @@ class SyncSession:
 import re
 import json
 
-def extract_function_call(text):
-    m = re.match(r"\n?\n?```typescript\nfunctions.([^\(]+)\((.*?)\)```", text, re.DOTALL)
-    if m:
-        return {
-            "name": m.group(1),
-            "kwargs": json.loads(m.group(2))
-        }

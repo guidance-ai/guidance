@@ -81,7 +81,7 @@ async def add_text_to_chat_mode_generator(chat_mode):
 
                     # build the start of the function call (the follows the syntax that GPT says it wants when we ask it, and will be parsed by the @function_detector)
                     if not in_function_call:
-                        start_val = "\n\n```typescript\nfunctions."+c['delta']['function_call']["name"]+"("
+                        start_val = "\n```typescript\nfunctions."+c['delta']['function_call']["name"]+"("
                         if not c['text']:
                             c['text'] = start_val
                         else:

@@ -102,8 +102,6 @@ class ProgramExecutor():
         """ Execute the program.
         """
         self.llm_session = llm_session
-        if llm_session is not None:
-            self.program._variables.update(llm_session.program_variables)
         try:
             # first parse all the whitespace control
             # self.whitespace_control_visit(self.parse_tree)
@@ -174,7 +172,19 @@ class ProgramExecutor():
         elif node_name == 'partial':
             partial_program = variable_stack[node[0]["name"]]
             tree = grammar.parse_string(partial_program._text)
-            variable_stack.push({k: v for k,v in partial_program.variables().items() if k not in ["llm", "logging"] and k not in variable_stack})
+            partial_args = [await self.visit(child, variable_stack) for child in node["command_call"][1:]]
+            args = []
+            kwargs = {}
+            for arg in partial_args:
+                if isinstance(arg, PositionalArgument):
+                    args.append(arg.value)
+                elif isinstance(arg, NamedArgument):
+                    kwargs[arg.name] = arg.value
+            partial_vars = {k: v for k,v in partial_program.variables().items() if k not in ["llm", "logging"] and k not in variable_stack}
+            if len(args) > 0:
+                partial_vars["args"] = args
+            partial_vars.update(kwargs)
+            variable_stack.push(partial_vars)
             out = await self.visit(tree, variable_stack)
             variable_stack.pop()
             return out
@@ -300,9 +310,9 @@ class ProgramExecutor():
                 # check for a generated call statement
                 named_args = {}
                 if isinstance(command_function, str):
-                    call_details = variable_stack["@extract_function_call"](command_function)
+                    call_details = variable_stack["llm.extract_function_call"](command_function)
                     if call_details is None:
-                        raise Exception(f"Can't call the string (there is no function call recognized by @extract_function_call in it): {command_function}")
+                        raise Exception(f"Can't call the string (there is no function call recognized by `llm.extract_function_call` in it): {command_function}")
                     
                     command_function = call_details["name"]
                     if command_function not in variable_stack:
