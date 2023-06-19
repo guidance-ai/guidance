@@ -20,7 +20,7 @@ class MalformedPromptException(Exception):
 
 import pyparsing as pp
 
-role_start_tag = pp.Suppress(pp.Literal("<|im_start|>"))
+role_start_tag = pp.Suppress(pp.Optional(pp.White()) + pp.Literal("<|im_start|>"))
 role_start_name = pp.Word(pp.alphanums + "_")("role_name")
 role_kwargs = pp.Suppress(pp.Optional(" ")) + pp.Dict(pp.Group(pp.Word(pp.alphanums + "_") + pp.Suppress("=") + pp.QuotedString('"')))("kwargs")
 role_start = (role_start_tag + role_start_name + pp.Optional(role_kwargs) + pp.Suppress("\n")).leave_whitespace()
