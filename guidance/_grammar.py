@@ -38,7 +38,7 @@ literal = pp.Forward().set_name("literal")
 # basic literals
 string_literal = pp.Group(pp.Suppress('"') + pp.ZeroOrMore(pp.CharsNotIn('"')) + pp.Suppress('"') | pp.Suppress("'") + pp.ZeroOrMore(pp.CharsNotIn("'")) + pp.Suppress("'"))("string_literal")
 number_literal = pp.Group(pp.Word(pp.srange("[0-9.]")))("number_literal")
-boolean_literal = pp.Group("True" | pp.Literal("False"))("boolean_literal")
+boolean_literal = pp.Group(pp.Keyword("True") | pp.Keyword("False"))("boolean_literal")
 
 # object literal
 object_literal = pp.Forward().set_name("object_literal")
@@ -85,18 +85,25 @@ class UnOp(OpNode):
 
 class BinOp(OpNode):
     def __init__(self, tokens):
-        self.operator = tokens[0][1]
-        self.lhs = tokens[0][0]
-        self.rhs = tokens[0][2]
+        self.lhs = tokens[0].pop(0)
+
+        # convert sequence of `a op b op c` to recursive
+        # `((a op b) op c)` since executor expects just
+        # two operands with an infix operator
+        while len(tokens[0]) > 2:
+            self.lhs = BinOp([[self.lhs, tokens[0].pop(0), tokens[0].pop(0)]])
+
+        # last operator and operand are the only two left
+        self.operator, self.rhs = tokens[0]
         self.name = "binary_operator"
 
 infix_operator_block = pp.infix_notation(code_chunk_no_infix, [
     ('-', 1, pp.OpAssoc.RIGHT),
-    (pp.one_of('* /'), 2, pp.OpAssoc.LEFT, BinOp),
+    (pp.one_of('* /'), 2, pp.OpAssoc.LEFT, BinOp),  # TODO - '/' operator not yet fully implemented
     (pp.one_of('+ -'), 2, pp.OpAssoc.LEFT, BinOp),
-    (pp.one_of('< > <= >= == != is in'), 2, pp.OpAssoc.LEFT, BinOp),
-    (pp.one_of('and'), 2, pp.OpAssoc.LEFT, BinOp),
-    (pp.one_of('or'), 2, pp.OpAssoc.LEFT, BinOp),
+    (pp.one_of('< > <= >= == != is in', as_keyword=True), 2, pp.OpAssoc.LEFT, BinOp),
+    (pp.Keyword('and'), 2, pp.OpAssoc.LEFT, BinOp),
+    (pp.Keyword('or'), 2, pp.OpAssoc.LEFT, BinOp),
 ])
 
 
@@ -106,7 +113,7 @@ code_chunk = pp.Forward().set_name("code_chunk")
 not_keyword = ~pp.FollowedBy(pp.Keyword("or") | pp.Keyword("else") | pp.Keyword("elif"))
 command_name = pp.Combine(not_keyword + pp.Word(pp.srange("[A-Za-z_]"), pp.srange("[A-Za-z_0-9]")))
 variable_name = pp.Word(pp.srange("[@A-Za-z_]"), pp.srange("[A-Za-z_0-9]"))
-variable_ref = not_keyword + pp.Group(pp.Word(pp.srange("[@A-Za-z_]"), pp.srange("[@A-Za-z_0-9\.\[\]\"'-]")))("variable_ref").set_name("variable_ref")
+variable_ref = not_keyword + pp.Group(pp.Word(pp.srange("[@A-Za-z_]"), pp.srange(r"""[@A-Za-z_0-9.[\]"'-]""")))("variable_ref").set_name("variable_ref")
 keyword = pp.Group(pp.Keyword("break") | pp.Keyword("continue"))("keyword")
 
 class SavedTextNode:

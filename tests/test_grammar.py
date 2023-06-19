@@ -27,6 +27,10 @@ def test_infix_plus():
     prompt = guidance("Hello, {{1 + 2}}!")
     assert str(prompt()) == "Hello, 3!"
 
+def test_infix_plus_multi_operand():
+    prompt = guidance("Hello, {{1 + 2 - 2 * 14 + 3}}!")
+    assert str(prompt()) == "Hello, -22!"
+
 def test_infix_plus_nested():
     prompt = guidance("Hello, {{set 'variable' 1 + 2}}!")
     assert prompt()["variable"] == 3
@@ -48,7 +52,7 @@ def test_comment_ws_strip():
     assert str(prompt()) == "Hello,Bob!"
 
 def test_escape_command():
-    prompt = guidance("Hello, \{{command}} Bob!")
+    prompt = guidance(r"Hello, \{{command}} Bob!")
     assert str(prompt()) == "Hello, {{command}} Bob!"
 
 def test_indexing():
