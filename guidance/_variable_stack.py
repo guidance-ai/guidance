@@ -19,7 +19,7 @@ class VariableStack:
         out = self._stack.pop()
 
         # if we are popping a _prefix variable state we need to update the display
-        if "_prefix" in self._stack[-1]:
+        if "@raw_prefix" in self._stack[-1]:
             self._executor.program.update_display()
         
         return out
@@ -30,8 +30,8 @@ class VariableStack:
     def get(self, name, default_value=None):
 
         # prefix is a special variable that returns the current prefix without the marker tags
-        if name == "prefix":
-            return strip_markers(self.get("_prefix", ""))
+        if name == "@prefix":
+            return strip_markers(self.get("@raw_prefix", ""))
 
         parts = re.split(r"\.|\[", name)
         for variables in reversed(self._stack):
@@ -39,11 +39,19 @@ class VariableStack:
             found = True
             for part in parts:
                 if part.endswith("]"):
-                    var_part = ast.literal_eval(part[:-1])
+                    if re.match(r"['\"0-9].*", part):
+                        var_part = ast.literal_eval(part[:-1])
+                    else:
+                        var_part = self.get(part[:-1])
                 else:
                     var_part = part
                 try:
-                    next_pos = curr_pos[var_part]
+
+                    # check for special computed properties of string values
+                    if isinstance(curr_pos, str) and var_part == "function_name":
+                        next_pos = self["@extract_function_call"](curr_pos)["name"]
+                    else:
+                        next_pos = curr_pos[var_part]
                     next_found = True
                 except KeyError:
                     next_found = False
@@ -58,6 +66,17 @@ class VariableStack:
 
     def __contains__(self, name):
         return self.get(name, _NO_VALUE) != _NO_VALUE
+    
+    def __delitem__(self, key):
+        """Note this only works for simple variables, not nested variables."""
+        found = True
+        for variables in reversed(self._stack):
+            if key in variables:
+                del variables[key]
+                found = True
+                break
+        if not found:
+            raise KeyError(key)
 
     def __setitem__(self, key, value):
         parts = re.split(r"\.|\[", key)
@@ -68,7 +87,10 @@ class VariableStack:
             found = True
             for part in parts:
                 if part.endswith("]"):
-                    var_part = ast.literal_eval(part[:-1])
+                    if re.match(r"[-'\"0-9].*", part):
+                        var_part = ast.literal_eval(part[:-1])
+                    else:
+                        var_part = self.get(part[:-1])
                 else:
                     var_part = part
                 try:
@@ -97,7 +119,7 @@ class VariableStack:
             self._stack[0][key] = value
         
         # if we changed the _prefix variable, update the display
-        if changed and key == "_prefix" and not self.get("_no_display", False):
+        if changed and key == "@raw_prefix" and not self["@no_display"]:
             self._executor.program.update_display()
 
     def copy(self):

@@ -4,20 +4,21 @@ import re
 import html
 import uuid
 import sys
-import parsimonious
+# import parsimonious
 import logging
 import copy
 import asyncio
 import pathlib
 import os
 import traceback
+import importlib
 import time
 import datetime
 import nest_asyncio
-from .llms import _openai
+# from .llms import _openai
 from . import _utils
 from ._program_executor import ProgramExecutor
-from . import library
+from . import commands
 import guidance
 log = logging.getLogger(__name__)
 
@@ -104,17 +105,8 @@ class Program:
         log : bool or Log
             If True, the program will log all the commands that are executed into the `program.log` property.
             If a Log object is passed in, it will be used as the log instead of creating a new one.
-        functions : List[Dict[str, Any]]
-            If given, this is a list of functions that can be called from the program. Each function
-            should be a dict with the following keys:
-                name: str
-                    The name of the function. This is what you will call from the program.
-                description: str
-                    A description of what the function does.
-                parameters: List[Dict[str, Any]]
-                    A dict of the params the function takes 
         """
-        
+
         # see if we were given a raw function instead of a string template
         # if so, convert it to a string template that calls the function
         if not isinstance(text, str) and callable(text):
@@ -150,6 +142,12 @@ class Program:
         self._variables.update({
             "llm": llm
         })
+        kwargs.pop("self", None)
+        kwargs = dict(kwargs)
+        for k in list(kwargs.keys()): # handle @varname syntax
+            if k.startswith("_AT_"):
+                kwargs["@"+k[4:]] = kwargs[k]
+                kwargs.pop(k)
         self._variables.update(kwargs)
         
         # set internal state variables
@@ -172,10 +170,10 @@ class Program:
         self.update_display = DisplayThrottler(self._update_display, self.display_throttle_limit)
 
         # see if we are in an ipython environment
+        # check if get_ipython variable exists
         try:
-            from IPython import get_ipython
             self._ipython = get_ipython()
-        except:
+        except NameError:
             self._ipython = None
         
         # if we are echoing in ipython we assume we can display html
@@ -231,7 +229,6 @@ class Program:
         use the python `await` keyword if you want to ensure the program is finished (note that is different than
         the `await` guidance langauge command, which will cause the program to stop execution at that point).
         """
-        # print("Calling program", self.functions)
 
         # merge the given kwargs with the current variables
         kwargs = {**{
@@ -246,7 +243,6 @@ class Program:
             "llm": self.llm,
         }, **kwargs}
 
-        print("Calling program with kwargs", kwargs)
         log.debug(f"in __call__ with kwargs: {kwargs}")
 
         # create a new program object that we will execute in-place
@@ -422,7 +418,6 @@ class Program:
         from a template into a completed string (with variables stored). At each point
         in this process the current template remains valid.
         """
-        # print("Executing program", self.functions)
 
         log.debug(f"Executing program (self.async_mode={self.async_mode}, self.silent={self.silent}, self._displaying_html={self._displaying_html})")
         
@@ -436,7 +431,7 @@ class Program:
         else:
             with self.llm.session(asynchronous=True) as llm_session:
                 await self._executor.run(llm_session)
-        self._text = self._variables["_prefix"]
+        self._text = self._variables["@raw_prefix"]
 
         # delete the executor and so mark the program as not executing
         self._executor = None
@@ -483,7 +478,7 @@ class Program:
     @property
     def marked_text(self):
         if self._executor is not None:
-            return self._variables["_prefix"]
+            return self._variables["@raw_prefix"]
         else:
             return self._text
     
@@ -531,13 +526,16 @@ class Program:
             
             # if we have a generic role tag then the role name is an attribute
             if role_name == "role":
-                role_name = re.search(r"name=([^ ]*)", tag_text).group(1)
+                role_name = re.search(r"role_name=([^ ]*)", tag_text).group(1)
             
             start_pattern = html.escape(self.llm.role_start(role_name)).replace("|", r"\|")
+            start_pattern_with_name = html.escape(self.llm.role_start(role_name, __ARxG__="__VAxLUE__")).replace("|", r"\|") # TODO: make this more general for multiple keyword args
+            start_pattern_with_name = start_pattern_with_name.replace("__VAxLUE__", "[^\n]*?").replace("__ARxG__", "[^=]*?")
             end_pattern = html.escape(self.llm.role_end(role_name)).replace("|", r"\|")
 
             # strip the start and end patterns from the content
             content = re.sub("^" + start_pattern, "", content, flags=re.DOTALL)
+            content = re.sub("^" + start_pattern_with_name, "", content, flags=re.DOTALL)
             content = re.sub(end_pattern + "$", "", content, flags=re.DOTALL)
 
             
@@ -566,28 +564,32 @@ class Program:
         display_out = re.sub(r"{{!--GMARKER_START[^}]*--}}{{!--GHIDDEN:(.*?)--}}{{!--GMARKER_END[^}]*--}}", "", display_out, flags=re.DOTALL)
         
         # if we have role markers, we wrap them in special formatting
-        if re.search(r"{{!--GMARKER_START_(role|system|user|assistant)", display_out) is not None:
+        if re.search(r"{{!--GMARKER_START_(role|system|user|assistant|function)", display_out) is not None:
 
             # start_pattern = html.escape(self.llm.role_start("assistant")).replace("|", r"\|").replace(r"assistant", r"([^\n]*)").replace(r"ASSISTANT", r"([^\n]*)")
             # end_pattern = html.escape(self.llm.role_end("assistant")).replace("|", r"\|").replace(r"assistant", r"([^\n]*)").replace(r"ASSISTANT", r"([^\n]*)")
             
             # strip whitespace before role markers
-            display_out = re.sub(r"\s*{{!--GMARKER_START_(role|system|user|assistant)\$(.*?)--}}", r"{{!--GMARKER_START_\1$\2--}}", display_out, flags=re.DOTALL)
+            display_out = re.sub(r"\s*{{!--GMARKER_START_(role|system|user|assistant|function)\$(.*?)--}}", r"{{!--GMARKER_START_\1$\2--}}", display_out, flags=re.DOTALL)
 
             # strip whitespace after role markers
             # TODO: support end_patterns with capture groups
-            display_out = re.sub(r"{{!--GMARKER_END_(role|system|user|assistant)\$(.*?)--}}\s*", r"{{!--GMARKER_END_\1$\2--}}", display_out, flags=re.DOTALL)
+            display_out = re.sub(r"{{!--GMARKER_END_(role|system|user|assistant|function)\$(.*?)--}}\s*", r"{{!--GMARKER_END_\1$\2--}}", display_out, flags=re.DOTALL)
+
+            if "GMARKER_START_function" in display_out:
+                display_out += ""
+                pass
 
             # wrap role markers in nice formatting
-            display_out = re.sub(r"{{!--GMARKER_START_(role|system|user|assistant)\$(.*?)--}}" + "(.*?)" + r"{{!--GMARKER_END_(role|system|user|assistant)\$(.*?)--}}", role_box, display_out, flags=re.DOTALL)
+            display_out = re.sub(r"{{!--GMARKER_START_(role|system|user|assistant|function)\$(.*?)--}}" + "(.*?)" + r"{{!--GMARKER_END_(role|system|user|assistant|function)\$(.*?)--}}", role_box, display_out, flags=re.DOTALL)
 
             # wrap unfinished role markers in nice formatting
-            display_out = re.sub(r"{{!--GMARKER_START_(role|system|user|assistant)\$(.*?)--}}" + "(.*)", role_box, display_out, flags=re.DOTALL)
+            display_out = re.sub(r"{{!--GMARKER_START_(role|system|user|assistant|function)\$(.*?)--}}" + "(.*)", role_box, display_out, flags=re.DOTALL)
         
         display_out = re.sub(r"(\{\{generate.*?\}\})", r"<span style='background-color: rgba(0, 165, 0, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
         display_out = re.sub(r"(\{\{#select\{\{/select.*?\}\})", r"<span style='background-color: rgba(0, 165, 0, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
         display_out = re.sub(r"(\{\{#each [^'\"].*?\{\{/each.*?\}\})", r"<span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
-        display_out = re.sub(r"(\{\{(?!\!)(?!generate)(?!#select)(?!#each)(?!/each)(?!/select).*?\}\})", r"<span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
+        # display_out = re.sub(r"(\{\{(?!\!)(?!generate)(?!#select)(?!#each)(?!/each)(?!/select).*?\}\})", r"<span style='font-family: monospace; background-color: rgba(0, 0, 0, 0.05);'>\1</span>", display_out, flags=re.DOTALL)
                 
 
         # format the generate command results
@@ -686,32 +688,41 @@ def add_spaces(s):
     return s
 
 _built_ins = {
-    "gen": library.gen,
-    "each": library.each,
-    "geneach": library.geneach,
-    "select": library.select,
-    "if": library.if_,
-    "unless": library.unless,
-    "add": library.add,
-    "subtract": library.subtract,
-    "strip": library.strip,
-    "block": library.block,
-    "set": library.set,
-    "await": library.await_,
-    "role": library.role,
-    "user": library.user,
-    "system": library.system,
-    "assistant": library.assistant,
-    "function": library.function,
-    "break": library.break_,
-    "equal": library.equal,
-    "==": library.equal,
-    "greater": library.greater,
-    ">": library.greater,
-    "less": library.less,
-    "<": library.less,
-    "contains": library.contains,
-    "parse": library.parse
+    "gen": commands.gen,
+    "each": commands.each,
+    "geneach": commands.geneach,
+    "select": commands.select,
+    "if": commands.if_,
+    "unless": commands.unless,
+    "add": commands.add,
+    "BINARY_OPERATOR_+": commands.add,
+    "subtract": commands.subtract,
+    "BINARY_OPERATOR_-": commands.subtract,
+    "multiply": commands.multiply,
+    "BINARY_OPERATOR_*": commands.multiply,
+    "strip": commands.strip,
+    "block": commands.block,
+    "set": commands.set,
+    "await": commands.await_,
+    "role": commands.role,
+    "user": commands.user,
+    "system": commands.system,
+    "assistant": commands.assistant,
+    "function": commands.function,
+    "break": commands.break_,
+    "equal": commands.equal,
+    "BINARY_OPERATOR_==": commands.equal,
+    "notequal": commands.notequal,
+    "BINARY_OPERATOR_!=": commands.notequal,
+    "greater": commands.greater,
+    "BINARY_OPERATOR_>": commands.greater,
+    "less": commands.less,
+    "BINARY_OPERATOR_<": commands.less,
+    "contains": commands.contains,
+    "parse": commands.parse,
+    "callable": commands.callable,
+    "len": commands.len,
+    "range": commands.range,
 }
 
 class DisplayThrottler():

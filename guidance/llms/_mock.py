@@ -62,10 +62,10 @@ class Mock(LLM):
         else:
             return out
         
-    def role_start(self, role):
-        return "<|im_start|>"+role+"\n"
+    def role_start(self, role_name, **kwargs):
+        return "<|im_start|>"+role_name+[f' {k}="{v}"' for k,v in kwargs.iteritems()]+"\n"
     
-    def role_end(self, role=None):
+    def role_end(self, role_name=None):
         return "<|im_end|>"
     
 class MockTokenizer():
