@@ -17,6 +17,7 @@ class Mock(LLM):
             dictionary key that matches a suffix of the input prompt, and use
             the string or list value associated with that key for generation.
         """
+        super().__init__()
 
         # make sure the output is always a dictionary of lists
         if output is None:
@@ -63,7 +64,7 @@ class Mock(LLM):
             return out
         
     def role_start(self, role_name, **kwargs):
-        return "<|im_start|>"+role_name+[f' {k}="{v}"' for k,v in kwargs.iteritems()]+"\n"
+        return "<|im_start|>"+role_name+"".join([f' {k}="{v}"' for k,v in kwargs.items()])+"\n"
     
     def role_end(self, role_name=None):
         return "<|im_end|>"
