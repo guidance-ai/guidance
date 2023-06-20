@@ -55,7 +55,7 @@ type {{function.name}} = (_: {
         m = re.match(r"\n?\n?```typescript\nfunctions.([^\(]+)\((.*?)\)```", text, re.DOTALL)
 
         if m:
-            return CallableAnswer(m.group(1), **json.loads(m.group(2)))
+            return CallableAnswer(m.group(1), m.group(2))
 
     def __call__(self, *args, asynchronous=False, **kwargs):
         """Creates a session and calls the LLM with the given arguments.
@@ -157,15 +157,19 @@ class SyncSession:
         )
 
 class CallableAnswer:
-    def __init__(self, name, function=None, **kwargs):
+    def __init__(self, name, args_string, function=None):
         self.__name__ = name
-        self._function = function
-        self.__kwdefaults__ = kwargs
+        self.args_string = args_string
 
     def __call__(self, *args, **kwargs):
         if self._function is None:
             raise NotImplementedError(f"Answer {self.__name__} has no function defined")
         return self._function(*args, **self.__kwdefaults__, **kwargs)
+    
+    @property
+    def __kwdefaults__(self):
+        """We build this lazily in case the user wants to handle validation errors themselves."""
+        return json.loads(self.args_string)
 
     def __repr__(self):
         return f"CallableAnswer(__name__={self.__name__}, __kwdefaults__={self.__kwdefaults__})"
