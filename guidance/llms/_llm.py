@@ -1,10 +1,10 @@
-from typing import Any, Dict, Optional, Callable
+from typing import Any, Dict
 import asyncio
 import re
 import json
-
 import guidance
-from .caches import Cache, DiskCache
+
+from .caches import DiskCache
 
 class LLMMeta(type):
     def __init__(cls, *args, **kwargs):

@@ -5,7 +5,6 @@ import regex
 import pygtrie
 import queue
 import threading
-import logging
 import collections.abc
 from ._llm import LLM, LLMSession, SyncSession
 

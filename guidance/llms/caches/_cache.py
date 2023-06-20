@@ -1,6 +1,6 @@
 import json
 import hashlib
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 from abc import ABC, abstractmethod
 
 

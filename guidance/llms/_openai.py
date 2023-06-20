@@ -690,7 +690,6 @@ class OpenAISession(LLMSession):
 
 
 import os
-import atexit
 import json
 import platformdirs
 from ._openai import OpenAI

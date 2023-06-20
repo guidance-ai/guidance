@@ -1,4 +1,3 @@
-from typing import Any
 import pyparsing as pp
 
 pp.ParserElement.enable_packrat()

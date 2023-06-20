@@ -1,4 +1,3 @@
-import itertools
 import pygtrie
 import numpy as np
 from .._utils import ContentCapture
