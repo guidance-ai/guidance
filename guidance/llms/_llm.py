@@ -1,5 +1,7 @@
 from typing import Any, Dict, Optional, Callable
 import asyncio
+import re
+import json
 
 import guidance
 from .caches import Cache, DiskCache
@@ -47,14 +49,13 @@ type {{function.name}} = (_: {
 {{/each~}}
 } // namespace functions
 {{~/if~}}""", functions=[])
+        self.function_call_stop_regex = r"\n?\n?```typescript\nfunctions.[^\(]+\(.*?\)```"
 
     def extract_function_call(self, text):
         m = re.match(r"\n?\n?```typescript\nfunctions.([^\(]+)\((.*?)\)```", text, re.DOTALL)
+
         if m:
-            return {
-                "name": m.group(1),
-                "kwargs": json.loads(m.group(2))
-            }
+            return CallableAnswer(m.group(1), **json.loads(m.group(2)))
 
     def __call__(self, *args, asynchronous=False, **kwargs):
         """Creates a session and calls the LLM with the given arguments.
@@ -155,6 +156,16 @@ class SyncSession:
             self._session.__call__(*args, **kwargs)
         )
 
-import re
-import json
+class CallableAnswer:
+    def __init__(self, name, function=None, **kwargs):
+        self.__name__ = name
+        self._function = function
+        self.__kwdefaults__ = kwargs
 
+    def __call__(self, *args, **kwargs):
+        if self._function is None:
+            raise NotImplementedError(f"Answer {self.__name__} has no function defined")
+        return self._function(*args, **self.__kwdefaults__, **kwargs)
+
+    def __repr__(self):
+        return f"CallableAnswer(__name__={self.__name__}, __kwdefaults__={self.__kwdefaults__})"

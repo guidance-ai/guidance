@@ -5,7 +5,7 @@ import asyncio
 import builtins
 from .._utils import ContentCapture
 
-async def each(list, hidden=False, parallel=False, item_name="this", _parser_context=None):
+async def each(list, hidden=False, parallel=False, item_name="this", start_index=0, _parser_context=None):
     ''' Iterate over a list and execute a block for each item.
 
     Parameters
@@ -48,6 +48,8 @@ async def each(list, hidden=False, parallel=False, item_name="this", _parser_con
          # set up the coroutines to call
         coroutines = []
         for i, item in enumerate(list):
+            if i < start_index: # skip items before the start index
+                continue
             context = {
                 "@index": i,
                 "@first": i == 0,
@@ -99,13 +101,20 @@ async def each(list, hidden=False, parallel=False, item_name="this", _parser_con
                     prev_node=_parser_context["prev_node"]
                 )
                 out.append(str(new_content))
+            variable_stack.pop()
+
+            # if we stopped executing then we need to dump our node text back out but with the start_index incremented to account for what we've already done
+            if not parser.executing:
+                updated_text = re.sub(r"^({{~?#each.*?)(~?}})", r"\1 start_index="+str(i+1)+r"\2", _parser_context["parser_node"].text)
+                variable_stack["@raw_prefix"] += updated_text
+                break
 
             # check if the block has thrown a stop iteration signal
             if parser.caught_stop_iteration:
                 parser.caught_stop_iteration = False
                 break
         
-            variable_stack.pop()
+            
     
     # if not hidden:
         #return "{{!--GMARKER_each$$--}}" + "{{!--GMARKER_each$$--}}".join(out) + "{{!--GMARKER_each$$--}}" + suffix

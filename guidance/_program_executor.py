@@ -297,6 +297,10 @@ class ProgramExecutor():
             else:
                 command_name = node[0]
                 args = []
+
+            # if the command arguments stopped execution, we don't execute the command
+            if not self.executing:
+                return
             
             # return_value = ""
             if command_name in variable_stack:
@@ -310,16 +314,16 @@ class ProgramExecutor():
                 # check for a generated call statement
                 named_args = {}
                 if isinstance(command_function, str):
-                    call_details = variable_stack["llm.extract_function_call"](command_function)
+                    call_details = variable_stack["extract_function_call"](command_function)
                     if call_details is None:
-                        raise Exception(f"Can't call the string (there is no function call recognized by `llm.extract_function_call` in it): {command_function}")
+                        raise Exception(f"Can't call the string (there is no function call recognized by `extract_function_call` in it): {command_function}")
                     
-                    command_function = call_details["name"]
+                    command_function = call_details.__name__
                     if command_function not in variable_stack:
                         raise Exception(f"Function {command_function} not found!")
                     else:
                         command_function = variable_stack[command_function]
-                        named_args = call_details["kwargs"]
+                        named_args = call_details.__kwdefaults__
 
 
                 # def update_return_value(s):

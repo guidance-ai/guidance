@@ -48,12 +48,17 @@ class VariableStack:
                 try:
 
                     # check for special computed properties of string values
-                    if isinstance(curr_pos, str) and var_part == "function_name":
-                        next_pos = self["llm.extract_function_call"](curr_pos)["name"]
+                    if isinstance(curr_pos, str) and var_part == "__name__":
+                        next_pos = self["extract_function_call"](curr_pos).__name__
+                    elif isinstance(curr_pos, str) and var_part == "__kwdefaults__":
+                        next_pos = self["extract_function_call"](curr_pos).__kwdefaults__
                     else:
-                        next_pos = curr_pos[var_part]
+                        if isinstance(var_part, str) and hasattr(curr_pos, var_part):
+                            next_pos = getattr(curr_pos, var_part)
+                        else:
+                            next_pos = curr_pos[var_part]
                     next_found = True
-                except KeyError:
+                except (KeyError, AttributeError, TypeError):
                     next_found = False
                 if next_found:
                     curr_pos = next_pos
@@ -62,6 +67,11 @@ class VariableStack:
                     break
             if found:
                 return curr_pos
+        
+        # fall back to pulling from the llm namespace
+        if not name.startswith("llm."):
+            return self.get("llm." + name, default_value)
+        
         if default_value is KeyError:
             raise KeyError("`" + name + "` was not found in the program's variables!")
         return default_value # variable not found

@@ -562,6 +562,9 @@ class Program:
 
         # strip out hidden blocks (might want to make a better UI for this at some point)
         display_out = re.sub(r"{{!--GMARKER_START[^}]*--}}{{!--GHIDDEN:(.*?)--}}{{!--GMARKER_END[^}]*--}}", "", display_out, flags=re.DOTALL)
+
+        # highlight command tags
+        display_out = re.sub(r"(\{\{(?!\!)(?!~\!).*?\}\})", r"<span style='font-family: monospace; background-color: rgba(0, 0, 0, 0.05);'>\1</span>", display_out, flags=re.DOTALL)
         
         # if we have role markers, we wrap them in special formatting
         if re.search(r"{{!--GMARKER_START_(role|system|user|assistant|function)", display_out) is not None:
@@ -654,8 +657,9 @@ cycle_IDVAL(this);'''.replace("IDVAL", id).replace("TOTALCOUNT", str(total_count
         display_out = re.sub(r"{{!--GMARKER_START_geneach\$([^\$]*)\$--}}", start_each, display_out)
         
         # format the set command results
-        display_out = re.sub(r"{{!--GMARKER_set\$([^\$]*)\$--}}", r"<div style='background-color: rgba(165, 165, 165, 0); border-radius: 4px 4px 4px 4px; border: 1px solid rgba(165, 165, 165, 1); border-left: 2px solid rgba(165, 165, 165, 1); border-right: 2px solid rgba(165, 165, 165, 1); padding-left: 0px; padding-right: 3px; color: rgb(165, 165, 165, 1.0); display: inline; font-weight: normal; overflow: hidden;'><div style='display: inline; background: rgba(165, 165, 165, 1); padding-right: 5px; padding-left: 4px; margin-right: 3px; color: #fff'>set</div>\1</div>", display_out)
-        display_out = re.sub(r"{{!--GMARKER_START_set\$([^\$]*)\$--}}", lambda x: "<span style='display: inline;' title='{}'>".format(undo_html_encode(x.group(1))), display_out)
+        # display_out = re.sub(r"{{!--GMARKER_set\$([^\$]*)\$--}}", r"<div style='background-color: rgba(165, 165, 165, 0); border-radius: 4px 4px 4px 4px; border: 1px solid rgba(165, 165, 165, 1); border-left: 2px solid rgba(165, 165, 165, 1); border-right: 2px solid rgba(165, 165, 165, 1); padding-left: 0px; padding-right: 3px; color: rgb(165, 165, 165, 1.0); display: inline; font-weight: normal; overflow: hidden;'><div style='display: inline; background: rgba(165, 165, 165, 1); padding-right: 5px; padding-left: 4px; margin-right: 3px; color: #fff'>set</div>\1</div>", display_out)
+        # display_out = re.sub(r"{{!--GMARKER_START_set\$([^\$]*)\$--}}", lambda x: "<span style='display: inline;' title='{}'>".format(undo_html_encode(x.group(1))), display_out)
+        display_out = re.sub(r"{{!--GMARKER_set\$([^\$]*)\$--}}", r"", display_out) # just hide them for now
 
         display_out = re.sub(r"{{!--GMARKER_START_select\$([^\$]*)\$--}}", start_generate_or_select, display_out)
         display_out = display_out.replace("{{!--GMARKER_END_select$$--}}", "</span>")
@@ -723,6 +727,7 @@ _built_ins = {
     "callable": commands.callable,
     "len": commands.len,
     "range": commands.range,
+    "UNARY_OPERATOR_not": commands.not_,
 }
 
 class DisplayThrottler():

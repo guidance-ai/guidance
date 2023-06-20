@@ -27,3 +27,4 @@ from ._notequal import notequal
 from ._callable import callable
 from ._range import range
 from ._len import len
+from ._not import not_
