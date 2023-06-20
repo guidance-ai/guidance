@@ -46,7 +46,7 @@ opt_ws = pp.Optional(ws)
 
 # long-form comments {{!-- my comment --}}
 command_end = pp.Suppress(opt_ws + "}}") | pp.Suppress(opt_ws + "~}}" + opt_ws)
-long_comment_start = pp.Suppress(pp.Literal("{{!--"))
+long_comment_start = pp.Suppress(pp.Literal("{{") + pp.Optional("~") + pp.Literal("!--"))
 long_comment_end =  pp.Suppress(pp.Literal("--") + command_end)
 not_long_comment_end = "-" + ~pp.FollowedBy("-}}") + ~pp.FollowedBy("-~}}")
 long_comment_content = not_long_comment_end | pp.OneOrMore(pp.CharsNotIn("-"))

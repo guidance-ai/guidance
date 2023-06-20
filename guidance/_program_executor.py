@@ -6,7 +6,6 @@ import asyncio
 import warnings
 import logging
 import pyparsing as pp
-from ._utils import strip_markers
 from ._grammar import grammar
 from ._variable_stack import VariableStack
 log = logging.getLogger(__name__)
@@ -162,11 +161,11 @@ class ProgramExecutor():
             return None
         
         elif node_name == 'long_comment':
-            variable_stack["@raw_prefix"] += node.text
+            if node.text.startswith("{{!--G"):
+                variable_stack["@raw_prefix"] += node.text
             return ""
         
         elif node_name == 'comment':
-            variable_stack["@raw_prefix"] += node.text
             return ""
         
         elif node_name == 'partial':
@@ -356,10 +355,8 @@ class ProgramExecutor():
                 sig = inspect.signature(command_function)
                 if "_parser_context" in sig.parameters:
                     named_args["_parser_context"] = {
-                        # "parser_prefix": strip_markers(self.prefix),
                         "parser": self,
                         "variable_stack": variable_stack,
-                        # "partial_output": partial_output,
                         "next_node": next_node,
                         "next_next_node": next_next_node,
                         "prev_node": prev_node,
@@ -503,10 +500,8 @@ class ProgramExecutor():
                 sig = inspect.signature(command_function)
                 if "_parser_context" in sig.parameters:
                     named_args["_parser_context"] = {
-                        "parser_prefix": strip_markers(variable_stack["@raw_prefix"]),
                         "parser": self,
                         "block_content": self.block_content[-1],
-                        # "partial_output": self.extend_prefix,
                         "variable_stack": variable_stack,
                         "parser_node": node,
                         "block_close_node": node[-1],
