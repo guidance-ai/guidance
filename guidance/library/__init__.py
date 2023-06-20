@@ -16,6 +16,7 @@ from ._role import role
 from ._user import user
 from ._system import system
 from ._assistant import assistant
+from ._function import function
 from ._break import break_
 from ._equal import equal
 from ._greater import greater
@@ -23,3 +24,7 @@ from ._less import less
 from ._contains import contains
 from ._parse import parse
 from ._notequal import notequal
+from ._callable import callable
+from ._range import range
+from ._len import len
+from ._not import not_

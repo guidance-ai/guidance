@@ -1,12 +1,13 @@
-__version__ = "0.0.63"
+__version__ = "0.0.64"
 
 import types
 import sys
 import os
 import requests
+from . import library as commands
 from ._program import Program
 from . import llms
-from . import library
+
 from ._utils import load, chain
 from . import selectors
 import nest_asyncio

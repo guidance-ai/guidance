@@ -6,7 +6,6 @@ import asyncio
 import warnings
 import logging
 import pyparsing as pp
-from ._utils import strip_markers
 from ._grammar import grammar
 from ._variable_stack import VariableStack
 log = logging.getLogger(__name__)
@@ -162,17 +161,29 @@ class ProgramExecutor():
             return None
         
         elif node_name == 'long_comment':
-            variable_stack["@raw_prefix"] += node.text
+            if node.text.startswith("{{!--G"):
+                variable_stack["@raw_prefix"] += node.text
             return ""
         
         elif node_name == 'comment':
-            variable_stack["@raw_prefix"] += node.text
             return ""
         
         elif node_name == 'partial':
             partial_program = variable_stack[node[0]["name"]]
             tree = grammar.parse_string(partial_program._text)
-            variable_stack.push({k: v for k,v in partial_program.variables().items() if k not in ["llm", "logging"]})
+            partial_args = [await self.visit(child, variable_stack) for child in node["command_call"][1:]]
+            args = []
+            kwargs = {}
+            for arg in partial_args:
+                if isinstance(arg, PositionalArgument):
+                    args.append(arg.value)
+                elif isinstance(arg, NamedArgument):
+                    kwargs[arg.name] = arg.value
+            partial_vars = {k: v for k,v in partial_program.variables().items() if k not in ["llm", "logging"] and k not in variable_stack}
+            if len(args) > 0:
+                partial_vars["args"] = args
+            partial_vars.update(kwargs)
+            variable_stack.push(partial_vars)
             out = await self.visit(tree, variable_stack)
             variable_stack.pop()
             return out
@@ -285,6 +296,10 @@ class ProgramExecutor():
             else:
                 command_name = node[0]
                 args = []
+
+            # if the command arguments stopped execution, we don't execute the command
+            if not self.executing:
+                return
             
             # return_value = ""
             if command_name in variable_stack:
@@ -294,6 +309,21 @@ class ProgramExecutor():
                 if node_name == "variable_ref":
                     command_value = command_function
                     command_function = lambda: command_value
+
+                # check for a generated call statement
+                named_args = {}
+                if isinstance(command_function, str):
+                    call_details = variable_stack["extract_function_call"](command_function)
+                    if call_details is None:
+                        raise Exception(f"Can't call the string (there is no function call recognized by `extract_function_call` in it): {command_function}")
+                    
+                    command_function = call_details.__name__
+                    if command_function not in variable_stack:
+                        raise Exception(f"Function {command_function} not found!")
+                    else:
+                        command_function = variable_stack[command_function]
+                        named_args = call_details.__kwdefaults__
+
 
                 # def update_return_value(s):
                 #     nonlocal return_value
@@ -305,7 +335,7 @@ class ProgramExecutor():
                 #         return_value += "" if s is None else str(s)
 
                 # If we are a top level command we extend the prefix
-                top_level = grandparent_node is not None and grandparent_node.get_name() == "command"
+                top_level = parent_node is not None and parent_node.get_name() == "command"
                     # partial_output = self.extend_prefix
                     # pass
                 
@@ -313,11 +343,10 @@ class ProgramExecutor():
                 if not top_level:
                     # partial_output = update_return_value
                     pos = len(variable_stack["@raw_prefix"])
-                    variable_stack.push({"@raw_prefix": variable_stack["@raw_prefix"], "_no_display": True})
+                    variable_stack.push({"@raw_prefix": variable_stack["@raw_prefix"], "@no_display": True})
 
                 # create the arguments for the command
                 positional_args = []
-                named_args = {}
                 for arg in args:
                     if isinstance(arg, PositionalArgument):
                         positional_args.append(arg.value)
@@ -326,10 +355,8 @@ class ProgramExecutor():
                 sig = inspect.signature(command_function)
                 if "_parser_context" in sig.parameters:
                     named_args["_parser_context"] = {
-                        # "parser_prefix": strip_markers(self.prefix),
                         "parser": self,
                         "variable_stack": variable_stack,
-                        # "partial_output": partial_output,
                         "next_node": next_node,
                         "next_next_node": next_next_node,
                         "prev_node": prev_node,
@@ -473,10 +500,8 @@ class ProgramExecutor():
                 sig = inspect.signature(command_function)
                 if "_parser_context" in sig.parameters:
                     named_args["_parser_context"] = {
-                        "parser_prefix": strip_markers(variable_stack["@raw_prefix"]),
                         "parser": self,
                         "block_content": self.block_content[-1],
-                        # "partial_output": self.extend_prefix,
                         "variable_stack": variable_stack,
                         "parser_node": node,
                         "block_close_node": node[-1],

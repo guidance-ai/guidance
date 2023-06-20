@@ -39,17 +39,21 @@ def test_comment():
     prompt = guidance("Hello, {{! this is a comment}}Bob!")
     assert str(prompt()) == "Hello, Bob!"
 
+def test_comment2():
+    prompt = guidance("Hello, {{! this is a comment}}Bob!{{@prefix}}")
+    assert str(prompt()) == "Hello, Bob!Hello, Bob!"
+
 def test_long_comment():
-    prompt = guidance("Hello, {{!-- this is a comment --}}Bob!")
-    assert str(prompt()) == "Hello, Bob!"
+    prompt = guidance("Hello, {{!-- this is a comment --}}Bob!{{@prefix}}")
+    assert str(prompt()) == "Hello, Bob!Hello, Bob!"
 
 def test_long_comment_ws_strip():
-    prompt = guidance("Hello, {{~!-- this is a comment --~}} Bob!")
-    assert str(prompt()) == "Hello,Bob!"
+    prompt = guidance("Hello, {{~!-- this is a comment --~}} Bob!{{@prefix}}")
+    assert str(prompt()) == "Hello,Bob!Hello,Bob!"
 
 def test_comment_ws_strip():
-    prompt = guidance("Hello, {{~! this is a comment ~}} Bob!")
-    assert str(prompt()) == "Hello,Bob!"
+    prompt = guidance("Hello, {{~! this is a comment ~}} Bob!{{@prefix}}")
+    assert str(prompt()) == "Hello,Bob!Hello,Bob!"
 
 def test_escape_command():
     prompt = guidance(r"Hello, \{{command}} Bob!")
