@@ -4,6 +4,34 @@ pp.ParserElement.enable_packrat()
 # pp.enable_diag(pp.Diagnostics.enable_debug_on_named_expressions)
 # pp.autoname_elements()
 
+class SavedTextNode:
+    """A node that saves the text it matches."""
+    def __init__(self, s, loc, tokens):
+        start_pos = tokens[0]
+        if len(tokens) == 3:
+            end_pos = tokens[2]
+        else:
+            end_pos = loc
+        self.text = s[start_pos:end_pos]
+        assert len(tokens[1]) == 1
+        self.tokens = tokens[1][0]
+    def __repr__(self):
+        return "SavedTextNode({})".format(self.text) + self.tokens.__repr__()
+    def __getitem__(self, item):
+        return self.tokens[item]
+    def __len__(self):
+        return len(self.tokens)
+    def get_name(self):
+        return self.tokens.get_name()
+    def __contains__(self, item):
+        return item in self.tokens
+    def __getattr__(self, name):
+        return getattr(self.tokens, name)
+    def __call__(self, *args, **kwds):
+        return self.tokens(*args, **kwds)
+def SavedText(node):
+    return pp.Located(node).add_parse_action(SavedTextNode)
+
 program = pp.Forward()
 program_chunk = pp.Forward()
 
@@ -17,17 +45,17 @@ opt_ws = pp.Optional(ws)
 
 # long-form comments {{!-- my comment --}}
 command_end = pp.Suppress(opt_ws + "}}") | pp.Suppress(opt_ws + "~}}" + opt_ws)
-long_comment_start = pp.Suppress(pp.Literal("{{!--"))
+long_comment_start = pp.Suppress(pp.Literal("{{") + pp.Optional("~") + pp.Literal("!--"))
 long_comment_end =  pp.Suppress(pp.Literal("--") + command_end)
 not_long_comment_end = "-" + ~pp.FollowedBy("-}}") + ~pp.FollowedBy("-~}}")
 long_comment_content = not_long_comment_end | pp.OneOrMore(pp.CharsNotIn("-"))
-long_comment = pp.Group(pp.Combine(long_comment_start + pp.ZeroOrMore(long_comment_content) + long_comment_end))("long_comment").set_name("long_comment")
+long_comment = SavedText(pp.Group(pp.Combine(long_comment_start + pp.ZeroOrMore(long_comment_content) + long_comment_end))("long_comment").set_name("long_comment"))
 
 # short-form comments  {{! my comment }}
 comment_start = pp.Suppress("{{" + pp.Optional("~") + "!")
 not_comment_end = "}" + ~pp.FollowedBy("}") | "~" + ~pp.FollowedBy("}}")
 comment_content = not_comment_end | pp.OneOrMore(pp.CharsNotIn("~}"))
-comment = pp.Group(pp.Combine(comment_start + pp.ZeroOrMore(comment_content) + command_end))("comment")
+comment = SavedText(pp.Group(pp.Combine(comment_start + pp.ZeroOrMore(comment_content) + command_end))("comment"))
 
 
 ## literals ##
@@ -90,7 +118,7 @@ class BinOp(OpNode):
         self.name = "binary_operator"
 
 infix_operator_block = pp.infix_notation(code_chunk_no_infix, [
-    ('-', 1, pp.OpAssoc.RIGHT),
+    (pp.one_of('- not'), 1, pp.OpAssoc.RIGHT, UnOp),
     (pp.one_of('* /'), 2, pp.OpAssoc.LEFT, BinOp),
     (pp.one_of('+ -'), 2, pp.OpAssoc.LEFT, BinOp),
     (pp.one_of('< > <= >= == != is in'), 2, pp.OpAssoc.LEFT, BinOp),
@@ -102,39 +130,11 @@ infix_operator_block = pp.infix_notation(code_chunk_no_infix, [
 ## commands ##
 
 code_chunk = pp.Forward().set_name("code_chunk")
-not_keyword = ~pp.FollowedBy(pp.Keyword("or") | pp.Keyword("else") | pp.Keyword("elif"))
-command_name = pp.Combine(not_keyword + pp.Word(pp.srange("[A-Za-z_]"), pp.srange("[A-Za-z_0-9]")))
+not_keyword = ~pp.FollowedBy(pp.Keyword("or") | pp.Keyword("else") | pp.Keyword("elif") | pp.Keyword("not"))
+command_name = pp.Combine(not_keyword + pp.Word(pp.srange("[@A-Za-z_]"), pp.srange("[A-Za-z_0-9\.]")))
 variable_name = pp.Word(pp.srange("[@A-Za-z_]"), pp.srange("[A-Za-z_0-9]"))
 variable_ref = not_keyword + pp.Group(pp.Word(pp.srange("[@A-Za-z_]"), pp.srange("[@A-Za-z_0-9\.\[\]\"'-]")))("variable_ref").set_name("variable_ref")
 keyword = pp.Group(pp.Keyword("break") | pp.Keyword("continue"))("keyword")
-
-class SavedTextNode:
-    """A node that saves the text it matches."""
-    def __init__(self, s, loc, tokens):
-        start_pos = tokens[0]
-        if len(tokens) == 3:
-            end_pos = tokens[2]
-        else:
-            end_pos = loc
-        self.text = s[start_pos:end_pos]
-        assert len(tokens[1]) == 1
-        self.tokens = tokens[1][0]
-    def __repr__(self):
-        return "SavedTextNode({})".format(self.text) + self.tokens.__repr__()
-    def __getitem__(self, item):
-        return self.tokens[item]
-    def __len__(self):
-        return len(self.tokens)
-    def get_name(self):
-        return self.tokens.get_name()
-    def __contains__(self, item):
-        return item in self.tokens
-    def __getattr__(self, name):
-        return getattr(self.tokens, name)
-    def __call__(self, *args, **kwds):
-        return self.tokens(*args, **kwds)
-def SavedText(node):
-    return pp.Located(node).add_parse_action(SavedTextNode)
 
 # command arguments
 command_arg = pp.Forward()
@@ -200,7 +200,7 @@ unrelated_escape = "\\" + ~pp.FollowedBy(command_start)
 
 ## content ##
 
-not_command_start = "{" + ~pp.FollowedBy("{")
+not_command_start = "{" + ~pp.FollowedBy("{" + pp.CharsNotIn("{"))
 not_command_escape = "\\" + ~pp.FollowedBy("{{")
 stripped_whitespace = pp.Suppress(pp.Word(" \t\r\n")) + pp.FollowedBy("{{~")
 unstripped_whitespace = pp.Word(" \t\r\n") # no need for a negative FollowedBy because stripped_whitespace will match first

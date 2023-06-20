@@ -1,4 +1,4 @@
-async def await_(name, _parser_context=None):
+async def await_(name, consume="yes_for_now", _parser_context=None):
     ''' Awaits a variable by returning its value and then deleting it.
 
     Note that this is useful for repeatedly getting values since programs
@@ -21,7 +21,8 @@ async def await_(name, _parser_context=None):
         parser.executing = False
     else:
         value = variable_stack[name]
-        del variable_stack[name]
+        if consume:
+            del variable_stack[name]
         return value
     
     # cache = parser.program._await_cache

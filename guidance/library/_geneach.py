@@ -145,7 +145,7 @@ async def geneach(list_name, stop=None, max_iterations=100, min_iterations=0, nu
                 try:
                     gen_obj = await parser.llm_session(variable_stack["@prefix"], stop=stop, max_tokens=max_stop_tokens, temperature=0, cache_seed=0)
                 except Exception:
-                    raise Exception(f"Error generating stop tokens for geneach loop. Perhaps you are outside of role tags (assistant/user/system)? If you don't want the loop to check for stop tokens, set stop=False or set num_iterations.")
+                    raise Exception(f"Error generating stop tokens for geneach loop. Perhaps you are outside of role tags (assistant/user/system/function)? If you don't want the loop to check for stop tokens, set stop=False or set num_iterations.")
                 if gen_obj["choices"][0]["finish_reason"] == "stop":
                     break
     

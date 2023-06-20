@@ -1,6 +1,6 @@
 from .._utils import ContentCapture
 
-async def role(name, hidden=False, _parser_context=None):
+async def role(role_name, hidden=False, _parser_context=None, **kwargs):
     ''' A chat role block.
     '''
     block_content = _parser_context['block_content']
@@ -11,7 +11,7 @@ async def role(name, hidden=False, _parser_context=None):
     with ContentCapture(variable_stack, hidden) as new_content:
         
         # send the role-start special tokens
-        new_content += parser.program.llm.role_start(name)
+        new_content += parser.program.llm.role_start(role_name, **kwargs)
 
         # visit the block content
         new_content += await parser.visit(
@@ -23,5 +23,5 @@ async def role(name, hidden=False, _parser_context=None):
         )
 
         # send the role-end special tokens
-        new_content += parser.program.llm.role_end(name)
+        new_content += parser.program.llm.role_end(role_name)
 role.is_block = True

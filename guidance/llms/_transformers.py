@@ -201,6 +201,11 @@ class TransformersSession(LLMSession):
             stop_regex = []
         stop_regex.append(regex.escape(self.llm.tokenizer.eos_token)) # make sure the end of sequence token is always included
 
+        # handle function calling
+        if "function_call" in generate_kwargs:
+            assert generate_kwargs["function_call"] in ["none"], "Transformers does not yet have function call support!"
+            del generate_kwargs["function_call"]
+
         # handle caching
         in_cache = key in llm_cache
         not_caching = (caching is not True and not self.llm.caching) or caching is False

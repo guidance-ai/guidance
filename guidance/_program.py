@@ -14,7 +14,7 @@ import nest_asyncio
 # from .llms import _openai
 from . import _utils
 from ._program_executor import ProgramExecutor
-from . import library
+from . import commands
 import guidance
 log = logging.getLogger(__name__)
 
@@ -138,6 +138,12 @@ class Program:
         self._variables.update({
             "llm": llm
         })
+        kwargs.pop("self", None)
+        kwargs = dict(kwargs)
+        for k in list(kwargs.keys()): # handle @varname syntax
+            if k.startswith("_AT_"):
+                kwargs["@"+k[4:]] = kwargs[k]
+                kwargs.pop(k)
         self._variables.update(kwargs)
         
         # set internal state variables
@@ -516,13 +522,16 @@ class Program:
             
             # if we have a generic role tag then the role name is an attribute
             if role_name == "role":
-                role_name = re.search(r"name=([^ ]*)", tag_text).group(1)
+                role_name = re.search(r"role_name=([^ ]*)", tag_text).group(1)
             
             start_pattern = html.escape(self.llm.role_start(role_name)).replace("|", r"\|")
+            start_pattern_with_name = html.escape(self.llm.role_start(role_name, __ARxG__="__VAxLUE__")).replace("|", r"\|") # TODO: make this more general for multiple keyword args
+            start_pattern_with_name = start_pattern_with_name.replace("__VAxLUE__", "[^\n]*?").replace("__ARxG__", "[^=]*?")
             end_pattern = html.escape(self.llm.role_end(role_name)).replace("|", r"\|")
 
             # strip the start and end patterns from the content
             content = re.sub("^" + start_pattern, "", content, flags=re.DOTALL)
+            content = re.sub("^" + start_pattern_with_name, "", content, flags=re.DOTALL)
             content = re.sub(end_pattern + "$", "", content, flags=re.DOTALL)
 
             
@@ -549,30 +558,37 @@ class Program:
 
         # strip out hidden blocks (might want to make a better UI for this at some point)
         display_out = re.sub(r"{{!--GMARKER_START[^}]*--}}{{!--GHIDDEN:(.*?)--}}{{!--GMARKER_END[^}]*--}}", "", display_out, flags=re.DOTALL)
+
+        # highlight command tags
+        display_out = re.sub(r"(\{\{(?!\!)(?!~\!).*?\}\})", r"<span style='font-family: monospace; background-color: rgba(0, 0, 0, 0.05);'>\1</span>", display_out, flags=re.DOTALL)
         
         # if we have role markers, we wrap them in special formatting
-        if re.search(r"{{!--GMARKER_START_(role|system|user|assistant)", display_out) is not None:
+        if re.search(r"{{!--GMARKER_START_(role|system|user|assistant|function)", display_out) is not None:
 
             # start_pattern = html.escape(self.llm.role_start("assistant")).replace("|", r"\|").replace(r"assistant", r"([^\n]*)").replace(r"ASSISTANT", r"([^\n]*)")
             # end_pattern = html.escape(self.llm.role_end("assistant")).replace("|", r"\|").replace(r"assistant", r"([^\n]*)").replace(r"ASSISTANT", r"([^\n]*)")
             
             # strip whitespace before role markers
-            display_out = re.sub(r"\s*{{!--GMARKER_START_(role|system|user|assistant)\$(.*?)--}}", r"{{!--GMARKER_START_\1$\2--}}", display_out, flags=re.DOTALL)
+            display_out = re.sub(r"\s*{{!--GMARKER_START_(role|system|user|assistant|function)\$(.*?)--}}", r"{{!--GMARKER_START_\1$\2--}}", display_out, flags=re.DOTALL)
 
             # strip whitespace after role markers
             # TODO: support end_patterns with capture groups
-            display_out = re.sub(r"{{!--GMARKER_END_(role|system|user|assistant)\$(.*?)--}}\s*", r"{{!--GMARKER_END_\1$\2--}}", display_out, flags=re.DOTALL)
+            display_out = re.sub(r"{{!--GMARKER_END_(role|system|user|assistant|function)\$(.*?)--}}\s*", r"{{!--GMARKER_END_\1$\2--}}", display_out, flags=re.DOTALL)
+
+            if "GMARKER_START_function" in display_out:
+                display_out += ""
+                pass
 
             # wrap role markers in nice formatting
-            display_out = re.sub(r"{{!--GMARKER_START_(role|system|user|assistant)\$(.*?)--}}" + "(.*?)" + r"{{!--GMARKER_END_(role|system|user|assistant)\$(.*?)--}}", role_box, display_out, flags=re.DOTALL)
+            display_out = re.sub(r"{{!--GMARKER_START_(role|system|user|assistant|function)\$(.*?)--}}" + "(.*?)" + r"{{!--GMARKER_END_(role|system|user|assistant|function)\$(.*?)--}}", role_box, display_out, flags=re.DOTALL)
 
             # wrap unfinished role markers in nice formatting
-            display_out = re.sub(r"{{!--GMARKER_START_(role|system|user|assistant)\$(.*?)--}}" + "(.*)", role_box, display_out, flags=re.DOTALL)
+            display_out = re.sub(r"{{!--GMARKER_START_(role|system|user|assistant|function)\$(.*?)--}}" + "(.*)", role_box, display_out, flags=re.DOTALL)
         
         display_out = re.sub(r"(\{\{generate.*?\}\})", r"<span style='background-color: rgba(0, 165, 0, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
         display_out = re.sub(r"(\{\{#select\{\{/select.*?\}\})", r"<span style='background-color: rgba(0, 165, 0, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
         display_out = re.sub(r"(\{\{#each [^'\"].*?\{\{/each.*?\}\})", r"<span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
-        display_out = re.sub(r"(\{\{(?!\!)(?!generate)(?!#select)(?!#each)(?!/each)(?!/select).*?\}\})", r"<span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
+        # display_out = re.sub(r"(\{\{(?!\!)(?!generate)(?!#select)(?!#each)(?!/each)(?!/select).*?\}\})", r"<span style='font-family: monospace; background-color: rgba(0, 0, 0, 0.05);'>\1</span>", display_out, flags=re.DOTALL)
                 
 
         # format the generate command results
@@ -637,8 +653,9 @@ cycle_IDVAL(this);'''.replace("IDVAL", id).replace("TOTALCOUNT", str(total_count
         display_out = re.sub(r"{{!--GMARKER_START_geneach\$([^\$]*)\$--}}", start_each, display_out)
         
         # format the set command results
-        display_out = re.sub(r"{{!--GMARKER_set\$([^\$]*)\$--}}", r"<div style='background-color: rgba(165, 165, 165, 0); border-radius: 4px 4px 4px 4px; border: 1px solid rgba(165, 165, 165, 1); border-left: 2px solid rgba(165, 165, 165, 1); border-right: 2px solid rgba(165, 165, 165, 1); padding-left: 0px; padding-right: 3px; color: rgb(165, 165, 165, 1.0); display: inline; font-weight: normal; overflow: hidden;'><div style='display: inline; background: rgba(165, 165, 165, 1); padding-right: 5px; padding-left: 4px; margin-right: 3px; color: #fff'>set</div>\1</div>", display_out)
-        display_out = re.sub(r"{{!--GMARKER_START_set\$([^\$]*)\$--}}", lambda x: "<span style='display: inline;' title='{}'>".format(undo_html_encode(x.group(1))), display_out)
+        # display_out = re.sub(r"{{!--GMARKER_set\$([^\$]*)\$--}}", r"<div style='background-color: rgba(165, 165, 165, 0); border-radius: 4px 4px 4px 4px; border: 1px solid rgba(165, 165, 165, 1); border-left: 2px solid rgba(165, 165, 165, 1); border-right: 2px solid rgba(165, 165, 165, 1); padding-left: 0px; padding-right: 3px; color: rgb(165, 165, 165, 1.0); display: inline; font-weight: normal; overflow: hidden;'><div style='display: inline; background: rgba(165, 165, 165, 1); padding-right: 5px; padding-left: 4px; margin-right: 3px; color: #fff'>set</div>\1</div>", display_out)
+        # display_out = re.sub(r"{{!--GMARKER_START_set\$([^\$]*)\$--}}", lambda x: "<span style='display: inline;' title='{}'>".format(undo_html_encode(x.group(1))), display_out)
+        display_out = re.sub(r"{{!--GMARKER_set\$([^\$]*)\$--}}", r"", display_out) # just hide them for now
 
         display_out = re.sub(r"{{!--GMARKER_START_select\$([^\$]*)\$--}}", start_generate_or_select, display_out)
         display_out = display_out.replace("{{!--GMARKER_END_select$$--}}", "</span>")
@@ -671,37 +688,42 @@ def add_spaces(s):
     return s
 
 _built_ins = {
-    "gen": library.gen,
-    "each": library.each,
-    "geneach": library.geneach,
-    "select": library.select,
-    "if": library.if_,
-    "unless": library.unless,
-    "add": library.add,
-    "BINARY_OPERATOR_+": library.add,
-    "subtract": library.subtract,
-    "BINARY_OPERATOR_-": library.subtract,
-    "multiply": library.multiply,
-    "BINARY_OPERATOR_*": library.multiply,
-    "strip": library.strip,
-    "block": library.block,
-    "set": library.set,
-    "await": library.await_,
-    "role": library.role,
-    "user": library.user,
-    "system": library.system,
-    "assistant": library.assistant,
-    "break": library.break_,
-    "equal": library.equal,
-    "BINARY_OPERATOR_==": library.equal,
-    "notequal": library.notequal,
-    "BINARY_OPERATOR_!=": library.notequal,
-    "greater": library.greater,
-    "BINARY_OPERATOR_>": library.greater,
-    "less": library.less,
-    "BINARY_OPERATOR_<": library.less,
-    "contains": library.contains,
-    "parse": library.parse
+    "gen": commands.gen,
+    "each": commands.each,
+    "geneach": commands.geneach,
+    "select": commands.select,
+    "if": commands.if_,
+    "unless": commands.unless,
+    "add": commands.add,
+    "BINARY_OPERATOR_+": commands.add,
+    "subtract": commands.subtract,
+    "BINARY_OPERATOR_-": commands.subtract,
+    "multiply": commands.multiply,
+    "BINARY_OPERATOR_*": commands.multiply,
+    "strip": commands.strip,
+    "block": commands.block,
+    "set": commands.set,
+    "await": commands.await_,
+    "role": commands.role,
+    "user": commands.user,
+    "system": commands.system,
+    "assistant": commands.assistant,
+    "function": commands.function,
+    "break": commands.break_,
+    "equal": commands.equal,
+    "BINARY_OPERATOR_==": commands.equal,
+    "notequal": commands.notequal,
+    "BINARY_OPERATOR_!=": commands.notequal,
+    "greater": commands.greater,
+    "BINARY_OPERATOR_>": commands.greater,
+    "less": commands.less,
+    "BINARY_OPERATOR_<": commands.less,
+    "contains": commands.contains,
+    "parse": commands.parse,
+    "callable": commands.callable,
+    "len": commands.len,
+    "range": commands.range,
+    "UNARY_OPERATOR_not": commands.not_,
 }
 
 class DisplayThrottler():

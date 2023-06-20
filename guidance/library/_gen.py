@@ -9,7 +9,7 @@ log = logging.getLogger(__name__)
 
 async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_tokens=500, n=1, stream=None,
               temperature=0.0, top_p=1.0, logprobs=None, pattern=None, hidden=False, list_append=False,
-              save_prompt=False, token_healing=None, _parser_context=None, **llm_kwargs):
+              save_prompt=False, token_healing=None, function_call="none", _parser_context=None, **llm_kwargs):
     ''' Use the LLM to generate a completion.
 
     Parameters
@@ -93,7 +93,7 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
 
         # auto-detect role stop tags
         if stop is None:
-            m = re.match(r"^{{~?/\w*(user|assistant|system|role)\w*~?}}.*", next_text)
+            m = re.match(r"^{{~?/\w*(user|assistant|system|role|function)\w*~?}}.*", next_text)
             if m:
                 stop = parser.program.llm.role_end(m.group(1))
 
@@ -140,7 +140,7 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
     gen_obj = await parser.llm_session(
         variable_stack["@prefix"]+prefix, stop=stop, stop_regex=stop_regex, max_tokens=max_tokens, n=n, pattern=pattern,
         temperature=temperature, top_p=top_p, logprobs=logprobs, cache_seed=cache_seed, token_healing=token_healing,
-        echo=parser.program.logprobs is not None, stream=stream, caching=parser.program.caching, **llm_kwargs
+        echo=parser.program.logprobs is not None, stream=stream, caching=parser.program.caching, function_call=function_call, **llm_kwargs
     )
 
     if n == 1:
@@ -166,8 +166,9 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
                 #log("Stopping generation")
                 break
             # log.debug("resp", resp)
-            generated_value += resp["choices"][0]["text"]
-            variable_stack["@raw_prefix"] += resp["choices"][0]["text"]
+            new_text = resp["choices"][0].get("text", "")
+            generated_value += new_text
+            variable_stack["@raw_prefix"] += new_text
             if logprobs is not None:
                 logprobs_out.extend(resp["choices"][0]["logprobs"]["top_logprobs"])
             if list_append:

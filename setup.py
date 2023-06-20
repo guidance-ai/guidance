@@ -31,7 +31,7 @@ setup(
     install_requires=[
         "diskcache",
         "gptcache",
-        "openai>=0.27",
+        "openai>=0.27.8",
         "pyparsing",
         "pygtrie",
         "platformdirs",
