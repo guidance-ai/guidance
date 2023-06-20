@@ -1,10 +1,8 @@
 import os
 import requests
 import inspect
-import time
 import json
 import re
-import datetime
 import asyncio
 
 
@@ -83,28 +81,28 @@ class ContentCapture:
         self._variable_stack = variable_stack
     
     def __enter__(self):
-        self._pos = len(self._variable_stack["_prefix"])
+        self._pos = len(self._variable_stack["@raw_prefix"])
         if self._hidden:
-            self._variable_stack.push({"_prefix": self._variable_stack["_prefix"]})
+            self._variable_stack.push({"@raw_prefix": self._variable_stack["@raw_prefix"]})
         return self
 
     def __exit__(self, type, value, traceback):
         if self._hidden:
             new_content = str(self)
             self._variable_stack.pop()
-            self._variable_stack["_prefix"] += "{{!--GHIDDEN:"+new_content.replace("--}}", "--_END_END")+"--}}"
+            self._variable_stack["@raw_prefix"] += "{{!--GHIDDEN:"+new_content.replace("--}}", "--_END_END")+"--}}"
 
     def __str__(self):
-        return strip_markers(self._variable_stack["_prefix"][self._pos:])
+        return strip_markers(self._variable_stack["@raw_prefix"][self._pos:])
     
     def __iadd__(self, other):
         if other is not None:
-            self._variable_stack["_prefix"] += other
+            self._variable_stack["@raw_prefix"] += other
         return self
     
     def inplace_replace(self, old, new):
         """Replace all instances of old with new in the captured content."""
-        self._variable_stack["_prefix"] = self._variable_stack["_prefix"][:self._pos] + self._variable_stack["_prefix"][self._pos:].replace(old, new)
+        self._variable_stack["@raw_prefix"] = self._variable_stack["@raw_prefix"][:self._pos] + self._variable_stack["@raw_prefix"][self._pos:].replace(old, new)
 
 class JupyterComm():
     def __init__(self, target_id, ipython_handle, callback=None, on_open=None, mode="register"):

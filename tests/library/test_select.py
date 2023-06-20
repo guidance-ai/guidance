@@ -151,12 +151,6 @@ def test_variable_starts_with_or(llm):
     out = program(organizations=organizations)
     assert out["selected"] in organizations
 
-import guidance
-
-guidance.llm = guidance.llms.OpenAI("text-davinci-003")
-# the {{#select}} command allows you to use the LLM to select from a set of options
-
-
 # TODO: fix this next
 # def test_unexpected_tokens():
 #     """ Test the behavior of `select` when the next tokens are hard to predict.

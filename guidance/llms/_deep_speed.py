@@ -1,11 +1,3 @@
-import os
-import time
-import collections
-import regex
-import pygtrie
-import queue
-import threading
-import logging
 from ._transformers import Transformers, TransformersSession
 
 class DeepSpeed(Transformers):

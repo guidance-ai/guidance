@@ -1,8 +1,10 @@
-from typing import Any, Dict, Optional, Callable
-
+from typing import Any, Dict
 import asyncio
+import re
+import json
+import guidance
 
-from .caches import Cache, DiskCache
+from .caches import DiskCache
 
 class LLMMeta(type):
     def __init__(cls, *args, **kwargs):
@@ -24,6 +26,36 @@ class LLM(metaclass=LLMMeta):
     def __init__(self):
         self.chat_mode = False  # by default models are not in role-based chat mode
         self.model_name = "unknown"
+
+        # these should all start with the @ symbol and are variables programs can use when running with this LLM
+        self.tool_def = guidance("""
+# Tools
+
+{{#if len(functions) > 0~}}
+## functions
+
+namespace functions {
+
+{{#each functions item_name="function"~}}
+// {{function.description}}
+type {{function.name}} = (_: {
+{{~#each function.parameters.properties}}
+{{#if contains(this, "description")}}// {{this.description}}
+{{/if~}}
+{{@key}}{{#unless contains(function.parameters.required, @key)}}?{{/unless}}: {{#if contains(this, "enum")}}{{#each this.enum}}"{{this}}"{{#unless @last}} | {{/unless}}{{/each}}{{else}}{{this.type}}{{/if}}{{#unless @last}},{{/unless}}
+{{~/each}}
+}) => any;
+
+{{/each~}}
+} // namespace functions
+{{~/if~}}""", functions=[])
+        self.function_call_stop_regex = r"\n?\n?```typescript\nfunctions.[^\(]+\(.*?\)```"
+
+    def extract_function_call(self, text):
+        m = re.match(r"\n?\n?```typescript\nfunctions.([^\(]+)\((.*?)\)```", text, re.DOTALL)
+
+        if m:
+            return CallableAnswer(m.group(1), m.group(2))
 
     def __call__(self, *args, asynchronous=False, **kwargs):
         """Creates a session and calls the LLM with the given arguments.
@@ -123,3 +155,21 @@ class SyncSession:
         return asyncio.get_event_loop().run_until_complete(
             self._session.__call__(*args, **kwargs)
         )
+
+class CallableAnswer:
+    def __init__(self, name, args_string, function=None):
+        self.__name__ = name
+        self.args_string = args_string
+
+    def __call__(self, *args, **kwargs):
+        if self._function is None:
+            raise NotImplementedError(f"Answer {self.__name__} has no function defined")
+        return self._function(*args, **self.__kwdefaults__, **kwargs)
+    
+    @property
+    def __kwdefaults__(self):
+        """We build this lazily in case the user wants to handle validation errors themselves."""
+        return json.loads(self.args_string)
+
+    def __repr__(self):
+        return f"CallableAnswer(__name__={self.__name__}, __kwdefaults__={self.__kwdefaults__})"

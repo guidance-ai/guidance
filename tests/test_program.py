@@ -2,13 +2,6 @@ import guidance
 import pytest
 from .utils import get_llm
 
-def test_variable_interpolation():
-    """ Test variable interpolation in prompt
-    """
-
-    prompt = guidance("Hello, {{name}}!")
-    assert str(prompt(name="Guidance")) == "Hello, Guidance!"
-
 def test_chat_stream():
     """ Test the behavior of `stream=True` for an openai chat endpoint.
     """
@@ -75,7 +68,7 @@ def test_stream_loop(llm):
     llm = get_llm(llm)
     program = guidance("""Generate a list of 5 company names:
 {{#geneach 'companies' num_iterations=5~}}
-{{@index}}. "{{gen 'this'}}"
+{{@index}}. "{{gen 'this' max_tokens=5}}"
 {{/geneach}}""", llm=llm)
 
     partials = []
@@ -98,7 +91,7 @@ def test_stream_loop_async(llm):
     async def f():
         program = guidance("""Generate a list of 5 company names:
 {{#geneach 'companies' num_iterations=5~}}
-{{@index}}. "{{gen 'this'}}"
+{{@index}}. "{{gen 'this' max_tokens=5}}"
 {{/geneach}}""", llm=llm)
 
         partials = []

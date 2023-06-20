@@ -1,4 +1,4 @@
-def set(name, value=None, hidden=None, _parser_context=None):
+def set(name, value=None, hidden=True, _parser_context=None):
     ''' Set the value of a variable or set of variables.
 
     Parameters
