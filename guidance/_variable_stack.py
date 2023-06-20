@@ -27,7 +27,7 @@ class VariableStack:
     def __getitem__(self, key):
         return self.get(key)
     
-    def get(self, name, default_value=None):
+    def get(self, name, default_value=KeyError):
 
         # prefix is a special variable that returns the current prefix without the marker tags
         if name == "@prefix":
@@ -46,9 +46,19 @@ class VariableStack:
                 else:
                     var_part = part
                 try:
-                    next_pos = curr_pos[var_part]
+
+                    # check for special computed properties of string values
+                    if isinstance(curr_pos, str) and var_part == "__name__":
+                        next_pos = self["extract_function_call"](curr_pos).__name__
+                    elif isinstance(curr_pos, str) and var_part == "__kwdefaults__":
+                        next_pos = self["extract_function_call"](curr_pos).__kwdefaults__
+                    else:
+                        if isinstance(var_part, str) and hasattr(curr_pos, var_part):
+                            next_pos = getattr(curr_pos, var_part)
+                        else:
+                            next_pos = curr_pos[var_part]
                     next_found = True
-                except KeyError:
+                except (KeyError, AttributeError, TypeError):
                     next_found = False
                 if next_found:
                     curr_pos = next_pos
@@ -57,6 +67,13 @@ class VariableStack:
                     break
             if found:
                 return curr_pos
+        
+        # fall back to pulling from the llm namespace
+        if not name.startswith("llm."):
+            return self.get("llm." + name, default_value)
+        
+        if default_value is KeyError:
+            raise KeyError("`" + name + "` was not found in the program's variables!")
         return default_value # variable not found
 
     def __contains__(self, name):
@@ -114,7 +131,7 @@ class VariableStack:
             self._stack[0][key] = value
         
         # if we changed the _prefix variable, update the display
-        if changed and key == "@raw_prefix" and not self.get("_no_display", False):
+        if changed and key == "@raw_prefix" and not self.get("@no_display", None):
             self._executor.program.update_display()
 
     def copy(self):

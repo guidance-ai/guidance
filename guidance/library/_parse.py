@@ -1,4 +1,4 @@
-from .._utils import strip_markers, ContentCapture
+from .._utils import ContentCapture
 from .._grammar import grammar
 
 async def parse(string, name=None, hidden=False, _parser_context=None):

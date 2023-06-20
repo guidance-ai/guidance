@@ -2,9 +2,10 @@ import inspect
 import re
 import uuid
 import asyncio
+import builtins
 from .._utils import ContentCapture
 
-async def each(list, hidden=False, parallel=False, _parser_context=None):
+async def each(list, hidden=False, parallel=False, item_name="this", start_index=0, _parser_context=None):
     ''' Iterate over a list and execute a block for each item.
 
     Parameters
@@ -18,12 +19,20 @@ async def each(list, hidden=False, parallel=False, _parser_context=None):
         is only compatible with hidden=True. When parallel=True you can no longer raise a
         StopIteration exception to stop the loop at a specific step (since the steps can be run
         in parallel in any order).
+    item_name : str
+        The name of the variable to use for the current item in the list.
     '''
     block_content = _parser_context['block_content']
     parser = _parser_context['parser']
     variable_stack = _parser_context['variable_stack']
 
     assert not parallel or hidden is True, "parallel=True is only compatible with hidden=True (since if hidden=False earlier items are contex for later items)"
+
+    if isinstance(list, dict):
+        keys = builtins.list(list.keys())
+        list = list.values()
+    else:
+        keys = None
 
     # make sure the list is iterable
     try:
@@ -39,14 +48,19 @@ async def each(list, hidden=False, parallel=False, _parser_context=None):
          # set up the coroutines to call
         coroutines = []
         for i, item in enumerate(list):
-            variable_stack.push({
+            if i < start_index: # skip items before the start index
+                continue
+            context = {
                 "@index": i,
                 "@first": i == 0,
                 "@last": i == len(list) - 1,
-                "this": item,
+                item_name: item,
                 "@raw_prefix": variable_stack["@raw_prefix"], # create a local copy of the prefix since we are hidden
-                "_no_display": True
-            })
+                "@no_display": True
+            }
+            if keys is not None:
+                context["@key"] = keys[i]
+            variable_stack.push(context)
             coroutines.append(parser.visit(
                 block_content,
                 variable_stack.copy(),
@@ -69,13 +83,15 @@ async def each(list, hidden=False, parallel=False, _parser_context=None):
             #         break
     else:
         for i, item in enumerate(list):
-
-            variable_stack.push({
+            context = {
                 "@index": i,
                 "@first": i == 0,
                 "@last": i == len(list) - 1,
-                "this": item
-            })
+                item_name: item
+            }
+            if keys is not None:
+                context["@key"] = keys[i]
+            variable_stack.push(context)
             with ContentCapture(variable_stack, hidden) as new_content:
                 new_content += await parser.visit(
                     block_content,
@@ -85,13 +101,20 @@ async def each(list, hidden=False, parallel=False, _parser_context=None):
                     prev_node=_parser_context["prev_node"]
                 )
                 out.append(str(new_content))
+            variable_stack.pop()
+
+            # if we stopped executing then we need to dump our node text back out but with the start_index incremented to account for what we've already done
+            if not parser.executing:
+                updated_text = re.sub(r"^({{~?#each.*?)(~?}})", r"\1 start_index="+str(i+1)+r"\2", _parser_context["parser_node"].text)
+                variable_stack["@raw_prefix"] += updated_text
+                break
 
             # check if the block has thrown a stop iteration signal
             if parser.caught_stop_iteration:
                 parser.caught_stop_iteration = False
                 break
         
-            variable_stack.pop()
+            
     
     # if not hidden:
         #return "{{!--GMARKER_each$$--}}" + "{{!--GMARKER_each$$--}}".join(out) + "{{!--GMARKER_each$$--}}" + suffix
