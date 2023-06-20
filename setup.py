@@ -32,7 +32,7 @@ setup(
         "diskcache",
         "gptcache",
         "openai>=0.27.8",
-        "pyparsing",
+        "pyparsing>=3.0.0",
         "pygtrie",
         "platformdirs",
         "tiktoken>=0.3",
