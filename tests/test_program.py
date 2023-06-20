@@ -111,3 +111,51 @@ def test_logging_off():
     program = guidance("""This is a test prompt{{#if flag}} yes.{{/if}}""", log=False)
     executed_program = program(flag=True)
     assert executed_program.log is False
+
+
+def test_async_mode_exceptions():
+    """
+    Ensures that exceptions in async_mode=True don't hang the program and are
+    re-raised back to the caller.
+    """
+    import asyncio
+    loop = asyncio.new_event_loop()
+
+    guidance.llm = get_llm("openai:gpt-3.5-turbo")
+
+    async def call_async():
+        program = guidance("""
+{{#system~}}
+You are a helpful assistant.
+{{~/system}}
+
+{{#user~}}
+What is your name?
+{{~/user}}
+
+{{#assistant~}}
+Hello my name is {{gen 'name' temperature=0 max_tokens=5}}.
+{{~/assistant}}
+""",
+            async_mode=True
+        )
+
+        return await program()
+
+    task = loop.create_task(call_async())
+    completed_tasks, _ = loop.run_until_complete(
+        asyncio.wait([task], timeout=5.0)
+    )
+
+    try:
+        assert len(completed_tasks) == 1, "The task did not complete before timeout"
+    finally:
+        task.cancel()
+        loop.run_until_complete(asyncio.sleep(0)) # give the loop a chance to cancel the tasks
+
+    completed_task = list(completed_tasks)[0]
+
+    assert isinstance(completed_task.exception(), AssertionError), \
+        "Expect the exception to be propagated"
+
+    loop.close()

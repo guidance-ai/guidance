@@ -154,9 +154,11 @@ class Program:
         self._last_display_update = 0 # the last time we updated the display (used for throttling updates)
         self._execute_complete = asyncio.Event() # fires when the program is done executing to resolve __await__
         self._emit_stream_event = asyncio.Event() # fires when we need to emit a stream event
+        self._exception = None # if the program finished with an exception its stored here
         self._displaying = not self.silent # if we are displaying we need to update the display as we execute
         self._displayed = False # marks if we have been displayed in the client yet
         self._displaying_html = False # if we are displaying html (vs. text)
+        self._tasks = [] # list of children tasks
 
         # throttle the display updates
         if os.environ.get("VSCODE_CWD", None) is not None:
@@ -208,7 +210,19 @@ class Program:
 
     async def _await_finish_execute(self):
         """Used by self.__await__ to wait for the program to complete."""
-        await self._execute_complete.wait() # wait for the program to finish executing
+        try:
+            await self._execute_complete.wait() # wait for the program to finish executing
+
+        except asyncio.CancelledError:
+            # if this task gets canceled, cancel all sub-tasks
+            for task in self._tasks:
+                task.cancel()
+
+        # if the program finished executing with an exception
+        # re-raise the exception in the main coroutine
+        if self._exception:
+            raise self._exception
+
         return self
 
     def __await__(self):
@@ -257,8 +271,10 @@ class Program:
         if new_program.async_mode:
             loop = asyncio.get_event_loop()
             assert loop.is_running(), "The program is in async mode but there is no asyncio event loop running! Start one and try again."
-            loop.create_task(new_program.update_display.run()) # start the display updater
-            loop.create_task(new_program.execute())
+            update_task = loop.create_task(new_program.update_display.run()) # start the display updater
+            execute_task = loop.create_task(new_program.execute())
+            new_program._tasks.append(update_task)
+            new_program._tasks.append(execute_task)
 
         # if we are not in async mode, we need to create a new event loop and run the program in it until it is done
         else:
@@ -271,7 +287,8 @@ class Program:
                 pass
             
             loop = asyncio.new_event_loop()
-            loop.create_task(new_program.update_display.run()) # start the display updater
+            update_task = loop.create_task(new_program.update_display.run()) # start the display updater
+            new_program._tasks.append(update_task)
             if new_program.stream:
                 return self._stream_run(loop, new_program)
             else:
@@ -288,6 +305,7 @@ class Program:
 
         # add the program execution to the event loop
         execute_task = loop.create_task(new_program.execute())
+        new_program._tasks.append(execute_task)
 
         # run the event loop until the program is done executing
         while new_program._executor is not None:
@@ -309,9 +327,11 @@ class Program:
         yield new_program
 
         # cancel all tasks and close the loop
-        for task in asyncio.all_tasks(loop=loop):
+        for task in self._tasks:
             task.cancel()
         loop.run_until_complete(asyncio.sleep(0)) # give the loop a chance to cancel the tasks
+
+        # TODO: do we really want to close the loop? what if it is used by others?
         loop.close() # we are done with the loop (note that the loop is already stopped)
 
     async def _stream_run_async(self):
@@ -422,23 +442,30 @@ class Program:
             await asyncio.sleep(0)
         
         # run the program and capture the output
-        if self.llm is None:
-            await self._executor.run(None)
-        else:
-            with self.llm.session(asynchronous=True) as llm_session:
-                await self._executor.run(llm_session)
-        self._text = self._variables["@raw_prefix"]
+        try:
+            if self.llm is None:
+                await self._executor.run(None)
+            else:
+                with self.llm.session(asynchronous=True) as llm_session:
+                    await self._executor.run(llm_session)
+            self._text = self._variables["@raw_prefix"]
 
-        # delete the executor and so mark the program as not executing
-        self._executor = None
+        # if the execution failed, capture the exception so it can be re-raised
+        # in the main coroutine
+        except Exception as exception:
+            self._exception = exception
 
-        # update the display with the final output
-        self.update_display(last=True)
-        await self.update_display.done()
+        finally:
+            # delete the executor and so mark the program as not executing
+            self._executor = None
 
-        # fire an event noting that execution is complete (this will release any await calls waiting on the program)
-        self._execute_complete.set()
-    
+            # update the display with the final output
+            self.update_display(last=True)
+            await self.update_display.done()
+
+            # fire an event noting that execution is complete (this will release any await calls waiting on the program)
+            self._execute_complete.set()
+
     def __getitem__(self, key):
         return self._variables[key]
     
