@@ -2,6 +2,7 @@ from typing import Any, Dict
 import asyncio
 import re
 import json
+import guidance
 
 from .caches import DiskCache
 
