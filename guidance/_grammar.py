@@ -125,11 +125,12 @@ class BinOp(OpNode):
         self.operator, self.rhs = tokens[0]
         self.name = "binary_operator"
 
+
 infix_operator_block = pp.infix_notation(code_chunk_no_infix, [
-    ('- not', 1, pp.OpAssoc.RIGHT, UnOp),
+    ('-' | pp.Keyword('not'), 1, pp.OpAssoc.RIGHT, UnOp),
     (pp.one_of('* /'), 2, pp.OpAssoc.LEFT, BinOp),  # TODO - '/' operator not yet fully implemented
     (pp.one_of('+ -'), 2, pp.OpAssoc.LEFT, BinOp),
-    (pp.one_of('< > <= >= == != is in', as_keyword=True), 2, pp.OpAssoc.LEFT, BinOp),
+    (pp.one_of('< > <= >= == !=') | pp.one_of('is in', as_keyword=True), 2, pp.OpAssoc.LEFT, BinOp),
     (pp.Keyword('and'), 2, pp.OpAssoc.LEFT, BinOp),
     (pp.Keyword('or'), 2, pp.OpAssoc.LEFT, BinOp),
 ])
