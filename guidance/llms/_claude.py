@@ -284,17 +284,17 @@ class Claude(LLM):
         return len(self.call_history)
 
     def _library_call(self, **kwargs):
-        """ Call the OpenAI API using the python package.
+        """ Call the ANTHROPIC API using the python package.
 
         Note that is uses the local auth token, and does not rely on the openai one.
         """
 
-        # save the params of the openai library
-        prev_key = anthropic.api_key
-        prev_org = anthropic.organization
-        prev_type = anthropic.api_type
-        prev_version = anthropic.api_version
-        prev_base = anthropic.api_base
+        # print("antrhopic: ", anthropic.__dict__)
+        # prev_key = anthropic.api_key
+        # prev_org = anthropic.organization
+        # prev_type = anthropic.api_type
+        # prev_version = anthropic.api_version
+        # prev_base = anthropic.api_base
         
         # set the params of the openai library if we have them
         if self.api_key is not None:
@@ -321,11 +321,11 @@ class Claude(LLM):
             out = anthropic.Completion.create(**kwargs)
         
         # restore the params of the anthropic library
-        anthropic.api_key = prev_key
-        anthropic.organization = prev_org
-        anthropic.api_type = prev_type
-        anthropic.api_version = prev_version
-        anthropic.api_base = prev_base
+        # anthropic.api_key = prev_key
+        # anthropic.organization = prev_org
+        # anthropic.api_type = prev_type
+        # anthropic.api_version = prev_version
+        # anthropic.api_base = prev_base
         
         return out
 
