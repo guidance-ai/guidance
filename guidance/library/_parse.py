@@ -1,7 +1,7 @@
-from .._utils import strip_markers
+from .._utils import ContentCapture
 from .._grammar import grammar
 
-async def parse(string, name=None, _parser_context=None):
+async def parse(string, name=None, hidden=False, _parser_context=None):
     ''' Parse a string as a guidance program.
 
     This is useful for dynamically generating and then running guidance programs (or parts of programs).
@@ -15,13 +15,15 @@ async def parse(string, name=None, _parser_context=None):
     '''
 
     parser = _parser_context['parser']
-    pos = len(parser.prefix)
-    # parse the string
-    subtree = grammar.parse(string)
-    out = await parser.visit(subtree)
+    variable_stack = _parser_context['variable_stack']
 
-    if name is not None:
-        new_content = parser.prefix[pos:]
-        parser.set_variable(name, strip_markers(new_content))
+    # capture the content of the block
+    with ContentCapture(variable_stack, hidden) as new_content:
 
-    return out
+        # parse and visit the given string
+        subtree = grammar.parse_string(string)
+        new_content += await parser.visit(subtree, variable_stack)
+
+        # save the content in a variable if needed
+        if name is not None:
+            variable_stack[name] = str(new_content)

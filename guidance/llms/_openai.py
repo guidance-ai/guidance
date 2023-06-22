@@ -2,6 +2,7 @@ import openai
 import os
 import time
 import requests
+import aiohttp
 import copy
 import time
 import asyncio
@@ -17,55 +18,101 @@ from ._llm import LLM, LLMSession, SyncSession
 class MalformedPromptException(Exception):
     pass
 
+import pyparsing as pp
+
+role_start_tag = pp.Suppress(pp.Optional(pp.White()) + pp.Literal("<|im_start|>"))
+role_start_name = pp.Word(pp.alphanums + "_")("role_name")
+role_kwargs = pp.Suppress(pp.Optional(" ")) + pp.Dict(pp.Group(pp.Word(pp.alphanums + "_") + pp.Suppress("=") + pp.QuotedString('"')))("kwargs")
+role_start = (role_start_tag + role_start_name + pp.Optional(role_kwargs) + pp.Suppress("\n")).leave_whitespace()
+role_end = pp.Suppress(pp.Literal("<|im_end|>"))
+role_content = pp.Combine(pp.ZeroOrMore(pp.CharsNotIn("<") | pp.Literal("<") + ~pp.FollowedBy("|im_end|>")))("role_content")
+role_group = pp.Group(role_start + role_content + role_end)("role_group").leave_whitespace()
+partial_role_group = pp.Group(role_start + role_content)("role_group").leave_whitespace()
+roles_grammar = pp.ZeroOrMore(role_group) + pp.Optional(partial_role_group) + pp.StringEnd()
+
+# import pyparsing as pp
+
+# role_start_tag = pp.Literal("<|im_start|>")
+# role_start_name = pp.Word(pp.alphanums + "_")
+# role_kwargs = pp.Dict(pp.Group(pp.Word(pp.alphanums + "_") + pp.Suppress("=") + pp.QuotedString('"')))
+# role_start = role_start_tag + role_start_name + pp.Optional(role_kwargs) + pp.Suppress("\n")
+# role_end = pp.Literal("<|im_end|>")
+# role_content = pp.CharsNotIn("<|im_start|><|im_end|>")
+
+# r'<\|im_start\|>([^\n]+)\n(.*?)(?=<\|im_end\|>|$)'
 
 def prompt_to_messages(prompt):
     messages = []
 
     assert prompt.endswith("<|im_start|>assistant\n"), "When calling OpenAI chat models you must generate only directly inside the assistant role! The OpenAI API does not currently support partial assistant prompting."
 
-    pattern = r'<\|im_start\|>(\w+)(.*?)(?=<\|im_end\|>|$)'
-    matches = re.findall(pattern, prompt, re.DOTALL)
+    parsed_prompt = roles_grammar.parse_string(prompt)
 
-    if not matches:
-        return [{'role': 'user', 'content': prompt.strip()}]
+    # pattern = r'<\|im_start\|>([^\n]+)\n(.*?)(?=<\|im_end\|>|$)'
+    # matches = re.findall(pattern, prompt, re.DOTALL)
 
-    for match in matches:
-        role, content = match
-        content = content.strip() # should we do this?
-        messages.append({'role': role, 'content': content})
+    # if not matches:
+    #     return [{'role': 'user', 'content': prompt}]
+
+    for role in parsed_prompt:
+        if len(role["role_content"]) > 0: # only add non-empty messages (OpenAI does not support empty messages anyway)
+            message = {'role': role["role_name"], 'content': role["role_content"]}
+            if "kwargs" in role:
+                for k, v in role["kwargs"].items():
+                    message[k] = v
+            messages.append(message)
 
     return messages
 
-def add_text_to_chat_mode_generator(chat_mode):
-    for resp in chat_mode:
+async def add_text_to_chat_mode_generator(chat_mode):
+    in_function_call = False
+    async for resp in chat_mode:
         if "choices" in resp:
             for c in resp['choices']:
-                if "content" in c['delta']:
+                
+                # move content from delta to text so we have a consistent interface with non-chat mode
+                found_content = False
+                if "content" in c['delta'] and c['delta']['content'] != "":
+                    found_content = True
                     c['text'] = c['delta']['content']
-                else:
+
+                # capture function call data and convert to text again so we have a consistent interface with non-chat mode and open models
+                if "function_call" in c['delta']:
+
+                    # build the start of the function call (the follows the syntax that GPT says it wants when we ask it, and will be parsed by the @function_detector)
+                    if not in_function_call:
+                        start_val = "\n```typescript\nfunctions."+c['delta']['function_call']["name"]+"("
+                        if not c['text']:
+                            c['text'] = start_val
+                        else:
+                            c['text'] += start_val
+                        in_function_call = True
+                    
+                    # extend the arguments JSON string
+                    val = c['delta']['function_call']["arguments"]
+                    if 'text' in c:
+                        c['text'] += val
+                    else:
+                        c['text'] = val
+                    
+                if not found_content and not in_function_call:
                     break # the role markers are outside the generation in chat mode right now TODO: consider how this changes for uncontrained generation
             else:
                 yield resp
         else:
             yield resp
+    
+    # close the function call if needed
+    if in_function_call:
+        yield {'choices': [{'text': ')```'}]}
 
 def add_text_to_chat_mode(chat_mode):
-    if isinstance(chat_mode, types.GeneratorType):
+    if isinstance(chat_mode, (types.AsyncGeneratorType, types.GeneratorType)):
         return add_text_to_chat_mode_generator(chat_mode)
     else:
         for c in chat_mode['choices']:
             c['text'] = c['message']['content']
         return chat_mode
-
-# model that need to use the chat completion API
-chat_models = [
-    "gpt-4",
-    "gpt-4-32k",
-    "gpt-4-0314",
-    "gpt-4-32k-0314",
-    "gpt-3.5-turbo",
-    "gpt-3.5-turbo-0301"
-]
 
 class OpenAI(LLM):
     llm_name: str = "openai"
@@ -102,7 +149,9 @@ class OpenAI(LLM):
 
         # auto detect chat completion mode
         if chat_mode == "auto":
-            if model in chat_models:
+            # parse to determin if the model need to use the chat completion API
+            chat_model_pattern = r'^(gpt-3\.5-turbo|gpt-4)(-\d+k)?(-\d{4})?$'
+            if re.match(chat_model_pattern, model):
                 chat_mode = True
             else:
                 chat_mode = False
@@ -146,6 +195,7 @@ class OpenAI(LLM):
         self.temperature = temperature
         self.organization = organization
         self.rest_call = rest_call
+        self.endpoint = endpoint
 
         if not self.rest_call:
             self.caller = self._library_call
@@ -161,9 +211,9 @@ class OpenAI(LLM):
         else:
             return SyncSession(OpenAISession(self))
 
-    def role_start(self, role):
+    def role_start(self, role_name, **kwargs):
         assert self.chat_mode, "role_start() can only be used in chat mode"
-        return "<|im_start|>"+role+"\n"
+        return "<|im_start|>"+role_name+"".join([f' {k}="{v}"' for k,v in kwargs.items()])+"\n"
     
     def role_end(self, role=None):
         assert self.chat_mode, "role_end() can only be used in chat mode"
@@ -173,7 +223,7 @@ class OpenAI(LLM):
         return "<|endoftext|>"
     
     @classmethod
-    def stream_then_save(cls, gen, key, stop_regex, n):
+    async def stream_then_save(cls, gen, key, stop_regex, n):
         list_out = []
         cached_out = None
 
@@ -189,7 +239,7 @@ class OpenAI(LLM):
         
         # iterate through the stream
         all_done = False
-        for curr_out in gen:
+        async for curr_out in gen:
 
             # if we have a cached output, extend it with the current output
             if cached_out is not None:
@@ -254,7 +304,7 @@ class OpenAI(LLM):
                 list_out.append(out)
                 yield out
                 if all_done:
-                    gen.close()
+                    gen.aclose()
                     break
         
         # if we have a cached output, emit it
@@ -284,7 +334,7 @@ class OpenAI(LLM):
         # Return the length of the deque as the number of calls
         return len(self.call_history)
 
-    def _library_call(self, **kwargs):
+    async def _library_call(self, **kwargs):
         """ Call the OpenAI API using the python package.
 
         Note that is uses the local auth token, and does not rely on the openai one.
@@ -317,10 +367,10 @@ class OpenAI(LLM):
             del kwargs['echo']
             del kwargs['logprobs']
             # print(kwargs)
-            out = openai.ChatCompletion.create(**kwargs)
+            out = await openai.ChatCompletion.acreate(**kwargs)
             out = add_text_to_chat_mode(out)
         else:
-            out = openai.Completion.create(**kwargs)
+            out = await openai.Completion.acreate(**kwargs)
         
         # restore the params of the openai library
         openai.api_key = prev_key
@@ -331,7 +381,7 @@ class OpenAI(LLM):
         
         return out
 
-    def _rest_call(self, **kwargs):
+    async def _rest_call(self, **kwargs):
         """ Call the OpenAI API using the REST API.
         """
 
@@ -343,6 +393,7 @@ class OpenAI(LLM):
         # Define the request data
         stream = kwargs.get("stream", False)
         data = {
+            "model": self.model_name,
             "prompt": kwargs["prompt"],
             "max_tokens": kwargs.get("max_tokens", None),
             "temperature": kwargs.get("temperature", 0.0),
@@ -362,28 +413,42 @@ class OpenAI(LLM):
         # Send a POST request and get the response
         # An exception for timeout is raised if the server has not issued a response for 10 seconds
         try:
-            response = requests.post(self.endpoint, headers=headers, json=data, stream=stream, timeout=60)
-            if response.status_code != 200:
-                raise Exception("Response is not 200: " + response.text)
             if stream:
-                return self._rest_stream_handler(response)
+                session = aiohttp.ClientSession()
+                response = await session.post(self.endpoint, json=data, headers=headers, timeout=60)
+                status = response.status
+            else:
+                response = requests.post(self.endpoint, headers=headers, json=data, timeout=60)
+                status = response.status_code
+                text = response.text
+            if status != 200:
+                if stream:
+                    text = await response.text()
+                raise Exception("Response is not 200: " + text)
+            if stream:
+                response = self._rest_stream_handler(response, session)
             else:
                 response = response.json()
         except requests.Timeout:
             raise Exception("Request timed out.")
         except requests.ConnectionError:
             raise Exception("Connection error occurred.")
-
         if self.chat_mode:
             response = add_text_to_chat_mode(response)
         return response
         
-    def _rest_stream_handler(self, response):
-        for line in response.iter_lines():
+    async def _close_response_and_session(self, response, session):
+        await response.release()
+        await session.close()
+
+    async def _rest_stream_handler(self, response, session):
+        # async for line in response.iter_lines():
+        async for line in response.content:
             text = line.decode('utf-8')
             if text.startswith('data: '):
                 text = text[6:]
-                if text == '[DONE]':
+                if text.strip() == '[DONE]':
+                    await self._close_response_and_session(response, session)
                     break
                 else:
                     yield json.loads(text)
@@ -465,6 +530,65 @@ class RegexStopChecker():
         
         return all_done
 
+# define the syntax for the function definitions
+import pyparsing as pp
+start_functions = pp.Suppress(pp.Literal("## functions\n\nnamespace functions {\n\n"))
+comment = pp.Combine(pp.Suppress(pp.Literal("//") + pp.Optional(" ")) + pp.restOfLine)
+end_functions = pp.Suppress("} // namespace functions")
+function_def_start = pp.Optional(comment)("function_description") + pp.Suppress(pp.Literal("type")) + pp.Word(pp.alphas + "_")("function_name") + pp.Suppress(pp.Literal("=") + pp.Literal("(_:") + pp.Literal("{"))
+function_def_end = pp.Suppress(pp.Literal("})") + pp.Literal("=>") + pp.Literal("any;"))
+parameter_type = (pp.Word(pp.alphas + "_")("simple_type") | pp.QuotedString('"')("enum_option") + pp.OneOrMore(pp.Suppress("|") + pp.QuotedString('"')("enum_option"))("enum")) + pp.Suppress(pp.Optional(","))
+parameter_def = pp.Optional(comment)("parameter_description") + pp.Word(pp.alphas + "_")("parameter_name") + pp.Optional(pp.Literal("?"))("is_optional") + pp.Suppress(pp.Literal(":")) + pp.Group(parameter_type)("parameter_type")
+function_def = function_def_start + pp.OneOrMore(pp.Group(parameter_def)("parameter")) + function_def_end
+functions_def = start_functions + pp.OneOrMore(pp.Group(function_def)("function")) + end_functions
+
+def get_json_from_parse(parse_out):
+    functions = []
+    for function in parse_out:
+        function_name = function.function_name
+        function_description = function.function_description
+        parameters = {
+            "type": "object",
+            "properties": {},
+            "required": []
+        }
+        for parameter in function:
+            if isinstance(parameter, str):
+                continue
+            parameter_name = parameter.parameter_name
+            parameter_description = parameter.parameter_description
+            parameter_type = parameter.parameter_type
+            is_optional = parameter.is_optional
+            d = {}
+            if parameter_type.simple_type:
+                d["type"] = parameter_type.simple_type
+            elif parameter_type.enum:
+                d["type"] = "string"
+                d["enum"] = [s for s in parameter_type]
+            if parameter_description:
+                d["description"] = parameter_description
+            if not is_optional:
+                parameters["required"].append(parameter_name)
+            parameters["properties"][parameter_name] = d
+        functions.append({
+            "name": function_name,
+            "description": function_description,
+            "parameters": parameters
+        })
+    return functions
+
+def extract_function_defs(prompt):
+    """ This extracts function definitions from the prompt.
+    """
+
+    if "\n## functions\n" not in prompt:
+        return None
+    else:
+        functions_text = prompt[prompt.index("\n## functions\n")+1:prompt.index("} // namespace functions")+24]
+        parse_out = functions_def.parseString(functions_text)
+        return get_json_from_parse(parse_out)
+
+
 # Define a deque to store the timestamps of the calls
 class OpenAISession(LLMSession):
     async def __call__(self, prompt, stop=None, stop_regex=None, temperature=None, n=1, max_tokens=1000, logprobs=None,
@@ -510,6 +634,8 @@ class OpenAISession(LLMSession):
             while self.llm.count_calls() > self.llm.max_calls_per_min:
                 await asyncio.sleep(1)
 
+            functions = extract_function_defs(prompt)
+
             fail_count = 0
             while True:
                 try_again = False
@@ -529,9 +655,14 @@ class OpenAISession(LLMSession):
                         "stream": stream,
                         **completion_kwargs
                     }
+                    if functions is None:
+                        if "function_call" in call_args:
+                            del call_args["function_call"]
+                    else:
+                        call_args["functions"] = functions
                     if logit_bias is not None:
                         call_args["logit_bias"] = {str(k): v for k,v in logit_bias.items()} # convert keys to strings since that's the open ai api's format
-                    out = self.llm.caller(**call_args)
+                    out = await self.llm.caller(**call_args)
 
                 except openai.error.RateLimitError:
                     await asyncio.sleep(3)
@@ -559,7 +690,6 @@ class OpenAISession(LLMSession):
 
 
 import os
-import atexit
 import json
 import platformdirs
 from ._openai import OpenAI

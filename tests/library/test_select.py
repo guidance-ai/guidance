@@ -132,9 +132,9 @@ def test_non_greedy_tokenize(llm):
     llm = get_llm(llm)
     program = guidance('''Is the following sentence offensive? Please answer with a single word, either "Yes", "No", or "Maybe".
 Sentence: {{example}}
-Answer:{{#select "answer" logprobs='logprobs'}} 
-    Yes{{or}} 
-    No{{or}} 
+Answer:{{#select "answer" logprobs='logprobs'}}
+    Yes{{or}}
+    No{{or}}
     Maybe
 {{/select}}''', llm=llm)
     executed_program = program(example='I hate tacos')
