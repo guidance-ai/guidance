@@ -3,14 +3,13 @@ import re
 import uuid
 import logging
 import types
-from .._grammar import grammar
 from .._utils import escape_template_block, AsyncIter
 
 log = logging.getLogger(__name__)
 
 async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_tokens=500, n=1, stream=None,
               temperature=0.0, top_p=1.0, logprobs=None, pattern=None, hidden=False, list_append=False,
-              save_prompt=False, token_healing=None, _parser_context=None, **llm_kwargs):
+              save_prompt=False, token_healing=None, function_call="none", _parser_context=None, **llm_kwargs):
     ''' Use the LLM to generate a completion.
 
     Parameters
@@ -69,10 +68,10 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
     next_next_node = _parser_context["next_next_node"]
     prev_node = _parser_context["prev_node"]
     # partial_output = _parser_context["partial_output"]
-    pos = len(variable_stack["_prefix"]) # save the current position in the prefix
+    pos = len(variable_stack["@raw_prefix"]) # save the current position in the prefix
 
     if hidden:
-        variable_stack.push({"_prefix": variable_stack["_prefix"]})
+        variable_stack.push({"@raw_prefix": variable_stack["@raw_prefix"]})
 
     if list_append:
         assert name is not None, "You must provide a variable name when using list_append=True"
@@ -80,12 +79,10 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
     # if stop is None then we use the text of the node after the generate command
     if stop is None:
 
-        next_text = next_node.text if next_node is not None else ""
-        prev_text = prev_node.text if prev_node is not None else ""
-        if next_next_node and next_next_node.text.startswith("{{~"):
-            next_text = next_text.lstrip()
-            if next_next_node and next_text == "":
-                next_text = next_next_node.text
+        next_text = getattr(next_node, "text", next_node) if next_node is not None else ""
+        prev_text = getattr(prev_node, "text", prev_node) if prev_node is not None else ""
+        if next_next_node and next_text == "":
+            next_text = getattr(next_next_node, "text", next_next_node)
 
         # auto-detect quote stop tokens
         quote_types = ["'''", '"""', '```', '"', "'", "`"]
@@ -96,7 +93,7 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
 
         # auto-detect role stop tags
         if stop is None:
-            m = re.match(r"^{{~?/(user|assistant|system|role)~?}}.*", next_text)
+            m = re.match(r"^{{~?/\w*(user|assistant|system|role|function)\w*~?}}.*", next_text)
             if m:
                 stop = parser.program.llm.role_end(m.group(1))
 
@@ -132,7 +129,7 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
 
     # save the prompt if requested
     if save_prompt:
-        variable_stack[save_prompt] = variable_stack["_prefix"]+prefix
+        variable_stack[save_prompt] = variable_stack["@raw_prefix"]+prefix
 
     if logprobs is None:
         logprobs = parser.program.logprobs
@@ -141,14 +138,14 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
 
     # call the LLM
     gen_obj = await parser.llm_session(
-        variable_stack["prefix"]+prefix, stop=stop, stop_regex=stop_regex, max_tokens=max_tokens, n=n, pattern=pattern,
+        variable_stack["@prefix"]+prefix, stop=stop, stop_regex=stop_regex, max_tokens=max_tokens, n=n, pattern=pattern,
         temperature=temperature, top_p=top_p, logprobs=logprobs, cache_seed=cache_seed, token_healing=token_healing,
-        echo=parser.program.logprobs is not None, stream=stream, caching=parser.program.caching, **llm_kwargs
+        echo=parser.program.logprobs is not None, stream=stream, caching=parser.program.caching, function_call=function_call, **llm_kwargs
     )
 
     if n == 1:
         generated_value = prefix
-        variable_stack["_prefix"] += prefix
+        variable_stack["@raw_prefix"] += prefix
         logprobs_out = []
         if not isinstance(gen_obj, (types.AsyncGeneratorType, types.GeneratorType, list, tuple)):
             gen_obj = [gen_obj]
@@ -169,8 +166,9 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
                 #log("Stopping generation")
                 break
             # log.debug("resp", resp)
-            generated_value += resp["choices"][0]["text"]
-            variable_stack["_prefix"] += resp["choices"][0]["text"]
+            new_text = resp["choices"][0].get("text", "")
+            generated_value += new_text
+            variable_stack["@raw_prefix"] += new_text
             if logprobs is not None:
                 logprobs_out.extend(resp["choices"][0]["logprobs"]["top_logprobs"])
             if list_append:
@@ -191,16 +189,16 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
         if hasattr(gen_obj, 'close'):
             gen_obj.close()
         generated_value += suffix
-        variable_stack["_prefix"] += suffix
+        variable_stack["@raw_prefix"] += suffix
         if list_append:
             variable_stack[name][list_ind] = generated_value
         elif name is not None:
             variable_stack[name] = generated_value
 
         if hidden:
-            new_content = variable_stack["_prefix"][pos:]
+            new_content = variable_stack["@raw_prefix"][pos:]
             variable_stack.pop()
-            variable_stack["_prefix"] += "{{!--GHIDDEN:"+new_content.replace("--}}", "--_END_END")+"--}}"
+            variable_stack["@raw_prefix"] += "{{!--GHIDDEN:"+new_content.replace("--}}", "--_END_END")+"--}}"
         
         # stop executing if we were interrupted
         if parser.should_stop:
@@ -229,7 +227,7 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
             # this just uses the first generated value for completion and the rest as alternatives only used for the variable storage
             # we mostly support this so that the echo=False hiding behavior does not make multiple outputs more complicated than it needs to be in the UX
             # if echo:
-            #     variable_stack["_prefix"] += generated_value
+            #     variable_stack["@raw_prefix"] += generated_value
             
             id = uuid.uuid4().hex
             l = len(generated_values)
@@ -242,7 +240,7 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
                     out += escape_template_block(value)
                 else:
                     out += value
-            variable_stack["_prefix"] += out + "--}}{{!--" + f"GMARKERmany_generate_end${id}$" + "--}}"
+            variable_stack["@raw_prefix"] += out + "--}}{{!--" + f"GMARKERmany_generate_end${id}$" + "--}}"
             return
             # return "{{!--GMARKERmany_generate_start$$}}" + "{{!--GMARKERmany_generate$$}}".join([v for v in generated_values]) + "{{!--GMARKERmany_generate_end$$}}"
             # return "".join([v for v in generated_values])

@@ -8,23 +8,45 @@ def test_geneach_chat_gpt():
     guidance.llm = get_llm("openai:gpt-3.5-turbo")
 
     chat_loop = guidance('''
-    {{#system~}}
-    You are a helpful assistant
-    {{~/system}}
+{{#system~}}
+You are a helpful assistant
+{{~/system}}
 
-    {{~#geneach 'conversation' stop=False}}
-    {{#user~}}
-    This is great!
-    {{~/user}}
+{{~#geneach 'conversation' stop=False}}
+{{#user~}}
+This is great!
+{{~/user}}
 
-    {{#assistant~}}
-    {{gen 'this.response' temperature=0 max_tokens=3}}
-    {{~/assistant}}
-    {{#if (> @index 0)}}{{break}}{{/if}}
-    {{~/geneach}}''')
+{{#assistant~}}
+{{gen 'this.response' temperature=0 max_tokens=3}}
+{{~/assistant}}
+{{#if @index > 0}}{{break}}{{/if}}
+{{~/geneach}}''')
 
     out = chat_loop()
     assert len(out["conversation"]) == 2
+
+def test_syntax_match():
+    """ Test a geneach loop with ChatGPT.
+    """
+
+    guidance.llm = get_llm("openai:gpt-3.5-turbo")
+
+    chat_loop = guidance('''
+{{~#system~}}
+You are a helpful assistant
+{{~/system~}}
+
+{{~#user~}}
+This is great!
+{{~/user~}}
+
+{{~#assistant~}}
+Indeed
+{{~/assistant~}}''')
+
+    out = chat_loop()
+    assert str(out) == '<|im_start|>system\nYou are a helpful assistant<|im_end|><|im_start|>user\nThis is great!<|im_end|><|im_start|>assistant\nIndeed<|im_end|>'
 
 def test_rest_nostream():
     guidance.llm = get_llm('openai:text-davinci-003', endpoint="https://api.openai.com/v1/completions", rest_call=True)

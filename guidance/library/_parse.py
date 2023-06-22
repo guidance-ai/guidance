@@ -1,4 +1,4 @@
-from .._utils import strip_markers, ContentCapture
+from .._utils import ContentCapture
 from .._grammar import grammar
 
 async def parse(string, name=None, hidden=False, _parser_context=None):
@@ -21,7 +21,7 @@ async def parse(string, name=None, hidden=False, _parser_context=None):
     with ContentCapture(variable_stack, hidden) as new_content:
 
         # parse and visit the given string
-        subtree = grammar.parse(string)
+        subtree = grammar.parse_string(string)
         new_content += await parser.visit(subtree, variable_stack)
 
         # save the content in a variable if needed
