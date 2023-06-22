@@ -3,22 +3,36 @@ import time
 import collections
 import regex
 import pygtrie
-import torch
+import traceback
 import queue
 import threading
 import logging
 import collections.abc
 import asyncio
 import requests
+
 from typing import Any, Dict, Optional, Callable
 from ._llm import LLM, LLMSession, SyncSession
 
 
+
+
 class TGWUI(LLM):
+    instruction_template = None
     def __init__(self, base_url, chat_mode=False):
         self.chat_mode = False  # by default models are not in role-based chat mode
         self.base_url = base_url
-        self.model_name = "unknown"
+        self.model_info= self.getModelInfo()
+        self.model_name = self.model_info["model_name"]
+        if self.model_info['instruction_following'] != chat_mode:
+            print(str("Warning the model "+self.model_info["model_name"]+": "+str(self.model_info['instruction_following']) +" however chat_mode: "+str(chat_mode)))
+
+
+
+    def getModelInfo(self):        
+        response = requests.get(self.base_url+'/api/v1/model')
+        resp=response.json()["results"]
+        return resp
 
 
     def __getitem__(self, key):
@@ -33,37 +47,38 @@ class TGWUI(LLM):
         return TWGUISession(self)
 
     def encode(self, string, **kwargs):
-        args={"text": string, "kwargs": kwargs}
-        try:
-            response = requests.post(self.base_url+'/api/v1/encode',json=args)
-            response.raise_for_status()  
-        except requests.exceptions.RequestException as e:
-            print(f'Encode request failed with error {e}')
-            return None
-
-        resp = response.json()
-        if 'results' in resp and len(resp['results']) > 0 and 'tokens' in resp['results'][0]:
-            return resp['results'][0]['tokens'][0]
-        else:
-            print('Unexpected response format')
-            return None
-
-
+        tmp={"text": string, "kwargs": kwargs}
+        response = requests.post(self.base_url+'/api/v1/encode',json=tmp)
+        resp=response.json()
+        return resp['results'][0]['tokens']
+    
     def decode(self, tokens, **kwargs):
-        args={"tokens": tokens, "kwargs": kwargs}
-        try:
-            response = requests.post(self.base_url+'/api/v1/decode',json=args)
-            response.raise_for_status()
-        except requests.exceptions.RequestException as e:
-            print(f'Decode request failed with error {e}')
-            return None
+        tmp={"tokens": tokens, "kwargs": kwargs}
+        response = requests.post(self.base_url+'/api/v1/decode',json=tmp)
+        resp=response.json()
+        return resp['results'][0]['ids']
 
-        resp = response.json()
-        if 'results' in resp and len(resp['results']) > 0 and 'ids' in resp['results'][0]:
-            return resp['results'][0]['ids']
+
+    def role_start(self, role):
+
+        if self.model_info['instruction_following'] == False:
+            assert (False), "Model does not support chat mode, may be next word completion model"
+            return ''
+        elif role == 'user':
+            return self.model_info['instruction_template']['user']
+        elif role == 'assistant' or role == 'system':
+            return self.model_info['instruction_template']['bot']
         else:
-            print('Unexpected response format')
-            return None
+            return ''
+
+
+    def role_end(self, role):
+        return ''
+
+    def end_of_text(self):
+        return self.model_info['eos_token']
+
+
 
 
     
@@ -85,22 +100,12 @@ class TWGUISession(LLMSession):
             "prompt":prompt, "stop": stop, "stop_regex":stop_regex, "temperature": temperature, "n":n, 
             "max_tokens":max_tokens, "logprobs":logprobs, "top_p":top_p, "echo":echo, "logit_bias":logit_bias, 
             "token_healing":token_healing, "pattern":pattern, "stream":stream, "cache_seed":cache_seed, 
-            "completion_kwargs":completion_kwargs
+            "completion_kwargs":completion_kwargs, "chat":self.llm.chat_mode
         }
-
-        try:
-            response = requests.post(self.llm.base_url+'/api/v1/call',json=args)
-            response.raise_for_status()  # This will raise a HTTPError if the response was an error
-        except requests.exceptions.RequestException as e:  # This will catch any kind of request exception
-            print(f'Request failed with error {e}')
-            return None
-
-        resp = response.json()
-        if 'choices' in resp and len(resp['choices']) > 0:
-            return resp['choices'][0]['text']
-        else:
-            print('Unexpected response format')
-            return None
+        response = requests.post(self.llm.base_url+'/api/v1/call',json=args)
+        resp=response.json()
+        print(resp["choices"][0]["text"])
+        return resp["choices"][0]["text"]
 
     def __exit__(self, exc_type, exc_value, traceback):
         pass
