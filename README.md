@@ -126,7 +126,7 @@ character_maker = guidance("""The following is a character profile for an RPG ga
     "class": "{{gen 'class'}}",
     "mantra": "{{gen 'mantra' temperature=0.7}}",
     "strength": {{gen 'strength' pattern='[0-9]+' stop=','}},
-    "items": [{{#geneach 'items' num_iterations=5 join=', '}}"{{gen 'this' temperature=0.7}}"{{/geneach}}]
+    "items": [{{#geneach 'char_items' num_iterations=5 join=', '}}"{{gen 'this' temperature=0.7}}"{{/geneach}}]
 }```""")
 
 # generate a character
