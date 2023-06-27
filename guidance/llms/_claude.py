@@ -39,7 +39,6 @@ def prompt_to_messages(prompt):
 
 def add_text_to_chat_mode_generator(chat_mode):
     for resp in chat_mode:
-        print('response: ', resp)
         if "completion" in resp:
             for c in resp['completion']:
                 if "content" in c['delta']:
@@ -52,7 +51,6 @@ def add_text_to_chat_mode_generator(chat_mode):
             yield resp
 
 def add_text_to_chat_mode(chat_mode):
-    print('response: ', chat_mode)
     if isinstance(chat_mode, types.GeneratorType):
         return add_text_to_chat_mode_generator(chat_mode)
     else:
@@ -203,7 +201,7 @@ class Claude(LLM):
             if stop_regex is not None:
 
                 # keep track of the generated text so far
-                for i,choice in enumerate(curr_out['choices']):
+                for i,choice in enumerate(curr_out['completion']):
                     current_strings[i] += choice['text']
 
                 # check if all of the strings match a stop string (and hence we can stop the batch inference)
@@ -245,8 +243,8 @@ class Claude(LLM):
                 cached_out = None
 
                 if stop_regex is not None:
-                    for i in range(len(out['choices'])):
-                        if stop_pos[i] < len(out['choices'][i]['text']):
+                    for i in range(len(out['completion'])):
+                        if stop_pos[i] < len(out['completion'][i]['text']):
                             out['choices'][i] = out['completion'][i].to_dict() # because sometimes we might need to set the text to the empty string (and OpenAI's object does not like that)
                             out['choices'][i]['text'] = out['choices'][i]['text'][:stop_pos[i]]
                             out['choices'][i]['stop_text'] = stop_text[i]
@@ -409,8 +407,8 @@ def merge_stream_chunks(first_chunk, second_chunk):
 
     # merge the choices
     for i in range(len(out['completion'])):
-        out_choice = out['choices'][i]
-        second_choice = second_chunk['choices'][i]
+        out_choice = out['completion'][i]
+        second_choice = second_chunk['completion'][i]
         out_choice['text'] += second_choice['text']
         if 'index' in second_choice:
             out_choice['index'] = second_choice['index']

@@ -6,9 +6,9 @@ from decouple import config
 OPENAI_API_KEY = config('OPENAI_API_KEY')
 def main():
     # set the default language model used to execute guidance programs
-    # guidance.llm = guidance.llms.OpenAI('text-davinci-003')
-    guidance.llm = guidance.llms.Claude('claude-1-100k')
-
+    guidance.llm = guidance.llms.OpenAI('text-davinci-003')
+    # guidance.llm = guidance.llms.Claude('claude-1-100k')
+    print('Used LLM: ', guidance.llm);
     # define a guidance program that adapts a proverb
     program = guidance("""\n\nHuman: Tweak this proverb to apply to model instructions instead.
 
@@ -17,7 +17,7 @@ def main():
 
         UPDATED
         \n\nAssistant: Where there is no guidance{{gen 'rewrite' stop="\\n-"}}
-        - GPT {{gen 'chapter'}}:{{gen 'verse'}} """)
+        - GPT {{gen 'chapter'}}:{{gen 'verse'}}""")
 
     executed_program = program(
         proverb="Where there is no guidance, a people falls,\nbut in an abundance of counselors there is safety.",

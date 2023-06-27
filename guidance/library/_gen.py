@@ -104,7 +104,7 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
                 end_tag = "</"+m.group(1)+">"
                 if next_text.startswith(end_tag):
                     stop = end_tag
-        
+
         # fall back to the next node's text (this was too easy to accidentally trigger, so we disable it now)
         # if stop is None:
         #     stop = next_text
@@ -166,7 +166,11 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
                 #log("Stopping generation")
                 break
             # log.debug("resp", resp)
-            new_text = resp["choices"][0].get("text", "")
+            # We check here if the model has completion att
+            if "completion" in resp:
+                new_text = resp["completion"]
+            else:
+                new_text = resp["choices"][0].get("text", "")
             generated_value += new_text
             variable_stack["@raw_prefix"] += new_text
             if logprobs is not None:
@@ -179,13 +183,13 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
                 variable_stack[name] = generated_value
                 if logprobs is not None:
                     variable_stack[name+"_logprobs"] = logprobs_out
-        
+
         # save the final stopping text if requested
         if save_stop_text is not False:
             if save_stop_text is True:
                 save_stop_text = name+"_stop_text"
             variable_stack[save_stop_text] = resp["choices"][0].get('stop_text', None)
-        
+
         if hasattr(gen_obj, 'close'):
             gen_obj.close()
         generated_value += suffix
@@ -199,7 +203,7 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
             new_content = variable_stack["@raw_prefix"][pos:]
             variable_stack.pop()
             variable_stack["@raw_prefix"] += "{{!--GHIDDEN:"+new_content.replace("--}}", "--_END_END")+"--}}"
-        
+
         # stop executing if we were interrupted
         if parser.should_stop:
             parser.executing = False
@@ -228,7 +232,7 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
             # we mostly support this so that the echo=False hiding behavior does not make multiple outputs more complicated than it needs to be in the UX
             # if echo:
             #     variable_stack["@raw_prefix"] += generated_value
-            
+
             id = uuid.uuid4().hex
             l = len(generated_values)
             out = "{{!--" + f"GMARKERmany_generate_start_{not hidden}_{l}${id}$" + "--}}"
