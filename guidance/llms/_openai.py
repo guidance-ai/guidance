@@ -13,7 +13,9 @@ import re
 import regex
 
 from ._llm import LLM, LLMSession, SyncSession
+from decouple import config
 
+OPENAI_API_KEY = config('OPENAI_API_KEY')
 
 class MalformedPromptException(Exception):
     pass
@@ -69,7 +71,7 @@ async def add_text_to_chat_mode_generator(chat_mode):
     async for resp in chat_mode:
         if "choices" in resp:
             for c in resp['choices']:
-                
+
                 # move content from delta to text so we have a consistent interface with non-chat mode
                 found_content = False
                 if "content" in c['delta'] and c['delta']['content'] != "":
@@ -87,21 +89,21 @@ async def add_text_to_chat_mode_generator(chat_mode):
                         else:
                             c['text'] += start_val
                         in_function_call = True
-                    
+
                     # extend the arguments JSON string
                     val = c['delta']['function_call']["arguments"]
                     if 'text' in c:
                         c['text'] += val
                     else:
                         c['text'] = val
-                    
+
                 if not found_content and not in_function_call:
                     break # the role markers are outside the generation in chat mode right now TODO: consider how this changes for uncontrained generation
             else:
                 yield resp
         else:
             yield resp
-    
+
     # close the function call if needed
     if in_function_call:
         yield {'choices': [{'text': ')```'}]}
@@ -118,7 +120,7 @@ class OpenAI(LLM):
     llm_name: str = "openai"
 
     def __init__(self, model=None, caching=True, max_retries=5, max_calls_per_min=60,
-                 api_key=None, api_type="open_ai", api_base=None, api_version=None, deployment_id=None,
+                 api_key=OPENAI_API_KEY, api_type="open_ai", api_base=None, api_version=None, deployment_id=None,
                  temperature=0.0, chat_mode="auto", organization=None, rest_call=False,
                  allowed_special_tokens={"<|endoftext|>", "<|endofprompt|>"},
                  token=None, endpoint=None):
@@ -126,7 +128,7 @@ class OpenAI(LLM):
 
         # map old param values
         # TODO: add deprecated warnings after some time
-        if token is not None:    
+        if token is not None:
             if api_key is None:
                 api_key = token
         if endpoint is not None:
@@ -155,7 +157,7 @@ class OpenAI(LLM):
                 chat_mode = True
             else:
                 chat_mode = False
-        
+
         # fill in default API key value
         if api_key is None: # get from environment variable
             api_key = os.environ.get("OPENAI_API_KEY", getattr(openai, "api_key", None))
@@ -177,7 +179,7 @@ class OpenAI(LLM):
         import tiktoken
         self._tokenizer = tiktoken.get_encoding(tiktoken.encoding_for_model(model).name)
         self.chat_mode = chat_mode
-        
+
         self.allowed_special_tokens = allowed_special_tokens
         self.model_name = model
         self.deployment_id = deployment_id
@@ -214,14 +216,14 @@ class OpenAI(LLM):
     def role_start(self, role_name, **kwargs):
         assert self.chat_mode, "role_start() can only be used in chat mode"
         return "<|im_start|>"+role_name+"".join([f' {k}="{v}"' for k,v in kwargs.items()])+"\n"
-    
+
     def role_end(self, role=None):
         assert self.chat_mode, "role_end() can only be used in chat mode"
         return "<|im_end|>"
-    
+
     def end_of_text(self):
         return "<|endoftext|>"
-    
+
     @classmethod
     async def stream_then_save(cls, gen, key, stop_regex, n):
         list_out = []
@@ -236,7 +238,7 @@ class OpenAI(LLM):
 
             current_strings = ["" for _ in range(n)]
             # last_out_pos = ["" for _ in range(n)]
-        
+
         # iterate through the stream
         all_done = False
         async for curr_out in gen:
@@ -246,7 +248,7 @@ class OpenAI(LLM):
                 out = merge_stream_chunks(cached_out, curr_out)
             else:
                 out = curr_out
-            
+
             # check if we have stop_regex matches
             found_partial = False
             if stop_regex is not None:
@@ -283,12 +285,12 @@ class OpenAI(LLM):
                                     stop_pos[i] = min(span[0], stop_pos[i])
                     if stop_pos != 1e10:
                         stop_pos[i] = stop_pos[i] - len(current_strings[i]) # convert to relative position from the end
-            
+
             # if we might be starting a stop sequence, we need to cache the output and continue to wait and see
             if found_partial:
                 cached_out = out
                 continue
-            
+
             # if we get here, we are not starting a stop sequence, so we can emit the output
             else:
                 cached_out = None
@@ -300,20 +302,20 @@ class OpenAI(LLM):
                             out['choices'][i]['text'] = out['choices'][i]['text'][:stop_pos[i]]
                             out['choices'][i]['stop_text'] = stop_text[i]
                             out['choices'][i]['finish_reason'] = "stop"
-            
+
                 list_out.append(out)
                 yield out
                 if all_done:
                     gen.aclose()
                     break
-        
+
         # if we have a cached output, emit it
         if cached_out is not None:
             list_out.append(cached_out)
             yield out
 
         cls.cache[key] = list_out
-    
+
     def _stream_completion(self):
         pass
 
@@ -346,7 +348,7 @@ class OpenAI(LLM):
         prev_type = openai.api_type
         prev_version = openai.api_version
         prev_base = openai.api_base
-        
+
         # set the params of the openai library if we have them
         if self.api_key is not None:
             openai.api_key = self.api_key
@@ -360,7 +362,7 @@ class OpenAI(LLM):
             openai.api_base = self.api_base
 
         assert openai.api_key is not None, "You must provide an OpenAI API key to use the OpenAI LLM. Either pass it in the constructor, set the OPENAI_API_KEY environment variable, or create the file ~/.openai_api_key with your key in it."
-        
+
         if self.chat_mode:
             kwargs['messages'] = prompt_to_messages(kwargs['prompt'])
             del kwargs['prompt']
@@ -371,14 +373,14 @@ class OpenAI(LLM):
             out = add_text_to_chat_mode(out)
         else:
             out = await openai.Completion.acreate(**kwargs)
-        
+
         # restore the params of the openai library
         openai.api_key = prev_key
         openai.organization = prev_org
         openai.api_type = prev_type
         openai.api_version = prev_version
         openai.api_base = prev_base
-        
+
         return out
 
     async def _rest_call(self, **kwargs):
@@ -436,7 +438,7 @@ class OpenAI(LLM):
         if self.chat_mode:
             response = add_text_to_chat_mode(response)
         return response
-        
+
     async def _close_response_and_session(self, response, session):
         await response.release()
         await session.close()
@@ -452,11 +454,11 @@ class OpenAI(LLM):
                     break
                 else:
                     yield json.loads(text)
-    
+
     def encode(self, string):
         # note that is_fragment is not used used for this tokenizer
         return self._tokenizer.encode(string, allowed_special=self.allowed_special_tokens)
-    
+
     def decode(self, tokens):
         return self._tokenizer.decode(tokens)
 
@@ -480,7 +482,7 @@ def merge_stream_chunks(first_chunk, second_chunk):
             out_choice['logprobs']['token_logprobs'] += second_choice['logprobs']['token_logprobs']
             out_choice['logprobs']['top_logprobs'] += second_choice['logprobs']['top_logprobs']
             out_choice['logprobs']['text_offset'] = second_choice['logprobs']['text_offset']
-    
+
     return out
 
 
@@ -509,14 +511,14 @@ class RegexStopChecker():
             self.current_strings = ["" for _ in range(len(input_ids))]
         for i in range(len(self.current_strings)):
             self.current_strings[i] += self.decode(input_ids[i][self.current_length:])
-        
+
         # trim off the prefix string so we don't look for stop matches in the prompt
         if self.current_length == 0:
             for i in range(len(self.current_strings)):
                 self.current_strings[i] = self.current_strings[i][self.prefix_length:]
-        
+
         self.current_length = len(input_ids[0])
-        
+
         # check if all of the strings match a stop string (and hence we can stop the batch inference)
         all_done = True
         for i in range(len(self.current_strings)):
@@ -527,7 +529,7 @@ class RegexStopChecker():
             if not found:
                 all_done = False
                 break
-        
+
         return all_done
 
 # define the syntax for the function definitions
@@ -619,14 +621,14 @@ class OpenAISession(LLMSession):
         cache_params = self._cache_params(args)
         llm_cache = self.llm.cache
         key = llm_cache.create_key(self.llm.llm_name, **cache_params)
-        
+
         # allow streaming to use non-streaming cache (the reverse is not true)
         if key not in llm_cache and stream:
             cache_params["stream"] = False
             key1 = llm_cache.create_key(self.llm.llm_name, **cache_params)
             if key1 in llm_cache:
                 key = key1
-        
+
         # check the cache
         if key not in llm_cache or caching is False or (caching is not True and not self.llm.caching):
 
@@ -668,7 +670,7 @@ class OpenAISession(LLMSession):
                     await asyncio.sleep(3)
                     try_again = True
                     fail_count += 1
-                
+
                 if not try_again:
                     break
 
@@ -679,13 +681,13 @@ class OpenAISession(LLMSession):
                 return self.llm.stream_then_save(out, key, stop_regex, n)
             else:
                 llm_cache[key] = out
-        
+
         # wrap as a list if needed
         if stream:
             if isinstance(llm_cache[key], list):
                 return llm_cache[key]
             return [llm_cache[key]]
-        
+
         return llm_cache[key]
 
 
@@ -708,10 +710,10 @@ class MSALOpenAI(OpenAI):
 
     def __init__(self, model=None, client_id=None, authority=None, caching=True, max_retries=5, max_calls_per_min=60, token=None,
                  endpoint=None, scopes=None, temperature=0.0, chat_mode="auto"):
-        
+
 
         assert endpoint is not None, "An endpoint must be specified!"
-        
+
         # build a standard OpenAI LLM object
         super().__init__(
             model=model, caching=caching, max_retries=max_retries, max_calls_per_min=max_calls_per_min,
@@ -748,7 +750,7 @@ class MSALOpenAI(OpenAI):
 
             # Now let's try to find a token in cache for this account
             result = self._app.acquire_token_silent(self.scopes, account=chosen)
-    
+
         if not result:
             # So no suitable token exists in cache. Let's get a new one from AAD.
             flow = self._app.initiate_device_flow(scopes=self.scopes)
