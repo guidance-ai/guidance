@@ -664,7 +664,7 @@ class OpenAISession(LLMSession):
                         call_args["logit_bias"] = {str(k): v for k,v in logit_bias.items()} # convert keys to strings since that's the open ai api's format
                     out = await self.llm.caller(**call_args)
 
-                except openai.error.RateLimitError:
+                except (openai.error.RateLimitError, openai.error.ServiceUnavailableError, openai.error.APIError):
                     await asyncio.sleep(3)
                     try_again = True
                     fail_count += 1
