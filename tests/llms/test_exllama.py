@@ -41,7 +41,7 @@ def test_basic_object_init():
     cache = ExLlamaCache(model)                             # create cache for inference
     generator = ExLlamaGenerator(model, tokenizer, cache)   # create generator
 
-    llm = guidance.llms.ExLlama(generator, tokenizer)
+    llm = guidance.llms.ExLlama(model=generator, tokenizer=tokenizer)
     with llm.session() as s:
         out = s("this is a test", max_tokens=5)
         print(out)
