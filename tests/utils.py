@@ -10,7 +10,7 @@ def get_llm(model_name, caching=False, **kwargs):
         return get_openai_llm(model_name[7:], caching, **kwargs)
     elif model_name.startswith("transformers:"):
         return get_transformers_llm(model_name[13:], caching, **kwargs)
-    elif model_name.startswith("exllama:")
+    elif model_name.startswith("exllama:"):
         return get_exllama_llm(model_name[13:], caching, **kwargs)
 
 def get_openai_llm(model_name, caching=False, **kwargs):
@@ -46,6 +46,6 @@ def get_transformers_llm(model_name, caching=False):
 def get_exllama_llm(model_name, caching=False):
     key = model_name+"_"+str(caching)
     if key not in transformers_model_cache:
-        transformers_model_cache[key] = guidance.llms.ExLLama(model_name, caching=caching)
+        transformers_model_cache[key] = guidance.llms.ExLlama(model_name, caching=caching)
 
     return transformers_model_cache[key]
