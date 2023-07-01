@@ -1,18 +1,18 @@
-import os
 import time
 import collections
 import regex
 import pygtrie
 import queue
-import threading
-import logging
 import collections.abc
 from ._llm import LLM, LLMSession, SyncSession
 
-from exllama_lib.model import ExLlama, ExLlamaCache, ExLlamaConfig
+import torch
+from exllama_lib.model import ExLlama as ExLlamaModel, ExLlamaConfig
 from exllama_lib.tokenizer import ExLlamaTokenizer
 from exllama_lib.generator import ExLlamaGenerator
+from exllama_lib.tokenizer import SentencePieceProcessor
 
+import warnings
 
 class ExLlama(LLM):
     """ A HuggingFace transformers language model with Guidance support.
@@ -20,13 +20,19 @@ class ExLlama(LLM):
 
     llm_name: str = "exllama"
 
-    def __init__(self, model=None, tokenizer=None, model_config=None, caching=False, token_healing=False, acceleration=False, \
+    def __init__(self, model=None, generator=None, tokenizer=None, model_config=None, caching=False, token_healing=False, acceleration=False, \
                  temperature=0.01, **kwargs):
         super().__init__()
 
-        self.model: ExLlamaGenerator = model
+        self.model: ExLlamaModel = model
+        self.model_obj: ExLlamaGenerator = generator
         self.tokenizer: ExLlamaTokenizer = tokenizer
-        self.model_config: ExLlamaConfig
+        self._sentence_piece_processor: SentencePieceProcessor = self.tokenizer.tokenizer
+        self.model_config: ExLlamaConfig = model_config
+
+        # TODO:
+        # Use temperature somehow
+
         self.caching = caching
         self.current_time = time.time()
         self.call_history = collections.deque()
@@ -34,10 +40,7 @@ class ExLlama(LLM):
         self.token_healing = token_healing
         self.acceleration = acceleration
 
-        self._token_prefix_map = self._build_token_prefix_map(model)
-
-    def new_string_builder(self, starting_ids=None):
-        return TransformersStringBuilder(self.tokenizer, starting_ids)
+        self._token_prefix_map = self._build_token_prefix_map()
 
     def prefix_matches(self, prefix):
         """ Return the list of tokens that match the given prefix.
@@ -51,22 +54,25 @@ class ExLlama(LLM):
         return self.tokenizer.decode(tokens, **kwargs)
     
     def id_to_token(self, id):
-        return self.tokenizer.decode(id)
-    
+        token = self._sentence_piece_processor.Decode(id)
+        return token
+
     def token_to_id(self, token):
-        return self.tokenizer.encode(token)
+        print("Encoding...", token)
+        return self._sentence_piece_processor.Encode(token)[-1]
 
     def end_of_text(self):
-        return self.model_config.eos_token_id
+        return ""
+        # return self.model_config.eos_token_id
 
     @staticmethod
     def role_start(role):
         raise NotImplementedError("In order to use chat role tags you need to use a chat-specific subclass of Transformers for your LLM from guidance.transformers.*!")
 
-    def _build_token_prefix_map(self, model_name):
-        """ Build a map from token to index.
-        """
+    def _build_token_prefix_map(self):
+        """ Build a map from token to index."""
         token_map = pygtrie.CharTrie()
+
         for i in range(self.model_config.vocab_size):
             s = self.id_to_token(i)
             if s in token_map:
@@ -75,6 +81,59 @@ class ExLlama(LLM):
                 token_map[s] = [i]
 
         return token_map
+
+    def autocomplete_options(self, prompt, options):
+        def generate_bias_from_valid_characters(model_config, chars):
+            encoded_tokens = [] 
+            for char in list(set(chars)):
+                encoded_tokens.append(self.tokenizer.encode(char))
+
+            import torch
+            logit_bias = torch.zeros([1, 1, model_config.vocab_size])
+
+            for encoded_token in encoded_tokens:
+                logit_bias[:, :, encoded_token] += 1000.0
+
+            return logit_bias
+
+        import pygtrie
+        tree = pygtrie.CharTrie()
+
+        # Fill tree with options paths
+        for option in options:
+            for idx in range(len(option)):
+                    key = option[:idx]
+                    if tree.has_key(key):
+                        tree[key].append(option[idx:])
+                    else:
+                        tree[key] = [option[idx:]]
+
+        first_char_options = []
+
+        for option in options:
+            first_char_options.append(option[0])
+
+        logit_bias = generate_bias_from_valid_characters(self.model_config, first_char_options)
+        prefix = ""
+        option_fulfilled = False
+        max_tokens = 10
+
+        i = 0
+        while not option_fulfilled and i < max_tokens:
+            prefix += self.model_obj.generate_token_with_bias(prompt + prefix, logit_bias=logit_bias)
+            suffixes_to_explore = tree[prefix]
+            if len(suffixes_to_explore) == 1:
+                prefix += suffixes_to_explore[0]
+                option_fulfilled = True         
+            else:
+                valid_chars = []
+                for suffix in suffixes_to_explore:
+                    valid_chars.append(suffix[0])
+                logit_bias = generate_bias_from_valid_characters(self.model_config, valid_chars)
+
+            i += 1
+        return prefix
+
 
 
     def session(self, asynchronous=False):
@@ -158,6 +217,7 @@ class ExLlamaSession(LLMSession):
         if token_healing is None:
             token_healing = self.llm.token_healing
 
+        self.llm: ExLlama
         # generate the cache key
         cache_params = self._cache_params(locals().copy())
         llm_cache = self.llm.cache
@@ -173,32 +233,30 @@ class ExLlamaSession(LLMSession):
             stop_regex = [stop_regex]
         if stop_regex is None:
             stop_regex = []
-        stop_regex.append(regex.escape(self.llm.tokenizer.eos_token)) # make sure the end of sequence token is always included
+        stop_regex.append(regex.escape(
+            self.llm.id_to_token(self.llm.model_config.eos_token_id)
+        )) # make sure the end of sequence token is always included
 
         # handle caching
         in_cache = key in llm_cache
         not_caching = (caching is not True and not self.llm.caching) or caching is False
         if not in_cache or not_caching:
-            import transformers
-
-            assert prompt != "", "You must provide a non-zero length prompt to the Transformers language model!"
+            assert prompt != "", "You must provide a non-zero length prompt to the ExLlama language model!"
 
             # encode the prompt
             import torch
             # encoded2 = self.llm.encode([prompt for _ in range(n)], return_tensors="pt")
             encoded = self.llm.encode(prompt)
-            encoded = torch.tensor([encoded for _ in range(n)])
-            if self.llm.device is not None:
-                encoded = encoded.to(self.llm.device)
+            encoded = torch.tensor(encoded)
+
             input_ids = encoded#["input_ids"]
             # attention_mask = encoded["attention_mask"]
-            model_config = self.llm.model_obj.config
+            model_config: ExLlamaConfig = self.llm.model_config
 
             # ensure that we are extending a common sequence batch (our token healing assumes this right now)
             assert (input_ids[0,-1] == input_ids[:,-1]).all(), "The current token healing implementation assumes that batches are reps of the same sequence!"
 
             healed_token_ids = []
-            processors = []
             stoppers = []
 
             # save what the prompt looks like when coded and then decoded (this captures added start tokens, etc.)
@@ -206,17 +264,15 @@ class ExLlamaSession(LLMSession):
 
             # setup token healing
             if token_healing:
-                healer = TokenHealingLogitsProcessor(self.llm, model_config.vocab_size, input_ids[0])
-                healed_token_ids = healer.healed_token_ids
-                if len(healed_token_ids) > 0:
-                    input_ids = input_ids[:,:-len(healed_token_ids)]
-                    # attention_mask = attention_mask[:,:-len(healed_token_ids)]
-                    max_tokens += len(healed_token_ids) # increase to account for the tokens we regen for token healing
-                    processors.append(healer)
+                raise TypeError("Token healing is not supported for ExLlama in this version")
+                # healer = TokenHealingLogitsProcessor(self.llm, model_config.vocab_size, input_ids[0])
+                # healed_token_ids = healer.healed_token_ids
+                # if len(healed_token_ids) > 0:
+                #     input_ids = input_ids[:,:-len(healed_token_ids)]
+                #     # attention_mask = attention_mask[:,:-len(healed_token_ids)]
+                #     max_tokens += len(healed_token_ids) # increase to account for the tokens we regen for token healing
+                #     processors.append(healer)
 
-            # setup logit biasing
-            if logit_bias is not None:
-                processors.append(BiasLogitsProcessor(self.llm, model_config.vocab_size, logit_bias))
 
             # find the max context length
             possible_attributes = ["max_sequence_length", "max_seq_len", "model_max_length", "n_positions", "max_position_embeddings"]
@@ -252,59 +308,59 @@ class ExLlamaSession(LLMSession):
 
             # add support for pattern guidance
             if pattern is not None:
-                processors.append(RegexLogitsProcessor(pattern, stop_regex, self.llm, model_config.vocab_size, temperature == 0, len(coded_prompt), self.llm.tokenizer.eos_token_id))
-
+                raise TypeError("Pattern is not supported by ExLlama in this version")
+            
             if stop_regex is not None:
+                # TODO: fix dependency on this
+                warnings.warn("Using RegexStoppingCriteria, but it's not supported by ExLlama!")
                 stoppers.append(RegexStoppingCriteria(stop_regex, self.llm, len(coded_prompt)))
 
+            select_options=generate_kwargs.get("exllama_select_options")
+
             # a streamer to handle potentially partial output
-            streamer = TransformersStreamer(
+            streamer = ExLlamaStreamer(
                 input_ids=input_ids,
                 stop_regex=stop_regex,
                 healed_token_ids=healed_token_ids,
                 prefix_length=len(coded_prompt),
                 llm=self.llm,
                 max_new_tokens=max_tokens,
-                logprobs=logprobs
+                logprobs=logprobs,
+                select_options=select_options,
             )
 
             # the args for the transformers generate call
             generate_args = dict(
-                inputs=input_ids,
-                # attention_mask=attention_mask,
-                # position_ids=position_ids,
-                temperature=temperature,
+                prefix=input_ids,
+                logit_bias=logit_bias,
                 max_new_tokens=max_tokens,
-                top_p=top_p,
-                pad_token_id=model_config.pad_token_id if model_config.pad_token_id is not None else self.llm.tokenizer.eos_token_id,
-                logits_processor=transformers.LogitsProcessorList(processors),
-                stopping_criteria=transformers.StoppingCriteriaList(stoppers),
+
+                # TODO: try to support more parameters below
+                # Specially important are:
+                # 1. stopping_criteria
+                # 2. temperature
+
+                # temperature=temperature,
+                # top_p=top_p,
+                # pad_token_id=model_config.pad_token_id if model_config.pad_token_id is not None else self.llm.tokenizer.eos_token_id,
+                # stopping_criteria=transformers.StoppingCriteriaList(stoppers),
                 # past_key_values=self._past_key_values,
-                output_scores=logprobs is not None and logprobs > 0,
-                return_dict_in_generate=True,
-                **generate_kwargs
+                # output_scores=logprobs is not None and logprobs > 0,
+                # return_dict_in_generate=True,
             )
 
-            # override the model config for do_sample when the temperature requires it
-            do_sample = getattr(model_config, "do_sample", None)
-            if do_sample is True and temperature == 0:
-                generate_args["do_sample"] = False
-            elif do_sample is False and temperature > 0:
-                generate_args["do_sample"] = True
-
-            # if we are streaming then we need to run the inference process in a separate thread
-            if stream:
-                generate_args["streamer"] = streamer
-                thread = threading.Thread(target=self.llm.model_obj.generate, kwargs=generate_args)
-                thread.start()
-                return self._stream_then_save(streamer, key, thread)
-
-            # if we are not streaming we still manually use the streamer for consistency
-            else:
-                generated_sequence = self.llm.model_obj.generate(**generate_args)
-                streamer.put(generated_sequence)
+            # TODO: support stream argument
+            if select_options:
+                token = self.llm.autocomplete_options(prompt=prompt, options=select_options)
+                streamer.put(token)
                 self.llm.cache[key] = streamer.__next__()
                 self._update_prefix_cache(streamer)
+            else:
+                for token in self.llm.model_obj.generate_raw_stream_with_bias(**generate_args):
+                    streamer.put(token)
+                    self.llm.cache[key] = streamer.__next__()
+                    self._update_prefix_cache(streamer)
+
         return llm_cache[key]
     
     def _update_prefix_cache(self, streamer):
@@ -334,204 +390,147 @@ class ExLlamaSession(LLMSession):
         return False
 
 
-class TokenHealingLogitsProcessor():
-    """ Token healing.
 
-    When we tokenize the prompt the last token(s) we get are not the last token(s) we would
-    have gotten if the prompt + generation was concatented and then tokenized. This
-    is not good because it does not align with the pretraining of the model, so
-    we "heal" this boundary by backing up as many tokens as needed and then forcing the first tokens
-    generated to start with the prefix of the tokens we removed from the prompt. This could
-    result in the same tokens at the end of the prompt, or some suffix of the tokens we removed
-    could be replaced by a single longer one that crosses the prompt boundary.
-    """
+class ExLlamaStreamer():
+    def __init__(self, input_ids, stop_regex, healed_token_ids, prefix_length, llm, max_new_tokens, logprobs, select_options=None, timeout=None):
 
-    def __init__(self, model, vocab_size, prompt_ids, bias_value=100.):
-        """ Build a new TokenHealingLogitsProcessor.
+        self.input_ids = input_ids
+        self.stop_regex = stop_regex
+        self.healed_token_ids = healed_token_ids
+        self.logprobs = logprobs
+        self.llm: ExLlama = llm
+        self.max_new_tokens = max_new_tokens
+        self.timeout = timeout
+        self.str_pos = [prefix_length for i in range(len(self.input_ids))]
+        self.out_queue = queue.Queue()
+        self.input_length = len(input_ids[0])
+        self.generated_sequence = []
+        self.generated_string = [""]
+        self.prefix_cache = []
+        self.input_string = self.llm.tokenizer.decode(input_ids[0])
+        self.select_options = select_options
 
-        Note that bias_value is in score space (log-odds normally) and should be
-        enough to ensure those tokens are the only ones used.
-        """
+    def put(self, token_obj):
+        if self.select_options and isinstance(token_obj, str):
+            for choice in self.select_options:
+                if choice.lower() == token_obj:
+                    self.out_queue.put({
+                        "choices": [{
+                            "text": token_obj,
+                            "finish_reason": "match choice",
+                            "stop_text": choice,
+                            # TODO: fix these logprobs
+                            "logprobs": {
+                                "top_logprobs": [{token_obj: choice}]
+                            },
+                            "early_select_quit": True
+                        }]
+                    })
+                    return
 
-        # loop backwards through the prompt tokens looking for places where there are possible
-        # extensions that cross the prompt boundary
-        prefix_str = ""
-        self.extension_tokens = []
-        for i in range(len(prompt_ids)-1, max(len(prompt_ids)-10, -1), -1):
-            token_str = model.id_to_token(prompt_ids[i])
-            prefix_str = token_str + prefix_str
-            try:
-                extensions = model.prefix_matches(prefix_str)
-            except KeyError: # this must be a special token outside the vocab, so we assume it does not have any valid extensions
-                extensions = []
-            self.extension_tokens.append(extensions)
-            if i != len(prompt_ids)-1:
-                self.extension_tokens[-1].append(prompt_ids[i]) # add the token used in the input prompt to the list of possible extensions
-        self.extension_tokens = self.extension_tokens[::-1]
+        new_tokens = None
+        if isinstance(token_obj, torch.Tensor):
+            new_tokens = token_obj.cpu()
+        
+        # if we are given a single sequence, then make it a batch of size 1
+        if len(new_tokens.shape) == 1:
+            new_tokens = new_tokens.unsqueeze(0)
 
-        # prune off any extension token positions that don't have multiple multiple possible extensions
-        found_extensions = False
-        for i in range(len(self.extension_tokens)):
-            if len(self.extension_tokens[i]) > 1:
-                self.extension_tokens = self.extension_tokens[i:]
-                found_extensions = True
-                break
-        if found_extensions:
-            self.healed_token_ids = prompt_ids[len(prompt_ids)-len(self.extension_tokens):]
+        if len(self.input_ids) > 1:
+            raise NotImplementedError("Batch size > 1 is not handled in ExLlamaStreamer")
+
+        # print(new_tokens)
+        out = {"choices": [None for i in range(len(self.input_ids))]}
+
+
+        put_data = True
+
+        # print("new_tokens", new_tokens)
+        # print("input ids", self.input_ids)
+        finish_reason = None
+        self.generated_sequence.extend(new_tokens)
+        self.generated_string.extend(self.llm.tokenizer.decode(new_tokens))
+        
+        # Add max tokens check
+        # print("in here")
+        # print("str pos", self.str_pos)
+        # print("generated sequence", self.generated_sequence)
+        # print("generated_string", self.generated_string)
+
+        if len(self.generated_sequence) >= self.max_new_tokens:
+            finish_reason = "length"
+
+        elif self.generated_sequence[-1] == self.llm.tokenizer.eos_token_id:
+            finish_reason = "endoftext"
+            self.generated_string.pop() # remove the end of text token
+
+        # print("generated_string", self.generated_string)
+        output_string = " ".join(self.generated_string)
+        # print("output_string", output_string)
+
+        # trim off the stop regex matches if needed
+        found_partial = False
+        stop_text = None
+        stop_pos = None
+        if self.stop_regex is not None:# and (finish_reason is None or len(self.input_ids) > 1):
+            stop_regex_obj = [regex.compile(s) for s in self.stop_regex]
+            for s in stop_regex_obj:
+                print("stop", s)
+                print("output_string", output_string)
+                m = s.search(output_string, partial=True)
+                print("m", m)
+                if m:
+                    span = m.span()
+                    if span[1] > span[0]:
+                        if m.partial: # we might be starting a stop sequence, so we can't emit anything yet
+                            # found_partial = True
+                            break
+                        else:
+                            stop_text = output_string[span[0]:span[1]]
+                            stop_pos = min(span[0], stop_pos)
+                            break
+
+        print("found partial", found_partial)
+        print("stop_text", stop_text)
+        print("stop_pos", stop_pos)
+        # record the reason we stopped (if we have stopped)
+        if stop_pos and stop_pos <= len(self.generated_string):
+            finish_reason = "stop"
+            # Remove text after stop pos
+            output_string = output_string[:stop_pos]
+        
+        output_string = self.input_string + output_string
+        if finish_reason is not None and not found_partial:
+            out["choices"][0] = {
+                "text": output_string,
+                "finish_reason": finish_reason,
+                "stop_text": stop_text
+            }
+            # Consider whether this boolean is still needed
+            # put_data = True
+
+        if put_data:
+            self.out_queue.put(out)
+
+
+    def end(self):
+
+        # make sure we have flushed all of the data
+        for i in range(len(self.input_ids)):
+            assert self.str_pos[i] >= len(self.generated_string[i]), "Not all data was flushed, this means generation stopped for an unknown reason!"
+
+        self.out_queue.put(None)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        value = self.out_queue.get(timeout=self.timeout)
+        if value is None:
+            raise StopIteration()
         else:
-            self.extension_tokens = []
-            self.healed_token_ids = []
-        
-        # if we have multiple possible completions past the last token, then biasing is needed
-        if len(self.extension_tokens) > 0:
-            import torch
+            return value
 
-            # build a set of masks for each possible extension position
-            self.token_masks = []
-            for i in range(len(self.extension_tokens)):
-                token_mask = torch.zeros(vocab_size)
-                token_mask.scatter_(0, torch.tensor(self.extension_tokens[i]), bias_value)
-                if model.device is not None:
-                    token_mask = token_mask.to(model.device)
-                self.token_masks.append(token_mask)
-
-        self.num_extensions = 0
-
-    def __call__(self, input_ids, scores):
-
-        # we only bias the first token generated
-        if self.num_extensions >= len(self.extension_tokens):
-            return scores
-        self.num_extensions += 1
-
-        # check if the last token was from the original prompt (if not then we have already "healed" by choosing a token that crosses the prompt boundary)
-        if self.num_extensions > 1 and input_ids[0][-1] != self.healed_token_ids[self.num_extensions-2]:
-            return scores
-
-        # handle list inputs
-        if isinstance(scores, list):
-            import torch
-            scores = torch.tensor(scores)
-
-        # make only allowed tokens possible
-        return scores + self.token_masks[self.num_extensions-1]
-    
-class BiasLogitsProcessor():
-    """ Simple token biasing.
-    """
-
-    def __init__(self, model, vocab_size, logit_bias):
-        """ Build a new BiasLogitsProcessor.
-        """
-        import torch
-        
-        self.bias_vector = torch.zeros(vocab_size)
-        for token, bias in logit_bias.items():
-            self.bias_vector[token] = bias
-        self.bias_vector = self.bias_vector.to(model.device)
-
-    def __call__(self, input_ids, scores):
-
-        # handle list inputs
-        if isinstance(scores, list):
-            import torch
-            scores = torch.tensor(scores)
-
-        return scores + self.bias_vector
-    
-class RegexLogitsProcessor():
-    """ Pattern guiding.
-    
-    Guide generation to match a regular expression.
-    TODO: currently slow, could be made much faster by doing rejection sampling inline with the sampling/greedy process.
-    """
-
-    def __init__(self, pattern, stop_regex, llm, vocab_size, is_greedy, prefix_length, eos_token_id, max_consider=500000):
-        """ Build a new TokenHealingLogitsProcessor.
-
-        Parameters
-        ----------
-        pattern : str
-            The regex pattern we are seeking to match.
-        stop_regex : str or list of str
-            The stop regex(s) allowed to come after this pattern.
-        llm : function
-            The llm.
-        vocab_size : int
-            The size of the vocabulary.
-        is_greedy : bool
-            The token selection mode currently in use. We need to know this so we can
-            effectively take over that sampling process inside this logit processor.
-        eos_token_id : int
-            The end of the stop token of the model.
-        max_consider : int
-            How many top values to bias. Note that we could remove this option once this
-            processor is performance optimized (by integrating it into the sampling/greedy process).
-        """
-        import torch
-        
-        if isinstance(stop_regex, str):
-            stop_regex = [stop_regex]
-        self.pattern_no_stop = regex.compile(pattern)
-        self.pattern = regex.compile(pattern + "(" + "|".join(stop_regex) + ")?")
-        self.llm = llm
-        self.is_greedy = is_greedy
-        self.prefix_length = prefix_length
-        self.max_consider = max_consider
-        self.bias_vector = torch.zeros(vocab_size)
-        self.current_strings = None
-        self.current_length = 0
-        self.forced_chars = 0
-        self.eos_token_id = eos_token_id
-
-    def __call__(self, input_ids, scores):
-        import torch
-
-        # handle 1D inputs
-        one_dim = False
-        if not isinstance(input_ids[0], collections.abc.Sequence) and not (hasattr(input_ids[0], "shape") and len(input_ids[0].shape) > 0):
-            one_dim = True
-            input_ids = torch.tensor(input_ids).unsqueeze(0)
-            scores = torch.tensor(scores).unsqueeze(0)
-
-        # extend our current strings
-        if self.current_strings is None:
-            self.current_strings = [self.llm.new_string_builder() for i in range(len(input_ids))]
-        for i in range(len(self.current_strings)):
-            self.current_strings[i].extend(input_ids[i][self.current_length:])
-
-        assert len(self.current_strings) == 1, "Regex patterns guides do not support batched inference with Transformers yet!"
-
-        self.current_length = len(input_ids[0])
-        
-        # compute the bias values
-        self.bias_vector[:] = 0
-        sort_inds = torch.argsort(scores, 1, True)
-        to_bias = []
-        for i in range(min(sort_inds.shape[1], self.max_consider)):
-            self.current_strings[0].extend([sort_inds[0,i]])
-            proposed_string = str(self.current_strings[0])[self.prefix_length:]
-            self.current_strings[0].pop()
-            m = self.pattern.fullmatch(proposed_string, partial=True) # partial means we don't match currently but might as the string grows
-            if m:
-                to_bias.append(int(sort_inds[0, i]))
-                if self.is_greedy: # TODO: make this much faster for non-greedy sampling (by tracking how much prob mass we have looked through perhaps...)
-                    break # we are done if we are doing greedy sampling and we found the top valid hit
-        
-        # if we found no more valid tokens then we just end the sequence
-        if not len(to_bias):
-            to_bias = [self.eos_token_id]
-        
-        # bias allowed tokens
-        min_to_bias = float(scores[0, to_bias].min())
-        bias_value = scores[0, sort_inds[0, 0]] - min_to_bias + 10 # make sure the tokens that fit the pattern have higher scores than the top value
-        for x in to_bias:
-            self.bias_vector[x] = bias_value
-        out = scores + self.bias_vector.to(scores.device)
-        if one_dim:
-            return out[0]
-        else:
-            return out
 
 class RegexStoppingCriteria():
     def __init__(self, stop_pattern, llm, prefix_length):
@@ -570,167 +569,3 @@ class RegexStoppingCriteria():
                 break
         
         return all_done
-
-class TransformersStringBuilder():
-    """This deals with the complexity of building up a string from tokens bit by bit."""
-    def __init__(self, tokenizer, starting_ids=None):
-        self.tokenizer = tokenizer
-        self.token_strings = []
-        self._joint_string = ""
-        if starting_ids is not None:
-            self.extend(starting_ids)
-
-    def extend(self, new_ids):
-        new_token_strings = self.tokenizer.convert_ids_to_tokens(new_ids)
-        self.token_strings.extend(new_token_strings)
-        new_str = self.tokenizer.convert_tokens_to_string(self.token_strings)
-        diff_str = new_str[len(self._joint_string):]
-        self._joint_string = new_str
-        return diff_str
-
-    def pop(self):
-        """Remove the last token from the string and return text it removed."""
-        self.token_strings.pop()
-        new_str = self.tokenizer.convert_tokens_to_string(self.token_strings)
-        diff_str = self._joint_string[len(new_str):]
-        self._joint_string = new_str
-        return diff_str
-
-    def __str__(self):
-        return self._joint_string
-
-    def __len__(self):
-        return len(self._joint_string)
-
-class TransformersStreamer():
-    def __init__(self, input_ids, stop_regex, healed_token_ids, prefix_length, llm, max_new_tokens, logprobs, timeout=None):
-
-        self.input_ids = input_ids
-        self.stop_regex = stop_regex
-        self.healed_token_ids = healed_token_ids
-        self.logprobs = logprobs
-        self.llm = llm
-        self.max_total_tokens = max_new_tokens + len(input_ids[0])
-        self.timeout = timeout
-        self.str_pos = [prefix_length for i in range(len(self.input_ids))]
-        self.out_queue = queue.Queue()
-        self.sequence_pos = [len(self.input_ids[0]) for i in range(len(self.input_ids))]
-        self.generated_sequence = [[] for i in range(len(self.input_ids))]
-        self.display_logprobs = [[] for i in range(len(self.input_ids))]
-        self.generated_string = [self.llm.new_string_builder(input_ids[0]) for i in range(len(self.input_ids))]
-        self.prefix_cache = []
-
-    def put(self, token_obj):
-
-        import torch
-        if isinstance(token_obj, torch.Tensor):
-            new_tokens = token_obj
-        else:
-            new_tokens = token_obj['sequences']
-
-        if isinstance(new_tokens, torch.Tensor):
-            new_tokens = new_tokens.cpu()
-        
-        # if we are given a single sequence, then make it a batch of size 1
-        if len(new_tokens.shape) == 1:
-            new_tokens = new_tokens.unsqueeze(0)
-
-        # extract the scores if we are given them (and format them to be the same shape as the tokens)
-        if self.logprobs:
-            assert len(new_tokens) == 1, "logprobs are not supported for batched generation right now in guidance.llms.Transformers"
-            new_scores = [torch.nn.functional.log_softmax(x, dim=-1).cpu() for x in token_obj['scores']]
-            len_diff = len(new_tokens[0]) - len(new_scores)
-            if len_diff > 0:
-                new_scores = [None for i in range(len_diff)] + new_scores
-            new_scores = [new_scores]
-
-        out = {"choices": [None for i in range(len(self.input_ids))]}
-        put_data = False
-        for i in range(len(self.input_ids)):
-            self.generated_sequence[i].extend(list(new_tokens[i]))
-            
-            # save logprobs if needed
-            if self.logprobs:
-                for scores in new_scores[i]:
-                    if scores is None:
-                        self.display_logprobs[i].append(None)
-                    else:
-                        top_inds = scores[0].argsort(descending=True)[:self.logprobs] # TODO: verify the [0] is always correct
-                        self.display_logprobs[i].append({self.llm.id_to_token(j): float(scores[0][j]) for j in top_inds})
-
-            if self.sequence_pos[i] < len(self.generated_sequence[i]):
-                display_tokens = list(self.generated_sequence[i][self.sequence_pos[i]:])
-                val = self.generated_string[i].extend(display_tokens)
-                # val = self.llm.decode(display_tokens)#[self.llm._prefix_token_id] + display_tokens)[len(self.llm._prefix_token):]
-                # self.generated_string[i] += val
-                
-                if self.str_pos[i] < len(self.generated_string[i]):
-                    val = str(self.generated_string[i])[self.str_pos[i]:]
-                    finish_reason = None
-                    
-                    # check why we stopped
-                    stop_pos = len(val) + 1
-                    if len(self.generated_sequence[i]) >= self.max_total_tokens:
-                        finish_reason = "length"
-                    elif self.generated_sequence[i][-1] == self.llm.tokenizer.eos_token_id:
-                        finish_reason = "endoftext"
-                        eos_str = self.generated_string[i].pop() # remove the end of text token
-                        stop_pos = len(val) - len(eos_str)
-
-                    # trim off the stop regex matches if needed
-                    found_partial = False
-                    stop_text = None
-                    if self.stop_regex is not None:# and (finish_reason is None or len(self.input_ids) > 1):
-                        stop_regex_obj = [regex.compile(s) for s in self.stop_regex]
-                        for s in stop_regex_obj:
-                            m = s.search(val, partial=True)
-                            if m:
-                                span = m.span()
-                                if span[1] > span[0]:
-                                    if m.partial: # we might be starting a stop sequence, so we can't emit anything yet
-                                        found_partial = True
-                                        break
-                                    else:
-                                        stop_text = val[span[0]:span[1]]
-                                        stop_pos = min(span[0], stop_pos)
-                                        break
-
-                    # record the reason we stopped (if we have stopped)
-                    if stop_pos <= len(val):
-                        finish_reason = "stop"
-                    
-                    # emit the data if we are not potentially in the middle of a stop sequence
-                    if not found_partial or finish_reason is not None:
-                        out["choices"][i] = {
-                            "text": val[:stop_pos],
-                            "finish_reason": finish_reason,
-                            "stop_text": stop_text,
-                            "logprobs": {
-                                # "token_healing_prefix": self.last_token_str,
-                                "top_logprobs": self.display_logprobs[i][self.sequence_pos[i]:]
-                            }
-                        }
-                        self.str_pos[i] = len(self.generated_string[i])
-                        put_data = True
-                self.sequence_pos[i] = len(self.generated_sequence[i])
-        
-        if put_data:
-            self.out_queue.put(out)
-
-    def end(self):
-
-        # make sure we have flushed all of the data
-        for i in range(len(self.input_ids)):
-            assert self.str_pos[i] >= len(self.generated_string[i]), "Not all data was flushed, this means generation stopped for an unknown reason!"
-        
-        self.out_queue.put(None)
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        value = self.out_queue.get(timeout=self.timeout)
-        if value is None:
-            raise StopIteration()
-        else:
-            return value

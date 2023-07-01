@@ -41,10 +41,10 @@ def test_basic_object_init():
     cache = ExLlamaCache(model)                             # create cache for inference
     generator = ExLlamaGenerator(model, tokenizer, cache)   # create generator
 
-    llm = guidance.llms.ExLlama(model=generator, tokenizer=tokenizer)
+    llm = guidance.llms.ExLlama(model=model, generator=generator, tokenizer=tokenizer, model_config=config)
     with llm.session() as s:
         out = s("this is a test", max_tokens=5)
-        print(out)
+        assert len(out["choices"][0]["text"]) > len("this is a test")
 
 @pytest.mark.skipif(skip_tests, reason=skip_reason)
 @pytest.mark.parametrize("llm", ["exllama:orca_mini_7B-GPTQ"])

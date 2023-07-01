@@ -45,6 +45,7 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
 
     # find what text follows the select command and append it to the options.
     # we do this so we can differentiate between select options where one is a prefix of another
+
     next_text = next_node.text if next_node is not None else ""
     if next_next_node and next_next_node.text.startswith("{{~"):
         next_text = next_text.lstrip()
@@ -52,6 +53,7 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
             next_text = next_next_node.text
     if next_text == "": # if we have nothing after us then we are at the end of the text
         next_text = parser.program.llm.end_of_text()
+
     options = [option + next_text for option in options]
 
     # TODO: this retokenizes the whole prefix many times, perhaps this could become a bottleneck?
@@ -63,6 +65,10 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
     # build a trie of the options
     token_map = pygtrie.Trie()
     for i,option in enumerate(options_tokens):
+        # ExLlama encoder returns Tensor type, we need to cast to a list
+        if not isinstance(option, list):
+            option = [int(x) for x in option[0].tolist()]
+
         token_map[option] = i
     
     async def recursive_select(current_prefix, allow_token_extension=True):
@@ -111,9 +117,25 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
             logit_bias=logit_bias,
             logprobs=len(logit_bias),
             cache_seed=0,
+            exllama_select_options=options,
             token_healing=False # we manage token boundary healing ourselves for this function
         )
+
         gen_obj = gen_obj["choices"][0] # get the first choice (we only asked for one)
+
+        if gen_obj.get("early_select_quit"):
+            chosen = gen_obj["text"]
+            # see if we are appending to a list or not
+            if list_append:
+                value_list = variable_stack.get(variable_name, [])
+                value_list.append(chosen)
+                variable_stack[variable_name] = value_list
+            else:
+                variable_stack[variable_name] = chosen
+ 
+            variable_stack["@raw_prefix"] += chosen
+            return gen_obj
+
         if "logprobs" in gen_obj:
             logprobs_result = gen_obj["logprobs"]
             
@@ -133,6 +155,7 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
             max_key = max(top_logprobs, key=top_logprobs.get)
             top_logprobs = {max_key: top_logprobs[max_key]}
 
+
         # for each possible next token, see if it grows the prefix in a valid way
         for token,logprob in top_logprobs.items():
             sub_logprobs = await recursive_select(current_prefix + [token])
@@ -150,6 +173,8 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
         
     # recursively compute the logprobs for each option
     option_logprobs = await recursive_select([])
+    if option_logprobs.get("early_select_quit"):
+        return
 
     # convert the key from a token list to a string
     option_logprobs = {parser.program.llm.decode(k): v for k,v in option_logprobs.items()}
