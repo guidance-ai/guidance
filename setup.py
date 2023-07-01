@@ -55,6 +55,10 @@ setup(
             'transformers',
             'torch',
             'pytest-cov'
+        ],
+        # Temporary git url, pin down to a more definitive source
+        'exllama': [
+            'exllama_lib @ git+https://github.com/paolorechia/exllama@packageable'
         ]
     }
 )
