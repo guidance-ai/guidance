@@ -6,6 +6,62 @@ import re
 import asyncio
 
 
+class InPlace():
+    """Creates a scope where the LM is in-place or not."""
+    def __init__(self, lm):
+        self.lm = lm
+        self._prev_inplace = lm._inplace
+    
+    def __enter__(self):
+        new_lm = self.lm._clone()
+        new_lm._inplace = True
+        return new_lm
+
+    def __exit__(self, type, value, traceback):
+        InPlace._rec_set_inplace(self.lm, self._prev_inplace)
+
+    @staticmethod
+    def _rec_set_inplace(lm, value):
+        lm._inplace = value
+        for child in lm._children:
+            InPlace._rec_set_inplace(child, value)
+
+class Silent():
+    """Creates a scope where the LM is silent or not."""
+    def __init__(self, lm, silent):
+        self.lm = lm
+        self._prev_silent = lm._silent
+        self.silent = silent
+    
+    def __enter__(self):
+        if self.silent is not None:
+            self.lm._silent = self.silent
+
+    def __exit__(self, type, value, traceback):
+        if self.silent is not None:
+            Silent._rec_set_silent(self.lm, self._prev_silent)
+
+    @staticmethod
+    def _rec_set_silent(lm, value):
+        lm._silent = value
+        for child in lm._children:
+            Silent._rec_set_silent(child, value)
+
+class CaptureEvents():
+    """Creates a scope where all the events are captured in a queue.
+    
+    Note that this does not stop the events from being captured by higher level scopes.
+    """
+    def __init__(self, lm):
+        self.lm = lm
+    
+    def __enter__(self):
+        self.lm._event_queue = queue.Queue()
+        return self.lm._event_queue
+
+    def __exit__(self, type, value, traceback):
+        self.lm._event_queue = None
+
 def load(guidance_file):
     ''' Load a guidance program from the given text file.
 

@@ -152,9 +152,12 @@ class SyncSession:
         return self._session.__exit__(exc_type, exc_value, traceback)
 
     def __call__(self, *args, **kwargs):
-        return asyncio.get_event_loop().run_until_complete(
-            self._session.__call__(*args, **kwargs)
-        )
+        out = self._session.__call__(*args, **kwargs)
+        if asyncio.iscoroutine(out):
+
+            return asyncio.get_event_loop().run_until_complete(out)
+        else:
+            return out
 
 class CallableAnswer:
     def __init__(self, name, args_string, function=None):
