@@ -1,27 +1,27 @@
-from .._utils import ContentCapture
+import guidance
 
-async def role(role_name, hidden=False, _parser_context=None, **kwargs):
-    ''' A chat role block.
-    '''
-    block_content = _parser_context['block_content']
-    parser = _parser_context['parser']
-    variable_stack = _parser_context['variable_stack']
+@guidance(model=guidance.models.ChatLM)
+def role(self, role_name, text=None):
+    open_text = f"<||_html:<div style='display: flex; border-bottom: 1px solid rgba(127, 127, 127, 0.2); align-items: center;'><div style='flex: 0 0 80px; opacity: 0.5;'>{role_name.lower()}</div><div style='flex-grow: 1; padding: 5px; padding-top: 10px; padding-bottom: 10px; margin-top: 0px; white-space: pre-wrap; margin-bottom: 0px;'>_||>"
+    open_text += "<||_#NODISP_||>" + self.get_role_start(role_name) + "<||_/NODISP_||>"
+    close_text = "<||_html:</div></div>_||>" + "<||_#NODISP_||>" + self.get_role_end(role_name) + "<||_/NODISP_||>"
+    if text is None:
+        return self.block(open_text, close_text)
+    else:
+        return self + open_text + text + close_text
 
-    # capture the content of the block
-    with ContentCapture(variable_stack, hidden) as new_content:
-        
-        # send the role-start special tokens
-        new_content += parser.program.llm.role_start(role_name, **kwargs)
+@guidance(model=guidance.models.ChatLM)
+def system(self, text=None):
+    return self.role("system", text)
 
-        # visit the block content
-        new_content += await parser.visit(
-            block_content,
-            variable_stack,
-            next_node=_parser_context["block_close_node"],
-            prev_node=_parser_context["prev_node"],
-            next_next_node=_parser_context["next_node"]
-        )
+@guidance(model=guidance.models.ChatLM)
+def user(self, text=None):
+    return self.role("user", text)
 
-        # send the role-end special tokens
-        new_content += parser.program.llm.role_end(role_name)
-role.is_block = True
+@guidance(model=guidance.models.ChatLM)
+def assistant(self, text=None):
+    return self.role("assistant", text)
+
+@guidance(model=guidance.models.ChatLM)
+def function(self, text=None):
+    return self.role("function", text)

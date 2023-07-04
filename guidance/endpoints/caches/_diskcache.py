@@ -3,7 +3,7 @@ import os
 import diskcache
 import platformdirs
 
-from guidance.llms.caches import Cache
+from guidance.endpoints.caches import Cache
 
 
 class DiskCache(Cache):

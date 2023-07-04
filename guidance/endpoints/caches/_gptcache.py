@@ -3,7 +3,7 @@ from typing import Dict, Any
 
 import platformdirs
 
-from guidance.llms.caches import Cache
+from guidance.endpoints.caches import Cache
 try:
     from gptcache.adapter.api import get, put, init_similar_cache
 except ImportError:

@@ -6,6 +6,15 @@ import re
 import asyncio
 
 
+class TextRange:
+    def __init__(self, start, end, lm):
+        self.start = start
+        self.end = end
+        self.lm = lm
+
+    def __str__(self) -> str:
+        return str(self.lm)[self.start:self.end]
+
 class InPlace():
     """Creates a scope where the LM is in-place or not."""
     def __init__(self, lm):

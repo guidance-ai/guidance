@@ -11,108 +11,10 @@ import collections
 import json
 import re
 import regex
+import pyparsing as pp
 
 from ._llm import LLM, LLMSession, SyncSession
 
-
-class MalformedPromptException(Exception):
-    pass
-
-import pyparsing as pp
-
-role_start_tag = pp.Suppress(pp.Optional(pp.White()) + pp.Literal("<|im_start|>"))
-role_start_name = pp.Word(pp.alphanums + "_")("role_name")
-role_kwargs = pp.Suppress(pp.Optional(" ")) + pp.Dict(pp.Group(pp.Word(pp.alphanums + "_") + pp.Suppress("=") + pp.QuotedString('"')))("kwargs")
-role_start = (role_start_tag + role_start_name + pp.Optional(role_kwargs) + pp.Suppress("\n")).leave_whitespace()
-role_end = pp.Suppress(pp.Literal("<|im_end|>"))
-role_content = pp.Combine(pp.ZeroOrMore(pp.CharsNotIn("<") | pp.Literal("<") + ~pp.FollowedBy("|im_end|>")))("role_content")
-role_group = pp.Group(role_start + role_content + role_end)("role_group").leave_whitespace()
-partial_role_group = pp.Group(role_start + role_content)("role_group").leave_whitespace()
-roles_grammar = pp.ZeroOrMore(role_group) + pp.Optional(partial_role_group) + pp.StringEnd()
-
-# import pyparsing as pp
-
-# role_start_tag = pp.Literal("<|im_start|>")
-# role_start_name = pp.Word(pp.alphanums + "_")
-# role_kwargs = pp.Dict(pp.Group(pp.Word(pp.alphanums + "_") + pp.Suppress("=") + pp.QuotedString('"')))
-# role_start = role_start_tag + role_start_name + pp.Optional(role_kwargs) + pp.Suppress("\n")
-# role_end = pp.Literal("<|im_end|>")
-# role_content = pp.CharsNotIn("<|im_start|><|im_end|>")
-
-# r'<\|im_start\|>([^\n]+)\n(.*?)(?=<\|im_end\|>|$)'
-
-def prompt_to_messages(prompt):
-    messages = []
-
-    assert prompt.endswith("<|im_start|>assistant\n"), "When calling OpenAI chat models you must generate only directly inside the assistant role! The OpenAI API does not currently support partial assistant prompting."
-
-    parsed_prompt = roles_grammar.parse_string(prompt)
-
-    # pattern = r'<\|im_start\|>([^\n]+)\n(.*?)(?=<\|im_end\|>|$)'
-    # matches = re.findall(pattern, prompt, re.DOTALL)
-
-    # if not matches:
-    #     return [{'role': 'user', 'content': prompt}]
-
-    for role in parsed_prompt:
-        if len(role["role_content"]) > 0: # only add non-empty messages (OpenAI does not support empty messages anyway)
-            message = {'role': role["role_name"], 'content': role["role_content"]}
-            if "kwargs" in role:
-                for k, v in role["kwargs"].items():
-                    message[k] = v
-            messages.append(message)
-
-    return messages
-
-async def add_text_to_chat_mode_generator(chat_mode):
-    in_function_call = False
-    async for resp in chat_mode:
-        if "choices" in resp:
-            for c in resp['choices']:
-                
-                # move content from delta to text so we have a consistent interface with non-chat mode
-                found_content = False
-                if "content" in c['delta'] and c['delta']['content'] != "":
-                    found_content = True
-                    c['text'] = c['delta']['content']
-
-                # capture function call data and convert to text again so we have a consistent interface with non-chat mode and open models
-                if "function_call" in c['delta']:
-
-                    # build the start of the function call (the follows the syntax that GPT says it wants when we ask it, and will be parsed by the @function_detector)
-                    if not in_function_call:
-                        start_val = "\n```typescript\nfunctions."+c['delta']['function_call']["name"]+"("
-                        if not c['text']:
-                            c['text'] = start_val
-                        else:
-                            c['text'] += start_val
-                        in_function_call = True
-                    
-                    # extend the arguments JSON string
-                    val = c['delta']['function_call']["arguments"]
-                    if 'text' in c:
-                        c['text'] += val
-                    else:
-                        c['text'] = val
-                    
-                if not found_content and not in_function_call:
-                    break # the role markers are outside the generation in chat mode right now TODO: consider how this changes for uncontrained generation
-            else:
-                yield resp
-        else:
-            yield resp
-    
-    # close the function call if needed
-    if in_function_call:
-        yield {'choices': [{'text': ')```'}]}
-
-def add_text_to_chat_mode(chat_mode):
-    if isinstance(chat_mode, (types.AsyncGeneratorType, types.GeneratorType)):
-        return add_text_to_chat_mode_generator(chat_mode)
-    else:
-        for c in chat_mode['choices']:
-            c['text'] = c['message']['content']
-        return chat_mode
 
 class OpenAI(LLM):
     llm_name: str = "openai"
@@ -460,6 +362,57 @@ class OpenAI(LLM):
     def decode(self, tokens):
         return self._tokenizer.decode(tokens)
 
+def add_text_to_chat_mode(chat_mode):
+    """Adds the text field to the chat mode response, so that it is consistent with the non-chat mode response."""
+    if isinstance(chat_mode, (types.AsyncGeneratorType, types.GeneratorType)):
+        return add_text_to_chat_mode_generator(chat_mode)
+    else:
+        for c in chat_mode['choices']:
+            c['text'] = c['message']['content']
+        return chat_mode
+
+async def add_text_to_chat_mode_generator(chat_mode):
+    """Same as add_text_to_chat_mode, but for async generators."""
+    in_function_call = False
+    async for resp in chat_mode:
+        if "choices" in resp:
+            for c in resp['choices']:
+                
+                # move content from delta to text so we have a consistent interface with non-chat mode
+                found_content = False
+                if "content" in c['delta'] and c['delta']['content'] != "":
+                    found_content = True
+                    c['text'] = c['delta']['content']
+
+                # capture function call data and convert to text again so we have a consistent interface with non-chat mode and open models
+                if "function_call" in c['delta']:
+
+                    # build the start of the function call (the follows the syntax that GPT says it wants when we ask it, and will be parsed by the @function_detector)
+                    if not in_function_call:
+                        start_val = "\n```typescript\nfunctions."+c['delta']['function_call']["name"]+"("
+                        if not c['text']:
+                            c['text'] = start_val
+                        else:
+                            c['text'] += start_val
+                        in_function_call = True
+                    
+                    # extend the arguments JSON string
+                    val = c['delta']['function_call']["arguments"]
+                    if 'text' in c:
+                        c['text'] += val
+                    else:
+                        c['text'] = val
+                    
+                if not found_content and not in_function_call:
+                    break # the role markers are outside the generation in chat mode right now TODO: consider how this changes for uncontrained generation
+            else:
+                yield resp
+        else:
+            yield resp
+    
+    # close the function call if needed
+    if in_function_call:
+        yield {'choices': [{'text': ')```'}]}
 
 def merge_stream_chunks(first_chunk, second_chunk):
     """ This merges two stream responses together.
@@ -482,55 +435,40 @@ def merge_stream_chunks(first_chunk, second_chunk):
             out_choice['logprobs']['text_offset'] = second_choice['logprobs']['text_offset']
     
     return out
+    
+# define a grammar for parsing roles
+role_start_tag = pp.Suppress(pp.Optional(pp.White()) + pp.Literal("<|im_start|>"))
+role_start_name = pp.Word(pp.alphanums + "_")("role_name")
+role_kwargs = pp.Suppress(pp.Optional(" ")) + pp.Dict(pp.Group(pp.Word(pp.alphanums + "_") + pp.Suppress("=") + pp.QuotedString('"')))("kwargs")
+role_start = (role_start_tag + role_start_name + pp.Optional(role_kwargs) + pp.Suppress("\n")).leave_whitespace()
+role_end = pp.Suppress(pp.Literal("<|im_end|>"))
+role_content = pp.Combine(pp.ZeroOrMore(pp.CharsNotIn("<") | pp.Literal("<") + ~pp.FollowedBy("|im_end|>")))("role_content")
+role_group = pp.Group(role_start + role_content + role_end)("role_group").leave_whitespace()
+partial_role_group = pp.Group(role_start + role_content)("role_group").leave_whitespace()
+roles_grammar = pp.ZeroOrMore(role_group) + pp.Optional(partial_role_group) + pp.StringEnd()
 
+def prompt_to_messages(prompt):
+    """Takes a raw prompt string and returns a list of messages with role and content fields for API calls."""
+    messages = []
 
-class OpenAIStreamer():
-    def __init__(self, stop_regex, n):
-        self.stop_regex = stop_regex
-        self.n = n
-        self.current_strings = ["" for _ in range(n)]
-        self.current_length = 0
+    # TODO: remove this in case some endpoints support partial prompting?
+    assert prompt.endswith("<|im_start|>assistant\n"), "When calling OpenAI chat models you must generate only directly inside the assistant role! The OpenAI API does not currently support partial assistant prompting."
 
-class RegexStopChecker():
-    def __init__(self, stop_pattern, decode, prefix_length):
-        if isinstance(stop_pattern, str):
-            self.stop_patterns = [regex.compile(stop_pattern)]
-        else:
-            self.stop_patterns = [regex.compile(pattern) for pattern in stop_pattern]
-        self.prefix_length = prefix_length
-        self.decode = decode
-        self.current_strings = None
-        self.current_length = 0
+    # use pyparsing to parse the prompt into roles
+    parsed_prompt = roles_grammar.parse_string(prompt)
 
-    def __call__(self, input_ids, scores, **kwargs):
+    # convert the parsed prompt into a list of messages for the API
+    for role in parsed_prompt:
+        if len(role["role_content"]) > 0: # only add non-empty messages (OpenAI does not support empty messages anyway)
+            message = {'role': role["role_name"], 'content': role["role_content"]}
+            if "kwargs" in role:
+                for k, v in role["kwargs"].items():
+                    message[k] = v
+            messages.append(message)
 
-        # extend our current strings
-        if self.current_strings is None:
-            self.current_strings = ["" for _ in range(len(input_ids))]
-        for i in range(len(self.current_strings)):
-            self.current_strings[i] += self.decode(input_ids[i][self.current_length:])
-        
-        # trim off the prefix string so we don't look for stop matches in the prompt
-        if self.current_length == 0:
-            for i in range(len(self.current_strings)):
-                self.current_strings[i] = self.current_strings[i][self.prefix_length:]
-        
-        self.current_length = len(input_ids[0])
-        
-        # check if all of the strings match a stop string (and hence we can stop the batch inference)
-        all_done = True
-        for i in range(len(self.current_strings)):
-            found = False
-            for s in self.stop_patterns:
-                if s.search(self.current_strings[i]):
-                    found = True
-            if not found:
-                all_done = False
-                break
-        
-        return all_done
+    return messages
 
-# define the syntax for the function definitions
+# define a grammar for parsing function definitions
 import pyparsing as pp
 start_functions = pp.Suppress(pp.Literal("## functions\n\nnamespace functions {\n\n"))
 comment = pp.Combine(pp.Suppress(pp.Literal("//") + pp.Optional(" ")) + pp.restOfLine)
@@ -541,6 +479,17 @@ parameter_type = (pp.Word(pp.alphas + "_")("simple_type") | pp.QuotedString('"')
 parameter_def = pp.Optional(comment)("parameter_description") + pp.Word(pp.alphas + "_")("parameter_name") + pp.Optional(pp.Literal("?"))("is_optional") + pp.Suppress(pp.Literal(":")) + pp.Group(parameter_type)("parameter_type")
 function_def = function_def_start + pp.OneOrMore(pp.Group(parameter_def)("parameter")) + function_def_end
 functions_def = start_functions + pp.OneOrMore(pp.Group(function_def)("function")) + end_functions
+
+def extract_function_defs(prompt):
+    """ This extracts function definitions from the prompt.
+    """
+
+    if "\n## functions\n" not in prompt:
+        return None
+    else:
+        functions_text = prompt[prompt.index("\n## functions\n")+1:prompt.index("} // namespace functions")+24]
+        parse_out = functions_def.parse_string(functions_text)
+        return get_json_from_parse(parse_out)
 
 def get_json_from_parse(parse_out):
     functions = []
@@ -577,19 +526,6 @@ def get_json_from_parse(parse_out):
         })
     return functions
 
-def extract_function_defs(prompt):
-    """ This extracts function definitions from the prompt.
-    """
-
-    if "\n## functions\n" not in prompt:
-        return None
-    else:
-        functions_text = prompt[prompt.index("\n## functions\n")+1:prompt.index("} // namespace functions")+24]
-        parse_out = functions_def.parseString(functions_text)
-        return get_json_from_parse(parse_out)
-
-
-# Define a deque to store the timestamps of the calls
 class OpenAISession(LLMSession):
     async def __call__(self, prompt, stop=None, stop_regex=None, temperature=None, n=1, max_tokens=1000, logprobs=None,
                        top_p=1.0, echo=False, logit_bias=None, token_healing=None, pattern=None, stream=None,
@@ -664,7 +600,7 @@ class OpenAISession(LLMSession):
                         call_args["logit_bias"] = {str(k): v for k,v in logit_bias.items()} # convert keys to strings since that's the open ai api's format
                     out = await self.llm.caller(**call_args)
 
-                except openai.error.RateLimitError:
+                except (openai.error.RateLimitError, openai.error.ServiceUnavailableError):
                     await asyncio.sleep(3)
                     try_again = True
                     fail_count += 1
@@ -673,7 +609,7 @@ class OpenAISession(LLMSession):
                     break
 
                 if fail_count > self.llm.max_retries:
-                    raise Exception(f"Too many (more than {self.llm.max_retries}) OpenAI API RateLimitError's in a row!")
+                    raise Exception(f"Too many (more than {self.llm.max_retries}) OpenAI API RateLimitError's or ServiceUnavailableError's in a row!")
 
             if stream:
                 return self.llm.stream_then_save(out, key, stop_regex, n)

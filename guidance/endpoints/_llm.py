@@ -3,6 +3,7 @@ import asyncio
 import re
 import json
 import guidance
+import types
 
 from .caches import DiskCache
 
@@ -139,6 +140,19 @@ class LLMSession:
 
         return args_dict
 
+def async_stream_to_sync_stream(obj):
+    """This method converts an async iterator into a normal sync iterator."""
+
+    # if we have a normal iterator, just return it (can come from caching etc.)
+    if not hasattr(obj, "__aiter__"):
+        return obj
+
+    while True:
+        try:
+            loop = asyncio.get_event_loop()
+            yield loop.run_until_complete(obj.__anext__())
+        except StopAsyncIteration:
+            break
 
 class SyncSession:
     def __init__(self, session):
@@ -150,14 +164,18 @@ class SyncSession:
 
     def __exit__(self, exc_type, exc_value, traceback):
         return self._session.__exit__(exc_type, exc_value, traceback)
-
+    
     def __call__(self, *args, **kwargs):
-        out = self._session.__call__(*args, **kwargs)
-        if asyncio.iscoroutine(out):
+        return async_stream_to_sync_stream(asyncio.get_event_loop().run_until_complete(
+            self._session.__call__(*args, **kwargs)
+        ))
 
-            return asyncio.get_event_loop().run_until_complete(out)
-        else:
-            return out
+    # def __call__(self, *args, **kwargs):
+    #     out = self._session.__call__(*args, **kwargs)
+    #     if asyncio.iscoroutine(out) or isinstance(out, types.AsyncGeneratorType):
+    #         return async_stream_to_sync_stream(out)
+    #     else:
+    #         return out
 
 class CallableAnswer:
     def __init__(self, name, args_string, function=None):
