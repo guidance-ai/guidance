@@ -4,7 +4,7 @@ import guidance
 from guidance import InPlace
 
 @guidance
-def gen(lm, name=None, *, max_tokens=10, list_append=False, pattern=None, stop=None, stop_regex=None, suffix="", n=1, temperature=0.0, top_p=1.0,
+def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop=None, stop_regex=None, suffix="", n=1, temperature=0.0, top_p=1.0,
         logprobs=None, cache_seed=None, token_healing=None, stream=None, function_call="none", save_stop_text=False, **llm_kwargs):
 
     # set stream if we are interactive
