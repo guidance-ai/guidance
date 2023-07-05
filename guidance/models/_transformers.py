@@ -9,7 +9,7 @@ class Transformers(LM):
         super().__init__(model, **kwargs)
         self.model = model
 
-        self.endpoint = guidance.endpoints.TransformersEndpoint(model, **kwargs)
+        self.endpoint = guidance.endpoints.Transformers(model, **kwargs)
         self.endpoint.caching = True
         self.session = self.endpoint.session()
 

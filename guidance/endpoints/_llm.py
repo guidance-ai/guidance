@@ -166,9 +166,12 @@ class SyncSession:
         return self._session.__exit__(exc_type, exc_value, traceback)
     
     def __call__(self, *args, **kwargs):
-        return async_stream_to_sync_stream(asyncio.get_event_loop().run_until_complete(
+        out = asyncio.get_event_loop().run_until_complete(
             self._session.__call__(*args, **kwargs)
-        ))
+        )
+        if kwargs.get("stream", False) and isinstance(out, types.AsyncGeneratorType):
+            out = async_stream_to_sync_stream(out)
+        return out
 
     # def __call__(self, *args, **kwargs):
     #     out = self._session.__call__(*args, **kwargs)

@@ -97,6 +97,18 @@ class LM:
 
     def __call__(self, s):
         return self + s
+    
+    def get_encoded(self, s):
+        return self.endpoint.encode(s)
+    
+    def get_decoded(self, s):
+        return self.endpoint.decode(s)
+    
+    def get_id_to_token(self, id):
+        return self.get_decoded([id])
+
+    def get_token_to_id(self, token):
+        return self.get_encoded(token)[0]
 
 
 class ChatLM(LM):

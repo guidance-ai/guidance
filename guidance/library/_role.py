@@ -6,7 +6,7 @@ def role(self, role_name, text=None):
     open_text += "<||_#NODISP_||>" + self.get_role_start(role_name) + "<||_/NODISP_||>"
     close_text = "<||_html:</div></div>_||>" + "<||_#NODISP_||>" + self.get_role_end(role_name) + "<||_/NODISP_||>"
     if text is None:
-        return self.block(open_text, close_text)
+        return self.block(open_text=open_text, close_text=close_text)
     else:
         return self + open_text + text + close_text
 

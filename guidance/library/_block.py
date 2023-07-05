@@ -12,7 +12,7 @@ def block(self, name=None, open_text="", close_text=""):
         return self + open_text
     
     def __exit__(self, exc_type, exc_value, traceback):
-        self._rec_close(close_text, text_name=name, text_offset=offset)
+        _rec_close(self, close_text, text_name=name, text_offset=offset)
     
     # bind the enter and exit methods
     new_lm.instance__enter__ = types.MethodType(__enter__, new_lm)
