@@ -10,8 +10,7 @@ class Transformers(LM):
         self.model = model
 
         self.endpoint = guidance.endpoints.Transformers(model, **kwargs)
-        self.endpoint.caching = True
-        self.session = self.endpoint.session()
+        self._endpoint_session = self.endpoint.session()
 
 class ChatTransformers(Transformers, ChatLM):
     def __init__(self, model, **kwargs):

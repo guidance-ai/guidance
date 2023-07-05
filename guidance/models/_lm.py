@@ -5,8 +5,9 @@ import re
 import copy
 
 
+
 class LM:
-    def __init__(self, model):
+    def __init__(self, model, caching=True):
         self.model = model
         self._state = ""
         self._children = []
@@ -15,7 +16,16 @@ class LM:
         self._silent = None
         self._inplace = None
         self._variables = {}
+        self._caching = caching
+        self._endpoint_session = None
         self.endpoint = None
+
+    def get_endpoint_session(self):
+        return self._endpoint_session_call
+    
+    def _endpoint_session_call(self, *args, **kwargs):
+        kwargs["caching"] = self._caching
+        return self._endpoint_session(*args, **kwargs)
 
     def _html(self):
         display_out = html.escape(self._state)
@@ -109,6 +119,9 @@ class LM:
 
     def get_token_to_id(self, token):
         return self.get_encoded(token)[0]
+    
+    def get_cache(self):
+        return self.endpoint.cache
 
 
 class ChatLM(LM):

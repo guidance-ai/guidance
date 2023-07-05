@@ -97,7 +97,7 @@ def select(lm, name="selected", options=None, suffix="", logprobs=None, list_app
             return logprobs_out
 
         # generate the token logprobs
-        gen_obj = lm.session(
+        gen_obj = lm.get_endpoint_session()(
             lm.get_decoded(current_prefix), # TODO: perhaps we should allow passing of token ids directly? (this could allow us to avoid retokenizing the whole prefix many times)
             max_tokens=1,
             logit_bias=logit_bias,

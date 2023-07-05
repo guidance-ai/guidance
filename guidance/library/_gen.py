@@ -23,7 +23,7 @@ def gen(lm, name=None, *, max_tokens=10, list_append=False, pattern=None, stop=N
         if name is not None:
             new_lm[name] = ""
 
-        gen_obj = new_lm.session(
+        gen_obj = new_lm.get_endpoint_session()(
             str(new_lm), stop=stop, stop_regex=stop_regex, max_tokens=max_tokens, n=n, pattern=pattern,
             temperature=temperature, top_p=top_p, logprobs=logprobs, cache_seed=cache_seed, token_healing=token_healing,
             echo=getattr(new_lm, "logprobs", False), stream=stream, function_call=function_call, **llm_kwargs
