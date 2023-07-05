@@ -25,8 +25,11 @@ Features:
 pip install guidance
 ```
 
+## Chatbot for Guidance
 
-                                     
+If you are interested in using a chatbot to interact with Guidance, you can try one out here that has ingested all of the 
+Jupyter Notebook documentation including [Microsoft Guidance Chatbot](https://ask.twilix.io/microsoft-guidance).
+
 ## Live streaming (<a href="https://github.com/microsoft/guidance/blob/main/notebooks/proverb.ipynb">notebook</a>)
 
 Speed up your prompt development cycle by streaming complex templates and generations live in your notebook. At first glance, Guidance feels like a templating language, and just like standard <a href="https://handlebarsjs.com">Handlebars</a> templates, you can do variable interpolation (e.g., `{{proverb}}`) and logical control. But unlike standard templating languages, guidance programs have a well defined linear execution order that directly corresponds to the token order as processed by the language model. This means that at any point during execution the language model can be used to generate text (using the `{{gen}}` command) or make logical control flow decisions. This interleaving of generation and prompting allows for precise output structure that produces clear and parsable results.
