@@ -3,6 +3,7 @@ from IPython.display import clear_output, display, HTML
 import html
 import re
 import copy
+import json
 
 class CallScanner:
     def __init__(self, scanner, stop=None, stop_regex=None):
@@ -11,18 +12,27 @@ class CallScanner:
         self.stop_regex = stop_regex
         assert self.stop is not None or self.stop_regex is not None, "Either stop or stop_regex must be specified."
 
-    def __call__(self, stop_string):
-        return self.scanner(stop_string)
+    def __call__(self, lm, text):
+        out = self.scanner(text)
+        if isinstance(out, CallableAnswer) and out.callable is None:
+            out.callable = lm.get(out.__name__, {"callable": None}).get("callable", None)
+        return out
+
     
 class CallableAnswer:
-    def __init__(self, name, args_string, function=None):
+    def __init__(self, text, name, args_string, callable=None):
+        self._text = text
         self.__name__ = name
         self.args_string = args_string
+        self.callable = callable
+
+    def __str__(self):
+        return self._text
 
     def __call__(self, *args, **kwargs):
-        if self._function is None:
+        if self.callable is None:
             raise NotImplementedError(f"Answer {self.__name__} has no function defined")
-        return self._function(*args, **self.__kwdefaults__, **kwargs)
+        return self.callable(*args, **self.__kwdefaults__, **kwargs)
     
     @property
     def __kwdefaults__(self):
@@ -30,16 +40,16 @@ class CallableAnswer:
         return json.loads(self.args_string)
 
     def __repr__(self):
-        return f"CallableAnswer(__name__={self.__name__}, __kwdefaults__={self.__kwdefaults__})"
+        return self._text + f"\nCallableAnswer(__name__={self.__name__}, __kwdefaults__={self.__kwdefaults__})"
 
-def _extract_function_call(self, text):
-        m = re.match(r"\n?\n?```typescript\nfunctions.([^\(]+)\((.*?)\)```", text, re.DOTALL)
-        if m:
-            return CallableAnswer(m.group(1), m.group(2))
-_default_call_scanner = CallScanner(_extract_function_call, stop_regex=r"\n?\n?```typescript\nfunctions.[^\(]+\(.*?\)```")
+def _default_extract_function_call(text):
+    m = re.match(r"(.*?)\n?\n?```typescript\nfunctions.([^\(]+)\((.*?)\)```", text, re.DOTALL)
+    if m:
+        return CallableAnswer(text=m.group(1), name=m.group(2), args_string=m.group(3))
+# _default_call_scanner = CallScanner(_extract_function_call, stop_regex=r"\n?\n?```typescript\nfunctions.[^\(]+\(.*?\)```")
 
 class LM:
-    def __init__(self, model, caching=True, call_scanners=[_default_call_scanner]):
+    def __init__(self, model, caching=True, call_scanners=None):
         self.model = model
         self._state = ""
         self._children = []
@@ -52,10 +62,19 @@ class LM:
         self._endpoint_session = None
         self.endpoint = None
         self._call_scanners = call_scanners
+        if self._call_scanners is None:
+            self._call_scanners = []
+            self.add_call_scanner(_default_extract_function_call, stop_regex=r"\n?\n?```typescript\nfunctions.[^\(]+\(.*?\)```")
 
-    def add_call_scanner(self, call_scanner):
-        self._call_scanners.append(call_scanner)
+    def get(self, key, default=None):
+        return self._variables.get(key, default)
+
+    def add_call_scanner(self, scanner, stop=None, stop_regex=None):
+        self._call_scanners.append(CallScanner(scanner, stop=stop, stop_regex=stop_regex))
         return self
+    
+    def get_call_scanners(self):
+        return self._call_scanners
 
     def get_endpoint_session(self):
         return self._endpoint_session_call
@@ -196,14 +215,17 @@ type {function['name']} = (_: {{"""
 }) => any;
 
 """
+            new_lm[function['name']] = function
         new_lm += "} // namespace functions\n"
+
+        
         return new_lm
 
 
 class ChatLM(LM):
-
-    def get_role_start(self, role_name):
-        return f"<|im_start|>{role_name}\n"
     
-    def get_role_end(self, role_name):
+    def get_role_start(self, role_name, **kwargs):
+        return "<|im_start|>"+role_name+"".join([f' {k}="{v}"' for k,v in kwargs.items()])+"\n"
+    
+    def get_role_end(self, role_name=None):
         return "<|im_end|>"

@@ -64,6 +64,11 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop
                     save_stop_text = name+"_stop_text"
                 new_lm[save_stop_text] = resp["choices"][0].get('stop_text', None)
             
+            for scanner in new_lm.get_call_scanners():
+                out = scanner(new_lm, generated_value)
+                if out is not None:
+                    generated_value = out
+
             if list_append:
                 new_lm[name][list_ind] = generated_value
             elif name is not None:
