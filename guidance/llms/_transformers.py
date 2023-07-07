@@ -295,6 +295,9 @@ class TransformersSession(LLMSession):
                 logprobs=logprobs
             )
 
+            if "exllama_select_options" in generate_kwargs:
+                generate_kwargs.pop("exllama_select_options")
+
             # the args for the transformers generate call
             generate_args = dict(
                 inputs=input_ids,
@@ -311,6 +314,7 @@ class TransformersSession(LLMSession):
                 return_dict_in_generate=True,
                 **generate_kwargs
             )
+
 
             # override the model config for do_sample when the temperature requires it
             do_sample = getattr(model_config, "do_sample", None)
