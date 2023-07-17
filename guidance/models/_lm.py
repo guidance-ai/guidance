@@ -56,11 +56,13 @@ class LM:
         self._event_queue = None
         self._event_parent = None
         self._silent = None
-        self._inplace = None
+        # self._inplace = None
         self._variables = {}
         self._caching = caching
         self._endpoint_session = None
         self.endpoint = None
+        self.instance__enter__ = []
+        self.instance__exit__ = []
         self._call_scanners = call_scanners
         if self._call_scanners is None:
             self._call_scanners = []
@@ -102,7 +104,7 @@ class LM:
             return self._silent
         return False
     
-    def _clone(self):
+    def copy(self):
         new_lm = copy.copy(self)
         new_lm._event_queue = None
         if self._event_queue is not None:
@@ -112,13 +114,14 @@ class LM:
         self._children.append(new_lm)
         return new_lm
     
-    def _inplace_append(self, value, force_silent=False):
-        """This is used just internally."""
+    def append(self, value, force_silent=False):
+        """This is the base way to add content to the LM object."""
         self._state += str(value)
         if not self.silent and not force_silent:
             clear_output(wait=True)
             display(HTML(self._html()))
         self._send_to_event_queue(self)
+        return self
 
     def _repr_html_(self):
         clear_output(wait=True)
@@ -127,25 +130,14 @@ class LM:
     def __str__(self) -> str:
         return re.sub(r"<\|\|_.*?_\|\|>", "", self._state)
     
-    def __add__(self, value):
-        assert not self._inplace
-        new_lm = self._clone()
-        new_lm._inplace_append(value)
-        return new_lm
-    
     def __iadd__(self, value):
-        if not self._inplace:
-            new_lm = self._clone()
-        else:
-            new_lm = self
-        new_lm._inplace_append(value)
-        return new_lm
+        return self.append(value)
     
     def __len__(self):
         return len(str(self))
     
     def __call__(self, s):
-        return self + s
+        return self.append(s)
     
     def __setitem__(self, key, value):
         self._variables[key] = value
@@ -154,15 +146,15 @@ class LM:
         return self._variables[key]
 
     def __enter__(self):
-        if hasattr(self, "instance__enter__"):
-            return self.instance__enter__()
+        if len(self.instance__enter__) > 0:
+            return self.instance__enter__.pop()()
 
     def __exit__(self, exc_type, exc_value, traceback):
-        if hasattr(self, "instance__exit__"):
-            return self.instance__exit__(exc_type, exc_value, traceback)
+        if len(self.instance__exit__) > 0:
+            return self.instance__exit__.pop()(exc_type, exc_value, traceback)
 
-    def __call__(self, s):
-        return self + s
+    # def __call__(self, s):
+    #     return self + s
     
     def get_encoded(self, s):
         return self.endpoint.encode(s)
@@ -181,45 +173,44 @@ class LM:
     
     def tool_def(self, functions):
 
-        new_lm = self + """
+        self += """
 # Tools
 
 """
         if len(functions) > 0:
-            new_lm += '''## functions
+            self += '''## functions
 
 namespace functions {
 
 '''
         for function in functions:
-            new_lm += f"""// {function['description']}
+            self += f"""// {function['description']}
 type {function['name']} = (_: {{"""
             for prop_name,prop_data in function["parameters"]["properties"].items():
                 if "description" in prop_data:
-                    new_lm += f"\n// {prop_data['description']}\n"
-                new_lm += prop_name
+                    self += f"\n// {prop_data['description']}\n"
+                self += prop_name
                 if prop_name not in function["parameters"]["required"]:
-                    new_lm += "?"
-                new_lm += ": "
+                    self += "?"
+                self += ": "
                 if "enum" in prop_data:
                     for enum in prop_data["enum"]:
-                        new_lm += f'"{enum}"'
+                        self += f'"{enum}"'
                         if enum != prop_data["enum"][-1]:
-                            new_lm += " | "
+                            self += " | "
                 else:
-                    new_lm += prop_data["type"]
+                    self += prop_data["type"]
                 
                 if prop_name != list(function["parameters"]["properties"].keys())[-1]:
-                    new_lm += ",\n"
-            new_lm += """
+                    self += ",\n"
+            self += """
 }) => any;
 
 """
-            new_lm[function['name']] = function
-        new_lm += "} // namespace functions\n"
-
+            self[function['name']] = function
+        self += "} // namespace functions\n"
         
-        return new_lm
+        return self
 
 
 class ChatLM(LM):

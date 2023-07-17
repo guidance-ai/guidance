@@ -15,25 +15,25 @@ class TextRange:
     def __str__(self) -> str:
         return str(self.lm)[self.start:self.end]
 
-class InPlace():
-    """Creates a scope where the LM is in-place or not."""
-    def __init__(self, lm):
-        self.lm = lm
-        self._prev_inplace = lm._inplace
+# class InPlace():
+#     """Creates a scope where the LM is in-place or not."""
+#     def __init__(self, lm):
+#         self.lm = lm
+#         self._prev_inplace = lm._inplace
     
-    def __enter__(self):
-        new_lm = self.lm._clone()
-        new_lm._inplace = True
-        return new_lm
+#     def __enter__(self):
+#         new_lm = self.lm._clone()
+#         new_lm._inplace = True
+#         return new_lm
 
-    def __exit__(self, type, value, traceback):
-        InPlace._rec_set_inplace(self.lm, self._prev_inplace)
+#     def __exit__(self, type, value, traceback):
+#         InPlace._rec_set_inplace(self.lm, self._prev_inplace)
 
-    @staticmethod
-    def _rec_set_inplace(lm, value):
-        lm._inplace = value
-        for child in lm._children:
-            InPlace._rec_set_inplace(child, value)
+#     @staticmethod
+#     def _rec_set_inplace(lm, value):
+#         lm._inplace = value
+#         for child in lm._children:
+#             InPlace._rec_set_inplace(child, value)
 
 class Silent():
     """Creates a scope where the LM is silent or not."""

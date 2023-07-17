@@ -8,7 +8,7 @@ def role(self, role_name, text=None, **kwargs):
     if text is None:
         return self.block(open_text=open_text, close_text=close_text)
     else:
-        return self + open_text + text + close_text
+        return self.append(open_text + text + close_text)
 
 @guidance(model=guidance.models.ChatLM)
 def system(self, text=None, **kwargs):

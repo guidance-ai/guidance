@@ -12,7 +12,7 @@ from . import endpoints
 llms = endpoints # backwards compatibility
 from . import models
 
-from ._utils import load, chain, Silent, CaptureEvents, InPlace, TextRange
+from ._utils import load, chain, Silent, CaptureEvents, TextRange
 from . import _utils
 from . import selectors
 import asyncio

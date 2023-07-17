@@ -170,4 +170,4 @@ def select(lm, name="selected", options=None, suffix="", logprobs=None, list_app
     if max(option_logprobs.values()) <= -1000:
         raise ValueError("No valid option generated in #select! Please post a GitHub issue since this should not happen :)")
     
-    return lm + "<||_html:<span style='background-color: rgba(0, 165, 0, 0.25)'>_||>" + selected_option + "<||_html:</span>_||>" + suffix
+    return lm.append("<||_html:<span style='background-color: rgba(0, 165, 0, 0.25)'>_||>" + selected_option + "<||_html:</span>_||>" + suffix)
