@@ -18,3 +18,17 @@ def test_empty_block():
     )
     out = prompt(nonempty=False)
     assert out.text == ''
+
+def test_name_capture():
+    prompt = guidance(
+        "This is a block: {{#block 'my_block'}}text inside block{{/block}}",
+    )
+    out = prompt()
+    assert out["my_block"] == 'text inside block'
+
+def test_name_capture_whitespace():
+    prompt = guidance(
+        "This is a block: {{#block 'my_block'}} text inside block {{/block}}",
+    )
+    out = prompt()
+    assert out["my_block"] == ' text inside block '

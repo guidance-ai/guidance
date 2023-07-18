@@ -1,35 +1,9 @@
 import os
 import requests
 import inspect
-import time
 import json
 import re
-import datetime
 import asyncio
-
-log_file = None
-
-
-def open_log_file():
-    global log_file
-    if log_file is None:
-        log_file = open("log.txt", "a")
-    return log_file
-
-
-def close_log_file():
-    global log_file
-    if log_file is not None:
-        log_file.close()
-        log_file = None
-
-
-def log(*args):
-    # print(*args)
-    log_file = open_log_file()
-    print(datetime.datetime.now().strftime("%H:%M:%S"), *args, file=log_file)
-    log_file.flush()
-    # Currently never gets closed
 
 
 def load(guidance_file):
@@ -93,6 +67,42 @@ def strip_markers(s):
         return None
     return re.sub(r"{{!--G.*?--}}", r"", s, flags=re.MULTILINE | re.DOTALL)
 
+class AsyncIter():    
+    def __init__(self, items):    
+        self.items = items    
+
+    async def __aiter__(self):    
+        for item in self.items:    
+            yield item
+
+class ContentCapture:
+    def __init__(self, variable_stack, hidden=False):
+        self._hidden = hidden
+        self._variable_stack = variable_stack
+    
+    def __enter__(self):
+        self._pos = len(self._variable_stack["@raw_prefix"])
+        if self._hidden:
+            self._variable_stack.push({"@raw_prefix": self._variable_stack["@raw_prefix"]})
+        return self
+
+    def __exit__(self, type, value, traceback):
+        if self._hidden:
+            new_content = str(self)
+            self._variable_stack.pop()
+            self._variable_stack["@raw_prefix"] += "{{!--GHIDDEN:"+new_content.replace("--}}", "--_END_END")+"--}}"
+
+    def __str__(self):
+        return strip_markers(self._variable_stack["@raw_prefix"][self._pos:])
+    
+    def __iadd__(self, other):
+        if other is not None:
+            self._variable_stack["@raw_prefix"] += other
+        return self
+    
+    def inplace_replace(self, old, new):
+        """Replace all instances of old with new in the captured content."""
+        self._variable_stack["@raw_prefix"] = self._variable_stack["@raw_prefix"][:self._pos] + self._variable_stack["@raw_prefix"][self._pos:].replace(old, new)
 
 class JupyterComm():
     def __init__(self, target_id, ipython_handle, callback=None, on_open=None, mode="register"):

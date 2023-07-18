@@ -5,7 +5,6 @@ import regex
 import pygtrie
 import queue
 import threading
-import logging
 import collections.abc
 from ._llm import LLM, LLMSession, SyncSession
 
@@ -173,7 +172,10 @@ class TransformersSession(LLMSession):
 
         return self
     
-    async def __call__(self, prompt, stop=None, stop_regex=None, temperature=None, n=1, min_tokens=0, max_tokens=1000, logprobs=None, top_p=1.0, echo=False, logit_bias=None, token_healing=None, pattern=None, stream=False, cache_seed=0, caching=None):
+
+    async def __call__(self, prompt, stop=None, stop_regex=None, temperature=None, n=1, min_tokens=0, max_tokens=1000, logprobs=None,
+                       top_p=1.0, echo=False, logit_bias=None, token_healing=None, pattern=None, stream=False,
+                       cache_seed=0, caching=None, **generate_kwargs):
         """ Generate a completion of the given prompt.
         """
         
@@ -199,6 +201,11 @@ class TransformersSession(LLMSession):
         if stop_regex is None:
             stop_regex = []
         stop_regex.append(regex.escape(self.llm.tokenizer.eos_token)) # make sure the end of sequence token is always included
+
+        # handle function calling
+        if "function_call" in generate_kwargs:
+            assert generate_kwargs["function_call"] in ["none"], "Transformers does not yet have function call support!"
+            del generate_kwargs["function_call"]
 
         # handle caching
         in_cache = key in llm_cache
@@ -315,7 +322,8 @@ class TransformersSession(LLMSession):
                 stopping_criteria=transformers.StoppingCriteriaList(stoppers),
                 # past_key_values=self._past_key_values,
                 output_scores=logprobs is not None and logprobs > 0,
-                return_dict_in_generate=True
+                return_dict_in_generate=True,
+                **generate_kwargs
             )
 
             # override the model config for do_sample when the temperature requires it

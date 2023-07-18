@@ -1,4 +1,4 @@
-def set(name, value=None, hidden=None, _parser_context=None):
+def set(name, value=None, hidden=True, _parser_context=None):
     ''' Set the value of a variable or set of variables.
 
     Parameters
@@ -11,6 +11,7 @@ def set(name, value=None, hidden=None, _parser_context=None):
         If True, the variable will be set but not printed in the output.
     '''
     parser = _parser_context['parser']
+    variable_stack = _parser_context['variable_stack']
 
     if not parser.executing:
         return ""
@@ -18,7 +19,7 @@ def set(name, value=None, hidden=None, _parser_context=None):
     if isinstance(name, dict):
         assert hidden is not False, "hidden cannot be False if setting multiple variables!"
         for k, v in name.items():
-            parser.set_variable(k, v)
+            variable_stack[k] = v
         out = ""
         for k, v in name.items():
             if isinstance(v, str):
@@ -32,7 +33,7 @@ def set(name, value=None, hidden=None, _parser_context=None):
         out += ""
         return "{{!--GMARKER_set$" + out + "$--}}"
     else:
-        parser.set_variable(name, value)
+        variable_stack[name] = value
         if hidden is not True:
             return value
         else:

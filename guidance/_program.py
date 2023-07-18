@@ -1,23 +1,20 @@
-import ast
 import inspect
 import re
 import html
 import uuid
-import sys
-import parsimonious
+# import parsimonious
 import logging
 import copy
 import asyncio
 import pathlib
 import os
-import traceback
 import time
 import datetime
 import nest_asyncio
-from .llms import _openai
+# from .llms import _openai
 from . import _utils
 from ._program_executor import ProgramExecutor
-from . import library
+from . import commands
 import guidance
 log = logging.getLogger(__name__)
 
@@ -26,6 +23,38 @@ file_path = pathlib.Path(__file__).parent.parent.absolute()
 with open(file_path / "guidance" / "resources" / "main.js", encoding="utf-8") as f:
     js_data = f.read()
 
+class Log:
+    def __init__(self) -> None:
+        self._entries = []
+    
+    def append(self, entry):
+        if not hasattr(entry, "time"):
+            entry["time"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self._entries.append(entry)
+
+    def __str__(self) -> str:
+        string_entries = []
+        for entry in self._entries:
+            type_str = "["+entry.get("type", "")+"]"
+            string_entries.append(
+                f"{entry.get('time', '')}{type_str: >10s}{entry.get('name', ''): >15s}: " + str({k:v for k,v in entry.items() if k not in ["type", "name", "time"]})
+            )
+        return "\n".join(string_entries)
+    
+    def __repr__(self) -> str:
+        return str(self)
+    
+    def __len__(self) -> int:
+        return len(self._entries)
+    
+    def __getitem__(self, key):
+        return self._entries[key]
+    
+    def copy(self):
+        new_log = Log()
+        new_log._entries = [copy.copy(v) for v in self._entries]
+        return new_log
+
 class Program:
     ''' A program template that can be compiled and executed to generate a new filled in (executed) program.
 
@@ -33,7 +62,7 @@ class Program:
     the generated output to mark where template tags used to be.
     '''
 
-    def __init__(self, text, llm=None, cache_seed=0, logprobs=None, silent=None, async_mode=False, stream=None, caching=None, await_missing=False, **kwargs):
+    def __init__(self, text, llm=None, cache_seed=0, logprobs=None, silent=None, async_mode=False, stream=None, caching=None, await_missing=False, log=None, **kwargs):
         """ Create a new Program object from a program string.
 
         Parameters
@@ -69,6 +98,9 @@ class Program:
             for executing programs on different machines, for example shipping a program to a GPU machine
             then waiting for the results to come back for any local processing, then shipping it back to
             the GPU machine to continue execution.
+        log : bool or Log
+            If True, the program will log all the commands that are executed into the `program.log` property.
+            If a Log object is passed in, it will be used as the log instead of creating a new one.
         """
 
         # see if we were given a raw function instead of a string template
@@ -92,8 +124,13 @@ class Program:
         self.silent = silent
         self.stream = stream
         self.await_missing = await_missing
+        self.log = log
         if self.silent is None:
             self.silent = self.stream is True or not _utils.is_interactive()
+
+        # build or capture the log
+        if self.log is True:
+            self.log = Log()
         
         # set our variables
         self._variables = {}
@@ -101,6 +138,12 @@ class Program:
         self._variables.update({
             "llm": llm
         })
+        kwargs.pop("self", None)
+        kwargs = dict(kwargs)
+        for k in list(kwargs.keys()): # handle @varname syntax
+            if k.startswith("_AT_"):
+                kwargs["@"+k[4:]] = kwargs[k]
+                kwargs.pop(k)
         self._variables.update(kwargs)
         
         # set internal state variables
@@ -111,9 +154,11 @@ class Program:
         self._last_display_update = 0 # the last time we updated the display (used for throttling updates)
         self._execute_complete = asyncio.Event() # fires when the program is done executing to resolve __await__
         self._emit_stream_event = asyncio.Event() # fires when we need to emit a stream event
+        self._exception = None # if the program finished with an exception its stored here
         self._displaying = not self.silent # if we are displaying we need to update the display as we execute
         self._displayed = False # marks if we have been displayed in the client yet
         self._displaying_html = False # if we are displaying html (vs. text)
+        self._tasks = [] # list of children tasks
 
         # throttle the display updates
         if os.environ.get("VSCODE_CWD", None) is not None:
@@ -123,10 +168,10 @@ class Program:
         self.update_display = DisplayThrottler(self._update_display, self.display_throttle_limit)
 
         # see if we are in an ipython environment
+        # check if get_ipython variable exists
         try:
-            from IPython import get_ipython
             self._ipython = get_ipython()
-        except:
+        except NameError:
             self._ipython = None
         
         # if we are echoing in ipython we assume we can display html
@@ -165,7 +210,19 @@ class Program:
 
     async def _await_finish_execute(self):
         """Used by self.__await__ to wait for the program to complete."""
-        await self._execute_complete.wait() # wait for the program to finish executing
+        try:
+            await self._execute_complete.wait() # wait for the program to finish executing
+
+        except asyncio.CancelledError:
+            # if this task gets canceled, cancel all sub-tasks
+            for task in self._tasks:
+                task.cancel()
+
+        # if the program finished executing with an exception
+        # re-raise the exception in the main coroutine
+        if self._exception:
+            raise self._exception
+
         return self
 
     def __await__(self):
@@ -192,6 +249,7 @@ class Program:
             "caching": self.caching,
             "logprobs": self.logprobs,
             "await_missing": self.await_missing,
+            "log": self.log.copy() if hasattr(self.log, "copy") else self.log,
             "llm": self.llm,
         }, **kwargs}
 
@@ -213,8 +271,10 @@ class Program:
         if new_program.async_mode:
             loop = asyncio.get_event_loop()
             assert loop.is_running(), "The program is in async mode but there is no asyncio event loop running! Start one and try again."
-            loop.create_task(new_program.update_display.run()) # start the display updater
-            loop.create_task(new_program.execute())
+            update_task = loop.create_task(new_program.update_display.run()) # start the display updater
+            execute_task = loop.create_task(new_program.execute())
+            new_program._tasks.append(update_task)
+            new_program._tasks.append(execute_task)
 
         # if we are not in async mode, we need to create a new event loop and run the program in it until it is done
         else:
@@ -227,7 +287,8 @@ class Program:
                 pass
             
             loop = asyncio.new_event_loop()
-            loop.create_task(new_program.update_display.run()) # start the display updater
+            update_task = loop.create_task(new_program.update_display.run()) # start the display updater
+            new_program._tasks.append(update_task)
             if new_program.stream:
                 return self._stream_run(loop, new_program)
             else:
@@ -244,6 +305,7 @@ class Program:
 
         # add the program execution to the event loop
         execute_task = loop.create_task(new_program.execute())
+        new_program._tasks.append(execute_task)
 
         # run the event loop until the program is done executing
         while new_program._executor is not None:
@@ -265,9 +327,11 @@ class Program:
         yield new_program
 
         # cancel all tasks and close the loop
-        for task in asyncio.all_tasks(loop=loop):
+        for task in self._tasks:
             task.cancel()
         loop.run_until_complete(asyncio.sleep(0)) # give the loop a chance to cancel the tasks
+
+        # TODO: do we really want to close the loop? what if it is used by others?
         loop.close() # we are done with the loop (note that the loop is already stopped)
 
     async def _stream_run_async(self):
@@ -342,7 +406,7 @@ class Program:
             # ...otherwise dump the client to the front end
             else:
                 log.debug(f"Updating display dump to front end")
-                from IPython.display import clear_output, display
+                from IPython.display import clear_output
                 if self._displayed:
                     clear_output(wait=True) # TODO: should use wait=True but that doesn't work in VSCode until after the April 2023 release
 
@@ -378,23 +442,30 @@ class Program:
             await asyncio.sleep(0)
         
         # run the program and capture the output
-        if self.llm is None:
-            await self._executor.run(None)
-        else:
-            with self.llm.session(asynchronous=True) as llm_session:
-                await self._executor.run(llm_session)
-        self._text = self._executor.prefix
+        try:
+            if self.llm is None:
+                await self._executor.run(None)
+            else:
+                with self.llm.session(asynchronous=True) as llm_session:
+                    await self._executor.run(llm_session)
+            self._text = self._variables["@raw_prefix"]
 
-        # delete the executor and so mark the program as not executing
-        self._executor = None
+        # if the execution failed, capture the exception so it can be re-raised
+        # in the main coroutine
+        except Exception as exception:
+            self._exception = exception
 
-        # update the display with the final output
-        self.update_display(last=True)
-        await self.update_display.done()
+        finally:
+            # delete the executor and so mark the program as not executing
+            self._executor = None
 
-        # fire an event noting that execution is complete (this will release any await calls waiting on the program)
-        self._execute_complete.set()
-    
+            # update the display with the final output
+            self.update_display(last=True)
+            await self.update_display.done()
+
+            # fire an event noting that execution is complete (this will release any await calls waiting on the program)
+            self._execute_complete.set()
+
     def __getitem__(self, key):
         return self._variables[key]
     
@@ -404,15 +475,23 @@ class Program:
     def __delitem__(self, key):
         del self._variables[key]
     
-    def variables(self, built_ins=False):
+    def variables(self, built_ins=False, show_hidden=False):
         """ Returns a dictionary of the variables in the program.
 
         Parameters
         ----------
         built_ins : bool
             If True, built-in variables will be included in the returned dictionary.
+        show_hidden : bool
+            If True, hidden variables will be included in the returned dictionary.
         """
-        return {k: v for k,v in self._variables.items() if built_ins or not (k in _built_ins and callable(_built_ins[k]))}
+        out = {}
+        for k,v in self._variables.items():
+            if show_hidden or not k.startswith("_"):
+                if built_ins or not (k in _built_ins and callable(_built_ins[k])):
+                    out[k] = v
+            
+        return out
     
     @property
     def text(self):
@@ -422,7 +501,7 @@ class Program:
     @property
     def marked_text(self):
         if self._executor is not None:
-            return self._executor.prefix
+            return self._variables["@raw_prefix"]
         else:
             return self._text
     
@@ -470,13 +549,16 @@ class Program:
             
             # if we have a generic role tag then the role name is an attribute
             if role_name == "role":
-                role_name = re.search(r"name=([^ ]*)", tag_text).group(1)
+                role_name = re.search(r"role_name=([^ ]*)", tag_text).group(1)
             
             start_pattern = html.escape(self.llm.role_start(role_name)).replace("|", r"\|")
+            start_pattern_with_name = html.escape(self.llm.role_start(role_name, __ARxG__="__VAxLUE__")).replace("|", r"\|") # TODO: make this more general for multiple keyword args
+            start_pattern_with_name = start_pattern_with_name.replace("__VAxLUE__", "[^\n]*?").replace("__ARxG__", "[^=]*?")
             end_pattern = html.escape(self.llm.role_end(role_name)).replace("|", r"\|")
 
             # strip the start and end patterns from the content
             content = re.sub("^" + start_pattern, "", content, flags=re.DOTALL)
+            content = re.sub("^" + start_pattern_with_name, "", content, flags=re.DOTALL)
             content = re.sub(end_pattern + "$", "", content, flags=re.DOTALL)
 
             
@@ -503,30 +585,37 @@ class Program:
 
         # strip out hidden blocks (might want to make a better UI for this at some point)
         display_out = re.sub(r"{{!--GMARKER_START[^}]*--}}{{!--GHIDDEN:(.*?)--}}{{!--GMARKER_END[^}]*--}}", "", display_out, flags=re.DOTALL)
+
+        # highlight command tags
+        display_out = re.sub(r"(\{\{(?!\!)(?!~\!).*?\}\})", r"<span style='font-family: monospace; background-color: rgba(0, 0, 0, 0.05);'>\1</span>", display_out, flags=re.DOTALL)
         
         # if we have role markers, we wrap them in special formatting
-        if re.search(r"{{!--GMARKER_START_(role|system|user|assistant)", display_out) is not None:
+        if re.search(r"{{!--GMARKER_START_(role|system|user|assistant|function)", display_out) is not None:
 
             # start_pattern = html.escape(self.llm.role_start("assistant")).replace("|", r"\|").replace(r"assistant", r"([^\n]*)").replace(r"ASSISTANT", r"([^\n]*)")
             # end_pattern = html.escape(self.llm.role_end("assistant")).replace("|", r"\|").replace(r"assistant", r"([^\n]*)").replace(r"ASSISTANT", r"([^\n]*)")
             
             # strip whitespace before role markers
-            display_out = re.sub(r"\s*{{!--GMARKER_START_(role|system|user|assistant)\$(.*?)--}}", r"{{!--GMARKER_START_\1$\2--}}", display_out, flags=re.DOTALL)
+            display_out = re.sub(r"\s*{{!--GMARKER_START_(role|system|user|assistant|function)\$(.*?)--}}", r"{{!--GMARKER_START_\1$\2--}}", display_out, flags=re.DOTALL)
 
             # strip whitespace after role markers
             # TODO: support end_patterns with capture groups
-            display_out = re.sub(r"{{!--GMARKER_END_(role|system|user|assistant)\$(.*?)--}}\s*", r"{{!--GMARKER_END_\1$\2--}}", display_out, flags=re.DOTALL)
+            display_out = re.sub(r"{{!--GMARKER_END_(role|system|user|assistant|function)\$(.*?)--}}\s*", r"{{!--GMARKER_END_\1$\2--}}", display_out, flags=re.DOTALL)
+
+            if "GMARKER_START_function" in display_out:
+                display_out += ""
+                pass
 
             # wrap role markers in nice formatting
-            display_out = re.sub(r"{{!--GMARKER_START_(role|system|user|assistant)\$(.*?)--}}" + "(.*?)" + r"{{!--GMARKER_END_(role|system|user|assistant)\$(.*?)--}}", role_box, display_out, flags=re.DOTALL)
+            display_out = re.sub(r"{{!--GMARKER_START_(role|system|user|assistant|function)\$(.*?)--}}" + "(.*?)" + r"{{!--GMARKER_END_(role|system|user|assistant|function)\$(.*?)--}}", role_box, display_out, flags=re.DOTALL)
 
             # wrap unfinished role markers in nice formatting
-            display_out = re.sub(r"{{!--GMARKER_START_(role|system|user|assistant)\$(.*?)--}}" + "(.*)", role_box, display_out, flags=re.DOTALL)
+            display_out = re.sub(r"{{!--GMARKER_START_(role|system|user|assistant|function)\$(.*?)--}}" + "(.*)", role_box, display_out, flags=re.DOTALL)
         
         display_out = re.sub(r"(\{\{generate.*?\}\})", r"<span style='background-color: rgba(0, 165, 0, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
         display_out = re.sub(r"(\{\{#select\{\{/select.*?\}\})", r"<span style='background-color: rgba(0, 165, 0, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
         display_out = re.sub(r"(\{\{#each [^'\"].*?\{\{/each.*?\}\})", r"<span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
-        display_out = re.sub(r"(\{\{(?!\!)(?!generate)(?!#select)(?!#each)(?!/each)(?!/select).*?\}\})", r"<span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
+        # display_out = re.sub(r"(\{\{(?!\!)(?!generate)(?!#select)(?!#each)(?!/each)(?!/select).*?\}\})", r"<span style='font-family: monospace; background-color: rgba(0, 0, 0, 0.05);'>\1</span>", display_out, flags=re.DOTALL)
                 
 
         # format the generate command results
@@ -591,8 +680,9 @@ cycle_IDVAL(this);'''.replace("IDVAL", id).replace("TOTALCOUNT", str(total_count
         display_out = re.sub(r"{{!--GMARKER_START_geneach\$([^\$]*)\$--}}", start_each, display_out)
         
         # format the set command results
-        display_out = re.sub(r"{{!--GMARKER_set\$([^\$]*)\$--}}", r"<div style='background-color: rgba(165, 165, 165, 0); border-radius: 4px 4px 4px 4px; border: 1px solid rgba(165, 165, 165, 1); border-left: 2px solid rgba(165, 165, 165, 1); border-right: 2px solid rgba(165, 165, 165, 1); padding-left: 0px; padding-right: 3px; color: rgb(165, 165, 165, 1.0); display: inline; font-weight: normal; overflow: hidden;'><div style='display: inline; background: rgba(165, 165, 165, 1); padding-right: 5px; padding-left: 4px; margin-right: 3px; color: #fff'>set</div>\1</div>", display_out)
-        display_out = re.sub(r"{{!--GMARKER_START_set\$([^\$]*)\$--}}", lambda x: "<span style='display: inline;' title='{}'>".format(undo_html_encode(x.group(1))), display_out)
+        # display_out = re.sub(r"{{!--GMARKER_set\$([^\$]*)\$--}}", r"<div style='background-color: rgba(165, 165, 165, 0); border-radius: 4px 4px 4px 4px; border: 1px solid rgba(165, 165, 165, 1); border-left: 2px solid rgba(165, 165, 165, 1); border-right: 2px solid rgba(165, 165, 165, 1); padding-left: 0px; padding-right: 3px; color: rgb(165, 165, 165, 1.0); display: inline; font-weight: normal; overflow: hidden;'><div style='display: inline; background: rgba(165, 165, 165, 1); padding-right: 5px; padding-left: 4px; margin-right: 3px; color: #fff'>set</div>\1</div>", display_out)
+        # display_out = re.sub(r"{{!--GMARKER_START_set\$([^\$]*)\$--}}", lambda x: "<span style='display: inline;' title='{}'>".format(undo_html_encode(x.group(1))), display_out)
+        display_out = re.sub(r"{{!--GMARKER_set\$([^\$]*)\$--}}", r"", display_out) # just hide them for now
 
         display_out = re.sub(r"{{!--GMARKER_START_select\$([^\$]*)\$--}}", start_generate_or_select, display_out)
         display_out = display_out.replace("{{!--GMARKER_END_select$$--}}", "</span>")
@@ -625,31 +715,42 @@ def add_spaces(s):
     return s
 
 _built_ins = {
-    "gen": library.gen,
-    "each": library.each,
-    "geneach": library.geneach,
-    "select": library.select,
-    "if": library.if_,
-    "unless": library.unless,
-    "add": library.add,
-    "subtract": library.subtract,
-    "strip": library.strip,
-    "block": library.block,
-    "set": library.set,
-    "await": library.await_,
-    "role": library.role,
-    "user": library.user,
-    "system": library.system,
-    "assistant": library.assistant,
-    "break": library.break_,
-    "equal": library.equal,
-    "==": library.equal,
-    "greater": library.greater,
-    ">": library.greater,
-    "less": library.less,
-    "<": library.less,
-    "contains": library.contains,
-    "parse": library.parse
+    "gen": commands.gen,
+    "each": commands.each,
+    "geneach": commands.geneach,
+    "select": commands.select,
+    "if": commands.if_,
+    "unless": commands.unless,
+    "add": commands.add,
+    "BINARY_OPERATOR_+": commands.add,
+    "subtract": commands.subtract,
+    "BINARY_OPERATOR_-": commands.subtract,
+    "multiply": commands.multiply,
+    "BINARY_OPERATOR_*": commands.multiply,
+    "strip": commands.strip,
+    "block": commands.block,
+    "set": commands.set,
+    "await": commands.await_,
+    "role": commands.role,
+    "user": commands.user,
+    "system": commands.system,
+    "assistant": commands.assistant,
+    "function": commands.function,
+    "break": commands.break_,
+    "equal": commands.equal,
+    "BINARY_OPERATOR_==": commands.equal,
+    "notequal": commands.notequal,
+    "BINARY_OPERATOR_!=": commands.notequal,
+    "greater": commands.greater,
+    "BINARY_OPERATOR_>": commands.greater,
+    "less": commands.less,
+    "BINARY_OPERATOR_<": commands.less,
+    "contains": commands.contains,
+    "parse": commands.parse,
+    "callable": commands.callable,
+    "len": commands.len,
+    "range": commands.range,
+    "UNARY_OPERATOR_not": commands.not_,
 }
 
 class DisplayThrottler():

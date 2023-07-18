@@ -5,8 +5,8 @@ def test_await():
     """
 
     prompt = guidance("""Is Everest very tall?
-User response: '{{set 'user_response' (await 'user_response')}}'""")
+User response: '{{set 'user_response' (await 'user_response') hidden=False}}'""")
     waiting_prompt = prompt()
-    assert str(waiting_prompt) == "Is Everest very tall?\nUser response: '{{set 'user_response' (await 'user_response')}}'"
+    assert str(waiting_prompt) == str(prompt)
     out = waiting_prompt(user_response="Yes")
     assert str(out) == "Is Everest very tall?\nUser response: 'Yes'"
