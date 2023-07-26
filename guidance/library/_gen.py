@@ -166,7 +166,7 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
                 #log("Stopping generation")
                 break
             # log.debug("resp", resp)
-            if hasattr(resp["choices"][0].message, 'function_call'):
+            if hasattr(resp["choices"][0], 'message') and hasattr(resp["choices"][0].message, 'function_call'):
                 new_text = "\n```typescript\nfunctions."+resp["choices"][0].message.function_call.name+"("+resp["choices"][0].message.function_call.arguments+')```'
             else:
                 new_text = resp["choices"][0].get("text", "")
