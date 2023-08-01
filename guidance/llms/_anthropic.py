@@ -60,10 +60,8 @@ def add_text_to_chat_mode(chat_mode):
 
 # model that need to use the chat completion API
 chat_models = [
-    "claude-1",
-    "claude-1-100k",
     "claude-instant-1",
-    "claude-instant-1-100k"
+    "claude-2"
 ]
 
 class Anthropic(LLM):
@@ -88,6 +86,7 @@ class Anthropic(LLM):
         # fill in default model value
         if model is None:
             model = os.environ.get("ANTHROPIC_MODEL", None)
+            print(model)
         if model is None:
             try:
                 with open(os.path.expanduser('~/.anthropic_model'), 'r') as file:
@@ -243,6 +242,7 @@ class Anthropic(LLM):
                 cached_out = None
 
                 if stop_regex is not None:
+                    print('out: ', out)
                     for i in range(len(out['completion'])):
                         if stop_pos[i] < len(out['completion'][i]['text']):
                             out['choices'][i] = out['completion'][i].to_dict() # because sometimes we might need to set the text to the empty string (and OpenAI's object does not like that)
@@ -286,15 +286,7 @@ class Anthropic(LLM):
     def _library_call(self, **kwargs):
         """ Call the ANTHROPIC API using the python package.
 
-        Note that is uses the local auth token, and does not rely on the openai one.
         """
-
-        # print("antrhopic: ", anthropic.__dict__)
-        # prev_key = anthropic.api_key
-        # prev_org = anthropic.organization
-        # prev_type = anthropic.api_type
-        # prev_version = anthropic.api_version
-        # prev_base = anthropic.api_base
 
         # set the params of the openai library if we have them
         if self.api_key is not None:
@@ -309,17 +301,18 @@ class Anthropic(LLM):
             anthropic.api_base = self.api_base
 
         if self.chat_mode:
-            kwargs['messages'] = prompt_to_messages(kwargs['prompt'])
-            kwargs['max_tokens_to_sample'] = 100
-            # del kwargs['prompt']
+            # kwargs['messages'] = prompt_to_messages(kwargs['prompt'])
+            kwargs['max_tokens_to_sample'] = 500
+            del kwargs['max_tokens']
             del kwargs['echo']
             del kwargs['logprobs']
+            del kwargs['function_call']
+            # del kwargs['messages']
             # \n\nHuman:
             # print(kwargs)
             # TODO: not sure about this
-            anthropic_client = Client(api_key=ANTHROPIC_API_KEY)
-
-            out = anthropic_client.completion(**kwargs)
+            anthropic_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+            out = anthropic_client.completions.create(**kwargs)
             out = add_text_to_chat_mode(out)
         else:
             out = anthropic.Completion.create(**kwargs)
@@ -346,10 +339,9 @@ class Anthropic(LLM):
         stream = kwargs.get("stream", False)
         data = {
             "prompt": kwargs["prompt"],
-            "max_tokens": kwargs.get("max_tokens", None),
+            "max_tokens_to_sample": kwargs.get("max_tokens_to_sample", None),
             "temperature": kwargs.get("temperature", 0.0),
             "top_p": kwargs.get("top_p", 1.0),
-            "n": kwargs.get("n", 1),
             "stream": stream,
             "logprobs": kwargs.get("logprobs", None),
             'stop': kwargs.get("stop", None),
@@ -470,7 +462,7 @@ class RegexStopChecker():
 
 # Define a deque to store the timestamps of the calls
 class AnthropicSession(LLMSession):
-    async def __call__(self, prompt, stop=None, stop_regex=None, temperature=None, n=1, max_tokens=1000, logprobs=None,
+    async def __call__(self, prompt, stop=None, stop_regex=None, temperature=None, n=1, max_tokens_to_sample=1000, logprobs=None,
                        top_p=1.0, echo=False, logit_bias=None, token_healing=None, pattern=None, stream=None,
                        cache_seed=0, caching=None, **completion_kwargs):
         """ Generate a completion of the given prompt.
@@ -522,11 +514,9 @@ class AnthropicSession(LLMSession):
                         "model": self.llm.model_name,
                         # "deployment_id": self.llm.deployment_id,
                         "prompt": prompt,
-                        "max_tokens": max_tokens,
+                        "max_tokens_to_sample": max_tokens_to_sample,
                         "temperature": temperature,
                         "top_p": top_p,
-                        "n": n,
-                        "stop": stop,
                         "logprobs": logprobs,
                         "echo": echo,
                         "stream": stream,

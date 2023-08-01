@@ -6,11 +6,10 @@ from decouple import config
 OPENAI_API_KEY = config('OPENAI_API_KEY')
 def main():
     # set the default language model used to execute guidance programs
-    # guidance.llm = guidance.llms.OpenAI('text-davinci-003')
-    guidance.llm = guidance.llms.Anthropic('claude-1-100k')
-    print('Used LLM: ', guidance.llm);
+    guidance.llm = guidance.llms.Anthropic('claude-2')
     # define a guidance program that adapts a proverb
-    program = guidance("""\n\nHuman: Tweak this proverb to apply to model instructions instead and generate 3 iterations.
+    print("Used LLM: ", guidance.llm)
+    program = guidance("""\n\nHuman: Tweak this proverb to apply to model instructions instead and generate 4 iterations.
 
         {{proverb}}
         - {{book}} {{chapter}}:{{verse}}
