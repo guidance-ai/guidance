@@ -140,6 +140,37 @@ character_maker(
 
 The prompt above typically takes just over 2.5 seconds to complete on a A6000 GPU when using LLaMA 7B. If we were to run the same prompt adapted to be a single generation call (the standard practice today) it takes about 5 seconds to complete (4 of which is token generation and 1 of which is prompt processing). *This means Guidance acceleration delivers a 2x speedup over the standard approach for this prompt.* In practice the exact speed-up factor depends on the format of your specific prompt and the size of your model (larger models benefit more). Acceleration is also only supported for Transformers LLMs at the moment. See the [notebook](https://github.com/microsoft/guidance/blob/main/notebooks/guidance_acceleration.ipynb) for more details.
 
+
+This class allows integration with [text-generation-webui](https://github.com/oobabooga/text-generation-webui) which
+allows for easy setup and enables running Larger Models with less VRAM. Additonally ensures that machine which runs guidance
+and [text-generation-webui](https://github.com/oobabooga/text-generation-webui) infrence server to do not need to be the same.
+
+
+
+````python
+
+guidance.llm = guidance.llms.TGWUI("http://127.0.0.1:9000")
+
+# define the prompt
+character_maker = guidance("""The following is a character profile for a Soccer Game in JSON format.
+```json
+{
+    "Nationality": "{{nationality}}",
+    "league": "{{league}}",
+    "name": "{{gen 'name'}}",
+    "age": {{gen 'age' pattern='[0-9]+' stop=','}},
+    "overall": {{gen 'overall' pattern='[0-9]+' stop=','}},
+    "description": "{{gen 'description' temperature=1.25}}",
+}```""")
+
+# generate a character
+character_maker(
+    nationality="Türkiye",
+    league="Premier League"
+)
+````
+
+
 ## Token healing (<a href="https://github.com/microsoft/guidance/blob/main/notebooks/art_of_prompt_design/prompt_boundaries_and_token_healing.ipynb">notebook</a>)
 
 The standard greedy tokenizations used by most language models introduce a subtle and powerful bias that can have all kinds of unintended consequences for your prompts. Using a process we call "token healing" `guidance` automatically removes these surprising biases, freeing you to focus on designing the prompts you want without worrying about tokenization artifacts.

@@ -1,6 +1,6 @@
 import guidance
 import pytest
-from .utils import get_llm
+from utils import get_llm
 
 def test_chat_stream():
     """ Test the behavior of `stream=True` for an openai chat endpoint.
@@ -159,3 +159,82 @@ Hello my name is {{gen 'name' temperature=0 max_tokens=5}}.
         "Expect the exception to be propagated"
 
     loop.close()
+
+
+
+
+# TGWUI test some have issues TODO
+def test_basic_gen():
+    model = get_llm("tgwui:http://127.0.0.1:9555",kwargs={'chat_mode':False})
+    prompt = guidance("if you give a mouse a cookie, {{gen 'next_verse' temperature=0.7}}", llm=model)
+    res = prompt()
+    assert res is not None  # Assuming you expect a non-null result
+    
+def test_encode_to_decode():
+    model = get_llm("tgwui:http://127.0.0.1:9555",kwargs={'chat_mode':False})
+    string ="Hello World"
+    tokens= model.encode(string)
+    converted = model.decode(tokens)
+    print(converted)
+    assert string == converted
+    
+def test_chat_mode():
+    model = get_llm("tgwui:http://127.0.0.1:9555",kwargs={'chat_mode':True})
+    experts = guidance('''
+    {{#system~}}
+    You are a helpful and terse assistant.
+    {{~/system}}
+
+    {{#user~}}
+    I want a response to the following question:
+    {{query}}
+    Name 3 world-class experts (past or present) who would be great at answering this?
+    Don't answer the question yet.
+    {{~/user}}
+
+    {{#assistant~}}
+    {{gen 'expert_names' temperature=0 max_tokens=300}}
+    {{~/assistant}}
+
+    {{#user~}}
+    Great, now please answer the question as if these experts had collaborated in writing a joint anonymous answer.
+    {{~/user}}
+
+    {{#assistant~}}
+    {{gen 'answer' temperature=0 max_tokens=500}}
+    {{~/assistant}}
+    ''', llm=model)
+    res = experts(query='How can I be more productive?')
+    print(res)
+    assert res is not None  # Assuming you expect a non-null result
+
+def test_basic_geneach():
+    model = get_llm("tgwui:http://127.0.0.1:9555",kwargs={'chat_mode':False})
+    prompt = guidance("""{{#geneach 'items' num_iterations=3}} "{{gen 'this'}}",{{/geneach}}""", llm=model)
+    res = prompt()
+    print(res)
+    assert res is not None  # Assuming you expect a non-null result
+    
+def test_basic_pattern_gen():
+    model = get_llm("tgwui:http://127.0.0.1:9555",kwargs={'chat_mode':False})
+    prompt = guidance("strength: {{gen 'strength' pattern='[0-9]+' temperature=0.7}}", llm=model)
+    res = prompt()
+    print(res)
+    assert isinstance(int(res), int)  # Assuming you expect a numeric string
+
+def test_basic_select():
+    model = get_llm("tgwui:http://127.0.0.1:9555",kwargs={'chat_mode':False})
+    valid_weapons = ["sword", "axe", "mace", "spear", "bow", "crossbow"]
+    prompt = guidance("weapon {{select 'weapon' options=valid_weapons}}", valid_weapons=valid_weapons, llm=model)
+    res = prompt()
+    print(res)
+    assert res in valid_weapons  # Expect selected weapon to be in the valid_weapons list
+
+
+def test_basic_stop():
+    model = get_llm("tgwui:http://127.0.0.1:9555",kwargs={'chat_mode':False})
+    prompt = guidance("how {{gen 'strength' stop=',' temperature=0.7}}", llm=model)
+    res = str(prompt())
+    print(res)
+    assert res.endswith(',')
+
