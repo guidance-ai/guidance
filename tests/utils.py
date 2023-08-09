@@ -1,5 +1,6 @@
 import guidance
 import pytest
+import torch
 
 opanai_model_cache = {}
 
@@ -37,6 +38,10 @@ def get_transformers_llm(model_name, caching=False):
     # load it over and over again
     key = model_name+"_"+str(caching)
     if key not in transformers_model_cache:
-        transformers_model_cache[key] = guidance.llms.Transformers(model_name, caching=caching)
+        #check gpu
+        if torch.cuda.is_available():
+            transformers_model_cache[key] = guidance.llms.Transformers(model_name, caching=caching, device="cuda:0")
+        else:
+            transformers_model_cache[key] = guidance.llms.Transformers(model_name, caching=caching)
 
     return transformers_model_cache[key]
