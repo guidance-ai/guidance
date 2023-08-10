@@ -709,7 +709,7 @@ class MSALOpenAI(OpenAI):
     llm_name: str = "azure_openai"
 
     def __init__(self, model=None, client_id=None, authority=None, caching=True, max_retries=5, max_calls_per_min=60, token=None,
-                 endpoint=None, scopes=None, temperature=0.0, chat_mode="auto"):
+                 endpoint=None, scopes=None, temperature=0.0, chat_mode="auto", rest_call=False):
         
 
         assert endpoint is not None, "An endpoint must be specified!"
@@ -717,7 +717,7 @@ class MSALOpenAI(OpenAI):
         # build a standard OpenAI LLM object
         super().__init__(
             model=model, caching=caching, max_retries=max_retries, max_calls_per_min=max_calls_per_min,
-            token=token, endpoint=endpoint, temperature=temperature, chat_mode=chat_mode
+            token=token, endpoint=endpoint, temperature=temperature, chat_mode=chat_mode, rest_call=rest_call
         )
 
         self.client_id = client_id
@@ -731,13 +731,14 @@ class MSALOpenAI(OpenAI):
         if os.path.exists(self._token_cache_path):
             self._token_cache.deserialize(open(self._token_cache_path, 'r').read())
 
-        self._rest_headers["X-ModelType"] = self.model_name
+        if( rest_call ):
+            self._rest_headers["X-ModelType"] = self.model_name
 
     @property
-    def token(self):
+    def api_key(self):
         return self._get_token()
-    @token.setter
-    def token(self, value):
+    @api_key.setter
+    def api_key(self, value):
         pass # ignored for now
 
     def _get_token(self):
