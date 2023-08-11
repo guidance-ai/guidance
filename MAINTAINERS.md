@@ -5,6 +5,7 @@ This document lists the Maintainers of the Project. Maintainers may be added onc
 | **NAME** | **Organization** |
 | --- | --- |
 | Harsha Nori | Microsoft |
+| Scott Lundberg | |
 
 
 ---
