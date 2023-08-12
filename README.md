@@ -27,7 +27,7 @@ pip install guidance
 
 
                                      
-## Live streaming (<a href="https://github.com/microsoft/guidance/blob/main/notebooks/proverb.ipynb">notebook</a>)
+## Live streaming (<a href="https://github.com/guidance-ai/guidance/blob/main/notebooks/proverb.ipynb">notebook</a>)
 
 Speed up your prompt development cycle by streaming complex templates and generations live in your notebook. At first glance, Guidance feels like a templating language, and just like standard <a href="https://handlebarsjs.com">Handlebars</a> templates, you can do variable interpolation (e.g., `{{proverb}}`) and logical control. But unlike standard templating languages, guidance programs have a well defined linear execution order that directly corresponds to the token order as processed by the language model. This means that at any point during execution the language model can be used to generate text (using the `{{gen}}` command) or make logical control flow decisions. This interleaving of generation and prompting allows for precise output structure that produces clear and parsable results.
 
@@ -64,7 +64,7 @@ executed_program["rewrite"]
 ```
 > ', a model fails,\nbut in an abundance of instructions there is safety.'
 
-## Chat dialog (<a href="https://github.com/microsoft/guidance/blob/main/notebooks/chat.ipynb">notebook</a>)
+## Chat dialog (<a href="https://github.com/guidance-ai/guidance/blob/main/notebooks/chat.ipynb">notebook</a>)
 
 Guidance supports API-based chat models like GPT-4, as well as open chat models like Vicuna through a unified API based on role tags (e.g., `{{#system}}...{{/system}}`). This allows interactive dialog development that combines rich templating and logical control with modern chat models.
 
@@ -102,7 +102,7 @@ experts(query='How can I be more productive?')
 ```
 <img src="docs/figures/chat_animation.gif" width="619">
 
-## Guidance acceleration (<a href="https://github.com/microsoft/guidance/blob/main/notebooks/guidance_acceleration.ipynb">notebook</a>)
+## Guidance acceleration (<a href="https://github.com/guidance-ai/guidance/blob/main/notebooks/guidance_acceleration.ipynb">notebook</a>)
 
 When multiple generation or LLM-directed control flow statements are used in a single Guidance program then we can significantly improve inference performance by optimally reusing the Key/Value caches as we progress through the prompt. This means Guidance only asks the LLM to generate the green text below, not the entire program. **This cuts this prompt's runtime in half vs. a standard generation approach.** 
 
@@ -138,9 +138,9 @@ character_maker(
 ````
 <img src="docs/figures/json_animation.gif" width="565">
 
-The prompt above typically takes just over 2.5 seconds to complete on a A6000 GPU when using LLaMA 7B. If we were to run the same prompt adapted to be a single generation call (the standard practice today) it takes about 5 seconds to complete (4 of which is token generation and 1 of which is prompt processing). *This means Guidance acceleration delivers a 2x speedup over the standard approach for this prompt.* In practice the exact speed-up factor depends on the format of your specific prompt and the size of your model (larger models benefit more). Acceleration is also only supported for Transformers LLMs at the moment. See the [notebook](https://github.com/microsoft/guidance/blob/main/notebooks/guidance_acceleration.ipynb) for more details.
+The prompt above typically takes just over 2.5 seconds to complete on a A6000 GPU when using LLaMA 7B. If we were to run the same prompt adapted to be a single generation call (the standard practice today) it takes about 5 seconds to complete (4 of which is token generation and 1 of which is prompt processing). *This means Guidance acceleration delivers a 2x speedup over the standard approach for this prompt.* In practice the exact speed-up factor depends on the format of your specific prompt and the size of your model (larger models benefit more). Acceleration is also only supported for Transformers LLMs at the moment. See the [notebook](https://github.com/guidance-ai/guidance/blob/main/notebooks/guidance_acceleration.ipynb) for more details.
 
-## Token healing (<a href="https://github.com/microsoft/guidance/blob/main/notebooks/art_of_prompt_design/prompt_boundaries_and_token_healing.ipynb">notebook</a>)
+## Token healing (<a href="https://github.com/guidance-ai/guidance/blob/main/notebooks/art_of_prompt_design/prompt_boundaries_and_token_healing.ipynb">notebook</a>)
 
 The standard greedy tokenizations used by most language models introduce a subtle and powerful bias that can have all kinds of unintended consequences for your prompts. Using a process we call "token healing" `guidance` automatically removes these surprising biases, freeing you to focus on designing the prompts you want without worrying about tokenization artifacts.
 
