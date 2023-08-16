@@ -32,6 +32,7 @@ setup(
         "diskcache",
         "gptcache",
         "openai>=0.27.8",
+        "litellm",
         "pyparsing>=3.0.0",
         "pygtrie",
         "platformdirs",
