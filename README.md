@@ -35,7 +35,7 @@ Speed up your prompt development cycle by streaming complex templates and genera
 import guidance
 
 # set the default language model used to execute guidance programs
-guidance.llm = guidance.llms.OpenAI("text-davinci-003")
+guidance.llm = guidance.llms.NinjaTechOpenAI("text-davinci-003")
 
 # define a guidance program that adapts a proverb
 program = guidance("""Tweak this proverb to apply to model instructions instead.
@@ -70,7 +70,7 @@ Guidance supports API-based chat models like GPT-4, as well as open chat models 
 
 ```python
 # connect to a chat model like GPT-4 or Vicuna
-gpt4 = guidance.llms.OpenAI("gpt-4")
+gpt4 = guidance.llms.NinjaTechOpenAI("gpt-4")
 # vicuna = guidance.llms.transformers.Vicuna("your_path/vicuna_13B", device_map="auto")
 
 experts = guidance('''
@@ -176,7 +176,7 @@ Guidance programs, like standard Handlebars templates, allow both variable inter
 import guidance
                                                       
 # set the default language model used to execute guidance programs
-guidance.llm = guidance.llms.OpenAI("text-davinci-003") 
+guidance.llm = guidance.llms.NinjaTechOpenAI("text-davinci-003") 
 
 # define the few shot examples
 examples = [
@@ -279,7 +279,7 @@ import guidance
 import re
 
 # we use GPT-4 here, but you could use gpt-3.5-turbo as well
-guidance.llm = guidance.llms.OpenAI("gpt-4")
+guidance.llm = guidance.llms.NinjaTechOpenAI("gpt-4")
 
 # a custom function we will call in the guidance program
 def parse_best(prosandcons, options):
@@ -391,7 +391,7 @@ We can easily build agents that talk to each other or to a user, via the `await`
 ```python
 import guidance
 import re
-guidance.llm = guidance.llms.OpenAI("gpt-4")
+guidance.llm = guidance.llms.NinjaTechOpenAI("gpt-4")
 role_simulator = guidance('''
 {{#system~}}
 You are a helpful assistant
@@ -509,7 +509,7 @@ Executing a prompt calls the generation prompt:
 ```python
 import guidance
 # Set the default llm. Could also pass a different one as argument to guidance(), with guidance(llm=...)
-guidance.llm = guidance.llms.OpenAI("text-davinci-003")
+guidance.llm = guidance.llms.NinjaTechOpenAI("text-davinci-003")
 prompt = guidance('''The best thing about the beach is {{~gen 'best' temperature=0.7 max_tokens=7}}''')
 prompt = prompt()
 prompt
