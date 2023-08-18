@@ -406,6 +406,11 @@ class OpenAI(LLM):
             'stop': kwargs.get("stop", None),
             "echo": kwargs.get("echo", False)
         }
+        if kwargs.get("logit_bias") != None:
+            data["logit_bias"] = kwargs.get("logit_bias")
+        if kwargs.get("function_call") != None:
+            data["function_call"] = kwargs.get("function_call")
+            data["functions"] = kwargs.get("functions")
         if self.chat_mode:
             data['messages'] = prompt_to_messages(data['prompt'])
             del data['prompt']
