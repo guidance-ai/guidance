@@ -1,0 +1,101 @@
+[build-system]
+requires = [ "poetry-core",]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "ninjatech-guidance"
+version = "0.1.31"
+description = "Provides Access for services to Models, logging monitoring and controlling access"
+authors = [ "Masoud <masoud@ninjatech.ai>",]
+readme = "README.md"
+
+
+[[tool.poetry.source]]
+name = "ninjapypi"
+# "Ninja PyPi - cache of both internal and external packages"
+url = "https://ninja-tech-ai-591753572006.d.codeartifact.us-west-2.amazonaws.com/pypi/ninja-py-pi/simple"
+priority = "default"
+
+[[tool.poetry.source]]
+name = "ninja-internal-packages"
+# "Authoritative root of internal packages - used only for publishing internal packages
+url = "https://ninja-tech-ai-591753572006.d.codeartifact.us-west-2.amazonaws.com/pypi/ninja-internal-packages"
+priority = "explicit"
+
+
+
+[tool.poetry.dependencies]
+#
+# Main Dependencies
+#
+python = "~3.10"
+ninja-common = {version = "^1.0.11", extras=["fastapi-utils"] }
+openai = {version = "^0.27.8", extras = ["datalib"]}
+requests = "^2.31.0"
+pygtrie = "^2.5.0"
+pyparsing = "^3.1.1"
+nest-asyncio = "^1.5.7"
+regex = "^2023.8.8"
+diskcache = "^5.6.1"
+tiktoken = "^0.4.0"
+
+
+
+[tool.poetry.group.canary]
+#
+#  Canary Dependencies
+#
+optional = true
+
+[tool.poetry.group.canary.dependencies]
+aiohttp = "^3.8.4"
+aws-lambda-powertools = "2.15.0"
+pydantic = "^1.10.9"
+
+[tool.poetry.group.infra]
+#
+#  Infra Dependencies
+#
+optional = true
+
+[tool.poetry.group.infra.dependencies]
+aws-cdk-lib = "^2.83.0"
+constructs = "^10.2.47"
+toml = "^0.10.2"
+ninja-common-infra= "0.1.4"  #  use specific version
+
+
+[tool.poetry.group.dev]
+#
+# Dev and test dependencies
+#
+optional = true
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.3.1"
+pre-commit = "^3.3.2"
+typer = "<0.8.0" # needed to downgrade to work with spacy
+# Integ test dependenceis
+syrupy = "^4.0.2"
+httpx = "^0.24.1"
+numpy = "^1.24.3"
+en-core-web-md = {url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_md-3.5.0/en_core_web_md-3.5.0-py3-none-any.whl"}
+pytest-cov = "^4.1.0"
+responses = "^0.23.1"
+
+[tool.poetry.scripts]
+canary = "ninja_ai_gateway_canary.cli:app"
+
+
+#
+#  Tooling config
+#
+[tool.black]
+line-length = 100
+target-version = ['py310']
+
+[tool.isort]
+profile = "black"
+line_length = 100
+filter_files = true
+combine_as_imports = true
