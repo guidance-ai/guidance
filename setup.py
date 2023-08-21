@@ -40,7 +40,7 @@ setup(
         "msal",
         "requests",
         "numpy",
-        "anthropic"
+        "anthropic",
         "aiohttp",
     ],
     extras_require={

@@ -302,7 +302,6 @@ class Anthropic(LLM):
 
         if self.chat_mode:
             # kwargs['messages'] = prompt_to_messages(kwargs['prompt'])
-            kwargs['max_tokens_to_sample'] = 500
             del kwargs['max_tokens']
             del kwargs['echo']
             del kwargs['logprobs']
