@@ -27,7 +27,7 @@ async def if_(value, *, invert=False, _parser_context=None):
 
         # elif block
         if block_content[i][0] == "elif":
-            if parser.visit(block_content[i][1], variable_stack):
+            if (await parser.visit(block_content[i][1], variable_stack)).value:
                 return await parser.visit(block_content[i+1], variable_stack)
 
         # else block
