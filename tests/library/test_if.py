@@ -52,3 +52,6 @@ def test_elif_else():
 
     out = prompt(flag=False, flag2=True)
     assert str(out) == "Answer 'Yes' or 'No': 'maybe'"
+
+    out = prompt(flag=False, flag2=False)
+    assert str(out) == "Answer 'Yes' or 'No': 'No'"
