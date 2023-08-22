@@ -71,3 +71,11 @@ def test_special_var_index():
     assert str(prompt(arr=["there"])) == "there!"
     prompt = guidance("{{#geneach 'out' num_iterations=1}}{{arr[@index]}}{{/each}}!")
     assert str(prompt(arr=["there"])) == "there!"
+
+def test_infix_and():
+    prompt = guidance("Boolean logic True and False: {{True and False}}")
+    assert str(prompt()) == "Boolean logic True and False: False"
+
+def test_infix_or():
+    prompt = guidance("Boolean logic True or False: {{True or False}}")
+    assert str(prompt()) == "Boolean logic True or False: True"
