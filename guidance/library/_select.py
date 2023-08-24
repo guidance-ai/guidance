@@ -2,7 +2,7 @@ import pygtrie
 import numpy as np
 from .._utils import ContentCapture
 
-async def select(variable_name="selected", options=None, logprobs=None, list_append=False, _parser_context=None):
+async def select(variable_name="selected", options=None, logprobs=None, list_append=False, function_call="none", _parser_context=None):
     ''' Select a value from a list of choices.
 
     Parameters
@@ -64,7 +64,7 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
     for i,option in enumerate(options_tokens):
         token_map[option] = i
     
-    async def recursive_select(current_prefix, allow_token_extension=True):
+    async def recursive_select(current_prefix, function_call=function_call, allow_token_extension=True):
         """ This returns a dictionary of scores for each option (keyed by the option index).
         """
 
@@ -110,7 +110,8 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
             logit_bias=logit_bias,
             logprobs=len(logit_bias),
             cache_seed=0,
-            token_healing=False # we manage token boundary healing ourselves for this function
+            token_healing=False, # we manage token boundary healing ourselves for this function
+            function_call=function_call
         )
         gen_obj = gen_obj["choices"][0] # get the first choice (we only asked for one)
         if "logprobs" in gen_obj:
