@@ -123,8 +123,8 @@ class LM:
         self._send_to_event_queue(self)
         return self
     
-    def reset(self, position=0, clear_variables=False):
-        """This resets the state of the LM prompt."""
+    def _reset(self, position=0, clear_variables=False):
+        """This resets the state of the LM prompt past the given postion."""
         self._state = self._state[:position]
         if clear_variables:
             self._variables = {}

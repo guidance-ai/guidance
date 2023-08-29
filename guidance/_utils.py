@@ -56,6 +56,29 @@ class Silent():
         for child in lm._children:
             Silent._rec_set_silent(child, value)
 
+class Hidden():
+    """Creates a scope where the LM state is optionally hidden from following calls.
+    
+    Hidden means that the text inside this scope will not be used as context for
+    later calls.
+    """
+    def __init__(self, lm, hidden):
+        self.lm = lm
+        self.hidden = hidden
+    
+    def __enter__(self):
+        self.offset = len(self.lm)
+
+    def __exit__(self, type, value, traceback):
+        if self.hidden:
+            Hidden._rec_make_hidden(self.lm, self.offset)
+
+    @staticmethod
+    def _rec_make_hidden(lm, offset):
+        lm._reset(offset)
+        for child in lm._children:
+            Hidden._rec_make_hidden(child, offset)
+
 class CaptureEvents():
     """Creates a scope where all the events are captured in a queue.
     

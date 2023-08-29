@@ -12,7 +12,7 @@ from . import endpoints
 llms = endpoints # backwards compatibility
 from . import models
 
-from ._utils import load, chain, Silent, CaptureEvents, TextRange
+from ._utils import load, chain, Silent, Hidden, CaptureEvents, TextRange
 from . import _utils
 from . import selectors
 import asyncio
@@ -42,30 +42,33 @@ def _decorator(f, *, model=None):
         TODO: In the future we plan to add network aware guidance acceleration as well.
         """
         
-        def sync_wrapper(lm, *args, silent=None, **kwargs):
+        def sync_wrapper(lm, *args, silent=None, hidden=False, **kwargs):
             with Silent(lm, silent):
-                return f(lm, *args, **kwargs)
+                with Hidden(lm, hidden):
+                    return f(lm, *args, **kwargs)
 
-        def sync_iter_wrapper(lm, *args, silent=None, **kwargs):
+        def sync_iter_wrapper(lm, *args, silent=None, hidden=False, **kwargs):
 
             # create a worker thread and run the function in it
             with Silent(lm, silent):
-                with CaptureEvents(lm) as events:
-                    worker_thread = threading.Thread(target=f, args=(lm, *args), kwargs=kwargs)
-                    worker_thread.start()
-                
-                    # loop over the queue and display the results
-                    while True:
-                        try:
-                            val = events.get(timeout=0.1)
-                            yield val
-                        except queue.Empty:
-                            if not worker_thread.is_alive():
-                                break
+                with Hidden(lm, hidden):
+                    with CaptureEvents(lm) as events:
+                        worker_thread = threading.Thread(target=f, args=(lm, *args), kwargs=kwargs)
+                        worker_thread.start()
+                    
+                        # loop over the queue and display the results
+                        while True:
+                            try:
+                                val = events.get(timeout=0.1)
+                                yield val
+                            except queue.Empty:
+                                if not worker_thread.is_alive():
+                                    break
 
-        async def async_wrapper(lm, *args, silent=None, **kwargs):
+        async def async_wrapper(lm, *args, silent=None, hidden=False, **kwargs):
             with Silent(lm, silent):
-                return await f(lm, *args, **kwargs)
+                with Hidden(lm, hidden):
+                    return await f(lm, *args, **kwargs)
 
         async def async_iter_wrapper(lm, *args, **kwargs):
             iterator = _utils.ThreadSafeAsyncIterator(sync_iter_wrapper(lm, *args, **kwargs))
