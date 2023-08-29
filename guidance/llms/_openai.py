@@ -670,6 +670,13 @@ class OpenAISession(LLMSession):
                     await asyncio.sleep(3)
                     try_again = True
                     fail_count += 1
+                except (aiohttp.ClientPayloadError) as e:
+                    if e.message == 'Response payload is not completed':
+                        await asyncio.sleep(3)
+                        try_again = True
+                        fail_count += 1
+                    else:
+                        raise
                 
                 if not try_again:
                     break
