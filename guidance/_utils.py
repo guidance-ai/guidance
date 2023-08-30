@@ -4,6 +4,7 @@ import inspect
 import json
 import re
 import asyncio
+import queue
 
 
 class TextRange:
