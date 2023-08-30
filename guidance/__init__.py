@@ -43,32 +43,29 @@ def _decorator(f, *, model=None):
         """
         
         def sync_wrapper(lm, *args, silent=None, hidden=False, **kwargs):
-            with Silent(lm, silent):
-                with Hidden(lm, hidden):
-                    return f(lm, *args, **kwargs)
+            with Silent(lm, silent), Hidden(lm, hidden):
+                return f(lm, *args, **kwargs)
 
         def sync_iter_wrapper(lm, *args, silent=None, hidden=False, **kwargs):
 
             # create a worker thread and run the function in it
-            with Silent(lm, silent):
-                with Hidden(lm, hidden):
-                    with CaptureEvents(lm) as events:
-                        worker_thread = threading.Thread(target=f, args=(lm, *args), kwargs=kwargs)
-                        worker_thread.start()
-                    
-                        # loop over the queue and display the results
-                        while True:
-                            try:
-                                val = events.get(timeout=0.1)
-                                yield val
-                            except queue.Empty:
-                                if not worker_thread.is_alive():
-                                    break
+            with Silent(lm, silent), Hidden(lm, hidden):
+                with CaptureEvents(lm) as events:
+                    worker_thread = threading.Thread(target=f, args=(lm, *args), kwargs=kwargs)
+                    worker_thread.start()
+                
+                    # loop over the queue and display the results
+                    while True:
+                        try:
+                            val = events.get(timeout=0.1)
+                            yield val
+                        except queue.Empty:
+                            if not worker_thread.is_alive():
+                                break
 
         async def async_wrapper(lm, *args, silent=None, hidden=False, **kwargs):
-            with Silent(lm, silent):
-                with Hidden(lm, hidden):
-                    return await f(lm, *args, **kwargs)
+            with Silent(lm, silent), Hidden(lm, hidden):
+                return await f(lm, *args, **kwargs)
 
         async def async_iter_wrapper(lm, *args, **kwargs):
             iterator = _utils.ThreadSafeAsyncIterator(sync_iter_wrapper(lm, *args, **kwargs))
