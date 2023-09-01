@@ -76,7 +76,7 @@ class Hidden():
 
     @staticmethod
     def _rec_make_hidden(lm, offset):
-        lm._reset(offset)
+        lm.reset(offset, clear_variables=False)
         for child in lm._children:
             Hidden._rec_make_hidden(child, offset)
 

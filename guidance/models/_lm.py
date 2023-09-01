@@ -4,6 +4,7 @@ import html
 import re
 import copy
 import json
+import textwrap
 
 class CallScanner:
     def __init__(self, scanner, stop=None, stop_regex=None):
@@ -114,8 +115,10 @@ class LM:
         self._children.append(new_lm)
         return new_lm
     
-    def append(self, value, force_silent=False):
+    def append(self, value, force_silent=False, dedent=True):
         """This is the base way to add content to the LM object."""
+        if dedent and ('\n' in value or '\r' in value):
+            value = textwrap.dedent(value)
         self._state += str(value)
         if not self.silent and not force_silent:
             clear_output(wait=True)
@@ -123,7 +126,7 @@ class LM:
         self._send_to_event_queue(self)
         return self
     
-    def _reset(self, position=0, clear_variables=False):
+    def reset(self, position=0, clear_variables=True):
         """This resets the state of the LM prompt past the given postion."""
         self._state = self._state[:position]
         if clear_variables:
@@ -142,8 +145,8 @@ class LM:
     def __len__(self):
         return len(str(self))
     
-    def __call__(self, s):
-        return self.append(s)
+    def __call__(self, s, **kwargs):
+        return self.append(s, **kwargs)
     
     def __setitem__(self, key, value):
         self._variables[key] = value
