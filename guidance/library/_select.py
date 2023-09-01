@@ -1,5 +1,5 @@
 import pygtrie
-import numpy as np
+import math
 from .._utils import ContentCapture
 
 async def select(variable_name="selected", options=None, logprobs=None, list_append=False, _parser_context=None):
@@ -140,10 +140,10 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
             for k in sub_logprobs:
 
                 # compute the probability of a logical OR between the new extension and the previous possible ones
-                p1 = np.exp(logprobs_out[k])
-                p2 = np.exp(sub_logprobs[k] + logprob)
+                p1 = math.exp(logprobs_out[k])
+                p2 = math.exp(sub_logprobs[k] + logprob)
                 or_prob = p1 + p2 - p1*p2
-                logprobs_out[k] = np.log(or_prob)
+                logprobs_out[k] = math.log(or_prob)
 
         return logprobs_out
         

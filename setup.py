@@ -39,7 +39,6 @@ setup(
         "nest_asyncio",
         "msal",
         "requests",
-        "numpy",
         "aiohttp",
     ],
     extras_require={
