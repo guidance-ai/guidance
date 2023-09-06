@@ -11,7 +11,6 @@ import collections
 import json
 import re
 import regex
-from litellm import acompletion
 
 from ._llm import LLM, LLMSession, SyncSession
 
@@ -370,10 +369,10 @@ class OpenAI(LLM):
             del kwargs['echo']
             del kwargs['logprobs']
             # print(kwargs)
-            out = await acompletion(**kwargs)
+            out = await openai.ChatCompletion.acreate(**kwargs)
             out = add_text_to_chat_mode(out)
         else:
-            out = await acompletion(**kwargs)
+            out = await openai.Completion.acreate(**kwargs)
         
         # restore the params of the openai library
         openai.api_key = prev_key
