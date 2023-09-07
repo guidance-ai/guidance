@@ -1,4 +1,5 @@
 import types
+import regex
 
 import guidance
 
@@ -16,7 +17,8 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop
 
     lm += "<||_html:<span style='background-color: rgba(0, 165, 0, 0.25)'>_||>"
 
-    if name is not None:
+    # This needs to be here for streaming
+    if name is not None and not list_append:
         lm[name] = ""
 
     gen_obj = lm.get_endpoint_session()(
