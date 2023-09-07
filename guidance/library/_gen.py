@@ -75,3 +75,58 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop
     lm += "<||_html:</span>_||>" + suffix
     
     return lm
+
+@guidance
+def gen_line(lm, *args, **kwargs):
+    return lm.gen(*args, suffix='\n', **kwargs)
+
+@guidance
+def gen_quote(lm, name, quote='"', *args, **kwargs):
+    return lm(quote).gen(*args,name=name, suffix=quote, **kwargs)
+
+@guidance
+def will_gen(lm, stop, stop_regex=None, ignore_spaces=False, max_tokens=30):
+    # this is obviously not the right implementation, just here so we can explore
+    if stop and not isinstance(stop, list):
+        stop = [stop]
+    if stop_regex and not isinstance(stop_regex, list):
+        stop_regex = [stop_regex]
+    if not stop:
+        stop = []
+    if not stop_regex:
+        stop_regex = []
+    regexes = [regex.escape(x) for x in stop + stop_regex]
+    optional_space = '\s*' if ignore_spaces else ''
+    pattern = regex.compile(f'{optional_space}({"|".join(regexes)})')
+    with lm.block(hidden=True):
+        for _ in range(max_tokens):
+            lm.gen('temp_variable', list_append=True, max_tokens=1)
+            print(lm['temp_variable'])
+            if not pattern.match(''.join(lm['temp_variable']), partial=True):
+                lm.remove('temp_variable')
+                return False
+            if pattern.match(''.join(lm['temp_variable']), partial=False):
+                lm.remove('temp_variable')
+                return True
+
+@guidance
+def gen_substring(lm, string, name=None, **kwargs):
+    # this is obviously not the right implementation, just here so we can explore
+    tokens = [lm.endpoint.tokenizer.decode(x) for x in lm.endpoint.tokenizer.encode(string)]
+    pattern = f'({"|".join(tokens)})?'
+    if name is None:
+        name = 'temp_string'
+        remove_temp = True
+    lm.gen('temp_string', pattern=pattern)
+    valid_idxs = [i for i, x in enumerate(tokens) if x == lm['temp_string'] ]
+    while valid_idxs:
+        next_idxs = [i + 1 for i in valid_idxs if i + 1 < len(tokens)]
+        next_tokens = [tokens[i] for i in next_idxs]
+        if not next_tokens:
+            break
+        pattern = f'({"|".join(next_tokens)})?'
+        lm.gen('temp_string', pattern=pattern)
+        valid_idxs = [i for i in next_idxs if tokens[i] == lm['temp_string']]
+    if remove_temp:
+        lm.remove('temp_string')
+    return lm
