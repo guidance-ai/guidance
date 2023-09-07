@@ -678,7 +678,7 @@ class OpenAISession(LLMSession):
                     else:
                         raise
                 except Exception as e:
-                    print('unknown exception', e.__class__, e.message, e)
+                    print('unknown exception', e.__class__, e)
                     raise
                 
                 if not try_again:
