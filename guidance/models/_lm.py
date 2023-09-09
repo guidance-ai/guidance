@@ -71,6 +71,10 @@ class LM:
 
     def get(self, key, default=None):
         return self._variables.get(key, default)
+    
+    def remove(self, key):
+        if key in self._variables:
+            del self._variables[key]
 
     def add_call_scanner(self, scanner, stop=None, stop_regex=None):
         self._call_scanners.append(CallScanner(scanner, stop=stop, stop_regex=stop_regex))
