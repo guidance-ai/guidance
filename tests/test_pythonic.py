@@ -109,7 +109,7 @@ def test_chat_basic(model_name):
     with lm.assistant() as lm:
         lm.gen('expert_names', max_tokens=30)
 
-    lm.user("Great, now please answer teh question as if these experts had collaborated in writing a joint anonymous answer.")
+    lm.user("Great, now please answer the question as if these experts had collaborated in writing a joint anonymous answer.")
 
     with lm.assistant() as lm:
         lm.gen('answer', max_tokens=100)
@@ -193,3 +193,29 @@ def test_function_calling(model_name):
 # errors
 # --------------------
 
+@pytest.mark.parametrize("model_name", ["openai:text-davinci-003", "openai:gpt-3.5-turbo"])
+def test_openai_key_invalid(model_name):
+    lm = get_llm(model_name)
+    lm.endpoint.api_key = None
+
+    lm("This should work.")
+    with pytest.raises(AssertionError):
+        lm.gen('failure', max_tokens=10)
+
+
+# TODO: Better error messages if users try to use bad model/syntax combinations?
+@pytest.mark.parametrize("model_name", ["openai:text-davinci-003"])
+def test_chat_syntax_invalid_model(model_name):
+    lm = get_llm(model_name)
+
+    lm("This should work.")
+    with pytest.raises(AttributeError):
+        lm.system("You are a helpful assistant.")
+
+@pytest.mark.parametrize("model_name", ["openai:gpt-3.5-turbo"])
+def test_completion_syntax_invalid_model(model_name):
+    lm = get_llm(model_name)
+
+    lm("This should work.")
+    with pytest.raises(AssertionError):
+        lm.gen("failure", max_tokens=10)
