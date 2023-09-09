@@ -153,6 +153,9 @@ class LM:
 
     def __getitem__(self, key):
         return self._variables[key]
+    
+    def __contains__(self, item):
+        return item in self._variables
 
     def __enter__(self):
         if len(self.instance__enter__) > 0:
