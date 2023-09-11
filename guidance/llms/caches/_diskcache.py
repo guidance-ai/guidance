@@ -8,12 +8,9 @@ from guidance.llms.caches import Cache
 
 class DiskCache(Cache):
     """DiskCache is a cache that uses diskcache lib."""
-    def __init__(self, llm_name: str):
-        self._diskcache = diskcache.Cache(
-            os.path.join(
-                platformdirs.user_cache_dir("guidance"), f"_{llm_name}.diskcache"
-            )
-        )
+    def __init__(self, llm_name: str, cache_dir: Union[str, None] = '/tmp/guidance') -> None:
+        cache_dir = platformdirs.user_cache_dir("guidance") if cache_dir is None else cache_dir
+        self._diskcache = diskcache.Cache(os.path.join(cache_dir, f"_{llm_name}.diskcache"))
 
     def __getitem__(self, key: str) -> str:
         return self._diskcache[key]
