@@ -2,6 +2,7 @@ import types
 import regex
 
 import guidance
+import ast
 
 @guidance
 def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop=None, stop_regex=None, suffix="", n=1, temperature=0.0, top_p=1.0,
@@ -58,18 +59,19 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop
         
         # save the final stopping text if requested
         if save_stop_text is not False:
-            if save_stop_text is True:
+            if save_stop_text is True and name is not None:
                 save_stop_text = name+"_stop_text"
             lm[save_stop_text] = resp["choices"][0].get('stop_text', None)
         
-        for scanner in lm.get_call_scanners():
-            out = scanner(lm, generated_value)
-            if out is not None:
-                generated_value = out
+        # for scanner in lm.get_call_scanners():
+        #     out = scanner(lm, generated_value)
+        #     if out is not None:
+        #         generated_value = out
 
         if list_append:
             lm[name][list_ind] = generated_value
         elif name is not None:
+            # This seems wrong, it's overriding whatever was generated into the name. What if the generation was 'I am now going to call a tool: tool_call(bla)', do you want to just dump that?
             lm[name] = generated_value
     
     lm += "<||_html:</span>_||>" + suffix
@@ -81,7 +83,7 @@ def gen_line(lm, *args, **kwargs):
     return lm.gen(*args, suffix='\n', **kwargs)
 
 @guidance
-def gen_quote(lm, name, quote='"', *args, **kwargs):
+def gen_quote(lm, name=None, quote='"', *args, **kwargs):
     return lm(quote).gen(*args,name=name, suffix=quote, **kwargs)
 
 @guidance
@@ -112,6 +114,12 @@ def will_gen(lm, stop, stop_regex=None, ignore_spaces=False, max_tokens=30):
 @guidance
 def gen_substring(lm, string, name=None, **kwargs):
     # this is obviously not the right implementation, just here so we can explore
+    # Right now it's kinda wrong because it does not support suffix (or other kwargs to gen),
+    # which is a big pain because the model ends up being bad at stopping
+    # (will never pick stop token until the string is finished, unless you have the suffix as an option also)
+    # gen_substring will never stop unless you add a suffix as an option or set max_tokens or stop
+    # E.g. quote: lm('"').gen_substring(original, suffix='"') 
+
     tokens = [lm.endpoint.tokenizer.decode(x) for x in lm.endpoint.tokenizer.encode(string)]
     pattern = f'({"|".join(tokens)})?'
     if name is None:
@@ -129,4 +137,76 @@ def gen_substring(lm, string, name=None, **kwargs):
         valid_idxs = [i for i in next_idxs if tokens[i] == lm['temp_string']]
     if remove_temp:
         lm.remove('temp_string')
+    return lm
+
+
+def pattern_to_callable(pattern, callable):
+    # returns callable, args, kwargs
+    pattern = regex.compile(pattern)
+    def return_fn(string):
+        match = pattern.search(string)
+        if match:
+            call = match.group(0)
+            body = ast.parse(call, mode='eval').body
+            args = [x.value for x in body.args]
+            kwargs = {x.arg: x.value.value for x in body.keywords}
+            return callable, args, kwargs
+        return None
+    return return_fn
+
+@guidance
+def gen_with_tools(lm, name=None, tools=None, **kwargs):
+    # V0 to see if this interface is good:
+    # tools is a list of guidance functions.
+    # In this v0, we only support python function calls, where the pattern is fn_name(args).
+    # Not keeping track of maxtokens.
+    # What this is doing:
+    # 1. call gen with tool patterns as stop fns
+    # 2. when gen stops, see if a tool stopped it. If so, call the tool, then call gen again until gen returns due to other stuff.
+    patterns = []
+    to_callables = []
+    gen_name = name
+    for tool in tools:
+        name = tool.__name__
+        pattern = f'{name}\(([^)]*)\)'
+        patterns.append(pattern)
+        p_to_callable = pattern_to_callable(pattern, tool)
+        to_callables.append(p_to_callable)
+    if 'stop_regex' in kwargs:
+        if isistance(kwargs['stop_regex'], list):
+            kwargs['stop_regex'].extend(patterns)
+        else:
+            kwargs['stop_regex']  = [kwargs['stop_regex']] + patterns
+    else:
+        kwargs['stop_regex'] = patterns
+    kwargs['save_stop_text'] = True
+    called_tool = True
+    temp_output = ''
+    while called_tool:
+        called_tool = False
+        lm.gen(name='temp_name', **kwargs)
+        temp_output += lm['temp_name']
+        if lm['temp_name_stop_text'] is None:
+            break
+        for p in to_callables:
+            ret = p(lm['temp_name_stop_text'])
+            if ret is not None:
+                callable, targs, tkwargs = ret
+                temp_output += lm['temp_name_stop_text']
+                lm.append(lm['temp_name_stop_text'])
+                callable(lm, *targs, **tkwargs)
+                called_tool = True
+                break
+    if gen_name is not None:
+        lm[gen_name] = temp_output
+    return lm
+
+@guidance
+def call_tool(lm, tool):
+    name = tool.__name__
+    pattern = f'{name}\(([^)]*)\)'
+    p_to_callable = pattern_to_callable(pattern, tool)
+    lm.gen('fn_call', pattern=pattern)
+    callable, args, kwargs = p_to_callable(lm['fn_call'])
+    callable(lm, *args, **kwargs)
     return lm
