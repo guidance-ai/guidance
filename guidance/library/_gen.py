@@ -147,6 +147,7 @@ def pattern_to_callable(pattern, callable):
         match = pattern.search(string)
         if match:
             call = match.group(0)
+            # TODO: Remove this
             body = ast.parse(call, mode='eval').body
             args = [x.value for x in body.args]
             kwargs = {x.arg: x.value.value for x in body.keywords}
@@ -155,7 +156,7 @@ def pattern_to_callable(pattern, callable):
     return return_fn
 
 @guidance
-def gen_with_tools(lm, name=None, tools=None, **kwargs):
+def gen_with_tools(lm, name=None, tools=None, stop_on_tool=False, **kwargs):
     # V0 to see if this interface is good:
     # tools is a list of guidance functions.
     # In this v0, we only support python function calls, where the pattern is fn_name(args).
@@ -195,7 +196,7 @@ def gen_with_tools(lm, name=None, tools=None, **kwargs):
                 temp_output += lm['temp_name_stop_text']
                 lm.append(lm['temp_name_stop_text'])
                 callable(lm, *targs, **tkwargs)
-                called_tool = True
+                called_tool = True if not stop_on_tool else False
                 break
     if gen_name is not None:
         lm[gen_name] = temp_output
