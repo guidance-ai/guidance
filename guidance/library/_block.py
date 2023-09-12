@@ -5,7 +5,7 @@ from guidance import TextRange
 
 @guidance
 def block(lm, name=None, open_text="", close_text="", hidden=False):
-    offset = len(lm) + len(open_text)
+    offset = len(lm._state) + len(open_text)
 
     def __enter__(lm):
         return lm.append(open_text)
