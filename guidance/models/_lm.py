@@ -76,8 +76,11 @@ class LM:
         self._send_to_event_queue(self)
         return self
     
-    def reset(self, position=0, clear_variables=True):
-        """This resets the state of the LM prompt past the given postion."""
+    def reset(self, clear_variables=True):
+        """This resets the state of the LM prompt."""
+        self._reset(0, clear_variables)
+
+    def _reset(self, position=0, clear_variables=True):
         self._state = self._state[:position]
         if clear_variables:
             self._variables = {}
@@ -125,10 +128,10 @@ class LM:
         return self.endpoint.decode(s)
     
     def get_id_to_token(self, id):
-        return self.get_decoded([id])
+        return self.endpoint.id_to_token(id)
 
     def get_token_to_id(self, token):
-        return self.get_encoded(token)[0]
+        return self.endpoint.token_to_id(token)
     
     def get_cache(self):
         return self.endpoint.cache
