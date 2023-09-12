@@ -11,6 +11,7 @@ from ._program import Program
 from . import endpoints
 llms = endpoints # backwards compatibility
 from . import models
+import inspect
 
 from ._utils import load, chain, Silent, Hidden, CaptureEvents, TextRange
 from . import _utils
@@ -19,6 +20,7 @@ import asyncio
 import threading
 import functools
 import queue
+from contextlib import nullcontext
 
 # the user needs to set an LLM before they can use guidance
 llm = None
@@ -32,6 +34,15 @@ class Guidance(types.ModuleType):
             return Program(template, llm=llm, cache_seed=cache_seed, logprobs=logprobs, silent=silent, async_mode=async_mode, stream=stream, caching=caching, await_missing=await_missing, logging=logging, **kwargs)
 sys.modules[__name__].__class__ = Guidance
 
+def optional_hidden(f, lm, hidden, kwargs):
+    """This only enters a hidden context if the function does not manage the hidden parameter itself.
+    """
+    if 'hidden' in inspect.signature(f).parameters:
+        kwargs['hidden'] = hidden
+        return nullcontext()
+    else:
+        return Hidden(lm, hidden)
+
 def _decorator(f, *, model=None):
 
     def _decorator_inner(f, model=models.LM):
@@ -43,13 +54,13 @@ def _decorator(f, *, model=None):
         """
         
         def sync_wrapper(lm, *args, silent=None, hidden=False, **kwargs):
-            with Silent(lm, silent), Hidden(lm, hidden):
+            with Silent(lm, silent), optional_hidden(f, lm, hidden, kwargs):
                 return f(lm, *args, **kwargs)
 
         def sync_iter_wrapper(lm, *args, silent=None, hidden=False, **kwargs):
 
             # create a worker thread and run the function in it
-            with Silent(lm, silent), Hidden(lm, hidden):
+            with Silent(lm, silent), optional_hidden(f, lm, hidden, kwargs):
                 with CaptureEvents(lm) as events:
                     worker_thread = threading.Thread(target=f, args=(lm, *args), kwargs=kwargs)
                     worker_thread.start()
@@ -64,7 +75,7 @@ def _decorator(f, *, model=None):
                                 break
 
         async def async_wrapper(lm, *args, silent=None, hidden=False, **kwargs):
-            with Silent(lm, silent), Hidden(lm, hidden):
+            with Silent(lm, silent), optional_hidden(f, lm, hidden, kwargs):
                 return await f(lm, *args, **kwargs)
 
         async def async_iter_wrapper(lm, *args, **kwargs):
