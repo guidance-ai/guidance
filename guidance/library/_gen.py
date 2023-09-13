@@ -87,12 +87,13 @@ def gen_quote(lm, name=None, quote='"', *args, **kwargs):
     return lm(quote).gen(*args,name=name, suffix=quote, **kwargs)
 
 @guidance
-def will_gen(lm, stop, stop_regex=None, ignore_spaces=False, max_tokens=30):
+def will_gen(lm, stop=None, stop_regex=None, ignore_spaces=False, max_tokens=30):
     # this is obviously not the right implementation, just here so we can explore
     if stop and not isinstance(stop, list):
         stop = [stop]
     if stop_regex and not isinstance(stop_regex, list):
         stop_regex = [stop_regex]
+    assert (stop is not None) or (stop_regex is not None)
     if not stop:
         stop = []
     if not stop_regex:
@@ -121,10 +122,13 @@ def gen_substring(lm, string, name=None, **kwargs):
     # E.g. quote: lm('"').gen_substring(original, suffix='"') 
 
     tokens = [lm.endpoint.tokenizer.decode(x) for x in lm.endpoint.tokenizer.encode(string)]
+    tokens += [x.strip() for x in tokens if x.strip() != x]
+    tokens = [x for x in tokens if x]
     pattern = f'({"|".join(tokens)})?'
     if name is None:
         name = 'temp_string'
         remove_temp = True
+    # return tokens, pattern
     lm.gen('temp_string', pattern=pattern)
     valid_idxs = [i for i, x in enumerate(tokens) if x == lm['temp_string'] ]
     while valid_idxs:
@@ -148,7 +152,10 @@ def pattern_to_callable(pattern, callable):
         if match:
             call = match.group(0)
             # TODO: Remove this
-            body = ast.parse(call, mode='eval').body
+            try:
+                body = ast.parse(call, mode='eval').body
+            except:
+                return None
             args = [x.value for x in body.args]
             kwargs = {x.arg: x.value.value for x in body.keywords}
             return callable, args, kwargs
@@ -164,15 +171,17 @@ def gen_with_tools(lm, name=None, tools=None, stop_on_tool=False, **kwargs):
     # What this is doing:
     # 1. call gen with tool patterns as stop fns
     # 2. when gen stops, see if a tool stopped it. If so, call the tool, then call gen again until gen returns due to other stuff.
+    # NOTE: This doesn't work for nested expressions, e.g. ((3 * 3) + 1).... or with any arguments that have params, unfortunately
     patterns = []
     to_callables = []
     gen_name = name
     for tool in tools:
         name = tool.__name__
-        pattern = f'{name}\(([^)]*)\)'
+        pattern = f'{name}\((.*)\)'
         patterns.append(pattern)
         p_to_callable = pattern_to_callable(pattern, tool)
         to_callables.append(p_to_callable)
+    # return patterns
     if 'stop_regex' in kwargs:
         if isistance(kwargs['stop_regex'], list):
             kwargs['stop_regex'].extend(patterns)
