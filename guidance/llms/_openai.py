@@ -11,6 +11,10 @@ import collections
 import json
 import re
 import regex
+import logging
+import traceback
+
+logger = logging.getLogger(__name__)
 
 from ._llm import LLM, LLMSession, SyncSession
 
@@ -667,11 +671,13 @@ class OpenAISession(LLMSession):
                     out = await self.llm.caller(**call_args)
 
                 except (openai.error.RateLimitError, openai.error.ServiceUnavailableError, openai.error.APIError, openai.error.Timeout, openai.error.APIConnectionError):
+                    logger.warning(f"OpenAI API error, waiting 3 seconds and trying again: {traceback.format_exc()}")
                     await asyncio.sleep(3)
                     try_again = True
                     fail_count += 1
                 except (aiohttp.ClientPayloadError) as e:
                     if str(e) == 'Response payload is not completed':
+                        logger.warning(f"OpenAI API error, waiting 3 seconds and trying again: {traceback.format_exc()}")
                         await asyncio.sleep(3)
                         try_again = True
                         fail_count += 1
