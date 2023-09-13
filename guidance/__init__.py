@@ -13,7 +13,7 @@ llms = endpoints # backwards compatibility
 from . import models
 import inspect
 
-from ._utils import load, chain, Silent, Hidden, CaptureEvents, TextRange
+from ._utils import load, chain, Silent, Hidden, CaptureEvents, TextRange, strip_multiline_string_indents
 from . import _utils
 from . import selectors
 import asyncio
@@ -52,6 +52,9 @@ def _decorator(f, *, model=None):
         and to be optionally iterated over to get a stream of results (syncronously or asyncronously).
         TODO: In the future we plan to add network aware guidance acceleration as well.
         """
+
+        # this strips out indentation in multiline strings that aligns with the current python indentation
+        f = strip_multiline_string_indents(f)
         
         def sync_wrapper(lm, *args, silent=None, hidden=False, **kwargs):
             with Silent(lm, silent), optional_hidden(f, lm, hidden, kwargs):

@@ -5,6 +5,8 @@ import json
 import re
 import asyncio
 import queue
+import ast
+import types
 
 
 class TextRange:
@@ -79,6 +81,71 @@ class Hidden():
         lm.reset(offset, clear_variables=False)
         for child in lm._children:
             Hidden._rec_make_hidden(child, offset)
+
+class _Rewrite(ast.NodeTransformer):
+    def visit_Constant(self, node):
+        # print(node)
+        if isinstance(node.value, str) and node.lineno < node.end_lineno:
+            start_line = self.source_lines[node.lineno-1]
+            start_string = start_line[node.col_offset:]
+            
+            # check for literal multiline strings
+            if start_string.startswith("f'''") or start_string.startswith("'''") or start_string.startswith('f"""') or start_string.startswith('"""'):
+                
+                # track our indentation level
+                if self.indentation[node.lineno-1] is None:
+                    indent = start_line[:len(start_line) - len(start_line.lstrip())]
+                    for i in range(node.lineno-1, node.end_lineno):
+                        self.indentation[i] = indent
+                indent = self.indentation[node.lineno-1]
+
+                # strip indentation when it is consistent
+                lines = node.value.split("\n")
+                fail = False
+                new_lines = []
+                for i,line in enumerate(lines):
+                    if line.startswith(indent):
+                        new_lines.append(line[len(indent):])
+                    elif (i == 0 and line.endswith("\\")) or line == "":
+                        new_lines.append(line)
+                    else:
+                        fail = True
+                        break
+                if not fail:
+                    node.value = "\n".join(new_lines)
+
+        return node
+
+def strip_multiline_string_indents(f):
+
+    source = inspect.getsource(f)
+    source = '\n'.join(source.splitlines()[1:]) # remove the decorator first line.
+    # print(source)
+
+    old_code_obj = f.__code__
+    old_ast = ast.parse(source)
+    r = _Rewrite()
+    r.source_lines = source.split("\n")
+    r.indentation = [None for l in r.source_lines]
+    # r._avoid_backslashes = True
+    new_ast = r.visit(old_ast)
+    new_code_obj = compile(new_ast, old_code_obj.co_filename, 'exec')
+
+    # find the code block
+    for i in range(len(new_code_obj.co_consts)):
+        if str(type(new_code_obj.co_consts[i])) == "<class 'code'>":
+            break
+
+    # create a new function based on the modified code
+    new_f = types.FunctionType(
+        new_code_obj.co_consts[i],
+        f.__globals__,
+        name=f.__name__,
+        argdefs=f.__defaults__ + tuple(f.__kwdefaults__.values()) if f.__kwdefaults__ else f.__defaults__,
+        closure=f.__closure__
+    )
+    new_f.__kwdefaults__ = f.__kwdefaults__
+    return new_f
 
 class CaptureEvents():
     """Creates a scope where all the events are captured in a queue.

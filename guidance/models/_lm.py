@@ -65,10 +65,8 @@ class LM:
         self._children.append(new_lm)
         return new_lm
     
-    def append(self, value, force_silent=False, dedent=True):
+    def append(self, value, force_silent=False):
         """This is the base way to add content to the LM object."""
-        if dedent and ('\n' in value or '\r' in value):
-            value = textwrap.dedent(value)
         self._state += str(value)
         if not self.silent and not force_silent:
             clear_output(wait=True)
