@@ -29,7 +29,7 @@ def _rec_close(lm, open_text, close_text, hidden, text_name=None, text_offset=0)
     if close_text != "":
         lm += close_text
     if hidden:
-        lm.reset(text_offset, clear_variables=False)
+        lm._reset(text_offset, clear_variables=False)
     
     for child in lm._children:
         _rec_close(child, close_text, text_name=text_name, text_offset=text_offset)
