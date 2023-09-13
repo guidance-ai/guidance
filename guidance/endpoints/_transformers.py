@@ -189,16 +189,16 @@ class TransformersSession(LLMSession):
         llm_cache = self.llm.cache
         key = llm_cache.create_key(self.llm.llm_name, **cache_params)
 
-        # set the stop patterns
-        if stop is not None:
-            if isinstance(stop, str):
-                stop_regex = [regex.escape(stop)]
-            else:
-                stop_regex = [regex.escape(s) for s in stop]
         if isinstance(stop_regex, str):
             stop_regex = [stop_regex]
         if stop_regex is None:
             stop_regex = []
+        # set the stop patterns
+        if stop is not None:
+            if isinstance(stop, str):
+                stop_regex += [regex.escape(stop)]
+            else:
+                stop_regex += [regex.escape(s) for s in stop]
         stop_regex.append(regex.escape(self.llm.tokenizer.eos_token)) # make sure the end of sequence token is always included
 
         # handle function calling
