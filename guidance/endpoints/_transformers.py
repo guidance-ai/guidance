@@ -318,9 +318,9 @@ class TransformersSession(LLMSession):
 
             # override the model config for do_sample when the temperature requires it
             do_sample = getattr(model_config, "do_sample", None)
-            if do_sample is True and temperature == 0:
+            if temperature == 0:
                 generate_args["do_sample"] = False
-            elif do_sample is False and temperature > 0:
+            elif temperature > 0:
                 generate_args["do_sample"] = True
 
             # if we are streaming then we need to run the inference process in a separate thread
