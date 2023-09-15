@@ -12,6 +12,7 @@ from . import endpoints
 llms = endpoints # backwards compatibility
 from . import models
 import inspect
+import uuid
 
 from ._utils import load, chain, Silent, Hidden, CaptureEvents, TextRange, strip_multiline_string_indents
 from . import _utils
@@ -21,6 +22,8 @@ import threading
 import functools
 import queue
 from contextlib import nullcontext
+
+curr_module = sys.modules[__name__]
 
 # the user needs to set an LLM before they can use guidance
 llm = None
@@ -87,7 +90,16 @@ def _decorator(f, *, model=None):
                 yield item
 
         @functools.wraps(f)
-        def wrapper(lm, *args, stream=False, async_mode=False, **kwargs):
+        def wrapper(*args, stream=False, async_mode=False, **kwargs):
+
+            # check if we are making a lazy call
+            if len(args) == 0 or not isinstance(args[0], models.LM):
+                return wrapper.wrapper_lazy(*args, stream=stream, async_mode=async_mode, **kwargs)
+            else:
+                lm = args[0]
+                args = args[1:]
+
+            # if not we execute
             if async_mode:
                 if stream:
                     return async_iter_wrapper(lm, *args, **kwargs)
@@ -98,8 +110,16 @@ def _decorator(f, *, model=None):
                     return sync_iter_wrapper(lm, *args, **kwargs)
                 else:
                     return sync_wrapper(lm, *args, **kwargs)
+                    
+        @functools.wraps(f)
+        def wrapper_lazy(*args, stream=False, async_mode=False, **kwargs):
+            id = str(uuid.uuid4())
+            models.LM._call_queue[id] = lambda lm: wrapper(lm, *args, stream=stream, async_mode=async_mode, **kwargs)
+            return models.LM.tag_start + id + models.LM.tag_end
+        wrapper.wrapper_lazy = wrapper_lazy
 
-        setattr(model, f.__name__, wrapper)
+        setattr(model, f.__name__, wrapper) # as a method on the LM object
+        setattr(curr_module, f.__name__, wrapper_lazy) # as a top level class
 
         return wrapper
 

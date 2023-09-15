@@ -7,6 +7,11 @@ import json
 import textwrap
 
 class LM:
+
+    tag_start = "{{G|"
+    tag_end = "|G}}"
+    _call_queue = {}
+
     def __init__(self, model, caching=True):
         self.model = model
         self._state = ""
@@ -21,6 +26,8 @@ class LM:
         self.endpoint = None
         self.instance__enter__ = []
         self.instance__exit__ = []
+
+        self._tag_pattern = re.compile(re.escape(self.tag_start) + r"([^\|]+)" + re.escape(self.tag_end))
 
     def get(self, key, default=None):
         return self._variables.get(key, default)
@@ -77,6 +84,7 @@ class LM:
     def reset(self, clear_variables=True):
         """This resets the state of the LM prompt."""
         self._reset(0, clear_variables)
+        return self
 
     def _reset(self, position=0, clear_variables=True):
         self._state = self._state[:position]
@@ -90,8 +98,21 @@ class LM:
     def __str__(self) -> str:
         return re.sub(r"<\|\|_.*?_\|\|>", "", self._state)
     
-    def __iadd__(self, value):
-        return self.append(value)
+    # def __iadd__(self, value):
+    #     return self.append(value)
+    
+    def __add__(self, value):
+        value = str(value)
+        is_id = False
+        lm = self
+        for part in re.split(self._tag_pattern, value):
+            print(is_id, part)
+            if is_id:
+                lm = self._call_queue[part](self)
+            else:
+                lm = lm.append(part)
+            is_id = not is_id
+        return lm
     
     def __len__(self):
         return len(str(self))
