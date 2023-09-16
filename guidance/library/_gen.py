@@ -7,9 +7,16 @@ from .._utils import escape_template_block, AsyncIter
 
 log = logging.getLogger(__name__)
 
+def load_alt_model(model_name):
+    from guidance import llms
+    if model_name.startswith("gpt-"):
+        return llms.OpenAI(model_name, caching=False)
+    else:
+        return llms.Transformers(model_name, device='cpu', caching=False)
+
 async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_tokens=500, n=1, stream=None,
               temperature=0.0, top_p=1.0, logprobs=None, pattern=None, hidden=False, list_append=False,
-              save_prompt=False, token_healing=None, function_call="none", _parser_context=None, **llm_kwargs):
+              save_prompt=False, token_healing=None, function_call="none", llm_alt_model=None, _parser_context=None, **llm_kwargs):
     ''' Use the LLM to generate a completion.
 
     Parameters
@@ -135,6 +142,13 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
         logprobs = parser.program.logprobs
 
     assert parser.llm_session is not None, "You must set an LLM for the program to use (use the `llm=` parameter) before you can use the `gen` command."
+
+    # Replace LLM Session with Alternated LLM Model Session
+    if llm_alt_model is not None:
+        if isinstance(llm_alt_model, str):
+            parser.llm_session = load_alt_model(llm_alt_model).session(asynchronous=True)
+        else:
+            parser.llm_session = llm_alt_model.session(asynchronous=True)
 
     # call the LLM
     gen_obj = await parser.llm_session(
