@@ -104,15 +104,22 @@ class LM:
     def __add__(self, value):
         value = str(value)
         is_id = False
-        lm = self
-        for part in re.split(self._tag_pattern, value):
-            print(is_id, part)
+        lm = self.copy()
+        parts = re.split(self._tag_pattern, value)
+        lm.suffix = ""
+        for i,part in enumerate(parts):
+            # print(is_id, part)
+            if  i < len(parts) - 1:
+                lm.suffix = parts[i+1]
             if is_id:
-                lm = self._call_queue[part](self)
+                lm = self._call_queue[part](lm)
             else:
                 lm = lm.append(part)
             is_id = not is_id
         return lm
+    
+    def endswith(self, s):
+        return self._state.endswith(s)
     
     def __len__(self):
         return len(str(self))

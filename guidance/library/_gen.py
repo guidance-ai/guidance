@@ -15,6 +15,13 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop
     # use the suffix as the stop string if not otherwise specified
     if stop is None and stop_regex is None and suffix != "":
         stop = suffix
+    if stop is None and stop_regex is None and getattr(lm, "suffix", False):
+        if lm.suffix.startswith("\n"):
+            stop = "\n"
+        elif lm.suffix.startswith('"') and lm.endswith('"'):
+            stop = '"'
+        elif lm.suffix.startswith("'") and lm.endswith("'"):
+            stop = "'"
 
     lm += "<||_html:<span style='background-color: rgba(0, 165, 0, 0.25)'>_||>"
 

@@ -119,7 +119,8 @@ class _Rewrite(ast.NodeTransformer):
 def strip_multiline_string_indents(f):
 
     source = inspect.getsource(f)
-    source = '\n'.join(source.splitlines()[1:]) # remove the decorator first line.
+    blanks = '\n' * f.__code__.co_firstlineno # padd the source so the lines in the file line up for the debugger
+    source = blanks + '\n'.join(source.splitlines()[1:]) # remove the decorator first line.
     # print(source)
 
     old_code_obj = f.__code__

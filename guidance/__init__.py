@@ -28,6 +28,8 @@ curr_module = sys.modules[__name__]
 # the user needs to set an LLM before they can use guidance
 llm = None
 
+newline = "\n"
+
 # This makes the guidance module callable
 class Guidance(types.ModuleType):
     def __call__(self, template=None, llm=None, cache_seed=0, logprobs=None, silent=None, async_mode=False, stream=None, caching=None, await_missing=False, logging=False, **kwargs):
