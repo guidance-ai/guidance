@@ -86,6 +86,7 @@ class _Rewrite(ast.NodeTransformer):
     def visit_Constant(self, node):
         # print(node)
         if isinstance(node.value, str) and node.lineno < node.end_lineno:
+            self.start_counts[node.lineno-1] += 1
             start_line = self.source_lines[node.lineno-1]
             start_string = start_line[node.col_offset:]
             
@@ -104,10 +105,12 @@ class _Rewrite(ast.NodeTransformer):
                 fail = False
                 new_lines = []
                 for i,line in enumerate(lines):
-                    if line.startswith(indent):
-                        new_lines.append(line[len(indent):])
-                    elif (i == 0 and line.endswith("\\")) or line == "":
+                    if (i == 0 and (self.start_counts[node.lineno-1] > 1 or not start_line.endswith("\\"))) or line == "":
                         new_lines.append(line)
+                    elif line.startswith(indent):
+                        new_lines.append(line[len(indent):])
+                    # elif (i == 0 and line.endswith("\\")) or line == "":
+                    #     new_lines.append(line)
                     else:
                         fail = True
                         break
@@ -128,6 +131,7 @@ def strip_multiline_string_indents(f):
     r = _Rewrite()
     r.source_lines = source.split("\n")
     r.indentation = [None for l in r.source_lines]
+    r.start_counts = [0 for l in r.source_lines]
     # r._avoid_backslashes = True
     new_ast = r.visit(old_ast)
     new_code_obj = compile(new_ast, old_code_obj.co_filename, 'exec')
