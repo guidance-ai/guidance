@@ -118,7 +118,7 @@ class OpenAI(LLM):
     llm_name: str = "openai"
 
     def __init__(self, model=None, caching=True, max_retries=5, max_calls_per_min=60,
-                 api_key=None, api_type="open_ai", api_base=None, api_version=None, deployment_id=None,
+                 api_key=None, api_type="open_ai", api_base=None, api_proxy=None, api_version=None, deployment_id=None,
                  temperature=0.0, chat_mode="auto", organization=None, rest_call=False,
                  allowed_special_tokens={"<|endoftext|>", "<|endofprompt|>"},
                  token=None, endpoint=None, encoding_name=None):
@@ -191,6 +191,7 @@ class OpenAI(LLM):
         self.api_key = api_key
         self.api_type = api_type
         self.api_base = api_base
+        self.api_proxy = api_proxy
         self.api_version = api_version
         self.current_time = time.time()
         self.call_history = collections.deque()
@@ -348,6 +349,7 @@ class OpenAI(LLM):
         prev_type = openai.api_type
         prev_version = openai.api_version
         prev_base = openai.api_base
+        prev_proxy = openai.proxy
         
         # set the params of the openai library if we have them
         if self.api_key is not None:
@@ -360,6 +362,8 @@ class OpenAI(LLM):
             openai.api_version = self.api_version
         if self.api_base is not None:
             openai.api_base = self.api_base
+        if self.api_proxy is not None:
+            openai.proxy = self.api_proxy
 
         assert openai.api_key is not None, "You must provide an OpenAI API key to use the OpenAI LLM. Either pass it in the constructor, set the OPENAI_API_KEY environment variable, or create the file ~/.openai_api_key with your key in it."
         
@@ -380,6 +384,7 @@ class OpenAI(LLM):
         openai.api_type = prev_type
         openai.api_version = prev_version
         openai.api_base = prev_base
+        openai.proxy = prev_proxy
         
         return out
 
