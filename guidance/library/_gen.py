@@ -104,7 +104,6 @@ def will_gen(lm, stop=None, stop_regex=None, ignore_spaces=False, max_tokens=30)
     with lm.block(hidden=True):
         for _ in range(max_tokens):
             lm.gen('temp_variable', list_append=True, max_tokens=1)
-            print(lm['temp_variable'])
             if not pattern.match(''.join(lm['temp_variable']), partial=True):
                 lm.remove('temp_variable')
                 return False
