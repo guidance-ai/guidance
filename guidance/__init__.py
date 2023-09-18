@@ -94,9 +94,9 @@ def _decorator(f, *, model=None):
         @functools.wraps(f)
         def wrapper(*args, stream=False, async_mode=False, **kwargs):
 
-            # check if we are making a lazy call
+            # check if we are making a delayed call
             if len(args) == 0 or not isinstance(args[0], models.LM):
-                return wrapper.wrapper_lazy(*args, stream=stream, async_mode=async_mode, **kwargs)
+                return wrapper.wrapper_delayed(*args, stream=stream, async_mode=async_mode, **kwargs)
             else:
                 lm = args[0]
                 args = args[1:]
@@ -114,14 +114,19 @@ def _decorator(f, *, model=None):
                     return sync_wrapper(lm, *args, **kwargs)
                     
         @functools.wraps(f)
-        def wrapper_lazy(*args, stream=False, async_mode=False, **kwargs):
+        def wrapper_delayed(*args, stream=False, async_mode=False, **kwargs):
+            '''Converts a guidance function call to a string, so it can be called later once it is added to an LM object.'''
+            
+            # save the call in our call pool, ready to be run when it is attached to an LM object
             id = str(uuid.uuid4())
-            models.LM._call_queue[id] = lambda lm: wrapper(lm, *args, stream=stream, async_mode=async_mode, **kwargs)
+            models.LM._call_pool[id] = lambda lm: wrapper(lm, *args, stream=stream, async_mode=async_mode, **kwargs)
+
+            # return a string representation of this call so it can be combined with other strings/calls
             return models.LM.tag_start + id + models.LM.tag_end
-        wrapper.wrapper_lazy = wrapper_lazy
+        wrapper.wrapper_delayed = wrapper_delayed
 
         setattr(model, f.__name__, wrapper) # as a method on the LM object
-        setattr(curr_module, f.__name__, wrapper_lazy) # as a top level class
+        setattr(curr_module, f.__name__, wrapper_delayed) # as a top level class
 
         return wrapper
 

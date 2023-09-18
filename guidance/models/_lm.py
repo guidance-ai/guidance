@@ -10,7 +10,7 @@ class LM:
 
     tag_start = "{{G|"
     tag_end = "|G}}"
-    _call_queue = {}
+    _call_pool = {}
 
     def __init__(self, model, caching=True):
         self.model = model
@@ -109,11 +109,11 @@ class LM:
         lm.suffix = ""
         for i,part in enumerate(parts):
             # print(is_id, part)
-            if  i < len(parts) - 1:
+            if i < len(parts) - 1:
                 lm.suffix = parts[i+1]
             if is_id:
-                lm = self._call_queue[part](lm)
-            else:
+                lm = self._call_pool[part](lm)
+            elif part != "":
                 lm = lm.append(part)
             is_id = not is_id
         return lm

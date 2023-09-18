@@ -1,5 +1,6 @@
 import types
 import regex
+import uuid
 
 import guidance
 import ast
@@ -9,7 +10,7 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop
         logprobs=None, cache_seed=None, token_healing=None, stream=None, function_call="none", save_stop_text=False, **llm_kwargs):
 
     # set stream if we are interactive
-    if stream is None and not lm.silent:
+    if stream is None and not lm.silent and n == 1:
         stream = True
 
     # use the suffix as the stop string if not otherwise specified
@@ -38,6 +39,7 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop
     if not isinstance(gen_obj, (types.GeneratorType, list, tuple)):
         gen_obj = [gen_obj]
 
+    # single generation
     if n == 1:
         generated_value = ""
         logprobs_out = []
@@ -81,9 +83,70 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop
             # This seems wrong, it's overriding whatever was generated into the name. What if the generation was 'I am now going to call a tool: tool_call(bla)', do you want to just dump that?
             lm[name] = generated_value
     
+    # batch generation
+    else:
+        assert len(gen_obj) == 1, "Streaming is only supported for n=1"
+        generated_values = [choice["text"]+suffix for choice in gen_obj[0]["choices"]]
+        if list_append:
+            value_list = lm.get(name, [])
+            value_list.append(generated_values)
+            if logprobs is not None:
+                logprobs_list = lm.get(name+"_logprobs", [])
+                logprobs_list.append([choice["logprobs"]["top_logprobs"] for choice in gen_obj[0]["choices"]])
+        elif name is not None:
+            lm[name] = generated_values
+            if logprobs is not None:
+                lm[name+"_logprobs"] = [choice["logprobs"]["top_logprobs"] for choice in gen_obj[0]["choices"]]
+
+        # TODO: we could enable the parsing to branch into multiple paths here, but for now we just complete the program with the first prefix
+        generated_value = generated_values[0]
+        
+        # display the batch as a clickable list
+        id = uuid.uuid4().hex
+        l = len(generated_values)
+        out = click_loop_start(id, l, True, "rgba(0, 165, 0, 0.25)")
+        for i, value in enumerate(generated_values):
+            if i > 0:
+                out += click_loop_mid(id, i, True)
+                out += value
+            else:
+                out += value
+        lm += out + "<||_html:</div>_||>"
+
     lm += "<||_html:</span>_||>" + suffix
     
     return lm
+
+def click_loop_start(id, total_count, echo, color):
+    click_script = '''
+function cycle_IDVAL(button_el) {
+var i = 0;
+while (i < 50) {
+var el = document.getElementById("IDVAL_" + i);
+if (el.style.display == "inline") {
+    el.style.display = "none";
+    var next_el = document.getElementById("IDVAL_" + (i+1));
+    if (!next_el) {
+        next_el = document.getElementById("IDVAL_0");
+    }
+    if (next_el) {
+        next_el.style.display = "inline";
+    }
+    break;
+}
+i += 1;
+}
+button_el.innerHTML = (((i+1) % TOTALCOUNT) + 1)  + "/" + TOTALCOUNT;
+}
+cycle_IDVAL(this);'''.replace("IDVAL", id).replace("TOTALCOUNT", str(total_count)).replace("\n", "")
+    out = f'''<div style='background: rgba(255, 255, 255, 0.0); border-radius: 4px 0px 0px 4px; border: 1px solid {color}; border-right: 0px; padding-left: 3px; padding-right: 3px; user-select: none; color: {color}; display: inline; font-weight: normal; cursor: pointer' onClick='{click_script}'>1/{total_count}</div>'''
+    out += f"<div style='display: inline;' id='{id}_0'>"
+    return "<||_html:" + out + "_||>"
+
+def click_loop_mid(id, index, echo):
+    alpha = 1.0 if not echo else 0.5
+    out = f"</div><div style='display: none; opacity: {alpha}' id='{id}_{index}'>"
+    return "<||_html:" + out + "_||>"
 
 @guidance
 def gen_line(lm, *args, **kwargs):

@@ -474,7 +474,7 @@ class RegexLogitsProcessor():
     """ Pattern guiding.
     
     Guide generation to match a regular expression.
-    TODO: currently slow, could be made much faster by doing rejection sampling inline with the sampling/greedy process.
+    TODO: currently slow, could be made much faster by doing rejection sampling inline with the sampling/greedy process (i.e. FSMs etc).
     """
 
     def __init__(self, pattern, stop_regex, llm, vocab_size, is_greedy, prefix_length, eos_token_id, max_consider=500000):
@@ -503,8 +503,10 @@ class RegexLogitsProcessor():
         
         if isinstance(stop_regex, str):
             stop_regex = [stop_regex]
-        self.pattern_no_stop = regex.compile(pattern)
-        self.pattern = regex.compile(pattern + "(" + "|".join(stop_regex) + ")?")
+        self.pattern_no_stop = regex.compile(pattern, regex.DOTALL)
+        self.pattern = regex.compile(pattern + "(" + "|".join(stop_regex) + ")?", regex.DOTALL)
+        # if len(stop_regex) == 1: # a hack to detect if we only are stopping at the auto-added EOS token
+        #     self.pattern = regex.compile(pattern + ".*?", regex.DOTALL)
         self.llm = llm
         self.is_greedy = is_greedy
         self.prefix_length = prefix_length
@@ -662,9 +664,12 @@ class TransformersStreamer():
         if isinstance(new_tokens, torch.Tensor):
             new_tokens = new_tokens.cpu()
         
-        # if we are given a single sequence, then make it a batch of size 1
+        # if we are given a single sequence, then make it have an explicit batch size
         if len(new_tokens.shape) == 1:
-            new_tokens = new_tokens.unsqueeze(0)
+            if new_tokens.shape[0] == self.input_ids.shape[0]:
+                new_tokens = new_tokens.unsqueeze(1) # batch size number of input sequences
+            else:
+                new_tokens = new_tokens.unsqueeze(0) # batch size 1
 
         # extract the scores if we are given them (and format them to be the same shape as the tokens)
         if self.logprobs:
