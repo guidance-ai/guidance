@@ -682,6 +682,7 @@ class OpenAISession(LLMSession):
                         try_again = True
                         fail_count += 1
                     else:
+                        print('unknown aiohttp.ClientPayloadError exception', str(e))
                         raise
                 except Exception as e:
                     print('unknown exception', e.__class__, e)
