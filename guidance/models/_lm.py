@@ -56,8 +56,7 @@ class LM:
         if self._event_parent is not None:
             self._event_parent._send_to_event_queue(value)
 
-    @property
-    def silent(self):
+    def is_silent(self):
         if self._silent is not None:
             return self._silent
         return False
@@ -75,7 +74,7 @@ class LM:
     def append(self, value, force_silent=False):
         """This is the base way to add content to the LM object."""
         self._state += str(value)
-        if not self.silent and not force_silent:
+        if not self.is_silent() and not force_silent:
             clear_output(wait=True)
             display(HTML(self._html()))
         self._send_to_event_queue(self)

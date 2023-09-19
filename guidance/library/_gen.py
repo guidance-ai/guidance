@@ -10,7 +10,7 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop
         logprobs=None, cache_seed=None, token_healing=None, stream=None, function_call="none", save_stop_text=False, **llm_kwargs):
 
     # set stream if we are interactive
-    if stream is None and not lm.silent and n == 1:
+    if stream is None and not lm.is_silent() and n == 1:
         stream = True
 
     # use the suffix as the stop string if not otherwise specified
