@@ -1,3 +1,4 @@
-from ._lm import LM, ChatLM
-from ._openai import OpenAI, ChatOpenAI
-from ._transformers import Transformers, ChatTransformers
+from ._lm import LM, LMChat
+from ._openai import OpenAI, OpenAIChat
+from ._transformers import Transformers, TransformersChat
+from . import transformers

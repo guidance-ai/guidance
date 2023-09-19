@@ -203,7 +203,7 @@ type {function['name']} = (_: {{"""
         return self
 
 
-class ChatLM(LM):
+class LMChat(LM):
     
     def get_role_start(self, role_name, **kwargs):
         return "<|im_start|>"+role_name+"".join([f' {k}="{v}"' for k,v in kwargs.items()])+"\n"

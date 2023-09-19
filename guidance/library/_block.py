@@ -8,10 +8,11 @@ def block(lm, name=None, open_text="", close_text="", hidden=False):
     offset = len(lm._state) + len(open_text)
 
     def __enter__(lm):
-        return lm + open_text
+        lm._context_head = lm + open_text
+        return lm._context_head
     
     def __exit__(lm, exc_type, exc_value, traceback):
-        _rec_close(lm, close_text, hidden, text_name=name, text_offset=offset)
+        _rec_close(lm._context_head, close_text, hidden, text_name=name, text_offset=offset)
     
     # bind the enter and exit methods
     lm.instance__enter__.append(types.MethodType(__enter__, lm))
