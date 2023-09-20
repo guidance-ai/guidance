@@ -171,15 +171,23 @@ def will_gen(lm, stop=None, stop_regex=None, ignore_spaces=False, max_tokens=30)
     regexes = [regex.escape(x) for x in stop + stop_regex]
     optional_space = '\s*' if ignore_spaces else ''
     pattern = regex.compile(f'{optional_space}({"|".join(regexes)})')
-    with lm.block(hidden=True):
+    with lm.silent() as lm2:
         for _ in range(max_tokens):
-            lm.gen('temp_variable', list_append=True, max_tokens=1)
-            if not pattern.match(''.join(lm['temp_variable']), partial=True):
-                lm.remove('temp_variable')
+            lm2 += gen('temp_variable', list_append=True, max_tokens=1)
+            if not pattern.match(''.join(lm2['temp_variable']), partial=True):
                 return False
-            if pattern.match(''.join(lm['temp_variable']), partial=False):
-                lm.remove('temp_variable')
+            if pattern.match(''.join(lm2['temp_variable']), partial=False):
                 return True
+    return False
+    # with lm.block(hidden=True):
+    #     for _ in range(max_tokens):
+    #         lm.gen('temp_variable', list_append=True, max_tokens=1)
+    #         if not pattern.match(''.join(lm['temp_variable']), partial=True):
+    #             lm.remove('temp_variable')
+    #             return False
+    #         if pattern.match(''.join(lm['temp_variable']), partial=False):
+    #             lm.remove('temp_variable')
+    #             return True
 
 @guidance
 def gen_substring(lm, string, name=None, **kwargs):
@@ -232,7 +240,7 @@ def pattern_to_callable(pattern, callable):
     return return_fn
 
 @guidance
-def gen_with_tools(lm, name=None, tools=None, stop_on_tool=False, **kwargs):
+def gen_with_tools(lm, name=None, tools=None, stop_on_tool=False, include_tool_call=True, **kwargs):
     # V0 to see if this interface is good:
     # tools is a list of guidance functions.
     # In this v0, we only support python function calls, where the pattern is fn_name(args).
@@ -261,24 +269,27 @@ def gen_with_tools(lm, name=None, tools=None, stop_on_tool=False, **kwargs):
     kwargs['save_stop_text'] = True
     called_tool = True
     temp_output = ''
+    new = lm
+    tool_calls = []
     while called_tool:
         called_tool = False
-        lm.gen(name='temp_name', **kwargs)
-        temp_output += lm['temp_name']
-        if lm['temp_name_stop_text'] is None:
+        new += gen(name='temp_name', **kwargs)
+        if new['temp_name_stop_text'] is None:
             break
         for p in to_callables:
-            ret = p(lm['temp_name_stop_text'])
+            tool_call = new['temp_name_stop_text']
+            tool_calls.append(tool_call)
+            ret = p(tool_call)
             if ret is not None:
                 callable, targs, tkwargs = ret
-                temp_output += lm['temp_name_stop_text']
-                lm.append(lm['temp_name_stop_text'])
-                callable(lm, *targs, **tkwargs)
+                if include_tool_call:
+                    new += tool_call
+                new += callable(*targs, *tkwargs)
                 called_tool = True if not stop_on_tool else False
                 break
-    if gen_name is not None:
-        lm[gen_name] = temp_output
-    return lm
+    new = new.set('tool_calls', tool_calls)
+    new = new.set(gen_name, str(new)[len(str(lm)):])
+    return new
 
 @guidance
 def call_tool(lm, tool):
