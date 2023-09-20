@@ -31,6 +31,11 @@ class LM:
 
     def get(self, key, default=None):
         return self._variables.get(key, default)
+
+    def set(self, key, value):
+        copy = self.copy()
+        copy._variables[key] = value
+        return copy
     
     def remove(self, key):
         if key in self._variables:

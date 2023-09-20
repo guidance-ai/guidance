@@ -171,15 +171,23 @@ def will_gen(lm, stop=None, stop_regex=None, ignore_spaces=False, max_tokens=30)
     regexes = [regex.escape(x) for x in stop + stop_regex]
     optional_space = '\s*' if ignore_spaces else ''
     pattern = regex.compile(f'{optional_space}({"|".join(regexes)})')
-    with lm.block(hidden=True):
+    with lm.silent() as lm2:
         for _ in range(max_tokens):
-            lm.gen('temp_variable', list_append=True, max_tokens=1)
-            if not pattern.match(''.join(lm['temp_variable']), partial=True):
-                lm.remove('temp_variable')
+            lm2 += gen('temp_variable', list_append=True, max_tokens=1)
+            if not pattern.match(''.join(lm2['temp_variable']), partial=True):
                 return False
-            if pattern.match(''.join(lm['temp_variable']), partial=False):
-                lm.remove('temp_variable')
+            if pattern.match(''.join(lm2['temp_variable']), partial=False):
                 return True
+    return False
+    # with lm.block(hidden=True):
+    #     for _ in range(max_tokens):
+    #         lm.gen('temp_variable', list_append=True, max_tokens=1)
+    #         if not pattern.match(''.join(lm['temp_variable']), partial=True):
+    #             lm.remove('temp_variable')
+    #             return False
+    #         if pattern.match(''.join(lm['temp_variable']), partial=False):
+    #             lm.remove('temp_variable')
+    #             return True
 
 @guidance
 def gen_substring(lm, string, name=None, **kwargs):
