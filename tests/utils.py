@@ -3,15 +3,15 @@ import pytest
 
 opanai_model_cache = {}
 
-def get_llm(model_name, caching=False, **kwargs):
+def get_model(model_name, caching=False, **kwargs):
     """ Get an LLM by name.
     """
     if model_name.startswith("openai:"):
-        return get_openai_llm(model_name[7:], caching, **kwargs)
+        return get_openai_model(model_name[7:], caching, **kwargs)
     elif model_name.startswith("transformers:"):
-        return get_transformers_llm(model_name[13:], caching, **kwargs)
+        return get_transformers_model(model_name[13:], caching, **kwargs)
 
-def get_openai_llm(model_name, caching=False, **kwargs):
+def get_openai_model(model_name, caching=False, **kwargs):
     """ Get an OpenAI LLM with model reuse and smart test skipping.
     """
 
@@ -29,7 +29,7 @@ def get_openai_llm(model_name, caching=False, **kwargs):
 
 transformers_model_cache = {}
 
-def get_transformers_llm(model_name, caching=False):
+def get_transformers_model(model_name, caching=False):
     """ Get an OpenAI LLM with model reuse.
     """
 
@@ -37,6 +37,6 @@ def get_transformers_llm(model_name, caching=False):
     # load it over and over again
     key = model_name+"_"+str(caching)
     if key not in transformers_model_cache:
-        transformers_model_cache[key] = guidance.llms.Transformers(model_name, caching=caching)
+        transformers_model_cache[key] = guidance.models.Transformers(model_name, caching=caching)
 
     return transformers_model_cache[key]

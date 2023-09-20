@@ -26,6 +26,7 @@ class LM:
         self.endpoint = None
         self.instance__enter__ = []
         self.instance__exit__ = []
+        self._streaming = False
 
         self._tag_pattern = re.compile(re.escape(self.tag_start) + r"([^\|]+)" + re.escape(self.tag_end))
 
@@ -71,7 +72,7 @@ class LM:
         self._children.append(new_lm)
         return new_lm
     
-    def append(self, value, force_silent=False):
+    def _inplace_append(self, value, force_silent=False):
         """This is the base way to add content to the LM object."""
         self._state += str(value)
         if not self.is_silent() and not force_silent:
@@ -113,7 +114,7 @@ class LM:
             if is_id:
                 lm = self._call_pool[part](lm)
             elif part != "":
-                lm = lm.append(part)
+                lm = lm._inplace_append(part)
             is_id = not is_id
         return lm
     
@@ -123,8 +124,8 @@ class LM:
     def __len__(self):
         return len(str(self))
     
-    def __call__(self, s, **kwargs):
-        return self.append(s, **kwargs)
+    # def __call__(self, s, **kwargs):
+    #     return self.append(s, **kwargs)
     
     def __setitem__(self, key, value):
         self._variables[key] = value

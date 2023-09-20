@@ -48,7 +48,7 @@ def optional_hidden(f, lm, hidden, kwargs):
     else:
         return Hidden(lm, hidden)
 
-def _decorator(f, *, model=None):
+def _decorator(f, *, model=None, dedent='python'):
 
     def _decorator_inner(f, model=models.LM):
         """Decorator to turn a normal function into a guidance function.
@@ -59,7 +59,8 @@ def _decorator(f, *, model=None):
         """
 
         # this strips out indentation in multiline strings that aligns with the current python indentation
-        f = strip_multiline_string_indents(f)
+        if dedent == 'python':
+            f = strip_multiline_string_indents(f)
         
         def sync_wrapper(lm, *args, silent=None, hidden=False, **kwargs):
             with Silent(lm, silent), optional_hidden(f, lm, hidden, kwargs):

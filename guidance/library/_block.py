@@ -28,7 +28,7 @@ def _rec_close(lm, close_text, hidden, text_name=None, text_offset=0):
     if text_name is not None:
         lm[text_name] = TextRange(text_offset, len(lm), lm)
     if close_text != "":
-        lm.append(close_text)
+        lm._inplace_append(close_text)
     if hidden:
         lm._reset(text_offset, clear_variables=False)
     

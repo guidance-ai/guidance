@@ -7,11 +7,11 @@ import ast
 
 @guidance
 def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop=None, stop_regex=None, suffix="", n=1, temperature=0.0, top_p=1.0,
-        logprobs=None, cache_seed=None, token_healing=None, stream=None, function_call="none", save_stop_text=False, **llm_kwargs):
+        logprobs=None, cache_seed=None, token_healing=None, stream_tokens=None, function_call="none", save_stop_text=False, **llm_kwargs):
 
     # set stream if we are interactive
-    if stream is None and not lm.is_silent() and n == 1:
-        stream = True
+    if stream_tokens is None and not lm.is_silent() and n == 1:
+        stream_tokens = True
 
     # use the suffix as the stop string if not otherwise specified
     if stop is None and stop_regex is None and suffix != "":
@@ -33,7 +33,7 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop
     gen_obj = lm.get_endpoint_session()(
         str(lm), stop=stop, stop_regex=stop_regex, max_tokens=max_tokens, n=n, pattern=pattern,
         temperature=temperature, top_p=top_p, logprobs=logprobs, cache_seed=cache_seed, token_healing=token_healing,
-        echo=getattr(lm, "logprobs", False), stream=stream, function_call=function_call, **llm_kwargs
+        echo=getattr(lm, "logprobs", False), stream=stream_tokens, function_call=function_call, **llm_kwargs
     )
 
     if not isinstance(gen_obj, (types.GeneratorType, list, tuple)):
