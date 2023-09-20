@@ -291,25 +291,6 @@ def gen_with_tools(lm, name=None, tools=None, stop_on_tool=False, include_tool_c
     new = new.set(gen_name, str(new)[len(str(lm)):])
     return new
 
-    # while called_tool:
-    #     called_tool = False
-    #     lm.gen(name='temp_name', **kwargs)
-    #     temp_output += lm['temp_name']
-    #     if lm['temp_name_stop_text'] is None:
-    #         break
-    #     for p in to_callables:
-    #         ret = p(lm['temp_name_stop_text'])
-    #         if ret is not None:
-    #             callable, targs, tkwargs = ret
-    #             temp_output += lm['temp_name_stop_text']
-    #             lm.append(lm['temp_name_stop_text'])
-    #             callable(lm, *targs, **tkwargs)
-    #             called_tool = True if not stop_on_tool else False
-    #             break
-    # if gen_name is not None:
-    #     lm[gen_name] = temp_output
-    # return lm
-
 @guidance
 def call_tool(lm, tool):
     name = tool.__name__
