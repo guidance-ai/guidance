@@ -305,7 +305,7 @@ def call_tool(lm, tool):
     name = tool.__name__
     pattern = f'{name}\\(([^)]*)\\)'
     p_to_callable = pattern_to_callable(pattern, tool)
-    lm.gen('fn_call', pattern=pattern)
+    lm += gen('fn_call', pattern=pattern)
     callable, args, kwargs = p_to_callable(lm['fn_call'])
-    callable(lm, *args, **kwargs)
+    lm += callable(*args, **kwargs)
     return lm
