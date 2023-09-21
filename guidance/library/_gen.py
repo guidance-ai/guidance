@@ -198,27 +198,42 @@ def gen_substring(lm, string, name=None, **kwargs):
     # gen_substring will never stop unless you add a suffix as an option or set max_tokens or stop
     # E.g. quote: lm('"').gen_substring(original, suffix='"') 
 
-    tokens = [lm.endpoint.tokenizer.decode(x) for x in lm.endpoint.tokenizer.encode(string)]
-    tokens += [x.strip() for x in tokens if x.strip() != x]
-    tokens = [x for x in tokens if x]
-    pattern = f'({"|".join(tokens)})?'
+    try:
+        tokenized = lm.endpoint.tokenizer(string, return_offsets_mapping=True)
+        tokens = [string[a[0]:a[1]] for a in tokenized['offset_mapping']]
+        tokens = [x for x in tokens if x]
+        stripped = tokens + [x.strip() for x in tokens if x.strip() != x]
+        stripped = [x for x in stripped if x]
+    except:
+        tokens = [lm.endpoint.tokenizer.decode(x) for x in lm.endpoint.tokenizer.encode(string)]
+        tokens = [x for x in tokens if x]
+        stripped = tokens + [x.strip() for x in tokens if x.strip() != x]
+        stripped = [x for x in stripped if x]
+    pattern = f'({"|".join(stripped)})?'
     if name is None:
         name = 'temp_string'
         remove_temp = True
     # return tokens, pattern
-    lm.gen('temp_string', pattern=pattern)
-    valid_idxs = [i for i, x in enumerate(tokens) if x == lm['temp_string'] ]
+    lm2 = lm
+    lm2 += gen('temp_string', pattern=pattern, **kwargs)
+    valid_idxs = [i for i, x in enumerate(tokens) if x == lm2['temp_string'] ]
     while valid_idxs:
         next_idxs = [i + 1 for i in valid_idxs if i + 1 < len(tokens)]
         next_tokens = [tokens[i] for i in next_idxs]
         if not next_tokens:
             break
         pattern = f'({"|".join(next_tokens)})?'
-        lm.gen('temp_string', pattern=pattern)
-        valid_idxs = [i for i in next_idxs if tokens[i] == lm['temp_string']]
-    if remove_temp:
-        lm.remove('temp_string')
-    return lm
+        lm2 += gen('temp_string', pattern=pattern, **kwargs)
+        valid_idxs = [i for i in next_idxs if tokens[i] == lm2['temp_string']]
+
+    list_append = kwargs.get('list_append', False)
+    if list_append:
+        prev_list = lm2.get(name, [])
+        prev_list.append(str(lm2)[len(str(lm)):])
+        lm2 = lm2.set(name, prev_list)
+    else:
+        lm2 = lm2.set(name, str(lm2)[len(str(lm)):])
+    return lm2
 
 
 def pattern_to_callable(pattern, callable):
