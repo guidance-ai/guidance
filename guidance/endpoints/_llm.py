@@ -166,7 +166,11 @@ class SyncSession:
         return self._session.__exit__(exc_type, exc_value, traceback)
     
     def __call__(self, *args, **kwargs):
-        out = asyncio.get_event_loop().run_until_complete(
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop() # in case we are in a new thread without an event loop
+        out = loop.run_until_complete(
             self._session.__call__(*args, **kwargs)
         )
         if kwargs.get("stream", False) and isinstance(out, types.AsyncGeneratorType):

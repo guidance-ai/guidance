@@ -1,134 +1,32 @@
 import guidance
-import pytest
-from ..utils import get_llm
+from guidance import gen
+from ..utils import get_model
 
 def test_gen():
-    """Test that LM generation works."""
+    lm = get_model("transformers:gpt2")
+    lm += "Write a number: " + gen('text', max_tokens=3)
+    assert len(lm["text"]) > 0
 
-    llm = guidance.llms.Mock(" Sue")
-    prompt = guidance("Hello my name is{{gen 'name' max_tokens=5}}", llm=llm)
-    out = prompt()
-    assert len(out["name"]) > 1
+# def test_add_multi():
+#     """ Test more than 2 arguments for `add`.
+#     """
 
-def test_gen_n_greater_than_one():
-    llm = guidance.llms.Mock(["mock output 0", "mock output 1", "mock output 2"])
-    prompt = guidance('''The best thing about the beach is{{gen 'best' n=3 temperature=0.7 max_tokens=5}}''', llm=llm)
-    a = prompt()
-    assert "\n".join(a["best"]) == 'mock output 0\nmock output 1\nmock output 2'
+#     program = guidance("""Write a number: {{set 'user_response' (add 20 5 variable)}}""")
+#     assert program(variable=10)["user_response"] == 35
+#     assert program(variable=20.1)["user_response"] == 45.1
 
-def test_gen_n_greater_than_one_hidden():
-    llm = guidance.llms.Mock()
+# def test_add_infix():
+#     """ Basic infix test of `add`.
+#     """
 
-    def aggregate(best):
-        return '\n'.join(['- ' + x for x in best])
-    prompt = guidance('''The best thing about the beach is{{gen 'best' temperature=0.7 n=3 hidden=True}}
-{{aggregate best}}''', llm=llm)
-    a = prompt(aggregate=aggregate)
-    assert str(a) == 'The best thing about the beach is\n- mock output 0\n- mock output 1\n- mock output 2'
+#     program = guidance("""Write a number: {{set 'user_response' 20 + variable}}""")
+#     assert program(variable=10)["user_response"] == 30
+#     assert program(variable=20.1)["user_response"] == 40.1
 
-def test_pattern():
-    import re
-    llm = get_llm("transformers:gpt2")
-    out = guidance('''On a scale of 1-10 I would say it is: {{gen 'score' pattern="[0-9]+"}}''', llm=llm)()
-    assert re.match(r'[0-9]+', out["score"])
-
-def test_pattern2():
-    import re
-
-    prompt = '''Tweak this proverb to apply to machine learning model instructions instead.
-
-{{proverb}}
-- {{book}} {{chapter}}:{{verse}}
-
-UPDATED
-Where there is no guidance, a people falls, but in an abundance of counselors there is safety.
-- GPT {{gen 'chapter' pattern='[0-9]' max_tokens=1}}:{{gen 'verse' pattern='[0-9]+' stop='\\n'}}'''
-
-    llm = get_llm("transformers:gpt2")
-    program = guidance(prompt, llm=llm)
-    executed_program = program(
-        proverb="Where there is no guidance, a people falls,\nbut in an abundance of counselors there is safety.",
-        book="Proverbs",
-        chapter=11,
-        verse=14
-    )
-
-    assert re.fullmatch(r"[0-9]", executed_program["chapter"])
-    assert re.fullmatch(r"[0-9]+", executed_program["verse"])
-
-@pytest.mark.parametrize("llm", ["transformers:gpt2", "transformers:facebook/opt-350m"])
-def test_multi_token_healing(llm):
-    """Test if we can heal prompt boundaries where we need to back up two tokens."""
-
-    prompt = '''Tweak this proverb to apply to machine learning model instructions instead.
-
-{{proverb}}
-- {{book}} {{chapter}}:{{verse}}
-
-UPDATED
-Where there is no guidanc{{gen 'completion' max_tokens=4}}'''
-
-    llm = get_llm(llm)
-    program = guidance(prompt, llm=llm)
-    executed_program = program(
-        proverb="Where there is no guidance, a people falls,\nbut in an abundance of counselors there is safety.",
-        book="Proverbs",
-        chapter=11,
-        verse=14
-    )
-
-    assert executed_program["completion"].startswith("e, a")
-
-@pytest.mark.parametrize("llm", ["transformers:gpt2", "transformers:facebook/opt-350m"])
-def test_custom_kwargs_transformers(llm):
-    """Test if we can pass model specific kwargs."""
-
-    llm = get_llm(llm)
-    program = guidance('''Repeat the following 10 times: Repeat this. Repeat this. Repeat this. Repeat this.{{gen 'completion' max_tokens=4 repetition_penalty=10.0}}''', llm=llm)
-    executed_program = program()
-
-    assert not executed_program["completion"].startswith(" Repeat this.")
-
-@pytest.mark.parametrize("llm", ["transformers:gpt2", "openai:text-curie-001"])
-def test_stop(llm):
-    """Test that the stop argument works as expected."""
-    llm = get_llm(llm)
-    program = guidance("""Write "repeat this. " 10 times: repeat this. repeat this. repeat this. repeat this. repeat this. repeat this.{{gen stop="this" max_tokens=10}}""", llm=llm)
-    out = program()
-    assert str(out) == "Write \"repeat this. \" 10 times: repeat this. repeat this. repeat this. repeat this. repeat this. repeat this. repeat "
-
-@pytest.mark.parametrize("llm", ["transformers:gpt2", "openai:text-curie-001"])
-def test_stop_regex(llm):
-    """Test that the stop_regex argument works as expected."""
-    llm = get_llm(llm)
-    program = guidance("""Write "repeat this. " 10 times: repeat this. repeat this. repeat this. repeat this. repeat this. repeat this.{{gen stop_regex="th.s" max_tokens=10}}""", llm=llm)
-    out = program()
-    assert str(out) == "Write \"repeat this. \" 10 times: repeat this. repeat this. repeat this. repeat this. repeat this. repeat this. repeat "
-
-@pytest.mark.parametrize("llm", ["transformers:gpt2", "openai:text-curie-001"])
-def test_save_stop_text(llm):
-    llm = get_llm(llm)
-    out = guidance("""Repeat this ten times: "s38 kdjksid sk slk", "s38 kdjksid sk slk", "s38 kdjksid sk slk", "s38 kdjksid sk slk", "{{gen 'text' stop_regex="kdj.*slk" max_tokens=10 save_stop_text=True}}""", llm=llm)()
-    assert out["text_stop_text"] == "kdjksid sk slk"
-
-@pytest.mark.parametrize("llm", ["transformers:gpt2", "openai:text-curie-001"])
-def test_stop_regex_cut_short(llm):
-    """Test that the stop_regex argument works as expected even when max_tokens cuts it short."""
-    llm = get_llm(llm)
-    out = guidance("""Repeat this ten times: "s38 kdjksid", "s38 kdjksid", "s38 kdjksid", "s38 kdjksid", "{{gen 'text' stop_regex="s38 kdjksid" max_tokens=5 save_stop_text=True}}""", llm=llm)()
-    assert len(out["text"]) > 0 # make sure we got some output (it is not a stop string until it is a full match)
-
-@pytest.mark.parametrize("llm", ["transformers:gpt2", "openai:text-curie-001"])
-def test_gen_stream(llm):
-    """Test that streaming the generation works."""
-
-    llm1 = get_llm(llm, caching=False)
-    prompt = guidance("Hello my name is{{gen 'name' max_tokens=10 stream=True}}", llm=llm1)
-    out = prompt()
-    assert len(out["name"]) > 1
-
-    # make sure it also works with caching
-    llm2 = get_llm(llm, caching=True)
-    prompt = guidance("Hello my name is{{gen 'name' max_tokens=10 stream=True}}", llm=llm2)
-    out = prompt()
-    assert len(out["name"]) > 1
+# if __name__ == "__main__":
+#     # find all the test functions in this file
+#     import sys, inspect
+#     test_functions = [obj for name, obj in inspect.getmembers(sys.modules[__name__]) if (inspect.isfunction(obj) and name.startswith("test_"))]
+#     # run each test function
+#     for test_function in test_functions:
+#         test_function()

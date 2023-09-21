@@ -304,7 +304,6 @@ class TransformersSession(LLMSession):
                 inputs=input_ids,
                 # attention_mask=attention_mask,
                 # position_ids=position_ids,
-                temperature=temperature,
                 max_new_tokens=max_tokens,
                 top_p=top_p,
                 pad_token_id=model_config.pad_token_id if model_config.pad_token_id is not None else self.llm.tokenizer.eos_token_id,
@@ -322,6 +321,7 @@ class TransformersSession(LLMSession):
                 generate_args["do_sample"] = False
             elif temperature > 0:
                 generate_args["do_sample"] = True
+                generate_args["temperature"] = temperature
 
             # if we are streaming then we need to run the inference process in a separate thread
             if stream:
