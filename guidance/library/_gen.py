@@ -287,8 +287,17 @@ def gen_with_tools(lm, name=None, tools=None, stop_on_tool=False, include_tool_c
                 new += callable(*targs, *tkwargs)
                 called_tool = True if not stop_on_tool else False
                 break
-    new = new.set('tool_calls', tool_calls)
-    new = new.set(gen_name, str(new)[len(str(lm)):])
+    list_append = kwargs.get('list_append', False)
+    if list_append:
+        tc = new.get('tool_calls', [])
+        tc.append(tool_calls)
+        new = new.set('tool_calls', tc)
+        prev_list = new.get(gen_name, [])
+        prev_list.append(str(new)[len(str(lm)):])
+        new = new.set(gen_name, prev_list)
+    else:
+        new = new.set('tool_calls', tool_calls)
+        new = new.set(gen_name, str(new)[len(str(lm)):])
     return new
 
 @guidance
