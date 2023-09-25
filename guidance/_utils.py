@@ -7,7 +7,7 @@ import asyncio
 import queue
 import ast
 import types
-
+import itertools
 
 class TextRange:
     def __init__(self, start, end, lm):
@@ -235,6 +235,105 @@ class AsyncIter():
     async def __aiter__(self):    
         for item in self.items:    
             yield item
+
+class TrieOld(object):
+    __slots__ = ('children', 'value', 'match_version', 'match', 'partial_match')
+
+    def __init__(self, strings=None, values=None):
+        self.children = {}
+        self.value = []
+        self.match_version = -1
+        self.match = False
+        self.partial_match = False
+
+        if strings is not None:
+            for i,s in enumerate(strings):
+                self.insert(s, None if values is None else values[i])
+
+    def insert(self, s, value):
+        if len(s) == 0:
+            self.value.append(value)
+        else:
+            first_char = s[0]
+            if first_char not in self.children:
+                self.children[first_char] = Trie()
+            self.children[first_char].insert(s[1:], value)
+
+    def values(self, prefix):
+        if prefix == "":
+            return [self.value] + list(itertools.chain.from_iterable(self.children[k].values(prefix) for k in self.children))
+        else:
+            return self.children[prefix[0]].values(prefix[1:])
+
+    def __setitem__(self, key, value):
+        if len(key) == 0:
+            self.value = value
+        else:
+            if key[0] not in self.children:
+                self.children[key[0]] = Trie()
+            self.children[key[0]].__setitem__(key[1:], value)
+
+    def __contains__(self, key):
+        return self.__getitem__(key) is not None
+
+    def __getitem__(self, key):
+        if len(key) == 0:
+            return self.value
+        elif key[0] in self.children:
+            self.children[key[0]].__getitem__(key[1:])
+        else:
+            return None
+
+class Trie(object):
+    __slots__ = ('children', 'value', 'match_version', 'match', 'partial_match')
+
+    def __init__(self, strings=None, values=None):
+        self.children = {}
+        self.value = None
+        self.match_version = -1
+        self.match = False
+        self.partial_match = False
+
+        if strings is not None:
+            for i,s in enumerate(strings):
+                self.insert(s, None if values is None else values[i])
+
+    def insert(self, s, value):
+        if len(s) == 0:
+            self.value = value
+        else:
+            first_char = s[0]
+            if first_char not in self.children:
+                self.children[first_char] = Trie()
+            self.children[first_char].insert(s[1:], value)
+
+    def values(self, prefix):
+        if prefix == "":
+            sub_values = list(itertools.chain.from_iterable(self.children[k].values(prefix) for k in self.children))
+            if self.value is not None:
+                sub_values.append(self.value)
+            return sub_values
+        else:
+            return self.children[prefix[0]].values(prefix[1:])
+
+    def __setitem__(self, key, value):
+        if len(key) == 0:
+            self.value = value
+        else:
+            if key[0] not in self.children:
+                self.children[key[0]] = Trie()
+            self.children[key[0]].__setitem__(key[1:], value)
+
+    def __contains__(self, key):
+        return self.__getitem__(key) is not None
+
+    def __getitem__(self, key):
+        if len(key) == 0:
+            return self.value
+        elif key[0] in self.children:
+            self.children[key[0]].__getitem__(key[1:])
+        else:
+            return None
 
 class ContentCapture:
     def __init__(self, variable_stack, hidden=False):
