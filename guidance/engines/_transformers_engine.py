@@ -29,6 +29,7 @@ class TransformersEngine(LocalEngine):
             self.model_obj = self.model_obj.to(device)
         self.device = self.model_obj.device # otherwise note the current device
         self._past_key_values = None
+        self._logits = None
 
         # note that we convert the standard GPT and Llama special separators to spaces TODO: move this to subclasses
         super().__init__(
@@ -62,26 +63,34 @@ class TransformersEngine(LocalEngine):
             
         return model, tokenizer
 
-    def extend_model(self, token_ids):
-        '''Extends the current model with the given token ids.
+    def get_logits(self):
+        '''Computes the logits for the given token state.
         
         This overrides a method from the LocalEngine class that is used to get
         inference results from the model.
         '''
 
-        # get the number of caches position we are using
+        # get the number of cache positions we are using
         past_length = self._past_key_values[0][0].size(-2) if self._past_key_values is not None else 0
+        if past_length > len(self.cache_token_ids):
+            past_length = len(self._past_key_values)-1
+            self._past_key_values = tuple(tuple(p[..., :past_length, :] for p in v) for v in self._past_key_values)
+            self.new_token_ids = [self.cache_token_ids[-1]] + self.new_token_ids # TODO: note we recompute the last token because we don't bother to handle the special case of just computing logits
 
         # call the model
-        model_out = self.model_obj(
-            input_ids=torch.tensor(token_ids).unsqueeze(0).to(self.device),
-            past_key_values=self._past_key_values,
-            use_cache=True,
-            position_ids=torch.arange(past_length, past_length+len(token_ids)).unsqueeze(0).to(self.device),
-            attention_mask=torch.ones(1, past_length + len(token_ids)).to(self.device)
-        )
+        if len(self.new_token_ids) > 0:
+            model_out = self.model_obj(
+                input_ids=torch.tensor(self.new_token_ids).unsqueeze(0).to(self.device),
+                past_key_values=self._past_key_values,
+                use_cache=True,
+                position_ids=torch.arange(past_length, past_length+len(self.new_token_ids)).unsqueeze(0).to(self.device),
+                attention_mask=torch.ones(1, past_length + len(self.new_token_ids)).to(self.device)
+            )
 
-        # save the results
-        self._past_key_values = model_out.past_key_values
-        self._logits = model_out.logits[0, -1, :]
-        self._cache_token_ids.extend(token_ids)
+            # save the results
+            self._past_key_values = model_out.past_key_values
+            self.cache_token_ids.extend(self.new_token_ids)
+            self.new_token_ids = []
+            self._logits = model_out.logits[0, -1, :]
+        
+        return self._logits

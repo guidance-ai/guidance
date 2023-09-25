@@ -20,17 +20,18 @@ class LocalEngine():
         self.tokens = tokens
         self.bos_token_id = bos_token_id
         self.bos_token = self.tokens[self.bos_token_id]
-        self._cache_token_ids = []
-        self._logits = torch.randn(len(tokens))
+        self.cache_token_ids = []
+        self.new_token_ids = []
         self._match_version = 1
         self._trie = Trie(tokens, np.arange(len(tokens)))
 
-    def extend_model(self, token_ids):
+    def get_logits(self):
         '''A fake method designed to be overriden by subclasses.'''
-        self._cache_token_ids.extend(token_ids)
+        self.cache_token_ids.extend(self.new_token_ids)
+        self.self.new_token_ids = []
 
         # pretend to extend the KV cache and update the log probs
-        self._logits = torch.randn(len(self.tokens))
+        return torch.randn(len(self.tokens))
 
     def longest_token_match(self, string):
         '''Greedy token matching.'''
@@ -52,29 +53,29 @@ class LocalEngine():
             prompt = self.bos_token + prompt
 
         # find out how much of the prompt we have in the KV cache (and strip from the prompt what we already have)
-        if len(self._cache_token_ids) > 0:
+        if len(self.cache_token_ids) > 0:
             cache_pos = 0
-            for i,id in enumerate(self._cache_token_ids):
+            for i,id in enumerate(self.cache_token_ids):
                 token = self.tokens[id]
                 if prompt[cache_pos:cache_pos+len(token)] != token:
-                    self._cache_token_ids = self._cache_token_ids[:i]
+                    self.cache_token_ids = self.cache_token_ids[:i]
                     break
                 cache_pos += len(token)
             # self._cache_tokens = self._cache_tokens[:i]
             prompt = prompt[cache_pos:]
-            
+        self.new_token_ids = []
 
         # send the known prompt tokens to the KV cache as a batch
-        new_token_ids = []
+        forced_token_ids = []
         while True:
             token, token_id = self.longest_token_match(prompt)
             if token_id is not None:
-                new_token_ids.append(token_id)
+                forced_token_ids.append(token_id)
                 prompt = prompt[len(token):]
             else:
                 break
-        if len(new_token_ids) > 0:
-            self.extend_model(new_token_ids)
+        if len(forced_token_ids) > 0:
+            self.new_token_ids.extend(forced_token_ids)
         
         # move whatever is not cached from the prompt into the pattern (since the pattern is what we will generate)
         # note we also anchor the pattern to the start of the sequence
@@ -95,11 +96,12 @@ class LocalEngine():
             #       really fast (integrate with the FSM directly) or make it report when a character is forced.
 
             # compute the order in which we prefer the tokens
+            logits = self.get_logits()
             if temperature == 0:
-                sampling_order = torch.argsort(self._logits, descending=True).cpu().numpy() # we need numpy so the enumerate below does not get really slow...
+                sampling_order = torch.argsort(logits, descending=True).cpu().numpy() # we need numpy so the enumerate below does not get really slow...
             else:
                 assert top_p == 1, "Still need to add support for top_p!"
-                probs = torch.nn.functional.softmax(self._logits / temperature, dim=-1)
+                probs = torch.nn.functional.softmax(logits / temperature, dim=-1)
                 sampling_order = torch.multinomial(probs, len(probs)).cpu().numpy()
 
             # find the best allowed token
@@ -147,7 +149,7 @@ class LocalEngine():
 
                 # if we exactly match the end of the pattern then we can commit to this last token 
                 if end == len(sampled_token):
-                    self.extend_model([sampled_token_ind])
+                    self.new_token_ids.append(sampled_token_ind)
                 
                 if hidden_count < end:
                     yield sampled_token[hidden_count:end], m.groupdict()
@@ -162,7 +164,7 @@ class LocalEngine():
                 else:
                     hidden_count -= len(sampled_token)
 
-                self.extend_model([sampled_token_ind])
+                self.new_token_ids.append(sampled_token_ind)
 
 
 
