@@ -96,11 +96,11 @@ class LocalEngine():
 
             # compute the order in which we prefer the tokens
             if temperature == 0:
-                sampling_order = torch.argsort(self._logits, descending=True).numpy() # we need numpy so the enumerate below does not get really slow...
+                sampling_order = torch.argsort(self._logits, descending=True).cpu().numpy() # we need numpy so the enumerate below does not get really slow...
             else:
                 assert top_p == 1, "Still need to add support for top_p!"
                 probs = torch.nn.functional.softmax(self._logits / temperature)
-                sampling_order = torch.multinomial(probs, len(probs)).numpy()
+                sampling_order = torch.multinomial(probs, len(probs)).cpu().numpy()
 
             # find the best allowed token
             #call_count[0] = 0

@@ -72,13 +72,20 @@ class TransformersEngine(LocalEngine):
         # get the number of caches position we are using
         past_length = self._past_key_values[0][0].size(-2) if self._past_key_values is not None else 0
 
+        input_ids = torch.tensor(token_ids).unsqueeze(0)
+        position_ids = torch.arange(past_length, past_length+len(token_ids)).unsqueeze(0)
+        attention_mask = torch.ones(1, past_length + len(token_ids))
+        if self.device:
+            input_ids = input_ids.to(self.device)
+            position_ids = position_ids.to(self.device)
+            attention_mask = attention_mask.to(self.device)
         # call the model
         model_out = self.model_obj(
-            input_ids=torch.tensor(token_ids).unsqueeze(0),
+            input_ids= input_ids,
             past_key_values=self._past_key_values,
             use_cache=True,
-            position_ids=torch.arange(past_length, past_length+len(token_ids)).unsqueeze(0),
-            attention_mask=torch.ones(1, past_length + len(token_ids)),
+            position_ids=position_ids,
+            attention_mask=attention_mask,
             token_type_ids=None
         )
 
