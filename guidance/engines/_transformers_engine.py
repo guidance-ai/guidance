@@ -58,7 +58,7 @@ class TransformersEngine(LocalEngine):
         raw_coded = ''.join([tokenizer.convert_ids_to_tokens(id) for id in tokens])
         recoded = tokenizer.decode(tokens)
         assert len(raw_coded) == len(recoded), "The tokenizer is changing the length of the string, so you need make a special subclass to handle this model!"
-        self.leading_space_token = raw_coded[5]
+        self.leading_space_token = raw_coded[-5]
             
         return model, tokenizer
 
@@ -74,12 +74,11 @@ class TransformersEngine(LocalEngine):
 
         # call the model
         model_out = self.model_obj(
-            input_ids=torch.tensor(token_ids).unsqueeze(0),
+            input_ids=torch.tensor(token_ids).unsqueeze(0).to(self.device),
             past_key_values=self._past_key_values,
             use_cache=True,
-            position_ids=torch.arange(past_length, past_length+len(token_ids)).unsqueeze(0),
-            attention_mask=torch.ones(1, past_length + len(token_ids)),
-            token_type_ids=None
+            position_ids=torch.arange(past_length, past_length+len(token_ids)).unsqueeze(0).to(self.device),
+            attention_mask=torch.ones(1, past_length + len(token_ids)).to(self.device)
         )
 
         # save the results
