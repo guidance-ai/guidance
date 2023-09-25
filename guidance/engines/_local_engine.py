@@ -85,7 +85,7 @@ class LocalEngine():
         assert n == 1, "Still need to add support for n > 1!"
 
         # loop until we have generated a complete pattern
-        call_count = [0]
+        # call_count = [0]
         hidden_count = len(prompt) # we don't emit the part of the prompt we have to regenerate for token healing
         generated_text = ""
         for token_count in range(max_tokens):
@@ -99,7 +99,7 @@ class LocalEngine():
                 sampling_order = torch.argsort(self._logits, descending=True).cpu().numpy() # we need numpy so the enumerate below does not get really slow...
             else:
                 assert top_p == 1, "Still need to add support for top_p!"
-                probs = torch.nn.functional.softmax(self._logits / temperature)
+                probs = torch.nn.functional.softmax(self._logits / temperature, dim=-1)
                 sampling_order = torch.multinomial(probs, len(probs)).cpu().numpy()
 
             # find the best allowed token
