@@ -257,7 +257,6 @@ def gen_substring(lm, string, name=None, **kwargs):
     pattern = f'({"|".join(stripped)})?'
     if name is None:
         name = 'temp_string'
-        remove_temp = True
     # return tokens, pattern
     lm2 = lm
     lm2 += gen('temp_string', pattern=pattern, **kwargs)
