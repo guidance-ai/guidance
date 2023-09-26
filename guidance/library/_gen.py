@@ -54,7 +54,7 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop
         stop_regex = "(?P<stop>" + "|".join(stop_regex) + ")"
 
     pattern += stop_regex
-    extracted_stop_pattern = regex.compile(pattern[pattern.index("(?P<stop>")+9:-1] + "$", flags=regex.DOTALL)
+    # extracted_stop_pattern = regex.compile(pattern[pattern.index("(?P<stop>")+9:-1] + "$", flags=regex.DOTALL)
     # extracted_stop_pattern = regex.compile(pattern[:pattern.index("(?P<stop>")] + "$", flags=regex.DOTALL)
 
     # start the generation stream
@@ -75,18 +75,18 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop
                 lm[name+"_logprobs"] = lm.get(name+"_logprobs", [])
                 lm[name+"_logprobs"].append([])
                 assert len(len(lm[name])) == len(len(lm[name+"_logprobs"]))
-        delayed_text = ""
+        # delayed_text = ""
         for new_text,match_groups in gen_obj:
             
             # delay emitting if we might be starting the stop pattern
-            stop_match = extracted_stop_pattern.search(generated_value + delayed_text + new_text, partial=True)
-            if stop_match and stop_match.end() - stop_match.start() > 0:
-                delayed_text += new_text
-                continue
-            else:
-                generated_value += delayed_text
-                lm += delayed_text
-                delayed_text = ""
+            # stop_match = extracted_stop_pattern.search(generated_value + delayed_text + new_text, partial=True)
+            # if stop_match and stop_match.end() - stop_match.start() > 0: # TODO: emit delayed text before the match start()
+            #     delayed_text += new_text
+            #     continue
+            # else:
+            #     generated_value += delayed_text
+            #     lm += delayed_text
+            #     delayed_text = ""
             
             # new_text = resp["choices"][0].get("text", "")
             generated_value += new_text
@@ -114,15 +114,16 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop
         #         generated_value = out
 
         # trim off the stop match
-        if stop_match.end() - stop_match.start():
-            pattern_obj = regex.compile(pattern, flags=regex.DOTALL)
-            m = pattern_obj.match(generated_value + delayed_text)
-            stop = m.group('stop')
-            delayed_text = delayed_text[:-len(stop)]
+        # if stop_match.end() - stop_match.start():
+        #     pattern_obj = regex.compile(pattern, flags=regex.DOTALL)
+        #     m = pattern_obj.match(generated_value + delayed_text)
+        #     stop = m.group('stop')
+        #     if len(stop) > 0:
+        #         delayed_text = delayed_text[:-len(stop)]
 
-        if delayed_text != "":
-            generated_value += delayed_text
-            lm += delayed_text
+        # if delayed_text != "":
+        #     generated_value += delayed_text
+        #     lm += delayed_text
 
         if list_append:
             lm[name][list_ind] = generated_value

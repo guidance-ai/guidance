@@ -99,10 +99,13 @@ class Local(Model):
 
         assert n == 1, "Still need to add support for n > 1!"
 
+        extracted_stop_pattern = regex.compile("(" + pattern[pattern.index("(?P<stop>")+9:-1] + ")$", flags=regex.DOTALL)
+
         # loop until we have generated a complete pattern
         # call_count = [0]
         hidden_count = len(prompt) # we don't emit the part of the prompt we have to regenerate for token healing
         generated_text = ""
+        delayed_text = ""
         for token_count in range(max_tokens):
 
             # TODO: eventually we could try and check if the regex "forces" the next token so we can skip
@@ -121,12 +124,9 @@ class Local(Model):
             # find the best allowed token
             #call_count[0] = 0
             self._token_trie.match_version += 1
-            gen_len = len(generated_text)
+            gen_len = len(generated_text) + len(delayed_text)
             for i,sampled_token_ind in enumerate(sampling_order):
                 sampled_token = self.tokens[sampled_token_ind]
-
-                if sampled_token.startswith('\xa0'):
-                    pass
 
                 # check to see if the sampled token is allowed (TODO: consider if this needs more optimized...python loops are slow)
                 token_pos = 1
@@ -141,7 +141,7 @@ class Local(Model):
                                 node.match = None
                         else:
                             #call_count[0] += 1
-                            m = pattern_obj.match(generated_text+sampled_token[:token_pos], partial=True)
+                            m = pattern_obj.match(generated_text+delayed_text+sampled_token[:token_pos], partial=True)
                             node.match = m
                     
                     if token_pos == len(sampled_token):
@@ -159,27 +159,48 @@ class Local(Model):
                     break
             assert m is not None, f"There were no tokens found that could encode: `{pattern[gen_len + token_pos]}`, perhaps the model vocabulary does not contain this token?"
             #print("call_count", call_count[0], "`" + sampled_token + "`", i)
-            generated_text += sampled_token
+            
+            # delay emitting if we might be starting the stop pattern
+            new_text = delayed_text + sampled_token
+            delayed_text = ""
+            stop_match = extracted_stop_pattern.search(generated_text + new_text, partial=True)
+            if stop_match and stop_match.end() - stop_match.start() > 0:
+
+                # emit delayed text before the match start
+                if stop_match.start() > len(generated_text):
+                    offset = stop_match.start() - len(generated_text)
+                    delayed_text = new_text[offset:]
+                    new_text = new_text[:offset]
+                else:
+                    delayed_text = new_text
+                    new_text = ""
 
             # if we have a full match we are done
             if not m.partial and len(m.groupdict()["stop"]) > 0:
-                end = m.span()[1] - len(generated_text) + len(sampled_token)
+                new_text += delayed_text
+                generated_text += new_text
+                
+                # strip the stop group
+                stop = m.group('stop')
+                if len(stop) > 0:
+                    generated_text = generated_text[:-len(stop)]
 
                 # if we exactly match the end of the pattern then we can commit to this last token 
-                if end == len(sampled_token):
+                if m.span()[1] == len(generated_text):
                     self._cache_state["new_token_ids"].append(sampled_token_ind)
                 
-                if hidden_count < end:
-                    yield sampled_token[hidden_count:end], m.groupdict()
+                if hidden_count < len(new_text) - len(stop):
+                    yield sampled_token[hidden_count:len(new_text) - len(stop)], m.groupdict()
                 break # we are done!
             else:
-
+                generated_text += new_text
+                
                 # yeild the snippet of text created by the next token
-                out = sampled_token[hidden_count:]
+                out = new_text[hidden_count:]
                 if len(out) > 0:
                     yield out, m.groupdict()
                     hidden_count = 0
                 else:
-                    hidden_count -= len(sampled_token)
+                    hidden_count -= len(new_text)
 
                 self._cache_state["new_token_ids"].append(sampled_token_ind)
