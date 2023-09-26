@@ -1,12 +1,12 @@
 import re
 
 import guidance.endpoints
-from ._lm import LM, LMChat
+from ._model import Model, Chat
 
 
 chat_model_pattern = r'^(gpt-3\.5-turbo|gpt-4)(-\d+k)?(-\d{4})?$'
 
-class OpenAI(LM):
+class OpenAI(Model):
     def __init__(self, model, caching=True, **endpoint_kwargs):
 
         # subclass to OpenAIChat if model is chat
@@ -22,7 +22,7 @@ class OpenAI(LM):
         self.endpoint = guidance.endpoints.OpenAI(model, **endpoint_kwargs)
         self._endpoint_session = self.endpoint.session()
 
-class OpenAIChat(OpenAI, LMChat):
+class OpenAIChat(OpenAI, Chat):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 

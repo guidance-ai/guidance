@@ -50,7 +50,7 @@ def optional_hidden(f, lm, hidden, kwargs):
 
 def _decorator(f, *, model=None, dedent='python'):
 
-    def _decorator_inner(f, model=models.LM):
+    def _decorator_inner(f, model=models.Model):
         """Decorator to turn a normal function into a guidance function.
         
         Guidance functions have the added ability to be called as methods of LM objects (for dot-chaining),
@@ -96,7 +96,7 @@ def _decorator(f, *, model=None, dedent='python'):
         def wrapper(*args, stream=False, async_mode=False, **kwargs):
 
             # check if we are making a delayed call
-            if len(args) == 0 or not isinstance(args[0], models.LM):
+            if len(args) == 0 or not isinstance(args[0], models.Model):
                 return wrapper.wrapper_delayed(*args, stream=stream, async_mode=async_mode, **kwargs)
             else:
                 lm = args[0]
@@ -120,10 +120,10 @@ def _decorator(f, *, model=None, dedent='python'):
             
             # save the call in our call pool, ready to be run when it is attached to an LM object
             id = str(uuid.uuid4())
-            models.LM._call_pool[id] = lambda lm: wrapper(lm, *args, stream=stream, async_mode=async_mode, **kwargs)
+            models.Model._call_pool[id] = lambda lm: wrapper(lm, *args, stream=stream, async_mode=async_mode, **kwargs)
 
             # return a string representation of this call so it can be combined with other strings/calls
-            return models.LM.tag_start + id + models.LM.tag_end
+            return models.Model.tag_start + id + models.Model.tag_end
         wrapper.wrapper_delayed = wrapper_delayed
 
         setattr(model, f.__name__, wrapper) # as a method on the LM object
