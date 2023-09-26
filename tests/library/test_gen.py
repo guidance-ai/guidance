@@ -2,31 +2,20 @@ import guidance
 from guidance import gen
 from ..utils import get_model
 
-def test_gen():
+def test_basic():
     lm = get_model("transformers:gpt2")
     lm += "Write a number: " + gen('text', max_tokens=3)
     assert len(lm["text"]) > 0
 
-# def test_add_multi():
-#     """ Test more than 2 arguments for `add`.
-#     """
+def test_stop_string():
+    lm = get_model("transformers:gpt2")
+    lm += "Count to 10: 1, 2, 3, 4, 5, 6, 7, " + gen('text', stop=", 9")
+    assert lm["text"] == "8"
 
-#     program = guidance("""Write a number: {{set 'user_response' (add 20 5 variable)}}""")
-#     assert program(variable=10)["user_response"] == 35
-#     assert program(variable=20.1)["user_response"] == 45.1
-
-# def test_add_infix():
-#     """ Basic infix test of `add`.
-#     """
-
-#     program = guidance("""Write a number: {{set 'user_response' 20 + variable}}""")
-#     assert program(variable=10)["user_response"] == 30
-#     assert program(variable=20.1)["user_response"] == 40.1
-
-# if __name__ == "__main__":
-#     # find all the test functions in this file
-#     import sys, inspect
-#     test_functions = [obj for name, obj in inspect.getmembers(sys.modules[__name__]) if (inspect.isfunction(obj) and name.startswith("test_"))]
-#     # run each test function
-#     for test_function in test_functions:
-#         test_function()
+def test_unicode():
+    lm = get_model("transformers:gpt2")
+    lm + '''Question: Josh decides to try flipping a house.  He buys a house for $80,000 and then puts in $50,000 in repairs.  This increased the value of the house by 150%.  How much profit did he make?
+    Let's think step by step, and then write the answer:
+    Step 1''' + gen('steps', list_append=True, stop=['\nStep', '\n\n', '\nAnswer'], temperature=0.7, max_tokens=20) + '\n'
+    i = 2
+    lm + f'Step {i}:' + gen('steps', list_append=True, stop=['\nStep', '\n\n', '\nAnswer'], temperature=0.7, max_tokens=20) + '\n'
