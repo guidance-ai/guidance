@@ -7,7 +7,7 @@ import ast
 
 @guidance
 def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop=None, stop_regex=None, suffix="", n=1, temperature=0.0, top_p=1.0,
-        logprobs=None, cache_seed=None, token_healing=None, stream_tokens=None, function_call="none", save_stop_text=False, **llm_kwargs):
+        logprobs=None, stream_tokens=None, save_stop_text=False, **llm_kwargs):
 
     # set stream if we are interactive
     if stream_tokens is None and not lm.is_silent() and n == 1:
@@ -24,20 +24,42 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop
         elif lm.suffix.startswith("'") and lm.endswith("'"):
             stop = "'"
 
+    # standardize stop and stop_regex into a list of regex patterns
+    if isinstance(stop, str):
+        stop = [stop]
+    if isinstance(stop_regex, str):
+        stop_regex = [stop_regex]
+    if stop is not None:
+        if stop_regex is None:
+            stop_regex = []
+        stop_regex.extend([regex.escape(s) for s in stop])
+
     lm += "<||_html:<span style='background-color: rgba(0, 165, 0, 0.25)'>_||>"
 
     # This needs to be here for streaming
     if name is not None and not list_append:
         lm[name] = ""
 
-    gen_obj = lm.get_endpoint_session()(
-        str(lm), stop=stop, stop_regex=stop_regex, max_tokens=max_tokens, n=n, pattern=pattern,
-        temperature=temperature, top_p=top_p, logprobs=logprobs, cache_seed=cache_seed, token_healing=token_healing,
-        echo=getattr(lm, "logprobs", False), stream=stream_tokens, function_call=function_call, **llm_kwargs
-    )
+    if pattern is None:
+        pattern = ".*"
+    
+    # compile stop_regex into a capture group
+    if "(?P<stop>" in pattern:
+        assert stop_regex == None, "You can't specify both a stop string/regex and a custom stop pattern (?P<stop>...)!"
+        stop_regex = ""
+    else:
+        if stop_regex is None:
+            stop_regex = [regex.escape(lm.eos_token)]
+        stop_regex = "(?P<stop>" + "|".join(stop_regex) + ")"
 
-    if not isinstance(gen_obj, (types.GeneratorType, list, tuple)):
-        gen_obj = [gen_obj]
+    pattern += stop_regex
+    extracted_stop_pattern = regex.compile(pattern[pattern.index("(?P<stop>")+9:-1] + "$", flags=regex.DOTALL)
+
+    # start the generation stream
+    gen_obj = lm(
+        pattern=pattern, max_tokens=max_tokens, n=n,
+        temperature=temperature, top_p=top_p, **llm_kwargs
+    )
 
     # single generation
     if n == 1:
@@ -51,36 +73,57 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop
                 lm[name+"_logprobs"] = lm.get(name+"_logprobs", [])
                 lm[name+"_logprobs"].append([])
                 assert len(len(lm[name])) == len(len(lm[name+"_logprobs"]))
-        for resp in gen_obj:
-            new_text = resp["choices"][0].get("text", "")
+        delayed_text = ""
+        for new_text,match_groups in gen_obj:
+            
+            # delay emitting if we might be starting the stop pattern
+            stop_match = extracted_stop_pattern.search(generated_value + delayed_text + new_text, partial=True)
+            if stop_match and stop_match.end() - stop_match.start() > 0:
+                delayed_text += new_text
+                continue
+            else:
+                generated_value += delayed_text
+                lm += delayed_text
+                delayed_text = ""
+            
+            # new_text = resp["choices"][0].get("text", "")
             generated_value += new_text
             lm += new_text
-            if logprobs is not None:
-                logprobs_out.extend(resp["choices"][0]["logprobs"]["top_logprobs"])
+            # if logprobs is not None:
+            #     logprobs_out.extend(resp["choices"][0]["logprobs"]["top_logprobs"])
             if list_append:
                 lm[name][list_ind] = generated_value
-                if logprobs is not None:
-                    lm[name+"_logprobs"][list_ind] = logprobs_out
+                # if logprobs is not None:
+                #     lm[name+"_logprobs"][list_ind] = logprobs_out
             elif name is not None:
                 lm[name] = generated_value
-                if logprobs is not None:
-                    lm[name+"_logprobs"] = logprobs_out
+                # if logprobs is not None:
+                #     lm[name+"_logprobs"] = logprobs_out
         
         # save the final stopping text if requested
         if save_stop_text is not False:
             if save_stop_text is True and name is not None:
                 save_stop_text = name+"_stop_text"
-            lm[save_stop_text] = resp["choices"][0].get('stop_text', None)
+            lm[save_stop_text] = match_groups["stop"]
         
         # for scanner in lm.get_call_scanners():
         #     out = scanner(lm, generated_value)
         #     if out is not None:
         #         generated_value = out
 
+        # trim off the stop match
+        if stop_match.end() - stop_match.start():
+            delayed_text = delayed_text[:stop_match.start() - stop_match.end()]
+
+        if delayed_text != "":
+            generated_value += delayed_text
+            lm += delayed_text
+
         if list_append:
             lm[name][list_ind] = generated_value
         elif name is not None:
             # This seems wrong, it's overriding whatever was generated into the name. What if the generation was 'I am now going to call a tool: tool_call(bla)', do you want to just dump that?
+            # [SML] I don't understand the above concern
             lm[name] = generated_value
     
     # batch generation
@@ -90,13 +133,13 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop
         if list_append:
             value_list = lm.get(name, [])
             value_list.append(generated_values)
-            if logprobs is not None:
-                logprobs_list = lm.get(name+"_logprobs", [])
-                logprobs_list.append([choice["logprobs"]["top_logprobs"] for choice in gen_obj[0]["choices"]])
+            # if logprobs is not None:
+            #     logprobs_list = lm.get(name+"_logprobs", [])
+            #     logprobs_list.append([choice["logprobs"]["top_logprobs"] for choice in gen_obj[0]["choices"]])
         elif name is not None:
             lm[name] = generated_values
-            if logprobs is not None:
-                lm[name+"_logprobs"] = [choice["logprobs"]["top_logprobs"] for choice in gen_obj[0]["choices"]]
+            # if logprobs is not None:
+            #     lm[name+"_logprobs"] = [choice["logprobs"]["top_logprobs"] for choice in gen_obj[0]["choices"]]
 
         # TODO: we could enable the parsing to branch into multiple paths here, but for now we just complete the program with the first prefix
         generated_value = generated_values[0]

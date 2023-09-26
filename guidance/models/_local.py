@@ -17,18 +17,23 @@ PARTIAL_MATCH = MatchMock()
 PARTIAL_MATCH.partial = True
 
 class Local(Model):
-    def __init__(self, tokens, bos_token_id, echo=True):
+    def __init__(self, tokens, bos_token_id, eos_token_id=None, echo=True):
         super().__init__(echo)
         
         self.tokens = tokens
         self.bos_token_id = bos_token_id
         self.bos_token = self.tokens[self.bos_token_id]
+        self.eos_token_id = eos_token_id if eos_token_id is not None else bos_token_id
+        self.eos_token = self.tokens[self.eos_token_id]
+
+        # build a prefix tree of the tokens
         self._token_trie = Trie(tokens, np.arange(len(tokens)))
+        self._token_trie.match = True
+        self._token_trie.match_version = 0
 
         # all mutable state goes in the cache dictionary
         self._cache_state["cache_token_ids"] = []
         self._cache_state["new_token_ids"] = []
-        self._cache_state["match_version"] = 1
 
     def _get_logits(self):
         '''A fake method designed to be overriden by subclasses.'''
@@ -40,6 +45,8 @@ class Local(Model):
 
     def _longest_token_match(self, string):
         '''Greedy token matching.'''
+        if string.startswith("\n"):
+            pass
         trie_pos = self._token_trie
         for i,c in enumerate(string):
             if c in trie_pos.children:
@@ -87,7 +94,7 @@ class Local(Model):
         # move whatever is not cached from the prompt into the pattern (since the pattern is what we will generate)
         # note we also anchor the pattern to the start of the sequence
         pattern = "^" + regex.escape(prompt, literal_spaces=True) + pattern
-        pattern_obj = regex.compile(pattern)
+        pattern_obj = regex.compile(pattern, flags=regex.DOTALL)
         const_prefix_len = len(pattern_obj._pickled_data[-3])
 
         assert n == 1, "Still need to add support for n > 1!"
@@ -118,6 +125,9 @@ class Local(Model):
             for i,sampled_token_ind in enumerate(sampling_order):
                 sampled_token = self.tokens[sampled_token_ind]
 
+                if sampled_token.startswith('\xa0'):
+                    pass
+
                 # check to see if the sampled token is allowed (TODO: consider if this needs more optimized...python loops are slow)
                 token_pos = 1
                 node = self._token_trie.children[sampled_token[0]]
@@ -147,6 +157,7 @@ class Local(Model):
                 
                 if m is not None:
                     break
+            assert m is not None, f"There were no tokens found that could encode: `{pattern[gen_len + token_pos]}`, perhaps the model vocabulary does not contain this token?"
             #print("call_count", call_count[0], "`" + sampled_token + "`", i)
             generated_text += sampled_token
 

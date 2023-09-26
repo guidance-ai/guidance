@@ -37,11 +37,14 @@ class Transformers(Local):
         if device is not None: # set the device if requested
             self.model_obj = self.model_obj.to(device)
         self.device = self.model_obj.device # otherwise note the current device
-        
-        # note that we convert the standard GPT and Llama special separators to spaces TODO: move this to subclasses
+
+        # build the token set and pass that to the Local constructor
+        # note that we prefix the tokens with a letter so some sentence peice tokenizers don't strip leading spaces.
+        tkz = self._orig_tokenizer
         super().__init__(
-            [self._orig_tokenizer.convert_ids_to_tokens(i).replace(self.leading_space_token, " ") for i in range(self._orig_tokenizer.vocab_size)],
-            self._orig_tokenizer.bos_token_id,
+            [tkz.convert_tokens_to_string(['a', tkz.convert_ids_to_tokens(i)])[1:] for i in range(tkz.vocab_size)],
+            tkz.bos_token_id,
+            tkz.eos_token_id,
             echo=echo
         )
 
@@ -66,11 +69,11 @@ class Transformers(Local):
         assert tokenizer is not None, "You must give a tokenizer object when you provide a model object (as opposed to just a model name)!"
 
         # discover how the model handles leading spaces
-        tokens = tokenizer.encode("alpha ruby")
-        raw_coded = ''.join([tokenizer.convert_ids_to_tokens(id) for id in tokens])
-        recoded = tokenizer.decode(tokens)
-        assert len(raw_coded) == len(recoded), "The tokenizer is changing the length of the string, so you need make a special subclass to handle this model!"
-        self.leading_space_token = raw_coded[-5]
+        # tokens = tokenizer.encode("alpha ruby")
+        # raw_coded = ''.join([tokenizer.convert_ids_to_tokens(id) for id in tokens])
+        # recoded = tokenizer.decode(tokens)
+        # assert len(raw_coded) == len(recoded), "The tokenizer is changing the length of the string, so you need make a special subclass to handle this model!"
+        # self.leading_space_token = raw_coded[-5]
             
         return model, tokenizer
 
