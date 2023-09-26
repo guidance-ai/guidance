@@ -49,11 +49,13 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop
         stop_regex = ""
     else:
         if stop_regex is None:
-            stop_regex = [regex.escape(lm.eos_token)]
+            stop_regex = []
+        stop_regex.append(".+")
         stop_regex = "(?P<stop>" + "|".join(stop_regex) + ")"
 
     pattern += stop_regex
     extracted_stop_pattern = regex.compile(pattern[pattern.index("(?P<stop>")+9:-1] + "$", flags=regex.DOTALL)
+    # extracted_stop_pattern = regex.compile(pattern[:pattern.index("(?P<stop>")] + "$", flags=regex.DOTALL)
 
     # start the generation stream
     gen_obj = lm(

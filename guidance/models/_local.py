@@ -162,7 +162,7 @@ class Local(Model):
             generated_text += sampled_token
 
             # if we have a full match we are done
-            if not m.partial:
+            if not m.partial and len(m.groupdict()["stop"]) > 0:
                 end = m.span()[1] - len(generated_text) + len(sampled_token)
 
                 # if we exactly match the end of the pattern then we can commit to this last token 
