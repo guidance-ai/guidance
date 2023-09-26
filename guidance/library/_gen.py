@@ -49,7 +49,7 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop
         stop_regex = ""
     else:
         if stop_regex is None:
-            stop_regex = [regex.escape(lm.eos_token)]
+            stop_regex = ['('+ regex.escape(lm.eos_token) + ')?']
         stop_regex = "(?P<stop>" + "|".join(stop_regex) + ")"
 
     pattern += stop_regex
