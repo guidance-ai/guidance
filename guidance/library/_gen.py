@@ -50,7 +50,7 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop
     else:
         if stop_regex is None:
             stop_regex = []
-        stop_regex.append(".+")
+        stop_regex.append('('+ regex.escape(lm.eos_token) + ')?')
         stop_regex = "(?P<stop>" + "|".join(stop_regex) + ")"
 
     pattern += stop_regex
@@ -115,7 +115,10 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop
 
         # trim off the stop match
         if stop_match.end() - stop_match.start():
-            delayed_text = delayed_text[:stop_match.start() - stop_match.end()]
+            pattern_obj = regex.compile(pattern, flags=regex.DOTALL)
+            m = pattern_obj.match(generated_value + delayed_text)
+            stop = m.group('stop')
+            delayed_text = delayed_text[:-len(stop)]
 
         if delayed_text != "":
             generated_value += delayed_text
