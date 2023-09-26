@@ -176,25 +176,25 @@ class Local(Model):
                     new_text = ""
 
             # if we have a full match we are done
-            if not m.partial and len(m.groupdict()["stop"]) > 0:
+            if not m.partial:# and len(m.groupdict()["stop"]) > 0:
                 new_text += delayed_text
                 generated_text += new_text
                 
-                # strip the stop group
-                stop = m.group('stop')
-                if len(stop) > 0:
-                    generated_text = generated_text[:-len(stop)]
+                # strip anything after the stop group
+                chars_after_stop = len(generated_text) - m.span('stop')[0]
+                if chars_after_stop > 0:
+                    generated_text = generated_text[:-chars_after_stop]
 
                 # if we exactly match the end of the pattern then we can commit to this last token 
                 if m.span()[1] == len(generated_text):
                     self._cache_state["new_token_ids"].append(sampled_token_ind)
                 
-                if hidden_count < len(new_text) - len(stop):
-                    yield sampled_token[hidden_count:len(new_text) - len(stop)], m.groupdict()
+                if hidden_count < len(new_text) - chars_after_stop:
+                    yield sampled_token[hidden_count:len(new_text) - chars_after_stop], m.groupdict()
                 break # we are done!
             else:
                 generated_text += new_text
-                
+
                 # yeild the snippet of text created by the next token
                 out = new_text[hidden_count:]
                 if len(out) > 0:
