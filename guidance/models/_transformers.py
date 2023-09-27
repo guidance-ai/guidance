@@ -93,7 +93,10 @@ class Transformers(Local):
         if past_length > len(cache_token_ids):
             past_length = len(cache_token_ids)-1
             self._cache_state["past_key_values"] = tuple(tuple(p[..., :past_length, :] for p in v) for v in past_key_values)
-            new_token_ids.insert(0, cache_token_ids[-1]) # TODO: note we recompute the last token because we don't bother to handle the special case of just computing logits
+
+            # note we recompute the last token because we don't bother to handle the special case of just computing logits
+            new_token_ids.insert(0, cache_token_ids[-1])
+            cache_token_ids.pop()
 
         # call the model
         if len(new_token_ids) > 0:

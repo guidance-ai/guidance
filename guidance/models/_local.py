@@ -16,6 +16,13 @@ class MatchMock():
 PARTIAL_MATCH = MatchMock()
 PARTIAL_MATCH.partial = True
 
+METACHARS = frozenset("()[]{}?*+|^$\\.-#&~")
+def const_prefix(pattern):
+    for i,c in enumerate(pattern):
+        if c in METACHARS:
+            return i
+    return len(pattern)
+
 class Local(Model):
     def __init__(self, tokens, bos_token_id, eos_token_id=None, echo=True):
         super().__init__(echo)
@@ -109,7 +116,7 @@ class Local(Model):
         if "(?P<stop>" not in pattern:
             pattern += "(?P<stop>" + regex.escape(self.eos_token) + ")"
         pattern_obj = regex.compile(pattern, flags=regex.DOTALL)
-        const_prefix_len = len(pattern_obj._pickled_data[-3])
+        const_prefix_len = const_prefix(pattern[1:])
 
         assert n == 1, "Still need to add support for n > 1!"
 
