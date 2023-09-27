@@ -106,6 +106,7 @@ class Local(Model):
                         while tnode.value is None:
                             tnode = tnode.parent
                         valid_id_set.append(tnode.value)
+                    valid_id_set = set(valid_id_set)
                 break
         if len(forced_token_ids) > 0:
             self._cache_state["new_token_ids"].extend(forced_token_ids)
