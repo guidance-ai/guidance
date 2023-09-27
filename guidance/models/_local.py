@@ -136,11 +136,15 @@ class Local(Model):
             #       really fast (integrate with the FSM directly) or make it report when a character is forced.
 
             # here we check if there is only one possible token match, in which case we can skip computing the logits
+            # TODO: [SML] this is WRONG, because just because there is only one possible token extension does not mean
+            #       we might not have more options if we were allowed to make a new token. the way to fix this would be
+            #       to integrate with the regex module so partial matches come with a return value that tells us if what
+            #       comes next must be a specific character...
+            found_node = None
             node_stack = [(generated_text + delayed_text, '', self._token_trie)]
             self._token_trie.match_version += 1
             match_version = self._token_trie.match_version
             gen_len = len(generated_text) + len(delayed_text)
-            found_node = None
             while len(node_stack) > 0:
                 curr_text, curr_char, node = node_stack.pop()
                 if node.match_version < match_version:
@@ -262,7 +266,7 @@ class Local(Model):
                     self._cache_state["new_token_ids"].append(sampled_token_ind)
                 
                 if hidden_count < len(new_text) - chars_after_stop:
-                    yield sampled_token[hidden_count:len(new_text) - chars_after_stop], m.groupdict()
+                    yield new_text[hidden_count:len(new_text) - chars_after_stop], m.groupdict()
                 break # we are done!
             else:
                 generated_text += new_text
