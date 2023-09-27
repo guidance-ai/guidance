@@ -145,7 +145,7 @@ class Local(Model):
                 curr_text, curr_char, node = node_stack.pop()
                 if node.match_version < match_version:
                     node.match_version = match_version
-                    if len(curr_text) <= const_prefix_len:
+                    if len(curr_text) < const_prefix_len:
                         if pattern[len(curr_text)+1] == curr_char:
                             node.match = PARTIAL_MATCH
                         else:
@@ -157,11 +157,11 @@ class Local(Model):
                 # if we have a match then we keep exploring
                 if node.match:
                     if node.parent:
-                        if node.parent.flag: # our parent already has another matching child, so we have multiple token possibilities
+                        if node.parent.flag == match_version: # our parent already has another matching child, so we have multiple token possibilities
                             found_node = None
                             break
                         else:
-                            node.parent.flag = True # mark the parent as having a matching child (us)
+                            node.parent.flag = match_version # mark the parent as having a matching child (us)
                             if node.value is not None:
                                 found_node = node
                     
