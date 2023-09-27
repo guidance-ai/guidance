@@ -285,14 +285,15 @@ class TrieOld(object):
             return None
 
 class Trie(object):
-    __slots__ = ('children', 'value', 'match_version', 'match', 'partial_match')
+    __slots__ = ('children', 'value', 'match_version', 'match', 'partial_match', 'parent')
 
-    def __init__(self, strings=None, values=None):
+    def __init__(self, strings=None, values=None, parent=None):
         self.children = {}
         self.value = None
         self.match_version = -1
         self.match = False
         self.partial_match = False
+        self.parent = None
 
         if strings is not None:
             for i,s in enumerate(strings):
@@ -304,7 +305,7 @@ class Trie(object):
         else:
             first_char = s[0]
             if first_char not in self.children:
-                self.children[first_char] = Trie()
+                self.children[first_char] = Trie(parent=self)
             self.children[first_char].insert(s[1:], value)
 
     def values(self, prefix):
@@ -321,7 +322,7 @@ class Trie(object):
             self.value = value
         else:
             if key[0] not in self.children:
-                self.children[key[0]] = Trie()
+                self.children[key[0]] = Trie(parent=self)
             self.children[key[0]].__setitem__(key[1:], value)
 
     def __contains__(self, key):
@@ -329,9 +330,9 @@ class Trie(object):
 
     def __getitem__(self, key):
         if len(key) == 0:
-            return self.value
+            return self
         elif key[0] in self.children:
-            self.children[key[0]].__getitem__(key[1:])
+            return self.children[key[0]].__getitem__(key[1:])
         else:
             return None
 

@@ -81,12 +81,24 @@ class Local(Model):
 
         # send the known prompt tokens to the KV cache as a batch
         forced_token_ids = []
+        valid_id_set = None
         while True:
             token, token_id = self._longest_token_match(prompt)
             if token_id is not None:
                 forced_token_ids.append(token_id)
                 prompt = prompt[len(token):]
             else:
+                if len(prompt) > 0:
+
+                    # get all possible extensions
+                    valid_id_set = self._token_trie.values(prompt)
+
+                    # if make sure we also allow for the shortest maximal extension (even if that does not consume all the remaining text)
+                    tnode = self._token_trie[prompt]
+                    if tnode.value is None:
+                        while tnode.value is None:
+                            tnode = tnode.parent
+                        valid_id_set.append(tnode.value)
                 break
         if len(forced_token_ids) > 0:
             self._cache_state["new_token_ids"].extend(forced_token_ids)
@@ -114,6 +126,10 @@ class Local(Model):
 
             # compute the order in which we prefer the tokens
             logits = self._get_logits()
+            if valid_id_set is not None:
+                for id in valid_id_set:
+                    logits[id] += 1000
+                valid_id_set = None
             if temperature == 0:
                 sampling_order = torch.argsort(logits, descending=True).cpu().numpy() # we need numpy so the enumerate below does not get really slow...
             else:
