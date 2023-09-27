@@ -285,7 +285,7 @@ class TrieOld(object):
             return None
 
 class Trie(object):
-    __slots__ = ('children', 'value', 'match_version', 'match', 'partial_match', 'parent')
+    __slots__ = ('children', 'value', 'match_version', 'match', 'partial_match', 'parent', 'flag')
 
     def __init__(self, strings=None, values=None, parent=None):
         self.children = {}
@@ -293,7 +293,8 @@ class Trie(object):
         self.match_version = -1
         self.match = False
         self.partial_match = False
-        self.parent = None
+        self.parent = parent
+        self.flag = None # a spot for user code to store state
 
         if strings is not None:
             for i,s in enumerate(strings):

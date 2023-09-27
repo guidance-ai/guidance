@@ -106,6 +106,8 @@ class Local(Model):
         # move whatever is not cached from the prompt into the pattern (since the pattern is what we will generate)
         # note we also anchor the pattern to the start of the sequence
         pattern = "^" + regex.escape(prompt, literal_spaces=True) + pattern
+        if "(?P<stop>" not in pattern:
+            pattern += "(?P<stop>" + regex.escape(self.eos_token) + ")"
         pattern_obj = regex.compile(pattern, flags=regex.DOTALL)
         const_prefix_len = len(pattern_obj._pickled_data[-3])
 
@@ -118,62 +120,108 @@ class Local(Model):
         hidden_count = len(prompt) # we don't emit the part of the prompt we have to regenerate for token healing
         generated_text = ""
         delayed_text = ""
+        sampled_token_ind = None
         for token_count in range(max_tokens):
 
             # TODO: eventually we could try and check if the regex "forces" the next token so we can skip
             #       logit computation entirely. This might only make sense if we can make the regex matching
             #       really fast (integrate with the FSM directly) or make it report when a character is forced.
 
-            # compute the order in which we prefer the tokens
-            logits = self._get_logits()
-            if valid_id_set is not None:
-                for id in valid_id_set:
-                    logits[id] += 1000
-                valid_id_set = None
-            if temperature == 0:
-                sampling_order = torch.argsort(logits, descending=True).cpu().numpy() # we need numpy so the enumerate below does not get really slow...
-            else:
-                assert top_p == 1, "Still need to add support for top_p!"
-                probs = torch.nn.functional.softmax(logits / temperature, dim=-1)
-                sampling_order = torch.multinomial(probs, len(probs)).cpu().numpy()
-
-            # find the best allowed token
-            #call_count[0] = 0
+            # here we check if there is only one possible token match, in which case we can skip computing the logits
+            node_stack = [(generated_text + delayed_text, '', self._token_trie)]
             self._token_trie.match_version += 1
+            match_version = self._token_trie.match_version
             gen_len = len(generated_text) + len(delayed_text)
-            for i,sampled_token_ind in enumerate(sampling_order):
-                sampled_token = self.tokens[sampled_token_ind]
-
-                # check to see if the sampled token is allowed (TODO: consider if this needs more optimized...python loops are slow)
-                token_pos = 1
-                node = self._token_trie.children[sampled_token[0]]
-                while True:
-                    if node.match_version < self._token_trie.match_version:
-                        node.match_version = self._token_trie.match_version
-                        if gen_len + token_pos <= const_prefix_len:
-                            if pattern[gen_len + token_pos] == sampled_token[token_pos-1]:
-                                node.match = PARTIAL_MATCH
-                            else:
-                                node.match = None
+            found_node = None
+            while len(node_stack) > 0:
+                curr_text, curr_char, node = node_stack.pop()
+                if node.match_version < match_version:
+                    node.match_version = match_version
+                    if len(curr_text) <= const_prefix_len:
+                        if pattern[len(curr_text)+1] == curr_char:
+                            node.match = PARTIAL_MATCH
                         else:
-                            #call_count[0] += 1
-                            m = pattern_obj.match(generated_text+delayed_text+sampled_token[:token_pos], partial=True)
-                            node.match = m
-                    
-                    if token_pos == len(sampled_token):
-                        m = node.match
-                        break
+                            node.match = None
                     else:
-                        if node.match:
-                            token_pos += 1
-                            node = node.children[sampled_token[token_pos-1]]
-                        else:
-                            m = None
-                            break
+                        tmp_m = pattern_obj.match(curr_text + curr_char, partial=True)
+                        node.match = tmp_m
                 
-                if m is not None:
-                    break
-            assert m is not None, f"There were no tokens found that could encode: `{pattern[gen_len + token_pos]}`, perhaps the model vocabulary does not contain this token?"
+                # if we have a match then we keep exploring
+                if node.match:
+                    if node.parent:
+                        if node.parent.flag: # our parent already has another matching child, so we have multiple token possibilities
+                            found_node = None
+                            break
+                        else:
+                            node.parent.flag = True # mark the parent as having a matching child (us)
+                            if node.value is not None:
+                                found_node = node
+                    
+                    # set up all our children to be visited
+                    curr_text += curr_char
+                    node_stack.extend((curr_text, k, v) for k,v in node.children.items())
+
+            if found_node:
+
+                # valid_id_set = found_node.values()
+                m = found_node.match
+                sampled_token_ind = found_node.value
+                sampled_token = self.tokens[sampled_token_ind]
+                valid_id_set = None # clear any set constraints
+            
+            # if there are multiple possible token matches then we compute logits and explore the token trie greedily
+            else:
+
+                # compute the order in which we prefer the tokens
+                logits = self._get_logits()
+                if valid_id_set is not None:
+                    for id in valid_id_set:
+                        logits[id] += 1000
+                    valid_id_set = None
+                if temperature == 0:
+                    sampling_order = torch.argsort(logits, descending=True).cpu().numpy() # we need numpy so the enumerate below does not get really slow...
+                else:
+                    assert top_p == 1, "Still need to add support for top_p!"
+                    probs = torch.nn.functional.softmax(logits / temperature, dim=-1)
+                    sampling_order = torch.multinomial(probs, len(probs)).cpu().numpy()
+
+                # find the best allowed token
+                #call_count[0] = 0
+                self._token_trie.match_version += 1
+                gen_len = len(generated_text) + len(delayed_text)
+                for i,sampled_token_ind in enumerate(sampling_order):
+                    sampled_token = self.tokens[sampled_token_ind]
+
+                    # check to see if the sampled token is allowed (TODO: consider if this needs more optimized...python loops are slow)
+                    token_pos = 1
+                    node = self._token_trie.children[sampled_token[0]]
+                    while True:
+                        if node.match_version < self._token_trie.match_version:
+                            node.match_version = self._token_trie.match_version
+                            if gen_len + token_pos <= const_prefix_len:
+                                if pattern[gen_len + token_pos] == sampled_token[token_pos-1]:
+                                    node.match = PARTIAL_MATCH
+                                else:
+                                    node.match = None
+                            else:
+                                #call_count[0] += 1
+                                m = pattern_obj.match(generated_text+delayed_text+sampled_token[:token_pos], partial=True)
+                                node.match = m
+                        
+                        if token_pos == len(sampled_token):
+                            m = node.match
+                            break
+                        else:
+                            if node.match:
+                                token_pos += 1
+                                node = node.children[sampled_token[token_pos-1]]
+                            else:
+                                m = None
+                                break
+                    
+                    if m is not None:
+                        break
+                assert m is not None, f"There were no tokens found that could encode: `{pattern[gen_len + token_pos]}`, perhaps the model vocabulary does not contain this token?"
             #print("call_count", call_count[0], "`" + sampled_token + "`", i)
             
             # delay emitting if we might be starting the stop pattern
