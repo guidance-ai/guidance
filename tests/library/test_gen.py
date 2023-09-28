@@ -19,3 +19,8 @@ def test_unicode():
     Step 1''' + gen('steps', list_append=True, stop=['\nStep', '\n\n', '\nAnswer'], temperature=0.7, max_tokens=20) + '\n'
     i = 2
     lm + f'Step {i}:' + gen('steps', list_append=True, stop=['\nStep', '\n\n', '\nAnswer'], temperature=0.7, max_tokens=20) + '\n'
+
+def test_pattern():
+    lm = get_model("transformers:gpt2")
+    lm += 'hey there my friend what is truth 23+43=' + gen(pattern=r'dog(?P<stop>.+)', max_tokens=30)
+    assert str(lm) == "hey there my friend what is truth 23+43=dog"
