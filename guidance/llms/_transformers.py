@@ -278,7 +278,7 @@ class TransformersSession(LLMSession):
 
             # trim the cache to what we can use
             if prefix_match_len < len(self._prefix_cache): # prefix_match_len > 0 and 
-                self._past_key_values = tuple((key[:,:,:prefix_match_len,:],value[:,:,:prefix_match_len,:]) for key,value in self._past_key_values) # TODO: this is specific to the GPT2 tensor layout
+                self._past_key_values = tuple(tuple(key_value[:,:,:prefix_match_len,:] for key_value in key_values) for key_values in self._past_key_values) # TODO: this works for GPT2 and Long Llama tensor layout.
                 self._prefix_cache = self._prefix_cache[:prefix_match_len]
 
             # add support for pattern guidance
