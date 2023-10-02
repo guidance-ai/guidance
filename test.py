@@ -12,6 +12,13 @@ guidance.llm = guidance.llms.Transformers(
 )
 
 program = guidance(
-    "1, 2, 3, 4, 5{{#selectm 'num2' sep=', '}}6{{or}}7{{or}}8{{or}}9{{/selectm}}. That's all."
+    "1, 2, 3, 4, 5, {{#select 'num2'}}6{{or}}7{{or}}8{{or}}9{{/select}}. That's all."
 )
 out = program()
+print(out)
+
+program = guidance(
+    "1, 2, 3, 4, 5, {{#selectm 'num2' sep=', '}}6{{or}}7{{or}}8{{or}}9{{/selectm}}. That's all."
+)
+out = program()
+print(out)

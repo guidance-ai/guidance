@@ -7,7 +7,6 @@ async def selectm(
     variable_name="selected",
     options=None,
     logprobs=None,
-    list_append=False,
     _parser_context=None,
     sep=None,
 ):
@@ -95,66 +94,72 @@ async def selectm(
             token_map[option] = i
 
         async def recursive_select(current_prefix, allow_token_extension=True):
-            """This returns a dictionary of scores for each option (keyed by the option index)."""
+            """Returns a dictionary of scores for each option (keyed by the option index)."""
 
-            # find which select options are possible
-            try:
-                extension_options = token_map.items(prefix=current_prefix)
-            except KeyError:
+            def get_extension_options(prefix):
+                """Get possible extension options for a given prefix."""
+                try:
+                    return token_map.items(prefix=prefix)
+                except KeyError:
+                    return []
+
+            def compute_logprob_or(logprob1, logprob2):
+                """Compute the combined probability for two log probabilities."""
+                p1 = np.exp(logprob1)
+                p2 = np.exp(logprob2)
+                combined_prob = p1 + p2 - p1 * p2
+                return np.log(combined_prob)
+
+            # Find which select options are possible
+            extension_options = get_extension_options(current_prefix)
+
+            # Return early if no options
+            if not extension_options:
                 return {}
 
-            # this is the dictionary of logprobs for each option we will return
-            # note that the logprobs are just for this branch point and below in the decision tree
-            logprobs_out = {option[0]: -1000 for option in extension_options}
-
-            # extend the prefix with the longest common prefix among the valid options
-            # we also stop early if we have one option
+            # Single option scenario
             if len(extension_options) == 1:
-                logprobs_out[
-                    extension_options[0][0]
-                ] = 0  # probability of 1.0 that we will select the only valid option
-                return logprobs_out
-            else:
-                match_index = len(current_prefix)
-                for i in range(
-                    len(current_prefix), min([len(o[0]) for o in extension_options])
-                ):
-                    if len(set([o[0][i] for o in extension_options])) > 1:
-                        break
-                    match_index += 1
-                if match_index > len(current_prefix):
-                    current_prefix += extension_options[0][0][
-                        len(current_prefix) : match_index
-                    ]
-                    # extension_options = [(option[i:], index) for option,index in extension_options]
+                return {extension_options[0][0]: 0}
 
-            # bias the logits towards valid options
-            logit_bias = {}
-            for option_tokens, index in extension_options:
-                logit_bias[option_tokens[match_index]] = 100
+            # Determine the longest common prefix among the valid options
+            match_index = len(current_prefix)
+            for i in range(
+                len(current_prefix), min([len(o[0]) for o in extension_options])
+            ):
+                if len(set([o[0][i] for o in extension_options])) > 1:
+                    break
+                match_index += 1
 
-            # check for where we are at the end of the prefix
-            if len(logit_bias) == 0 and current_prefix in [
-                o[0] for o in extension_options
-            ]:
+            # Update current prefix with the common match
+            if match_index > len(current_prefix):
+                current_prefix += extension_options[0][0][
+                    len(current_prefix) : match_index
+                ]
+
+            # Bias the logits towards valid options
+            logit_bias = {
+                option_tokens[match_index]: 100
+                for option_tokens, index in extension_options
+            }
+
+            # Check for where we are at the end of the prefix
+            logprobs_out = {option[0]: -1000 for option in extension_options}
+            if not logit_bias and current_prefix in [o[0] for o in extension_options]:
                 logprobs_out[current_prefix] = 0
                 return logprobs_out
 
-            # generate the token logprobs
+            # Generate the token logprobs
             gen_obj = await parser.llm_session(
-                parser.program.llm.decode(
-                    current_prefix
-                ),  # TODO: perhaps we should allow passing of token ids directly? (this could allow us to avoid retokenizing the whole prefix many times)
+                parser.program.llm.decode(current_prefix),
                 max_tokens=1,
                 logit_bias=logit_bias,
                 logprobs=len(logit_bias),
                 cache_seed=0,
-                token_healing=False,  # we manage token boundary healing ourselves for this function
+                token_healing=False,
             )
-            gen_obj = gen_obj["choices"][
-                0
-            ]  # get the first choice (we only asked for one)
-            if "logprobs" in gen_obj:
+
+            # Process LLM output
+            if "logprobs" in gen_obj["choices"][0]:
                 logprobs_result = gen_obj["logprobs"]
 
                 # convert the logprobs keys from string back to token ids
@@ -162,8 +167,6 @@ async def selectm(
                 for k, v in logprobs_result["top_logprobs"][0].items():
                     id = parser.program.llm.token_to_id(k)
                     top_logprobs[id] = v
-
-            # this happens if LLM does not return logprobs (like an OpenAI chat model)
             else:
                 assert (
                     logprobs is None
@@ -175,17 +178,15 @@ async def selectm(
                 max_key = max(top_logprobs, key=top_logprobs.get)
                 top_logprobs = {max_key: top_logprobs[max_key]}
 
-            # for each possible next token, see if it grows the prefix in a valid way
+            # Recursively call for possible extensions
             for token, logprob in top_logprobs.items():
                 sub_logprobs = await recursive_select(current_prefix + [token])
 
-                # we add the logprob of this token to the logprob of the suffix
-                for k in sub_logprobs:
-                    # compute the probability of a logical OR between the new extension and the previous possible ones
-                    p1 = np.exp(logprobs_out[k])
-                    p2 = np.exp(sub_logprobs[k] + logprob)
-                    or_prob = p1 + p2 - p1 * p2
-                    logprobs_out[k] = np.log(or_prob)
+                # Update log probabilities
+                for k, v in sub_logprobs.items():
+                    logprobs_out[k] = compute_logprob_or(
+                        logprobs_out.get(k, -1000), v + logprob
+                    )
 
             return logprobs_out
 
@@ -205,19 +206,10 @@ async def selectm(
         # select the option with the highest logprob
         selected_option = max(option_logprobs, key=option_logprobs.get)
 
-        # see if we are appending to a list or not
-        if list_append:
-            value_list = variable_stack.get(variable_name, [])
-            value_list.append(selected_option)
-            variable_stack[variable_name] = value_list
-            if logprobs is not None:
-                logprobs_list = variable_stack.get(logprobs, [])
-                logprobs_list.append(option_logprobs)
-                variable_stack[logprobs] = logprobs_list
-        else:
-            variable_stack[variable_name] = selected_option
-            if logprobs is not None:
-                variable_stack[logprobs] = option_logprobs
+        value_list = variable_stack.get(variable_name, [])
+        value_list.append(selected_option)
+        if logprobs is not None:
+            variable_stack[logprobs] = option_logprobs
 
         if max(option_logprobs.values()) <= -1000:
             raise ValueError(
