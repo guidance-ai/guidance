@@ -8,6 +8,7 @@ from ._unless import unless
 from ._add import add
 from ._multiply import multiply
 from ._select import select
+from ._selectm import selectm
 from ._each import each
 from ._geneach import geneach
 from ._strip import strip
