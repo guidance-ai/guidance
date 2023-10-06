@@ -252,12 +252,12 @@ def gen_substring(lm, string, name=None, **kwargs):
         tokens = [string[a[0]:a[1]] for a in tokenized['offset_mapping']]
         tokens = [x for x in tokens if x]
         stripped = tokens + [x.strip() for x in tokens if x.strip() != x]
-        stripped = [x for x in stripped if x]
+        stripped = [re.escape(x) for x in stripped if x]
     except:
         tokens = [lm.endpoint.tokenizer.decode(x) for x in lm.endpoint.tokenizer.encode(string)]
         tokens = [x for x in tokens if x]
         stripped = tokens + [x.strip() for x in tokens if x.strip() != x]
-        stripped = [x for x in stripped if x]
+        stripped = [re.escape(x) for x in stripped if x]
     pattern = f'({"|".join(stripped)})?'
     if name is None:
         name = 'temp_string'
