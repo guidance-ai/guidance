@@ -640,6 +640,9 @@ class TransformersStreamer():
 
         self.input_ids = input_ids
         self.stop_regex = stop_regex
+        # self.stop_regex_obj = [regex.compile(s) for s in self.stop_regex]
+        # I think this is equivalent to what you had above, and it's a single regex (cleaner, no need to loop below)
+        self.compiled_regex = regex.compile('(' + '|'.join(self.stop_regex) + ')')
         self.healed_token_ids = healed_token_ids
         self.logprobs = logprobs
         self.llm = llm
@@ -717,24 +720,21 @@ class TransformersStreamer():
                     found_partial = False
                     stop_text = None
                     if self.stop_regex is not None:# and (finish_reason is None or len(self.input_ids) > 1):
-                        stop_regex_obj = [regex.compile(s) for s in self.stop_regex]
-                        for s in stop_regex_obj:
-                            m = s.search(val, partial=True)
-                            if m:
-                                span = m.span()
-                                if span[1] > span[0]:
-                                    if m.partial: # we might be starting a stop sequence, so we can't emit anything yet
-                                        found_partial = True
-                                        break
-                                    else:
-                                        stop_text = val[span[0]:span[1]]
-                                        stop_pos = min(span[0], stop_pos)
-                                        break
-
+                        m = self.compiled_regex.search(val, partial=True)
+                        if m:
+                            span = m.span()
+                            if span[1] > span[0]:
+                                if m.partial: # we might be starting a stop sequence, so we can't emit anything yet
+                                    found_partial = True
+                                else:
+                                    stop_text = val[span[0]:span[1]]
+                                    stop_pos = min(span[0], stop_pos)
                     # record the reason we stopped (if we have stopped)
                     if stop_pos <= len(val):
                         finish_reason = "stop"
                     
+                    if finish_reason == 'length' and found_partial: 
+                        stop_pos = min(span[0], stop_pos)
                     # emit the data if we are not potentially in the middle of a stop sequence
                     if not found_partial or finish_reason is not None:
                         out["choices"][i] = {
