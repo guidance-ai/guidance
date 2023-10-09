@@ -5,9 +5,19 @@ import uuid
 import guidance
 import ast
 
+# from guidance import select, any_char, zero_or_more, commit_point, hide
+from ._select import select
+from ._zero_or_more import zero_or_more
+from ._hide import hide
+from ._commit_point import commit_point
+from ._any_char import any_char
+
 @guidance
 def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop=None, stop_regex=None, suffix="", n=1, temperature=0.0, top_p=1.0,
         logprobs=None, stream_tokens=None, save_stop_text=False, **llm_kwargs):
+    
+    assert pattern is None, "Need to support regex -> grammar compilation in order to support the `pattern` arg!"
+    assert stop_regex is None, "Need to support regex -> grammar compilation in order to support the `stop_regex` arg!"
 
     # set stream if we are interactive
     if stream_tokens is None and not lm.is_silent() and n == 1:
@@ -27,12 +37,13 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop
     # standardize stop and stop_regex into a list of regex patterns
     if isinstance(stop, str):
         stop = [stop]
-    if isinstance(stop_regex, str):
-        stop_regex = [stop_regex]
-    if stop is not None:
-        if stop_regex is None:
-            stop_regex = []
-        stop_regex.extend([regex.escape(s) for s in stop])
+    # TODO: This can be uncommented once we support regex -> grammar compilation
+    # if isinstance(stop_regex, str):
+    #     stop_regex = [stop_regex]
+    # if stop is not None:
+    #     if stop_regex is None:
+    #         stop_regex = []
+    #     stop_regex.extend([regex.escape(s) for s in stop])
 
     lm += "<||_html:<span style='background-color: rgba(0, 165, 0, 0.25)'>_||>"
 
@@ -40,26 +51,29 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop
     if name is not None and not list_append:
         lm[name] = ""
 
-    if pattern is None:
-        pattern = ".*"
+    # TODO: This can be uncommented once we support regex -> grammar compilation
+    # if pattern is None:
+    #     pattern = ".*"
     
     # compile stop_regex into a capture group
-    if "(?P<stop>" in pattern:
-        assert stop_regex == None, "You can't specify both a stop string/regex and a custom stop pattern (?P<stop>...)!"
-        stop_regex = ""
-    else:
-        if stop_regex is None:
-            stop_regex = []
-        stop_regex.append(regex.escape(lm.eos_token))
-        stop_regex = "(?P<stop>" + "|".join(stop_regex) + ")"
+    # if "(?P<stop>" in pattern:
+    #     assert stop_regex == None, "You can't specify both a stop string/regex and a custom stop pattern (?P<stop>...)!"
+    #     stop_regex = ""
+    # else:
+    #     if stop_regex is None:
+    #         stop_regex = []
+    #     stop_regex.append(regex.escape(lm.eos_token))
+    #     stop_regex = "(?P<stop>" + "|".join(stop_regex) + ")"
 
-    pattern += stop_regex
+    # pattern += stop_regex
     # extracted_stop_pattern = regex.compile(pattern[pattern.index("(?P<stop>")+9:-1] + "$", flags=regex.DOTALL)
     # extracted_stop_pattern = regex.compile(pattern[:pattern.index("(?P<stop>")] + "$", flags=regex.DOTALL)
 
+    grammar = zero_or_more(any_char()) + hide(commit_point(select(stop)))
+
     # start the generation stream
     gen_obj = lm(
-        pattern=pattern, max_tokens=max_tokens, n=n,
+        grammar=grammar, max_tokens=max_tokens, n=n,
         temperature=temperature, top_p=top_p, **llm_kwargs
     )
 
@@ -76,8 +90,8 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop
                 lm[name+"_logprobs"].append([])
                 assert len(len(lm[name])) == len(len(lm[name+"_logprobs"]))
         # delayed_text = ""
-        for new_text,match_groups in gen_obj:
-            
+        for new_bytes,match_groups in gen_obj:
+            new_text = new_bytes.decode("utf8")
             # delay emitting if we might be starting the stop pattern
             # stop_match = extracted_stop_pattern.search(generated_value + delayed_text + new_text, partial=True)
             # if stop_match and stop_match.end() - stop_match.start() > 0: # TODO: emit delayed text before the match start()

@@ -6,8 +6,8 @@ import types
 import sys
 import os
 import requests
-from . import template_commands as commands
-from ._program import Program
+# from . import template_commands as commands
+# from ._program import Program
 from . import endpoints
 llms = endpoints # backwards compatibility
 from . import models
@@ -17,6 +17,9 @@ import uuid
 from ._utils import load, chain, Silent, Hidden, CaptureEvents, TextRange, strip_multiline_string_indents
 from . import _utils
 from . import selectors
+
+
+from._grammar import Byte, ByteRange, Select, Join, string
 import asyncio
 import threading
 import functools
@@ -154,4 +157,5 @@ def load(guidance_file):
     
     return sys.modules[__name__](template)
 
-from . import library
+# from . import library
+from .library import *#select, hide, gen
