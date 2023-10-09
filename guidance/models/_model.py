@@ -5,6 +5,7 @@ import re
 import copy
 import json
 import textwrap
+from .._grammar import Grammar
 
 class Endpoint:
     '''This keeps state that is shared among all models using the same endpoint session.'''
@@ -114,21 +115,25 @@ class Model:
     #     return self.append(value)
     
     def __add__(self, value):
-        value = str(value)
-        is_id = False
-        lm = self.copy()
-        parts = re.split(self._tag_pattern, value)
-        lm.suffix = ""
-        for i,part in enumerate(parts):
-            # print(is_id, part)
-            if i < len(parts) - 1:
-                lm.suffix = parts[i+1]
-            if is_id:
-                lm = self._call_pool[part](lm)
-            elif part != "":
-                lm = lm._inplace_append(part)
-            is_id = not is_id
-        return lm
+        if isinstance(value, Grammar):
+            return _run_grammar(self, value)
+        else:
+
+            value = str(value)
+            is_id = False
+            lm = self.copy()
+            parts = re.split(self._tag_pattern, value)
+            lm.suffix = ""
+            for i,part in enumerate(parts):
+                # print(is_id, part)
+                if i < len(parts) - 1:
+                    lm.suffix = parts[i+1]
+                if is_id:
+                    lm = self._call_pool[part](lm)
+                elif part != "":
+                    lm = lm._inplace_append(part)
+                is_id = not is_id
+            return lm
     
     def endswith(self, s):
         return self._state.endswith(s)
@@ -215,6 +220,40 @@ type {function['name']} = (_: {{"""
         
         return self
 
+def _run_grammar(lm, grammar, name=None, max_tokens=1000, temperature=0.0, top_p=1.0, n=1):
+
+    lm += "<||_html:<span style='background-color: rgba(0, 165, 0, 0.25)'>_||>"
+
+    # This needs to be here for streaming
+    if name is not None:
+        lm[name] = ""
+
+    # start the generation stream
+    gen_obj = lm(
+        grammar=grammar, max_tokens=max_tokens, n=n,
+        temperature=temperature, top_p=top_p
+    )
+
+    # single generation
+    if n == 1:
+        generated_value = ""
+        logprobs_out = []
+
+        # delayed_text = ""
+        for new_bytes,match_groups in gen_obj:
+            new_text = new_bytes.decode("utf8")
+            generated_value += new_text
+            lm += new_text
+
+            if name is not None:
+                lm[name] = generated_value
+
+        if name is not None:
+            lm[name] = generated_value
+
+    lm += "<||_html:</span>_||>"
+    
+    return lm
 
 class Chat(Model):
     
