@@ -42,7 +42,7 @@ class Transformers(Local):
         # note that we prefix the tokens with a letter so some sentence peice tokenizers don't strip leading spaces.
         tkz = self._orig_tokenizer
         super().__init__(
-            [tkz.convert_tokens_to_string(['a', tkz.convert_ids_to_tokens(i)])[1:] for i in range(tkz.vocab_size)],
+            [bytes(tkz.convert_tokens_to_string(['a', tkz.convert_ids_to_tokens(i)])[1:], encoding="utf8") for i in range(tkz.vocab_size)],
             tkz.bos_token_id,
             tkz.eos_token_id,
             echo=echo
