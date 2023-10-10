@@ -36,7 +36,7 @@ class EarleyCommitParser:
         if new_pos == self.state_set_pos:
             return
         self.state_sets = self.state_sets[:new_pos+1] + [OrderedSet()]
-        self.bytes = self.bytes[:new_pos+1]
+        self.bytes = self.bytes[:new_pos]
         self.state_set_pos = new_pos
         self._inner_loop(self.state_set_pos)
 

@@ -17,13 +17,11 @@ class Grammar():
     used_names = set()
 
     def __add__(self, value):
-        stack = inspect.stack()
         if isinstance(value, str) or isinstance(value, bytes):
             value = string(value)
         return Join([self, value], name=_find_name() + "_" + Grammar._new_name())
     
     def __radd__(self, value):
-        stack = inspect.stack()
         if isinstance(value, str) or isinstance(value, bytes):
             value = string(value)
         return Join([value, self], name=_find_name() + "_" + Grammar._new_name())
@@ -76,6 +74,11 @@ class Grammar():
 class Terminal(Grammar):
     def match_byte(self, byte):
         pass # abstract
+
+class Function(Grammar):
+    def __init__(self, name, value=None) -> None:
+        self.name = name
+        self.value = value
 
 class Byte(Terminal):
     def __init__(self, byte):
