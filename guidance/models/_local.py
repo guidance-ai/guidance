@@ -82,7 +82,12 @@ class Local(Model):
         hidden_count = len(prompt) # we don't emit the prompt
         generated_pos = 0 
         sampled_token_ind = None
-        for token_count in range(max_tokens):
+        token_count = 0
+        while True:
+
+            # enforce the token limit
+            if token_count >= max_tokens:
+                break
 
             # note where we are starting
             start_pos = parser.pos
@@ -200,6 +205,7 @@ class Local(Model):
                 if len(out) > 0:
                     yield out, {} # TODO also return captured ranges once the parser supports that
                     hidden_count = 0
+                    token_count += 1 # note we only update this for tokens that emit non-hidden content
                 else:
                     hidden_count -= len(new_bytes)
 

@@ -34,6 +34,10 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop
         elif lm.suffix.startswith("'") and lm.endswith("'"):
             stop = "'"
 
+    # fall back to stopping at the EOS token
+    if stop is None:
+        stop = lm.eos_token.decode("utf8")
+
     # standardize stop and stop_regex into a list of regex patterns
     if isinstance(stop, str):
         stop = [stop]
