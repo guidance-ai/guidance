@@ -123,7 +123,7 @@ class OpenAI(LLM):
                  api_key=OPENAI_API_KEY, api_type="open_ai", api_base=None, api_version=None, deployment_id=None,
                  temperature=0.0, chat_mode="auto", organization=None, rest_call=False,
                  allowed_special_tokens={"<|endoftext|>", "<|endofprompt|>"},
-                 token=None, endpoint=None):
+                 token=None, endpoint=None, encoding_name=None):
         super().__init__()
 
         # map old param values
@@ -177,7 +177,9 @@ class OpenAI(LLM):
             api_base = os.environ.get("OPENAI_API_BASE", None) or os.environ.get("OPENAI_ENDPOINT", None) # ENDPOINT is deprecated
 
         import tiktoken
-        self._tokenizer = tiktoken.get_encoding(tiktoken.encoding_for_model(model).name)
+        if encoding_name is None:
+            encoding_name = tiktoken.encoding_for_model(model).name
+        self._tokenizer = tiktoken.get_encoding(encoding_name)
         self.chat_mode = chat_mode
 
         self.allowed_special_tokens = allowed_special_tokens
@@ -666,7 +668,7 @@ class OpenAISession(LLMSession):
                         call_args["logit_bias"] = {str(k): v for k,v in logit_bias.items()} # convert keys to strings since that's the open ai api's format
                     out = await self.llm.caller(**call_args)
 
-                except openai.error.RateLimitError:
+                except (openai.error.RateLimitError, openai.error.ServiceUnavailableError, openai.error.APIError, openai.error.Timeout):
                     await asyncio.sleep(3)
                     try_again = True
                     fail_count += 1
@@ -675,7 +677,7 @@ class OpenAISession(LLMSession):
                     break
 
                 if fail_count > self.llm.max_retries:
-                    raise Exception(f"Too many (more than {self.llm.max_retries}) OpenAI API RateLimitError's in a row!")
+                    raise Exception(f"Too many (more than {self.llm.max_retries}) OpenAI API errors in a row!")
 
             if stream:
                 return self.llm.stream_then_save(out, key, stop_regex, n)
@@ -709,15 +711,14 @@ class MSALOpenAI(OpenAI):
     llm_name: str = "azure_openai"
 
     def __init__(self, model=None, client_id=None, authority=None, caching=True, max_retries=5, max_calls_per_min=60, token=None,
-                 endpoint=None, scopes=None, temperature=0.0, chat_mode="auto"):
-
+                 endpoint=None, scopes=None, temperature=0.0, chat_mode="auto", rest_call=False):
 
         assert endpoint is not None, "An endpoint must be specified!"
 
         # build a standard OpenAI LLM object
         super().__init__(
             model=model, caching=caching, max_retries=max_retries, max_calls_per_min=max_calls_per_min,
-            token=token, endpoint=endpoint, temperature=temperature, chat_mode=chat_mode
+            token=token, endpoint=endpoint, temperature=temperature, chat_mode=chat_mode, rest_call=rest_call
         )
 
         self.client_id = client_id
@@ -731,13 +732,14 @@ class MSALOpenAI(OpenAI):
         if os.path.exists(self._token_cache_path):
             self._token_cache.deserialize(open(self._token_cache_path, 'r').read())
 
-        self._rest_headers["X-ModelType"] = self.model_name
+        if( rest_call ):
+            self._rest_headers["X-ModelType"] = self.model_name
 
     @property
-    def token(self):
+    def api_key(self):
         return self._get_token()
-    @token.setter
-    def token(self, value):
+    @api_key.setter
+    def api_key(self, value):
         pass # ignored for now
 
     def _get_token(self):
