@@ -454,6 +454,61 @@ for x in democrat['conversation'][:-1]:
 ## GPT4 + Bing
 Last example [here](notebooks/chat.ipynb).
 
+## Use Anthropic,Huggingface,Palm,Ollama, etc.[Full List](https://docs.litellm.ai/docs/providers)
+
+### Create OpenAI-proxy
+We'll use [LiteLLM](https://docs.litellm.ai/docs/) to create an OpenAI-compatible endpoint, that translates OpenAI calls to any of the [supported providers](https://docs.litellm.ai/docs/providers).
+
+
+Example to use a local CodeLLama model from Ollama.ai with Marvin: 
+
+Let's spin up a proxy server to route any OpenAI call from Marvin to Ollama/CodeLlama
+
+```python
+pip install litellm
+```
+```python
+$ litellm --model ollama/codellama
+
+#INFO: Ollama running on http://0.0.0.0:8000
+```
+
+[Docs](https://docs.litellm.ai/docs/proxy_server)
+
+### Update Guidance
+
+```python
+# connect to a chat model like GPT-4 or Vicuna
+my_llm = guidance.llms.OpenAI("gpt-4", api_base="http://0.0.0.0:8000")
+
+experts = guidance('''
+{{#system~}}
+You are a helpful and terse assistant.
+{{~/system}}
+
+{{#user~}}
+I want a response to the following question:
+{{query}}
+Name 3 world-class experts (past or present) who would be great at answering this?
+Don't answer the question yet.
+{{~/user}}
+
+{{#assistant~}}
+{{gen 'expert_names' temperature=0 max_tokens=300}}
+{{~/assistant}}
+
+{{#user~}}
+Great, now please answer the question as if these experts had collaborated in writing a joint anonymous answer.
+{{~/user}}
+
+{{#assistant~}}
+{{gen 'answer' temperature=0 max_tokens=500}}
+{{~/assistant}}
+''', llm=my_llm)
+
+experts(query='How can I be more productive?')
+```
+
 # API reference
 All of the examples below are in [this notebook](notebooks/tutorial.ipynb).
 ## Template syntax
