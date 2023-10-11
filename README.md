@@ -460,7 +460,7 @@ Last example [here](notebooks/chat.ipynb).
 We'll use [LiteLLM](https://docs.litellm.ai/docs/) to create an OpenAI-compatible endpoint, that translates OpenAI calls to any of the [supported providers](https://docs.litellm.ai/docs/providers).
 
 
-Example to use a local CodeLLama model from Ollama.ai with Marvin: 
+Example to use a local CodeLLama model from Ollama.ai with Guidance: 
 
 Let's spin up a proxy server to route any OpenAI call from Marvin to Ollama/CodeLlama
 
