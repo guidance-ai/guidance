@@ -111,6 +111,33 @@ def test_save_stop_text(llm):
     out = guidance("""Repeat this ten times: "s38 kdjksid sk slk", "s38 kdjksid sk slk", "s38 kdjksid sk slk", "s38 kdjksid sk slk", "{{gen 'text' stop_regex="kdj.*slk" max_tokens=10 save_stop_text=True}}""", llm=llm)()
     assert out["text_stop_text"] == "kdjksid sk slk"
 
+@pytest.mark.parametrize("llm", ["openai:gpt-35-turbo"])
+def test_save_finish_reason(llm):
+    program = guidance("""
+{{#user~}}
+Repeat this 3 times: "abc"
+{{~/user}}
+
+{{#assistant~}}
+{{gen 'name' temperature=0 max_tokens=1 save_finish_reason=True}}.
+{{~/assistant}}
+""", llm=get_llm(llm, api_type="azure", api_version="2023-05-15", chat_mode="True"))
+
+    prompt = program()
+    assert prompt['name_finish_reason'] == "length"
+
+    program = guidance("""
+{{#user~}}
+Repeat this 3 times: "def"
+{{~/user}}
+
+{{#assistant~}}
+{{gen 'name' temperature=0 max_tokens=100 save_finish_reason=True}}.
+{{~/assistant}}
+""", llm=get_llm(llm, api_type="azure", api_version="2023-05-15", chat_mode="True"))
+    prompt = program()
+    assert prompt['name_finish_reason'] == "stop"
+
 @pytest.mark.parametrize("llm", ["transformers:gpt2", "openai:text-curie-001"])
 def test_stop_regex_cut_short(llm):
     """Test that the stop_regex argument works as expected even when max_tokens cuts it short."""

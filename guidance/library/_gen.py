@@ -7,7 +7,7 @@ from .._utils import escape_template_block, AsyncIter
 
 log = logging.getLogger(__name__)
 
-async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_tokens=500, n=1, stream=None,
+async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, save_finish_reason=False, max_tokens=500, n=1, stream=None,
               temperature=0.0, top_p=1.0, logprobs=None, pattern=None, hidden=False, list_append=False,
               save_prompt=False, token_healing=None, function_call="none", _parser_context=None, **llm_kwargs):
     ''' Use the LLM to generate a completion.
@@ -26,6 +26,10 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
         If set to a string, the exact stop text used will be saved in a variable with the given name. If set to
         True, the stop text will be saved in a variable named `name+"_stop_text"`. If set to False,
         the stop text will not be saved.
+    save_finish_reason : str or bool
+        If set to a string, the exact finish_reason text used will be saved in a variable with the given name. If set to
+        True, the finish_reason text will be saved in a variable named `name+"_finish_reason"`. If set to False,
+        the finish_reason text will not be saved.
     max_tokens : int
         The maximum number of tokens to generate in this completion.
     n : int
@@ -185,6 +189,12 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
             if save_stop_text is True:
                 save_stop_text = name+"_stop_text"
             variable_stack[save_stop_text] = resp["choices"][0].get('stop_text', None)
+
+        # save the finish_reason if requested
+        if save_finish_reason is not False:
+            if save_finish_reason is True:
+                save_finish_reason = name+"_finish_reason"
+            variable_stack[save_finish_reason] = resp["choices"][0].get('finish_reason', None)
         
         if hasattr(gen_obj, 'close'):
             gen_obj.close()
