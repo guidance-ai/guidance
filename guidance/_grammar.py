@@ -4,6 +4,9 @@ import json
 import inspect
 import functools
 
+tag_start = "{{G|"
+tag_end = "|G}}"
+_call_pool = {}
 class StatefulException(Exception):
     '''This is raised when we try and use the state of a grammar object like it was a live model.
     
@@ -20,7 +23,23 @@ def _find_name():
             return name
     return None
 
-class StatefulFunction:
+class Function():
+    def __init__(self, name, value=None) -> None:
+        self.name = name
+        self.value = value
+
+    def __str__(self):
+        '''Creates a string tag that can be used to retrieve this object.'''
+    
+        # save the call in our call pool, ready to be run when it is attached to an LM object
+        str_id = str(id(self))
+        if str_id not in _call_pool:
+            _call_pool[str_id] = self
+
+        # return a string representation of this call so it can be combined with other strings/calls
+        return tag_start + str_id + tag_end
+
+class StatefulFunction(Function):
     def __init__(self, f, args, kwargs):
         self.f = f
         self.args = args
@@ -34,18 +53,24 @@ class StatefulFunction:
             other = _string(other)
         def __add__(model):
             model = self(model)
-            return other(model)
-        return __add__
+            if isinstance(other, StatelessFunction):
+                return model + other
+            else:
+                return other(model)
+        return StatefulFunction(__add__, [], {})
     
     def __radd__(self, other):
         if isinstance(other, str):
             other = _string(other)
         def __radd__(model):
-            model = other(model)
+            if isinstance(other, StatelessFunction):
+                model += other
+            else:
+                model = other(model)
             return self(model)
-        return __radd__
+        return StatefulFunction(__radd__, [], {})
 
-class StatelessFunction():
+class StatelessFunction(Function):
     used_names = set()
 
     def __add__(self, value):
@@ -57,9 +82,6 @@ class StatelessFunction():
         if isinstance(value, str) or isinstance(value, bytes):
             value = _string(value)
         return Join([value, self], name=_find_name() + "_" + StatelessFunction._new_name())
-    
-    def __str__(self):
-        return self.name + '_' + str(hex(id(self)))
     
     def __getitem__(self, value):
         raise StatefulException("StatelessFunctions can't access state!")
@@ -109,11 +131,6 @@ class StatelessFunction():
 class Terminal(StatelessFunction):
     def match_byte(self, byte):
         pass # abstract
-
-# class Function(StatelessFunction):
-#     def __init__(self, name, value=None) -> None:
-#         self.name = name
-#         self.value = value
 
 class Byte(Terminal):
     def __init__(self, byte):

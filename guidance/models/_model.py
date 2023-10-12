@@ -5,17 +5,15 @@ import re
 import copy
 import json
 import textwrap
-from .._grammar import StatelessFunction, StatefulFunction
+from .._grammar import StatelessFunction, StatefulFunction, tag_start, tag_end, _string, _call_pool
 
 class Endpoint:
     '''This keeps state that is shared among all models using the same endpoint session.'''
     pass
 
-class Model:
+_null_grammar = _string('')
 
-    tag_start = "{{G|"
-    tag_end = "|G}}"
-    _call_pool = {}
+class Model:
 
     def __init__(self, echo=True):
 
@@ -33,7 +31,7 @@ class Model:
         self.instance__exit__ = []
         self._streaming = False
 
-        self._tag_pattern = re.compile(re.escape(self.tag_start) + r"([^\|]+)" + re.escape(self.tag_end))
+        self._tag_pattern = re.compile(re.escape(tag_start) + r"([^\|]+)" + re.escape(tag_end))
 
     def __call__(self, pattern=None, max_tokens=100, n=1, top_p=1, temperature=0.0, ensure_bos_token=True):
         pass # meant to be overriden by subclasses
@@ -118,19 +116,37 @@ class Model:
         
         # wrap raw string values
         if isinstance(value, str):
+            is_id = False
             lm = self.copy()
-            return lm._inplace_append(value)
+            parts = re.split(self._tag_pattern, value)
+            
+            # we have no embedded objects
+            if len(parts) == 1:
+                return lm._inplace_append(value)
+            
+            # if we have embedded objects we have to convert the string to a grammar tree
+            partial_grammar = _null_grammar
+            lm.suffix = ""
+            for i,part in enumerate(parts):
+                if i < len(parts) - 1:
+                    lm.suffix = parts[i+1]
+                if is_id:
+                    partial_grammar += _call_pool[part]
+                elif part != "":
+                    partial_grammar += _string(part)
+                is_id = not is_id
+            return lm + partial_grammar
         
         # run stateless functions (grammar nodes)
         elif isinstance(value, StatelessFunction):
             return _run_stateless(self.copy(), value)
         
         # run stateful functions
-        elif isinstance(value, StatefulFunction):
+        else:
             return value(self)
         
-        else:
-            raise NotImplementedError(f"The type {type(value)} is not currently supported for adding to models!")
+        # else:
+        #     raise NotImplementedError(f"The type {type(value)} is not currently supported for adding to models!")
 
             # value = str(value)
             # is_id = False

@@ -49,8 +49,9 @@ def optional_hidden(f, lm, hidden, kwargs):
     else:
         return Hidden(lm, hidden)
     
-_function_cache = {}
+_function_cache = {} # used to enable recursive grammar definitions
 _null_grammar = _string('')
+# _call_pool = {} # used to enable f-string composition
 
 def _decorator(f=None, *, stateless=False, dedent="python"):
     
