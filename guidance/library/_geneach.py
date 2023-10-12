@@ -203,7 +203,10 @@ async def geneach(list_name, stop=None, max_iterations=100, min_iterations=0, nu
                     next_item = d
 
                 # update the list variable (we do this each time we get a new item so that streaming works)
-                variable_stack[list_name] = variable_stack.get(list_name, []) + [next_item]
+                if isinstance(variable_stack.get(list_name, []), list):
+                    variable_stack[list_name] = variable_stack.get(list_name, []) + [next_item]
+                else:
+                    variable_stack[list_name] = [variable_stack.get(list_name, [])] + [next_item]
 
                 # recreate the output string with format markers added
                 item_out = re.sub(
