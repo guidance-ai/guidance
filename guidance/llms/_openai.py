@@ -2,6 +2,7 @@ import openai
 import os
 import time
 import requests
+import aiohttp
 import copy
 import time
 import asyncio
@@ -10,66 +11,127 @@ import collections
 import json
 import re
 import regex
+
 from ._llm import LLM, LLMSession, SyncSession
 
 
 class MalformedPromptException(Exception):
     pass
+
+import pyparsing as pp
+
+role_start_tag = pp.Suppress(pp.Optional(pp.White()) + pp.Literal("<|im_start|>"))
+role_start_name = pp.Word(pp.alphanums + "_")("role_name")
+role_kwargs = pp.Suppress(pp.Optional(" ")) + pp.Dict(pp.Group(pp.Word(pp.alphanums + "_") + pp.Suppress("=") + pp.QuotedString('"')))("kwargs")
+role_start = (role_start_tag + role_start_name + pp.Optional(role_kwargs) + pp.Suppress("\n")).leave_whitespace()
+role_end = pp.Suppress(pp.Literal("<|im_end|>"))
+role_content = pp.Combine(pp.ZeroOrMore(pp.CharsNotIn("<") | pp.Literal("<") + ~pp.FollowedBy("|im_end|>")))("role_content")
+role_group = pp.Group(role_start + role_content + role_end)("role_group").leave_whitespace()
+partial_role_group = pp.Group(role_start + role_content)("role_group").leave_whitespace()
+roles_grammar = pp.ZeroOrMore(role_group) + pp.Optional(partial_role_group) + pp.StringEnd()
+
+# import pyparsing as pp
+
+# role_start_tag = pp.Literal("<|im_start|>")
+# role_start_name = pp.Word(pp.alphanums + "_")
+# role_kwargs = pp.Dict(pp.Group(pp.Word(pp.alphanums + "_") + pp.Suppress("=") + pp.QuotedString('"')))
+# role_start = role_start_tag + role_start_name + pp.Optional(role_kwargs) + pp.Suppress("\n")
+# role_end = pp.Literal("<|im_end|>")
+# role_content = pp.CharsNotIn("<|im_start|><|im_end|>")
+
+# r'<\|im_start\|>([^\n]+)\n(.*?)(?=<\|im_end\|>|$)'
+
 def prompt_to_messages(prompt):
     messages = []
 
     assert prompt.endswith("<|im_start|>assistant\n"), "When calling OpenAI chat models you must generate only directly inside the assistant role! The OpenAI API does not currently support partial assistant prompting."
 
-    pattern = r'<\|im_start\|>(\w+)(.*?)(?=<\|im_end\|>|$)'
-    matches = re.findall(pattern, prompt, re.DOTALL)
+    parsed_prompt = roles_grammar.parse_string(prompt)
 
-    if not matches:
-        return [{'role': 'user', 'content': prompt.strip()}]
+    # pattern = r'<\|im_start\|>([^\n]+)\n(.*?)(?=<\|im_end\|>|$)'
+    # matches = re.findall(pattern, prompt, re.DOTALL)
 
-    for match in matches:
-        role, content = match
-        content = content.strip() # should we do this?
-        messages.append({'role': role, 'content': content})
+    # if not matches:
+    #     return [{'role': 'user', 'content': prompt}]
+
+    for role in parsed_prompt:
+        if len(role["role_content"]) > 0: # only add non-empty messages (OpenAI does not support empty messages anyway)
+            message = {'role': role["role_name"], 'content': role["role_content"]}
+            if "kwargs" in role:
+                for k, v in role["kwargs"].items():
+                    message[k] = v
+            messages.append(message)
 
     return messages
 
-def add_text_to_chat_mode_generator(chat_mode):
-    for resp in chat_mode:
+async def add_text_to_chat_mode_generator(chat_mode):
+    in_function_call = False
+    async for resp in chat_mode:
         if "choices" in resp:
             for c in resp['choices']:
-                if "content" in c['delta']:
+                
+                # move content from delta to text so we have a consistent interface with non-chat mode
+                found_content = False
+                if "content" in c['delta'] and c['delta']['content'] != "":
+                    found_content = True
                     c['text'] = c['delta']['content']
-                else:
+
+                # capture function call data and convert to text again so we have a consistent interface with non-chat mode and open models
+                if "function_call" in c['delta']:
+
+                    # build the start of the function call (the follows the syntax that GPT says it wants when we ask it, and will be parsed by the @function_detector)
+                    if not in_function_call:
+                        start_val = "\n```typescript\nfunctions."+c['delta']['function_call']["name"]+"("
+                        if not c['text']:
+                            c['text'] = start_val
+                        else:
+                            c['text'] += start_val
+                        in_function_call = True
+                    
+                    # extend the arguments JSON string
+                    val = c['delta']['function_call']["arguments"]
+                    if 'text' in c:
+                        c['text'] += val
+                    else:
+                        c['text'] = val
+                    
+                if not found_content and not in_function_call:
                     break # the role markers are outside the generation in chat mode right now TODO: consider how this changes for uncontrained generation
             else:
                 yield resp
         else:
             yield resp
+    
+    # close the function call if needed
+    if in_function_call:
+        yield {'choices': [{'text': ')```'}]}
 
 def add_text_to_chat_mode(chat_mode):
-    if isinstance(chat_mode, types.GeneratorType):
+    if isinstance(chat_mode, (types.AsyncGeneratorType, types.GeneratorType)):
         return add_text_to_chat_mode_generator(chat_mode)
     else:
         for c in chat_mode['choices']:
             c['text'] = c['message']['content']
         return chat_mode
 
-# model that need to use the chat completion API
-chat_models = [
-    "gpt-4",
-    "gpt-4-32k",
-    "gpt-4-0314",
-    "gpt-4-32k-0314",
-    "gpt-3.5-turbo",
-    "gpt-3.5-turbo-0301"
-]
-
 class OpenAI(LLM):
-    cache = LLM._open_cache("_openai.diskcache")
+    llm_name: str = "openai"
 
-    def __init__(self, model=None, caching=True, max_retries=5, max_calls_per_min=60, token=None, endpoint=None,
-                 temperature=0.0, chat_mode="auto", organization=None, allowed_special_tokens={"<|endoftext|>", "<|endofprompt|>"}):
+    def __init__(self, model=None, caching=True, max_retries=5, max_calls_per_min=60,
+                 api_key=None, api_type="open_ai", api_base=None, api_version=None, deployment_id=None,
+                 temperature=0.0, chat_mode="auto", organization=None, rest_call=False,
+                 allowed_special_tokens={"<|endoftext|>", "<|endofprompt|>"},
+                 token=None, endpoint=None):
         super().__init__()
+
+        # map old param values
+        # TODO: add deprecated warnings after some time
+        if token is not None:    
+            if api_key is None:
+                api_key = token
+        if endpoint is not None:
+            if api_base is None:
+                api_base = endpoint
 
         # fill in default model value
         if model is None:
@@ -81,30 +143,36 @@ class OpenAI(LLM):
             except:
                 pass
 
+        # fill in default deployment_id value
+        if deployment_id is None:
+            deployment_id = os.environ.get("OPENAI_DEPLOYMENT_ID", None)
+
         # auto detect chat completion mode
         if chat_mode == "auto":
-            if model in chat_models:
+            # parse to determin if the model need to use the chat completion API
+            chat_model_pattern = r'^(gpt-3\.5-turbo|gpt-4)(-\d+k)?(-\d{4})?$'
+            if re.match(chat_model_pattern, model):
                 chat_mode = True
             else:
                 chat_mode = False
         
         # fill in default API key value
-        if token is None: # get from environment variable
-            token = os.environ.get("OPENAI_API_KEY", getattr(openai, "api_key", None))
-        if token is not None and not token.startswith("sk-") and os.path.exists(os.path.expanduser(token)): # get from file
-            with open(os.path.expanduser(token), 'r') as file:
-                token = file.read().replace('\n', '')
-        if token is None: # get from default file location
+        if api_key is None: # get from environment variable
+            api_key = os.environ.get("OPENAI_API_KEY", getattr(openai, "api_key", None))
+        if api_key is not None and not api_key.startswith("sk-") and os.path.exists(os.path.expanduser(api_key)): # get from file
+            with open(os.path.expanduser(api_key), 'r') as file:
+                api_key = file.read().replace('\n', '')
+        if api_key is None: # get from default file location
             try:
                 with open(os.path.expanduser('~/.openai_api_key'), 'r') as file:
-                    token = file.read().replace('\n', '')
+                    api_key = file.read().replace('\n', '')
             except:
                 pass
         if organization is None:
             organization = os.environ.get("OPENAI_ORGANIZATION", None)
         # fill in default endpoint value
-        if endpoint is None:
-            endpoint = os.environ.get("OPENAI_ENDPOINT", None)
+        if api_base is None:
+            api_base = os.environ.get("OPENAI_API_BASE", None) or os.environ.get("OPENAI_ENDPOINT", None) # ENDPOINT is deprecated
 
         import tiktoken
         self._tokenizer = tiktoken.get_encoding(tiktoken.encoding_for_model(model).name)
@@ -112,19 +180,24 @@ class OpenAI(LLM):
         
         self.allowed_special_tokens = allowed_special_tokens
         self.model_name = model
+        self.deployment_id = deployment_id
         self.caching = caching
         self.max_retries = max_retries
         self.max_calls_per_min = max_calls_per_min
-        if isinstance(token, str):
-            token = token.replace("Bearer ", "")
-        self.token = token
-        self.endpoint = endpoint
+        if isinstance(api_key, str):
+            api_key = api_key.replace("Bearer ", "")
+        self.api_key = api_key
+        self.api_type = api_type
+        self.api_base = api_base
+        self.api_version = api_version
         self.current_time = time.time()
         self.call_history = collections.deque()
         self.temperature = temperature
         self.organization = organization
+        self.rest_call = rest_call
+        self.endpoint = endpoint
 
-        if self.endpoint is None:
+        if not self.rest_call:
             self.caller = self._library_call
         else:
             self.caller = self._rest_call
@@ -138,9 +211,9 @@ class OpenAI(LLM):
         else:
             return SyncSession(OpenAISession(self))
 
-    def role_start(self, role):
+    def role_start(self, role_name, **kwargs):
         assert self.chat_mode, "role_start() can only be used in chat mode"
-        return "<|im_start|>"+role+"\n"
+        return "<|im_start|>"+role_name+"".join([f' {k}="{v}"' for k,v in kwargs.items()])+"\n"
     
     def role_end(self, role=None):
         assert self.chat_mode, "role_end() can only be used in chat mode"
@@ -150,7 +223,7 @@ class OpenAI(LLM):
         return "<|endoftext|>"
     
     @classmethod
-    def stream_then_save(cls, gen, key, stop_regex, n):
+    async def stream_then_save(cls, gen, key, stop_regex, n):
         list_out = []
         cached_out = None
 
@@ -166,18 +239,20 @@ class OpenAI(LLM):
         
         # iterate through the stream
         all_done = False
-        for out in gen:
+        async for curr_out in gen:
 
             # if we have a cached output, extend it with the current output
             if cached_out is not None:
-                out = merge_stream_chunks(cached_out, out)
+                out = merge_stream_chunks(cached_out, curr_out)
+            else:
+                out = curr_out
             
             # check if we have stop_regex matches
             found_partial = False
             if stop_regex is not None:
 
                 # keep track of the generated text so far
-                for i,choice in enumerate(out['choices']):
+                for i,choice in enumerate(curr_out['choices']):
                     current_strings[i] += choice['text']
 
                 # check if all of the strings match a stop string (and hence we can stop the batch inference)
@@ -229,9 +304,14 @@ class OpenAI(LLM):
                 list_out.append(out)
                 yield out
                 if all_done:
-                    gen.close()
+                    gen.aclose()
                     break
         
+        # if we have a cached output, emit it
+        if cached_out is not None:
+            list_out.append(cached_out)
+            yield out
+
         cls.cache[key] = list_out
     
     def _stream_completion(self):
@@ -254,42 +334,66 @@ class OpenAI(LLM):
         # Return the length of the deque as the number of calls
         return len(self.call_history)
 
-    def _library_call(self, **kwargs):
+    async def _library_call(self, **kwargs):
         """ Call the OpenAI API using the python package.
 
         Note that is uses the local auth token, and does not rely on the openai one.
         """
+
+        # save the params of the openai library
         prev_key = openai.api_key
         prev_org = openai.organization
-        assert self.token is not None, "You must provide an OpenAI API key to use the OpenAI LLM. Either pass it in the constructor, set the OPENAI_API_KEY environment variable, or create the file ~/.openai_api_key with your key in it."
-        openai.api_key = self.token
-        openai.organization = self.organization
+        prev_type = openai.api_type
+        prev_version = openai.api_version
+        prev_base = openai.api_base
+        
+        # set the params of the openai library if we have them
+        if self.api_key is not None:
+            openai.api_key = self.api_key
+        if self.organization is not None:
+            openai.organization = self.organization
+        if self.api_type is not None:
+            openai.api_type = self.api_type
+        if self.api_version is not None:
+            openai.api_version = self.api_version
+        if self.api_base is not None:
+            openai.api_base = self.api_base
+
+        assert openai.api_key is not None, "You must provide an OpenAI API key to use the OpenAI LLM. Either pass it in the constructor, set the OPENAI_API_KEY environment variable, or create the file ~/.openai_api_key with your key in it."
+        
         if self.chat_mode:
             kwargs['messages'] = prompt_to_messages(kwargs['prompt'])
             del kwargs['prompt']
             del kwargs['echo']
             del kwargs['logprobs']
             # print(kwargs)
-            out = openai.ChatCompletion.create(**kwargs)
+            out = await openai.ChatCompletion.acreate(**kwargs)
             out = add_text_to_chat_mode(out)
         else:
-            out = openai.Completion.create(**kwargs)
+            out = await openai.Completion.acreate(**kwargs)
+        
+        # restore the params of the openai library
         openai.api_key = prev_key
         openai.organization = prev_org
+        openai.api_type = prev_type
+        openai.api_version = prev_version
+        openai.api_base = prev_base
+        
         return out
 
-    def _rest_call(self, **kwargs):
+    async def _rest_call(self, **kwargs):
         """ Call the OpenAI API using the REST API.
         """
 
         # Define the request headers
         headers = copy.copy(self._rest_headers)
-        if self.token is not None:
-            headers['Authorization'] = f"Bearer {self.token}"
+        if self.api_key is not None:
+            headers['Authorization'] = f"Bearer {self.api_key}"
 
         # Define the request data
         stream = kwargs.get("stream", False)
         data = {
+            "model": self.model_name,
             "prompt": kwargs["prompt"],
             "max_tokens": kwargs.get("max_tokens", None),
             "temperature": kwargs.get("temperature", 0.0),
@@ -307,32 +411,53 @@ class OpenAI(LLM):
             del data['logprobs']
 
         # Send a POST request and get the response
-        response = requests.post(self.endpoint, headers=headers, json=data, stream=stream)
-        if response.status_code != 200:
-            raise Exception("Response is not 200: " + response.text)
-        if stream:
-            return self._rest_stream_handler(response)
-        else:
-            response = response.json()
+        # An exception for timeout is raised if the server has not issued a response for 10 seconds
+        try:
+            if stream:
+                session = aiohttp.ClientSession()
+                response = await session.post(self.endpoint, json=data, headers=headers, timeout=60)
+                status = response.status
+            else:
+                response = requests.post(self.endpoint, headers=headers, json=data, timeout=60)
+                status = response.status_code
+                text = response.text
+            if status != 200:
+                if stream:
+                    text = await response.text()
+                raise Exception("Response is not 200: " + text)
+            if stream:
+                response = self._rest_stream_handler(response, session)
+            else:
+                response = response.json()
+        except requests.Timeout:
+            raise Exception("Request timed out.")
+        except requests.ConnectionError:
+            raise Exception("Connection error occurred.")
         if self.chat_mode:
             response = add_text_to_chat_mode(response)
         return response
         
-    def _rest_stream_handler(self, response):
-        for line in response.iter_lines():
+    async def _close_response_and_session(self, response, session):
+        await response.release()
+        await session.close()
+
+    async def _rest_stream_handler(self, response, session):
+        # async for line in response.iter_lines():
+        async for line in response.content:
             text = line.decode('utf-8')
             if text.startswith('data: '):
                 text = text[6:]
-                if text == '[DONE]':
+                if text.strip() == '[DONE]':
+                    await self._close_response_and_session(response, session)
                     break
                 else:
                     yield json.loads(text)
     
-    def encode(self, string, fragment=True):
+    def encode(self, string):
         # note that is_fragment is not used used for this tokenizer
         return self._tokenizer.encode(string, allowed_special=self.allowed_special_tokens)
     
-    def decode(self, tokens, fragment=True):
+    def decode(self, tokens):
         return self._tokenizer.decode(tokens)
 
 
@@ -405,9 +530,70 @@ class RegexStopChecker():
         
         return all_done
 
+# define the syntax for the function definitions
+import pyparsing as pp
+start_functions = pp.Suppress(pp.Literal("## functions\n\nnamespace functions {\n\n"))
+comment = pp.Combine(pp.Suppress(pp.Literal("//") + pp.Optional(" ")) + pp.restOfLine)
+end_functions = pp.Suppress("} // namespace functions")
+function_def_start = pp.Optional(comment)("function_description") + pp.Suppress(pp.Literal("type")) + pp.Word(pp.alphas + "_")("function_name") + pp.Suppress(pp.Literal("=") + pp.Literal("(_:") + pp.Literal("{"))
+function_def_end = pp.Suppress(pp.Literal("})") + pp.Literal("=>") + pp.Literal("any;"))
+parameter_type = (pp.Word(pp.alphas + "_")("simple_type") | pp.QuotedString('"')("enum_option") + pp.OneOrMore(pp.Suppress("|") + pp.QuotedString('"')("enum_option"))("enum")) + pp.Suppress(pp.Optional(","))
+parameter_def = pp.Optional(comment)("parameter_description") + pp.Word(pp.alphas + "_")("parameter_name") + pp.Optional(pp.Literal("?"))("is_optional") + pp.Suppress(pp.Literal(":")) + pp.Group(parameter_type)("parameter_type")
+function_def = function_def_start + pp.OneOrMore(pp.Group(parameter_def)("parameter")) + function_def_end
+functions_def = start_functions + pp.OneOrMore(pp.Group(function_def)("function")) + end_functions
+
+def get_json_from_parse(parse_out):
+    functions = []
+    for function in parse_out:
+        function_name = function.function_name
+        function_description = function.function_description
+        parameters = {
+            "type": "object",
+            "properties": {},
+            "required": []
+        }
+        for parameter in function:
+            if isinstance(parameter, str):
+                continue
+            parameter_name = parameter.parameter_name
+            parameter_description = parameter.parameter_description
+            parameter_type = parameter.parameter_type
+            is_optional = parameter.is_optional
+            d = {}
+            if parameter_type.simple_type:
+                d["type"] = parameter_type.simple_type
+            elif parameter_type.enum:
+                d["type"] = "string"
+                d["enum"] = [s for s in parameter_type]
+            if parameter_description:
+                d["description"] = parameter_description
+            if not is_optional:
+                parameters["required"].append(parameter_name)
+            parameters["properties"][parameter_name] = d
+        functions.append({
+            "name": function_name,
+            "description": function_description,
+            "parameters": parameters
+        })
+    return functions
+
+def extract_function_defs(prompt):
+    """ This extracts function definitions from the prompt.
+    """
+
+    if "\n## functions\n" not in prompt:
+        return None
+    else:
+        functions_text = prompt[prompt.index("\n## functions\n")+1:prompt.index("} // namespace functions")+24]
+        parse_out = functions_def.parseString(functions_text)
+        return get_json_from_parse(parse_out)
+
+
 # Define a deque to store the timestamps of the calls
 class OpenAISession(LLMSession):
-    async def __call__(self, prompt, stop=None, stop_regex=None, temperature=None, n=1, max_tokens=1000, logprobs=None, top_p=1.0, echo=False, logit_bias=None, token_healing=None, pattern=None, stream=None, cache_seed=0, caching=None):
+    async def __call__(self, prompt, stop=None, stop_regex=None, temperature=None, n=1, max_tokens=1000, logprobs=None,
+                       top_p=1.0, echo=False, logit_bias=None, token_healing=None, pattern=None, stream=None,
+                       cache_seed=0, caching=None, **completion_kwargs):
         """ Generate a completion of the given prompt.
         """
 
@@ -430,21 +616,25 @@ class OpenAISession(LLMSession):
         # assert not stop_regex, "The OpenAI API does not support Guidance stop_regex controls! Please either switch to an endpoint that does, or don't use the `stop_regex` argument to `gen`."
 
         # define the key for the cache
-        key = self._cache_key(args)
+        cache_params = self._cache_params(args)
+        llm_cache = self.llm.cache
+        key = llm_cache.create_key(self.llm.llm_name, **cache_params)
         
         # allow streaming to use non-streaming cache (the reverse is not true)
-        if key not in self.llm.__class__.cache and stream:
-            args["stream"] = False
-            key1 = self._cache_key(args)
-            if key1 in self.llm.__class__.cache:
+        if key not in llm_cache and stream:
+            cache_params["stream"] = False
+            key1 = llm_cache.create_key(self.llm.llm_name, **cache_params)
+            if key1 in llm_cache:
                 key = key1
         
         # check the cache
-        if key not in self.llm.__class__.cache or (caching is not True and not self.llm.caching) or caching is False:
+        if key not in llm_cache or caching is False or (caching is not True and not self.llm.caching):
 
             # ensure we don't exceed the rate limit
             while self.llm.count_calls() > self.llm.max_calls_per_min:
                 await asyncio.sleep(1)
+
+            functions = extract_function_defs(prompt)
 
             fail_count = 0
             while True:
@@ -453,6 +643,7 @@ class OpenAISession(LLMSession):
                     self.llm.add_call()
                     call_args = {
                         "model": self.llm.model_name,
+                        "deployment_id": self.llm.deployment_id,
                         "prompt": prompt,
                         "max_tokens": max_tokens,
                         "temperature": temperature,
@@ -461,11 +652,17 @@ class OpenAISession(LLMSession):
                         "stop": stop,
                         "logprobs": logprobs,
                         "echo": echo,
-                        "stream": stream
+                        "stream": stream,
+                        **completion_kwargs
                     }
+                    if functions is None:
+                        if "function_call" in call_args:
+                            del call_args["function_call"]
+                    else:
+                        call_args["functions"] = functions
                     if logit_bias is not None:
                         call_args["logit_bias"] = {str(k): v for k,v in logit_bias.items()} # convert keys to strings since that's the open ai api's format
-                    out = self.llm.caller(**call_args)
+                    out = await self.llm.caller(**call_args)
 
                 except openai.error.RateLimitError:
                     await asyncio.sleep(3)
@@ -481,12 +678,91 @@ class OpenAISession(LLMSession):
             if stream:
                 return self.llm.stream_then_save(out, key, stop_regex, n)
             else:
-                self.llm.__class__.cache[key] = out
+                llm_cache[key] = out
         
         # wrap as a list if needed
         if stream:
-            if isinstance(self.llm.__class__.cache[key], list):
-                return self.llm.__class__.cache[key]
-            return [self.llm.__class__.cache[key]]
+            if isinstance(llm_cache[key], list):
+                return llm_cache[key]
+            return [llm_cache[key]]
         
-        return self.llm.__class__.cache[key]
+        return llm_cache[key]
+
+
+import os
+import json
+import platformdirs
+from ._openai import OpenAI
+
+class AzureOpenAI(OpenAI):
+    def __init__(self, *args, **kwargs):
+        raise NotImplementedError("The AzureOpenAI class has been merged with the OpenAI class for Azure usage. Please use the OpenAI class instead: https://guidance.readthedocs.io/en/latest/example_notebooks/api_examples/llms/OpenAI.html")
+
+class MSALOpenAI(OpenAI):
+    """ Microsoft Authentication Library (MSAL) OpenAI style integration.
+
+    Warning: This class is not finalized and may change in the future.
+    """
+
+    llm_name: str = "azure_openai"
+
+    def __init__(self, model=None, client_id=None, authority=None, caching=True, max_retries=5, max_calls_per_min=60, token=None,
+                 endpoint=None, scopes=None, temperature=0.0, chat_mode="auto"):
+        
+
+        assert endpoint is not None, "An endpoint must be specified!"
+        
+        # build a standard OpenAI LLM object
+        super().__init__(
+            model=model, caching=caching, max_retries=max_retries, max_calls_per_min=max_calls_per_min,
+            token=token, endpoint=endpoint, temperature=temperature, chat_mode=chat_mode
+        )
+
+        self.client_id = client_id
+        self.authority = authority
+        self.scopes = scopes
+
+        from msal import PublicClientApplication, SerializableTokenCache
+        self._token_cache = SerializableTokenCache()
+        self._token_cache_path = os.path.join(platformdirs.user_cache_dir("guidance"), "_azure_openai.token")
+        self._app = PublicClientApplication(client_id=self.client_id, authority=self.authority, token_cache=self._token_cache)
+        if os.path.exists(self._token_cache_path):
+            self._token_cache.deserialize(open(self._token_cache_path, 'r').read())
+
+        self._rest_headers["X-ModelType"] = self.model_name
+
+    @property
+    def token(self):
+        return self._get_token()
+    @token.setter
+    def token(self, value):
+        pass # ignored for now
+
+    def _get_token(self):
+        accounts = self._app.get_accounts()
+        result = None
+
+        if accounts:
+            # Assuming the end user chose this one
+            chosen = accounts[0]
+
+            # Now let's try to find a token in cache for this account
+            result = self._app.acquire_token_silent(self.scopes, account=chosen)
+    
+        if not result:
+            # So no suitable token exists in cache. Let's get a new one from AAD.
+            flow = self._app.initiate_device_flow(scopes=self.scopes)
+
+            if "user_code" not in flow:
+                raise ValueError(
+                    "Fail to create device flow. Err: %s" % json.dumps(flow, indent=4))
+
+            print(flow["message"])
+
+            result = self._app.acquire_token_by_device_flow(flow)
+
+            # save the aquired token
+            with open(self._token_cache_path, "w") as f:
+                f.write(self._token_cache.serialize())
+
+        return result["access_token"]

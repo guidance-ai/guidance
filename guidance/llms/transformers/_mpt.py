@@ -1,19 +1,10 @@
-import os
-import time
-import collections
-import regex
-import pygtrie
-import queue
-import threading
-import logging
-from .._llm import LLM, LLMSession, SyncSession
-from .._transformers import Transformers, TransformersSession
+from .._transformers import Transformers
 
 class MPT(Transformers):
     """ A HuggingFace transformers version of the MosaicML MPT language model with Guidance support.
     """
 
-    cache = LLM._open_cache("_mpt.diskcache")
+    llm_name: str = "mpt"
 
     def _model_and_tokenizer(self, model, tokenizer, **kwargs):
 

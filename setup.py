@@ -30,14 +30,17 @@ setup(
     package_data={"guidance": ["resources/*"]},
     install_requires=[
         "diskcache",
-        "openai>=0.27",
-        "parsimonious",
+        "gptcache",
+        "openai>=0.27.8",
+        "pyparsing>=3.0.0",
         "pygtrie",
         "platformdirs",
         "tiktoken>=0.3",
         "nest_asyncio",
+        "msal",
         "requests",
-        "numpy"
+        "numpy",
+        "aiohttp",
     ],
     extras_require={
         'docs': [
@@ -50,7 +53,8 @@ setup(
         'test': [
             'pytest',
             'transformers',
-            'torch'
+            'torch',
+            'pytest-cov'
         ]
     }
 )

@@ -1,31 +1,27 @@
-async def role(name, hidden=False, _parser_context=None):
+from .._utils import ContentCapture
+
+async def role(role_name, hidden=False, _parser_context=None, **kwargs):
     ''' A chat role block.
     '''
     block_content = _parser_context['block_content']
     parser = _parser_context['parser']
-    partial_output = _parser_context['partial_output']
-    
-    # record where we are in the prefix in case we need to rewind
-    pos = len(parser.prefix)
-    
-    # send the role-start special tokens
-    partial_output(parser.program.llm.role_start(name))
+    variable_stack = _parser_context['variable_stack']
 
-    out = await parser.visit(
-        block_content[0],
-        next_node=_parser_context["block_close_node"],
-        prev_node=_parser_context["prev_node"],
-        next_next_node=_parser_context["next_node"]
-    )
+    # capture the content of the block
+    with ContentCapture(variable_stack, hidden) as new_content:
+        
+        # send the role-start special tokens
+        new_content += parser.program.llm.role_start(role_name, **kwargs)
 
-    # send the role-end special tokens
-    partial_output(parser.program.llm.role_end(name))
-    
-    # hide everything if needed
-    if hidden:
-        new_content = parser.prefix[pos:]
-        parser.reset_prefix(pos)
-        parser.extend_prefix("{{!--GHIDDEN:"+new_content.replace("--}}", "--_END_END")+"--}}")
-    
-    return out
+        # visit the block content
+        new_content += await parser.visit(
+            block_content,
+            variable_stack,
+            next_node=_parser_context["block_close_node"],
+            prev_node=_parser_context["prev_node"],
+            next_next_node=_parser_context["next_node"]
+        )
+
+        # send the role-end special tokens
+        new_content += parser.program.llm.role_end(role_name)
 role.is_block = True

@@ -1,18 +1,10 @@
-import os
-import time
-import collections
-import regex
-import pygtrie
-import queue
-import threading
-import logging
 from ._transformers import Transformers, TransformersSession
 
 class DeepSpeed(Transformers):
     """ A DeepSpeed accelerated language model with Guidance support.
     """
 
-    cache = Transformers._open_cache("_deep_speed.diskcache")
+    llm_name: str = "deep_speed"
 
     def __init__(self, model=None, tokenizer=None, caching=True, token_healing=True, acceleration=True, temperature=0.0, device=None, **deep_speed_kwargs):
         assert False, "DeepSpeed does not yet work! (this class is a work in progress and is currently waiting on supporting changes in DeepSpeed)"

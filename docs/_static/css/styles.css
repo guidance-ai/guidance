@@ -61,3 +61,11 @@ html.writer-html4 .rst-content dl:not(.docutils)>dt, html.writer-html5 .rst-cont
 .wy-menu-vertical a {
    color: #d9d9d9;
 }
+
+section h2 {
+   margin-top: 30px;
+}
+
+.rst-content code.literal, .rst-content tt.literal {
+   color: #008bfb;
+}
