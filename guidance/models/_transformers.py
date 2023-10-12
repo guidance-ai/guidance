@@ -60,7 +60,7 @@ class Transformers(Local):
             try:
                 import transformers
             except:
-                raise Exception("Please install transformers with `pip install transformers` in order to use guidance.llms.Transformers!")
+                raise Exception("Please install transformers with `pip install transformers` in order to use guidance.models.Transformers!")
 
             if tokenizer is None:
                 tokenizer = transformers.AutoTokenizer.from_pretrained(model, **kwargs)

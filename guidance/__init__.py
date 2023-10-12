@@ -36,8 +36,8 @@ newline = "\n"
 
 # This makes the guidance module callable
 class Guidance(types.ModuleType):
-    def __call__(self, f=None, *, stateless=False, dedent="python"):
-        return _decorator(f, stateless=stateless, dedent=dedent)
+    def __call__(self, f=None, *, stateless=False, dedent="python", model=None):
+        return _decorator(f, stateless=stateless, dedent=dedent, model=model)
 sys.modules[__name__].__class__ = Guidance
 
 def optional_hidden(f, lm, hidden, kwargs):
@@ -53,11 +53,11 @@ _function_cache = {} # used to enable recursive grammar definitions
 _null_grammar = _string('')
 # _call_pool = {} # used to enable f-string composition
 
-def _decorator(f=None, *, stateless=False, dedent="python"):
+def _decorator(f=None, *, stateless=False, dedent="python", model=None):
     
     # if we are not yet being used as a decorator, then save the args
     if f is None:
-        return functools.partial(_decorator, stateless=stateless)
+        return functools.partial(_decorator, stateless=stateless, dedent=dedent, model=model)
     
     # if we are being used as a decorator then return the decorated function
     else:
@@ -88,6 +88,11 @@ def _decorator(f=None, *, stateless=False, dedent="python"):
             # otherwise must be stateful (which means we can't be inside a select() call)
             else:
                 return StatefulFunction(f, args, kwargs)
+        
+        # attach this as a method of the model class (if given)
+        if model is not None:
+            setattr(model, f.__name__, wrapped)
+        
         return wrapped
 
 # def _decorator(f, *, model=None, dedent='python'):

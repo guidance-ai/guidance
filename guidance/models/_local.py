@@ -1,4 +1,7 @@
-import torch
+try:
+    import torch
+except ImportError:
+    pass
 import numpy as np
 import numpy as np
 from .._utils import ByteTrie
@@ -96,11 +99,17 @@ class Local(Model):
             self._token_trie.match_version += 1 # this invalidates all the match caches from the previous token
             trie = self._token_trie
             found = None
-            while not parser.matched():
+            while True:
+
+                # see if we completed the grammar
+                if parser.matched():
+                    found = None
+                    break
+
                 next_byte_mask = parser.next_byte_mask()
                 next_byte_mask_sum = next_byte_mask.sum()
                 
-                # see if we reached the end of the grammar
+                # see if we reached a dead end of the grammar
                 if next_byte_mask_sum == 0:
                     found = None
                     break

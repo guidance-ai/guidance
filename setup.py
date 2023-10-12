@@ -41,6 +41,7 @@ setup(
         "requests",
         "numpy",
         "aiohttp",
+        "ordered_set"
     ],
     extras_require={
         'docs': [
