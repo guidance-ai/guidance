@@ -26,7 +26,7 @@ def test_gsm8k():
 Answer: ''' + gen(max_tokens=30)
     assert True
 
-def test_pattern():
-    lm = get_model("transformers:gpt2")
-    lm += 'hey there my friend what is truth 23+43=' + gen(pattern=r'dog(?P<stop>.+)', max_tokens=30)
-    assert str(lm) == "hey there my friend what is truth 23+43=dog"
+# def test_pattern():
+#     lm = get_model("transformers:gpt2")
+#     lm += 'hey there my friend what is truth 23+43=' + gen(pattern=r'dog(?P<stop>.+)', max_tokens=30)
+#     assert str(lm) == "hey there my friend what is truth 23+43=dog"

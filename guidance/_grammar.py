@@ -76,12 +76,26 @@ class StatelessFunction(Function):
     def __add__(self, value):
         if isinstance(value, str) or isinstance(value, bytes):
             value = _string(value)
-        return Join([self, value], name=_find_name() + "_" + StatelessFunction._new_name())
+        
+        # see if we can keep building a stateless grammar
+        if isinstance(value, StatelessFunction):
+            return Join([self, value], name=_find_name() + "_" + StatelessFunction._new_name())
+        
+        # otherwise we let the stateful object handle things
+        else:
+            return value.__radd__(self)
     
     def __radd__(self, value):
         if isinstance(value, str) or isinstance(value, bytes):
             value = _string(value)
-        return Join([value, self], name=_find_name() + "_" + StatelessFunction._new_name())
+        
+        # see if we can keep building a stateless grammar
+        if isinstance(value, StatelessFunction):
+            return Join([value, self], name=_find_name() + "_" + StatelessFunction._new_name())
+        
+        # otherwise we let the stateful object handle things
+        else:
+            return value.__add__(self)
     
     def __getitem__(self, value):
         raise StatefulException("StatelessFunctions can't access state!")
