@@ -14,7 +14,7 @@ class MPT(Transformers):
 
             # MPT uses the same tokenizer as GPT-NeoX
             if tokenizer is None:
-                tokenizer = tokenizer = transformers.AutoTokenizer.from_pretrained("EleutherAI/gpt-neox-20b", **kwargs)
+                tokenizer = transformers.AutoTokenizer.from_pretrained("EleutherAI/gpt-neox-20b", **kwargs)
             
             dynamic_kwargs = {}
 

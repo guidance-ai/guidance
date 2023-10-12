@@ -71,6 +71,10 @@ class Transformers(LLM):
     def role_start(role):
         raise NotImplementedError("In order to use chat role tags you need to use a chat-specific subclass of Transformers for your LLM from guidance.transformers.*!")
 
+    @staticmethod
+    def role_end(role):
+        raise NotImplementedError("In order to use chat role tags you need to use a chat-specific subclass of Transformers for your LLM from guidance.transformers.*!")
+
     def _build_token_prefix_map(self, model_name):
         """ Build a map from token to index.
         """
@@ -96,7 +100,7 @@ class Transformers(LLM):
                 raise Exception("Please install transformers with `pip install transformers` in order to use guidance.llms.Transformers!")
 
             if tokenizer is None:
-                tokenizer = transformers.AutoTokenizer.from_pretrained(model, **kwargs)
+                tokenizer = transformers.AutoTokenizer.from_pretrained(model, use_fast=True, **kwargs)
             model = transformers.AutoModelForCausalLM.from_pretrained(model, **kwargs)
         
         assert tokenizer is not None, "You must give a tokenizer object when you provide a model object (as opposed to just a model name)!"
