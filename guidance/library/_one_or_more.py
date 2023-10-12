@@ -1,4 +1,6 @@
+import guidance
 from ._select import select
 
-def one_or_more(value):
-    return select([value], recurse=True)
+@guidance(stateless=True)
+def one_or_more(model, value):
+    return model + select([value], recurse=True)

@@ -19,7 +19,8 @@ from . import _utils
 from . import selectors
 
 
-from._grammar import Byte, ByteRange, Select, Join, string
+# import guidance._grammar as _grammar #import Byte, ByteRange, Select, Join, StatefulFunction, string
+from ._grammar import StatelessFunction, StatefulFunction, _string
 import asyncio
 import threading
 import functools
@@ -35,11 +36,8 @@ newline = "\n"
 
 # This makes the guidance module callable
 class Guidance(types.ModuleType):
-    def __call__(self, template=None, llm=None, cache_seed=0, logprobs=None, silent=None, async_mode=False, stream=None, caching=None, await_missing=False, logging=False, **kwargs):
-        if callable(template) or template is None:
-            return _decorator(template, model=kwargs.get("model", None))
-        else:
-            return Program(template, llm=llm, cache_seed=cache_seed, logprobs=logprobs, silent=silent, async_mode=async_mode, stream=stream, caching=caching, await_missing=await_missing, logging=logging, **kwargs)
+    def __call__(self, f=None, *, stateless=False, dedent="python"):
+        return _decorator(f, stateless=stateless, dedent=dedent)
 sys.modules[__name__].__class__ = Guidance
 
 def optional_hidden(f, lm, hidden, kwargs):
@@ -50,94 +48,134 @@ def optional_hidden(f, lm, hidden, kwargs):
         return nullcontext()
     else:
         return Hidden(lm, hidden)
+    
+_function_cache = {}
+_null_grammar = _string('')
 
-def _decorator(f, *, model=None, dedent='python'):
-
-    def _decorator_inner(f, model=models.Model):
-        """Decorator to turn a normal function into a guidance function.
-        
-        Guidance functions have the added ability to be called as methods of LM objects (for dot-chaining),
-        and to be optionally iterated over to get a stream of results (syncronously or asyncronously).
-        TODO: In the future we plan to add network aware guidance acceleration as well.
-        """
+def _decorator(f=None, *, stateless=False, dedent="python"):
+    
+    # if we are not yet being used as a decorator, then save the args
+    if f is None:
+        return functools.partial(_decorator, stateless=stateless)
+    
+    # if we are being used as a decorator then return the decorated function
+    else:
 
         # this strips out indentation in multiline strings that aligns with the current python indentation
         if dedent == 'python':
             f = strip_multiline_string_indents(f)
+
+        @functools.wraps(f)
+        def wrapped(*args, **kwargs):
+            try:
+                call_key = hash((f, args, ((k,v) for k,v in kwargs.items())))
+            except:
+                call_key = None # we can't handle recursive calls with non-hashable args
+
+            # if we have already created this function node then we are done (we cache to enable recursive function definitions)
+            if call_key in _function_cache:
+                return _function_cache[call_key]
+
+            # make a stateless grammar if we can
+            if stateless:
+                node = f(_null_grammar, *args, **kwargs)
+                node.name = f.__name__
+                if call_key is not None:
+                    _function_cache[call_key] = node
+                return node
+
+            # otherwise must be stateful (which means we can't be inside a select() call)
+            else:
+                return StatefulFunction(f, args, kwargs)
+        return wrapped
+
+# def _decorator(f, *, model=None, dedent='python'):
+
+#     def _decorator_inner(f, model=models.Model):
+#         """Decorator to turn a normal function into a guidance function.
         
-        def sync_wrapper(lm, *args, silent=None, hidden=False, **kwargs):
-            with Silent(lm, silent), optional_hidden(f, lm, hidden, kwargs):
-                return f(lm, *args, **kwargs)
+#         Guidance functions have the added ability to be called as methods of LM objects (for dot-chaining),
+#         and to be optionally iterated over to get a stream of results (syncronously or asyncronously).
+#         TODO: In the future we plan to add network aware guidance acceleration as well.
+#         """
 
-        def sync_iter_wrapper(lm, *args, silent=None, hidden=False, **kwargs):
+#         # this strips out indentation in multiline strings that aligns with the current python indentation
+#         if dedent == 'python':
+#             f = strip_multiline_string_indents(f)
+        
+#         def sync_wrapper(lm, *args, silent=None, hidden=False, **kwargs):
+#             with Silent(lm, silent), optional_hidden(f, lm, hidden, kwargs):
+#                 return f(lm, *args, **kwargs)
 
-            # create a worker thread and run the function in it
-            with Silent(lm, silent), optional_hidden(f, lm, hidden, kwargs):
-                with CaptureEvents(lm) as events:
-                    worker_thread = threading.Thread(target=f, args=(lm, *args), kwargs=kwargs)
-                    worker_thread.start()
+#         def sync_iter_wrapper(lm, *args, silent=None, hidden=False, **kwargs):
+
+#             # create a worker thread and run the function in it
+#             with Silent(lm, silent), optional_hidden(f, lm, hidden, kwargs):
+#                 with CaptureEvents(lm) as events:
+#                     worker_thread = threading.Thread(target=f, args=(lm, *args), kwargs=kwargs)
+#                     worker_thread.start()
                 
-                    # loop over the queue and display the results
-                    while True:
-                        try:
-                            val = events.get(timeout=0.1)
-                            yield val
-                        except queue.Empty:
-                            if not worker_thread.is_alive():
-                                break
+#                     # loop over the queue and display the results
+#                     while True:
+#                         try:
+#                             val = events.get(timeout=0.1)
+#                             yield val
+#                         except queue.Empty:
+#                             if not worker_thread.is_alive():
+#                                 break
 
-        async def async_wrapper(lm, *args, silent=None, hidden=False, **kwargs):
-            with Silent(lm, silent), optional_hidden(f, lm, hidden, kwargs):
-                return await f(lm, *args, **kwargs)
+#         async def async_wrapper(lm, *args, silent=None, hidden=False, **kwargs):
+#             with Silent(lm, silent), optional_hidden(f, lm, hidden, kwargs):
+#                 return await f(lm, *args, **kwargs)
 
-        async def async_iter_wrapper(lm, *args, **kwargs):
-            iterator = _utils.ThreadSafeAsyncIterator(sync_iter_wrapper(lm, *args, **kwargs))
-            async for item in iterator:
-                yield item
+#         async def async_iter_wrapper(lm, *args, **kwargs):
+#             iterator = _utils.ThreadSafeAsyncIterator(sync_iter_wrapper(lm, *args, **kwargs))
+#             async for item in iterator:
+#                 yield item
 
-        @functools.wraps(f)
-        def wrapper(*args, stream=False, async_mode=False, **kwargs):
+#         @functools.wraps(f)
+#         def wrapper(*args, stream=False, async_mode=False, **kwargs):
 
-            # check if we are making a delayed call
-            if len(args) == 0 or not isinstance(args[0], models.Model):
-                return wrapper.wrapper_delayed(*args, stream=stream, async_mode=async_mode, **kwargs)
-            else:
-                lm = args[0]
-                args = args[1:]
+#             # check if we are making a delayed call
+#             if len(args) == 0 or not isinstance(args[0], models.Model):
+#                 return wrapper.wrapper_delayed(*args, stream=stream, async_mode=async_mode, **kwargs)
+#             else:
+#                 lm = args[0]
+#                 args = args[1:]
 
-            # if not we execute
-            if async_mode:
-                if stream:
-                    return async_iter_wrapper(lm, *args, **kwargs)
-                else:
-                    return async_wrapper(lm, *args, **kwargs)
-            else:
-                if stream:
-                    return sync_iter_wrapper(lm, *args, **kwargs)
-                else:
-                    return sync_wrapper(lm, *args, **kwargs)
+#             # if not we execute
+#             if async_mode:
+#                 if stream:
+#                     return async_iter_wrapper(lm, *args, **kwargs)
+#                 else:
+#                     return async_wrapper(lm, *args, **kwargs)
+#             else:
+#                 if stream:
+#                     return sync_iter_wrapper(lm, *args, **kwargs)
+#                 else:
+#                     return sync_wrapper(lm, *args, **kwargs)
                     
-        @functools.wraps(f)
-        def wrapper_delayed(*args, stream=False, async_mode=False, **kwargs):
-            '''Converts a guidance function call to a string, so it can be called later once it is added to an LM object.'''
+#         @functools.wraps(f)
+#         def wrapper_delayed(*args, stream=False, async_mode=False, **kwargs):
+#             '''Converts a guidance function call to a string, so it can be called later once it is added to an LM object.'''
             
-            # save the call in our call pool, ready to be run when it is attached to an LM object
-            id = str(uuid.uuid4())
-            models.Model._call_pool[id] = lambda lm: wrapper(lm, *args, stream=stream, async_mode=async_mode, **kwargs)
+#             # save the call in our call pool, ready to be run when it is attached to an LM object
+#             id = str(uuid.uuid4())
+#             models.Model._call_pool[id] = lambda lm: wrapper(lm, *args, stream=stream, async_mode=async_mode, **kwargs)
 
-            # return a string representation of this call so it can be combined with other strings/calls
-            return models.Model.tag_start + id + models.Model.tag_end
-        wrapper.wrapper_delayed = wrapper_delayed
+#             # return a string representation of this call so it can be combined with other strings/calls
+#             return models.Model.tag_start + id + models.Model.tag_end
+#         wrapper.wrapper_delayed = wrapper_delayed
 
-        setattr(model, f.__name__, wrapper) # as a method on the LM object
-        setattr(curr_module, f.__name__, wrapper_delayed) # as a top level class
+#         setattr(model, f.__name__, wrapper) # as a method on the LM object
+#         setattr(curr_module, f.__name__, wrapper_delayed) # as a top level class
 
-        return wrapper
+#         return wrapper
 
-    if model is None:
-        return _decorator_inner(f)
-    else:
-        return functools.partial(_decorator_inner, model=model)
+#     if model is None:
+#         return _decorator_inner(f)
+#     else:
+#         return functools.partial(_decorator_inner, model=model)
 
 def load(guidance_file):
     ''' Load a guidance program from the given text file.
@@ -157,5 +195,5 @@ def load(guidance_file):
     
     return sys.modules[__name__](template)
 
-# from . import library
-from .library import *#select, hide, gen
+# we expose all the library functions at the top level of the module
+from .library import *

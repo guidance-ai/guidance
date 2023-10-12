@@ -1,4 +1,5 @@
-from guidance import one_or_more, zero_or_more, char_set, string, select, Byte, ByteRange
+from guidance import one_or_more, zero_or_more, char_set, string, select
+from guidance._grammar import Byte, ByteRange
 from guidance._parser import EarleyCommitParser
 
 def test_one_or_more():

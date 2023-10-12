@@ -1,6 +1,9 @@
-def hide(value):
+import guidance
+
+@guidance(stateless=True)
+def hide(model, value):
     _rec_hide(value)
-    return value
+    return model + value
 
 def _rec_hide(grammar):
     grammar.hidden = True

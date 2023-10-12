@@ -145,9 +145,11 @@ class EarleyCommitParser:
                 raise Exception("Unknown Terminal Type: "  + str(type(item)))
         return mask
 
-    def __repr__(self) -> str:
+    def __repr__(self, state_sets=None) -> str:
         s = ""
-        for i,states in enumerate(self.state_sets):
+        if state_sets is None:
+            state_sets = self.state_sets
+        for i,states in enumerate(state_sets):
             s += f"\n=== {i} ===\n"
             for state in states:
                 if isinstance(state.node, Join):
@@ -171,4 +173,15 @@ class EarleyCommitParser:
                     assert False
                 s += f"{rs:40} ({state.start}) {'nullable' if state.node.nullable else ''}\n"
         return s
+    
+    def _reversed_state_sets(self):
+        new_state_sets = [OrderedSet([]) for _ in range(len(self.state_sets))]
+        for i,states in enumerate(self.state_sets):
+            for state in states:
+                # if state.node.name == "__call___c":
+                #     pass
+                new_state_sets[state.start].append(EarleyItem(state.node, state.values, state.pos, i))
+        
+        return new_state_sets
+
 

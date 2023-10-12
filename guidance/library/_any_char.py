@@ -1,4 +1,7 @@
-from guidance import ByteRange
+import guidance
+from ._byte_range import byte_range
 
-def any_char():
-    return ByteRange(bytes([0,255]))
+@guidance(stateless=True)
+def any_char(lm):
+    # TODO: extend this to support utf-8 encoded multibyte unicode characters
+    return lm + byte_range(bytes([0,255]))

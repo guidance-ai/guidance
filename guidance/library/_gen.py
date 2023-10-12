@@ -11,6 +11,7 @@ from ._zero_or_more import zero_or_more
 from ._hide import hide
 from ._commit_point import commit_point
 from ._any_char import any_char
+from ._capture import capture
 
 @guidance
 def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop=None, stop_regex=None, suffix="", n=1, temperature=0.0, top_p=1.0,
@@ -20,8 +21,8 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop
     assert stop_regex is None, "Need to support regex -> grammar compilation in order to support the `stop_regex` arg!"
 
     # set stream if we are interactive
-    if stream_tokens is None and not lm.is_silent() and n == 1:
-        stream_tokens = True
+    # if stream_tokens is None and not lm.is_silent() and n == 1:
+    #     stream_tokens = True
 
     # use the suffix as the stop string if not otherwise specified
     if stop is None and stop_regex is None and suffix != "":
@@ -49,8 +50,6 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop
     #         stop_regex = []
     #     stop_regex.extend([regex.escape(s) for s in stop])
 
-    lm += "<||_html:<span style='background-color: rgba(0, 165, 0, 0.25)'>_||>"
-
     # This needs to be here for streaming
     if name is not None and not list_append:
         lm[name] = ""
@@ -72,117 +71,21 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop
     # pattern += stop_regex
     # extracted_stop_pattern = regex.compile(pattern[pattern.index("(?P<stop>")+9:-1] + "$", flags=regex.DOTALL)
     # extracted_stop_pattern = regex.compile(pattern[:pattern.index("(?P<stop>")] + "$", flags=regex.DOTALL)
-
-    grammar = zero_or_more(any_char()) + hide(commit_point(select(stop)))
-
-    # start the generation stream
-    gen_obj = lm(
-        grammar=grammar, max_tokens=max_tokens, n=n,
-        temperature=temperature, top_p=top_p, **llm_kwargs
-    )
-
-    # single generation
-    if n == 1:
-        generated_value = ""
-        logprobs_out = []
-        if list_append:
-            lm[name] = lm.get(name, [])
-            lm[name].append("")
-            list_ind = len(lm[name])-1
-            if logprobs is not None:
-                lm[name+"_logprobs"] = lm.get(name+"_logprobs", [])
-                lm[name+"_logprobs"].append([])
-                assert len(len(lm[name])) == len(len(lm[name+"_logprobs"]))
-        # delayed_text = ""
-        for new_bytes,match_groups in gen_obj:
-            new_text = new_bytes.decode("utf8")
-            # delay emitting if we might be starting the stop pattern
-            # stop_match = extracted_stop_pattern.search(generated_value + delayed_text + new_text, partial=True)
-            # if stop_match and stop_match.end() - stop_match.start() > 0: # TODO: emit delayed text before the match start()
-            #     delayed_text += new_text
-            #     continue
-            # else:
-            #     generated_value += delayed_text
-            #     lm += delayed_text
-            #     delayed_text = ""
-            
-            # new_text = resp["choices"][0].get("text", "")
-            generated_value += new_text
-            lm += new_text
-            # if logprobs is not None:
-            #     logprobs_out.extend(resp["choices"][0]["logprobs"]["top_logprobs"])
-            if list_append:
-                lm[name][list_ind] = generated_value
-                # if logprobs is not None:
-                #     lm[name+"_logprobs"][list_ind] = logprobs_out
-            elif name is not None:
-                lm[name] = generated_value
-                # if logprobs is not None:
-                #     lm[name+"_logprobs"] = logprobs_out
-        
-        # save the final stopping text if requested
-        if save_stop_text is not False:
-            if save_stop_text is True and name is not None:
-                save_stop_text = name+"_stop_text"
-            lm[save_stop_text] = match_groups["stop"]
-        
-        # for scanner in lm.get_call_scanners():
-        #     out = scanner(lm, generated_value)
-        #     if out is not None:
-        #         generated_value = out
-
-        # trim off the stop match
-        # if stop_match.end() - stop_match.start():
-        #     pattern_obj = regex.compile(pattern, flags=regex.DOTALL)
-        #     m = pattern_obj.match(generated_value + delayed_text)
-        #     stop = m.group('stop')
-        #     if len(stop) > 0:
-        #         delayed_text = delayed_text[:-len(stop)]
-
-        # if delayed_text != "":
-        #     generated_value += delayed_text
-        #     lm += delayed_text
-
-        if list_append:
-            lm[name][list_ind] = generated_value
-        elif name is not None:
-            # This seems wrong, it's overriding whatever was generated into the name. What if the generation was 'I am now going to call a tool: tool_call(bla)', do you want to just dump that?
-            # [SML] I don't understand the above concern
-            lm[name] = generated_value
     
-    # batch generation
-    else:
-        assert len(gen_obj) == 1, "Streaming is only supported for n=1"
-        generated_values = [choice["text"]+suffix for choice in gen_obj[0]["choices"]]
-        if list_append:
-            value_list = lm.get(name, [])
-            value_list.append(generated_values)
-            # if logprobs is not None:
-            #     logprobs_list = lm.get(name+"_logprobs", [])
-            #     logprobs_list.append([choice["logprobs"]["top_logprobs"] for choice in gen_obj[0]["choices"]])
-        elif name is not None:
-            lm[name] = generated_values
-            # if logprobs is not None:
-            #     lm[name+"_logprobs"] = [choice["logprobs"]["top_logprobs"] for choice in gen_obj[0]["choices"]]
-
-        # TODO: we could enable the parsing to branch into multiple paths here, but for now we just complete the program with the first prefix
-        generated_value = generated_values[0]
-        
-        # display the batch as a clickable list
-        id = uuid.uuid4().hex
-        l = len(generated_values)
-        out = click_loop_start(id, l, True, "rgba(0, 165, 0, 0.25)")
-        for i, value in enumerate(generated_values):
-            if i > 0:
-                out += click_loop_mid(id, i, True)
-                out += value
-            else:
-                out += value
-        lm += out + "<||_html:</div>_||>"
-
-    lm += "<||_html:</span>_||>" + suffix
+    # define the generation pattern
+    pattern = zero_or_more(any_char())
+    if name is not None:
+        pattern = capture(pattern, name=name)
     
-    return lm
+    # define the stop pattern
+    stop_pattern = commit_point(select(stop))
+    if save_stop_text is True:
+        save_stop_text = str(name) + "_stop_text"
+    if isinstance(save_stop_text, str):
+        stop_pattern = capture(save_stop_text, name=save_stop_text)
+
+    # return the compound grammar
+    return lm + (pattern + hide(stop_pattern))
 
 def click_loop_start(id, total_count, echo, color):
     click_script = '''

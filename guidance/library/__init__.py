@@ -3,8 +3,9 @@ from ._role import role, system, assistant, user, function
 from ._gen import gen, gen_with_tools, gen_substring
 
 # stateless functions
-# from ._string import string
-# from ._char_range import char_range
+from ._string import string
+from ._byte_range import byte_range
+from ._capture import capture
 from ._select import select
 from ._hide import hide
 from ._zero_or_more import zero_or_more
