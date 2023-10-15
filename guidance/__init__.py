@@ -36,8 +36,8 @@ newline = "\n"
 
 # This makes the guidance module callable
 class Guidance(types.ModuleType):
-    def __call__(self, f=None, *, stateless=False, dedent="python", model=None):
-        return _decorator(f, stateless=stateless, dedent=dedent, model=model)
+    def __call__(self, f=None, *, stateless=False, cache=None, dedent="python", model=None):
+        return _decorator(f, stateless=stateless, cache=cache, dedent=dedent, model=model)
 sys.modules[__name__].__class__ = Guidance
 
 def optional_hidden(f, lm, hidden, kwargs):
@@ -53,7 +53,7 @@ _function_cache = {} # used to enable recursive grammar definitions
 _null_grammar = _string('')
 # _call_pool = {} # used to enable f-string composition
 
-def _decorator(f=None, *, stateless=False, dedent="python", model=None):
+def _decorator(f=None, *, stateless=False, cache=None, dedent="python", model=None):
     
     # if we are not yet being used as a decorator, then save the args
     if f is None:
@@ -66,23 +66,23 @@ def _decorator(f=None, *, stateless=False, dedent="python", model=None):
         if dedent == 'python':
             f = strip_multiline_string_indents(f)
 
+        # we cache if requested
+        if cache:
+            f = functools.cache(f)
+        
+        # or by default we cache functions that only take the model and no other args 
+        elif cache is None:
+            argspec = inspect.getfullargspec(f)
+            if len(argspec.args) == 1 and not bool(argspec.varargs) and not bool(argspec.varkw) and len(argspec.kwonlyargs) == 0:
+                f = functools.cache(f)
+
         @functools.wraps(f)
         def wrapped(*args, **kwargs):
-            try:
-                call_key = hash((f, args, ((k,v) for k,v in kwargs.items())))
-            except:
-                call_key = None # we can't handle recursive calls with non-hashable args
-
-            # if we have already created this function node then we are done (we cache to enable recursive function definitions)
-            if call_key in _function_cache:
-                return _function_cache[call_key]
 
             # make a stateless grammar if we can
             if stateless:
                 node = f(_null_grammar, *args, **kwargs)
                 node.name = f.__name__
-                if call_key is not None:
-                    _function_cache[call_key] = node
                 return node
 
             # otherwise must be stateful (which means we can't be inside a select() call)

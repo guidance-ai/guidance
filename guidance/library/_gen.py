@@ -13,6 +13,7 @@ from ._commit_point import commit_point
 from ._any_char import any_char
 from ._capture import capture
 
+# TODO: make this stateless!
 @guidance
 def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop=None, stop_regex=None, suffix="", n=1, temperature=0.0, top_p=1.0,
         logprobs=None, stream_tokens=None, save_stop_text=False, **llm_kwargs):
@@ -25,6 +26,7 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop
     #     stream_tokens = True
 
     # use the suffix as the stop string if not otherwise specified
+    # TODO: still need to make suffix work with grammars
     if stop is None and stop_regex is None and suffix != "":
         stop = suffix
     if stop is None and stop_regex is None and getattr(lm, "suffix", False):
@@ -84,9 +86,13 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop
     if isinstance(save_stop_text, str):
         stop_pattern = capture(save_stop_text, name=save_stop_text)
 
-    # return the compound grammar
-    return lm + (pattern + hide(stop_pattern))
-
+    # single generation
+    start_pos = len(str(lm))
+    if n == 1:
+        lm = lm.run_stateless(pattern + hide(stop_pattern), max_tokens=max_tokens)
+    if name is not None:
+        lm[name] = str(lm)[start_pos:]
+    return lm
 def click_loop_start(id, total_count, echo, color):
     click_script = '''
 function cycle_IDVAL(button_el) {

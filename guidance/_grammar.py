@@ -40,6 +40,8 @@ class Function():
         return tag_start + str_id + tag_end
 
 class StatefulFunction(Function):
+    __slots__ = ("f", "args", "kwargs")
+
     def __init__(self, f, args, kwargs):
         self.f = f
         self.args = args
@@ -79,7 +81,7 @@ class StatelessFunction(Function):
         
         # see if we can keep building a stateless grammar
         if isinstance(value, StatelessFunction):
-            return Join([self, value], name=_find_name() + "_" + StatelessFunction._new_name())
+            return Join([self, value])
         
         # otherwise we let the stateful object handle things
         else:
@@ -91,7 +93,7 @@ class StatelessFunction(Function):
         
         # see if we can keep building a stateless grammar
         if isinstance(value, StatelessFunction):
-            return Join([value, self], name=_find_name() + "_" + StatelessFunction._new_name())
+            return Join([value, self])
         
         # otherwise we let the stateful object handle things
         else:
@@ -147,6 +149,8 @@ class Terminal(StatelessFunction):
         pass # abstract
 
 class Byte(Terminal):
+    __slots__ = ("byte", "hidden", "commit_point", "capture_name")
+
     def __init__(self, byte):
         assert isinstance(byte, bytes)
         assert len(byte) == 1
@@ -176,6 +180,8 @@ class Byte(Terminal):
         return False
 
 class ByteRange(Terminal):
+    __slots__ = ("byte_range", "hidden", "commit_point", "capture_name")
+
     def __init__(self, byte_range):
         assert isinstance(byte_range, bytes)
         assert len(byte_range) == 2
@@ -205,11 +211,14 @@ class ByteRange(Terminal):
         return isinstance(other, ByteRange) and self.byte_range[0] == other.byte_range[0] and self.byte_range[1] == other.byte_range[1]
     
     def __repr__(self) -> str:
-        return str(self.byte)
+        return str(self.byte_range)
 
 class Null():
+    __slots__ = ("name", "hidden", "commit_point", "capture_name")
+
     nullable = True
     def __init__(self):
+        self.name = None
         self.hidden = False
         self.commit_point = False
         self.capture_name = None
@@ -219,8 +228,16 @@ class Null():
             return _string(other)
         else:
             return other
+        
+    def __radd__(self, other):
+        if isinstance(other, str):
+            return _string(other)
+        else:
+            return other
 
 class Join(StatelessFunction):
+    __slots__ = ("nullable", "values", "name", "hidden", "commit_point", "capture_name")
+
     def __init__(self, values, name=None) -> None:
         self.nullable = all(v.nullable for v in values)
         self.values = [v for v in values if not isinstance(v, Null)]
@@ -240,6 +257,8 @@ class Join(StatelessFunction):
         return s
 
 class Select(StatelessFunction):
+    __slots__ = ("nullable", "_values", "name", "hidden", "commit_point", "capture_name")
+
     def __init__(self, values, name=None) -> None:
         self.values = values
         self.name = name if name is not None else StatelessFunction._new_name()
@@ -283,8 +302,8 @@ def _string(value):
 def _select(values, name=None, recurse=False):
     for value in values:
         assert not isinstance(value, StatefulFunction), "You cannot select between stateful functions in the current guidance implementation!"
-    if name is None:
-        name = _find_name() + "_" + StatelessFunction._new_name()
+    # if name is None:
+    #     name = _find_name() + "_" + StatelessFunction._new_name()
     if recurse:
         node = Select([], name)
         node.values = [v + node for v in values if v != ""] + values

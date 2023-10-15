@@ -41,7 +41,12 @@ class EarleyCommitParser:
         self._inner_loop(self.state_set_pos)
 
     def _add_node(self, grammar, state_set_pos):
-        if isinstance(grammar, Join):
+        if isinstance(grammar, Terminal):
+            new_item = EarleyItem(grammar, (grammar,), 0, state_set_pos)
+            if new_item not in self.state_sets[state_set_pos]:
+                self.state_sets[state_set_pos].append(new_item)
+            
+        elif isinstance(grammar, Join):
             new_item = EarleyItem(grammar, tuple(grammar.values), 0, state_set_pos)
             if new_item not in self.state_sets[state_set_pos]:
                 self.state_sets[state_set_pos].append(new_item)
@@ -50,9 +55,9 @@ class EarleyCommitParser:
             for value in grammar.values:
                 new_item = EarleyItem(grammar, (value,), 0, state_set_pos)
                 if new_item not in self.state_sets[state_set_pos]:
-                    self.state_sets[state_set_pos].append(new_item) 
+                    self.state_sets[state_set_pos].append(new_item)
 
-    def _inner_loop(self, state_set_pos): # TODO: !!!! WE ALWAYS HAVE .start as 0! need to fix that bug
+    def _inner_loop(self, state_set_pos):
         curr_state_set = self.state_sets[state_set_pos]
         if len(self.state_sets) == state_set_pos + 1:
             self.state_sets.append(OrderedSet())

@@ -13,6 +13,8 @@ from ._one_or_more import one_or_more
 from ._char_range import char_range
 from ._char_set import char_set
 from ._commit_point import commit_point
+from ._prefix_tree import prefix_tree
+from ._substring import substring
 
 # import the rest just to get them executed and attached as methods of the LM objects
 from ._block import block as _block

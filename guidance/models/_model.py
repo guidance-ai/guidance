@@ -139,7 +139,7 @@ class Model:
         
         # run stateless functions (grammar nodes)
         elif isinstance(value, StatelessFunction):
-            return _run_stateless(self.copy(), value)
+            return self.copy().run_stateless(value)
         
         # run stateful functions
         else:
@@ -249,49 +249,49 @@ type {function['name']} = (_: {{"""
         
         return self
 
-def _run_stateless(lm, stateless_function, max_tokens=1000, temperature=0.0, top_p=1.0, n=1):
+    def run_stateless(lm, stateless_function, max_tokens=1000, temperature=0.0, top_p=1.0, n=1):
 
-    # This needs to be here for streaming
-    # if name is not None:
-    #     lm[name] = ""
+        # This needs to be here for streaming
+        # if name is not None:
+        #     lm[name] = ""
 
-    # start the generation stream
-    gen_obj = lm(
-        grammar=stateless_function, max_tokens=max_tokens, n=n,
-        temperature=temperature, top_p=top_p
-    )
+        # start the generation stream
+        gen_obj = lm(
+            grammar=stateless_function, max_tokens=max_tokens, n=n,
+            temperature=temperature, top_p=top_p
+        )
 
-    # single generation
-    if n == 1:
-        generated_value = ""
-        # logprobs_out = []
+        # single generation
+        if n == 1:
+            generated_value = ""
+            # logprobs_out = []
 
-        # delayed_text = ""
-        # last_is_generated = False
-        for new_bytes,is_generated,capture_groups in gen_obj:
-            new_text = new_bytes.decode("utf8")
-            generated_value += new_text
-            if is_generated:
-                lm += "<||_html:<span style='background-color: rgba(0, 165, 0, 0.25); border-radius: 3px;'>_||>"
-            # if not is_generated and last_is_generated:
+            # delayed_text = ""
+            # last_is_generated = False
+            for new_bytes,is_generated,capture_groups in gen_obj:
+                new_text = new_bytes.decode("utf8")
+                generated_value += new_text
+                if is_generated:
+                    lm += "<||_html:<span style='background-color: rgba(0, 165, 0, 0.25); border-radius: 3px;'>_||>"
+                # if not is_generated and last_is_generated:
+                    
+                lm += new_text
+                if is_generated:
+                    lm += "<||_html:</span>_||>"
                 
-            lm += new_text
-            if is_generated:
-                lm += "<||_html:</span>_||>"
-            
-            # last_is_generated = is_generated
+                # last_is_generated = is_generated
 
-            if len(capture_groups) > 0:
-                for k in capture_groups:
-                    v = capture_groups[k]
-                    lm[k] = v.decode("utf8") if isinstance(v, bytes) else v
+                if len(capture_groups) > 0:
+                    for k in capture_groups:
+                        v = capture_groups[k]
+                        lm[k] = v.decode("utf8") if isinstance(v, bytes) else v
 
-        if len(capture_groups) > 0:
-            for k in capture_groups:
-                v = capture_groups[k]
-                lm[k] = v.decode("utf8") if isinstance(v, bytes) else v
-    
-    return lm
+            # if len(capture_groups) > 0:
+            #     for k in capture_groups:
+            #         v = capture_groups[k]
+            #         lm[k] = v.decode("utf8") if isinstance(v, bytes) else v
+        
+        return lm
 
 class Chat(Model):
     
