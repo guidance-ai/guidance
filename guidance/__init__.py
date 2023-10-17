@@ -91,7 +91,7 @@ def _decorator(f=None, *, stateless=False, cache=None, dedent="python", model=No
         
         # attach this as a method of the model class (if given)
         if model is not None:
-            setattr(model, f.__name__, wrapped)
+            setattr(model, f.__name__, f)
         
         return wrapped
 

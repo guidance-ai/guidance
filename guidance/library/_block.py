@@ -1,9 +1,9 @@
 import types
 
 import guidance
-from guidance import TextRange
+from guidance import TextRange, models
 
-@guidance
+@guidance(model=models.Model)
 def block(lm, name=None, open_text="", close_text="", hidden=False):
     offset = len(lm._state) + len(open_text)
 

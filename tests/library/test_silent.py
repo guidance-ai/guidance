@@ -1,9 +1,8 @@
-import guidance
-from guidance import gen
+from guidance import gen, models
 from ..utils import get_model
 
 def test_basic():
-    lm = guidance.models.LM("mock")
+    lm = models.LocalMock()
     lm += "Start text"
     with lm.silent() as lm:
         lm += "silent text"
