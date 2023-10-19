@@ -2,7 +2,14 @@ import pygtrie
 import numpy as np
 from .._utils import ContentCapture
 
-async def select(variable_name="selected", options=None, logprobs=None, list_append=False, _parser_context=None):
+def load_alt_model(model_name):
+    from guidance import llms
+    if model_name.startswith("gpt-"):
+        return llms.OpenAI(model_name, caching=False)
+    else:
+        return llms.Transformers(model_name, device='cpu', caching=False)
+
+async def select(variable_name="selected", options=None, logprobs=None, list_append=False, llm_alt_model=None, _parser_context=None):
     ''' Select a value from a list of choices.
 
     Parameters
@@ -25,6 +32,18 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
     variable_stack = _parser_context['variable_stack']
     next_node = _parser_context["next_node"]
     next_next_node = _parser_context["next_next_node"]
+
+    # Replace LLM, LLM Session with Alternated LLM Model and LLM Session
+    if llm_alt_model is not None:
+        original_llm = parser.program.llm
+        original_llm_session = parser.llm_session
+        if isinstance(llm_alt_model, str):
+            loaded_alt_model = load_alt_model(llm_alt_model)
+            parser.program.llm = loaded_alt_model
+            parser.llm_session = loaded_alt_model.session(asynchronous=True)
+        else:
+            parser.program.llm = llm_alt_model
+            parser.llm_session = llm_alt_model.session(asynchronous=True)
 
     if block_content is None:
         assert options is not None, "You must provide an options list like: {{select 'variable_name' options}} when using the select command in non-block mode."
@@ -107,6 +126,7 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
         gen_obj = await parser.llm_session(
             parser.program.llm.decode(current_prefix), # TODO: perhaps we should allow passing of token ids directly? (this could allow us to avoid retokenizing the whole prefix many times)
             max_tokens=1,
+            temperature=0.1,
             logit_bias=logit_bias,
             logprobs=len(logit_bias),
             cache_seed=0,
@@ -177,5 +197,10 @@ async def select(variable_name="selected", options=None, logprobs=None, list_app
         raise ValueError("No valid option generated in #select! Please post a GitHub issue since this should not happen :)")
     
     variable_stack["@raw_prefix"] += selected_option
+
+    # Restore alternated llm to original
+    if llm_alt_model is not None:
+        parser.program.llm = original_llm
+        parser.llm_session = original_llm_session
 
 select.is_block = True
