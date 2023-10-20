@@ -8,11 +8,11 @@ import os
 import requests
 # from . import template_commands as commands
 # from ._program import Program
-from . import endpoints
-llms = endpoints # backwards compatibility
+# from . import endpoints
+# llms = endpoints # backwards compatibility
 from . import models
 import inspect
-import uuid
+# import uuid
 
 from ._utils import load, chain, Silent, Hidden, CaptureEvents, TextRange, strip_multiline_string_indents
 from . import _utils
@@ -20,11 +20,11 @@ from . import selectors
 
 
 # import guidance._grammar as _grammar #import Byte, ByteRange, Select, Join, StatefulFunction, string
-from ._grammar import StatelessFunction, StatefulFunction, _string
-import asyncio
-import threading
+from ._grammar import StatelessFunction, StatefulFunction, _string, Terminal
+# import asyncio
+# import threading
 import functools
-import queue
+# import queue
 from contextlib import nullcontext
 
 curr_module = sys.modules[__name__]
@@ -82,7 +82,8 @@ def _decorator(f=None, *, stateless=False, cache=None, dedent="python", model=No
             # make a stateless grammar if we can
             if stateless:
                 node = f(_null_grammar, *args, **kwargs)
-                node.name = f.__name__
+                if not isinstance(node, Terminal):
+                    node.name = f.__name__
                 return node
 
             # otherwise must be stateful (which means we can't be inside a select() call)

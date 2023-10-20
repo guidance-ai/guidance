@@ -26,6 +26,11 @@ def test_gsm8k():
 Answer: ''' + gen(max_tokens=30)
     assert True
 
+def test_stop_quote():
+    lm = get_model("transformers:gpt2")
+    lm += '''A title: "''' + gen('title', max_tokens=30, stop='"')
+    assert not lm["title"].endswith('"')
+
 # def test_pattern():
 #     lm = get_model("transformers:gpt2")
 #     lm += 'hey there my friend what is truth 23+43=' + gen(pattern=r'dog(?P<stop>.+)', max_tokens=30)
