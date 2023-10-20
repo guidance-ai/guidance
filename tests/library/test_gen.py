@@ -12,6 +12,11 @@ def test_stop_string():
     lm += "Count to 10: 1, 2, 3, 4, 5, 6, 7, " + gen('text', stop=", 9")
     assert lm["text"] == "8"
 
+def test_stop_quote():
+    lm = get_model("transformers:gpt2")
+    lm += '''A title: "''' + gen('title', max_tokens=30, stop='"')
+    assert not lm["title"].endswith('"')
+
 def test_unicode():
     lm = get_model("transformers:gpt2")
     lm + '''Question: Josh decides to try flipping a house.  He buys a house for $80,000 and then puts in $50,000 in repairs.  This increased the value of the house by 150%.  How much profit did he make?
@@ -25,11 +30,6 @@ def test_gsm8k():
     lm + '''Question: Janet's ducks lay 16 eggs per day. She eats three for breakfast every morning and bakes muffins for her friends every day with four. She sells the remainder at the farmers' market daily for $2 per fresh duck egg. How much in dollars does she make every day at the farmers' market?
 Answer: ''' + gen(max_tokens=30)
     assert True
-
-def test_stop_quote():
-    lm = get_model("transformers:gpt2")
-    lm += '''A title: "''' + gen('title', max_tokens=30, stop='"')
-    assert not lm["title"].endswith('"')
 
 # def test_pattern():
 #     lm = get_model("transformers:gpt2")

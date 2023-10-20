@@ -51,8 +51,11 @@ class StatefulFunction(Function):
         return self.f(model, *self.args, **self.kwargs)
     
     def __add__(self, other):
+        
+        # if we are joining with a string we use the string representation for ourselves
         if isinstance(other, str):
-            other = _string(other)
+            return str(self) + other
+        
         def __add__(model):
             model = self(model)
             if isinstance(other, StatelessFunction):
@@ -62,8 +65,11 @@ class StatefulFunction(Function):
         return StatefulFunction(__add__, [], {})
     
     def __radd__(self, other):
+        
+        # if we are joining with a string we use the string representation for ourselves
         if isinstance(other, str):
-            other = _string(other)
+            return other + str(self)
+        
         def __radd__(model):
             if isinstance(other, StatelessFunction):
                 model += other
@@ -172,6 +178,9 @@ class Byte(Terminal):
     def __repr__(self) -> str:
         return str(self.byte)
     
+    def __len__(self):
+        return 1
+    
     def match_byte(self, byte):
         return byte == self.byte
     
@@ -212,6 +221,9 @@ class ByteRange(Terminal):
     
     def __repr__(self) -> str:
         return str(self.byte_range)
+    
+    def __len__(self):
+        return 1
 
 class Null():
     __slots__ = ("name", "hidden", "commit_point", "capture_name")

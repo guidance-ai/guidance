@@ -266,10 +266,19 @@ type {function['name']} = (_: {{"""
             generated_value = ""
             # logprobs_out = []
 
-            # delayed_text = ""
+            delayed_bytes = b""
             # last_is_generated = False
             for new_bytes,is_generated,capture_groups in gen_obj:
-                new_text = new_bytes.decode("utf8")
+                
+                # convert the bytes to a string (delaying if we don't yet have a valid unicode string)
+                new_bytes = delayed_bytes + new_bytes
+                try:
+                    new_text = new_bytes.decode("utf8")
+                except UnicodeDecodeError:
+                    delayed_bytes = new_bytes
+                    continue
+                delayed_bytes = b""
+
                 generated_value += new_text
                 if is_generated:
                     lm += "<||_html:<span style='background-color: rgba(0, 165, 0, 0.25); border-radius: 3px;'>_||>"
