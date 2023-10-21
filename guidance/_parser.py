@@ -97,15 +97,16 @@ class EarleyCommitParser:
         earliest_pos = 10000000000
         for item in self.state_sets[self.state_set_pos]:
 
-            # check for hidden nodes
-            if item.node.hidden and item.pos > 0 and item.start < earliest_pos:
-                earliest_pos = item.start
-            
-            # check for nodes that are not hidden but end with a hidden terminal (terminal won't be in our state set by themselves, so we need this check)
-            else:
-                last_value = item.values[-1]
-                if isinstance(last_value, Terminal) and last_value.hidden and self.state_set_pos - len(last_value) < earliest_pos:
-                    earliest_pos = self.state_set_pos - len(last_value)
+            if item.pos > 0:
+                # check for hidden nodes
+                if item.node.hidden and item.start < earliest_pos:
+                    earliest_pos = item.start
+                
+                # check for nodes that are not hidden but end with a hidden terminal (terminal won't be in our state set by themselves, so we need this check)
+                else:
+                    last_value = item.values[-1]
+                    if isinstance(last_value, Terminal) and last_value.hidden and self.state_set_pos - len(last_value) < earliest_pos:
+                        earliest_pos = self.state_set_pos - len(last_value)
         
         return earliest_pos
     
