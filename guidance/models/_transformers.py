@@ -100,13 +100,17 @@ class Transformers(Local):
 
         # call the model
         if len(new_token_ids) > 0:
-            model_out = self.model_obj(
-                input_ids=torch.tensor(new_token_ids).unsqueeze(0).to(self.device),
-                past_key_values=self._cache_state["past_key_values"],
-                use_cache=True,
-                position_ids=torch.arange(past_length, past_length+len(new_token_ids)).unsqueeze(0).to(self.device),
-                attention_mask=torch.ones(1, past_length + len(new_token_ids)).to(self.device)
-            )
+            with torch.no_grad():
+                model_out = self.model_obj(
+                    input_ids=torch.tensor(new_token_ids).unsqueeze(0).to(self.device),
+                    past_key_values=self._cache_state["past_key_values"],
+                    use_cache=True,
+                    position_ids=torch.arange(past_length, past_length+len(new_token_ids)).unsqueeze(0).to(self.device),
+                    attention_mask=torch.ones(1, past_length + len(new_token_ids)).to(self.device),
+                    return_dict=True,
+                    output_attentions=False,
+                    output_hidden_states=False
+                )
 
             # save the results
             self._cache_state["past_key_values"] = model_out.past_key_values
