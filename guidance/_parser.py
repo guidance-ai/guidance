@@ -104,7 +104,7 @@ class EarleyCommitParser:
                 
                 # check for nodes that are not hidden but end with a hidden terminal (terminal won't be in our state set by themselves, so we need this check)
                 else:
-                    last_value = item.values[-1]
+                    last_value = item.values[item.pos-1]
                     if isinstance(last_value, Terminal) and last_value.hidden and self.state_set_pos - len(last_value) < earliest_pos:
                         earliest_pos = self.state_set_pos - len(last_value)
         
