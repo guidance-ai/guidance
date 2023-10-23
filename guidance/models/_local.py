@@ -256,30 +256,43 @@ class Local(Model):
                 self._cache_state["new_token_ids"].append(sampled_token_ind)
 
 def _record_names(state, state_pos, reversed_state_sets, data, byte_data):
+    '''Extract all the named capture groups from the parser.'''
+    
+    # if we are at a capture group node then we save the matched bytes range
     if state.node.capture_name is not None:
         data[state.node.capture_name] = byte_data[state_pos:state.start] # note that "start" means "end" since this is a reversed state set
-    value_states = _parsed_value_states(state, state_pos, 0, reversed_state_sets)
+    
+    # get all the completed state corresponding to this state's node's children (values)
+    value_states = _parsed_value_states(state, state_pos, reversed_state_sets)
+
+    # for each such completed state we recursively look for capture groups
     if value_states is not None:
         for value_state in value_states:
             _record_names(value_state, state_pos, reversed_state_sets, data, byte_data)
             state_pos = value_state.start # note that "start" means "end" since this is a reversed state set
 
-def _parsed_value_states(state, state_pos, values_pos, reversed_state_sets):
+def _parsed_value_states(state, state_pos, reversed_state_sets, values_pos = 0):
+    '''Get the completed states (reversed earley items) of all the children nodes.'''
 
+    # if we are at the end of the values then there no more children
     if values_pos == len(state.values):
         return []
 
+    # get the child we are trying to match (meaning we are looking for completed early items for this node)
     value = state.values[values_pos]
+
+    # loop over every item in the current state set looking for a match
     for inner_state in reversed_state_sets[state_pos]:
         if inner_state.node == value and inner_state.pos == len(inner_state.values):
-            value_states = _parsed_value_states(state, inner_state.start, values_pos + 1, reversed_state_sets)
+
+            # get all states from future children (values)
+            value_states = _parsed_value_states(state, inner_state.start, reversed_state_sets, values_pos + 1)
+            
+            # we break out once we get our first match
             if value_states is not None:
                 return [inner_state] + value_states
-    return None
-
     
-    for i,value in enumerate(state.values):
-        found_state = None
+    return None
         
 
 

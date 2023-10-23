@@ -21,6 +21,11 @@ class EarleyItem:
 
 class EarleyCommitParser:
     def __init__(self, grammar):
+
+        # we can't have a terminal as the root
+        if isinstance(grammar, Terminal):
+            grammar = Join([grammar])
+        
         self.grammar = grammar
         self.bytes = b''
         self.state_sets = [OrderedSet()] # the list of Earley 
@@ -42,7 +47,7 @@ class EarleyCommitParser:
 
     def _add_node(self, grammar, state_set_pos):
         if isinstance(grammar, Terminal):
-            new_item = EarleyItem(grammar, (grammar,), 0, state_set_pos)
+            new_item = EarleyItem(grammar, tuple(), 0, state_set_pos)
             if new_item not in self.state_sets[state_set_pos]:
                 self.state_sets[state_set_pos].append(new_item)
             
