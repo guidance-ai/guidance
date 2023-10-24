@@ -27,6 +27,7 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop
 
     # use the suffix as the stop string if not otherwise specified
     # TODO: still need to make suffix work with grammars
+    eos_token = lm.eos_token.decode('utf8')
     if stop is None and stop_regex is None and suffix != "":
         stop = suffix
     if stop is None and stop_regex is None and getattr(lm, "suffix", False):
@@ -39,11 +40,13 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop
 
     # fall back to stopping at the EOS token
     if stop is None:
-        stop = lm.eos_token.decode("utf8")
+        stop = eos_token
 
     # standardize stop and stop_regex into a list of regex patterns
     if isinstance(stop, str):
         stop = [stop]
+    if eos_token not in stop:
+        stop.append(eos_token)
     # TODO: This can be uncommented once we support regex -> grammar compilation
     # if isinstance(stop_regex, str):
     #     stop_regex = [stop_regex]
