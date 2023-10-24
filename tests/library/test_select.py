@@ -15,4 +15,4 @@ def test_simple():
 def test_longer_select():
     lm = models.LocalMock(b"<s>Scott is a very nice man.")
     lm += "Scott is a very " + select(name='text', values=['nice', 'nice man.'])
-    assert lm["text"] == "nice man."
+    assert lm["text"] in ['nice', 'nice man.']

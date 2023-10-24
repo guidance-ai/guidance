@@ -339,7 +339,7 @@ class Trie(object):
             return None
         
 class ByteTrie(object):
-    __slots__ = ('children', 'value', 'match_version', 'match', 'partial_match', 'parent', 'flag')
+    __slots__ = ('children', 'value', 'match_version', 'match', 'partial_match', 'parent', 'flag', 'log_prob')
 
     def __init__(self, byte_strings=None, values=None, parent=None):
         self.children = {}
@@ -349,6 +349,7 @@ class ByteTrie(object):
         self.partial_match = False
         self.parent = parent
         self.flag = None # a spot for user code to store state
+        self.log_prob = 0
 
         if byte_strings is not None:
             for i,s in enumerate(byte_strings):

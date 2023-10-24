@@ -271,12 +271,12 @@ class Join(StatelessFunction):
 class Select(StatelessFunction):
     __slots__ = ("nullable", "_values", "name", "hidden", "commit_point", "capture_name")
 
-    def __init__(self, values, name=None) -> None:
+    def __init__(self, values, capture_name=None, name=None) -> None:
         self.values = values
         self.name = name if name is not None else StatelessFunction._new_name()
         self.hidden = False
         self.commit_point = False
-        self.capture_name = None
+        self.capture_name = capture_name
 
     @property
     def values(self):
@@ -317,14 +317,14 @@ def _select(values, name=None, recurse=False):
     # if name is None:
     #     name = _find_name() + "_" + StatelessFunction._new_name()
     if recurse:
-        node = Select([], name)
+        node = Select([], capture_name=name)
         node.values = [v + node for v in values if v != ""] + values
         return node
     else:
         if len(values) == 1 and name is None:
             return values[0]
         else:
-            return Select(values, name)
+            return Select(values, capture_name=name)
         
 def _byte_range(byte_range):
     return ByteRange(byte_range)

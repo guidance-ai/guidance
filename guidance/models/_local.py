@@ -3,7 +3,6 @@ try:
 except ImportError:
     pass
 import numpy as np
-import numpy as np
 from .._utils import ByteTrie
 from ._model import Model
 # from ..library._string import string
@@ -138,7 +137,7 @@ class Local(Model):
                 
                 # otherwise since there is only one possible next byte we keep going
                 else:
-                    parser.consume_byte(found)
+                    parser.consume_byte(found, log_prob=0.0)
                     trie = trie.children[found]
             forced_pos = parser.pos # record how far the bytes are forced
 
@@ -159,6 +158,10 @@ class Local(Model):
             elif not parser.matched():
                 logits = self._get_logits()
 
+                # we compute the log probabilities so we can track the probabilities of each node
+                log_probs = torch.nn.functional.log_softmax(logits / temperature, dim=-1)
+                _compute_log_probs(trie, log_probs)
+
                 # get the sampling order
                 if temperature == 0:
                     sampling_order = torch.argsort(logits, descending=True).cpu().numpy() # we need numpy so the enumerate below does not get really slow...
@@ -170,9 +173,6 @@ class Local(Model):
                 # loop over the tokens looking for a valid one
                 for i,sampled_token_ind in enumerate(sampling_order):
                     sampled_token = self.tokens[sampled_token_ind]
-
-                    if sampled_token == b' th':
-                        pass
 
                     # make sure the parse is backed up to the position we want to start checking from TODO: make this account for shared prefixes with the last token
                     parser.pos = forced_pos
@@ -200,8 +200,8 @@ class Local(Model):
                         
                         # advance or fail according to the (now up-to-date) match cache
                         if next_node.match:
+                            parser.consume_byte(next_byte, log_prob=next_node.log_prob - node.log_prob)
                             node = next_node
-                            parser.consume_byte(next_byte)
                             token_pos += 1
                             if token_pos == len(sampled_token) or parser.matched():
                                 break # this token is valid
@@ -211,7 +211,7 @@ class Local(Model):
 
                     # check if this token is dominated by other longer valid tokens (and hence would never be consistent with greedy tokenization)
                     if token_pos == len(sampled_token): 
-                        if _check_dominated(node, parser, self._token_trie.match_version, next_byte_mask):
+                        if _check_dominated(node, parser, self._token_trie.match_version, parser.next_byte_mask()):
                             token_pos = -1
 
                     if token_pos > 0:
@@ -295,6 +295,17 @@ def _parsed_value_states(state, state_pos, reversed_state_sets, values_pos = 0):
     return None
         
 
+def _compute_log_probs(trie, log_probs):
+    '''Computes the log probabilities for each internal trie node.'''
+    if trie.value is not None:
+        trie.log_prob = log_probs[trie.value]
+    
+    else:
+        child_log_probs = []
+        for child in trie.children.values():
+            _compute_log_probs(child, log_probs)
+            child_log_probs.append(child.log_prob)
+        trie.log_prob = np.logaddexp.reduce(child_log_probs)
 
 def _check_dominated(node, parser, match_version, next_byte_mask):
     curr_pos = parser.pos
@@ -310,7 +321,7 @@ def _check_dominated(node, parser, match_version, next_byte_mask):
         if not child.match:
             return False # this child does not dominate the node, so the node is not dominated
         elif child.value is None: # this child might not dominate the node
-            parser.consume_byte(next_byte)
+            parser.consume_byte(next_byte, log_prob=0.0)
             child_dominate = _check_dominated(child, parser, match_version, parser.next_byte_mask())
             parser.pos = curr_pos
             if not child_dominate:

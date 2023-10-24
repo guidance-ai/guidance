@@ -3,18 +3,20 @@ from ordered_set import OrderedSet
 from ._grammar import Join, Select, Terminal, Null, Byte, ByteRange
 
 class EarleyItem:
-    def __init__(self, node, values, pos, start):
+    def __init__(self, node, values, pos, start, log_prob):
         self.node = node
         self.values = values
         self.start = start
         self.pos = pos
+        self.log_prob = log_prob
 
     def __eq__(self, other):
         return isinstance(other, EarleyItem) and \
                self.start == other.start and \
                self.pos == other.pos and \
                self.node == other.node and \
-               self.values == other.values
+               self.values == other.values and \
+               self.log_prob == other.log_prob
     
     def __hash__(self):
         return hash((self.node, self.values, self.start, self.pos))
@@ -30,7 +32,7 @@ class EarleyCommitParser:
         self.bytes = b''
         self.state_sets = [OrderedSet()] # the list of Earley 
         self.state_set_pos = 0
-        self._add_node(self.grammar, 0)
+        self._add_node(self.grammar, 0, 0.0)
         self._inner_loop(self.state_set_pos)
 
     @property
@@ -45,20 +47,20 @@ class EarleyCommitParser:
         self.state_set_pos = new_pos
         self._inner_loop(self.state_set_pos)
 
-    def _add_node(self, grammar, state_set_pos):
+    def _add_node(self, grammar, state_set_pos, log_prob):
         if isinstance(grammar, Terminal):
-            new_item = EarleyItem(grammar, tuple(), 0, state_set_pos)
+            new_item = EarleyItem(grammar, tuple(), 0, state_set_pos, log_prob)
             if new_item not in self.state_sets[state_set_pos]:
                 self.state_sets[state_set_pos].append(new_item)
             
         elif isinstance(grammar, Join):
-            new_item = EarleyItem(grammar, tuple(grammar.values), 0, state_set_pos)
+            new_item = EarleyItem(grammar, tuple(grammar.values), 0, state_set_pos, log_prob)
             if new_item not in self.state_sets[state_set_pos]:
                 self.state_sets[state_set_pos].append(new_item)
         
         elif isinstance(grammar, Select):
             for value in grammar.values:
-                new_item = EarleyItem(grammar, (value,), 0, state_set_pos)
+                new_item = EarleyItem(grammar, (value,), 0, state_set_pos, log_prob)
                 if new_item not in self.state_sets[state_set_pos]:
                     self.state_sets[state_set_pos].append(new_item)
 
@@ -76,20 +78,26 @@ class EarleyCommitParser:
                 start_state_set = self.state_sets[item.start]
                 for start_item in start_state_set:
                     if start_item.pos < len(start_item.values) and start_item.values[start_item.pos] == item.node:
-                        curr_state_set.append(EarleyItem(start_item.node, start_item.values, start_item.pos + 1, start_item.start))
+                        curr_state_set.append(EarleyItem(
+                            start_item.node,
+                            start_item.values,
+                            start_item.pos + 1,
+                            start_item.start,
+                            start_item.log_prob + item.log_prob # increment the log prob by the child value
+                        ))
             else:
                 # scan
                 next_item = item.values[item.pos]
                 if isinstance(next_item, Terminal):
-                    next_state_set.append(EarleyItem(item.node, item.values, item.pos + 1, item.start))
+                    next_state_set.append(EarleyItem(item.node, item.values, item.pos + 1, item.start, item.log_prob)) # the log prob will get incremented when consume_bytes is called
                 
                 # prediction
                 else:
-                    self._add_node(next_item, state_set_pos)
+                    self._add_node(next_item, state_set_pos, 0.0) # the log probs will get incremented by children later
 
                     # handle nullable items by advancing them automatically (since we know we can)
                     if next_item.nullable:
-                        new_item = EarleyItem(item.node, item.values, item.pos + 1, item.start)
+                        new_item = EarleyItem(item.node, item.values, item.pos + 1, item.start, item.log_prob)
                         if new_item not in self.state_sets[state_set_pos]:
                             self.state_sets[state_set_pos].append(new_item)
             pos += 1
@@ -122,7 +130,7 @@ class EarleyCommitParser:
                 return True
         return False
 
-    def consume_byte(self, byte):
+    def consume_byte(self, byte, log_prob=0.0):
         '''Advances the parser by the given byte.'''
         self.bytes += byte
         next_state_set = self.state_sets[self.state_set_pos + 1]
@@ -134,6 +142,7 @@ class EarleyCommitParser:
                     continue
                 else:
                     found_valid = True
+            item.log_prob += log_prob # update the probability of the item by the probability of choosing this byte
             new_next_state_set.append(item)
         if not found_valid:
             raise Exception("Attempted to consume a byte that the grammar does not accept!")
@@ -200,7 +209,7 @@ class EarleyCommitParser:
             for state in states:
                 # if state.node.name == "__call___c":
                 #     pass
-                new_state_sets[state.start].append(EarleyItem(state.node, state.values, state.pos, i))
+                new_state_sets[state.start].append(EarleyItem(state.node, state.values, state.pos, i, state.log_prob))
         
         return new_state_sets
 
