@@ -7,6 +7,7 @@ from .._utils import ByteTrie
 from ._model import Model
 # from ..library._string import string
 from .._parser import EarleyCommitParser
+# import numba
 
 class Local(Model):
     def __init__(self, tokens, bos_token_id, eos_token_id=None, echo=True):
@@ -52,7 +53,7 @@ class Local(Model):
         else:
             return None,None # more than one token can match these bytes
 
-    def __call__(self, grammar, max_tokens=100, n=1, top_p=1, temperature=0.0, ensure_bos_token=True):
+    def __call__(self, grammar, max_tokens=100, n=1, top_p=1, temperature=0.0, ensure_bos_token=True, log_probs=False):
         assert n == 1, "Still need to add support for n > 1!"
         prompt = str(self)
         prompt = bytes(prompt, encoding="utf8")
@@ -153,14 +154,16 @@ class Local(Model):
             if is_forced:
                 sampled_token_ind = trie.value
                 sampled_token = self.tokens[sampled_token_ind]
+                new_bytes_log_prob = 0.0
 
             # otherwise we need to compute the logits and sample a valid token
             elif not parser.matched():
                 logits = self._get_logits()
 
-                # we compute the log probabilities so we can track the probabilities of each node
-                log_probs = torch.nn.functional.log_softmax(logits / temperature, dim=-1)
-                _compute_log_probs(trie, log_probs)
+                # if requested we compute the log probabilities so we can track the probabilities of each node
+                # TODO: we should lower this step to C++ or use numba because it is quite slow
+                if log_probs:
+                    _compute_log_probs(trie, torch.nn.functional.log_softmax(logits, dim=-1).cpu().numpy())
 
                 # get the sampling order
                 if temperature == 0:
@@ -176,6 +179,7 @@ class Local(Model):
 
                     # make sure the parse is backed up to the position we want to start checking from TODO: make this account for shared prefixes with the last token
                     parser.pos = forced_pos
+                    new_bytes_log_prob = 0.0
 
                     # make sure it matches any forced prefix
                     if start_pos < forced_pos and not sampled_token.startswith(parser.bytes[start_pos:forced_pos]):
@@ -200,7 +204,9 @@ class Local(Model):
                         
                         # advance or fail according to the (now up-to-date) match cache
                         if next_node.match:
-                            parser.consume_byte(next_byte, log_prob=next_node.log_prob - node.log_prob)
+                            log_prob_delta = next_node.log_prob - node.log_prob
+                            new_bytes_log_prob += log_prob_delta
+                            parser.consume_byte(next_byte, log_prob=log_prob_delta)
                             node = next_node
                             token_pos += 1
                             if token_pos == len(sampled_token) or parser.matched():
@@ -236,10 +242,15 @@ class Local(Model):
                 
                 # value_states = _parsed_value_states(root_state, 0, 0, reversed_state_sets)
                 data = {}
-                _record_names(root_state, 0, reversed_state_sets, data, parser.bytes)
+                log_prob_data = {}
+                _record_names(root_state, 0, reversed_state_sets, data, log_prob_data, parser.bytes)
+                
+                # we have no valid log prob data if we didn't compute it
+                if not log_probs:
+                    log_prob_data = {k: None for k in data}
 
                 if hidden_count < len(new_bytes):
-                    yield new_bytes[hidden_count:len(new_bytes)], not is_forced, data
+                    yield new_bytes[hidden_count:len(new_bytes)], not is_forced, new_bytes_log_prob, data, log_prob_data
                 break # we are done!
             else:
                 generated_pos += len(new_bytes)
@@ -247,7 +258,7 @@ class Local(Model):
                 # yeild the snippet of text created by the next token
                 out = new_bytes[hidden_count:]
                 if len(out) > 0:
-                    yield out, not is_forced, {} # note that we don't capture groups until a complete parse right now...
+                    yield out, not is_forced, new_bytes_log_prob, {}, {} # note that we don't capture groups until a complete parse right now...
                     hidden_count = 0
                     token_count += 1 # note we only update this for tokens that emit non-hidden content
                 else:
@@ -255,12 +266,13 @@ class Local(Model):
 
                 self._cache_state["new_token_ids"].append(sampled_token_ind)
 
-def _record_names(state, state_pos, reversed_state_sets, data, byte_data):
+def _record_names(state, state_pos, reversed_state_sets, data, log_probs, byte_data):
     '''Extract all the named capture groups from the parser.'''
     
     # if we are at a capture group node then we save the matched bytes range
     if state.node.capture_name is not None:
         data[state.node.capture_name] = byte_data[state_pos:state.start] # note that "start" means "end" since this is a reversed state set
+        log_probs[state.node.capture_name] = state.log_prob
     
     # get all the completed state corresponding to this state's node's children (values)
     value_states = _parsed_value_states(state, state_pos, reversed_state_sets)
@@ -268,7 +280,7 @@ def _record_names(state, state_pos, reversed_state_sets, data, byte_data):
     # for each such completed state we recursively look for capture groups
     if value_states is not None:
         for value_state in value_states:
-            _record_names(value_state, state_pos, reversed_state_sets, data, byte_data)
+            _record_names(value_state, state_pos, reversed_state_sets, data, log_probs, byte_data)
             state_pos = value_state.start # note that "start" means "end" since this is a reversed state set
 
 def _parsed_value_states(state, state_pos, reversed_state_sets, values_pos = 0):
@@ -298,11 +310,12 @@ def _parsed_value_states(state, state_pos, reversed_state_sets, values_pos = 0):
 def _compute_log_probs(trie, log_probs):
     '''Computes the log probabilities for each internal trie node.'''
     if trie.value is not None:
-        trie.log_prob = log_probs[trie.value]
+        trie.log_prob += log_probs[trie.value]
     
-    else:
+    if len(trie.children) > 0:
         child_log_probs = []
-        for child in trie.children.values():
+        for b in trie.children:
+            child = trie.children[b]
             _compute_log_probs(child, log_probs)
             child_log_probs.append(child.log_prob)
         trie.log_prob = np.logaddexp.reduce(child_log_probs)

@@ -5,6 +5,7 @@ import re
 import copy
 import json
 import textwrap
+import numpy as np
 from .._grammar import StatelessFunction, StatefulFunction, tag_start, tag_end, _string, _call_pool
 
 class Endpoint:
@@ -268,7 +269,7 @@ type {function['name']} = (_: {{"""
 
             delayed_bytes = b""
             # last_is_generated = False
-            for new_bytes,is_generated,capture_groups in gen_obj:
+            for new_bytes,is_generated,new_bytes_log_prob,capture_groups,capture_group_log_probs in gen_obj:
                 
                 # convert the bytes to a string (delaying if we don't yet have a valid unicode string)
                 new_bytes = delayed_bytes + new_bytes
@@ -281,7 +282,7 @@ type {function['name']} = (_: {{"""
 
                 generated_value += new_text
                 if is_generated:
-                    lm += "<||_html:<span style='background-color: rgba(0, 165, 0, 0.25); border-radius: 3px;'>_||>"
+                    lm += f"<||_html:<span style='background-color: rgba(0, 165, 0, {0.05 + 0.4 * (1 - np.exp(new_bytes_log_prob))}); border-radius: 3px;' title='{new_bytes_log_prob}'>_||>"
                 # if not is_generated and last_is_generated:
                     
                 lm += new_text
