@@ -16,7 +16,7 @@ class Transformers(LLM):
     llm_name: str = "transformers"
 
     def __init__(self, model=None, tokenizer=None, caching=True, token_healing=True, acceleration=True, \
-                 temperature=0.0, device=None, **kwargs):
+                 temperature=0.0, device=None, peft_model_id = None, **kwargs):
         super().__init__()
 
         # fill in default model value
@@ -30,7 +30,18 @@ class Transformers(LLM):
                 pass
 
         self.model_obj, self.tokenizer = self._model_and_tokenizer(model, tokenizer, **kwargs)
-
+        
+        #Converting the baseline model into a wrapped Peft model is a one-liner. Handling
+        #exceptions/issues in a useful way is slightly longer.
+        if peft_model_id is not None:
+            try:
+                from peft import PeftModel
+                self.model_obj = PeftModel.from_pretrained(self.model_obj, peft_model_id)
+            except ImportError as e:
+                print("Cannot load peft module, please install with 'pip install peft' or 'pip install git+https://github.com/huggingface/peft")
+            except Exception as e: #fallthrough general exception
+                print(f"Exception while applying peft model:\n{e.message}")
+                
         self.model_name = model if isinstance(model, str) else model.__class__.__name__
         self.caching = caching
         self.current_time = time.time()
