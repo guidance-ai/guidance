@@ -151,6 +151,19 @@ def test_variable_starts_with_or(llm):
     out = program(organizations=organizations)
     assert out["selected"] in organizations
 
+@pytest.mark.parametrize("llm", ["transformers:gpt2", "openai:text-curie-001"])
+def test_select_text(llm):
+    """ Test the behavior of `select` with list_append=True.
+    """
+
+    llm = get_llm(llm)
+    prompt = guidance('''Is the following sentence offensive? Please answer with a single word, either "Yes", "No", or "Maybe".
+    Sentence: {{example}}
+    Answer: {{#select "answer" logprobs='logprobs'}}Yes{{or}}No{{or}}Maybe{{/select}}''', llm=llm)
+    prompt = prompt(example='I hate tacos.')
+    
+    assert prompt.text.split("Answer: ")[1] in ["Yes", "No", "Maybe"]
+
 # TODO: fix this next
 # def test_unexpected_tokens():
 #     """ Test the behavior of `select` when the next tokens are hard to predict.

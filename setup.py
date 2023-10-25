@@ -40,7 +40,7 @@ setup(
         "msal",
         "requests",
         "numpy",
-        "aiohttp",
+        "aiohttp"
     ],
     extras_require={
         'docs': [
@@ -55,6 +55,12 @@ setup(
             'transformers',
             'torch',
             'pytest-cov'
+        ],
+        'mpt': [
+            'einops'
+        ],
+        'llama': [
+            'sentencepiece'
         ]
     }
 )
