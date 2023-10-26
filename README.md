@@ -720,6 +720,28 @@ prompt['conversation']
  prompt = prompt(user_text = 'What is the meaning of life?')
 prompt
 ```
+### Exceptions & logging
+If you face any error regarding your prompt, you can simply log out the error:
+
+```shell
+pip install -q loguru
+```
+
+```python
+import loguru import logger
+prompt = prompt(user_tex = 'What is the meaning of life?')
+exception = prompt._exception
+
+if exception:
+  logger.error(f"Found Exception: {exception}")
+```
+
+**Output**
+```python
+2023-07-24 23:43:39.059 | ERROR    | __main__:guidance_fn:143 - Found Exception: "Command/variable 'user_tex' not found! Please pass it when calling the program (or set a default value for it when creating the program)."
+```
+---
+
 See a more elaborate example [here](notebooks/chat.ipynb).
 
 ### Using tools
