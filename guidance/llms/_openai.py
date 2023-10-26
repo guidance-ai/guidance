@@ -404,7 +404,8 @@ class OpenAI(LLM):
             "stream": stream,
             "logprobs": kwargs.get("logprobs", None),
             'stop': kwargs.get("stop", None),
-            "echo": kwargs.get("echo", False)
+            "echo": kwargs.get("echo", False),
+            "logit_bias": kwargs.get("logit_bias", None)
         }
         if self.chat_mode:
             data['messages'] = prompt_to_messages(data['prompt'])
