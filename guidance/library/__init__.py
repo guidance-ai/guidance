@@ -15,6 +15,10 @@ from ._subtract import subtract
 from ._role import role
 from ._user import user
 from ._system import system
+from ._context import context
+from ._example import example
+from ._input import input_
+from ._output import output_
 from ._assistant import assistant
 from ._function import function
 from ._break import break_

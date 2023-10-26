@@ -573,6 +573,24 @@ class Program:
 
             return f"<div style='display: flex; border-bottom: 1px solid rgba(127, 127, 127, 0.2); align-items: center;'><div style='flex: 0 0 80px; opacity: 0.5;'>{role_name.lower()}</div><div style='flex-grow: 1; padding: 5px; padding-top: 10px; padding-bottom: 10px; margin-top: 0px; white-space: pre-wrap; margin-bottom: 0px;'>{content}</div></div>"
 
+        def input_output_box(x):
+            content = x.group(3)
+            tag_text = undo_html_encode(x.group(2))
+            io_name = x.group(1)
+            
+            i_start_pattern = html.escape(self.llm.input_start()).replace("|", r"\|")
+            i_end_pattern = html.escape(self.llm.input_end()).replace("|", r"\|")
+            
+            o_start_pattern = html.escape(self.llm.output_start()).replace("|", r"\|")
+            o_end_pattern = html.escape(self.llm.output_end()).replace("|", r"\|")
+
+            # strip the start and end patterns from the content
+            content = re.sub("^" + i_start_pattern, "", content, flags=re.DOTALL)
+            content = re.sub("^" + o_start_pattern, "", content, flags=re.DOTALL)
+            content = re.sub(i_end_pattern + "$", "", content, flags=re.DOTALL)
+            content = re.sub(o_end_pattern + "$", "", content, flags=re.DOTALL)
+            return f"<div style='display: flex; border-bottom: 1px solid rgba(127, 127, 127, 0.2); align-items: center;'><div style='flex: 0 0 80px; opacity: 0.5;'>{io_name.lower()}</div><div style='flex-grow: 1; padding: 5px; padding-top: 10px; padding-bottom: 10px; margin-top: 0px; white-space: pre-wrap; margin-bottom: 0px;'>{content}</div></div>"
+
         display_out = html.escape(output)
         # log.debug(display_out)
 
@@ -590,28 +608,33 @@ class Program:
         display_out = re.sub(r"(\{\{(?!\!)(?!~\!).*?\}\})", r"<span style='font-family: monospace; background-color: rgba(0, 0, 0, 0.05);'>\1</span>", display_out, flags=re.DOTALL)
         
         # if we have role markers, we wrap them in special formatting
-        if re.search(r"{{!--GMARKER_START_(role|system|user|assistant|function)", display_out) is not None:
+        if re.search(r"{{!--GMARKER_START_(role|system|user|assistant|function|context|example)", display_out) is not None:
 
             # start_pattern = html.escape(self.llm.role_start("assistant")).replace("|", r"\|").replace(r"assistant", r"([^\n]*)").replace(r"ASSISTANT", r"([^\n]*)")
             # end_pattern = html.escape(self.llm.role_end("assistant")).replace("|", r"\|").replace(r"assistant", r"([^\n]*)").replace(r"ASSISTANT", r"([^\n]*)")
             
             # strip whitespace before role markers
-            display_out = re.sub(r"\s*{{!--GMARKER_START_(role|system|user|assistant|function)\$(.*?)--}}", r"{{!--GMARKER_START_\1$\2--}}", display_out, flags=re.DOTALL)
+            display_out = re.sub(r"\s*{{!--GMARKER_START_(role|system|user|assistant|function|context|example)\$(.*?)--}}", r"{{!--GMARKER_START_\1$\2--}}", display_out, flags=re.DOTALL)
 
             # strip whitespace after role markers
             # TODO: support end_patterns with capture groups
-            display_out = re.sub(r"{{!--GMARKER_END_(role|system|user|assistant|function)\$(.*?)--}}\s*", r"{{!--GMARKER_END_\1$\2--}}", display_out, flags=re.DOTALL)
+            display_out = re.sub(r"{{!--GMARKER_END_(role|system|user|assistant|function|context|example)\$(.*?)--}}\s*", r"{{!--GMARKER_END_\1$\2--}}", display_out, flags=re.DOTALL)
 
             if "GMARKER_START_function" in display_out:
                 display_out += ""
                 pass
 
+            
             # wrap role markers in nice formatting
-            display_out = re.sub(r"{{!--GMARKER_START_(role|system|user|assistant|function)\$(.*?)--}}" + "(.*?)" + r"{{!--GMARKER_END_(role|system|user|assistant|function)\$(.*?)--}}", role_box, display_out, flags=re.DOTALL)
+            display_out = re.sub(r"{{!--GMARKER_START_(role|system|user|assistant|function|context|example)\$(.*?)--}}" + "(.*?)" + r"{{!--GMARKER_END_(role|system|user|assistant|function|context|example)\$(.*?)--}}", role_box, display_out, flags=re.DOTALL)
 
             # wrap unfinished role markers in nice formatting
-            display_out = re.sub(r"{{!--GMARKER_START_(role|system|user|assistant|function)\$(.*?)--}}" + "(.*)", role_box, display_out, flags=re.DOTALL)
+            display_out = re.sub(r"{{!--GMARKER_START_(role|system|user|assistant|function|context|example)\$(.*?)--}}" + "(.*)", role_box, display_out, flags=re.DOTALL)
         
+            # wrap input/output markers in nice formatting
+            display_out = re.sub(r"{{!--GMARKER_START_(input|output)\$(.*?)--}}" + "(.*?)" + r"{{!--GMARKER_END_(input|output)\$(.*?)--}}", input_output_box, display_out, flags=re.DOTALL)
+
+
         display_out = re.sub(r"(\{\{generate.*?\}\})", r"<span style='background-color: rgba(0, 165, 0, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
         display_out = re.sub(r"(\{\{#select\{\{/select.*?\}\})", r"<span style='background-color: rgba(0, 165, 0, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
         display_out = re.sub(r"(\{\{#each [^'\"].*?\{\{/each.*?\}\})", r"<span style='background-color: rgba(0, 138.56128016, 250.76166089, 0.25);'>\1</span>", display_out, flags=re.DOTALL)
@@ -734,6 +757,10 @@ _built_ins = {
     "role": commands.role,
     "user": commands.user,
     "system": commands.system,
+    "context": commands.context,
+    "example": commands.example,
+    "input": commands.input_,
+    "output": commands.output_,
     "assistant": commands.assistant,
     "function": commands.function,
     "break": commands.break_,

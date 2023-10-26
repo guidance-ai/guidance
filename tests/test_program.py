@@ -2,14 +2,15 @@ import guidance
 import pytest
 from .utils import get_llm
 
-def test_chat_stream():
-    """ Test the behavior of `stream=True` for an openai chat endpoint.
+@pytest.mark.parametrize("model",["openai:gpt-3.5-turbo", "palm:chat-bison"])
+def test_chat_stream(model):
+    """ Test the behavior of `stream=True` for chat endpoints.
     """
 
     import asyncio
     loop = asyncio.new_event_loop()
 
-    guidance.llm = get_llm("openai:gpt-3.5-turbo")
+    guidance.llm = get_llm(model)
 
     async def f():
         chat = guidance("""<|im_start|>system
@@ -24,14 +25,15 @@ You are a helpful assistent.
         assert len(out["answer"]) > 0
     loop.run_until_complete(f())
 
-def test_chat_display():
-    """ Test the behavior of `stream=True` for an openai chat endpoint.
+@pytest.mark.parametrize("model",["openai:gpt-3.5-turbo", "palm:chat-bison"])
+def test_chat_display(model):
+    """ Test the behavior of `stream=True` for a chat endpoint.
     """
 
     import asyncio
     loop = asyncio.new_event_loop()
 
-    guidance.llm = get_llm("openai:gpt-3.5-turbo")
+    guidance.llm = get_llm(model)
 
     async def f():
         chat = guidance("""<|im_start|>system
@@ -46,10 +48,11 @@ You are a helpful assistent.
         assert len(out["answer"]) > 0
     loop.run_until_complete(f())
 
-def test_agents():
+@pytest.mark.parametrize("model",["openai:gpt-3.5-turbo", "palm:chat-bison"])
+def test_agents(model):
     """Test agents, calling prompt twice"""
 
-    guidance.llm = get_llm("openai:gpt-3.5-turbo")
+    guidance.llm = get_llm(model)
 
     prompt = guidance('''<|im_start|>system
 You are a helpful assistant.<|im_end|>
@@ -57,13 +60,13 @@ You are a helpful assistant.<|im_end|>
 <|im_start|>user
 {{set 'this.user_text' (await 'user_text')}}<|im_end|>
 <|im_start|>assistant
-{{gen 'this.ai_text' n=1 temperature=0 max_tokens=900}}<|im_end|>{{/geneach}}''', echo=True)
+{{gen 'this.ai_text' n=1 temperature=0 max_tokens=5}}<|im_end|>{{/geneach}}''', echo=True)
     prompt = prompt(user_text='Hi there')
     assert len(prompt['conversation']) == 2
     prompt = prompt(user_text='Please help')
     assert len(prompt['conversation']) == 3
 
-@pytest.mark.parametrize("llm", ["transformers:gpt2", "openai:text-curie-001"])
+@pytest.mark.parametrize("llm", ["transformers:gpt2", "openai:text-curie-001","palm:text-bison"])
 def test_stream_loop(llm):
     llm = get_llm(llm)
     program = guidance("""Generate a list of 5 company names:
@@ -78,7 +81,7 @@ def test_stream_loop(llm):
     assert len(partials[0]) < 5
     assert len(partials[-1]) == 5
 
-@pytest.mark.parametrize("llm", ["transformers:gpt2", "openai:text-curie-001"])
+@pytest.mark.parametrize("llm", ["transformers:gpt2", "openai:text-curie-001","palm:text-bison"])
 def test_stream_loop_async(llm):
     """ Test the behavior of `stream=True` for an openai chat endpoint.
     """
@@ -112,8 +115,8 @@ def test_logging_off():
     executed_program = program(flag=True)
     assert executed_program.log is False
 
-
-def test_async_mode_exceptions():
+@pytest.mark.parametrize("model",["openai:gpt-3.5-turbo", "palm:chat-bison"])
+def test_async_mode_exceptions(model):
     """
     Ensures that exceptions in async_mode=True don't hang the program and are
     re-raised back to the caller.
@@ -121,7 +124,7 @@ def test_async_mode_exceptions():
     import asyncio
     loop = asyncio.new_event_loop()
 
-    guidance.llm = get_llm("openai:gpt-3.5-turbo")
+    guidance.llm = get_llm(model)
 
     async def call_async():
         program = guidance("""

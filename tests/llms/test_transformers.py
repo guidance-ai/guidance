@@ -7,7 +7,6 @@ def test_basic(llm):
     llm = get_llm(llm)
     with llm.session() as s:
         out = s("this is a test", max_tokens=5)
-        print(out)
 
 def test_basic_object_init():
     import transformers
@@ -16,7 +15,6 @@ def test_basic_object_init():
     llm = guidance.llms.Transformers(model, tokenizer)
     with llm.session() as s:
         out = s("this is a test", max_tokens=5)
-        print(out)
 
 @pytest.mark.parametrize("llm", ["transformers:gpt2", "transformers:facebook/opt-350m"])
 def test_repeat(llm):
@@ -24,7 +22,6 @@ def test_repeat(llm):
     with llm.session() as s:
         out1 = s("this is a test", max_tokens=5)
         out2 = s("this is a test like another", max_tokens=5)
-        print(out2)
 
 @pytest.mark.parametrize("llm", ["transformers:gpt2", "transformers:facebook/opt-350m"])
 def test_select(llm):

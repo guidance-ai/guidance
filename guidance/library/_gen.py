@@ -93,7 +93,7 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
 
         # auto-detect role stop tags
         if stop is None:
-            m = re.match(r"^{{~?/\w*(user|assistant|system|role|function)\w*~?}}.*", next_text)
+            m = re.match(r"^{{~?/\w*(user|assistant|system|role|function|context|example)\w*~?}}.*", next_text)
             if m:
                 stop = parser.program.llm.role_end(m.group(1))
 

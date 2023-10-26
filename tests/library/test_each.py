@@ -1,5 +1,6 @@
 import guidance
 from ..utils import get_llm
+import pytest
 
 def test_each():
     """ Test an each loop.
@@ -63,10 +64,11 @@ def test_each_parallel_with_gen():
     for food in executed_program["foods"]:
         assert food in ["Pizza", "Burger", "Salad"]
 
-def test_each_parallel_with_gen_openai():
-    """Test an each loop run in parallel with generations inside using OpenAI."""
+@pytest.mark.parametrize("llm", ["openai:text-curie-001","palm:text-bison"])
+def test_each_parallel_with_gen_nomock(llm):
+    """Test an each loop run in parallel with generations inside using OpenAI and PaLM."""
 
-    llm = get_llm("openai:text-curie-001")
+    llm = get_llm(llm)
 
     program = guidance("""Hello, {{name}}! Here are 5 names and their favorite food:
 {{#each names parallel=True hidden=True}}{{this}}: {{gen 'foods' list_append=True}}
