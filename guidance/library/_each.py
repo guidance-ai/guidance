@@ -1,5 +1,6 @@
 import asyncio
 import builtins
+import re
 from .._utils import ContentCapture
 
 async def each(list, hidden=False, parallel=False, item_name="this", start_index=0, _parser_context=None):
