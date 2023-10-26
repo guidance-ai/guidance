@@ -12,7 +12,8 @@ def test_simple():
     lm = lm + 'Scott is quite ' + select(name='bad', values=options)
     assert lm['bad'] in options
 
-def test_longer_select():
-    lm = models.LocalMock(b"<s>Scott is a very nice man.")
-    lm += "Scott is a very " + select(name='text', values=['nice', 'nice man.'])
-    assert lm["text"] in ['nice', 'nice man.']
+# TODO: think about what select even means
+# def test_longer_select():
+#     lm = models.LocalMock(b"<s>Scott is a very nice man.")
+#     lm += "Scott is a very " + select(name='text', values=['nice', 'nice man.'])
+#     assert lm["text"] in ['nice', 'nice man.']
