@@ -172,7 +172,8 @@ class TransformersSession(LLMSession):
 
         return self
     
-    async def __call__(self, prompt, stop=None, stop_regex=None, temperature=None, n=1, max_tokens=1000, logprobs=None,
+
+    async def __call__(self, prompt, stop=None, stop_regex=None, temperature=None, n=1, min_tokens=0, max_tokens=1000, logprobs=None,
                        top_p=1.0, echo=False, logit_bias=None, token_healing=None, pattern=None, stream=False,
                        cache_seed=0, caching=None, **generate_kwargs):
         """ Generate a completion of the given prompt.
@@ -249,6 +250,11 @@ class TransformersSession(LLMSession):
             if logit_bias is not None:
                 processors.append(BiasLogitsProcessor(self.llm, model_config.vocab_size, logit_bias))
 
+            # enforce minimum tokens
+            if min_tokens > 0:
+                input_ids_seq_length = input_ids.shape[-1]
+                processors.append(transformers.MinNewTokensLengthLogitsProcessor(prompt_length_to_skip=input_ids_seq_length,min_new_tokens=min_tokens, eos_token_id=self.llm.tokenizer.eos_token_id))
+
             # find the max context length
             possible_attributes = ["max_sequence_length", "max_seq_len", "model_max_length", "n_positions", "max_position_embeddings"]
             max_context = None
@@ -263,6 +269,10 @@ class TransformersSession(LLMSession):
             # make sure we don't run off the end of the model
             if max_tokens + len(input_ids[0]) > max_context:
                 max_tokens = max_context - len(input_ids[0])
+                
+            # make sure we can fit the minimum tokens
+            if max_tokens < min_tokens:
+                raise Exception("Program specified a minimum number of tokens which cannot fit in this model.")
 
             # find how much of the prompt is cached
             prefix_match_len = 0

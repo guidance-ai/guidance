@@ -7,9 +7,9 @@ from .._utils import escape_template_block, AsyncIter
 
 log = logging.getLogger(__name__)
 
-async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_tokens=500, n=1, stream=None,
+async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, min_tokens=0, max_tokens=500, n=1, stream=None,
               temperature=0.0, top_p=1.0, logprobs=None, pattern=None, hidden=False, list_append=False,
-              save_prompt=False, token_healing=None, function_call="none", _parser_context=None, **llm_kwargs):
+              save_prompt=False, token_healing=None, exclude=None, function_call="none", _parser_context=None, **llm_kwargs):
     ''' Use the LLM to generate a completion.
 
     Parameters
@@ -26,6 +26,8 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
         If set to a string, the exact stop text used will be saved in a variable with the given name. If set to
         True, the stop text will be saved in a variable named `name+"_stop_text"`. If set to False,
         the stop text will not be saved.
+    min_tokens : int
+        The minimum number of tokens to generate in this completion.
     max_tokens : int
         The maximum number of tokens to generate in this completion.
     n : int
@@ -54,6 +56,9 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
         If set to a string, the exact prompt given to the LLM will be saved in a variable with the given name.
     token_healing : bool or None
         If set to a bool this overrides the token_healing setting for the LLM.
+    exclude : list
+        If set, the LLM will be forced to avoid generating each token id in the list (through logit biasing).
+        Each list element must be exactly one token.
     **llm_kwargs
         Any other keyword arguments will be passed to the LLM __call__ method. This can be useful for setting
         LLM-specific parameters like `repetition_penalty` for Transformers models or `suffix` for some OpenAI models.
@@ -133,13 +138,18 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
 
     if logprobs is None:
         logprobs = parser.program.logprobs
+    
+    logit_bias = {}
+    if exclude:
+         for token in exclude:
+             logit_bias[token] = -100
 
     assert parser.llm_session is not None, "You must set an LLM for the program to use (use the `llm=` parameter) before you can use the `gen` command."
 
     # call the LLM
     gen_obj = await parser.llm_session(
-        variable_stack["@prefix"]+prefix, stop=stop, stop_regex=stop_regex, max_tokens=max_tokens, n=n, pattern=pattern,
-        temperature=temperature, top_p=top_p, logprobs=logprobs, cache_seed=cache_seed, token_healing=token_healing,
+        variable_stack["@prefix"]+prefix, stop=stop, stop_regex=stop_regex, min_tokens=min_tokens, max_tokens=max_tokens, n=n, pattern=pattern,
+        temperature=temperature, top_p=top_p, logprobs=logprobs, cache_seed=cache_seed, token_healing=token_healing, logit_bias=logit_bias,
         echo=parser.program.logprobs is not None, stream=stream, caching=parser.program.caching, function_call=function_call, **llm_kwargs
     )
 
