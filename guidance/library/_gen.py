@@ -96,6 +96,8 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop
     if name is not None:
         lm[name] = str(lm)[start_pos:]
     return lm
+
+
 def click_loop_start(id, total_count, echo, color):
     click_script = '''
 function cycle_IDVAL(button_el) {

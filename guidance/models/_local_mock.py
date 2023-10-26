@@ -42,12 +42,11 @@ class LocalMock(Local):
         self._cache_state["past_key_values"] = None
         self._cache_state["logits"] = None
 
-    def _get_logits(self):
+    def _get_logits(self, token_ids):
         '''Pretends to compute the logits for the given token state.
         '''
 
         # build the byte strings
-        token_ids = self._cache_state["cache_token_ids"] + self._cache_state["new_token_ids"]
         byte_string = b"".join(self.tokens[i] for i in token_ids)
 
         # we randomly generate valid unicode bytes
@@ -57,13 +56,10 @@ class LocalMock(Local):
         if self.byte_patterns is not None:
             byte_string
             for p in self.byte_patterns:
-                if p.startswith(byte_string):
+                if p.startswith(byte_string) and len(p) > len(byte_string):
                     logits[self._get_next_token(p[len(byte_string):])] += 100
                     break
         
-        self._cache_state["cache_token_ids"].extend(self._cache_state["new_token_ids"])
-        self._cache_state["new_token_ids"].clear()
-
         return torch.tensor(logits)
     
     def _get_next_token(self, byte_string):

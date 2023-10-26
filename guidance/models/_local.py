@@ -7,6 +7,7 @@ from .._utils import ByteTrie
 from ._model import Model
 # from ..library._string import string
 from .._parser import EarleyCommitParser
+from .._grammar import Terminal
 # import numba
 
 class Local(Model):
@@ -26,14 +27,8 @@ class Local(Model):
         self._token_trie.match = True
         self._token_trie.match_version = 0
 
-        # all mutable state goes in the cache dictionary
-        self._cache_state["cache_token_ids"] = []
-        self._cache_state["new_token_ids"] = []
-
-    def _get_logits(self):
+    def _get_logits(self, token_ids):
         '''A fake method designed to be overriden by subclasses.'''
-        self._cache_state["cache_token_ids"].extend(self._new_token_ids)
-        self._new_token_ids = []
 
         # pretend to extend the KV cache and update the log probs
         return torch.randn(len(self.tokens))
@@ -63,17 +58,18 @@ class Local(Model):
             prompt = self.bos_token + prompt
 
         # find out how much of the prompt we have in the KV cache (and strip from the prompt what we already have)
-        cache_token_ids = self._cache_state["cache_token_ids"]
-        if len(cache_token_ids) > 0:
-            cache_pos = 0
-            for i,id in enumerate(cache_token_ids):
-                token = self.tokens[id]
-                if prompt[cache_pos:cache_pos+len(token)] != token:
-                    self._cache_state["cache_token_ids"] = cache_token_ids[:i]
-                    break
-                cache_pos += len(token)
-            prompt = prompt[cache_pos:]
-        self._cache_state["new_token_ids"] = []
+        # cache_token_ids = self._cache_state["cache_token_ids"]
+        # if len(cache_token_ids) > 0:
+        #     cache_pos = 0
+        #     for i,id in enumerate(cache_token_ids[:-1]): # note that we don't use the last token in the cache because we might h
+        #         token = self.tokens[id]
+        #         if prompt[cache_pos:cache_pos+len(token)] != token:
+        #             self._cache_state["cache_token_ids"] = cache_token_ids[:i]
+        #             break
+        #         cache_pos += len(token)
+        #     prompt = prompt[cache_pos:]
+        # self._cache_state["new_token_ids"] = []
+        token_ids = []
         
         # move whatever is not cached from the prompt into the grammar (since the grammar is what we will generate)
         # note we also anchor the pattern to the start of the sequence
@@ -150,18 +146,21 @@ class Local(Model):
                 parser.pos = forced_pos
             
             # if we walked all the way to a forced token then we advance without computing the logits
-            is_forced = found is None and trie != self._token_trie
+            # we are forced if there are no more options and we are either in the middle of the grammar or at a trie leaf
+            is_forced = found is None and (len(trie.children) == 0 if parser.matched() else trie != self._token_trie)
             if is_forced:
                 sampled_token_ind = trie.value
+                if sampled_token_ind == 393:
+                    pass
                 sampled_token = self.tokens[sampled_token_ind]
                 new_bytes_log_prob = 0.0
 
             # otherwise we need to compute the logits and sample a valid token
-            elif not parser.matched():
-                logits = self._get_logits()
+            else:
+                logits = self._get_logits(token_ids)
 
                 # if requested we compute the log probabilities so we can track the probabilities of each node
-                # TODO: we should lower this step to C++ or use numba because it is quite slow
+                # TODO: we should lower this step to C++ with pybind11
                 if log_probs:
                     _compute_log_probs(trie, torch.nn.functional.log_softmax(logits, dim=-1).cpu().numpy())
 
@@ -209,48 +208,49 @@ class Local(Model):
                             parser.consume_byte(next_byte, log_prob=log_prob_delta)
                             node = next_node
                             token_pos += 1
-                            if token_pos == len(sampled_token) or parser.matched():
+                            if token_pos == len(sampled_token):
                                 break # this token is valid
                         else:
-                            token_pos = -1
-                            break # this token is invalid
+                            # partially valid tokens are okay if we are running off the end of a grammar, but not otherwise
+                            if not parser.matched():
+                                token_pos = -1
+
+                            break # this token is no longer valid
 
                     # check if this token is dominated by other longer valid tokens (and hence would never be consistent with greedy tokenization)
-                    if token_pos == len(sampled_token): 
+                    if token_pos == len(sampled_token) and not parser.matched(): # not we don't check if we have matched, because then we can generate anything afterwards
                         if _check_dominated(node, parser, self._token_trie.match_version, parser.next_byte_mask()):
                             token_pos = -1
 
                     if token_pos > 0:
                         break # we found a valid token
-            
+
+                    if parser.matched():
+                        break # if we already have a full match we don't try more tokens we just give up as soon as the model deviates from the grammar
+            if sampled_token == 220:
+                pass
             # emit whatever we know will not be hidden
             new_bytes = parser.bytes[generated_pos:parser.earliest_hidden_start()]
 
-            # if we have a full match we are done
-            if parser.matched():
+            # if we cannot consume any more tokens then we are done
+            if not is_forced and token_pos <= 0:
+                assert parser.matched()
 
                 # TODO: if we exactly match the end of the pattern then we can commit to this last token 
                 # if m.span()[1] == len(generated_text):
                 #     self._cache_state["new_token_ids"].append(sampled_token_ind)
 
-                reversed_state_sets = parser._reversed_state_sets()
-
-                # find the matching root state
-                for state in reversed_state_sets[0]:
-                    if state.node == parser.grammar and state.start == len(parser.bytes) and state.pos == len(state.values):
-                        root_state = state
-                
-                # value_states = _parsed_value_states(root_state, 0, 0, reversed_state_sets)
+                # capture the named groups from the parse tree
+                parse_tree = parser.parse_tree()
                 data = {}
                 log_prob_data = {}
-                _record_names(root_state, 0, reversed_state_sets, data, log_prob_data, parser.bytes)
+                _record_captures(parse_tree, data, log_prob_data, parser.bytes, 0)
                 
                 # we have no valid log prob data if we didn't compute it
                 if not log_probs:
                     log_prob_data = {k: None for k in data}
 
-                if hidden_count < len(new_bytes):
-                    yield new_bytes[hidden_count:len(new_bytes)], not is_forced, new_bytes_log_prob, data, log_prob_data
+                yield new_bytes[hidden_count:len(new_bytes)], not is_forced, new_bytes_log_prob, data, log_prob_data
                 break # we are done!
             else:
                 generated_pos += len(new_bytes)
@@ -264,47 +264,34 @@ class Local(Model):
                 else:
                     hidden_count -= len(new_bytes)
 
-                self._cache_state["new_token_ids"].append(sampled_token_ind)
+                token_ids.append(sampled_token_ind)
 
-def _record_names(state, state_pos, reversed_state_sets, data, log_probs, byte_data):
-    '''Extract all the named capture groups from the parser.'''
+def _record_captures(item, data, log_prob_data, byte_data, byte_pos):
     
-    # if we are at a capture group node then we save the matched bytes range
-    if state.node.capture_name is not None:
-        data[state.node.capture_name] = byte_data[state_pos:state.start] # note that "start" means "end" since this is a reversed state set
-        log_probs[state.node.capture_name] = state.log_prob
+    # terminal nodes
+    if isinstance(item, Terminal):
+
+        # if we are at a capture group node then we save the matched terminal byte
+        if item.capture_name is not None:
+            data[item.capture_name] = item.byte
+            log_prob_data[item.capture_name] = 0
     
-    # get all the completed state corresponding to this state's node's children (values)
-    value_states = _parsed_value_states(state, state_pos, reversed_state_sets)
+    # internal nodes
+    else:
 
-    # for each such completed state we recursively look for capture groups
-    if value_states is not None:
-        for value_state in value_states:
-            _record_names(value_state, state_pos, reversed_state_sets, data, log_probs, byte_data)
-            state_pos = value_state.start # note that "start" means "end" since this is a reversed state set
+        # if we are at a capture group node then we save the matched bytes range
+        if item.node.capture_name is not None:
+            data[item.node.capture_name] = byte_data[byte_pos:item.start] # note that "start" means "end" since this is a reversed state set
+            log_prob_data[item.node.capture_name] = item.log_prob
 
-def _parsed_value_states(state, state_pos, reversed_state_sets, values_pos = 0):
-    '''Get the completed states (reversed earley items) of all the children nodes.'''
-
-    # if we are at the end of the values then there no more children
-    if values_pos == len(state.values):
-        return []
-
-    # get the child we are trying to match (meaning we are looking for completed early items for this node)
-    value = state.values[values_pos]
-
-    # loop over every item in the current state set looking for a match
-    for inner_state in reversed_state_sets[state_pos]:
-        if inner_state.node == value and inner_state.pos == len(inner_state.values):
-
-            # get all states from future children (values)
-            value_states = _parsed_value_states(state, inner_state.start, reversed_state_sets, values_pos + 1)
-            
-            # we break out once we get our first match
-            if value_states is not None:
-                return [inner_state] + value_states
-    
-    return None
+        # recurse for all our non-null children
+        for child in item.children:
+            if child is not None:
+                _record_captures(child, data, log_prob_data, byte_data, byte_pos)
+                if isinstance(child, Terminal):
+                    byte_pos += len(child)
+                else:
+                    byte_pos = child.start # note that "start" means "end" since this is a reversed state set
         
 
 def _compute_log_probs(trie, log_probs):

@@ -309,7 +309,7 @@ def _string(value):
     elif len(b) == 1:
         return Byte(b)
     else:
-        return Join([Byte(b[i:i+1]) for i in range(len(b))], name='"' + str(value) + '"')
+        return Join([Byte(b[i:i+1]) for i in range(len(b))], name=str(str(value).encode("utf8")))
     
 def _select(values, name=None, recurse=False):
     for value in values:
@@ -326,8 +326,8 @@ def _select(values, name=None, recurse=False):
         else:
             return Select(values, capture_name=name)
         
-def _byte_range(byte_range):
-    return ByteRange(byte_range)
+def _byte_range(low, high):
+    return ByteRange(low + high)
 
 def _capture(value, name=None):
     value.capture_name = name
