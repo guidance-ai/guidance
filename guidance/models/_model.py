@@ -294,7 +294,10 @@ type {function['name']} = (_: {{"""
                 if len(capture_groups) > 0:
                     for k in capture_groups:
                         v = capture_groups[k]
-                        lm[k] = v.decode("utf8") if isinstance(v, bytes) else v
+                        try:
+                            lm[k] = v.decode("utf8") if isinstance(v, bytes) else v
+                        except UnicodeDecodeError:
+                            lm[k] = v
 
             # if len(capture_groups) > 0:
             #     for k in capture_groups:
