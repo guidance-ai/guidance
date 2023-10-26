@@ -132,9 +132,9 @@ def test_non_greedy_tokenize(llm):
     llm = get_llm(llm)
     program = guidance('''Is the following sentence offensive? Please answer with a single word, either "Yes", "No", or "Maybe".
 Sentence: {{example}}
-Answer:{{#select "answer" logprobs='logprobs'}} 
-    Yes{{or}} 
-    No{{or}} 
+Answer:{{#select "answer" logprobs='logprobs'}}
+    Yes{{or}}
+    No{{or}}
     Maybe
 {{/select}}''', llm=llm)
     executed_program = program(example='I hate tacos')
@@ -150,6 +150,13 @@ def test_variable_starts_with_or(llm):
     program = guidance("They work at: {{select options=organizations}}", llm=llm)
     out = program(organizations=organizations)
     assert out["selected"] in organizations
+
+import guidance
+
+guidance.llm = guidance.llms.OpenAI("text-davinci-003")
+
+# the {{#select}} command allows you to use the LLM to select from a set of options
+
 
 # TODO: fix this next
 # def test_unexpected_tokens():
