@@ -326,8 +326,8 @@ def _select(values, name=None, recurse=False):
         else:
             return Select(values, capture_name=name)
         
-def _byte_range(byte_range):
-    return ByteRange(byte_range)
+def _byte_range(low, high):
+    return ByteRange(low + high)
 
 def _capture(value, name=None):
     value.capture_name = name

@@ -50,6 +50,7 @@ class Transformers(Local):
 
         self._cache_state["past_key_values"] = None
         self._cache_state["logits"] = None
+        self._cache_state["cache_token_ids"] = []
 
     def _model_and_tokenizer(self, model, tokenizer, **kwargs):
 
@@ -67,38 +68,34 @@ class Transformers(Local):
             model = transformers.AutoModelForCausalLM.from_pretrained(model, **kwargs)
         
         assert tokenizer is not None, "You must give a tokenizer object when you provide a model object (as opposed to just a model name)!"
-
-        # discover how the model handles leading spaces
-        # tokens = tokenizer.encode("alpha ruby")
-        # raw_coded = ''.join([tokenizer.convert_ids_to_tokens(id) for id in tokens])
-        # recoded = tokenizer.decode(tokens)
-        # assert len(raw_coded) == len(recoded), "The tokenizer is changing the length of the string, so you need make a special subclass to handle this model!"
-        # self.leading_space_token = raw_coded[-5]
             
         return model, tokenizer
 
-    def _get_logits(self):
+    def _get_logits(self, token_ids):
         '''Computes the logits for the given token state.
         
         This overrides a method from the LocalEngine class that is used to get
         inference results from the model.
         '''
 
-        cache_token_ids = self._cache_state["cache_token_ids"]
-        new_token_ids = self._cache_state["new_token_ids"]
-
         # get the number of cache positions we are using
+        cache_token_ids = self._cache_state["cache_token_ids"]
+        num_cached = 0
+        for id in cache_token_ids:
+            if num_cached >= len(cache_token_ids) or num_cached >= len(token_ids) or token_ids[num_cached] != id:
+                break
+            num_cached += 1
+
+        # reset the cache length according to that number of positions
         past_key_values = self._cache_state["past_key_values"]
         past_length = past_key_values[0][0].size(-2) if past_key_values is not None else 0
-        if past_length > len(cache_token_ids):
-            past_length = len(cache_token_ids)-1
+        if past_length > num_cached:
+            past_length = max(0, num_cached - 1) # note we recompute the last token because we don't bother to handle the special case of just computing logits
             self._cache_state["past_key_values"] = tuple(tuple(p[..., :past_length, :] for p in v) for v in past_key_values)
-
-            # note we recompute the last token because we don't bother to handle the special case of just computing logits
-            new_token_ids.insert(0, cache_token_ids[-1])
-            cache_token_ids.pop()
-
+        cache_token_ids[past_length:] = []
+        
         # call the model
+        new_token_ids = token_ids[past_length:]
         if len(new_token_ids) > 0:
             with torch.no_grad():
                 model_out = self.model_obj(
@@ -115,19 +112,10 @@ class Transformers(Local):
             # save the results
             self._cache_state["past_key_values"] = model_out.past_key_values
             cache_token_ids.extend(new_token_ids)
-            self._cache_state["new_token_ids"].clear()
             self._cache_state["logits"] = model_out.logits[0, -1, :]
         
         return self._cache_state["logits"]
     
-    # def __init__(self, engine, caching=True, **engine_kwargs):
-    #     super().__init__(engine, caching=caching)
-    #     # self.engine = engine
-
-    #     if isinstance(self.engine, str):
-    #         self.engine = guidance.endpoints.Transformers(engine, **engine_kwargs)
-    #     # self._endpoint_session = self.endpoint.session()
-
 class TransformersChat(Transformers, Chat):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

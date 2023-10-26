@@ -27,14 +27,8 @@ class Local(Model):
         self._token_trie.match = True
         self._token_trie.match_version = 0
 
-        # all mutable state goes in the cache dictionary
-        self._cache_state["cache_token_ids"] = []
-        self._cache_state["new_token_ids"] = []
-
-    def _get_logits(self):
+    def _get_logits(self, token_ids):
         '''A fake method designed to be overriden by subclasses.'''
-        self._cache_state["cache_token_ids"].extend(self._new_token_ids)
-        self._new_token_ids = []
 
         # pretend to extend the KV cache and update the log probs
         return torch.randn(len(self.tokens))
@@ -64,17 +58,18 @@ class Local(Model):
             prompt = self.bos_token + prompt
 
         # find out how much of the prompt we have in the KV cache (and strip from the prompt what we already have)
-        cache_token_ids = self._cache_state["cache_token_ids"]
-        if len(cache_token_ids) > 0:
-            cache_pos = 0
-            for i,id in enumerate(cache_token_ids):
-                token = self.tokens[id]
-                if prompt[cache_pos:cache_pos+len(token)] != token:
-                    self._cache_state["cache_token_ids"] = cache_token_ids[:i]
-                    break
-                cache_pos += len(token)
-            prompt = prompt[cache_pos:]
-        self._cache_state["new_token_ids"] = []
+        # cache_token_ids = self._cache_state["cache_token_ids"]
+        # if len(cache_token_ids) > 0:
+        #     cache_pos = 0
+        #     for i,id in enumerate(cache_token_ids[:-1]): # note that we don't use the last token in the cache because we might h
+        #         token = self.tokens[id]
+        #         if prompt[cache_pos:cache_pos+len(token)] != token:
+        #             self._cache_state["cache_token_ids"] = cache_token_ids[:i]
+        #             break
+        #         cache_pos += len(token)
+        #     prompt = prompt[cache_pos:]
+        # self._cache_state["new_token_ids"] = []
+        token_ids = []
         
         # move whatever is not cached from the prompt into the grammar (since the grammar is what we will generate)
         # note we also anchor the pattern to the start of the sequence
@@ -151,15 +146,18 @@ class Local(Model):
                 parser.pos = forced_pos
             
             # if we walked all the way to a forced token then we advance without computing the logits
-            is_forced = found is None and trie != self._token_trie
+            # we are forced if there are no more options and we are either in the middle of the grammar or at a trie leaf
+            is_forced = found is None and (len(trie.children) == 0 if parser.matched() else trie != self._token_trie)
             if is_forced:
                 sampled_token_ind = trie.value
+                if sampled_token_ind == 393:
+                    pass
                 sampled_token = self.tokens[sampled_token_ind]
                 new_bytes_log_prob = 0.0
 
             # otherwise we need to compute the logits and sample a valid token
             else:
-                logits = self._get_logits()
+                logits = self._get_logits(token_ids)
 
                 # if requested we compute the log probabilities so we can track the probabilities of each node
                 # TODO: we should lower this step to C++ with pybind11
@@ -229,7 +227,8 @@ class Local(Model):
 
                     if parser.matched():
                         break # if we already have a full match we don't try more tokens we just give up as soon as the model deviates from the grammar
-            
+            if sampled_token == 220:
+                pass
             # emit whatever we know will not be hidden
             new_bytes = parser.bytes[generated_pos:parser.earliest_hidden_start()]
 
@@ -265,7 +264,7 @@ class Local(Model):
                 else:
                     hidden_count -= len(new_bytes)
 
-                self._cache_state["new_token_ids"].append(sampled_token_ind)
+                token_ids.append(sampled_token_ind)
 
 def _record_captures(item, data, log_prob_data, byte_data, byte_pos):
     
