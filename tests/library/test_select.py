@@ -13,6 +13,7 @@ def test_simple():
     assert lm['bad'] in options
 
 def test_longer_select():
+    '''This tests to ensure that the grammar is extended greedily.'''
     lm = models.LocalMock(b"<s>Scott is a very nice man.")
     lm += "Scott is a very " + select(name='text', values=['nice', 'nice man.'])
-    assert lm["text"] in ['nice', 'nice man.']
+    assert lm["text"] == 'nice man.'

@@ -281,12 +281,12 @@ type {function['name']} = (_: {{"""
                 delayed_bytes = b""
 
                 generated_value += new_text
-                if is_generated:
-                    lm += f"<||_html:<span style='background-color: rgba(0, 165, 0, {0.05 + 0.4 * (1 - np.exp(new_bytes_log_prob))}); border-radius: 3px;' title='{new_bytes_log_prob}'>_||>"
+                if is_generated and len(new_bytes) > 0:
+                    lm += f"<||_html:<span style='background-color: rgba(0, 165, 0, {0.15 + 0.4 * (1 - np.exp(new_bytes_log_prob))}); border-radius: 3px;' title='{new_bytes_log_prob}'>_||>"
                 # if not is_generated and last_is_generated:
                     
                 lm += new_text
-                if is_generated:
+                if is_generated and len(new_bytes) > 0:
                     lm += "<||_html:</span>_||>"
                 
                 # last_is_generated = is_generated
