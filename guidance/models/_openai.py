@@ -106,6 +106,23 @@ class OpenAI(Model):
 
             return True
         
+        def is_select_grammar(grammar):
+            # Check if the grammar is of type Select
+            if not isinstance(grammar, Select):
+                return False
+
+            # Check if all options within the Select are either terminal Bytes or Joins of Bytes
+            for option in grammar.values:
+                if isinstance(option, Byte):
+                    continue
+                elif isinstance(option, Join):
+                    if not all(isinstance(value, Byte) for value in option.values):
+                        return False
+                else:
+                    return False
+
+            return True
+                
         if is_gen_grammar(grammar):
             # Make API call assuming the grammar is correct right now
             for completion in self._openai_completion_call(str(self), max_tokens, n, top_p, temperature):
@@ -118,7 +135,7 @@ class OpenAI(Model):
                 # Otherwise, continue to yield out bytes
                 yield bytes(completion.choices[0].text, "utf-8"), True, 0.0, {}, {} # TODO: set logprobs if we have them
 
-        elif isinstance(grammar, Select) and all(isinstance(x, Byte) for x in grammar.values):
+        elif is_select_grammar(grammar):
             # always pick the first select value just for debugging
             yield grammar.values[0].byte, False, 0.0, {}, {}
         

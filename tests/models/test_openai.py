@@ -1,5 +1,5 @@
 import guidance
-from guidance import gen, capture
+from guidance import gen, capture, select
 from ..utils import get_model
 
 def test_openai_basic():
@@ -11,3 +11,9 @@ def test_openai_basic():
     5,6,7"""
     lm += f"""{gen(max_tokens=1, suffix=nl)}aaaaaa"""
     assert str(lm)[-5:] == "aaaaa"
+
+def test_openai_select():
+    lm = guidance.models.OpenAI("text-davinci-003")
+    lm += "Pick a number: "
+    lm += select(values=["1", "11", "111", "1111", "11111", "111111", "1111111"], name='the number')
+    assert str(lm)[-1] in "123"
