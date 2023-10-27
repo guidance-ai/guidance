@@ -3,5 +3,5 @@ from ..utils import get_model
 
 def test_capture():
     model = models.LocalMock()
-    model += 'This is' + capture(select(values=['bad', 'quite bad']), name="my_var")
+    model += 'This is' + capture(select(options=['bad', 'quite bad']), name="my_var")
     assert model["my_var"] in ["bad", "quite bad"]

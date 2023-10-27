@@ -41,7 +41,8 @@ setup(
         "requests",
         "numpy",
         "aiohttp",
-        "ordered_set"
+        "ordered_set",
+        "pyformlang"
     ],
     extras_require={
         'docs': [

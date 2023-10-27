@@ -311,20 +311,22 @@ def _string(value):
     else:
         return Join([Byte(b[i:i+1]) for i in range(len(b))], name=str(str(value).encode("utf8")))
     
-def _select(values, name=None, recurse=False):
-    for value in values:
+def _select(options, name=None, recurse=False):
+    for i, value in enumerate(options):
         assert not isinstance(value, StatefulFunction), "You cannot select between stateful functions in the current guidance implementation!"
+        if isinstance(value, int) or isinstance(value, float):
+            options[i] = str(value)
     # if name is None:
     #     name = _find_name() + "_" + StatelessFunction._new_name()
     if recurse:
         node = Select([], capture_name=name)
-        node.values = [v + node for v in values if v != ""] + values
+        node.values = [v + node for v in options if v != ""] + options
         return node
     else:
-        if len(values) == 1 and name is None:
-            return values[0]
+        if len(options) == 1 and name is None:
+            return options[0]
         else:
-            return Select(values, capture_name=name)
+            return Select(options, capture_name=name)
         
 def _byte_range(low, high):
     return ByteRange(low + high)
