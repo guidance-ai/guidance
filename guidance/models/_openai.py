@@ -118,7 +118,12 @@ class OpenAI(Model):
                 # Otherwise, continue to yield out bytes
                 yield bytes(completion.choices[0].text, "utf-8"), True, 0.0, {}, {} # TODO: set logprobs if we have them
 
-        elif all(isinstance(x, Byte) for x in grammar.values):
+        elif isinstance(grammar, Select) and all(isinstance(x, Byte) for x in grammar.values):
+            # always pick the first select value just for debugging
+            yield grammar.values[0].byte, False, 0.0, {}, {}
+        
+        # Not in a select but just want to concat text
+        elif isinstance(grammar, Join) and all(isinstance(x, Byte) for x in grammar.values):
             # all terminal bytes mean we just add that straight to the text
             for byte in grammar.values:
                 yield byte.byte, False, 0.0, {}, {}
