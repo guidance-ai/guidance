@@ -49,7 +49,7 @@ class OpenAI(Model):
         
         self.tokenizer = tiktoken.encoding_for_model(model)
         if isinstance(eos_token, str):
-            self.eos_token = bytes(self.eos_token, "utf-8")
+            self.eos_token = bytes(eos_token, "utf-8")
         else:
             self.eos_token = b"<|endoftext|>"
         
@@ -76,7 +76,9 @@ class OpenAI(Model):
         
 
     def __call__(self, grammar, max_tokens=100, n=1, top_p=1, temperature=0.0):
-        # TODO: Validate the grammar (assuming valid gen for now)
+        # TODO: Validate the grammar (assuming perfectly valid gen for now)
+
+        # TODO: Add support for gen intermixed with generation (i.e. grammar has a fix)
         
         # Make API call assuming the grammar is correct right now
         for completion in self._openai_completion_call(str(self), max_tokens, n, top_p, temperature):
@@ -84,7 +86,7 @@ class OpenAI(Model):
             # Check if we are done
             completion_text = completion.choices[0].text
             if completion_text == self.eos_token:
-                break # Finish if we hit our stop reason
+                break # Finish if we hit our stop token -- TODO: update this to split out the stop properly from the grammar
 
             # Otherwise, continue to yield out bytes
             yield bytes(completion.choices[0].text, "utf-8"), True, 0.0, {}, {} # TODO: set logprobs if we have them
