@@ -31,6 +31,14 @@ def test_gsm8k():
 Answer: ''' + gen(max_tokens=30)
     assert True
 
+def test_pattern_kleene():
+    lm = get_model("transformers:gpt2")
+    lm += 'The Lord is my'
+    x = lm + gen(name='tmp', max_tokens=10)
+    y = lm + gen(name='tmp',  pattern='.*', max_tokens=10)
+    assert x['tmp'] == y['tmp']
+
+
 # def test_pattern():
 #     lm = get_model("transformers:gpt2")
 #     lm += 'hey there my friend what is truth 23+43=' + gen(pattern=r'dog(?P<stop>.+)', max_tokens=30)
