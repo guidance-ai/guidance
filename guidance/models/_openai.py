@@ -2,6 +2,7 @@ import re
 import os
 
 from ._model import Model, Chat
+from guidance._grammar import Select, Join, Byte
 
 
 chat_model_pattern = r'^(gpt-3\.5-turbo|gpt-4)(-\d+k)?(-\d{4})?$'
@@ -76,34 +77,55 @@ class OpenAI(Model):
         
 
     def __call__(self, grammar, max_tokens=100, n=1, top_p=1, temperature=0.0):
-        # TODO: Validate the grammar (assuming perfectly valid gen for now)
+        # TODO: Add support for gen intermixed with generation (i.e. grammar has a fixed piece to it.
 
-        # TODO: Add support for gen intermixed with generation (i.e. grammar has a fix)
+        def is_gen_grammar(grammar):
+            # First, check if the root of the grammar is a Join
+            if not isinstance(grammar, Join) or len(grammar.values) != 2:
+                return False
+
+            # Next, check if the first part of the Join is a Select
+            zero_or_more = grammar.values[0]
+            if not isinstance(zero_or_more, Select):
+                return False
+
+            # Check if one of the options in the Select is a Join that includes the Select itself
+            recursion_found = any(isinstance(option, Join) and zero_or_more in option.values for option in zero_or_more.values)
+            if not recursion_found:
+                return False
+
+            # Check if the second part of the Join is a Select that contains a Join
+            stop_string_select = grammar.values[1]
+            if not isinstance(stop_string_select, Select):
+                return False
+
+            # Check if one of the options in the Select is a Join corresponding to the stop_string
+            stop_string_found = any(isinstance(option, Join) for option in stop_string_select.values)
+            if not stop_string_found:
+                return False
+
+            return True
         
-        # Make API call assuming the grammar is correct right now
-        for completion in self._openai_completion_call(str(self), max_tokens, n, top_p, temperature):
-            
-            # Check if we are done
-            completion_text = completion.choices[0].text
-            if completion_text == self.eos_token:
-                break # Finish if we hit our stop token -- TODO: update this to split out the stop properly from the grammar
+        if is_gen_grammar(grammar):
+            # Make API call assuming the grammar is correct right now
+            for completion in self._openai_completion_call(str(self), max_tokens, n, top_p, temperature):
+                
+                # Check if we are done
+                completion_text = completion.choices[0].text
+                if completion_text == self.eos_token:
+                    break # Finish if we hit our stop token -- TODO: update this to split out the stop properly from the grammar
 
-            # Otherwise, continue to yield out bytes
-            yield bytes(completion.choices[0].text, "utf-8"), True, 0.0, {}, {} # TODO: set logprobs if we have them
+                # Otherwise, continue to yield out bytes
+                yield bytes(completion.choices[0].text, "utf-8"), True, 0.0, {}, {} # TODO: set logprobs if we have them
 
-        # Outline
-        # grammar_type = "gen"
+        elif all(isinstance(x, Byte) for x in grammar.values):
+            # all terminal bytes mean we just add that straight to the text
+            for byte in grammar.values:
+                yield byte.byte, False, 0.0, {}, {}
 
-        # if grammar_type == "gen":
-        #     # Run a stream here and check for the stop condition of the grammar.
-        #     pass
-
-        # elif grammar_type == "select":
-        #     # Port over the select logic from the old guidance code
-        #     pass
-
-        # else:
-        #     raise Exception("OpenAI models are only able to support basic generation and selection grammars.")
+        else:
+            # TODO: Add logic for simple select detection and error conditions here
+            pass
 
 
 class OpenAIChat(OpenAI, Chat):

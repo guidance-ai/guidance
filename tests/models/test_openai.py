@@ -9,7 +9,5 @@ def test_openai_basic():
     nl = "\n"
     lm += f"""\
     5,6,7"""
-
-    lm += f"""{gen(max_tokens=1, suffix=nl)},aaaaa
-    """
+    lm += f"""{gen(max_tokens=1, suffix=nl)}aaaaaa"""
     assert str(lm)[-5:] == "aaaaa"
