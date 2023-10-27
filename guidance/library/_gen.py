@@ -19,7 +19,6 @@ from ._regex import regex
 def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop=None, stop_regex=None, suffix="", n=1, temperature=0.0, top_p=1.0,
         logprobs=None, stream_tokens=None, save_stop_text=False, **llm_kwargs):
     
-    assert stop_regex is None, "Need to support regex -> grammar compilation in order to support the `stop_regex` arg!"
 
     # set stream if we are interactive
     # if stream_tokens is None and not lm.is_silent() and n == 1:
@@ -41,27 +40,22 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop
     # fall back to stopping at the EOS token
     if stop is None:
         stop = eos_token
-
-    # standardize stop and stop_regex into a list of regex patterns
     if isinstance(stop, str):
         stop = [stop]
     if eos_token not in stop:
         stop.append(eos_token)
-    # TODO: This can be uncommented once we support regex -> grammar compilation
-    # if isinstance(stop_regex, str):
-    #     stop_regex = [stop_regex]
-    # if stop is not None:
-    #     if stop_regex is None:
-    #         stop_regex = []
-    #     stop_regex.extend([regex.escape(s) for s in stop])
+
+    if stop_regex is None:
+        stop_regex = []
+    if isinstance(stop_regex, str):
+        stop_regex = [stop_regex]
+    stop_regex = [regex(x) for x in stop_regex]
 
     # This needs to be here for streaming
     if name is not None and not list_append:
         lm[name] = ""
 
     # TODO: This can be uncommented once we support regex -> grammar compilation
-    # if pattern is None:
-    #     pattern = ".*"
     
     # compile stop_regex into a capture group
     # if "(?P<stop>" in pattern:
@@ -86,7 +80,7 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop
         pattern = capture(pattern, name=name)
     
     # define the stop pattern
-    stop_pattern = commit_point(select(stop))
+    stop_pattern = commit_point(select(stop + stop_regex))
     if save_stop_text is True:
         save_stop_text = str(name) + "_stop_text"
     if isinstance(save_stop_text, str):
