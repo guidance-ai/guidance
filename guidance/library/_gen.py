@@ -12,13 +12,13 @@ from ._hide import hide
 from ._commit_point import commit_point
 from ._any_char import any_char
 from ._capture import capture
+from ._regex import regex
 
 # TODO: make this stateless!
 @guidance
 def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop=None, stop_regex=None, suffix="", n=1, temperature=0.0, top_p=1.0,
         logprobs=None, stream_tokens=None, save_stop_text=False, **llm_kwargs):
     
-    assert pattern is None, "Need to support regex -> grammar compilation in order to support the `pattern` arg!"
     assert stop_regex is None, "Need to support regex -> grammar compilation in order to support the `stop_regex` arg!"
 
     # set stream if we are interactive
@@ -78,7 +78,10 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop
     # extracted_stop_pattern = regex.compile(pattern[:pattern.index("(?P<stop>")] + "$", flags=regex.DOTALL)
     
     # define the generation pattern
-    pattern = zero_or_more(any_char())
+    if pattern is not None:
+        pattern = regex(pattern)
+    else:
+        pattern = zero_or_more(any_char())
     if name is not None:
         pattern = capture(pattern, name=name)
     

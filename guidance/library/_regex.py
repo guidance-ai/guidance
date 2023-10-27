@@ -9,7 +9,7 @@ from pyformlang.regular_expression import PythonRegex
 
 
 @guidance(stateless=True, dedent=False)
-def regex_to_grammar(lm, pattern):
+def regex(lm, pattern):
     regex = PythonRegex(pattern)
     cfg = tree_to_grammar(simplify_tree(regex))
     return cfg
