@@ -4,6 +4,7 @@ from ._gen import gen, gen_with_tools, gen_substring
 # context blocks
 from ._block import block
 from ._role import role, system, assistant, user, function
+from ._silent import silent
 
 # stateless functions
 from ._string import string
@@ -21,6 +22,4 @@ from ._substring import substring
 from ._regex import regex
 
 # import the rest just to get them executed and attached as methods of the LM objects
-
-from ._silent import silent as _silent
 from ._append import append as _append
