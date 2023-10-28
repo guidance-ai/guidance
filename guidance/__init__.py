@@ -36,7 +36,7 @@ newline = "\n"
 
 # This makes the guidance module callable
 class Guidance(types.ModuleType):
-    def __call__(self, f=None, *, stateless=False, cache=None, dedent=False, model=models.Model):
+    def __call__(self, f=None, *, stateless=False, cache=None, dedent=True, model=models.Model):
         return _decorator(f, stateless=stateless, cache=cache, dedent=dedent, model=model)
 sys.modules[__name__].__class__ = Guidance
 
@@ -53,7 +53,7 @@ _function_cache = {} # used to enable recursive grammar definitions
 _null_grammar = _string('')
 # _call_pool = {} # used to enable f-string composition
 
-def _decorator(f=None, *, stateless=False, cache=None, dedent=False, model=models.Model):
+def _decorator(f=None, *, stateless=False, cache=None, dedent=True, model=models.Model):
     
     # if we are not yet being used as a decorator, then save the args
     if f is None:

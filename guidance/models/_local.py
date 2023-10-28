@@ -227,13 +227,12 @@ class Local(Model):
 
                     if parser.matched():
                         break # if we already have a full match we don't try more tokens we just give up as soon as the model deviates from the grammar
-            if sampled_token == 220:
-                pass
+
             # emit whatever we know will not be hidden
             new_bytes = parser.bytes[generated_pos:parser.earliest_hidden_start()]
 
             # if we cannot consume any more tokens then we are done
-            if not is_forced and token_pos <= 0:
+            if not is_forced and token_pos <= 0 and trie == self._token_trie:
                 assert parser.matched()
 
                 # TODO: if we exactly match the end of the pattern then we can commit to this last token 

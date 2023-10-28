@@ -15,15 +15,16 @@ class Endpoint:
 _null_grammar = _string('')
 
 class Model:
+    _open_contexts = {}
 
     def __init__(self, echo=True):
 
         # while models are logically immutable, they can share some mutable caching state to save computation
         self._cache_state  = {}
-        
         self.echo = echo
         self._state = ""
         self._children = []
+        self._opened_contexts = {}
         self._event_queue = None
         self._event_parent = None
         self._silent = None
@@ -49,15 +50,11 @@ class Model:
         if key in self._variables:
             del self._variables[key]
 
-    # def get_endpoint_session(self):
-    #     return self._endpoint_session_call
-    
-    # def _endpoint_session_call(self, *args, **kwargs):
-    #     kwargs["caching"] = self._caching
-    #     return self._endpoint_session(*args, **kwargs)
-
     def _html(self):
-        display_out = html.escape(self._state)
+        display_out = self._state
+        for context in reversed(self._opened_contexts):
+            display_out += self._opened_contexts[context]
+        display_out = html.escape(display_out)
         display_out = re.sub(r"&lt;\|\|_#NODISP_\|\|&gt;.*?&lt;\|\|_/NODISP_\|\|&gt;", "", display_out, flags=re.DOTALL)
         display_out = re.sub(r"&lt;\|\|_html:(.*?)_\|\|&gt;", lambda x: html.unescape(x.group(1)), display_out, flags=re.DOTALL)
         display_out = "<pre style='margin: 0px; padding: 0px; padding-left: 8px; margin-left: -8px; border-radius: 0px; border-left: 1px solid rgba(127, 127, 127, 0.2); white-space: pre-wrap; font-family: ColfaxAI, Arial; font-size: 15px; line-height: 23px;'>"+display_out+"</pre>"
@@ -110,10 +107,23 @@ class Model:
     def __str__(self) -> str:
         return re.sub(r"<\|\|_.*?_\|\|>", "", self._state)
     
-    # def __iadd__(self, value):
-    #     return self.append(value)
-    
     def __add__(self, value):
+
+        # close any newly closed contexts
+        for context in list(reversed(self._opened_contexts)):
+            if context not in Model._open_contexts and context in self._opened_contexts:
+                close_text = self._opened_contexts[context] # save so we can delete it before adding it
+                del self._opened_contexts[context]
+                self._inplace_append(close_text)
+
+        # apply any newly opened contexts (newly from the our perspective)
+        for context in Model._open_contexts:
+            if context not in self._opened_contexts:
+                self._opened_contexts[context] = "" # mark this so we don't readd when computing the opener (even though we don't know the close text yet)
+                self += context.opener
+                tmp = self + context.closer
+                close_text = tmp._state[len(self._state):] # get the new state added by calling the closer
+                self._opened_contexts[context] = close_text
         
         # wrap raw string values
         if isinstance(value, str):
@@ -145,34 +155,12 @@ class Model:
         # run stateful functions
         else:
             return value(self)
-        
-        # else:
-        #     raise NotImplementedError(f"The type {type(value)} is not currently supported for adding to models!")
-
-            # value = str(value)
-            # is_id = False
-            # lm = self.copy()
-            # parts = re.split(self._tag_pattern, value)
-            # lm.suffix = ""
-            # for i,part in enumerate(parts):
-            #     # print(is_id, part)
-            #     if i < len(parts) - 1:
-            #         lm.suffix = parts[i+1]
-            #     if is_id:
-            #         lm = self._call_pool[part](lm)
-            #     elif part != "":
-            #         lm = lm._inplace_append(part)
-            #     is_id = not is_id
-            # return lm
     
     def endswith(self, s):
         return self._state.endswith(s)
     
     def __len__(self):
         return len(str(self))
-    
-    # def __call__(self, s, **kwargs):
-    #     return self.append(s, **kwargs)
     
     def __setitem__(self, key, value):
         self._variables[key] = value
@@ -183,28 +171,15 @@ class Model:
     def __contains__(self, item):
         return item in self._variables
 
-    def __enter__(self):
-        if len(self.instance__enter__) > 0:
-            return self.instance__enter__.pop()()
+    # def __enter__(self):
+    #     Model._open_contexts
+    #     self._opened_contexts
+    #     if len(self.instance__enter__) > 0:
+    #         return self.instance__enter__.pop()()
 
-    def __exit__(self, exc_type, exc_value, traceback):
-        if len(self.instance__exit__) > 0:
-            return self.instance__exit__.pop()(exc_type, exc_value, traceback)
-
-    # def __call__(self, s):
-    #     return self + s
-    
-    # def get_encoded(self, s):
-    #     return self.endpoint.encode(s)
-    
-    # def get_decoded(self, s):
-    #     return self.endpoint.decode(s)
-    
-    # def get_id_to_token(self, id):
-    #     return self.endpoint.id_to_token(id)
-
-    # def get_token_to_id(self, token):
-    #     return self.endpoint.token_to_id(token)
+    # def __exit__(self, exc_type, exc_value, traceback):
+    #     if len(self.instance__exit__) > 0:
+    #         return self.instance__exit__.pop()(exc_type, exc_value, traceback)
     
     def get_cache(self):
         return self.engine.cache

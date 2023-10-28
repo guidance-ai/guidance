@@ -3,8 +3,22 @@ import types
 import guidance
 from guidance import TextRange, models
 
-@guidance(model=models.Model)
-def block(lm, name=None, open_text="", close_text="", hidden=False):
+class ContextBlock:
+    def __init__(self, opener, closer):
+        self.opener = opener
+        self.closer = closer
+
+    def __enter__(self):
+        guidance.models.Model._open_contexts[self] = None
+    
+    def __exit__(self, exc_type, exc_value, traceback):
+        del guidance.models.Model._open_contexts[self]
+
+# @guidance(model=models.Model)
+def block(name=None, opener="", closer="", hidden=False):
+    assert name is None
+    assert hidden is False
+    return ContextBlock(opener, closer)
     offset = len(lm._state) + len(open_text)
 
     def __enter__(lm):

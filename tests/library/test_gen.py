@@ -35,10 +35,14 @@ def test_pattern_kleene():
     lm = get_model("transformers:gpt2")
     lm += 'The Lord is my'
     x = lm + gen(name='tmp', max_tokens=10)
-    y = lm + gen(name='tmp',  pattern='.*', max_tokens=10)
+    y = lm + gen(name='tmp', pattern='.*', max_tokens=10)
     assert x['tmp'] == y['tmp']
 
-
+def test_non_token_force():
+    '''This forces some bytes that don't match a token (only longer tokens)'''
+    lm = get_model("transformers:gpt2")
+    lm += 'ae ae' + gen(pattern='\d')
+    assert len(str(lm)) == 6
 # def test_pattern():
 #     lm = get_model("transformers:gpt2")
 #     lm += 'hey there my friend what is truth 23+43=' + gen(pattern=r'dog(?P<stop>.+)', max_tokens=30)
