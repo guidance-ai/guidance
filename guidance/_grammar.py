@@ -309,7 +309,7 @@ def _string(value):
     elif len(b) == 1:
         return Byte(b)
     else:
-        return Join([Byte(b[i:i+1]) for i in range(len(b))], name=str(str(value).encode("utf8")))
+        return Join([Byte(b[i:i+1]) for i in range(len(b))], name=str(b))
     
 def _select(options, name=None, recurse=False):
     for i, value in enumerate(options):
