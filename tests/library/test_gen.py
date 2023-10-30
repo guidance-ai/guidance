@@ -48,6 +48,41 @@ def test_non_token_force():
     lm = get_model("transformers:gpt2")
     lm += 'ae ae' + gen(pattern='\d')
     assert len(str(lm)) == 6
+
+def test_gen_vs_grammar():
+    lm = get_model("transformers:gpt2")
+    lm += 'The Lord is my'
+    x = lm + gen(name='tmp', max_tokens=10)
+    y = lm + gen(name='tmp',  pattern='.*', max_tokens=10)
+    assert x['tmp'] == y['tmp']
+
+def test_pattern_optional():
+    lm = models.LocalMock(b"<s>12342333")
+    pattern = '.?233'
+    lm2 = lm + '123' + gen(name='numbers', pattern=pattern, max_tokens=10)
+    assert lm2['numbers'] = '4233'
+    lm = models.LocalMock(b"<s>1232333")
+    pattern = '.?233'
+    lm2 = lm + '123' + gen(name='numbers', pattern=pattern, max_tokens=10)
+    assert lm2['numbers'] = '233'
+def test_pattern_star():
+    lm = models.LocalMock(b"<s>1234233")
+    patterns = ['\d+233', '\d*233', '.+233', '.*233']
+    for pattern in patterns:
+        lm2 = lm + '123' + gen(name='numbers', pattern=pattern, max_tokens=10)
+        assert lm2['numbers'] == '4233'
+    lm = models.LocalMock(b"<s>123233")
+    patterns = ['\d*233','.*233']
+    for pattern in patterns:
+        lm2 = lm + '123' + gen(name='numbers', pattern=pattern, max_tokens=10)
+        assert lm2['numbers'] == '233'
+    pattern = '.*(\n|little)'
+    lm = models.LocalMock(b"<s>John was a little")
+    lm2 = lm + 'J' + gen(name='test', pattern=pattern, max_tokens=30)
+    assert lm2['test'] == 'ohn was a little'
+    lm = models.LocalMock(b"<s>John was a litt\n")
+    lm2 = lm + 'J' + gen(name='test', pattern=pattern, max_tokens=30)
+    assert lm2['test'] == 'ohn was a litt\n'
 # def test_pattern():
 #     lm = get_model("transformers:gpt2")
 #     lm += 'hey there my friend what is truth 23+43=' + gen(pattern=r'dog(?P<stop>.+)', max_tokens=30)
