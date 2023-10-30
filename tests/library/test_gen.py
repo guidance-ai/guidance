@@ -1,6 +1,7 @@
 import guidance
 from guidance import gen, models
 from ..utils import get_model
+import re
 
 def test_basic():
     lm = models.LocalMock()
@@ -107,6 +108,14 @@ def test_empty_pattern():
     lm2 = lm + 'J' + gen(name='test', pattern=pattern, max_tokens=30)
     assert lm2['test'] == ''
 
+def test_various_regexes():
+    lm = get_model("transformers:gpt2")
+    prompts = ['Hi there', '2 + 2 = ', 'Scott is a', 'I have never seen a more', 'What is the', '??FD32']
+    patterns = ['(Scott is a person|Scott is a persimmon)', 'Scott is a persimmon.*\.', '\d+233', '\d\.*\d+']
+    for prompt in prompts:
+        for pattern in patterns:
+            lm2 = lm + prompt + gen(name='test', pattern=pattern, max_tokens=40)
+            assert re.match(pattern, lm2['test']) is not None
 # def test_pattern():
 #     lm = get_model("transformers:gpt2")
 #     lm += 'hey there my friend what is truth 23+43=' + gen(pattern=r'dog(?P<stop>.+)', max_tokens=30)
