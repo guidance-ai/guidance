@@ -65,6 +65,11 @@ def test_pattern_optional():
     pattern = '.?233'
     lm2 = lm + '123' + gen(name='numbers', pattern=pattern, max_tokens=10)
     assert lm2['numbers'] == '233'
+    pattern = '(Scott is bad)?(\d+)?a'
+    lm = models.LocalMock(b"<s>John was a little man full of things")
+    lm2 = lm + 'J' + gen(name='test', pattern=pattern, max_tokens=30)
+    assert lm2['test'] == 'a'
+
 def test_pattern_star():
     lm = models.LocalMock(b"<s>1234233")
     patterns = ['\d+233', '\d*233', '.+233', '.*233']
@@ -83,6 +88,11 @@ def test_pattern_star():
     lm = models.LocalMock(b"<s>John was a litt\n")
     lm2 = lm + 'J' + gen(name='test', pattern=pattern, max_tokens=30)
     assert lm2['test'] == 'ohn was a litt\n'
+def test_empty_pattern():
+    pattern = '(Scott is bad)?(\d+)?'
+    lm = models.LocalMock(b"<s>John was a little man full of things")
+    lm2 = lm + 'J' + gen(name='test', pattern=pattern, max_tokens=30)
+    assert lm2['test'] == ''
 # def test_pattern():
 #     lm = get_model("transformers:gpt2")
 #     lm += 'hey there my friend what is truth 23+43=' + gen(pattern=r'dog(?P<stop>.+)', max_tokens=30)
