@@ -232,7 +232,7 @@ class Local(Model):
             new_bytes = parser.bytes[generated_pos:parser.earliest_hidden_start()]
 
             # if we cannot consume any more tokens then we are done
-            if not is_forced and token_pos <= 0 and trie == self._token_trie:
+            if not is_forced and token_pos < len(sampled_token) and trie == self._token_trie:
                 assert parser.matched()
 
                 # TODO: if we exactly match the end of the pattern then we can commit to this last token 
@@ -249,7 +249,7 @@ class Local(Model):
                 if not log_probs:
                     log_prob_data = {k: None for k in data}
 
-                yield new_bytes[hidden_count:len(new_bytes)], not is_forced, new_bytes_log_prob, data, log_prob_data
+                yield new_bytes[hidden_count:], not is_forced, new_bytes_log_prob, data, log_prob_data
                 break # we are done!
             else:
                 generated_pos += len(new_bytes)

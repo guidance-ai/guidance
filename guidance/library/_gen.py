@@ -32,9 +32,9 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop
     if stop is None and stop_regex is None and getattr(lm, "suffix", False):
         if lm.suffix.startswith("\n"):
             stop = "\n"
-        elif lm.suffix.startswith('"') and lm.endswith('"'):
+        elif lm.suffix.startswith('"') and str(lm).endswith('"'):
             stop = '"'
-        elif lm.suffix.startswith("'") and lm.endswith("'"):
+        elif lm.suffix.startswith("'") and str(lm).endswith("'"):
             stop = "'"
 
     # fall back to stopping at the EOS token

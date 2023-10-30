@@ -9,6 +9,7 @@ from ._silent import silent
 # stateless functions
 from ._string import string
 from ._byte_range import byte_range
+from ._any_char import any_char
 from ._capture import capture
 from ._select import select
 from ._hide import hide
@@ -20,6 +21,7 @@ from ._commit_point import commit_point
 from ._prefix_tree import prefix_tree
 from ._substring import substring
 from ._regex import regex
+from ._optional import optional
 
 # import the rest just to get them executed and attached as methods of the LM objects
 from ._append import append as _append

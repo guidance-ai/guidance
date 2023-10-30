@@ -175,10 +175,15 @@ class EarleyCommitParser:
         found_valid = False
         for item in next_state_set:
             if item.pos > 0 and isinstance(item.values[item.pos - 1], Terminal):
-                if not item.values[item.pos - 1].match_byte(byte):
+                last_inner_item = item.values[item.pos - 1]
+                if not last_inner_item.match_byte(byte):
                     continue
                 else:
                     found_valid = True
+                    if last_inner_item.commit_point:
+                        item.log_prob += log_prob
+                        new_next_state_set = [item]
+                        break
             item.log_prob += log_prob # update the probability of the item by the probability of choosing this byte
             new_next_state_set.append(item)
         if not found_valid:

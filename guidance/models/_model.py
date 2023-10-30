@@ -6,7 +6,7 @@ import copy
 import json
 import textwrap
 import numpy as np
-from .._grammar import StatelessFunction, StatefulFunction, tag_start, tag_end, _string, _call_pool
+from .._grammar import StatelessFunction, StatefulFunction, tag_start, tag_end, _string, _call_pool, Null
 
 class Endpoint:
     '''This keeps state that is shared among all models using the same endpoint session.'''
@@ -142,11 +142,20 @@ class Model:
                 if i < len(parts) - 1:
                     lm.suffix = parts[i+1]
                 if is_id:
-                    partial_grammar += _call_pool[part]
+                    call = _call_pool[part]
+                    if isinstance(call, StatelessFunction):
+                        partial_grammar += _call_pool[part]
+                    else:
+                        lm += partial_grammar
+                        lm = _call_pool[part](lm)
+                        partial_grammar = _null_grammar
                 elif part != "":
                     partial_grammar += _string(part)
                 is_id = not is_id
             return lm + partial_grammar
+        
+        elif isinstance(value, Null):
+            return self
         
         # run stateless functions (grammar nodes)
         elif isinstance(value, StatelessFunction):
@@ -255,14 +264,13 @@ type {function['name']} = (_: {{"""
                     continue
                 delayed_bytes = b""
 
-                generated_value += new_text
-                if is_generated and len(new_bytes) > 0:
-                    lm += f"<||_html:<span style='background-color: rgba(0, 165, 0, {0.15 + 0.4 * (1 - np.exp(new_bytes_log_prob))}); border-radius: 3px;' title='{new_bytes_log_prob}'>_||>"
-                # if not is_generated and last_is_generated:
-                    
-                lm += new_text
-                if is_generated and len(new_bytes) > 0:
-                    lm += "<||_html:</span>_||>"
+                if len(new_bytes) > 0:
+                    generated_value += new_text
+                    if is_generated:
+                        lm += f"<||_html:<span style='background-color: rgba(0, 165, 0, {0.15 + 0.4 * (1 - np.exp(new_bytes_log_prob))}); border-radius: 3px;' title='{new_bytes_log_prob}'>_||>"
+                    lm += new_text
+                    if is_generated:
+                        lm += "<||_html:</span>_||>"
                 
                 # last_is_generated = is_generated
 
