@@ -14,7 +14,7 @@ def regex(lm, pattern):
     # find all of the brackets we'll need to negate later
     nots = re.findall('\[\^(.*?)\]', pattern)
     # Compensating for a weird design choice in pyformlang where they don't accept \n in .
-    pattern = re.sub('\.', '(.|\n)', pattern)
+    pattern = re.sub(r'(?<!\\)\.', '(.|\n)', pattern)
     regex = PythonRegex(pattern)
     cfg = tree_to_grammar(simplify_tree(regex), nots=nots)
     return cfg
