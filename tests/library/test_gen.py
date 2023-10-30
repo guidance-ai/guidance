@@ -88,10 +88,17 @@ def test_pattern_star():
     lm = models.LocalMock(b"<s>John was a litt\n")
     lm2 = lm + 'J' + gen(name='test', pattern=pattern, max_tokens=30)
     assert lm2['test'] == 'ohn was a litt\n'
+def test_stop_regex():
+    lm = models.LocalMock(b"<s>123a3233")
+    lm2 = lm + '123' + gen(name='test', stop_regex='\d233', max_tokens=10)
+    assert lm2['test'] == 'a'
+    lm = models.LocalMock(b"<s>123aegalera3233")
+    lm2 = lm + '123' + gen(name='test', stop_regex='\d', max_tokens=30)
+    assert lm2['test'] == 'aegalera'
 def test_stop_regex_star():
     lm = models.LocalMock(b"<s>123a3233")
     pattern = '\d+233'
-    lm2 = lm + '123' + gen(name='test', stop_regex='\d+233', max_tokens=10)
+    lm2 = lm + '123' + gen(name='test', stop_regex=pattern, max_tokens=10)
     assert lm2['test'] == 'a'
 
 def test_empty_pattern():
