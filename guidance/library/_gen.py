@@ -1,5 +1,5 @@
 import types
-import regex
+import regex as lregex
 import uuid
 
 import guidance
@@ -146,9 +146,9 @@ def will_gen(lm, stop=None, stop_regex=None, ignore_spaces=False, max_tokens=30)
         stop = []
     if not stop_regex:
         stop_regex = []
-    regexes = [regex.escape(x) for x in stop + stop_regex]
+    regexes = [lregex.escape(x) for x in stop + stop_regex]
     optional_space = '\\s*' if ignore_spaces else ''
-    pattern = regex.compile(f'{optional_space}({"|".join(regexes)})')
+    pattern = lregex.compile(f'{optional_space}({"|".join(regexes)})')
     with lm.silent() as lm2:
         for _ in range(max_tokens):
             lm2 += gen('temp_variable', list_append=True, max_tokens=1)
@@ -215,7 +215,7 @@ def gen_substring(lm, string, name=None, **kwargs):
 
 def pattern_to_callable(pattern, callable):
     # returns callable, args, kwargs
-    pattern = regex.compile(pattern)
+    pattern = lregex.compile(pattern)
     def return_fn(string):
         match = pattern.search(string)
         if match:
