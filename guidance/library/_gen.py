@@ -90,7 +90,7 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop
     # single generation
     start_pos = len(str(lm))
     if n == 1:
-        lm = lm.run_stateless(pattern + hide(stop_pattern), max_tokens=max_tokens)
+        lm = lm.run_stateless(pattern + hide(stop_pattern), max_tokens=max_tokens, temperature=temperature)
     if name is not None:
         lm[name] = str(lm)[start_pos:]
     return lm
