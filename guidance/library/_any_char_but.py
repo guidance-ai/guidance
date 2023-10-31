@@ -1,5 +1,6 @@
 import guidance
 from ._byte_range import byte_range
+from ._select import select
 
 @guidance(stateless=True)
 def any_char_but(lm, forbidden):
