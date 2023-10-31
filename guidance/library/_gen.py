@@ -6,6 +6,7 @@ import guidance
 import ast
 
 # from guidance import select, any_char, zero_or_more, commit_point, hide
+from ._silent import silent
 from ._select import select
 from ._zero_or_more import zero_or_more
 from ._hide import hide
@@ -149,23 +150,15 @@ def will_gen(lm, stop=None, stop_regex=None, ignore_spaces=False, max_tokens=30)
     regexes = [lregex.escape(x) for x in stop + stop_regex]
     optional_space = '\\s*' if ignore_spaces else ''
     pattern = lregex.compile(f'{optional_space}({"|".join(regexes)})')
-    with lm.silent() as lm2:
+    lm2 = lm
+    with silent():
         for _ in range(max_tokens):
             lm2 += gen('temp_variable', list_append=True, max_tokens=1)
-            if not pattern.match(''.join(lm2['temp_variable']), partial=True):
+            if not lm2['temp_variable'] or not pattern.match(''.join(lm2['temp_variable']), partial=True):
                 return False
             if pattern.match(''.join(lm2['temp_variable']), partial=False):
                 return True
     return False
-    # with lm.block(hidden=True):
-    #     for _ in range(max_tokens):
-    #         lm.gen('temp_variable', list_append=True, max_tokens=1)
-    #         if not pattern.match(''.join(lm['temp_variable']), partial=True):
-    #             lm.remove('temp_variable')
-    #             return False
-    #         if pattern.match(''.join(lm['temp_variable']), partial=False):
-    #             lm.remove('temp_variable')
-    #             return True
 
 @guidance
 def gen_substring(lm, string, name=None, **kwargs):
