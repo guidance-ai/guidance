@@ -7,31 +7,33 @@ import asyncio
 
 
 def load(guidance_file):
-    ''' Load a guidance program from the given text file.
+    """Load a guidance program from the given text file.
 
     If the passed file is a valid local file it will be loaded directly.
     Otherwise, if it starts with "http://" or "https://" it will be loaded
     from the web.
-    '''
+    """
 
     if os.path.exists(guidance_file):
-        with open(guidance_file, 'r') as f:
+        with open(guidance_file, "r") as f:
             return f.read()
-    elif guidance_file.startswith('http://') or guidance_file.startswith('https://'):
+    elif guidance_file.startswith("http://") or guidance_file.startswith("https://"):
         return requests.get(guidance_file).text
     else:
-        raise ValueError('Invalid guidance file: %s' % guidance_file)
+        raise ValueError("Invalid guidance file: %s" % guidance_file)
 
 
 def chain(programs, **kwargs):
-    ''' Chain together multiple programs into a single program.
-    
+    """Chain together multiple programs into a single program.
+
     This merges them into a single program like: {{>program1 hidden=True}}{{>program2 hidden=True}}
-    '''
+    """
 
     from ._program import Program
 
-    new_template = "".join(["{{>program%d hidden=True}}" % i for i in range(len(programs))])
+    new_template = "".join(
+        ["{{>program%d hidden=True}}" % i for i in range(len(programs))]
+    )
     for i, program in enumerate(programs):
         if isinstance(program, Program):
             kwargs["program%d" % i] = program
@@ -41,7 +43,9 @@ def chain(programs, **kwargs):
             for name, _ in sig.parameters.items():
                 args += f" {name}={name}"
             fname = find_func_name(program, kwargs)
-            kwargs["program%d" % i] = Program("{{set (%s%s)}}" % (fname, args), **{fname: program})
+            kwargs["program%d" % i] = Program(
+                "{{set (%s%s)}}" % (fname, args), **{fname: program}
+            )
             # kwargs.update({f"func{i}": program})
     return Program(new_template, **kwargs)
 
@@ -67,45 +71,56 @@ def strip_markers(s):
         return None
     return re.sub(r"{{!--G.*?--}}", r"", s, flags=re.MULTILINE | re.DOTALL)
 
-class AsyncIter():    
-    def __init__(self, items):    
-        self.items = items    
 
-    async def __aiter__(self):    
-        for item in self.items:    
+class AsyncIter:
+    def __init__(self, items):
+        self.items = items
+
+    async def __aiter__(self):
+        for item in self.items:
             yield item
+
 
 class ContentCapture:
     def __init__(self, variable_stack, hidden=False):
         self._hidden = hidden
         self._variable_stack = variable_stack
-    
+
     def __enter__(self):
         self._pos = len(self._variable_stack["@raw_prefix"])
         if self._hidden:
-            self._variable_stack.push({"@raw_prefix": self._variable_stack["@raw_prefix"]})
+            self._variable_stack.push(
+                {"@raw_prefix": self._variable_stack["@raw_prefix"]}
+            )
         return self
 
     def __exit__(self, type, value, traceback):
         if self._hidden:
             new_content = str(self)
             self._variable_stack.pop()
-            self._variable_stack["@raw_prefix"] += "{{!--GHIDDEN:"+new_content.replace("--}}", "--_END_END")+"--}}"
+            self._variable_stack["@raw_prefix"] += (
+                "{{!--GHIDDEN:" + new_content.replace("--}}", "--_END_END") + "--}}"
+            )
 
     def __str__(self):
-        return strip_markers(self._variable_stack["@raw_prefix"][self._pos:])
-    
+        return strip_markers(self._variable_stack["@raw_prefix"][self._pos :])
+
     def __iadd__(self, other):
         if other is not None:
             self._variable_stack["@raw_prefix"] += other
         return self
-    
+
     def inplace_replace(self, old, new):
         """Replace all instances of old with new in the captured content."""
-        self._variable_stack["@raw_prefix"] = self._variable_stack["@raw_prefix"][:self._pos] + self._variable_stack["@raw_prefix"][self._pos:].replace(old, new)
+        self._variable_stack["@raw_prefix"] = self._variable_stack["@raw_prefix"][
+            : self._pos
+        ] + self._variable_stack["@raw_prefix"][self._pos :].replace(old, new)
 
-class JupyterComm():
-    def __init__(self, target_id, ipython_handle, callback=None, on_open=None, mode="register"):
+
+class JupyterComm:
+    def __init__(
+        self, target_id, ipython_handle, callback=None, on_open=None, mode="register"
+    ):
         from ipykernel.comm import Comm
 
         self.target_name = "guidance_interface_target_" + target_id
@@ -130,7 +145,9 @@ class JupyterComm():
                 self.open_event.set()
                 self._fire_callback({"content": {"data": {"event": "opened"}}})
 
-            self.ipython_handle.kernel.comm_manager.register_target(self.target_name, comm_opened)
+            self.ipython_handle.kernel.comm_manager.register_target(
+                self.target_name, comm_opened
+            )
             # get_ipython().kernel.comm_manager.register_target(self.target_name, comm_opened) # noqa: F821
         elif mode == "open":
             # log("OPENING", self.target_name)
@@ -193,7 +210,8 @@ class JupyterComm():
 # https://stackoverflow.com/questions/15411967/how-can-i-check-if-code-is-executed-in-the-ipython-notebook
 def is_interactive():
     import __main__ as main
-    return not hasattr(main, '__file__')
+
+    return not hasattr(main, "__file__")
 
 
 def escape_template_block(text):

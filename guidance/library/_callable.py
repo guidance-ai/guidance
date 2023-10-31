@@ -1,8 +1,8 @@
 import builtins
 
+
 def callable(value, _parser_context=None):
-    ''' Check if the given value is callable.
-    '''
+    """Check if the given value is callable."""
     variable_stack = _parser_context["variable_stack"]
 
     function_call = variable_stack["llm.extract_function_call"](value)

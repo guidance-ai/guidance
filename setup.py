@@ -5,6 +5,7 @@ from setuptools import setup, find_packages
 
 here = os.path.abspath(os.path.dirname(__file__))
 
+
 def read(*parts):
     with codecs.open(os.path.join(here, *parts), "r") as fp:
         return fp.read()
@@ -44,18 +45,7 @@ setup(
         "aiohttp",
     ],
     extras_require={
-        'docs': [
-            'ipython',
-            'numpydoc',
-            'sphinx_rtd_theme',
-            'sphinx',
-            'nbsphinx'
-        ],
-        'test': [
-            'pytest',
-            'transformers',
-            'torch',
-            'pytest-cov'
-        ]
-    }
+        "docs": ["ipython", "numpydoc", "sphinx_rtd_theme", "sphinx", "nbsphinx"],
+        "test": ["pytest", "transformers", "torch", "pytest-cov"],
+    },
 )

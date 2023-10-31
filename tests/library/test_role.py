@@ -1,11 +1,12 @@
 import guidance
 
+
 def test_role():
-    """ Test the behavior of `role`.
-    """
+    """Test the behavior of `role`."""
 
     llm = guidance.llms.Mock()
-    prompt = guidance("""
+    prompt = guidance(
+        """
 {{#role 'system'~}}
 You are an assistant.
 {{~/role}}
@@ -17,17 +18,23 @@ What is the weather?
 {{#role 'assistant'~}}
 {{gen(max_tokens=23)}}
 {{~/role}}
-""", llm=llm)
+""",
+        llm=llm,
+    )
 
     out = prompt()
-    assert str(out) == '\n<|im_start|>system\nYou are an assistant.<|im_end|>\n\n<|im_start|>user\nWhat is the weather?<|im_end|>\n\n<|im_start|>assistant\nmock output 0<|im_end|>\n'
+    assert (
+        str(out)
+        == "\n<|im_start|>system\nYou are an assistant.<|im_end|>\n\n<|im_start|>user\nWhat is the weather?<|im_end|>\n\n<|im_start|>assistant\nmock output 0<|im_end|>\n"
+    )
+
 
 def test_short_roles():
-    """ Test the behavior of the shorthand versions of `role`.
-    """
+    """Test the behavior of the shorthand versions of `role`."""
 
     llm = guidance.llms.Mock()
-    prompt = guidance("""
+    prompt = guidance(
+        """
 {{#system~}}
 You are an assistant.
 {{~/system}}
@@ -39,8 +46,12 @@ What is the weather?
 {{#assistant~}}
 {{gen()}}
 {{~/assistant}}
-""", llm=llm)
+""",
+        llm=llm,
+    )
 
     out = prompt(test="asdfa")
-    assert str(out) == '\n<|im_start|>system\nYou are an assistant.<|im_end|>\n\n<|im_start|>user\nWhat is the weather?<|im_end|>\n\n<|im_start|>assistant\nmock output 0<|im_end|>\n'
-    
+    assert (
+        str(out)
+        == "\n<|im_start|>system\nYou are an assistant.<|im_end|>\n\n<|im_start|>user\nWhat is the weather?<|im_end|>\n\n<|im_start|>assistant\nmock output 0<|im_end|>\n"
+    )

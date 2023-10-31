@@ -8,6 +8,7 @@ from guidance.llms.caches import Cache
 
 class DiskCache(Cache):
     """DiskCache is a cache that uses diskcache lib."""
+
     def __init__(self, llm_name: str):
         self._diskcache = diskcache.Cache(
             os.path.join(
@@ -23,6 +24,6 @@ class DiskCache(Cache):
 
     def __contains__(self, key: str) -> bool:
         return key in self._diskcache
-    
+
     def clear(self):
         self._diskcache.clear()

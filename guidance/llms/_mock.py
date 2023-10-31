@@ -1,12 +1,12 @@
 from ._llm import LLM
 
+
 class Mock(LLM):
-    """ Mock class for testing.
-    """
+    """Mock class for testing."""
 
     def __init__(self, output=None):
-        """ Initialize the mock class.
-        
+        """Initialize the mock class.
+
         Parameters
         ----------
         output : str or list or dict
@@ -29,14 +29,13 @@ class Mock(LLM):
         for key in output.keys():
             if not isinstance(output[key], list):
                 output[key] = [output[key]]
-        
+
         self.output = output
         self.counts = {k: 0 for k in output.keys()}
         self._tokenizer = MockTokenizer()
 
     def _find_suffix_match(self, prompt):
-        """ Find the output key that matches the suffix of the prompt.
-        """
+        """Find the output key that matches the suffix of the prompt."""
 
         for key in self.output.keys():
             if prompt.endswith(key):
@@ -47,7 +46,7 @@ class Mock(LLM):
         output = self.output[key]
         choices = []
         for i in range(n):
-            out = output[min(self.counts[key], len(output)-1)]
+            out = output[min(self.counts[key], len(output) - 1)]
             self.counts[key] += 1
             if isinstance(out, str):
                 choices.append({"text": out, "finish_reason": "stop"})
@@ -62,19 +61,25 @@ class Mock(LLM):
             return [out]
         else:
             return out
-        
+
     def role_start(self, role_name, **kwargs):
-        return "<|im_start|>"+role_name+"".join([f' {k}="{v}"' for k,v in kwargs.items()])+"\n"
-    
+        return (
+            "<|im_start|>"
+            + role_name
+            + "".join([f' {k}="{v}"' for k, v in kwargs.items()])
+            + "\n"
+        )
+
     def role_end(self, role_name=None):
         return "<|im_end|>"
-    
-class MockTokenizer():
+
+
+class MockTokenizer:
     def __init__(self):
         pass
 
     def encode(self, text):
         return [s for s in text.encode("utf-8")]
-    
+
     def decode(self, ids):
         return "".join([chr(i) for i in ids])

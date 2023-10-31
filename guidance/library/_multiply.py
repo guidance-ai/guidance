@@ -1,6 +1,6 @@
 import math
 
+
 def multiply(*args):
-    ''' Multiply the given variables together.
-    '''
+    """Multiply the given variables together."""
     return math.prod(args)

@@ -1,8 +1,8 @@
 from ._llama import LLaMA
 
+
 class Vicuna(LLaMA):
-    """ A HuggingFace transformers version of the Vicuna language model with Guidance support.
-    """
+    """A HuggingFace transformers version of the Vicuna language model with Guidance support."""
 
     llm_name: str = "vicuna"
 
@@ -10,18 +10,18 @@ class Vicuna(LLaMA):
 
     @staticmethod
     def role_start(role):
-        if role == 'user':
-            return 'USER: '
-        elif role == 'assistant':
-            return 'ASSISTANT: '
+        if role == "user":
+            return "USER: "
+        elif role == "assistant":
+            return "ASSISTANT: "
         else:
-            return ''
-    
+            return ""
+
     @staticmethod
     def role_end(role):
-        if role == 'user':
-            return ''
-        elif role == 'assistant':
-            return '</s>'
+        if role == "user":
+            return ""
+        elif role == "assistant":
+            return "</s>"
         else:
-            return ''
+            return ""

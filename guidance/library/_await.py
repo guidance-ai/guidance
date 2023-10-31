@@ -1,5 +1,5 @@
 async def await_(name, consume="yes_for_now", _parser_context=None):
-    ''' Awaits a variable by returning its value and then deleting it.
+    """Awaits a variable by returning its value and then deleting it.
 
     Note that this is useful for repeatedly getting values since programs
     will pause when they need a value that is not yet set. This means
@@ -10,13 +10,13 @@ async def await_(name, consume="yes_for_now", _parser_context=None):
     ----------
     name : str
         The name of the variable to await.
-    '''
+    """
 
     # stop the program completion if we are waiting for a value to be set
     # this will result in a partially completed program that we can then finish
     # later (by calling it again with the variable we need)
-    parser = _parser_context['parser']
-    variable_stack = _parser_context['variable_stack']
+    parser = _parser_context["parser"]
+    variable_stack = _parser_context["variable_stack"]
     if name not in variable_stack:
         parser.executing = False
     else:
@@ -24,7 +24,7 @@ async def await_(name, consume="yes_for_now", _parser_context=None):
         if consume:
             del variable_stack[name]
         return value
-    
+
     # cache = parser.program._await_cache
     # while name not in cache:
     #     parser.program.finish_execute() # allow the program to finish the current call (since we're waiting for a value from the next call now)

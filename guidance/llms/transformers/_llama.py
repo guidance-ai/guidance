@@ -23,7 +23,7 @@ class LLaMAChat(LLaMA):
 
     _B_INST, _E_INST = "[INST] ", " [/INST]"
     _B_SYS, _E_SYS = "<<SYS>>\n", "\n<</SYS>>\n\n"
-    _B_SEQ, _E_SEQ = "<s>", "</s>"
+    _B_SEQ, _E_SEQ = "<s>", " </s>"
     _dangling_inst = False
     _sequence_ended = True
 

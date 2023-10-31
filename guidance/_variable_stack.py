@@ -4,6 +4,7 @@ from ._utils import strip_markers
 
 _NO_VALUE = object()
 
+
 class VariableStack:
     """This represents the variables scope stack of a Guidance program."""
 
@@ -21,14 +22,13 @@ class VariableStack:
         # if we are popping a _prefix variable state we need to update the display
         if "@raw_prefix" in self._stack[-1]:
             self._executor.program.update_display()
-        
+
         return out
 
     def __getitem__(self, key):
         return self.get(key)
-    
-    def get(self, name, default_value=KeyError):
 
+    def get(self, name, default_value=KeyError):
         # prefix is a special variable that returns the current prefix without the marker tags
         if name == "@prefix":
             return strip_markers(self.get("@raw_prefix", ""))
@@ -46,12 +46,13 @@ class VariableStack:
                 else:
                     var_part = part
                 try:
-
                     # check for special computed properties of string values
                     if isinstance(curr_pos, str) and var_part == "__name__":
                         next_pos = self["extract_function_call"](curr_pos).__name__
                     elif isinstance(curr_pos, str) and var_part == "__kwdefaults__":
-                        next_pos = self["extract_function_call"](curr_pos).__kwdefaults__
+                        next_pos = self["extract_function_call"](
+                            curr_pos
+                        ).__kwdefaults__
                     else:
                         if isinstance(var_part, str) and hasattr(curr_pos, var_part):
                             next_pos = getattr(curr_pos, var_part)
@@ -67,18 +68,18 @@ class VariableStack:
                     break
             if found:
                 return curr_pos
-        
+
         # fall back to pulling from the llm namespace
         if not name.startswith("llm."):
             return self.get("llm." + name, default_value)
-        
+
         if default_value is KeyError:
             raise KeyError("`" + name + "` was not found in the program's variables!")
-        return default_value # variable not found
+        return default_value  # variable not found
 
     def __contains__(self, name):
         return self.get(name, _NO_VALUE) != _NO_VALUE
-    
+
     def __delitem__(self, key):
         """Note this only works for simple variables, not nested variables."""
         found = True
@@ -110,7 +111,7 @@ class VariableStack:
                     next_found = True
                 except KeyError:
                     next_found = False
-                
+
                 if next_found:
                     if part == parts[-1]:
                         changed = curr_pos[var_part] != value
@@ -119,7 +120,7 @@ class VariableStack:
                     else:
                         curr_pos = next_pos
                 else:
-                    if part == parts[-1] and len(parts) > 1: # setting a new property
+                    if part == parts[-1] and len(parts) > 1:  # setting a new property
                         curr_pos[var_part] = value
                     else:
                         found = False
@@ -127,9 +128,11 @@ class VariableStack:
             if found:
                 break
         if not found:
-            assert len(parts) == 1, "Can't set a property of a non-existing variable: " + key
+            assert len(parts) == 1, (
+                "Can't set a property of a non-existing variable: " + key
+            )
             self._stack[0][key] = value
-        
+
         # if we changed the _prefix variable, update the display
         if changed and key == "@raw_prefix" and not self.get("@no_display", None):
             self._executor.program.update_display()

@@ -1,5 +1,5 @@
 def subtract(minuend, subtrahend):
-    ''' Subtract the second variable from the first.
+    """Subtract the second variable from the first.
 
     Parameters
     ----------
@@ -7,5 +7,5 @@ def subtract(minuend, subtrahend):
         The number to subtract from.
     subtrahend : int or float
         The number to subtract.
-    '''
+    """
     return minuend - subtrahend
