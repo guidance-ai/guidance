@@ -21,9 +21,17 @@ def basic_func_grammar(name):
     return obj
 
 def fn_to_tool(self, callable):
-    # TODO
     name = callable.__name__
-    pass
+    call_grammar = basic_func_grammar(name)
+    @guidance
+    def basic_tool_call(lm):
+        args = lm['tool_args']
+        args = args.split(',')
+        positional = [x.strip() for x in args if '=' not in x]
+        kwargs = dict([tuple(x.strip().split('=')) for x in args if '=' in x])
+        lm += callable(*positional, **kwargs)
+        return lm
+    return Tool(call_grammar, basic_tool_call)
 
 # @guidance
 # def default_text_to_callable(lm, generated_text):
