@@ -10,7 +10,8 @@ def commit_point(value, hidden=False):
     return value
 
 def _rec_hide(grammar):
-    grammar.hidden = True
-    if hasattr(grammar, "values"):
-        for g in grammar.values:
-            _rec_hide(g)
+    if not grammar.hidden:
+        grammar.hidden = True
+        if hasattr(grammar, "values"):
+            for g in grammar.values:
+                _rec_hide(g)
