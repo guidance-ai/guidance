@@ -28,6 +28,7 @@ class Model:
         self._event_queue = None
         self._event_parent = None
         self._silent = None
+        self._token_count = 0
         self._variables = {}
         self.instance__enter__ = []
         self.instance__exit__ = []
@@ -253,9 +254,9 @@ type {function['name']} = (_: {{"""
 
             delayed_bytes = b""
             # last_is_generated = False
-            for new_bytes,is_generated,new_bytes_log_prob,capture_groups,capture_group_log_probs in gen_obj:
-                
+            for new_bytes, is_generated, new_bytes_log_prob, capture_groups, capture_group_log_probs, new_token_count in gen_obj:
                 # convert the bytes to a string (delaying if we don't yet have a valid unicode string)
+                lm._token_count += new_token_count
                 new_bytes = delayed_bytes + new_bytes
                 try:
                     new_text = new_bytes.decode("utf8")

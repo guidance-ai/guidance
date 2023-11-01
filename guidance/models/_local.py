@@ -69,6 +69,7 @@ class Local(Model):
         generated_pos = 0 
         sampled_token_ind = None
         token_count = 0
+        last_token_count = 0
         earliest_possible_hidden = 10000000000
         while True: # each iteration generates one more token (and some of the associated bytes)
 
@@ -313,8 +314,8 @@ class Local(Model):
                 # we have no valid log prob data if we didn't compute it
                 if not log_probs:
                     log_prob_data = {k: None for k in data}
-
-                yield new_bytes[hidden_count:], not is_forced, new_bytes_log_prob, data, log_prob_data
+                yield new_bytes[hidden_count:], not is_forced, new_bytes_log_prob, data, log_prob_data, token_count - last_token_count
+                last_token_count = token_count
                 break # we are done!
             else:
                 generated_pos += len(new_bytes)
@@ -322,7 +323,8 @@ class Local(Model):
                 # yeild the snippet of text created by the next token
                 out = new_bytes[hidden_count:]
                 if len(out) > 0:
-                    yield out, not is_forced, new_bytes_log_prob, {}, {} # note that we don't capture groups until a complete parse right now...
+                    yield out, not is_forced, new_bytes_log_prob, {}, {}, token_count - last_token_count # note that we don't capture groups until a complete parse right now...
+                    last_token_count = token_count
                     hidden_count = 0
                     token_count += 1 # note we only update this for tokens that emit non-hidden content
                 else:

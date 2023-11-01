@@ -1,5 +1,5 @@
 # import functions that can be called directly
-from ._gen import gen, gen_with_tools, gen_substring
+from ._gen import gen, call_tool
 
 # context blocks
 from ._block import block

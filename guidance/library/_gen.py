@@ -17,7 +17,7 @@ from ._regex import regex
 # TODO: make this stateless!
 @guidance
 def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None,
-        tools=None, stop=None, stop_regex=None, suffix="", n=1, temperature=0.0, top_p=1.0,
+        tools=None, hide_tool_call=False, stop=None, stop_regex=None, suffix="", n=1, temperature=0.0, top_p=1.0,
         logprobs=None, stream_tokens=None, save_stop_text=False, **llm_kwargs):
     """
     TODO: document this
@@ -43,10 +43,10 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None,
 
     # fall back to stopping at the EOS token
     if stop is None:
-        stop = eos_token
+        stop = []
     if isinstance(stop, str):
         stop = [stop]
-    if eos_token not in stop:
+    if eos_token not in stop and pattern is None:
         stop.append(eos_token)
 
     if stop_regex is None:
@@ -84,21 +84,24 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None,
         pattern = capture(pattern, name=name)
     
     # define the stop pattern
-    stop_pattern = select(stop + stop_regex)
-    if save_stop_text is True:
-        save_stop_text = str(name) + "_stop_text"
-    if isinstance(save_stop_text, str):
-        stop_pattern = capture(save_pattern, name=save_stop_text)
+    if stop + stop_regex:
+        stop_pattern = select(stop + stop_regex)
+        if save_stop_text is True:
+            save_stop_text = str(name) + "_stop_text"
+        if isinstance(save_stop_text, str):
+            stop_pattern = capture(stop_pattern, name=save_stop_text)
+        stop_pattern = commit_point(stop_pattern, hidden=True)
+    else:
+        stop_pattern = ''
 
     # single generation
     start_pos = len(str(lm))
     # TODO: if a tool is a python function rather than a guidance.Tool, make it into a guidance.Tool
     if tools is not None:
         # TODO: This should be while I have tokens left
-        # TODO: Need to hide the stop pattern
-        # gen_grammar = pattern + hide(select([stop_pattern] + [capture(commit_point(x.call_grammar), name=f'tool{i}') for i, x in enumerate(tools)]))
-        gen_grammar = pattern + select([stop_pattern] + [capture(commit_point(x.call_grammar), name=f'tool{i}') for i, x in enumerate(tools)])
-        for i in range(5):
+        gen_grammar = pattern + select([stop_pattern] + [capture(commit_point(x.call_grammar, hidden=hide_tool_call), name=f'tool{i}') for i, x in enumerate(tools)])
+        while lm._token_count <= max_tokens:
+        # for i in range(5):
             lm = lm.run_stateless(gen_grammar, max_tokens=max_tokens, temperature=temperature)
             tool_called = False
             for i in range(len(tools)):
@@ -110,7 +113,7 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None,
             if not tool_called:
                 break
     elif n == 1:
-        lm = lm.run_stateless(pattern + commit_point(stop_pattern, hidden=True), max_tokens=max_tokens, temperature=temperature)
+        lm = lm.run_stateless(pattern + stop_pattern, max_tokens=max_tokens, temperature=temperature)
 
     if name is not None:
         lm[name] = str(lm)[start_pos:]
@@ -182,136 +185,5 @@ def will_gen(lm, stop=None, stop_regex=None, ignore_spaces=False, max_tokens=30)
     return False
 
 @guidance
-def gen_substring(lm, string, name=None, **kwargs):
-    # this is obviously not the right implementation, just here so we can explore
-    # Right now it's kinda wrong because it does not support suffix (or other kwargs to gen),
-    # which is a big pain because the model ends up being bad at stopping
-    # (will never pick stop token until the string is finished, unless you have the suffix as an option also)
-    # gen_substring will never stop unless you add a suffix as an option or set max_tokens or stop
-    # E.g. quote: lm('"').gen_substring(original, suffix='"') 
-
-    try:
-        tokenized = lm.endpoint.tokenizer(string, return_offsets_mapping=True)
-        tokens = [string[a[0]:a[1]] for a in tokenized['offset_mapping']]
-        tokens = [x for x in tokens if x]
-        stripped = tokens + [x.strip() for x in tokens if x.strip() != x]
-        stripped = [x for x in stripped if x]
-    except:
-        tokens = [lm.endpoint.tokenizer.decode(x) for x in lm.endpoint.tokenizer.encode(string)]
-        tokens = [x for x in tokens if x]
-        stripped = tokens + [x.strip() for x in tokens if x.strip() != x]
-        stripped = [x for x in stripped if x]
-    pattern = f'({"|".join(stripped)})?'
-    if name is None:
-        name = 'temp_string'
-    # return tokens, pattern
-    lm2 = lm
-    lm2 += gen('temp_string', pattern=pattern, **kwargs)
-    valid_idxs = [i for i, x in enumerate(tokens) if x == lm2['temp_string'] ]
-    while valid_idxs:
-        next_idxs = [i + 1 for i in valid_idxs if i + 1 < len(tokens)]
-        next_tokens = [tokens[i] for i in next_idxs]
-        if not next_tokens:
-            break
-        pattern = f'({"|".join(next_tokens)})?'
-        lm2 += gen('temp_string', pattern=pattern, **kwargs)
-        valid_idxs = [i for i in next_idxs if tokens[i] == lm2['temp_string']]
-
-    list_append = kwargs.get('list_append', False)
-    if list_append:
-        prev_list = lm2.get(name, [])
-        prev_list.append(str(lm2)[len(str(lm)):])
-        lm2 = lm2.set(name, prev_list)
-    else:
-        lm2 = lm2.set(name, str(lm2)[len(str(lm)):])
-    return lm2
-
-
-def pattern_to_callable(pattern, callable):
-    # returns callable, args, kwargs
-    pattern = lregex.compile(pattern)
-    def return_fn(string):
-        match = pattern.search(string)
-        if match:
-            call = match.group(0)
-            # TODO: Remove this
-            try:
-                body = ast.parse(call, mode='eval').body
-            except:
-                return None
-            args = [x.value for x in body.args]
-            kwargs = {x.arg: x.value.value for x in body.keywords}
-            return callable, args, kwargs
-        return None
-    return return_fn
-
-@guidance
-def gen_with_tools(lm, name=None, tools=None, stop_on_tool=False, include_tool_call=True, **kwargs):
-    # V0 to see if this interface is good:
-    # tools is a list of guidance functions.
-    # In this v0, we only support python function calls, where the pattern is fn_name(args).
-    # Not keeping track of maxtokens.
-    # What this is doing:
-    # 1. call gen with tool patterns as stop fns
-    # 2. when gen stops, see if a tool stopped it. If so, call the tool, then call gen again until gen returns due to other stuff.
-    # NOTE: This doesn't work for nested expressions, e.g. ((3 * 3) + 1).... or with any arguments that have params, unfortunately
-    patterns = []
-    to_callables = []
-    gen_name = name
-    for tool in tools:
-        name = tool.__name__
-        pattern = f'{name}\\((.*)\\)'
-        patterns.append(pattern)
-        p_to_callable = pattern_to_callable(pattern, tool)
-        to_callables.append(p_to_callable)
-    # return patterns
-    if 'stop_regex' in kwargs:
-        if isistance(kwargs['stop_regex'], list):
-            kwargs['stop_regex'].extend(patterns)
-        else:
-            kwargs['stop_regex']  = [kwargs['stop_regex']] + patterns
-    else:
-        kwargs['stop_regex'] = patterns
-    kwargs['save_stop_text'] = True
-    called_tool = True
-    temp_output = ''
-    new = lm
-    tool_calls = []
-    while called_tool:
-        called_tool = False
-        new += gen(name='temp_name', **kwargs)
-        if new['temp_name_stop_text'] is None:
-            break
-        for p in to_callables:
-            tool_call = new['temp_name_stop_text']
-            tool_calls.append(tool_call)
-            ret = p(tool_call)
-            if ret is not None:
-                callable, targs, tkwargs = ret
-                if include_tool_call:
-                    new += tool_call
-                new += callable(*targs, *tkwargs)
-                called_tool = True if not stop_on_tool else False
-                break
-    list_append = kwargs.get('list_append', False)
-    if list_append:
-        tc = new.get('tool_calls', [])
-        tc.append(tool_calls)
-        new = new.set('tool_calls', tc)
-        prev_list = new.get(gen_name, [])
-        prev_list.append(str(new)[len(str(lm)):])
-        new = new.set(gen_name, prev_list)
-    else:
-        new = new.set('tool_calls', tool_calls)
-        new = new.set(gen_name, str(new)[len(str(lm)):])
-    return new
-
-@guidance
 def call_tool(lm, tool):
-    name = tool.__name__
-    pattern = f'{name}\\(([^)]*)\\)'
-    p_to_callable = pattern_to_callable(pattern, tool)
-    lm += gen('fn_call', pattern=pattern)
-    callable, args, kwargs = p_to_callable(lm['fn_call'])
-    lm += callable(*args, **kwargs)
-    return lm
+    return lm + tool.call_grammar + tool.tool_call()
