@@ -186,5 +186,4 @@ def will_gen(lm, stop=None, stop_regex=None, ignore_spaces=False, max_tokens=30)
 
 @guidance
 def call_tool(lm, tool):
-    # TODO: Implement
-    pass
+    return lm + tool.call_grammar + tool.tool_call()
