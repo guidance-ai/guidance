@@ -4,7 +4,6 @@ from ._select import select
 from ._zero_or_more import zero_or_more
 from ._one_or_more import one_or_more
 from ._any_char_but import any_char_but
-from ._hide import hide
 from ._commit_point import commit_point
 from ._any_char import any_char
 from ._capture import capture
