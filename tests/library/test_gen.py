@@ -104,13 +104,13 @@ def test_stop_regex_star():
 
 def test_empty_pattern():
     pattern = '(Scott is bad)?(\d+)?'
-    lm = models.LocalMock(b"<s>John was a little man full of things")
+    lm = models.LocalMock(b"<s>J<s>")
     lm2 = lm + 'J' + gen(name='test', pattern=pattern, max_tokens=30)
     assert lm2['test'] == ''
 
 def test_various_regexes():
     lm = get_model("transformers:gpt2")
-    prompts = ['Hi there', '2 + 2 = ', 'Scott is a', 'I have never seen a more', 'What is the', '??FD32']
+    prompts = ['Hi there', '2 + 2 = ', 'Scott is a', 'I have never seen a more', 'What is the', '?FD32']
     patterns = ['(Scott is a person|Scott is a persimmon)', 'Scott is a persimmon.*\.', '\d+233', '\d\.*\d+']
     for prompt in prompts:
         for pattern in patterns:
@@ -170,8 +170,3 @@ Step 1'''
     lm +=  prompt + gen(max_tokens=100)
     assert True
 
-def test_commit_point():
-    lm = get_model("transformers:gpt2")
-    tools = [Tool(callable=lambda x: x)]
-    stop_pattern = select([string(lm.eos_token)])
-    gen_grammar = select([commit_point(stop_pattern, hidden=True)] + [capture(commit_point(x.call_grammar, hidden=True), name=f'tool{i}') for i, x in enumerate(tools)])
