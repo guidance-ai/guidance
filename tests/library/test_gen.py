@@ -1,5 +1,5 @@
 import guidance
-from guidance import gen, models
+from guidance import gen, models, commit_point, Tool, select, capture, string
 from ..utils import get_model
 import re
 
@@ -169,3 +169,9 @@ Let's think step by step, and then write the answer:
 Step 1'''
     lm +=  prompt + gen(max_tokens=100)
     assert True
+
+def test_commit_point():
+    lm = get_model("transformers:gpt2")
+    tools = [Tool(callable=lambda x: x)]
+    stop_pattern = select([string(lm.eos_token)])
+    gen_grammar = select([commit_point(stop_pattern, hidden=True)] + [capture(commit_point(x.call_grammar, hidden=True), name=f'tool{i}') for i, x in enumerate(tools)])

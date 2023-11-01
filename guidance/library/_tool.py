@@ -1,8 +1,27 @@
+import guidance
+from ._any_char import any_char
+from ._select import select
+from ._zero_or_more import zero_or_more
+from ._one_or_more import one_or_more
+from ._any_char_but import any_char_but
+from ._commit_point import commit_point
+from ._any_char import any_char
+from ._capture import capture
+from ._string import string
+
 class Tool:
-    def __init__(self, call_grammar, tool_call):
+    def __init__(self, call_grammar=None, tool_call=None, callable=None):
         # call_grammar specifies how the tool can be called. Crucially, it has to capture the args in variable 'tool_args'
         # tool_call is a guidance function  actually calls the tool, and returns an lm object with whatever outputs it wants
+        # callable: guidance function or regular callable, will be converted to grammar
         # TODO: hidden is not working yet
+        first_option = (call_grammar is not None) and (tool_call is not None)
+        second_option = callable is not None
+        # either both are true or both false
+        if first_option == second_option:
+            raise Exception("Must pass either (call_grammar, tool call) or callable, but not both or neither")
+        if second_option:
+            call_grammar, tool_call = fn_to_grammar_call(callable)
         self.call_grammar = call_grammar
         self.tool_call = tool_call
 
@@ -20,10 +39,22 @@ def basic_func_grammar(name):
     obj += string(')')
     return obj
 
-def fn_to_tool(self, callable):
+def fn_to_grammar_call(callable):
+    # TODO later: validate the call. Here is code to get required and optional args of 'guidance_fn':
+    # name = guidance_fn.__name__
+    # required_args = []
+    # optional_args = []
+    # sig = inspect.signature(guidance_fn)
+    # for i, x in enumerate(sig.parameters.values()):
+    #     if i == 0:
+    #         continue
+    #     if x.default is x.empty:
+    #         required_args.append(x.name)
+    #     else:
+    #         optional_args.append(x.name)
     name = callable.__name__
     call_grammar = basic_func_grammar(name)
-    @guidance
+    @guidance(dedent=False)
     def basic_tool_call(lm):
         args = lm['tool_args']
         args = args.split(',')
@@ -31,72 +62,4 @@ def fn_to_tool(self, callable):
         kwargs = dict([tuple(x.strip().split('=')) for x in args if '=' in x])
         lm += callable(*positional, **kwargs)
         return lm
-    return Tool(call_grammar, basic_tool_call)
-
-# @guidance
-# def default_text_to_callable(lm, generated_text):
-
-# class Tool:
-#     def __init__(self, callable, scan_pattern=None, text_to_callable=None):
-#         # callable is a guidance function
-#         # Scan pattern is a pattern used to stop generation
-#         # text_to_callable returns either None if the tool does not apply to the generated text, or calls 'callable'
-#         # and executes the tool (whatever the tool does)
-#         self.scan_pattern = scan_patter
-#         self.text_to_callable = text_to_callable
-#     def __call__(self, lm, text):
-
-
-
-
-# Leaving this here for now in case we want to return to this pattern, but implemented a different version above for prototyping
-class CallScanner:
-    def __init__(self, scanner, stop=None, stop_regex=None):
-        self.scanner = scanner
-        self.stop = stop
-        self.stop_regex = stop_regex
-        assert self.stop is not None or self.stop_regex is not None, "Either stop or stop_regex must be specified."
-
-    def __call__(self, lm, text):
-        out = self.scanner(text)
-        if isinstance(out, CallableAnswer) and out.callable is None:
-            out.callable = lm.get(out.__name__, {"callable": None}).get("callable", None)
-        return out
-
-    
-class CallableAnswer:
-    def __init__(self, text, name, args_string, callable=None):
-        self._text = text
-        self.__name__ = name
-        self.args_string = args_string
-        self.callable = callable
-
-    def __str__(self):
-        return self._text
-
-    def __call__(self, *args, **kwargs):
-        if self.callable is None:
-            raise NotImplementedError(f"Answer {self.__name__} has no function defined")
-        return self.callable(*args, **self.__kwdefaults__, **kwargs)
-    
-    @property
-    def __kwdefaults__(self):
-        """We build this lazily in case the user wants to handle validation errors themselves."""
-        return json.loads(self.args_string)
-
-    def __repr__(self):
-        return self._text + f"\nCallableAnswer(__name__={self.__name__}, __kwdefaults__={self.__kwdefaults__})"
-
-def _default_extract_function_call(text):
-    m = re.match(r"(.*?)\n?\n?```typescript\nfunctions.([^\(]+)\((.*?)\)```", text, re.DOTALL)
-    if m:
-        return CallableAnswer(text=m.group(1), name=m.group(2), args_string=m.group(3))
-# _default_call_scanner = CallScanner(_extract_function_call, stop_regex=r"\n?\n?```typescript\nfunctions.[^\(]+\(.*?\)```")
-
-# Old functions, to clean up
-    # def add_call_scanner(self, scanner, stop=None, stop_regex=None):
-    #     self._call_scanners.append(CallScanner(scanner, stop=stop, stop_regex=stop_regex))
-    #     return self
-    
-    # def get_call_scanners(self):
-    #     return self._call_scanners
+    return call_grammar, basic_tool_call
