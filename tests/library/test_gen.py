@@ -71,6 +71,12 @@ def test_pattern_optional():
     lm2 = lm + 'J' + gen(name='test', pattern=pattern, max_tokens=30)
     assert lm2['test'] == 'o'
 
+def test_pattern_stops_when_fulfilled():
+    lm = models.LocalMock(b"<s>123abc")
+    lm += gen(pattern='\d+', max_tokens=10, name='test')
+    assert lm['test'] == '123'
+
+
 def test_pattern_star():
     lm = models.LocalMock(b"<s>1234233234<s>")
     patterns = ['\d+233', '\d*233', '.+233', '.*233']
