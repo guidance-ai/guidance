@@ -21,6 +21,8 @@ from ._prefix_tree import prefix_tree
 from ._substring import substring
 from ._regex import regex
 from ._optional import optional
+from ._tool import Tool
+from ._any_char_but import any_char_but
 
 # import the rest just to get them executed and attached as methods of the LM objects
 from ._append import append as _append

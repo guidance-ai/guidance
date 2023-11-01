@@ -1,3 +1,37 @@
+class Tool:
+    def __init__(self, call_grammar, tool_call):
+        # call_grammar specifies how the tool can be called. Crucially, it has to capture the args in variable 'tool_args'
+        # tool_call is a guidance function  actually calls the tool, and returns an lm object with whatever outputs it wants
+        # TODO: hidden is not working yet
+        self.call_grammar = call_grammar
+        self.tool_call = tool_call
+
+def valid_chars():
+    return any_char_but(['=', ')'])
+def positional_arg():
+    return one_or_more(valid_chars())
+def kwarg():
+    return one_or_more(valid_chars()) + '=' + one_or_more(valid_chars())
+
+def basic_func_grammar(name):
+    obj = string(name + '(')
+    obj += capture(select([zero_or_more(positional_arg()), ''])
+        + select([zero_or_more(kwarg()), '']), name='tool_args')
+    obj += string(')')
+    return obj
+
+def fn_to_tool(self, callable):
+    name = callable.__name__
+    call_grammar = basic_func_grammar(name)
+    @guidance
+    def basic_tool_call(lm):
+        args = lm['tool_args']
+        args = args.split(',')
+        positional = [x.strip() for x in args if '=' not in x]
+        kwargs = dict([tuple(x.strip().split('=')) for x in args if '=' in x])
+        lm += callable(*positional, **kwargs)
+        return lm
+    return Tool(call_grammar, basic_tool_call)
 
 # @guidance
 # def default_text_to_callable(lm, generated_text):

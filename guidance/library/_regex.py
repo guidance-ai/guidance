@@ -4,6 +4,7 @@ from ._string import string
 from ._zero_or_more import zero_or_more
 from .._grammar import Byte
 from ._select import select
+from ._any_char_but import any_char_but
 import re
 from types import SimpleNamespace
 from pyformlang.regular_expression import PythonRegex
@@ -20,24 +21,6 @@ def regex(lm, pattern):
     cfg = tree_to_grammar(simplify_tree(regex), nots=nots)
     return cfg
 
-
-def negative_byte_range(forbidden):
-    """Given a list of one-char bytes, returns a list of byte ranges that contain every single-character byte except the forbidden ones.
-    """
-    forb = sorted(set([ord(x) for x in forbidden]))
-    start = 0
-    ranges = []
-    for i in forb:
-        if i == 0:
-            continue
-        newrange = (start, i - 1)
-        if newrange[0] < newrange[1]:
-            ranges.append(newrange)
-        start = i + 1
-    if start < 127:
-        ranges.append((start, 127))
-    ranges = [(i.to_bytes(1, 'big'), j.to_bytes(1, 'big')) for i, j in ranges]
-    return ranges
 
 # This is just a helper class so I can merge nodes without having to worry about pyformlang types
 class FakeNode:
@@ -75,7 +58,7 @@ def tree_to_grammar(node, nots):
                 # The not matches all of the chars.
                 # TODO: Technically there could be a situation where this is true AND this is not actually what we had in a regex, so this code is wrong. But it's probably never going to happen, and we'll replace this code later.
                 if all([notz.match(x) is not None for x in all_chars]):
-                    return select([byte_range(x[0], x[1]) for x in negative_byte_range(temp_vals)])
+                    return any_char_but(temp_vals)
 
             # if b''.join(temp_vals).decode('utf8') in nots:
             #     # print('Negating', temp_vals)

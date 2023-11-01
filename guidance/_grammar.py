@@ -283,7 +283,7 @@ class Select(StatelessFunction):
         return self._values
     @values.setter
     def values(self, vals):
-        self._values = [_string(v) if isinstance(v, str) else v for v in vals]
+        self._values = [_string(v) if isinstance(v, (str, bytes)) else v for v in vals]
         self.nullable = any(v.nullable for v in self._values)
         self._values = [v for v in self._values if not isinstance(v, Null)]
 
