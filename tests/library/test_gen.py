@@ -72,11 +72,11 @@ def test_pattern_optional():
     assert lm2['test'] == 'o'
 
 def test_pattern_star():
-    lm = models.LocalMock(b"<s>1234233")
+    lm = models.LocalMock(b"<s>1234233234<s>")
     patterns = ['\d+233', '\d*233', '.+233', '.*233']
     for pattern in patterns:
         lm2 = lm + '123' + gen(name='numbers', pattern=pattern, max_tokens=10)
-        assert lm2['numbers'].startswith('4233')
+        assert lm2['numbers'] == '4233'
     lm = models.LocalMock(b"<s>123233")
     patterns = ['\d*233','.*233']
     for pattern in patterns:
