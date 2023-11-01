@@ -38,6 +38,7 @@ class LocalMock(Local):
             byte_patterns = [byte_patterns]
 
         self.byte_patterns = byte_patterns
+        self._rand_generator = np.random.default_rng(seed=42)
 
         self._cache_state["past_key_values"] = None
         self._cache_state["logits"] = None
@@ -50,24 +51,23 @@ class LocalMock(Local):
         byte_string = b"".join(self.tokens[i] for i in token_ids)
 
         # we randomly generate valid unicode bytes
-        logits = np.random.randn(len(self.tokens)) * self._valid_mask
+        logits = self._rand_generator.standard_normal(len(self.tokens)) * self._valid_mask
 
-        # if we a pattern that matches force the next token
+        # if we have a pattern that matches then force the next token
         if self.byte_patterns is not None:
             byte_string
             for p in self.byte_patterns:
                 if p.startswith(byte_string) and len(p) > len(byte_string):
-                    logits[self._get_next_token(p[len(byte_string):])] += 100
+                    for i in self._get_next_tokens(p[len(byte_string):]):
+                        logits[i] += 100
                     break
         
         return torch.tensor(logits)
     
-    def _get_next_token(self, byte_string):
+    def _get_next_tokens(self, byte_string):
         for i,t in enumerate(self.tokens):
             if byte_string.startswith(t):
-                return i
-        raise Exception("failed to find valid next token!")
-        
+                yield i
         
 
 class LocalMockChat(LocalMock, Chat):
