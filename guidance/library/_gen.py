@@ -9,7 +9,6 @@ import ast
 from ._silent import silent
 from ._select import select
 from ._zero_or_more import zero_or_more
-from ._hide import hide
 from ._commit_point import commit_point
 from ._any_char import any_char
 from ._capture import capture
@@ -81,7 +80,7 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop
         pattern = capture(pattern, name=name)
     
     # define the stop pattern
-    stop_pattern = commit_point(select(stop + stop_regex))
+    stop_pattern = select(stop + stop_regex)
     if save_stop_text is True:
         save_stop_text = str(name) + "_stop_text"
     if isinstance(save_stop_text, str):
@@ -90,7 +89,7 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None, stop
     # single generation
     start_pos = len(str(lm))
     if n == 1:
-        lm = lm.run_stateless(pattern + hide(stop_pattern), max_tokens=max_tokens, temperature=temperature)
+        lm = lm.run_stateless(pattern + commit_point(stop_pattern, hidden=True), max_tokens=max_tokens, temperature=temperature)
     if name is not None:
         lm[name] = str(lm)[start_pos:]
     return lm
