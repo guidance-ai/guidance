@@ -17,7 +17,7 @@ from ._regex import regex
 # TODO: make this stateless!
 @guidance
 def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None,
-        tools=None, stop=None, stop_regex=None, suffix="", n=1, temperature=0.0, top_p=1.0,
+        tools=None, hide_tool_call=False, stop=None, stop_regex=None, suffix="", n=1, temperature=0.0, top_p=1.0,
         logprobs=None, stream_tokens=None, save_stop_text=False, **llm_kwargs):
     """
     TODO: document this
@@ -43,10 +43,10 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None,
 
     # fall back to stopping at the EOS token
     if stop is None:
-        stop = eos_token
+        stop = []
     if isinstance(stop, str):
         stop = [stop]
-    if eos_token not in stop:
+    if eos_token not in stop and pattern is None:
         stop.append(eos_token)
 
     if stop_regex is None:
@@ -84,20 +84,22 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None,
         pattern = capture(pattern, name=name)
     
     # define the stop pattern
-    stop_pattern = select(stop + stop_regex)
-    if save_stop_text is True:
-        save_stop_text = str(name) + "_stop_text"
-    if isinstance(save_stop_text, str):
-        stop_pattern = capture(save_pattern, name=save_stop_text)
+    if stop + stop_regex:
+        stop_pattern = select(stop + stop_regex)
+        if save_stop_text is True:
+            save_stop_text = str(name) + "_stop_text"
+        if isinstance(save_stop_text, str):
+            stop_pattern = capture(stop_pattern, name=save_stop_text)
+        stop_pattern = commit_point(stop_pattern, hidden=True)
+    else:
+        stop_pattern = ''
 
     # single generation
     start_pos = len(str(lm))
     # TODO: if a tool is a python function rather than a guidance.Tool, make it into a guidance.Tool
     if tools is not None:
         # TODO: This should be while I have tokens left
-        # TODO: Need to hide the stop pattern
-        # gen_grammar = pattern + hide(select([stop_pattern] + [capture(commit_point(x.call_grammar), name=f'tool{i}') for i, x in enumerate(tools)]))
-        gen_grammar = pattern + select([stop_pattern] + [capture(commit_point(x.call_grammar), name=f'tool{i}') for i, x in enumerate(tools)])
+        gen_grammar = pattern + select([stop_pattern] + [capture(commit_point(x.call_grammar, hidden=hide_tool_call), name=f'tool{i}') for i, x in enumerate(tools)])
         for i in range(5):
             lm = lm.run_stateless(gen_grammar, max_tokens=max_tokens, temperature=temperature)
             tool_called = False
@@ -110,7 +112,7 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None,
             if not tool_called:
                 break
     elif n == 1:
-        lm = lm.run_stateless(pattern + commit_point(stop_pattern, hidden=True), max_tokens=max_tokens, temperature=temperature)
+        lm = lm.run_stateless(pattern + stop_pattern, max_tokens=max_tokens, temperature=temperature)
 
     if name is not None:
         lm[name] = str(lm)[start_pos:]
