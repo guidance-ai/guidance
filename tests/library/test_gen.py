@@ -66,10 +66,10 @@ def test_pattern_optional():
     pattern = '.?233'
     lm2 = lm + '123' + gen(name='numbers', pattern=pattern, max_tokens=10)
     assert lm2['numbers'] == '233'
-    pattern = '(Scott is bad)?(\d+)?a'
+    pattern = '(Scott is bad)?(\d+)?o'
     lm = models.LocalMock(b"<s>John was a little man full of things")
     lm2 = lm + 'J' + gen(name='test', pattern=pattern, max_tokens=30)
-    assert lm2['test'] == 'a'
+    assert lm2['test'] == 'o'
 
 def test_pattern_star():
     lm = models.LocalMock(b"<s>1234233")

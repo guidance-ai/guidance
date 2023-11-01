@@ -3,17 +3,16 @@ from ordered_set import OrderedSet
 from ._grammar import Join, Select, Terminal, Null, Byte, ByteRange
 
 class EarleyItem:
-    __slots__ = ("node", "values", "start", "pos", "log_prob", "children")
+    __slots__ = ("node", "values", "start", "pos", "log_prob", "children", "hidden_start")
 
-    def __init__(self, node, values, pos, start, log_prob):
-        if repr(node) == 'hide <- ", 9" | "<s>"\n", 9" <- b\',\' b\' \' b\'9\'\n"<s>" <- b\'<\' b\'s\' b\'>\'\n':
-            pass
+    def __init__(self, node, values, pos, start, log_prob, hidden_start):
         self.node = node
         self.values = values
         self.start = start
         self.pos = pos
         self.log_prob = log_prob
         self.children = None
+        self.hidden_start = hidden_start
 
     def __eq__(self, other):
         return isinstance(other, EarleyItem) and \
@@ -59,12 +58,13 @@ class EarleyCommitParser:
         self.bytes = b''
         self.state_sets = [OrderedSet()] # the list of Earley 
         self.state_set_pos = 0
-        self._add_node(self.grammar, 0, 0.0)
+        self.shadow_pos = 0
+        self._add_node(self.grammar, 0, 0.0, 1000000000)
         self._inner_loop(self.state_set_pos)
 
     @property
     def pos(self):
-        return self.state_set_pos
+        return self.shadow_pos
     @pos.setter
     def pos(self, new_pos):
         if new_pos == self.state_set_pos:
@@ -72,31 +72,37 @@ class EarleyCommitParser:
         self.state_sets = self.state_sets[:new_pos+1] + [OrderedSet()]
         self.bytes = self.bytes[:new_pos]
         self.state_set_pos = new_pos
+        self.shadow_pos = new_pos
         self._inner_loop(self.state_set_pos)
 
-    def _add_node(self, grammar, state_set_pos, log_prob):
+    def _add_item(self, state_set_pos, new_item):
+        state_set = self.state_sets[state_set_pos]
+        if new_item not in state_set:
+            state_set.append(new_item)
+        else:
+            existing_item = state_set.items[state_set.map[new_item]]
+            existing_item.hidden_start = min(existing_item.hidden_start, new_item.hidden_start)
+
+    def _add_node(self, grammar, state_set_pos, log_prob, hidden_start):
         if isinstance(grammar, Terminal):
-            new_item = EarleyItem(grammar, tuple(), 0, state_set_pos, log_prob)
-            if new_item not in self.state_sets[state_set_pos]:
-                self.state_sets[state_set_pos].append(new_item)
+            new_item = EarleyItem(grammar, tuple(), 0, state_set_pos, log_prob, hidden_start)
+            self._add_item(state_set_pos, new_item)
             
         elif isinstance(grammar, Join):
-            new_item = EarleyItem(grammar, tuple(grammar.values), 0, state_set_pos, log_prob)
-            if new_item not in self.state_sets[state_set_pos]:
-                self.state_sets[state_set_pos].append(new_item)
+            new_item = EarleyItem(grammar, tuple(grammar.values), 0, state_set_pos, log_prob, hidden_start)
+            self._add_item(state_set_pos, new_item)
         
         elif isinstance(grammar, Select):
             for value in grammar.values:
-                new_item = EarleyItem(grammar, (value,), 0, state_set_pos, log_prob)
-                if new_item not in self.state_sets[state_set_pos]:
-                    self.state_sets[state_set_pos].append(new_item)
+                new_item = EarleyItem(grammar, (value,), 0, state_set_pos, log_prob, hidden_start)
+                self._add_item(state_set_pos, new_item)
 
-    def _inner_loop(self, state_set_pos):
+    def _inner_loop(self, state_set_pos, start_pos=0):
         curr_state_set = self.state_sets[state_set_pos]
         if len(self.state_sets) == state_set_pos + 1:
             self.state_sets.append(OrderedSet())
         next_state_set = self.state_sets[state_set_pos + 1]
-        pos = 0
+        pos = start_pos
         while len(curr_state_set) > pos:
             item = curr_state_set[pos]
 
@@ -120,77 +126,143 @@ class EarleyCommitParser:
                             start_item.values,
                             start_item.pos + 1,
                             start_item.start,
-                            start_item.log_prob + item.log_prob # increment the log prob by the child value
+                            start_item.log_prob + item.log_prob, # increment the log prob by the child value,
+                            start_item.hidden_start
                         ))
             else:
                 # scan
-                next_item = item.values[item.pos]
-                if isinstance(next_item, Terminal):
-                    next_state_set.append(EarleyItem(item.node, item.values, item.pos + 1, item.start, item.log_prob)) # the log prob will get incremented when consume_bytes is called
+                next_item_node = item.values[item.pos]
+                if isinstance(next_item_node, Terminal):
+                    next_state_set.append(EarleyItem(item.node, item.values, item.pos + 1, item.start, item.log_prob, item.hidden_start)) # the log prob will get incremented when consume_bytes is called
                 
                 # prediction
                 else:
-                    self._add_node(next_item, state_set_pos, 0.0) # the log probs will get incremented by children later
+                    hidden_start = item.hidden_start
+                    if next_item_node.hidden:
+                        hidden_start = min(state_set_pos, hidden_start)
+                    self._add_node(next_item_node, state_set_pos, 0.0, hidden_start) # the log probs will get incremented by children later
 
                 # handle nullable items by advancing them automatically (since we know we can)
-                if next_item.nullable:
-                    new_item = EarleyItem(item.node, item.values, item.pos + 1, item.start, item.log_prob)
+                if next_item_node.nullable:
+                    new_item = EarleyItem(item.node, item.values, item.pos + 1, item.start, item.log_prob, item.hidden_start)
                     if new_item not in self.state_sets[state_set_pos]:
                         self.state_sets[state_set_pos].append(new_item)
             pos += 1
 
-    def earliest_hidden_start(self):
+    def earliest_hidden_start(self, state_pos=None):
         '''The earliest that a hidden node might match.
         
         This is useful because it tells us which bytes may end being hidden.
         '''
+        if state_pos is None:
+            state_pos = self.state_set_pos
         earliest_pos = 10000000000
-        for item in self.state_sets[self.state_set_pos]:
-
-            if item.pos > 0:
-                # check for hidden nodes
-                if item.node.hidden and item.start < earliest_pos:
-                    earliest_pos = item.start
-                
-                # check for nodes that are not hidden but end with a hidden terminal (terminal won't be in our state set by themselves, so we need this check)
-                else:
-                    last_value = item.values[item.pos-1]
-                    if isinstance(last_value, Terminal) and last_value.hidden and self.state_set_pos - len(last_value) < earliest_pos:
-                        earliest_pos = self.state_set_pos - len(last_value)
-        
+        for item in self.state_sets[state_pos]:
+            earliest_pos = min(earliest_pos, item.hidden_start)
         return earliest_pos
+    
+    # def earliest_hidden_start(self, state_pos=None):
+    #     '''The earliest that a hidden node might match.
+        
+    #     This is useful because it tells us which bytes may end being hidden.
+    #     '''
+    #     if state_pos is None:
+    #         state_pos = self.state_set_pos
+    #     earliest_pos = 10000000000
+    #     for item in self.state_sets[state_pos]:
+
+    #         if item.pos > 0:
+    #             # check for hidden nodes
+    #             if item.node.hidden and item.start < earliest_pos:
+    #                 earliest_pos = item.start
+                
+    #             # check for nodes that are not hidden but end with a hidden terminal (terminal won't be in our state set by themselves, so we need this check)
+    #             else:
+    #                 last_value = item.values[item.pos-1]
+    #                 if isinstance(last_value, Terminal) and last_value.hidden and state_pos - len(last_value) < earliest_pos:
+    #                     earliest_pos = state_pos - len(last_value)
+        
+    #     return earliest_pos
     
     def matched(self):
         '''Checks if the parser has completely matched the grammar.'''
+        if self.shadow_pos != self.state_set_pos:
+            return False
         for item in self.state_sets[self.state_set_pos]:
             if item.node == self.grammar and item.pos == len(item.values):
                 return True
         return False
+    
+    def shadow_rewind(self, new_pos):
+        if new_pos == self.state_set_pos:
+            return
+        self.shadow_pos = new_pos
+    
+    def commit_and_collapse_item(self, item):
+        '''This collapses the item into zero width and rewinds the parser position accordingly.
+        
+        Note we assume the item is in the current state set.
+        '''
+
+        # trim off the state sets that matches this item
+        self.state_sets = self.state_sets[:item.start + 1]
+        self.bytes = self.bytes[:item.start]
+        self.state_set_pos = item.start
+        self.shadow_pos = item.start
+
+        # add this state to its start point (making it a zero length match with no values)
+        self.state_sets[item.start].append(EarleyItem(item.node, tuple(), 0, item.start, item.log_prob, item.hidden_start))
+
+        # expand from this state
+        self._inner_loop(item.start, len(self.state_sets[item.start]) - 1)
 
     def consume_byte(self, byte, log_prob=0.0):
         '''Advances the parser by the given byte.'''
+
+        # see if we need to advance our shadow position...
+        if self.shadow_pos < self.state_set_pos:
+            assert byte == self.bytes[self.shadow_pos:self.shadow_pos+1], "Attempted to consume a byte by advancing shadow_pos but the byte didn't match!"
+            self.shadow_pos += 1
+            return
+
+        # ...if not, we extend our bytes
         self.bytes += byte
-        next_state_set = self.state_sets[self.state_set_pos + 1]
+
+        # filter out all the extensions that don't match this byte
         new_next_state_set = []
         found_valid = False
-        for item in next_state_set:
+        hidden_start = 10000000000
+        for item in self.state_sets[self.state_set_pos + 1]:
             if item.pos > 0 and isinstance(item.values[item.pos - 1], Terminal):
-                last_inner_item = item.values[item.pos - 1]
-                if not last_inner_item.match_byte(byte):
+                last_inner_node = item.values[item.pos - 1]
+                if not last_inner_node.match_byte(byte):
                     continue
                 else:
                     found_valid = True
-                    if last_inner_item.commit_point:
+                    if last_inner_node.commit_point:
                         item.log_prob += log_prob
                         new_next_state_set = [item]
+                        hidden_start = min(hidden_start, item.hidden_start)
                         break
             item.log_prob += log_prob # update the probability of the item by the probability of choosing this byte
             new_next_state_set.append(item)
+            hidden_start = min(hidden_start, item.hidden_start)
         if not found_valid:
             raise Exception("Attempted to consume a byte that the grammar does not accept!")
         self.state_sets[self.state_set_pos + 1] = OrderedSet(new_next_state_set)
+        
+        # advance the parser one position
         self.state_set_pos += 1
+        self.shadow_pos += 1
         self._inner_loop(self.state_set_pos)
+
+        # look a commit point node
+        commit_point = None
+        for item in self.state_sets[self.state_set_pos]:
+            if item.node.commit_point and item.pos == len(item.values):
+                commit_point = item # TODO: consider how we might need to prioritize multiple commit point nodes (an uncommon scenario I think)
+        # hidden_start, 
+        return commit_point
 
     def valid_next_bytes(self):
         '''A list of Byte and ByteRange objects representing the next valid bytes.'''
@@ -205,15 +277,23 @@ class EarleyCommitParser:
     
     def next_byte_mask(self):
         '''A mask version of the `valid_next_bytes` method.'''
-        valid_items = self.valid_next_bytes()
+        
         mask = np.zeros(256, dtype=bool)
-        for item in valid_items:
-            if isinstance(item, Byte):
-                mask[item.byte[0]] = True
-            elif isinstance(item, ByteRange):
-                mask[item.byte_range[0]:item.byte_range[1]+1] = True
-            else:
-                raise Exception("Unknown Terminal Type: "  + str(type(item)))
+
+        # if we are shadow rewound then we just force those bytes again
+        if self.shadow_pos < self.state_set_pos:
+            mask[self.bytes[self.shadow_pos]] = True
+        
+        # otherwise we compute the valid bytes from the grammar
+        else:
+            valid_items = self.valid_next_bytes()
+            for item in valid_items:
+                if isinstance(item, Byte):
+                    mask[item.byte[0]] = True
+                elif isinstance(item, ByteRange):
+                    mask[item.byte_range[0]:item.byte_range[1]+1] = True
+                else:
+                    raise Exception("Unknown Terminal Type: "  + str(type(item)))
         return mask
 
     def __repr__(self, state_sets=None) -> str:
@@ -251,7 +331,7 @@ class EarleyCommitParser:
             for state in states:
                 # if state.node.name == "__call___c":
                 #     pass
-                new_state_sets[state.start].append(EarleyItem(state.node, state.values, state.pos, i, state.log_prob))
+                new_state_sets[state.start].append(EarleyItem(state.node, state.values, state.pos, i, state.log_prob, state.hidden_start))
         
         return new_state_sets
     
@@ -266,8 +346,6 @@ class EarleyCommitParser:
         return root_item
     
     def _compute_parse_tree(self, pos, item, reversed_state_sets):
-        if pos == 7:
-            pass
         
         # compute the children for this item
         assert self._compute_children(pos, item, reversed_state_sets)
@@ -283,14 +361,14 @@ class EarleyCommitParser:
                 pos = child.start # note that ".start" mean end because items are reversed
 
     def _compute_children(self, state_set_pos, item, reversed_state_sets, values_pos = 0):
+
+        # ensure we have a children array
+        if item.children is None:
+            item.children = [None for _ in range(len(item.values))]
             
         # if we are at the end of the values then there no more children and we see if we consumed all the right bytes
         if values_pos == len(item.values):
             return state_set_pos == item.start # note that ".start" mean end because items are reversed
-        
-        # ensure we have a children array
-        if item.children is None:
-            item.children = [None for _ in range(len(item.values))]
 
         # get the child we are trying to match (meaning we are looking for completed early items for this node)
         value = item.values[values_pos]
