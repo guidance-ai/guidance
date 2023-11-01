@@ -1,4 +1,4 @@
-__version__ = "0.0.64"
+__version__ = "0.1.0"
 
 import nest_asyncio
 nest_asyncio.apply()
@@ -6,25 +6,15 @@ import types
 import sys
 import os
 import requests
-# from . import template_commands as commands
-# from ._program import Program
-# from . import endpoints
-# llms = endpoints # backwards compatibility
 from . import models
 import inspect
-# import uuid
 
 from ._utils import load, chain, Silent, Hidden, CaptureEvents, TextRange, strip_multiline_string_indents
 from . import _utils
 from . import selectors
 
-
-# import guidance._grammar as _grammar #import Byte, ByteRange, Select, Join, StatefulFunction, string
-from ._grammar import StatelessFunction, StatefulFunction, _string, Terminal
-# import asyncio
-# import threading
+from ._grammar import StatelessFunction, StatefulFunction, _string, Terminal, Placeholder, replace_grammar_node
 import functools
-# import queue
 from contextlib import nullcontext
 
 curr_module = sys.modules[__name__]
@@ -51,7 +41,7 @@ def optional_hidden(f, lm, hidden, kwargs):
     
 _function_cache = {} # used to enable recursive grammar definitions
 _null_grammar = _string('')
-# _call_pool = {} # used to enable f-string composition
+# TODO: enable streaming for guidance function evaluation
 
 def _decorator(f=None, *, stateless=False, cache=None, dedent=True, model=models.Model):
     
@@ -81,10 +71,28 @@ def _decorator(f=None, *, stateless=False, cache=None, dedent=True, model=models
 
             # make a stateless grammar if we can
             if stateless:
-                node = f(_null_grammar, *args, **kwargs)
-                if not isinstance(node, Terminal):
-                    node.name = f.__name__
-                return node
+                
+                # if we have a placeholder set then we must be in a recursive definition and so we return the placeholder
+                placeholder = getattr(f, "_self_call_placeholder_", None)
+                if placeholder is not None:
+                    return placeholder
+                
+                # otherwise we call the function to generate the grammar
+                else:
+                    
+                    # set a placeholder for recursive calls
+                    f._self_call_placeholder_ = Placeholder()
+
+                    # call the function to get the grammar node
+                    node = f(_null_grammar, *args, **kwargs)
+                    if not isinstance(node, Terminal):
+                        node.name = f.__name__
+
+                    # replace all the placeholders with our generated node
+                    replace_grammar_node(node, f._self_call_placeholder_, node)
+                    del f._self_call_placeholder_
+
+                    return node
 
             # otherwise must be stateful (which means we can't be inside a select() call)
             else:

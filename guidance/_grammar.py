@@ -247,6 +247,31 @@ class Null():
         else:
             return other
 
+def replace_grammar_node(grammar, target, replacement, visited_set={}):
+    
+    # see if we have already visited this node
+    if grammar in visited_set:
+        return
+    else:
+        visited_set[grammar] = True
+   
+    # we are done if this is a terminal
+    if isinstance(grammar, Terminal):
+        return
+    
+    # replace all matching sub-nodes
+    for i,value in enumerate(grammar.values):
+        if value == target:
+            grammar.values[i] = replacement
+        else:
+            replace_grammar_node(value, target, replacement, visited_set)
+
+class Placeholder(StatelessFunction):
+    __slots__ = tuple("nullable")
+    def __init__(self):
+        self.nullable = False
+
+
 class Join(StatelessFunction):
     __slots__ = ("nullable", "values", "name", "hidden", "commit_point", "capture_name")
 
