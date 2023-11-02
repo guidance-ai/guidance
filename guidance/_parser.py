@@ -365,32 +365,34 @@ class EarleyCommitParser:
         # ensure we have a children array
         if item.children is None:
             item.children = [None for _ in range(len(item.values))]
-            
-        # if we are at the end of the values then there no more children and we see if we consumed all the right bytes
-        if values_pos == len(item.values):
-            return state_set_pos == item.start # note that ".start" mean end because items are reversed
 
-        # get the child we are trying to match (meaning we are looking for completed early items for this node)
-        value = item.values[values_pos]
-
-        # if we have a terminal node we can jump forward that many bytes
-        if isinstance(value, Terminal):
+        # consume as many terminal children as possible
+        while True:
             
-            # get all states from future children (values)
-            if self._compute_children(state_set_pos + len(value), item, reversed_state_sets, values_pos + 1):
+            # if we are at the end of the values then there no more children and we see if we consumed all the right bytes
+            if values_pos == len(item.values):
+                return state_set_pos == item.start # note that ".start" mean end because items are reversed
+
+            # get the child we are trying to match (meaning we are looking for completed early items for this node)
+            value = item.values[values_pos]
+
+            # if we have a terminal node we can jump forward that many bytes
+            if isinstance(value, Terminal):
                 item.children[values_pos] = value
-                return True
-        
+                values_pos += 1
+                state_set_pos += len(value)
+            else:
+                break
+            
         # otherwise we need to try all possible next matching items in the current state set
-        else:
-            # loop over every item in the current state set looking for a completed match
-            for inner_item in reversed_state_sets[state_set_pos]:
-                if inner_item.node == value and inner_item.pos == len(inner_item.values):
+        # so we loop over every item in the current state set looking for a completed match
+        for inner_item in reversed_state_sets[state_set_pos]:
+            if inner_item.node == value and inner_item.pos == len(inner_item.values):
 
-                    # see if we can get a complete parse following this inner item
-                    if self._compute_children(inner_item.start, item, reversed_state_sets, values_pos + 1):
-                        item.children[values_pos] = inner_item
-                        return True
+                # see if we can get a complete parse following this inner item
+                if self._compute_children(inner_item.start, item, reversed_state_sets, values_pos + 1):
+                    item.children[values_pos] = inner_item
+                    return True
                     
         # if we didn't find a child set and this is nullable we can skip this child (since it may not exist if nulled)
         if value.nullable:
