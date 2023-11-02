@@ -29,7 +29,10 @@ lm['sentences']
 
 3. **A nice developer-centric interface**: `guidance` programs are basically python programs with a lot of additional LM functionality, such as:
     - Immutable `lm` objects that make composition easy
-    - Support for templating via f-strings, e.g. `lm += f'I think I am going to {gen(max_tokens=3)} now.`
+    - Support for templating via f-strings, e.g.
+        ```python
+        lm += f'I think I am going to {gen(max_tokens=3)} now.
+        ```
     - Users deal with text rather than tokens, e.g. `select(['I think so', 'Not really'])` does not require that either option is a single token. Further, users don't have to worry about perverse [token boundaries issues](https://towardsdatascience.com/the-art-of-prompt-design-prompt-boundaries-and-token-healing-3b2448b0be38) such as 'prompt ending in whitespace'.
     - Easy tool integration, e.g. `gen(tools=[search_fn])` allows the model to call search at any point during generation, and then pauses generation and pastes search results in if search is called.
     - Blocks to make geneneration with chat-based models easy, e.g.
