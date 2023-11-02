@@ -345,7 +345,7 @@ def _select(options, name=None, recurse=False):
     #     name = _find_name() + "_" + StatelessFunction._new_name()
     if recurse:
         node = Select([], capture_name=name)
-        node.values = [v + node for v in options if v != ""] + options
+        node.values = [node + v for v in options if v != ""] + options
         return node
     else:
         if len(options) == 1 and name is None:

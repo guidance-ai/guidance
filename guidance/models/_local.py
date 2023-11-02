@@ -350,11 +350,7 @@ def _record_captures(item, data, log_prob_data, byte_data, byte_pos):
     
     # internal nodes
     else:
-
-        # if we are at a capture group node then we save the matched bytes range
-        if item.node.capture_name is not None:
-            data[item.node.capture_name] = byte_data[byte_pos:item.start] # note that "start" means "end" since this is a reversed state set
-            log_prob_data[item.node.capture_name] = item.log_prob
+        start_byte_pos = byte_pos
 
         # recurse for all our non-null children
         for child in item.children:
@@ -364,6 +360,12 @@ def _record_captures(item, data, log_prob_data, byte_data, byte_pos):
                     byte_pos += len(child)
                 else:
                     byte_pos = child.start # note that "start" means "end" since this is a reversed state set
+
+        # if we are at a capture group node then we save the matched bytes range
+        # note that we record this after calling our children so that we save the outermost version of self-recursive calls
+        if item.node.capture_name is not None:
+            data[item.node.capture_name] = byte_data[start_byte_pos:item.start] # note that "start" means "end" since this is a reversed state set
+            log_prob_data[item.node.capture_name] = item.log_prob
         
 
 def _compute_log_probs(trie, log_probs):
