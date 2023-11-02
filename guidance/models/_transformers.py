@@ -82,6 +82,10 @@ class Transformers(Local):
         inference results from the model.
         '''
 
+        # make sure we don't run off the end of the model
+        if len(token_ids) >= getattr(self.model_obj.config, "max_position_embeddings", 1e10):
+            raise Exception(f"Attempted to run a transformers model past its maximum context window size of {self.model_obj.config.max_position_embeddings}!")
+
         # get the number of cache positions we are using
         cache_token_ids = self._cache_state["cache_token_ids"]
         num_cached = 0

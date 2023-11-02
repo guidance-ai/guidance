@@ -31,6 +31,12 @@ Step 1''' + gen('steps', list_append=True, stop=['\nStep', '\n\n', '\nAnswer'], 
     i = 2
     lm + f'Step {i}:' + gen('steps', list_append=True, stop=['\nStep', '\n\n', '\nAnswer'], temperature=0.7, max_tokens=20) + '\n'
 
+def test_unicode2():
+    lm = get_model("transformers:gpt2")
+    prompt = 'Janet’s ducks lay 16 eggs per day'
+    lm +=  prompt + gen(max_tokens=10)
+    assert True
+
 def test_gsm8k():
     lm = models.LocalMock()
     lm + '''Question: Janet's ducks lay 16 eggs per day. She eats three for breakfast every morning and bakes muffins for her friends every day with four. She sells the remainder at the farmers' market daily for $2 per fresh duck egg. How much in dollars does she make every day at the farmers' market?
@@ -174,12 +180,6 @@ Answer: 8
 Question: Janet’s ducks lay 16 eggs per day. She eats three for breakfast every morning and bakes muffins for her friends every day with four. She sells the remainder at the farmers' market daily for $2 per fresh duck egg. How much in dollars does she make every day at the farmers' market?
 Let's think step by step, and then write the answer:
 Step 1'''
-    lm +=  prompt + gen(max_tokens=100)
-    assert True
-
-def test_unicode2():
-    lm = get_model("transformers:gpt2")
-    prompt = 'Janet’s ducks lay 16 eggs per day'
-    lm +=  prompt + gen(max_tokens=100)
+    lm +=  prompt + gen(max_tokens=10)
     assert True
 
