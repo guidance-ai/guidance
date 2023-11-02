@@ -39,16 +39,20 @@ class Transformers(Local):
         self.device = self.model_obj.device # otherwise note the current device
 
         # build out the set of byte_string tokens
-        byte_tokens = []
-        for i in range(self._orig_tokenizer.vocab_size):
-            byte_coded = bytes([self._orig_tokenizer.byte_decoder[c] for c in self._orig_tokenizer.convert_ids_to_tokens(i)])
-            byte_tokens.append(byte_coded)
+        tkz = self._orig_tokenizer
+        if hasattr(tkz, "byte_decoder"):
+            byte_tokens = []
+            for i in range(tkz.vocab_size):
+                byte_coded = bytes([tkz.byte_decoder[c] for c in tkz.convert_ids_to_tokens(i)])
+                byte_tokens.append(byte_coded)
+        else:
+            byte_tokens = [bytes(tkz.convert_tokens_to_string(['a', tkz.convert_ids_to_tokens(i)])[1:], encoding="utf8") for i in range(tkz.vocab_size)]
 
         # the superclass does most of the work once we have the tokens
         super().__init__(
             byte_tokens,
-            self._orig_tokenizer.bos_token_id,
-            self._orig_tokenizer.eos_token_id,
+            tkz.bos_token_id,
+            tkz.eos_token_id,
             echo=echo
         )
 
