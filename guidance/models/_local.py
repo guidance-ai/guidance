@@ -299,7 +299,7 @@ class Local(Model):
 
             # if we cannot consume any more tokens then we are done
             if not is_forced and token_pos < len(sampled_token) and trie == self._token_trie:
-                assert parser.matched()
+                assert parser.matched(), "We can't consume any more tokens, but we are not yet done! Perhaps your model's token set is incomplete?"
 
                 # TODO: if we exactly match the end of the pattern then we can commit to this last token 
                 # if m.span()[1] == len(generated_text):

@@ -177,3 +177,9 @@ Step 1'''
     lm +=  prompt + gen(max_tokens=100)
     assert True
 
+def test_unicode2():
+    lm = get_model("transformers:gpt2")
+    prompt = 'Janet’s ducks lay 16 eggs per day'
+    lm +=  prompt + gen(max_tokens=100)
+    assert True
+

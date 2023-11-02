@@ -38,13 +38,17 @@ class Transformers(Local):
             self.model_obj = self.model_obj.to(device)
         self.device = self.model_obj.device # otherwise note the current device
 
-        # build the token set and pass that to the Local constructor
-        # note that we prefix the tokens with a letter so some sentence peice tokenizers don't strip leading spaces.
-        tkz = self._orig_tokenizer
+        # build out the set of byte_string tokens
+        byte_tokens = []
+        for i in range(self._orig_tokenizer.vocab_size):
+            byte_coded = bytes([self._orig_tokenizer.byte_decoder[c] for c in self._orig_tokenizer.convert_ids_to_tokens(i)])
+            byte_tokens.append(byte_coded)
+
+        # the superclass does most of the work once we have the tokens
         super().__init__(
-            [bytes(tkz.convert_tokens_to_string(['a', tkz.convert_ids_to_tokens(i)])[1:], encoding="utf8") for i in range(tkz.vocab_size)],
-            tkz.bos_token_id,
-            tkz.eos_token_id,
+            byte_tokens,
+            self._orig_tokenizer.bos_token_id,
+            self._orig_tokenizer.eos_token_id,
             echo=echo
         )
 
@@ -64,7 +68,7 @@ class Transformers(Local):
                 raise Exception("Please install transformers with `pip install transformers` in order to use guidance.models.Transformers!")
 
             if tokenizer is None:
-                tokenizer = transformers.AutoTokenizer.from_pretrained(model, **kwargs)
+                tokenizer = transformers.AutoTokenizer.from_pretrained(model, use_fast=False, **kwargs)
             model = transformers.AutoModelForCausalLM.from_pretrained(model, **kwargs)
         
         assert tokenizer is not None, "You must give a tokenizer object when you provide a model object (as opposed to just a model name)!"
