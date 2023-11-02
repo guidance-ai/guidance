@@ -28,7 +28,7 @@ def example(lm, question):
             break
         else:
             lm += 'I am going to search the web for more information.\n'
-            lm += 'Here is my query: ' + gen(name='query')
+            lm += f'Here is my query: "{gen(name="query")}"'
             lm += web_snippets(query)
     lm += 'Now, I am going to write my answer:'
     lm += gen(name='answer', max_tokens=100)
