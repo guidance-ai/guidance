@@ -424,7 +424,8 @@ class Program:
         # dump the html to the front end
         html = f"""<div id="guidance-stop-button-{self._id}" style="cursor: pointer; margin: 0px; display: none; float: right; padding: 3px; border-radius: 4px 4px 4px 4px; border: 0px solid rgba(127, 127, 127, 1); padding-left: 10px; padding-right: 10px; font-size: 13px; background-color: rgba(127, 127, 127, 0.25);">Stop program</div><div id="guidance-content-{self._id}">{html}</div>
 <script type="text/javascript">{js_data}; window._guidanceDisplay("{self._id}");</script>"""
-        display({"text/html": html}, display_id=self._id, raw=True, clear=True, include=["text/html"])
+        if not self._exception:
+            display({"text/html": html}, display_id=self._id, raw=True, clear=True, include=["text/html"])
         self._displayed = True
 
     async def execute(self):
