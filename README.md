@@ -8,8 +8,37 @@
 > _Where there is no guidance, a model fails, but in an abundance of instructions there is safety._  
 _\- <a href="notebooks/proverb.ipynb">GPT 11:14</a>_
 
+## What this is
+`guidance` is a programming paradigm that enables users to control modern language models more effectively and efficiently than traditional prompting or chaining. Its most important features are:
+1. **Stateful control + generation**:  `guidance` lets users _interleave_ generation, prompting, and logical control into a single continuous flow matching how the language model actually processes the text.  
+For a very simple example, let's say a user wants to branch a prompt into two alternatives depending on what the LM generates. Say, we want to let the model decide if it has enough information to answer a question, and search the web until it has enough information or until a maximum number of queries is done. Rather than writing a chain of prompts, a `guidance` program would look like the following:
+```python
+import guidance
+from guidance import select, gen
+max_queries = 3
+@guidance
+def example(lm, question):
+    # Adding things to an lm object is like adding them into a prompt
+    lm += f'Question: {question}\n'
+    for i in range(max_queries):
+        lm += f'Do I have enough information to answer the question?\n' 
+        # This forces generation to be either 'Yes' or 'No', and stores the result
+        lm += select(['Yes', 'No'], name='enough_info') + '\n'
+        if lm['enough_info'] == 'Yes':
+            break
+        else:
+            lm += 'I am going to search the web for more information.\n'
+            lm += 'Here is my query: ' + gen(name='query')
+            lm += web_snippets(query)
+    lm += 'Now, I am going to write my answer:'
+    lm += gen(name='answer', max_tokens=100)
+```
+Note that in the example above, what gets added to the prompt at each step depends on the intermediate generations of both 'Yes' or 'No' and a search query (and response). Crucially, the whole program is unrolled and executed in a single LLM call.
+
+2. **Constrained generation**: 
+
 <!--It expands the API of language models so you can craft rich output structure, design precise tool use, create multi-agent interactions, and much more all while using clear code and maximum inference efficiency.-->
-<b>Guidance</b> enables you to control modern language models more effectively and efficiently than traditional prompting or chaining. Guidance programs allow you to interleave generation, prompting, and logical control into a single continuous flow matching how the language model actually processes the text. Simple output structures like [Chain of Thought](https://arxiv.org/abs/2201.11903) and its many variants (e.g., [ART](https://arxiv.org/abs/2303.09014), [Auto-CoT](https://arxiv.org/abs/2210.03493), etc.) have been shown to improve LLM performance. The advent of more powerful LLMs like [GPT-4](https://openai.com/research/gpt-4) allows for even richer structure, and `guidance` makes that structure easier and cheaper.
+<b>Guidance</b> enables you to control modern language models more effectively and efficiently than traditional prompting or chaining. Guidance programs allow you to interleave generation, prompting, and logical control into a single  Simple output structures like [Chain of Thought](https://arxiv.org/abs/2201.11903) and its many variants (e.g., [ART](https://arxiv.org/abs/2303.09014), [Auto-CoT](https://arxiv.org/abs/2210.03493), etc.) have been shown to improve LLM performance. The advent of more powerful LLMs like [GPT-4](https://openai.com/research/gpt-4) allows for even richer structure, and `guidance` makes that structure easier and cheaper.
 
 Features:
 - [x] Simple, intuitive syntax, based on [Handlebars](https://handlebarsjs.com/) templating.
