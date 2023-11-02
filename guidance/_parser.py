@@ -231,11 +231,13 @@ class EarleyCommitParser:
         # filter out all the extensions that don't match this byte
         new_next_state_set = []
         found_valid = False
+        found_invalid = False
         hidden_start = 10000000000
         for item in self.state_sets[self.state_set_pos + 1]:
             if item.pos > 0 and isinstance(item.values[item.pos - 1], Terminal):
                 last_inner_node = item.values[item.pos - 1]
                 if not last_inner_node.match_byte(byte):
+                    found_invalid = True
                     continue
                 else:
                     found_valid = True
@@ -249,14 +251,15 @@ class EarleyCommitParser:
             hidden_start = min(hidden_start, item.hidden_start)
         if not found_valid:
             raise Exception("Attempted to consume a byte that the grammar does not accept!")
-        self.state_sets[self.state_set_pos + 1] = OrderedSet(new_next_state_set)
+        if found_invalid: # only update if we changed the set
+            self.state_sets[self.state_set_pos + 1] = OrderedSet(new_next_state_set)
         
         # advance the parser one position
         self.state_set_pos += 1
         self.shadow_pos += 1
         self._inner_loop(self.state_set_pos)
 
-        # look a commit point node
+        # look for a commit point node
         commit_point = None
         for item in self.state_sets[self.state_set_pos]:
             if item.node.commit_point and item.pos == len(item.values):
