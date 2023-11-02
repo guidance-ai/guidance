@@ -27,6 +27,11 @@ class Local(Model):
         self._token_trie.match = True
         self._token_trie.match_version = 0
 
+        # self._last_token_ids = []
+        # self._last_token_byte_positions = []
+        # self._last_byte_string = b''
+        self._max_token_bytes = max([len(t) for t in self.tokens])
+
     def _get_logits(self, token_ids):
         '''A fake method designed to be overriden by subclasses.'''
 
@@ -47,6 +52,44 @@ class Local(Model):
             return bytes[:i+1], trie_pos.value
         else:
             return None,None # more than one token can match these bytes
+        
+    def _tokenize_prefix(self, byte_string):
+        '''This is used to speed up the tokenization of long prompts without using the parser.'''
+        token_ids = []
+        token_byte_positions = []
+        
+        # loop trying to decode a new token at each iteration
+        pos = 0
+        while True:
+
+            # walk down the token trie looking for a unique token match
+            trie = self._token_trie
+            valid_pos = -1
+            valid_value = -1
+            while True:
+                if pos >= len(byte_string):
+                    valid_pos = -1
+
+                # record the last valid token down this path as we go
+                if trie.value is not None:
+                    valid_pos = pos
+                    valid_value = trie.value
+
+                # check if we can keep going or are at a dead end
+                if byte_string[pos:pos+1] in trie.children:
+                    trie = trie.children[byte_string[pos:pos+1]]
+                    pos += 1
+                else:
+                    break # we can't go any farther
+            
+            if valid_pos == -1:
+                break
+            else:
+                token_ids.append(valid_value)
+                token_byte_positions.append(valid_pos)
+                pos = valid_pos
+
+        return token_ids,token_byte_positions,pos
 
     def __call__(self, grammar, max_tokens=100, n=1, top_p=1, temperature=0.0, ensure_bos_token=True, log_probs=False):
         assert n == 1, "Still need to add support for n > 1!"
@@ -58,19 +101,45 @@ class Local(Model):
         # add the beginning of sequence token if needed
         if ensure_bos_token and not prompt.startswith(self.bos_token):
             prompt = self.bos_token + prompt
+    
+        # # find how many prefix bytes we share with previous calls
+        # num_matched_bytes = 0
+        # for i in range(min(len(prompt), len(self._last_byte_string))):
+        #     if prompt[num_matched_bytes] != self._last_byte_string[num_matched_bytes]:
+        #         break
+
+        # # see how many bytes we can safely reuse without considering token healing
+        # num_cached_bytes = 0
+        # for num_cached_tokens in range(len(self._last_token_byte_positions)):
+        #     if self._last_token_byte_positions[num_cached_tokens] < num_matched_bytes - self._max_token_bytes:
+        #         num_cached_bytes = self._last_token_byte_positions[num_cached_tokens]
+        #     else:
+        #         break
+
+        # # reuse those bytes and associated tokens
+        # if num_cached_bytes > 0:
+        #     prompt = prompt[num_cached_bytes:]
+        #     token_ids = self._last_token_ids[:num_cached_tokens]
+        #     token_byte_positions = self._last_token_byte_positions[:num_cached_tokens]
+        # else:
+        #     token_ids = []
+        #     token_byte_positions = []
+        
+        # run a simple tokenizer (that does not use a grammar) on the prefix for better performance
+        token_ids,token_byte_positions,pos = self._tokenize_prefix(prompt)
+        prompt = prompt[pos:]
         
         # create a parser with a grammar that includes both our context and the passed grammar
         parser = EarleyCommitParser(prompt + grammar)
 
         # loop until we have generated a complete pattern
-        token_ids = []
-        token_byte_positions = []
+        # token_ids = []
+        # token_byte_positions = []
         hidden_count = len(prompt) # we don't emit the prompt
         generated_pos = 0 
         sampled_token_ind = None
         token_count = 0
         last_token_count = 0
-        earliest_possible_hidden = 10000000000
         while True: # each iteration generates one more token (and some of the associated bytes)
 
             # enforce the token limit
@@ -337,6 +406,10 @@ class Local(Model):
                     token_byte_positions.append(len(sampled_token))
                 else:
                     token_byte_positions.append(token_byte_positions[-1] + len(sampled_token))
+    
+        # self._last_token_ids = token_ids
+        # self._last_token_byte_positions = token_byte_positions
+        # self._last_byte_string = parser.bytes
 
 def _record_captures(item, data, log_prob_data, byte_data, byte_pos):
     
