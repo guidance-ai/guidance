@@ -47,6 +47,7 @@ lm['sentences']
     - Streaming generation support, integration with jupyter notebooks:
         <img src="docs/figures/proverb_animation.gif" width="404">
         TODO: change this image to new version with the example above.
+    - Caching of generations for iterative development
 4. **Speed**: In contrast to chaining, `guidance` programs are the equivalent of a single LLM call. More so, whatever non-generated text that gets appended is batched, so that `guidance` programs are **faster** than having the LM generate intermediate text when you have a set structure.
 
 ------------------
