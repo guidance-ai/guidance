@@ -15,17 +15,22 @@ from guidance import models, gen
 llama2 = models.LlamaCpp(model_file)
 
 # add text (or arbitrary grammars) to the model object to get a new model object with new state
-lm = llama2 + "How many sentences should we write (1-5)?\n"
+lm = llama2 + "How many sentences about guidance should we write (1-5)?\n"
 lm += "Let's write " + gen(name="n", pattern='\d') + " of them:\n"
 
 # access model state and use it to control generation
 for i in range(int(lm['n'])):
     lm += f'{i + 1}. {gen(name="sentences", list_append=True)}\n'
 ```
-<img src="docs/figures/proverb_animation.gif" width="404">
 
+> How many sentences about guidance should we write (1-5)?
+> Let's write 3 of them:
+> 1. The teacher will give us guidance.
+> 2. The teacher will give us guidance about the homework.
+> 3. The teacher will give us guidance about the homework and the test.
+
+The results are easily accessible without a separate parsing step:
 ```python
-# the results are easily accessible without a separate parsing step
 lm['sentences']
 ```
 > ['The teacher will give us guidance.', 'The teacher will give us guidance about the homework.', 'The teacher will give us guidance about the homework and the test.']
@@ -66,6 +71,66 @@ lm['sentences']
 ```
 pip install guidance
 ```
+
+## Loading models
+### llama-cpp
+Install the python bindings:
+```bash
+CMAKE_ARGS="-DLLAMA_CUBLAS=on" pip install llama-cpp-python
+```
+Loading the model:
+```python
+from guidance import models
+lm = models.LlamaCpp(path_to_model, n_gpu_layers=-1)
+```
+
+### transformers
+Install transformers:
+```python
+from guidance import models
+lm = models.Transformers(model_name_or_path)
+```
+
+## Basic generation
+An `lm` object is immutable, so you change it by creating new copies of it. By default, when you append things to `lm`, it creates a copy, e.g.:
+```python
+from guidance import models, gen, select
+llama2 = models.LlamaCpp(path_to_model, n_gpu_layers=-1)
+# llama2 is not modified, and `lm` is a copy of it with the prompt appended
+lm = llama2 + 'This is a prompt'
+```
+
+You can append _generation_ calls to it, e.g.
+```python
+lm = llama2 + 'This is a prompt' + gen(max_tokens=10)
+```
+> This is a prompt that I have been wanting to write for a long
+
+You can also interleave generation calls with plain text, or control flows:
+```python
+# Note how we set stop tokens
+lm = llama2 + 'I like to play with my ' + gen(stop=' ') + ' in' + gen(stop=['\n', '.', '!'])
+```
+> I like to play with my friends in the park
+
+## Constrained Generatoin
+### Select (basic)
+`select` constrains generation to a set of options:
+```python
+lm = llama2 + 'I like the color ' + select(['red', 'blue', 'green'])
+```
+> I like the color blue
+
+### Regular expressions
+`gen` has optinal arguments `pattern` and `stop_regex`, which allow generation (and stopping, respectively) to be controlled by a regex:
+
+```python
+lm = llama2 + 'I like the color ' + select(['red', 'blue', 'green'])
+```
+
+
+
+
 
 ## Examples
 
