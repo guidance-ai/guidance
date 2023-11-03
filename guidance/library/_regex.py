@@ -51,7 +51,7 @@ def tree_to_grammar(node, nots):
     if node.head.value == 'Union':
         vals = [tree_to_grammar(x, nots) for x in node.sons]
         # If select starts with ^ and is a select between bytes and it is listed in our negations, negate it. The way I implemented it is a major hack, should fix
-        if all([isinstance(x, Byte) for x in  vals]) and vals[0].byte == b'^':
+        if all([isinstance(x, Byte) for x in vals]) and vals[0].byte == b'^':
             temp_vals = [x.byte for x in vals[1:]]
             all_chars = b''.join(temp_vals).decode('utf8')
             for notz in nots:
@@ -89,19 +89,17 @@ def merge_nodes(regex, op):
     current = regex
     if len(current.sons) and current.head.value == op:
         val = []
-        while (len(current.sons[0].sons) == 0 and len(current.sons[1].sons) and current.sons[1].head.value == op) or (
-               len(current.sons[1].sons) == 0 and len(current.sons[0].sons) and current.sons[0].head.value == op):
-            if len(current.sons[0].sons) == 0:
-                leaf = current.sons[0]
-                other = current.sons[1]
-            else:
-                leaf = current.sons[1]
-                other = current.sons[0]
-            val.append(leaf.head.value)
-            current = other
+        to_visit = [current]
+        while to_visit:
+            current = to_visit.pop()
+            leaves = [x for x in current.sons if len(x.sons) == 0]
+            ops = [x for x in current.sons if len(x.sons) and x.head.value == op]
+            if len(leaves) + len(ops) == len(current.sons):
+                val.extend([x.head.value for x in leaves])
+                to_visit += [x for x in current.sons if len(x.sons) and x.head.value == op]
         # if all I have is leaves, I can group them
         if all([len(x.sons) == 0 for x in current.sons]) and current.head.value == op:
-            val.extend([x.head.value for x in current.sons])
+            # val.extend([x.head.value for x in current.sons])
             if op == 'Concatenation':
                 val = ''.join(val)
                 new_node = FakeNode(val, [])
