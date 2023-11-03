@@ -5,19 +5,27 @@
 </picture></div>
 <br/>
 
-> _Where there is no guidance, a model fails, but in an abundance of instructions there is safety._  
-_\- <a href="notebooks/proverb.ipynb">GPT 11:14</a>_
-
-## What this is
-`guidance` is a programming paradigm that enables users to control modern language models more effectively and efficiently than traditional prompting or chaining.
+**`guidance`** is a programming paradigm that offers superior control and efficiency compared to conventional prompting and chaining.
 
 Below is a toy example for discussion, where we get a language model to pick a number of sentences, and then to write each sentence. Don't mind the syntax for now, but please note that appending things to the `lm` object is equivalent to adding text to a prompt (when we're adding strings) or generating text (when we call `gen`):
 ```python
-import guidance
-lm = TODO
-lm += 'Here are ' + gen(pattern='\d', name='n') + ' sentences with 5 words:\n' 
+from guidance import models, gen
+
+# load a model (Transformers, LlamaCpp, OpenAI, VertexAI, etc.)
+lm = models.LlamaCpp(model_file)
+
+# add text (or arbitrary grammars) to the model object to get a new model object with new state
+lm += "How many sentences should we write (1-5)?\n"
+lm += "Let's write " + gen(name="n", pattern='\d') + " of them, each with 5 words:\n"
+
+# access model state and use it to control generation
 for i in range(int(lm['n'])):
-    lm += f'{i + 1}. ' + gen(name='sentences', list_append=True, temperature=1) + '\n'
+    lm += f'{i + 1}. {gen(name="sentences", list_append=True, temperature=1)}\n'
+```
+<img src="docs/figures/proverb_animation.gif" width="404">
+
+```python
+# the results are easily accessible without a separate parsing step
 lm['sentences']
 ```
 > ['Sentence1', 'Sentence2']
@@ -25,7 +33,7 @@ lm['sentences']
 **Important features**: 
 1. **Stateful control + generation**:  `guidance` lets users _interleave_ generation, prompting, and logical control into a single continuous flow matching how the language model actually processes the text. In the example above, notice how the LM selected `n=2`, which we then used to loop and add `1.`, `2.` to the prompt and generate each sentence in turn. The whole thing is executed in a single LM decoding loop, and there is no need to write a parser for the output.
 
-2. **Constrained generation**: In the example above, we generated `n` according to a regular expression. In addition to that, `guidance` makes it easy for the user to constrain generation to a set of options (e.g. `select([option1, option2...])`, or according to any context free grammar. Coupled with the point above, this allows for really fine-grained control of the generation loop.
+2. **Constrained generation**: In the example above, we generated `n` according to a regular expression. In addition to that, `guidance` makes it easy for the user to constrain generation to a set of options (e.g. `select([option1, option2...])`, or according to any stateless guidance grammar (which is a superset of context free grammars). Coupled with the point above, this allows for really fine-grained control of the generation loop.
 
 3. **A nice developer-centric interface**: `guidance` programs are basically python programs with a lot of additional LM functionality, such as:
     - Immutable `lm` objects that make composition easy
@@ -33,7 +41,7 @@ lm['sentences']
         ```python
         lm += f'I think I am going to {gen(max_tokens=3)} now.
         ```
-    - Users deal with text rather than tokens, e.g. `select(['I think so', 'Not really'])` does not require that either option is a single token. Further, users don't have to worry about perverse [token boundaries issues](https://towardsdatascience.com/the-art-of-prompt-design-prompt-boundaries-and-token-healing-3b2448b0be38) such as 'prompt ending in whitespace'.
+    - Users deal with text (or bytes) rather than tokens, e.g. `select(['I think so', 'Not really'])` does not require that either option is a single token. Further, users don't have to worry about perverse [token boundaries issues](https://towardsdatascience.com/the-art-of-prompt-design-prompt-boundaries-and-token-healing-3b2448b0be38) such as 'prompt ending in whitespace'.
     - Easy tool integration, e.g. `gen(tools=[search_fn])` allows the model to call search at any point during generation, and then pauses generation and pastes search results in if search is called.
     - Blocks to make geneneration with chat-based models easy, e.g.
         ```python
@@ -49,6 +57,19 @@ lm['sentences']
         TODO: change this image to new version with the example above.
     - Caching of generations for iterative development
 4. **Speed**: In contrast to chaining, `guidance` programs are the equivalent of a single LLM call. More so, whatever non-generated text that gets appended is batched, so that `guidance` programs are **faster** than having the LM generate intermediate text when you have a set structure.
+5. **Open compatability**: Guidance integrates with many popular local and cloud based inference APIs. So you can write one guidance program and execute it on many backends (note that the most powerful features require enpoint integration and so work best on local models right now).
+6. **Extensible library**: Pre-packaged guidance functions provide reference implementations you can use in your own programs, such as `substring` to constrain quotes, or `python_function_call` that automatically defines a grammar for calls to any python function. Creating your own guidance functions is as easy as defining a decorated python function, giving you the power to extend the library with all the same controls we used.
+
+## Install
+```
+pip install guidance
+```
+
+## Examples
+
+- Cool example 1
+
+- Cool example 2
 
 ------------------
 OLD BELOW
