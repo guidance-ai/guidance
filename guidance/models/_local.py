@@ -90,7 +90,7 @@ class Local(Model):
                 token_byte_positions.append(valid_pos)
                 pos = valid_pos
 
-        return token_ids,token_byte_positions,pos
+        return token_ids,token_byte_positions
 
     def __call__(self, grammar, max_tokens=100, n=1, top_p=1, temperature=0.0, ensure_bos_token=True, log_probs=False):
         assert n == 1, "Still need to add support for n > 1!"
@@ -127,8 +127,9 @@ class Local(Model):
         #     token_byte_positions = []
         
         # run a simple tokenizer (that does not use a grammar) on the prefix for better performance
-        token_ids,token_byte_positions,pos = self._tokenize_prefix(prompt)
-        prompt = prompt[pos:]
+        token_ids,token_byte_positions = self._tokenize_prefix(prompt)
+        if len(token_byte_positions) > 0:
+            prompt = prompt[token_byte_positions[-1]:]
         
         # create a parser with a grammar that includes both our context and the passed grammar
         parser = EarleyCommitParser(prompt + grammar)

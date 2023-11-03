@@ -47,6 +47,8 @@ class LlamaCpp(Local):
             self.model = model
             if "n_threads" not in kwargs:
                 kwargs["n_threads"] = multiprocessing.cpu_count()
+            if "verbose" not in kwargs:
+                kwargs["verbose"] = False
             self.model_obj = llama_cpp.Llama(model_path=model, **kwargs)
         elif isinstance(model, llama_cpp.Llama):
             self.model = model.__class__.__name__
@@ -92,7 +94,7 @@ class LlamaCpp(Local):
             # llama_cpp doesn't like it when we pass in 0 new tokens, so re-input one
             num_cached = num_cached - 1 
         self._cache_state["cache_token_ids"] = token_ids.copy()
-        token_ids = token_ids[num_cached:]
+        token_ids = np.array(token_ids[num_cached:], dtype=np.int32)
         token_ids = (llama_cpp.llama_token * len(token_ids))(*token_ids)
         llama_cpp.llama_eval(self.model_obj.ctx, token_ids, len(token_ids), num_cached)#, self._n_threads)
         logits = llama_cpp.llama_get_logits(self.model_obj.ctx)
