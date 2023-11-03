@@ -45,7 +45,9 @@ class LlamaCpp(Local):
 
         if isinstance(model, str):
             self.model = model
-            self.model_obj = llama_cpp.Llama(model_path=model)
+            if "n_threads" not in kwargs:
+                kwargs["n_threads"] = multiprocessing.cpu_count()
+            self.model_obj = llama_cpp.Llama(model_path=model, **kwargs)
         elif isinstance(model, llama_cpp.Llama):
             self.model = model.__class__.__name__
             self.model_obj = model
@@ -58,7 +60,7 @@ class LlamaCpp(Local):
             raise TypeError("tokenizer must be None or a llama_cpp.LlamaTokenizer object.")
         self._orig_tokenizer = tokenizer
 
-        self._n_threads = multiprocessing.cpu_count()
+        #self._n_threads = multiprocessing.cpu_count()
         self._n_vocab = tokenizer.llama.n_vocab()
         self.caching = caching
         self.temperature = temperature
@@ -92,7 +94,7 @@ class LlamaCpp(Local):
         self._cache_state["cache_token_ids"] = token_ids.copy()
         token_ids = token_ids[num_cached:]
         token_ids = (llama_cpp.llama_token * len(token_ids))(*token_ids)
-        llama_cpp.llama_eval(self.model_obj.ctx, token_ids, len(token_ids), num_cached, self._n_threads)
+        llama_cpp.llama_eval(self.model_obj.ctx, token_ids, len(token_ids), num_cached)#, self._n_threads)
         logits = llama_cpp.llama_get_logits(self.model_obj.ctx)
         logits = np.ctypeslib.as_array(logits, shape=(self._n_vocab,))
         logits = torch.from_numpy(logits)
