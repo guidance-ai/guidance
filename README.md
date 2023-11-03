@@ -12,10 +12,10 @@ Below is a toy example for discussion, where we get a language model to pick a n
 from guidance import models, gen
 
 # load a model (Transformers, LlamaCpp, OpenAI, VertexAI, etc.)
-lm = models.LlamaCpp(model_file)
+llama2 = models.LlamaCpp(model_file)
 
 # add text (or arbitrary grammars) to the model object to get a new model object with new state
-lm += "How many sentences should we write (1-5)?\n"
+lm = llama2 + "How many sentences should we write (1-5)?\n"
 lm += "Let's write " + gen(name="n", pattern='\d') + " of them, each with 5 words:\n"
 
 # access model state and use it to control generation
