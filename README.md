@@ -122,11 +122,100 @@ lm = llama2 + 'I like the color ' + select(['red', 'blue', 'green'])
 > I like the color blue
 
 ### Regular expressions
-`gen` has optinal arguments `pattern` and `stop_regex`, which allow generation (and stopping, respectively) to be controlled by a regex:
+`gen` has optinal arguments `pattern` and `stop_regex`, which allow generation (and stopping, respectively) to be controlled by a regex. For example, contrast the following generations:
+```python
+lm = llama2 + 'How much is 2 + 2? ' + gen(max_tokens=10)
+```
+> How much is 2 + 2? (Just kidding! You already know the
 
 ```python
-lm = llama2 + 'I like the color ' + select(['red', 'blue', 'green'])
+lm = llama2 + 'How much is 2 + 2? ' + gen(max_tokens=10, pattern='\d+')
 ```
+> How much is 2 + 2? 4
+
+You can also set a stopping criterion based on a regex. For example:
+```python
+lm = llama2 + 'Here is a sentence about math: ' + gen(max_tokens=50, stop='\n')
+```
+> Here is a sentence about math: "The number 10 is divisible by 2."
+
+Stop whenever the model generates a number:
+```python
+lm = llama2 + 'Here is a sentence about math: ' + gen(max_tokens=50, stop_regex='\d')`
+```
+> Here is a sentence about math: "The number 
+ 
+Stop whenever the model generates a single number:
+```python
+lm = llama2 + 'Here is a sentence about math: ' + gen(max_tokens=50, stop_regex='[^\d]\d[^\d]')`
+```
+> Here is a sentence about math: "The number 10 is divisible by 
+
+## Context free grammars
+`guidance` exposes a variety of operators that make it easy to define CFGs to constrain generation. For example, we can use the `select` operator (it accepts CFGs as options), `zero_or_more` and `one_or_more` to define a grammar for mathematical expressions:
+```python
+import guidance
+from guidance import select, zero_or_more, one_or_more
+# stateless=True indicates this function does not depend on LLM generations
+@guidance(stateless=True)
+def number(lm):
+    n = one_or_more(select(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']))
+    return select(['-' + n, n])
+
+@guidance(stateless=True)
+def operator(lm):
+    return select(['+' , '*', '**', '/', '-'])
+
+@guidance(stateless=True)
+def expression(lm):
+    return select([
+        number(),
+        expression() + zero_or_more(' ') +  operator() + zero_or_more(' ') +  expression(),
+        '(' + expression() + ')'
+    ])
+```
+
+You can then append these grammars to an lm object, and it will generate according to the grammar constraints. For example:
+```python
+# Without constraints
+lm = llama2 + '(2 * 2)\n55 * 3\n' + gen(max_tokens=20)
+```
+> (2 * 2)  
+> 55 * 3  
+> \end{code}
+> 
+> Comment: I'm not sure I understand.  I'
+
+```python
+# With constraints
+grammar = expression()
+lm = llama2 + '(2 * 2)\n55 * 3\n' + grammar
+```
+> (2 * 2)  
+> 55 * 3  
+> 55 * 4
+
+Grammars are very easy to compose. For example, let's say we want a grammar that generates a mathematical expression or a regular expression with the word 'weird' followed by two digits:
+
+```python
+from guidance import regex
+grammar = select([expression(), regex('weird \d\d')])
+```
+We can generate according to it:
+```python
+lm = llama2 + 'Here is a math expression for two plus two: ' + grammar
+```
+> Here is a math expression for two plus two: 2 + 2
+
+```python
+lm = llama2 + 'What is weird? What is ' + grammar
+```
+> What is weird? What is weird 20
+
+TODO: Substring? Talk about more grammar stuff?
+
+
+
 
 
 
