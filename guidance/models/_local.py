@@ -69,6 +69,7 @@ class Local(Model):
             while True:
                 if pos >= len(byte_string):
                     valid_pos = -1
+                    break
 
                 # record the last valid token down this path as we go
                 if trie.value is not None:
