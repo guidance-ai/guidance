@@ -16,11 +16,11 @@ llama2 = models.LlamaCpp(model_file)
 
 # add text (or arbitrary grammars) to the model object to get a new model object with new state
 lm = llama2 + "How many sentences should we write (1-5)?\n"
-lm += "Let's write " + gen(name="n", pattern='\d') + " of them, each with 5 words:\n"
+lm += "Let's write " + gen(name="n", pattern='\d') + " of them:\n"
 
 # access model state and use it to control generation
 for i in range(int(lm['n'])):
-    lm += f'{i + 1}. {gen(name="sentences", list_append=True, temperature=1)}\n'
+    lm += f'{i + 1}. {gen(name="sentences", list_append=True)}\n'
 ```
 <img src="docs/figures/proverb_animation.gif" width="404">
 
@@ -28,7 +28,7 @@ for i in range(int(lm['n'])):
 # the results are easily accessible without a separate parsing step
 lm['sentences']
 ```
-> ['Sentence1', 'Sentence2']
+> ['The teacher will give us guidance.', 'The teacher will give us guidance about the homework.', 'The teacher will give us guidance about the homework and the test.']
 
 **Important features**: 
 1. **Stateful control + generation**:  `guidance` lets users _interleave_ generation, prompting, and logical control into a single continuous flow matching how the language model actually processes the text. In the example above, notice how the LM selected `n=2`, which we then used to loop and add `1.`, `2.` to the prompt and generate each sentence in turn. The whole thing is executed in a single LM decoding loop, and there is no need to write a parser for the output.
@@ -39,7 +39,7 @@ lm['sentences']
     - Immutable `lm` objects that make composition easy
     - Support for templating via f-strings, e.g.
         ```python
-        lm += f'I think I am going to {gen(max_tokens=3)} now.
+        lm += f'I think I am going to {gen(max_tokens=3, name="action")} now.
         ```
     - Users deal with text (or bytes) rather than tokens, e.g. `select(['I think so', 'Not really'])` does not require that either option is a single token. Further, users don't have to worry about perverse [token boundaries issues](https://towardsdatascience.com/the-art-of-prompt-design-prompt-boundaries-and-token-healing-3b2448b0be38) such as 'prompt ending in whitespace'.
     - Easy tool integration, e.g. `gen(tools=[search_fn])` allows the model to call search at any point during generation, and then pauses generation and pastes search results in if search is called.
@@ -53,7 +53,9 @@ lm['sentences']
             lm += 'My answer is ' + gen()
         ```
     - Streaming generation support, integration with jupyter notebooks:
-        <img src="docs/figures/proverb_animation.gif" width="404">
+
+        <img src="docs/figures/proverb_animation.gif" width="404">  
+
         TODO: change this image to new version with the example above.
     - Caching of generations for iterative development
 4. **Speed**: In contrast to chaining, `guidance` programs are the equivalent of a single LLM call. More so, whatever non-generated text that gets appended is batched, so that `guidance` programs are **faster** than having the LM generate intermediate text when you have a set structure.
