@@ -438,9 +438,22 @@ def _record_captures(item, data, log_prob_data, byte_data, byte_pos):
 
         # if we are at a capture group node then we save the matched bytes range
         # note that we record this after calling our children so that we save the outermost version of self-recursive calls
-        if item.node.capture_name is not None:
-            data[item.node.capture_name] = byte_data[start_byte_pos:item.start] # note that "start" means "end" since this is a reversed state set
-            log_prob_data[item.node.capture_name] = item.log_prob
+        cname = item.node.capture_name
+        if cname is not None:
+            
+            # see if we are doing a list append
+            if cname.startswith("__LIST_APPEND:"):
+                cname = cname[14:] # trim off the list append tag
+                if cname not in data or not isinstance(data[cname], list):
+                    data[cname] = []
+                    log_prob_data[cname] = []
+                data[cname].append(byte_data[start_byte_pos:item.start])
+                log_prob_data[cname].append(item.log_prob)
+            
+            # or just a regular assignment
+            else:
+                data[cname] = byte_data[start_byte_pos:item.start] # note that "start" means "end" since this is a reversed state set
+                log_prob_data[cname] = item.log_prob
         
 
 def _compute_log_probs(trie, log_probs):

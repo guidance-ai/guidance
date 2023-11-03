@@ -183,3 +183,19 @@ Step 1'''
     lm +=  prompt + gen(max_tokens=10)
     assert True
 
+def test_list_append():
+    '''This tests is list append works across grammar appends.'''
+    lm = models.LocalMock(b"<s>bababababa")
+    lm += "<s>"
+    for _ in range(3):
+        lm += gen("my_list", list_append=True, stop="a") + "a"
+    assert isinstance(lm['my_list'], list)
+    assert len(lm['my_list']) == 3
+
+def test_list_append_in_grammar():
+    '''This tests is list append works within the same grammar.'''
+    lm = models.LocalMock(b"<s>bababababa")
+    lm += "<s>"
+    lm += gen("my_list", list_append=True, stop="a") + "a" + gen("my_list", list_append=True, stop="a") + "a" + gen("my_list", list_append=True, stop="a")
+    assert isinstance(lm['my_list'], list)
+    assert len(lm['my_list']) == 3
