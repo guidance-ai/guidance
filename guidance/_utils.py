@@ -147,7 +147,7 @@ def strip_multiline_string_indents(f):
         new_code_obj.co_consts[i],
         f.__globals__,
         name=f.__name__,
-        argdefs=f.__defaults__ + tuple(f.__kwdefaults__.values()) if f.__kwdefaults__ else f.__defaults__,
+        argdefs=f.__defaults__,
         closure=f.__closure__
     )
     new_f.__kwdefaults__ = f.__kwdefaults__

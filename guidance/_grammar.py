@@ -357,6 +357,7 @@ def _byte_range(low, high):
     return ByteRange(low + high)
 
 def _capture(value, name=None):
+    value = Join([value]) # this ensures we capture what we want, and not something surprisingly self_recursive
     value.capture_name = name
     return value
 

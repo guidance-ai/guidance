@@ -81,7 +81,7 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None,
     else:
         pattern = zero_or_more(any_char())
     if name is not None:
-        pattern = capture(pattern, name=name)
+        pattern = capture(pattern, name="__LIST_APPEND:" + name if list_append else name)
     
     # define the stop pattern
     if stop + stop_regex:
@@ -115,8 +115,6 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None,
     elif n == 1:
         lm = lm.run_stateless(pattern + stop_pattern, max_tokens=max_tokens, temperature=temperature)
 
-    if name is not None:
-        lm[name] = str(lm)[start_pos:]
     return lm
 
 
