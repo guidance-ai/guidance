@@ -1,5 +1,5 @@
 import guidance
-from guidance import select, capture
+from guidance import select, capture, gen
 from ..utils import get_model
 
 def test_fstring():
@@ -16,3 +16,8 @@ def test_fstring_custom():
 
     lm += f'this is a test {my_function()}'
     assert str(lm) in ["this is a test another item1", "this is a test another item2"]
+
+def test_token_count():
+    lm = get_model("transformers:gpt2")
+    lm2 = lm + ' 1 1 1 1 1' + gen(max_tokens=9) + gen(max_tokens=9)
+    assert lm2._token_count == 18
