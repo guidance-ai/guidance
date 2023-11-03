@@ -56,7 +56,8 @@ class EarleyCommitParser:
         
         self.grammar = grammar
         self.bytes = b''
-        self.state_sets = [OrderedSet()] # the list of Earley 
+        self.state_sets = [OrderedSet()] # the list of Earley items for each byte
+        self.token_counts = [0] # used to track how many tokens have been used
         self.state_set_pos = 0
         self.shadow_pos = 0
         self._add_node(self.grammar, 0, 0.0, 1000000000)
@@ -70,6 +71,7 @@ class EarleyCommitParser:
         if new_pos == self.state_set_pos:
             return
         self.state_sets = self.state_sets[:new_pos+1] + [OrderedSet()]
+        self.token_counts = self.token_counts[:new_pos+2]
         self.bytes = self.bytes[:new_pos]
         self.state_set_pos = new_pos
         self.shadow_pos = new_pos
@@ -101,10 +103,16 @@ class EarleyCommitParser:
         curr_state_set = self.state_sets[state_set_pos]
         if len(self.state_sets) == state_set_pos + 1:
             self.state_sets.append(OrderedSet())
+            self.token_counts.append(self.token_counts[-1])
         next_state_set = self.state_sets[state_set_pos + 1]
         pos = start_pos
         while len(curr_state_set) > pos:
             item = curr_state_set[pos]
+
+            # don't advance past our max token limit
+            if item.node.max_tokens <= self.token_counts[state_set_pos] - self.token_counts[item.start]:
+                pos += 1
+                continue
 
             # completion
             if item.pos == len(item.values):
@@ -121,18 +129,19 @@ class EarleyCommitParser:
                 start_state_set = self.state_sets[item.start]
                 for start_item in start_state_set:
                     if start_item.pos < len(start_item.values) and start_item.values[start_item.pos] == item.node:
-                        curr_state_set.append(EarleyItem(
-                            start_item.node,
-                            start_item.values,
-                            start_item.pos + 1,
-                            start_item.start,
-                            start_item.log_prob + item.log_prob, # increment the log prob by the child value,
-                            start_item.hidden_start
-                        ))
+                        if start_item.node.max_tokens > self.token_counts[state_set_pos] - self.token_counts[start_item.start]: # only advance our parent if we don't violate its max token limit
+                            curr_state_set.append(EarleyItem(
+                                start_item.node,
+                                start_item.values,
+                                start_item.pos + 1,
+                                start_item.start,
+                                start_item.log_prob + item.log_prob, # increment the log prob by the child value,
+                                start_item.hidden_start
+                            ))
             else:
-                # scan
+                # scan (note we only scan forward when we have more max token headroom left)
                 next_item_node = item.values[item.pos]
-                if isinstance(next_item_node, Terminal):
+                if isinstance(next_item_node, Terminal):# and item.node.max_tokens > self.token_counts[state_set_pos] - self.token_counts[item.start]:
                     next_state_set.append(EarleyItem(item.node, item.values, item.pos + 1, item.start, item.log_prob, item.hidden_start)) # the log prob will get incremented when consume_bytes is called
                 
                 # prediction
@@ -206,6 +215,7 @@ class EarleyCommitParser:
 
         # trim off the state sets that matches this item
         self.state_sets = self.state_sets[:item.start + 1]
+        self.token_counts = self.token_counts[:item.start + 1]
         self.bytes = self.bytes[:item.start]
         self.state_set_pos = item.start
         self.shadow_pos = item.start
@@ -215,6 +225,9 @@ class EarleyCommitParser:
 
         # expand from this state
         self._inner_loop(item.start, len(self.state_sets[item.start]) - 1)
+
+    def mark_token(self):
+        self.token_counts[-1] += 1
 
     def consume_byte(self, byte, log_prob=0.0):
         '''Advances the parser by the given byte.'''
@@ -253,7 +266,7 @@ class EarleyCommitParser:
             raise Exception("Attempted to consume a byte that the grammar does not accept!")
         if found_invalid: # only update if we changed the set
             self.state_sets[self.state_set_pos + 1] = OrderedSet(new_next_state_set)
-        
+
         # advance the parser one position
         self.state_set_pos += 1
         self.shadow_pos += 1

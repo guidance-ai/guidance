@@ -152,7 +152,6 @@ class Local(Model):
             start_pos = parser.pos
 
             # walk down the trie as far as possible before computing the logits
-            bytes_to_force_used = []
             retry_token_gen = False
             trie = self._token_trie
             trie.match_version += 1 # this invalidates all the match caches from the previous token
@@ -398,6 +397,7 @@ class Local(Model):
                     last_token_count = token_count
                     hidden_count = 0
                     token_count += 1 # note we only update this for tokens that emit non-hidden content
+                    parser.mark_token() # let the parser know that we have advanced another token
                 else:
                     hidden_count -= len(new_bytes)
 

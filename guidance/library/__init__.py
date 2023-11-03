@@ -11,6 +11,7 @@ from ._string import string
 from ._byte_range import byte_range
 from ._any_char import any_char
 from ._capture import capture
+from ._token_limit import token_limit
 from ._select import select
 from ._zero_or_more import zero_or_more
 from ._one_or_more import one_or_more

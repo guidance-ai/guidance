@@ -13,6 +13,7 @@ from ._commit_point import commit_point
 from ._any_char import any_char
 from ._capture import capture
 from ._regex import regex
+from ._token_limit import token_limit
 
 # TODO: make this stateless!
 @guidance
@@ -80,8 +81,13 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None,
         pattern = regex(pattern)
     else:
         pattern = zero_or_more(any_char())
+
+    # define any capture group
     if name is not None:
         pattern = capture(pattern, name="__LIST_APPEND:" + name if list_append else name)
+    
+    # limit the number of tokens
+    pattern = token_limit(pattern, max_tokens)
     
     # define the stop pattern
     if stop + stop_regex:
@@ -113,7 +119,7 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None,
             if not tool_called:
                 break
     elif n == 1:
-        lm = lm.run_stateless(pattern + stop_pattern, max_tokens=max_tokens, temperature=temperature)
+        lm = lm.run_stateless(pattern + stop_pattern, temperature=temperature)
 
     return lm
 

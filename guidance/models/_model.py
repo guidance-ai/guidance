@@ -278,9 +278,29 @@ type {function['name']} = (_: {{"""
                 if len(capture_groups) > 0:
                     for k in capture_groups:
                         v = capture_groups[k]
-                        try:
-                            lm[k] = v.decode("utf8") if isinstance(v, bytes) else v
-                        except UnicodeDecodeError:
+                            
+                        # see if we are in a list_append mode
+                        if isinstance(v, list):
+                            for inner_v in v:
+                                # convert to a string if possible
+                                # TODO: will need to not just always do this once we support images etc.
+                                try:
+                                    inner_v = inner_v.decode("utf8") if isinstance(inner_v, bytes) else inner_v
+                                except UnicodeDecodeError:
+                                    pass
+
+                                if k not in lm or not isinstance(lm[k], list):
+                                    lm[k] = []
+                                lm[k].append(inner_v)
+
+                        # ...or standard assignment mode
+                        else:
+                            # convert to a string if possible
+                            # TODO: will need to not just always do this once we support images etc.
+                            try:
+                                v = v.decode("utf8") if isinstance(v, bytes) else v
+                            except UnicodeDecodeError:
+                                pass
                             lm[k] = v
 
             # if len(capture_groups) > 0:

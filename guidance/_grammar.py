@@ -154,6 +154,10 @@ class Terminal(StatelessFunction):
     def match_byte(self, byte):
         pass # abstract
 
+    @property
+    def max_tokens(self):
+        return 1000000000000
+
 class Byte(Terminal):
     __slots__ = ("byte", "hidden", "commit_point", "capture_name")
 
@@ -273,15 +277,16 @@ class Placeholder(StatelessFunction):
 
 
 class Join(StatelessFunction):
-    __slots__ = ("nullable", "values", "name", "hidden", "commit_point", "capture_name")
+    __slots__ = ("nullable", "values", "name", "hidden", "commit_point", "capture_name", "max_tokens")
 
-    def __init__(self, values, name=None) -> None:
+    def __init__(self, values, name=None, max_tokens=100000000) -> None:
         self.nullable = all(v.nullable for v in values)
         self.values = [v for v in values if not isinstance(v, Null)]
         self.name = name if name is not None else StatelessFunction._new_name()
         self.hidden = False
         self.commit_point = False
         self.capture_name = None
+        self.max_tokens = max_tokens
 
     def __repr__(self, indent="", done=None):
         if done is None:
@@ -294,14 +299,16 @@ class Join(StatelessFunction):
         return s
 
 class Select(StatelessFunction):
-    __slots__ = ("nullable", "_values", "name", "hidden", "commit_point", "capture_name")
+    __slots__ = ("nullable", "_values", "name", "hidden", "commit_point", "capture_name", "max_tokens", "recursive")
 
-    def __init__(self, values, capture_name=None, name=None) -> None:
+    def __init__(self, values, capture_name=None, name=None, max_tokens=10000000, recursive=False) -> None:
         self.values = values
         self.name = name if name is not None else StatelessFunction._new_name()
         self.hidden = False
         self.commit_point = False
         self.capture_name = capture_name
+        self.max_tokens = max_tokens
+        self.recursive = recursive
 
     @property
     def values(self):
@@ -344,22 +351,35 @@ def _select(options, name=None, recurse=False):
     # if name is None:
     #     name = _find_name() + "_" + StatelessFunction._new_name()
     if recurse:
-        node = Select([], capture_name=name)
+        node = Select([], capture_name=name, recursive=True)
         node.values = [node + v for v in options if v != ""] + options
         return node
     else:
         if len(options) == 1 and name is None:
             return options[0]
         else:
-            return Select(options, capture_name=name)
+            return Select(options, capture_name=name, recursive=False)
         
 def _byte_range(low, high):
     return ByteRange(low + high)
 
-def _capture(value, name=None):
-    value = Join([value]) # this ensures we capture what we want, and not something surprisingly self_recursive
+def _capture(value, name):
+    if not (isinstance(value, Join) and len(value.values) == 1): # don't double wrap
+        value = Join([value]) # this ensures we capture what we want, and not something surprisingly self_recursive
     value.capture_name = name
     return value
+
+def _token_limit(value, max_tokens):
+    _rec_token_limit(value, max_tokens)
+    return value
+
+def _rec_token_limit(grammar, max_tokens):
+    if grammar.max_tokens > max_tokens and not isinstance(grammar, Terminal):
+        if getattr(grammar, "recursive", False): # only restrict recursive selects, otherwise we would block all way to complete the grammar
+            grammar.max_tokens = max_tokens
+        if hasattr(grammar, "values"):
+            for g in grammar.values:
+                _rec_token_limit(g, max_tokens)
 
 # def char_range(low, high):
 #     low_bytes = bytes(low, encoding="utf8")
