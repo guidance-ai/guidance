@@ -67,8 +67,13 @@ class LlamaCpp(Local):
         self.caching = caching
         self.temperature = temperature
 
+        tokens = [bytes(tokenizer.decode([i]), encoding="utf8") for i in range(self._n_vocab)]
+        tokens[1] = b"<s>" # these are not decoded correctly by llama_cpp
+        tokens[2] = b"</s>"
+        self.bos_token = "<s>"
+        self.eos_token = "</s>"
         super().__init__(
-            [bytes(tokenizer.decode([i]), encoding="utf8") for i in range(self._n_vocab)],
+            tokens,
             tokenizer.llama.token_bos(),
             tokenizer.llama.token_eos(),
             echo=echo
