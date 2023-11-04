@@ -291,6 +291,16 @@ class EarleyCommitParser:
                     valid_items.add(v)
         return valid_items
     
+    def next_byte_temperature(self):
+        '''The maximum temperature over all the next bytes, or -1 if no temperature is set.'''
+        max_temp = -1
+        next_state_set = self.state_sets[self.state_set_pos + 1]
+        for item in next_state_set:
+            if item.pos > 0 and isinstance(item.values[item.pos - 1], Terminal):
+                v = item.values[item.pos - 1]
+                max_temp = max(max_temp, v.temperature)
+        return max_temp
+    
     def next_byte_mask(self):
         '''A mask version of the `valid_next_bytes` method.'''
         

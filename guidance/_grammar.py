@@ -83,7 +83,7 @@ class StatelessFunction(Function):
 
     def __add__(self, value):
         if isinstance(value, str) or isinstance(value, bytes):
-            value = _string(value)
+            value = string(value)
         
         # see if we can keep building a stateless grammar
         if isinstance(value, StatelessFunction):
@@ -95,7 +95,7 @@ class StatelessFunction(Function):
     
     def __radd__(self, value):
         if isinstance(value, str) or isinstance(value, bytes):
-            value = _string(value)
+            value = string(value)
         
         # see if we can keep building a stateless grammar
         if isinstance(value, StatelessFunction):
@@ -159,7 +159,7 @@ class Terminal(StatelessFunction):
         return 1000000000000
 
 class Byte(Terminal):
-    __slots__ = ("byte", "hidden", "commit_point", "capture_name")
+    __slots__ = ("byte", "hidden", "commit_point", "capture_name", "temperature")
 
     def __init__(self, byte):
         assert isinstance(byte, bytes)
@@ -168,6 +168,7 @@ class Byte(Terminal):
         self.hidden = False
         self.commit_point = False
         self.capture_name = None
+        self.temperature = -1
 
     @property
     def name(self):
@@ -193,7 +194,7 @@ class Byte(Terminal):
         return False
 
 class ByteRange(Terminal):
-    __slots__ = ("byte_range", "hidden", "commit_point", "capture_name")
+    __slots__ = ("byte_range", "hidden", "commit_point", "capture_name", "temperature")
 
     def __init__(self, byte_range):
         assert isinstance(byte_range, bytes)
@@ -202,6 +203,7 @@ class ByteRange(Terminal):
         self.hidden = False
         self.commit_point = False
         self.capture_name = None
+        self.temperature = -1 # -1 means not set
 
     def match_byte(self, byte):
         return self.byte_range[0] <= byte[0] <= self.byte_range[1]
@@ -241,15 +243,30 @@ class Null():
 
     def __add__(self, other):
         if isinstance(other, str):
-            return _string(other)
+            return string(other)
         else:
             return other
         
     def __radd__(self, other):
         if isinstance(other, str):
-            return _string(other)
+            return string(other)
         else:
             return other
+        
+class ModelVariable(StatelessFunction):
+    '''This represents a variable that will be read from the model object when this grammar is executed.
+    
+    Note that the name is the name of the attribute on the model object this node
+    will get replaced with.
+    '''
+    __slots__ = ("name", "hidden", "commit_point", "capture_name")
+
+    def __init__(self, name):
+        self.name = name
+        self.hidden = False
+        self.commit_point = False
+        self.capture_name = None
+        self.nullable = False
 
 def replace_grammar_node(grammar, target, replacement, visited_set={}):
     
@@ -260,7 +277,7 @@ def replace_grammar_node(grammar, target, replacement, visited_set={}):
         visited_set[grammar] = True
    
     # we are done if this is a terminal
-    if isinstance(grammar, Terminal):
+    if isinstance(grammar, (Terminal, ModelVariable)):
         return
     
     # replace all matching sub-nodes
@@ -269,6 +286,75 @@ def replace_grammar_node(grammar, target, replacement, visited_set={}):
             grammar.values[i] = replacement
         else:
             replace_grammar_node(value, target, replacement, visited_set)
+
+def replace_model_variables(grammar, model, visited_set={}):
+    '''Replace all the ModelVariable nodes with their values.'''
+    
+    # see if we have already visited this node
+    if grammar in visited_set:
+        return []
+    else:
+        visited_set[grammar] = True
+   
+    # we are done if this is a terminal
+    if isinstance(grammar, Terminal):
+        return []
+    
+    # replace all matching sub-nodes
+    replacements = []
+    for i,value in enumerate(grammar.values):
+        if isinstance(value, ModelVariable):
+            g = _wrap_as_grammar(getattr(model, value.name))
+            if value.commit_point:
+                g = commit_point(g, hidden=value.hidden)
+            replacements.append((grammar, i, value))
+            grammar.values[i] = g
+        else:
+            replacements.extend(replace_model_variables(value, model, visited_set))
+    return replacements
+
+def unreplace_model_variables(replacements):
+    '''This restores a grammar back to its original state, ready for another execution.'''
+    for grammar,i,orig_value in replacements:
+        grammar.values[i] = orig_value
+
+def _wrap_as_grammar(value):
+    '''This takes whatever value was given and tries to turn in into a guidance grammar.'''
+
+    # if it is already a valid grammar we have no need to wrap it
+    if isinstance(value, StatelessFunction):
+        return value
+    
+    # if it is already a valid grammar we have no need to wrap it
+    if value is None:
+        return Null() 
+    
+    # we have a constant value
+    if isinstance(value, (str, bytes)):
+        return string(value)
+    
+    raise Exception("Can't wrap as a grammar!")
+
+def commit_point(value, hidden=False):
+    '''Force the grammar to commit to a parse that includes this node once it can.
+    
+    Not that commit point nodes can be optionally hidden (in fact they are the only
+    nodes that can be hidden since they are by definition not impacted by multiple possible
+    inconsistent parses.)'''
+    # TODO: assert that value is not empty since we don't yet support that
+    if isinstance(value, str):
+        value = string(value)
+    value.commit_point = True
+    if hidden:
+        _rec_hide(value)
+    return value
+
+def _rec_hide(grammar):
+    if not grammar.hidden:
+        grammar.hidden = True
+        if hasattr(grammar, "values"):
+            for g in grammar.values:
+                _rec_hide(g)
 
 class Placeholder(StatelessFunction):
     __slots__ = tuple("nullable")
@@ -315,7 +401,7 @@ class Select(StatelessFunction):
         return self._values
     @values.setter
     def values(self, vals):
-        self._values = [_string(v) if isinstance(v, (str, bytes)) else v for v in vals]
+        self._values = [string(v) if isinstance(v, (str, bytes)) else v for v in vals]
         self.nullable = any(v.nullable for v in self._values)
         self._values = [v for v in self._values if not isinstance(v, Null)]
 
@@ -329,7 +415,7 @@ class Select(StatelessFunction):
                 s += v.__repr__(indent, done)
         return s
 
-def _string(value):
+def string(value):
     if isinstance(value, str):
         b = bytes(value, encoding="utf8")
     elif isinstance(value, bytes):
@@ -343,7 +429,9 @@ def _string(value):
     else:
         return Join([Byte(b[i:i+1]) for i in range(len(b))], name=str(b))
     
-def _select(options, name=None, recurse=False):
+def select(options, name=None, recurse=False):
+    # TODO: allow for returning the probabilites of the selected item
+    # TODO: also the full probabilites distribution over all items. We can implement this using the prob of the selected item by repeating the call, removing the selected item each time
     for i, value in enumerate(options):
         assert not isinstance(value, StatefulFunction), "You cannot select between stateful functions in the current guidance implementation!"
         if isinstance(value, int) or isinstance(value, float):
@@ -360,16 +448,16 @@ def _select(options, name=None, recurse=False):
         else:
             return Select(options, capture_name=name, recursive=False)
         
-def _byte_range(low, high):
+def byte_range(low, high):
     return ByteRange(low + high)
 
-def _capture(value, name):
+def capture(value, name):
     if not (isinstance(value, Join) and len(value.values) == 1): # don't double wrap
         value = Join([value]) # this ensures we capture what we want, and not something surprisingly self_recursive
     value.capture_name = name
     return value
 
-def _token_limit(value, max_tokens):
+def token_limit(value, max_tokens):
     _rec_token_limit(value, max_tokens)
     return value
 
@@ -380,6 +468,32 @@ def _rec_token_limit(grammar, max_tokens):
         if hasattr(grammar, "values"):
             for g in grammar.values:
                 _rec_token_limit(g, max_tokens)
+
+def with_temperature(value, temperature):
+    '''This sets the sampling temperature to be used for the given portion of the grammar.
+    
+    Note that if the grammar passed to us already has some portions with a temperature
+    setting in place, those setting will not be overridden.
+    '''
+    _re_with_temperature(value, temperature)
+    return value
+
+def _re_with_temperature(grammar, temperature, visited_set={}):
+    
+    # don't go down the same path twice
+    if grammar in visited_set:
+        return
+    visited_set[grammar] = True
+
+    if getattr(grammar, "temperature", 100000000) > temperature:
+        if isinstance(grammar, Terminal) and grammar.temperature < 0: # only need to set temp for terminals
+            grammar.temperature = temperature
+        if hasattr(grammar, "values"):
+            for g in grammar.values:
+                _re_with_temperature(g, temperature)
+
+def model_variable(name):
+    return ModelVariable(name)
 
 # def char_range(low, high):
 #     low_bytes = bytes(low, encoding="utf8")

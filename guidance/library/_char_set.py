@@ -1,4 +1,4 @@
-from ._select import select
+from .._grammar import select
 from ._char_range import char_range
 
 def char_set(def_string):

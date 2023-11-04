@@ -6,13 +6,13 @@ import copy
 import json
 import textwrap
 import numpy as np
-from .._grammar import StatelessFunction, StatefulFunction, tag_start, tag_end, _string, _call_pool, Null
+from .._grammar import StatelessFunction, StatefulFunction, tag_start, tag_end, string, _call_pool, Null, replace_model_variables, unreplace_model_variables
 
 class Endpoint:
     '''This keeps state that is shared among all models using the same endpoint session.'''
     pass
 
-_null_grammar = _string('')
+_null_grammar = string('')
 
 class Model:
     _open_contexts = {}
@@ -151,7 +151,7 @@ class Model:
                         lm = _call_pool[part](lm)
                         partial_grammar = _null_grammar
                 elif part != "":
-                    partial_grammar += _string(part)
+                    partial_grammar += string(part)
                 is_id = not is_id
             return lm + partial_grammar
         
@@ -241,6 +241,10 @@ type {function['name']} = (_: {{"""
         # if name is not None:
         #     lm[name] = ""
 
+
+        # replace ModelVariables with their actual values (note we save what we replaced so we can restore it later)
+        replacements = replace_model_variables(stateless_function, lm)
+
         # start the generation stream
         gen_obj = lm(
             grammar=stateless_function, max_tokens=max_tokens, n=n,
@@ -308,6 +312,8 @@ type {function['name']} = (_: {{"""
             #         v = capture_groups[k]
             #         lm[k] = v.decode("utf8") if isinstance(v, bytes) else v
         
+        unreplace_model_variables(replacements)
+
         return lm
 
 class Chat(Model):

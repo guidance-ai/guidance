@@ -1,9 +1,6 @@
 import guidance
-from ._byte_range import byte_range 
-from ._string import string
+from .._grammar import byte_range, select, string, Byte
 from ._zero_or_more import zero_or_more
-from .._grammar import Byte
-from ._select import select
 from ._any_char_but import any_char_but
 import re
 from types import SimpleNamespace

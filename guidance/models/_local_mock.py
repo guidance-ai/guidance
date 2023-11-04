@@ -42,6 +42,7 @@ class LocalMock(Local):
 
         self._cache_state["past_key_values"] = None
         self._cache_state["logits"] = None
+        self.eos_token = b"<s>"
 
     def _get_logits(self, token_ids):
         '''Pretends to compute the logits for the given token state.

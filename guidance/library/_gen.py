@@ -7,16 +7,18 @@ import ast
 
 # from guidance import select, any_char, zero_or_more, commit_point, hide
 from ._silent import silent
-from ._select import select
+from .._grammar import select
 from ._zero_or_more import zero_or_more
-from ._commit_point import commit_point
+from .._grammar import commit_point
 from ._any_char import any_char
-from ._capture import capture
+from .._grammar import capture
 from ._regex import regex
-from ._token_limit import token_limit
+from .._grammar import token_limit
+from .._grammar import with_temperature
+from .._grammar import model_variable
 
 # TODO: make this stateless!
-@guidance
+@guidance(stateless=lambda *args, **kwargs: kwargs.get("tools", None) is None) # TODO: uncomment this once we get temperature stateless
 def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None,
         tools=None, hide_tool_call=False, stop=None, stop_regex=None, suffix="", n=1, temperature=0.0, top_p=1.0,
         logprobs=None, stream_tokens=None, save_stop_text=False, **llm_kwargs):
@@ -31,24 +33,24 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None,
 
     # use the suffix as the stop string if not otherwise specified
     # TODO: still need to make suffix work with grammars
-    eos_token = lm.eos_token.decode('utf8')
+    # eos_token = lm.eos_token.decode('utf8')
     if stop is None and stop_regex is None and suffix != "":
         stop = suffix
-    if stop is None and stop_regex is None and getattr(lm, "suffix", False):
-        if lm.suffix.startswith("\n"):
-            stop = "\n"
-        elif lm.suffix.startswith('"') and str(lm).endswith('"'):
-            stop = '"'
-        elif lm.suffix.startswith("'") and str(lm).endswith("'"):
-            stop = "'"
+    # if stop is None and stop_regex is None and getattr(lm, "suffix", False):
+    #     if lm.suffix.startswith("\n"):
+    #         stop = "\n"
+    #     elif lm.suffix.startswith('"') and str(lm).endswith('"'):
+    #         stop = '"'
+    #     elif lm.suffix.startswith("'") and str(lm).endswith("'"):
+    #         stop = "'"
 
     # fall back to stopping at the EOS token
     if stop is None:
         stop = []
     if isinstance(stop, str):
         stop = [stop]
-    if eos_token not in stop and pattern is None:
-        stop.append(eos_token)
+    if pattern is None:
+        stop.append(model_variable('eos_token'))
 
     if stop_regex is None:
         stop_regex = []
@@ -57,8 +59,8 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None,
     stop_regex = [regex(x) for x in stop_regex]
 
     # This needs to be here for streaming
-    if name is not None and not list_append:
-        lm[name] = ""
+    # if name is not None and not list_append:
+    #     lm[name] = ""
 
     # TODO: This can be uncommented once we support regex -> grammar compilation
     
@@ -108,7 +110,7 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None,
         gen_grammar = pattern + select([stop_pattern] + [capture(commit_point(x.call_grammar, hidden=hide_tool_call), name=f'tool{i}') for i, x in enumerate(tools)])
         while lm._token_count <= max_tokens:
         # for i in range(5):
-            lm = lm.run_stateless(gen_grammar, max_tokens=max_tokens, temperature=temperature)
+            lm = lm.run_stateless(gen_grammar, temperature=temperature)
             tool_called = False
             for i in range(len(tools)):
                 tool_i = f'tool{i}'
@@ -119,7 +121,7 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None,
             if not tool_called:
                 break
     elif n == 1:
-        lm = lm.run_stateless(pattern + stop_pattern, temperature=temperature)
+        lm += with_temperature(pattern + stop_pattern, temperature)
 
     return lm
 

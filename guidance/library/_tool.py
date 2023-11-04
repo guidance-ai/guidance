@@ -1,13 +1,10 @@
 import guidance
 from ._any_char import any_char
-from ._select import select
+from .._grammar import select, capture, string, commit_point
 from ._zero_or_more import zero_or_more
 from ._one_or_more import one_or_more
 from ._any_char_but import any_char_but
-from ._commit_point import commit_point
 from ._any_char import any_char
-from ._capture import capture
-from ._string import string
 
 class Tool:
     def __init__(self, call_grammar=None, tool_call=None, callable=None):

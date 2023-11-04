@@ -281,11 +281,13 @@ class Local(Model):
                     _compute_log_probs(trie, torch.nn.functional.log_softmax(logits, dim=-1).cpu().numpy())
 
                 # get the sampling order
-                if temperature == 0:
+                grammar_temp = parser.next_byte_temperature()
+                current_temp = grammar_temp if grammar_temp >= 0 else temperature # we prefer to use the grammar temp when it is specified
+                if current_temp == 0:
                     sampling_order = torch.argsort(logits, descending=True).cpu().numpy() # we need numpy so the enumerate below does not get really slow...
                 else:
                     assert top_p == 1, "Still need to add support for top_p!"
-                    probs = torch.nn.functional.softmax(logits / temperature, dim=-1)
+                    probs = torch.nn.functional.softmax(logits / current_temp, dim=-1)
                     sampling_order = torch.multinomial(probs, len(probs)).cpu().numpy()
 
                 # loop over the tokens looking for a valid one

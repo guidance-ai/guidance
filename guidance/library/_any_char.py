@@ -1,5 +1,5 @@
 import guidance
-from ._byte_range import byte_range
+from .._grammar import byte_range
 
 @guidance(stateless=True)
 def any_char(lm):

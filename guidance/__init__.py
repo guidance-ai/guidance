@@ -13,7 +13,7 @@ from ._utils import load, chain, Silent, Hidden, CaptureEvents, TextRange, strip
 from . import _utils
 from . import selectors
 
-from ._grammar import StatelessFunction, StatefulFunction, _string, Terminal, Placeholder, replace_grammar_node
+from ._grammar import StatelessFunction, StatefulFunction, string, Terminal, Placeholder, replace_grammar_node
 import functools
 from contextlib import nullcontext
 
@@ -40,7 +40,7 @@ def optional_hidden(f, lm, hidden, kwargs):
         return Hidden(lm, hidden)
     
 _function_cache = {} # used to enable recursive grammar definitions
-_null_grammar = _string('')
+_null_grammar = string('')
 # TODO: enable streaming for guidance function evaluation
 
 def _decorator(f=None, *, stateless=False, cache=None, dedent=True, model=models.Model):
@@ -70,7 +70,7 @@ def _decorator(f=None, *, stateless=False, cache=None, dedent=True, model=models
         def wrapped(*args, **kwargs):
 
             # make a stateless grammar if we can
-            if stateless:
+            if stateless is True or (callable(stateless) and stateless(*args, **kwargs)):
                 
                 # if we have a placeholder set then we must be in a recursive definition and so we return the placeholder
                 placeholder = getattr(f, "_self_call_placeholder_", None)

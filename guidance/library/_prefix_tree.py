@@ -1,6 +1,5 @@
 import guidance
-from ._select import select
-from ._string import string
+from .._grammar import select, string
 
 @guidance(stateless=True, dedent=False)
 def prefix_tree(lm, strings, partial_matches=False):
