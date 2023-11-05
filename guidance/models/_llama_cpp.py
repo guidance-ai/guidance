@@ -8,6 +8,7 @@ import numpy as np
 
 from ._model import Chat
 from ._local import Local
+from .._utils import normalize_notebook_stdout_stderr
 
 try:
     # TODO: can we eliminate the torch requirement for llama.cpp by using numpy in the caller instead?
@@ -49,7 +50,8 @@ class LlamaCpp(Local):
                 kwargs["n_threads"] = multiprocessing.cpu_count()
             if "verbose" not in kwargs:
                 kwargs["verbose"] = False
-            self.model_obj = llama_cpp.Llama(model_path=model, **kwargs)
+            with normalize_notebook_stdout_stderr():
+                self.model_obj = llama_cpp.Llama(model_path=model, **kwargs)
         elif isinstance(model, llama_cpp.Llama):
             self.model = model.__class__.__name__
             self.model_obj = model

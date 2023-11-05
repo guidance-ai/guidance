@@ -9,6 +9,7 @@ import ast
 import types
 import itertools
 import textwrap
+import sys
 
 class TextRange:
     def __init__(self, start, end, lm):
@@ -119,6 +120,30 @@ class _Rewrite(ast.NodeTransformer):
                     node.value = "\n".join(new_lines)
 
         return node
+class normalize_notebook_stdout_stderr():
+    '''Remaps stdout and stderr back to their normal selves from what ipykernel did to them.
+    
+    Based on: https://github.com/ipython/ipykernel/issues/795
+    '''
+
+    def __enter__(self):
+        normal_stdout = sys.__stdout__.fileno()
+        self.restore_stdout = None
+        if getattr(sys.stdout, "_original_stdstream_copy", normal_stdout) != normal_stdout:
+            self.restore_stdout = sys.stdout._original_stdstream_copy
+            sys.stdout._original_stdstream_copy = normal_stdout
+
+        normal_stderr = sys.__stderr__.fileno()
+        self.restore_stderr = None
+        if getattr(sys.stderr, "_original_stdstream_copy", normal_stderr) != normal_stderr:
+            self.restore_stderr = sys.stderr._original_stdstream_copy
+            sys.stderr._original_stdstream_copy = normal_stderr
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if self.restore_stdout is not None:
+            sys.stderr._original_stdstream_copy = self.restore_stdout
+        if self.restore_stderr is not None:
+            sys.stderr._original_stdstream_copy = self.restore_stderr
 
 def strip_multiline_string_indents(f):
 
