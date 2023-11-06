@@ -149,9 +149,17 @@ class OpenAI(LLM):
 
         # auto detect chat completion mode
         if chat_mode == "auto":
-            # parse to determin if the model need to use the chat completion API
-            chat_model_pattern = r'^(gpt-3\.5-turbo|gpt-4)(-\d+k)?(-\d{4})?$'
-            if re.match(chat_model_pattern, model):
+            # Determine if the model needs to use the chat completion API
+            # Retrieve the list of models using the OpenAI library
+            response = openai.Model.list()
+
+            # Extract model names from the response
+            models = response['data']
+
+            # Filter out model names that start with 'gpt'
+            gpt_models = [model['id'] for model in models if model['id'].startswith('gpt')]
+
+            if model in gpt_models:
                 chat_mode = True
             else:
                 chat_mode = False
