@@ -136,6 +136,14 @@ class Local(Model):
                 # see if we reached a dead end of the grammar
                 if next_byte_mask_sum == 0:
                     break
+                
+                # if there is more than one option we cannot advance without computing the logits 
+                elif next_byte_mask_sum != 1:
+                    break
+
+                # we are not forced if we are at the end of the grammar
+                elif parser.matched():
+                    break
 
                 # if there is only one possible next byte we can keep forcing
                 elif next_byte_mask_sum == 1:
@@ -188,9 +196,7 @@ class Local(Model):
                         
                         trie = trie.children[next_byte]
 
-                # if there is more than one option we cannot advance without computing the logits 
-                elif next_byte_mask_sum != 1:
-                    break
+                
             forced_pos = parser.pos # record how far the bytes are forced
 
             if retry_token_gen:
@@ -326,14 +332,6 @@ class Local(Model):
             # if we just collpased a hidden commit point then we start over looking for a new token
             if retry_token_gen:
                 continue
-            
-            # check for each position if we have closed a hidden node (and so need to prune it)
-            # for pos in range(generated_pos, parser.pos):
-            #     node = parser.closed_hidden_point(pos) # finds any hidden nodes that are completed at position pos
-            #     if node is not None:
-            #         node.start
-
-
 
             # emit whatever we know will not be hidden
             new_bytes = parser.bytes[generated_pos:parser.earliest_hidden_start()]
@@ -460,31 +458,3 @@ def _check_dominated(node, parser, match_version, next_byte_mask):
             if not child_dominate:
                 return False
     return True
-            
-
-# this token can only be dominated if we are at the end of this token
-
-# dominated = True # assume true until proven otherwise
-# check_stack = [(node, parser.pos)]
-# for byte_num in next_byte_mask.nonzero()[0]:
-#     node, pos = check_stack.pop()
-#     if node.match_version < self._token_trie.match_version:
-#         parser.pos
-#         next_byte_mask = parser.next_byte_mask()
-#         for byte in node.children: # we update all the children since the parser knows the full mask
-#             child = node.children[byte]
-#             child.match_version = self._token_trie.match_version
-#             child.match = next_byte_mask[byte[0]]
-#     byte = bytes((byte_num,))
-#     child = node.children[byte]
-#     if not child.match:
-#         dominated = False
-#         break
-#     else:
-#         # if this is not a valid token yet we need to determine if this child is dominated
-#         if child.value is None:
-#             check_stack.push((child, pos))
-
-# we invalidate this token if it is dominated
-# if dominated:
-#     token_pos = -1

@@ -377,7 +377,8 @@ class Join(StatelessFunction):
     def __repr__(self, indent="", done=None):
         if done is None:
             done = set()
-        s = self.name + " <- " + " ".join([v.name for v in self.values]) + "\n"
+        s = self.name.ljust(20) + " <- " + " ".join([v.name for v in self.values])
+        s += "        " + ("hidden " if self.hidden else "") + ("commit_point " if self.commit_point else "") + (f"max_tokens={self.max_tokens}" if self.max_tokens < 100000 else "") +"\n"
         done.add(self)
         for v in self.values:
             if v not in done and (isinstance(v, Join) or isinstance(v, Select)):
@@ -408,7 +409,8 @@ class Select(StatelessFunction):
     def __repr__(self, indent="", done=None):
         if done is None:
             done = set()
-        s = self.name + " <- " + " | ".join([v.name for v in self.values]) + "\n"
+        s = self.name.ljust(20) + " <- " + " | ".join([v.name for v in self.values])
+        s += "        " + ("hidden " if self.hidden else "") + ("commit_point " if self.commit_point else "") + (f"max_tokens={self.max_tokens}" if self.max_tokens < 100000 else "") +"\n"
         done.add(self)
         for v in self.values:
             if v not in done and (isinstance(v, Join) or isinstance(v, Select)):
