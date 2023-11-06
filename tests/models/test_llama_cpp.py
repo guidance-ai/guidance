@@ -35,3 +35,8 @@ def test_repeat_calls():
     lm = llama2 + 'How much is 2 + 2? ' + gen(name='test', max_tokens=10)
     a.append(lm['test'])
     assert a[-1] == a[0]
+
+def test_suffix():
+    llama2 = get_model("llama_cpp:")
+    lm = llama2 + '1. Here is a sentence ' + gen(name='bla', list_append=True, suffix='\n')
+    assert (str(lm))[-1] == '\n'
