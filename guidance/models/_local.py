@@ -27,9 +27,6 @@ class Local(Model):
         self._token_trie.match = True
         self._token_trie.match_version = 0
 
-        # self._last_token_ids = []
-        # self._last_token_byte_positions = []
-        # self._last_byte_string = b''
         self._max_token_bytes = max([len(t) for t in self.tokens])
 
     def _get_logits(self, token_ids):
@@ -38,20 +35,18 @@ class Local(Model):
         # pretend to extend the KV cache and update the log probs
         return torch.randn(len(self.tokens))
 
-    def _longest_token_match(self, bytes):
-        '''Greedy token matching.'''
-        # if string.startswith("\n"):
-        #     pass
-        trie_pos = self._token_trie
-        for i,c in enumerate(bytes):
-            if c in trie_pos.children:
-                trie_pos = trie_pos.children[c]
-            else:
-                return bytes[:i], trie_pos.value # note that if there are redudant tokens we choose the one stored in the trie
-        if len(trie_pos.children) == 0:
-            return bytes[:i+1], trie_pos.value
-        else:
-            return None,None # more than one token can match these bytes
+    # def _longest_token_match(self, bytes):
+    #     '''Greedy token matching.'''
+    #     trie_pos = self._token_trie
+    #     for i,c in enumerate(bytes):
+    #         if c in trie_pos.children:
+    #             trie_pos = trie_pos.children[c]
+    #         else:
+    #             return bytes[:i], trie_pos.value # note that if there are redudant tokens we choose the one stored in the trie
+    #     if len(trie_pos.children) == 0:
+    #         return bytes[:i+1], trie_pos.value
+    #     else:
+    #         return None,None # more than one token can match these bytes
         
     def _tokenize_prefix(self, byte_string):
         '''This is used to speed up the tokenization of long prompts without using the parser.'''
@@ -103,41 +98,19 @@ class Local(Model):
         # add the beginning of sequence token if needed
         if ensure_bos_token and not prompt.startswith(self.bos_token):
             prompt = self.bos_token + prompt
-    
-        # # find how many prefix bytes we share with previous calls
-        # num_matched_bytes = 0
-        # for i in range(min(len(prompt), len(self._last_byte_string))):
-        #     if prompt[num_matched_bytes] != self._last_byte_string[num_matched_bytes]:
-        #         break
-
-        # # see how many bytes we can safely reuse without considering token healing
-        # num_cached_bytes = 0
-        # for num_cached_tokens in range(len(self._last_token_byte_positions)):
-        #     if self._last_token_byte_positions[num_cached_tokens] < num_matched_bytes - self._max_token_bytes:
-        #         num_cached_bytes = self._last_token_byte_positions[num_cached_tokens]
-        #     else:
-        #         break
-
-        # # reuse those bytes and associated tokens
-        # if num_cached_bytes > 0:
-        #     prompt = prompt[num_cached_bytes:]
-        #     token_ids = self._last_token_ids[:num_cached_tokens]
-        #     token_byte_positions = self._last_token_byte_positions[:num_cached_tokens]
-        # else:
-        #     token_ids = []
-        #     token_byte_positions = []
         
         # run a simple tokenizer (that does not use a grammar) on the prefix for better performance
         token_ids,token_byte_positions = self._tokenize_prefix(prompt)
         if len(token_byte_positions) > 0:
+            pre_parser_bytes = token_byte_positions[-1]
             prompt = prompt[token_byte_positions[-1]:]
+        else:
+            pre_parser_bytes = 0
         
         # create a parser with a grammar that includes both our context and the passed grammar
         parser = EarleyCommitParser(prompt + grammar)
 
         # loop until we have generated a complete pattern
-        # token_ids = []
-        # token_byte_positions = []
         hidden_count = len(prompt) # we don't emit the prompt
         generated_pos = 0 
         sampled_token_ind = None
@@ -191,57 +164,27 @@ class Local(Model):
                         
                         # if we are at a hidden commit point then we need to hide the bytes that match that node
                         if commit_point is not None and commit_point.node.hidden:
-                            # assert earliest_possible_hidden <= commit_point.start, "We failed to track a hidden node in advance!"
-                            # assert not (hidden_parent_start < commit_point.start), "We don't support nested hidden commit points yet!"
 
                             # This takes the item and commits to it as part of the parse and then shrinks it to zero width
                             # in other words this hides the item
                             parser.commit_and_collapse_item(commit_point)
-
-                            # kept_bytes = b''
-
-                            
                             
                             # keep the bytes we still need to emit
                             if start_pos < commit_point.start:
                                 parser.shadow_rewind(start_pos)
-                                #bytes_to_force = parser.bytes[start_pos:commit_point.start]
-                                # for i in range(start_pos, commit_point.start):
-                                #     parser.bytes_to_force[i] = parser.bytes
-                                # bytes_to_force = 
-
-                                # yield kept_bytes, False, 0.0, {}, {}
-                                # hidden_count += len(kept_bytes)
-                                # generated_pos = parser.pos - len(kept_bytes)
-                                # retry_token_gen = True
                             
                             else:
                                 # pop off any tokens that overlap the hidden bytes
                                 i = len(token_byte_positions) - 1
-                                while i >= 0 and token_byte_positions[i] > commit_point.start:
+                                while i >= 0 and token_byte_positions[i] - pre_parser_bytes > commit_point.start:
                                     token_ids.pop()
                                     token_byte_positions.pop()
                                     token_count -= 1
                                     i -= 1
                                 # re-add any bytes we cut too far on
-                                # bytes_to_force = parser.bytes[token_byte_positions[-1]:commit_point.start]
-                                parser.shadow_rewind(token_byte_positions[-1])
+                                parser.shadow_rewind(token_byte_positions[-1] - pre_parser_bytes)
                             retry_token_gen = True # this restarts us at the top of the outer token gen loop
                             break
-                            # generated_pos = parser.pos # send this parser.bytes[generated_pos:commit_point.start]
-                            # start_pos = parser.pos
-
-                            # trie = self._token_trie
-                            # trie.match_version += 1
-                            # pass # trim the token and output history...
-                        
-                        # # if we are at a possibly hidden point then we track that
-                        # elif hidden_parent_start <= parser.pos:
-                        #     earliest_possible_hidden = min(earliest_possible_hidden, hidden_parent_start)
-
-                        # # if we are at a non-hidden commit point then earlier things are either already hidden or won't be hidden
-                        # elif commit_point or hidden_parent_start >= 10000000: # if we are committing or have nothing hidden
-                        #     earliest_possible_hidden = 100000000
                         
                         trie = trie.children[next_byte]
 
@@ -322,24 +265,41 @@ class Local(Model):
                         
                         # advance or fail according to the (now up-to-date) match cache
                         if next_node.match:
-                            log_prob_delta = next_node.log_prob - node.log_prob
-                            new_bytes_log_prob += log_prob_delta
-                            parser.consume_byte(next_byte, log_prob=log_prob_delta)
-                            # commit_node = parser.hidden_commit_point()
-                            # if commit_node is not None:
-                            #     to_force = b''
-                            #     if generated_pos < commit_node.start:
-                            #         to_force += parser.bytes[generated_pos:commit_node.start]
-                            #     generated_pos = len(parser.bytes) # skip over the hidden bytes
-
-
-
-                            #     # break out here and rewind the tokens to remove the data from the hidden commit point
-                            #     # advance our generated_pos past the hidden commit_point node bytes (keeping whatever was before them as delayed_bytes)
-                            #     # this means we need to set up some bytes to be "forced" without advancing the parser (those between generated_pos and the commit point node state)
+                            
+                            # mark that we accepted this byte
                             node = next_node
                             token_pos += 1
-                            if token_pos == len(sampled_token):
+
+                            # get the parser to consume the next byte
+                            log_prob_delta = next_node.log_prob - node.log_prob
+                            new_bytes_log_prob += log_prob_delta
+                            commit_point = parser.consume_byte(next_byte, log_prob=log_prob_delta)
+                        
+                            # if we are at a hidden commit point then we need to hide the bytes that match that node
+                            if commit_point is not None and commit_point.node.hidden:
+
+                                # This takes the item and commits to it as part of the parse and then shrinks it to zero width
+                                # in other words this hides the item
+                                parser.commit_and_collapse_item(commit_point)
+                                
+                                # keep the bytes we still need to emit
+                                if forced_pos < commit_point.start:
+                                    parser.shadow_rewind(forced_pos)
+                                
+                                else:
+                                    # pop off any tokens that overlap the hidden bytes
+                                    i = len(token_byte_positions) - 1
+                                    while i >= 0 and token_byte_positions[i] - pre_parser_bytes > commit_point.start:
+                                        token_ids.pop()
+                                        token_byte_positions.pop()
+                                        token_count -= 1
+                                        i -= 1
+                                    # re-add any bytes we cut too far on
+                                    parser.shadow_rewind(token_byte_positions[-1] - pre_parser_bytes)
+                                retry_token_gen = True # this restarts us at the top of the outer token gen loop
+                                break
+
+                            elif token_pos == len(sampled_token):
                                 break # this token is valid
                         else:
                             # partially valid tokens are okay if we are running off the end of a grammar, but not otherwise
@@ -347,6 +307,10 @@ class Local(Model):
                                 token_pos = -1
 
                             break # this token is no longer valid
+
+                    # see if we are breaking out of the whole loop
+                    if retry_token_gen:
+                        break
 
                     # check if this token is dominated by other longer valid tokens (and hence would never be consistent with greedy tokenization)
                     if token_pos == len(sampled_token) and not parser.matched(): # not we don't check if we have matched, because then we can generate anything afterwards
@@ -358,7 +322,11 @@ class Local(Model):
 
                     if parser.matched():
                         break # if we already have a full match we don't try more tokens we just give up as soon as the model deviates from the grammar
-
+            
+            # if we just collpased a hidden commit point then we start over looking for a new token
+            if retry_token_gen:
+                continue
+            
             # check for each position if we have closed a hidden node (and so need to prune it)
             # for pos in range(generated_pos, parser.pos):
             #     node = parser.closed_hidden_point(pos) # finds any hidden nodes that are completed at position pos

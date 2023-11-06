@@ -68,8 +68,19 @@ class EarleyCommitParser:
         return self.shadow_pos
     @pos.setter
     def pos(self, new_pos):
+
+        # do nothing if we aren't moving
         if new_pos == self.state_set_pos:
             return
+        elif new_pos > self.state_set_pos:
+            raise Exception("Can't move the parser position forward! (only backward)")
+        
+        # check if we are just moving the shadow position
+        if new_pos >= self.shadow_pos:
+            self.shadow_pos = new_pos
+            return
+        
+        # actually reset our position if we need to
         self.state_sets = self.state_sets[:new_pos+1] + [OrderedSet()]
         self.token_counts = self.token_counts[:new_pos+2]
         self.bytes = self.bytes[:new_pos]
