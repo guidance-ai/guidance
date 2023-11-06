@@ -146,7 +146,7 @@ class TransformersSession(LLMSession):
                         # we only need to do this first time, after that the past key values will
                         # be up until the last token, just like transformer models normally expect
                         # so we can clear our cache and let transformers cache like normal
-                        self._prefix_cache = [] # this will get refilled once the generate call is done
+                        # self._prefix_cache = [] # this will get refilled once the generate call is done
                     
                         return model_kwargs
                     else:
@@ -155,7 +155,7 @@ class TransformersSession(LLMSession):
                 return decorate_prep_step
             if getattr(self.llm.model_obj, "_orig_prepare_method", None) is None:
                 self.llm.model_obj._orig_prepare_method = self.llm.model_obj.prepare_inputs_for_generation
-            self.llm.model_obj.prepare_inputs_for_generation = prep_step_decorator(self.llm.model_obj._orig_prepare_method)
+            # self.llm.model_obj.prepare_inputs_for_generation = prep_step_decorator(self.llm.model_obj._orig_prepare_method)
 
             # decorate the update step to save the past key values
             def update_step_decorator(method):
@@ -185,9 +185,12 @@ class TransformersSession(LLMSession):
             token_healing = self.llm.token_healing
 
         # generate the cache key
-        cache_params = self._cache_params(locals().copy())
-        llm_cache = self.llm.cache
-        key = llm_cache.create_key(self.llm.llm_name, **cache_params)
+        # start_time = time.time()
+        # cache_params = self._cache_params(locals().copy())
+        # llm_cache = self.llm.cache
+        # key = llm_cache.create_key(self.llm.llm_name, **cache_params)
+        # duration = time.time() - start_time
+        # print("genrate cache key duration", duration)
 
         # set the stop patterns
         if stop is not None:
@@ -207,9 +210,10 @@ class TransformersSession(LLMSession):
             del generate_kwargs["function_call"]
 
         # handle caching
-        in_cache = key in llm_cache
-        not_caching = (caching is not True and not self.llm.caching) or caching is False
-        if not in_cache or not_caching:
+        # in_cache = key in llm_cache
+        # not_caching = (caching is not True and not self.llm.caching) or caching is False
+        # if not in_cache or not_caching:
+        if True:
             import transformers
 
             assert prompt != "", "You must provide a non-zero length prompt to the Transformers language model!"
@@ -310,7 +314,7 @@ class TransformersSession(LLMSession):
                 pad_token_id=model_config.pad_token_id if model_config.pad_token_id is not None else self.llm.tokenizer.eos_token_id,
                 logits_processor=transformers.LogitsProcessorList(processors),
                 stopping_criteria=transformers.StoppingCriteriaList(stoppers),
-                # past_key_values=self._past_key_values,
+                past_key_values=self._past_key_values,
                 output_scores=logprobs is not None and logprobs > 0,
                 return_dict_in_generate=True,
                 **generate_kwargs
@@ -334,9 +338,11 @@ class TransformersSession(LLMSession):
             else:
                 generated_sequence = self.llm.model_obj.generate(**generate_args)
                 streamer.put(generated_sequence)
-                self.llm.cache[key] = streamer.__next__()
+                # self.llm.cache[key] = streamer.__next__()
+                res = streamer.__next__()
                 self._update_prefix_cache(streamer)
-        return llm_cache[key]
+        # return llm_cache[key]
+        return res
     
     def _update_prefix_cache(self, streamer):
         # note what we now have cached and ready for our next call in this session

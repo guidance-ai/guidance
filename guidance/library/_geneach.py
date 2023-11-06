@@ -126,7 +126,10 @@ async def geneach(list_name, stop=None, max_iterations=100, min_iterations=0, nu
             
                 # update the list variable (we do this each time we get a new item so that streaming works)
                 block_variables = variable_stack.pop()["this"]
-                variable_stack[list_name] = variable_stack.get(list_name, []) + [block_variables]
+                if isinstance(variable_stack.get(list_name, []), list):
+                    variable_stack[list_name] = variable_stack.get(list_name, []) + [block_variables]
+                else:
+                    variable_stack[list_name] = [variable_stack.get(list_name, [])] + [block_variables]
 
                 # stop if we are not executing anymore            
                 if not parser.executing:
@@ -143,8 +146,9 @@ async def geneach(list_name, stop=None, max_iterations=100, min_iterations=0, nu
             # we run a quick generation to see if we have reached the end of the list (note the +2 tokens is to help be tolorant to whitespace)
             if stop is not False and i >= min_iterations and i < max_iterations:
                 try:
-                    gen_obj = await parser.llm_session(variable_stack["@prefix"], stop=stop, max_tokens=max_stop_tokens, temperature=0, cache_seed=0)
-                except Exception:
+                    gen_obj = await parser.llm_session(variable_stack["@prefix"], stop=stop, max_tokens=max_stop_tokens, temperature=0, do_sample=False, cache_seed=0)
+                except Exception as e:
+                    print(e)
                     raise Exception(f"Error generating stop tokens for geneach loop. Perhaps you are outside of role tags (assistant/user/system/function)? If you don't want the loop to check for stop tokens, set stop=False or set num_iterations.")
                 if gen_obj["choices"][0]["finish_reason"] == "stop":
                     break
@@ -203,7 +207,10 @@ async def geneach(list_name, stop=None, max_iterations=100, min_iterations=0, nu
                     next_item = d
 
                 # update the list variable (we do this each time we get a new item so that streaming works)
-                variable_stack[list_name] = variable_stack.get(list_name, []) + [next_item]
+                if isinstance(variable_stack.get(list_name, []), list):
+                    variable_stack[list_name] = variable_stack.get(list_name, []) + [next_item]
+                else:
+                    variable_stack[list_name] = [variable_stack.get(list_name, [])] + [next_item]
 
                 # recreate the output string with format markers added
                 item_out = re.sub(
