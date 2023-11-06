@@ -15,7 +15,7 @@ from ._local import Local
 
 
 class LocalMock(Local):
-    def __init__(self, byte_patterns=None, echo=True):
+    def __init__(self, byte_patterns=[], echo=True):
         
         super().__init__(
             # our tokens are all bytes and all lowercase letter pairs
@@ -34,8 +34,13 @@ class LocalMock(Local):
                 pass
 
         # allow a single byte pattern to be passed
-        if isinstance(byte_patterns, bytes):
+        if isinstance(byte_patterns, (bytes, str)):
             byte_patterns = [byte_patterns]
+
+        # allow for strings to be passed
+        for i,pattern in enumerate(byte_patterns):
+            if isinstance(pattern, str):
+                byte_patterns[i] = pattern.encode("utf8")
 
         self.byte_patterns = byte_patterns
         self._rand_generator = np.random.default_rng(seed=42)
@@ -55,13 +60,14 @@ class LocalMock(Local):
         logits = self._rand_generator.standard_normal(len(self.tokens)) * self._valid_mask
 
         # if we have a pattern that matches then force the next token
+        bias = 100.0
         if self.byte_patterns is not None:
             byte_string
             for p in self.byte_patterns:
                 if p.startswith(byte_string) and len(p) > len(byte_string):
                     for i in self._get_next_tokens(p[len(byte_string):]):
-                        logits[i] += 100
-                    break
+                        logits[i] += bias
+                    bias /= 2 # if we have multiple matches then they apply with decreasing bias
         
         return torch.tensor(logits)
     

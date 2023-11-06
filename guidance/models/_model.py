@@ -13,9 +13,13 @@ class Endpoint:
     pass
 
 _null_grammar = string('')
+format_pattern = re.compile(r"<\|\|_.*?_\|\|>", flags=re.DOTALL)
+nodisp_pattern = re.compile(r"&lt;\|\|_#NODISP_\|\|&gt;.*?&lt;\|\|_/NODISP_\|\|&gt;", flags=re.DOTALL)
+html_pattern = re.compile(r"&lt;\|\|_html:(.*?)_\|\|&gt;", flags=re.DOTALL)
 
 class Model:
-    _open_contexts = {}
+    _open_blocks = {}
+    _context_free_mode = 0
 
     def __init__(self, echo=True):
 
@@ -24,7 +28,7 @@ class Model:
         self.echo = echo
         self._state = ""
         self._children = []
-        self._opened_contexts = {}
+        self._opened_blocks = {}
         self._event_queue = None
         self._event_parent = None
         self._silent = None
@@ -53,11 +57,11 @@ class Model:
 
     def _html(self):
         display_out = self._state
-        for context in reversed(self._opened_contexts):
-            display_out += self._opened_contexts[context]
+        for context in reversed(self._opened_blocks):
+            display_out += self._opened_blocks[context]
         display_out = html.escape(display_out)
-        display_out = re.sub(r"&lt;\|\|_#NODISP_\|\|&gt;.*?&lt;\|\|_/NODISP_\|\|&gt;", "", display_out, flags=re.DOTALL)
-        display_out = re.sub(r"&lt;\|\|_html:(.*?)_\|\|&gt;", lambda x: html.unescape(x.group(1)), display_out, flags=re.DOTALL)
+        display_out = nodisp_pattern.sub("", display_out)
+        display_out = html_pattern.sub(lambda x: html.unescape(x.group(1)), display_out)
         display_out = "<pre style='margin: 0px; padding: 0px; padding-left: 8px; margin-left: -8px; border-radius: 0px; border-left: 1px solid rgba(127, 127, 127, 0.2); white-space: pre-wrap; font-family: ColfaxAI, Arial; font-size: 15px; line-height: 23px;'>"+display_out+"</pre>"
         return display_out
     
@@ -105,26 +109,33 @@ class Model:
         clear_output(wait=True)
         return self._html()
     
+    def _current_prompt(self):
+        return format_pattern.sub("", self._state)
+    
     def __str__(self) -> str:
-        return re.sub(r"<\|\|_.*?_\|\|>", "", self._state)
+        out = self._current_prompt()
+        for context in reversed(self._opened_blocks):
+            out += format_pattern.sub("", self._opened_blocks[context])
+        return out
     
     def __add__(self, value):
 
         # close any newly closed contexts
-        for context in list(reversed(self._opened_contexts)):
-            if context not in Model._open_contexts and context in self._opened_contexts:
-                close_text = self._opened_contexts[context] # save so we can delete it before adding it
-                del self._opened_contexts[context]
+        for context in list(reversed(self._opened_blocks)):
+            if context not in Model._open_blocks and context in self._opened_blocks:
+                close_text = self._opened_blocks[context] # save so we can delete it before adding it
+                del self._opened_blocks[context]
                 self._inplace_append(close_text)
 
         # apply any newly opened contexts (newly from the our perspective)
-        for context in Model._open_contexts:
-            if context not in self._opened_contexts:
-                self._opened_contexts[context] = "" # mark this so we don't readd when computing the opener (even though we don't know the close text yet)
+        for context in Model._open_blocks:
+            if context not in self._opened_blocks:
+                self._opened_blocks[context] = "" # mark this so we don't readd when computing the opener (even though we don't know the close text yet)
                 self += context.opener
-                tmp = self + context.closer
+                with context_free():
+                    tmp = self + context.closer
                 close_text = tmp._state[len(self._state):] # get the new state added by calling the closer
-                self._opened_contexts[context] = close_text
+                self._opened_blocks[context] = close_text
         
         # wrap raw string values
         if isinstance(value, str):
@@ -182,8 +193,8 @@ class Model:
         return item in self._variables
 
     # def __enter__(self):
-    #     Model._open_contexts
-    #     self._opened_contexts
+    #     Model._open_blocks
+    #     self._opened_blocks
     #     if len(self.instance__enter__) > 0:
     #         return self.instance__enter__.pop()()
 
@@ -236,6 +247,7 @@ type {function['name']} = (_: {{"""
         return self
 
     def run_stateless(lm, stateless_function, max_tokens=1000, temperature=0.0, top_p=1.0, n=1):
+        assert Model._context_free_mode == 0, "We can't run grammar parsing while in context free mode! (for example inside a block closer)"
 
         # This needs to be here for streaming
         # if name is not None:
@@ -323,3 +335,13 @@ class Chat(Model):
     
     def get_role_end(self, role_name=None):
         return "<|im_end|>"
+    
+class ContextFree:
+    def __enter__(self):
+        Model._context_free_mode += 1
+    
+    def __exit__(self, exc_type, exc_value, traceback):
+        Model._context_free_mode -= 1
+
+def context_free():
+    return ContextFree()

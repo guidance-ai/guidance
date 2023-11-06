@@ -68,18 +68,19 @@ class Local(Model):
             valid_value = -1
             while True:
                 if pos >= len(byte_string):
-                    valid_pos = -1
+                    if len(trie.children) > 0:
+                        valid_pos = -1
                     break
-
-                # record the last valid token down this path as we go
-                if trie.value is not None:
-                    valid_pos = pos
-                    valid_value = trie.value
 
                 # check if we can keep going or are at a dead end
                 if byte_string[pos:pos+1] in trie.children:
                     trie = trie.children[byte_string[pos:pos+1]]
                     pos += 1
+
+                    # record the last valid token down this path as we go
+                    if trie.value is not None:
+                        valid_pos = pos
+                        valid_value = trie.value
                 else:
                     break # we can't go any farther
             
@@ -96,7 +97,7 @@ class Local(Model):
         assert n == 1, "Still need to add support for n > 1!"
         
         # get our current context in bytes
-        prompt = str(self)
+        prompt = self._current_prompt()
         prompt = bytes(prompt, encoding="utf8")
 
         # add the beginning of sequence token if needed

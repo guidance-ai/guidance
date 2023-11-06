@@ -14,6 +14,7 @@ from .._grammar import byte_range
 from ._block import block
 from ._role import role, system, assistant, user, function
 from ._silent import silent
+# from ..models._model import context_free
 
 # stateless library functions
 from ._any_char import any_char
