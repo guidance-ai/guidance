@@ -40,3 +40,4 @@ def test_suffix():
     llama2 = get_model("llama_cpp:")
     lm = llama2 + '1. Here is a sentence ' + gen(name='bla', list_append=True, suffix='\n')
     assert (str(lm))[-1] == '\n'
+    assert (str(lm))[-2] != '\n'
