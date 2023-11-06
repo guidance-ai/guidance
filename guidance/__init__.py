@@ -80,8 +80,10 @@ def _decorator(f=None, *, stateless=False, cache=None, dedent=True, model=models
                 # otherwise we call the function to generate the grammar
                 else:
                     
-                    # set a placeholder for recursive calls
-                    f._self_call_placeholder_ = Placeholder()
+                    # set a placeholder for recursive calls (only if we don't have arguments that might make caching a bad idea)
+                    no_args = len(args) + len(kwargs) == 0
+                    if no_args:
+                        f._self_call_placeholder_ = Placeholder()
 
                     # call the function to get the grammar node
                     node = f(_null_grammar, *args, **kwargs)
@@ -89,8 +91,9 @@ def _decorator(f=None, *, stateless=False, cache=None, dedent=True, model=models
                         node.name = f.__name__
 
                     # replace all the placeholders with our generated node
-                    replace_grammar_node(node, f._self_call_placeholder_, node)
-                    del f._self_call_placeholder_
+                    if no_args:
+                        replace_grammar_node(node, f._self_call_placeholder_, node)
+                        del f._self_call_placeholder_
 
                     return node
 
