@@ -25,3 +25,13 @@ def test_llama_cpp_select2():
         "this is a test1 item2 and test2 item3", 
         "this is a test1 item2 and test2 item4"]
 
+def test_repeat_calls():
+    llama2 = get_model("llama_cpp:")
+    a = []
+    lm = llama2 + 'How much is 2 + 2? ' + gen(name='test', max_tokens=10)
+    a.append(lm['test'])
+    lm = llama2 + 'How much is 2 + 2? ' + gen(name='test',max_tokens=10, pattern='\d+')
+    a.append(lm['test'])
+    lm = llama2 + 'How much is 2 + 2? ' + gen(name='test', max_tokens=10)
+    a.append(lm['test'])
+    assert a[-1] == a[0]
