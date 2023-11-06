@@ -119,9 +119,10 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None,
                     lm += tools[i].tool_call()
                     lm.remove(tool_i)
             if not tool_called:
+                lm += suffix
                 break
     elif n == 1:
-        lm += with_temperature(pattern + stop_pattern, temperature)
+        lm += with_temperature(pattern + stop_pattern + suffix, temperature)
 
     return lm
 
