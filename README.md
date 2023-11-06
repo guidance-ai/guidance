@@ -20,7 +20,7 @@ lm += "Let's write " + gen(name="n", pattern='\d') + " of them:\n"
 
 # access model state and use it to control generation
 for i in range(int(lm['n'])):
-    lm += f'{i + 1}. {gen(name="sentences", list_append=True)}\n'
+    lm += f'{i + 1}. ' + gen(name="sentences", list_append=True, suffix="\n")
 ```
 
 > How many sentences about guidance should we write (1-5)?
@@ -151,7 +151,7 @@ lm = llama2 + 'Here is a sentence about math: ' + gen(max_tokens=50, stop_regex=
 ```
 > Here is a sentence about math: "The number 10 is divisible by 
 
-## Context free grammars
+### Context free grammars
 `guidance` exposes a variety of operators that make it easy to define CFGs to constrain generation. For example, we can use the `select` operator (it accepts CFGs as options), `zero_or_more` and `one_or_more` to define a grammar for mathematical expressions:
 ```python
 import guidance
@@ -175,27 +175,25 @@ def expression(lm):
     ])
 ```
 
-You can then append these grammars to an lm object, and it will generate according to the grammar constraints. For example:
-```python
-# Without constraints
-lm = llama2 + '(2 * 2)\n55 * 3\n' + gen(max_tokens=20)
-```
-> (2 * 2)  
-> 55 * 3  
-> \end{code}
-> 
-> Comment: I'm not sure I understand.  I'
+The `@guidance(stateless=True)` decorator makes it such that a function (e.g. `expression`) lives as a stateless grammar that does not get 'executed' until we call call `lm + expression()` or `lm += expression()`. For example, here we append an expression grammar to the lm object to get it to generate according to the grammar constraints:
 
 ```python
 # With constraints
 grammar = expression()
-lm = llama2 + '(2 * 2)\n55 * 3\n' + grammar
+lm = llama2 + 'Here is an expression: (2 * 2 * 3)\nHere is another ' + grammar
 ```
-> (2 * 2)  
-> 55 * 3  
-> 55 * 4
+> Here is an expression: (2 * 2 * 3)
+> Here is another (2 * 2 * 3)
 
-Grammars are very easy to compose. For example, let's say we want a grammar that generates a mathematical expression or a regular expression with the word 'weird' followed by two digits:
+Contrast this generation with an unconstrained generation:
+```python
+# Without constraints
+lm = llama2 + 'Here is an expression: (2 * 2 * 3)\nHere is another ' + gen(max_tokens=10)
+```
+> Here is an expression: (2 * 2 * 3)
+> Here is another expression: (2 * 2 * 3
+
+Grammars are very easy to compose. For example, let's say we want a grammar that generates a mathematical expression **or** a regular expression with the word 'weird' followed by two digits. Creating this (nonsense) grammar is easy:
 
 ```python
 from guidance import regex
@@ -212,11 +210,99 @@ lm = llama2 + 'What is weird? What is ' + grammar
 ```
 > What is weird? What is weird 20
 
-TODO: Substring? Talk about more grammar stuff?
+An example here of substring()
+
+Even if you don't like thinking in terms of recursive grammars, this formalism makes it easy to constrain generation. For example, let's say we have the following one-shot prompt:
+```python
+@guidance(stateless=True)
+def ner_instruction(lm, input):
+    lm += f'''\
+    Please tag each word in the input with PER, ORG, LOC, or nothing
+    ---
+    Input: John worked at Apple.
+    Output:
+    John: PER
+    worked: 
+    at: 
+    Apple: ORG
+    .: 
+    ---
+    Input: {input}
+    Output:
+    '''
+    return lm
+input = 'Julia never went to Morocco in her life!!'
+llama2 + ner_instruction(input) + gen(stop='---')`
+```
+> Input: Julia never went to Morroco in her life!!  
+> Output:  
+> Julia: PER  
+> never:   
+> went:   
+> to:   
+> Morocc: ORG  
+> in:   
+> her:   
+> life: LOC  
+> !!:   
+> .:   
+
+Notice that the model did not spell the word 'Morocco' correctly. Sometimes the model might also hallucinate a tag that doesn't exist. We can improve this by adding more few-shot examples, etc, but we can also constrain generation to the exact format we want:
+```python
+import re
+guidance(stateless=True)
+def constrained_ner(lm, input):
+    # Split into words
+    words = [x for x in re.split('([^a-zA-Z0-9])', input) if x and not re.match('\s', x)]
+    ret = ''
+    for x in words:
+        ret += x + ': ' + select(['PER', 'ORG', 'LOC', '']) + '\n'
+    ret += '---'
+    return ret`
+llama2 + ner_instruction(input) + constrained_ner(input)
+```
+
+> Input: Julia never went to Morroco in her life!!  
+> Output:  
+> Julia: PER  
+> never:   
+> went:   
+> to:   
+> Morroco: ORG  
+> in:   
+> her:   
+> life: LOC  
+> !:   
+> !:   
+
+While the above is a grammar that constrains the model generation, it _feels_ like you're just writing normal imperative python code.
 
 
+## Stateful control + generation
+This is in outline mode for now, will write actual text later:
 
+- Whenever you do `lm + grammar` or `lm + gen`, `lm + select`, etc, you return an lm object with additional state. For example:
+```python
+lm = llama2 + 'This is a prompt' + gen(name='test', max_tokens=10)
+lm += select(['this', 'that'], name='test2')
+lm['test'], lm['test2']
+````
+- The guidance decorator is `@guidance(stateless=False)` by default, meaning that a function with this decorator depends on the lm state to execute (either prior state or state generated within the function). For example:
+```python
+@guidance(stateless=False)
+def test(lm):
+    lm += 'Should I say "Scott"?\n' + select(['yes', 'no'], name='answer') + '\n'
+    if lm['answer'] == 'yes':
+        lm += 'Scott'
+    else:
+        lm += 'Not Scott'
+llama2 + test()
+```
+> Should I say "Scott"?
+> yes
+> Scott
 
+- A big advantage of stateful control is that you don't have to write intermediate parsers. For example, let's say we have 
 
 
 
