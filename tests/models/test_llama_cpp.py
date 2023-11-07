@@ -41,3 +41,8 @@ def test_suffix():
     lm = llama2 + '1. Here is a sentence ' + gen(name='bla', list_append=True, suffix='\n')
     assert (str(lm))[-1] == '\n'
     assert (str(lm))[-2] != '\n'
+
+def test_subtoken_forced():
+    llama2 = get_model("llama_cpp:")
+    lm = llama2 + 'How much is 2 + 2? ' + gen(name='test', max_tokens=10, regex='\(')
+    assert str(lm) == "How much is 2 + 2? ("

@@ -103,7 +103,7 @@ class LlamaCpp(Local):
         
         # make sure we don't run off the end of the model's context
         if self.model_obj.n_ctx() < len(token_ids) + 1:
-            raise Exception(f"Attempted to use a context length of {len(token_ids)}, but this LlamaCpp model is only configured to support up to {self.model_obj.n_ctx()}!")
+            raise Exception(f"Attempted to use a context length of {len(token_ids)} tokens, but this LlamaCpp model is only configured to support up to {self.model_obj.n_ctx()}!")
 
         # eval the model
         self._cache_state["cache_token_ids"] = token_ids.copy()

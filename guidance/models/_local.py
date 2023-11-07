@@ -220,6 +220,12 @@ class Local(Model):
             # we are at the end of the grammar
             elif next_byte_mask_sum == 0:
                 token_pos = 0
+
+                # mark the token we "sampled" if we have comsumed some bytes
+                if trie != self._token_trie:
+                    sampled_token_ind = trie.value
+                    sampled_token = self.tokens[sampled_token_ind]
+                    new_bytes_log_prob = 0.0
                     
             # otherwise we need to compute the logits and sample a valid token
             else:
