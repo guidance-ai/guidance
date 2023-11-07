@@ -120,25 +120,25 @@ class StatelessFunction(Function):
                 used_names.add(name)
                 return name
         
-        # if those are all used look for 2 letter names
-        for c in range(ord('a'), ord('z')+1):
-            for d in range(ord('a'), ord('z')+1):
-                name = chr(c) + chr(d)
-                if name not in used_names:
-                    used_names.add(name)
-                    return name
+        # # if those are all used look for 2 letter names
+        # for c in range(ord('a'), ord('z')+1):
+        #     for d in range(ord('a'), ord('z')+1):
+        #         name = chr(c) + chr(d)
+        #         if name not in used_names:
+        #             used_names.add(name)
+        #             return name
                     
-        # if those are all used look for 3 letter names
-        for c in range(ord('a'), ord('z')+1):
-            for d in range(ord('a'), ord('z')+1):
-                for e in range(ord('a'), ord('z')+1):
-                    name = chr(c) + chr(d) + chr(e)
-                    if name not in used_names:
-                        used_names.add(name)
-                        return name
+        # # if those are all used look for 3 letter names
+        # for c in range(ord('a'), ord('z')+1):
+        #     for d in range(ord('a'), ord('z')+1):
+        #         for e in range(ord('a'), ord('z')+1):
+        #             name = chr(c) + chr(d) + chr(e)
+        #             if name not in used_names:
+        #                 used_names.add(name)
+        #                 return name
         
         # fall back to a uuid name
-        name = "a" + uuid.uuid4()
+        name = "a" + str(uuid.uuid4())
         used_names.add(name)
         return name
     
