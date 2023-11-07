@@ -27,6 +27,12 @@ class State:
         self.next = {}
 
 class SuffixAutomaton:
+    '''A suffix automoton.
+
+    For details see https://en.wikipedia.org/wiki/Suffix_automaton.
+    
+    Implementation is based on https://cp-algorithms.com/string/suffix-automaton.html
+    '''
     def __init__(self, s):
         
         # init our variables
