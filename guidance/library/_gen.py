@@ -56,7 +56,7 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, regex=None,
         stop_regex = []
     if isinstance(stop_regex, str):
         stop_regex = [stop_regex]
-    stop_regex = [regex(x) for x in stop_regex]
+    stop_regex = [gregex(x) for x in stop_regex]
 
     # This needs to be here for streaming
     # if name is not None and not list_append:
