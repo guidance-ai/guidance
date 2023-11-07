@@ -12,14 +12,14 @@ from ._zero_or_more import zero_or_more
 from .._grammar import commit_point
 from ._any_char import any_char
 from .._grammar import capture
-from ._regex import regex
+from ._regex import regex as gregex
 from .._grammar import token_limit
 from .._grammar import with_temperature
 from .._grammar import model_variable
 
 # TODO: make this stateless!
 @guidance(stateless=lambda *args, **kwargs: kwargs.get("tools", None) is None) # TODO: uncomment this once we get temperature stateless
-def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None,
+def gen(lm, name=None, *, max_tokens=1000, list_append=False, regex=None,
         tools=None, hide_tool_call=False, stop=None, stop_regex=None, suffix="", n=1, temperature=0.0, top_p=1.0,
         logprobs=None, stream_tokens=None, save_stop_text=False, **llm_kwargs):
     """
@@ -49,7 +49,7 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None,
         stop = []
     if isinstance(stop, str):
         stop = [stop]
-    if pattern is None:
+    if regex is None:
         stop.append(model_variable('eos_token'))
 
     if stop_regex is None:
@@ -79,8 +79,8 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, pattern=None,
     # extracted_stop_pattern = regex.compile(pattern[:pattern.index("(?P<stop>")] + "$", flags=regex.DOTALL)
     
     # define the generation pattern
-    if pattern is not None:
-        pattern = regex(pattern)
+    if regex is not None:
+        pattern = gregex(regex)
     else:
         pattern = zero_or_more(any_char())
 

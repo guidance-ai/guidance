@@ -16,7 +16,7 @@ llama2 = models.LlamaCpp(model_file)
 
 # add text (or arbitrary grammars) to the model object to get a new model object with new state
 lm = llama2 + "How many sentences about guidance should we write (1-5)?\n"
-lm += "Let's write " + gen(name="n", pattern='\d') + " of them:\n"
+lm += "Let's write " + gen(name="n", regex='\d') + " of them:\n"
 
 # access model state and use it to control generation
 for i in range(int(lm['n'])):
@@ -122,18 +122,36 @@ lm = llama2 + 'I like the color ' + select(['red', 'blue', 'green'])
 > I like the color blue
 
 ### Regular expressions
-`gen` has optinal arguments `pattern` and `stop_regex`, which allow generation (and stopping, respectively) to be controlled by a regex. For example, contrast the following generations:
-```python
-lm = llama2 + 'How much is 2 + 2? ' + gen(max_tokens=10)
-```
-> How much is 2 + 2? (Just kidding! You already know the
+`gen` has optional arguments `regex` and `stop_regex`, which allow generation (and stopping, respectively) to be controlled by a regex. 
+
+#### Regex to constrain generation
+Unconstrained:
 
 ```python
-lm = llama2 + 'How much is 2 + 2? ' + gen(max_tokens=10, pattern='\d+')
+lm = llama2 + 'Question: Luke has ten balls. If he gives three to his brother, how many balls does he have left?\nAnswer: ' + gen(stop='\n')
 ```
-> How much is 2 + 2? 4
+> Answer: None. He gave them all to his brother.
 
-You can also set a stopping criterion based on a regex. For example:
+```python
+lm = llama2 + 'Question: Luke has ten balls. If he gives one to his brother, how many balls does he have left?\nAnswer: ' + gen(stop='\n')
+```
+> Answer: Nine.
+
+Constrained by regex:
+
+```python
+lm = llama2 + 'Question: Luke has ten balls. If he gives three to his brother, how many balls does he have left?\nAnswer: ' + gen(pattern='\d+')
+```
+> Answer: 7
+
+```python
+lm = llama2 + 'Question: Luke has ten balls. If he gives one to his brother, how many balls does he have left?\nAnswer: ' + gen(stop='\n')
+```
+> Answer: 9
+
+
+#### Regex as stopping criterion
+Unconstrained:
 ```python
 lm = llama2 + 'Here is a sentence about math: ' + gen(max_tokens=50, stop='\n')
 ```
