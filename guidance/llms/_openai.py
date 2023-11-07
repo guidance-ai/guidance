@@ -648,7 +648,7 @@ class OpenAISession(LLMSession):
                     self.llm.add_call()
                     call_args = {
                         "model": self.llm.model_name,
-                        "deployment_id": self.llm.deployment_id,
+                        #"deployment_id": self.llm.deployment_id,  # Deprecated
                         "prompt": prompt,
                         "max_tokens": max_tokens,
                         "temperature": temperature,
