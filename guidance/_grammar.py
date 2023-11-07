@@ -79,7 +79,7 @@ class StatefulFunction(Function):
         return StatefulFunction(__radd__, [], {})
 
 class StatelessFunction(Function):
-    used_names = set()
+    num_used_names = 0
 
     def __add__(self, value):
         if isinstance(value, str) or isinstance(value, bytes):
@@ -109,37 +109,20 @@ class StatelessFunction(Function):
         raise StatefulException("StatelessFunctions can't access state!")
     
     @staticmethod
-    def _new_name(used_names=None):
-        if used_names is None:
-            used_names = StatelessFunction.used_names
+    def _new_name():
+        num_used_names = StatelessFunction.num_used_names
 
-        # look for a name with one letter
-        for c in range(ord('a'), ord('z')+1):
-            name = chr(c)
-            if name not in used_names:
-                used_names.add(name)
-                return name
+        a_ord = ord('a')
+
+        # name the name in base 26 letter notation
+        name = chr(a_ord + num_used_names % 26)
+        if num_used_names >= 26:
+            name = chr(a_ord + (num_used_names % 676) // 26) + name
+            if num_used_names >= 676:
+                name = chr(a_ord + (num_used_names % 17576) // 676) + name
+                if num_used_names >= 17576:
+                    name = chr(a_ord + (num_used_names % 456976) // 17576) + name
         
-        # # if those are all used look for 2 letter names
-        # for c in range(ord('a'), ord('z')+1):
-        #     for d in range(ord('a'), ord('z')+1):
-        #         name = chr(c) + chr(d)
-        #         if name not in used_names:
-        #             used_names.add(name)
-        #             return name
-                    
-        # # if those are all used look for 3 letter names
-        # for c in range(ord('a'), ord('z')+1):
-        #     for d in range(ord('a'), ord('z')+1):
-        #         for e in range(ord('a'), ord('z')+1):
-        #             name = chr(c) + chr(d) + chr(e)
-        #             if name not in used_names:
-        #                 used_names.add(name)
-        #                 return name
-        
-        # fall back to a uuid name
-        name = "a" + str(uuid.uuid4())
-        used_names.add(name)
         return name
     
     def gbnf_string(self):
@@ -431,13 +414,14 @@ def string(value):
     else:
         return Join([Byte(b[i:i+1]) for i in range(len(b))], name=str(b))
     
-def select(options, name=None, recurse=False):
+def select(options, name=None, recurse=False, skip_checks=False):
     # TODO: allow for returning the probabilites of the selected item
     # TODO: also the full probabilites distribution over all items. We can implement this using the prob of the selected item by repeating the call, removing the selected item each time
-    for i, value in enumerate(options):
-        assert not isinstance(value, StatefulFunction), "You cannot select between stateful functions in the current guidance implementation!"
-        if isinstance(value, int) or isinstance(value, float):
-            options[i] = str(value)
+    if not skip_checks:
+        for i, value in enumerate(options):
+            assert not isinstance(value, StatefulFunction), "You cannot select between stateful functions in the current guidance implementation!"
+            if isinstance(value, int) or isinstance(value, float):
+                options[i] = str(value)
     # if name is None:
     #     name = _find_name() + "_" + StatelessFunction._new_name()
     if recurse:
