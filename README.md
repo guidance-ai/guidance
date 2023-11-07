@@ -104,7 +104,7 @@ You can append _generation_ calls to it, e.g.
 ```python
 lm = llama2 + 'This is a prompt' + gen(max_tokens=10)
 ```
-> This is a prompt that I have been wanting to write for a long
+> This is a prompt for the 2018 NaNoW
 
 You can also interleave generation calls with plain text, or control flows:
 ```python
@@ -153,21 +153,21 @@ lm = llama2 + 'Question: Luke has ten balls. If he gives one to his brother, how
 #### Regex as stopping criterion
 Unconstrained:
 ```python
-lm = llama2 + 'Here is a sentence about math: ' + gen(max_tokens=50, stop='\n')
+lm = llama2 + '19, 18,' + gen(max_tokens=50)
 ```
-> Here is a sentence about math: "The number 10 is divisible by 2."
+> 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4,
 
-Stop whenever the model generates a number:
+Stop with traditional stop text, whenever the model generates the number 7:
 ```python
-lm = llama2 + 'Here is a sentence about math: ' + gen(max_tokens=50, stop_regex='\d')`
+lm = llama2 + '19, 18,' + gen(max_tokens=50, stop='7')
 ```
-> Here is a sentence about math: "The number 
+> 19, 18, 1
  
-Stop whenever the model generates a single number:
+Stop whenever the model generates the character `7` without any numbers around it: 
 ```python
-lm = llama2 + 'Here is a sentence about math: ' + gen(max_tokens=50, stop_regex='[^\d]\d[^\d]')`
+lm = llama2 + '19, 18,' + gen(max_tokens=50, stop_regex='[^\d]7[^\d]')
 ```
-> Here is a sentence about math: "The number 10 is divisible by 
+> 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8,
 
 ### Context free grammars
 `guidance` exposes a variety of operators that make it easy to define CFGs to constrain generation. For example, we can use the `select` operator (it accepts CFGs as options), `zero_or_more` and `one_or_more` to define a grammar for mathematical expressions:
