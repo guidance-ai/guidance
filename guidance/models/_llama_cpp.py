@@ -93,21 +93,30 @@ class LlamaCpp(Local):
         if len(token_ids) == 0:
             raise ValueError("token_ids must contain some tokens.")
 
+        # check what we have already cached
         cache_token_ids = self._cache_state["cache_token_ids"]
         num_cached = sum(takewhile(operator.truth, map(operator.eq, token_ids, cache_token_ids)))
         if num_cached == len(token_ids):
             if num_cached == len(cache_token_ids):
                 return self._cache_state["logits"]
-            # llama_cpp doesn't like it when we pass in 0 new tokens, so re-input one
-            num_cached = num_cached - 1 
+            num_cached = num_cached - 1 # llama_cpp doesn't like it when we pass in 0 new tokens, so re-input one
+        
+        # make sure we don't run off the end of the model's context
+        if self.model_obj.n_ctx() < len(token_ids) + 1:
+            raise Exception(f"Attempted to using a context length of {len(token_ids)}, but this LlamaCpp model is only configured to support up to {self.model_obj.n_ctx()}!")
+
+        # eval the model
         self._cache_state["cache_token_ids"] = token_ids.copy()
         token_ids = np.array(token_ids[num_cached:], dtype=np.int32)
         token_ids = (llama_cpp.llama_token * len(token_ids))(*token_ids)
         llama_cpp.llama_eval(self.model_obj.ctx, token_ids, len(token_ids), num_cached)#, self._n_threads)
+        
+        # get the logits
         logits = llama_cpp.llama_get_logits(self.model_obj.ctx)
         logits = np.ctypeslib.as_array(logits, shape=(self._n_vocab,))
         logits = torch.from_numpy(logits)
         self._cache_state["logits"] = logits
+        
         return logits
     
 class LlamaCppChat(LlamaCpp, Chat):
