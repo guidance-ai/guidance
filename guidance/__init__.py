@@ -43,11 +43,11 @@ _function_cache = {} # used to enable recursive grammar definitions
 _null_grammar = string('')
 # TODO: enable streaming for guidance function evaluation
 
-def _decorator(f=None, *, stateless=False, cache=None, dedent=True, model=models.Model):
+def _decorator(f, *, stateless, cache, dedent, model):
     
     # if we are not yet being used as a decorator, then save the args
     if f is None:
-        return functools.partial(_decorator, stateless=stateless, dedent=dedent, model=model)
+        return functools.partial(_decorator, stateless=stateless, cache=cache, dedent=dedent, model=model)
     
     # if we are being used as a decorator then return the decorated function
     else:

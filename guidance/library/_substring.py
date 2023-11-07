@@ -82,28 +82,63 @@ class SuffixAutomaton:
         
         self.last = cur
 
+@guidance(stateless=True, dedent=False)
+def substring(lm, s):
+    suffix_automaton = SuffixAutomaton(s)
+    node_cache = {}
+    state_stack = [0]  # Start with the initial state index (0) on the stack
 
-def substring(s):
-    a = SuffixAutomaton(s)
-    return _rec_substring(a, 0, {})
+    # Loop as long as there are states on the stack
+    while state_stack:
+        state_ind = state_stack[-1]  # Check the state on the top of the stack
 
-def _rec_substring(suffix_automaton, state_ind, node_cache):
-    if state_ind in node_cache:
-        return node_cache[state_ind]
+        state = suffix_automaton.states[state_ind]
 
-    state = suffix_automaton.states[state_ind]
+        # If we have already computed the result for this state, skip it
+        if state_ind in node_cache:
+            state_stack.pop()
+            continue
 
-    if len(state.next) == 0:
-        return string("")
+        # If the state is a leaf node, meaning no outgoing edges (is an end of some suffix)
+        if not state.next:
+            node_cache[state_ind] = string("")  # Leaf nodes represent empty string suffixes
+            state_stack.pop()
+            continue
 
-    options = []
-    for c in state.next:
-        options.append(string(c) + _rec_substring(suffix_automaton, state.next[c], node_cache))
+        # If there's an unprocessed child, add it to the stack
+        unprocessed_children = [next_state for next_state in state.next.values() if next_state not in node_cache]
+        if unprocessed_children:
+            state_stack.extend(unprocessed_children)
+        else:
+            # Once all children are processed, create the node for this state
+            options = [string(c) + node_cache[state.next[c]] for c in state.next]
+            node_cache[state_ind] = optional(select(options, skip_checks=True)) if len(options) > 1 else optional(options[0])
+            state_stack.pop()
+
+    return lm + node_cache[0]
+
+# @guidance(stateless=True, dedent=False)
+# def substring(s):
+#     a = SuffixAutomaton(s)
+#     return _rec_substring(a, 0, {})
+
+# def _rec_substring(suffix_automaton, state_ind, node_cache):
+#     if state_ind in node_cache:
+#         return node_cache[state_ind]
+
+#     state = suffix_automaton.states[state_ind]
+
+#     if len(state.next) == 0:
+#         return string("")
+
+#     options = []
+#     for c in state.next:
+#         options.append(string(c) + _rec_substring(suffix_automaton, state.next[c], node_cache))
     
-    if len(options) == 1:
-        node = optional(options[0])
-    else:
-        node = optional(select(options, skip_checks=True))
+#     if len(options) == 1:
+#         node = optional(options[0])
+#     else:
+#         node = optional(select(options, skip_checks=True))
     
-    node_cache[state_ind] = node
-    return node
+#     node_cache[state_ind] = node
+#     return node

@@ -253,50 +253,107 @@ class ModelVariable(StatelessFunction):
         self.capture_name = None
         self.nullable = False
 
-def replace_grammar_node(grammar, target, replacement, visited_set={}):
-    
-    # see if we have already visited this node
-    if grammar in visited_set:
-        return
-    else:
-        visited_set[grammar] = True
-   
-    # we are done if this is a terminal
-    if isinstance(grammar, (Terminal, ModelVariable)):
-        return
-    
-    # replace all matching sub-nodes
-    for i,value in enumerate(grammar.values):
-        if value == target:
-            grammar.values[i] = replacement
-        else:
-            replace_grammar_node(value, target, replacement, visited_set)
+def replace_grammar_node(grammar, target, replacement):
+    # Use a stack to keep track of the nodes to be visited
+    stack = [grammar]
+    visited_set = set()  # use set for O(1) lookups
 
-def replace_model_variables(grammar, model, visited_set={}):
-    '''Replace all the ModelVariable nodes with their values.'''
+    while stack:
+        current = stack.pop()
+        
+        # Check if we have already visited this node
+        if current in visited_set:
+            continue
+        visited_set.add(current)
+
+        # We are done with this node if it's a terminal
+        if isinstance(current, (Terminal, ModelVariable)):
+            continue
+        
+        # Iterate through the node's values and replace target with replacement
+        for i, value in enumerate(current.values):
+            if value == target:
+                current.values[i] = replacement
+            else:
+                stack.append(value)
+
+# def replace_grammar_node(grammar, target, replacement, visited_set={}):
     
-    # see if we have already visited this node
-    if grammar in visited_set:
-        return []
-    else:
-        visited_set[grammar] = True
+#     # see if we have already visited this node
+#     if grammar in visited_set:
+#         return
+#     else:
+#         visited_set[grammar] = True
    
-    # we are done if this is a terminal
-    if isinstance(grammar, Terminal):
-        return []
+#     # we are done if this is a terminal
+#     if isinstance(grammar, (Terminal, ModelVariable)):
+#         return
     
-    # replace all matching sub-nodes
+#     # replace all matching sub-nodes
+#     for i,value in enumerate(grammar.values):
+#         if value == target:
+#             grammar.values[i] = replacement
+#         else:
+#             replace_grammar_node(value, target, replacement, visited_set)
+
+def replace_model_variables(grammar, model):
+    '''Replace all the ModelVariable nodes with their values in an iterative manner.'''
+    visited_set = set()
+    stack = [(grammar, None, None)]  # Stack stores tuples of (node, parent_node, child_index)
     replacements = []
-    for i,value in enumerate(grammar.values):
-        if isinstance(value, ModelVariable):
-            g = _wrap_as_grammar(getattr(model, value.name))
-            if value.commit_point:
-                g = commit_point(g, hidden=value.hidden)
-            replacements.append((grammar, i, value))
-            grammar.values[i] = g
-        else:
-            replacements.extend(replace_model_variables(value, model, visited_set))
+
+    while stack:
+        current, parent, child_index = stack.pop()
+
+        # This node is being visited for the first time
+        if current not in visited_set:
+            visited_set.add(current)
+
+            # If it's a terminal node, skip it
+            if isinstance(current, Terminal):
+                continue
+
+            # Process non-terminal nodes in reverse order to maintain the depth-first order
+            for i in reversed(range(len(current.values))):
+                value = current.values[i]
+                if isinstance(value, ModelVariable):
+                    # Replace the ModelVariable with its value from 'model'
+                    replacement_value = _wrap_as_grammar(getattr(model, value.name))
+                    if value.commit_point:
+                        replacement_value = commit_point(replacement_value, hidden=value.hidden)
+                    replacements.append((current, i, value))  # Record the replacement
+                    current.values[i] = replacement_value  # Perform the replacement
+                else:
+                    # If not ModelVariable, push onto the stack to process later
+                    stack.append((value, current, i))
+
     return replacements
+
+# def replace_model_variables(grammar, model, visited_set={}):
+#     '''Replace all the ModelVariable nodes with their values.'''
+    
+#     # see if we have already visited this node
+#     if grammar in visited_set:
+#         return []
+#     else:
+#         visited_set[grammar] = True
+   
+#     # we are done if this is a terminal
+#     if isinstance(grammar, Terminal):
+#         return []
+    
+#     # replace all matching sub-nodes
+#     replacements = []
+#     for i,value in enumerate(grammar.values):
+#         if isinstance(value, ModelVariable):
+#             g = _wrap_as_grammar(getattr(model, value.name))
+#             if value.commit_point:
+#                 g = commit_point(g, hidden=value.hidden)
+#             replacements.append((grammar, i, value))
+#             grammar.values[i] = g
+#         else:
+#             replacements.extend(replace_model_variables(value, model, visited_set))
+#     return replacements
 
 def unreplace_model_variables(replacements):
     '''This restores a grammar back to its original state, ready for another execution.'''
@@ -438,6 +495,12 @@ def select(options, name=None, recurse=False, skip_checks=False):
         
 def byte_range(low, high):
     return ByteRange(low + high)
+
+# def ignore_placeholders(value):
+#     if not isinstance(value, Join): # don't double wrap
+#         value = Join([value]) # this ensures we capture what we want, and not something surprisingly self_recursive
+#     value.ignore_placeholders = True
+#     return value
 
 def capture(value, name):
     if not (isinstance(value, Join) and len(value.values) == 1): # don't double wrap
