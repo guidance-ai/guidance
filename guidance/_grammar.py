@@ -110,18 +110,20 @@ class StatelessFunction(Function):
     
     @staticmethod
     def _new_name():
-        num_used_names = StatelessFunction.num_used_names
+        num_used = StatelessFunction.num_used_names
 
         a_ord = ord('a')
 
         # name the name in base 26 letter notation
-        name = chr(a_ord + num_used_names % 26)
-        if num_used_names >= 26:
-            name = chr(a_ord + (num_used_names % 676) // 26) + name
-            if num_used_names >= 676:
-                name = chr(a_ord + (num_used_names % 17576) // 676) + name
-                if num_used_names >= 17576:
-                    name = chr(a_ord + (num_used_names % 456976) // 17576) + name
+        name = chr(a_ord + num_used % 26)
+        if num_used >= 26:
+            name = chr(a_ord + (num_used % 676) // 26) + name
+            if num_used >= 676:
+                name = chr(a_ord + (num_used % 17576) // 676) + name
+                if num_used >= 17576:
+                    name = chr(a_ord + (num_used % 456976) // 17576) + name
+
+        StatelessFunction.num_used_names += 1
         
         return name
     
