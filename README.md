@@ -193,23 +193,21 @@ def expression(lm):
     ])
 ```
 
-The `@guidance(stateless=True)` decorator makes it such that a function (e.g. `expression`) lives as a stateless grammar that does not get 'executed' until we call call `lm + expression()` or `lm += expression()`. For example, here we append an expression grammar to the lm object to get it to generate according to the grammar constraints:
-
-```python
-# With constraints
-grammar = expression()
-lm = llama2 + 'Here is an expression: (2 * 2 * 3)\nHere is another ' + grammar
-```
-> Here is an expression: (2 * 2 * 3)
-> Here is another (2 * 2 * 3)
-
-Contrast this generation with an unconstrained generation:
+The `@guidance(stateless=True)` decorator makes it such that a function (e.g. `expression`) lives as a stateless grammar that does not get 'executed' until we call call `lm + expression()` or `lm += expression()`. For example, here is an example of _unconstrained_ generation:
 ```python
 # Without constraints
-lm = llama2 + 'Here is an expression: (2 * 2 * 3)\nHere is another ' + gen(max_tokens=10)
+lm = llama2 + 'Problem: Luke has a hundred and six balls. He then loses thirty six.\n'
+lm += 'Equivalent arithmetic expression: ' + gen(stop='\n') + '\n'
 ```
-> Here is an expression: (2 * 2 * 3)
-> Here is another expression: (2 * 2 * 3
+> Equivalent arithmetic expression: 106 - 36 = 60
+
+Notice how the model wrote the right equation but solved it. If we wanted to constrain the model such that it only writes valid expressions (without trying to solve them), we can just append our grammar to it:
+```python
+grammar = expression()
+lm = llama2 + 'Problem: Luke has a hundred and six balls. He then loses thirty six.\n'
+lm += 'Equivalent arithmetic expression: ' + grammar + '\n'
+```
+> Equivalent arithmetic expression: 106 - 36
 
 Grammars are very easy to compose. For example, let's say we want a grammar that generates a mathematical expression **or** a regular expression with the word 'weird' followed by two digits. Creating this (nonsense) grammar is easy:
 
@@ -227,8 +225,6 @@ lm = llama2 + 'Here is a math expression for two plus two: ' + grammar
 lm = llama2 + 'What is weird? What is ' + grammar
 ```
 > What is weird? What is weird 20
-
-An example here of substring()
 
 Even if you don't like thinking in terms of recursive grammars, this formalism makes it easy to constrain generation. For example, let's say we have the following one-shot prompt:
 ```python
@@ -275,25 +271,26 @@ def constrained_ner(lm, input):
     ret = ''
     for x in words:
         ret += x + ': ' + select(['PER', 'ORG', 'LOC', '']) + '\n'
-    ret += '---'
     return ret`
 llama2 + ner_instruction(input) + constrained_ner(input)
 ```
 
-> Input: Julia never went to Morroco in her life!!  
+> Input: Julia never went to Morocco in her life!!  
 > Output:  
 > Julia: PER  
 > never:   
 > went:   
 > to:   
-> Morroco: ORG  
+> Morocco: ORG  
 > in:   
 > her:   
 > life: LOC  
 > !:   
 > !:   
 
-While the above is a grammar that constrains the model generation, it _feels_ like you're just writing normal imperative python code.
+While `constrained_ner(input)` **is** a grammar that constrains the model generation, it _feels_ like you're just writing normal imperative python code with `+=` and `selects`.
+
+
 
 
 ## Stateful control + generation
