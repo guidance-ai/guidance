@@ -1,4 +1,5 @@
 import openai
+from openai import AsyncOpenAI
 import os
 import time
 import requests
@@ -347,7 +348,7 @@ class OpenAI(LLM):
         prev_org = openai.organization
         prev_type = openai.api_type
         prev_version = openai.api_version
-        prev_base = openai.api_base
+        prev_base = openai.base_url
         
         # set the params of the openai library if we have them
         if self.api_key is not None:
@@ -359,20 +360,22 @@ class OpenAI(LLM):
         if self.api_version is not None:
             openai.api_version = self.api_version
         if self.api_base is not None:
-            openai.api_base = self.api_base
+            openai.base_url = self.api_base
 
         assert openai.api_key is not None, "You must provide an OpenAI API key to use the OpenAI LLM. Either pass it in the constructor, set the OPENAI_API_KEY environment variable, or create the file ~/.openai_api_key with your key in it."
-        
+
+        client = AsyncOpenAI(api_key=self.api_key)
+
         if self.chat_mode:
             kwargs['messages'] = prompt_to_messages(kwargs['prompt'])
             del kwargs['prompt']
             del kwargs['echo']
             del kwargs['logprobs']
             # print(kwargs)
-            out = await openai.ChatCompletion.acreate(**kwargs)
+            out = await openai.chat.completions.acreate(**kwargs)
             out = add_text_to_chat_mode(out)
         else:
-            out = await openai.Completion.acreate(**kwargs)
+            out = await client.completions.create(**kwargs)
         
         # restore the params of the openai library
         openai.api_key = prev_key
