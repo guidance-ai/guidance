@@ -58,6 +58,8 @@ class StatefulFunction(Function):
         
         def __add__(model):
             model = self(model)
+            if model is None:
+                raise Exception(f"The guidance function `{self.f.__name__}` did not return a model object! You need to return an updated model object at the end of your guidance function.")
             if isinstance(other, StatelessFunction):
                 return model + other
             else:
