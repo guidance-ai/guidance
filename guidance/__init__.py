@@ -4,6 +4,8 @@ import types
 import sys
 import os
 import requests
+import logging
+
 from . import library as commands
 from ._program import Program
 from . import llms
@@ -12,6 +14,9 @@ from ._utils import load, chain
 from . import selectors
 import nest_asyncio
 import asyncio
+
+# logging setting up
+logging.getLogger("__guidance__display__").setLevel(os.getenv("LOG_LEVEL","INFO"))
 
 # the user needs to set an LLM before they can use guidance
 llm = None

@@ -41,6 +41,7 @@ setup(
         "requests",
         "numpy",
         "aiohttp",
+        "text-generation>=0.6.1"
     ],
     extras_require={
         'docs': [
