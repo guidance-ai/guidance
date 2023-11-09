@@ -131,8 +131,10 @@ class LlamaCppChat(LlamaCpp, Chat):
                 return ""
             else:
                 return "[INST] "
+        
         elif role_name == "assistant":
             return " "
+        
         elif role_name == "system":
             
             # check if we are already embedded at the top of a user role

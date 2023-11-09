@@ -77,13 +77,23 @@ class Model:
         return False
     
     def copy(self):
+        
+        # start with a shallow copy
         new_lm = copy.copy(self)
+
+        # then copy a few things we need deeper copies of
+        new_lm._variables = self._variables.copy()
+        new_lm._opened_blocks = self._opened_blocks.copy()
+        
+        # create a new clean event queue # TODO: can we delete this now?
         new_lm._event_queue = None
         if self._event_queue is not None:
             new_lm._event_parent = self
-        new_lm._variables = self._variables.copy()
+        
+        # track parent/child relationships
         new_lm._children = []
         self._children.append(new_lm)
+        
         return new_lm
     
     def _inplace_append(self, value, force_silent=False):
@@ -120,27 +130,30 @@ class Model:
     
     def __add__(self, value):
 
+        # create the new lm object we will return
+        # (we need to do this since Model objects are immutable)
+        lm = self.copy()
+
         # close any newly closed contexts
-        for context in list(reversed(self._opened_blocks)):
-            if context not in Model._open_blocks and context in self._opened_blocks:
-                close_text = self._opened_blocks[context] # save so we can delete it before adding it
-                del self._opened_blocks[context]
-                self._inplace_append(close_text)
+        for context in list(reversed(lm._opened_blocks)):
+            if context not in Model._open_blocks and context in lm._opened_blocks:
+                close_text = lm._opened_blocks[context] # save so we can delete it before adding it
+                del lm._opened_blocks[context]
+                lm._inplace_append(close_text)
 
         # apply any newly opened contexts (newly from the our perspective)
         for context in Model._open_blocks:
-            if context not in self._opened_blocks:
-                self._opened_blocks[context] = "" # mark this so we don't readd when computing the opener (even though we don't know the close text yet)
-                self += context.opener
+            if context not in lm._opened_blocks:
+                lm._opened_blocks[context] = "" # mark this so we don't readd when computing the opener (even though we don't know the close text yet)
+                lm += context.opener
                 with context_free():
-                    tmp = self + context.closer
-                close_text = tmp._state[len(self._state):] # get the new state added by calling the closer
-                self._opened_blocks[context] = close_text
+                    tmp = lm + context.closer
+                close_text = tmp._state[len(lm._state):] # get the new state added by calling the closer
+                lm._opened_blocks[context] = close_text
         
         # wrap raw string values
         if isinstance(value, str):
             is_id = False
-            lm = self.copy()
             parts = re.split(self._tag_pattern, value)
             
             # we have no embedded objects
@@ -167,15 +180,15 @@ class Model:
             return lm + partial_grammar
         
         elif isinstance(value, Null):
-            return self
+            return lm
         
         # run stateless functions (grammar nodes)
         elif isinstance(value, StatelessFunction):
-            return self.copy().run_stateless(value)
+            return lm.run_stateless(value)
         
         # run stateful functions
         else:
-            return value(self)
+            return value(lm)
     
     def endswith(self, s):
         return self._state.endswith(s)
