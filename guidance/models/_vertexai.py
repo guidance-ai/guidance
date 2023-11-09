@@ -66,7 +66,7 @@ class VertexAI(Local):
         # self._shared_state["not_running_stream"].set()
         self.max_calls = 10
         # self._shared_state["num_calls_made"] = 0
-        self.timeout = 100.1
+        self.timeout = 5.1
         # self._shared_state["last_call"] = 0
 
     def _running_stream(self):
@@ -123,9 +123,9 @@ class VertexAI(Local):
         # self._stop_event.clear()
         self._shared_state["data"] = stripped_prompt + b'<|endofprompt|>'# we start with this data
         self._shared_state["num_calls_made"] += 1
-        # self._thread = threading.Thread(target=self._start_generator_stream, args=(stripped_prompt,))
-        # self._thread.start()
-        self._start_generator_stream(stripped_prompt)
+        self._thread = threading.Thread(target=self._start_generator_stream, args=(stripped_prompt,))
+        self._thread.start()
+        # self._start_generator_stream(stripped_prompt)
     
     def _get_logits(self, token_ids):
         '''Computes the logits for the given token state.
