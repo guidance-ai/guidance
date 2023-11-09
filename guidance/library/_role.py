@@ -30,3 +30,6 @@ def assistant(text=None, **kwargs):
 
 def function(text=None, **kwargs):
     return role("function", text, **kwargs)
+
+def instruction(text=None, **kwargs):
+    return role("instruction", text, **kwargs)

@@ -57,7 +57,7 @@ class EarleyCommitParser:
         self.grammar = grammar
         self.bytes = b''
         self.state_sets = [OrderedSet()] # the list of Earley items for each byte
-        self.token_counts = [0] # used to track how many tokens have been used
+        self.token_counts = [] # used to track how many tokens have been used
         self.state_set_pos = 0
         self.shadow_pos = 0
         self._add_node(self.grammar, 0, 0.0, 1000000000)
@@ -114,16 +114,11 @@ class EarleyCommitParser:
         curr_state_set = self.state_sets[state_set_pos]
         if len(self.state_sets) == state_set_pos + 1:
             self.state_sets.append(OrderedSet())
-            self.token_counts.append(self.token_counts[-1])
+            self.token_counts.append(self.token_counts[-1] if len(self.token_counts) > 0 else 0)
         next_state_set = self.state_sets[state_set_pos + 1]
         pos = start_pos
         while len(curr_state_set) > pos:
             item = curr_state_set[pos]
-
-            # don't advance past our max token limit
-            if item.node.max_tokens <= self.token_counts[state_set_pos] - self.token_counts[item.start]:
-                pos += 1
-                continue
 
             # completion
             if item.pos == len(item.values):
@@ -137,19 +132,26 @@ class EarleyCommitParser:
                     next_state_set.clear()
                 
                 # advance all the parents that our completion impacts
+                token_span = self.token_counts[state_set_pos] - self.token_counts[item.start]
                 start_state_set = self.state_sets[item.start]
                 for start_item in start_state_set:
                     if start_item.pos < len(start_item.values) and start_item.values[start_item.pos] == item.node:
-                        if start_item.node.max_tokens > self.token_counts[state_set_pos] - self.token_counts[start_item.start]: # only advance our parent if we don't violate its max token limit
-                            curr_state_set.append(EarleyItem(
-                                start_item.node,
-                                start_item.values,
-                                start_item.pos + 1,
-                                start_item.start,
-                                start_item.log_prob + item.log_prob, # increment the log prob by the child value,
-                                start_item.hidden_start
-                            ))
-            else:
+                        
+                        if item.node.max_tokens <= token_span and any(start_item.node == v  for v in item.node.values):
+                            continue # skip advancing parents that are also children (recursion) once we are past the token limit
+
+                        curr_state_set.append(EarleyItem(
+                            start_item.node,
+                            start_item.values,
+                            start_item.pos + 1,
+                            start_item.start,
+                            start_item.log_prob + item.log_prob, # increment the log prob by the child value,
+                            start_item.hidden_start
+                        ))
+            
+            # don't advance past our max token limit
+            elif item.node.max_tokens > self.token_counts[state_set_pos] - self.token_counts[item.start]:
+
                 # scan (note we only scan forward when we have more max token headroom left)
                 next_item_node = item.values[item.pos]
                 if isinstance(next_item_node, Terminal):# and item.node.max_tokens > self.token_counts[state_set_pos] - self.token_counts[item.start]:
@@ -237,7 +239,13 @@ class EarleyCommitParser:
         # expand from this state
         self._inner_loop(item.start, len(self.state_sets[item.start]) - 1)
 
-    def mark_token(self):
+    def mark_new_token(self):
+        # TODO: we allow ourselves to go one past our max token limit when we hit a one-byte token
+        #       because we don't know if we are continuing or extending a new token when we parse
+        #       the first byte of the token. We could fix this by rerunning the inner_loop after each
+        #       token, but we skip that for now since max_tokens is not a hard garuntee anyway when you
+        #       have patterns.
+        
         self.token_counts[-1] += 1
 
     def consume_byte(self, byte, log_prob=0.0):
@@ -338,7 +346,10 @@ class EarleyCommitParser:
         if state_sets is None:
             state_sets = self.state_sets
         for i,states in enumerate(state_sets):
-            s += f"\n=== {i} ===\n"
+            s += f"\n=== {i} ==="
+            if self.state_set_pos == i:
+                s += " (state_set_pos)"
+            s += "\n"
             for state in states:
                 if isinstance(state.node, Join):
                     s += f"{state.node.name:20} -> "

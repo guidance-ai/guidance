@@ -18,9 +18,9 @@ class Local(Model):
 
         self.tokens = tokens
         self.bos_token_id = bos_token_id
-        self.bos_token = self.tokens[self.bos_token_id]
+        self.bos_token = None if self.bos_token_id is None else self.tokens[self.bos_token_id]
         self.eos_token_id = eos_token_id if eos_token_id is not None else bos_token_id
-        self.eos_token = self.tokens[self.eos_token_id]
+        self.eos_token = None if self.eos_token_id is None else self.tokens[self.eos_token_id]
 
         # build a prefix tree of the tokens
         self._token_trie = ByteTrie(tokens, np.arange(len(tokens)))
@@ -96,7 +96,7 @@ class Local(Model):
         prompt = bytes(prompt, encoding="utf8")
 
         # add the beginning of sequence token if needed
-        if ensure_bos_token and not prompt.startswith(self.bos_token):
+        if ensure_bos_token and self.bos_token is not None and not prompt.startswith(self.bos_token):
             prompt = self.bos_token + prompt
         
         # run a simple tokenizer (that does not use a grammar) on the prefix for better performance
@@ -124,6 +124,9 @@ class Local(Model):
 
             # note where we are starting for this token
             start_pos = parser.pos
+
+            # let the parser know that we have advanced another token (used ofr tracking max token limits)
+            parser.mark_new_token()
 
             # walk down the trie as far as possible before computing the logits
             retry_token_gen = False
@@ -372,7 +375,6 @@ class Local(Model):
                     last_token_count = token_count
                     hidden_count = 0
                     token_count += 1 # note we only update this for tokens that emit non-hidden content
-                    parser.mark_token() # let the parser know that we have advanced another token
                 else:
                     hidden_count -= len(new_bytes)
 
@@ -383,10 +385,6 @@ class Local(Model):
                     token_byte_positions.append(len(sampled_token))
                 else:
                     token_byte_positions.append(token_byte_positions[-1] + len(sampled_token))
-    
-        # self._last_token_ids = token_ids
-        # self._last_token_byte_positions = token_byte_positions
-        # self._last_byte_string = parser.bytes
 
 def _record_captures(item, data, log_prob_data, byte_data, byte_pos):
     
