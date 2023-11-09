@@ -528,22 +528,22 @@ def with_temperature(value, temperature):
     Note that if the grammar passed to us already has some portions with a temperature
     setting in place, those setting will not be overridden.
     '''
-    _re_with_temperature(value, temperature)
+    _re_with_temperature(value, temperature, {})
     return value
 
-def _re_with_temperature(grammar, temperature, visited_set={}):
+def _re_with_temperature(grammar, temperature, visited_set):
     
     # don't go down the same path twice
     if grammar in visited_set:
         return
     visited_set[grammar] = True
 
-    if getattr(grammar, "temperature", 100000000) > temperature:
-        if isinstance(grammar, Terminal) and grammar.temperature < 0: # only need to set temp for terminals
-            grammar.temperature = temperature
-        if hasattr(grammar, "values"):
-            for g in grammar.values:
-                _re_with_temperature(g, temperature)
+    # if getattr(grammar, "temperature", 100000000) > temperature:
+    if isinstance(grammar, Terminal) and grammar.temperature < 0: # only need to set temp for terminals
+        grammar.temperature = temperature
+    elif getattr(grammar, "temperature", 100000000) > temperature and hasattr(grammar, "values"):
+        for g in grammar.values:
+            _re_with_temperature(g, temperature, visited_set)
 
 def model_variable(name):
     return ModelVariable(name)
