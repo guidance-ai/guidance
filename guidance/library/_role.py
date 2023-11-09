@@ -3,6 +3,8 @@ from ._block import block
 
 @guidance
 def role_opener(lm, role_name, **kwargs):
+    if not hasattr(lm, "get_role_start"):
+        raise Exception(f"You need to use a chat model in order the use role blocks like `with {role_name}():`! Perhaps you meant to use the {type(lm).__name__}Chat class?")
     lm += f"<||_html:<div style='display: flex; border-bottom: 1px solid rgba(127, 127, 127, 0.2); align-items: center;'><div style='flex: 0 0 80px; opacity: 0.5;'>{role_name.lower()}</div><div style='flex-grow: 1; padding: 5px; padding-top: 10px; padding-bottom: 10px; margin-top: 0px; white-space: pre-wrap; margin-bottom: 0px;'>_||>"
     lm += "<||_#NODISP_||>" + lm.get_role_start(role_name, **kwargs) + "<||_/NODISP_||>"
     return lm

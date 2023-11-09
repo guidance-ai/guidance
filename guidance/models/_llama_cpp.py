@@ -122,3 +122,31 @@ class LlamaCpp(Local):
 class LlamaCppChat(LlamaCpp, Chat):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+    def get_role_start(self, role_name, **kwargs):
+        if role_name == "user":
+
+            # if we follow an auto-nested system role then we are done
+            if self._current_prompt().endswith("\n<</SYS>>\n\n"):
+                return ""
+            else:
+                return "[INST] "
+        elif role_name == "assistant":
+            return " "
+        elif role_name == "system":
+            
+            # check if we are already embedded at the top of a user role
+            if self._current_prompt().endswith("[INST] "):
+                return "<<SYS>>\n"
+
+            # if not then we auto nest ourselves
+            else:
+                return "[INST] <<SYS>>\n"
+    
+    def get_role_end(self, role_name=None):
+        if role_name == "user":
+            return " [/INST]"
+        elif role_name == "assistant":
+            return " "
+        elif role_name == "system":
+            return "\n<</SYS>>\n\n"

@@ -59,12 +59,6 @@ def _decorator(f, *, stateless, cache, dedent, model):
         # we cache if requested
         if cache:
             f = functools.cache(f)
-        
-        # or by default we cache functions that only take the model and no other args 
-        # elif cache is None:
-        #     argspec = inspect.getfullargspec(f)
-        #     if len(argspec.args) == 1 and not bool(argspec.varargs) and not bool(argspec.varkw) and len(argspec.kwonlyargs) == 0:
-        #         f = functools.cache(f)
 
         @functools.wraps(f)
         def wrapped(*args, **kwargs):
