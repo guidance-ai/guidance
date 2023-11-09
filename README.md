@@ -724,3 +724,6 @@ See a more elaborate example [here](notebooks/chat.ipynb).
 
 ### Using tools
 See the 'Using a search API' example in [this notebook](notebooks/chat.ipynb).
+
+### Custom cache directory
+We can set custom directory for caching with the `XDG_CACHE_HOME` environment variable.
