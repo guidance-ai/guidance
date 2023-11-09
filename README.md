@@ -91,6 +91,15 @@ from guidance import models
 lm = models.Transformers(model_name_or_path)
 ```
 
+### Vertex
+Todo @Scott: talk about how constrained generation is different for these models
+
+### OpenAI
+Todo @Scott
+
+## Example notebooks
+- todo
+
 ## Basic generation
 An `lm` object is immutable, so you change it by creating new copies of it. By default, when you append things to `lm`, it creates a copy, e.g.:
 ```python
@@ -113,7 +122,7 @@ lm = llama2 + 'I like to play with my ' + gen(stop=' ') + ' in' + gen(stop=['\n'
 ```
 > I like to play with my friends in the park
 
-## Constrained Generatoin
+## Constrained Generation
 ### Select (basic)
 `select` constrains generation to a set of options:
 ```python
@@ -294,15 +303,16 @@ While `constrained_ner(input)` **is** a grammar that constrains the model genera
 
 
 ## Stateful control + generation
-This is in outline mode for now, will write actual text later:
+### State in immutable objects
+Whenever you do `lm + grammar` or `lm + gen`, `lm + select`, etc, you return an lm object with additional state. For example:
 
-- Whenever you do `lm + grammar` or `lm + gen`, `lm + select`, etc, you return an lm object with additional state. For example:
 ```python
 lm = llama2 + 'This is a prompt' + gen(name='test', max_tokens=10)
 lm += select(['this', 'that'], name='test2')
 lm['test'], lm['test2']
 ````
-- The guidance decorator is `@guidance(stateless=False)` by default, meaning that a function with this decorator depends on the lm state to execute (either prior state or state generated within the function). For example:
+### Stateful `guidance` functions
+The guidance decorator is `@guidance(stateless=False)` by default, meaning that a function with this decorator depends on the lm state to execute (either prior state or state generated within the function). For example:
 ```python
 @guidance(stateless=False)
 def test(lm):
@@ -311,22 +321,160 @@ def test(lm):
         lm += 'Scott'
     else:
         lm += 'Not Scott'
+    return lm
 llama2 + test()
 ```
 > Should I say "Scott"?
 > yes
 > Scott
 
-- A big advantage of stateful control is that you don't have to write intermediate parsers. For example, let's say we have 
+### Example: ReAct
+A big advantage of stateful control is that you don't have to write any intermediate parsers, and adding follow-up 'prompting' is easy, even if the follow up depends on what the model generates.
+For example, let's say we want to implement the first example of ReAct prompt in [this](https://www.promptingguide.ai/techniques/react), and let's say the valid acts are only 'Search' or 'Finish'. We might write it like this:
+```python
+@guidance
+def react_prompt_example(lm, question, max_rounds=10):
+    lm += f'Question: {question}\n'
+    i = 1
+    while True:
+        lm += f'Thought {i}: ' + gen(suffix='\n')
+        lm += f'Act {i}: ' + select(['Search', 'Finish'], name='act') + '[' + gen(name='arg', suffix=']') + '\n'
+        if lm['act'] == 'Finish' or i == max_rounds:
+            break
+        else:
+            lm += f'Observation {i}: ' + search(lm['arg']) + '\n'
+        i += 1
+    return lm
+```
+Notice how we don't have to write a parser for Act and argument and hope that the model generates something valid: we enforce it. Notice also that the loop only stops once the model chooses to act with 'Finish' (or once we hit a maximum number of rounds).
 
+### Example: Changing intermediate step of a Chat session
+We can also hide or change some of what the model generates. For example, below we get a Chat model (notice we use special `role` blocks) to name some experts to answer a question, but we always remove 'Ferriss' from the list if he is mentioned:
+```python
+from guidance import user, system, assistant
+lm = llama2
+query = 'How can I be more productive?'
+with system():
+    lm += 'You are a helpful and terse assistant.'
+with user():
+    lm += f'I want a response to the following question:\n{query}\n'
+    lm += 'Name 3 world-class experts (past or present) who would be great at answering this.'
+with assistant():
+    temp_lm = lm
+    for i in range(1, 4):
+        # This regex only allows strings that look like names (where every word is capitalized)
+        temp_lm += f'{i}. ' + gen(regex='([A-Z][a-z]*\s*)+', suffix='\n', name='experts', list_append=True)
+    experts = [x for x in temp_lm['experts'] if 'Ferriss' not in x]
+    # Notice that even if the model generates 'Ferriss' above, it doesn't get added to `lm`, only to `temp_lm`
+    lm += ', '.join(experts)
+with user():
+    lm += 'Great, now please answer the question as if these experts had collaborated in writing a joint anonymous answer.'
+with assistant():
+    lm += gen(max_tokens=100)
+```
+> Screenshot here
 
+### Automatic interleaving of control and generation: tool use
+Tool use is a common case of stateful control. To make it easy to do so, `gen` calls take `tools` as an optional argument, where each tool is defined by (1) a grammar that triggers its call and captures the arguments (if any), and (2) the actual tool call. Then, as generation unrolls, whenever the model generates something that matches the grammar of a tool call, it (1) stops generation, (2) calls the tool (which can append whatever it wants to the LM session), and (3) continues generation.
 
+For example, here is how we might implement a calculator tool, leveraging our `expression` grammar above:
+```python
+from guidance import capture, Tool
+@guidance(stateless=True)
+def calculator_call(lm):
+    # capture just 'names' the expression, to be saved in the LM state
+    return 'calculator(' + capture(expression(), 'tool_args') + ')'
 
-## Examples
+@guidance
+def calculator(lm):
+    expression = lm['tool_args']
+    # You typically don't want to run eval directly for save reasons, but here we are guaranteed to only have mathematical expressions
+    lm += f' = {eval(expression)}'
+    return lm
+calculator_tool = Tool(calculator_call(), calculator)
+llama2 + 'Here are five expressions:\ncalculator(3 *3) = 33\ncalculator(2 + 1 * 3) = 5\n'  + gen(max_tokens=30, tools=[calculator_tool], stop='\n\n')
+```
+> Here are five expressions:  
+> calculator(3 *3) = 33  
+> calculator(2 + 1 * 3) = 5  
+> calculator(10 / 2) = 5.0  
+> calculator(10 - 1) = 9  
+> calculator(10 * 2) = 20  
 
-- Cool example 1
+Notice that the calculator is just called seamlessly during generation. Here is a more realistic exampe of the model solving a gsm8k question:
 
-- Cool example 2
+```python
+@guidance
+def math_with_calc(lm, question):
+    # One-shot example
+    lm += '''Question: John starts with 2 balls. He then quintupled his number of balls. Then he lost half of them. He then gave 3 to his brother. How many does he have left?
+Reasoning:
+1. He quintupled his balls, so he has calculator(2 * 5) = 10 balls.
+1. He lost half, he has calculator(10 / 2) = 5 balls.
+3. He gave 3 to his brother, so he has calculator(5 - 3) = 2 balls.
+Answer: 2\n\n'''
+    lm += f'Question: {question}\n'
+    lm += 'Reasoning: ' + gen(max_tokens=200, tools=[calculator_tool], stop='Answer')
+    # Only numbers or commas
+    lm += 'Answer: ' + gen(regex='[-\d,]+')
+    return lm
+
+question = '''Janet’s ducks lay 16 eggs per day. She eats three for breakfast every morning and bakes muffins for her friends every day with four. She sells the remainder at the farmers' market daily for $2 per fresh duck egg. How much in dollars does she make every day at the farmers' market?'''
+llama2 + math_with_calc(question)
+```
+> Question: Janet’s ducks lay 16 eggs per day. She eats three for breakfast every morning and bakes muffins for her friends every day with four. She sells the remainder at the farmers' market daily for $2 per fresh duck egg. How much in dollars does she make every day at the farmers' market?
+> Reasoning:   
+> 1. She lays 16 eggs per day.  
+> 2. She eats 3 for breakfast, so she has calculator(16 - 3) = 13 eggs left.  
+> 3. She bakes 4 muffins, so she has calculator(13 - 4) = 9 eggs left.  
+> 4. She sell the remainder at the farmers' market for $2 per egg, so she makes calculator(9 * 2) = 18 dollars per day.  
+> Answer: 18
+
+You can also initialize a `Tool` with any `@guidance`-decorated function, and the default call grammar will be like a python call. Here is an example of using multiple such tools in the same `gen` call:
+```python
+@guidance
+def say_scott(lm, n):
+    lm += '\n'
+    for _ in range(int(n)):
+        lm += 'Scott\n'
+    return lm
+
+@guidance
+def say_marco(lm, n):
+    lm += '\n'
+    for _ in range(int(n)):
+        lm += 'marco\n'
+    return lm
+
+tools = [Tool(callable=say_scott), Tool(callable=say_marco)]
+llama2 + 'I am going to call say_scott and say_marco a few times:\n' + 'say_scott(1)\nScott\n' + gen(max_tokens=20, tools=tools)
+```
+> I am going to call say_scott and say_marco a few times:  
+> say_scott(1)  
+> Scott  
+>   
+> say_marco(1)  
+> marco  
+>   
+> say_scott(2)  
+> Scott  
+> Scott  
+>   
+> say_marco(2)  
+> marco  
+> marco  
+
+## Interface stuff
+- Jupyter notebook
+- Streaming
+
+## Text, not tokens
+- Brief explanation of token healing
+- Note how token healing matters a lot for interleaving, example of uncommited token
+
+## Fast
+- Refer back to token-by-token tagging and how it would be impractical with chaining
+- Acceleration example
 
 ------------------
 OLD BELOW
