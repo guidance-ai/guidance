@@ -199,3 +199,8 @@ def test_list_append_in_grammar():
     lm += gen("my_list", list_append=True, stop="a") + "a" + gen("my_list", list_append=True, stop="a") + "a" + gen("my_list", list_append=True, stop="a")
     assert isinstance(lm['my_list'], list)
     assert len(lm['my_list']) == 3
+
+def test_one_char_suffix_and_regex():
+    model = models.LocalMock(b"this is\na test")
+    model += gen(regex=".*", suffix="\n", max_tokens=20)
+    assert str(model) == "this is\n"
