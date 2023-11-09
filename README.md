@@ -38,7 +38,7 @@ lm['sentences']
 **Important features**: 
 1. **Stateful control + generation**:  `guidance` lets users _interleave_ generation, prompting, and logical control into a single continuous flow matching how the language model actually processes the text. In the example above, notice how the LM selected `n=2`, which we then used to loop and add `1.`, `2.` to the prompt and generate each sentence in turn. The whole thing is executed in a single LM decoding loop, and there is no need to write a parser for the output.
 
-2. **Constrained generation**: In the example above, we generated `n` according to a regular expression. In addition to that, `guidance` makes it easy for the user to constrain generation to a set of options (e.g. `select([option1, option2...])`, or according to any stateless guidance grammar (which is a superset of context free grammars). Coupled with the point above, this allows for really fine-grained control of the generation loop.
+2. **Constrained generation**: In the example above, we generated `n` according to a regular expression. In addition to that, `guidance` makes it easy for the user to constrain generation to a set of options (e.g. `select([option1, option2...])`, or according to any stateless guidance grammar (which is a superset of context-free grammars). Coupled with the point above, this allows for really fine-grained control of the generation loop.
 
 3. **A nice developer-centric interface**: `guidance` programs are basically python programs with a lot of additional LM functionality, such as:
     - Immutable `lm` objects that make composition easy
@@ -178,7 +178,7 @@ lm = llama2 + '19, 18,' + gen(max_tokens=50, stop_regex='[^\d]7[^\d]')
 ```
 > 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8,
 
-### Context free grammars
+### Context-free grammars
 `guidance` exposes a variety of operators that make it easy to define CFGs to constrain generation. For example, we can use the `select` operator (it accepts CFGs as options), `zero_or_more` and `one_or_more` to define a grammar for mathematical expressions:
 ```python
 import guidance
