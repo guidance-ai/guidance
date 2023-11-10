@@ -10,8 +10,11 @@
 1. **Pure, beautiful python** with additional LM functionality. E.g. here is [basic generation](#basic-generation):
 ```python
 from guidance import models, gen
-# Could be transformers, LlamaCpp, VertexAI, OpenAI...
-llama2 = models.LlamaCpp(path, n_gpu_layers=-1)
+
+# load a model (could be Transformers, LlamaCpp, VertexAI, OpenAI...)
+llama2 = models.LlamaCpp(path) 
+
+# append to the model
 lama2 + f'Do you want a joke or a poem? ' + gen(stop='.')
 ```
 > Do you want a joke or a poem? I'll give you a poem
