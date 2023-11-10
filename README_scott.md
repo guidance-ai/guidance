@@ -9,8 +9,9 @@
 
 - [x] *[Stateful control + generation](test)*. Interleave generation, prompting, and logical control into a single continuous flow matching how the language model actually processes the text.
 - [x] [Guidance grammars](test2). Control and parse model generations using a superset of traditional context free grammars that is tailored for generative control.
-- [x] [Pure, beautiful, python](test2). Using lightweight immutable model objects, f-strings, and context blocks you can now define templates and programs beautifully in native python without ever worrying about separate "template code".
-- [x] [Pure, beautiful, python](test2). Using lightweight immutable model objects, f-strings, and context blocks you can now cleanly define templates and programs in native python without ever worrying about separate "template code".
+- [x] [Pure, beautiful, python](test2). Use lightweight immutable model objects, f-strings, and context blocks to cleanly define templates and programs in native python without ever worrying about separate "template code".
+- [x] [Interactive development](test2). Develop with streaming playground-like interactivity while retaining the full power of python in standard Jupyter/VSCode/CoLab notebooks.
+- [x] [Token healing](test2). Develop with streaming playground-like interactivity while retaining the full power of python in standard Jupyter/VSCode/CoLab notebooks.
 
 
 
