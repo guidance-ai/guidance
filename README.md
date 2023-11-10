@@ -48,7 +48,11 @@ else:
 5. **Abstract chat interface** that uses the right special tokens for any chat model:
 ```python
 from guidance import user, assistant
+
+# load a chat model
 chat_lm = models.LlamaCppChat(model_path, n_gpu_layers=-1)
+
+# wrap with chat block contexts
 with user():
     lm = chat_lm + 'Do you want a joke or a poem?'
 with assistant():
