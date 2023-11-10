@@ -11,10 +11,9 @@ pip install guidance
 ```
 
 ## What is this?
-**`guidance`** is a programming paradigm that offers superior control and efficiency compared to conventional prompting and chaining.  
-It allows users to constrain generation (e.g. with regex and CFGs) as well as to interleave control (conditional, loops) and generation seamlessly. Here is a short list of features:
+**`guidance`** is a programming paradigm that offers superior control and efficiency compared to conventional prompting and chaining. It allows users to constrain generation (e.g. with regex and CFGs) as well as to interleave control (conditional, loops) and generation seamlessly. Here is a short list of features:
 
-1. **Pure, beautiful python** with additional LM functionality. E.g. here is basic generation:
+1. **Pure, beautiful python** with additional LM functionality. E.g. here is [basic generation](#basic-generation):
 ```python
 from guidance import models, gen
 # Could be transformers, LlamaCpp, VertexAI, OpenAI...
