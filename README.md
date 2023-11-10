@@ -5,6 +5,11 @@
 </picture></div>
 <br/>
 
+## Install
+```
+pip install guidance
+```
+
 ## What is this?
 **`guidance`** is a programming paradigm that offers superior control and efficiency compared to conventional prompting and chaining.  
 It features:
@@ -104,10 +109,6 @@ TODO: change this image to new version with the example above.
 13. **High compatibility:** works with Transformers, llamacpp, VertexAI, OpenAI. Users can write one guidance program and execute it on many backends (note that the most powerful features require enpoint integration, and for now work best with transformers and llamacpp).
 
 
-## Install
-```
-pip install guidance
-```
 
 ## Loading models
 ### llama-cpp
