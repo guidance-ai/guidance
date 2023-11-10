@@ -5,7 +5,7 @@
 </picture></div>
 <br/>
 
-**`guidance`** is a programming paradigm that offers superior control and efficiency compared to conventional prompting and chaining. It allows users to constrain generation (e.g. with regex and CFGs) as well as to interleave control (conditional, loops) and generation seamlessly. Get it with `pip install guidance`, and then explore its features:
+**`guidance`** is a programming paradigm that offers superior control and efficiency compared to conventional prompting and chaining. It allows users to constrain generation (e.g. with regex and CFGs) as well as to interleave control (conditional, loops) and generation seamlessly. Here are some important features: 
 
 1. **Pure, beautiful python** with additional LM functionality. E.g. here is [basic generation](#basic-generation):
 ```python
@@ -102,7 +102,10 @@ TODO: change this image to new version with the example above.
 12. **High compatibility:** works with Transformers, llamacpp, VertexAI, OpenAI. Users can write one guidance program and execute it on many backends (note that the most powerful features require enpoint integration, and for now work best with transformers and llamacpp).
 
 
-
+## Install
+```bash
+pip install guidance
+```
 ## Loading models
 ### llama-cpp
 Install the python bindings:
