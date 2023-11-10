@@ -11,7 +11,7 @@
 ```python
 from guidance import models, gen
 
-# load a model (could be Transformers, LlamaCpp, VertexAI, OpenAI...)
+# load a model (could also be Transformers, VertexAI, OpenAI...)
 llama2 = models.LlamaCpp(path) 
 
 # append text or generations to the model
@@ -57,7 +57,7 @@ else:
 ```python
 from guidance import user, assistant
 
-# load a chat model
+# load a chat model (could also be TransformersChat, VertexAIChat, OpenAIChat...)
 chat_lm = models.LlamaCppChat(path)
 
 # wrap with chat block contexts
