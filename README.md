@@ -36,6 +36,7 @@ Okay, here is a one-liner: "{gen(stop='"')}"
 
 4. [**Stateful control + generation:**](#stateful-control--generation) easy to interleave prompting / logic / generation, no need for intermediate parsers:
 ```python
+# capture a selection under the name 'answer'
 lm = llama2 + f"Do you want a joke or a poem? A {select(['joke', 'poem'], name='answer')}.\n"
 if lm["answer"] == "joke":
     lm += f"Here is a one-line joke about cats: " + gen('output', stop='\n')
