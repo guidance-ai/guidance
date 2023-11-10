@@ -403,12 +403,15 @@ with assistant():
     temp_lm = lm
     for i in range(1, 4):
         # This regex only allows strings that look like names (where every word is capitalized)
-        temp_lm += f'{i}. ' + gen(regex='([A-Z][a-z]*\s*)+', suffix='\n', name='experts', list_append=True)
+        # list_append appends the result to a list
+        temp_lm += f'{i}. ' + gen(regex='([A-Z][a-z]*\s*)+', suffix='\n',
+                                  name='experts', list_append=True)
     experts = [x for x in temp_lm['experts'] if 'Ferriss' not in x]
-    # Notice that even if the model generates 'Ferriss' above, it doesn't get added to `lm`, only to `temp_lm`
+    # Notice that even if the model generates 'Ferriss' above,
+    # it doesn't get added to `lm`, only to `temp_lm`
     lm += ', '.join(experts)
 with user():
-    lm += 'Great, now please answer the question as if these experts had collaborated in writing a joint anonymous answer.'
+    lm += 'Please answer the question as if these experts had collaborated in writing an anonymous answer.'
 with assistant():
     lm += gen(max_tokens=100)
 ```
