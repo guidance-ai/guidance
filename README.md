@@ -137,26 +137,20 @@ lm = llama2 + 'I like the color ' + select(['red', 'blue', 'green'])
 Unconstrained:
 
 ```python
-lm = llama2 + 'Question: Luke has ten balls. If he gives three to his brother, how many balls does he have left?\nAnswer: ' + gen(stop='\n')
+lm = llama2 + 'Question: Luke has ten balls. He gives three to his brother.\n'
+lm += 'How many balls does he have left?\n'
+lm += 'Answer: ' + gen(stop='\n')
 ```
-> Answer: None. He gave them all to his brother.
-
-```python
-lm = llama2 + 'Question: Luke has ten balls. If he gives one to his brother, how many balls does he have left?\nAnswer: ' + gen(stop='\n')
-```
-> Answer: Nine.
+> Answer: Seven.
 
 Constrained by regex:
 
 ```python
-lm = llama2 + 'Question: Luke has ten balls. If he gives three to his brother, how many balls does he have left?\nAnswer: ' + gen(pattern='\d+')
+lm = llama2 + 'Question: Luke has ten balls. He gives three to his brother.\n'
+lm += 'How many balls does he have left?\n'
+lm += 'Answer: ' + gen(regex='\d+')
 ```
 > Answer: 7
-
-```python
-lm = llama2 + 'Question: Luke has ten balls. If he gives one to his brother, how many balls does he have left?\nAnswer: ' + gen(stop='\n')
-```
-> Answer: 9
 
 
 #### Regex as stopping criterion
@@ -477,10 +471,6 @@ llama2 + 'I am going to call say_scott and say_marco a few times:\n' + 'say_scot
 - Acceleration example
 
 ------------------
-OLD BELOW
-
-
-
 <!--It expands the API of language models so you can craft rich output structure, design precise tool use, create multi-agent interactions, and much more all while using clear code and maximum inference efficiency.-->
 <b>Guidance</b> enables you to control modern language models more effectively and efficiently than traditional prompting or chaining. Guidance programs allow you to interleave generation, prompting, and logical control into a single  Simple output structures like [Chain of Thought](https://arxiv.org/abs/2201.11903) and its many variants (e.g., [ART](https://arxiv.org/abs/2303.09014), [Auto-CoT](https://arxiv.org/abs/2210.03493), etc.) have been shown to improve LLM performance. The advent of more powerful LLMs like [GPT-4](https://openai.com/research/gpt-4) allows for even richer structure, and `guidance` makes that structure easier and cheaper.
 
