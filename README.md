@@ -252,22 +252,22 @@ lm += 'Equivalent arithmetic expression: ' + grammar + '\n'
 ```
 > Equivalent arithmetic expression: 106 - 36
 
-Grammars are very easy to compose. For example, let's say we want a grammar that generates a mathematical expression **or** a regular expression with the word 'weird' followed by two digits. Creating this (nonsense) grammar is easy:
+Grammars are very easy to compose. For example, let's say we want a grammar that generates either a mathematical expression or an expression followed by a solution followed by another expression. Creating this grammar is easy:
 
 ```python
 from guidance import regex
-grammar = select([expression(), regex('weird \d\d')])
+grammar = select([expression(), expression() +  regex(' = \d+; ') + expression()])
 ```
 We can generate according to it:
 ```python
-lm = llama2 + 'Here is a math expression for two plus two: ' + grammar
+llama2 + 'Here is a math expression for two plus two: ' + grammar
 ```
 > Here is a math expression for two plus two: 2 + 2
 
 ```python
-lm = llama2 + 'What is weird? What is ' + grammar
+llama2 + '2 + 2 = 4; 3+3\n' + grammar
 ```
-> What is weird? What is weird 20
+> 2 + 2 = 4; 3+3
 
 Even if you don't like thinking in terms of recursive grammars, this formalism makes it easy to constrain generation. For example, let's say we have the following one-shot prompt:
 ```python
