@@ -12,7 +12,7 @@ pip install guidance
 
 ## What is this?
 **`guidance`** is a programming paradigm that offers superior control and efficiency compared to conventional prompting and chaining.  
-It features:
+It allows users to constrain generation (e.g. with regex and CFGs) as well as to interleave control (conditional, loops) and generation seamlessly. Here is a short list of features:
 
 1. **Pure, beautiful python** with additional LM functionality. E.g. here is basic generation:
 ```python
@@ -100,13 +100,13 @@ llama2 + 'add_one(1) = 2\n' + gen(max_tokens=15, tools=[add_one, add_two])
 > add_three(1) = 4  
 > add_one(2) = 3  
 
-10. **Speed**: In contrast to chaining, `guidance` programs are the equivalent of a single LLM call. More so, whatever non-generated text that gets appended is batched, so that `guidance` programs are **faster** than having the LM generate intermediate text when you have a set structure.
-11. **Token healing**: Users deal with text (or bytes) rather than tokens, and thus don't have to worry about [perverse token boundaries issues](https://towardsdatascience.com/the-art-of-prompt-design-prompt-boundaries-and-token-healing-3b2448b0be38) such as 'prompt ending in whitespace'.
-12. **Streaming support**, also integrated with jupyter notebooks:
+9. **Speed**: In contrast to chaining, `guidance` programs are the equivalent of a single LLM call. More so, whatever non-generated text that gets appended is batched, so that `guidance` programs are **faster** than having the LM generate intermediate text when you have a set structure.
+10. **Token healing**: Users deal with text (or bytes) rather than tokens, and thus don't have to worry about [perverse token boundaries issues](https://towardsdatascience.com/the-art-of-prompt-design-prompt-boundaries-and-token-healing-3b2448b0be38) such as 'prompt ending in whitespace'.
+11. **Streaming support**, also integrated with jupyter notebooks:
 <img src="docs/figures/proverb_animation.gif" width="404">  
 TODO: change this image to new version with the example above.
 
-13. **High compatibility:** works with Transformers, llamacpp, VertexAI, OpenAI. Users can write one guidance program and execute it on many backends (note that the most powerful features require enpoint integration, and for now work best with transformers and llamacpp).
+12. **High compatibility:** works with Transformers, llamacpp, VertexAI, OpenAI. Users can write one guidance program and execute it on many backends (note that the most powerful features require enpoint integration, and for now work best with transformers and llamacpp).
 
 
 
