@@ -41,7 +41,7 @@ Okay, here is a one-liner: "{gen(stop='"')}"
 
 4. [**Stateful control + generation**](#stateful-control--generation) makes it easy to interleave prompting / logic / generation, no need for intermediate parsers:
 ```python
-# capture our selection under the name 'answer'
+# capture a selection under the name 'answer'
 lm = llama2 + f"Do you want a joke or a poem? A {select(['joke', 'poem'], name='answer')}.\n"
 
 # make a choice based on the model's previous selection
