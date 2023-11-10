@@ -176,11 +176,12 @@ lm = llama2 + '19, 18,' + gen(max_tokens=50, stop_regex='[^\d]7[^\d]')
 `guidance` exposes a variety of operators that make it easy to define CFGs to constrain generation. For example, we can use the `select` operator (it accepts CFGs as options), `zero_or_more` and `one_or_more` to define a grammar for mathematical expressions:
 ```python
 import guidance
-from guidance import select, zero_or_more, one_or_more
+from guidance import one_or_more, select, zero_or_more
 # stateless=True indicates this function does not depend on LLM generations
 @guidance(stateless=True)
 def number(lm):
     n = one_or_more(select(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']))
+    # Allow for negative or positive numbers
     return select(['-' + n, n])
 
 @guidance(stateless=True)
@@ -189,6 +190,10 @@ def operator(lm):
 
 @guidance(stateless=True)
 def expression(lm):
+    # Either
+    # 1. A number (terminal)
+    # 2. two expressions with an operator and optional whitespace
+    # 3. An expression with parentheses around it
     return select([
         number(),
         expression() + zero_or_more(' ') +  operator() + zero_or_more(' ') +  expression(),
