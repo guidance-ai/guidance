@@ -58,7 +58,7 @@ else:
 from guidance import user, assistant
 
 # load a chat model
-chat_lm = models.LlamaCppChat(model_path, n_gpu_layers=-1)
+chat_lm = models.LlamaCppChat(path)
 
 # wrap with chat block contexts
 with user():
