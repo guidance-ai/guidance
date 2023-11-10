@@ -10,20 +10,15 @@
 1. **Pure, beautiful python** with additional LM functionality. E.g. here is [basic generation](#basic-generation):
 ```python
 from guidance import models, gen
-
-# load a model (could be Transformers, LlamaCpp, VertexAI, OpenAI...)
-llama2 = models.LlamaCpp(path) 
-
-# append text or generations to the model
-llama2 + f'Do you want a joke or a poem? ' + gen(stop='.')
+# Could be transformers, LlamaCpp, VertexAI, OpenAI...
+llama2 = models.LlamaCpp(path, n_gpu_layers=-1)
+lama2 + f'Do you want a joke or a poem? ' + gen(stop='.')
 ```
 > Do you want a joke or a poem? I'll give you a poem
 
-2. [**Constrained generation**](#constrained-generation) with [selects](#select-basic), [regular expressions](regular-expressions), and [context-free grammars](context-free-grammars).
+2. [**Constrained generation**](#constrained-generation) with [selects](#select-basic), [regular expressions](regular-expressions), and [context-free grammars](context-free-grammars). E.g. here is a simple select:
 ```python
 from guidance import select
-
-# a simple select between two options
 llama2 + f'Do you want a joke or a poem? A ' + select(['joke', 'poem'])
 ```
 > Do you want a joke or a poem? A poem
@@ -39,12 +34,9 @@ Okay, here is a one-liner: "{gen(stop='"')}"
 > Okay, here is a one-liner: "I'm a poet, and I know it."
 
 
-4. [**Stateful control + generation**](#stateful-control--generation) makes it easy to interleave prompting / logic / generation, no need for intermediate parsers:
+4. [**Stateful control + generation:**](#stateful-control--generation) easy to interleave prompting / logic / generation, no need for intermediate parsers:
 ```python
-# capture our selection under the name 'answer'
 lm = llama2 + f"Do you want a joke or a poem? A {select(['joke', 'poem'], name='answer')}.\n"
-
-# make a choice based on the model's previous selection
 if lm["answer"] == "joke":
     lm += f"Here is a one-line joke about cats: " + gen('output', stop='\n')
 else:
@@ -53,17 +45,12 @@ else:
 > Do you want a joke or a poem? A poem.  
 > Here is a one-line poem about dogs: “Dogs are the best.”
 
-5. **Abstract chat interface** that uses the correct special tokens for any chat model:
+5. **Abstract chat interface** that uses the right special tokens for any chat model:
 ```python
 from guidance import user, assistant
-
-# load a chat model
 chat_lm = models.LlamaCppChat(model_path, n_gpu_layers=-1)
-
-# wrap with chat block contexts
 with user():
     lm = chat_lm + 'Do you want a joke or a poem?'
-
 with assistant():
     lm += f"A {select(['joke', 'poem'])}."`
 ```
@@ -72,30 +59,19 @@ with assistant():
 ```python
 @guidance
 def one_line_thing(lm, thing, topic):
-
-    # update the incoming model
     lm += f'Here is a one-line {thing} about {topic}: ' + gen(stop='\n')
+    return lm
 
-    # return our updated model
-    return lm 
-
-# pick either a joke or a poem
 lm = llama2 + f"Do you want a joke or a poem? A {select(['joke', 'poem'], name='thing')}.\n"
-
-# call our guidance function
 lm += one_line_thing(lm['thing'], 'cats')
 ```
 > Do you want a joke or a poem? A poem.  
 > Here is a one-line poem about cats: “Cats are the best.”
 
-7. **A library of pre-built components**, e.g. substring:
+7. **A library of such components**, e.g. substring:
 ```python
 from guidance import substring
-
-# define a set of possible statements
 text = 'guidance is awesome. guidance is so great. guidance is the best thing since sliced bread.'
-
-# force the model to make an exact quote
 llama2 + f'Here is a true statement about the guidance library: "{substring(text)}"'
 ```
 > Here is a true statement about the guidance library: "the best thing since sliced bread."
@@ -368,7 +344,7 @@ Whenever you do `lm + grammar` or `lm + gen`, `lm + select`, etc, you return an 
 lm = llama2 + 'This is a prompt' + gen(name='test', max_tokens=10)
 lm += select(['this', 'that'], name='test2')
 lm['test'], lm['test2']
-````
+```
 ### Stateful `guidance` functions
 The guidance decorator is `@guidance(stateless=False)` by default, meaning that a function with this decorator depends on the lm state to execute (either prior state or state generated within the function). For example:
 ```python
@@ -396,7 +372,8 @@ def react_prompt_example(lm, question, max_rounds=10):
     i = 1
     while True:
         lm += f'Thought {i}: ' + gen(suffix='\n')
-        lm += f'Act {i}: ' + select(['Search', 'Finish'], name='act') + '[' + gen(name='arg', suffix=']') + '\n'
+        lm += f'Act {i}: ' + select(['Search', 'Finish'], name='act') 
+        lm += '[' + gen(name='arg', suffix=']') + '\n'
         if lm['act'] == 'Finish' or i == max_rounds:
             break
         else:
