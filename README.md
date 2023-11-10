@@ -53,12 +53,17 @@ else:
 > Do you want a joke or a poem? A poem.  
 > Here is a one-line poem about dogs: “Dogs are the best.”
 
-5. **Abstract chat interface** that uses the right special tokens for any chat model:
+5. **Abstract chat interface** that uses the correct special tokens for any chat model:
 ```python
 from guidance import user, assistant
+
+# load a chat model
 chat_lm = models.LlamaCppChat(model_path, n_gpu_layers=-1)
+
+# wrap with chat block contexts
 with user():
     lm = chat_lm + 'Do you want a joke or a poem?'
+
 with assistant():
     lm += f"A {select(['joke', 'poem'])}."`
 ```
@@ -67,19 +72,30 @@ with assistant():
 ```python
 @guidance
 def one_line_thing(lm, thing, topic):
-    lm += f'Here is a one-line {thing} about {topic}: ' + gen(stop='\n')
-    return lm
 
+    # update the incoming model
+    lm += f'Here is a one-line {thing} about {topic}: ' + gen(stop='\n')
+
+    # return our updated model
+    return lm 
+
+# pick either a joke or a poem
 lm = llama2 + f"Do you want a joke or a poem? A {select(['joke', 'poem'], name='thing')}.\n"
+
+# call our guidance function
 lm += one_line_thing(lm['thing'], 'cats')
 ```
 > Do you want a joke or a poem? A poem.  
 > Here is a one-line poem about cats: “Cats are the best.”
 
-7. **A library of such components**, e.g. substring:
+7. **A library of pre-built components**, e.g. substring:
 ```python
 from guidance import substring
+
+# define a set of possible statements
 text = 'guidance is awesome. guidance is so great. guidance is the best thing since sliced bread.'
+
+# force the model to make an exact quote
 llama2 + f'Here is a true statement about the guidance library: "{substring(text)}"'
 ```
 > Here is a true statement about the guidance library: "the best thing since sliced bread."
