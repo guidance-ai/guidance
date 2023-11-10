@@ -5,67 +5,104 @@
 </picture></div>
 <br/>
 
-**`guidance`** is a programming paradigm that offers superior control and efficiency compared to conventional prompting and chaining.
+## What is this?
+**`guidance`** is a programming paradigm that offers superior control and efficiency compared to conventional prompting and chaining.  
+It features:
 
-Below is a toy example for discussion, where we get a language model to pick a number of sentences, and then to write each sentence. Don't mind the syntax for now, but please note that appending things to the `lm` object is equivalent to adding text to a prompt (when we're adding strings) or generating text (when we call `gen`):
+1. **Pure, beautiful python** with additional LM functionality. E.g. here is basic generation:
 ```python
 from guidance import models, gen
-
-# load a model (Transformers, LlamaCpp, OpenAI, VertexAI, etc.)
-llama2 = models.LlamaCpp(model_file)
-
-# add text (or arbitrary grammars) to the model object to get a new model object with new state
-lm = llama2 + "How many sentences about guidance should we write (1-5)?\n"
-lm += "Let's write " + gen(name="n", regex='\d') + " of them:\n"
-
-# access model state and use it to control generation
-for i in range(int(lm['n'])):
-    lm += f'{i + 1}. ' + gen(name="sentences", list_append=True, suffix="\n")
+# Could be transformers, LlamaCpp, VertexAI, OpenAI...
+llama2 = models.LlamaCpp(path, n_gpu_layers=-1)
+lama2 + f'Do you want a joke or a poem? ' + gen(stop='.')
 ```
+> Do you want a joke or a poem? I'll give you a poem
 
-> How many sentences about guidance should we write (1-5)?
-> Let's write 3 of them:
-> 1. The teacher will give us guidance.
-> 2. The teacher will give us guidance about the homework.
-> 3. The teacher will give us guidance about the homework and the test.
-
-The results are easily accessible without a separate parsing step:
+2. [**Constrained generation**](#constrained-generation) with [selects](#select-basic), [regular expressions](regular-expressions), and [context-free grammars](context-free-grammars). E.g. here is a simple select:
 ```python
-lm['sentences']
+from guidance import select
+llama2 + f'Do you want a joke or a poem? A ' + select(['joke', 'poem'])
 ```
-> ['The teacher will give us guidance.', 'The teacher will give us guidance about the homework.', 'The teacher will give us guidance about the homework and the test.']
+> Do you want a joke or a poem? A poem
 
-**Important features**: 
-1. **Stateful control + generation**:  `guidance` lets users _interleave_ generation, prompting, and logical control into a single continuous flow matching how the language model actually processes the text. In the example above, notice how the LM selected `n=2`, which we then used to loop and add `1.`, `2.` to the prompt and generate each sentence in turn. The whole thing is executed in a single LM decoding loop, and there is no need to write a parser for the output.
+3. **Rich templates with f-strings**:
+```python
+llama2 + f'''\
+Do you want a joke or a poem? A {select(['joke', 'poem'])}.
+Okay, here is a one-liner: "{gen(stop='"')}"
+'''
+```
+> Do you want a joke or a poem? A poem.  
+> Okay, here is a one-liner: "I'm a poet, and I know it."
 
-2. **Constrained generation**: In the example above, we generated `n` according to a regular expression. In addition to that, `guidance` makes it easy for the user to constrain generation to a set of options (e.g. `select([option1, option2...])`, or according to any stateless guidance grammar (which is a superset of context-free grammars). Coupled with the point above, this allows for really fine-grained control of the generation loop.
 
-3. **A nice developer-centric interface**: `guidance` programs are basically python programs with a lot of additional LM functionality, such as:
-    - Immutable `lm` objects that make composition easy
-    - Support for templating via f-strings, e.g.
-        ```python
-        lm += f'I think I am going to {gen(max_tokens=3, name="action")} now.
-        ```
-    - Users deal with text (or bytes) rather than tokens, e.g. `select(['I think so', 'Not really'])` does not require that either option is a single token. Further, users don't have to worry about perverse [token boundaries issues](https://towardsdatascience.com/the-art-of-prompt-design-prompt-boundaries-and-token-healing-3b2448b0be38) such as 'prompt ending in whitespace'.
-    - Easy tool integration, e.g. `gen(tools=[search_fn])` allows the model to call search at any point during generation, and then pauses generation and pastes search results in if search is called.
-    - Blocks to make geneneration with chat-based models easy, e.g.
-        ```python
-        with system():
-            lm += 'Here is a system message'
-        with user():
-            lm += 'Here is a user prompt'
-        with assistant():
-            lm += 'My answer is ' + gen()
-        ```
-    - Streaming generation support, integration with jupyter notebooks:
+4. [**Stateful control + generation:**](#stateful-control--generation) easy to interleave prompting / logic / generation, no need for intermediate parsers:
+```python
+lm = llama2 + f"Do you want a joke or a poem? A {select(['joke', 'poem'], name='answer')}.\n"
+if lm["answer"] == "joke":
+    lm += f"Here is a one-line joke about cats: " + gen('output', stop='\n')
+else:
+    lm += f"Here is a one-line poem about dogs: " + gen('output', stop='\n')
+```
+> Do you want a joke or a poem? A poem.  
+> Here is a one-line poem about dogs: “Dogs are the best.”
 
-        <img src="docs/figures/proverb_animation.gif" width="404">  
+5. **Abstract chat interface** that uses the right special tokens for any chat model:
+```python
+from guidance import user, assistant
+chat_lm = models.LlamaCppChat(model_path, n_gpu_layers=-1)
+with user():
+    lm = chat_lm + 'Do you want a joke or a poem?'
+with assistant():
+    lm += f"A {select(['joke', 'poem'])}."`
+```
 
-        TODO: change this image to new version with the example above.
-    - Caching of generations for iterative development
-4. **Speed**: In contrast to chaining, `guidance` programs are the equivalent of a single LLM call. More so, whatever non-generated text that gets appended is batched, so that `guidance` programs are **faster** than having the LM generate intermediate text when you have a set structure.
-5. **Open compatability**: Guidance integrates with many popular local and cloud based inference APIs. So you can write one guidance program and execute it on many backends (note that the most powerful features require enpoint integration and so work best on local models right now).
-6. **Extensible library**: Pre-packaged guidance functions provide reference implementations you can use in your own programs, such as `substring` to constrain quotes, or `python_function_call` that automatically defines a grammar for calls to any python function. Creating your own guidance functions is as easy as defining a decorated python function, giving you the power to extend the library with all the same controls we used.
+6. **Easy to write reusable components**
+```python
+@guidance
+def one_line_thing(lm, thing, topic):
+    lm += f'Here is a one-line {thing} about {topic}: ' + gen(stop='\n')
+    return lm
+
+lm = llama2 + f"Do you want a joke or a poem? A {select(['joke', 'poem'], name='thing')}.\n"
+lm += one_line_thing(lm['thing'], 'cats')
+```
+> Do you want a joke or a poem? A poem.  
+> Here is a one-line poem about cats: “Cats are the best.”
+
+7. **A library of such components**, e.g. substring:
+```python
+from guidance import substring
+text = 'guidance is awesome. guidance is so great. guidance is the best thing since sliced bread.'
+llama2 + f'Here is a true statement about the guidance library: "{substring(text)}"'
+```
+> Here is a true statement about the guidance library: "the best thing since sliced bread."
+
+8. [**Easy tool use**](#automatic-interleaving-of-control-and-generation-tool-use), where the model stops generation when a tool is called, calls the tool, then resumes generation:
+```python
+@guidance
+def add_one(lm, input):
+    lm += f' = {int(input) + 1}'
+    return lm
+@guidance
+def add_two(lm, input):
+    lm += f' = {int(input) + 2}'
+    return lm
+llama2 + 'add_one(1) = 2\n' + gen(max_tokens=15, tools=[add_one, add_two])
+```
+> add_one(1) = 2  
+> add_two(1) = 3  
+> add_three(1) = 4  
+> add_one(2) = 3  
+
+10. **Speed**: In contrast to chaining, `guidance` programs are the equivalent of a single LLM call. More so, whatever non-generated text that gets appended is batched, so that `guidance` programs are **faster** than having the LM generate intermediate text when you have a set structure.
+11. **Token healing**: Users deal with text (or bytes) rather than tokens, and thus don't have to worry about [perverse token boundaries issues](https://towardsdatascience.com/the-art-of-prompt-design-prompt-boundaries-and-token-healing-3b2448b0be38) such as 'prompt ending in whitespace'.
+12. **Streaming support**, also integrated with jupyter notebooks:
+<img src="docs/figures/proverb_animation.gif" width="404">  
+TODO: change this image to new version with the example above.
+
+13. **High compatibility:** works with Transformers, llamacpp, VertexAI, OpenAI. Users can write one guidance program and execute it on many backends (note that the most powerful features require enpoint integration, and for now work best with transformers and llamacpp).
+
 
 ## Install
 ```
@@ -173,7 +210,8 @@ lm = llama2 + '19, 18,' + gen(max_tokens=50, stop_regex='[^\d]7[^\d]')
 > 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8,
 
 ### Context-free grammars
-`guidance` exposes a variety of operators that make it easy to define CFGs to constrain generation. For example, we can use the `select` operator (it accepts CFGs as options), `zero_or_more` and `one_or_more` to define a grammar for mathematical expressions:
+We expose a variety of operators that make it easy to define CFGs, which in turn can be used to constrain generation.
+For example, we can use the `select` operator (it accepts CFGs as options), `zero_or_more` and `one_or_more` to define a grammar for mathematical expressions:
 ```python
 import guidance
 from guidance import one_or_more, select, zero_or_more
@@ -209,7 +247,7 @@ lm += 'Equivalent arithmetic expression: ' + gen(stop='\n') + '\n'
 ```
 > Equivalent arithmetic expression: 106 - 36 = 60
 
-Notice how the model wrote the right equation but solved it. If we wanted to constrain the model such that it only writes valid expressions (without trying to solve them), we can just append our grammar to it:
+Notice how the model wrote the right equation but solved it (incorrectly). If we wanted to constrain the model such that it only writes valid expressions (without trying to solve them), we can just append our grammar to it:
 ```python
 grammar = expression()
 lm = llama2 + 'Problem: Luke has a hundred and six balls. He then loses thirty six.\n'
