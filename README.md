@@ -14,14 +14,16 @@ from guidance import models, gen
 # load a model (could be Transformers, LlamaCpp, VertexAI, OpenAI...)
 llama2 = models.LlamaCpp(path) 
 
-# append to the model
-lama2 + f'Do you want a joke or a poem? ' + gen(stop='.')
+# append text or generations to the model
+llama2 + f'Do you want a joke or a poem? ' + gen(stop='.')
 ```
 > Do you want a joke or a poem? I'll give you a poem
 
-2. [**Constrained generation**](#constrained-generation) with [selects](#select-basic), [regular expressions](regular-expressions), and [context-free grammars](context-free-grammars). E.g. here is a simple select:
+2. [**Constrained generation**](#constrained-generation) with [selects](#select-basic), [regular expressions](regular-expressions), and [context-free grammars](context-free-grammars).
 ```python
 from guidance import select
+
+# a simple select between two options
 llama2 + f'Do you want a joke or a poem? A ' + select(['joke', 'poem'])
 ```
 > Do you want a joke or a poem? A poem
@@ -37,9 +39,12 @@ Okay, here is a one-liner: "{gen(stop='"')}"
 > Okay, here is a one-liner: "I'm a poet, and I know it."
 
 
-4. [**Stateful control + generation:**](#stateful-control--generation) easy to interleave prompting / logic / generation, no need for intermediate parsers:
+4. [**Stateful control + generation**](#stateful-control--generation) makes it easy to interleave prompting / logic / generation, no need for intermediate parsers:
 ```python
+# capture our selection under the name 'answer'
 lm = llama2 + f"Do you want a joke or a poem? A {select(['joke', 'poem'], name='answer')}.\n"
+
+# make a choice based on the model's previous selection
 if lm["answer"] == "joke":
     lm += f"Here is a one-line joke about cats: " + gen('output', stop='\n')
 else:
