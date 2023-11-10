@@ -431,11 +431,13 @@ def calculator_call(lm):
 @guidance
 def calculator(lm):
     expression = lm['tool_args']
-    # You typically don't want to run eval directly for save reasons, but here we are guaranteed to only have mathematical expressions
+    # You typically don't want to run eval directly for save reasons
+    # Here we are guaranteed to only have mathematical expressions
     lm += f' = {eval(expression)}'
     return lm
 calculator_tool = Tool(calculator_call(), calculator)
-llama2 + 'Here are five expressions:\ncalculator(3 *3) = 33\ncalculator(2 + 1 * 3) = 5\n'  + gen(max_tokens=30, tools=[calculator_tool], stop='\n\n')
+lm = llama2 + 'Here are five expressions:\ncalculator(3 *3) = 33\ncalculator(2 + 1 * 3) = 5\n'
+lm += gen(max_tokens=30, tools=[calculator_tool], stop='\n\n')
 ```
 > Here are five expressions:  
 > calculator(3 *3) = 33  
