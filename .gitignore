@@ -9,3 +9,5 @@ __pycache__/
 node_modules
 /client
 .eggs/
+/venv
+test.py
