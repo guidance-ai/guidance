@@ -147,15 +147,20 @@ class OpenAI(LLM):
         if deployment_id is None:
             deployment_id = os.environ.get("OPENAI_DEPLOYMENT_ID", None)
 
-        # auto detect chat completion mode
+        # Auto-detect whether to use the chat completion mode based on the model name
         if chat_mode == "auto":
-            # parse to determin if the model need to use the chat completion API
-            chat_model_pattern = r'^(gpt-3\.5-turbo|gpt-4)(-\d+k)?(-\d{4})?$'
-            if re.match(chat_model_pattern, model):
-                chat_mode = True
-            else:
-                chat_mode = False
-        
+            # Regular expression pattern to match both standard and fine-tuned model names
+            # Examples of matched model names:
+            # - 'gpt-3.5-turbo'
+            # - 'gpt-4'
+            # - 'ft:gpt-3.5-turbo:my-org:custom_suffix:id'
+            # - 'ft:gpt-4:my-org:custom_suffix'
+            # - 'ft:gpt-3.5-turbo-1106:personal::id'
+            chat_model_pattern = r'^(ft:)?(gpt-3\.5-turbo|gpt-4)(-\d+)?(:\w+)?(::\w+)?$'
+
+            # Check if the model name matches the pattern for chat models
+            chat_mode = bool(re.match(chat_model_pattern, model))
+
         # fill in default API key value
         if api_key is None: # get from environment variable
             api_key = os.environ.get("OPENAI_API_KEY", getattr(openai, "api_key", None))
