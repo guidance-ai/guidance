@@ -141,7 +141,7 @@ class Model:
                 del lm._opened_blocks[context]
                 lm._inplace_append(close_text)
 
-        # apply any newly opened contexts (newly from the our perspective)
+        # apply any newly opened contexts (new from this object's perspective)
         for context in Model._open_blocks:
             if context not in lm._opened_blocks:
                 lm._opened_blocks[context] = "" # mark this so we don't readd when computing the opener (even though we don't know the close text yet)

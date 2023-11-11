@@ -7,6 +7,7 @@ import threading
 import numpy as np
 import queue
 import time
+import tiktoken
 
 from ._model import Chat
 from ._local import Local
@@ -38,11 +39,15 @@ class VertexAI(Local):
         self.temperature = temperature
         self.max_streaming_tokens = max_streaming_tokens
 
-        tokens = [bytes([i]) for i in range(256)] + [b'<|endoftext|>']
+        # tokens = [bytes([i]) for i in range(256)] + [b'<|endoftext|>']
+
+        # Vertex AI models don't have public tokenizations, so we simulate pretend they tokenize like gpt2...
+        encoding = tiktoken.get_encoding("gpt2")
+        tokens = [encoding.decode_single_token_bytes(i) for i in range(encoding.n_vocab)] + [b"<|endofprompt|>"]
         super().__init__(
             tokens,
             None, # we have no BOS token
-            256, # EOS token id
+            len(tokens)-2, # EOS token id
             echo=echo
         )
 
@@ -143,15 +148,31 @@ class VertexAI(Local):
         self._shared_state["last_call"] = time.time()
 
         # keep looping until we have at least one more byte past our prompt
-        while not self._shared_state["data"].startswith(prompt) or len(self._shared_state["data"]) <= len(prompt):
+        token_id = None
+        while True:
+
+            # try and get the next token id
+            token_id = self._get_next_token(len(prompt))
+            if token_id is not None:
+                break
+            # if self._shared_state["data"].startswith(prompt):
+            #     token_id = self._get_next_token(len(prompt))#or len(self._shared_state["data"]) <= len(prompt):
+            #     continue
 
             # we need to restart if extending our data will never lead to matching our prompt
-            if not prompt.startswith(self._shared_state["data"]):
+            if len(self._shared_state["data"]) <= len(prompt) and not prompt.startswith(self._shared_state["data"]):
                 self._start_new_stream(prompt)
 
             # extend our data with a chunk from the model stream
             if not self._shared_state["data_queue"].empty():
-                self._shared_state["data"] += self._shared_state["data_queue"].get_nowait()
+                new_bytes = self._shared_state["data_queue"].get_nowait()
+                
+                # if we are at the end of the generation then we try again allowing for early token stopping
+                if len(new_bytes) == 0:
+                    token_id = self._get_next_token(len(prompt), allow_early_stop=True)
+                    if token_id is not None:
+                        break
+                self._shared_state["data"] += new_bytes
             
             # but if there is nothing and we are not running then we start a stream
             elif self._shared_state["not_running_stream"].is_set():
@@ -165,13 +186,38 @@ class VertexAI(Local):
         # if len(self._shared_state["data"]) == len(prompt):
         #     self._shared_state["data"] += self._shared_state["data"]_queue.get() 
 
+        # token_id = self._get_next_token(len(prompt))
+
         # set the logits to the next byte the model picked
-        logits = np.zeros(len(self.tokens))
-        logits[self._shared_state["data"][len(prompt)]] = 100
+        logits = np.ones(len(self.tokens)) * np.nan
+        logits[token_id] = 100
         
         self._shared_state["last_call"] = time.time()
         return torch.tensor(logits) # TODO: the caller need to know to NOT use the 0 entries, but to fail out if that happens
     
+    def _get_next_token(self, pos, allow_early_stop=False):
+        data = self._shared_state["data"]
+        trie = self._token_trie
+        token_id = None
+        while True:
+            
+            # see if we have run out of data
+            if pos >= len(data):
+                if allow_early_stop:
+                    return token_id
+                else:
+                    return None
+            
+            # try and walk down the trie
+            next_byte = data[pos:pos+1]
+            if next_byte in trie.children:
+                trie = trie.children[next_byte]
+                pos += 1
+                if trie.value is not None:
+                    token_id = trie.value
+            else:
+                return token_id # this is the longest greedy token match we can make
+
     # def _call_end(self):
     #     if 
     #     self._stop_event.set() # stop the generator
