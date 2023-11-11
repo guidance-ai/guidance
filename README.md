@@ -5,7 +5,7 @@
 </picture></div>
 <br/>
 
-> *Note that v0.1 is a dramatically new version developed while releases had to be paused over the summer. If you are looking for the old version based on handlebars use v0.0.64. We hope you find the fresh start as exciting as we do :)*
+> *Note that v0.1 is a dramatically new version developed while releases had to be paused over the summer. If you are looking for the old version based on handlebars, use v0.0.64. We hope you find the fresh start as exciting as we do :)*
 
 **`guidance`** is a programming paradigm that offers superior control and efficiency compared to conventional prompting and chaining. It allows users to constrain generation (e.g. with regex and CFGs) as well as to interleave control (conditional, loops) and generation seamlessly. Here are some important features: 
 
