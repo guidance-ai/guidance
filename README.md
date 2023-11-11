@@ -5,24 +5,29 @@
 </picture></div>
 <br/>
 
+> *Note that v0.1 is a dramatically new version developed while releases had to be paused over the summer. If you are looking for the old version based on handlebars, use v0.0.64. We hope you find the fresh start as exciting as we do :)*
+
 **`guidance`** is a programming paradigm that offers superior control and efficiency compared to conventional prompting and chaining. It allows users to constrain generation (e.g. with regex and CFGs) as well as to interleave control (conditional, loops) and generation seamlessly. Here are some important features: 
 
 1. **Pure, beautiful python** with additional LM functionality. E.g. here is [basic generation](#basic-generation):
 ```python
 from guidance import models, gen
-# Could be transformers, LlamaCpp, VertexAI, OpenAI...
-llama2 = models.LlamaCpp(path, n_gpu_layers=-1)
-lama2 + f'Do you want a joke or a poem? ' + gen(stop='.')
+
+# load a model (could be Transformers, LlamaCpp, VertexAI, OpenAI...)
+llama2 = models.LlamaCpp(path) 
+
+# append text or generations to the model
+llama2 + f'Do you want a joke or a poem? ' + gen(stop='.')
 ```
 > Do you want a joke or a poem? I'll give you a poem
-
-2. [**Constrained generation**](#constrained-generation) with [selects](#select-basic), [regular expressions](regular-expressions), and [context-free grammars](context-free-grammars). E.g. here is a simple select:
+2. [**Constrained generation**](#constrained-generation) with [selects](#select-basic), [regular expressions](regular-expressions), and [context-free grammars](context-free-grammars).
 ```python
 from guidance import select
+
+# a simple select between two options
 llama2 + f'Do you want a joke or a poem? A ' + select(['joke', 'poem'])
 ```
 > Do you want a joke or a poem? A poem
-
 3. **Rich templates with f-strings**:
 ```python
 llama2 + f'''\
@@ -33,11 +38,12 @@ Okay, here is a one-liner: "{gen(stop='"')}"
 > Do you want a joke or a poem? A poem.  
 > Okay, here is a one-liner: "I'm a poet, and I know it."
 
-
-4. [**Stateful control + generation:**](#stateful-control--generation) easy to interleave prompting / logic / generation, no need for intermediate parsers:
+4. [**Stateful control + generation**](#stateful-control--generation) makes it easy to interleave prompting / logic / generation, no need for intermediate parsers:
 ```python
-# capture a selection under the name 'answer'
+# capture our selection under the name 'answer'
 lm = llama2 + f"Do you want a joke or a poem? A {select(['joke', 'poem'], name='answer')}.\n"
+
+# make a choice based on the model's previous selection
 if lm["answer"] == "joke":
     lm += f"Here is a one-line joke about cats: " + gen('output', stop='\n')
 else:
@@ -45,8 +51,7 @@ else:
 ```
 > Do you want a joke or a poem? A poem.  
 > Here is a one-line poem about dogs: “Dogs are the best.”
-
-5. **Abstract chat interface** that uses the right special tokens for any chat model:
+5. **Abstract chat interface** that uses the correct special tokens for any chat model:
 ```python
 from guidance import user, assistant
 
@@ -56,27 +61,37 @@ chat_lm = models.LlamaCppChat(model_path, n_gpu_layers=-1)
 # wrap with chat block contexts
 with user():
     lm = chat_lm + 'Do you want a joke or a poem?'
+
 with assistant():
     lm += f"A {select(['joke', 'poem'])}."`
 ```
-
 6. **Easy to write reusable components**
 ```python
 @guidance
 def one_line_thing(lm, thing, topic):
-    lm += f'Here is a one-line {thing} about {topic}: ' + gen(stop='\n')
-    return lm
 
+    # update the incoming model
+    lm += f'Here is a one-line {thing} about {topic}: ' + gen(stop='\n')
+
+    # return our updated model
+    return lm 
+
+# pick either a joke or a poem
 lm = llama2 + f"Do you want a joke or a poem? A {select(['joke', 'poem'], name='thing')}.\n"
+
+# call our guidance function
 lm += one_line_thing(lm['thing'], 'cats')
 ```
 > Do you want a joke or a poem? A poem.  
 > Here is a one-line poem about cats: “Cats are the best.”
-
-7. **A library of such components**, e.g. substring:
+7. **A library of pre-built components**, e.g. substring:
 ```python
 from guidance import substring
+
+# define a set of possible statements
 text = 'guidance is awesome. guidance is so great. guidance is the best thing since sliced bread.'
+
+# force the model to make an exact quote
 llama2 + f'Here is a true statement about the guidance library: "{substring(text)}"'
 ```
 > Here is a true statement about the guidance library: "the best thing since sliced bread."
