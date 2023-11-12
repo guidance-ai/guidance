@@ -13,7 +13,7 @@ import re
 import regex
 
 from ._llm import LLM, LLMSession, SyncSession
-
+from openai import RateLimitError, APIError, APITimeoutError, APIStatusError, AsyncOpenAI
 
 class MalformedPromptException(Exception):
     pass
@@ -68,32 +68,32 @@ async def add_text_to_chat_mode_generator(chat_mode):
     in_function_call = False
     async for resp in chat_mode:
         if "choices" in resp:
-            for c in resp['choices']:
+            for c in resp.choices:
                 
                 # move content from delta to text so we have a consistent interface with non-chat mode
                 found_content = False
-                if "content" in c['delta'] and c['delta']['content'] != "":
+                if "content" in c.delta and c.delta.content != "":
                     found_content = True
-                    c['text'] = c['delta']['content']
+                    c.text = c.delta.delta.content
 
                 # capture function call data and convert to text again so we have a consistent interface with non-chat mode and open models
-                if "function_call" in c['delta']:
+                if "function_call" in c.delta:
 
                     # build the start of the function call (the follows the syntax that GPT says it wants when we ask it, and will be parsed by the @function_detector)
                     if not in_function_call:
-                        start_val = "\n```typescript\nfunctions."+c['delta']['function_call']["name"]+"("
-                        if not c['text']:
-                            c['text'] = start_val
+                        start_val = "\n```typescript\nfunctions."+c.delta.function_call.name+"("
+                        if not c.text:
+                            c.text = start_val
                         else:
-                            c['text'] += start_val
+                            c.text += start_val
                         in_function_call = True
                     
                     # extend the arguments JSON string
-                    val = c['delta']['function_call']["arguments"]
+                    val = c.delta.function_call.arguments
                     if 'text' in c:
-                        c['text'] += val
+                        c.text += val
                     else:
-                        c['text'] = val
+                        c.text = val
                     
                 if not found_content and not in_function_call:
                     break # the role markers are outside the generation in chat mode right now TODO: consider how this changes for uncontrained generation
@@ -110,8 +110,8 @@ def add_text_to_chat_mode(chat_mode):
     if isinstance(chat_mode, (types.AsyncGeneratorType, types.GeneratorType)):
         return add_text_to_chat_mode_generator(chat_mode)
     else:
-        for c in chat_mode['choices']:
-            c['text'] = c['message']['content']
+        for c in chat_mode.choices:
+            c.text = c.message.content
         return chat_mode
 
 class OpenAI(LLM):
@@ -254,8 +254,8 @@ class OpenAI(LLM):
             if stop_regex is not None:
 
                 # keep track of the generated text so far
-                for i,choice in enumerate(curr_out['choices']):
-                    current_strings[i] += choice['text']
+                for i,choice in enumerate(curr_out.choices):
+                    current_strings[i] += choice.text
 
                 # check if all of the strings match a stop string (and hence we can stop the batch inference)
                 all_done = True
@@ -296,12 +296,12 @@ class OpenAI(LLM):
                 cached_out = None
 
                 if stop_regex is not None:
-                    for i in range(len(out['choices'])):
-                        if stop_pos[i] < len(out['choices'][i]['text']):
-                            out['choices'][i] = out['choices'][i].to_dict() # because sometimes we might need to set the text to the empty string (and OpenAI's object does not like that)
-                            out['choices'][i]['text'] = out['choices'][i]['text'][:stop_pos[i]]
-                            out['choices'][i]['stop_text'] = stop_text[i]
-                            out['choices'][i]['finish_reason'] = "stop"
+                    for i in range(len(out.choices)):
+                        if stop_pos[i] < len(out.choices[i].text):
+                            out.choices[i] = out.choices[i].to_dict() # because sometimes we might need to set the text to the empty string (and OpenAI's object does not like that)
+                            out.choices[i].text = out.choices[i].text[:stop_pos[i]]
+                            out.choices[i].stop_text = stop_text[i]
+                            out.choices[i].finish_reason = "stop"
             
                 list_out.append(out)
                 yield out
@@ -342,44 +342,31 @@ class OpenAI(LLM):
         Note that is uses the local auth token, and does not rely on the openai one.
         """
 
-        # save the params of the openai library
-        prev_key = openai.api_key
-        prev_org = openai.organization
-        prev_type = openai.api_type
-        prev_version = openai.api_version
-        prev_base = openai.api_base
-        
-        # set the params of the openai library if we have them
-        if self.api_key is not None:
-            openai.api_key = self.api_key
-        if self.organization is not None:
-            openai.organization = self.organization
-        if self.api_type is not None:
-            openai.api_type = self.api_type
-        if self.api_version is not None:
-            openai.api_version = self.api_version
-        if self.api_base is not None:
-            openai.api_base = self.api_base
+        api_key = self.api_key or openai.api_key
+        if api_key is None:
+            raise Exception("You must provide an OpenAI API key to use the OpenAI LLM. Either pass it in the constructor, set the OPENAI_API_KEY environment variable, or create the file ~/.openai_api_key with your key in it.")
 
-        assert openai.api_key is not None, "You must provide an OpenAI API key to use the OpenAI LLM. Either pass it in the constructor, set the OPENAI_API_KEY environment variable, or create the file ~/.openai_api_key with your key in it."
-        
+        # Instantiate the AsyncOpenAI client
+        client = AsyncOpenAI(
+            api_key=self.api_key or openai.api_key,
+            organization=self.organization or openai.organization,
+
+            # TODO: Implement AzureOpenAI,which implements the Azure client
+            # api_type=self.api_type or openai.api_type,
+            # api_version=self.api_version or openai.api_version,
+            base_url=self.api_base
+        )
+
         if self.chat_mode:
             kwargs['messages'] = prompt_to_messages(kwargs['prompt'])
             del kwargs['prompt']
             del kwargs['echo']
             del kwargs['logprobs']
             # print(kwargs)
-            out = await openai.ChatCompletion.acreate(**kwargs)
+            out = await client.chat.completions.create(**kwargs)
             out = add_text_to_chat_mode(out)
         else:
-            out = await openai.Completion.acreate(**kwargs)
-        
-        # restore the params of the openai library
-        openai.api_key = prev_key
-        openai.organization = prev_org
-        openai.api_type = prev_type
-        openai.api_version = prev_version
-        openai.api_base = prev_base
+            out = await client.completions.create(**kwargs)
         
         return out
 
@@ -410,7 +397,7 @@ class OpenAI(LLM):
             data['messages'] = prompt_to_messages(data['prompt'])
             del data['prompt']
             del data['echo']
-            del data['logprobs']
+            del data.logprobs
 
         # Send a POST request and get the response
         # An exception for timeout is raised if the server has not issued a response for 10 seconds
@@ -470,18 +457,18 @@ def merge_stream_chunks(first_chunk, second_chunk):
     out = copy.deepcopy(first_chunk)
 
     # merge the choices
-    for i in range(len(out['choices'])):
-        out_choice = out['choices'][i]
-        second_choice = second_chunk['choices'][i]
-        out_choice['text'] += second_choice['text']
+    for i in range(len(out.choices)):
+        out_choice = out.choices[i]
+        second_choice = second_chunk.choices[i]
+        out_choice.text += second_choice.text
         if 'index' in second_choice:
-            out_choice['index'] = second_choice['index']
+            out_choice.index = second_choice.index
         if 'finish_reason' in second_choice:
-            out_choice['finish_reason'] = second_choice['finish_reason']
+            out_choice.finish_reason = second_choice.finish_reason
         if out_choice.get('logprobs', None) is not None:
-            out_choice['logprobs']['token_logprobs'] += second_choice['logprobs']['token_logprobs']
-            out_choice['logprobs']['top_logprobs'] += second_choice['logprobs']['top_logprobs']
-            out_choice['logprobs']['text_offset'] = second_choice['logprobs']['text_offset']
+            out_choice.logprobs.token_logprobs += second_choice.logprobs.token_logprobs
+            out_choice.logprobs.top_logprobs += second_choice.logprobs.top_logprobs
+            out_choice.logprobs.text_offset = second_choice.logprobs.text_offset
     
     return out
 
@@ -645,7 +632,8 @@ class OpenAISession(LLMSession):
                     self.llm.add_call()
                     call_args = {
                         "model": self.llm.model_name,
-                        "deployment_id": self.llm.deployment_id,
+                        # TODO: Move deployment_id to AzureOpenAI LLM implementation
+                        # "deployment_id": self.llm.deployment_id,
                         "prompt": prompt,
                         "max_tokens": max_tokens,
                         "temperature": temperature,
@@ -666,7 +654,7 @@ class OpenAISession(LLMSession):
                         call_args["logit_bias"] = {str(k): v for k,v in logit_bias.items()} # convert keys to strings since that's the open ai api's format
                     out = await self.llm.caller(**call_args)
 
-                except (openai.error.RateLimitError, openai.error.ServiceUnavailableError, openai.error.APIError, openai.error.Timeout):
+                except (RateLimitError, APIError, APITimeoutError, APIStatusError) as e:
                     await asyncio.sleep(3)
                     try_again = True
                     fail_count += 1

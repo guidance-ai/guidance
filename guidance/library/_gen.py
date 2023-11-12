@@ -166,11 +166,11 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
                 #log("Stopping generation")
                 break
             # log.debug("resp", resp)
-            new_text = resp["choices"][0].get("text", "")
+            new_text = resp.choices[0].text or ""
             generated_value += new_text
             variable_stack["@raw_prefix"] += new_text
             if logprobs is not None:
-                logprobs_out.extend(resp["choices"][0]["logprobs"]["top_logprobs"])
+                logprobs_out.extend(resp.choices[0].logprobs["top_logprobs"])
             if list_append:
                 variable_stack[name][list_ind] = generated_value
                 if logprobs is not None:
@@ -184,7 +184,7 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
         if save_stop_text is not False:
             if save_stop_text is True:
                 save_stop_text = name+"_stop_text"
-            variable_stack[save_stop_text] = resp["choices"][0].get('stop_text', None)
+            variable_stack[save_stop_text] = resp.choices[0].get('stop_text', None)
         
         if hasattr(gen_obj, 'close'):
             gen_obj.close()
@@ -207,17 +207,17 @@ async def gen(name=None, stop=None, stop_regex=None, save_stop_text=False, max_t
         return
     else:
         assert not isinstance(gen_obj, list), "Streaming is only supported for n=1"
-        generated_values = [prefix+choice["text"]+suffix for choice in gen_obj["choices"]]
+        generated_values = [prefix+choice["text"]+suffix for choice in gen_obj.choices]
         if list_append:
             value_list = variable_stack.get(name, [])
             value_list.append(generated_values)
             if logprobs is not None:
                 logprobs_list = variable_stack.get(name+"_logprobs", [])
-                logprobs_list.append([choice["logprobs"]["top_logprobs"] for choice in gen_obj["choices"]])
+                logprobs_list.append([choice.logprobs["top_logprobs"] for choice in gen_obj.choices])
         elif name is not None:
             variable_stack[name] = generated_values
             if logprobs is not None:
-                variable_stack[name+"_logprobs"] = [choice["logprobs"]["top_logprobs"] for choice in gen_obj["choices"]]
+                variable_stack[name+"_logprobs"] = [choice.logprobs["top_logprobs"] for choice in gen_obj.choices]
 
         if not hidden:
             # TODO: we could enable the parsing to branch into multiple paths here, but for now we just complete the program with the first prefix
