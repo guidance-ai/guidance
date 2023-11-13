@@ -243,7 +243,7 @@ class Local(Model):
                 grammar_temp = parser.next_byte_temperature()
                 current_temp = grammar_temp if grammar_temp >= 0 else temperature # we prefer to use the grammar temp when it is specified
                 if current_temp == 0:
-                    sampling_order = torch.argsort(logits, descending=True).cpu().numpy() # we need numpy so the enumerate below does not get really slow...
+                    sampling_order = torch.argsort(-logits, descending=False).cpu().numpy() # we need numpy so the enumerate below does not get really slow...
                 else:
                     assert top_p == 1, "Still need to add support for top_p!"
                     probs = torch.nn.functional.softmax(logits / current_temp, dim=-1)

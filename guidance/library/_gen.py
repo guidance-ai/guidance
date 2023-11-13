@@ -12,7 +12,7 @@ from ._zero_or_more import zero_or_more
 from .._grammar import commit_point
 from ._any_char import any_char
 from .._grammar import capture
-from ._regex import regex as gregex
+from ._regex import regex as regex_grammar
 from .._grammar import token_limit
 from .._grammar import with_temperature
 from .._grammar import model_variable
@@ -57,7 +57,7 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, regex=None,
         stop_regex = []
     if isinstance(stop_regex, str):
         stop_regex = [stop_regex]
-    stop_regex = [gregex(x) for x in stop_regex]
+    stop_regex = [regex_grammar(x) for x in stop_regex]
 
     # This needs to be here for streaming
     # if name is not None and not list_append:
@@ -81,7 +81,7 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, regex=None,
     
     # define the generation pattern
     if regex is not None:
-        pattern = gregex(regex)
+        pattern = regex_grammar(regex)
     else:
         pattern = zero_or_more(any_char())
 
