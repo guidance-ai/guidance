@@ -5,7 +5,7 @@
 </picture></div>
 <br/>
 
-> *Note that v0.1 is a dramatically new version developed while releases had to be paused over the summer. If you are looking for the old version based on handlebars, use v0.0.64. We hope you find the fresh start as exciting as we do :)*
+> *Note that v0.1 is a dramatically new version developed while releases had to be paused over the summer. If you are looking for the old version based on handlebars, you can use v0.0.64, but you should instead try porting over to the much better new version :)*
 
 **`guidance`** is a programming paradigm that offers superior control and efficiency compared to conventional prompting and chaining. It allows users to constrain generation (e.g. with regex and CFGs) as well as to interleave control (conditional, loops) and generation seamlessly. Here are some important features: 
 
@@ -96,22 +96,38 @@ llama2 + f'Here is a true statement about the guidance library: "{substring(text
 ```
 > Here is a true statement about the guidance library: "the best thing since sliced bread."
 
-8. [**Easy tool use**](#automatic-interleaving-of-control-and-generation-tool-use), where the model stops generation when a tool is called, calls the tool, then resumes generation:
+8. [**Easy tool use**](#automatic-interleaving-of-control-and-generation-tool-use), where the model stops generation when a tool is called, calls the tool, then resumes generation. For example, here is a simple version of a calculator, via four separate 'tools':
 ```python
 @guidance
-def add_one(lm, input):
-    lm += f' = {int(input) + 1}'
+def add(lm, input1, input2):
+    lm += f' = {int(input1) + int(input2)}'
     return lm
 @guidance
-def add_two(lm, input):
-    lm += f' = {int(input) + 2}'
+def subtract(lm, input1, input2):
+    lm += f' = {int(input1) - int(input2)}'
     return lm
-llama2 + 'add_one(1) = 2\n' + gen(max_tokens=15, tools=[add_one, add_two])
+@guidance
+def multiply(lm, input1, input2):
+    lm += f' = {float(input1) * float(input2)}'
+    return lm
+@guidance
+def divide(lm, input1, input2):
+    lm += f' = {float(input1) / float(input2)}'
+    return lm
 ```
-> add_one(1) = 2  
-> add_two(1) = 3  
-> add_three(1) = 4  
-> add_one(2) = 3  
+Now we call `gen` with these tools as options. Notice how generation is stopped and restarted automatically:
+```python
+lm = llama2 + '''\
+1 + 1 = add(1, 1) = 2
+2 - 3 = subtract(2, 3) = -1
+'''
+lm + gen(max_tokens=15, tools=[add, subtract, multiply, divide])
+```
+> 1 + 1 = add(1, 1) = 2  
+> 2 - 3 = subtract(2, 3) = -1  
+> 3 * 4 = multiply(3, 4) = 12.0  
+> 4 / 5 = divide(4, 5) = 0.8
+
 
 9. **Speed**: In contrast to chaining, `guidance` programs are the equivalent of a single LLM call. More so, whatever non-generated text that gets appended is batched, so that `guidance` programs are **faster** than having the LM generate intermediate text when you have a set structure.
 10. **Token healing**: Users deal with text (or bytes) rather than tokens, and thus don't have to worry about [perverse token boundaries issues](https://towardsdatascience.com/the-art-of-prompt-design-prompt-boundaries-and-token-healing-3b2448b0be38) such as 'prompt ending in whitespace'.
