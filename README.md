@@ -20,7 +20,7 @@ llama2 = models.LlamaCpp(path)
 llama2 + f'Do you want a joke or a poem? ' + gen(stop='.')
 ```
 > Do you want a joke or a poem? I'll give you a poem
-2. [**Constrained generation**](#constrained-generation) with [selects](#select-basic), [regular expressions](regular-expressions), and [context-free grammars](context-free-grammars).
+2. [**Constrained generation**](#constrained-generation) with [selects](#select-basic), [regular expressions](#regular-expressions), and [context-free grammars](#context-free-grammars).
 ```python
 from guidance import select
 
