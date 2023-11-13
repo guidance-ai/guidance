@@ -388,6 +388,8 @@ def commit_point(value, hidden=False):
     # TODO: assert that value is not empty since we don't yet support that
     if isinstance(value, str):
         value = string(value)
+    if isinstance(value, Terminal):
+        value = Join([value]) # commit points should be full nodes (otherwise we can't hide them) TODO: decide if we want to do this even for non-hidden commit points
     value.commit_point = True
     if hidden:
         _rec_hide(value)

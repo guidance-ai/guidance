@@ -154,14 +154,14 @@ class EarleyCommitParser:
 
                 # scan (note we only scan forward when we have more max token headroom left)
                 next_item_node = item.values[item.pos]
+                hidden_start = item.hidden_start
+                if next_item_node.hidden:
+                    hidden_start = min(state_set_pos, hidden_start)
                 if isinstance(next_item_node, Terminal):# and item.node.max_tokens > self.token_counts[state_set_pos] - self.token_counts[item.start]:
-                    next_state_set.append(EarleyItem(item.node, item.values, item.pos + 1, item.start, item.log_prob, item.hidden_start)) # the log prob will get incremented when consume_bytes is called
+                    next_state_set.append(EarleyItem(item.node, item.values, item.pos + 1, item.start, item.log_prob, hidden_start)) # the log prob will get incremented when consume_bytes is called
                 
                 # prediction
                 else:
-                    hidden_start = item.hidden_start
-                    if next_item_node.hidden:
-                        hidden_start = min(state_set_pos, hidden_start)
                     self._add_node(next_item_node, state_set_pos, 0.0, hidden_start) # the log probs will get incremented by children later
 
                 # handle nullable items by advancing them automatically (since we know we can)
@@ -277,6 +277,7 @@ class EarleyCommitParser:
                         item.log_prob += log_prob
                         new_next_state_set = [item]
                         hidden_start = min(hidden_start, item.hidden_start)
+                        found_invalid = True # we make everything else invalid, so that means we found something invalid
                         break
             item.log_prob += log_prob # update the probability of the item by the probability of choosing this byte
             new_next_state_set.append(item)
@@ -294,8 +295,9 @@ class EarleyCommitParser:
         # look for a commit point node
         commit_point = None
         for item in self.state_sets[self.state_set_pos]:
-            if item.node.commit_point and item.pos == len(item.values):
-                commit_point = item # TODO: consider how we might need to prioritize multiple commit point nodes (an uncommon scenario I think)
+            if item.node.commit_point and item.pos == len(item.values) or (item.pos > 0 and item.values[item.pos-1].commit_point):
+                commit_point = item
+                break # TODO: consider how we might need to prioritize multiple commit point nodes (an uncommon scenario I think)
         # hidden_start, 
         return commit_point
 
