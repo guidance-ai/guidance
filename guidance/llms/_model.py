@@ -21,7 +21,16 @@ class TGIModel:
     async def generate(self, prompt: str, **kwargs):
         logger.debug(f"input prompt :{prompt},kwargs:{kwargs}")
         text = await self.client.generate(prompt, **kwargs)
-        return text.model_dump()
+
+        res_dict: dict = text.model_dump()    
+        res_text =  res_dict["generated_text"]
+
+        logger.debug(f"res_text: {res_text}")
+        for stop_word in kwargs.get("stop_sequences", []):
+            if stop_word in res_text:
+                res_dict["generated_text"] = res_text[: res_text.index(stop_word)]
+
+        return res_dict
 
 
 # TODO: vllm model
