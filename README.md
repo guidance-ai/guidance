@@ -137,6 +137,30 @@ TODO: change this image to new version with the example above.
 
 12. **High compatibility:** works with Transformers, llamacpp, VertexAI, OpenAI. Users can write one guidance program and execute it on many backends (note that the most powerful features require enpoint integration, and for now work best with transformers and llamacpp).
 
+## Table of Contents
+   * [Install](#install)
+   * [Loading models](#loading-models)
+      * [llama-cpp](#llama-cpp)
+      * [transformers](#transformers)
+      * [Vertex](#vertex)
+      * [OpenAI](#openai)
+   * [Example notebooks](#example-notebooks)
+   * [Basic generation](#basic-generation)
+   * [Constrained Generation](#constrained-generation)
+      * [Select (basic)](#select-basic)
+      * [Regular expressions](#regular-expressions)
+         * [Regex to constrain generation](#regex-to-constrain-generation)
+         * [Regex as stopping criterion](#regex-as-stopping-criterion)
+      * [Context-free grammars](#context-free-grammars)
+   * [Stateful control + generation](#stateful-control--generation)
+      * [State in immutable objects](#state-in-immutable-objects)
+      * [Stateful guidance functions](#stateful-guidance-functions)
+      * [Example: ReAct](#example-react)
+      * [Example: Changing intermediate step of a Chat session](#example-changing-intermediate-step-of-a-chat-session)
+      * [Automatic interleaving of control and generation: tool use](#automatic-interleaving-of-control-and-generation-tool-use)
+   * [Interface stuff](#interface-stuff)
+   * [Text, not tokens](#text-not-tokens)
+   * [Fast](#fast)
 
 ## Install
 ```bash
