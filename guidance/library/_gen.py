@@ -16,6 +16,7 @@ from ._regex import regex as gregex
 from .._grammar import token_limit
 from .._grammar import with_temperature
 from .._grammar import model_variable
+from ._tool import Tool
 
 # TODO: make this stateless!
 @guidance(stateless=lambda *args, **kwargs: kwargs.get("tools", None) is None) # TODO: uncomment this once we get temperature stateless
@@ -107,6 +108,7 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, regex=None,
     # TODO: if a tool is a python function rather than a guidance.Tool, make it into a guidance.Tool
     if tools is not None:
         # TODO: This should be while I have tokens left
+        tools = [Tool(callable=x) if not isinstance(x, Tool) else x for x in tools]
         gen_grammar = pattern + select([stop_pattern] + [capture(commit_point(x.call_grammar, hidden=hide_tool_call), name=f'tool{i}') for i, x in enumerate(tools)])
         while lm._token_count <= max_tokens:
         # for i in range(5):
