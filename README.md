@@ -531,6 +531,7 @@ llama2 + math_with_calc(question)
 > 4. She sell the remainder at the farmers' market for $2 per egg, so she makes calculator(9 * 2) = 18 dollars per day.  
 > Answer: 18
 
+### Automatic call grammar for @guidance functions
 You can also initialize a `Tool` with any `@guidance`-decorated function, and the default call grammar will be like a python call. Here is an example of using multiple such tools in the same `gen` call:
 ```python
 @guidance
