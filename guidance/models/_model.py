@@ -6,7 +6,7 @@ import copy
 import json
 import textwrap
 import numpy as np
-from .._grammar import StatelessFunction, StatefulFunction, tag_start, tag_end, string, _call_pool, Null, replace_model_variables, unreplace_model_variables
+from .._grammar import StatelessFunction, StatefulFunction, tag_start, tag_end, string, _call_pool, _tag_pattern, Null, replace_model_variables, unreplace_model_variables
 
 class Endpoint:
     '''This keeps state that is shared among all models using the same endpoint session.'''
@@ -37,8 +37,6 @@ class Model:
         self.instance__enter__ = []
         self.instance__exit__ = []
         self._streaming = False
-
-        self._tag_pattern = re.compile(re.escape(tag_start) + r"([^\|]+)" + re.escape(tag_end))
 
     def __call__(self, pattern=None, max_tokens=100, n=1, top_p=1, temperature=0.0, ensure_bos_token=True):
         pass # meant to be overriden by subclasses
@@ -154,7 +152,7 @@ class Model:
         # wrap raw string values
         if isinstance(value, str):
             is_id = False
-            parts = re.split(self._tag_pattern, value)
+            parts = re.split(_tag_pattern, value)
             
             # we have no embedded objects
             if len(parts) == 1:
@@ -342,6 +340,14 @@ type {function['name']} = (_: {{"""
         return lm
 
 class Chat(Model):
+    
+    def get_role_start(self, role_name, **kwargs):
+        return "<|im_start|>"+role_name+"".join([f' {k}="{v}"' for k,v in kwargs.items()])+"\n"
+    
+    def get_role_end(self, role_name=None):
+        return "<|im_end|>"
+    
+class Instruct(Model):
     
     def get_role_start(self, role_name, **kwargs):
         return "<|im_start|>"+role_name+"".join([f' {k}="{v}"' for k,v in kwargs.items()])+"\n"

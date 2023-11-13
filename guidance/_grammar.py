@@ -3,10 +3,13 @@ import uuid
 import json
 import inspect
 import functools
+import re
 
 tag_start = "{{G|"
 tag_end = "|G}}"
 _call_pool = {}
+_tag_pattern = re.compile(re.escape(tag_start) + r"([^\|]+)" + re.escape(tag_end))
+
 class StatefulException(Exception):
     '''This is raised when we try and use the state of a grammar object like it was a live model.
     
@@ -84,8 +87,13 @@ class StatelessFunction(Function):
     num_used_names = 0
 
     def __add__(self, value):
+
+        # see if we have a string with calls or a simple string 
         if isinstance(value, str) or isinstance(value, bytes):
-            value = string(value)
+            if isinstance(value, str) and re.search(_tag_pattern, value):
+                return str(self) + value
+            else:
+                value = string(value) 
         
         # see if we can keep building a stateless grammar
         if isinstance(value, StatelessFunction):
@@ -96,8 +104,13 @@ class StatelessFunction(Function):
             return value.__radd__(self)
     
     def __radd__(self, value):
+
+        # see if we have a string with calls or a simple string 
         if isinstance(value, str) or isinstance(value, bytes):
-            value = string(value)
+            if isinstance(value, str) and re.search(_tag_pattern, value):
+                return value + str(self)
+            else:
+                value = string(value) 
         
         # see if we can keep building a stateless grammar
         if isinstance(value, StatelessFunction):

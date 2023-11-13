@@ -1,5 +1,5 @@
 import guidance
-from guidance import select, capture, gen
+from guidance import select, models, gen
 from ..utils import get_model
 
 def test_fstring():
@@ -21,3 +21,21 @@ def test_token_count():
     lm = get_model("transformers:gpt2")
     lm2 = lm + ' 1 1 1 1 1' + gen(max_tokens=9) + gen(max_tokens=9)
     assert 18 <= lm2._token_count <= 20 # note we allow ourselves to be off by one because it is hard to know when we are continuing vs starting a new token in the parser
+
+def test_call_embeddings():
+    '''This tests calls embedded in strings.'''
+    model = models.LocalMock()
+
+    @guidance(dedent=False)
+    def bla(lm, bla):
+        lm += bla + 'ae' + gen(max_tokens=10)
+        return lm
+    
+    @guidance(dedent=False)
+    def ble(lm):
+        lm += f'''
+    ae galera! {bla('33')}
+    let's do more stuff!!''' + gen(max_tokens=10)
+        return lm
+    
+    assert "{{G|" not in str(model + ble())
