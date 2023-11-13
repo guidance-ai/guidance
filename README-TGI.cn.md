@@ -19,10 +19,12 @@ cd guidance && python setup.py install
 
 [TGI docker start](https://github.com/huggingface/text-generation-inference#docker)
 
+[image build code](https://github.com/zTaoplus/mirrored-image/tree/main/tgi)
 ```sh
 export volume=<your model path>
 
-docker run --gpus all --shm-size 1g -p 8080:80 -v $volume:/data zjuici/mirror.huggingface.text-generation-inference:1.1.0-guidance-stop --model-id $model
+docker run --gpus all --shm-size 1g -p 8080:80 -v $volume:/data zjuici/mirror.huggingface.text-generation-inference:1.1.0-guidance-transformers-4.35.0  --model-id $model
+
 ```
 
 ### 启动 guidance

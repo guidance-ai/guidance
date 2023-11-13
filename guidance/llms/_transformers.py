@@ -1060,14 +1060,17 @@ class TGITransformersSession(TransformersSession):
                 "temperature": temperature if 0 < temperature < 1 else 0.01,
                 "top_p": top_p if 0.1 < top_p < 1.0 else 0.9,
                 "max_new_tokens": max_tokens,
+                # set do_sample default to True
+                "do_sample":True,
+                # "return_full_text": False,
             }
 
             # override the model config for do_sample when the temperature requires it
-            do_sample = getattr(model_config, "do_sample", None)
-            if do_sample is True and temperature == 0:
-                generate_args["do_sample"] = False
-            elif do_sample is False and temperature > 0:
-                generate_args["do_sample"] = True
+            # do_sample = getattr(model_config, "do_sample", None)
+            # if do_sample is True and temperature == 0:
+            #     generate_args["do_sample"] = False
+            # elif do_sample is False and temperature > 0:
+            #     generate_args["do_sample"] = True
 
             # if we are streaming then we need to run the inference process in a separate thread
             # NOTE: zt: can not support streaming yet
@@ -1107,15 +1110,17 @@ class TGITransformersStreamer(TransformersStreamer):
     def __map_reason(cls, x):
         return cls.FINISH_REASON_MAP.get(x)
 
-    def put(self, token_obj: dict):
+    def put(self, output_obj: dict):
+        # output_text = output_obj["generated_text"]
+        # append_text = output_text.split(input_text)[-1]
         out = {"choices": []}
         out["choices"].append(
             {
-                "text": token_obj["generated_text"],
+                "text": output_obj["generated_text"],
                 "finish_reason": self.__map_reason(
-                    token_obj["details"]["finish_reason"].value
+                    output_obj["details"]["finish_reason"].value
                 ),
-                "stop_text": token_obj["details"]["tokens"][-1]["text"],
+                "stop_text": output_obj["details"]["tokens"][-1]["text"],
                 "logprobs": {"top_logprobs": []},
             }
         )
