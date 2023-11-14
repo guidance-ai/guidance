@@ -7,7 +7,7 @@ from .._utils import ByteTrie
 from ._model import Model
 # from ..library._string import string
 from .._parser import EarleyCommitParser
-from .._grammar import Terminal
+from .._grammar import Terminal, select
 # import numba
 
 class Local(Model):
@@ -27,9 +27,9 @@ class Local(Model):
         self._token_trie.match = True
         self._token_trie.match_version = 0
 
-        self._max_token_bytes = max([len(t) for t in self.tokens])
+        self._max_token_bytes = max([len(t) for t in self.tokens])  
 
-    def _get_logits(self, token_ids):
+    def _get_logits(self, token_ids, forced_bytes):
         '''A fake method designed to be overriden by subclasses.'''
 
         # pretend to extend the KV cache and update the log probs
@@ -232,7 +232,7 @@ class Local(Model):
                     
             # otherwise we need to compute the logits and sample a valid token
             else:
-                logits = self._get_logits(token_ids)
+                logits = self._get_logits(token_ids, parser.bytes[start_pos:forced_pos])
 
                 # if requested we compute the log probabilities so we can track the probabilities of each node
                 # TODO: we should lower this step to C++ with pybind11

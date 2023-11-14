@@ -83,7 +83,7 @@ class LlamaCpp(Local):
 
         self._cache_state["cache_token_ids"] = []
 
-    def _get_logits(self, token_ids):
+    def _get_logits(self, token_ids, forced_bytes):
         '''Computes the logits for the given token state.
         
         This overrides a method from the LocalEngine class that is used to get

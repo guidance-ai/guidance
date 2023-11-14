@@ -6,7 +6,7 @@ import copy
 import json
 import textwrap
 import numpy as np
-from .._grammar import StatelessFunction, StatefulFunction, tag_start, tag_end, string, _call_pool, _tag_pattern, Null, replace_model_variables, unreplace_model_variables
+from .._grammar import StatelessFunction, StatefulFunction, tag_start, tag_end, string, _call_pool, _tag_pattern, Null, replace_model_variables, unreplace_model_variables, commit_point, select
 
 class Endpoint:
     '''This keeps state that is shared among all models using the same endpoint session.'''
@@ -40,6 +40,20 @@ class Model:
 
     def __call__(self, pattern=None, max_tokens=100, n=1, top_p=1, temperature=0.0, ensure_bos_token=True):
         pass # meant to be overriden by subclasses
+
+    @property
+    def default_end_patterns(self):
+
+        # add the eos token
+        parts = [self.eos_token]
+
+        # add any active non empty role ends
+        for role_end_str in self._opened_blocks.values():
+            role_end_str = format_pattern.sub("", role_end_str)
+            if len(role_end_str) > 0:
+                parts.append(role_end_str)
+
+        return select(parts)
 
     def get(self, key, default=None):
         return self._variables.get(key, default)

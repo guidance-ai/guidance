@@ -186,7 +186,7 @@ class VertexAI(Local):
         self._thread.start()
         # self._start_generator_stream(stripped_prompt)
     
-    def _get_logits(self, token_ids):
+    def _get_logits(self, token_ids, forced_bytes):
         '''Computes the logits for the given token state.
         
         This overrides a method from the Local class that is used to get
@@ -197,7 +197,7 @@ class VertexAI(Local):
             raise ValueError("token_ids must contain some tokens.")
         
         # compute the prompt bytes
-        prompt = b''.join([self.tokens[i] for i in token_ids])
+        prompt = b''.join([self.tokens[i] for i in token_ids]) + forced_bytes
 
         self._shared_state["last_call"] = time.time()
 
@@ -207,7 +207,7 @@ class VertexAI(Local):
 
             # try and get the next token id
             if self._shared_state["data"].startswith(prompt):
-                token_id = self._get_next_token(len(prompt))
+                token_id = self._get_next_token(len(prompt)-len(forced_bytes))
                 if token_id is not None:
                     break
             # if self._shared_state["data"].startswith(prompt):
@@ -363,8 +363,8 @@ class VertexAIChat(VertexAI, Chat):
             if prompt[pos:].startswith(user_start):
                 pos += len(user_start)
                 user_end_pos = prompt[pos:].find(role_end)
-                user_text = prompt[pos:user_end_pos]
-                pos = user_end_pos + len(role_end)
+                user_text = prompt[pos:pos+user_end_pos]
+                pos += user_end_pos + len(role_end)
             else:
                 raise Exception(f"Bad chat format! Expected a user start tag where there was none at prompt byte position: {pos}")
             
@@ -376,8 +376,8 @@ class VertexAIChat(VertexAI, Chat):
                     last_user_text = user_text
                     break
                 else:
-                    assistant_text = prompt[pos:assistant_end_pos]
-                    pos = assistant_end_pos + len(role_end)
+                    assistant_text = prompt[pos:pos+assistant_end_pos]
+                    pos += assistant_end_pos + len(role_end)
                     user_assistant_pairs.append((user_text, assistant_text))
             else:
                 raise Exception(f"Bad chat format! Expected a assistant start tag where there was none at prompt byte position: {pos}")
@@ -395,6 +395,6 @@ class VertexAIChat(VertexAI, Chat):
         )
 
         return chat.send_message_streaming(
-            last_user_text,
+            last_user_text.decode("utf8"),
             max_output_tokens=self.max_streaming_tokens
         )
