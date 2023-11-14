@@ -222,7 +222,7 @@ lm + gen("fact", max_tokens=100)
 <img width="635" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/693ae08f-68f7-4368-bd25-19afc9bfc0a5"><br>
 
 ### OpenAI
-OpenAI endpoint don't have direct support for guidance gramamrs, but through optimistic running we can still control them in ways that match the model type:
+OpenAI endpoint don't have direct support for guidance grammars, but through optimistic running we can still control them in ways that match the model type:
 
 *Legacy completion models:*
 ```python
