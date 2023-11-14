@@ -5,6 +5,7 @@
 </picture></div>
 <br/>
 
+
 > *Note that v0.1 is a dramatically new version developed while releases had to be paused over the summer. If you are looking for the old version based on handlebars, you can use v0.0.64, but you should instead try porting over to the much better new version :)*
 
 **`guidance`** is a programming paradigm that offers superior control and efficiency compared to conventional prompting and chaining. It allows users to constrain generation (e.g. with regex and CFGs) as well as to interleave control (conditional, loops) and generation seamlessly. Here are some important features: 
@@ -19,7 +20,8 @@ llama2 = models.LlamaCpp(path)
 # append text or generations to the model
 llama2 + f'Do you want a joke or a poem? ' + gen(stop='.')
 ```
-> Do you want a joke or a poem? I'll give you a poem
+<img alt="Do you want a joke or a poem? I'll give you a poem" src="docs/figures/simple_gen_llama2_7b.png" width="354">
+
 2. [**Constrained generation**](#constrained-generation) with [selects](#select-basic), [regular expressions](#regular-expressions), and [context-free grammars](#context-free-grammars).
 ```python
 from guidance import select
