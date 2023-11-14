@@ -153,10 +153,12 @@ class OpenAI(LLM):
             # Examples of matched model names:
             # - 'gpt-3.5-turbo'
             # - 'gpt-4'
+            # - 'gpt-4-32k-0314'
+            # - 'gpt-4-1106-preview'
             # - 'ft:gpt-3.5-turbo:my-org:custom_suffix:id'
             # - 'ft:gpt-4:my-org:custom_suffix'
             # - 'ft:gpt-3.5-turbo-1106:personal::id'
-            chat_model_pattern = r'^(ft:)?(gpt-3\.5-turbo|gpt-4)(-\d+)?(:\w+)?(::\w+)?$'
+            chat_model_pattern = r'^(ft:)?(gpt-3\.5-turbo|gpt-4)((-\w+)+)?(:[\w-]+(?:[:\w-]+)*)?(::\w+)?$'
 
             # Check if the model name matches the pattern for chat models
             chat_mode = bool(re.match(chat_model_pattern, model))
