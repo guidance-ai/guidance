@@ -180,7 +180,6 @@ with assistant():
       * [Automatic interleaving of control and generation: tool use](#automatic-interleaving-of-control-and-generation-tool-use)
       * [Gsm8k example](#gsm8k-example)
       * [Automatic call grammar for @guidance functions](#automatic-call-grammar-for-guidance-functions)
-   * [Jupyter notebook streaming](#jupyter-notebook-streaming)
    * [Text, not tokens](#text-not-tokens)
    * [Fast](#fast)
       * [Integrated stateful control is faster](#integrated-stateful-control-is-faster)
@@ -607,9 +606,6 @@ Scott
 ```
 <img width="395" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/8025699b-59a1-4a3f-8b1e-a895a54924e2"><br>
 
-
-## Jupyter notebook streaming
-example here
 
 ## Text, not tokens
 The standard greedy tokenizations used by most language models introduce a variety of subtle and powerful biases, which that can have all kinds of unintended consequences for your prompts.
