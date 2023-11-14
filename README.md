@@ -142,7 +142,7 @@ for i in range(5):
 ```
 <img src="docs/figures/simple_streaming_example.gif" width="337">
 
-13. **High compatibility:** works with Transformers, llama.cpp, VertexAI, OpenAI. Users can write one guidance program and execute it on many backends. Even endpoints without explicit native guidance integration  (note that the most powerful control features require endpoint integration, and for now work best with transformers and llamacpp).
+13. **High compatibility:** works with Transformers, llama.cpp, VertexAI, OpenAI. Users can write one guidance program and execute it on many backends. (note that the most powerful control features require endpoint integration, and for now work best with Transformers and llama.cpp).
 ```python
 gpt = models.OpenAI("gpt-3.5-turbo")
 
@@ -195,7 +195,7 @@ with assistant():
 pip install guidance
 ```
 ## Loading models
-### llama-cpp
+### llama.cpp
 Install the python bindings:
 ```bash
 CMAKE_ARGS="-DLLAMA_CUBLAS=on" pip install llama-cpp-python
@@ -206,18 +206,63 @@ from guidance import models
 lm = models.LlamaCpp(path_to_model, n_gpu_layers=-1)
 ```
 
-### transformers
+### Transformers
 Install transformers:
 ```python
 from guidance import models
 lm = models.Transformers(model_name_or_path)
 ```
 
-### Vertex
-Todo @Scott: talk about how constrained generation is different for these models
+### Vertex AI
+Remote endpoints that don't have explicit guidance integration are run "optimistically". This means that all the text that can be forced is given to the model as a prompt (or chat context) and then the model is run in streaming mode without hard constrants (since the remote API doesn't support them). If the model ever violates the contraints then the model stream is stopped and we optionally try it again at that point. This means that all the API-supported control work as expected, and more complex controls/parsing that is not supported by the API work if the model stays consistent with the program.
+```python
+palm2 = models.VertexAI("text-bison@001")
+
+with instruction():
+    lm = palm2 + "What is one funny fact about Seattle?"
+
+lm + gen("fact", max_tokens=100)
+```
+<img width="635" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/693ae08f-68f7-4368-bd25-19afc9bfc0a5"><br>
 
 ### OpenAI
-Todo @Scott
+OpenAI endpoint don't have direct support for guidance gramamrs, but through optimistic running we can still control them in ways that match the model type:
+
+*Legacy completion models:*
+```python
+curie = models.OpenAI("text-curie-001")
+
+curie + "The smallest cats are" + gen(stop=".")
+```
+<img width="263" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/116a906c-ea77-4a13-a83a-682029d5e5c8"><br>
+
+*Instruct tuned models:*
+```python
+gpt_instruct = models.OpenAI("gpt-3.5-turbo-instruct")
+
+with instruction():
+    lm = gpt_instruct + "What are the smallest cats?"
+    
+lm += gen(stop=".")
+```
+<img width="574" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/56a53ce1-89f5-4e9d-bdb8-86fb3eebf309"><br>
+
+*Chat models:*
+```python
+gpt = models.OpenAI("gpt-3.5-turbo")
+
+with system():
+    lm = gpt + "You are a cat expert."
+
+with user():
+    lm += "What are the smallest cats?"
+
+with assistant():
+    lm += gen("answer", stop=".")
+```
+<img width="367" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/46102f0f-37dc-4bb1-99b7-e5895bdee772"><br>
+
+
 
 ## Example notebooks
 Coming soon
