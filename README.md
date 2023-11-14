@@ -162,7 +162,7 @@ with assistant():
    * [Loading models](#loading-models)
       * [llama-cpp](#llama-cpp)
       * [transformers](#transformers)
-      * [Vertex](#vertex)
+      * [Vertex](#vertex-ai)
       * [OpenAI](#openai)
    * [Example notebooks](#example-notebooks)
    * [Basic generation](#basic-generation)
