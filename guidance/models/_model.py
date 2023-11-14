@@ -47,10 +47,10 @@ class Model:
         # add the eos token
         parts = [self.eos_token]
 
-        # add any active non empty role ends
+        # add any active non empty role ends. Ignore role ends that are spaces
         for role_end_str in self._opened_blocks.values():
             role_end_str = format_pattern.sub("", role_end_str)
-            if len(role_end_str) > 0:
+            if len(role_end_str) > 0 and not re.fullmatch(r'\s+', role_end_str):
                 parts.append(role_end_str)
 
         return select(parts)
