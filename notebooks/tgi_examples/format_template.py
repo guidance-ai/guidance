@@ -59,6 +59,7 @@ def format_output():
     """
     template = template.replace('{command_args}', command_args)
     return trim(template)
+# TRY: "output": ["df_{{snake this.command}}_{{@index}}"]
 
 # def format_output() -> str:
 #     return trim(

@@ -751,6 +751,7 @@ _built_ins = {
     "len": commands.len,
     "range": commands.range,
     "UNARY_OPERATOR_not": commands.not_,
+    "snake": commands.snake,
 }
 
 class DisplayThrottler():
