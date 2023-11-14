@@ -323,19 +323,21 @@ Unconstrained:
 ```python
 lm = llama2 + '19, 18,' + gen(max_tokens=50)
 ```
-> 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4,
+<img width="359" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/5dd13454-cc42-4e27-a52c-19a31237891c"><br>
 
 Stop with traditional stop text, whenever the model generates the number 7:
 ```python
 lm = llama2 + '19, 18,' + gen(max_tokens=50, stop='7')
 ```
-> 19, 18, 1
+<img width="73" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/fc96d7c3-381d-4766-8bee-c930669f518a"><br>
+
  
 Stop whenever the model generates the character `7` without any numbers around it: 
 ```python
 lm = llama2 + '19, 18,' + gen(max_tokens=50, stop_regex='[^\d]7[^\d]')
 ```
-> 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8,
+<img width="293" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/a657e566-b1a4-447a-82a5-b88977b5fedf"><br>
+
 
 ### Context-free grammars
 We expose a variety of operators that make it easy to define CFGs, which in turn can be used to constrain generation.
