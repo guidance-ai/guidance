@@ -74,12 +74,8 @@ with assistant():
 ```python
 @guidance
 def one_line_thing(lm, thing, topic):
-
-    # update the incoming model
     lm += f'Here is a one-line {thing} about {topic}: ' + gen(stop='\n')
-
-    # return our updated model
-    return lm 
+    return lm # return our updated model
 
 # pick either a joke or a poem
 lm = llama2 + f"Do you want a joke or a poem? A {select(['joke', 'poem'], name='thing')}.\n"
@@ -142,7 +138,7 @@ for i in range(5):
 ```
 <img src="docs/figures/simple_streaming_example.gif" width="337">
 
-13. **High compatibility:** works with Transformers, llama.cpp, VertexAI, OpenAI. Users can write one guidance program and execute it on many backends. Even endpoints without explicit native guidance integration  (note that the most powerful control features require endpoint integration, and for now work best with transformers and llamacpp).
+13. **High compatibility:** works with Transformers, llama.cpp, VertexAI, OpenAI. Users can write one guidance program and execute it on many backends. (note that the most powerful control features require endpoint integration, and for now work best with Transformers and llama.cpp).
 ```python
 gpt = models.OpenAI("gpt-3.5-turbo")
 
@@ -195,7 +191,7 @@ with assistant():
 pip install guidance
 ```
 ## Loading models
-### llama-cpp
+### llama.cpp
 Install the python bindings:
 ```bash
 CMAKE_ARGS="-DLLAMA_CUBLAS=on" pip install llama-cpp-python
@@ -206,18 +202,63 @@ from guidance import models
 lm = models.LlamaCpp(path_to_model, n_gpu_layers=-1)
 ```
 
-### transformers
+### Transformers
 Install transformers:
 ```python
 from guidance import models
 lm = models.Transformers(model_name_or_path)
 ```
 
-### Vertex
-Todo @Scott: talk about how constrained generation is different for these models
+### Vertex AI
+Remote endpoints that don't have explicit guidance integration are run "optimistically". This means that all the text that can be forced is given to the model as a prompt (or chat context) and then the model is run in streaming mode without hard constrants (since the remote API doesn't support them). If the model ever violates the contraints then the model stream is stopped and we optionally try it again at that point. This means that all the API-supported control work as expected, and more complex controls/parsing that is not supported by the API work if the model stays consistent with the program.
+```python
+palm2 = models.VertexAI("text-bison@001")
+
+with instruction():
+    lm = palm2 + "What is one funny fact about Seattle?"
+
+lm + gen("fact", max_tokens=100)
+```
+<img width="635" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/693ae08f-68f7-4368-bd25-19afc9bfc0a5"><br>
 
 ### OpenAI
-Todo @Scott
+OpenAI endpoint don't have direct support for guidance gramamrs, but through optimistic running we can still control them in ways that match the model type:
+
+*Legacy completion models:*
+```python
+curie = models.OpenAI("text-curie-001")
+
+curie + "The smallest cats are" + gen(stop=".")
+```
+<img width="263" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/116a906c-ea77-4a13-a83a-682029d5e5c8"><br>
+
+*Instruct tuned models:*
+```python
+gpt_instruct = models.OpenAI("gpt-3.5-turbo-instruct")
+
+with instruction():
+    lm = gpt_instruct + "What are the smallest cats?"
+    
+lm += gen(stop=".")
+```
+<img width="574" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/56a53ce1-89f5-4e9d-bdb8-86fb3eebf309"><br>
+
+*Chat models:*
+```python
+gpt = models.OpenAI("gpt-3.5-turbo")
+
+with system():
+    lm = gpt + "You are a cat expert."
+
+with user():
+    lm += "What are the smallest cats?"
+
+with assistant():
+    lm += gen("answer", stop=".")
+```
+<img width="367" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/46102f0f-37dc-4bb1-99b7-e5895bdee772"><br>
+
+
 
 ## Example notebooks
 Coming soon
@@ -226,23 +267,25 @@ Coming soon
 An `lm` object is immutable, so you change it by creating new copies of it. By default, when you append things to `lm`, it creates a copy, e.g.:
 ```python
 from guidance import models, gen, select
-llama2 = models.LlamaCpp(path_to_model, n_gpu_layers=-1)
-# llama2 is not modified, and `lm` is a copy of it with the prompt appended
+llama2 = models.LlamaCpp(model)
+
+# llama2 is not modified, `lm` is a copy of `llama2` with 'This is a prompt' appended to its state
 lm = llama2 + 'This is a prompt'
 ```
+<img width="124" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/c1e96b2b-8f4a-44ee-a8f4-a694a8d7784b"><br>
 
-You can append _generation_ calls to it, e.g.
+You can append _generation_ calls to model objects, e.g.
 ```python
 lm = llama2 + 'This is a prompt' + gen(max_tokens=10)
 ```
-> This is a prompt for the 2018 NaNoW
+<img width="267" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/d2e5ed34-ba9d-4bdd-872d-2b76f8e3cf85"><br>
 
 You can also interleave generation calls with plain text, or control flows:
 ```python
 # Note how we set stop tokens
 lm = llama2 + 'I like to play with my ' + gen(stop=' ') + ' in' + gen(stop=['\n', '.', '!'])
 ```
-> I like to play with my friends in the park
+<img width="279" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/2d47fd65-1982-4dd8-9ba9-a01e62fba455"><br>
 
 ## Constrained Generation
 ### Select (basic)
@@ -250,7 +293,7 @@ lm = llama2 + 'I like to play with my ' + gen(stop=' ') + ' in' + gen(stop=['\n'
 ```python
 lm = llama2 + 'I like the color ' + select(['red', 'blue', 'green'])
 ```
-> I like the color blue
+<img width="137" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/f0b97629-78a9-439d-90b2-06af31fdc40e"><br>
 
 ### Regular expressions
 `gen` has optional arguments `regex` and `stop_regex`, which allow generation (and stopping, respectively) to be controlled by a regex. 
@@ -263,7 +306,7 @@ lm = llama2 + 'Question: Luke has ten balls. He gives three to his brother.\n'
 lm += 'How many balls does he have left?\n'
 lm += 'Answer: ' + gen(stop='\n')
 ```
-> Answer: Seven.
+<img width="405" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/55fb66ea-a717-417a-8a70-14c46eba4c66"><br>
 
 Constrained by regex:
 
@@ -272,7 +315,7 @@ lm = llama2 + 'Question: Luke has ten balls. He gives three to his brother.\n'
 lm += 'How many balls does he have left?\n'
 lm += 'Answer: ' + gen(regex='\d+')
 ```
-> Answer: 7
+<img width="404" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/b45a5a79-55e0-4c15-884a-fba830c0a153"><br>
 
 
 #### Regex as stopping criterion
@@ -280,19 +323,21 @@ Unconstrained:
 ```python
 lm = llama2 + '19, 18,' + gen(max_tokens=50)
 ```
-> 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4,
+<img width="359" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/5dd13454-cc42-4e27-a52c-19a31237891c"><br>
 
 Stop with traditional stop text, whenever the model generates the number 7:
 ```python
 lm = llama2 + '19, 18,' + gen(max_tokens=50, stop='7')
 ```
-> 19, 18, 1
+<img width="73" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/fc96d7c3-381d-4766-8bee-c930669f518a"><br>
+
  
 Stop whenever the model generates the character `7` without any numbers around it: 
 ```python
 lm = llama2 + '19, 18,' + gen(max_tokens=50, stop_regex='[^\d]7[^\d]')
 ```
-> 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8,
+<img width="293" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/a657e566-b1a4-447a-82a5-b88977b5fedf"><br>
+
 
 ### Context-free grammars
 We expose a variety of operators that make it easy to define CFGs, which in turn can be used to constrain generation.
@@ -330,7 +375,7 @@ The `@guidance(stateless=True)` decorator makes it such that a function (e.g. `e
 lm = llama2 + 'Problem: Luke has a hundred and six balls. He then loses thirty six.\n'
 lm += 'Equivalent arithmetic expression: ' + gen(stop='\n') + '\n'
 ```
-> Equivalent arithmetic expression: 106 - 36 = 60
+<img width="462" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/54af1909-cad4-4fb1-8987-dfdfc02f8f42"><br>
 
 Notice how the model wrote the right equation but solved it (incorrectly). If we wanted to constrain the model such that it only writes valid expressions (without trying to solve them), we can just append our grammar to it:
 ```python
@@ -338,7 +383,7 @@ grammar = expression()
 lm = llama2 + 'Problem: Luke has a hundred and six balls. He then loses thirty six.\n'
 lm += 'Equivalent arithmetic expression: ' + grammar + '\n'
 ```
-> Equivalent arithmetic expression: 106 - 36
+<img width="460" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/dbda0ff8-8edd-4384-b63d-fc98792e0689"><br>
 
 Grammars are very easy to compose. For example, let's say we want a grammar that generates either a mathematical expression or an expression followed by a solution followed by another expression. Creating this grammar is easy:
 
@@ -350,12 +395,12 @@ We can generate according to it:
 ```python
 llama2 + 'Here is a math expression for two plus two: ' + grammar
 ```
-> Here is a math expression for two plus two: 2 + 2
+<img width="346" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/283e6973-0b8d-4153-a82b-9f5db1460da9"><br>
 
 ```python
 llama2 + '2 + 2 = 4; 3+3\n' + grammar
 ```
-> 2 + 2 = 4; 3+3
+<img width="109" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/d584a93c-bf24-43d5-8f8d-501e7eb88422"><br>
 
 Even if you don't like thinking in terms of recursive grammars, this formalism makes it easy to constrain generation. For example, let's say we have the following one-shot prompt:
 ```python
@@ -377,25 +422,15 @@ def ner_instruction(lm, input):
     '''
     return lm
 input = 'Julia never went to Morocco in her life!!'
-llama2 + ner_instruction(input) + gen(stop='---')`
+llama2 + ner_instruction(input) + gen(stop='---')
 ```
-> Input: Julia never went to Morroco in her life!!  
-> Output:  
-> Julia: PER  
-> never:   
-> went:   
-> to:   
-> Morocc: ORG  
-> in:   
-> her:   
-> life: LOC  
-> !!:   
-> .:   
+<img width="465" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/8ecf5ad4-68b8-4e7a-b107-b1a5613e4c68"><br>
 
 Notice that the model did not spell the word 'Morocco' correctly. Sometimes the model might also hallucinate a tag that doesn't exist. We can improve this by adding more few-shot examples, etc, but we can also constrain generation to the exact format we want:
 ```python
 import re
-guidance(stateless=True)
+
+@guidance(stateless=True)
 def constrained_ner(lm, input):
     # Split into words
     words = [x for x in re.split('([^a-zA-Z0-9])', input) if x and not re.match('\s', x)]
@@ -405,34 +440,22 @@ def constrained_ner(lm, input):
     return lm + ret
 llama2 + ner_instruction(input) + constrained_ner(input)
 ```
-
-> Input: Julia never went to Morocco in her life!!  
-> Output:  
-> Julia: PER  
-> never:   
-> went:   
-> to:   
-> Morocco: ORG  
-> in:   
-> her:   
-> life: LOC  
-> !:   
-> !:   
+<img width="462" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/72545093-ef16-479a-b666-bd97c54a5dc7">
 
 While `constrained_ner(input)` **is** a grammar that constrains the model generation, it _feels_ like you're just writing normal imperative python code with `+=` and `selects`.
 
 
-
-
 ## Stateful control + generation
 ### State in immutable objects
-Whenever you do `lm + grammar` or `lm + gen`, `lm + select`, etc, you return an lm object with additional state. For example:
+Whenever you do `lm + grammar` or `lm + gen`, `lm + select`, etc, you return a new lm object with additional state. For example:
 
 ```python
 lm = llama2 + 'This is a prompt' + gen(name='test', max_tokens=10)
 lm += select(['this', 'that'], name='test2')
 lm['test'], lm['test2']
 ```
+<img width="296" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/f0f9d180-6209-40df-9401-40da35d46e1a"><br>
+
 ### Stateful `guidance` functions
 The guidance decorator is `@guidance(stateless=False)` by default, meaning that a function with this decorator depends on the lm state to execute (either prior state or state generated within the function). For example:
 ```python
@@ -446,9 +469,8 @@ def test(lm):
     return lm
 llama2 + test()
 ```
-> Should I say "Scott"?
-> yes
-> Scott
+<img width="159" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/5a55496b-aea0-46e9-8de6-b63655027653"><br>
+
 
 ### Example: ReAct
 A big advantage of stateful control is that you don't have to write any intermediate parsers, and adding follow-up 'prompting' is easy, even if the follow up depends on what the model generates.
@@ -522,12 +544,8 @@ calculator_tool = Tool(calculator_call(), calculator)
 lm = llama2 + 'Here are five expressions:\ncalculator(3 *3) = 33\ncalculator(2 + 1 * 3) = 5\n'
 lm += gen(max_tokens=30, tools=[calculator_tool], stop='\n\n')
 ```
-> Here are five expressions:  
-> calculator(3 *3) = 33  
-> calculator(2 + 1 * 3) = 5  
-> calculator(10 / 2) = 5.0  
-> calculator(10 - 1) = 9  
-> calculator(10 * 2) = 20  
+<img width="201" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/2d9b840a-4fad-4dab-b3e7-20887539b447"><br>
+
 
 ### Gsm8k example
 Notice that the calculator is just called seamlessly during generation. Here is a more realistic exampe of the model solving a gsm8k question:
@@ -659,7 +677,7 @@ If instead we're calling a server, we pay the extra cost of making additional re
 Every time we call `calculator`, we have to stop geneation, append the result to the prompt, and resume generation. To avoid slowing down after the first call, a server would need to keep the KV cache up to '3 for breakfast, so she has calculator(16 - 3)', then roll forward generation from that point on. Even servers that _do_ have caching typically have a cache per prompt, and would not be able to do this. Instead, they would consider everything as a new prompt (causing significant slow downs every time `calculator` is called).
 
 ### Guidance acceleration
-In addition to the benefit above, `guidance` calls are often **faster** than running equivalent prompts the traditional way, because we can batch any additional text that is added by the user as execution unrolls (rather than generating it). Take the example below, where we generate a json with `llama2`:
+In addition to the benefit above, `guidance` calls are often **faster** than running equivalent prompts the traditional way, because we can batch any additional text that is added by the user as execution unrolls (rather than generating it). Take the example below, where we generate a json with a GGUF compressed `llama2` 7B executed using llama.cpp:
 ```python
 @guidance
 def character_maker(lm, id, description, valid_weapons):
@@ -683,9 +701,10 @@ a = time.time()
 lm = llama2 + character_maker(1, 'A nimble fighter', ['axe', 'sword', 'bow'])
 time.time() - a
 ```
-> Output
+<img width="480" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/85b5a181-6e6a-4582-9203-730f49353aeb"><br>
 
-Everything that is not green is not actually generated by the model, and is thus batched (much faster). This prompt takes about 1.2 seconds on an A100 GPU. Now, if we let the model generate everything (as in the roughly equivalent prompt below), it takes roughly `2.67` seconds (not only is it slower, we also have less control over generation). 
+
+Everything that is not green is not actually generated by the model, and is thus batched (much faster). This prompt takes about 1.2 seconds on an A100 GPU. Now, if we let the model generate everything (as in the roughly equivalent prompt below), it takes roughly `2.6` seconds (not only is it slower, we also have less control over generation). 
 ```python
 @guidance
 def character_maker2(lm, id, description):
@@ -698,4 +717,5 @@ a = time.time()
 lm = llama2 + character_maker2(1, 'A nimble fighter')
 time.time() - a
 ```
-> Output, roughly the same, but much slower.
+<img width="586" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/9c55500d-4c90-4f42-9343-43aa2a25efa4"><br>
+
