@@ -1,5 +1,10 @@
 from typing import Any
-from IPython.display import clear_output, display, HTML
+try:
+    from IPython.display import clear_output, display, HTML
+except ImportError:
+    clear_output = lambda *args: None
+    display = lambda *args: None
+    HTML = lambda *args: None
 import html
 import re
 import copy
