@@ -59,7 +59,7 @@ else:
 from guidance import user, assistant
 
 # load a chat model
-chat_lm = models.LlamaCppChat(model_path, n_gpu_layers=-1)
+chat_lm = models.LlamaCppChat(path)
 
 # wrap with chat block contexts
 with user():
@@ -135,10 +135,31 @@ lm + gen(max_tokens=15, tools=[add, subtract, multiply, divide])
 10. **Token healing**: Users deal with text (or bytes) rather than tokens, and thus don't have to worry about [perverse token boundaries issues](https://towardsdatascience.com/the-art-of-prompt-design-prompt-boundaries-and-token-healing-3b2448b0be38) such as 'prompt ending in whitespace'.
 
 11. **Streaming support**, also integrated with jupyter notebooks:
-<img src="docs/figures/proverb_animation.gif" width="404">  
-TODO: change this image to new version with the example above.
+```python
+lm = llama2 + 'Here is a cute 5-line poem about cats and dogs:\n'
+for i in range(5):
+    lm += f"LINE {i+1}: " + gen(temperature=0.8, suffix="\n")
+```
+<img src="docs/figures/simple_streaming_example.gif" width="337">
 
-12. **High compatibility:** works with Transformers, llama.cpp, VertexAI, OpenAI. Users can write one guidance program and execute it on many backends (note that the most powerful features require enpoint integration, and for now work best with transformers and llamacpp).
+13. **High compatibility:** works with Transformers, llama.cpp, VertexAI, OpenAI. Users can write one guidance program and execute it on many backends. Even endpoints without explicit native guidance integration  (note that the most powerful control features require endpoint integration, and for now work best with transformers and llamacpp).
+```python
+gpt = models.OpenAI("gpt-3.5-turbo")
+
+with user():
+    lm = gpt + "What is the capital of France?"
+
+with assistant():
+    lm += gen("capital")
+
+with user():
+    lm += "What is one short surprising fact about it?"
+
+with assistant():
+    lm += gen("fact")
+```
+<img width="645" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/f31ed7b8-1868-44d2-b14c-4842b0a40e5c">
+
 
 ## Table of Contents
    * [Install](#install)
