@@ -74,12 +74,8 @@ with assistant():
 ```python
 @guidance
 def one_line_thing(lm, thing, topic):
-
-    # update the incoming model
     lm += f'Here is a one-line {thing} about {topic}: ' + gen(stop='\n')
-
-    # return our updated model
-    return lm 
+    return lm # return our updated model
 
 # pick either a joke or a poem
 lm = llama2 + f"Do you want a joke or a poem? A {select(['joke', 'poem'], name='thing')}.\n"
