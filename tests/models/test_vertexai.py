@@ -16,7 +16,10 @@ def test_palm2_instruct():
 def test_palm2_chat():
     from guidance import models, gen, system, user, assistant
 
-    vmodel = models.VertexAI("chat-bison@001")
+    try:
+        vmodel = models.VertexAI("chat-bison@001")
+    except:
+        pytest.skip("Skipping OpenAI test because we can't load the model!")
 
     with system():
         lm = vmodel + "You are an always-happy agent no matter what."

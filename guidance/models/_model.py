@@ -2,9 +2,9 @@ from typing import Any
 try:
     from IPython.display import clear_output, display, HTML
 except ImportError:
-    clear_output = lambda *args: None
-    display = lambda *args: None
-    HTML = lambda *args: None
+    clear_output = lambda wait=True: None
+    display = lambda arg: None
+    HTML = lambda arg: None
 import html
 import re
 import copy
