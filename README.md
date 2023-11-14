@@ -267,23 +267,25 @@ Coming soon
 An `lm` object is immutable, so you change it by creating new copies of it. By default, when you append things to `lm`, it creates a copy, e.g.:
 ```python
 from guidance import models, gen, select
-llama2 = models.LlamaCpp(path_to_model, n_gpu_layers=-1)
-# llama2 is not modified, and `lm` is a copy of it with the prompt appended
+llama2 = models.LlamaCpp(model)
+
+# llama2 is not modified, `lm` is a copy of `llama2` with 'This is a prompt' appended to its state
 lm = llama2 + 'This is a prompt'
 ```
+<img width="124" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/c1e96b2b-8f4a-44ee-a8f4-a694a8d7784b"><br>
 
-You can append _generation_ calls to it, e.g.
+You can append _generation_ calls to model objects, e.g.
 ```python
 lm = llama2 + 'This is a prompt' + gen(max_tokens=10)
 ```
-> This is a prompt for the 2018 NaNoW
+<img width="267" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/d2e5ed34-ba9d-4bdd-872d-2b76f8e3cf85"><br>
 
 You can also interleave generation calls with plain text, or control flows:
 ```python
 # Note how we set stop tokens
 lm = llama2 + 'I like to play with my ' + gen(stop=' ') + ' in' + gen(stop=['\n', '.', '!'])
 ```
-> I like to play with my friends in the park
+<img width="279" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/2d47fd65-1982-4dd8-9ba9-a01e62fba455"><br>
 
 ## Constrained Generation
 ### Select (basic)
@@ -291,7 +293,7 @@ lm = llama2 + 'I like to play with my ' + gen(stop=' ') + ' in' + gen(stop=['\n'
 ```python
 lm = llama2 + 'I like the color ' + select(['red', 'blue', 'green'])
 ```
-> I like the color blue
+<img width="137" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/f0b97629-78a9-439d-90b2-06af31fdc40e"><br>
 
 ### Regular expressions
 `gen` has optional arguments `regex` and `stop_regex`, which allow generation (and stopping, respectively) to be controlled by a regex. 
@@ -304,7 +306,7 @@ lm = llama2 + 'Question: Luke has ten balls. He gives three to his brother.\n'
 lm += 'How many balls does he have left?\n'
 lm += 'Answer: ' + gen(stop='\n')
 ```
-> Answer: Seven.
+<img width="405" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/55fb66ea-a717-417a-8a70-14c46eba4c66"><br>
 
 Constrained by regex:
 
@@ -313,7 +315,7 @@ lm = llama2 + 'Question: Luke has ten balls. He gives three to his brother.\n'
 lm += 'How many balls does he have left?\n'
 lm += 'Answer: ' + gen(regex='\d+')
 ```
-> Answer: 7
+<img width="404" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/b45a5a79-55e0-4c15-884a-fba830c0a153"><br>
 
 
 #### Regex as stopping criterion
