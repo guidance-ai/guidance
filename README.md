@@ -668,13 +668,6 @@ If instead we're calling a server, we pay the extra cost of making additional re
 
 <img width="624" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/2c75b0f2-6997-43d9-b10e-cb9f6f2e2de5">
 
-> Reasoning:   
-> 1. She lays 16 eggs per day.  
-> 2. She eats 3 for breakfast, so she has calculator(16 - 3) = 13 eggs left.  
-> 3. She bakes 4 muffins, so she has calculator(13 - 4) = 9 eggs left.  
-> 4. She sell the remainder at the farmers' market for $2 per egg, so she makes calculator(9 * 2) = 18 dollars per day.  
-> Answer: 18
-
 Every time we call `calculator`, we have to stop geneation, append the result to the prompt, and resume generation. To avoid slowing down after the first call, a server would need to keep the KV cache up to '3 for breakfast. So she has calculator(16 - 3)', then roll forward generation from that point on. Even servers that _do_ have caching often don't have a way to guarantee state is preserved at each stop and start, and so user's pay a significant overhead at each interruption. The normal approach of considering everything as a new prompt would cause significant slow downs every time `calculator` is called.
 
 ### Guidance acceleration
