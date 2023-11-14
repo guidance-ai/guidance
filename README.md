@@ -375,7 +375,7 @@ The `@guidance(stateless=True)` decorator makes it such that a function (e.g. `e
 lm = llama2 + 'Problem: Luke has a hundred and six balls. He then loses thirty six.\n'
 lm += 'Equivalent arithmetic expression: ' + gen(stop='\n') + '\n'
 ```
-> Equivalent arithmetic expression: 106 - 36 = 60
+<img width="462" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/54af1909-cad4-4fb1-8987-dfdfc02f8f42"><br>
 
 Notice how the model wrote the right equation but solved it (incorrectly). If we wanted to constrain the model such that it only writes valid expressions (without trying to solve them), we can just append our grammar to it:
 ```python
@@ -383,7 +383,7 @@ grammar = expression()
 lm = llama2 + 'Problem: Luke has a hundred and six balls. He then loses thirty six.\n'
 lm += 'Equivalent arithmetic expression: ' + grammar + '\n'
 ```
-> Equivalent arithmetic expression: 106 - 36
+<img width="460" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/dbda0ff8-8edd-4384-b63d-fc98792e0689"><br>
 
 Grammars are very easy to compose. For example, let's say we want a grammar that generates either a mathematical expression or an expression followed by a solution followed by another expression. Creating this grammar is easy:
 
@@ -395,12 +395,12 @@ We can generate according to it:
 ```python
 llama2 + 'Here is a math expression for two plus two: ' + grammar
 ```
-> Here is a math expression for two plus two: 2 + 2
+<img width="346" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/283e6973-0b8d-4153-a82b-9f5db1460da9"><br>
 
 ```python
 llama2 + '2 + 2 = 4; 3+3\n' + grammar
 ```
-> 2 + 2 = 4; 3+3
+<img width="109" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/d584a93c-bf24-43d5-8f8d-501e7eb88422"><br>
 
 Even if you don't like thinking in terms of recursive grammars, this formalism makes it easy to constrain generation. For example, let's say we have the following one-shot prompt:
 ```python
@@ -422,25 +422,15 @@ def ner_instruction(lm, input):
     '''
     return lm
 input = 'Julia never went to Morocco in her life!!'
-llama2 + ner_instruction(input) + gen(stop='---')`
+llama2 + ner_instruction(input) + gen(stop='---')
 ```
-> Input: Julia never went to Morroco in her life!!  
-> Output:  
-> Julia: PER  
-> never:   
-> went:   
-> to:   
-> Morocc: ORG  
-> in:   
-> her:   
-> life: LOC  
-> !!:   
-> .:   
+<img width="465" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/8ecf5ad4-68b8-4e7a-b107-b1a5613e4c68"><br>
 
 Notice that the model did not spell the word 'Morocco' correctly. Sometimes the model might also hallucinate a tag that doesn't exist. We can improve this by adding more few-shot examples, etc, but we can also constrain generation to the exact format we want:
 ```python
 import re
-guidance(stateless=True)
+
+@guidance(stateless=True)
 def constrained_ner(lm, input):
     # Split into words
     words = [x for x in re.split('([^a-zA-Z0-9])', input) if x and not re.match('\s', x)]
@@ -450,34 +440,22 @@ def constrained_ner(lm, input):
     return lm + ret
 llama2 + ner_instruction(input) + constrained_ner(input)
 ```
-
-> Input: Julia never went to Morocco in her life!!  
-> Output:  
-> Julia: PER  
-> never:   
-> went:   
-> to:   
-> Morocco: ORG  
-> in:   
-> her:   
-> life: LOC  
-> !:   
-> !:   
+<img width="462" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/72545093-ef16-479a-b666-bd97c54a5dc7">
 
 While `constrained_ner(input)` **is** a grammar that constrains the model generation, it _feels_ like you're just writing normal imperative python code with `+=` and `selects`.
 
 
-
-
 ## Stateful control + generation
 ### State in immutable objects
-Whenever you do `lm + grammar` or `lm + gen`, `lm + select`, etc, you return an lm object with additional state. For example:
+Whenever you do `lm + grammar` or `lm + gen`, `lm + select`, etc, you return a new lm object with additional state. For example:
 
 ```python
 lm = llama2 + 'This is a prompt' + gen(name='test', max_tokens=10)
 lm += select(['this', 'that'], name='test2')
 lm['test'], lm['test2']
 ```
+<img width="296" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/f0f9d180-6209-40df-9401-40da35d46e1a"><br>
+
 ### Stateful `guidance` functions
 The guidance decorator is `@guidance(stateless=False)` by default, meaning that a function with this decorator depends on the lm state to execute (either prior state or state generated within the function). For example:
 ```python
@@ -491,9 +469,8 @@ def test(lm):
     return lm
 llama2 + test()
 ```
-> Should I say "Scott"?
-> yes
-> Scott
+<img width="159" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/5a55496b-aea0-46e9-8de6-b63655027653"><br>
+
 
 ### Example: ReAct
 A big advantage of stateful control is that you don't have to write any intermediate parsers, and adding follow-up 'prompting' is easy, even if the follow up depends on what the model generates.
