@@ -520,7 +520,7 @@ with user():
 with assistant():
     lm += gen(max_tokens=100)
 ```
-> Screenshot here
+<img width="688" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/d274f8b8-52e7-41a5-9635-b34f70ed50e0"><br>
 
 ### Automatic interleaving of control and generation: tool use
 Tool use is a common case of stateful control. To make it easy to do so, `gen` calls take `tools` as an optional argument, where each tool is defined by (1) a grammar that triggers its call and captures the arguments (if any), and (2) the actual tool call. Then, as generation unrolls, whenever the model generates something that matches the grammar of a tool call, it (1) stops generation, (2) calls the tool (which can append whatever it wants to the LM session), and (3) continues generation.
@@ -595,22 +595,14 @@ def say_marco(lm, n):
     return lm
 
 tools = [Tool(callable=say_scott), Tool(callable=say_marco)]
-llama2 + 'I am going to call say_scott and say_marco a few times:\n' + 'say_scott(1)\nScott\n' + gen(max_tokens=20, tools=tools)
+llama2 + '''\
+I am going to call say_scott and say_marco a few times:
+say_scott(1)
+Scott
+''' + gen(max_tokens=20, tools=tools)
 ```
-> I am going to call say_scott and say_marco a few times:  
-> say_scott(1)  
-> Scott  
->   
-> say_marco(1)  
-> marco  
->   
-> say_scott(2)  
-> Scott  
-> Scott  
->   
-> say_marco(2)  
-> marco  
-> marco  
+<img width="395" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/8025699b-59a1-4a3f-8b1e-a895a54924e2"><br>
+
 
 ## Jupyter notebook streaming
 example here
