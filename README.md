@@ -160,7 +160,7 @@ with assistant():
 ## Table of Contents
    * [Install](#install)
    * [Loading models](#loading-models)
-      * [llama-cpp](#llama-cpp)
+      * [llama.cpp](#llamacpp)
       * [transformers](#transformers)
       * [Vertex](#vertex-ai)
       * [OpenAI](#openai)
