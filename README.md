@@ -158,9 +158,13 @@ TODO: change this image to new version with the example above.
       * [Example: ReAct](#example-react)
       * [Example: Changing intermediate step of a Chat session](#example-changing-intermediate-step-of-a-chat-session)
       * [Automatic interleaving of control and generation: tool use](#automatic-interleaving-of-control-and-generation-tool-use)
-   * [Interface stuff](#interface-stuff)
+      * [Gsm8k example](#gsm8k-example)
+      * [Automatic call grammar for @guidance functions](#automatic-call-grammar-for-guidance-functions)
+   * [Jupyter notebook streaming](#jupyter-notebook-streaming)
    * [Text, not tokens](#text-not-tokens)
    * [Fast](#fast)
+      * [Integrated stateful control is faster](#integrated-stateful-control-is-faster)
+      * [Guidance acceleration](#guidance-acceleration)
 
 ## Install
 ```bash
@@ -192,7 +196,7 @@ Todo @Scott: talk about how constrained generation is different for these models
 Todo @Scott
 
 ## Example notebooks
-- todo
+Coming soon
 
 ## Basic generation
 An `lm` object is immutable, so you change it by creating new copies of it. By default, when you append things to `lm`, it creates a copy, e.g.:
@@ -566,9 +570,8 @@ llama2 + 'I am going to call say_scott and say_marco a few times:\n' + 'say_scot
 > marco  
 > marco  
 
-## Interface stuff
-- Jupyter notebook
-- Streaming
+## Jupyter notebook streaming
+example here
 
 ## Text, not tokens
 The standard greedy tokenizations used by most language models introduce a variety of subtle and powerful biases, which that can have all kinds of unintended consequences for your prompts.
