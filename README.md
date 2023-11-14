@@ -29,7 +29,8 @@ from guidance import select
 # a simple select between two options
 llama2 + f'Do you want a joke or a poem? A ' + select(['joke', 'poem'])
 ```
-> Do you want a joke or a poem? A poem
+<img alt="Do you want a joke or a poem? A poem" src="docs/figures/simple_select_llama2_7b.png" width="277">
+
 3. **Rich templates with f-strings**:
 ```python
 llama2 + f'''\
@@ -37,8 +38,7 @@ Do you want a joke or a poem? A {select(['joke', 'poem'])}.
 Okay, here is a one-liner: "{gen(stop='"')}"
 '''
 ```
-> Do you want a joke or a poem? A poem.  
-> Okay, here is a one-liner: "I'm a poet, and I know it."
+<img width="358" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/486ca968-89b1-4c02-b914-3b9714fe5890"><br>
 
 4. [**Stateful control + generation**](#stateful-control--generation) makes it easy to interleave prompting / logic / generation, no need for intermediate parsers:
 ```python
@@ -51,8 +51,9 @@ if lm["answer"] == "joke":
 else:
     lm += f"Here is a one-line poem about dogs: " + gen('output', stop='\n')
 ```
-> Do you want a joke or a poem? A poem.  
-> Here is a one-line poem about dogs: “Dogs are the best.”
+<img width="393" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/66d47ce7-1d5a-4dbd-b676-66b9c1094184"><br>
+
+
 5. **Abstract chat interface** that uses the correct special tokens for any chat model:
 ```python
 from guidance import user, assistant
@@ -67,6 +68,8 @@ with user():
 with assistant():
     lm += f"A {select(['joke', 'poem'])}."`
 ```
+<img width="331" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/89c3e0e2-ed0a-4715-8366-2efca74b7b71"><br>
+
 6. **Easy to write reusable components**
 ```python
 @guidance
@@ -84,8 +87,8 @@ lm = llama2 + f"Do you want a joke or a poem? A {select(['joke', 'poem'], name='
 # call our guidance function
 lm += one_line_thing(lm['thing'], 'cats')
 ```
-> Do you want a joke or a poem? A poem.  
-> Here is a one-line poem about cats: “Cats are the best.”
+<img width="386" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/60071680-8bbb-4fa5-a298-613d4fd55fa7"><br>
+
 7. **A library of pre-built components**, e.g. substring:
 ```python
 from guidance import substring
@@ -96,7 +99,7 @@ text = 'guidance is awesome. guidance is so great. guidance is the best thing si
 # force the model to make an exact quote
 llama2 + f'Here is a true statement about the guidance library: "{substring(text)}"'
 ```
-> Here is a true statement about the guidance library: "the best thing since sliced bread."
+<img width="589" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/9a7178ad-ed73-4e6b-b418-f9d2a3a76b88"><br>
 
 8. [**Easy tool use**](#automatic-interleaving-of-control-and-generation-tool-use), where the model stops generation when a tool is called, calls the tool, then resumes generation. For example, here is a simple version of a calculator, via four separate 'tools':
 ```python
@@ -125,19 +128,17 @@ lm = llama2 + '''\
 '''
 lm + gen(max_tokens=15, tools=[add, subtract, multiply, divide])
 ```
-> 1 + 1 = add(1, 1) = 2  
-> 2 - 3 = subtract(2, 3) = -1  
-> 3 * 4 = multiply(3, 4) = 12.0  
-> 4 / 5 = divide(4, 5) = 0.8
-
+<img width="201" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/646e1a7d-0206-419b-8206-1d835c3a0e0a"><br>
 
 9. **Speed**: In contrast to chaining, `guidance` programs are the equivalent of a single LLM call. More so, whatever non-generated text that gets appended is batched, so that `guidance` programs are **faster** than having the LM generate intermediate text when you have a set structure.
+
 10. **Token healing**: Users deal with text (or bytes) rather than tokens, and thus don't have to worry about [perverse token boundaries issues](https://towardsdatascience.com/the-art-of-prompt-design-prompt-boundaries-and-token-healing-3b2448b0be38) such as 'prompt ending in whitespace'.
+
 11. **Streaming support**, also integrated with jupyter notebooks:
 <img src="docs/figures/proverb_animation.gif" width="404">  
 TODO: change this image to new version with the example above.
 
-12. **High compatibility:** works with Transformers, llamacpp, VertexAI, OpenAI. Users can write one guidance program and execute it on many backends (note that the most powerful features require enpoint integration, and for now work best with transformers and llamacpp).
+12. **High compatibility:** works with Transformers, llama.cpp, VertexAI, OpenAI. Users can write one guidance program and execute it on many backends (note that the most powerful features require enpoint integration, and for now work best with transformers and llamacpp).
 
 ## Table of Contents
    * [Install](#install)
