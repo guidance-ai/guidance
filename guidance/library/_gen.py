@@ -51,7 +51,7 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, regex=None,
     if isinstance(stop, str):
         stop = [stop]
     if regex is None:
-        stop.append(model_variable('eos_token'))
+        stop.append(model_variable('default_end_patterns'))
 
     if stop_regex is None:
         stop_regex = []

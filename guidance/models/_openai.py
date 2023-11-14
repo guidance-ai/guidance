@@ -1,36 +1,67 @@
-import re
 import os
+from pathlib import Path
+import multiprocessing
+from itertools import takewhile
+import operator
+import threading
+import numpy as np
+import queue
+import time
+import tiktoken
+import re
 
-from ._model import Model, Chat
-from guidance._grammar import Select, Join, Byte
+from ._model import Chat, Instruct
+# from ._local import Local
+from ._remote import Remote
 
+
+try:
+    # TODO: can we eliminate the torch requirement for llama.cpp by using numpy in the caller instead?
+    import torch
+    is_torch = True
+except ImportError:
+    is_torch = False
+
+try:
+    # TODO: can we eliminate the torch requirement for llama.cpp by using numpy in the caller instead?
+    import openai as openai_package
+    is_openai = True
+except ImportError:
+    is_openai = False
 
 chat_model_pattern = r'^(gpt-3\.5-turbo|gpt-4)(-\d+k)?(-\d{4})?$'
 
-class OpenAI(Model):
-    def __init__(self, model, api_key=None, organization=None, base_url=None, echo=True, eos_token="<|endoftext|>"):
-        '''Initialize an OpenAI model. Parameters are based on the new OpenAI V1 SDK.
-
-        Args:
-            model: Supported OpenAI model name.
-            api_key: OpenAI API key. Defaults to OPENAI_API_KEY environment variable.
-            organization: OpenAI organization ID. Defaults to OPENAI_ORG_ID environment variable.
-            base_url: OpenAI API base URL. Defaults to "https://api.openai.com/v1".
-            echo: Whether to echo the prompt back to the output. Defaults to True.
-        '''
-        # TODO: Re-enable caching, retry, throttling support.
-
-        # subclass to OpenAIChat if model is chat
-        if re.match(chat_model_pattern, model) and self.__class__ is OpenAI:
-            # Will enable/test Chat support after getting basic completion models working.
-            raise Exception("OpenAI chat models are not yet supported. Use gpt-3.5-instruct-turbo for now.") 
-            self.__class__ = OpenAIChat
-            OpenAIChat.__init__(self, model=model, caching=caching)
-            return
+class OpenAI(Remote):
+    def __init__(self, model, tokenizer=None, echo=True, caching=True, api_key=None, organization=None, base_url=r"https://api.openai.com/v1", temperature=0.0, max_streaming_tokens=500, **kwargs):
+        if not is_openai or not hasattr(openai_package, "OpenAI"):
+            raise Exception("Please install the openai package version >= 1 using `pip install openai -U` in order to use guidance.models.OpenAI!")
         
-        # standard init
-        super().__init__(model)
-        self.model_name = model
+        # if we are called directly (as opposed to through super()) then we convert ourselves to a more specific subclass if possible
+        if self.__class__ is OpenAI:
+            found_subclass = None
+            # from . import openai
+
+            # if isinstance(model, str):
+            #     model_name = model
+            # else:
+            #     model_name = self.model_obj._model_id
+
+            # chat
+            if re.match(chat_model_pattern, model):
+                found_subclass = OpenAIChat
+
+            # instruct
+            elif "instruct" in model:
+                found_subclass = OpenAIInstruct
+
+            # regular completion
+            else:
+                found_subclass = OpenAICompletion
+            
+            # convert to any found subclass
+            self.__class__ = found_subclass
+            found_subclass.__init__(self, model, tokenizer=tokenizer, echo=echo, caching=caching, api_key=api_key, organization=organization, base_url=base_url, temperature=temperature, max_streaming_tokens=max_streaming_tokens, **kwargs)
+            return # we return since we just ran init above and don't need to run again
 
         # Configure an AsyncOpenAI Client with user params.
         if api_key is None:
@@ -39,122 +70,142 @@ class OpenAI(Model):
         if organization is None:
             organization = os.environ.get("OPENAI_ORG_ID")
 
-        if base_url is None:
-            base_url = r"https://api.openai.com/v1"
+        self.client = openai_package.OpenAI(api_key=api_key, organization=organization, base_url=base_url)
+        self.model_name = model
+
+        
+        
+        # self.tokenizer = tiktoken.encoding_for_model(model)
+        # self.eos_token = b"<|endoftext|>"
+
+        super().__init__(
+            model, tokenizer=tiktoken.encoding_for_model(model), echo=echo,
+            caching=caching, temperature=temperature,
+            max_streaming_tokens=max_streaming_tokens, **kwargs
+        )
+
+        self.max_tokens = 100
+        
+    
+
+class OpenAICompletion(OpenAI, Instruct):
+
+    def _generator(self, prompt):
+        self._shared_state["not_running_stream"].clear() # so we know we are running
+        self._shared_state["data"] = prompt # we start with this data
 
         try:
-            from openai import OpenAI as OpenAIClient # Need to avoid naming conflict
-            import tiktoken
-        except ImportError:
-            raise ImportError("OpenAI support requires openai >= 1 and tiktoken to be installed.")
-        
-        self.tokenizer = tiktoken.encoding_for_model(model)
-        if isinstance(eos_token, str):
-            self.eos_token = bytes(eos_token, "utf-8")
-        else:
-            self.eos_token = b"<|endoftext|>"
-        
-        eos_token_id = self.tokenizer.encode(self.eos_token.decode(), allowed_special={self.eos_token.decode()})
-        assert len(eos_token_id) == 1 and isinstance(eos_token_id[0], int), "Could not find a single token representation of EOS token."
-        self.eos_token_id = eos_token_id[0]
-
-
-        self.client = OpenAIClient(api_key=api_key, organization=organization, base_url=base_url)
-
-    def _openai_completion_call(self, prompt, max_tokens=100, n=1, top_p=1, temperature=0.0):
-        try:
-            return self.client.completions.create(
-                model=self.model_name, 
-                prompt=prompt, 
-                max_tokens=max_tokens, 
-                n=n, 
-                top_p=top_p, 
-                temperature=temperature, 
+            generator = self.client.completions.create(
+                model=self.model_name,
+                prompt=prompt.decode("utf8"), 
+                max_tokens=self.max_tokens, 
+                n=1, 
+                top_p=1, 
+                temperature=0, 
                 stream=True
             )
         except Exception as e: # TODO: add retry logic
             raise e
         
+        for part in generator:
+            chunk = part.choices[0].text or ""
+            yield chunk.encode("utf8")
 
-    def __call__(self, grammar, max_tokens=100, n=1, top_p=1, temperature=0.0):
-        # TODO: Add support for gen intermixed with generation (i.e. grammar has a fixed piece to it.
+class OpenAIInstruct(OpenAI, Instruct):
 
-        def is_gen_grammar(grammar):
-            # First, check if the root of the grammar is a Join
-            if not isinstance(grammar, Join) or len(grammar.values) != 2:
-                return False
-
-            # Next, check if the first part of the Join is a Select
-            zero_or_more = grammar.values[0]
-            if not isinstance(zero_or_more, Select):
-                return False
-
-            # Check if one of the options in the Select is a Join that includes the Select itself
-            recursion_found = any(isinstance(option, Join) and zero_or_more in option.values for option in zero_or_more.values)
-            if not recursion_found:
-                return False
-
-            # Check if the second part of the Join is a Select that contains a Join
-            stop_string_select = grammar.values[1]
-            if not isinstance(stop_string_select, Select):
-                return False
-
-            # Check if one of the options in the Select is a Join corresponding to the stop_string
-            stop_string_found = any(isinstance(option, Join) for option in stop_string_select.values)
-            if not stop_string_found:
-                return False
-
-            return True
-        
-        def is_select_grammar(grammar):
-            # Check if the grammar is of type Select
-            if not isinstance(grammar, Select):
-                return False
-
-            # Check if all options within the Select are either terminal Bytes or Joins of Bytes
-            for option in grammar.values:
-                if isinstance(option, Byte):
-                    continue
-                elif isinstance(option, Join):
-                    if not all(isinstance(value, Byte) for value in option.values):
-                        return False
-                else:
-                    return False
-
-            return True
-                
-        if is_gen_grammar(grammar):
-            # Make API call assuming the grammar is correct right now
-            for completion in self._openai_completion_call(str(self), max_tokens, n, top_p, temperature):
-                
-                # Check if we are done
-                completion_text = completion.choices[0].text
-                if completion_text == self.eos_token:
-                    break # Finish if we hit our stop token -- TODO: update this to split out the stop properly from the grammar
-
-                # Otherwise, continue to yield out bytes
-                yield bytes(completion.choices[0].text, "utf-8"), True, 0.0, {}, {} # TODO: set logprobs if we have them
-
-        elif is_select_grammar(grammar):
-            # always pick the first select value just for debugging
-            yield grammar.values[0].byte, False, 0.0, {}, {}
-        
-        # Not in a select but just want to concat text
-        elif isinstance(grammar, Join) and all(isinstance(x, Byte) for x in grammar.values):
-            # all terminal bytes mean we just add that straight to the text
-            for byte in grammar.values:
-                yield byte.byte, False, 0.0, {}, {}
-
+    def get_role_start(self, name):
+        return ""
+    
+    def get_role_end(self, name):
+        if name == "instruction":
+            return "<|endofprompt|>"
         else:
-            # TODO: Add logic for simple select detection and error conditions here
-            pass
+            raise Exception(f"The OpenAIInstruct model does not know about the {name} role type!")
 
+    def _generator(self, prompt):
+        # start the new stream
+        prompt_end = prompt.find(b'<|endofprompt|>')
+        if prompt_end >= 0:
+            stripped_prompt = prompt[:prompt_end]
+        else:
+            raise Exception("This model cannot handle prompts that don't match the instruct format!")
+        self._shared_state["not_running_stream"].clear() # so we know we are running
+        self._shared_state["data"] = stripped_prompt + b'<|endofprompt|>'# we start with this data
+
+        try:
+            generator = self.client.completions.create(
+                model=self.model_name,
+                prompt=self._shared_state["data"].decode("utf8"), 
+                max_tokens=self.max_tokens, 
+                n=1, 
+                top_p=1, 
+                temperature=0, 
+                stream=True
+            )
+        except Exception as e: # TODO: add retry logic
+            raise e
+        
+        for part in generator:
+            chunk = part.choices[0].text or ""
+            yield chunk.encode("utf8")
 
 class OpenAIChat(OpenAI, Chat):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def tool_def(self, *args, **kwargs):
-        lm = self + "<||_html:<span style='background-color: rgba(93, 63, 211, 0.15)'>_||>"
-        lm = OpenAI.tool_def(lm, *args, **kwargs)
-        return lm + "<||_html:</span>_||>"
+    def _generator(self, prompt):
+        
+        # find the system text
+        pos = 0
+        # system_start = b'<|im_start|>system\n'
+        # user_start = b'<|im_start|>user\n'
+        # assistant_start = b'<|im_start|>assistant\n'
+        role_end = b'<|im_end|>'
+        # system_start_pos = prompt.startswith(system_start)
+        
+        # find the system text
+        # system_text = b''
+        # if prompt.startswith(system_start):
+        #     pos += len(system_start)
+        #     system_end_pos = prompt.find(role_end)
+        #     system_text = prompt[pos:system_end_pos]
+        #     pos = system_end_pos + len(role_end)
+
+        # find the user/assistant pairs
+        messages = []
+        found = True
+        while found:
+
+            # find the user text
+            found = False
+            for role_name,start_bytes in (("system", b'<|im_start|>system\n'), ("user", b'<|im_start|>user\n'), ("assistant", b'<|im_start|>assistant\n')):
+                if prompt[pos:].startswith(start_bytes):
+                    pos += len(start_bytes)
+                    end_pos = prompt[pos:].find(role_end)
+                    if end_pos < 0:
+                        assert role_name == "assistant", "Bad chat format! Last role before gen needs to be assistant!"
+                        break
+                    btext = prompt[pos:pos+end_pos]
+                    pos += end_pos + len(role_end)
+                    messages.append({"role": role_name, "content": btext.decode("utf8")})
+                    found = True
+                    break
+        
+        self._shared_state["data"] = prompt[:pos]
+
+        try:
+            generator = self.client.chat.completions.create(
+                model=self.model_name,
+                messages=messages,
+                max_tokens=self.max_tokens, 
+                n=1, 
+                top_p=1, 
+                temperature=0, 
+                stream=True
+            )
+        except Exception as e: # TODO: add retry logic
+            raise e
+
+        for part in generator:
+            chunk = part.choices[0].delta.content or ""
+            yield chunk.encode("utf8")

@@ -9,8 +9,8 @@ try:
 except ImportError:
     pass
 
-from ._model import Chat
-from ._local import Local
+from .._model import Chat
+from .._local import Local
 
 
 class Transformers(Local):

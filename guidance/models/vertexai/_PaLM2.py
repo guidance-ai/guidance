@@ -9,7 +9,7 @@ import queue
 import time
 import tiktoken
 
-from .._vertexai import VertexAIInstruct, VertexAIChat
+from ._vertexai import VertexAIInstruct, VertexAIChat
 
 # try:
 #     # TODO: can we eliminate the torch requirement for llama.cpp by using numpy in the caller instead?
