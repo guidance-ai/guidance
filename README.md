@@ -579,7 +579,7 @@ def math_with_calc(lm, question):
 question = '''Janet’s ducks lay 16 eggs per day. She eats three for breakfast every morning and bakes muffins for her friends every day with four. She sells the remainder at the farmers' market daily for $2 per fresh duck egg. How much in dollars does she make every day at the farmers' market?'''
 llama2 + math_with_calc(question)
 ```
-<img width="683" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/2e16d116-54b2-4e67-b90a-d44e99fb9d35"><br>
+<img width="685" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/0c7b8da0-b295-46cd-a312-604ecfba7b33"><br>
 
 ### Automatic call grammar for @guidance functions
 You can also initialize a `Tool` with any `@guidance`-decorated function, and the default call grammar will be like a python call. Here is an example of using multiple such tools in the same `gen` call:
