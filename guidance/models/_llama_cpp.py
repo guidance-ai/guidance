@@ -50,6 +50,9 @@ class LlamaCpp(Local):
                 kwargs["n_threads"] = multiprocessing.cpu_count()
             if "verbose" not in kwargs:
                 kwargs["verbose"] = False
+            if "n_batch" not in kwargs and "n_ctx" in kwargs:
+                kwargs["n_batch"] = kwargs["n_ctx"]
+
             with normalize_notebook_stdout_stderr():
                 self.model_obj = llama_cpp.Llama(model_path=model, **kwargs)
         elif isinstance(model, llama_cpp.Llama):
