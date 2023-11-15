@@ -1,14 +1,5 @@
 # version: 2
 
-# python:
-#    version: 3.8
-#    install:
-#       - method: pip
-#         path: .
-#         extra_requirements:
-#             - docs
-#    system_packages: true
-
 # Read the Docs configuration file for Sphinx projects
 # See https://docs.readthedocs.io/en/stable/config-file/v2.html for details
 
@@ -44,3 +35,11 @@ sphinx:
 # python:
 #   install:
 #     - requirements: docs/requirements.txt
+#    version: 3.8
+python:
+   install:
+      - method: pip
+        path: .
+        extra_requirements:
+            - docs
+   system_packages: true
