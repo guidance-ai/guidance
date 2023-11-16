@@ -1,217 +1,571 @@
-import pyparsing as pp
+import base64
+import uuid
+import json
+import inspect
+import functools
+import re
 
-pp.ParserElement.enable_packrat()
-# pp.enable_diag(pp.Diagnostics.enable_debug_on_named_expressions)
-# pp.autoname_elements()
+tag_start = "{{G|"
+tag_end = "|G}}"
+_call_pool = {}
+_tag_pattern = re.compile(re.escape(tag_start) + r"([^\|]+)" + re.escape(tag_end))
 
-class SavedTextNode:
-    """A node that saves the text it matches."""
-    def __init__(self, s, loc, tokens):
-        start_pos = tokens[0]
-        if len(tokens) == 3:
-            end_pos = tokens[2]
+class StatefulException(Exception):
+    '''This is raised when we try and use the state of a grammar object like it was a live model.
+    
+    Note that eventually we do want to support stateful parser/grammar constructs directly, but
+    for now we use a traditional parser and grammar separation (hence the need for this exception).'''
+    pass
+
+_excluded_names = frozenset(["_find_name", "__add__", "__radd__", "<listcomp>", "<module>", "select", "char_set"])
+def _find_name():
+    stack = inspect.stack()
+    for frame in stack:
+        name = frame.function
+        if frame.function not in _excluded_names:
+            return name
+    return None
+
+class Function():
+    def __init__(self, name, value=None) -> None:
+        self.name = name
+        self.value = value
+
+    def __str__(self):
+        '''Creates a string tag that can be used to retrieve this object.'''
+    
+        # save the call in our call pool, ready to be run when it is attached to an LM object
+        str_id = str(id(self))
+        if str_id not in _call_pool:
+            _call_pool[str_id] = self
+
+        # return a string representation of this call so it can be combined with other strings/calls
+        return tag_start + str_id + tag_end
+
+class StatefulFunction(Function):
+    __slots__ = ("f", "args", "kwargs")
+
+    def __init__(self, f, args, kwargs):
+        self.f = f
+        self.args = args
+        self.kwargs = kwargs
+    
+    def __call__(self, model):
+        return self.f(model, *self.args, **self.kwargs)
+    
+    def __add__(self, other):
+        
+        # if we are joining with a string we use the string representation for ourselves
+        if isinstance(other, str):
+            return str(self) + other
+        
+        def __add__(model):
+            model = self(model)
+            if model is None:
+                raise Exception(f"The guidance function `{self.f.__name__}` did not return a model object! You need to return an updated model object at the end of your guidance function.")
+            if isinstance(other, StatelessFunction):
+                return model + other
+            else:
+                return other(model)
+        return StatefulFunction(__add__, [], {})
+    
+    def __radd__(self, other):
+        
+        # if we are joining with a string we use the string representation for ourselves
+        if isinstance(other, str):
+            return other + str(self)
+        
+        def __radd__(model):
+            if isinstance(other, StatelessFunction):
+                model += other
+            else:
+                model = other(model)
+            return self(model)
+        return StatefulFunction(__radd__, [], {})
+
+class StatelessFunction(Function):
+    num_used_names = 0
+
+    def __add__(self, value):
+
+        # see if we have a string with calls or a simple string 
+        if isinstance(value, str) or isinstance(value, bytes):
+            if isinstance(value, str) and re.search(_tag_pattern, value):
+                return str(self) + value
+            else:
+                value = string(value) 
+        
+        # see if we can keep building a stateless grammar
+        if isinstance(value, StatelessFunction):
+            return Join([self, value])
+        
+        # otherwise we let the stateful object handle things
         else:
-            end_pos = loc
-        self.text = s[start_pos:end_pos]
-        assert len(tokens[1]) == 1
-        self.tokens = tokens[1][0]
-    def __repr__(self):
-        return "SavedTextNode({})".format(self.text) + self.tokens.__repr__()
-    def __getitem__(self, item):
-        return self.tokens[item]
+            return value.__radd__(self)
+    
+    def __radd__(self, value):
+
+        # see if we have a string with calls or a simple string 
+        if isinstance(value, str) or isinstance(value, bytes):
+            if isinstance(value, str) and re.search(_tag_pattern, value):
+                return value + str(self)
+            else:
+                value = string(value) 
+        
+        # see if we can keep building a stateless grammar
+        if isinstance(value, StatelessFunction):
+            return Join([value, self])
+        
+        # otherwise we let the stateful object handle things
+        else:
+            return value.__add__(self)
+    
+    def __getitem__(self, value):
+        raise StatefulException("StatelessFunctions can't access state!")
+    
+    @staticmethod
+    def _new_name():
+        num_used = StatelessFunction.num_used_names
+
+        a_ord = ord('a')
+
+        # name the name in base 26 letter notation
+        name = chr(a_ord + num_used % 26)
+        if num_used >= 26:
+            name = chr(a_ord + (num_used % 676) // 26) + name
+            if num_used >= 676:
+                name = chr(a_ord + (num_used % 17576) // 676) + name
+                if num_used >= 17576:
+                    name = chr(a_ord + (num_used % 456976) // 17576) + name
+
+        StatelessFunction.num_used_names += 1
+        
+        return name
+    
+    def gbnf_string(self):
+        used_names = set()
+        names = {}
+        lines = []
+        root_name = self._rec_gbnf_string(lines, used_names, names)
+        lines.append("root ::= " + root_name)
+        return "\n".join(lines)
+
+class Terminal(StatelessFunction):
+    def match_byte(self, byte):
+        pass # abstract
+
+    @property
+    def max_tokens(self):
+        return 1000000000000
+
+class Byte(Terminal):
+    __slots__ = ("byte", "hidden", "commit_point", "capture_name", "temperature")
+
+    def __init__(self, byte):
+        assert isinstance(byte, bytes)
+        assert len(byte) == 1
+        self.byte = byte
+        self.hidden = False
+        self.commit_point = False
+        self.capture_name = None
+        self.temperature = -1
+
+    @property
+    def name(self):
+        return str(self.byte)
+    
+    def __hash__(self):
+        return self.byte[0]
+    
+    def __eq__(self, other):
+        return isinstance(other, Byte) and self.byte[0] == other.byte[0]
+    
+    def __repr__(self) -> str:
+        return str(self.byte)
+    
     def __len__(self):
-        return len(self.tokens)
-    def get_name(self):
-        return self.tokens.get_name()
-    def __contains__(self, item):
-        return item in self.tokens
-    def __getattr__(self, name):
-        return getattr(self.tokens, name)
-    def __call__(self, *args, **kwds):
-        return self.tokens(*args, **kwds)
-def SavedText(node):
-    return pp.Located(node).add_parse_action(SavedTextNode)
+        return 1
+    
+    def match_byte(self, byte):
+        return byte == self.byte
+    
+    @property
+    def nullable(self):
+        return False
 
-program = pp.Forward()
-program_chunk = pp.Forward()
+class ByteRange(Terminal):
+    __slots__ = ("byte_range", "hidden", "commit_point", "capture_name", "temperature")
 
-## whitespace ##
+    def __init__(self, byte_range):
+        assert isinstance(byte_range, bytes)
+        assert len(byte_range) == 2
+        self.byte_range = byte_range
+        self.hidden = False
+        self.commit_point = False
+        self.capture_name = None
+        self.temperature = -1 # -1 means not set
 
-ws = pp.White()
-opt_ws = pp.Optional(ws)
+    def match_byte(self, byte):
+        return self.byte_range[0] <= byte[0] <= self.byte_range[1]
+
+    @property
+    def name(self):
+        return str(self.byte_range)
+    @name.setter
+    def name(self, value):
+        pass # we ignore name changes
+    
+    @property
+    def nullable(self):
+        return False
+    
+    def __hash__(self):
+        return self.byte_range[0] + 256 * self.byte_range[1]
+    
+    def __eq__(self, other):
+        return isinstance(other, ByteRange) and self.byte_range[0] == other.byte_range[0] and self.byte_range[1] == other.byte_range[1]
+    
+    def __repr__(self) -> str:
+        return str(self.byte_range)
+    
+    def __len__(self):
+        return 1
+
+class Null():
+    __slots__ = ("name", "hidden", "commit_point", "capture_name")
+
+    nullable = True
+    def __init__(self):
+        self.name = None
+        self.hidden = False
+        self.commit_point = False
+        self.capture_name = None
+
+    def __add__(self, other):
+        if isinstance(other, str):
+            return string(other)
+        else:
+            return other
+        
+    def __radd__(self, other):
+        if isinstance(other, str):
+            return string(other)
+        else:
+            return other
+        
+class ModelVariable(StatelessFunction):
+    '''This represents a variable that will be read from the model object when this grammar is executed.
+    
+    Note that the name is the name of the attribute on the model object this node
+    will get replaced with.
+    '''
+    __slots__ = ("name", "hidden", "commit_point", "capture_name")
+
+    def __init__(self, name):
+        self.name = name
+        self.hidden = False
+        self.commit_point = False
+        self.capture_name = None
+        self.nullable = False
+
+def replace_grammar_node(grammar, target, replacement):
+    # Use a stack to keep track of the nodes to be visited
+    stack = [grammar]
+    visited_set = set()  # use set for O(1) lookups
+
+    while stack:
+        current = stack.pop()
+        
+        # Check if we have already visited this node
+        if current in visited_set:
+            continue
+        visited_set.add(current)
+
+        # We are done with this node if it's a terminal
+        if isinstance(current, (Terminal, ModelVariable)):
+            continue
+        
+        # Iterate through the node's values and replace target with replacement
+        for i, value in enumerate(current.values):
+            if value == target:
+                current.values[i] = replacement
+            else:
+                stack.append(value)
+
+# def replace_grammar_node(grammar, target, replacement, visited_set={}):
+    
+#     # see if we have already visited this node
+#     if grammar in visited_set:
+#         return
+#     else:
+#         visited_set[grammar] = True
+   
+#     # we are done if this is a terminal
+#     if isinstance(grammar, (Terminal, ModelVariable)):
+#         return
+    
+#     # replace all matching sub-nodes
+#     for i,value in enumerate(grammar.values):
+#         if value == target:
+#             grammar.values[i] = replacement
+#         else:
+#             replace_grammar_node(value, target, replacement, visited_set)
+
+def replace_model_variables(grammar, model):
+    '''Replace all the ModelVariable nodes with their values in an iterative manner.'''
+    visited_set = set()
+    stack = [(grammar, None, None)]  # Stack stores tuples of (node, parent_node, child_index)
+    replacements = []
+
+    while stack:
+        current, parent, child_index = stack.pop()
+
+        # This node is being visited for the first time
+        if current not in visited_set:
+            visited_set.add(current)
+
+            # If it's a terminal node, skip it
+            if isinstance(current, Terminal):
+                continue
+
+            # Process non-terminal nodes in reverse order to maintain the depth-first order
+            for i in reversed(range(len(current.values))):
+                value = current.values[i]
+                if isinstance(value, ModelVariable):
+                    # Replace the ModelVariable with its value from 'model'
+                    replacement_value = _wrap_as_grammar(getattr(model, value.name))
+                    if value.commit_point:
+                        replacement_value = commit_point(replacement_value, hidden=value.hidden)
+                    replacements.append((current, i, value))  # Record the replacement
+                    current.values[i] = replacement_value  # Perform the replacement
+                else:
+                    # If not ModelVariable, push onto the stack to process later
+                    stack.append((value, current, i))
+
+    return replacements
+
+# def replace_model_variables(grammar, model, visited_set={}):
+#     '''Replace all the ModelVariable nodes with their values.'''
+    
+#     # see if we have already visited this node
+#     if grammar in visited_set:
+#         return []
+#     else:
+#         visited_set[grammar] = True
+   
+#     # we are done if this is a terminal
+#     if isinstance(grammar, Terminal):
+#         return []
+    
+#     # replace all matching sub-nodes
+#     replacements = []
+#     for i,value in enumerate(grammar.values):
+#         if isinstance(value, ModelVariable):
+#             g = _wrap_as_grammar(getattr(model, value.name))
+#             if value.commit_point:
+#                 g = commit_point(g, hidden=value.hidden)
+#             replacements.append((grammar, i, value))
+#             grammar.values[i] = g
+#         else:
+#             replacements.extend(replace_model_variables(value, model, visited_set))
+#     return replacements
+
+def unreplace_model_variables(replacements):
+    '''This restores a grammar back to its original state, ready for another execution.'''
+    for grammar,i,orig_value in replacements:
+        grammar.values[i] = orig_value
+
+def _wrap_as_grammar(value):
+    '''This takes whatever value was given and tries to turn in into a guidance grammar.'''
+
+    # if it is already a valid grammar we have no need to wrap it
+    if isinstance(value, StatelessFunction):
+        return value
+    
+    # if it is already a valid grammar we have no need to wrap it
+    if value is None:
+        return Null() 
+    
+    # we have a constant value
+    if isinstance(value, (str, bytes)):
+        return string(value)
+    
+    raise Exception("Can't wrap as a grammar!")
+
+def commit_point(value, hidden=False):
+    '''Force the grammar to commit to a parse that includes this node once it can.
+    
+    Not that commit point nodes can be optionally hidden (in fact they are the only
+    nodes that can be hidden since they are by definition not impacted by multiple possible
+    inconsistent parses.)'''
+    # TODO: assert that value is not empty since we don't yet support that
+    if isinstance(value, str):
+        value = string(value)
+    if isinstance(value, Terminal):
+        value = Join([value]) # commit points should be full nodes (otherwise we can't hide them) TODO: decide if we want to do this even for non-hidden commit points
+    value.commit_point = True
+    if hidden:
+        _rec_hide(value)
+    return value
+
+def _rec_hide(grammar):
+    if not grammar.hidden:
+        grammar.hidden = True
+        if hasattr(grammar, "values"):
+            for g in grammar.values:
+                _rec_hide(g)
+
+class Placeholder(StatelessFunction):
+    __slots__ = tuple("nullable")
+    def __init__(self):
+        self.nullable = False
 
 
-## comments ##
+class Join(StatelessFunction):
+    __slots__ = ("nullable", "values", "name", "hidden", "commit_point", "capture_name", "max_tokens")
 
-# long-form comments {{!-- my comment --}}
-command_end = pp.Suppress(opt_ws + "}}") | pp.Suppress(opt_ws + "~}}" + opt_ws)
-long_comment_start = pp.Suppress(pp.Literal("{{") + pp.Optional("~") + pp.Literal("!--"))
-long_comment_end =  pp.Suppress(pp.Literal("--") + command_end)
-not_long_comment_end = "-" + ~pp.FollowedBy("-}}") + ~pp.FollowedBy("-~}}")
-long_comment_content = not_long_comment_end | pp.OneOrMore(pp.CharsNotIn("-"))
-long_comment = SavedText(pp.Group(pp.Combine(long_comment_start + pp.ZeroOrMore(long_comment_content) + long_comment_end))("long_comment").set_name("long_comment"))
+    def __init__(self, values, name=None, max_tokens=100000000) -> None:
+        self.nullable = all(v.nullable for v in values)
+        self.values = [v for v in values if not isinstance(v, Null)]
+        self.name = name if name is not None else StatelessFunction._new_name()
+        self.hidden = False
+        self.commit_point = False
+        self.capture_name = None
+        self.max_tokens = max_tokens
 
-# short-form comments  {{! my comment }}
-comment_start = pp.Suppress("{{" + pp.Optional("~") + "!")
-not_comment_end = "}" + ~pp.FollowedBy("}") | "~" + ~pp.FollowedBy("}}")
-comment_content = not_comment_end | pp.OneOrMore(pp.CharsNotIn("~}"))
-comment = SavedText(pp.Group(pp.Combine(comment_start + pp.ZeroOrMore(comment_content) + command_end))("comment"))
+    def __repr__(self, indent="", done=None):
+        if done is None:
+            done = set()
+        s = self.name.ljust(20) + " <- " + " ".join([v.name for v in self.values])
+        s += "        " + ("hidden " if self.hidden else "") + ("commit_point " if self.commit_point else "") + (f"max_tokens={self.max_tokens}" if self.max_tokens < 100000 else "") +"\n"
+        done.add(self)
+        for v in self.values:
+            if v not in done and (isinstance(v, Join) or isinstance(v, Select)):
+                s += v.__repr__(indent, done)
+        return s
 
+class Select(StatelessFunction):
+    __slots__ = ("nullable", "_values", "name", "hidden", "commit_point", "capture_name", "max_tokens", "recursive")
 
-## literals ##
+    def __init__(self, values, capture_name=None, name=None, max_tokens=10000000, recursive=False) -> None:
+        self.values = values
+        self.name = name if name is not None else StatelessFunction._new_name()
+        self.hidden = False
+        self.commit_point = False
+        self.capture_name = capture_name
+        self.max_tokens = max_tokens
+        self.recursive = recursive
 
-literal = pp.Forward().set_name("literal")
+    @property
+    def values(self):
+        return self._values
+    @values.setter
+    def values(self, vals):
+        self._values = [string(v) if isinstance(v, (str, bytes)) else v for v in vals]
+        self.nullable = any(v.nullable for v in self._values)
+        self._values = [v for v in self._values if not isinstance(v, Null)]
 
-# basic literals
-string_literal = pp.Group(pp.Suppress('"') + pp.ZeroOrMore(pp.CharsNotIn('"')) + pp.Suppress('"') | pp.Suppress("'") + pp.ZeroOrMore(pp.CharsNotIn("'")) + pp.Suppress("'"))("string_literal")
-number_literal = pp.Group(pp.Word(pp.srange("[0-9.]")))("number_literal")
-boolean_literal = pp.Group("True" | pp.Literal("False"))("boolean_literal")
+    def __repr__(self, indent="", done=None):
+        if done is None:
+            done = set()
+        s = self.name.ljust(20) + " <- " + " | ".join([v.name for v in self.values])
+        s += "        " + ("hidden " if self.hidden else "") + ("commit_point " if self.commit_point else "") + (f"max_tokens={self.max_tokens}" if self.max_tokens < 100000 else "") +"\n"
+        done.add(self)
+        for v in self.values:
+            if v not in done and (isinstance(v, Join) or isinstance(v, Select)):
+                s += v.__repr__(indent, done)
+        return s
 
-# object literal
-object_literal = pp.Forward().set_name("object_literal")
-object_start = pp.Suppress("{")
-object_end = pp.Suppress("}")
-empty_object = object_start + object_end
-object_item = string_literal + pp.Suppress(":") + literal
-single_item_object = object_start + object_item + object_end
-object_sep = pp.Suppress(",")
-multi_item_object = object_start + object_item + pp.ZeroOrMore(object_sep + object_item) + object_end
-object_literal <<= pp.Group(empty_object | single_item_object | multi_item_object)("object_literal")
+def string(value):
+    if isinstance(value, str):
+        b = bytes(value, encoding="utf8")
+    elif isinstance(value, bytes):
+        b = value
+    else:
+        raise Exception("Must pass bytes or str to the string() function!")
+    if len(value) == 0:
+        return Null()
+    elif len(b) == 1:
+        return Byte(b)
+    else:
+        return Join([Byte(b[i:i+1]) for i in range(len(b))], name=str(b))
+    
+def select(options, name=None, recurse=False, skip_checks=False):
+    # TODO: allow for returning the probabilites of the selected item
+    # TODO: also the full probabilites distribution over all items. We can implement this using the prob of the selected item by repeating the call, removing the selected item each time
+    if not skip_checks:
+        for i, value in enumerate(options):
+            assert not isinstance(value, StatefulFunction), "You cannot select between stateful functions in the current guidance implementation!"
+            if isinstance(value, int) or isinstance(value, float):
+                options[i] = str(value)
+    # if name is None:
+    #     name = _find_name() + "_" + StatelessFunction._new_name()
+    if recurse:
+        node = Select([], capture_name=name, recursive=True)
+        node.values = [node + v for v in options if v != ""] + options
+        return node
+    else:
+        if len(options) == 1 and name is None:
+            return options[0]
+        else:
+            return Select(options, capture_name=name, recursive=False)
+        
+def byte_range(low, high):
+    return ByteRange(low + high)
 
-# array literal
-array_literal = pp.Forward().set_name("array_literal")
-array_start = pp.Suppress("[")
-array_end = pp.Suppress("]")
-array_item = literal
-empty_array = array_start + array_end
-single_item_array = array_start + array_item + array_end
-array_sep = pp.Suppress(",")
-multi_item_array = array_start + array_item + pp.ZeroOrMore(array_sep + array_item) + array_end
-array_literal <<= pp.Group(empty_array | single_item_array | multi_item_array)("array_literal")
+# def ignore_placeholders(value):
+#     if not isinstance(value, Join): # don't double wrap
+#         value = Join([value]) # this ensures we capture what we want, and not something surprisingly self_recursive
+#     value.ignore_placeholders = True
+#     return value
 
-literal <<= string_literal | number_literal | boolean_literal | array_literal | object_literal
+def capture(value, name):
+    if not (isinstance(value, Join) and len(value.values) == 1): # don't double wrap
+        value = Join([value]) # this ensures we capture what we want, and not something surprisingly self_recursive
+    value.capture_name = name
+    return value
 
+def token_limit(value, max_tokens):
+    _rec_token_limit(value, max_tokens)
+    return value
 
-## infix operators ##
+def _rec_token_limit(grammar, max_tokens):
+    if grammar.max_tokens > max_tokens and not isinstance(grammar, Terminal):
+        if getattr(grammar, "recursive", False): # only restrict recursive selects, otherwise we would block all way to complete the grammar
+            grammar.max_tokens = max_tokens
+        if hasattr(grammar, "values"):
+            for g in grammar.values:
+                _rec_token_limit(g, max_tokens)
 
-code_chunk_no_infix = pp.Forward().set_name("code_chunk_no_infix")
+def with_temperature(value, temperature):
+    '''This sets the sampling temperature to be used for the given portion of the grammar.
+    
+    Note that if the grammar passed to us already has some portions with a temperature
+    setting in place, those setting will not be overridden.
+    '''
+    _re_with_temperature(value, temperature, {})
+    return value
 
-class OpNode:
-    def __repr__(self):
-        return "{}({})".format(self.__class__.__name__, self.operator)
-    def __getitem__(self, item):
-        return getattr(self, item)
-    def get_name(self):
-        return self.name
+def _re_with_temperature(grammar, temperature, visited_set):
+    
+    # don't go down the same path twice
+    if grammar in visited_set:
+        return
+    visited_set[grammar] = True
 
-class UnOp(OpNode):
-    def __init__(self, tokens):
-        self.operator = tokens[0][0]
-        self.value = tokens[0][1]
-        self.name = "unary_operator"
+    # if getattr(grammar, "temperature", 100000000) > temperature:
+    if isinstance(grammar, Terminal) and grammar.temperature < 0: # only need to set temp for terminals
+        grammar.temperature = temperature
+    elif getattr(grammar, "temperature", 100000000) > temperature and hasattr(grammar, "values"):
+        for g in grammar.values:
+            _re_with_temperature(g, temperature, visited_set)
 
-class BinOp(OpNode):
-    def __init__(self, tokens):
-        self.operator = tokens[0][1]
-        self.lhs = tokens[0][0]
-        self.rhs = tokens[0][2]
-        self.name = "binary_operator"
+def model_variable(name):
+    return ModelVariable(name)
 
-infix_operator_block = pp.infix_notation(code_chunk_no_infix, [
-    (pp.one_of('- not'), 1, pp.OpAssoc.RIGHT, UnOp),
-    (pp.one_of('* /'), 2, pp.OpAssoc.LEFT, BinOp),
-    (pp.one_of('+ -'), 2, pp.OpAssoc.LEFT, BinOp),
-    (pp.one_of('< > <= >= == != is in'), 2, pp.OpAssoc.LEFT, BinOp),
-    (pp.one_of('and'), 2, pp.OpAssoc.LEFT, BinOp),
-    (pp.one_of('or'), 2, pp.OpAssoc.LEFT, BinOp),
-])
-
-
-## commands ##
-
-code_chunk = pp.Forward().set_name("code_chunk")
-not_keyword = ~pp.FollowedBy(pp.Keyword("or") | pp.Keyword("else") | pp.Keyword("elif") | pp.Keyword("not"))
-command_name = pp.Combine(not_keyword + pp.Word(pp.srange("[@A-Za-z_]"), pp.srange("[A-Za-z_0-9\.]")))
-variable_name = pp.Word(pp.srange("[@A-Za-z_]"), pp.srange("[A-Za-z_0-9]"))
-variable_ref = not_keyword + pp.Group(pp.Word(pp.srange("[@A-Za-z_]"), pp.srange("[@A-Za-z_0-9\.\[\]\"'-]")))("variable_ref").set_name("variable_ref")
-keyword = pp.Group(pp.Keyword("break") | pp.Keyword("continue"))("keyword")
-
-# command arguments
-command_arg = pp.Forward()
-named_command_arg = variable_name + "=" + code_chunk
-command_arg <<= pp.Group(named_command_arg)("named_command_arg").set_name("named_command_arg") | pp.Group(code_chunk)("positional_command_arg").set_name("positional_command_arg")
-
-# whitespace command format {{my_command arg1 arg2=val}}
-ws_command_call = pp.Forward().set_name("ws_command_call")
-command_arg_and_ws = pp.Suppress(ws) + command_arg
-ws_command_args = pp.OneOrMore(command_arg_and_ws)
-# note that we have to list out all the operators here because we match before the infix operator checks
-ws_command_call <<= command_name("name") + ~pp.FollowedBy(pp.one_of("+ - * / or not is and <= == >= != < >")) + ws_command_args
-
-# paren command format {{my_command(arg1, arg2=val)}}
-paren_command_call = pp.Forward().set_name("paren_command_call")
-command_arg_and_comma_ws = pp.Suppress(",") + command_arg
-paren_command_args = pp.Optional(command_arg) + pp.ZeroOrMore(command_arg_and_comma_ws)
-paren_command_call <<= (command_name("name") + pp.Suppress("(")).leave_whitespace() - paren_command_args + pp.Suppress(")")
-
-# code chunks
-enclosed_code_chunk = pp.Forward().set_name("enclosed_code_chunk")
-paren_group = (pp.Suppress("(") - enclosed_code_chunk + pp.Suppress(")")).set_name("paren_group")
-enclosed_code_chunk_cant_infix = (pp.Group(ws_command_call)("command_call") | pp.Group(paren_command_call)("command_call") | literal | keyword | variable_ref | paren_group) + ~pp.FollowedBy(pp.one_of("+ - * / or not is and <= == >= != < >"))
-enclosed_code_chunk <<= enclosed_code_chunk_cant_infix | infix_operator_block
-code_chunk_no_infix <<= (paren_group | pp.Group(paren_command_call)("command_call") | literal | keyword | variable_ref) # used by infix_operator_block
-code_chunk_cant_infix = code_chunk_no_infix + ~pp.FollowedBy(pp.one_of("+ - * / or not is and <= == >= != < >")) # don't match infix operators so we can run this before infix_operator_block
-code_chunk_cant_infix.set_name("code_chunk_cant_infix")
-code_chunk <<= code_chunk_cant_infix | infix_operator_block
-
-# command/variable
-command_start = pp.Suppress("{{" + ~pp.FollowedBy("!") + pp.Optional("~"))
-simple_command_start = pp.Suppress("{{" + ~pp.FollowedBy("!") + pp.Optional("~")) + ~pp.FollowedBy(pp.one_of("# / >"))
-command = SavedText(pp.Group(simple_command_start + enclosed_code_chunk + command_end)("command"))
-
-# partial
-always_call = pp.Group(paren_command_call | command_name("name") + pp.Optional(ws_command_args))
-partial = pp.Group(pp.Suppress(pp.Combine(command_start + ">")) + always_call("command_call") + command_end)("partial")
-
-# block command {{#my_command arg1 arg2=val}}...{{/my_command}}
-separator = pp.Group(pp.Keyword("or") | pp.Keyword("else") | (pp.Keyword("elif") + ws_command_args))("separator").set_name("separator")
-block_command = pp.Forward()
-block_command_call = always_call("command_call")
-block_command_open = pp.Suppress(pp.Combine(command_start + "#")) + block_command_call + command_end
-block_command_sep = (command_start + separator + command_end)("block_command_sep").set_name("block_command_sep")
-block_command_close = SavedText(pp.Group(command_start + pp.Suppress("/") + command_name + command_end)("block_command_close").set_name("block_command_close"))
-block_command_content = (pp.Group(program)("block_content_chunk") + pp.ZeroOrMore(block_command_sep + pp.Group(program)("block_content_chunk"))).set_name("block_content")
-block_command <<= (block_command_open + SavedText(pp.Group(block_command_content)("block_content")) + block_command_close).leave_whitespace()
-block_command = SavedText(pp.Group(block_command)("block_command")).set_name("block_command")
-
-# block partial {{#>my_command arg1 arg2=val}}...{{/my_command}}
-block_partial = pp.Forward()
-block_partial_call = always_call("command_call")
-block_partial_open = pp.Combine(command_start + pp.Suppress("#>")) + block_partial_call + command_end
-block_partial_close = command_start + pp.Suppress("/") + command_name + command_end
-block_partial <<= block_partial_open + program + pp.Suppress(block_partial_close)
-block_partial = SavedText(pp.Group(block_partial)("block_partial"))
-
-# escaped commands \{{ not a command }}
-not_command_end = "}" + ~pp.FollowedBy("}")
-escaped_command = SavedText(pp.Group(pp.Suppress("\\") + command_start + pp.Combine(pp.ZeroOrMore(pp.CharsNotIn("}") | not_command_end)) + command_end)("escaped_command"))
-unrelated_escape = "\\" + ~pp.FollowedBy(command_start)
-
-
-## content ##
-
-not_command_start = "{" + ~pp.FollowedBy("{" + pp.CharsNotIn("{"))
-not_command_escape = "\\" + ~pp.FollowedBy("{{")
-stripped_whitespace = pp.Suppress(pp.Word(" \t\r\n")) + pp.FollowedBy("{{~")
-unstripped_whitespace = pp.Word(" \t\r\n") # no need for a negative FollowedBy because stripped_whitespace will match first
-content = pp.Group(pp.Combine(pp.OneOrMore(stripped_whitespace | unstripped_whitespace | not_command_start | not_command_escape | pp.CharsNotIn("{\\ \t\r\n"))))("content").set_name("content")
-
-# keyword_command = SavedText(pp.Group(command_start + keyword + ws_command_args + command_end)("keyword_command"))
-# block_content_chunk = long_comment | comment | escaped_command | unrelated_escape | block_partial | block_command | partial | command | content
-# block_content <<= pp.ZeroOrMore(block_content_chunk)("program").leave_whitespace()
-
-## global program ##
-
-program_chunk <<= (long_comment | comment | escaped_command | unrelated_escape | block_partial | block_command | partial | command | content).leave_whitespace()
-program <<= pp.ZeroOrMore(program_chunk)("program").leave_whitespace().set_name("program")
-grammar = (program + pp.StringEnd()).parse_with_tabs()
+# def char_range(low, high):
+#     low_bytes = bytes(low, encoding="utf8")
+#     high_bytes = bytes(high, encoding="utf8")
+#     if len(low_bytes) > 1 or len(high_bytes) > 1:
+#         raise Exception("We don't yet support multi-byte character ranges!")
+#     return ByteRange(low_bytes + high_bytes)

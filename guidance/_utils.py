@@ -4,7 +4,194 @@ import inspect
 import json
 import re
 import asyncio
+import queue
+import ast
+import types
+import itertools
+import textwrap
+import sys
 
+class TextRange:
+    def __init__(self, start, end, lm):
+        self.start = start
+        self.end = end
+        self.lm = lm
+
+    def __str__(self) -> str:
+        return str(self.lm)[self.start:self.end]
+
+# class InPlace():
+#     """Creates a scope where the LM is in-place or not."""
+#     def __init__(self, lm):
+#         self.lm = lm
+#         self._prev_inplace = lm._inplace
+    
+#     def __enter__(self):
+#         new_lm = self.lm._clone()
+#         new_lm._inplace = True
+#         return new_lm
+
+#     def __exit__(self, type, value, traceback):
+#         InPlace._rec_set_inplace(self.lm, self._prev_inplace)
+
+#     @staticmethod
+#     def _rec_set_inplace(lm, value):
+#         lm._inplace = value
+#         for child in lm._children:
+#             InPlace._rec_set_inplace(child, value)
+
+class Silent():
+    """Creates a scope where the LM is silent or not."""
+    def __init__(self, lm, silent):
+        self.lm = lm
+        self._prev_silent = lm._silent
+        self.silent = silent
+    
+    def __enter__(self):
+        if self.silent is not None:
+            self.lm._silent = self.silent
+
+    def __exit__(self, type, value, traceback):
+        if self.silent is not None:
+            Silent._rec_set_silent(self.lm, self._prev_silent)
+
+    @staticmethod
+    def _rec_set_silent(lm, value):
+        lm._silent = value
+        for child in lm._children:
+            Silent._rec_set_silent(child, value)
+
+class Hidden():
+    """Creates a scope where the LM state is optionally hidden from following calls.
+    
+    Hidden means that the text inside this scope will not be used as context for
+    later calls.
+    """
+    def __init__(self, lm, hidden):
+        self.lm = lm
+        self.hidden = hidden
+    
+    def __enter__(self):
+        self.offset = len(self.lm)
+
+    def __exit__(self, type, value, traceback):
+        if self.hidden:
+            Hidden._rec_make_hidden(self.lm, self.offset)
+
+    @staticmethod
+    def _rec_make_hidden(lm, offset):
+        lm.reset(offset, clear_variables=False)
+        for child in lm._children:
+            Hidden._rec_make_hidden(child, offset)
+
+class _Rewrite(ast.NodeTransformer):
+    def visit_Constant(self, node):
+        # print(node)
+        if isinstance(node.value, str) and node.lineno < node.end_lineno:
+            self.start_counts[node.lineno-1] += 1
+            start_line = self.source_lines[node.lineno-1]
+            start_string = start_line[node.col_offset:]
+            
+            # check for literal multiline strings
+            if start_string.startswith("f'''") or start_string.startswith("'''") or start_string.startswith('f"""') or start_string.startswith('"""'):
+                
+                # track our indentation level
+                if self.indentation[node.lineno-1] is None:
+                    indent = start_line[:len(start_line) - len(start_line.lstrip())]
+                    for i in range(node.lineno-1, node.end_lineno):
+                        self.indentation[i] = indent
+                indent = self.indentation[node.lineno-1]
+
+                # strip indentation when it is consistent
+                lines = node.value.split("\n")
+                fail = False
+                new_lines = []
+                for i,line in enumerate(lines):
+                    if (i == 0 and (self.start_counts[node.lineno-1] > 1 or not start_line.endswith("\\"))) or line == "":
+                        new_lines.append(line)
+                    elif line.startswith(indent):
+                        new_lines.append(line[len(indent):])
+                    # elif (i == 0 and line.endswith("\\")) or line == "":
+                    #     new_lines.append(line)
+                    else:
+                        fail = True
+                        break
+                if not fail:
+                    node.value = "\n".join(new_lines)
+
+        return node
+class normalize_notebook_stdout_stderr():
+    '''Remaps stdout and stderr back to their normal selves from what ipykernel did to them.
+    
+    Based on: https://github.com/ipython/ipykernel/issues/795
+    '''
+
+    def __enter__(self):
+        normal_stdout = sys.__stdout__.fileno()
+        self.restore_stdout = None
+        if getattr(sys.stdout, "_original_stdstream_copy", normal_stdout) != normal_stdout:
+            self.restore_stdout = sys.stdout._original_stdstream_copy
+            sys.stdout._original_stdstream_copy = normal_stdout
+
+        normal_stderr = sys.__stderr__.fileno()
+        self.restore_stderr = None
+        if getattr(sys.stderr, "_original_stdstream_copy", normal_stderr) != normal_stderr:
+            self.restore_stderr = sys.stderr._original_stdstream_copy
+            sys.stderr._original_stdstream_copy = normal_stderr
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if self.restore_stdout is not None:
+            sys.stderr._original_stdstream_copy = self.restore_stdout
+        if self.restore_stderr is not None:
+            sys.stderr._original_stdstream_copy = self.restore_stderr
+
+def strip_multiline_string_indents(f):
+
+    source = textwrap.dedent(inspect.getsource(f))
+    blanks = '\n' * f.__code__.co_firstlineno # padd the source so the lines in the file line up for the debugger
+    source = blanks + '\n'.join(source.splitlines()[1:]) # remove the decorator first line.
+    # print(source)
+
+    old_code_obj = f.__code__
+    old_ast = ast.parse(source)
+    r = _Rewrite()
+    r.source_lines = source.split("\n")
+    r.indentation = [None for l in r.source_lines]
+    r.start_counts = [0 for l in r.source_lines]
+    # r._avoid_backslashes = True
+    new_ast = r.visit(old_ast)
+    new_code_obj = compile(new_ast, old_code_obj.co_filename, 'exec')
+
+    # find the code block
+    for i in range(len(new_code_obj.co_consts)):
+        if str(type(new_code_obj.co_consts[i])) == "<class 'code'>":
+            break
+
+    # create a new function based on the modified code
+    new_f = types.FunctionType(
+        new_code_obj.co_consts[i],
+        f.__globals__,
+        name=f.__name__,
+        argdefs=f.__defaults__,
+        closure=f.__closure__
+    )
+    new_f.__kwdefaults__ = f.__kwdefaults__
+    return new_f
+
+class CaptureEvents():
+    """Creates a scope where all the events are captured in a queue.
+    
+    Note that this does not stop the events from being captured by higher level scopes.
+    """
+    def __init__(self, lm):
+        self.lm = lm
+    
+    def __enter__(self):
+        self.lm._event_queue = queue.Queue()
+        return self.lm._event_queue
+
+    def __exit__(self, type, value, traceback):
+        self.lm._event_queue = None
 
 def load(guidance_file):
     ''' Load a guidance program from the given text file.
@@ -74,6 +261,161 @@ class AsyncIter():
     async def __aiter__(self):    
         for item in self.items:    
             yield item
+
+class TrieOld(object):
+    __slots__ = ('children', 'value', 'match_version', 'match', 'partial_match')
+
+    def __init__(self, strings=None, values=None):
+        self.children = {}
+        self.value = []
+        self.match_version = -1
+        self.match = False
+        self.partial_match = False
+
+        if strings is not None:
+            for i,s in enumerate(strings):
+                self.insert(s, None if values is None else values[i])
+
+    def insert(self, s, value):
+        if len(s) == 0:
+            self.value.append(value)
+        else:
+            first_char = s[0]
+            if first_char not in self.children:
+                self.children[first_char] = Trie()
+            self.children[first_char].insert(s[1:], value)
+
+    def values(self, prefix):
+        if prefix == "":
+            return [self.value] + list(itertools.chain.from_iterable(self.children[k].values(prefix) for k in self.children))
+        else:
+            return self.children[prefix[0]].values(prefix[1:])
+
+    def __setitem__(self, key, value):
+        if len(key) == 0:
+            self.value = value
+        else:
+            if key[0] not in self.children:
+                self.children[key[0]] = Trie()
+            self.children[key[0]].__setitem__(key[1:], value)
+
+    def __contains__(self, key):
+        return self.__getitem__(key) is not None
+
+    def __getitem__(self, key):
+        if len(key) == 0:
+            return self.value
+        elif key[0] in self.children:
+            self.children[key[0]].__getitem__(key[1:])
+        else:
+            return None
+
+class Trie(object):
+    __slots__ = ('children', 'value', 'match_version', 'match', 'partial_match', 'parent', 'flag')
+
+    def __init__(self, strings=None, values=None, parent=None):
+        self.children = {}
+        self.value = None
+        self.match_version = -1
+        self.match = False
+        self.partial_match = False
+        self.parent = parent
+        self.flag = None # a spot for user code to store state
+
+        if strings is not None:
+            for i,s in enumerate(strings):
+                self.insert(s, None if values is None else values[i])
+
+    def insert(self, s, value):
+        if len(s) == 0:
+            self.value = value
+        else:
+            first_char = s[0]
+            if first_char not in self.children:
+                self.children[first_char] = Trie(parent=self)
+            self.children[first_char].insert(s[1:], value)
+
+    def values(self, prefix):
+        if prefix == "":
+            sub_values = list(itertools.chain.from_iterable(self.children[k].values(prefix) for k in self.children))
+            if self.value is not None:
+                sub_values.append(self.value)
+            return sub_values
+        else:
+            return self.children[prefix[0]].values(prefix[1:])
+
+    def __setitem__(self, key, value):
+        if len(key) == 0:
+            self.value = value
+        else:
+            if key[0] not in self.children:
+                self.children[key[0]] = Trie(parent=self)
+            self.children[key[0]].__setitem__(key[1:], value)
+
+    def __contains__(self, key):
+        return self.__getitem__(key) is not None
+
+    def __getitem__(self, key):
+        if len(key) == 0:
+            return self
+        elif key[0] in self.children:
+            return self.children[key[0]].__getitem__(key[1:])
+        else:
+            return None
+        
+class ByteTrie(object):
+    __slots__ = ('children', 'value', 'match_version', 'match', 'partial_match', 'parent', 'flag', 'log_prob')
+
+    def __init__(self, byte_strings=None, values=None, parent=None):
+        self.children = {}
+        self.value = None
+        self.match_version = -1
+        self.match = False
+        self.partial_match = False
+        self.parent = parent
+        self.flag = None # a spot for user code to store state
+        self.log_prob = 0
+
+        if byte_strings is not None:
+            for i,s in enumerate(byte_strings):
+                self.insert(s, None if values is None else values[i])
+
+    def insert(self, s, value):
+        if len(s) == 0:
+            self.value = value
+        else:
+            first_byte = s[0:1]
+            if first_byte not in self.children:
+                self.children[first_byte] = ByteTrie(parent=self)
+            self.children[first_byte].insert(s[1:], value)
+
+    # def values(self, prefix):
+    #     if prefix == "":
+    #         sub_values = list(itertools.chain.from_iterable(self.children[k].values(prefix) for k in self.children))
+    #         if self.value is not None:
+    #             sub_values.append(self.value)
+    #         return sub_values
+    #     else:
+    #         return self.children[prefix[0]].values(prefix[1:])
+
+    # def __setitem__(self, key, value):
+    #     if len(key) == 0:
+    #         self.value = value
+    #     else:
+    #         if key[0] not in self.children:
+    #             self.children[key[0]] = Trie(parent=self)
+    #         self.children[key[0]].__setitem__(key[1:], value)
+
+    # def __contains__(self, key):
+    #     return self.__getitem__(key) is not None
+
+    # def __getitem__(self, key):
+    #     if len(key) == 0:
+    #         return self
+    #     elif key[0] in self.children:
+    #         return self.children[key[0]].__getitem__(key[1:])
+    #     else:
+    #         return None
 
 class ContentCapture:
     def __init__(self, variable_stack, hidden=False):

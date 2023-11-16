@@ -21,9 +21,9 @@ def find_version(*file_paths):
 setup(
     name="guidance",
     version=find_version("guidance", "__init__.py"),
-    url="https://github.com/slundberg/guidance",
+    url="https://github.com/guidance-ai/guidance",
     author="Scott Lundberg and Marco Tulio Ribeiro",
-    author_email="scott.lundberg@microsoft.com",
+    author_email="scott@scottlundberg.com",
     description="A guidance language for controlling large language models.",
     long_description="Guidance enables you to control modern language models more effectively and efficiently than traditional prompting or chaining. Guidance programs allow you to interleave generation, prompting, and logical control into a single continuous flow matching how the language model actually processes the text.",
     packages=find_packages(exclude=["user_studies", "notebooks", "client"]),
@@ -31,7 +31,7 @@ setup(
     install_requires=[
         "diskcache",
         "gptcache",
-        "openai>=0.27.8",
+        "openai>=1.0",
         "pyparsing>=3.0.0",
         "pygtrie",
         "platformdirs",
@@ -41,6 +41,8 @@ setup(
         "requests",
         "numpy",
         "aiohttp",
+        "ordered_set",
+        "pyformlang"
     ],
     extras_require={
         'docs': [
