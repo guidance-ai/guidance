@@ -55,7 +55,7 @@ class Remote(Local):
         # a transformer tokenizer was given that has a byte_decoder
         elif hasattr(tokenizer, "byte_decoder"):
             byte_tokens = []
-            for i in range(tokenizer.vocab_size):
+            for i in range(model.config.vocab_size):
                 byte_coded = bytes([tokenizer.byte_decoder[c] for c in tokenizer.convert_ids_to_tokens(i)])
                 byte_tokens.append(byte_coded)
             bos_token_id = tokenizer.bos_token_id
@@ -63,7 +63,7 @@ class Remote(Local):
         
         # a transformer tokenizer was given with byte_decoder
         elif hasattr(tokenizer, "convert_ids_to_tokens"):
-            byte_tokens = [bytes(tokenizer.convert_tokens_to_string(['a', tokenizer.convert_ids_to_tokens(i)])[1:], encoding="utf8") for i in range(tokenizer.vocab_size)]
+            byte_tokens = [bytes(tokenizer.convert_tokens_to_string(['a', tokenizer.convert_ids_to_tokens(i)])[1:], encoding="utf8") for i in range(model.config.vocab_size)]
             bos_token_id = tokenizer.bos_token_id
             eos_token_id = tokenizer.eos_token_id
 

@@ -75,7 +75,7 @@ class Transformers(LLM):
         """ Build a map from token to index.
         """
         token_map = pygtrie.CharTrie()
-        for i in range(self.tokenizer.vocab_size):
+        for i in range(self.model.config.vocab_size):
             s = self.id_to_token(i)
             if s in token_map:
                 token_map[s].append(i) # handle duplicate token encodings... (GPT2 BPE has this oddly enough)
