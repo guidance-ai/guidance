@@ -29,7 +29,7 @@ try:
 except ImportError:
     is_openai = False
 
-chat_model_pattern = r'^(gpt-3\.5-turbo|gpt-4)(-\d+k)?(-\d{4})?$'
+chat_model_pattern = r'^(ft:)?(gpt-3\.5-turbo|gpt-4)((-\w+)+)?(:[\w-]+(?:[:\w-]+)*)?(::\w+)?$'
 
 class OpenAI(Remote):
     def __init__(self, model, tokenizer=None, echo=True, caching=True, api_key=None, organization=None, base_url=r"https://api.openai.com/v1", temperature=0.0, max_streaming_tokens=500, **kwargs):
