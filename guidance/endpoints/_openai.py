@@ -269,10 +269,10 @@ class OpenAI(LLM):
             del kwargs['echo']
             del kwargs['logprobs']
             # print(kwargs)
-            out = await openai.ChatCompletion.acreate(**kwargs)
+            out = await openai.chat.completions.acreate(**kwargs)
             out = add_text_to_chat_mode(out)
         else:
-            out = await openai.Completion.acreate(**kwargs)
+            out = await openai.completions.acreate(**kwargs)
         
         # restore the params of the openai library
         openai.api_key = prev_key
@@ -702,3 +702,28 @@ class MSALOpenAI(OpenAI):
                 f.write(self._token_cache.serialize())
 
         return result["access_token"]
+
+
+
+
+openai.api_key
+openai.organization
+openai.api_type
+openai.api_version
+openai.api_base
+openai.api_key = self.api_key
+openai.organization = self.organization
+openai.api_type = self.api_type
+openai.api_version = self.api_version
+openai.api_base = self.api_base
+openai.api_key is not None, "You must provide an OpenAI API key to use the OpenAI LLM. Either pass it in the constructor, set the OPENAI_API_KEY environment variable, or create the file ~/.openai_api_key with your key in it."
+openai.ChatCompletion.acreate(**kwargs)
+openai.Completion.acreate(**kwargs)
+openai.api_key = prev_key
+openai.organization = prev_org
+openai.api_type = prev_type
+openai.api_version = prev_version
+openai.api_base = prev_base
+openai.RateLimitError, openai.ServiceUnavailableError):
+OpenAI.html")
+openai.token")
