@@ -2,7 +2,7 @@ import base64
 import uuid
 import json
 import inspect
-import functools
+import types
 import re
 
 tag_start = "{{G|"
@@ -496,6 +496,7 @@ def select(options, name=None, recurse=False, skip_checks=False):
     if not skip_checks:
         for i, value in enumerate(options):
             assert not isinstance(value, StatefulFunction), "You cannot select between stateful functions in the current guidance implementation!"
+            assert not isinstance(value, types.FunctionType), "Did you pass a function without calling it to select? You need to pass the results of a called guidance function to select."
             if isinstance(value, int) or isinstance(value, float):
                 options[i] = str(value)
     # if name is None:
