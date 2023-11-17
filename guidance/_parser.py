@@ -395,20 +395,24 @@ class EarleyCommitParser:
         self._compute_parse_tree(0, root_item, reversed_state_sets)
         return root_item
     
-    def _compute_parse_tree(self, pos, item, reversed_state_sets):
+    def _compute_parse_tree(self, initial_pos, initial_item, reversed_state_sets):
+        stack = [(initial_pos, initial_item)]
         
-        # compute the children for this item
-        assert self._compute_children(pos, item, reversed_state_sets)
+        while stack:
+            pos, item = stack.pop()
 
-        # recurse on the children
-        for child in item.children:
-            if child is None:
-                pass # this child was nullable and was chosen to be null (empty)
-            elif isinstance(child, Terminal):
-                pos += len(child)
-            else:
-                self._compute_parse_tree(pos, child, reversed_state_sets)
-                pos = child.start # note that ".start" mean end because items are reversed
+            # compute the children for this item
+            assert self._compute_children(pos, item, reversed_state_sets)
+
+            # recurse on the children
+            for child in item.children:
+                if child is None:
+                    pass # this child was nullable and was chosen to be null (empty)
+                elif isinstance(child, Terminal):
+                    pos += len(child)
+                else:
+                    stack.append((pos, child))
+                    pos = child.start # note that ".start" mean end because items are reversed
 
     def _compute_children(self, state_set_pos, item, reversed_state_sets, values_pos = 0):
 

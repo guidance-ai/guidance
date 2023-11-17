@@ -357,7 +357,7 @@ class Local(Model):
                 parse_tree = parser.parse_tree()
                 data = {}
                 log_prob_data = {}
-                _record_captures(parse_tree, data, log_prob_data, parser.bytes, 0)
+                _record_captures(parse_tree, data, log_prob_data, parser.bytes)
                 
                 # we have no valid log prob data if we didn't compute it
                 if not log_probs:
@@ -386,48 +386,54 @@ class Local(Model):
                 else:
                     token_byte_positions.append(token_byte_positions[-1] + len(sampled_token))
 
-def _record_captures(item, data, log_prob_data, byte_data, byte_pos):
+def _record_captures(initial_item, data, log_prob_data, byte_data):
+    stack = [(initial_item, 0)]
+    used_names = set() # track which capture names have been used so self-recursive children don't overwrite their parents
     
-    # terminal nodes
-    if isinstance(item, Terminal):
+    while stack:
+        item, byte_pos = stack.pop()
+        # terminal nodes
+        if isinstance(item, Terminal):
 
-        # if we are at a capture group node then we save the matched terminal byte
-        if item.capture_name is not None:
-            data[item.capture_name] = item.byte
-            log_prob_data[item.capture_name] = 0
-    
-    # internal nodes
-    else:
-        start_byte_pos = byte_pos
-
-        # recurse for all our non-null children
-        for child in item.children:
-            if child is not None:
-                _record_captures(child, data, log_prob_data, byte_data, byte_pos)
-                if isinstance(child, Terminal):
-                    byte_pos += len(child)
-                else:
-                    byte_pos = child.start # note that "start" means "end" since this is a reversed state set
-
-        # if we are at a capture group node then we save the matched bytes range
-        # note that we record this after calling our children so that we save the outermost version of self-recursive calls
-        cname = item.node.capture_name
-        if cname is not None:
-            
-            # see if we are doing a list append
-            if cname.startswith("__LIST_APPEND:"):
-                cname = cname[14:] # trim off the list append tag
-                if cname not in data or not isinstance(data[cname], list):
-                    data[cname] = []
-                    log_prob_data[cname] = []
-                data[cname].append(byte_data[start_byte_pos:item.start])
-                log_prob_data[cname].append(item.log_prob)
-            
-            # or just a regular assignment
-            else:
-                data[cname] = byte_data[start_byte_pos:item.start] # note that "start" means "end" since this is a reversed state set
-                log_prob_data[cname] = item.log_prob
+            # if we are at a capture group node then we save the matched terminal byte
+            if item.capture_name is not None:
+                data[item.capture_name] = item.byte
+                log_prob_data[item.capture_name] = 0
         
+        # internal nodes
+        else:
+            start_byte_pos = byte_pos
+
+            # recurse for all our non-null children
+            for child in item.children:
+                if child is not None:
+                    stack.append((child, byte_pos))
+                    # _record_captures(child, data, log_prob_data, byte_data, byte_pos)
+                    if isinstance(child, Terminal):
+                        byte_pos += len(child)
+                    else:
+                        byte_pos = child.start # note that "start" means "end" since this is a reversed state set
+
+            # if we are at a capture group node then we save the matched bytes range
+            # note that we record this after calling our children so that we save the outermost version of self-recursive calls
+            cname = item.node.capture_name
+            if cname is not None and cname not in used_names:
+                
+                # see if we are doing a list append
+                if cname.startswith("__LIST_APPEND:"):
+                    cname = cname[14:] # trim off the list append tag
+                    if cname not in data or not isinstance(data[cname], list):
+                        data[cname] = []
+                        log_prob_data[cname] = []
+                    data[cname].append(byte_data[start_byte_pos:item.start])
+                    log_prob_data[cname].append(item.log_prob)
+                
+                # or just a regular assignment
+                else:
+                    data[cname] = byte_data[start_byte_pos:item.start] # note that "start" means "end" since this is a reversed state set
+                    log_prob_data[cname] = item.log_prob
+
+                used_names.add(cname)    
 
 def _compute_log_probs(trie, log_probs):
     '''Computes the log probabilities for each internal trie node.'''
