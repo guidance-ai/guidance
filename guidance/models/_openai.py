@@ -11,7 +11,6 @@ import tiktoken
 import re
 
 from ._model import Chat, Instruct
-# from ._local import Local
 from ._remote import Remote
 
 
@@ -32,7 +31,7 @@ except ImportError:
 chat_model_pattern = r'^(gpt-3\.5-turbo|gpt-4)(-\d+k)?(-\d{4})?$'
 
 class OpenAI(Remote):
-    def __init__(self, model, tokenizer=None, echo=True, caching=True, api_key=None, organization=None, base_url=r"https://api.openai.com/v1", temperature=0.0, max_streaming_tokens=500, **kwargs):
+    def __init__(self, model, tokenizer=None, echo=True, caching=True, api_key=None, organization=None, base_url=r"https://api.openai.com/v1", temperature=0.0, max_streaming_tokens=1000, **kwargs):
         if not is_openai or not hasattr(openai_package, "OpenAI"):
             raise Exception("Please install the openai package version >= 1 using `pip install openai -U` in order to use guidance.models.OpenAI!")
         
@@ -83,8 +82,6 @@ class OpenAI(Remote):
             caching=caching, temperature=temperature,
             max_streaming_tokens=max_streaming_tokens, **kwargs
         )
-
-        self.max_tokens = 100
         
     
 
@@ -98,7 +95,7 @@ class OpenAICompletion(OpenAI, Instruct):
             generator = self.client.completions.create(
                 model=self.model_name,
                 prompt=prompt.decode("utf8"), 
-                max_tokens=self.max_tokens, 
+                max_tokens=self.max_streaming_tokens, 
                 n=1, 
                 top_p=1, 
                 temperature=0, 
@@ -136,7 +133,7 @@ class OpenAIInstruct(OpenAI, Instruct):
             generator = self.client.completions.create(
                 model=self.model_name,
                 prompt=self._shared_state["data"].decode("utf8"), 
-                max_tokens=self.max_tokens, 
+                max_tokens=self.max_streaming_tokens, 
                 n=1, 
                 top_p=1, 
                 temperature=0, 
@@ -197,7 +194,7 @@ class OpenAIChat(OpenAI, Chat):
             generator = self.client.chat.completions.create(
                 model=self.model_name,
                 messages=messages,
-                max_tokens=self.max_tokens, 
+                max_tokens=self.max_streaming_tokens, 
                 n=1, 
                 top_p=1, 
                 temperature=0, 
