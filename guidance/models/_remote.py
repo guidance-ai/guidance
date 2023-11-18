@@ -116,7 +116,7 @@ class Remote(Local):
         # stop any running stream
         if self._running_stream():
             self._shared_state["not_running_stream"].set() # stop the generator
-            self._thread.join() # wait for the thread to finish
+            self._shared_state["remote_thread"].join() # wait for the thread to finish
 
         # clear the data queue
         while not self._shared_state["data_queue"].empty(): 
@@ -128,8 +128,8 @@ class Remote(Local):
         self._shared_state["not_running_stream"].clear() # so we know we are running
         self._shared_state["num_calls_made"] += 1
 
-        self._thread = threading.Thread(target=self._start_generator_stream, args=(generator,))
-        self._thread.start()
+        self._shared_state["remote_thread"] = threading.Thread(target=self._start_generator_stream, args=(generator,))
+        self._shared_state["remote_thread"].start()
         # self._start_generator_stream(stripped_prompt)
     
     def _get_logits(self, token_ids, forced_bytes):
@@ -156,12 +156,9 @@ class Remote(Local):
                 token_id = self._get_next_token(len(prompt)-len(forced_bytes))
                 if token_id is not None:
                     break
-            # if self._shared_state["data"].startswith(prompt):
-            #     token_id = self._get_next_token(len(prompt))#or len(self._shared_state["data"]) <= len(prompt):
-            #     continue
 
-            # we need to restart if extending our data will never lead to matching our prompt
-            if len(self._shared_state["data"]) <= len(prompt) and not prompt.startswith(self._shared_state["data"]):
+            # restart if extending our data will never lead to matching our prompt
+            elif len(self._shared_state["data"]) >= len(prompt) or not prompt.startswith(self._shared_state["data"]):
                 self._start_new_stream(prompt)
 
             # extend our data with a chunk from the model stream
