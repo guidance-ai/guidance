@@ -126,6 +126,11 @@ class OpenAIInstruct(OpenAI, Instruct):
             stripped_prompt = prompt[:prompt_end]
         else:
             raise Exception("This model cannot handle prompts that don't match the instruct format!")
+        
+        # make sure you don't try and instruct the same model twice
+        if b'<|endofprompt|>' in prompt[prompt_end + len(b'<|endofprompt|>'):]:
+            raise Exception("This model has been given two separate instruct blocks, but this is not allowed!")
+        
         self._shared_state["not_running_stream"].clear() # so we know we are running
         self._shared_state["data"] = stripped_prompt + b'<|endofprompt|>'# we start with this data
 
