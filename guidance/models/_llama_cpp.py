@@ -1,6 +1,5 @@
 import os
 from pathlib import Path
-import multiprocessing
 from itertools import takewhile
 import operator
 
@@ -46,12 +45,8 @@ class LlamaCpp(Local):
 
         if isinstance(model, str):
             self.model = model
-            if "n_threads" not in kwargs:
-                kwargs["n_threads"] = multiprocessing.cpu_count()
             if "verbose" not in kwargs:
                 kwargs["verbose"] = False
-            if "n_batch" not in kwargs and "n_ctx" in kwargs:
-                kwargs["n_batch"] = kwargs["n_ctx"]
 
             with normalize_notebook_stdout_stderr():
                 self.model_obj = llama_cpp.Llama(model_path=model, **kwargs)
@@ -67,7 +62,6 @@ class LlamaCpp(Local):
             raise TypeError("tokenizer must be None or a llama_cpp.LlamaTokenizer object.")
         self._orig_tokenizer = tokenizer
 
-        #self._n_threads = multiprocessing.cpu_count()
         self._n_vocab = tokenizer.llama.n_vocab()
         self.caching = caching
         self.temperature = temperature
@@ -75,8 +69,6 @@ class LlamaCpp(Local):
         tokens = [tokenizer.llama.detokenize([i]) for i in range(self._n_vocab)] # note that detokenize returns bytes directly
         tokens[1] = b"<s>" # these are not decoded correctly by llama_cpp
         tokens[2] = b"</s>"
-        self.bos_token = "<s>"
-        self.eos_token = "</s>"
         super().__init__(
             tokens,
             tokenizer.llama.token_bos(),
@@ -105,21 +97,51 @@ class LlamaCpp(Local):
             num_cached = num_cached - 1 # llama_cpp doesn't like it when we pass in 0 new tokens, so re-input one
         
         # make sure we don't run off the end of the model's context
-        if self.model_obj.n_ctx() < len(token_ids) + 1:
+        if self.model_obj.n_ctx() <= len(token_ids):
             raise Exception(f"Attempted to use a context length of {len(token_ids)} tokens, but this LlamaCpp model is only configured to support up to {self.model_obj.n_ctx()}!")
 
-        # eval the model
         self._cache_state["cache_token_ids"] = token_ids.copy()
-        token_ids = np.array(token_ids[num_cached:], dtype=np.int32)
-        token_ids = (llama_cpp.llama_token * len(token_ids))(*token_ids)
-        llama_cpp.llama_eval(self.model_obj.ctx, token_ids, len(token_ids), num_cached)#, self._n_threads)
-        
-        # get the logits
-        logits = llama_cpp.llama_get_logits(self.model_obj.ctx)
-        logits = np.ctypeslib.as_array(logits, shape=(self._n_vocab,))
+
+        # clear obsolete parts of kv cache
+        llama_cpp.llama_kv_cache_seq_rm(self.model_obj.ctx, -1, num_cached, -1)
+
+        # eval the model
+        n_batch = self.model_obj.n_batch
+        batch = llama_cpp.llama_batch_init(
+            n_tokens=n_batch, 
+            embd=0, 
+            n_seq_max=self.model_obj.n_ctx()
+        )
+        if batch is None:
+            raise Exception("call to llama_cpp.llama_batch_init returned NULL.")
+        try:
+            for i in range(num_cached, len(token_ids), n_batch):
+                n_tokens = min(i + n_batch, len(token_ids)) - i
+                batch.n_tokens = n_tokens
+                for j in range(n_tokens):
+                    batch.token[j] = token_ids[i + j]
+                    batch.pos[j] = i + j
+                    batch.seq_id[j][0] = 0
+                    batch.n_seq_id[j] = 1
+                    batch.logits[j] = False
+
+                if i + n_tokens == len(token_ids):
+                    batch.logits[n_tokens - 1] = True
+
+                ret = llama_cpp.llama_decode(self.model_obj.ctx, batch)
+                if ret != 0:
+                    raise Exception(f"Call to llama_cpp.llama_decode returned {ret}.")
+
+            # get the logits
+            logits = llama_cpp.llama_get_logits(self.model_obj.ctx)
+            logits = logits[(n_tokens - 1) * self._n_vocab : n_tokens * self._n_vocab]
+            logits = np.ctypeslib.as_array(logits, shape=(self._n_vocab,)).copy()
+        finally:
+            llama_cpp.llama_batch_free(batch)
+
         logits = torch.from_numpy(logits)
         self._cache_state["logits"] = logits
-        
+
         return logits
     
 class LlamaCppChat(LlamaCpp, Chat):
