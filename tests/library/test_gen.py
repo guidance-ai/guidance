@@ -111,7 +111,7 @@ def test_stop_regex():
 
 def test_stop_regex_star():
     lm = models.LocalMock(b"<s>123a3233")
-    pattern = '\d+233'
+    pattern = r'\d+233'
     lm2 = lm + '123' + gen(name='test', stop_regex=pattern, max_tokens=10)
     assert lm2['test'] == 'a'
 
@@ -124,7 +124,7 @@ def test_empty_pattern():
 def test_various_regexes():
     lm = get_model("transformers:gpt2")
     prompts = ['Hi there', '2 + 2 = ', 'Scott is a', 'I have never seen a more', 'What is the', '?FD32']
-    patterns = ['(Scott is a person|Scott is a persimmon)', 'Scott is a persimmon.*\.', r'\d\.*\d+']
+    patterns = ['(Scott is a person|Scott is a persimmon)', r'Scott is a persimmon.*\.', r'\d\.*\d+']
     for prompt in prompts:
         for pattern in patterns:
             lm2 = lm + prompt + gen(name='test', regex=pattern, max_tokens=40)
