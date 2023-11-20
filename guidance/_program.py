@@ -364,7 +364,7 @@ class Program:
             If True, we will update the display even if it would otherwise be throttled.
         """
 
-        log.debug(f"Updating display (last={last}, self._displaying={self._displaying}, self._comm={self._comm})")
+        # log.debug(f"Updating display (last={last}, self._displaying={self._displaying}, self._comm={self._comm})")
 
 
         if self.stream:
