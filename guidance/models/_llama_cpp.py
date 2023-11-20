@@ -10,13 +10,6 @@ from ._local import Local
 from .._utils import normalize_notebook_stdout_stderr
 
 try:
-    # TODO: can we eliminate the torch requirement for llama.cpp by using numpy in the caller instead?
-    import torch
-    is_torch = True
-except ImportError:
-    is_torch = False
-
-try:
     import llama_cpp
     is_llama_cpp = True
 except ImportError:
@@ -24,8 +17,6 @@ except ImportError:
 
 class LlamaCpp(Local):
     def __init__(self, model=None, tokenizer=None, echo=True, caching=True, temperature=0.0, **kwargs):
-        if not is_torch:
-            raise Exception("Please install PyTorch in order to use guidance.models.LlamaCpp!")
 
         if not is_llama_cpp:
             raise Exception("Please install llama-cpp-python with `pip install llama-cpp-python` in order to use guidance.models.LlamaCpp!")
@@ -139,7 +130,6 @@ class LlamaCpp(Local):
         finally:
             llama_cpp.llama_batch_free(batch)
 
-        logits = torch.from_numpy(logits)
         self._cache_state["logits"] = logits
 
         return logits

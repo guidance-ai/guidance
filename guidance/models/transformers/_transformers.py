@@ -124,7 +124,7 @@ class Transformers(Local):
             # save the results
             self._cache_state["past_key_values"] = model_out.past_key_values
             cache_token_ids.extend(new_token_ids)
-            self._cache_state["logits"] = model_out.logits[0, -1, :]
+            self._cache_state["logits"] = model_out.logits[0, -1, :].cpu().numpy()
         
         return self._cache_state["logits"]
     

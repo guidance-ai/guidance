@@ -14,13 +14,6 @@ from ._model import Chat, Instruct
 from ._local import Local
 
 
-try:
-    # TODO: can we eliminate the torch requirement for llama.cpp by using numpy in the caller instead?
-    import torch
-    is_torch = True
-except ImportError:
-    is_torch = False
-
 # try:
 #     # TODO: can we eliminate the torch requirement for llama.cpp by using numpy in the caller instead?
 #     import vertexai
@@ -190,7 +183,7 @@ class Remote(Local):
         logits = np.ones(len(self.tokens)) * np.nan
         logits[token_id] = 100
         
-        return torch.tensor(logits) # TODO: the caller need to know to NOT use the 0 entries, but to fail out if that happens
+        return logits
     
     def _get_next_token(self, pos, allow_early_stop=False):
         data = self._shared_state["data"]

@@ -1,14 +1,10 @@
-try:
-    import torch
-except ImportError:
-    pass
+import scipy.special
+import scipy.stats
 import numpy as np
 from .._utils import ByteTrie
 from ._model import Model
-# from ..library._string import string
 from .._parser import EarleyCommitParser
-from .._grammar import Terminal, select
-# import numba
+from .._grammar import Terminal
 
 class Local(Model):
     def __init__(self, tokens, bos_token_id, eos_token_id=None, echo=True):
@@ -33,20 +29,7 @@ class Local(Model):
         '''A fake method designed to be overriden by subclasses.'''
 
         # pretend to extend the KV cache and update the log probs
-        return torch.randn(len(self.tokens))
-
-    # def _longest_token_match(self, bytes):
-    #     '''Greedy token matching.'''
-    #     trie_pos = self._token_trie
-    #     for i,c in enumerate(bytes):
-    #         if c in trie_pos.children:
-    #             trie_pos = trie_pos.children[c]
-    #         else:
-    #             return bytes[:i], trie_pos.value # note that if there are redudant tokens we choose the one stored in the trie
-    #     if len(trie_pos.children) == 0:
-    #         return bytes[:i+1], trie_pos.value
-    #     else:
-    #         return None,None # more than one token can match these bytes
+        return np.randn(len(self.tokens))
         
     def _tokenize_prefix(self, byte_string):
         '''This is used to speed up the tokenization of long prompts without using the parser.'''
@@ -237,17 +220,17 @@ class Local(Model):
                 # if requested we compute the log probabilities so we can track the probabilities of each node
                 # TODO: we should lower this step to C++ with pybind11
                 if log_probs:
-                    _compute_log_probs(trie, torch.nn.functional.log_softmax(logits, dim=-1).cpu().numpy())
+                    _compute_log_probs(trie, scipy.special.log_softmax(logits, dim=-1))
 
                 # get the sampling order
                 grammar_temp = parser.next_byte_temperature()
                 current_temp = grammar_temp if grammar_temp >= 0 else temperature # we prefer to use the grammar temp when it is specified
                 if current_temp == 0:
-                    sampling_order = torch.argsort(-logits, descending=False).cpu().numpy() # we need numpy so the enumerate below does not get really slow...
+                    sampling_order = np.argsort(-logits) # we need numpy so the enumerate below does not get really slow...
                 else:
                     assert top_p == 1, "Still need to add support for top_p!"
-                    probs = torch.nn.functional.softmax(logits / current_temp, dim=-1)
-                    sampling_order = torch.multinomial(probs, len(probs)).cpu().numpy()
+                    probs = scipy.special.softmax(logits / current_temp, axis=-1)
+                    sampling_order = np.random.choice(len(probs), size=len(probs), p=probs)
 
                 # loop over the tokens looking for a valid one
                 for i,sampled_token_ind in enumerate(sampling_order):
