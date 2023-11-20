@@ -30,7 +30,7 @@ def test_repeat_calls():
     a = []
     lm = llama2 + 'How much is 2 + 2? ' + gen(name='test', max_tokens=10)
     a.append(lm['test'])
-    lm = llama2 + 'How much is 2 + 2? ' + gen(name='test',max_tokens=10, pattern='\d+')
+    lm = llama2 + 'How much is 2 + 2? ' + gen(name='test',max_tokens=10, pattern=r'\d+')
     a.append(lm['test'])
     lm = llama2 + 'How much is 2 + 2? ' + gen(name='test', max_tokens=10)
     a.append(lm['test'])
@@ -44,7 +44,7 @@ def test_suffix():
 
 def test_subtoken_forced():
     llama2 = get_model("llama_cpp:")
-    lm = llama2 + 'How much is 2 + 2? ' + gen(name='test', max_tokens=10, regex='\(')
+    lm = llama2 + 'How much is 2 + 2? ' + gen(name='test', max_tokens=10, regex=r'\(')
     assert str(lm) == "How much is 2 + 2? ("
 
 def test_llama_cpp_exactly_one_batch():
