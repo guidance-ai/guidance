@@ -260,7 +260,11 @@ with assistant():
 
 
 ## Example notebooks
-Coming soon
+We are working on updating our example notebooks. The following ones have been updated:
+- [Basic tutorial](notebooks/tutorial.ipynb)
+- [Chatbot with search](notebooks/chat_with_search.ipynb)  
+
+More coming soon
 
 ## Basic generation
 An `lm` object is immutable, so you change it by creating new copies of it. By default, when you append things to `lm`, it creates a copy, e.g.:
