@@ -42,11 +42,11 @@ class Transformers(Local):
         tkz = self._orig_tokenizer
         if hasattr(tkz, "byte_decoder"):
             byte_tokens = []
-            for i in range(tkz.vocab_size):
+            for i in range(len(tkz)):
                 byte_coded = bytes([tkz.byte_decoder[c] for c in tkz.convert_ids_to_tokens(i)])
                 byte_tokens.append(byte_coded)
         else:
-            byte_tokens = [bytes(tkz.convert_tokens_to_string(['a', tkz.convert_ids_to_tokens(i)])[1:], encoding="utf8") for i in range(tkz.vocab_size)]
+            byte_tokens = [bytes(tkz.convert_tokens_to_string(['a', tkz.convert_ids_to_tokens(i)])[1:], encoding="utf8") for i in range(len(tkz))]
 
         # the superclass does most of the work once we have the tokens
         super().__init__(
