@@ -120,7 +120,7 @@ def add_text_to_chat_mode(chat_mode):
 class OpenAI(LLM):
     llm_name: str = "openai"
 
-    def __init__(self, model=None, caching=True, max_retries=5, max_calls_per_min=60,
+    def __init__(self, model=None, caching=True, max_retries=5, max_calls_per_min=60, request_timeout=None,
                  api_key=None, api_type="open_ai", api_base=None, api_version=None, deployment_id=None,
                  temperature=0.0, chat_mode="auto", organization=None, rest_call=False,
                  allowed_special_tokens={"<|endoftext|>", "<|endofprompt|>"},
@@ -189,6 +189,7 @@ class OpenAI(LLM):
         self.caching = caching
         self.max_retries = max_retries
         self.max_calls_per_min = max_calls_per_min
+        self.request_timeout = request_timeout
         if isinstance(api_key, str):
             api_key = api_key.replace("Bearer ", "")
         self.api_key = api_key
@@ -598,7 +599,7 @@ def extract_function_defs(prompt):
 class OpenAISession(LLMSession):
     async def __call__(self, prompt, stop=None, stop_regex=None, temperature=None, n=1, max_tokens=1000, logprobs=None,
                        top_p=1.0, echo=False, logit_bias=None, token_healing=None, pattern=None, stream=None,
-                       cache_seed=0, caching=None, **completion_kwargs):
+                       cache_seed=0, caching=None, request_timeout=None, **completion_kwargs):
         """ Generate a completion of the given prompt.
         """
 
@@ -613,6 +614,9 @@ class OpenAISession(LLMSession):
         # set defaults
         if temperature is None:
             temperature = self.llm.temperature
+
+        if request_timeout is None:
+            request_timeout = self.llm.request_timeout
 
         # get the arguments as dictionary for cache key generation
         args = locals().copy()
@@ -644,6 +648,7 @@ class OpenAISession(LLMSession):
             fail_count = 0
             while True:
                 try_again = False
+                last_error = ""
                 try:
                     self.llm.add_call()
                     call_args = {
@@ -658,6 +663,7 @@ class OpenAISession(LLMSession):
                         "logprobs": logprobs,
                         "echo": echo,
                         "stream": stream,
+                        'request_timeout': request_timeout,
                         **completion_kwargs
                     }
                     if functions is None:
@@ -670,7 +676,8 @@ class OpenAISession(LLMSession):
                     out = await self.llm.caller(**call_args)
 
                 except (openai.error.RateLimitError, openai.error.ServiceUnavailableError, openai.error.APIError, openai.error.Timeout):
-                    log.error(traceback.format_exc())
+                    last_error = traceback.format_exc()
+                    log.error(last_error)
                     await asyncio.sleep(3)
                     try_again = True
                     fail_count += 1
@@ -679,7 +686,7 @@ class OpenAISession(LLMSession):
                     break
 
                 if fail_count > self.llm.max_retries:
-                    raise Exception(f"Too many (more than {self.llm.max_retries}) OpenAI API errors in a row!")
+                    raise Exception(f"Too many (more than {self.llm.max_retries}) OpenAI API errors in a row! Last error is:\n{last_error}")
 
             if stream:
                 return self.llm.stream_then_save(out, key, stop_regex, n)
