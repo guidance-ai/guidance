@@ -46,3 +46,28 @@ def test_subtoken_forced():
     llama2 = get_model("llama_cpp:")
     lm = llama2 + 'How much is 2 + 2? ' + gen(name='test', max_tokens=10, regex='\(')
     assert str(lm) == "How much is 2 + 2? ("
+
+def test_llama_cpp_exactly_one_batch():
+    lm = get_model("llama_cpp:", n_batch=9)
+    long_str = lm.bos_token.decode("utf-8") * 9
+    lm += long_str + gen(max_tokens=10)
+    assert len(str(lm)) > len(long_str)
+
+def test_llama_cpp_almost_two_batches():
+    lm = get_model("llama_cpp:", n_batch=8)
+    long_str = lm.bos_token.decode("utf-8") * 15
+    lm += long_str + gen(max_tokens=10)
+    assert len(str(lm)) > len(long_str)
+
+def test_llama_cpp_two_batches():
+    lm = get_model("llama_cpp:", n_batch=7)
+    long_str = lm.bos_token.decode("utf-8") * 14
+    lm += long_str + gen(max_tokens=10)
+    assert len(str(lm)) > len(long_str)
+
+def test_llama_cpp_more_than_two_batches():
+    lm = get_model("llama_cpp:", n_batch=6)
+    long_str = lm.bos_token.decode("utf-8") * 13
+    lm += long_str + gen(max_tokens=10)
+    assert len(str(lm)) > len(long_str)
+
