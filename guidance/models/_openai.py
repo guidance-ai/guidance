@@ -68,7 +68,7 @@ class OpenAI(Remote):
             max_streaming_tokens=max_streaming_tokens, **kwargs
         )
 
-class OpenAICompletion(OpenAI):
+class OAICompletionMixin(Instruct):
 
     def _generator(self, prompt):
         self._shared_state["not_running_stream"].clear() # so we know we are running
@@ -86,13 +86,15 @@ class OpenAICompletion(OpenAI):
             )
         except Exception as e: # TODO: add retry logic
             raise e
-        
+
         for part in generator:
-            chunk = part.choices[0].text or ""
+            if len(part.choices) > 0:
+                chunk = part.choices[0].text or ""
+            else:
+                chunk = ""
             yield chunk.encode("utf8")
 
-class OpenAIInstruct(OpenAI, Instruct):
-
+class OAIInstructMixin(Instruct):
     def get_role_start(self, name):
         return ""
     
@@ -129,15 +131,15 @@ class OpenAIInstruct(OpenAI, Instruct):
             )
         except Exception as e: # TODO: add retry logic
             raise e
-        
+
         for part in generator:
-            chunk = part.choices[0].text or ""
+            if len(part.choices) > 0:
+                chunk = part.choices[0].delta.content or ""
+            else:
+                chunk = ""
             yield chunk.encode("utf8")
 
-class OpenAIChat(OpenAI, Chat):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
+class OAIChatMixin(Chat):
     def _generator(self, prompt):
 
         # find the role tags
@@ -184,7 +186,21 @@ class OpenAIChat(OpenAI, Chat):
             )
         except Exception as e: # TODO: add retry logic
             raise e
-
         for part in generator:
-            chunk = part.choices[0].delta.content or ""
+            if len(part.choices) > 0:
+                chunk = part.choices[0].delta.content or ""
+            else:
+                chunk = ""
             yield chunk.encode("utf8")
+
+class OpenAICompletion(OpenAI, OAICompletionMixin):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+class OpenAIInstruct(OpenAI, OAIInstructMixin):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+class OpenAIChat(OpenAI, OAIChatMixin):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
