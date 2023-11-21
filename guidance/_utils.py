@@ -150,7 +150,14 @@ def strip_multiline_string_indents(f):
     source = textwrap.dedent(inspect.getsource(f))
     blanks = '\n' * f.__code__.co_firstlineno # padd the source so the lines in the file line up for the debugger
     source = blanks + '\n'.join(source.splitlines()[1:]) # remove the decorator first line.
-    # print(source)
+    
+    # define the external closure variables so f.__closure__ will match our recompiled version
+    if len(f.__code__.co_freevars) > 0:
+        raise Exception("You currently must use @guidance(dedent=False) for closure functions (function nested within other functions that reference the outer functions variables)!")
+        lines = source.split("\n")
+        lines[0] = "def __outer__closure_wrap():"
+        lines[1] = "    " + ",".join(f.__code__.co_freevars) + " = " + ",".join("None" for _ in f.__code__.co_freevars)
+        source = "    \n".join(lines) # TODO: this does not quite work because new_code_obj is now the __outer__closure_wrap() function...could be fixed with work...
 
     old_code_obj = f.__code__
     old_ast = ast.parse(source)
