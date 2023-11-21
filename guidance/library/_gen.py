@@ -110,7 +110,7 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, regex=None,
         init_token_count = lm._token_count
         gen_grammar = pattern + select([stop_pattern] + [capture(commit_point(x.call_grammar, hidden=hide_tool_call), name=f'tool{i}') for i, x in enumerate(tools)])
         while lm._token_count <= max_tokens + init_token_count:
-            lm = lm.run_stateless(gen_grammar, temperature=temperature)
+            lm = lm.run_stateless(gen_grammar, temperature=temperature) # TODO: we should not be using this internal method
             tool_called = False
             for i in range(len(tools)):
                 tool_i = f'tool{i}'

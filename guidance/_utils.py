@@ -40,26 +40,26 @@ class TextRange:
 #         for child in lm._children:
 #             InPlace._rec_set_inplace(child, value)
 
-class Silent():
-    """Creates a scope where the LM is silent or not."""
-    def __init__(self, lm, silent):
-        self.lm = lm
-        self._prev_silent = lm._silent
-        self.silent = silent
+# class Silent():
+#     """Creates a scope where the LM is silent or not."""
+#     def __init__(self, lm, silent):
+#         self.lm = lm
+#         self._prev_silent = lm._silent
+#         self.silent = silent
     
-    def __enter__(self):
-        if self.silent is not None:
-            self.lm._silent = self.silent
+#     def __enter__(self):
+#         if self.silent is not None:
+#             self.lm._silent = self.silent
 
-    def __exit__(self, type, value, traceback):
-        if self.silent is not None:
-            Silent._rec_set_silent(self.lm, self._prev_silent)
+#     def __exit__(self, type, value, traceback):
+#         if self.silent is not None:
+#             Silent._rec_set_silent(self.lm, self._prev_silent)
 
-    @staticmethod
-    def _rec_set_silent(lm, value):
-        lm._silent = value
-        for child in lm._children:
-            Silent._rec_set_silent(child, value)
+#     @staticmethod
+#     def _rec_set_silent(lm, value):
+#         lm._silent = value
+#         for child in lm._children:
+#             Silent._rec_set_silent(child, value)
 
 class Hidden():
     """Creates a scope where the LM state is optionally hidden from following calls.
