@@ -117,7 +117,7 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, regex=None,
                 if tool_i in lm:
                     tool_called = True
                     lm += tools[i].tool_call()
-                    lm.remove(tool_i)
+                    lm = lm.remove(tool_i)
             if not tool_called:
                 lm += suffix
                 break
