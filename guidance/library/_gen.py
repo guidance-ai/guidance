@@ -107,10 +107,10 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, regex=None,
     start_pos = len(str(lm))
     if tools is not None:
         tools = [Tool(callable=x) if not isinstance(x, Tool) else x for x in tools]
-        init_token_count = lm._token_count
+        init_token_count = lm.token_count
         gen_grammar = pattern + select([stop_pattern] + [capture(commit_point(x.call_grammar, hidden=hide_tool_call), name=f'tool{i}') for i, x in enumerate(tools)])
-        while lm._token_count <= max_tokens + init_token_count:
-            lm = lm.run_stateless(gen_grammar, temperature=temperature) # TODO: we should not be using this internal method
+        while lm.token_count <= max_tokens + init_token_count:
+            lm = lm._run_stateless(gen_grammar, temperature=temperature) # TODO: we should not be using this internal method
             tool_called = False
             for i in range(len(tools)):
                 tool_i = f'tool{i}'
