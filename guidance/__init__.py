@@ -9,7 +9,7 @@ import requests
 from . import models
 import inspect
 
-from ._utils import load, chain, Silent, Hidden, CaptureEvents, TextRange, strip_multiline_string_indents
+from ._utils import load, chain, Hidden, CaptureEvents, TextRange, strip_multiline_string_indents
 from . import _utils
 from . import selectors
 
