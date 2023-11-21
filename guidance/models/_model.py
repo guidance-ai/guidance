@@ -27,7 +27,7 @@ class Model:
 
     open_blocks = {} # track what context blocks are open
     _grammar_only = 0 # a flag that tracks when we are forced to be executing only compiled grammars (like when we are inside a select)
-    _throttle_display = 0 # a flag that tracks when we can throttle our display since we know future display calls are going to happen
+    _throttle_refresh = 0 # a flag that tracks when we can throttle our display since we know future display calls are going to happen
 
     def __init__(self, echo=True):
         '''Build a new model state object.
@@ -40,12 +40,13 @@ class Model:
 
         self.echo = echo
         self.token_count = 0 # tracks how many tokens our byte state represents
-        self.max_display_rate = 0.1 # this controls how frequently we are allowed to redraw the display (in seconds)
+        self.max_display_rate = 0.2 # this controls how frequently we are allowed to redraw the display (in seconds)
+        self.opened_blocks = {} # what context blocks have been opened but not closed
 
+        # private attributes
         self._variables = {} # these are the state variables stored with the model
         self._cache_state = {} # mutable caching state used to save computation        
         self._state = "" # the current bytes that represent the state of the model
-        self.opened_blocks = {} # what context blocks have been opened but not closed
         self._event_queue = None # TODO: these are for streaming results in code, but that needs implemented
         self._event_parent = None
         self._last_display = 0 # used to track the last display call to enable throttling
@@ -75,6 +76,7 @@ class Model:
         return select(parts)
 
     def _html(self):
+        '''Generate HTML that displays the model object.'''
         display_out = self._state
         for context in reversed(self.opened_blocks):
             display_out += self.opened_blocks[context]
@@ -85,12 +87,16 @@ class Model:
         return display_out
     
     def _send_to_event_queue(self, value):
+        '''For streaming in code.
+        
+        TODO: Is this still needed?'''
         if self._event_queue is not None:
             self._event_queue.put(value)
         if self._event_parent is not None:
             self._event_parent._send_to_event_queue(value)
     
     def copy(self):
+        '''Create a shallow copy of the model object.'''
         
         # start with a shallow copy
         new_lm = copy.copy(self)
@@ -107,58 +113,78 @@ class Model:
         return new_lm
     
     def _inplace_append(self, value, force_silent=False):
-        """This is the base way to add content to the current LM object that is being constructed.
+        '''This is the base way to add content to the current LM object that is being constructed.
         
         All updates to the model state should eventually use this function.
         Note this should only be used after making a copy, otherwise immutability would be violated.
-        """
+
+        Parameters
+        ----------
+        value : bytes
+            The bytes we should append to our current state.
+        '''
 
         # update the byte state
-        self._state += str(value)
+        self._state += str(value) # TODO: make _state to be bytes not a string
 
         # see if we should update the display
-        if Model._throttle_display > 0:
-            curr_time = time.time()
-            if curr_time - self._last_display >= self.max_display_rate:
-                if self.echo and not force_silent:
-                    clear_output(wait=True)
-                    display(HTML(self._html()))
+        if self.echo and not force_silent:
+            if Model._throttle_refresh > 0:
+                curr_time = time.time()
+                if curr_time - self._last_display < self.max_display_rate:
+                    return # we are throttling the update
+                else:
                     self._last_display = curr_time
+        
+            clear_output(wait=True)
+            display(HTML(self._html()))
         
         # TODO: is this needed? This was for programmatic streaming...
         self._send_to_event_queue(self)
     
     def reset(self, clear_variables=True):
-        """This resets the state of the LM prompt."""
-        self._reset(0, clear_variables)
-        return self
-
-    def _reset(self, position=0, clear_variables=True):
-        self._state = self._state[:position]
+        '''This resets the state of the model object.
+        
+        Parameters
+        ----------
+        clear_variables : bool
+            If we should clear all the model object's variables in addition to reseting the byte state.
+        '''
+        self._state = self._state[:0]
         if clear_variables:
             self._variables = {}
+        return self
 
     def _repr_html_(self):
         clear_output(wait=True)
         return self._html()
     
     def _current_prompt(self):
+        '''The current prompt in bytes (which is the state without the context close tags).'''
         return format_pattern.sub("", self._state)
     
-    def __str__(self) -> str:
+    def __str__(self):
+        '''A string representation of the current model object (that includes context closers).'''
         out = self._current_prompt()
         for context in reversed(self.opened_blocks):
             out += format_pattern.sub("", self.opened_blocks[context])
         return out
     
     def __add__(self, value):
+        '''Adding is the primary mechanism for extending model state.
+        
+        Parameters
+        ----------
+        value : guidance grammar
+            The grammar used to extend the current model.
+        '''
 
         # create the new lm object we will return
         # (we need to do this since Model objects are immutable)
         lm = self.copy()
 
         # inside this context we are free to drop display calls that come too close together
-        with throttle_display():
+        with throttle_refresh():
 
             # close any newly closed contexts
             for context in list(reversed(lm.opened_blocks)):
@@ -207,6 +233,7 @@ class Model:
                         is_id = not is_id
                     out = lm + partial_grammar
             
+            # if we find a null value we do nothing
             elif isinstance(value, Null):
                 out = lm
             
@@ -224,9 +251,14 @@ class Model:
         return out
     
     def endswith(self, s):
-        return self._state.endswith(s)
+        '''Checks if the current model state ends with the given value.'''
+        return self._current_prompt().endswith(s)
     
     def __len__(self):
+        '''The string length of the current state.
+        
+        TODO: This should change to the byte length...
+        '''
         return len(str(self))
     
     def __setitem__(self, key, value):
@@ -406,20 +438,44 @@ type {function['name']} = (_: {{"""
         return lm
 
 class Chat(Model):
+    '''The base class for all chat-tuned models.'''
     
     def get_role_start(self, role_name, **kwargs):
+        '''The starting grammar for a role.
+        
+        By default we follow the GPT role tag start conventions.
+        
+        Parameters
+        ----------
+        role_name : str
+            The name of the role, like "user", or "assistant"
+        kwargs : dict
+            This kwargs are added to the role start as arguments.
+        '''
         return "<|im_start|>"+role_name+"".join([f' {k}="{v}"' for k,v in kwargs.items()])+"\n"
     
     def get_role_end(self, role_name=None):
+        '''The ending bytes for a role.
+        
+        Note that we cannot use a grammar in closers because they need to remain constant
+        so we can append them whenever we need a representation before the final closing of the context.
+        By default we follow the GPT role tag end conventions.
+        
+        Parameters
+        ----------
+        role_name : str
+            The name of the role, like "user", or "assistant"
+        '''
         return "<|im_end|>"
     
 class Instruct(Model):
-    
+    '''The base class for all instruction-tuned models.'''
+
     def get_role_start(self, role_name, **kwargs):
-        return "<|im_start|>"+role_name+"".join([f' {k}="{v}"' for k,v in kwargs.items()])+"\n"
+        raise Exception("Subclasses need to define what the role start should be!")
     
     def get_role_end(self, role_name=None):
-        return "<|im_end|>"
+        raise Exception("Subclasses need to define what the role end should be!")
     
 class GrammarOnly:
     def __enter__(self):
@@ -429,14 +485,16 @@ class GrammarOnly:
         Model._grammar_only -= 1
 
 def grammar_only():
+    '''Returns a context manager that ensures only grammars are executed (not full python functions).'''
     return GrammarOnly()
 
-class ThrottleDisplay:
+class ThrottleRefresh:
     def __enter__(self):
-        Model._throttle_display += 1
+        Model._throttle_refresh += 1
     
     def __exit__(self, exc_type, exc_value, traceback):
-        Model._throttle_display -= 1
+        Model._throttle_refresh -= 1
 
-def throttle_display():
-    return ThrottleDisplay()
+def throttle_refresh():
+    '''Returns a context manager that allows the print statement to drop display calls above the throttle rate.'''
+    return ThrottleRefresh()

@@ -61,28 +61,28 @@ class TextRange:
 #         for child in lm._children:
 #             Silent._rec_set_silent(child, value)
 
-class Hidden():
-    """Creates a scope where the LM state is optionally hidden from following calls.
+# class Hidden():
+#     """Creates a scope where the LM state is optionally hidden from following calls.
     
-    Hidden means that the text inside this scope will not be used as context for
-    later calls.
-    """
-    def __init__(self, lm, hidden):
-        self.lm = lm
-        self.hidden = hidden
+#     Hidden means that the text inside this scope will not be used as context for
+#     later calls.
+#     """
+#     def __init__(self, lm, hidden):
+#         self.lm = lm
+#         self.hidden = hidden
     
-    def __enter__(self):
-        self.offset = len(self.lm)
+#     def __enter__(self):
+#         self.offset = len(self.lm)
 
-    def __exit__(self, type, value, traceback):
-        if self.hidden:
-            Hidden._rec_make_hidden(self.lm, self.offset)
+#     def __exit__(self, type, value, traceback):
+#         if self.hidden:
+#             Hidden._rec_make_hidden(self.lm, self.offset)
 
-    @staticmethod
-    def _rec_make_hidden(lm, offset):
-        lm.reset(offset, clear_variables=False)
-        for child in lm._children:
-            Hidden._rec_make_hidden(child, offset)
+#     @staticmethod
+#     def _rec_make_hidden(lm, offset):
+#         lm.reset(offset, clear_variables=False)
+#         for child in lm._children:
+#             Hidden._rec_make_hidden(child, offset)
 
 class _Rewrite(ast.NodeTransformer):
     def visit_Constant(self, node):
