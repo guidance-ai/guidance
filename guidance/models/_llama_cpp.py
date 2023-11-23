@@ -69,6 +69,10 @@ class LlamaCpp(Local):
 
         self._cache_state["cache_token_ids"] = []
 
+    def _joint_tokenize(self, token_ids):
+        byte_string = b"".join([self.tokens[t] for t in token_ids])
+        return self.model_obj.tokenize(byte_string, add_bos=False, special=True)
+
     def _get_logits(self, token_ids, forced_bytes):
         '''Computes the logits for the given token state.
         

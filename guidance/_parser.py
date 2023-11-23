@@ -306,7 +306,10 @@ class EarleyCommitParser:
         valid_items = set()
         next_state_set = self.state_sets[self.state_set_pos + 1]
         for item in next_state_set:
-            if item.pos > 0 and isinstance(item.values[item.pos - 1], Terminal):
+            token_span = self.token_counts[-1] - self.token_counts[item.start]
+            if item.node.max_tokens <= token_span:
+                continue
+            elif item.pos > 0 and isinstance(item.values[item.pos - 1], Terminal):
                 v = item.values[item.pos - 1]
                 if v not in valid_items:
                     valid_items.add(v)
@@ -367,9 +370,12 @@ class EarleyCommitParser:
                     rs = ""
                     if state.pos == 0:
                        rs += "•"
-                    rs += state.values[0].name
-                    if state.pos == 1:
-                       rs += "•"
+                    if len(state.values) == 0:
+                        rs += "NO_VALUES!"
+                    else:
+                        rs += state.values[0].name
+                        if state.pos == 1:
+                            rs += "•"
                 else:
                     assert False
                 s += f"{rs:40} ({state.start}) {'nullable' if state.node.nullable else ''}\n"

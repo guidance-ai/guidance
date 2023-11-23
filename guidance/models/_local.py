@@ -30,6 +30,10 @@ class Local(Model):
 
         # pretend to extend the KV cache and update the log probs
         return np.randn(len(self.tokens))
+    
+    def _joint_tokenize(self, token_ids):
+        # an abstract method. Should return what a full joint tokenizer would give for a given byte string
+        return token_ids
         
     def _tokenize_prefix(self, byte_string):
         '''This is used to speed up the tokenization of long prompts without using the parser.'''
@@ -70,6 +74,34 @@ class Local(Model):
                 pos = valid_pos
 
         return token_ids,token_byte_positions
+    
+    def _cleanup_tokens(self, token_ids, token_byte_positions):
+
+        # compute a joint tokenization
+        joint_token_ids = self._joint_tokenize(token_ids)
+        
+        # see if we need to redo the tokenization
+        redo = False
+        if len(joint_token_ids) != len(token_ids):
+            redo = True
+        else:
+            for i,id in enumerate(joint_token_ids):
+                if token_ids[i] != id:
+                    redo = True
+                    break
+        
+        if redo:
+            token_ids = joint_token_ids
+            last_pos = token_byte_positions[-1]
+            token_byte_positions = []
+            pos = 0
+            for i,id in enumerate(joint_token_ids):
+                pos += len(self.tokens[id])
+                token_byte_positions.append(pos)
+            assert token_byte_positions[-1] == last_pos
+        
+        return token_ids, token_byte_positions
+
 
     def __call__(self, grammar, max_tokens=100, n=1, top_p=1, temperature=0.0, ensure_bos_token=True, log_probs=False):
         assert n == 1, "Still need to add support for n > 1!"
@@ -84,6 +116,7 @@ class Local(Model):
         
         # run a simple tokenizer (that does not use a grammar) on the prefix for better performance
         token_ids,token_byte_positions = self._tokenize_prefix(prompt)
+        token_ids,token_byte_positions = self._cleanup_tokens(token_ids,token_byte_positions)
         if len(token_byte_positions) > 0:
             pre_parser_bytes = token_byte_positions[-1]
             prompt = prompt[token_byte_positions[-1]:]
@@ -99,6 +132,7 @@ class Local(Model):
         sampled_token_ind = None
         token_count = 0
         last_token_count = 0
+        was_forced = False
         while True: # each iteration generates one more token (and some of the associated bytes)
 
             # enforce the token limit
@@ -181,7 +215,6 @@ class Local(Model):
                             break
                         
                         trie = trie.children[next_byte]
-
                 
             forced_pos = parser.pos # record how far the bytes are forced
 
@@ -202,6 +235,7 @@ class Local(Model):
                 sampled_token_ind = trie.value
                 sampled_token = self.tokens[sampled_token_ind]
                 new_bytes_log_prob = 0.0
+                was_forced = True
 
             # we are at the end of the grammar
             elif next_byte_mask_sum == 0:
@@ -215,6 +249,11 @@ class Local(Model):
                     
             # otherwise we need to compute the logits and sample a valid token
             else:
+
+                # if we were forced we might need to clean up the greedy tokenization to match the global tokenization behavior as seen in training
+                if was_forced:
+                    token_ids,token_byte_positions = self._cleanup_tokens(token_ids, token_byte_positions)
+                    was_forced = False
                 logits = self._get_logits(token_ids, parser.bytes[start_pos:forced_pos])
 
                 # if requested we compute the log probabilities so we can track the probabilities of each node
@@ -230,7 +269,7 @@ class Local(Model):
                 else:
                     assert top_p == 1, "Still need to add support for top_p!"
                     probs = scipy.special.softmax(logits / current_temp, axis=-1)
-                    sampling_order = np.random.choice(len(probs), size=len(probs), p=probs)
+                    sampling_order = np.random.choice(len(probs), size=len(probs), p=probs+1e-10, replace=False) # the 1e-10 is ensure we have no zero probs, which numpy does not like
 
                 # loop over the tokens looking for a valid one
                 for i,sampled_token_ind in enumerate(sampling_order):
