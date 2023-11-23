@@ -269,7 +269,9 @@ class Local(Model):
                 else:
                     assert top_p == 1, "Still need to add support for top_p!"
                     probs = scipy.special.softmax(logits / current_temp, axis=-1)
-                    sampling_order = np.random.choice(len(probs), size=len(probs), p=probs+1e-10, replace=False) # the 1e-10 is ensure we have no zero probs, which numpy does not like
+                    probs += 1e-10 # ensure we have no zero probs that mess up numpy
+                    probs /= np.sum(probs)
+                    sampling_order = np.random.choice(len(probs), size=len(probs), p=probs, replace=False) # the 1e-10 is ensure we have no zero probs, which numpy does not like
 
                 # loop over the tokens looking for a valid one
                 for i,sampled_token_ind in enumerate(sampling_order):

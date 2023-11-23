@@ -71,3 +71,10 @@ def test_llama_cpp_more_than_two_batches():
     lm += long_str + gen(max_tokens=10)
     assert len(str(lm)) > len(long_str)
 
+def test_llama_with_temp():
+    lm = get_model("llama_cpp:")
+    lm += 'Here is a cute 5-line poem about cats and dogs:\n'
+    for i in range(5):
+        lm += f"LINE {i+1}: " + gen(temperature=0.8, suffix="\n")
+    # we just want to make sure we don't crash the numpy sampler
+
