@@ -1,14 +1,4 @@
-import re
-import functools
-import time
-import collections
-import os
 import numpy as np
-
-try:
-    import torch
-except ImportError:
-    pass
 
 from ._model import Chat
 from ._local import Local
@@ -69,7 +59,7 @@ class LocalMock(Local):
                         logits[i] += bias
                     bias /= 2 # if we have multiple matches then they apply with decreasing bias
         
-        return torch.tensor(logits)
+        return logits
     
     def _get_next_tokens(self, byte_string):
         for i,t in enumerate(self.tokens):

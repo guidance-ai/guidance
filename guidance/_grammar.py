@@ -532,8 +532,11 @@ def token_limit(value, max_tokens):
 
 def _rec_token_limit(grammar, max_tokens):
     if grammar.max_tokens > max_tokens and not isinstance(grammar, Terminal):
-        if getattr(grammar, "recursive", False): # only restrict recursive selects, otherwise we would block all way to complete the grammar
+        if getattr(grammar, "recursive", False): # only restrict recursive selects, otherwise we would block all ways to complete the grammar
             grammar.max_tokens = max_tokens
+            for value in getattr(grammar, "values", []): # restrict recursive selects recursive nodes
+                if not isinstance(value, Terminal):
+                    value.max_tokens = max_tokens
         if hasattr(grammar, "values"):
             for g in grammar.values:
                 _rec_token_limit(g, max_tokens)

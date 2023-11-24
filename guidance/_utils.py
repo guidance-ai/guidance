@@ -40,49 +40,49 @@ class TextRange:
 #         for child in lm._children:
 #             InPlace._rec_set_inplace(child, value)
 
-class Silent():
-    """Creates a scope where the LM is silent or not."""
-    def __init__(self, lm, silent):
-        self.lm = lm
-        self._prev_silent = lm._silent
-        self.silent = silent
+# class Silent():
+#     """Creates a scope where the LM is silent or not."""
+#     def __init__(self, lm, silent):
+#         self.lm = lm
+#         self._prev_silent = lm._silent
+#         self.silent = silent
     
-    def __enter__(self):
-        if self.silent is not None:
-            self.lm._silent = self.silent
+#     def __enter__(self):
+#         if self.silent is not None:
+#             self.lm._silent = self.silent
 
-    def __exit__(self, type, value, traceback):
-        if self.silent is not None:
-            Silent._rec_set_silent(self.lm, self._prev_silent)
+#     def __exit__(self, type, value, traceback):
+#         if self.silent is not None:
+#             Silent._rec_set_silent(self.lm, self._prev_silent)
 
-    @staticmethod
-    def _rec_set_silent(lm, value):
-        lm._silent = value
-        for child in lm._children:
-            Silent._rec_set_silent(child, value)
+#     @staticmethod
+#     def _rec_set_silent(lm, value):
+#         lm._silent = value
+#         for child in lm._children:
+#             Silent._rec_set_silent(child, value)
 
-class Hidden():
-    """Creates a scope where the LM state is optionally hidden from following calls.
+# class Hidden():
+#     """Creates a scope where the LM state is optionally hidden from following calls.
     
-    Hidden means that the text inside this scope will not be used as context for
-    later calls.
-    """
-    def __init__(self, lm, hidden):
-        self.lm = lm
-        self.hidden = hidden
+#     Hidden means that the text inside this scope will not be used as context for
+#     later calls.
+#     """
+#     def __init__(self, lm, hidden):
+#         self.lm = lm
+#         self.hidden = hidden
     
-    def __enter__(self):
-        self.offset = len(self.lm)
+#     def __enter__(self):
+#         self.offset = len(self.lm)
 
-    def __exit__(self, type, value, traceback):
-        if self.hidden:
-            Hidden._rec_make_hidden(self.lm, self.offset)
+#     def __exit__(self, type, value, traceback):
+#         if self.hidden:
+#             Hidden._rec_make_hidden(self.lm, self.offset)
 
-    @staticmethod
-    def _rec_make_hidden(lm, offset):
-        lm.reset(offset, clear_variables=False)
-        for child in lm._children:
-            Hidden._rec_make_hidden(child, offset)
+#     @staticmethod
+#     def _rec_make_hidden(lm, offset):
+#         lm.reset(offset, clear_variables=False)
+#         for child in lm._children:
+#             Hidden._rec_make_hidden(child, offset)
 
 class _Rewrite(ast.NodeTransformer):
     def visit_Constant(self, node):
@@ -150,7 +150,14 @@ def strip_multiline_string_indents(f):
     source = textwrap.dedent(inspect.getsource(f))
     blanks = '\n' * f.__code__.co_firstlineno # padd the source so the lines in the file line up for the debugger
     source = blanks + '\n'.join(source.splitlines()[1:]) # remove the decorator first line.
-    # print(source)
+    
+    # define the external closure variables so f.__closure__ will match our recompiled version
+    if len(f.__code__.co_freevars) > 0:
+        raise Exception("You currently must use @guidance(dedent=False) for closure functions (function nested within other functions that reference the outer functions variables)!")
+        lines = source.split("\n")
+        lines[0] = "def __outer__closure_wrap():"
+        lines[1] = "    " + ",".join(f.__code__.co_freevars) + " = " + ",".join("None" for _ in f.__code__.co_freevars)
+        source = "    \n".join(lines) # TODO: this does not quite work because new_code_obj is now the __outer__closure_wrap() function...could be fixed with work...
 
     old_code_obj = f.__code__
     old_ast = ast.parse(source)

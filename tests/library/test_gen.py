@@ -53,7 +53,7 @@ def test_pattern_kleene():
 def test_non_token_force():
     '''This forces some bytes that don't match a token (only longer tokens)'''
     lm = get_model("transformers:gpt2")
-    lm += 'ae ae' + gen(regex='\d')
+    lm += 'ae ae' + gen(regex=r'\d')
     assert len(str(lm)) == 6
 
 def test_gen_vs_grammar():
@@ -72,14 +72,14 @@ def test_pattern_optional():
     pattern = '.?233'
     lm2 = lm + '123' + gen(name='numbers', regex=pattern, max_tokens=10)
     assert lm2['numbers'] == '233'
-    pattern = '(Scott is bad)?(\d+)?o'
+    pattern = r'(Scott is bad)?(\d+)?o'
     lm = models.LocalMock(b"<s>John was a little man full of things")
     lm2 = lm + 'J' + gen(name='test', regex=pattern, max_tokens=30)
     assert lm2['test'] == 'o'
 
 def test_pattern_stops_when_fulfilled():
     lm = models.LocalMock(b"<s>123abc")
-    lm += gen(regex='\d+', max_tokens=10, name='test')
+    lm += gen(regex=r'\d+', max_tokens=10, name='test')
     assert lm['test'] == '123'
 
 def test_pattern_star():
@@ -89,7 +89,7 @@ def test_pattern_star():
     #     lm2 = lm + '123' + gen(name='numbers', regex=pattern, max_tokens=10)
     #     assert lm2['numbers'] == '4233'
     lm = models.LocalMock(b"<s>123233")
-    patterns = ['\d*233','.*233']
+    patterns = [r'\d*233','.*233']
     for pattern in patterns:
         lm2 = lm + '123' + gen(name='numbers', regex=pattern, max_tokens=10)
         assert lm2['numbers'].startswith('233')
@@ -103,20 +103,20 @@ def test_pattern_star():
 
 def test_stop_regex():
     lm = models.LocalMock(b"<s>123a3233")
-    lm2 = lm + '123' + gen(name='test', stop_regex='\d233', max_tokens=10)
+    lm2 = lm + '123' + gen(name='test', stop_regex=r'\d233', max_tokens=10)
     assert lm2['test'] == 'a'
     lm = models.LocalMock(b"<s>123aegalera3233")
-    lm2 = lm + '123' + gen(name='test', stop_regex='\d', max_tokens=30)
+    lm2 = lm + '123' + gen(name='test', stop_regex=r'\d', max_tokens=30)
     assert lm2['test'] == 'aegalera'
 
 def test_stop_regex_star():
     lm = models.LocalMock(b"<s>123a3233")
-    pattern = '\d+233'
+    pattern = r'\d+233'
     lm2 = lm + '123' + gen(name='test', stop_regex=pattern, max_tokens=10)
     assert lm2['test'] == 'a'
 
 def test_empty_pattern():
-    pattern = '(Scott is bad)?(\d+)?'
+    pattern = r'(Scott is bad)?(\d+)?'
     lm = models.LocalMock(b"<s>J<s>")
     lm2 = lm + 'J' + gen(name='test', regex=pattern, max_tokens=30)
     assert lm2['test'] == ''
@@ -124,7 +124,7 @@ def test_empty_pattern():
 def test_various_regexes():
     lm = get_model("transformers:gpt2")
     prompts = ['Hi there', '2 + 2 = ', 'Scott is a', 'I have never seen a more', 'What is the', '?FD32']
-    patterns = ['(Scott is a person|Scott is a persimmon)', 'Scott is a persimmon.*\.', '\d\.*\d+']
+    patterns = ['(Scott is a person|Scott is a persimmon)', r'Scott is a persimmon.*\.', r'\d\.*\d+']
     for prompt in prompts:
         for pattern in patterns:
             lm2 = lm + prompt + gen(name='test', regex=pattern, max_tokens=40)
@@ -209,3 +209,47 @@ def test_one_char_stop_and_regex():
     model = models.LocalMock(b"<s>this is\na test")
     model += gen(regex=".*", stop="\n", max_tokens=20)
     assert str(model) == "this is"
+
+def test_tool_call():
+    import guidance
+    from guidance import one_or_more, select, zero_or_more
+    from guidance import capture, Tool
+
+    @guidance(stateless=True, dedent=False) # stateless=True indicates this function does not depend on LLM generation state
+    def number(lm):
+        n = one_or_more(select(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']))
+        # Allow for negative or positive numbers
+        return lm + select(['-' + n, n])
+
+    @guidance(stateless=True, dedent=False)
+    def operator(lm):
+        return lm + select(['+' , '*', '**', '/', '-'])
+
+    @guidance(stateless=True, dedent=False)
+    def expression(lm):
+        # Either
+        # 1. A number (terminal)
+        # 2. two expressions with an operator and optional whitespace
+        # 3. An expression with parentheses around it
+        return lm + select([
+            number(),
+            expression() + zero_or_more(' ') +  operator() + zero_or_more(' ') +  expression(),
+            '(' + expression() + ')'
+        ])
+
+    @guidance(stateless=True, dedent=False)
+    def calculator_call(lm):
+        # capture just 'names' the expression, to be saved in the LM state
+        return lm + 'Calculator(' + capture(expression(), 'tool_args') + ')'
+
+    @guidance(dedent=False)
+    def calculator(lm):
+        expression = lm['tool_args']
+        # You typically don't want to run eval directly for save reasons
+        # Here we are guaranteed to only have mathematical expressions
+        lm += f' = {eval(expression)}'
+        return lm
+    calculator_tool = Tool(calculator_call(), calculator)
+    gpt2 = get_model("transformers:gpt2")
+    lm = gpt2 + 'Here are five expressions:\nCalculator(3 * 3) = 33\nCalculator(2 + 1 * 3) = 5\n'
+    lm += gen(max_tokens=30, temperature=0.5, tools=[calculator_tool], stop='\n\n')

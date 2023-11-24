@@ -13,14 +13,6 @@ import re
 from ._model import Chat, Instruct
 from ._remote import Remote
 
-
-try:
-    # TODO: can we eliminate the torch requirement for llama.cpp by using numpy in the caller instead?
-    import torch
-    is_torch = True
-except ImportError:
-    is_torch = False
-
 try:
     # TODO: can we eliminate the torch requirement for llama.cpp by using numpy in the caller instead?
     import openai as openai_package

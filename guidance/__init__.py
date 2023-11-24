@@ -1,4 +1,4 @@
-__version__ = "0.1.3"
+__version__ = "0.1.4"
 
 import nest_asyncio
 nest_asyncio.apply()
@@ -9,7 +9,7 @@ import requests
 from . import models
 import inspect
 
-from ._utils import load, chain, Silent, Hidden, CaptureEvents, TextRange, strip_multiline_string_indents
+from ._utils import load, chain, CaptureEvents, TextRange, strip_multiline_string_indents
 from . import _utils
 from . import selectors
 
@@ -30,14 +30,14 @@ class Guidance(types.ModuleType):
         return _decorator(f, stateless=stateless, cache=cache, dedent=dedent, model=model)
 sys.modules[__name__].__class__ = Guidance
 
-def optional_hidden(f, lm, hidden, kwargs):
-    """This only enters a hidden context if the function does not manage the hidden parameter itself.
-    """
-    if 'hidden' in inspect.signature(f).parameters:
-        kwargs['hidden'] = hidden
-        return nullcontext()
-    else:
-        return Hidden(lm, hidden)
+# def optional_hidden(f, lm, hidden, kwargs):
+#     """This only enters a hidden context if the function does not manage the hidden parameter itself.
+#     """
+#     if 'hidden' in inspect.signature(f).parameters:
+#         kwargs['hidden'] = hidden
+#         return nullcontext()
+#     else:
+#         return Hidden(lm, hidden)
     
 _function_cache = {} # used to enable recursive grammar definitions
 _null_grammar = string('')
