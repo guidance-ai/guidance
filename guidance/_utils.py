@@ -10,6 +10,7 @@ import types
 import itertools
 import textwrap
 import sys
+import numpy as np
 
 class TextRange:
     def __init__(self, start, end, lm):
@@ -551,3 +552,26 @@ def escape_template_block(text):
 
 def unescape_template_block(text):
     return text.replace("&#36;", "$").replace("&#123;", "{").replace("&#125;", "}")
+
+
+def log_softmax(array: np.ndarray, axis: int = -1) -> np.ndarray:
+    # https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.log_softmax.html
+    array_maxs: np.ndarray = np.amax(array, axis=axis, keepdims=True)
+    if array_maxs.ndim > 0:
+        array_maxs[~np.isfinite(array_maxs)] = 0
+    elif not np.isfinite(array_maxs):
+        array_maxs = 0
+    subtract_maxs = array - array_maxs
+    exp = np.exp(subtract_maxs)
+    # suppress warnings about log of zero
+    with np.errstate(divide='ignore'):
+        summed = np.sum(exp, axis=axis, keepdims=True)
+        out = np.log(summed)
+    return subtract_maxs - out
+
+
+def softmax(array: np.ndarray, axis: int = -1) -> np.ndarray:
+    # https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.softmax.html
+    array_maxs = np.amax(array, axis=axis, keepdims=True)
+    exp_x_shifted = np.exp(array - array_maxs)
+    return exp_x_shifted / np.sum(exp_x_shifted, axis=axis, keepdims=True)

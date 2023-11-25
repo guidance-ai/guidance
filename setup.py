@@ -38,7 +38,6 @@ setup(
         "msal",
         "requests",
         "numpy",
-        "scipy",
         "aiohttp",
         "ordered_set",
         "pyformlang"
