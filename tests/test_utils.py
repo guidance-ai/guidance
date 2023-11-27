@@ -24,18 +24,14 @@ def atol() -> float:
     ],
 )
 class TestLogitsTransforms:
-    def test_log_softmax(
-        self, size_and_axis: Tuple[Tuple[int] | Tuple[int, int], int], atol: float
-    ):
+    def test_log_softmax(self, size_and_axis, atol: float):
         size, axis = size_and_axis
         logits: np.ndarray = -np.random.uniform(low=0, high=60, size=size)
         log_probs = _utils.log_softmax(logits, axis=axis)
         log_probs_correct = torch.tensor(logits).log_softmax(dim=axis).numpy()
         assert np.allclose(log_probs, log_probs_correct, atol=atol)
 
-    def test_softmax(
-        self, size_and_axis: Tuple[Tuple[int] | Tuple[int, int], int], atol: float
-    ):
+    def test_softmax(self, size_and_axis, atol: float):
         size, axis = size_and_axis
         logits: np.ndarray = -np.random.uniform(low=0, high=60, size=size)
         probs = _utils.softmax(logits, axis=axis)
