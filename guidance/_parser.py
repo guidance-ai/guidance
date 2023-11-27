@@ -137,8 +137,8 @@ class EarleyCommitParser:
                 for start_item in start_state_set:
                     if start_item.pos < len(start_item.values) and start_item.values[start_item.pos] == item.node:
                         
-                        if item.node.max_tokens <= token_span and any(start_item.node == v  for v in item.node.values):
-                            continue # skip advancing parents that are also children (recursion) once we are past the token limit
+                        # if item.node.max_tokens <= token_span and any(start_item.node == v and len(v.values) > 1 for v in item.node.values):
+                        #     continue # skip advancing parents that are also children (recursion) once we are past the token limit
 
                         curr_state_set.append(EarleyItem(
                             start_item.node,
