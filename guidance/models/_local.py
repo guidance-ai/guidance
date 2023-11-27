@@ -352,9 +352,10 @@ class Local(Model):
                         break
 
                     # check if this token is dominated by other longer valid tokens (and hence would never be consistent with greedy tokenization)
-                    if token_pos == len(sampled_token) and not parser.matched(): # not we don't check if we have matched, because then we can generate anything afterwards
-                        if _check_dominated(node, parser, self._token_trie.match_version, parser.next_byte_mask()):
-                            token_pos = -1
+                    # TODO: disabled for now because of sentencepeice non-local issues
+                    # if token_pos == len(sampled_token) and not parser.matched(): # not we don't check if we have matched, because then we can generate anything afterwards
+                    #     if _check_dominated(node, parser, self._token_trie.match_version, parser.next_byte_mask()):
+                    #         token_pos = -1
 
                     if token_pos > 0:
                         break # we found a valid token
