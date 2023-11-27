@@ -1,7 +1,5 @@
-import scipy.special
-import scipy.stats
 import numpy as np
-from .._utils import ByteTrie
+from .._utils import ByteTrie, log_softmax, softmax
 from ._model import Model
 from .._parser import EarleyCommitParser
 from .._grammar import Terminal
@@ -259,7 +257,7 @@ class Local(Model):
                 # if requested we compute the log probabilities so we can track the probabilities of each node
                 # TODO: we should lower this step to C++ with pybind11
                 if log_probs:
-                    _compute_log_probs(trie, scipy.special.log_softmax(logits, dim=-1))
+                    _compute_log_probs(trie, log_softmax(logits, axis=-1))
 
                 # get the sampling order
                 grammar_temp = parser.next_byte_temperature()
@@ -268,7 +266,7 @@ class Local(Model):
                     sampling_order = np.argsort(-logits) # we need numpy so the enumerate below does not get really slow...
                 else:
                     assert top_p == 1, "Still need to add support for top_p!"
-                    probs = scipy.special.softmax(logits / current_temp, axis=-1)
+                    probs = softmax(logits / current_temp, axis=-1)
                     probs += 1e-10 # ensure we have no zero probs that mess up numpy
                     probs /= np.sum(probs)
                     sampling_order = np.random.choice(len(probs), size=len(probs), p=probs, replace=False) # the 1e-10 is ensure we have no zero probs, which numpy does not like
