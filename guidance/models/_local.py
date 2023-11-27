@@ -1,5 +1,3 @@
-import scipy.special
-import scipy.stats
 import numpy as np
 from .._utils import ByteTrie, log_softmax, softmax
 from ._model import Model
