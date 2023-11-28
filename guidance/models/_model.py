@@ -355,7 +355,7 @@ type {function['name']} = (_: {{"""
         
         return self
 
-    def _run_stateless(lm, stateless_function, max_tokens=1000, temperature=0.0, top_p=1.0, n=1):
+    def _run_stateless(lm, stateless_function, max_tokens=2000, temperature=0.0, top_p=1.0, n=1):
         assert Model._grammar_only == 0, "We can't run grammar parsing while in context free mode! (for example inside a block closer)"
 
         # This needs to be here for streaming

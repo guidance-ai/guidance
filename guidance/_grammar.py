@@ -490,7 +490,7 @@ def string(value):
     else:
         return Join([Byte(b[i:i+1]) for i in range(len(b))], name=str(b))
     
-def select(options, name=None, recurse=False, skip_checks=False):
+def select(options, name=None, list_append=False, recurse=False, skip_checks=False):
     # TODO: allow for returning the probabilites of the selected item
     # TODO: also the full probabilites distribution over all items. We can implement this using the prob of the selected item by repeating the call, removing the selected item each time
     if not skip_checks:
@@ -499,6 +499,10 @@ def select(options, name=None, recurse=False, skip_checks=False):
             assert not isinstance(value, types.FunctionType), "Did you pass a function without calling it to select? You need to pass the results of a called guidance function to select."
             if isinstance(value, int) or isinstance(value, float):
                 options[i] = str(value)
+
+    # set up list append var saving if requested
+    name = "__LIST_APPEND:" + name if list_append else name
+
     # if name is None:
     #     name = _find_name() + "_" + StatelessFunction._new_name()
     if recurse:
@@ -545,7 +549,7 @@ def with_temperature(value, temperature):
     '''This sets the sampling temperature to be used for the given portion of the grammar.
     
     Note that if the grammar passed to us already has some portions with a temperature
-    setting in place, those setting will not be overridden.
+    setting in place, those settings will not be overridden.
     '''
     _re_with_temperature(value, temperature, {})
     return value
