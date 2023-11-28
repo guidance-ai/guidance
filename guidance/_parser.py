@@ -127,8 +127,16 @@ class EarleyCommitParser:
                 # parses so that we are "committed" to using this item
                 # we do this by removing any unprocessed items in the current state set and clearing the next state set
                 if item.node.commit_point:
-                    while len(curr_state_set) > pos + 1:
+                    while len(curr_state_set) > pos:
+
+                        # if we find another valid commit point that starts earlier we use that instead
+                        # this causes us to pick the longest matching valid commit point
+                        end_item = curr_state_set[-1]
+                        if end_item.node.commit_point and end_item.pos == len(end_item.values) and end_item.start < item.start:
+                            item = end_item
+                        
                         curr_state_set.pop()
+                    curr_state_set.append(item) # we append the current item again (we do this since we may have swapped it out above)
                     next_state_set.clear()
                 
                 # advance all the parents that our completion impacts
