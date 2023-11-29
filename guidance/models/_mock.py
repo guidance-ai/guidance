@@ -1,10 +1,9 @@
 import numpy as np
 
-from ._model import Chat
-from ._local import Local
+from ._model import Model, Chat
 
 
-class LocalMock(Local):
+class Mock(Model):
     def __init__(self, byte_patterns=[], echo=True):
         
         super().__init__(
@@ -67,6 +66,6 @@ class LocalMock(Local):
                 yield i
         
 
-class LocalMockChat(LocalMock, Chat):
+class MockChat(Mock, Chat):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

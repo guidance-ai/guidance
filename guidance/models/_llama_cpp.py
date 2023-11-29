@@ -5,8 +5,7 @@ import operator
 
 import numpy as np
 
-from ._model import Chat
-from ._local import Local
+from ._model import Model, Chat
 from .._utils import normalize_notebook_stdout_stderr
 
 try:
@@ -15,7 +14,7 @@ try:
 except ImportError:
     is_llama_cpp = False
 
-class LlamaCpp(Local):
+class LlamaCpp(Model):
     def __init__(self, model=None, tokenizer=None, echo=True, caching=True, temperature=0.0, **kwargs):
 
         if not is_llama_cpp:

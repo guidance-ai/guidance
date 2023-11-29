@@ -2,7 +2,7 @@ from guidance import commit_point, models, Tool, select, capture, string
 from ..utils import get_model
 
 def test_hidden():
-    model = models.LocalMock()
+    model = models.Mock()
     model += " one" + commit_point(" two", hidden=True) + " three"
     assert str(model) == " one three"
 

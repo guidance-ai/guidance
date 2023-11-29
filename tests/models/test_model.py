@@ -1,5 +1,5 @@
 import guidance
-from guidance import select, models, gen
+from guidance import select, models, gen, zero_or_more, byte_range
 from ..utils import get_model
 
 def test_fstring():
@@ -24,7 +24,7 @@ def test_token_count():
 
 def test_call_embeddings():
     '''This tests calls embedded in strings.'''
-    model = models.LocalMock()
+    model = models.Mock()
 
     @guidance(dedent=False)
     def bla(lm, bla):
@@ -39,3 +39,9 @@ def test_call_embeddings():
         return lm
     
     assert "{{G|" not in str(model + ble())
+
+def test_token_healing():
+    '''Tests a bug where the space is incorrectly forced as token 220, while it should be not forced it might be extended'''
+    gpt2 = get_model("transformers:gpt2")
+    lm = gpt2 + ("This is a story of 10 or 5 or " + zero_or_more(byte_range(b'0', b'9')))
+    assert len(lm) > len("This is a story of 10 or 5 or ")

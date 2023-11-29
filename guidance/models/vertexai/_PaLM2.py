@@ -11,15 +11,7 @@ import tiktoken
 
 from ._vertexai import VertexAIInstruct, VertexAIChat
 
-# try:
-#     # TODO: can we eliminate the torch requirement for llama.cpp by using numpy in the caller instead?
-#     import torch
-#     is_torch = True
-# except ImportError:
-#     is_torch = False
-
 try:
-    # TODO: can we eliminate the torch requirement for llama.cpp by using numpy in the caller instead?
     from vertexai.preview.language_models import TextGenerationModel
     from vertexai.language_models import ChatModel, InputOutputTextPair
     is_vertexai = True

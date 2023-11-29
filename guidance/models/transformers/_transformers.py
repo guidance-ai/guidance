@@ -9,11 +9,10 @@ try:
 except ImportError:
     pass
 
-from .._model import Chat
-from .._local import Local
+from .._model import Model, Chat
 
 
-class Transformers(Local):
+class Transformers(Model):
     def __init__(self, model=None, tokenizer=None, echo=True, caching=True, temperature=0.0, device=None, **kwargs):
         
         # fill in default model value

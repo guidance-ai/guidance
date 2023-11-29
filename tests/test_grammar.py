@@ -2,7 +2,7 @@ from guidance import models, select
 from .utils import get_model
 
 def test_select_reset_pos():
-    model = models.LocalMock()
+    model = models.Mock()
     model += 'This is' + select(options=['bad', 'quite bad'])
     assert str(model) in ["This isbad", "This isquite bad"]
 
@@ -14,6 +14,6 @@ def test_select_simple():
 
 def test_select_longer():
     '''This tests to ensure that the grammar is extended greedily.'''
-    lm = models.LocalMock(b"<s>Scott is a very nice man.")
+    lm = models.Mock(b"<s>Scott is a very nice man.")
     lm += "Scott is a very " + select(name='text', options=['nice', 'nice man.'])
     assert lm["text"] == 'nice man.'

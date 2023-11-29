@@ -10,8 +10,7 @@ import time
 import tiktoken
 import re
 
-from ._model import Chat, Instruct
-from ._local import Local
+from ._model import Model, Chat, Instruct
 
 
 # try:
@@ -21,7 +20,7 @@ from ._local import Local
 # except ImportError:
 #     is_vertexai = False
 
-class Remote(Local):
+class Remote(Model):
     def __init__(self, model, tokenizer=None, echo=True, caching=True, temperature=0.0, max_streaming_tokens=500, **kwargs):
         self.caching = caching
         self.temperature = temperature
