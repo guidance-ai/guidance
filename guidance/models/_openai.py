@@ -23,19 +23,13 @@ except ImportError:
 chat_model_pattern = r'^(ft:)?(gpt-3\.5-turbo|gpt-4)((-\w+)+)?(:[\w-]+(?:[:\w-]+)*)?(::\w+)?$'
 
 class OpenAI(Remote):
-    def __init__(self, model, tokenizer=None, echo=True, caching=True, api_key=None, organization=None, base_url=r"https://api.openai.com/v1", temperature=0.0, max_streaming_tokens=1000, **kwargs):
+    def __init__(self, model, tokenizer=None, echo=True, caching=True, api_key=None, organization=None, base_url=r"https://api.openai.com/v1", temperature=0.0, top_p=1.0, max_streaming_tokens=1000, **kwargs):
         if not is_openai or not hasattr(openai_package, "OpenAI"):
             raise Exception("Please install the openai package version >= 1 using `pip install openai -U` in order to use guidance.models.OpenAI!")
         
         # if we are called directly (as opposed to through super()) then we convert ourselves to a more specific subclass if possible
         if self.__class__ is OpenAI:
             found_subclass = None
-            # from . import openai
-
-            # if isinstance(model, str):
-            #     model_name = model
-            # else:
-            #     model_name = self.model_obj._model_id
 
             # chat
             if re.match(chat_model_pattern, model):
@@ -63,11 +57,7 @@ class OpenAI(Remote):
 
         self.client = openai_package.OpenAI(api_key=api_key, organization=organization, base_url=base_url)
         self.model_name = model
-
-        
-        
-        # self.tokenizer = tiktoken.encoding_for_model(model)
-        # self.eos_token = b"<|endoftext|>"
+        self.top_p = top_p
 
         super().__init__(
             model, tokenizer=tiktoken.encoding_for_model(model), echo=echo,
@@ -89,8 +79,8 @@ class OpenAICompletion(OpenAI, Instruct):
                 prompt=prompt.decode("utf8"), 
                 max_tokens=self.max_streaming_tokens, 
                 n=1, 
-                top_p=1, 
-                temperature=0, 
+                top_p=self.top_p, 
+                temperature=self.temperature, 
                 stream=True
             )
         except Exception as e: # TODO: add retry logic
@@ -132,8 +122,8 @@ class OpenAIInstruct(OpenAI, Instruct):
                 prompt=self._shared_state["data"].decode("utf8"), 
                 max_tokens=self.max_streaming_tokens, 
                 n=1, 
-                top_p=1, 
-                temperature=0, 
+                top_p=self.top_p, 
+                temperature=self.temperature, 
                 stream=True
             )
         except Exception as e: # TODO: add retry logic
@@ -148,29 +138,15 @@ class OpenAIChat(OpenAI, Chat):
         super().__init__(*args, **kwargs)
 
     def _generator(self, prompt):
-        
-        # find the system text
-        pos = 0
-        # system_start = b'<|im_start|>system\n'
-        # user_start = b'<|im_start|>user\n'
-        # assistant_start = b'<|im_start|>assistant\n'
-        role_end = b'<|im_end|>'
-        # system_start_pos = prompt.startswith(system_start)
-        
-        # find the system text
-        # system_text = b''
-        # if prompt.startswith(system_start):
-        #     pos += len(system_start)
-        #     system_end_pos = prompt.find(role_end)
-        #     system_text = prompt[pos:system_end_pos]
-        #     pos = system_end_pos + len(role_end)
 
-        # find the user/assistant pairs
+        # find the role tags
+        pos = 0
+        role_end = b'<|im_end|>'
         messages = []
         found = True
         while found:
 
-            # find the user text
+            # find the role text blocks
             found = False
             for role_name,start_bytes in (("system", b'<|im_start|>system\n'), ("user", b'<|im_start|>user\n'), ("assistant", b'<|im_start|>assistant\n')):
                 if prompt[pos:].startswith(start_bytes):
@@ -191,10 +167,10 @@ class OpenAIChat(OpenAI, Chat):
             generator = self.client.chat.completions.create(
                 model=self.model_name,
                 messages=messages,
-                max_tokens=self.max_streaming_tokens, 
-                n=1, 
-                top_p=1, 
-                temperature=0, 
+                max_tokens=self.max_streaming_tokens,
+                n=1,
+                top_p=self.top_p,
+                temperature=self.temperature,
                 stream=True
             )
         except Exception as e: # TODO: add retry logic
