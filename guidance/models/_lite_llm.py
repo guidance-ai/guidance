@@ -13,7 +13,6 @@ import re
 from ._model import Chat, Instruct
 from ._remote import Remote
 
-# chat_model_pattern = r'^(ft:)?(gpt-3\.5-turbo|gpt-4)((-\w+)+)?(:[\w-]+(?:[:\w-]+)*)?(::\w+)?$'
 
 class LiteLLM(Remote):
     def __init__(self, model, tokenizer=None, echo=True, caching=True, api_base=None, api_key=None, custom_llm_provider=None, temperature=0.0, max_streaming_tokens=1000, **kwargs):
@@ -26,28 +25,25 @@ class LiteLLM(Remote):
         if self.__class__ is LiteLLM:
             raise Exception("The LightLLM class is not meant to be used directly! Please use LiteLLMChat, LiteLLMInstruct, or LiteLLMCompletion depending on the model you are using.")
 
-        # # Configure an AsyncOpenAI Client with user params.
-        # if api_key is None:
-        #     api_key = os.environ.get("OPENAI_API_KEY")
-
-        # if organization is None:
-        #     organization = os.environ.get("OPENAI_ORG_ID")
 
         self.litellm = litellm
 
         # self.client = openai_package.OpenAI(api_key=api_key, organization=organization, base_url=base_url)
         self.model_name = model
-        
-        # self.tokenizer = tiktoken.encoding_for_model(model)
-        # self.eos_token = b"<|endoftext|>"
+
+        # we pretend it tokenizes like gpt2 if tiktoken does not know about it... TODO: make this better
+        if tokenizer is None:
+            try:
+                tokenizer = tiktoken.encoding_for_model(model)
+            except:
+                tokenizer = tiktoken.get_encoding("gpt2")
 
         super().__init__(
-            model, tokenizer=tiktoken.encoding_for_model(model), echo=echo,
+            model, tokenizer=tokenizer, echo=echo,
             caching=caching, temperature=temperature,
             max_streaming_tokens=max_streaming_tokens, **kwargs
         )
-        
-    
+
 
 class LiteLLMCompletion(LiteLLM, Instruct):
 
@@ -69,8 +65,6 @@ class LiteLLMCompletion(LiteLLM, Instruct):
             raise e
         
         for part in generator:
-            # chunk = part.choices[0].text or ""
-            # yield chunk.encode("utf8")
             chunk = part.choices[0].delta.content or ""
             yield chunk.encode("utf8")
 
@@ -115,8 +109,6 @@ class LiteLLMInstruct(LiteLLM, Instruct):
             raise e
         
         for part in generator:
-            # chunk = part.choices[0].text or ""
-            # yield chunk.encode("utf8")
             chunk = part.choices[0].delta.content or ""
             yield chunk.encode("utf8")
 

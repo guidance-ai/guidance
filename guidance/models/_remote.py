@@ -51,6 +51,21 @@ class Remote(Model):
             bos_token_id = tokenizer.bos_token_id
             eos_token_id = tokenizer.eos_token_id
 
+        # a HuggingFace tokenizers tokenizer was given with id_to_token
+        elif hasattr(tokenizer, "id_to_token"):
+            a_token_ids = tokenizer.encode("a").ids
+            if len(a_token_ids) == 3:
+                bos_token_id = a_token_ids[0]
+                a_id = a_token_ids[1]
+                eos_token_id = a_token_ids[2]
+            else:
+                raise Exception("This tokenizer does not seem to have a BOS and EOS, support for this need to be implemented still.")
+
+            byte_tokens = [bytes(tokenizer.decode([a_id, i])[1:], encoding="utf8") for i in range(tokenizer.get_vocab_size())]
+            for i,b in enumerate(byte_tokens):
+                if b == b'':
+                    byte_tokens[i] = bytes(tokenizer.id_to_token(i), encoding="utf8")
+
         else:
             raise Exception("The tokenizer given was not of a recognized type!")
 
