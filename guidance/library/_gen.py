@@ -1,11 +1,6 @@
-import types
-import regex as lregex
-import uuid
-
+import regex as regex_module
+import logging
 import guidance
-import ast
-
-# from guidance import select, any_char, zero_or_more, commit_point, hide
 from ._silent import silent
 from .._grammar import select
 from ._zero_or_more import zero_or_more
@@ -18,6 +13,8 @@ from .._grammar import with_temperature
 from .._grammar import model_variable
 from ._tool import Tool
 
+logger = logging.getLogger(__name__)
+
 # TODO: make this stateless!
 @guidance(stateless=lambda *args, **kwargs: kwargs.get("tools", None) is None) # TODO: uncomment this once we get temperature stateless
 def gen(lm, name=None, *, max_tokens=1000, list_append=False, regex=None,
@@ -27,6 +24,7 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, regex=None,
     TODO: document this
     tools is a list of guidance.Tool or python functions (which will be converted to guidance.Tool)
     """
+    logger.debug(f'start gen(name="{name}")')
 
     # set stream if we are interactive
     # if stream_tokens is None and not lm.is_silent() and n == 1:
@@ -124,6 +122,7 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, regex=None,
     elif n == 1:
         lm += with_temperature(pattern + stop_pattern + suffix, temperature)
 
+    logger.debug(f'finish gen')
     return lm
 
 
@@ -178,9 +177,9 @@ def will_gen(lm, stop=None, stop_regex=None, ignore_spaces=False, max_tokens=30)
         stop = []
     if not stop_regex:
         stop_regex = []
-    regexes = [lregex.escape(x) for x in stop + stop_regex]
+    regexes = [regex_module.escape(x) for x in stop + stop_regex]
     optional_space = '\\s*' if ignore_spaces else ''
-    pattern = lregex.compile(f'{optional_space}({"|".join(regexes)})')
+    pattern = regex_module.compile(f'{optional_space}({"|".join(regexes)})')
     lm2 = lm
     with silent():
         for _ in range(max_tokens):

@@ -1,30 +1,22 @@
-import os
-from pathlib import Path
-import multiprocessing
-from itertools import takewhile
-import operator
 import threading
 import numpy as np
 import queue
 import time
 import tiktoken
 import re
+import logging
+from ._model import Model, format_pattern
 
-from ._model import Model, Chat, Instruct
+logger = logging.getLogger(__name__)
 
-
-# try:
-#     # TODO: can we eliminate the torch requirement for llama.cpp by using numpy in the caller instead?
-#     import vertexai
-#     is_vertexai = True
-# except ImportError:
-#     is_vertexai = False
 
 class Remote(Model):
-    def __init__(self, model, tokenizer=None, echo=True, caching=True, temperature=0.0, max_streaming_tokens=500, **kwargs):
+    def __init__(self, model, tokenizer=None, echo=True, caching=True, temperature=0.0, max_streaming_tokens=500, timeout=0.5, **kwargs):
+        logger.debug(f"start Remote.__init__(model=\"{model}\")")
         self.caching = caching
         self.temperature = temperature
         self.max_streaming_tokens = max_streaming_tokens
+        self.timeout = timeout
 
         # Remote models don't always have public tokenizations, so when not provided we pretend they tokenize like gpt2...
         if tokenizer is None:
@@ -33,7 +25,7 @@ class Remote(Model):
         # tiktoken tokenizer was given
         if hasattr(tokenizer, "decode_single_token_bytes"):
             special_map = {v: k for k,v in tokenizer._special_tokens.items()}
-            byte_tokens = [b'<|invalid_special_token|>']
+            byte_tokens = [] # b'<|invalid_special_token|>'
             for i in range(tokenizer.n_vocab):
                 try:
                     bval = tokenizer.decode_single_token_bytes(i)
@@ -64,9 +56,9 @@ class Remote(Model):
 
         # build the 
         super().__init__(
-            byte_tokens,
-            bos_token_id,
-            eos_token_id,
+            tokens=byte_tokens,
+            bos_token_id=bos_token_id,
+            eos_token_id=eos_token_id,
             echo=echo
         )
 
@@ -80,15 +72,18 @@ class Remote(Model):
         self._shared_state["not_running_stream"].set()
 
         self.max_calls = 10
-        self.timeout = 50.1
+        self.timeout = timeout
+        logger.debug(f"finish Remote.__init__")
 
     def _running_stream(self):
         return not self._shared_state["not_running_stream"].is_set() # wrap double negation (which)
 
     def _start_generator_stream(self, generator):
+        logger.debug(f"start Remote._start_generator_stream")
         dqueue = self._shared_state["data_queue"]
         first_iteration = True
         for chunk in generator:
+            logger.debug(f"Got chunk: " + str(chunk))
             if len(chunk) > 0:
                 dqueue.put(chunk)
             if self._shared_state["not_running_stream"].is_set() or not first_iteration and time.time() - self._shared_state["last_call"] > self.timeout:
@@ -119,10 +114,9 @@ class Remote(Model):
         generator = self._generator(prompt)
         self._shared_state["not_running_stream"].clear() # so we know we are running
         self._shared_state["num_calls_made"] += 1
-
+        self._shared_state["data"] = prompt # we reset out current data state to be this prompt
         self._shared_state["remote_thread"] = threading.Thread(target=self._start_generator_stream, args=(generator,))
         self._shared_state["remote_thread"].start()
-        # self._start_generator_stream(stripped_prompt)
     
     def _get_logits(self, token_ids, forced_bytes):
         '''Computes the logits for the given token state.
@@ -130,6 +124,8 @@ class Remote(Model):
         This overrides a method from the Local class that is used to get
         inference results from the model.
         '''
+
+        logger.debug(f"start Remote._get_logits(token_ids={token_ids})")
 
         if len(token_ids) == 0:
             raise ValueError("token_ids must contain some tokens.")
@@ -150,7 +146,38 @@ class Remote(Model):
                     break
 
             # restart if extending our data will never lead to matching our prompt
-            elif len(self._shared_state["data"]) >= len(prompt) or not prompt.startswith(self._shared_state["data"]):
+            elif not self._shared_state["data"].startswith(prompt) and len(self._shared_state["data"]) >= len(prompt): #not prompt.startswith(self._shared_state["data"]): # len(self._shared_state["data"]) >= len(prompt) or 
+
+                # check the length of the prefix match
+                match_len = 0
+                data = self._shared_state["data"]
+                for match_len,v in enumerate(prompt):
+                    if v != data[match_len]:
+                        break
+                leftover = prompt[match_len:]
+
+                # record any active non-empty role ends. Ignore role ends that are spaces
+                parts = []
+                for role_end_str in self.opened_blocks.values():
+                    role_end_str = format_pattern.sub("", role_end_str)
+                    if len(role_end_str) > 0 and not re.fullmatch(r'\s+', role_end_str):
+                        parts.append(role_end_str.encode("utf8"))
+
+                # record the eos token
+                parts.append(self.eos_token)
+
+                # see if adding an end token would work here (if so we avoid recalling the server and just produce an end token)
+                found_match = False
+                for p in parts:
+                    if p.startswith(leftover):
+                        self._shared_state["data"] = self._shared_state["data"][:match_len] + p
+                        logger.debug(f'automatically adding an end token since it fits the forcing of the grammar')
+                        found_match = True
+                        break
+                if found_match:
+                    continue # start our loop over again
+
+                logger.debug(f'restarting a stream because the data we have does not match the ids. We have {str(self._shared_state["data"])} but the prompt is {str(prompt)}')
                 self._start_new_stream(prompt)
 
             # extend our data with a chunk from the model stream
@@ -166,11 +193,14 @@ class Remote(Model):
             
             # but if there is nothing and we are not running then we start a stream
             elif self._shared_state["not_running_stream"].is_set():
+                logger.debug("starting a new stream because there is no data to read and no stream running...")
                 self._start_new_stream(prompt)
 
             # we wait for the running stream to put something in the queue
             else:
+                self._shared_state["last_call"] = 10e9 # set to essentialy infinity so we don't stop the data stream while we are waiting for it
                 self._shared_state["data"] += self._shared_state["data_queue"].get()
+                self._shared_state["last_call"] = time.time() # reset out call time to allow the data stream to time out if we happen to be done with it
         
         # # if we don't have the next byte of data yet then we wait for it (from the streaming thread)
         # if len(self._shared_state["data"]) == len(prompt):

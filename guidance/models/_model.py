@@ -9,9 +9,12 @@ import re
 import copy
 import time
 import numpy as np
+import logging
 from .._utils import ByteTrie, log_softmax, softmax
 from .._parser import EarleyCommitParser
 from .._grammar import StatelessFunction, string, _call_pool, _tag_pattern, Null, replace_model_variables, unreplace_model_variables, select, Terminal
+
+logger = logging.getLogger(__name__)
 
 # define some constants we will reuse many times
 _null_grammar = string('')
@@ -80,14 +83,15 @@ class Model:
         what the current open roles are, which is something 
         '''
 
-        # add the eos token
-        parts = [self.eos_token]
-
         # add any active non-empty role ends. Ignore role ends that are spaces
+        parts = []
         for role_end_str in self.opened_blocks.values():
             role_end_str = format_pattern.sub("", role_end_str)
             if len(role_end_str) > 0 and not re.fullmatch(r'\s+', role_end_str):
                 parts.append(role_end_str)
+
+        # add the eos token
+        parts.append(self.eos_token)
 
         return select(parts)
 
@@ -373,6 +377,8 @@ type {function['name']} = (_: {{"""
 
     def _run_stateless(lm, stateless_function, max_tokens=1000, temperature=0.0, top_p=1.0, n=1):
         assert Model._grammar_only == 0, "We can't run grammar parsing while in context free mode! (for example inside a block closer)"
+        
+        logger.debug("start Model._run_stateless")
 
         # This needs to be here for streaming
         # if name is not None:
@@ -450,6 +456,8 @@ type {function['name']} = (_: {{"""
             #         lm[k] = v.decode("utf8") if isinstance(v, bytes) else v
         
         unreplace_model_variables(replacements)
+
+        logger.debug("finish Model._run_stateless")
 
         return lm
     
