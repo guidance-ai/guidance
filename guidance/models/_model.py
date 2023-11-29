@@ -375,7 +375,7 @@ type {function['name']} = (_: {{"""
         
         return self
 
-    def _run_stateless(lm, stateless_function, max_tokens=1000, temperature=0.0, top_p=1.0, n=1):
+    def _run_stateless(lm, stateless_function, temperature=0.0, top_p=1.0, n=1):
         assert Model._grammar_only == 0, "We can't run grammar parsing while in context free mode! (for example inside a block closer)"
         
         logger.debug("start Model._run_stateless")
@@ -389,10 +389,7 @@ type {function['name']} = (_: {{"""
         replacements = replace_model_variables(stateless_function, lm)
 
         # start the generation stream
-        gen_obj = lm(
-            grammar=stateless_function, max_tokens=max_tokens, n=n,
-            temperature=temperature, top_p=top_p
-        )
+        gen_obj = lm(grammar=stateless_function, n=n, temperature=temperature, top_p=top_p)
 
         # single generation
         if n == 1:
@@ -539,7 +536,7 @@ type {function['name']} = (_: {{"""
         return token_ids, token_byte_positions
 
 
-    def __call__(self, grammar, max_tokens=100, n=1, top_p=1, temperature=0.0, ensure_bos_token=True, log_probs=False):
+    def __call__(self, grammar, max_tokens=1000000, n=1, top_p=1, temperature=0.0, ensure_bos_token=True, log_probs=False):
         assert n == 1, "Still need to add support for n > 1!"
         
         # get our current context in bytes
