@@ -131,6 +131,8 @@ class Local(Model):
         token_count = 0
         last_token_count = 0
         was_forced = False
+        captured_data = {}
+        captured_log_prob_data = {}
         while True: # each iteration generates one more token (and some of the associated bytes)
 
             # enforce the token limit
@@ -315,6 +317,11 @@ class Local(Model):
                             # if we are at a hidden commit point then we need to hide the bytes that match that node
                             if commit_point is not None and commit_point.node.hidden:
 
+                                # if we are capturing the data from this node we need to do that now since we are about to remove it
+                                # TODO: build a whole parse tree under this commit_point node so we can record child node captures
+                                if commit_point.node.capture_name:
+                                    captured_data[commit_point.node.capture_name] = parser.bytes[commit_point.start:]
+
                                 # This takes the item and commits to it as part of the parse and then shrinks it to zero width
                                 # in other words this hides the item
                                 parser.commit_and_collapse_item(commit_point)
@@ -378,14 +385,12 @@ class Local(Model):
 
                 # capture the named groups from the parse tree
                 parse_tree = parser.parse_tree()
-                data = {}
-                log_prob_data = {}
-                _record_captures(parse_tree, data, log_prob_data, parser.bytes)
+                _record_captures(parse_tree, captured_data, captured_log_prob_data, parser.bytes)
                 
                 # we have no valid log prob data if we didn't compute it
                 if not log_probs:
-                    log_prob_data = {k: None for k in data}
-                yield new_bytes[hidden_count:], not is_forced, new_bytes_log_prob, data, log_prob_data, token_count - last_token_count
+                    captured_log_prob_data = {k: None for k in captured_data}
+                yield new_bytes[hidden_count:], not is_forced, new_bytes_log_prob, captured_data, captured_log_prob_data, token_count - last_token_count
                 last_token_count = token_count
                 break # we are done!
             else:
@@ -440,7 +445,7 @@ def _record_captures(initial_item, data, log_prob_data, byte_data):
             # if we are at a capture group node then we save the matched bytes range
             # note that we record this after calling our children so that we save the outermost version of self-recursive calls
             cname = item.node.capture_name
-            if cname is not None and cname not in used_names:
+            if cname is not None and cname not in used_names and not item.node.hidden:
                 
                 # see if we are doing a list append
                 if cname.startswith("__LIST_APPEND:"):
