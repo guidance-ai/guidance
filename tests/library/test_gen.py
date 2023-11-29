@@ -18,6 +18,12 @@ def test_stop_char():
     lm += "Count to 10: 1, 2, 3, 4, 5, 6, 7, " + gen('text', stop=",")
     assert lm["text"] == "8"
 
+def test_save_stop():
+    lm = models.LocalMock(b"<s>Count to 10: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10")
+    lm += "Count to 10: 1, 2, 3, 4, 5, 6, 7, " + gen('text', stop=",", save_stop_text='stop_text')
+    assert lm["stop_text"] == ","
+
+
 def test_stop_quote():
     lm = get_model("transformers:gpt2")
     lm += '''A title: "''' + gen('title', max_tokens=30, stop='"')
