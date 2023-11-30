@@ -56,9 +56,12 @@ class LlamaCpp(Model):
         self.caching = caching
         self.temperature = temperature
 
-        tokens = [tokenizer.llama.detokenize([i]) for i in range(self._n_vocab)] # note that detokenize returns bytes directly
-        tokens[1] = b"<s>" # these are not decoded correctly by llama_cpp
-        tokens[2] = b"</s>"
+        tokens = []
+        for i in range(self._n_vocab):
+            tok = tokenizer.llama.detokenize([i]) # note that detokenize returns bytes directly
+            if tok == b'':
+                tok = llama_cpp.llama_token_get_text(self.model_obj.model, i) # get text rep of special tokens
+            tokens.append(tok)
         super().__init__(
             tokens,
             tokenizer.llama.token_bos(),
