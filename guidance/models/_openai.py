@@ -184,14 +184,14 @@ class OAIInstructMixin:
                 chunk = ""
             yield chunk.encode("utf8")
 
-class OpenAICompletion(OpenAI, Instruct, OAICompletionMixin):
+class OpenAICompletion(OpenAI, OAICompletionMixin, Instruct):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-class OpenAIInstruct(OpenAI, Instruct, OAIInstructMixin):
+class OpenAIInstruct(OpenAI, OAIInstructMixin, Instruct):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-class OpenAIChat(OpenAI, Chat, OAIChatMixin):
+class OpenAIChat(OpenAI, OAIChatMixin, Chat):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
