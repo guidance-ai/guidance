@@ -188,50 +188,6 @@ class OpenAICompletion(OpenAI, Instruct, OAICompletionMixin):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-<<<<<<< HEAD
-    def _generator(self, prompt):
-
-        # find the role tags
-        pos = 0
-        role_end = b'<|im_end|>'
-        messages = []
-        found = True
-        while found:
-
-            # find the role text blocks
-            found = False
-            for role_name,start_bytes in (("system", b'<|im_start|>system\n'), ("user", b'<|im_start|>user\n'), ("assistant", b'<|im_start|>assistant\n')):
-                if prompt[pos:].startswith(start_bytes):
-                    pos += len(start_bytes)
-                    end_pos = prompt[pos:].find(role_end)
-                    if end_pos < 0:
-                        assert role_name == "assistant", "Bad chat format! Last role before gen needs to be assistant!"
-                        break
-                    btext = prompt[pos:pos+end_pos]
-                    pos += end_pos + len(role_end)
-                    messages.append({"role": role_name, "content": btext.decode("utf8")})
-                    found = True
-                    break
-        
-        self._shared_state["data"] = prompt[:pos]
-
-        try:
-            generator = self.client.chat.completions.create(
-                model=self.model_name,
-                messages=messages,
-                max_tokens=self.max_streaming_tokens,
-                n=1,
-                top_p=self.top_p,
-                temperature=self.temperature,
-                stream=True
-            )
-        except Exception as e: # TODO: add retry logic
-            raise e
-
-        for part in generator:
-            chunk = part.choices[0].delta.content or ""
-            yield chunk.encode("utf8")
-=======
 class OpenAIInstruct(OpenAI, Instruct, OAIInstructMixin):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -239,4 +195,3 @@ class OpenAIInstruct(OpenAI, Instruct, OAIInstructMixin):
 class OpenAIChat(OpenAI, Chat, OAIChatMixin):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
->>>>>>> afebd51 (Fix for method resolution order, bug when choices is None)

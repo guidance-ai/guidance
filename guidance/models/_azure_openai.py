@@ -32,8 +32,9 @@ class AzureOpenAI(Remote):
         echo=True,
         caching=True,
         temperature=0.0,
+        top_p=1.0,
         max_streaming_tokens=500,
-        version="2023-10-01-preview",
+        version="2023-10-01-preview",        
         **kwargs,
     ):
         if not is_openai or not hasattr(openai_package, "OpenAI"):
@@ -75,6 +76,7 @@ class AzureOpenAI(Remote):
                 temperature=temperature,
                 max_streaming_tokens=max_streaming_tokens,
                 version=version,
+                top_p=top_p,
                 **kwargs,
             )
             return
@@ -91,6 +93,7 @@ class AzureOpenAI(Remote):
             azure_endpoint=azure_endpoint, api_key=api_key, api_version=api_version
         )
         self.model_name = model
+        self.top_p = top_p
 
         super().__init__(
             model=azure_endpoint,
@@ -98,7 +101,8 @@ class AzureOpenAI(Remote):
             echo=echo,
             caching=caching,
             temperature=temperature,
-            max_streaming_tokens=max_streaming_tokens,
+            top_p=top_p,
+            max_streaming_tokens=max_streaming_tokens,            
             **kwargs,
         )
 
