@@ -45,6 +45,7 @@ def get_transformers_model(model_name, caching=False, **kwargs):
     return transformers_model_cache[key]
 
 llama_cpp_model_cache = {}
+llama_cpp_defaults = {'n_batch': 248}
 
 def get_llama_cpp_model(model_name, caching=False, **kwargs):
     """ Get a llama.cpp LLM with model reuse.
@@ -54,6 +55,11 @@ def get_llama_cpp_model(model_name, caching=False, **kwargs):
         model_name = os.environ.get("LLAMA_CPP_MODEL", "")
         if len(model_name.strip()) == 0:
             pytest.skip("No llama_cpp model found.")
+
+    kwargs = kwargs.copy()
+    for key, val in llama_cpp_defaults.items():
+        if key not in kwargs:
+            kwargs[key] = val
 
     # we cache the models so lots of tests using the same model don't have to
     # load it over and over again
