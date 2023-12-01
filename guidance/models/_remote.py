@@ -87,9 +87,13 @@ class Remote(Model):
         }
         self._shared_state["not_running_stream"].set()
 
-        self.max_calls = 10
+        self.max_repeated_calls = 10
         self.timeout = timeout
         logger.debug(f"finish Remote.__init__")
+
+    def __call__(self, grammar, max_tokens=1000000, n=1, top_p=1, temperature=0.0, ensure_bos_token=True, log_probs=False):
+        self._shared_state["num_calls_made"] = 0 # reset the number of calls count so we only limit the number of calls within a single grammar execution
+        return super().__call__(grammar, max_tokens=max_tokens, n=n, top_p=top_p, temperature=temperature, ensure_bos_token=ensure_bos_token, log_probs=log_probs)
 
     def _running_stream(self):
         return not self._shared_state["not_running_stream"].is_set() # wrap double negation (which)
@@ -121,8 +125,8 @@ class Remote(Model):
 
     def _start_new_stream(self, prompt):
 
-        if self._shared_state["num_calls_made"] > self.max_calls:
-            raise Exception(f"We have exceeded the maximum number of calls! {self.max_calls}")
+        if self._shared_state["num_calls_made"] > self.max_repeated_calls:
+            raise Exception(f"We have exceeded the maximum number of repeat calls ({self.max_repeated_calls}) per grammar execution!")
 
         # stop any running stream
         if self._running_stream():
