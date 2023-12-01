@@ -11,3 +11,6 @@ node_modules
 /client
 .eggs/
 .env
+
+# Ignore native library built by setup
+guidance/*.so
