@@ -71,7 +71,10 @@ class Transformers(Model):
                 raise Exception("Please install transformers with `pip install transformers` in order to use guidance.models.Transformers!")
 
             if tokenizer is None:
-                tokenizer = transformers.AutoTokenizer.from_pretrained(model, use_fast=False, **kwargs)
+                try:
+                    tokenizer = transformers.AutoTokenizer.from_pretrained(model, use_fast=False, **kwargs)
+                except:
+                    tokenizer = transformers.AutoTokenizer.from_pretrained(model, use_fast=True, **kwargs) # fall back to the fast tokenizer
             model = transformers.AutoModelForCausalLM.from_pretrained(model, **kwargs)
         
         assert tokenizer is not None, "You must give a tokenizer object when you provide a model object (as opposed to just a model name)!"
