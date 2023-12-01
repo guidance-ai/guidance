@@ -139,49 +139,51 @@ class VertexAIChat(VertexAI, Chat):
             pos = system_end_pos + len(role_end)
 
         # find the user/assistant pairs
-        user_assistant_pairs = []
-        last_user_text = b''
+        messages = []
+        valid_end = False
         while True:
 
             # find the user text
             if prompt[pos:].startswith(user_start):
                 pos += len(user_start)
-                user_end_pos = prompt[pos:].find(role_end)
-                user_text = prompt[pos:pos+user_end_pos]
-                pos += user_end_pos + len(role_end)
-            else:
-                raise Exception(f"Bad chat format! Expected a user start tag where there was none at prompt byte position: {pos}")
-            
-            # and the assistant text
-            if prompt[pos:].startswith(assistant_start):
-                pos += len(assistant_start)
-                assistant_end_pos = prompt[pos:].find(role_end)
-                if assistant_end_pos < 0:
-                    last_user_text = user_text
+                end_pos = prompt[pos:].find(role_end)
+                if end_pos < 0:
                     break
-                else:
-                    assistant_text = prompt[pos:pos+assistant_end_pos]
-                    pos += assistant_end_pos + len(role_end)
-                    user_assistant_pairs.append((user_text, assistant_text))
-            else:
-                raise Exception(f"Bad chat format! Expected a assistant start tag where there was none at prompt byte position: {pos}")
+                messages.append(vertexai.language_models.ChatMessage(
+                    author="user",
+                    content=prompt[pos:pos+end_pos].decode("utf8"),
+                ))
+                pos += end_pos + len(role_end)
+            elif prompt[pos:].startswith(assistant_start):
+                pos += len(assistant_start)
+                end_pos = prompt[pos:].find(role_end)
+                if end_pos < 0:
+                    valid_end = True
+                    break
+                messages.append(vertexai.language_models.ChatMessage(
+                    author="assistant",
+                    content=prompt[pos:pos+end_pos].decode("utf8"),
+                ))
+                pos += end_pos + len(role_end)
             
         self._shared_state["data"] = prompt[:pos]
+
+        assert len(messages) > 0, "Bad chat format! No chat blocks were defined."
+        assert messages[-1].author == "user", "Bad chat format! There must be a user() role before the last assistant() role."
+        assert valid_end, "Bad chat format! You must generate inside assistant() roles."
+
+        # TODO: don't make a new session on every call
+        last_user_text = messages.pop().content
         
-        chat = self.model_obj.start_chat(
+        chat_session = self.model_obj.start_chat(
             context=system_text.decode("utf8"),
-            message_history=[
-                vertexai.language_models.InputOutputTextPair(
-                    input_text=pair[0].decode("utf8"),
-                    output_text=pair[1].decode("utf8"),
-                )
-            for pair in user_assistant_pairs],
+            message_history=messages,
         )
 
         kwargs = {}
         if self.max_streaming_tokens is not None:
             kwargs["max_output_tokens"] = self.max_streaming_tokens
-        generator = chat.send_message_streaming(last_user_text.decode("utf8"), **kwargs)
+        generator = chat_session.send_message_streaming(last_user_text, **kwargs)
 
         for chunk in generator:
             yield chunk.text.encode("utf8")
