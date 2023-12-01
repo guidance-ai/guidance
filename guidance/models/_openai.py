@@ -64,10 +64,8 @@ class OpenAI(Remote):
             caching=caching, temperature=temperature,
             max_streaming_tokens=max_streaming_tokens, **kwargs
         )
-        
-    
 
-class OpenAICompletion(OpenAI, Instruct):
+class OpenAICompletion(OpenAI):
 
     def _generator(self, prompt):
         self._shared_state["not_running_stream"].clear() # so we know we are running

@@ -13,6 +13,7 @@ from .._grammar import byte_range
 # context blocks
 from ._block import block
 from ._role import role, system, assistant, user, function, instruction
+from ._format import monospace
 from ._silent import silent
 # from ..models._model import context_free
 

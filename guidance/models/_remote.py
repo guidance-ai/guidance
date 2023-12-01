@@ -11,10 +11,11 @@ logger = logging.getLogger(__name__)
 
 
 class Remote(Model):
-    def __init__(self, model, tokenizer=None, echo=True, caching=True, temperature=0.0, max_streaming_tokens=500, timeout=0.5, **kwargs):
+    def __init__(self, model, tokenizer=None, echo=True, caching=True, temperature=0.0, top_p=1.0, max_streaming_tokens=None, timeout=0.5, **kwargs):
         logger.debug(f"start Remote.__init__(model=\"{model}\")")
         self.caching = caching
         self.temperature = temperature
+        self.top_p = top_p
         self.max_streaming_tokens = max_streaming_tokens
         self.timeout = timeout
 
@@ -97,13 +98,21 @@ class Remote(Model):
         logger.debug(f"start Remote._start_generator_stream")
         dqueue = self._shared_state["data_queue"]
         first_iteration = True
-        for chunk in generator:
-            logger.debug(f"Got chunk: " + str(chunk))
-            if len(chunk) > 0:
-                dqueue.put(chunk)
-            if self._shared_state["not_running_stream"].is_set() or not first_iteration and time.time() - self._shared_state["last_call"] > self.timeout:
-                break
-            first_iteration = False
+        try: 
+            for chunk in generator:
+                logger.debug(f"Got chunk: " + str(chunk))
+                if len(chunk) > 0:
+                    dqueue.put(chunk)
+                if self._shared_state["not_running_stream"].is_set() or not first_iteration and time.time() - self._shared_state["last_call"] > self.timeout:
+                    break
+                first_iteration = False
+        
+        # we pass any exceptions back to the main thread
+        except Exception as e:
+            self._shared_state["not_running_stream"].set()
+            while not dqueue.empty(): 
+                dqueue.get()
+            dqueue.put(e)
 
         if self._running_stream():
             dqueue.put(self.tokens[self.eos_token_id])
@@ -198,6 +207,8 @@ class Remote(Model):
             # extend our data with a chunk from the model stream
             if not self._shared_state["data_queue"].empty():
                 new_bytes = self._shared_state["data_queue"].get_nowait()
+                if isinstance(new_bytes, Exception):
+                    raise new_bytes
                 
                 # if we are at the end of the generation then we try again allowing for early token stopping
                 if len(new_bytes) == 0:
@@ -214,7 +225,10 @@ class Remote(Model):
             # we wait for the running stream to put something in the queue
             else:
                 self._shared_state["last_call"] = 10e9 # set to essentialy infinity so we don't stop the data stream while we are waiting for it
-                self._shared_state["data"] += self._shared_state["data_queue"].get()
+                new_bytes = self._shared_state["data_queue"].get()
+                if isinstance(new_bytes, Exception):
+                    raise new_bytes
+                self._shared_state["data"] += new_bytes
                 self._shared_state["last_call"] = time.time() # reset out call time to allow the data stream to time out if we happen to be done with it
         
         # # if we don't have the next byte of data yet then we wait for it (from the streaming thread)

@@ -12,20 +12,20 @@ import tiktoken
 from ._vertexai import VertexAICompletion, VertexAIInstruct, VertexAIChat
 
 try:
-    from vertexai.preview.language_models import TextGenerationModel
-    from vertexai.language_models import ChatModel, InputOutputTextPair
+    from vertexai.preview.language_models import CodeGenerationModel
+    from vertexai.language_models import CodeChatSession, InputOutputTextPair
     is_vertexai = True
 except ImportError:
     is_vertexai = False
 
-class PaLM2Completion(VertexAICompletion):
+class CodeyCompletion(VertexAICompletion):
     def __init__(self, model, tokenizer=None, echo=True, caching=True, temperature=0.0, max_streaming_tokens=None, **kwargs):
     
         if isinstance(model, str):
             self.model_name = model
-            self.model_obj = TextGenerationModel.from_pretrained(self.model_name)
+            self.model_obj = CodeGenerationModel.from_pretrained(self.model_name)
         
-        # PaLM2 does not have a public tokenizer, so we pretend it tokenizes like gpt2...
+        # Codey does not have a public tokenizer, so we pretend it tokenizes like gpt2...
         if tokenizer is None:
             tokenizer = tiktoken.get_encoding("gpt2")
         
@@ -40,14 +40,14 @@ class PaLM2Completion(VertexAICompletion):
             **kwargs
         )
 
-class PaLM2Instruct(VertexAIInstruct):
+class CodeyInstruct(VertexAIInstruct):
     def __init__(self, model, tokenizer=None, echo=True, caching=True, temperature=0.0, max_streaming_tokens=None, **kwargs):
     
         if isinstance(model, str):
             self.model_name = model
-            self.model_obj = TextGenerationModel.from_pretrained(self.model_name)
+            self.model_obj = CodeGenerationModel.from_pretrained(self.model_name)
         
-        # PaLM2 does not have a public tokenizer, so we pretend it tokenizes like gpt2...
+        # Codey does not have a public tokenizer, so we pretend it tokenizes like gpt2...
         if tokenizer is None:
             tokenizer = tiktoken.get_encoding("gpt2")
         
@@ -62,12 +62,12 @@ class PaLM2Instruct(VertexAIInstruct):
             **kwargs
         )
 
-class PaLM2Chat(VertexAIChat):
+class CodeyChat(VertexAIChat):
     def __init__(self, model, tokenizer=None, echo=True, caching=True, temperature=0.0, max_streaming_tokens=None, **kwargs):
     
         if isinstance(model, str):
             self.model_name = model
-            self.model_obj = ChatModel.from_pretrained(self.model_name)
+            self.model_obj = CodeChatSession.from_pretrained(self.model_name)
         
         # PaLM2 does not have a public tokenizer, so we pretend it tokenizes like gpt2...
         if tokenizer is None:
