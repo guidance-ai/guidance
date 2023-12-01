@@ -40,6 +40,10 @@ class VertexAI(Remote):
             elif re.match("code-bison(@[0-9]+)?", model_name):
                 found_subclass = vertexai.CodeyInstruct
 
+            # CodeyChat
+            elif re.match("codechat-bison(@[0-9]+)?", model_name):
+                found_subclass = vertexai.CodeyChat
+
             # PaLM2Instruct
             elif re.match("text-(bison|unicorn)(@[0-9]+)?", model_name):
                 found_subclass = vertexai.PaLM2Instruct
@@ -166,7 +170,7 @@ class VertexAIChat(VertexAI, Chat):
         
         chat = self.model_obj.start_chat(
             context=system_text.decode("utf8"),
-            examples=[
+            message_history=[
                 vertexai.language_models.InputOutputTextPair(
                     input_text=pair[0].decode("utf8"),
                     output_text=pair[1].decode("utf8"),

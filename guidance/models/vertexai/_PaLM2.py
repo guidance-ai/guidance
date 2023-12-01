@@ -12,8 +12,7 @@ import tiktoken
 from ._vertexai import VertexAICompletion, VertexAIInstruct, VertexAIChat
 
 try:
-    from vertexai.preview.language_models import TextGenerationModel
-    from vertexai.language_models import ChatModel, InputOutputTextPair
+    from vertexai.language_models import TextGenerationModel, ChatModel, InputOutputTextPair
     is_vertexai = True
 except ImportError:
     is_vertexai = False
