@@ -242,7 +242,7 @@ class Remote(Model):
         # token_id = self._get_next_token(len(prompt))
 
         # set the logits to the next byte the model picked
-        logits = np.ones(len(self.tokens)) * np.nan
+        logits = np.ones(len(self.tokens)) * -np.inf
         logits[token_id] = 100
         
         return logits
