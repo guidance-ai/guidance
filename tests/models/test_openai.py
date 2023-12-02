@@ -2,6 +2,30 @@ import pytest
 import guidance
 from guidance import gen, capture, select, user, system, assistant
 from ..utils import get_model
+import tiktoken
+
+def test_openai_class_detection():
+    # TODO: expand this with other variants of openAI models
+    test_models = {
+        "gpt-3.5-turbo": guidance.models.OpenAIChat,
+        "gpt-4": guidance.models.OpenAIChat,
+        "gpt-4-vision-preview": guidance.models.OpenAIChat,
+        "ft:gpt-3.5-turbo": guidance.models.OpenAIChat,
+        "ft:gpt-4": guidance.models.OpenAIChat,
+        "ft:gpt-4-vision-preview": guidance.models.OpenAIChat,
+        "ft:gpt-3.5-turbo:my-org:custom_suffix:id": guidance.models.OpenAIChat,
+        "gpt-3.5-turbo-instruct": guidance.models.OpenAIInstruct,
+        "ft:gpt-3.5-turbo-instruct": guidance.models.OpenAIInstruct,
+        "text-curie-001": guidance.models.OpenAICompletion,
+        "ft:text-curie-001": guidance.models.OpenAICompletion,
+        "text-davinci-003": guidance.models.OpenAICompletion,
+    }
+
+    for model_name, model_class in test_models.items():
+        # setting random tokenizer to allow this test to run without tiktoken detection errors
+        initialized_model = guidance.models.OpenAI(model_name, tokenizer=tiktoken.encoding_for_model("gpt-3.5-turbo"))
+        assert isinstance(initialized_model, model_class)
+    
 
 def test_openai_basic():
     try:
