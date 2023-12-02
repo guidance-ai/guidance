@@ -22,13 +22,10 @@ def get_openai_model(model_name, caching=False, **kwargs):
     # load it over and over again
     key = model_name+"_"+str(caching)+"_"+str(kwargs)
     if key not in opanai_model_cache:
-        opanai_model_cache[key] = guidance.llms.OpenAI(model_name, caching=caching, **kwargs)
-    llm = opanai_model_cache[key]
+        opanai_model_cache[key] = guidance.models.OpenAI(model_name, caching=caching, **kwargs)
+    lm = opanai_model_cache[key]
 
-    if llm.api_key is None:
-        pytest.skip("OpenAI token not found")
-
-    return llm
+    return lm
 
 transformers_model_cache = {}
 
