@@ -59,8 +59,11 @@ class OpenAI(Remote):
         self.model_name = model
         self.top_p = top_p
 
+        if tokenizer is None:
+            tokenizer = tiktoken.encoding_for_model(model)
+
         super().__init__(
-            model, tokenizer=tiktoken.encoding_for_model(model), echo=echo,
+            model, tokenizer=tokenizer, echo=echo,
             caching=caching, temperature=temperature,
             max_streaming_tokens=max_streaming_tokens, **kwargs
         )
