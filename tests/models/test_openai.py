@@ -22,8 +22,8 @@ def test_openai_class_detection():
     }
 
     for model_name, model_class in test_models.items():
-        # setting random tokenizer to allow this test to run without tiktoken detection errors
-        initialized_model = guidance.models.OpenAI(model_name, tokenizer=tiktoken.encoding_for_model("gpt-3.5-turbo"))
+        # setting random tokenizer and fake API key to allow this test to run without tiktoken detection errors
+        initialized_model = guidance.models.OpenAI(model_name, tokenizer=tiktoken.encoding_for_model("gpt-3.5-turbo"), api_key="blah")
         assert isinstance(initialized_model, model_class)
     
 
