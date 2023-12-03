@@ -163,8 +163,16 @@ class OpenAIChat(OpenAI, Chat):
                     break
         
         self._shared_state["data"] = prompt[:pos]
+        
+        # Add nice exception if no role tags were used in the prompt.
+        # TODO: Move this somewhere more general for all chat models?
+        if messages == []:
+            raise ValueError(f"The OpenAI model {self.model_name} is a Chat-based model and requires role tags in the prompt! \
+            Make sure you are using guidance context managers like `with system():`, `with user():` and `with assistant():` \
+            to appropriately format your guidance program for this type of model.")
 
         try:
+                
             generator = self.client.chat.completions.create(
                 model=self.model_name,
                 messages=messages,

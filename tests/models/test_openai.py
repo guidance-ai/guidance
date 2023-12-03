@@ -65,3 +65,9 @@ def test_openai_chat():
         lm += "Pick a number: "
 
     assert len(lm["text"]) > 0
+
+def test_openai_chat_without_roles():
+    # fake model tokenizer and API key to allow this test to run without tiktoken detection errors
+    lm = guidance.models.OpenAI("gpt-3.5-turbo", tokenizer=tiktoken.encoding_for_model("gpt-3.5-turbo"), api_key="blah")
+    with pytest.raises(ValueError) as error_info:
+        lm += "You are a math wiz. What is 1+1?" + gen(max_tokens=10, name="text")
