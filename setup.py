@@ -43,7 +43,8 @@ setup(
         "pybind11",
         "aiohttp",
         "ordered_set",
-        "pyformlang"
+        "pyformlang",
+        "pybind11"
     ],
     extras_require={
         'docs': [
