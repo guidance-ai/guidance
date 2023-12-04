@@ -5,8 +5,8 @@ from setuptools import setup, find_packages
 try:
     from pybind11.setup_helpers import Pybind11Extension, build_ext
 except ImportError:
-    from setuptools import build_ext, Extension as Pybind11Extension
-    build_ext = None
+    from setuptools import Extension as Pybind11Extension
+    from setuptools.command import build_ext
 
 here = os.path.abspath(os.path.dirname(__file__))
 

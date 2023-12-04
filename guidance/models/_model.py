@@ -14,7 +14,7 @@ import copy
 import time
 import numpy as np
 import logging
-from guidance import cpp
+from .. import cpp
 from .._utils import ByteTrie, log_softmax, softmax
 from .._parser import EarleyCommitParser
 from .._grammar import StatelessFunction, string, _call_pool, _tag_pattern, Null, replace_model_variables, unreplace_model_variables, select, Terminal
