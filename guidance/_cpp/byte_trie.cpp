@@ -63,7 +63,6 @@ public:
     }
 
     void compute_log_probs(const std::vector<double>& log_probs) {
-        return;
         if (value != -1) {
             log_prob += log_probs[value];
         }

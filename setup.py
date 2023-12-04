@@ -2,7 +2,10 @@ import os
 import re
 import codecs
 from setuptools import setup, find_packages
-from pybind11.setup_helpers import Pybind11Extension, build_ext
+try:
+    from pybind11.setup_helpers import Pybind11Extension, build_ext
+except ImportError:
+    from setuptools import Extension as Pybind11Extension
 
 here = os.path.abspath(os.path.dirname(__file__))
 
@@ -43,9 +46,9 @@ setup(
         "pybind11",
         "aiohttp",
         "ordered_set",
-        "pyformlang",
-        "pybind11"
+        "pyformlang"
     ],
+    setup_requires=["pybind11"],
     extras_require={
         'docs': [
             'ipython',
