@@ -6,7 +6,7 @@ try:
     from pybind11.setup_helpers import Pybind11Extension, build_ext
 except ImportError:
     from setuptools import Extension as Pybind11Extension
-    from setuptools.command import build_ext
+    from setuptools.command.build_ext import build_ext
 
 here = os.path.abspath(os.path.dirname(__file__))
 
