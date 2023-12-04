@@ -1,0 +1,130 @@
+#include <pybind11/stl.h>
+
+class ByteTrie : public std::enable_shared_from_this<ByteTrie> { // enable_shared_from_this allows use to return a raw pointer to the parent
+private:
+    ByteTrie* _parent = nullptr; // Raw pointer since we are not owning the parent
+
+public:
+    int match_version = -1;
+    bool match = false;
+    bool partial_match = false;
+    double log_prob = 0;
+    int value = -1;
+    std::map<char, std::shared_ptr<ByteTrie>> children;
+
+    ByteTrie(std::vector<std::string> byte_strings) {
+        for (size_t i = 0; i < byte_strings.size(); ++i) {
+            insert(byte_strings[i], 0);
+        }
+    }
+
+    ByteTrie(std::vector<std::string> byte_strings, std::vector<int> values) {
+        for (size_t i = 0; i < byte_strings.size(); ++i) {
+            insert(byte_strings[i], values[i]);
+        }
+    }
+
+    ByteTrie(ByteTrie* parent) : _parent(parent) {}
+
+    std::vector<char> keys() const {
+        std::vector<char> keys;
+        for (const auto& pair : children) {
+            keys.push_back(pair.first);
+        }
+        return keys;
+    }
+
+    bool has_child(char byte) {
+        return children.count(byte) > 0;
+    }
+
+    std::shared_ptr<ByteTrie> child(char byte) {
+        return children[byte];
+    }
+
+    ByteTrie *parent() {
+        return this->_parent;
+    }
+
+    size_t size() {
+        return children.size();
+    }
+
+    void insert(const std::string& s, int value, uint pos = 0) {
+        if (s.size() <= pos) {
+            this->value = value;
+        } else {
+            uint8_t first_byte = s[pos];
+            if (children.find(first_byte) == children.end()) {
+                children[first_byte] = std::make_shared<ByteTrie>(this);
+            }
+            children[first_byte]->insert(s, value, pos + 1);
+        }
+    }
+
+    void compute_log_probs(const std::vector<double>& log_probs) {
+        return;
+        if (value != -1) {
+            log_prob += log_probs[value];
+        }
+
+        if (!children.empty()) {
+            double max_log_prob = -std::numeric_limits<double>::infinity();
+            std::vector<double> child_log_probs;
+
+            for (auto& pair : children) {
+                pair.second->compute_log_probs(log_probs);
+                child_log_probs.push_back(pair.second->log_prob);
+                if (pair.second->log_prob > max_log_prob) {
+                    max_log_prob = pair.second->log_prob;
+                }
+            }
+
+            double sum_exp = 0;
+            for (double child_log_prob : child_log_probs) {
+                sum_exp += std::exp(child_log_prob - max_log_prob);
+            }
+            log_prob = max_log_prob + std::log(sum_exp);
+        }
+    }
+};
+
+
+    // // Nested iterator class
+    // class iterator {
+    // private:
+    //     std::map<char, std::shared_ptr<ByteTrie>>::iterator it;
+
+    // public:
+    //     iterator(std::map<char, std::shared_ptr<ByteTrie>>::iterator it) : it(it) {}
+
+    //     iterator& operator++() {
+    //         ++it;
+    //         return *this;
+    //     }
+
+    //     bool operator!=(const iterator& other) const {
+    //         return it != other.it;
+    //     }
+
+    //     std::pair<const char, std::shared_ptr<ByteTrie>>& operator*() {
+    //         return *it;
+    //     }
+    // };
+
+    // // Begin and end methods for the iterator
+    // iterator begin() {
+    //     return iterator(children.begin());
+    // }
+
+    // iterator end() {
+    //     return iterator(children.end());
+    // }
+
+        // std::shared_ptr<std::vector<int>> child_keys() {
+    //     auto keys = std::make_shared<std::vector<int>>();
+    //     for(std::map<char, std::shared_ptr<ByteTrie>>::iterator it = children.begin(); it != children.end(); ++it) {
+    //         keys->push_back(it->first);
+    //     }
+    //     return keys;
+    // }

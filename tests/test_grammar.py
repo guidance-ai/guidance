@@ -1,4 +1,5 @@
-from guidance import models, select
+import guidance
+from guidance import models, select, gen
 from .utils import get_model
 
 def test_select_reset_pos():
@@ -17,3 +18,14 @@ def test_select_longer():
     lm = models.Mock(b"<s>Scott is a very nice man.")
     lm += "Scott is a very " + select(name='text', options=['nice', 'nice man.'])
     assert lm["text"] == 'nice man.'
+
+def test_grammar_plus_fstring():
+    @guidance(stateless=True, dedent=False)
+    def test(lm):
+        val = 4
+        lm += f"the value of {val} is best! {gen(max_tokens=1)}"
+        return lm
+
+    lm = models.Mock()
+    lm += test()
+    assert "{{G|" not in str(lm)

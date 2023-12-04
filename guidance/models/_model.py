@@ -10,6 +10,8 @@ import copy
 import time
 import numpy as np
 import logging
+import torch
+from guidance import cpp
 from .._utils import ByteTrie, log_softmax, softmax
 from .._parser import EarleyCommitParser
 from .._grammar import StatelessFunction, string, _call_pool, _tag_pattern, Null, replace_model_variables, unreplace_model_variables, select, Terminal
@@ -34,7 +36,7 @@ class Model:
     _grammar_only = 0 # a flag that tracks when we are forced to be executing only compiled grammars (like when we are inside a select)
     _throttle_refresh = 0 # a flag that tracks when we can throttle our display since we know future display calls are going to happen
 
-    def __init__(self, tokens, bos_token_id=None, eos_token_id=None, echo=True):
+    def __init__(self, tokens, bos_token_id=None, eos_token_id=None, echo=True, compute_log_probs=False):
         '''Build a new model object that represents a model in a given state.
         
         Parameters
@@ -60,6 +62,7 @@ class Model:
         self.bos_token = None if self.bos_token_id is None else self.tokens[self.bos_token_id]
         self.eos_token_id = eos_token_id if eos_token_id is not None else bos_token_id
         self.eos_token = None if self.eos_token_id is None else self.tokens[self.eos_token_id]
+        self.compute_log_probs = compute_log_probs
 
         # private attributes
         self._variables = {} # these are the state variables stored with the model
@@ -70,7 +73,7 @@ class Model:
         self._last_display = 0 # used to track the last display call to enable throttling
 
         # build a prefix tree of the tokens
-        self._token_trie = ByteTrie(tokens, np.arange(len(tokens)))
+        self._token_trie = cpp.ByteTrie(tokens, np.arange(len(tokens)))
         self._token_trie.match = True
         self._token_trie.match_version = 0
 
@@ -483,17 +486,17 @@ type {function['name']} = (_: {{"""
             valid_value = -1
             while True:
                 if pos >= len(byte_string):
-                    if len(trie.children) > 0:
+                    if len(trie) > 0:
                         valid_pos = -1
                     break
 
                 # check if we can keep going or are at a dead end
-                if byte_string[pos:pos+1] in trie.children:
-                    trie = trie.children[byte_string[pos:pos+1]]
+                if trie.has_child(byte_string[pos:pos+1]):
+                    trie = trie.child(byte_string[pos:pos+1])
                     pos += 1
 
                     # record the last valid token down this path as we go
-                    if trie.value is not None:
+                    if trie.value >= 0:
                         valid_pos = pos
                         valid_value = trie.value
                 else:
@@ -536,7 +539,7 @@ type {function['name']} = (_: {{"""
         return token_ids, token_byte_positions
 
 
-    def __call__(self, grammar, max_tokens=1000000, n=1, top_p=1, temperature=0.0, ensure_bos_token=True, log_probs=False):
+    def __call__(self, grammar, max_tokens=1000000, n=1, top_p=1, temperature=0.0, ensure_bos_token=True):
         assert n == 1, "Still need to add support for n > 1!"
         
         # get our current context in bytes
@@ -605,10 +608,10 @@ type {function['name']} = (_: {{"""
 
                     # look for valid children
                     next_byte = None
-                    for byte in trie.children:
+                    for byte in trie.keys():
                         
                         # mark this trie node with an up-to-date match flag (may save work later)
-                        node = trie.children[byte]
+                        node = trie.child(byte)
                         node.match_version = self._token_trie.match_version
                         node.match = next_byte_mask[byte[0]]
                         
@@ -649,7 +652,7 @@ type {function['name']} = (_: {{"""
                             retry_token_gen = True # this restarts us at the top of the outer token gen loop
                             break
                         
-                        trie = trie.children[next_byte]
+                        trie = trie.child(next_byte)
                 
             forced_pos = parser.pos # record how far the bytes are forced
 
@@ -658,14 +661,14 @@ type {function['name']} = (_: {{"""
 
             # back up if we got forced up to a point that is not a valid token
             if next_byte_mask_sum <= 1:
-                while trie.value is None and trie.parent is not None:
-                    trie = trie.parent
+                while trie.value < 0 and trie.parent() is not None:
+                    trie = trie.parent()
                     forced_pos -= 1
                 parser.pos = forced_pos
             
             # if we walked all the way to a forced token then we advance without computing the logits
             # we are forced if there are no more options and we are either in the middle of the grammar or at a trie leaf
-            is_forced = next_byte_mask_sum <= 1 and (len(trie.children) == 0 if parser.matched() else trie != self._token_trie)
+            is_forced = next_byte_mask_sum <= 1 and (len(trie) == 0 if parser.matched() else trie != self._token_trie)
             if is_forced:
                 sampled_token_ind = trie.value
                 sampled_token = self.tokens[sampled_token_ind]
@@ -693,8 +696,10 @@ type {function['name']} = (_: {{"""
 
                 # if requested we compute the log probabilities so we can track the probabilities of each node
                 # TODO: we should lower this step to C++ with pybind11
-                if log_probs:
-                    _compute_log_probs(trie, log_softmax(logits, axis=-1))
+                if self.compute_log_probs:
+                    log_probs = torch.nn.functional.log_softmax(torch.tensor(logits), dim=-1).cpu().numpy() # note we don't adjust for temp since we consider that a sampling step, not part of the probs
+                    # log_probs = log_softmax(logits, axis=-1) # this numpy code is slower, so we don't use it...
+                    trie.compute_log_probs(log_probs)
 
                 # get the sampling order
                 grammar_temp = parser.next_byte_temperature()
@@ -703,10 +708,14 @@ type {function['name']} = (_: {{"""
                     sampling_order = np.argsort(-logits) # we need numpy so the enumerate below does not get really slow...
                 else:
                     assert top_p == 1, "Still need to add support for top_p!"
-                    probs = softmax(logits / current_temp, axis=-1)
-                    probs += 1e-10 # ensure we have no zero probs that mess up numpy
-                    probs /= np.sum(probs)
-                    sampling_order = np.random.choice(len(probs), size=len(probs), p=probs, replace=False) # the 1e-10 is ensure we have no zero probs, which numpy does not like
+                    probs = torch.nn.functional.softmax(torch.tensor(logits) / current_temp, dim=-1)
+                    sampling_order = torch.multinomial(probs, len(probs)).cpu().numpy()
+                    
+                    # this numpy version allows us to drop our dependence on pytorch...but it is way slower
+                    # probs = softmax(logits / current_temp, axis=-1)
+                    # probs += 1e-10 # ensure we have no zero probs that mess up numpy
+                    # probs /= np.sum(probs)
+                    # sampling_order = np.random.choice(len(probs), size=len(probs), p=probs, replace=False) # the 1e-10 is ensure we have no zero probs, which numpy does not like
 
                 # loop over the tokens looking for a valid one
                 for i,sampled_token_ind in enumerate(sampling_order):
@@ -727,13 +736,13 @@ type {function['name']} = (_: {{"""
 
                     while token_pos < len(sampled_token):
                         next_byte = sampled_token[token_pos:token_pos+1]
-                        next_node = node.children[next_byte]
+                        next_node = node.child(next_byte)
 
                         # if we don't have a cached match flag compute it using the grammar
                         if next_node.match_version < self._token_trie.match_version:
                             next_byte_mask = parser.next_byte_mask()
-                            for byte in node.children: # we update all the children since the parser knows the full mask
-                                child = node.children[byte]
+                            for byte in node.keys(): # we update all the children since the parser knows the full mask
+                                child = node.child(byte)
                                 child.match_version = self._token_trie.match_version
                                 child.match = next_byte_mask[byte[0]]
                         
@@ -823,7 +832,7 @@ type {function['name']} = (_: {{"""
                 _record_captures(parse_tree, captured_data, captured_log_prob_data, parser.bytes)
                 
                 # we have no valid log prob data if we didn't compute it
-                if not log_probs:
+                if not self.compute_log_probs:
                     captured_log_prob_data = {k: None for k in captured_data}
                 yield new_bytes[hidden_count:], not is_forced, new_bytes_log_prob, captured_data, captured_log_prob_data, token_count - last_token_count
                 last_token_count = token_count
@@ -960,26 +969,26 @@ def _record_captures(initial_item, data, log_prob_data, byte_data):
 
                 used_names.add(cname)    
 
-def _compute_log_probs(trie, log_probs):
-    '''Computes the log probabilities for each internal trie node.'''
-    if trie.value is not None:
-        trie.log_prob += log_probs[trie.value]
+# def _compute_log_probs(trie, log_probs):
+#     '''Computes the log probabilities for each internal trie node.'''
+#     if trie.value is not None:
+#         trie.log_prob += log_probs[trie.value]
     
-    if len(trie.children) > 0:
-        child_log_probs = []
-        for b in trie.children:
-            child = trie.children[b]
-            _compute_log_probs(child, log_probs)
-            child_log_probs.append(child.log_prob)
-        trie.log_prob = np.logaddexp.reduce(child_log_probs)
+#     if len(trie.children) > 0:
+#         child_log_probs = []
+#         for b in trie.children:
+#             child = trie.children[b]
+#             _compute_log_probs(child, log_probs)
+#             child_log_probs.append(child.log_prob)
+#         trie.log_prob = np.logaddexp.reduce(child_log_probs)
 
 def _check_dominated(node, parser, match_version, next_byte_mask):
     curr_pos = parser.pos
     for byte_num in next_byte_mask.nonzero()[0]:
         next_byte = bytes((byte_num,))
-        if next_byte not in node.children:
+        if not node.has_child(next_byte):
             return False # no possible exension this direction, so we are not dominated
-        child = node.children[next_byte]
+        child = node.child(next_byte)
         if child.match_version < match_version:
             child.match_version = match_version
             child.match = next_byte_mask[next_byte[0]]

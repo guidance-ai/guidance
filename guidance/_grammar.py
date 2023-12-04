@@ -242,16 +242,18 @@ class Null():
         self.capture_name = None
 
     def __add__(self, other):
-        if isinstance(other, str):
+        # see if we have a string with calls or a simple string
+        if isinstance(other, bytes):
             return string(other)
+        elif isinstance(other, str):
+            return str_to_grammar(other)
+        
+        # otherwise we return unchanged
         else:
             return other
         
     def __radd__(self, other):
-        if isinstance(other, str):
-            return string(other)
-        else:
-            return other
+        return self.__add__(other) # left vs right makes no difference since we are null
         
 class ModelVariable(StatelessFunction):
     '''This represents a variable that will be read from the model object when this grammar is executed.
@@ -571,9 +573,38 @@ def _re_with_temperature(grammar, temperature, visited_set):
 def model_variable(name):
     return ModelVariable(name)
 
+_null_grammar = string('')
 # def char_range(low, high):
 #     low_bytes = bytes(low, encoding="utf8")
 #     high_bytes = bytes(high, encoding="utf8")
 #     if len(low_bytes) > 1 or len(high_bytes) > 1:
 #         raise Exception("We don't yet support multi-byte character ranges!")
 #     return ByteRange(low_bytes + high_bytes)
+def str_to_grammar(value):
+    is_id = False
+    parts = re.split(_tag_pattern, value)
+    
+    # we have no embedded objects
+    if len(parts) == 1:
+        return string(value)
+    
+    # if we have embedded objects we have to convert the string to a grammar tree
+    else:
+        partial_grammar = _null_grammar
+        # lm.suffix = ""
+        for i,part in enumerate(parts):
+            # if i < len(parts) - 1:
+            #     lm.suffix = parts[i+1]
+            if is_id:
+                call = _call_pool[part]
+                if isinstance(call, StatelessFunction):
+                    partial_grammar += _call_pool[part]
+                else:
+                    partial_grammar = StatefulFunction(lambda lm, g, call: call(lm + g), partial_grammar, _call_pool[part])
+                    # lm += partial_grammar
+                    # lm = _call_pool[part](lm)
+                    # partial_grammar = _null_grammar
+            elif part != "":
+                partial_grammar += string(part)
+            is_id = not is_id
+    return partial_grammar

@@ -127,7 +127,7 @@ def test_various_regexes():
     for prompt in prompts:
         for pattern in patterns:
             lm2 = lm + prompt + gen(name='test', regex=pattern, max_tokens=40)
-            assert re.match(pattern, lm2['test']) is not None # note we can't just test any regex pattern like this, we need them to have finished in less than 40 tokens
+            assert re.match(pattern, lm2['test'], re.DOTALL) is not None # note we can't just test any regex pattern like this, we need them to have finished in less than 40 tokens
 # def test_pattern():
 #     lm = get_model("transformers:gpt2")
 #     lm += 'hey there my friend what is truth 23+43=' + gen(regex=r'dog(?P<stop>.+)', max_tokens=30)

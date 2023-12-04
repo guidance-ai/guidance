@@ -15,7 +15,7 @@ except ImportError:
     is_llama_cpp = False
 
 class LlamaCpp(Model):
-    def __init__(self, model=None, tokenizer=None, echo=True, caching=True, temperature=0.0, **kwargs):
+    def __init__(self, model=None, tokenizer=None, echo=True, compute_log_probs=False, caching=True, temperature=0.0, **kwargs):
 
         if not is_llama_cpp:
             raise Exception("Please install llama-cpp-python with `pip install llama-cpp-python` in order to use guidance.models.LlamaCpp!")
@@ -66,7 +66,8 @@ class LlamaCpp(Model):
             tokens,
             tokenizer.llama.token_bos(),
             tokenizer.llama.token_eos(),
-            echo=echo
+            echo=echo,
+            compute_log_probs=compute_log_probs
         )
 
         self._cache_state["cache_token_ids"] = []
