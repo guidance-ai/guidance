@@ -5,7 +5,7 @@ from setuptools import setup, find_packages
 try:
     from pybind11.setup_helpers import Pybind11Extension, build_ext
 except ImportError:
-    from setuptools import Extension as Pybind11Extension
+    from setuptools import build_ext, Extension as Pybind11Extension
     build_ext = None
 
 here = os.path.abspath(os.path.dirname(__file__))
@@ -32,7 +32,7 @@ setup(
     packages=find_packages(exclude=["notebooks", "client"]),
     package_data={"guidance": ["resources/*"]},
     ext_modules=[Pybind11Extension("guidance.cpp", ["guidance/_cpp/main.cpp"])],
-    cmdclass={} if build_ext is None else {"build_ext": build_ext},
+    cmdclass={"build_ext": build_ext},
     python_requires=">=3.8",
     install_requires=[
         "diskcache",
