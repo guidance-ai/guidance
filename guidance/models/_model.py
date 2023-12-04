@@ -79,6 +79,15 @@ class Model:
         self._token_trie = cpp.ByteTrie(tokens, np.arange(len(tokens)))
         self._token_trie.match = True
         self._token_trie.match_version = 0
+        
+        # track which tokens are duplicates
+        self.duplicate_tokens = []
+        found = {}
+        for i,t in enumerate(tokens):
+            if t in found:
+                self.duplicate_tokens.append((i, found[t]))
+            else:
+                found[t] = i
 
     @property
     def default_end_patterns(self):
@@ -541,6 +550,11 @@ type {function['name']} = (_: {{"""
         
         return token_ids, token_byte_positions
 
+    def _clean_duplicate_tokens(self, probs):
+        '''This moves all the probability mass from duplicate positons on to their primary index.'''
+        for i,j in self.duplicate_tokens:
+            probs[j] += probs[i]
+            probs[i] = 0
 
     def __call__(self, grammar, max_tokens=1000000, n=1, top_p=1, temperature=0.0, ensure_bos_token=True):
         assert n == 1, "Still need to add support for n > 1!"
@@ -701,10 +715,11 @@ type {function['name']} = (_: {{"""
                 # TODO: we should lower this step to C++ with pybind11
                 if self.compute_log_probs:
                     if torch:
-                        log_probs = torch.nn.functional.log_softmax(torch.tensor(logits), dim=-1).cpu().numpy() # note we don't adjust for temp since we consider that a sampling step, not part of the probs
+                        probs = torch.nn.functional.softmax(torch.tensor(logits), dim=-1).cpu().numpy() # note we don't adjust for temp since we consider that a sampling step, not part of the probs
                     else:
-                        log_probs = log_softmax(logits, axis=-1) # this numpy code is slower, so we don't use it if we have torch...
-                    trie.compute_log_probs(log_probs)
+                        probs = softmax(logits, axis=-1) # this numpy code is slower, so we don't use it if we have torch...
+                    self._clean_duplicate_tokens(probs)
+                    trie.compute_probs(probs)
 
                 # get the sampling order
                 grammar_temp = parser.next_byte_temperature()
@@ -714,7 +729,9 @@ type {function['name']} = (_: {{"""
                 else:
                     assert top_p == 1, "Still need to add support for top_p!"
                     if torch:
-                        probs = torch.nn.functional.softmax(torch.tensor(logits) / current_temp, dim=-1)
+                        logits = torch.tensor(logits)
+                        torch.div(logits, current_temp, out=logits)
+                        probs = torch.nn.functional.softmax(logits, dim=-1)
                         sampling_order = torch.multinomial(probs, len(probs)).cpu().numpy()
                     else:
                         # this numpy version allows us to drop our dependence on pytorch...but it is way slower
@@ -760,7 +777,7 @@ type {function['name']} = (_: {{"""
                             token_pos += 1
 
                             # get the parser to consume the next byte
-                            log_prob_delta = next_node.log_prob - node.log_prob
+                            log_prob_delta = np.log(next_node.prob) - np.log(node.prob)
                             new_bytes_log_prob += log_prob_delta
                             commit_point = parser.consume_byte(next_byte, log_prob=log_prob_delta)
                         
@@ -975,18 +992,19 @@ def _record_captures(initial_item, data, log_prob_data, byte_data):
 
                 used_names.add(cname)    
 
-# def _compute_log_probs(trie, log_probs):
+# def _compute_probs(trie, probs, found):
 #     '''Computes the log probabilities for each internal trie node.'''
 #     if trie.value is not None:
-#         trie.log_prob += log_probs[trie.value]
+#         found[trie.value] = 1
+#         trie.prob += probs[trie.value]
     
-#     if len(trie.children) > 0:
-#         child_log_probs = []
-#         for b in trie.children:
-#             child = trie.children[b]
-#             _compute_log_probs(child, log_probs)
-#             child_log_probs.append(child.log_prob)
-#         trie.log_prob = np.logaddexp.reduce(child_log_probs)
+#     if len(trie) > 0:
+#         # child_probs = []
+#         for b in trie.keys():
+#             child = trie.child(b)
+#             _compute_probs(child, probs, found)
+#             trie.prob += child.prob
+#         # trie.log_prob = np.logaddexp.reduce(child_log_probs)
 
 def _check_dominated(node, parser, match_version, next_byte_mask):
     curr_pos = parser.pos

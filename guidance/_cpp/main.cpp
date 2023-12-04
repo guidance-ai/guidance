@@ -5,7 +5,7 @@
 // #include <pybind11/functional.h>
 // #include <pybind11/chrono.h>
 #include <any>
-#include "byte_trie.cpp"
+#include "byte_trie.cpp" 
 
 namespace py = pybind11;
 
@@ -28,11 +28,11 @@ PYBIND11_MODULE(cpp, m) {
             }
             return py_byte_strings;
         })
-        .def("compute_log_probs", &ByteTrie::compute_log_probs)
+        .def("compute_probs", &ByteTrie::compute_probs)
         .def_readwrite("match_version", &ByteTrie::match_version)
         .def_readwrite("match", &ByteTrie::match)
         .def_readwrite("partial_match", &ByteTrie::partial_match)
-        .def_readwrite("log_prob", &ByteTrie::log_prob)
+        .def_readwrite("prob", &ByteTrie::prob)
         .def_readwrite("value", &ByteTrie::value)
         .def_readwrite("children", &ByteTrie::children);
 }

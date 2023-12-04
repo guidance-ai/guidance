@@ -8,7 +8,7 @@ public:
     int match_version = -1;
     bool match = false;
     bool partial_match = false;
-    double log_prob = 0;
+    double prob = 0;
     int value = -1;
     std::map<char, std::shared_ptr<ByteTrie>> children;
 
@@ -52,7 +52,9 @@ public:
 
     void insert(const std::string& s, int value, uint pos = 0) {
         if (s.size() <= pos) {
-            this->value = value;
+            if (this->value < 0) {
+                this->value = value;
+            }
         } else {
             uint8_t first_byte = s[pos];
             if (children.find(first_byte) == children.end()) {
@@ -62,28 +64,16 @@ public:
         }
     }
 
-    void compute_log_probs(const std::vector<double>& log_probs) {
+    void compute_probs(const std::vector<double>& probs) {
         if (value != -1) {
-            log_prob += log_probs[value];
+            prob += probs[value];
         }
 
         if (!children.empty()) {
-            double max_log_prob = -std::numeric_limits<double>::infinity();
-            std::vector<double> child_log_probs;
-
             for (auto& pair : children) {
-                pair.second->compute_log_probs(log_probs);
-                child_log_probs.push_back(pair.second->log_prob);
-                if (pair.second->log_prob > max_log_prob) {
-                    max_log_prob = pair.second->log_prob;
-                }
+                pair.second->compute_probs(probs);
+                prob += pair.second->prob;
             }
-
-            double sum_exp = 0;
-            for (double child_log_prob : child_log_probs) {
-                sum_exp += std::exp(child_log_prob - max_log_prob);
-            }
-            log_prob = max_log_prob + std::log(sum_exp);
         }
     }
 };

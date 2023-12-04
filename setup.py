@@ -44,7 +44,6 @@ setup(
         "msal",
         "requests",
         "numpy",
-        "pybind11",
         "aiohttp",
         "ordered_set",
         "pyformlang"
@@ -56,7 +55,8 @@ setup(
             'numpydoc',
             'sphinx_rtd_theme',
             'sphinx',
-            'nbsphinx'
+            'nbsphinx',
+            "pybind11"
         ],
         'test': [
             'pytest',
