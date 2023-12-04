@@ -8,7 +8,7 @@ public:
     int match_version = -1;
     bool match = false;
     bool partial_match = false;
-    double prob = 0;
+    double prob = 1;
     int value = -1;
     std::map<char, std::shared_ptr<ByteTrie>> children;
 

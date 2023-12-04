@@ -13,7 +13,7 @@ from .._model import Model, Chat
 
 
 class Transformers(Model):
-    def __init__(self, model=None, tokenizer=None, echo=True, caching=True, temperature=0.0, device=None, **kwargs):
+    def __init__(self, model=None, tokenizer=None, echo=True, caching=True, temperature=0.0, compute_log_probs=False, device=None, **kwargs):
         
         # fill in default model value
         if model is None:
@@ -52,7 +52,8 @@ class Transformers(Model):
             byte_tokens,
             tkz.bos_token_id,
             tkz.eos_token_id,
-            echo=echo
+            echo=echo,
+            compute_log_probs=compute_log_probs
         )
 
         self._cache_state["past_key_values"] = None
