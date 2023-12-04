@@ -4,13 +4,16 @@ except ImportError:
     clear_output = lambda wait=True: None
     display = lambda arg: None
     HTML = lambda arg: None
+try:
+    import torch
+except ImportError:
+    torch = None
 import html
 import re
 import copy
 import time
 import numpy as np
 import logging
-import torch
 from guidance import cpp
 from .._utils import ByteTrie, log_softmax, softmax
 from .._parser import EarleyCommitParser
@@ -697,8 +700,10 @@ type {function['name']} = (_: {{"""
                 # if requested we compute the log probabilities so we can track the probabilities of each node
                 # TODO: we should lower this step to C++ with pybind11
                 if self.compute_log_probs:
-                    log_probs = torch.nn.functional.log_softmax(torch.tensor(logits), dim=-1).cpu().numpy() # note we don't adjust for temp since we consider that a sampling step, not part of the probs
-                    # log_probs = log_softmax(logits, axis=-1) # this numpy code is slower, so we don't use it...
+                    if torch:
+                        log_probs = torch.nn.functional.log_softmax(torch.tensor(logits), dim=-1).cpu().numpy() # note we don't adjust for temp since we consider that a sampling step, not part of the probs
+                    else:
+                        log_probs = log_softmax(logits, axis=-1) # this numpy code is slower, so we don't use it if we have torch...
                     trie.compute_log_probs(log_probs)
 
                 # get the sampling order
@@ -708,14 +713,15 @@ type {function['name']} = (_: {{"""
                     sampling_order = np.argsort(-logits) # we need numpy so the enumerate below does not get really slow...
                 else:
                     assert top_p == 1, "Still need to add support for top_p!"
-                    probs = torch.nn.functional.softmax(torch.tensor(logits) / current_temp, dim=-1)
-                    sampling_order = torch.multinomial(probs, len(probs)).cpu().numpy()
-                    
-                    # this numpy version allows us to drop our dependence on pytorch...but it is way slower
-                    # probs = softmax(logits / current_temp, axis=-1)
-                    # probs += 1e-10 # ensure we have no zero probs that mess up numpy
-                    # probs /= np.sum(probs)
-                    # sampling_order = np.random.choice(len(probs), size=len(probs), p=probs, replace=False) # the 1e-10 is ensure we have no zero probs, which numpy does not like
+                    if torch:
+                        probs = torch.nn.functional.softmax(torch.tensor(logits) / current_temp, dim=-1)
+                        sampling_order = torch.multinomial(probs, len(probs)).cpu().numpy()
+                    else:
+                        # this numpy version allows us to drop our dependence on pytorch...but it is way slower
+                        probs = softmax(logits / current_temp, axis=-1)
+                        probs += 1e-10 # ensure we have no zero probs that mess up numpy
+                        probs /= np.sum(probs)
+                        sampling_order = np.random.choice(len(probs), size=len(probs), p=probs, replace=False) # the 1e-10 is ensure we have no zero probs, which numpy does not like
 
                 # loop over the tokens looking for a valid one
                 for i,sampled_token_ind in enumerate(sampling_order):
