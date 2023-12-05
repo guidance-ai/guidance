@@ -14,7 +14,7 @@ import copy
 import time
 import numpy as np
 import logging
-from .. import cpp
+from .. import cpp as cpp
 from .._utils import ByteTrie, log_softmax, softmax
 from .._parser import EarleyCommitParser
 from .._grammar import StatelessFunction, string, _call_pool, _tag_pattern, Null, replace_model_variables, unreplace_model_variables, select, Terminal
@@ -869,7 +869,7 @@ type {function['name']} = (_: {{"""
                     if parser.matched():
                         break # if we already have a full match we don't try more tokens we just give up as soon as the model deviates from the grammar
             
-            # if we just collpased a hidden commit point then we start over looking for a new token
+            # if we just collapased a hidden commit point then we start over looking for a new token
             if retry_token_gen:
                 continue
 

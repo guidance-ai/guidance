@@ -19,7 +19,7 @@ PYBIND11_MODULE(cpp, m) {
         .def("has_child", &ByteTrie::has_child)
         .def("child", &ByteTrie::child)
         .def("parent", &ByteTrie::parent)
-        .def("__len__", &ByteTrie::size)
+        .def("__len__", &ByteTrie::size) 
         .def("keys", [](const ByteTrie& self) {
             auto byte_strings = self.keys();
             py::list py_byte_strings;

@@ -10,7 +10,7 @@ public:
     bool partial_match = false;
     double prob = 0;
     int value = -1;
-    std::map<char, std::shared_ptr<ByteTrie>> children;
+    std::unordered_map<char, std::shared_ptr<ByteTrie>> children;
 
     ByteTrie(std::vector<std::string> byte_strings) {
         for (size_t i = 0; i < byte_strings.size(); ++i) {
