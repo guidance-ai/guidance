@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 @guidance(stateless=lambda *args, **kwargs: kwargs.get("tools", None) is None) # TODO: uncomment this once we get temperature stateless
 def gen(lm, name=None, *, max_tokens=1000, list_append=False, regex=None,
         tools=None, hide_tool_call=False, stop=None, stop_regex=None, suffix="", n=1, temperature=0.0, top_p=1.0,
-        logprobs=None, stream_tokens=None, save_stop_text=False, **llm_kwargs):
+        stream_tokens=None, save_stop_text=False, **llm_kwargs):
     """
     TODO: document this
     tools is a list of guidance.Tool or python functions (which will be converted to guidance.Tool)

@@ -503,10 +503,9 @@ def select(options, name=None, list_append=False, recurse=False, skip_checks=Fal
                 options[i] = str(value)
 
     # set up list append var saving if requested
-    name = "__LIST_APPEND:" + name if list_append else name
+    if list_append:
+        name = "__LIST_APPEND:" + name
 
-    # if name is None:
-    #     name = _find_name() + "_" + StatelessFunction._new_name()
     if recurse:
         node = Select([], capture_name=name, recursive=True)
         node.values = [node + v for v in options if v != ""] + options
@@ -527,6 +526,8 @@ def byte_range(low, high):
 #     return value
 
 def capture(value, name):
+    # if log_probs:
+    #     name += ":__LOG_PROBS"
     if not (isinstance(value, Join) and len(value.values) == 1): # don't double wrap
         value = Join([value]) # this ensures we capture what we want, and not something surprisingly self_recursive
     value.capture_name = name

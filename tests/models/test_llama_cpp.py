@@ -1,3 +1,4 @@
+import numpy as np
 import guidance
 from guidance import select, gen
 from ..utils import get_model
@@ -6,6 +7,11 @@ def test_llama_cpp_gen():
     lm = get_model("llama_cpp:")
     lm = lm + "this is a test" + gen("test", max_tokens=10)
     assert len(str(lm)) > len("this is a test")
+
+def test_llama_cpp_gen_log_probs():
+    lm = get_model("llama_cpp:")
+    lm = lm + "this is a test" + gen("test", max_tokens=1)
+    assert 1 >= np.exp(lm.log_prob("test")) >= 0
 
 def test_llama_cpp_recursion_error():
     lm = get_model("llama_cpp:")
