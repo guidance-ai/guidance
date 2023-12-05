@@ -46,7 +46,8 @@ setup(
         "numpy",
         "aiohttp",
         "ordered_set",
-        "pyformlang"
+        "pyformlang",
+        "pybind11"
     ],
     setup_requires=["pybind11"],
     extras_require={
