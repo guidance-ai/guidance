@@ -8,7 +8,7 @@ public:
     int match_version = -1;
     bool match = false;
     bool partial_match = false;
-    double prob = 1;
+    double prob = 0;
     int value = -1;
     std::map<char, std::shared_ptr<ByteTrie>> children;
 
@@ -64,7 +64,10 @@ public:
         }
     }
 
+    // we could save a lot of work if we assume the top node has prob 1.0 and then only explore the subtree we care about
     void compute_probs(const std::vector<double>& probs) {
+        prob = 0.0;
+        
         if (value != -1) {
             prob += probs[value];
         }
