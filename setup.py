@@ -4,7 +4,11 @@ import codecs
 from setuptools import setup, find_packages
 try:
     from pybind11.setup_helpers import Pybind11Extension, build_ext
+    import pybind11
+    print("AAAAA:", pybind11.get_include())
+    print("AAAAA:", pybind11.get_include(True))
 except ImportError:
+    print("BBBB")
     from setuptools import Extension as Pybind11Extension
     from setuptools.command.build_ext import build_ext
 
