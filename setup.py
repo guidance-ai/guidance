@@ -2,15 +2,7 @@ import os
 import re
 import codecs
 from setuptools import setup, find_packages
-try:
-    from pybind11.setup_helpers import Pybind11Extension, build_ext
-    import pybind11
-    print("AAAAA:", pybind11.get_include())
-    print("AAAAA:", pybind11.get_include(True))
-except ImportError:
-    print("BBBB")
-    from setuptools import Extension as Pybind11Extension
-    from setuptools.command.build_ext import build_ext
+from pybind11.setup_helpers import Pybind11Extension, build_ext
 
 here = os.path.abspath(os.path.dirname(__file__))
 
@@ -50,18 +42,15 @@ setup(
         "numpy",
         "aiohttp",
         "ordered_set",
-        "pyformlang",
-        "pybind11"
+        "pyformlang"
     ],
-    setup_requires=["pybind11"],
     extras_require={
         'docs': [
             'ipython',
             'numpydoc',
             'sphinx_rtd_theme',
             'sphinx',
-            'nbsphinx',
-            "pybind11"
+            'nbsphinx'
         ],
         'test': [
             'pytest',
