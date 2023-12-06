@@ -44,38 +44,23 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, regex=None,
     #         stop = "'"
 
     # fall back to stopping at the EOS token
-    if stop is None:
-        stop = []
-    if isinstance(stop, str):
-        stop = [stop]
-    if regex is None:
-        stop.append(model_variable('default_end_patterns'))
+    if stop is not False:
+        if stop is None:
+            stop = []
+        if isinstance(stop, str):
+            stop = [stop]
+        if regex is None:
+            stop.append(model_variable('default_end_patterns'))
 
-    if stop_regex is None:
-        stop_regex = []
-    if isinstance(stop_regex, str):
-        stop_regex = [stop_regex]
-    stop_regex = [regex_grammar(x) for x in stop_regex]
+        if stop_regex is None:
+            stop_regex = []
+        if isinstance(stop_regex, str):
+            stop_regex = [stop_regex]
+        stop_regex = [regex_grammar(x) for x in stop_regex]
 
     # This needs to be here for streaming
     # if name is not None and not list_append:
     #     lm[name] = ""
-
-    # TODO: This can be uncommented once we support regex -> grammar compilation
-    
-    # compile stop_regex into a capture group
-    # if "(?P<stop>" in pattern:
-    #     assert stop_regex == None, "You can't specify both a stop string/regex and a custom stop pattern (?P<stop>...)!"
-    #     stop_regex = ""
-    # else:
-    #     if stop_regex is None:
-    #         stop_regex = []
-    #     stop_regex.append(regex.escape(lm.eos_token))
-    #     stop_regex = "(?P<stop>" + "|".join(stop_regex) + ")"
-
-    # pattern += stop_regex
-    # extracted_stop_pattern = regex.compile(pattern[pattern.index("(?P<stop>")+9:-1] + "$", flags=regex.DOTALL)
-    # extracted_stop_pattern = regex.compile(pattern[:pattern.index("(?P<stop>")] + "$", flags=regex.DOTALL)
     
     # define the generation pattern
     if regex is not None:
@@ -91,15 +76,15 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, regex=None,
     pattern = token_limit(pattern, max_tokens)
     
     # define the stop pattern
-    if stop + stop_regex:
+    if stop is False or len(stop + stop_regex) == 0:
+        stop_pattern = ''
+    else:
         stop_pattern = select(stop + stop_regex)
         if save_stop_text is True:
             save_stop_text = str(name) + "_stop_text"
         if isinstance(save_stop_text, str):
             stop_pattern = capture(stop_pattern, name=save_stop_text)
         stop_pattern = commit_point(stop_pattern, hidden=True)
-    else:
-        stop_pattern = ''
 
     # single generation
     start_pos = len(str(lm))
