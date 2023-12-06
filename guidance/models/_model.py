@@ -14,12 +14,15 @@ import copy
 import time
 import numpy as np
 import logging
-from .. import cpp as cpp
+logger = logging.getLogger(__name__)
+try:
+    from .. import cpp
+except ImportError:
+    logger.warn("Failed to load guidance.cpp, falling back to Python mirror implementations...")
+    from .. import _cpp as cpp
 from .._utils import ByteTrie, log_softmax, softmax
 from .._parser import EarleyCommitParser
 from .._grammar import StatelessFunction, string, _call_pool, _tag_pattern, Null, replace_model_variables, unreplace_model_variables, select, Terminal
-
-logger = logging.getLogger(__name__)
 
 # define some constants we will reuse many times
 _null_grammar = string('')
