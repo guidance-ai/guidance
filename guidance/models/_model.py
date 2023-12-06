@@ -104,7 +104,7 @@ class Model:
 
         # add any active non-empty role ends. Ignore role ends that are spaces
         parts = []
-        for role_end_str in self.opened_blocks.values():
+        for _, role_end_str in self.opened_blocks.values():
             role_end_str = format_pattern.sub("", role_end_str)
             if len(role_end_str) > 0 and not re.fullmatch(r'\s+', role_end_str):
                 parts.append(role_end_str)
@@ -118,7 +118,7 @@ class Model:
         '''Generate HTML that displays the model object.'''
         display_out = self._state
         for context in reversed(self.opened_blocks):
-            display_out += self.opened_blocks[context]
+            display_out += self.opened_blocks[context][1]
         display_out = html.escape(display_out)
         display_out = nodisp_pattern.sub("", display_out)
         display_out = html_pattern.sub(lambda x: html.unescape(x.group(1)), display_out)
@@ -208,7 +208,7 @@ class Model:
         '''A string representation of the current model object (that includes context closers).'''
         out = self._current_prompt()
         for context in reversed(self.opened_blocks):
-            out += format_pattern.sub("", self.opened_blocks[context])
+            out += format_pattern.sub("", self.opened_blocks[context][1])
         return out
     
     def __add__(self, value):
@@ -230,19 +230,28 @@ class Model:
             # close any newly closed contexts
             for context in list(reversed(lm.opened_blocks)):
                 if context not in Model.open_blocks and context in lm.opened_blocks:
-                    close_text = lm.opened_blocks[context] # save so we can delete it before adding it
+                    pos, close_text = lm.opened_blocks[context] # save so we can delete it before adding it
+                    if context.name is not None:
+                        lm._variables[context.name] = format_pattern.sub("", lm._state[pos:])
                     del lm.opened_blocks[context]
                     lm._inplace_append(close_text)
 
             # apply any newly opened contexts (new from this object's perspective)
             for context in Model.open_blocks:
                 if context not in lm.opened_blocks:
-                    lm.opened_blocks[context] = "" # mark this so we don't readd when computing the opener (even though we don't know the close text yet)
+                    lm.opened_blocks[context] = (0, "") # mark this so we don't readd when computing the opener (even though we don't know the close text yet)
                     lm += context.opener
                     with grammar_only():
                         tmp = lm + context.closer
                     close_text = tmp._state[len(lm._state):] # get the new state added by calling the closer
-                    lm.opened_blocks[context] = close_text
+                    lm.opened_blocks[context] = (len(lm._state), close_text)
+                    
+                    # clear out names that we override
+                    if context.name is not None:
+                        if context.name in lm._variables:
+                            del lm._variables[context.name]
+                            if context.name in lm._variables_log_probs:
+                                del lm._variables_log_probs[context.name]
             
             # wrap raw string values
             if isinstance(value, str):
@@ -306,7 +315,14 @@ class Model:
         raise Exception("Model objects are immutable so you can't use __setitem__! Consider using the .set(key, value) method instead to create a new updated model object.")
 
     def __getitem__(self, key):
-        return self._variables[key]
+        if key in self._variables:
+            return self._variables[key]
+        
+        # look for named blocks that are still open with the given key as their name
+        else:
+            for context in list(reversed(self.opened_blocks)):
+                if context.name == key:
+                    return format_pattern.sub("", self._state[self.opened_blocks[context][0]:])
     
     def __contains__(self, item):
         return item in self._variables
@@ -348,6 +364,8 @@ class Model:
         if key in self._variables:
             copy = self.copy()
             del copy._variables[key]
+            if key in copy._variables_log_probs:
+                del copy._variables_log_probs[key]
         else:
             copy = self
         return copy

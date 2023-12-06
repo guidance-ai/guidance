@@ -28,3 +28,18 @@ def test_grammar_closer():
     except:
         return # we expect an exception
     assert False, "We should have thrown an exception using a context (prompt) based grammar in the closer!"
+
+def test_block_name_capture():
+    model = models.Mock("<s>open texta")
+    with block("my_data"):
+        model += "open text"
+        model += any_char()
+    assert model["my_data"] == "open texta"
+
+def test_block_name_capture_closed():
+    model = models.Mock("<s>open texta")
+    with block("my_data"):
+        model += "open text"
+        model += any_char()
+    model += "tmp"
+    assert model["my_data"] == "open texta"
