@@ -5,7 +5,7 @@
 // #include <pybind11/functional.h>
 // #include <pybind11/chrono.h>
 #include <any>
-#include "byte_trie.cpp" 
+#include "byte_trie.cpp"
 
 namespace py = pybind11;
 
