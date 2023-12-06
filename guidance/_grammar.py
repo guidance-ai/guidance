@@ -17,15 +17,6 @@ class StatefulException(Exception):
     for now we use a traditional parser and grammar separation (hence the need for this exception).'''
     pass
 
-_excluded_names = frozenset(["_find_name", "__add__", "__radd__", "<listcomp>", "<module>", "select", "char_set"])
-def _find_name():
-    stack = inspect.stack()
-    for frame in stack:
-        name = frame.function
-        if frame.function not in _excluded_names:
-            return name
-    return None
-
 class Function():
     def __init__(self, name, value=None) -> None:
         self.name = name
