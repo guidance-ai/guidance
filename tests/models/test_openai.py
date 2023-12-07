@@ -74,7 +74,10 @@ def test_openai_chat_without_roles():
 
 def test_openai_chat_loop():
     # tests issue #509
-    llm = guidance.models.OpenAIChat(model='gpt-3.5-turbo', echo=False)
+    try:
+        lm = guidance.models.OpenAI("gpt-3.5-turbo", echo=False)
+    except:
+        pytest.skip("Skipping OpenAI test because we can't load the model!")
 
     for i in range(2):
 
