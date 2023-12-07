@@ -14,6 +14,21 @@ try:
 except ImportError:
     is_llama_cpp = False
 
+class _LlamaBatchContext:
+    def __init__(self, n_batch, n_ctx):
+        self._llama_batch_free = llama_cpp.llama_batch_free
+        self.batch = llama_cpp.llama_batch_init(n_tokens=n_batch, embd=0, n_seq_max=n_ctx)
+        if self.batch is None:
+            raise Exception("call to llama_cpp.llama_batch_init returned NULL.")
+
+    def __del__(self):
+        llama_batch_free = getattr(self, "_llama_batch_free", None)
+        batch = getattr(self, "batch", None)
+        if batch is not None and llama_batch_free is not None:
+            self._llama_batch_free = None
+            self.batch = None
+            llama_batch_free(batch)
+
 class LlamaCpp(Model):
     def __init__(self, model=None, tokenizer=None, echo=True, compute_log_probs=False, caching=True, temperature=0.0, **kwargs):
 
@@ -45,6 +60,8 @@ class LlamaCpp(Model):
             self.model_obj = model
         else:
             raise TypeError("model must be None, a file path string, or a llama_cpp.Llama object.")
+
+        self._context = _LlamaBatchContext(self.model_obj.n_batch, self.model_obj.n_ctx())
 
         if tokenizer is None:
             tokenizer = llama_cpp.LlamaTokenizer(self.model_obj)
@@ -105,37 +122,28 @@ class LlamaCpp(Model):
 
         # eval the model
         n_batch = self.model_obj.n_batch
-        batch = llama_cpp.llama_batch_init(
-            n_tokens=n_batch, 
-            embd=0, 
-            n_seq_max=self.model_obj.n_ctx()
-        )
-        if batch is None:
-            raise Exception("call to llama_cpp.llama_batch_init returned NULL.")
-        try:
-            for i in range(num_cached, len(token_ids), n_batch):
-                n_tokens = min(i + n_batch, len(token_ids)) - i
-                batch.n_tokens = n_tokens
-                for j in range(n_tokens):
-                    batch.token[j] = token_ids[i + j]
-                    batch.pos[j] = i + j
-                    batch.seq_id[j][0] = 0
-                    batch.n_seq_id[j] = 1
-                    batch.logits[j] = False
+        batch = self._context.batch
+        for i in range(num_cached, len(token_ids), n_batch):
+            n_tokens = min(i + n_batch, len(token_ids)) - i
+            batch.n_tokens = n_tokens
+            for j in range(n_tokens):
+                batch.token[j] = token_ids[i + j]
+                batch.pos[j] = i + j
+                batch.seq_id[j][0] = 0
+                batch.n_seq_id[j] = 1
+                batch.logits[j] = False
 
-                if i + n_tokens == len(token_ids):
-                    batch.logits[n_tokens - 1] = True
+            if i + n_tokens == len(token_ids):
+                batch.logits[n_tokens - 1] = True
 
-                ret = llama_cpp.llama_decode(self.model_obj.ctx, batch)
-                if ret != 0:
-                    raise Exception(f"Call to llama_cpp.llama_decode returned {ret}.")
+            ret = llama_cpp.llama_decode(self.model_obj.ctx, batch)
+            if ret != 0:
+                raise Exception(f"Call to llama_cpp.llama_decode returned {ret}.")
 
-            # get the logits
-            logits = llama_cpp.llama_get_logits(self.model_obj.ctx)
-            logits = logits[(n_tokens - 1) * self._n_vocab : n_tokens * self._n_vocab]
-            logits = np.ctypeslib.as_array(logits, shape=(self._n_vocab,)).copy()
-        finally:
-            llama_cpp.llama_batch_free(batch)
+        # get the logits
+        logits = llama_cpp.llama_get_logits(self.model_obj.ctx)
+        logits = logits[(n_tokens - 1) * self._n_vocab : n_tokens * self._n_vocab]
+        logits = np.ctypeslib.as_array(logits, shape=(self._n_vocab,)).copy()
 
         self._cache_state["logits"] = logits
 
