@@ -1,21 +1,17 @@
 __version__ = "0.1.7"
 
-import nest_asyncio
-nest_asyncio.apply()
-import types
-import sys
-import os
-import requests
-from . import models
-import inspect
-
-from ._utils import load, chain, CaptureEvents, TextRange, strip_multiline_string_indents
-from . import _utils
-from . import selectors
-
-from ._grammar import StatelessFunction, StatefulFunction, string, Terminal, Placeholder, replace_grammar_node
 import functools
-from contextlib import nullcontext
+import os
+import sys
+import types
+
+import requests
+
+from . import models, selectors
+from ._grammar import (Placeholder, StatefulFunction, StatelessFunction,
+                       Terminal, replace_grammar_node, string)
+from ._utils import (CaptureEvents, TextRange, chain, load,
+                     strip_multiline_string_indents)
 
 curr_module = sys.modules[__name__]
 
@@ -29,15 +25,6 @@ class Guidance(types.ModuleType):
     def __call__(self, f=None, *, stateless=False, cache=None, dedent=True, model=models.Model):
         return _decorator(f, stateless=stateless, cache=cache, dedent=dedent, model=model)
 sys.modules[__name__].__class__ = Guidance
-
-# def optional_hidden(f, lm, hidden, kwargs):
-#     """This only enters a hidden context if the function does not manage the hidden parameter itself.
-#     """
-#     if 'hidden' in inspect.signature(f).parameters:
-#         kwargs['hidden'] = hidden
-#         return nullcontext()
-#     else:
-#         return Hidden(lm, hidden)
     
 _function_cache = {} # used to enable recursive grammar definitions
 _null_grammar = string('')
