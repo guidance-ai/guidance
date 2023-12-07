@@ -4,11 +4,10 @@ import functools
 import os
 import sys
 import types
-from contextlib import nullcontext
 
 import requests
 
-from . import _utils, models, selectors
+from . import models, selectors
 from ._grammar import (Placeholder, StatefulFunction, StatelessFunction,
                        Terminal, replace_grammar_node, string)
 from ._utils import (CaptureEvents, TextRange, chain, load,
@@ -26,15 +25,6 @@ class Guidance(types.ModuleType):
     def __call__(self, f=None, *, stateless=False, cache=None, dedent=True, model=models.Model):
         return _decorator(f, stateless=stateless, cache=cache, dedent=dedent, model=model)
 sys.modules[__name__].__class__ = Guidance
-
-# def optional_hidden(f, lm, hidden, kwargs):
-#     """This only enters a hidden context if the function does not manage the hidden parameter itself.
-#     """
-#     if 'hidden' in inspect.signature(f).parameters:
-#         kwargs['hidden'] = hidden
-#         return nullcontext()
-#     else:
-#         return Hidden(lm, hidden)
     
 _function_cache = {} # used to enable recursive grammar definitions
 _null_grammar = string('')
