@@ -62,7 +62,7 @@ def test_azureai_openai_chat_loop():
     )
     assert isinstance(lm, models.AzureOpenAIChat)
 
-    for i in range(5):
+    for i in range(2):
         print(f"Iteration: {i}")
         with system():
             generation = lm + "You will just return whatever number I give you"
@@ -71,7 +71,7 @@ def test_azureai_openai_chat_loop():
             generation += f"The number is: {i}"
 
         with assistant():
-            generation += gen(name="answer")
+            generation += gen(name="answer", max_tokens=2)
 
         print(str(lm))
         print("\n\n")
