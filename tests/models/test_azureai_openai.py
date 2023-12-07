@@ -50,3 +50,28 @@ def test_azureai_openai_completion_smoke():
     result = lm + "What is 2+2?" + gen(max_tokens=10, name="text")
     print(f"result: {result['text']}")
     assert len(result["text"]) > 0
+
+
+def test_azureai_openai_chat_loop():
+    azureai_endpoint = _env_or_skip("AZUREAI_CHAT_ENDPOINT")
+    azureai_key = _env_or_skip("AZUREAI_CHAT_KEY")
+    model = _env_or_skip("AZUREAI_CHAT_MODEL")
+
+    lm = models.AzureOpenAI(
+        model=model, azure_endpoint=azureai_endpoint, api_key=azureai_key
+    )
+    assert isinstance(lm, models.AzureOpenAIChat)
+
+    for i in range(2):
+        print(f"Iteration: {i}")
+        with system():
+            generation = lm + "You will just return whatever number I give you"
+
+        with user():
+            generation += f"The number is: {i}"
+
+        with assistant():
+            generation += gen(name="answer", max_tokens=2)
+
+        print(str(lm))
+        print("\n\n")
