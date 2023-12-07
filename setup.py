@@ -36,7 +36,6 @@ setup(
         "openai>=1.0",
         "platformdirs",
         "tiktoken>=0.3",
-        "nest_asyncio",
         "msal",
         "requests",
         "numpy",
