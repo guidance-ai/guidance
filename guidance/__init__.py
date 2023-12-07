@@ -1,21 +1,18 @@
 __version__ = "0.1.7"
 
-import nest_asyncio
-nest_asyncio.apply()
-import types
-import sys
-import os
-import requests
-from . import models
-import inspect
-
-from ._utils import load, chain, CaptureEvents, TextRange, strip_multiline_string_indents
-from . import _utils
-from . import selectors
-
-from ._grammar import StatelessFunction, StatefulFunction, string, Terminal, Placeholder, replace_grammar_node
 import functools
+import os
+import sys
+import types
 from contextlib import nullcontext
+
+import requests
+
+from . import _utils, models, selectors
+from ._grammar import (Placeholder, StatefulFunction, StatelessFunction,
+                       Terminal, replace_grammar_node, string)
+from ._utils import (CaptureEvents, TextRange, chain, load,
+                     strip_multiline_string_indents)
 
 curr_module = sys.modules[__name__]
 
