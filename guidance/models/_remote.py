@@ -186,7 +186,7 @@ class Remote(Model):
 
                 # record any active non-empty role ends. Ignore role ends that are spaces
                 parts = []
-                for role_end_str in self.opened_blocks.values():
+                for _,role_end_str in self.opened_blocks.values():
                     role_end_str = format_pattern.sub("", role_end_str)
                     if len(role_end_str) > 0 and not re.fullmatch(r'\s+', role_end_str):
                         parts.append(role_end_str.encode("utf8"))

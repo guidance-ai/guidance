@@ -71,3 +71,18 @@ def test_openai_chat_without_roles():
     lm = guidance.models.OpenAI("gpt-3.5-turbo", tokenizer=tiktoken.encoding_for_model("gpt-3.5-turbo"), api_key="blah")
     with pytest.raises(ValueError) as error_info:
         lm += "You are a math wiz. What is 1+1?" + gen(max_tokens=10, name="text")
+
+def test_openai_chat_loop():
+    # tests issue #509
+    llm = guidance.models.OpenAIChat(model='gpt-3.5-turbo', echo=False)
+
+    for i in range(2):
+
+        with system():
+            lm = llm + "You will just return whatever number I give you"
+        
+        with user():
+            lm += f'The number is: {i}'
+        
+        with assistant():
+            lm += gen(name='answer', max_tokens=2)
