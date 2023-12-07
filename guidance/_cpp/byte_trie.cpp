@@ -50,7 +50,7 @@ public:
         return children.size();
     }
 
-    void insert(const std::string& s, int value, uint pos = 0) {
+    void insert(const std::string& s, int value, unsigned int pos = 0) {
         if (s.size() <= pos) {
             if (this->value < 0) {
                 this->value = value;
