@@ -12,6 +12,7 @@ from .._grammar import token_limit
 from .._grammar import with_temperature
 from .._grammar import model_variable
 from ._tool import Tool
+from ._block import block
 
 logger = logging.getLogger(__name__)
 
@@ -68,9 +69,11 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, regex=None,
     else:
         pattern = zero_or_more(any_char())
 
-    # define any capture group
-    if name is not None:
-        pattern = capture(pattern, name="__LIST_APPEND:" + name if list_append else name)
+    tagged_name = "__LIST_APPEND:" + name if list_append and name is not None else name
+
+    # define any capture group for non-tool calls
+    if name is not None and tools is None:
+        pattern = capture(pattern, name=tagged_name)
     
     # limit the number of tokens
     pattern = token_limit(pattern, max_tokens)
@@ -89,21 +92,22 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, regex=None,
     # single generation
     start_pos = len(str(lm))
     if tools is not None:
-        tools = [Tool(callable=x) if not isinstance(x, Tool) else x for x in tools]
-        init_token_count = lm.token_count
-        gen_grammar = pattern + select([stop_pattern] + [capture(commit_point(x.call_grammar, hidden=hide_tool_call), name=f'tool{i}') for i, x in enumerate(tools)])
-        while lm.token_count <= max_tokens + init_token_count:
-            lm = lm._run_stateless(gen_grammar, temperature=temperature) # TODO: we should not be using this internal method
-            tool_called = False
-            for i in range(len(tools)):
-                tool_i = f'tool{i}'
-                if tool_i in lm:
-                    tool_called = True
-                    lm += tools[i].tool_call()
-                    lm = lm.remove(tool_i)
-            if not tool_called:
-                lm += suffix
-                break
+        with block(tagged_name):
+            tools = [Tool(callable=x) if not isinstance(x, Tool) else x for x in tools]
+            init_token_count = lm.token_count
+            gen_grammar = pattern + select([stop_pattern] + [capture(commit_point(x.call_grammar, hidden=hide_tool_call), name=f'tool{i}') for i, x in enumerate(tools)])
+            while lm.token_count <= max_tokens + init_token_count:
+                lm = lm._run_stateless(gen_grammar, temperature=temperature) # TODO: we should not be using this internal method
+                tool_called = False
+                for i in range(len(tools)):
+                    tool_i = f'tool{i}'
+                    if tool_i in lm:
+                        tool_called = True
+                        lm += tools[i].tool_call()
+                        lm = lm.remove(tool_i)
+                if not tool_called:
+                    lm += suffix
+                    break
     elif n == 1:
         lm += with_temperature(pattern + stop_pattern + suffix, temperature)
 
