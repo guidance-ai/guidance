@@ -7,11 +7,10 @@ import types
 
 import requests
 
-from . import models, selectors
+from . import models
 from ._grammar import (Placeholder, StatefulFunction, StatelessFunction,
                        Terminal, replace_grammar_node, string)
-from ._utils import (CaptureEvents, TextRange, chain, load,
-                     strip_multiline_string_indents)
+from ._utils import load, strip_multiline_string_indents
 
 curr_module = sys.modules[__name__]
 
