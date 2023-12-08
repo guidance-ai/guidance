@@ -38,7 +38,7 @@ class Mock(Model):
         self._cache_state["logits"] = None
         self.eos_token = b"<s>"
 
-    def _get_logits(self, token_ids, forced_bytes):
+    def _get_logits(self, token_ids, forced_bytes, current_temp):
         '''Pretends to compute the logits for the given token state.
         '''
 

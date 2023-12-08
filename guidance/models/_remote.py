@@ -123,7 +123,7 @@ class Remote(Model):
         self._shared_state["not_running_stream"].set()
         dqueue.put(b'') # so we never get stuck waiting for a running stream to return something
 
-    def _start_new_stream(self, prompt):
+    def _start_new_stream(self, prompt, temperature):
 
         if self._shared_state["num_calls_made"] > self.max_repeated_calls:
             raise Exception(f"We have exceeded the maximum number of repeat calls ({self.max_repeated_calls}) per grammar execution!")
@@ -138,15 +138,17 @@ class Remote(Model):
             self._shared_state["data_queue"].get()
 
         # start the new stream
+        self._shared_state["used_bytes_len"] = 0
+        self._shared_state["current_temp"] = temperature
         self._shared_state["last_call"] = time.time()
-        generator = self._generator(prompt)
+        generator = self._generator(prompt, temperature)
         self._shared_state["not_running_stream"].clear() # so we know we are running
         self._shared_state["num_calls_made"] += 1
         self._shared_state["data"] = prompt # we reset out current data state to be this prompt
         self._shared_state["remote_thread"] = threading.Thread(target=self._start_generator_stream, args=(generator,))
         self._shared_state["remote_thread"].start()
     
-    def _get_logits(self, token_ids, forced_bytes):
+    def _get_logits(self, token_ids, forced_bytes, current_temp):
         '''Computes the logits for the given token state.
         
         This overrides a method from the Local class that is used to get
@@ -159,7 +161,8 @@ class Remote(Model):
             raise ValueError("token_ids must contain some tokens.")
         
         # compute the prompt bytes
-        prompt = b''.join([self.tokens[i] for i in token_ids]) + forced_bytes
+        whole_token_prompt = b''.join([self.tokens[i] for i in token_ids])
+        prompt = whole_token_prompt + forced_bytes
 
         self._shared_state["last_call"] = time.time()
 
@@ -168,11 +171,27 @@ class Remote(Model):
         restarted = False # track if we have restarted the data stream during this call
         while True:
 
+            # if the generation temperature changes we have to restart
+            if self._shared_state.get("current_temp", None) != current_temp:
+                self._start_new_stream(prompt, current_temp)
+                continue
+
             # try and get the next token id
-            if self._shared_state["data"].startswith(prompt):
+            elif self._shared_state["data"].startswith(prompt):
                 token_id = self._get_next_token(len(prompt)-len(forced_bytes))
                 if token_id is not None:
-                    break
+                    
+                    # if we have a non-zero sampling temperature we can't reuse bytes
+                    new_used_len = len(whole_token_prompt) + len(self.tokens[token_id])
+                    if current_temp > 0 and self._shared_state["used_bytes_len"] >= new_used_len:
+                        token_id = None
+                        self._start_new_stream(prompt, current_temp)
+                        continue
+                    
+                    # ...otherwise we have found the token id we want to emit
+                    else:
+                        self._shared_state["used_bytes_len"] = len(whole_token_prompt) + len(self.tokens[token_id])
+                        break
 
             # restart if extending our data will never lead to matching our prompt
             elif not self._shared_state["data"].startswith(prompt) and len(self._shared_state["data"]) >= len(prompt): #not prompt.startswith(self._shared_state["data"]): # len(self._shared_state["data"]) >= len(prompt) or 
@@ -216,7 +235,7 @@ class Remote(Model):
 
                 logger.debug(f'restarting a stream because the data we have does not match the ids. We have {str(self._shared_state["data"])} but the prompt is {str(prompt)}')
                 restarted = True
-                self._start_new_stream(prompt)
+                self._start_new_stream(prompt, current_temp)
 
             # extend our data with a chunk from the model stream
             if not self._shared_state["data_queue"].empty():
@@ -235,7 +254,7 @@ class Remote(Model):
             elif self._shared_state["not_running_stream"].is_set():
                 logger.debug("starting a new stream because there is no data to read and no stream running...")
                 restarted = True
-                self._start_new_stream(prompt)
+                self._start_new_stream(prompt, current_temp)
 
             # we wait for the running stream to put something in the queue
             else:

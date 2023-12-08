@@ -518,7 +518,7 @@ type {function['name']} = (_: {{"""
 
         return lm
     
-    def _get_logits(self, token_ids, forced_bytes):
+    def _get_logits(self, token_ids, forced_bytes, current_temp):
         '''A fake method designed to be overriden by subclasses.'''
 
         # pretend to extend the KV cache and update the log probs
@@ -762,7 +762,9 @@ type {function['name']} = (_: {{"""
                 if was_forced:
                     token_ids,token_byte_positions = self._cleanup_tokens(token_ids, token_byte_positions)
                     was_forced = False
-                logits = self._get_logits(token_ids, parser.bytes[start_pos:forced_pos])
+                grammar_temp = parser.next_byte_temperature()
+                current_temp = grammar_temp if grammar_temp >= 0 else temperature # we prefer to use the grammar temp when it is specified
+                logits = self._get_logits(token_ids, parser.bytes[start_pos:forced_pos], current_temp)
 
                 # if requested we compute the log probabilities so we can track the probabilities of each node
                 if self.compute_log_probs:
@@ -778,8 +780,6 @@ type {function['name']} = (_: {{"""
                     probs = None
 
                 # get the sampling order
-                grammar_temp = parser.next_byte_temperature()
-                current_temp = grammar_temp if grammar_temp >= 0 else temperature # we prefer to use the grammar temp when it is specified
                 if current_temp == 0:
                     sampling_order = np.argsort(-logits) # we need numpy so the enumerate below does not get really slow...
                 else:

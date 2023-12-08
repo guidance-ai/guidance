@@ -70,7 +70,7 @@ class VertexAI(Remote):
 
 class VertexAICompletion(VertexAI):
 
-    def _generator(self, prompt):
+    def _generator(self, prompt, temperature):
         self._shared_state["not_running_stream"].clear() # so we know we are running
         self._shared_state["data"] = prompt # we start with this data
 
@@ -81,7 +81,7 @@ class VertexAICompletion(VertexAI):
             generator = self.model_obj.predict_streaming(
                 prompt.decode("utf8"),
                 #top_p=self.top_p,
-                temperature=self.temperature,
+                temperature=temperature,
                 **kwargs
             )
         except Exception as e: # TODO: add retry logic
@@ -101,7 +101,7 @@ class VertexAIInstruct(VertexAI, Instruct):
         else:
             raise Exception(f"The VertexAIInstruct model does not know about the {name} role type!")
 
-    def _generator(self, prompt):
+    def _generator(self, prompt, temperature):
         # start the new stream
         prompt_end = prompt.find(b'<|endofprompt|>')
         if prompt_end >= 0:
@@ -113,14 +113,14 @@ class VertexAIInstruct(VertexAI, Instruct):
         kwargs = {}
         if self.max_streaming_tokens is not None:
             kwargs["max_output_tokens"] = self.max_streaming_tokens
-        for chunk in self.model_obj.predict_streaming(self._shared_state["data"].decode("utf8"), **kwargs):
+        for chunk in self.model_obj.predict_streaming(self._shared_state["data"].decode("utf8"), temperature=temperature, **kwargs):
             yield chunk.text.encode("utf8")
 
 class VertexAIChat(VertexAI, Chat):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def _generator(self, prompt):
+    def _generator(self, prompt, temperature):
         
         # find the system text
         pos = 0
@@ -183,7 +183,7 @@ class VertexAIChat(VertexAI, Chat):
         kwargs = {}
         if self.max_streaming_tokens is not None:
             kwargs["max_output_tokens"] = self.max_streaming_tokens
-        generator = chat_session.send_message_streaming(last_user_text, **kwargs)
+        generator = chat_session.send_message_streaming(last_user_text, temperature=temperature, **kwargs)
 
         for chunk in generator:
             yield chunk.text.encode("utf8")
