@@ -5,7 +5,7 @@ import time
 import tiktoken
 import re
 import logging
-from ._model import Model, format_pattern
+from ._model import Model, format_pattern, ConstraintException
 
 logger = logging.getLogger(__name__)
 
@@ -165,6 +165,7 @@ class Remote(Model):
 
         # keep looping until we have at least one more byte past our prompt
         token_id = None
+        restarted = False # track if we have restarted the data stream during this call
         while True:
 
             # try and get the next token id
@@ -176,12 +177,20 @@ class Remote(Model):
             # restart if extending our data will never lead to matching our prompt
             elif not self._shared_state["data"].startswith(prompt) and len(self._shared_state["data"]) >= len(prompt): #not prompt.startswith(self._shared_state["data"]): # len(self._shared_state["data"]) >= len(prompt) or 
 
+                # check if we have already restarted once and so retrying by default is not likely to be helpful
+                if restarted:
+                    raise self._report_failed_match(prompt)
+
                 # check the length of the prefix match
                 match_len = 0
+                found_mismatch = False
                 data = self._shared_state["data"]
                 for match_len,v in enumerate(prompt):
                     if v != data[match_len]:
+                        found_mismatch = True
                         break
+                if not found_mismatch:
+                    match_len = len(prompt)
                 leftover = prompt[match_len:]
 
                 # record any active non-empty role ends. Ignore role ends that are spaces
@@ -206,6 +215,7 @@ class Remote(Model):
                     continue # start our loop over again
 
                 logger.debug(f'restarting a stream because the data we have does not match the ids. We have {str(self._shared_state["data"])} but the prompt is {str(prompt)}')
+                restarted = True
                 self._start_new_stream(prompt)
 
             # extend our data with a chunk from the model stream
@@ -224,6 +234,7 @@ class Remote(Model):
             # but if there is nothing and we are not running then we start a stream
             elif self._shared_state["not_running_stream"].is_set():
                 logger.debug("starting a new stream because there is no data to read and no stream running...")
+                restarted = True
                 self._start_new_stream(prompt)
 
             # we wait for the running stream to put something in the queue
@@ -246,6 +257,45 @@ class Remote(Model):
         logits[token_id] = 100
         
         return logits
+    
+    def _report_failed_match(self, prompt):
+
+        # check the length of the prefix match
+        match_len = 0
+        found_mismatch = False
+        data = self._shared_state["data"]
+        for match_len,v in enumerate(prompt):
+            if v != data[match_len]:
+                found_mismatch = True
+                break
+        if not found_mismatch:
+            match_len = len(prompt)
+        leftover = prompt[match_len:]
+
+        # compute the mismatch parts
+        data_after_prompt = self._shared_state["data"][match_len:]
+        if len(data_after_prompt) > 40:
+            data_after_prompt = data_after_prompt[:40] + b"..."
+        prompt_tail = prompt[:match_len]
+        if len(prompt_tail) > 40:
+            prompt_tail = b"..." + prompt_tail[-40:]
+
+        # show in the model output where and how we diverged from the grammar
+        try:
+            # just for display when echo is on
+            already_shown = len(self._current_prompt().encode())
+            self += self._shared_state["data"][already_shown:match_len].decode() + f"<||_html:<span style='color: rgba(165,0,0,1);' title='{leftover}'><span style='text-decoration: underline;'>{data_after_prompt.decode()}</span></span>_||>"
+        except:
+            pass # could not decode the data the model generated into a string...
+        
+        # create an exception for users to deal with (that our caller can throw)
+        return ConstraintException(
+            f"The model attempted to generate {str(data_after_prompt)} after the prompt `{prompt_tail}`, but that does\n" +
+            "not match the given grammar constraints! Since your model is a remote API that does not support full guidance\n" +
+            "integration we cannot force the model to follow the grammar, only flag an error when it fails to match.\n" +
+            "You can try to address this by improving the prompt, making your grammar more flexible, rerunning with\n" +
+            "a non-zero temperature, or using a model that supports full guidance grammar constraints."
+        )
     
     def _get_next_token(self, pos, allow_early_stop=False):
         data = self._shared_state["data"]

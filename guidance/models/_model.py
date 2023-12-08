@@ -451,6 +451,11 @@ type {function['name']} = (_: {{"""
             delayed_bytes = b""
             # last_is_generated = False
             for new_bytes, is_generated, new_bytes_prob, capture_groups, capture_group_log_probs, new_token_count in gen_obj:
+
+                # we make everything full probability if we are not computing uncertainty
+                if not lm.compute_log_probs:
+                    new_bytes_prob = 1.0
+                
                 # convert the bytes to a string (delaying if we don't yet have a valid unicode string)
                 lm.token_count += new_token_count
                 new_bytes = delayed_bytes + new_bytes
@@ -596,6 +601,10 @@ type {function['name']} = (_: {{"""
             probs[j] += probs[i]
             probs[i] = 0
 
+    def _report_failed_match(self):
+        """Note that this can be overridden by subclasses that have more likely reasons than a bug in the token set (like remote models)."""
+        return Exception("We can't consume any more tokens, but we are not yet done! Perhaps your model's token set is incomplete?")
+
     def __call__(self, grammar, max_tokens=1000000, n=1, top_p=1, temperature=0.0, ensure_bos_token=True):
         assert n == 1, "Still need to add support for n > 1!"
         
@@ -612,8 +621,10 @@ type {function['name']} = (_: {{"""
         token_ids,token_byte_positions = self._cleanup_tokens(token_ids,token_byte_positions)
         if len(token_byte_positions) > 0:
             pre_parser_bytes = token_byte_positions[-1]
+            trimmed_prompt_prefix = prompt[:token_byte_positions[-1]]
             prompt = prompt[token_byte_positions[-1]:]
         else:
+            trimmed_prompt_prefix = b''
             pre_parser_bytes = 0
         
         # create a parser with a grammar that includes both our context and the passed grammar
@@ -795,6 +806,10 @@ type {function['name']} = (_: {{"""
                     parser.pos = forced_pos
                     new_bytes_prob = 1.0
 
+                    # if we have gotten to the end of the valid tokens then we stop
+                    # if logits[sampled_token_ind] == -np.inf:
+                    #     raise self._report_failed_match(trimmed_prompt_prefix + parser.bytes)
+
                     # make sure it matches any forced prefix
                     if start_pos < forced_pos and not sampled_token.startswith(parser.bytes[start_pos:forced_pos]):
                         continue
@@ -899,8 +914,11 @@ type {function['name']} = (_: {{"""
 
             # if we cannot consume any more tokens then we are done
             if not is_forced and token_pos < len(sampled_token) and trie == self._token_trie:
-                assert parser.matched(), "We can't consume any more tokens, but we are not yet done! Perhaps your model's token set is incomplete?"
 
+                # which if can't consume any more tokens, but we are not yet done
+                if not parser.matched():
+                    raise self._report_failed_match(trimmed_prompt_prefix + parser.bytes)
+                
                 # TODO: if we exactly match the end of the pattern then we can commit to this last token 
                 # if m.span()[1] == len(generated_text):
                 #     self._cache_state["new_token_ids"].append(sampled_token_ind)
@@ -995,6 +1013,9 @@ class ThrottleRefresh:
 def throttle_refresh():
     '''Returns a context manager that allows the print statement to drop display calls above the throttle rate.'''
     return ThrottleRefresh()
+
+class ConstraintException(Exception):
+    pass
 
 def _record_captures(initial_item, data, log_prob_data, byte_data):
     stack = [(initial_item, 0)]
