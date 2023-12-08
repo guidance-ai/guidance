@@ -23,7 +23,7 @@ except ImportError:
 chat_model_pattern = r'^(ft:)?(gpt-3\.5-turbo|gpt-4)(?:(?!-instruct$)(-\w+)+)?(:[\w-]+(?:[:\w-]+)*)?(::\w+)?$'
 
 class OpenAI(Remote):
-    def __init__(self, model, tokenizer=None, echo=True, caching=True, api_key=None, organization=None, base_url=r"https://api.openai.com/v1", temperature=0.0, top_p=1.0, max_streaming_tokens=1000, **kwargs):
+    def __init__(self, model, tokenizer=None, echo=True, caching=True, api_key=None, organization=None, base_url=None, temperature=0.0, top_p=1.0, max_streaming_tokens=1000, **kwargs):
         if not is_openai or not hasattr(openai_package, "OpenAI"):
             raise Exception("Please install the openai package version >= 1 using `pip install openai -U` in order to use guidance.models.OpenAI!")
         
@@ -47,13 +47,6 @@ class OpenAI(Remote):
             self.__class__ = found_subclass
             found_subclass.__init__(self, model, tokenizer=tokenizer, echo=echo, caching=caching, api_key=api_key, organization=organization, base_url=base_url, temperature=temperature, max_streaming_tokens=max_streaming_tokens, **kwargs)
             return # we return since we just ran init above and don't need to run again
-
-        # Configure an AsyncOpenAI Client with user params.
-        if api_key is None:
-            api_key = os.environ.get("OPENAI_API_KEY")
-
-        if organization is None:
-            organization = os.environ.get("OPENAI_ORG_ID")
 
         self.client = openai_package.OpenAI(api_key=api_key, organization=organization, base_url=base_url)
         self.model_name = model
