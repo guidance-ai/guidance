@@ -75,14 +75,14 @@ def test_openai_chat_without_roles():
 def test_openai_chat_loop():
     # tests issue #509
     try:
-        lm = guidance.models.OpenAI("gpt-3.5-turbo", echo=False)
+        model = guidance.models.OpenAI("gpt-3.5-turbo", echo=False)
     except:
         pytest.skip("Skipping OpenAI test because we can't load the model!")
 
     for i in range(2):
 
         with system():
-            lm = llm + "You will just return whatever number I give you"
+            lm = model + "You will just return whatever number I give you"
         
         with user():
             lm += f'The number is: {i}'
