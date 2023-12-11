@@ -63,7 +63,7 @@ class OpenAI(Remote):
 
 class OAICompletionMixin(Instruct):
 
-    def _generator(self, prompt):
+    def _generator(self, prompt, temperature):
         self._shared_state["not_running_stream"].clear() # so we know we are running
         self._shared_state["data"] = prompt # we start with this data
 
@@ -74,7 +74,7 @@ class OAICompletionMixin(Instruct):
                 max_tokens=self.max_streaming_tokens, 
                 n=1, 
                 top_p=self.top_p, 
-                temperature=self.temperature, 
+                temperature=temperature, 
                 stream=True
             )
         except Exception as e: # TODO: add retry logic
@@ -97,7 +97,7 @@ class OAIInstructMixin(Instruct):
         else:
             raise Exception(f"The OpenAIInstruct model does not know about the {name} role type!")
 
-    def _generator(self, prompt):
+    def _generator(self, prompt, temperature):
         # start the new stream
         prompt_end = prompt.find(b'<|endofprompt|>')
         if prompt_end >= 0:
@@ -119,7 +119,7 @@ class OAIInstructMixin(Instruct):
                 max_tokens=self.max_streaming_tokens, 
                 n=1, 
                 top_p=self.top_p, 
-                temperature=self.temperature, 
+                temperature=temperature, 
                 stream=True
             )
         except Exception as e: # TODO: add retry logic
@@ -133,7 +133,7 @@ class OAIInstructMixin(Instruct):
             yield chunk.encode("utf8")
 
 class OAIChatMixin(Chat):
-    def _generator(self, prompt):
+    def _generator(self, prompt, temperature):
 
         # find the role tags
         pos = 0
@@ -174,7 +174,7 @@ class OAIChatMixin(Chat):
                 max_tokens=self.max_streaming_tokens,
                 n=1,
                 top_p=self.top_p,
-                temperature=self.temperature,
+                temperature=temperature,
                 stream=True
             )
         except Exception as e: # TODO: add retry logic

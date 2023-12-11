@@ -45,7 +45,16 @@ class Transformers(Model):
                 byte_coded = bytes([tkz.byte_decoder[c] for c in tkz.convert_ids_to_tokens(i)])
                 byte_tokens.append(byte_coded)
         else:
-            byte_tokens = [bytes(tkz.convert_tokens_to_string(['a', tkz.convert_ids_to_tokens(i)])[1:], encoding="utf8") for i in range(len(tkz))]
+            byte_tokens = []
+            for i in range(len(tkz)):
+                s = tkz.convert_tokens_to_string(['a', tkz.convert_ids_to_tokens(i)])
+                if s[0] == 'a':
+                    s = s[1:]
+                elif s[1] == 'a':
+                    s = s[2:]
+                else:
+                    raise Exception("Can't determine tokenstring representation!")
+                byte_tokens.append(bytes(s, encoding="utf8"))
 
         # the superclass does most of the work once we have the tokens
         super().__init__(
@@ -59,6 +68,9 @@ class Transformers(Model):
         self._cache_state["past_key_values"] = None
         self._cache_state["logits"] = None
         self._cache_state["cache_token_ids"] = []
+
+    def _joint_tokenize(self, token_ids):
+        return self._orig_tokenizer(self._orig_tokenizer.decode(token_ids), add_special_tokens=False)["input_ids"]
 
     def _model_and_tokenizer(self, model, tokenizer, **kwargs):
 
@@ -82,7 +94,7 @@ class Transformers(Model):
             
         return model, tokenizer
 
-    def _get_logits(self, token_ids, forced_bytes):
+    def _get_logits(self, token_ids, forced_bytes, current_temp):
         '''Computes the logits for the given token state.
         
         This overrides a method from the LocalEngine class that is used to get

@@ -93,7 +93,7 @@ class LlamaCpp(Model):
         byte_string = b"".join([self.tokens[t] for t in token_ids])
         return self.model_obj.tokenize(byte_string, add_bos=False, special=True)
 
-    def _get_logits(self, token_ids, forced_bytes):
+    def _get_logits(self, token_ids, forced_bytes, current_temp):
         '''Computes the logits for the given token state.
         
         This overrides a method from the LocalEngine class that is used to get
