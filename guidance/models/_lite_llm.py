@@ -47,7 +47,7 @@ class LiteLLM(Remote):
 
 class LiteLLMCompletion(LiteLLM, Instruct):
 
-    def _generator(self, prompt):
+    def _generator(self, prompt, temperature):
         self._shared_state["not_running_stream"].clear() # so we know we are running
         self._shared_state["data"] = prompt # we start with this data
 
@@ -58,7 +58,7 @@ class LiteLLMCompletion(LiteLLM, Instruct):
                 max_tokens=self.max_streaming_tokens,
                 n=1,
                 top_p=1,
-                temperature=0,
+                temperature=temperature,
                 stream=True
             )
         except Exception as e: # TODO: add retry logic
@@ -79,7 +79,7 @@ class LiteLLMInstruct(LiteLLM, Instruct):
         else:
             raise Exception(f"The LiteLLMInstruct model does not know about the {name} role type!")
 
-    def _generator(self, prompt):
+    def _generator(self, prompt, temperature):
         # start the new stream
         prompt_end = prompt.find(b'<|endofprompt|>')
         if prompt_end >= 0:
@@ -102,7 +102,7 @@ class LiteLLMInstruct(LiteLLM, Instruct):
                 max_tokens=self.max_streaming_tokens, 
                 n=1, 
                 top_p=1, 
-                temperature=0, 
+                temperature=temperature, 
                 stream=True
             )
         except Exception as e: # TODO: add retry logic
@@ -116,7 +116,7 @@ class LiteLLMChat(LiteLLM, Chat):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def _generator(self, prompt):
+    def _generator(self, prompt, temperature):
         
         # find the system text
         pos = 0
@@ -151,7 +151,7 @@ class LiteLLMChat(LiteLLM, Chat):
                 max_tokens=self.max_streaming_tokens, 
                 n=1, 
                 top_p=1, 
-                temperature=0, 
+                temperature=temperature, 
                 stream=True
             )
         except Exception as e: # TODO: add retry logic
