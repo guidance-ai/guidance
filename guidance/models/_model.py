@@ -591,6 +591,11 @@ type {function['name']} = (_: {{"""
             for i,id in enumerate(joint_token_ids):
                 pos += len(self.tokens[id])
                 token_byte_positions.append(pos)
+            
+            # ugly hack to deal with sentence peice craziness of space hiding after special tokens TODO: figure out how to make this more robust
+            if token_byte_positions[-1] == last_pos + 1 and self.tokens[token_ids[0]] == b'<s>' and self.tokens[token_ids[1]][0:1] == b' ':
+                for i in range(1, len(token_byte_positions)):
+                    token_byte_positions[i] -= 1
             assert token_byte_positions[-1] == last_pos
         
         return token_ids, token_byte_positions
