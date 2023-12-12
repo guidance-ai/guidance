@@ -774,14 +774,12 @@ type {function['name']} = (_: {{"""
                 # if requested we compute the log probabilities so we can track the probabilities of each node
                 if self.compute_log_probs:
                     if torch:
-                        probs_torch = torch.nn.functional.softmax(torch.tensor(logits), dim=-1)
-                        probs = probs_torch.cpu().numpy() # note we don't adjust for temp since we consider that a sampling step, not part of the probs
+                        probs = torch.nn.functional.softmax(torch.tensor(logits), dim=-1).cpu().numpy() # note we don't adjust for temp since we consider that a sampling step, not part of the probs
                     else:
                         probs = softmax(logits, axis=-1) # this numpy code is slower, so we don't use it if we have torch...
                     self._clean_duplicate_tokens(probs)
                     trie.compute_probs(probs) # C++ impl
                 else:
-                    probs_torch = None
                     probs = None
 
                 # get the sampling order
@@ -790,10 +788,9 @@ type {function['name']} = (_: {{"""
                 else:
                     assert top_p == 1, "Still need to add support for top_p!"
                     if torch:
-                        if probs_torch is None:
-                            logits = torch.tensor(logits)
-                            torch.div(logits, current_temp, out=logits)
-                            probs_torch = torch.nn.functional.softmax(logits, dim=-1)
+                        logits = torch.tensor(logits)
+                        torch.div(logits, current_temp, out=logits)
+                        probs_torch = torch.nn.functional.softmax(logits, dim=-1)
                         sampling_order = torch.multinomial(probs_torch, len(probs_torch)).cpu().numpy()
                     else:
                         # this numpy version allows us to drop our dependence on pytorch...but it is way slower
