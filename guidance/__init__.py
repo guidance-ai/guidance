@@ -4,7 +4,6 @@ import functools
 import os
 import sys
 import types
-
 import requests
 
 from . import models
