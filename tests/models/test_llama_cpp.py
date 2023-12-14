@@ -36,7 +36,7 @@ def test_repeat_calls():
     a = []
     lm = llama2 + 'How much is 2 + 2? ' + gen(name='test', max_tokens=10)
     a.append(lm['test'])
-    lm = llama2 + 'How much is 2 + 2? ' + gen(name='test',max_tokens=10, pattern=r'\d+')
+    lm = llama2 + 'How much is 2 + 2? ' + gen(name='test',max_tokens=10, regex=r'\d+')
     a.append(lm['test'])
     lm = llama2 + 'How much is 2 + 2? ' + gen(name='test', max_tokens=10)
     a.append(lm['test'])

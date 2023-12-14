@@ -1,5 +1,6 @@
 # import functions that can be called directly
 from ._gen import gen, call_tool, will_gen
+from ._image import image
 
 # core grammar functions
 from .._grammar import select

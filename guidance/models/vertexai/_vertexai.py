@@ -51,6 +51,10 @@ class VertexAI(Remote):
             # PaLM2Chat
             elif re.match("chat-bison(@[0-9]+)?", model_name):
                 found_subclass = vertexai.PaLM2Chat
+
+            # Gemini2Chat
+            elif re.match("gemini-pro(@[0-9]+)?", model_name):
+                found_subclass = vertexai.GeminiChat
             
             # convert to any found subclass
             if found_subclass is not None:
@@ -149,8 +153,8 @@ class VertexAIChat(VertexAI, Chat):
                 end_pos = prompt[pos:].find(role_end)
                 if end_pos < 0:
                     break
-                messages.append(vertexai.language_models.ChatMessage(
-                    author="user",
+                messages.append(dict(
+                    role="user",
                     content=prompt[pos:pos+end_pos].decode("utf8"),
                 ))
                 pos += end_pos + len(role_end)
@@ -160,23 +164,39 @@ class VertexAIChat(VertexAI, Chat):
                 if end_pos < 0:
                     valid_end = True
                     break
-                messages.append(vertexai.language_models.ChatMessage(
-                    author="assistant",
+                messages.append(dict(
+                    role="assistant",
                     content=prompt[pos:pos+end_pos].decode("utf8"),
                 ))
                 pos += end_pos + len(role_end)
+            else:
+                raise Exception("It looks like your prompt is not a well formed chat prompt! Please enclose all model state appends inside chat role blocks like `user()` or `assistant()`.")
             
         self._shared_state["data"] = prompt[:pos]
 
         assert len(messages) > 0, "Bad chat format! No chat blocks were defined."
-        assert messages[-1].author == "user", "Bad chat format! There must be a user() role before the last assistant() role."
+        assert messages[-1]["role"] == "user", "Bad chat format! There must be a user() role before the last assistant() role."
         assert valid_end, "Bad chat format! You must generate inside assistant() roles."
 
         # TODO: don't make a new session on every call
-        last_user_text = messages.pop().content
+        # last_user_text = messages.pop().content
         
+        return self._start_generator(system_text.decode("utf8"), messages, temperature)
+
+        # kwargs = {}
+        # if self.max_streaming_tokens is not None:
+        #     kwargs["max_output_tokens"] = self.max_streaming_tokens
+        # generator = chat_session.send_message_streaming(last_user_text, temperature=temperature, **kwargs)
+
+        # for chunk in generator:
+        #     yield chunk.text.encode("utf8")
+
+    def _start_generator(self, system_text, messages, temperature):
+        messages = [vertexai.language_models.ChatMessage(author=m["role"], content=m["content"]) for m in messages]
+        last_user_text = messages.pop().content
+
         chat_session = self.model_obj.start_chat(
-            context=system_text.decode("utf8"),
+            context=system_text,
             message_history=messages,
         )
 

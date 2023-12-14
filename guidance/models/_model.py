@@ -14,6 +14,8 @@ import copy
 import time
 import numpy as np
 import logging
+import base64
+
 logger = logging.getLogger(__name__)
 try:
     from .. import cpp
@@ -29,6 +31,7 @@ _null_grammar = string('')
 format_pattern = re.compile(r"<\|\|_.*?_\|\|>", flags=re.DOTALL)
 nodisp_pattern = re.compile(r"&lt;\|\|_#NODISP_\|\|&gt;.*?&lt;\|\|_/NODISP_\|\|&gt;", flags=re.DOTALL)
 html_pattern = re.compile(r"&lt;\|\|_html:(.*?)_\|\|&gt;", flags=re.DOTALL)
+image_pattern = re.compile(r"&lt;\|_image:(.*?)\|&gt;")
 
 class Model:
     '''A guidance model object, which represents a sequence model in a given state.
@@ -122,7 +125,8 @@ class Model:
         display_out = html.escape(display_out)
         display_out = nodisp_pattern.sub("", display_out)
         display_out = html_pattern.sub(lambda x: html.unescape(x.group(1)), display_out)
-        display_out = "<pre style='margin: 0px; padding: 0px; padding-left: 8px; margin-left: -8px; border-radius: 0px; border-left: 1px solid rgba(127, 127, 127, 0.2); white-space: pre-wrap; font-family: ColfaxAI, Arial; font-size: 15px; line-height: 23px;'>"+display_out+"</pre>"
+        display_out = image_pattern.sub(lambda x: '<img src="data:image/png;base64,' + base64.b64encode(self[x.groups(1)[0]]).decode() + '" style="max-width: 400px; vertical-align: middle; margin: 4px;">', display_out)
+        display_out = "<pre style='margin: 0px; padding: 0px; vertical-align: middle; padding-left: 8px; margin-left: -8px; border-radius: 0px; border-left: 1px solid rgba(127, 127, 127, 0.2); white-space: pre-wrap; font-family: ColfaxAI, Arial; font-size: 15px; line-height: 23px;'>"+display_out+"</pre>"
         return display_out
     
     def _send_to_event_queue(self, value):

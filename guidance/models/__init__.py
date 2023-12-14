@@ -1,5 +1,5 @@
 from ._model import Model, Chat
-from .vertexai._vertexai import VertexAI, VertexAIChat
+from .vertexai._vertexai import VertexAI, VertexAIChat, VertexAICompletion, VertexAIInstruct
 from ._azure_openai import AzureOpenAI, AzureOpenAIChat, AzureOpenAICompletion, AzureOpenAIInstruct
 from ._openai import OpenAI, OpenAIChat, OpenAIInstruct, OpenAICompletion
 from .transformers._transformers import Transformers, TransformersChat
