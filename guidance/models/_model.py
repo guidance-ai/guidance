@@ -294,6 +294,8 @@ class Model:
             # run stateful functions
             else:
                 out = value(lm)
+                if out is None:
+                    raise Exception(f"A guidance function did not return a model object! Did you forget to return the new lm at the end of your function?")
         
         # this flushes the display
         out._inplace_append("")
