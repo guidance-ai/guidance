@@ -1,8 +1,5 @@
 name: Build wheels
 
-permissions:
-  id-token: write
-
 on:
   release:
     types: [published]
@@ -89,6 +86,8 @@ jobs:
           path: dist/*.tar.gz
 
   publish_wheels:
+    permissions:
+      id-token: write
     name: Publish wheels on pypi
     needs: [build_wheels, build_sdist]
     runs-on: ubuntu-latest
