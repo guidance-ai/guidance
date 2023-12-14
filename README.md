@@ -156,7 +156,7 @@ with assistant():
 ```
 <img width="645" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/f31ed7b8-1868-44d2-b14c-4842b0a40e5c"><br>
 
-14. **Multi-model support.**
+14. **Multi-modal support.**
 ```python
 from guidance import image
 
