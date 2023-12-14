@@ -1,5 +1,8 @@
 name: Build wheels
 
+permissions:
+  id-token: write
+
 on:
   release:
     types: [published]
