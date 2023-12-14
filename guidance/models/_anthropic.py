@@ -45,7 +45,7 @@ class Anthropic(Remote):
             max_streaming_tokens=max_streaming_tokens, **kwargs
         )
 
-class AnthropicChat(Anthropic, Instruct):
+class AnthropicChat(Anthropic, Chat):
     def get_role_start(self, role_name, **kwargs):
         if role_name == "user":
             return "\n\nHuman:"
@@ -53,11 +53,14 @@ class AnthropicChat(Anthropic, Instruct):
             return "\n\nAssistant:"
         if role_name == "system":
             return ""
+    
     def get_role_end(self, role_name=None):
         return ""
+    
     def _generator(self, prompt, temperature):
-        self._shared_state["not_running_stream"].clear() # so we know we are running
-        self._shared_state["data"] = prompt # we start with this data
+
+        # update our shared data state
+        self._reset_shared_data(prompt, temperature)
 
         try:
             generator = self.anthropic.completions.create(

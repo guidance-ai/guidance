@@ -5,8 +5,8 @@ import operator
 
 import numpy as np
 
-from ._model import Model, Chat
-from .._utils import normalize_notebook_stdout_stderr
+from .._model import Model, Chat
+from ..._utils import normalize_notebook_stdout_stderr
 
 try:
     import llama_cpp

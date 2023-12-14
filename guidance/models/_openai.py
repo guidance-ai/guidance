@@ -64,8 +64,8 @@ class OpenAI(Remote):
 class OAICompletionMixin(Instruct):
 
     def _generator(self, prompt, temperature):
-        self._shared_state["not_running_stream"].clear() # so we know we are running
-        self._shared_state["data"] = prompt # we start with this data
+        
+        self._reset_shared_data(prompt, temperature) # update our shared data state
 
         try:
             generator = self.client.completions.create(
@@ -109,8 +109,8 @@ class OAIInstructMixin(Instruct):
         if b'<|endofprompt|>' in prompt[prompt_end + len(b'<|endofprompt|>'):]:
             raise Exception("This model has been given two separate instruct blocks, but this is not allowed!")
         
-        self._shared_state["not_running_stream"].clear() # so we know we are running
-        self._shared_state["data"] = stripped_prompt + b'<|endofprompt|>'# we start with this data
+        # update our shared data state
+        self._reset_shared_data(stripped_prompt + b'<|endofprompt|>', temperature)
 
         try:
             generator = self.client.completions.create(
@@ -157,7 +157,7 @@ class OAIChatMixin(Chat):
                     found = True
                     break
         
-        self._shared_state["data"] = prompt[:pos]
+        
         
         # Add nice exception if no role tags were used in the prompt.
         # TODO: Move this somewhere more general for all chat models?
@@ -165,6 +165,9 @@ class OAIChatMixin(Chat):
             raise ValueError(f"The OpenAI model {self.model_name} is a Chat-based model and requires role tags in the prompt! \
             Make sure you are using guidance context managers like `with system():`, `with user():` and `with assistant():` \
             to appropriately format your guidance program for this type of model.")
+        
+        # update our shared data state
+        self._reset_shared_data(prompt[:pos], temperature)
 
         try:
                 

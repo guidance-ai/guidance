@@ -144,9 +144,15 @@ class Remote(Model):
         generator = self._generator(prompt, temperature)
         self._shared_state["not_running_stream"].clear() # so we know we are running
         self._shared_state["num_calls_made"] += 1
-        self._shared_state["data"] = prompt # we reset out current data state to be this prompt
         self._shared_state["remote_thread"] = threading.Thread(target=self._start_generator_stream, args=(generator,))
         self._shared_state["remote_thread"].start()
+
+    def _reset_shared_data(self, new_data, temperature):
+        """Should be called by _generator calls to reset the shared data state."""
+        if temperature == 0 and self._shared_state.get("last_stream_start", None) == new_data:
+            raise self._report_failed_match(new_data)
+        self._shared_state["data"] = new_data
+        self._shared_state["last_stream_start"] = self._shared_state["data"]
     
     def _get_logits(self, token_ids, forced_bytes, current_temp):
         '''Computes the logits for the given token state.

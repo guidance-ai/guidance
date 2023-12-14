@@ -48,8 +48,9 @@ class LiteLLM(Remote):
 class LiteLLMCompletion(LiteLLM, Instruct):
 
     def _generator(self, prompt, temperature):
-        self._shared_state["not_running_stream"].clear() # so we know we are running
-        self._shared_state["data"] = prompt # we start with this data
+        
+        # update our shared data state
+        self._reset_shared_data(prompt, temperature)
 
         try:
             generator = self.litellm.completion(
@@ -91,8 +92,8 @@ class LiteLLMInstruct(LiteLLM, Instruct):
         if b'<|endofprompt|>' in prompt[prompt_end + len(b'<|endofprompt|>'):]:
             raise Exception("This model has been given two separate instruct blocks, but this is not allowed!")
         
-        self._shared_state["not_running_stream"].clear() # so we know we are running
-        self._shared_state["data"] = stripped_prompt + b'<|endofprompt|>'# we start with this data
+        # update our shared data state
+        self._reset_shared_data(stripped_prompt + b'<|endofprompt|>', temperature)
 
         try:
             generator = self.litellm.completion(
@@ -142,7 +143,8 @@ class LiteLLMChat(LiteLLM, Chat):
                     found = True
                     break
         
-        self._shared_state["data"] = prompt[:pos]
+        # update our shared data state
+        self._reset_shared_data(prompt[:pos], temperature)
 
         try:
             generator = self.litellm.completion(
