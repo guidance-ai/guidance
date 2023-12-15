@@ -74,6 +74,7 @@ class AzureOpenAI(Remote):
                 model=model,
                 azure_endpoint=azure_endpoint,
                 api_key=api_key,
+                azure_ad_token_provider=azure_ad_token_provider,
                 tokenizer=tokenizer,
                 echo=echo,
                 caching=caching,
