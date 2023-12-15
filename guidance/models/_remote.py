@@ -125,6 +125,9 @@ class Remote(Model):
 
     def _start_new_stream(self, prompt, temperature):
 
+        # make sure the display is up to date (since we are about to delay for a while)
+        self._update_display(throttle=False)
+
         if self._shared_state["num_calls_made"] > self.max_repeated_calls:
             raise Exception(f"We have exceeded the maximum number of repeat calls ({self.max_repeated_calls}) per grammar execution!")
 

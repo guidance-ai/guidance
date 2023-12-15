@@ -172,19 +172,23 @@ class Model:
         self._state += str(value) # TODO: make _state to be bytes not a string
 
         # see if we should update the display
-        if self.echo and not force_silent:
+        if not force_silent:
+            self._update_display()
+        
+        # TODO: is this needed? This was for programmatic streaming...
+        self._send_to_event_queue(self)
+
+    def _update_display(self, throttle=True):
+        if self.echo:
             if Model._throttle_refresh > 0:
                 curr_time = time.time()
-                if curr_time - self._last_display < self.max_display_rate:
+                if throttle and curr_time - self._last_display < self.max_display_rate:
                     return # we are throttling the update
                 else:
                     self._last_display = curr_time
         
             clear_output(wait=True)
             display(HTML(self._html()))
-        
-        # TODO: is this needed? This was for programmatic streaming...
-        self._send_to_event_queue(self)
     
     def reset(self, clear_variables=True):
         '''This resets the state of the model object.
