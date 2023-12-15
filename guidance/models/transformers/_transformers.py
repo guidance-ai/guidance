@@ -86,6 +86,12 @@ class Transformers(Model):
             if tokenizer is None:
                 try:
                     tokenizer = transformers.AutoTokenizer.from_pretrained(model, use_fast=False, **kwargs)
+                    # This is here because some tokenizers are bad and don't have all the bytes (I'm looking at you, microsoft/phi2)
+                    if hasattr(tokenizer, "byte_decoder"):
+                        all_bytes = set()
+                        for x in tokenizer.get_vocab().keys():
+                            [all_bytes.add(y) for y in x]
+                        assert set(tokenizer.byte_decoder.keys()).intersection(all_bytes) == all_bytes
                 except:
                     tokenizer = transformers.AutoTokenizer.from_pretrained(model, use_fast=True, **kwargs) # fall back to the fast tokenizer
             model = transformers.AutoModelForCausalLM.from_pretrained(model, **kwargs)
