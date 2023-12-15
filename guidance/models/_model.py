@@ -652,6 +652,7 @@ type {function['name']} = (_: {{"""
         token_count = 0
         last_token_count = 0
         was_forced = False
+        is_generated = False
         captured_data = {}
         captured_log_prob_data = {}
         while True: # each iteration generates one more token (and some of the associated bytes)
@@ -780,6 +781,7 @@ type {function['name']} = (_: {{"""
                 grammar_temp = parser.next_byte_temperature()
                 current_temp = grammar_temp if grammar_temp >= 0 else temperature # we prefer to use the grammar temp when it is specified
                 logits = self._get_logits(token_ids, parser.bytes[start_pos:forced_pos], current_temp)
+                is_generated = True
 
                 # if requested we compute the log probabilities so we can track the probabilities of each node
                 if self.compute_log_probs:
@@ -940,7 +942,7 @@ type {function['name']} = (_: {{"""
                 _record_captures(parse_tree, captured_data, captured_log_prob_data, parser.bytes)
                 
                 # we have no valid log prob data if we didn't compute it
-                yield new_bytes[hidden_count:], not is_forced, new_bytes_prob, captured_data, captured_log_prob_data, token_count - last_token_count
+                yield new_bytes[hidden_count:], is_generated, new_bytes_prob, captured_data, captured_log_prob_data, token_count - last_token_count
                 last_token_count = token_count
                 break # we are done!
             else:
@@ -949,7 +951,7 @@ type {function['name']} = (_: {{"""
                 # yeild the snippet of text created by the next token
                 out = new_bytes[hidden_count:]
                 if len(out) > 0:
-                    yield out, not is_forced, new_bytes_prob, {}, {}, token_count - last_token_count # note that we don't capture groups until a complete parse right now...
+                    yield out, is_generated, new_bytes_prob, {}, {}, token_count - last_token_count # note that we don't capture groups until a complete parse right now...
                     last_token_count = token_count
                     hidden_count = 0
                     token_count += 1 # note we only update this for tokens that emit non-hidden content
