@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 from itertools import takewhile
 import operator
+import sys
 
 import numpy as np
 
@@ -52,6 +53,12 @@ class LlamaCpp(Model):
             self.model = model
             if "verbose" not in kwargs:
                 kwargs["verbose"] = False
+
+            # patch over https://github.com/abetlen/llama-cpp-python/issues/729
+            try:
+                sys.stdout.fileno()
+            except:
+                kwargs["verbose"] = True # llama-cpp-python can't hide output in this case
 
             with normalize_notebook_stdout_stderr():
                 self.model_obj = llama_cpp.Llama(model_path=model, **kwargs)
