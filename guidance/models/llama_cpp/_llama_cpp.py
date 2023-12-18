@@ -3,7 +3,7 @@ from pathlib import Path
 from itertools import takewhile
 import operator
 import sys
-
+import logging
 import numpy as np
 
 from .._model import Model, Chat
@@ -14,6 +14,8 @@ try:
     is_llama_cpp = True
 except ImportError:
     is_llama_cpp = False
+
+logger = logging.getLogger(__name__)
 
 class _LlamaBatchContext:
     def __init__(self, n_batch, n_ctx):
@@ -58,6 +60,7 @@ class LlamaCpp(Model):
             try:
                 sys.stdout.fileno()
             except:
+                logger.warn("Cannot use verbose=True in this context (probably CoLab). See https://github.com/abetlen/llama-cpp-python/issues/729")
                 kwargs["verbose"] = True # llama-cpp-python can't hide output in this case
 
             with normalize_notebook_stdout_stderr():
