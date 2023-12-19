@@ -16,6 +16,7 @@ from ._remote import Remote
 
 class LiteLLM(Remote):
     def __init__(self, model, tokenizer=None, echo=True, caching=True, api_base=None, api_key=None, custom_llm_provider=None, temperature=0.0, max_streaming_tokens=1000, **kwargs):
+        '''Build a new LiteLLM model object that represents a model in a given state.'''
         try:
             import litellm
         except ImportError:

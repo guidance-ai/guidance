@@ -13,6 +13,7 @@ except ImportError:
     
 class GoogleAI(Remote):
     def __init__(self, model, tokenizer=None, echo=True, caching=True, api_key=None, organization=None, base_url=None, temperature=0.0, top_p=1.0, max_streaming_tokens=1000, **kwargs):
+        '''Build a new Anthropic model object that represents a model in a given state.'''
         try:
             import google.generativeai as genai
         except ImportError:

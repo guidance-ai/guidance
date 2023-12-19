@@ -34,7 +34,7 @@ class _LlamaBatchContext:
 
 class LlamaCpp(Model):
     def __init__(self, model=None, tokenizer=None, echo=True, compute_log_probs=False, caching=True, temperature=0.0, **kwargs):
-
+        '''Build a new LlamaCpp model object that represents a model in a given state.'''
         if not is_llama_cpp:
             raise Exception("Please install llama-cpp-python with `pip install llama-cpp-python` in order to use guidance.models.LlamaCpp!")
 

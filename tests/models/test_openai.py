@@ -40,6 +40,20 @@ def test_openai_basic():
     lm += f"""{gen(max_tokens=1, suffix=nl)}aaaaaa"""
     assert str(lm)[-5:] == "aaaaa"
 
+def test_openai_gpt35_instruct():
+    from guidance import gen, instruction
+
+    # this relies on the environment variable OPENAI_API_KEY being set
+    try:
+        lm = guidance.models.OpenAI('gpt-3.5-turbo-instruct')
+    except:
+        pytest.skip("Skipping OpenAI test because we can't load the model!")
+
+    with instruction():
+        lm += "What is a popular flavor?"
+    lm += gen('flavor', max_tokens=2, stop=".")
+    assert len(lm['flavor']) > 0
+
 def test_openai_select():
     try:
         lm = guidance.models.OpenAI("text-curie-001")

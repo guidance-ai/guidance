@@ -2,6 +2,7 @@ from ._lite_llm import LiteLLM, LiteLLMCompletion, LiteLLMInstruct
 
 class Cohere(LiteLLM):
     def __init__(self, model, tokenizer=None, echo=True, caching=True, api_base=None, api_key=None, custom_llm_provider=None, temperature=0.0, max_streaming_tokens=1000, **kwargs):
+        '''Build a new Anthropic model object that represents a model in a given state.'''
         try:
             import tokenizers
         except ImportError:

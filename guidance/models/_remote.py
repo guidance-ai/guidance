@@ -11,7 +11,13 @@ logger = logging.getLogger(__name__)
 
 
 class Remote(Model):
+    '''The base class for all remote models (hosted behind a remote API).'''
+    
     def __init__(self, model, tokenizer=None, echo=True, caching=True, temperature=0.0, top_p=1.0, max_streaming_tokens=None, timeout=0.5, **kwargs):
+        '''Build a new remote model object that represents a model in a given state.
+
+        This is an abstract class. To instantiate it use a specific subclass like guidance.models.OpenAI.
+        '''
         logger.debug(f"start Remote.__init__(model=\"{model}\")")
         self.caching = caching
         self.temperature = temperature

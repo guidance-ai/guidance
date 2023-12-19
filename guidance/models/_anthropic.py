@@ -14,7 +14,15 @@ from ._model import Chat, Instruct
 from ._remote import Remote
 
 class Anthropic(Remote):
+    '''Represents an Anthropic model as exposed through their remote API.
+    
+    Note that because this uses a remote API endpoint without built-in guidance support
+    there are some things we cannot do, like force the model to follow a pattern inside
+    a chat role block.
+    '''
     def __init__(self, model, tokenizer=None, echo=True, caching=True, api_base=None, api_key=None, custom_llm_provider=None, temperature=0.0, max_streaming_tokens=1000, **kwargs):
+        '''Build a new Anthropic model object that represents a model in a given state.'''
+        
         try:
             from anthropic import Anthropic
         except ImportError:

@@ -19,6 +19,7 @@ except ImportError:
 
 class VertexAI(Remote):
     def __init__(self, model, tokenizer=None, echo=True, caching=True, temperature=0.0, top_p=1.0, max_streaming_tokens=None, **kwargs):
+        '''Build a new VertexAI model object that represents a model in a given state.'''
         if not is_vertexai:
             raise Exception("Please install the vertexai package using `pip install google-cloud-aiplatform` in order to use guidance.models.VertexAI!")
         

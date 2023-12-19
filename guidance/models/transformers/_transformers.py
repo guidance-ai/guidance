@@ -14,7 +14,8 @@ from .._model import Model, Chat
 
 class Transformers(Model):
     def __init__(self, model=None, tokenizer=None, echo=True, caching=True, temperature=0.0, compute_log_probs=False, device=None, **kwargs):
-        
+        '''Build a new Transformers model object that represents a model in a given state.'''
+
         # fill in default model value
         if model is None:
             model = os.environ.get("TRANSFORMERS_MODEL", None)

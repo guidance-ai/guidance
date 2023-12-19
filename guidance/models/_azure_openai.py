@@ -38,6 +38,7 @@ class AzureOpenAI(Remote):
         version="2023-10-01-preview",
         **kwargs,
     ):
+        '''Build a new AzureOpenAI model object that represents a model in a given state.'''
         if not is_openai or not hasattr(openai_package, "OpenAI"):
             raise Exception(
                 "Please install the openai package version >= 1 using `pip install openai -U` "

@@ -34,11 +34,13 @@ html_pattern = re.compile(r"&lt;\|\|_html:(.*?)_\|\|&gt;", flags=re.DOTALL)
 image_pattern = re.compile(r"&lt;\|_image:(.*?)\|&gt;")
 
 class Model:
-    '''A guidance model object, which represents a sequence model in a given state.
+    '''The base guidance model object, which represents a sequence model in a given state.
     
     Model objects are immutable representations of model state, so whenever you change
     them you get a new model object. However, these copies share the "expensive"
     parts of the model like the the parameters and KV-cache, so making copies is cheap.
+
+    .. automethod:: __add__
     '''
 
     open_blocks = {} # track what context blocks are open
@@ -310,9 +312,9 @@ class Model:
 
         return out
     
-    def endswith(self, s):
-        '''Checks if the current model state ends with the given value.'''
-        return self._current_prompt().endswith(s)
+    # def endswith(self, s):
+    #     '''Checks if the current model state ends with the given value.'''
+    #     return self._current_prompt().endswith(s)
     
     def __len__(self):
         '''The string length of the current state.
@@ -393,49 +395,49 @@ class Model:
         # TODO: support calling without a key to get the log prob of the whole model
         return self._variables_log_probs.get(key, default)
     
-    def get_cache(self):
-        return self.engine.cache
+    # def get_cache(self):
+    #     return self.engine.cache
     
-    def tool_def(self, functions):
+#     def tool_def(self, functions):
 
-        self += """
-# Tools
+#         self += """
+# # Tools
 
-"""
-        if len(functions) > 0:
-            self += '''## functions
+# """
+#         if len(functions) > 0:
+#             self += '''## functions
 
-namespace functions {
+# namespace functions {
 
-'''
-        for function in functions:
-            self += f"""// {function['description']}
-type {function['name']} = (_: {{"""
-            for prop_name,prop_data in function["parameters"]["properties"].items():
-                if "description" in prop_data:
-                    self += f"\n// {prop_data['description']}\n"
-                self += prop_name
-                if prop_name not in function["parameters"]["required"]:
-                    self += "?"
-                self += ": "
-                if "enum" in prop_data:
-                    for enum in prop_data["enum"]:
-                        self += f'"{enum}"'
-                        if enum != prop_data["enum"][-1]:
-                            self += " | "
-                else:
-                    self += prop_data["type"]
+# '''
+#         for function in functions:
+#             self += f"""// {function['description']}
+# type {function['name']} = (_: {{"""
+#             for prop_name,prop_data in function["parameters"]["properties"].items():
+#                 if "description" in prop_data:
+#                     self += f"\n// {prop_data['description']}\n"
+#                 self += prop_name
+#                 if prop_name not in function["parameters"]["required"]:
+#                     self += "?"
+#                 self += ": "
+#                 if "enum" in prop_data:
+#                     for enum in prop_data["enum"]:
+#                         self += f'"{enum}"'
+#                         if enum != prop_data["enum"][-1]:
+#                             self += " | "
+#                 else:
+#                     self += prop_data["type"]
                 
-                if prop_name != list(function["parameters"]["properties"].keys())[-1]:
-                    self += ",\n"
-            self += """
-}) => any;
+#                 if prop_name != list(function["parameters"]["properties"].keys())[-1]:
+#                     self += ",\n"
+#             self += """
+# }) => any;
 
-"""
-            self[function['name']] = function
-        self += "} // namespace functions\n"
+# """
+#             self[function['name']] = function
+#         self += "} // namespace functions\n"
         
-        return self
+#         return self
 
     def _run_stateless(lm, stateless_function, temperature=0.0, top_p=1.0, n=1):
         assert Model._grammar_only == 0, "We can't run grammar parsing while in context free mode! (for example inside a block closer)"

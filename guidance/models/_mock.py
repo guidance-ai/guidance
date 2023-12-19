@@ -5,7 +5,7 @@ from ._model import Model, Chat
 
 class Mock(Model):
     def __init__(self, byte_patterns=[], echo=True):
-        
+        '''Build a new Mock model object that represents a model in a given state.'''
         super().__init__(
             # our tokens are all bytes and all lowercase letter pairs
             [b"<s>"] + [bytes([i,j]) for i in range(ord('a'), ord('z')) for j in range(ord('a'), ord('z'))] + [bytes([i]) for i in range(256)],

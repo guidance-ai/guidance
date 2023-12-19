@@ -81,8 +81,8 @@ def _decorator(f, *, stateless, cache, dedent, model):
                 return StatefulFunction(f, args, kwargs)
         
         # attach this as a method of the model class (if given)
-        if model is not None:
-            setattr(model, f.__name__, f)
+        # if model is not None:
+        #     setattr(model, f.__name__, f)
         
         return wrapped
 

@@ -23,7 +23,39 @@ except ImportError:
 chat_model_pattern = r'^(ft:)?(gpt-3\.5-turbo|gpt-4)(?:(?!-instruct$)(-\w+)+)?(:[\w-]+(?:[:\w-]+)*)?(::\w+)?$'
 
 class OpenAI(Remote):
-    def __init__(self, model, tokenizer=None, echo=True, caching=True, api_key=None, organization=None, base_url=None, temperature=0.0, top_p=1.0, max_streaming_tokens=1000, **kwargs):
+    def __init__(self, model, tokenizer=None, echo=True, caching=True, api_key=None,
+                 temperature=0.0, top_p=1.0, max_streaming_tokens=1000, **kwargs):
+        '''Build a new OpenAI model object that represents a model in a given state.
+
+        This class automatically subclasses itself into the appropriate OpenAIChat, OpenAIInstruct,
+        or OpenAICompletion subclass based on the model name.
+        
+        Parameters
+        ----------
+        model : str
+            The name of the OpenAI model to use (e.g. gpt-3.5-turbo).
+        tokenizer : None or tiktoken.Encoding
+            The tokenizer to use for the given model. If set to None we use `tiktoken.encoding_for_model(model)`.
+        echo : bool
+            If true the final result of creating this model state will be displayed (as HTML in a notebook).
+        api_key : None or str
+            The OpenAI API key to use for remote requests, passed directly to the `openai.OpenAI` constructor.
+        temperature : float
+            The default temperature to use for generation requests. Note this default value may be overridden by the
+            grammars that are executed.
+        top_p : float
+            The default top_p to use for generation requests. Note this default value may be overridden by the
+            grammars that are executed.
+        max_streaming_tokens : int
+            The maximum number of tokens we allow this model to generate in a single stream. Normally this is set very
+            high and we rely either on early stopping on the remote side, or on the grammar terminating causing the
+            stream loop to break on the local side. This number needs to be longer than the longest stream you want
+            to generate.
+        **kwargs : 
+            All extra keyword arguments are passed directly to the `openai.OpenAI` constructor. Commonly used argument
+            names include `base_url` and `organization`
+        '''
+
         if not is_openai or not hasattr(openai_package, "OpenAI"):
             raise Exception("Please install the openai package version >= 1 using `pip install openai -U` in order to use guidance.models.OpenAI!")
         
@@ -45,10 +77,10 @@ class OpenAI(Remote):
             
             # convert to any found subclass
             self.__class__ = found_subclass
-            found_subclass.__init__(self, model, tokenizer=tokenizer, echo=echo, caching=caching, api_key=api_key, organization=organization, base_url=base_url, temperature=temperature, max_streaming_tokens=max_streaming_tokens, **kwargs)
+            found_subclass.__init__(self, model, tokenizer=tokenizer, echo=echo, caching=caching, api_key=api_key, temperature=temperature, max_streaming_tokens=max_streaming_tokens, **kwargs)
             return # we return since we just ran init above and don't need to run again
 
-        self.client = openai_package.OpenAI(api_key=api_key, organization=organization, base_url=base_url)
+        self.client = openai_package.OpenAI(api_key=api_key, **kwargs)
         self.model_name = model
         self.top_p = top_p
 
@@ -58,7 +90,7 @@ class OpenAI(Remote):
         super().__init__(
             model, tokenizer=tokenizer, echo=echo,
             caching=caching, temperature=temperature,
-            max_streaming_tokens=max_streaming_tokens, **kwargs
+            max_streaming_tokens=max_streaming_tokens
         )
 
 class OAICompletionMixin(Instruct):
@@ -127,7 +159,7 @@ class OAIInstructMixin(Instruct):
 
         for part in generator:
             if len(part.choices) > 0:
-                chunk = part.choices[0].delta.content or ""
+                chunk = part.choices[0].text or ""
             else:
                 chunk = ""
             yield chunk.encode("utf8")
