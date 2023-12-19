@@ -9,3 +9,4 @@ from ._lite_llm import LiteLLMChat, LiteLLMInstruct, LiteLLMCompletion
 from ._cohere import CohereCompletion, CohereInstruct
 from . import transformers
 from ._anthropic import AnthropicChat
+from ._makersuite_gemini import GeminiChat
