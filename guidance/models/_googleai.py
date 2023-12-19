@@ -9,27 +9,54 @@ try:
     import google.generativeai as genai
     from google.ai.generativelanguage import Content, Part, Blob
 except ImportError:
-    is_makersuite = False
+    pass
+    
+class GoogleAI(Remote):
+    def __init__(self, model, tokenizer=None, echo=True, caching=True, api_key=None, organization=None, base_url=None, temperature=0.0, top_p=1.0, max_streaming_tokens=1000, **kwargs):
+        try:
+            import google.generativeai as genai
+        except ImportError:
+            raise Exception("Please install the Google AI Studio(makersuite.google.com) package using `pip install google-generativeai google-ai-generativelanguage` in order to use guidance.models.GoogleAI!")
+        
+        # if we are called directly (as opposed to through super()) then we convert ourselves to a more specific subclass if possible
+        if self.__class__ is GoogleAI:
+            found_subclass = None
 
-class GeminiChat(Remote, Chat):
-    def __init__(self, model, tokenizer=None, echo=True, caching=True, temperature=0.0, top_p=1.0,api_key=None, max_streaming_tokens=None, **kwargs):
+            # chat
+            found_subclass = GoogleAIChat # we assume all models are chat right now
+
+            # instruct
+            # elif "instruct" in model:
+            #     found_subclass = GoogleAIInstruct
+
+            # # regular completion
+            # else:
+            #     found_subclass = GoogleAICompletion
+            
+            # convert to any found subclass
+            self.__class__ = found_subclass
+            found_subclass.__init__(self, model, tokenizer=tokenizer, echo=echo, caching=caching, api_key=api_key, organization=organization, base_url=base_url, temperature=temperature, max_streaming_tokens=max_streaming_tokens, **kwargs)
+            return # we return since we just ran init above and don't need to run again
+
         super().__init__(
             model, tokenizer=tokenizer, echo=echo,
             caching=caching, temperature=temperature,
             max_streaming_tokens=max_streaming_tokens, **kwargs
         )
-        if not is_makersuite:
-            raise Exception("Please install the Google AI Studio(makersuite.google.com) package using `pip install google-generativeai google-ai-generativelanguage` in order to use guidance.models.GeminiChat!")
+
         if api_key is None:
-            api_key = os.environ.get("GOOGLE_AI_KEY")
+            api_key = os.environ.get("GOOGLEAI_API_KEY")
+        
         genai.configure(api_key=api_key)
+        
         # Gemini does not have a public tokenizer, so we pretend it tokenizes like gpt2...
         if tokenizer is None:
             tokenizer = tiktoken.get_encoding("gpt2")
         self.model_name = model
 
         self.model_obj = genai.GenerativeModel(self.model_name)
-        
+
+class GoogleAIChat(GoogleAI, Chat):
     def _generator(self, prompt, temperature):
         
         # find the system text
@@ -102,7 +129,9 @@ class GeminiChat(Remote, Chat):
             history=messages
         )
         return out
+    
     def _start_generator(self, system_text, messages, temperature):
+        from google.ai.generativelanguage import Content, Part, Blob
         # last_user_text = messages[-1]["content"]
         formated_messages = []
         for m in messages:

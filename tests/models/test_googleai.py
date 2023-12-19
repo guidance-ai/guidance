@@ -2,13 +2,13 @@ import pytest
 from guidance import select, gen, models, instruction
 from ..utils import get_model
 
-def test_gemini_chat():
+def test_gemini_pro():
     from guidance import models, gen, system, user, assistant
 
     try:
-        vmodel = models.GeminiChat("gemini-pro")
+        vmodel = models.GoogleAI("gemini-pro")
     except:
-        pytest.skip("Skipping VertexAI test because we can't load the model!")
+        pytest.skip("Skipping GoogleAI test because we can't load the model!")
 
     lm = vmodel
 
