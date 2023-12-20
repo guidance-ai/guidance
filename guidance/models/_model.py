@@ -618,9 +618,9 @@ class Model:
             probs[j] += probs[i]
             probs[i] = 0
 
-    def _report_failed_match(self):
+    def _report_failed_match(self, prompt):
         """Note that this can be overridden by subclasses that have more likely reasons than a bug in the token set (like remote models)."""
-        return Exception("We can't consume any more tokens, but we are not yet done! Perhaps your model's token set is incomplete?")
+        return Exception("We can't consume any more tokens, but we are not yet done! Perhaps your model's token set is incomplete? This happened after the prompt:" + str(prompt[-40:]))
 
     def __call__(self, grammar, max_tokens=1000000, n=1, top_p=1, temperature=0.0, ensure_bos_token=True):
         assert n == 1, "Still need to add support for n > 1!"
