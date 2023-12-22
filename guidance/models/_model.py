@@ -654,7 +654,6 @@ class Model:
         token_count = 0
         last_token_count = 0
         was_forced = False
-        is_generated = False
         captured_data = {}
         captured_log_prob_data = {}
         while True: # each iteration generates one more token (and some of the associated bytes)
@@ -670,6 +669,7 @@ class Model:
             parser.mark_new_token()
 
             # walk down the trie as far as possible before computing the logits
+            is_generated = False
             retry_token_gen = False
             trie = self._token_trie
             trie.match_version += 1 # this invalidates all the match caches from the previous token
