@@ -71,7 +71,15 @@ class Transformers(Model):
         self._cache_state["cache_token_ids"] = []
 
     def _joint_tokenize(self, token_ids):
-        return self._orig_tokenizer(self._orig_tokenizer.decode(token_ids), add_special_tokens=False)["input_ids"]
+        first_decode = self._orig_tokenizer.decode(token_ids)
+        new_ids = self._orig_tokenizer(first_decode, add_special_tokens=False)["input_ids"]
+
+        # HACK: check for a bug in the HuggingFace tokenizer (that will just add extra spaces during an encode-decode cycle)
+        second_decode = self._orig_tokenizer.decode(new_ids)
+        if second_decode != first_decode and len(second_decode) == len(first_decode) + 1 and second_decode.startswith("<s>  "):
+            new_ids = new_ids[0:1] + new_ids[2:]
+        
+        return new_ids
 
     def _model_and_tokenizer(self, model, tokenizer, **kwargs):
 
