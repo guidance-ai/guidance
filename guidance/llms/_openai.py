@@ -677,6 +677,7 @@ class OpenAISession(LLMSession):
 
                 except (openai.error.RateLimitError, openai.error.ServiceUnavailableError, openai.error.APIError, openai.error.Timeout) as error:
                     last_error = error
+                    log.error('The following error occurred. Will retry in 3 seconds...')
                     log.error(traceback.format_exc())
                     await asyncio.sleep(3)
                     try_again = True

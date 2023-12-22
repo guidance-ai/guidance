@@ -345,7 +345,7 @@ class Program:
                 yield self
             except GeneratorExit as e:
                 # this will cause the program to stop executing and finish as a valid partial execution
-                if self._executor.executing:
+                if self._executor is not None and self._executor.executing:
                     self._executor.executing = False
                 await self._execute_complete.wait()
 
