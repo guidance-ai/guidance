@@ -299,10 +299,12 @@ class Model:
             
             # run stateless functions (grammar nodes)
             elif isinstance(value, StatelessFunction):
+                value._event_parent = lm
                 out = lm._run_stateless(value)
             
             # run stateful functions
             else:
+                value._event_parent = lm
                 out = value(lm)
                 if out is None:
                     raise Exception(f"A guidance function did not return a model object! Did you forget to return the new lm at the end of your function?")
