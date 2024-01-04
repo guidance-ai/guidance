@@ -13,7 +13,7 @@ from .._model import Model, Chat
 
 
 class Transformers(Model):
-    def __init__(self, model=None, tokenizer=None, echo=True, caching=True, temperature=0.0, compute_log_probs=False, device=None, **kwargs):
+    def __init__(self, model=None, tokenizer=None, echo=True, caching=True, temperature=0.0, compute_log_probs=False, **kwargs):
         '''Build a new Transformers model object that represents a model in a given state.'''
 
         # fill in default model value
@@ -34,8 +34,6 @@ class Transformers(Model):
         # self.current_time = time.time()
         # self.call_history = collections.deque()
         self.temperature = temperature
-        if device is not None: # set the device if requested
-            self.model_obj = self.model_obj.to(device)
         self.device = self.model_obj.device # otherwise note the current device
 
         # build out the set of byte_string tokens
