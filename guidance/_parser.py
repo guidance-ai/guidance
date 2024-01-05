@@ -447,7 +447,7 @@ class EarleyCommitParser:
                 # if we are at a capture group node then we save the matched bytes range
                 # note that we record this after calling our children so that we save the outermost version of self-recursive calls
                 cname = item.node.capture_name
-                if cname is not None and cname not in used_names:
+                if cname is not None and cname not in used_names and not item.node.hidden:
                     
                     # see if we are doing a list append
                     if cname.startswith("__LIST_APPEND:"):
