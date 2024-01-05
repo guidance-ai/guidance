@@ -1,3 +1,4 @@
+from sys import stderr
 import numpy as np
 from ordered_set import OrderedSet
 from ._grammar import Join, Select, Terminal, Null, Byte, ByteRange
@@ -378,14 +379,92 @@ class EarleyCommitParser:
     
     def parse_tree(self):
         reversed_state_sets = self._reversed_state_sets()
+        root_item = None
 
         # find the matching root state
         for item in reversed_state_sets[0]:
             if item.node == self.grammar and item.start == len(self.bytes) and item.pos == len(item.values): # note that ".start" mean end because items are reversed
                 root_item = item
+        if root_item is None:
+            return None
         self._compute_parse_tree(0, root_item, reversed_state_sets)
         return root_item
-    
+
+    def get_captures(self):
+        root_node = self.parse_tree()
+        data = {}
+        log_prob_data = {}
+        if root_node is not None:
+            # parse complete, so we can get the captures
+            self._record_captures_from_root(root_node, data, log_prob_data)
+            return data, log_prob_data
+        # compute on partially parsed tree
+        self._record_captures_partial(data, log_prob_data)
+        return data, log_prob_data
+
+    def _record_captures_partial(self, data, log_prob_data):
+        byte_data = self.bytes
+
+        for item in self.state_sets[self.state_set_pos]:
+            cname = item.node.capture_name
+            if cname is None:
+                continue
+            captured_value = byte_data[item.start:self.earliest_hidden_start()]
+            if captured_value.endswith(b'<'):
+                print("WARNING: Captured value ends with '<' which is a special character in the parser!", file=stderr)
+            data[cname] = captured_value
+            log_prob_data[cname] = item.log_prob
+
+    def _record_captures_from_root(self, initial_item, data, log_prob_data):
+        byte_data = self.bytes
+        stack = [(initial_item, 0)]
+        used_names = set() # track which capture names have been used so self-recursive children don't overwrite their parents
+        
+        while stack:
+            item, byte_pos = stack.pop()
+            # terminal nodes
+            if isinstance(item, Terminal):
+
+                # if we are at a capture group node then we save the matched terminal byte
+                if item.capture_name is not None:
+                    data[item.capture_name] = item.byte
+                    log_prob_data[item.capture_name] = 0
+            
+            # internal nodes
+            else:
+                start_byte_pos = byte_pos
+
+                # recurse for all our non-null children
+                for child in item.children:
+                    if child is not None:
+                        stack.append((child, byte_pos))
+                        # _record_captures(child, data, log_prob_data, byte_data, byte_pos)
+                        if isinstance(child, Terminal):
+                            byte_pos += len(child)
+                        else:
+                            byte_pos = child.start # note that "start" means "end" since this is a reversed state set
+
+                # if we are at a capture group node then we save the matched bytes range
+                # note that we record this after calling our children so that we save the outermost version of self-recursive calls
+                cname = item.node.capture_name
+                if cname is not None and cname not in used_names and not item.node.hidden:
+                    
+                    # see if we are doing a list append
+                    if cname.startswith("__LIST_APPEND:"):
+                        cname = cname[14:] # trim off the list append tag
+                        if cname not in data or not isinstance(data[cname], list):
+                            data[cname] = []
+                            log_prob_data[cname] = []
+                        data[cname].append(byte_data[start_byte_pos:item.start])
+                        log_prob_data[cname].append(item.log_prob)
+                    
+                    # or just a regular assignment
+                    else:
+                        data[cname] = byte_data[start_byte_pos:item.start] # note that "start" means "end" since this is a reversed state set
+                        log_prob_data[cname] = item.log_prob
+
+                    used_names.add(cname)    
+
     def _compute_parse_tree(self, initial_pos, initial_item, reversed_state_sets):
         stack = [(initial_pos, initial_item)]
         
