@@ -1,2 +1,2 @@
 from ._llama_cpp import LlamaCpp, LlamaCppChat
-from ._mistral import MistralChat, MistralInstruct
+from ._mistral import MistralChat, MistralInstruct , MistralChatOpenOrca

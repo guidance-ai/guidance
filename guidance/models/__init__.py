@@ -2,7 +2,7 @@ from ._model import Model, Instruct, Chat
 
 # local models
 from .transformers._transformers import Transformers, TransformersChat
-from .llama_cpp import LlamaCpp, LlamaCppChat, MistralInstruct, MistralChat
+from .llama_cpp import LlamaCpp, LlamaCppChat, MistralInstruct, MistralChat, MistralChatOpenOrca
 from ._mock import Mock, MockChat
 
 # remote models
