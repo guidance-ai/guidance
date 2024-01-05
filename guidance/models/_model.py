@@ -15,6 +15,8 @@ import time
 import numpy as np
 import logging
 import base64
+import queue
+import threading
 
 logger = logging.getLogger(__name__)
 try:
@@ -22,7 +24,7 @@ try:
 except ImportError:
     logger.warn("Failed to load guidance.cpp, falling back to Python mirror implementations...")
     from .. import _cpp as cpp
-from .._utils import softmax
+from .._utils import softmax, CaptureEvents
 from .._parser import EarleyCommitParser
 from .._grammar import StatelessFunction, string, _call_pool, _tag_pattern, Null, replace_model_variables, unreplace_model_variables, select, Terminal
 
@@ -83,6 +85,7 @@ class Model:
         self._event_queue = None # TODO: these are for streaming results in code, but that needs implemented
         self._event_parent = None
         self._last_display = 0 # used to track the last display call to enable throttling
+        self._last_event_stream = 0 # used to track the last event streaming call to enable throttling
 
         # build a prefix tree of the tokens
         self._token_trie = cpp.ByteTrie(tokens, np.arange(len(tokens)))
@@ -139,6 +142,9 @@ class Model:
             self._event_queue.put(value)
         if self._event_parent is not None:
             self._event_parent._send_to_event_queue(value)
+
+    def stream(self):
+        return ModelStream(self)
     
     def copy(self):
         '''Create a shallow copy of the model object.'''
@@ -151,10 +157,12 @@ class Model:
         new_lm._variables_log_probs = self._variables_log_probs.copy()
         new_lm.opened_blocks = self.opened_blocks.copy()
         
-        # create a new clean event queue # TODO: can we delete this now?
-        new_lm._event_queue = None
+        # create a new clean event queue
+        new_lm._event_queue = None # we start with no event queue because nobody is listening to us yet
         if self._event_queue is not None:
-            new_lm._event_parent = self
+            new_lm._event_parent = self # the current lm has an event que we make it our parent
+        elif self._event_parent is not None:
+            new_lm._event_parent = self._event_parent # otherwise if the current event que has an event parent then that is also our parent
         
         return new_lm
     
@@ -177,8 +185,15 @@ class Model:
         if not force_silent:
             self._update_display()
         
-        # TODO: is this needed? This was for programmatic streaming...
-        self._send_to_event_queue(self)
+        # this is for programmatic streaming among other things
+        if Model._throttle_refresh > 0:
+            curr_time = time.time()
+            if curr_time - self._last_event_stream >= self.max_display_rate:
+                self._last_event_stream = curr_time
+                self._send_to_event_queue(self)
+        else:
+            self._send_to_event_queue(self)
+                
 
     def _update_display(self, throttle=True):
         if self.echo:
@@ -305,7 +320,9 @@ class Model:
             else:
                 out = value(lm)
                 if out is None:
-                    raise Exception(f"A guidance function did not return a model object! Did you forget to return the new lm at the end of your function?")
+                    raise Exception(f"A guidance function returned `None`, not a model object! Did you forget to return the new lm at the end of your function?")
+                if not isinstance(out, Model):
+                    raise Exception(f"A guidance function did not return a model object! Did you try to add a function to a model without calling the function? For example `model + guidance_function()` is correct, while `model + guidance_function` will cause this error.")
         
         # this flushes the display
         out._inplace_append("")
@@ -940,9 +957,10 @@ class Model:
                 #     self._cache_state["new_token_ids"].append(sampled_token_ind)
 
                 # capture the named groups from the parse tree
-                parse_tree = parser.parse_tree()
-                _record_captures(parse_tree, captured_data, captured_log_prob_data, parser.bytes)
-                
+                new_captured_data, new_captured_log_prob_data = parser.get_captures()
+                captured_data.update(new_captured_data)
+                captured_log_prob_data.update(new_captured_log_prob_data)
+
                 # we have no valid log prob data if we didn't compute it
                 yield new_bytes[hidden_count:], is_generated, new_bytes_prob, captured_data, captured_log_prob_data, token_count - last_token_count
                 last_token_count = token_count
@@ -953,7 +971,11 @@ class Model:
                 # yeild the snippet of text created by the next token
                 out = new_bytes[hidden_count:]
                 if len(out) > 0:
-                    yield out, is_generated, new_bytes_prob, {}, {}, token_count - last_token_count # note that we don't capture groups until a complete parse right now...
+                    # capture the named groups from the (partial) parse tree, # TODO: disabled for now until we handle list_append correctly
+                    # new_captured_data, new_captured_log_prob_data = parser.get_captures()
+                    # captured_data.update(new_captured_data)
+                    # captured_log_prob_data.update(new_captured_log_prob_data)
+                    yield out, is_generated, new_bytes_prob, captured_data, captured_log_prob_data, token_count - last_token_count # note that we don't capture groups until a complete parse right now...
                     last_token_count = token_count
                     hidden_count = 0
                     token_count += 1 # note we only update this for tokens that emit non-hidden content
@@ -967,6 +989,60 @@ class Model:
                     token_byte_positions.append(len(sampled_token))
                 else:
                     token_byte_positions.append(token_byte_positions[-1] + len(sampled_token))
+
+class ModelStream:
+    def __init__(self, model, grammar=None, timeout=5):
+        '''Create a model stream object that delays execution until it is iterated over.'''
+        if model.echo:
+            model = model.copy()
+            model.echo = False # turn off display echoing
+        self.model = model
+        self.grammar = grammar
+        self.timeout = timeout
+
+    def __add__(self, grammar):
+        '''Extend this delayed chain of execution with another grammar append.'''
+        return ModelStream(self.model, grammar)
+    
+    def _inner_run(self, model):
+        '''This runs the model stream without iterating, and is only using internally by __iter__.'''
+        if isinstance(self.grammar, ModelStream):
+            model = self.grammar._inner_run(model)
+        elif self.grammar is None:
+            model = self.model + ""
+        else:
+            model = self.model + self.grammar
+    
+    def __iter__(self):
+        '''Starts a thread to execute the model and grammar, yielding events as they occur.'''
+        
+        # Create a thread-safe queue to hold events
+        with CaptureEvents(self.model) as events:
+
+            # Define the target function for the thread
+            def target():
+                self._inner_run(self.model)
+                events.put(None) # mark that we are done
+
+            # Start the thread
+            thread = threading.Thread(target=target)
+            thread.start()
+
+            # Yield events from the queue as they become available
+            while True:
+                try:
+                    # Wait for an event with a timeout to allow for thread termination
+                    event = events.get(timeout=self.timeout)
+                    if event is None:
+                        break
+                    yield event
+                except queue.Empty:
+                    # Check if the thread is still alive
+                    if not thread.is_alive():
+                        break
+
+            # Ensure the thread has completed
+            thread.join()
 
 class Chat(Model):
     '''The base class for all chat-tuned models.'''
@@ -1032,55 +1108,6 @@ def throttle_refresh():
 
 class ConstraintException(Exception):
     pass
-
-def _record_captures(initial_item, data, log_prob_data, byte_data):
-    stack = [(initial_item, 0)]
-    used_names = set() # track which capture names have been used so self-recursive children don't overwrite their parents
-    
-    while stack:
-        item, byte_pos = stack.pop()
-        # terminal nodes
-        if isinstance(item, Terminal):
-
-            # if we are at a capture group node then we save the matched terminal byte
-            if item.capture_name is not None:
-                data[item.capture_name] = item.byte
-                log_prob_data[item.capture_name] = 0
-        
-        # internal nodes
-        else:
-            start_byte_pos = byte_pos
-
-            # recurse for all our non-null children
-            for child in item.children:
-                if child is not None:
-                    stack.append((child, byte_pos))
-                    # _record_captures(child, data, log_prob_data, byte_data, byte_pos)
-                    if isinstance(child, Terminal):
-                        byte_pos += len(child)
-                    else:
-                        byte_pos = child.start # note that "start" means "end" since this is a reversed state set
-
-            # if we are at a capture group node then we save the matched bytes range
-            # note that we record this after calling our children so that we save the outermost version of self-recursive calls
-            cname = item.node.capture_name
-            if cname is not None and cname not in used_names and not item.node.hidden:
-                
-                # see if we are doing a list append
-                if cname.startswith("__LIST_APPEND:"):
-                    cname = cname[14:] # trim off the list append tag
-                    if cname not in data or not isinstance(data[cname], list):
-                        data[cname] = []
-                        log_prob_data[cname] = []
-                    data[cname].append(byte_data[start_byte_pos:item.start])
-                    log_prob_data[cname].append(item.log_prob)
-                
-                # or just a regular assignment
-                else:
-                    data[cname] = byte_data[start_byte_pos:item.start] # note that "start" means "end" since this is a reversed state set
-                    log_prob_data[cname] = item.log_prob
-
-                used_names.add(cname)    
 
 # def _compute_probs(trie, probs, found):
 #     '''Computes the log probabilities for each internal trie node.'''
