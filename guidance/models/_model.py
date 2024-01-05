@@ -957,7 +957,10 @@ class Model:
                 #     self._cache_state["new_token_ids"].append(sampled_token_ind)
 
                 # capture the named groups from the parse tree
-                captured_data, captured_log_prob_data = parser.get_captures()
+                new_captured_data, new_captured_log_prob_data = parser.get_captures()
+                captured_data.update(new_captured_data)
+                captured_log_prob_data.update(new_captured_log_prob_data)
+
                 # we have no valid log prob data if we didn't compute it
                 yield new_bytes[hidden_count:], is_generated, new_bytes_prob, captured_data, captured_log_prob_data, token_count - last_token_count
                 last_token_count = token_count
@@ -969,7 +972,9 @@ class Model:
                 out = new_bytes[hidden_count:]
                 if len(out) > 0:
                     # capture the named groups from the (partial) parse tree, 
-                    captured_data, captured_log_prob_data = parser.get_captures()
+                    new_captured_data, new_captured_log_prob_data = parser.get_captures()
+                    captured_data.update(new_captured_data)
+                    captured_log_prob_data.update(new_captured_log_prob_data)
                     yield out, is_generated, new_bytes_prob, captured_data, captured_log_prob_data, token_count - last_token_count # note that we don't capture groups until a complete parse right now...
                     last_token_count = token_count
                     hidden_count = 0
