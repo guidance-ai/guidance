@@ -418,6 +418,7 @@ class Join(StatelessFunction):
     __slots__ = ("nullable", "values", "name", "hidden", "commit_point", "capture_name", "max_tokens")
 
     def __init__(self, values, name=None, max_tokens=100000000) -> None:
+        values = [string(v) if isinstance(v, (str, bytes)) else v for v in values] # wrap raw strings
         self.nullable = all(v.nullable for v in values)
         self.values = [v for v in values if not isinstance(v, Null)]
         self.name = name if name is not None else StatelessFunction._new_name()

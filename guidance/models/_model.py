@@ -15,6 +15,8 @@ import time
 import numpy as np
 import logging
 import base64
+import queue
+import threading
 
 logger = logging.getLogger(__name__)
 try:
@@ -22,7 +24,7 @@ try:
 except ImportError:
     logger.warn("Failed to load guidance.cpp, falling back to Python mirror implementations...")
     from .. import _cpp as cpp
-from .._utils import softmax
+from .._utils import softmax, CaptureEvents
 from .._parser import EarleyCommitParser
 from .._grammar import StatelessFunction, string, _call_pool, _tag_pattern, Null, replace_model_variables, unreplace_model_variables, select, Terminal
 
@@ -83,6 +85,7 @@ class Model:
         self._event_queue = None # TODO: these are for streaming results in code, but that needs implemented
         self._event_parent = None
         self._last_display = 0 # used to track the last display call to enable throttling
+        self._last_event_stream = 0 # used to track the last event streaming call to enable throttling
 
         # build a prefix tree of the tokens
         self._token_trie = cpp.ByteTrie(tokens, np.arange(len(tokens)))
@@ -139,6 +142,9 @@ class Model:
             self._event_queue.put(value)
         if self._event_parent is not None:
             self._event_parent._send_to_event_queue(value)
+
+    def stream(self):
+        return ModelStream(self)
     
     def copy(self):
         '''Create a shallow copy of the model object.'''
@@ -151,10 +157,12 @@ class Model:
         new_lm._variables_log_probs = self._variables_log_probs.copy()
         new_lm.opened_blocks = self.opened_blocks.copy()
         
-        # create a new clean event queue # TODO: can we delete this now?
-        new_lm._event_queue = None
+        # create a new clean event queue
+        new_lm._event_queue = None # we start with no event queue because nobody is listening to us yet
         if self._event_queue is not None:
-            new_lm._event_parent = self
+            new_lm._event_parent = self # the current lm has an event que we make it our parent
+        elif self._event_parent is not None:
+            new_lm._event_parent = self._event_parent # otherwise if the current event que has an event parent then that is also our parent
         
         return new_lm
     
@@ -177,8 +185,15 @@ class Model:
         if not force_silent:
             self._update_display()
         
-        # TODO: is this needed? This was for programmatic streaming...
-        self._send_to_event_queue(self)
+        # this is for programmatic streaming among other things
+        if Model._throttle_refresh > 0:
+            curr_time = time.time()
+            if curr_time - self._last_event_stream >= self.max_display_rate:
+                self._last_event_stream = curr_time
+                self._send_to_event_queue(self)
+        else:
+            self._send_to_event_queue(self)
+                
 
     def _update_display(self, throttle=True):
         if self.echo:
@@ -299,15 +314,15 @@ class Model:
             
             # run stateless functions (grammar nodes)
             elif isinstance(value, StatelessFunction):
-                value._event_parent = lm
                 out = lm._run_stateless(value)
             
             # run stateful functions
             else:
-                value._event_parent = lm
                 out = value(lm)
                 if out is None:
-                    raise Exception(f"A guidance function did not return a model object! Did you forget to return the new lm at the end of your function?")
+                    raise Exception(f"A guidance function returned `None`, not a model object! Did you forget to return the new lm at the end of your function?")
+                if not isinstance(out, Model):
+                    raise Exception(f"A guidance function did not return a model object! Did you try to add a function to a model without calling the function? For example `model + guidance_function()` is correct, while `model + guidance_function` will cause this error.")
         
         # this flushes the display
         out._inplace_append("")
@@ -969,6 +984,60 @@ class Model:
                     token_byte_positions.append(len(sampled_token))
                 else:
                     token_byte_positions.append(token_byte_positions[-1] + len(sampled_token))
+
+class ModelStream:
+    def __init__(self, model, grammar=None, timeout=5):
+        '''Create a model stream object that delays execution until it is iterated over.'''
+        if model.echo:
+            model = model.copy()
+            model.echo = False # turn off display echoing
+        self.model = model
+        self.grammar = grammar
+        self.timeout = timeout
+
+    def __add__(self, grammar):
+        '''Extend this delayed chain of execution with another grammar append.'''
+        return ModelStream(self.model, grammar)
+    
+    def _inner_run(self, model):
+        '''This runs the model stream without iterating, and is only using internally by __iter__.'''
+        if isinstance(self.grammar, ModelStream):
+            model = self.grammar._inner_run(model)
+        elif self.grammar is None:
+            model = self.model + ""
+        else:
+            model = self.model + self.grammar
+    
+    def __iter__(self):
+        '''Starts a thread to execute the model and grammar, yielding events as they occur.'''
+        
+        # Create a thread-safe queue to hold events
+        with CaptureEvents(self.model) as events:
+
+            # Define the target function for the thread
+            def target():
+                self._inner_run(self.model)
+                events.put(None) # mark that we are done
+
+            # Start the thread
+            thread = threading.Thread(target=target)
+            thread.start()
+
+            # Yield events from the queue as they become available
+            while True:
+                try:
+                    # Wait for an event with a timeout to allow for thread termination
+                    event = events.get(timeout=self.timeout)
+                    if event is None:
+                        break
+                    yield event
+                except queue.Empty:
+                    # Check if the thread is still alive
+                    if not thread.is_alive():
+                        break
+
+            # Ensure the thread has completed
+            thread.join()
 
 class Chat(Model):
     '''The base class for all chat-tuned models.'''
