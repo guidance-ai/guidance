@@ -72,6 +72,8 @@ with assistant():
 
 6. **Easy to write reusable components**
 ```python
+import guidance
+
 @guidance
 def one_line_thing(lm, thing, topic):
     lm += f'Here is a one-line {thing} about {topic}: ' + gen(stop='\n')
