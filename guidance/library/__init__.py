@@ -1,6 +1,7 @@
 # import functions that can be called directly
 from ._gen import gen, call_tool, will_gen
 from ._image import image
+from ._json import json
 
 # core grammar functions
 from .._grammar import select
@@ -16,6 +17,7 @@ from ._block import block
 from ._role import role, system, assistant, user, function, instruction
 from ._format import monospace
 from ._silent import silent
+
 # from ..models._model import context_free
 
 # stateless library functions
