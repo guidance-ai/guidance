@@ -1,5 +1,6 @@
 import guidance
 from ._block import block
+from ._set_var import set_var
 
 nodisp_start = "<||_#NODISP_||>"
 nodisp_end = "<||_/NODISP_||>"
@@ -8,50 +9,54 @@ span_end = "<||_html:</span>_||>"
 
 
 @guidance
-def role_opener(lm, role_name, debug=False, **kwargs):
+def role_opener(lm, role_name, **kwargs):
+    indent = lm.get("__role_indent", True)
     if not hasattr(lm, "get_role_start"):
         raise Exception(
             f"You need to use a chat model in order the use role blocks like `with {role_name}():`! Perhaps you meant to use the {type(lm).__name__}Chat class?"
         )
 
     # Block start container (centers elements)
-    lm += f"<||_html:<div style='display: flex; border-bottom: 1px solid rgba(127, 127, 127, 0.2);  justify-content: center; align-items: center;'><div style='flex: 0 0 80px; opacity: 0.5;'>{role_name.lower()}</div><div style='flex-grow: 1; padding: 5px; padding-top: 10px; padding-bottom: 10px; margin-top: 0px; white-space: pre-wrap; margin-bottom: 0px;'>_||>"
+    if indent:
+        lm += f"<||_html:<div style='display: flex; border-bottom: 1px solid rgba(127, 127, 127, 0.2);  justify-content: center; align-items: center;'><div style='flex: 0 0 80px; opacity: 0.5;'>{role_name.lower()}</div><div style='flex-grow: 1; padding: 5px; padding-top: 10px; padding-bottom: 10px; margin-top: 0px; white-space: pre-wrap; margin-bottom: 0px;'>_||>"
 
     # Start of either debug or HTML no disp block
-    if debug:
-        lm += span_start
-    else:
+    if indent:
         lm += nodisp_start
+    else:
+        lm += span_start
 
     lm += lm.get_role_start(role_name, **kwargs)
 
     # End of either debug or HTML no disp block
-    if debug:
-        lm += span_end
-    else:
+    if indent:
         lm += nodisp_end
+    else:
+        lm += span_end
 
     return lm
 
 
 @guidance
-def role_closer(lm, role_name, debug=False, **kwargs):
+def role_closer(lm, role_name, **kwargs):
+    indent = lm.get("__role_indent", True)
     # Start of either debug or HTML no disp block
-    if debug:
-        lm += span_start
-    else:
+    if indent:
         lm += nodisp_start
+    else:
+        lm += span_start
 
     lm += lm.get_role_end(role_name)
 
     # End of either debug or HTML no disp block
-    if debug:
-        lm += span_end
-    else:
+    if indent:
         lm += nodisp_end
+    else:
+        lm += span_end
 
     # End of top container
-    lm += "<||_html:</div></div>_||>"
+    if indent:
+        lm += "<||_html:</div></div>_||>"
 
     return lm
 
@@ -85,3 +90,6 @@ def function(text=None, **kwargs):
 
 def instruction(text=None, **kwargs):
     return role("instruction", text, **kwargs)
+
+def indent_roles(indent=True):
+    return set_var("__role_indent", indent)
