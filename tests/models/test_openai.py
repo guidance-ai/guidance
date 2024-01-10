@@ -29,7 +29,7 @@ def test_openai_class_detection():
 
 def test_openai_basic():
     try:
-        lm = guidance.models.OpenAI("text-curie-001")
+        lm = guidance.models.OpenAI("gpt-3.5-turbo-instruct")
     except:
         pytest.skip("Skipping OpenAI test because we can't load the model!")
     # lm = guidance.models.Transformers("gpt2")
@@ -56,7 +56,7 @@ def test_openai_gpt35_instruct():
 
 def test_openai_select():
     try:
-        lm = guidance.models.OpenAI("text-curie-001")
+        lm = guidance.models.OpenAI("gpt-3.5-turbo-instruct")
     except:
         pytest.skip("Skipping OpenAI test because we can't load the model!")
     lm += "Pick a number: "

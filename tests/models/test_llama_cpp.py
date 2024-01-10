@@ -101,3 +101,10 @@ def test_llama_with_temp2():
     lm1 = lm + '2 + 2 =' + gen('answer', max_tokens=3)
     lm2 = lm + '2 + 2 =' + gen('answer', temperature=0.0000001, max_tokens=3)
     assert lm1["answer"] == lm2["answer"]
+
+def test_max_tokens():
+    lm = get_model("llama_cpp:")
+    lm += "Who won the last Kentucky derby and by how much?"
+    lm += "\n\n<<The last Kentucky Derby was held"
+    lm += gen(max_tokens=2)
+    assert str(lm)[-1] != "<" # the output should not end with "<" because that is coming from the stop sequence...
