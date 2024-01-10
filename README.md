@@ -278,7 +278,7 @@ with assistant():
 
 ## Example notebooks
 We are working on updating our example notebooks. The following ones have been updated:
-- [Basic tutorial](notebooks/tutorial.ipynb)
+- [Basic tutorial](notebooks/tutorials/intro_to_guidance.ipynb)
 - [Chatbot with search](notebooks/chat_with_search.ipynb)  
 
 More coming soon

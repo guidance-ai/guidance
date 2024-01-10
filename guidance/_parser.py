@@ -252,7 +252,11 @@ class EarleyCommitParser:
         found_invalid = False
         hidden_start = 10000000000
         for item in self.state_sets[self.state_set_pos + 1]:
-            if item.pos > 0 and isinstance(item.values[item.pos - 1], Terminal):
+            token_span = self.token_counts[-1] - self.token_counts[item.start]
+            if item.node.max_tokens <= token_span:
+                found_invalid = True
+                continue
+            elif item.pos > 0 and isinstance(item.values[item.pos - 1], Terminal):
                 last_inner_node = item.values[item.pos - 1]
                 if not last_inner_node.match_byte(byte):
                     found_invalid = True
@@ -390,10 +394,12 @@ class EarleyCommitParser:
         self._compute_parse_tree(0, root_item, reversed_state_sets)
         return root_item
 
-    def get_captures(self):
+    def get_captures(self, data=None, log_prob_data=None):
         root_node = self.parse_tree()
-        data = {}
-        log_prob_data = {}
+        if data is None:
+            data = {}
+        if log_prob_data is None:
+            log_prob_data = {}
         if root_node is not None:
             # parse complete, so we can get the captures
             self._record_captures_from_root(root_node, data, log_prob_data)
