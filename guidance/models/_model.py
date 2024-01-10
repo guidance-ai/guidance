@@ -380,6 +380,32 @@ class Model:
             The value to return if the variable is not current set.
         '''
         return self._variables.get(key, default)
+    
+    def setattr(self, key, value):
+        '''Return a new model with the given model attribute set.
+        
+        Parameters
+        ----------
+        key : str
+            The name of the attribute to be set.
+        value : any
+            The value to set the attribute to.
+        '''
+        copy = self.copy()
+        setattr(copy, key, value)
+        return copy
+    
+    def delattr(self, key):
+        '''Return a new model with the given attribute deleted.
+        
+        Parameters
+        ----------
+        key : str
+            The attribute name to remove.
+        '''
+        copy = self.copy()
+        delattr(copy, key)
+        return copy
 
     def set(self, key, value):
         '''Return a new model with the given variable value set.

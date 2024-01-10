@@ -1,6 +1,6 @@
 import guidance
 from ._block import block
-from ._set_var import set_var
+from ._set_attribute import set_attribute
 
 nodisp_start = "<||_#NODISP_||>"
 nodisp_end = "<||_/NODISP_||>"
@@ -10,7 +10,7 @@ span_end = "<||_html:</span>_||>"
 
 @guidance
 def role_opener(lm, role_name, **kwargs):
-    indent = lm.get("__role_indent", True)
+    indent = getattr(lm, "indent_roles", True)
     if not hasattr(lm, "get_role_start"):
         raise Exception(
             f"You need to use a chat model in order the use role blocks like `with {role_name}():`! Perhaps you meant to use the {type(lm).__name__}Chat class?"
@@ -39,7 +39,7 @@ def role_opener(lm, role_name, **kwargs):
 
 @guidance
 def role_closer(lm, role_name, **kwargs):
-    indent = lm.get("__role_indent", True)
+    indent = getattr(lm, "indent_roles", True)
     # Start of either debug or HTML no disp block
     if indent:
         lm += nodisp_start
@@ -92,4 +92,4 @@ def instruction(text=None, **kwargs):
     return role("instruction", text, **kwargs)
 
 def indent_roles(indent=True):
-    return set_var("__role_indent", indent)
+    return set_attribute("indent_roles", indent)
