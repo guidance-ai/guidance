@@ -252,31 +252,44 @@ class Model:
         # inside this context we are free to drop display calls that come too close together
         with throttle_refresh():
 
-            # close any newly closed contexts
-            for context in list(reversed(lm.opened_blocks)):
-                if context not in Model.open_blocks and context in lm.opened_blocks:
-                    pos, close_text = lm.opened_blocks[context] # save so we can delete it before adding it
-                    if context.name is not None:
-                        lm._variables[context.name] = format_pattern.sub("", lm._state[pos:])
-                    del lm.opened_blocks[context]
-                    lm._inplace_append(close_text)
-
-            # apply any newly opened contexts (new from this object's perspective)
+            # find what new blocks need to be applied
+            new_blocks = []
             for context in Model.open_blocks:
                 if context not in lm.opened_blocks:
-                    lm.opened_blocks[context] = (0, "") # mark this so we don't readd when computing the opener (even though we don't know the close text yet)
-                    lm += context.opener
-                    with grammar_only():
-                        tmp = lm + context.closer
-                    close_text = tmp._state[len(lm._state):] # get the new state added by calling the closer
-                    lm.opened_blocks[context] = (len(lm._state), close_text)
-                    
-                    # clear out names that we override
-                    if context.name is not None:
-                        if context.name in lm._variables:
-                            del lm._variables[context.name]
-                            if context.name in lm._variables_log_probs:
-                                del lm._variables_log_probs[context.name]
+                    new_blocks.append(context)
+
+                    # mark this so we don't re-add when computing the opener or closer (even though we don't know the close text yet)
+                    lm.opened_blocks[context] = (0, "")
+
+            # find what old blocks need to be removed
+            old_blocks = []
+            for context in list(reversed(lm.opened_blocks)):
+                if context not in Model.open_blocks and context in lm.opened_blocks:
+                    old_blocks.append((lm.opened_blocks[context], context))
+
+                    # delete this so we don't re-close when computing the opener or closer
+                    del lm.opened_blocks[context]
+
+            # close any newly closed contexts
+            for (pos, close_text), context in old_blocks:
+                if context.name is not None:
+                    lm._variables[context.name] = format_pattern.sub("", lm._state[pos:])
+                lm += context.closer
+
+            # apply any newly opened contexts (new from this object's perspective)
+            for context in new_blocks:
+                lm += context.opener
+                with grammar_only():
+                    tmp = lm + context.closer
+                close_text = tmp._state[len(lm._state):] # get the new state added by calling the closer
+                lm.opened_blocks[context] = (len(lm._state), close_text)
+                
+                # clear out names that we override
+                if context.name is not None:
+                    if context.name in lm._variables:
+                        del lm._variables[context.name]
+                        if context.name in lm._variables_log_probs:
+                            del lm._variables_log_probs[context.name]
             
             # wrap raw string values
             if isinstance(value, str):
@@ -367,6 +380,32 @@ class Model:
             The value to return if the variable is not current set.
         '''
         return self._variables.get(key, default)
+    
+    def setattr(self, key, value):
+        '''Return a new model with the given model attribute set.
+        
+        Parameters
+        ----------
+        key : str
+            The name of the attribute to be set.
+        value : any
+            The value to set the attribute to.
+        '''
+        copy = self.copy()
+        setattr(copy, key, value)
+        return copy
+    
+    def delattr(self, key):
+        '''Return a new model with the given attribute deleted.
+        
+        Parameters
+        ----------
+        key : str
+            The attribute name to remove.
+        '''
+        copy = self.copy()
+        delattr(copy, key)
+        return copy
 
     def set(self, key, value):
         '''Return a new model with the given variable value set.
@@ -957,9 +996,7 @@ class Model:
                 #     self._cache_state["new_token_ids"].append(sampled_token_ind)
 
                 # capture the named groups from the parse tree
-                new_captured_data, new_captured_log_prob_data = parser.get_captures()
-                captured_data.update(new_captured_data)
-                captured_log_prob_data.update(new_captured_log_prob_data)
+                parser.get_captures(captured_data, captured_log_prob_data)
 
                 # we have no valid log prob data if we didn't compute it
                 yield new_bytes[hidden_count:], is_generated, new_bytes_prob, captured_data, captured_log_prob_data, token_count - last_token_count

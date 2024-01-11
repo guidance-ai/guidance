@@ -13,9 +13,11 @@ from .._grammar import byte_range
 
 # context blocks
 from ._block import block
-from ._role import role, system, assistant, user, function, instruction
+from ._role import role, system, assistant, user, function, instruction, indent_roles
 from ._format import monospace
 from ._silent import silent
+from ._set_var import set_var
+from ._set_attribute import set_attribute
 # from ..models._model import context_free
 
 # stateless library functions
