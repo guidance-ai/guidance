@@ -27,6 +27,7 @@ class AzureOpenAI(Remote):
         self,
         model: str,
         azure_endpoint: str,
+        azure_deployment: str,
         azure_ad_token_provider=None,
         api_key: str = None,
         tokenizer=None,
@@ -76,6 +77,7 @@ class AzureOpenAI(Remote):
                 azure_endpoint=azure_endpoint,
                 api_key=api_key,
                 azure_ad_token_provider=azure_ad_token_provider,
+                azure_deployment=azure_deployment,
                 tokenizer=tokenizer,
                 echo=echo,
                 caching=caching,
@@ -100,6 +102,7 @@ class AzureOpenAI(Remote):
             api_key=api_key,
             azure_ad_token_provider=azure_ad_token_provider,
             api_version=api_version,
+            azure_deployment=azure_deployment
         )
         self.model_name = model
         self.top_p = top_p
