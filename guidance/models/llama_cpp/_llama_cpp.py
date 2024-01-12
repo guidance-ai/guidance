@@ -170,76 +170,8 @@ class LlamaCpp(Model):
             echo=echo
         )
 
-        # if not is_llama_cpp:
-        #     raise Exception("Please install llama-cpp-python with `pip install llama-cpp-python` in order to use guidance.models.LlamaCpp!")
 
-        # if isinstance(model, Path):
-        #     model = str(model)
-        # if model is None or isinstance(model, str) and len(model.strip()) == 0:
-        #     model = os.environ.get("LLAMA_CPP_MODEL", "")
-        #     if len(model.strip()) == 0:
-        #         try:
-        #             with open(os.path.expanduser('~/.llama_cpp_model'), 'r') as file:
-        #                 model = file.read().replace('\n', '')
-        #         except:
-        #             pass
-        #         if len(model.strip()) == 0:
-        #             raise ValueError("If model is None then a model file must be specified in either the LLAMA_CPP_MODEL environment variable or in the ~/.llama_cpp_model file.")
-
-        # if isinstance(model, str):
-        #     self.model = model
-        #     if "verbose" not in kwargs:
-        #         kwargs["verbose"] = False
-
-        #     # patch over https://github.com/abetlen/llama-cpp-python/issues/729
-        #     try:
-        #         sys.stdout.fileno()
-        #     except:
-        #         logger.warn("Cannot use verbose=True in this context (probably CoLab). See https://github.com/abetlen/llama-cpp-python/issues/729")
-        #         kwargs["verbose"] = True # llama-cpp-python can't hide output in this case
-
-        #     with normalize_notebook_stdout_stderr():
-        #         self.model_obj = llama_cpp.Llama(model_path=model, **kwargs)
-        # elif isinstance(model, llama_cpp.Llama):
-        #     self.model = model.__class__.__name__
-        #     self.model_obj = model
-        # else:
-        #     raise TypeError("model must be None, a file path string, or a llama_cpp.Llama object.")
-
-        # self._context = _LlamaBatchContext(self.model_obj.n_batch, self.model_obj.n_ctx())
-
-        # if tokenizer is None:
-        #     tokenizer = llama_cpp.LlamaTokenizer(self.model_obj)
-        # elif not isinstance(tokenizer, llama_cpp.LlamaTokenizer):
-        #     raise TypeError("tokenizer must be None or a llama_cpp.LlamaTokenizer object.")
-        # self._orig_tokenizer = tokenizer
-
-        # self.tokenizer.llama.n_vocab() = tokenizer.llama.n_vocab()
-        # self.caching = caching
-        # self.temperature = temperature
-
-        # tokens = []
-        # for i in range(self.tokenizer.llama.n_vocab()):
-        #     tok = tokenizer.llama.detokenize([i]) # note that detokenize returns bytes directly
-        #     if tok == b'':
-        #         tok = llama_cpp.llama_token_get_text(self.model_obj.model, i) # get text rep of special tokens
-        #     tokens.append(tok)
-        # super().__init__(
-        #     tokens,
-        #     tokenizer.llama.token_bos(),
-        #     tokenizer.llama.token_eos(),
-        #     echo=echo,
-        #     compute_log_probs=compute_log_probs
-        # )
-
-        # self._cache_token_ids = []
-
-
-    
 class LlamaCppChat(LlamaCpp, Chat):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
     def get_role_start(self, role_name, **kwargs):
         if role_name == "user":
 

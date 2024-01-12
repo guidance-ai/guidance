@@ -36,7 +36,11 @@ html_pattern = re.compile(r"&lt;\|\|_html:(.*?)_\|\|&gt;", flags=re.DOTALL)
 image_pattern = re.compile(r"&lt;\|_image:(.*?)\|&gt;")
 
 class Tokenizer:
-    '''This is the standardized tokenizer interface used by guidance models.'''
+    '''This is the standardized tokenizer interface used by guidance models.
+    
+    This class should be subclassed by specific implementations and then used as the
+    tokenizer in the corresponding Engine subclass.
+    '''
 
     def __init__(self, tokens, bos_token_id=None, eos_token_id=None):
         
@@ -78,7 +82,13 @@ class Tokenizer:
             probs[i] = 0
 
 class Engine:
-    '''The engine owns the inference computation and is used/created by the Model class.'''
+    '''The engine owns the inference computation and is used/created by the Model class.
+    
+    Engine objects represent the expensive parts of inference. While Model objects are cheap and do not
+    need to know about the tokenizer or the model parameters, Engine objects know about both. Many
+    Model objects can reference a single Engine object. Engine objects can also be hidden behind a
+    Server so a single server can serve many clients' model objects through a single Engine object.
+    '''
 
     def __init__(self, tokenizer, compute_log_probs=False):
         self.tokenizer = tokenizer
