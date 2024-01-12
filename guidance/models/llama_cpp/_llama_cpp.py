@@ -105,6 +105,11 @@ class LlamaCppEngine(Engine):
 
         self._n_vocab = len(self.tokenizer.tokens)
 
+    def _joint_tokenize(self, token_ids):
+        '''What a full joint tokenizer would give for a given byte string'''
+        byte_string = b"".join([self.tokenizer.tokens[t] for t in token_ids])
+        return self.tokenizer(byte_string)
+
     def get_logits(self, token_ids, forced_bytes, current_temp):
         '''Computes the logits for the given token state.
         

@@ -96,6 +96,7 @@ class Engine:
 
         # build a prefix tree of the tokens
         self._token_trie = cpp.ByteTrie(self.tokenizer.tokens, np.arange(len(self.tokenizer.tokens)))
+        self._token_trie.insert(b'<|EOS|>', self.tokenizer.eos_token_id, 0) # ensure that we have our common EOS token present
         self._token_trie.match = True
         self._token_trie.match_version = 0
 
@@ -314,6 +315,10 @@ class Engine:
                     else:
                         sampled_token = self.tokenizer.tokens[sampled_token_ind]
 
+                    # break out if we have reach impossible tokens
+                    if logits[sampled_token_ind] <= -np.inf:
+                        break
+
                     # make sure the parse is backed up to the position we want to start checking from TODO: make this account for shared prefixes with the last token
                     parser.pos = forced_pos
                     new_bytes_prob = 1.0
@@ -323,7 +328,7 @@ class Engine:
                     #     raise self._report_failed_match(trimmed_prompt_prefix + parser.bytes)
 
                     # make sure it matches any forced prefix
-                    if start_pos < forced_pos and not sampled_token.startswith(parser.bytes[start_pos:forced_pos]):
+                    if start_pos < forced_pos and not sampled_token.startswith(parser.bytes[start_pos:min(forced_pos, start_pos+len(sampled_token))]):
                         continue
                     offset = forced_pos - start_pos
 
@@ -552,8 +557,7 @@ class Engine:
 
     def _joint_tokenize(self, token_ids):
         '''What a full joint tokenizer would give for a given byte string'''
-        byte_string = b"".join([self.tokenizer.tokens[t] for t in token_ids])
-        return self.tokenizer(byte_string)
+        return token_ids
 
 class Model:
     '''The base guidance model object, which represents a model in a given state.
@@ -561,7 +565,7 @@ class Model:
     Model objects are immutable representations of model state, so whenever you change
     them you get a new Model object. However, these copies share the "expensive"
     parts of the underlying model like the the parameters and KV-cache, through a shared
-    InferenceEngine, so making copies of Model objects is cheap.
+    Engine, so making copies of Model objects is cheap.
 
     .. automethod:: __add__
     '''
@@ -570,14 +574,14 @@ class Model:
     _grammar_only = 0 # a flag that tracks when we are forced to be executing only compiled grammars (like when we are inside a select)
     _throttle_refresh = 0 # a flag that tracks when we can throttle our display since we know future display calls are going to happen
 
-    def __init__(self, inference_engine, echo=True):
+    def __init__(self, engine, echo=True):
         '''Build a new model object that represents a model in a given state.
 
         Note that this constructor is not meant to be used directly, since there
         
         Parameters
         ----------
-        inference_engine : InferenceEngine
+        engine : Engine
             The inference engine to use for this model.
         echo : bool
             If true the final result of creating this model state will be displayed (as HTML in a notebook).
@@ -587,7 +591,7 @@ class Model:
         # if not isinstance(tokenizer, Tokenizer):
         #     tokenizer = Tokenizer(tokenizer)
         
-        self.engine = inference_engine
+        self.engine = engine
         self.echo = echo
         self.token_count = 0 # tracks how many tokens our byte state represents
         self.max_display_rate = 0.2 # this controls how frequently we are allowed to redraw the display (in seconds)
