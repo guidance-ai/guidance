@@ -131,18 +131,12 @@ class OAIInstructMixin(Instruct):
 
     def _generator(self, prompt, temperature):
         # start the new stream
-        prompt_end = prompt.find(b'<|endofprompt|>')
-        if prompt_end >= 0:
-            stripped_prompt = prompt[:prompt_end]
-        else:
-            raise Exception("This model cannot handle prompts that don't match the instruct format!")
-        
-        # make sure you don't try and instruct the same model twice
-        if b'<|endofprompt|>' in prompt[prompt_end + len(b'<|endofprompt|>'):]:
-            raise Exception("This model has been given two separate instruct blocks, but this is not allowed!")
-        
-        # update our shared data state
-        self._reset_shared_data(stripped_prompt + b'<|endofprompt|>', temperature)
+        eop_count = prompt.count(b'<|endofprompt|>')
+        if eop_count > 1:
+            raise Exception("This model has been given multiple instruct blocks or <|endofprompt|> tokens, but this is not allowed!")
+        updated_prompt = prompt + b'<|endofprompt|>' if eop_count == 0 else prompt
+
+        self._reset_shared_data(updated_prompt, temperature)
 
         try:
             generator = self.client.completions.create(
