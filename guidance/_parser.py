@@ -48,7 +48,11 @@ class EarleyItem:
             assert False
         return s + f"{rs:40} ({self.start}) {'nullable' if self.node.nullable else ''}"
 
-class EarleyCommitParser:
+class Parser:
+    '''An abstract base class for guidance parsers.'''
+    pass
+
+class EarleyCommitParser(Parser):
     def __init__(self, grammar):
 
         # we can't have a terminal as the root
