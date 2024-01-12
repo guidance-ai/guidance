@@ -242,7 +242,7 @@ class Engine:
             is_forced = next_byte_mask_sum <= 1 and (len(trie) == 0 if parser.matched() else trie != self._token_trie)
             if is_forced:
                 sampled_token_ind = trie.value
-                sampled_token = self.tokens[sampled_token_ind]
+                sampled_token = self.tokenizer.tokens[sampled_token_ind]
                 new_bytes_prob = 1.0
                 was_forced = True
 
@@ -253,7 +253,7 @@ class Engine:
                 # mark the token we "sampled" if we have comsumed some bytes
                 if trie != self._token_trie:
                     sampled_token_ind = trie.value
-                    sampled_token = self.tokens[sampled_token_ind]
+                    sampled_token = self.tokenizer.tokens[sampled_token_ind]
                     new_bytes_prob = 1.0
                     
             # otherwise we need to compute the logits and sample a valid token
@@ -299,7 +299,10 @@ class Engine:
 
                 # loop over the tokens looking for a valid one
                 for i,sampled_token_ind in enumerate(sampling_order):
-                    sampled_token = self.tokenizer.tokens[sampled_token_ind]
+                    if sampled_token_ind == self.tokenizer.eos_token_id:
+                        sampled_token = b'<|EOS|>' # always use <|EOS|> for end-of-sequence so clients can refer to it in a model-agnostic way without needing to know the tokenizer
+                    else:
+                        sampled_token = self.tokenizer.tokens[sampled_token_ind]
 
                     # make sure the parse is backed up to the position we want to start checking from TODO: make this account for shared prefixes with the last token
                     parser.pos = forced_pos
@@ -416,6 +419,7 @@ class Engine:
 
                 # which if can't consume any more tokens, but we are not yet done
                 if not parser.matched():
+                    parser.matched()
                     raise self._report_failed_match(trimmed_prompt_prefix + parser.bytes)
                 
                 # TODO: if we exactly match the end of the pattern then we can commit to this last token 
@@ -519,7 +523,7 @@ class Engine:
                 token_byte_positions.append(pos)
             
             # ugly hack to deal with sentence peice craziness of space hiding after special tokens TODO: figure out how to make this more robust
-            if token_byte_positions[-1] == last_pos + 1 and self.tokens[token_ids[0]] == b'<s>' and self.tokens[token_ids[1]][0:1] == b' ':
+            if token_byte_positions[-1] == last_pos + 1 and self.tokenizer.tokens[token_ids[0]] == b'<s>' and self.tokenizer.tokens[token_ids[1]][0:1] == b' ':
                 for i in range(1, len(token_byte_positions)):
                     token_byte_positions[i] -= 1
             assert token_byte_positions[-1] == last_pos
@@ -530,7 +534,7 @@ class Engine:
         '''A fake method designed to be overriden by subclasses.'''
 
         # pretend to extend the KV cache and update the log probs
-        return np.randn(len(self.tokens))
+        return np.randn(len(self.tokenizer.tokens))
 
     def _report_failed_match(self, prompt):
         """Note that this can be overridden by subclasses that have more likely reasons than a bug in the token set (like remote models)."""
@@ -607,7 +611,7 @@ class Model:
                 parts.append(role_end_str)
 
         # add the eos token
-        # parts.append(self.eos_token) # TODO: we should handle this on the engine side by just stopping when we generate this token...
+        parts.append(b"<|EOS|>")
 
         return select(parts)
 
