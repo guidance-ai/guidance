@@ -68,8 +68,8 @@ class OpenAI(Remote):
                 found_subclass = OpenAIChat
 
             # instruct
-            elif "instruct" in model:
-                found_subclass = OpenAIInstruct
+            # elif "instruct" in model: # All current OpenAI instruct models behave as Completion models. 
+            #     found_subclass = OpenAIInstruct
 
             # regular completion
             else:
