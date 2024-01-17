@@ -26,7 +26,7 @@ except ImportError:
     from .. import _cpp as cpp
 from .._utils import softmax, CaptureEvents
 from .._parser import EarleyCommitParser, Parser
-from .._grammar import StatelessFunction, string, _call_pool, _tag_pattern, Null, replace_model_variables, unreplace_model_variables, select, Terminal
+from .._grammar import StatelessFunction, string, _call_pool, _tag_pattern, Null, replace_model_variables, unreplace_model_variables, select
 
 # define some constants we will reuse many times
 _null_grammar = string('')
@@ -46,7 +46,7 @@ class Tokenizer:
         
         # a numpy array of token byte strings indexed by their token id
         if isinstance(tokens, list):
-            self.tokens = np.array(tokens)
+            self.tokens = np.array(tokens, dtype='object') # note that we need np.bytes_ to zero bytes are not treated as null terminations
         
         # a numpy array of token byte strings indexed by their token id
         elif isinstance(tokens, np.array):
@@ -96,7 +96,6 @@ class Engine:
 
         # build a prefix tree of the tokens
         self._token_trie = cpp.ByteTrie(self.tokenizer.tokens, np.arange(len(self.tokenizer.tokens)))
-        self._token_trie.insert(b'<|EOS|>', self.tokenizer.eos_token_id, 0) # ensure that we have our common EOS token present
         self._token_trie.match = True
         self._token_trie.match_version = 0
 
@@ -116,6 +115,9 @@ class Engine:
         '''
         # def __call__(self, grammar, max_tokens=1000000, n=1, top_p=1, temperature=0.0, ensure_bos_token=True):
         # assert n == 1, "Still need to add support for n > 1!"
+
+        # note we only support a fixed set of engine variables for the sake of security
+        replacements = replace_model_variables(grammar, self, allowed_vars=["eos_token", "bos_token"])
 
         # right now we only support a text/bytes prompt parser state, so we extract that
         if isinstance(parser, bytes):
@@ -155,6 +157,9 @@ class Engine:
         captured_data = {}
         captured_log_prob_data = {}
         while True: # each iteration generates one more token (and some of the associated bytes)
+
+            if token_count >= 10:
+                pass
 
             # note where we are starting for this token
             start_pos = parser.pos
@@ -294,7 +299,7 @@ class Engine:
                 if current_temp == 0:
                     sampling_order = np.argsort(-logits) # we need numpy so the enumerate below does not get really slow...
                 else:
-                    assert top_p == 1, "Still need to add support for top_p!"
+                    # assert top_p == 1, "Still need to add support for top_p!"
                     if torch:
                         logits = torch.tensor(logits)
                         torch.div(logits, current_temp, out=logits)
@@ -310,32 +315,29 @@ class Engine:
 
                 # loop over the tokens looking for a valid one
                 for i,sampled_token_ind in enumerate(sampling_order):
-                    if sampled_token_ind == self.tokenizer.eos_token_id:
-                        sampled_token = b'<|EOS|>' # always use <|EOS|> for end-of-sequence so clients can refer to it in a model-agnostic way without needing to know the tokenizer
-                    else:
-                        sampled_token = self.tokenizer.tokens[sampled_token_ind]
+                    sampled_token = self.tokenizer.tokens[sampled_token_ind]
 
                     # break out if we have reach impossible tokens
                     if logits[sampled_token_ind] <= -np.inf:
                         break
 
+                    # make sure it matches any forced prefix
+                    used_forced_pos = min(forced_pos, start_pos+len(sampled_token))
+                    if start_pos < forced_pos and not sampled_token.startswith(parser.bytes[start_pos:used_forced_pos]):
+                        continue
+                    offset = used_forced_pos - start_pos
+
                     # make sure the parse is backed up to the position we want to start checking from TODO: make this account for shared prefixes with the last token
-                    parser.pos = forced_pos
+                    parser.pos = used_forced_pos
                     new_bytes_prob = 1.0
 
                     # if we have gotten to the end of the valid tokens then we stop
                     # if logits[sampled_token_ind] == -np.inf:
                     #     raise self._report_failed_match(trimmed_prompt_prefix + parser.bytes)
 
-                    # make sure it matches any forced prefix
-                    if start_pos < forced_pos and not sampled_token.startswith(parser.bytes[start_pos:min(forced_pos, start_pos+len(sampled_token))]):
-                        continue
-                    offset = forced_pos - start_pos
-
                     # check to see if the sampled token is allowed
                     token_pos = offset
                     node = trie # this is the Trie node we were left at when we could force the next byte above
-
                     while token_pos < len(sampled_token):
                         next_byte = sampled_token[token_pos:token_pos+1]
                         next_node = node.child(next_byte)
@@ -472,6 +474,9 @@ class Engine:
                     token_byte_positions.append(len(sampled_token))
                 else:
                     token_byte_positions.append(token_byte_positions[-1] + len(sampled_token))
+
+        # TODO: we only need to do this when we might re-use the grammar object...we might want to account for that
+        unreplace_model_variables(replacements)
     
     def _tokenize_prefix(self, byte_string):
         '''This is used to speed up the tokenization of long prompts without using the parser.'''
@@ -609,7 +614,7 @@ class Model:
         self._last_event_stream = 0 # used to track the last event streaming call to enable throttling
 
     @property
-    def default_end_patterns(self):
+    def active_role_end(self):
         '''The default end patterns we should use for `gen` calls.
         TODO: move this logic into the gen call...we can do with if we allow model_variables to run functions.
         
@@ -623,9 +628,6 @@ class Model:
             role_end_str = format_pattern.sub("", role_end_str)
             if len(role_end_str) > 0 and not re.fullmatch(r'\s+', role_end_str):
                 parts.append(role_end_str)
-
-        # add the eos token
-        parts.append(b"<|EOS|>")
 
         return select(parts)
 

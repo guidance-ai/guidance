@@ -304,7 +304,7 @@ def replace_grammar_node(grammar, target, replacement):
 #         else:
 #             replace_grammar_node(value, target, replacement, visited_set)
 
-def replace_model_variables(grammar, model):
+def replace_model_variables(grammar, model, allowed_vars=None):
     '''Replace all the ModelVariable nodes with their values in an iterative manner.'''
     visited_set = set()
     stack = [(grammar, None, None)]  # Stack stores tuples of (node, parent_node, child_index)
@@ -325,12 +325,22 @@ def replace_model_variables(grammar, model):
             for i in reversed(range(len(current.values))):
                 value = current.values[i]
                 if isinstance(value, ModelVariable):
-                    # Replace the ModelVariable with its value from 'model'
-                    replacement_value = _wrap_as_grammar(getattr(model, value.name))
-                    if value.commit_point:
-                        replacement_value = commit_point(replacement_value, hidden=value.hidden)
-                    replacements.append((current, i, value))  # Record the replacement
-                    current.values[i] = replacement_value  # Perform the replacement
+                    if allowed_vars is not None and value.name not in allowed_vars:
+                        raise Exception(f"Invalid model variable name: {value.name}")
+                    # Replace the ModelVariable with its value from 'model' (or the tokenizer if model does not have it)
+                    # note we skip over attrs we don't have since we may be run twice, once on the model and once for the engine
+                    if hasattr(model, value.name):
+                        obj = model
+                    elif hasattr(model, "tokenizer") and hasattr(model.tokenizer, value.name):
+                        obj = model.tokenizer
+                    else:
+                        obj = None
+                    if obj is not None:
+                        replacement_value = _wrap_as_grammar(getattr(obj, value.name))
+                        if value.commit_point:
+                            replacement_value = commit_point(replacement_value, hidden=value.hidden)
+                        replacements.append((current, i, value))  # Record the replacement
+                        current.values[i] = replacement_value  # Perform the replacement
                 else:
                     # If not ModelVariable, push onto the stack to process later
                     stack.append((value, current, i))
@@ -563,8 +573,17 @@ def _re_with_temperature(grammar, temperature, visited_set):
         for g in grammar.values:
             _re_with_temperature(g, temperature, visited_set)
 
-def model_variable(name):
-    return ModelVariable(name)
+# def model_variable(name):
+#     return ModelVariable(name)
+
+def active_role_end():
+    return ModelVariable('active_role_end')
+
+def eos_token():
+    return ModelVariable('eos_token')
+
+def bos_token():
+    return ModelVariable('bos_token')
 
 _null_grammar = string('')
 # def char_range(low, high):

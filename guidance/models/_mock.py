@@ -1,21 +1,13 @@
 import numpy as np
 
-from ._model import Model, Chat
+from ._model import Tokenizer, Engine, Model, Chat
 
+class MockEngine(Engine):
+    def __init__(self, tokenizer, byte_patterns, compute_log_probs):
+        super().__init__(tokenizer, compute_log_probs=compute_log_probs)
 
-class Mock(Model):
-    def __init__(self, byte_patterns=[], echo=True):
-        '''Build a new Mock model object that represents a model in a given state.'''
-        super().__init__(
-            # our tokens are all bytes and all lowercase letter pairs
-            [b"<s>"] + [bytes([i,j]) for i in range(ord('a'), ord('z')) for j in range(ord('a'), ord('z'))] + [bytes([i]) for i in range(256)],
-            0,
-            0,
-            echo=echo
-        )
-
-        self._valid_mask = np.zeros(len(self.tokens))
-        for i,t in enumerate(self.tokens):
+        self._valid_mask = np.zeros(len(tokenizer.tokens))
+        for i,t in enumerate(tokenizer.tokens):
             try:
                 t.decode("utf8")
                 self._valid_mask[i] = 1.0
@@ -34,19 +26,15 @@ class Mock(Model):
         self.byte_patterns = byte_patterns
         self._rand_generator = np.random.default_rng(seed=42)
 
-        self._cache_state["past_key_values"] = None
-        self._cache_state["logits"] = None
-        self.eos_token = b"<s>"
-
-    def _get_logits(self, token_ids, forced_bytes, current_temp):
+    def get_logits(self, token_ids, forced_bytes, current_temp):
         '''Pretends to compute the logits for the given token state.
         '''
 
         # build the byte strings
-        byte_string = b"".join(self.tokens[i] for i in token_ids)
+        byte_string = b"".join(self.tokenizer.tokens[i] for i in token_ids)
 
         # we randomly generate valid unicode bytes
-        logits = self._rand_generator.standard_normal(len(self.tokens)) * self._valid_mask
+        logits = self._rand_generator.standard_normal(len(self.tokenizer.tokens)) * self._valid_mask
 
         # if we have a pattern that matches then force the next token
         bias = 100.0
@@ -61,9 +49,23 @@ class Mock(Model):
         return logits
     
     def _get_next_tokens(self, byte_string):
-        for i,t in enumerate(self.tokens):
+        for i,t in enumerate(self.tokenizer.tokens):
             if byte_string.startswith(t):
                 yield i
+
+class Mock(Model):
+    def __init__(self, byte_patterns=[], echo=True, compute_log_probs=False):
+        '''Build a new Mock model object that represents a model in a given state.'''
+        tokenizer = Tokenizer(
+            # our tokens are all bytes and all lowercase letter pairs
+            [b"<s>"] + [bytes([i,j]) for i in range(ord('a'), ord('z')) for j in range(ord('a'), ord('z'))] + [bytes([i]) for i in range(256)],
+            0,
+            0
+        )
+        super().__init__(
+            MockEngine(tokenizer, byte_patterns, compute_log_probs),
+            echo=echo
+        )
         
 
 class MockChat(Mock, Chat):

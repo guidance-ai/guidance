@@ -37,7 +37,7 @@ def get_transformers_model(model_name, caching=False, **kwargs):
     # load it over and over again
     key = model_name+"_"+str(caching)+"_"+str(kwargs)
     if key not in transformers_model_cache:
-        transformers_model_cache[key] = guidance.models.Transformers(model_name, caching=caching, **kwargs)
+        transformers_model_cache[key] = guidance.models.Transformers(model_name, **kwargs)
 
     return transformers_model_cache[key]
 

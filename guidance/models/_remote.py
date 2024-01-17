@@ -123,7 +123,7 @@ class RemoteEngine(Engine):
             dqueue.put(e)
 
         if self._running_stream():
-            dqueue.put(b'<|EOS|>')
+            dqueue.put(self.tokenizer.eos_token)
         self._not_running_stream.set()
         dqueue.put(b'') # so we never get stuck waiting for a running stream to return something
 
@@ -228,7 +228,7 @@ class RemoteEngine(Engine):
                 leftover = prompt[match_len:]
 
                 # record any active non-empty role ends. Ignore role ends that are spaces
-                parts = [b"<|im_end|>", b"<|EOS|>"] # note we assume we are role tags that end with <|im_end|>
+                parts = [b"<|im_end|>", self.tokenizer.eos_token] # note we assume we are role tags that end with <|im_end|>
 
                 # for _,role_end_str in self.opened_blocks.values():
                 #     role_end_str = format_pattern.sub("", role_end_str)
