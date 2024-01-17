@@ -1,5 +1,5 @@
 import openai
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, AsyncStream
 import os
 import time
 import requests
@@ -68,6 +68,7 @@ def prompt_to_messages(prompt):
 
     return messages
 
+
 async def add_text_to_chat_mode_generator(chat_mode):
     in_function_call = False
     async for part in chat_mode:
@@ -77,16 +78,19 @@ async def add_text_to_chat_mode_generator(chat_mode):
 
                 # move content from delta to text so we have a consistent interface with non-chat mode
                 found_content = False
-                if "content" in c['delta'] and c['delta']['content'] != "":
-                    found_content = True
-                    c['text'] = c['delta']['content']
+                if "content" in c['delta']:
+                    if c['delta']['content'] is None:
+                        c['delta']['content'] = ""
+                    if c['delta']['content'] != "":
+                        found_content = True
+                        c['text'] = c['delta']['content']
 
                 # capture function call data and convert to text again so we have a consistent interface with non-chat mode and open models
-                if "function_call" in c['delta']:
+                if "function_call" in c['delta'] and c['delta']['function_call'] is not None:
 
                     # build the start of the function call (the follows the syntax that GPT says it wants when we ask it, and will be parsed by the @function_detector)
                     if not in_function_call:
-                        start_val = "\n```typescript\nfunctions."+c['delta']['function_call']["name"]+"("
+                        start_val = "\n```typescript\nfunctions." + c['delta']['function_call']["name"] + "("
                         if not c['text']:
                             c['text'] = start_val
                         else:
@@ -101,7 +105,7 @@ async def add_text_to_chat_mode_generator(chat_mode):
                         c['text'] = val
 
                 if not found_content and not in_function_call:
-                    break # the role markers are outside the generation in chat mode right now TODO: consider how this changes for uncontrained generation
+                    break  # the role markers are outside the generation in chat mode right now TODO: consider how this changes for uncontrained generation
             else:
                 yield resp
         else:
@@ -111,14 +115,16 @@ async def add_text_to_chat_mode_generator(chat_mode):
     if in_function_call:
         yield {'choices': [{'text': ')```'}]}
 
+
 def add_text_to_chat_mode(chat_mode):
-    if isinstance(chat_mode, (types.AsyncGeneratorType, types.GeneratorType)):
+    if isinstance(chat_mode, (types.AsyncGeneratorType, types.GeneratorType, AsyncStream)):
         return add_text_to_chat_mode_generator(chat_mode)
     else:
         chat_mode = chat_mode.model_dump()
         for c in chat_mode['choices']:
             c['text'] = c['message']['content']
         return chat_mode
+
 
 class OpenAI(LLM):
     llm_name: str = "openai"
