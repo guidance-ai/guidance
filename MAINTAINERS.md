@@ -6,6 +6,7 @@ This document lists the Maintainers of the Project. Maintainers may be added onc
 | --- | --- |
 | Harsha Nori | Microsoft |
 | Scott Lundberg | |
+| Marco Tulio Ribeiro | Google |
 
 
 ---
