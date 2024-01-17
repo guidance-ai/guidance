@@ -14,8 +14,8 @@ def test_openai_class_detection():
         "ft:gpt-4": guidance.models.OpenAIChat,
         "ft:gpt-4-vision-preview": guidance.models.OpenAIChat,
         "ft:gpt-3.5-turbo:my-org:custom_suffix:id": guidance.models.OpenAIChat,
-        "gpt-3.5-turbo-instruct": guidance.models.OpenAIInstruct,
-        "ft:gpt-3.5-turbo-instruct": guidance.models.OpenAIInstruct,
+        "gpt-3.5-turbo-instruct": guidance.models.OpenAICompletion,
+        "ft:gpt-3.5-turbo-instruct": guidance.models.OpenAICompletion,
         "text-curie-001": guidance.models.OpenAICompletion,
         "ft:text-curie-001": guidance.models.OpenAICompletion,
         "text-davinci-003": guidance.models.OpenAICompletion,
@@ -40,19 +40,6 @@ def test_openai_basic():
     lm += f"""{gen(max_tokens=1, suffix=nl)}aaaaaa"""
     assert str(lm)[-5:] == "aaaaa"
 
-def test_openai_gpt35_instruct():
-    from guidance import gen, instruction
-
-    # this relies on the environment variable OPENAI_API_KEY being set
-    try:
-        lm = guidance.models.OpenAI('gpt-3.5-turbo-instruct')
-    except:
-        pytest.skip("Skipping OpenAI test because we can't load the model!")
-
-    with instruction():
-        lm += "What is a popular flavor?"
-    lm += gen('flavor', max_tokens=2, stop=".")
-    assert len(lm['flavor']) > 0
 
 def test_openai_select():
     try:
