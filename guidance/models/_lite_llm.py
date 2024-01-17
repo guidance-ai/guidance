@@ -1,32 +1,15 @@
-import os
-from pathlib import Path
-import multiprocessing
-from itertools import takewhile
-import operator
-import threading
-import numpy as np
-import queue
-import time
 import tiktoken
-import re
 
 from ._model import Chat, Instruct
-from ._remote import Remote
+from ._remote import RemoteTokenizer, RemoteEngine, Remote
 
-
-class LiteLLM(Remote):
-    def __init__(self, model, tokenizer=None, echo=True, caching=True, api_base=None, api_key=None, custom_llm_provider=None, temperature=0.0, max_streaming_tokens=1000, **kwargs):
-        '''Build a new LiteLLM model object that represents a model in a given state.'''
+class LiteLLMEngine(RemoteEngine):
+    def __init__(self, model, tokenizer, timeout, compute_log_probs, max_streaming_tokens, **kwargs):
         try:
             import litellm
         except ImportError:
             raise Exception("Please install the litellm package version >= 1.7 using `pip install litellm -U` in order to use guidance.models.LiteLLM!")
         
-        # if we are called directly (as opposed to through super()) then we convert ourselves to a more specific subclass if possible
-        if self.__class__ is LiteLLM:
-            raise Exception("The LightLLM class is not meant to be used directly! Please use LiteLLMChat, LiteLLMInstruct, or LiteLLMCompletion depending on the model you are using.")
-
-
         self.litellm = litellm
 
         # self.client = openai_package.OpenAI(api_key=api_key, organization=organization, base_url=base_url)
@@ -40,13 +23,36 @@ class LiteLLM(Remote):
                 tokenizer = tiktoken.get_encoding("gpt2")
 
         super().__init__(
-            model, tokenizer=tokenizer, echo=echo,
-            caching=caching, temperature=temperature,
-            max_streaming_tokens=max_streaming_tokens, **kwargs
+            tokenizer,
+            max_streaming_tokens=max_streaming_tokens,
+            timeout=timeout,
+            compute_log_probs=compute_log_probs
         )
 
+class LiteLLM(Remote):
+    def __init__(self, model, tokenizer=None, echo=True, timeout=0.5, max_streaming_tokens=1000, compute_log_probs=False):
+        '''Build a new LiteLLM model object that represents a model in a given state.'''
 
-class LiteLLMCompletion(LiteLLM, Instruct):
+        # if we are called directly (as opposed to through super()) then we convert ourselves to a more specific subclass if possible
+        if self.__class__ is LiteLLM:
+            raise Exception("The LightLLM class is not meant to be used directly! Please use LiteLLMChat, LiteLLMInstruct, or LiteLLMCompletion depending on the model you are using.")
+
+        # this allows us to use a single constructor for all our subclasses
+        engine_map = {
+            LiteLLMCompletion: LiteLLMCompletionEngine,
+            LiteLLMInstruct: LiteLLMInstructEngine,
+            LiteLLMChat: LiteLLMChatEngine
+        }
+
+        super().__init__(
+            engine_map[self.__class__](model, tokenizer, timeout, compute_log_probs, max_streaming_tokens),
+            echo=echo
+        )
+
+class LiteLLMCompletion(LiteLLM):
+    pass
+
+class LiteLLMCompletionEngine(LiteLLMEngine):
 
     def _generator(self, prompt, temperature):
         
@@ -71,6 +77,9 @@ class LiteLLMCompletion(LiteLLM, Instruct):
             yield chunk.encode("utf8")
 
 class LiteLLMInstruct(LiteLLM, Instruct):
+    pass
+
+class LiteLLMInstructEngine(LiteLLMEngine):
 
     def get_role_start(self, name):
         return ""
@@ -115,9 +124,9 @@ class LiteLLMInstruct(LiteLLM, Instruct):
             yield chunk.encode("utf8")
 
 class LiteLLMChat(LiteLLM, Chat):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    pass
 
+class LiteLLMChatEngine(LiteLLMEngine):
     def _generator(self, prompt, temperature):
         
         # find the system text

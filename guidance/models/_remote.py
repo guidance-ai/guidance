@@ -290,6 +290,8 @@ class RemoteEngine(Engine):
         # set the logits to the next byte the model picked
         logits = np.ones(len(self.tokenizer.tokens)) * -np.inf
         logits[token_id] = 100
+        if token_id != self.tokenizer.eos_token:
+            logits[self.tokenizer.eos_token_id] = 0 # we always allow the model to use EOS if that is the only way forward
         
         return logits
     
