@@ -1,24 +1,18 @@
 import re
 from .._model import Chat, Instruct
-from .._remote import Remote
-
-
-try:
-    # TODO: can we eliminate the torch requirement for llama.cpp by using numpy in the caller instead?
-    import torch
-    is_torch = True
-except ImportError:
-    is_torch = False
+from .._remote import RemoteEngine, Remote
 
 try:
-    # TODO: can we eliminate the torch requirement for llama.cpp by using numpy in the caller instead?
     import vertexai
     is_vertexai = True
 except ImportError:
     is_vertexai = False
 
+class VertexAIEngine(RemoteEngine):
+    pass
+
 class VertexAI(Remote):
-    def __init__(self, model, tokenizer=None, echo=True, caching=True, temperature=0.0, top_p=1.0, max_streaming_tokens=None, **kwargs):
+    def __init__(self, model, tokenizer=None, echo=True, max_streaming_tokens=None, timeout=0.5, compute_log_probs=False, engine_class=None, **kwargs):
         '''Build a new VertexAI model object that represents a model in a given state.'''
         if not is_vertexai:
             raise Exception("Please install the vertexai package using `pip install google-cloud-aiplatform` in order to use guidance.models.VertexAI!")
@@ -26,58 +20,78 @@ class VertexAI(Remote):
         # if we are called directly (as opposed to through super()) then we convert ourselves to a more specific subclass if possible
         if self.__class__ is VertexAI:
             found_subclass = None
-            from .. import vertexai
+            from .. import vertexai as vertexai_subclasses
 
             if isinstance(model, str):
                 model_name = model
             else:
-                model_name = self.model_obj._model_id # TODO: is this right?
+                model_name = model._model_id
 
             # CodeyCompletion
             if re.match("code-gecko(@[0-9]+)?", model_name):
-                found_subclass = vertexai.CodeyCompletion
+                found_subclass = vertexai_subclasses.CodeyCompletion
 
             # CodeyInstruct
             elif re.match("code-bison(@[0-9]+)?", model_name):
-                found_subclass = vertexai.CodeyInstruct
+                found_subclass = vertexai_subclasses.CodeyInstruct
 
             # CodeyChat
             elif re.match("codechat-bison(@[0-9]+)?", model_name):
-                found_subclass = vertexai.CodeyChat
+                found_subclass = vertexai_subclasses.CodeyChat
 
             # PaLM2Instruct
             elif re.match("text-(bison|unicorn)(@[0-9]+)?", model_name):
-                found_subclass = vertexai.PaLM2Instruct
+                found_subclass = vertexai_subclasses.PaLM2Instruct
 
             # PaLM2Chat
             elif re.match("chat-bison(@[0-9]+)?", model_name):
-                found_subclass = vertexai.PaLM2Chat
+                found_subclass = vertexai_subclasses.PaLM2Chat
 
             # Gemini2Chat
             elif re.match("gemini-pro(@[0-9]+)?", model_name):
-                found_subclass = vertexai.GeminiChat
+                found_subclass = vertexai_subclasses.GeminiChat
             
             # convert to any found subclass
             if found_subclass is not None:
                 self.__class__ = found_subclass
-                found_subclass.__init__(self, model, tokenizer=tokenizer, echo=echo, caching=caching, temperature=temperature, max_streaming_tokens=max_streaming_tokens, **kwargs)
+                found_subclass.__init__(self, model, tokenizer=tokenizer, echo=echo, max_streaming_tokens=max_streaming_tokens, **kwargs)
                 return # we return since we just ran init above and don't need to run again
         
             # make sure we have a valid model object
             if isinstance(model, str):
                 raise Exception("The model ID you passed, `{model}`, does not match any known subclasses!")
 
-        super().__init__(
-            model, tokenizer=tokenizer, echo=echo,
-            caching=caching, temperature=temperature, top_p=top_p,
-            max_streaming_tokens=max_streaming_tokens, **kwargs
-        )
+        # this allows us to use a single constructor for all our subclasses
+        engine_map = {
+            VertexAICompletion: VertexAICompletionEngine,
+            VertexAIInstruct: VertexAIInstructEngine,
+            VertexAIChat: VertexAIChatEngine
+        }
+
+        if engine_class is not None:
+            super().__init__(
+                engine_class(tokenizer=tokenizer, timeout=timeout, compute_log_probs=compute_log_probs, max_streaming_tokens=max_streaming_tokens),
+                echo=echo
+            )
+        else:
+            for k in engine_map:
+                if issubclass(self.__class__, k):
+                    super().__init__(
+                        engine_map[k](tokenizer=tokenizer, timeout=timeout, compute_log_probs=compute_log_probs, max_streaming_tokens=max_streaming_tokens),
+                        echo=echo
+                    )
+
+        # save the model object for later use
+        self.engine.model_obj = model
 
 class VertexAICompletion(VertexAI):
+    pass
+
+class VertexAICompletionEngine(VertexAIEngine):
 
     def _generator(self, prompt, temperature):
-        self._shared_state["not_running_stream"].clear() # so we know we are running
-        self._shared_state["data"] = prompt # we start with this data
+        self._not_running_stream.clear() # so we know we are running
+        self._data = prompt # we start with this data
 
         try:
             kwargs = {}
@@ -106,6 +120,7 @@ class VertexAIInstruct(VertexAI, Instruct):
         else:
             raise Exception(f"The VertexAIInstruct model does not know about the {name} role type!")
 
+class VertexAIInstructEngine(VertexAIEngine):
     def _generator(self, prompt, temperature):
         # start the new stream
         prompt_end = prompt.find(b'<|endofprompt|>')
@@ -113,17 +128,17 @@ class VertexAIInstruct(VertexAI, Instruct):
             stripped_prompt = prompt[:prompt_end]
         else:
             raise Exception("This model cannot handle prompts that don't match the instruct format! Follow for example:\nwith instruction():\n    lm += prompt\nlm += gen(max_tokens=10)")
-        self._shared_state["not_running_stream"].clear() # so we know we are running
-        self._shared_state["data"] = stripped_prompt + b'<|endofprompt|>'# we start with this data
+        self._not_running_stream.clear() # so we know we are running
+        self._data = stripped_prompt + b'<|endofprompt|>'# we start with this data
         kwargs = {}
         if self.max_streaming_tokens is not None:
             kwargs["max_output_tokens"] = self.max_streaming_tokens
-        for chunk in self.model_obj.predict_streaming(self._shared_state["data"].decode("utf8"), temperature=temperature, **kwargs):
+        for chunk in self.model_obj.predict_streaming(self._data.decode("utf8"), temperature=temperature, **kwargs):
             yield chunk.text.encode("utf8")
 
 class VertexAIChat(VertexAI, Chat):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    pass
+class VertexAIChatEngine(VertexAIEngine):
 
     def _generator(self, prompt, temperature):
         
@@ -173,7 +188,7 @@ class VertexAIChat(VertexAI, Chat):
             else:
                 raise Exception("It looks like your prompt is not a well formed chat prompt! Please enclose all model state appends inside chat role blocks like `user()` or `assistant()`.")
             
-        self._shared_state["data"] = prompt[:pos]
+        self._data = prompt[:pos]
 
         assert len(messages) > 0, "Bad chat format! No chat blocks were defined."
         assert messages[-1]["role"] == "user", "Bad chat format! There must be a user() role before the last assistant() role."
