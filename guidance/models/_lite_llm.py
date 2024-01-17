@@ -44,10 +44,12 @@ class LiteLLM(Remote):
             LiteLLMChat: LiteLLMChatEngine
         }
 
-        super().__init__(
-            engine_map[self.__class__](model, tokenizer, timeout, compute_log_probs, max_streaming_tokens),
-            echo=echo
-        )
+        for k in engine_map:
+            if issubclass(self.__class__, k):
+                super().__init__(
+                    engine_map[k](model, tokenizer, timeout, compute_log_probs, max_streaming_tokens),
+                    echo=echo
+                )
 
 class LiteLLMCompletion(LiteLLM):
     pass
@@ -77,10 +79,6 @@ class LiteLLMCompletionEngine(LiteLLMEngine):
             yield chunk.encode("utf8")
 
 class LiteLLMInstruct(LiteLLM, Instruct):
-    pass
-
-class LiteLLMInstructEngine(LiteLLMEngine):
-
     def get_role_start(self, name):
         return ""
     
@@ -89,6 +87,8 @@ class LiteLLMInstructEngine(LiteLLMEngine):
             return "<|endofprompt|>"
         else:
             raise Exception(f"The LiteLLMInstruct model does not know about the {name} role type!")
+
+class LiteLLMInstructEngine(LiteLLMEngine):
 
     def _generator(self, prompt, temperature):
         # start the new stream
@@ -108,8 +108,8 @@ class LiteLLMInstructEngine(LiteLLMEngine):
         try:
             generator = self.litellm.completion(
                 model=self.model_name,
-                messages=[{"content": self._shared_state["data"].decode("utf8"), "role": "system"}], # note that role=system is just ignored by litellm but used by them to match chat syntax
-                prompt=self._shared_state["data"].decode("utf8"), 
+                messages=[{"content": self._data.decode("utf8"), "role": "system"}], # note that role=system is just ignored by litellm but used by them to match chat syntax
+                prompt=self._data.decode("utf8"), 
                 max_tokens=self.max_streaming_tokens, 
                 n=1, 
                 top_p=1, 
