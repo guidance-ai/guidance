@@ -11,10 +11,9 @@ import tiktoken
 import re
 
 from ._model import Chat, Instruct
-from ._remote import Remote
+from ._remote import RemoteEngine, Remote
 
 try:
-    # TODO: can we eliminate the torch requirement for llama.cpp by using numpy in the caller instead?
     import openai as openai_package
     is_openai = True
 except ImportError:
@@ -22,9 +21,24 @@ except ImportError:
 
 chat_model_pattern = r'^(ft:)?(gpt-3\.5-turbo|gpt-4)(?:(?!-instruct$)(-\w+)+)?(:[\w-]+(?:[:\w-]+)*)?(::\w+)?$'
 
+class OpenAIEngine(RemoteEngine):
+    def __init__(self, tokenizer, api_key, max_streaming_tokens, timeout, compute_log_probs, model, **kwargs):
+        
+        if not is_openai or not hasattr(openai_package, "OpenAI"):
+            raise Exception("Please install the openai package version >= 1 using `pip install openai -U` in order to use guidance.models.OpenAI!")
+
+        self.client = openai_package.OpenAI(api_key=api_key, **kwargs)
+        self.model_name = model
+
+        if tokenizer is None:
+            tokenizer = tiktoken.encoding_for_model(model)
+
+        super().__init__(
+            tokenizer, max_streaming_tokens, timeout, compute_log_probs
+        )
+
 class OpenAI(Remote):
-    def __init__(self, model, tokenizer=None, echo=True, caching=True, api_key=None,
-                 temperature=0.0, top_p=1.0, max_streaming_tokens=1000, **kwargs):
+    def __init__(self, model, tokenizer=None, echo=True, api_key=None, max_streaming_tokens=1000, timeout=0.5, compute_log_probs=False, engine_class=None, **kwargs):
         '''Build a new OpenAI model object that represents a model in a given state.
 
         This class automatically subclasses itself into the appropriate OpenAIChat, OpenAIInstruct,
@@ -40,12 +54,6 @@ class OpenAI(Remote):
             If true the final result of creating this model state will be displayed (as HTML in a notebook).
         api_key : None or str
             The OpenAI API key to use for remote requests, passed directly to the `openai.OpenAI` constructor.
-        temperature : float
-            The default temperature to use for generation requests. Note this default value may be overridden by the
-            grammars that are executed.
-        top_p : float
-            The default top_p to use for generation requests. Note this default value may be overridden by the
-            grammars that are executed.
         max_streaming_tokens : int
             The maximum number of tokens we allow this model to generate in a single stream. Normally this is set very
             high and we rely either on early stopping on the remote side, or on the grammar terminating causing the
@@ -77,24 +85,33 @@ class OpenAI(Remote):
             
             # convert to any found subclass
             self.__class__ = found_subclass
-            found_subclass.__init__(self, model, tokenizer=tokenizer, echo=echo, caching=caching, api_key=api_key, temperature=temperature, max_streaming_tokens=max_streaming_tokens, **kwargs)
+            found_subclass.__init__(self, model, tokenizer=tokenizer, echo=echo, api_key=api_key, max_streaming_tokens=max_streaming_tokens, **kwargs)
             return # we return since we just ran init above and don't need to run again
 
-        self.client = openai_package.OpenAI(api_key=api_key, **kwargs)
-        self.model_name = model
-        self.top_p = top_p
-
-        if tokenizer is None:
-            tokenizer = tiktoken.encoding_for_model(model)
+        # this allows us to use a single constructor for all our subclasses
+        if engine_class is None:
+            engine_map = {
+                OpenAICompletion: OpenAICompletionEngine,
+                OpenAIInstruct: OpenAIInstructEngine,
+                OpenAIChat: OpenAIChatEngine
+            }
+            for k in engine_map:
+                if issubclass(self.__class__, k):
+                    engine_class = engine_map[k]
+                    break
 
         super().__init__(
-            model, tokenizer=tokenizer, echo=echo,
-            caching=caching, temperature=temperature,
-            max_streaming_tokens=max_streaming_tokens
+            engine_class(
+                tokenizer=tokenizer, api_key=api_key, max_streaming_tokens=max_streaming_tokens,
+                timeout=timeout, compute_log_probs=compute_log_probs, model=model, **kwargs
+            ),
+            echo=echo
         )
 
-class OAICompletionMixin(Instruct):
+class OpenAICompletion(OpenAI):
+    pass
 
+class OpenAICompletionEngine(OpenAIEngine):
     def _generator(self, prompt, temperature):
         
         self._reset_shared_data(prompt, temperature) # update our shared data state
@@ -102,10 +119,10 @@ class OAICompletionMixin(Instruct):
         try:
             generator = self.client.completions.create(
                 model=self.model_name,
-                prompt=prompt.decode("utf8"), 
-                max_tokens=self.max_streaming_tokens, 
-                n=1, 
-                top_p=self.top_p, 
+                prompt=prompt.decode("utf8"),
+                max_tokens=self.max_streaming_tokens,
+                n=1,
+                top_p=1.0, # TODO: this should be controllable like temp (from the grammar)
                 temperature=temperature, 
                 stream=True
             )
@@ -119,7 +136,7 @@ class OAICompletionMixin(Instruct):
                 chunk = ""
             yield chunk.encode("utf8")
 
-class OAIInstructMixin(Instruct):
+class OpenAIInstruct(OpenAI, Instruct):
     def get_role_start(self, name):
         return ""
     
@@ -129,6 +146,7 @@ class OAIInstructMixin(Instruct):
         else:
             raise Exception(f"The OpenAIInstruct model does not know about the {name} role type!")
 
+class OpenAIInstructEngine(OpenAIEngine):
     def _generator(self, prompt, temperature):
         # start the new stream
         eop_count = prompt.count(b'<|endofprompt|>')
@@ -144,7 +162,7 @@ class OAIInstructMixin(Instruct):
                 prompt=self._shared_state["data"].decode("utf8"), 
                 max_tokens=self.max_streaming_tokens, 
                 n=1, 
-                top_p=self.top_p, 
+                top_p=1.0, # TODO: this should be controllable like temp (from the grammar)
                 temperature=temperature, 
                 stream=True
             )
@@ -158,7 +176,10 @@ class OAIInstructMixin(Instruct):
                 chunk = ""
             yield chunk.encode("utf8")
 
-class OAIChatMixin(Chat):
+class OpenAIChat(OpenAI, Chat):
+    pass
+
+class OpenAIChatEngine(OpenAIEngine):
     def _generator(self, prompt, temperature):
 
         # find the role tags
@@ -202,7 +223,7 @@ class OAIChatMixin(Chat):
                 messages=messages,
                 max_tokens=self.max_streaming_tokens,
                 n=1,
-                top_p=self.top_p,
+                top_p=1.0,# TODO: this should be controllable like temp (from the grammar)
                 temperature=temperature,
                 stream=True
             )
@@ -214,15 +235,3 @@ class OAIChatMixin(Chat):
             else:
                 chunk = ""
             yield chunk.encode("utf8")
-
-class OpenAICompletion(OpenAI, OAICompletionMixin):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-class OpenAIInstruct(OpenAI, OAIInstructMixin):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-class OpenAIChat(OpenAI, OAIChatMixin):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)

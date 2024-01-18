@@ -1,14 +1,10 @@
 import re
 from urllib.parse import urlparse, parse_qs
 
-import tiktoken
-
-from ._model import Chat
-from ._model import Instruct
 from ._openai import (
-    OAIChatMixin,
-    OAICompletionMixin,
-    OAIInstructMixin,
+    OpenAIChat,
+    OpenAICompletion,
+    OpenAIInstruct,
     chat_model_pattern,
 )
 from ._remote import Remote
@@ -16,6 +12,7 @@ from ._remote import Remote
 try:
     # TODO: can we eliminate the torch requirement for llama.cpp by using numpy in the caller instead?
     import openai as openai_package
+    import tiktoken
 
     is_openai = True
 except ImportError:
@@ -119,16 +116,16 @@ class AzureOpenAI(Remote):
         )
 
 
-class AzureOpenAIChat(AzureOpenAI, OAIChatMixin):
+class AzureOpenAIChat(AzureOpenAI, OpenAIChat):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
 
-class AzureOpenAIInstruct(AzureOpenAI, OAIInstructMixin):
+class AzureOpenAIInstruct(AzureOpenAI, OpenAIInstruct):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
 
-class AzureOpenAICompletion(AzureOpenAI, OAICompletionMixin):
+class AzureOpenAICompletion(AzureOpenAI, OpenAICompletion):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

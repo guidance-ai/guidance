@@ -9,7 +9,9 @@ except ImportError:
     is_vertexai = False
 
 class VertexAIEngine(RemoteEngine):
-    pass
+    def __init__(self, tokenizer, max_streaming_tokens, timeout, compute_log_probs, model_obj):
+        super().__init__(tokenizer, max_streaming_tokens, timeout, compute_log_probs)
+        self.model_obj = model_obj
 
 class VertexAI(Remote):
     def __init__(self, model, tokenizer=None, echo=True, max_streaming_tokens=None, timeout=0.5, compute_log_probs=False, engine_class=None, **kwargs):
@@ -62,27 +64,21 @@ class VertexAI(Remote):
                 raise Exception("The model ID you passed, `{model}`, does not match any known subclasses!")
 
         # this allows us to use a single constructor for all our subclasses
-        engine_map = {
-            VertexAICompletion: VertexAICompletionEngine,
-            VertexAIInstruct: VertexAIInstructEngine,
-            VertexAIChat: VertexAIChatEngine
-        }
-
-        if engine_class is not None:
-            super().__init__(
-                engine_class(tokenizer=tokenizer, timeout=timeout, compute_log_probs=compute_log_probs, max_streaming_tokens=max_streaming_tokens),
-                echo=echo
-            )
-        else:
+        if engine_class is None:
+            engine_map = {
+                VertexAICompletion: VertexAICompletionEngine,
+                VertexAIInstruct: VertexAIInstructEngine,
+                VertexAIChat: VertexAIChatEngine
+            }
             for k in engine_map:
                 if issubclass(self.__class__, k):
-                    super().__init__(
-                        engine_map[k](tokenizer=tokenizer, timeout=timeout, compute_log_probs=compute_log_probs, max_streaming_tokens=max_streaming_tokens),
-                        echo=echo
-                    )
+                    engine_class = engine_map[k]
+                    break
 
-        # save the model object for later use
-        self.engine.model_obj = model
+        super().__init__(
+            engine_class(tokenizer=tokenizer, timeout=timeout, compute_log_probs=compute_log_probs, max_streaming_tokens=max_streaming_tokens, model_obj=model),
+            echo=echo
+        )
 
 class VertexAICompletion(VertexAI):
     pass
