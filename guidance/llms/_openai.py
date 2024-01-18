@@ -675,7 +675,13 @@ class OpenAISession(LLMSession):
                         call_args["logit_bias"] = {str(k): v for k,v in logit_bias.items()} # convert keys to strings since that's the open ai api's format
                     out = await self.llm.caller(**call_args)
 
-                except (openai.error.RateLimitError, openai.error.ServiceUnavailableError, openai.error.APIError, openai.error.Timeout) as error:
+                except (
+                        openai.RateLimitError,
+                        openai.APIConnectionError,
+                        openai.APIStatusError,
+                        openai.APIError,
+                        openai.APITimeoutError
+                ) as error:
                     last_error = error
                     log.error('The following error occurred. Will retry in 3 seconds...')
                     log.error(traceback.format_exc())
