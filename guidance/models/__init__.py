@@ -6,7 +6,7 @@ from .llama_cpp import LlamaCpp, LlamaCppChat, MistralInstruct, MistralChat
 from ._mock import Mock, MockChat
 
 # remote models
-from ._remote import Remote
+from ._grammarless import Grammarless
 from .vertexai._vertexai import VertexAI, VertexAIChat, VertexAICompletion, VertexAIInstruct
 from ._azure_openai import AzureOpenAI, AzureOpenAIChat, AzureOpenAICompletion, AzureOpenAIInstruct
 from ._openai import OpenAI, OpenAIChat, OpenAIInstruct, OpenAICompletion

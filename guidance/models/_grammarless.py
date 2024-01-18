@@ -10,10 +10,10 @@ from ._model import Tokenizer, Engine, Model, format_pattern, ConstraintExceptio
 logger = logging.getLogger(__name__)
 
 
-class RemoteTokenizer(Tokenizer):
+class GrammarlessTokenizer(Tokenizer):
     def __init__(self, tokenizer):
 
-        # Remote models don't always have public tokenizations, so when not provided we pretend they tokenize like gpt2...
+        # Grammarless models don't always have public tokenizations, so when not provided we pretend they tokenize like gpt2...
         if tokenizer is None:
             tokenizer = tiktoken.get_encoding("gpt2")
 
@@ -71,7 +71,7 @@ class RemoteTokenizer(Tokenizer):
         )
 
 
-class RemoteEngine(Engine):
+class GrammarlessEngine(Engine):
     def __init__(self, tokenizer, max_streaming_tokens, timeout, compute_log_probs):
         self.max_streaming_tokens = max_streaming_tokens
         self.timeout = timeout
@@ -91,7 +91,7 @@ class RemoteEngine(Engine):
 
         # build the 
         super().__init__(
-            tokenizer=RemoteTokenizer(tokenizer),
+            tokenizer=GrammarlessTokenizer(tokenizer),
             compute_log_probs=compute_log_probs
         )
 
@@ -103,7 +103,7 @@ class RemoteEngine(Engine):
         return not self._not_running_stream.is_set() # wrap double negation (which)
 
     def _start_generator_stream(self, generator):
-        logger.debug(f"start Remote._start_generator_stream")
+        logger.debug(f"start Grammarless._start_generator_stream")
         dqueue = self._data_queue
         first_iteration = True
         try: 
@@ -170,7 +170,7 @@ class RemoteEngine(Engine):
         inference results from the model.
         '''
 
-        logger.debug(f"start Remote._get_logits(token_ids={token_ids})")
+        logger.debug(f"start Grammarless._get_logits(token_ids={token_ids})")
 
         if len(token_ids) == 0:
             raise ValueError("token_ids must contain some tokens.")
@@ -358,7 +358,7 @@ class RemoteEngine(Engine):
                 return token_id # this is the longest greedy token match we can make
 
 
-class Remote(Model):
+class Grammarless(Model):
     '''The base class for all remote models (hosted behind a remote API).'''
     pass
     
@@ -368,6 +368,6 @@ class Remote(Model):
     #     This is an abstract class. To instantiate it use a specific subclass like guidance.models.OpenAI.
     #     '''
     #     super().__init__(
-    #         engine=RemoteEngine(model, tokenizer, max_streaming_tokens, timeout, compute_log_probs),
+    #         engine=GrammarlessEngine(model, tokenizer, max_streaming_tokens, timeout, compute_log_probs),
     #         echo=echo
     #     )

@@ -2,9 +2,9 @@ import os
 import tiktoken
 
 from ._model import Chat, Instruct
-from ._remote import RemoteEngine, Remote
+from ._grammarless import GrammarlessEngine, Grammarless
 
-class AnthropicEngine(RemoteEngine):
+class AnthropicEngine(GrammarlessEngine):
     def __init__(self, model, tokenizer, api_key, timeout, max_streaming_tokens, compute_log_probs, **kwargs):        
         try:
             from anthropic import Anthropic
@@ -17,6 +17,9 @@ class AnthropicEngine(RemoteEngine):
 
         if api_key is None:
             api_key = os.environ.get("ANTHROPIC_API_KEY")
+
+        if api_key is None:
+            raise Exception("Expected an api_key argument or the ANTHROPIC_API_KEY environment variable to be set!")
 
         self.anthropic = Anthropic(api_key=api_key, **kwargs)
 
@@ -52,7 +55,7 @@ class AnthropicEngine(RemoteEngine):
             # print(chunk)
             yield chunk.encode("utf8")
 
-class Anthropic(Remote):
+class Anthropic(Grammarless):
     '''Represents an Anthropic model as exposed through their remote API.
     
     Note that because this uses a remote API endpoint without built-in guidance support

@@ -17,6 +17,7 @@ import logging
 import base64
 import queue
 import threading
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 try:
@@ -80,6 +81,14 @@ class Tokenizer:
         for i,j in self.duplicate_tokens:
             probs[j] += probs[i]
             probs[i] = 0
+
+class EngineCallResponse(BaseModel):
+    new_bytes: bytes
+    is_generated: bool
+    new_bytes_prob: float
+    capture_groups: dict
+    capture_group_log_probs: dict
+    new_token_count: int
 
 class Engine:
     '''The engine owns the inference computation and is used/created by the Model class.
@@ -447,7 +456,15 @@ class Engine:
                 parser.get_captures(captured_data, captured_log_prob_data)
 
                 # we have no valid log prob data if we didn't compute it
-                yield new_bytes[hidden_count:], is_generated, new_bytes_prob, captured_data, captured_log_prob_data, token_count - last_token_count
+                # yield new_bytes[hidden_count:], is_generated, new_bytes_prob, captured_data, captured_log_prob_data, token_count - last_token_count
+                yield EngineCallResponse(
+                    new_bytes=new_bytes[hidden_count:],
+                    is_generated=is_generated,
+                    new_bytes_prob=new_bytes_prob,
+                    capture_groups=captured_data,
+                    capture_group_log_probs=captured_log_prob_data,
+                    new_token_count=token_count - last_token_count
+                )
                 last_token_count = token_count
                 break # we are done!
             else:
@@ -460,7 +477,16 @@ class Engine:
                     # new_captured_data, new_captured_log_prob_data = parser.get_captures()
                     # captured_data.update(new_captured_data)
                     # captured_log_prob_data.update(new_captured_log_prob_data)
-                    yield out, is_generated, new_bytes_prob, captured_data, captured_log_prob_data, token_count - last_token_count # note that we don't capture groups until a complete parse right now...
+                    #yield out, is_generated, new_bytes_prob, captured_data, captured_log_prob_data, token_count - last_token_count # note that we don't capture groups until a complete parse right now...
+                    yield EngineCallResponse(
+                        new_bytes=out,
+                        is_generated=is_generated,
+                        new_bytes_prob=new_bytes_prob,
+                        capture_groups=captured_data,
+                        capture_group_log_probs=captured_log_prob_data,
+                        new_token_count=token_count - last_token_count
+                    )
+
                     last_token_count = token_count
                     hidden_count = 0
                     token_count += 1 # note we only update this for tokens that emit non-hidden content
@@ -1030,35 +1056,35 @@ class Model:
 
             delayed_bytes = b""
             # last_is_generated = False
-            for new_bytes, is_generated, new_bytes_prob, capture_groups, capture_group_log_probs, new_token_count in gen_obj:
+            for chunk in gen_obj:
 
                 # we make everything full probability if we are not computing uncertainty
                 if not self.engine.compute_log_probs:
-                    new_bytes_prob = 1.0
+                    chunk.new_bytes_prob = 1.0
                 
                 # convert the bytes to a string (delaying if we don't yet have a valid unicode string)
-                lm.token_count += new_token_count
-                new_bytes = delayed_bytes + new_bytes
+                lm.token_count += chunk.new_token_count
+                chunk.new_bytes = delayed_bytes + chunk.new_bytes
                 try:
-                    new_text = new_bytes.decode("utf8")
+                    new_text = chunk.new_bytes.decode("utf8")
                 except UnicodeDecodeError:
-                    delayed_bytes = new_bytes
+                    delayed_bytes = chunk.new_bytes
                     continue
                 delayed_bytes = b""
 
-                if len(new_bytes) > 0:
+                if len(chunk.new_bytes) > 0:
                     generated_value += new_text
-                    if is_generated:
-                        lm += f"<||_html:<span style='background-color: rgba({165*(1-new_bytes_prob) + 0}, {165*new_bytes_prob + 0}, 0, {0.15}); border-radius: 3px;' title='{new_bytes_prob}'>_||>"
+                    if chunk.is_generated:
+                        lm += f"<||_html:<span style='background-color: rgba({165*(1-chunk.new_bytes_prob) + 0}, {165*chunk.new_bytes_prob + 0}, 0, {0.15}); border-radius: 3px;' title='{chunk.new_bytes_prob}'>_||>"
                     lm += new_text
-                    if is_generated:
+                    if chunk.is_generated:
                         lm += "<||_html:</span>_||>"
                 
-                # last_is_generated = is_generated
+                # last_is_generated = chunk.is_generated
 
-                if len(capture_groups) > 0:
-                    for k in capture_groups:
-                        v = capture_groups[k]
+                if len(chunk.capture_groups) > 0:
+                    for k in chunk.capture_groups:
+                        v = chunk.capture_groups[k]
                             
                         # see if we are in a list_append mode
                         if isinstance(v, list):
@@ -1074,7 +1100,7 @@ class Model:
                                     lm._variables[k] = []
                                     lm._variables_log_probs[k] = []
                                 lm._variables[k].append(inner_v)
-                                lm._variables_log_probs[k].append(capture_group_log_probs[k][i])
+                                lm._variables_log_probs[k].append(chunk.capture_group_log_probs[k][i])
 
                         # ...or standard assignment mode
                         else:
@@ -1085,11 +1111,11 @@ class Model:
                             except UnicodeDecodeError:
                                 pass
                             lm._variables[k] = v
-                            lm._variables_log_probs[k] = capture_group_log_probs[k]
+                            lm._variables_log_probs[k] = chunk.capture_group_log_probs[k]
 
-            # if len(capture_groups) > 0:
-            #     for k in capture_groups:
-            #         v = capture_groups[k]
+            # if len(chunk.capture_groups) > 0:
+            #     for k in chunk.capture_groups:
+            #         v = chunk.capture_groups[k]
             #         lm[k] = v.decode("utf8") if isinstance(v, bytes) else v
         
         unreplace_model_variables(replacements)

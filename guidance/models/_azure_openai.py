@@ -7,7 +7,7 @@ from ._openai import (
     OpenAIInstruct,
     chat_model_pattern,
 )
-from ._remote import Remote
+from ._openai import OpenAI
 
 try:
     # TODO: can we eliminate the torch requirement for llama.cpp by using numpy in the caller instead?
@@ -19,7 +19,7 @@ except ImportError:
     is_openai = False
 
 
-class AzureOpenAI(Remote):
+class AzureOpenAI(OpenAI):
     def __init__(
         self,
         model: str,

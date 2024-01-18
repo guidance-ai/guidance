@@ -1,9 +1,9 @@
 import tiktoken
 
 from ._model import Chat, Instruct
-from ._remote import RemoteTokenizer, RemoteEngine, Remote
+from ._grammarless import GrammarlessTokenizer, GrammarlessEngine, Grammarless
 
-class LiteLLMEngine(RemoteEngine):
+class LiteLLMEngine(GrammarlessEngine):
     def __init__(self, model, tokenizer, timeout, compute_log_probs, max_streaming_tokens, **kwargs):
         try:
             import litellm
@@ -29,7 +29,7 @@ class LiteLLMEngine(RemoteEngine):
             compute_log_probs=compute_log_probs
         )
 
-class LiteLLM(Remote):
+class LiteLLM(Grammarless):
     def __init__(self, model, tokenizer=None, echo=True, timeout=0.5, max_streaming_tokens=1000, compute_log_probs=False):
         '''Build a new LiteLLM model object that represents a model in a given state.'''
 

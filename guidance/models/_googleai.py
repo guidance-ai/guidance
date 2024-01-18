@@ -1,12 +1,12 @@
 import re
 from ._model import Chat, Instruct
-from ._remote import Remote, RemoteEngine
+from ._grammarless import Grammarless, GrammarlessEngine
 import tiktoken
 import os
 _image_token_pattern = re.compile(r'<\|_image:(.*)\|>')
 
 
-class GoogleAIEngine(RemoteEngine):
+class GoogleAIEngine(GrammarlessEngine):
     def __init__(self, model, tokenizer, api_key, max_streaming_tokens, timeout, compute_log_probs, **kwargs):
         try:
             import google.generativeai as genai
@@ -29,7 +29,7 @@ class GoogleAIEngine(RemoteEngine):
 
         super().__init__(tokenizer, max_streaming_tokens, timeout, compute_log_probs)
 
-class GoogleAI(Remote):
+class GoogleAI(Grammarless):
     def __init__(self, model, tokenizer=None, echo=True, api_key=None, max_streaming_tokens=None, timeout=0.5, compute_log_probs=False, **kwargs):
         '''Build a new GoogleAI model object that represents a model in a given state.'''
 

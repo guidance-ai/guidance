@@ -11,7 +11,7 @@ import tiktoken
 import re
 
 from ._model import Chat, Instruct
-from ._remote import RemoteEngine, Remote
+from ._grammarless import GrammarlessEngine, Grammarless
 
 try:
     import openai as openai_package
@@ -21,7 +21,7 @@ except ImportError:
 
 chat_model_pattern = r'^(ft:)?(gpt-3\.5-turbo|gpt-4)(?:(?!-instruct$)(-\w+)+)?(:[\w-]+(?:[:\w-]+)*)?(::\w+)?$'
 
-class OpenAIEngine(RemoteEngine):
+class OpenAIEngine(GrammarlessEngine):
     def __init__(self, tokenizer, api_key, max_streaming_tokens, timeout, compute_log_probs, model, **kwargs):
         
         if not is_openai or not hasattr(openai_package, "OpenAI"):
@@ -37,7 +37,7 @@ class OpenAIEngine(RemoteEngine):
             tokenizer, max_streaming_tokens, timeout, compute_log_probs
         )
 
-class OpenAI(Remote):
+class OpenAI(Grammarless):
     def __init__(self, model, tokenizer=None, echo=True, api_key=None, max_streaming_tokens=1000, timeout=0.5, compute_log_probs=False, engine_class=None, **kwargs):
         '''Build a new OpenAI model object that represents a model in a given state.
 

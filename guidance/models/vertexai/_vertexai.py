@@ -1,6 +1,6 @@
 import re
 from .._model import Chat, Instruct
-from .._remote import RemoteEngine, Remote
+from .._grammarless import GrammarlessEngine, Grammarless
 
 try:
     import vertexai
@@ -8,12 +8,12 @@ try:
 except ImportError:
     is_vertexai = False
 
-class VertexAIEngine(RemoteEngine):
+class VertexAIEngine(GrammarlessEngine):
     def __init__(self, tokenizer, max_streaming_tokens, timeout, compute_log_probs, model_obj):
         super().__init__(tokenizer, max_streaming_tokens, timeout, compute_log_probs)
         self.model_obj = model_obj
 
-class VertexAI(Remote):
+class VertexAI(Grammarless):
     def __init__(self, model, tokenizer=None, echo=True, max_streaming_tokens=None, timeout=0.5, compute_log_probs=False, engine_class=None, **kwargs):
         '''Build a new VertexAI model object that represents a model in a given state.'''
         if not is_vertexai:
