@@ -4,7 +4,7 @@ import json
 import inspect
 import types
 import re
-from . import _grammar_pb2
+from . import _serialization_pb2
 
 tag_start = "{{G|"
 tag_end = "|G}}"
@@ -151,17 +151,25 @@ class StatelessFunction(Function):
         return "\n".join(lines)
     
     def serialize(self):
-        g = _grammar_pb2.Grammar()
+        g = _serialization_pb2.Grammar()
         index_map = {}
         nodes = {}
+        self._rec_create_index_map(index_map) # gives all the nodes an index
         self._rec_serialize(index_map, nodes) # nodes is filled in (as is index_map)
         g.nodes.extend(list(nodes.values()))
         return g.SerializeToString()
     
+    def _rec_create_index_map(self, index_map):
+        if self not in index_map:
+            index_map[self] = len(index_map)
+            if hasattr(self, "values"):
+                for value in self.values:
+                    value._rec_create_index_map(index_map)
+    
     def _rec_serialize(self, index_map, nodes):
         if self not in nodes:
             v = self._to_proto(index_map)
-            node = _grammar_pb2.StatelessFunction()
+            node = _serialization_pb2.StatelessFunction()
             if isinstance(self, Byte):
                 node.byte.CopyFrom(v)
             elif isinstance(self, ByteRange):
@@ -181,7 +189,7 @@ class StatelessFunction(Function):
     
     @classmethod
     def deserialize(cls, serialized_grammar):
-        g = _grammar_pb2.Grammar()
+        g = _serialization_pb2.Grammar()
         g.ParseFromString(serialized_grammar)
 
         # create the list of objects
@@ -253,9 +261,7 @@ class Byte(Terminal):
         return False
     
     def _to_proto(self, index_map):
-        if self not in index_map:
-            index_map[self] = len(index_map)
-        data = _grammar_pb2.Byte()
+        data = _serialization_pb2.Byte()
         data.byte = self.byte
         data.hidden = self.hidden
         data.commit_point = self.commit_point
@@ -311,9 +317,7 @@ class ByteRange(Terminal):
         return 1
 
     def _to_proto(self, index_map):
-        if self not in index_map:
-            index_map[self] = len(index_map)
-        data = _grammar_pb2.ByteRange()
+        data = _serialization_pb2.ByteRange()
         data.byte_range = self.byte_range
         data.hidden = self.hidden
         data.commit_point = self.commit_point
@@ -370,9 +374,7 @@ class ModelVariable(StatelessFunction):
         self.nullable = False
 
     def _to_proto(self, index_map):
-        if self not in index_map:
-            index_map[self] = len(index_map)
-        data = _grammar_pb2.ModelVariable()
+        data = _serialization_pb2.ModelVariable()
         data.hidden = self.hidden
         data.name = self.name
         data.commit_point = self.commit_point
@@ -575,13 +577,9 @@ class Join(StatelessFunction):
         return s
     
     def _to_proto(self, index_map):
-        data = _grammar_pb2.Join()
+        data = _serialization_pb2.Join()
         data.nullable = self.nullable
-        if self not in index_map:
-            index_map[self] = len(index_map)
         for v in self.values:
-            if v not in index_map:
-                index_map[v] = len(index_map)
             data.values.append(index_map[v])
         data.name = self.name
         data.hidden = self.hidden
@@ -637,13 +635,9 @@ class Select(StatelessFunction):
         return s
     
     def _to_proto(self, index_map):
-        data = _grammar_pb2.Select()
+        data = _serialization_pb2.Select()
         data.nullable = self.nullable
-        if self not in index_map:
-            index_map[self] = len(index_map)
         for v in self.values:
-            if v not in index_map:
-                index_map[v] = len(index_map)
             data.values.append(index_map[v])
         data.name = self.name
         data.hidden = self.hidden

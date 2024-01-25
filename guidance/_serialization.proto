@@ -6,13 +6,22 @@ message Grammar {
     repeated StatelessFunction nodes = 1;
 }
 
+message EngineCallResponse {
+    bytes new_bytes = 1;
+    bool is_generated = 2;
+    float new_bytes_prob = 3;
+    map<string, string> capture_groups = 4;
+    map<string, float> capture_group_log_probs = 5;
+    int32 new_token_count = 6;
+}
+
 message Byte {
     bytes byte = 1;
     bool hidden = 2;   
     bool commit_point = 3;
     bool nullable = 4;
     string capture_name = 5;
-    double temperature = 6;
+    float temperature = 6;
 }
 
 message ByteRange {
@@ -20,7 +29,7 @@ message ByteRange {
    bool hidden = 3;
    bool commit_point = 4;
    string capture_name = 5;
-   double temperature = 6; 
+   float temperature = 6; 
 }
 
 message Null {

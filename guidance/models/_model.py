@@ -17,7 +17,6 @@ import logging
 import base64
 import queue
 import threading
-from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 try:
@@ -28,6 +27,7 @@ except ImportError:
 from .._utils import softmax, CaptureEvents
 from .._parser import EarleyCommitParser, Parser
 from .._grammar import StatelessFunction, string, _call_pool, _tag_pattern, Null, replace_model_variables, unreplace_model_variables, select
+from .. import _serialization_pb2
 
 # define some constants we will reuse many times
 _null_grammar = string('')
@@ -82,13 +82,59 @@ class Tokenizer:
             probs[j] += probs[i]
             probs[i] = 0
 
-class EngineCallResponse(BaseModel):
+class EngineCallResponse():
     new_bytes: bytes
     is_generated: bool
     new_bytes_prob: float
     capture_groups: dict
     capture_group_log_probs: dict
     new_token_count: int
+
+    def __init__(self, new_bytes, is_generated, new_bytes_prob, capture_groups, capture_group_log_probs, new_token_count):
+        self.new_bytes = new_bytes
+        self.is_generated = is_generated
+        self.new_bytes_prob = new_bytes_prob
+        self.capture_groups = capture_groups
+        self.capture_group_log_probs = capture_group_log_probs
+        self.new_token_count = new_token_count
+
+    def _to_proto(self):
+        """Converts an EngineCallResponse object to its Protobuf representation.
+
+        Returns:
+            engine_response_pb2.EngineCallResponse: The Protobuf equivalent of this object.
+        """
+
+        return _serialization_pb2.EngineCallResponse(
+            new_bytes=self.new_bytes,
+            is_generated=self.is_generated,
+            new_bytes_prob=self.new_bytes_prob,
+            capture_groups=self.capture_groups,
+            capture_group_log_probs=self.capture_group_log_probs,
+            new_token_count=self.new_token_count
+        )
+    
+    def encode(self, charset):
+        '''Used to support FastAPI encoding of EngineCallResponse objects.'''
+        return self.serialize()
+    
+    def serialize(self):
+        proto = self._to_proto()
+        return proto.SerializeToString()
+    
+    @staticmethod
+    def deserialize(byte_data):
+        proto = _serialization_pb2.EngineCallResponse()
+        proto.ParseFromString(byte_data)
+        return EngineCallResponse(
+            new_bytes=proto.new_bytes,
+            is_generated=proto.is_generated,
+            new_bytes_prob=proto.new_bytes_prob,
+            capture_groups=proto.capture_groups,
+            capture_group_log_probs=proto.capture_group_log_probs,
+            new_token_count=proto.new_token_count
+        )
+
 
 class Engine:
     '''The engine owns the inference computation and is used/created by the Model class.
@@ -460,7 +506,7 @@ class Engine:
                 yield EngineCallResponse(
                     new_bytes=new_bytes[hidden_count:],
                     is_generated=is_generated,
-                    new_bytes_prob=new_bytes_prob,
+                    new_bytes_prob=new_bytes_prob if self.compute_log_probs else 1.0,
                     capture_groups=captured_data,
                     capture_group_log_probs=captured_log_prob_data,
                     new_token_count=token_count - last_token_count
@@ -481,7 +527,7 @@ class Engine:
                     yield EngineCallResponse(
                         new_bytes=out,
                         is_generated=is_generated,
-                        new_bytes_prob=new_bytes_prob,
+                        new_bytes_prob=new_bytes_prob if self.compute_log_probs else 1.0,
                         capture_groups=captured_data,
                         capture_group_log_probs=captured_log_prob_data,
                         new_token_count=token_count - last_token_count
@@ -1059,8 +1105,8 @@ class Model:
             for chunk in gen_obj:
 
                 # we make everything full probability if we are not computing uncertainty
-                if not self.engine.compute_log_probs:
-                    chunk.new_bytes_prob = 1.0
+                # if not self.engine.compute_log_probs:
+                #     chunk.new_bytes_prob = 1.0
                 
                 # convert the bytes to a string (delaying if we don't yet have a valid unicode string)
                 lm.token_count += chunk.new_token_count

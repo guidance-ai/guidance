@@ -2,13 +2,19 @@ from fastapi import FastAPI, Request, HTTPException, Security
 from fastapi.security import APIKeyHeader
 from fastapi.responses import StreamingResponse
 import os  # For environment variables or config files
+import base64
 
-from ._grammar import Function
+from .models._model import Model, Engine
+from ._grammar import StatelessFunction
 
 class Server:
     def __init__(self, engine, api_key=None, ssl_certfile=None, ssl_keyfile=None):
         '''This exposes an Engine object over the network.'''
 
+        if isinstance(engine, Model):
+            engine = engine.engine
+        elif not isinstance(engine, Engine):
+            raise TypeError("engine must be an Engine object")
         self.engine = engine
         self.app = FastAPI()
         self.valid_api_keys = self._load_api_keys(api_key)
@@ -36,14 +42,12 @@ class Server:
 
             data = await request.json()
             parser = data.get("parser")
-            grammar = Function.deserialize(data.get("grammar"))
+            grammar = StatelessFunction.deserialize(base64.b64decode(data.get("grammar")))
 
             return StreamingResponse(
                 self.engine(parser, grammar),
                 media_type="application/json"
             )
-        
-    
 
     def _load_api_keys(self, api_key):
         valid_api_keys = set()
