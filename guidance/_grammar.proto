@@ -2,6 +2,10 @@ syntax = "proto3";
 
 package guidance;
 
+message Grammar {
+    repeated StatelessFunction nodes = 1;
+}
+
 message Byte {
     bytes byte = 1;
     bool hidden = 2;   
@@ -34,7 +38,7 @@ message Join {
     bool nullable = 1;
 
     // Use a repeated field to store the list of values
-    repeated StatelessFunction values = 2; 
+    repeated int32 values = 2; 
 
     string name = 3;
     bool hidden = 4;
@@ -47,7 +51,7 @@ message Select {
     bool nullable = 1;
 
     // Use a repeated field to store the list of values
-    repeated StatelessFunction values = 2; 
+    repeated int32 values = 2; 
 
     string name = 3;
     bool hidden = 4;
@@ -70,5 +74,6 @@ message StatelessFunction {
         Select select = 2;
         Byte byte = 3;
         ByteRange byte_range = 4;
+        ModelVariable model_variable = 5;
     }
 }

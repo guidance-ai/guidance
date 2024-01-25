@@ -149,6 +149,65 @@ class StatelessFunction(Function):
         root_name = self._rec_gbnf_string(lines, used_names, names)
         lines.append("root ::= " + root_name)
         return "\n".join(lines)
+    
+    def serialize(self):
+        g = _grammar_pb2.Grammar()
+        index_map = {}
+        nodes = {}
+        self._rec_serialize(index_map, nodes) # nodes is filled in (as is index_map)
+        g.nodes.extend(list(nodes.values()))
+        return g.SerializeToString()
+    
+    def _rec_serialize(self, index_map, nodes):
+        if self not in nodes:
+            v = self._to_proto(index_map)
+            node = _grammar_pb2.StatelessFunction()
+            if isinstance(self, Byte):
+                node.byte.CopyFrom(v)
+            elif isinstance(self, ByteRange):
+                node.byte_range.CopyFrom(v)
+            elif isinstance(self, Select):
+                node.select.CopyFrom(v)
+            elif isinstance(self, Join):
+                node.join.CopyFrom(v)
+            elif isinstance(self, ModelVariable):
+                node.model_variable.CopyFrom(v)
+            else:
+                raise Exception("Unknown node type")
+            nodes[self] = node
+            if hasattr(self, "values"):
+                for value in self.values:
+                    value._rec_serialize(index_map, nodes)
+    
+    @classmethod
+    def deserialize(cls, serialized_grammar):
+        g = _grammar_pb2.Grammar()
+        g.ParseFromString(serialized_grammar)
+
+        # create the list of objects
+        values = []
+        for node in g.nodes:
+            if node.HasField("byte"):
+                node = Byte._from_proto(node.byte)
+            elif node.HasField("byte_range"):
+                node = ByteRange._from_proto(node.byte_range)
+            elif node.HasField("select"):
+                node = Select._from_proto(node.select)
+            elif node.HasField("join"):
+                node = Join._from_proto(node.join)
+            elif node.HasField("model_variable"):
+                node = ModelVariable._from_proto(node.model_variable)
+            else:
+                raise Exception("Unknown node type")
+            values.append(node)
+
+        # fill in the values pointers now that we have the full list of objects
+        for v in values:
+            if hasattr(v, "values"):
+                for i, index in enumerate(v.values):
+                    v.values[i] = values[index]
+
+        return values[0] # the first element in the root node of the grammar
 
 class Terminal(StatelessFunction):
     def match_byte(self, byte):
@@ -193,7 +252,9 @@ class Byte(Terminal):
     def nullable(self):
         return False
     
-    def _to_proto(self):
+    def _to_proto(self, index_map):
+        if self not in index_map:
+            index_map[self] = len(index_map)
         data = _grammar_pb2.Byte()
         data.byte = self.byte
         data.hidden = self.hidden
@@ -201,15 +262,6 @@ class Byte(Terminal):
         data.capture_name = "" if self.capture_name is None else self.capture_name
         data.temperature = self.temperature
         return data
-    
-    def serialize(self):
-        return self._to_proto().SerializeToString()
-
-    @staticmethod
-    def deserialize(data_bytes):
-        data = _grammar_pb2.Byte()
-        data.ParseFromString(data_bytes)
-        return Byte._from_proto(data)
     
     @staticmethod
     def _from_proto(data):
@@ -258,7 +310,9 @@ class ByteRange(Terminal):
     def __len__(self):
         return 1
 
-    def _to_proto(self):
+    def _to_proto(self, index_map):
+        if self not in index_map:
+            index_map[self] = len(index_map)
         data = _grammar_pb2.ByteRange()
         data.byte_range = self.byte_range
         data.hidden = self.hidden
@@ -266,9 +320,6 @@ class ByteRange(Terminal):
         data.capture_name = "" if self.capture_name is None else self.capture_name
         data.temperature = self.temperature
         return data
-    
-    def serialize(self):
-        return self._to_proto().SerializeToString()
 
     @staticmethod
     def _from_proto(data):
@@ -278,12 +329,6 @@ class ByteRange(Terminal):
         out.capture_name = None if data.capture_name == "" else data.capture_name
         out.temperature = data.temperature
         return out
-    
-    @staticmethod
-    def deserialize(data_bytes):
-        data = _grammar_pb2.ByteRange()
-        data.ParseFromString(data_bytes)
-        return ByteRange._from_proto(data)
 
 class Null():
     __slots__ = ("name", "hidden", "commit_point", "capture_name")
@@ -323,6 +368,24 @@ class ModelVariable(StatelessFunction):
         self.commit_point = False
         self.capture_name = None
         self.nullable = False
+
+    def _to_proto(self, index_map):
+        if self not in index_map:
+            index_map[self] = len(index_map)
+        data = _grammar_pb2.ModelVariable()
+        data.hidden = self.hidden
+        data.name = self.name
+        data.commit_point = self.commit_point
+        data.capture_name = "" if self.capture_name is None else self.capture_name
+        return data
+
+    @staticmethod
+    def _from_proto(data):
+        out = ModelVariable(data.name)
+        out.hidden = data.hidden
+        out.commit_point = data.commit_point
+        out.capture_name = None if data.capture_name == "" else data.capture_name
+        return out
 
 def replace_grammar_node(grammar, target, replacement):
     # Use a stack to keep track of the nodes to be visited
@@ -492,7 +555,7 @@ class Join(StatelessFunction):
 
     def __init__(self, values, name=None, max_tokens=100000000) -> None:
         values = [string(v) if isinstance(v, (str, bytes)) else v for v in values] # wrap raw strings
-        self.nullable = all(v.nullable for v in values)
+        self.nullable = all(getattr(v, "nullable", False) for v in values)
         self.values = [v for v in values if not isinstance(v, Null)]
         self.name = name if name is not None else StatelessFunction._new_name()
         self.hidden = False
@@ -511,46 +574,26 @@ class Join(StatelessFunction):
                 s += v.__repr__(indent, done)
         return s
     
-    def _to_proto(self):
+    def _to_proto(self, index_map):
         data = _grammar_pb2.Join()
         data.nullable = self.nullable
+        if self not in index_map:
+            index_map[self] = len(index_map)
         for v in self.values:
-            inner = _grammar_pb2.StatelessFunction()
-            if isinstance(v, Byte):
-                inner.byte.CopyFrom(v._to_proto())
-            elif isinstance(v, ByteRange):
-                inner.byte_range.CopyFrom(v._to_proto())
-            elif isinstance(v, Join):
-                inner.join.CopyFrom(v._to_proto())
-            elif isinstance(v, Select):
-                inner.select.CopyFrom(v._to_proto())
-            data.values.append(inner)
+            if v not in index_map:
+                index_map[v] = len(index_map)
+            data.values.append(index_map[v])
         data.name = self.name
         data.hidden = self.hidden
         data.commit_point = self.commit_point
         data.capture_name = "" if self.capture_name is None else self.capture_name
         data.max_tokens = self.max_tokens
         return data
-    
-    def serialize(self):
-        return self._to_proto().SerializeToString()
 
     @staticmethod
     def _from_proto(data):
-        values = []
-        for v in data.values:
-            if v.HasField("byte"):
-                values.append(Byte._from_proto(v.byte))
-            elif v.HasField("byte_range"):
-                values.append(ByteRange._from_proto(v.byte_range))
-            elif v.HasField("join"):
-                values.append(Join._from_proto(v.join))
-            elif v.HasField("select"):
-                values.append(Select._from_proto(v.select))
-            else:
-                raise Exception("Unknown type of value")
         out = Join(
-            values,
+            data.values, # we put ints in that will be replaced later by the deserialize method
             name=data.name,
             max_tokens=data.max_tokens
         )
@@ -559,12 +602,6 @@ class Join(StatelessFunction):
         out.commit_point = data.commit_point
         out.capture_name = None if data.capture_name == "" else data.capture_name
         return out
-    
-    @staticmethod
-    def deserialize(data_bytes):
-        data = _grammar_pb2.Join()
-        data.ParseFromString(data_bytes)
-        return Join._from_proto(data)
 
 
 class Select(StatelessFunction):
@@ -585,7 +622,7 @@ class Select(StatelessFunction):
     @values.setter
     def values(self, vals):
         self._values = [string(v) if isinstance(v, (str, bytes)) else v for v in vals]
-        self.nullable = any(v.nullable for v in self._values)
+        self.nullable = any(getattr(v, "nullable", False) for v in self._values)
         self._values = [v for v in self._values if not isinstance(v, Null)]
 
     def __repr__(self, indent="", done=None):
@@ -599,47 +636,28 @@ class Select(StatelessFunction):
                 s += v.__repr__(indent, done)
         return s
     
-    def _to_proto(self):
-        data = _grammar_pb2.Join()
+    def _to_proto(self, index_map):
+        data = _grammar_pb2.Select()
         data.nullable = self.nullable
+        if self not in index_map:
+            index_map[self] = len(index_map)
         for v in self.values:
-            inner = _grammar_pb2.StatelessFunction()
-            if isinstance(v, Byte):
-                inner.byte.CopyFrom(v._to_proto())
-            elif isinstance(v, ByteRange):
-                inner.byte_range.CopyFrom(v._to_proto())
-            elif isinstance(v, Join):
-                inner.join.CopyFrom(v._to_proto())
-            elif isinstance(v, Select):
-                inner.select.CopyFrom(v._to_proto())
-            data.values.append(inner)
+            if v not in index_map:
+                index_map[v] = len(index_map)
+            data.values.append(index_map[v])
         data.name = self.name
         data.hidden = self.hidden
         data.commit_point = self.commit_point
         data.capture_name = "" if self.capture_name is None else self.capture_name
         data.max_tokens = self.max_tokens
         data.recursive = self.recursive
+
         return data
-    
-    def serialize(self):
-        return self._to_proto().SerializeToString()
 
     @staticmethod
     def _from_proto(data):
-        values = []
-        for v in data.values:
-            if v.HasField("byte"):
-                values.append(Byte._from_proto(v.byte))
-            elif v.HasField("byte_range"):
-                values.append(ByteRange._from_proto(v.byte_range))
-            elif v.HasField("join"):
-                values.append(Join._from_proto(v.join))
-            elif v.HasField("select"):
-                values.append(Select._from_proto(v.select))
-            else:
-                raise Exception("Unknown type of value")
-        out = Join(
-            values,
+        out = Select(
+            data.values, # we put ints in that will be replaced later by the deserialize method
             name=data.name,
             max_tokens=data.max_tokens
         )
@@ -649,12 +667,6 @@ class Select(StatelessFunction):
         out.capture_name = None if data.capture_name == "" else data.capture_name
         out.recursive = data.recursive
         return out
-    
-    @staticmethod
-    def deserialize(data_bytes):
-        data = _grammar_pb2.Join()
-        data.ParseFromString(data_bytes)
-        return Join._from_proto(data)
 
 def string(value):
     if isinstance(value, str):

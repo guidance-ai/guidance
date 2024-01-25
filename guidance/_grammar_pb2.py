@@ -19,10 +19,42 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\x0e_grammar.proto\x12\x08guidance\"w\n\x04\x42yte\x12\x0c\n\x04\x62yte\x18\x01 \x01(\x0c\x12\x0e\n\x06hidden\x18\x02 \x01(\x08\x12\x14\n\x0c\x63ommit_point\x18\x03 \x01(\x08\x12\x10\n\x08nullable\x18\x04 \x01(\x08\x12\x14\n\x0c\x63\x61pture_name\x18\x05 \x01(\t\x12\x13\n\x0btemperature\x18\x06 \x01(\x01\"p\n\tByteRange\x12\x12\n\nbyte_range\x18\x01 \x01(\x0c\x12\x0e\n\x06hidden\x18\x03 \x01(\x08\x12\x14\n\x0c\x63ommit_point\x18\x04 \x01(\x08\x12\x14\n\x0c\x63\x61pture_name\x18\x05 \x01(\t\x12\x13\n\x0btemperature\x18\x06 \x01(\x01\"\x06\n\x04Null\"k\n\rModelVariable\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x0e\n\x06hidden\x18\x02 \x01(\x08\x12\x14\n\x0c\x63ommit_point\x18\x03 \x01(\x08\x12\x14\n\x0c\x63\x61pture_name\x18\x04 \x01(\t\x12\x10\n\x08nullable\x18\x05 \x01(\x08\"\xa3\x01\n\x04Join\x12\x10\n\x08nullable\x18\x01 \x01(\x08\x12+\n\x06values\x18\x02 \x03(\x0b\x32\x1b.guidance.StatelessFunction\x12\x0c\n\x04name\x18\x03 \x01(\t\x12\x0e\n\x06hidden\x18\x04 \x01(\x08\x12\x14\n\x0c\x63ommit_point\x18\x05 \x01(\x08\x12\x14\n\x0c\x63\x61pture_name\x18\x06 \x01(\t\x12\x12\n\nmax_tokens\x18\x07 \x01(\x05\"\xb8\x01\n\x06Select\x12\x10\n\x08nullable\x18\x01 \x01(\x08\x12+\n\x06values\x18\x02 \x03(\x0b\x32\x1b.guidance.StatelessFunction\x12\x0c\n\x04name\x18\x03 \x01(\t\x12\x0e\n\x06hidden\x18\x04 \x01(\x08\x12\x14\n\x0c\x63ommit_point\x18\x05 \x01(\x08\x12\x14\n\x0c\x63\x61pture_name\x18\x06 \x01(\t\x12\x12\n\nmax_tokens\x18\x07 \x01(\x05\x12\x11\n\trecursive\x18\x08 \x01(\x08\"\xb3\x01\n\x11StatelessFunction\x12\x1e\n\x04join\x18\x01 \x01(\x0b\x32\x0e.guidance.JoinH\x00\x12\"\n\x06select\x18\x02 \x01(\x0b\x32\x10.guidance.SelectH\x00\x12\x1e\n\x04\x62yte\x18\x03 \x01(\x0b\x32\x0e.guidance.ByteH\x00\x12)\n\nbyte_range\x18\x04 \x01(\x0b\x32\x13.guidance.ByteRangeH\x00\x42\x0f\n\rfunction_typeb\x06proto3'
+  serialized_pb=b'\n\x0e_grammar.proto\x12\x08guidance\"5\n\x07Grammar\x12*\n\x05nodes\x18\x01 \x03(\x0b\x32\x1b.guidance.StatelessFunction\"w\n\x04\x42yte\x12\x0c\n\x04\x62yte\x18\x01 \x01(\x0c\x12\x0e\n\x06hidden\x18\x02 \x01(\x08\x12\x14\n\x0c\x63ommit_point\x18\x03 \x01(\x08\x12\x10\n\x08nullable\x18\x04 \x01(\x08\x12\x14\n\x0c\x63\x61pture_name\x18\x05 \x01(\t\x12\x13\n\x0btemperature\x18\x06 \x01(\x01\"p\n\tByteRange\x12\x12\n\nbyte_range\x18\x01 \x01(\x0c\x12\x0e\n\x06hidden\x18\x03 \x01(\x08\x12\x14\n\x0c\x63ommit_point\x18\x04 \x01(\x08\x12\x14\n\x0c\x63\x61pture_name\x18\x05 \x01(\t\x12\x13\n\x0btemperature\x18\x06 \x01(\x01\"\x06\n\x04Null\"k\n\rModelVariable\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x0e\n\x06hidden\x18\x02 \x01(\x08\x12\x14\n\x0c\x63ommit_point\x18\x03 \x01(\x08\x12\x14\n\x0c\x63\x61pture_name\x18\x04 \x01(\t\x12\x10\n\x08nullable\x18\x05 \x01(\x08\"\x86\x01\n\x04Join\x12\x10\n\x08nullable\x18\x01 \x01(\x08\x12\x0e\n\x06values\x18\x02 \x03(\x05\x12\x0c\n\x04name\x18\x03 \x01(\t\x12\x0e\n\x06hidden\x18\x04 \x01(\x08\x12\x14\n\x0c\x63ommit_point\x18\x05 \x01(\x08\x12\x14\n\x0c\x63\x61pture_name\x18\x06 \x01(\t\x12\x12\n\nmax_tokens\x18\x07 \x01(\x05\"\x9b\x01\n\x06Select\x12\x10\n\x08nullable\x18\x01 \x01(\x08\x12\x0e\n\x06values\x18\x02 \x03(\x05\x12\x0c\n\x04name\x18\x03 \x01(\t\x12\x0e\n\x06hidden\x18\x04 \x01(\x08\x12\x14\n\x0c\x63ommit_point\x18\x05 \x01(\x08\x12\x14\n\x0c\x63\x61pture_name\x18\x06 \x01(\t\x12\x12\n\nmax_tokens\x18\x07 \x01(\x05\x12\x11\n\trecursive\x18\x08 \x01(\x08\"\xe6\x01\n\x11StatelessFunction\x12\x1e\n\x04join\x18\x01 \x01(\x0b\x32\x0e.guidance.JoinH\x00\x12\"\n\x06select\x18\x02 \x01(\x0b\x32\x10.guidance.SelectH\x00\x12\x1e\n\x04\x62yte\x18\x03 \x01(\x0b\x32\x0e.guidance.ByteH\x00\x12)\n\nbyte_range\x18\x04 \x01(\x0b\x32\x13.guidance.ByteRangeH\x00\x12\x31\n\x0emodel_variable\x18\x05 \x01(\x0b\x32\x17.guidance.ModelVariableH\x00\x42\x0f\n\rfunction_typeb\x06proto3'
 )
 
 
+
+
+_GRAMMAR = _descriptor.Descriptor(
+  name='Grammar',
+  full_name='guidance.Grammar',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='nodes', full_name='guidance.Grammar.nodes', index=0,
+      number=1, type=11, cpp_type=10, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=28,
+  serialized_end=81,
+)
 
 
 _BYTE = _descriptor.Descriptor(
@@ -87,8 +119,8 @@ _BYTE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=28,
-  serialized_end=147,
+  serialized_start=83,
+  serialized_end=202,
 )
 
 
@@ -147,8 +179,8 @@ _BYTERANGE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=149,
-  serialized_end=261,
+  serialized_start=204,
+  serialized_end=316,
 )
 
 
@@ -172,8 +204,8 @@ _NULL = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=263,
-  serialized_end=269,
+  serialized_start=318,
+  serialized_end=324,
 )
 
 
@@ -232,8 +264,8 @@ _MODELVARIABLE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=271,
-  serialized_end=378,
+  serialized_start=326,
+  serialized_end=433,
 )
 
 
@@ -254,7 +286,7 @@ _JOIN = _descriptor.Descriptor(
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
       name='values', full_name='guidance.Join.values', index=1,
-      number=2, type=11, cpp_type=10, label=3,
+      number=2, type=5, cpp_type=1, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
@@ -306,8 +338,8 @@ _JOIN = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=381,
-  serialized_end=544,
+  serialized_start=436,
+  serialized_end=570,
 )
 
 
@@ -328,7 +360,7 @@ _SELECT = _descriptor.Descriptor(
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
       name='values', full_name='guidance.Select.values', index=1,
-      number=2, type=11, cpp_type=10, label=3,
+      number=2, type=5, cpp_type=1, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
@@ -387,8 +419,8 @@ _SELECT = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=547,
-  serialized_end=731,
+  serialized_start=573,
+  serialized_end=728,
 )
 
 
@@ -428,6 +460,13 @@ _STATELESSFUNCTION = _descriptor.Descriptor(
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='model_variable', full_name='guidance.StatelessFunction.model_variable', index=4,
+      number=5, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
   ],
   extensions=[
   ],
@@ -445,16 +484,16 @@ _STATELESSFUNCTION = _descriptor.Descriptor(
       create_key=_descriptor._internal_create_key,
     fields=[]),
   ],
-  serialized_start=734,
-  serialized_end=913,
+  serialized_start=731,
+  serialized_end=961,
 )
 
-_JOIN.fields_by_name['values'].message_type = _STATELESSFUNCTION
-_SELECT.fields_by_name['values'].message_type = _STATELESSFUNCTION
+_GRAMMAR.fields_by_name['nodes'].message_type = _STATELESSFUNCTION
 _STATELESSFUNCTION.fields_by_name['join'].message_type = _JOIN
 _STATELESSFUNCTION.fields_by_name['select'].message_type = _SELECT
 _STATELESSFUNCTION.fields_by_name['byte'].message_type = _BYTE
 _STATELESSFUNCTION.fields_by_name['byte_range'].message_type = _BYTERANGE
+_STATELESSFUNCTION.fields_by_name['model_variable'].message_type = _MODELVARIABLE
 _STATELESSFUNCTION.oneofs_by_name['function_type'].fields.append(
   _STATELESSFUNCTION.fields_by_name['join'])
 _STATELESSFUNCTION.fields_by_name['join'].containing_oneof = _STATELESSFUNCTION.oneofs_by_name['function_type']
@@ -467,6 +506,10 @@ _STATELESSFUNCTION.fields_by_name['byte'].containing_oneof = _STATELESSFUNCTION.
 _STATELESSFUNCTION.oneofs_by_name['function_type'].fields.append(
   _STATELESSFUNCTION.fields_by_name['byte_range'])
 _STATELESSFUNCTION.fields_by_name['byte_range'].containing_oneof = _STATELESSFUNCTION.oneofs_by_name['function_type']
+_STATELESSFUNCTION.oneofs_by_name['function_type'].fields.append(
+  _STATELESSFUNCTION.fields_by_name['model_variable'])
+_STATELESSFUNCTION.fields_by_name['model_variable'].containing_oneof = _STATELESSFUNCTION.oneofs_by_name['function_type']
+DESCRIPTOR.message_types_by_name['Grammar'] = _GRAMMAR
 DESCRIPTOR.message_types_by_name['Byte'] = _BYTE
 DESCRIPTOR.message_types_by_name['ByteRange'] = _BYTERANGE
 DESCRIPTOR.message_types_by_name['Null'] = _NULL
@@ -475,6 +518,13 @@ DESCRIPTOR.message_types_by_name['Join'] = _JOIN
 DESCRIPTOR.message_types_by_name['Select'] = _SELECT
 DESCRIPTOR.message_types_by_name['StatelessFunction'] = _STATELESSFUNCTION
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
+
+Grammar = _reflection.GeneratedProtocolMessageType('Grammar', (_message.Message,), {
+  'DESCRIPTOR' : _GRAMMAR,
+  '__module__' : '_grammar_pb2'
+  # @@protoc_insertion_point(class_scope:guidance.Grammar)
+  })
+_sym_db.RegisterMessage(Grammar)
 
 Byte = _reflection.GeneratedProtocolMessageType('Byte', (_message.Message,), {
   'DESCRIPTOR' : _BYTE,
