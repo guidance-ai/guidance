@@ -1,0 +1,74 @@
+syntax = "proto3";
+
+package guidance;
+
+message Byte {
+    bytes byte = 1;
+    bool hidden = 2;   
+    bool commit_point = 3;
+    bool nullable = 4;
+    string capture_name = 5;
+    double temperature = 6;
+}
+
+message ByteRange {
+   bytes byte_range = 1;
+   bool hidden = 3;
+   bool commit_point = 4;
+   string capture_name = 5;
+   double temperature = 6; 
+}
+
+message Null {
+}
+
+message ModelVariable {
+    string name = 1;
+    bool hidden = 2;
+    bool commit_point = 3;
+    string capture_name = 4;
+    bool nullable = 5;
+}
+
+message Join {
+    bool nullable = 1;
+
+    // Use a repeated field to store the list of values
+    repeated StatelessFunction values = 2; 
+
+    string name = 3;
+    bool hidden = 4;
+    bool commit_point = 5;
+    string capture_name = 6;
+    int32 max_tokens = 7;
+}
+
+message Select {
+    bool nullable = 1;
+
+    // Use a repeated field to store the list of values
+    repeated StatelessFunction values = 2; 
+
+    string name = 3;
+    bool hidden = 4;
+    bool commit_point = 5;
+    string capture_name = 6;
+    int32 max_tokens = 7;
+    bool recursive = 8;
+}
+
+// message Terminal {
+//     oneof function_type {
+//         Byte byte = 1;
+//         ByteRange byte_range = 2;
+//     }
+// }
+
+message StatelessFunction {
+    oneof function_type {
+        Join join = 1;
+        Select select = 2;
+        Byte byte = 3;
+        ByteRange byte_range = 4;
+    }
+}

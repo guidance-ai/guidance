@@ -4,6 +4,7 @@ import json
 import inspect
 import types
 import re
+from . import _grammar_pb2
 
 tag_start = "{{G|"
 tag_end = "|G}}"
@@ -32,6 +33,14 @@ class Function():
 
         # return a string representation of this call so it can be combined with other strings/calls
         return tag_start + str_id + tag_end
+    
+    def serialize(self):
+        raise NotImplementedError()
+    
+    @classmethod
+    def deserialize(cls, serialized_grammar):
+        raise NotImplementedError()
+
 
 class StatefulFunction(Function):
     __slots__ = ("f", "args", "kwargs")
@@ -183,6 +192,33 @@ class Byte(Terminal):
     @property
     def nullable(self):
         return False
+    
+    def _to_proto(self):
+        data = _grammar_pb2.Byte()
+        data.byte = self.byte
+        data.hidden = self.hidden
+        data.commit_point = self.commit_point
+        data.capture_name = "" if self.capture_name is None else self.capture_name
+        data.temperature = self.temperature
+        return data
+    
+    def serialize(self):
+        return self._to_proto().SerializeToString()
+
+    @staticmethod
+    def deserialize(data_bytes):
+        data = _grammar_pb2.Byte()
+        data.ParseFromString(data_bytes)
+        return Byte._from_proto(data)
+    
+    @staticmethod
+    def _from_proto(data):
+        out = Byte(data.byte)
+        out.hidden = data.hidden
+        out.commit_point = data.commit_point
+        out.capture_name = None if data.capture_name == "" else data.capture_name
+        out.temperature = data.temperature
+        return out
 
 class ByteRange(Terminal):
     __slots__ = ("byte_range", "hidden", "commit_point", "capture_name", "temperature")
@@ -221,6 +257,33 @@ class ByteRange(Terminal):
     
     def __len__(self):
         return 1
+
+    def _to_proto(self):
+        data = _grammar_pb2.ByteRange()
+        data.byte_range = self.byte_range
+        data.hidden = self.hidden
+        data.commit_point = self.commit_point
+        data.capture_name = "" if self.capture_name is None else self.capture_name
+        data.temperature = self.temperature
+        return data
+    
+    def serialize(self):
+        return self._to_proto().SerializeToString()
+
+    @staticmethod
+    def _from_proto(data):
+        out = ByteRange(data.byte_range)
+        out.hidden = data.hidden
+        out.commit_point = data.commit_point
+        out.capture_name = None if data.capture_name == "" else data.capture_name
+        out.temperature = data.temperature
+        return out
+    
+    @staticmethod
+    def deserialize(data_bytes):
+        data = _grammar_pb2.ByteRange()
+        data.ParseFromString(data_bytes)
+        return ByteRange._from_proto(data)
 
 class Null():
     __slots__ = ("name", "hidden", "commit_point", "capture_name")
@@ -447,6 +510,62 @@ class Join(StatelessFunction):
             if v not in done and (isinstance(v, Join) or isinstance(v, Select)):
                 s += v.__repr__(indent, done)
         return s
+    
+    def _to_proto(self):
+        data = _grammar_pb2.Join()
+        data.nullable = self.nullable
+        for v in self.values:
+            inner = _grammar_pb2.StatelessFunction()
+            if isinstance(v, Byte):
+                inner.byte.CopyFrom(v._to_proto())
+            elif isinstance(v, ByteRange):
+                inner.byte_range.CopyFrom(v._to_proto())
+            elif isinstance(v, Join):
+                inner.join.CopyFrom(v._to_proto())
+            elif isinstance(v, Select):
+                inner.select.CopyFrom(v._to_proto())
+            data.values.append(inner)
+        data.name = self.name
+        data.hidden = self.hidden
+        data.commit_point = self.commit_point
+        data.capture_name = "" if self.capture_name is None else self.capture_name
+        data.max_tokens = self.max_tokens
+        return data
+    
+    def serialize(self):
+        return self._to_proto().SerializeToString()
+
+    @staticmethod
+    def _from_proto(data):
+        values = []
+        for v in data.values:
+            if v.HasField("byte"):
+                values.append(Byte._from_proto(v.byte))
+            elif v.HasField("byte_range"):
+                values.append(ByteRange._from_proto(v.byte_range))
+            elif v.HasField("join"):
+                values.append(Join._from_proto(v.join))
+            elif v.HasField("select"):
+                values.append(Select._from_proto(v.select))
+            else:
+                raise Exception("Unknown type of value")
+        out = Join(
+            values,
+            name=data.name,
+            max_tokens=data.max_tokens
+        )
+        out.nullable = data.nullable
+        out.hidden = data.hidden
+        out.commit_point = data.commit_point
+        out.capture_name = None if data.capture_name == "" else data.capture_name
+        return out
+    
+    @staticmethod
+    def deserialize(data_bytes):
+        data = _grammar_pb2.Join()
+        data.ParseFromString(data_bytes)
+        return Join._from_proto(data)
+
 
 class Select(StatelessFunction):
     __slots__ = ("nullable", "_values", "name", "hidden", "commit_point", "capture_name", "max_tokens", "recursive")
@@ -479,6 +598,63 @@ class Select(StatelessFunction):
             if v not in done and (isinstance(v, Join) or isinstance(v, Select)):
                 s += v.__repr__(indent, done)
         return s
+    
+    def _to_proto(self):
+        data = _grammar_pb2.Join()
+        data.nullable = self.nullable
+        for v in self.values:
+            inner = _grammar_pb2.StatelessFunction()
+            if isinstance(v, Byte):
+                inner.byte.CopyFrom(v._to_proto())
+            elif isinstance(v, ByteRange):
+                inner.byte_range.CopyFrom(v._to_proto())
+            elif isinstance(v, Join):
+                inner.join.CopyFrom(v._to_proto())
+            elif isinstance(v, Select):
+                inner.select.CopyFrom(v._to_proto())
+            data.values.append(inner)
+        data.name = self.name
+        data.hidden = self.hidden
+        data.commit_point = self.commit_point
+        data.capture_name = "" if self.capture_name is None else self.capture_name
+        data.max_tokens = self.max_tokens
+        data.recursive = self.recursive
+        return data
+    
+    def serialize(self):
+        return self._to_proto().SerializeToString()
+
+    @staticmethod
+    def _from_proto(data):
+        values = []
+        for v in data.values:
+            if v.HasField("byte"):
+                values.append(Byte._from_proto(v.byte))
+            elif v.HasField("byte_range"):
+                values.append(ByteRange._from_proto(v.byte_range))
+            elif v.HasField("join"):
+                values.append(Join._from_proto(v.join))
+            elif v.HasField("select"):
+                values.append(Select._from_proto(v.select))
+            else:
+                raise Exception("Unknown type of value")
+        out = Join(
+            values,
+            name=data.name,
+            max_tokens=data.max_tokens
+        )
+        out.nullable = data.nullable
+        out.hidden = data.hidden
+        out.commit_point = data.commit_point
+        out.capture_name = None if data.capture_name == "" else data.capture_name
+        out.recursive = data.recursive
+        return out
+    
+    @staticmethod
+    def deserialize(data_bytes):
+        data = _grammar_pb2.Join()
+        data.ParseFromString(data_bytes)
+        return Join._from_proto(data)
 
 def string(value):
     if isinstance(value, str):

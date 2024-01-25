@@ -7,6 +7,7 @@ import logging
 import numpy as np
 
 from .._model import Tokenizer, Engine, Model, Chat
+from .._remote import RemoteEngine
 from ..._utils import normalize_notebook_stdout_stderr
 
 try:
@@ -167,11 +168,16 @@ class LlamaCppEngine(Engine):
         return logits
 
 class LlamaCpp(Model):
-    def __init__(self, model=None, echo=True, compute_log_probs=False, **llama_cpp_kwargs):
+    def __init__(self, model=None, echo=True, compute_log_probs=False, api_key=None, **llama_cpp_kwargs):
         '''Build a new LlamaCpp model object that represents a model in a given state.'''
 
+        if isinstance(model, str) and model.startswith("http"):
+            engine = RemoteEngine(model, api_key=api_key, **llama_cpp_kwargs)
+        else:
+            engine = LlamaCppEngine(model, compute_log_probs=compute_log_probs, **llama_cpp_kwargs)
+
         super().__init__(
-            LlamaCppEngine(model, compute_log_probs, **llama_cpp_kwargs),
+            engine,
             echo=echo
         )
 

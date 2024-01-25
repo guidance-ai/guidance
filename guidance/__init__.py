@@ -10,6 +10,7 @@ from . import models
 from ._grammar import (Placeholder, StatefulFunction, StatelessFunction,
                        Terminal, replace_grammar_node, string)
 from ._utils import load, strip_multiline_string_indents
+from ._server import Server
 
 curr_module = sys.modules[__name__]
 
