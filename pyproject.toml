@@ -5,3 +5,33 @@ requires = [
     "pybind11>=2.10.0",
 ]
 build-backend = "setuptools.build_meta"
+
+
+[tool.poetry]
+name = "guidance"
+homepage = "https://github.com/guidance-ai/guidance"
+
+[tool.poetry.dependencies]
+python = ">=3.8"
+diskcache = "*"
+gptcache = "*"
+openai = ">=1.0"
+platformdirs = "*"
+tiktoken = ">=0.3"
+msal = "*"
+requests = "*"
+numpy = "*"
+aiohttp = "*"
+ordered-set = "*"
+pyformlang = "*"
+
+[tool.poetry.dev-dependencies]
+ipython = "*"
+numpydoc = "*"
+sphinx_rtd_theme = "*"
+sphinx = "*"
+nbsphinx = "*"
+pytest = "*"
+transformers = "*"
+torch = "*"
+pytest-cov = "*"
