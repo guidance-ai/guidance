@@ -214,7 +214,6 @@ class OAIChatMixin(Chat):
 
             # Check if the result is already in the cache
             if cache_key in self.cache:
-                print("cache hit")
                 for chunk in self.cache[cache_key]:
                     yield chunk
                 return
