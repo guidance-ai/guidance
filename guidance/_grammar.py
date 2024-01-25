@@ -42,7 +42,7 @@ class Function():
         raise NotImplementedError()
 
 
-class StatefulFunction(Function):
+class RawFunction(Function):
     __slots__ = ("f", "args", "kwargs")
 
     def __init__(self, f, args, kwargs):
@@ -63,11 +63,11 @@ class StatefulFunction(Function):
             model = self(model)
             if model is None:
                 raise Exception(f"The guidance function `{self.f.__name__}` did not return a model object! You need to return an updated model object at the end of your guidance function.")
-            if isinstance(other, StatelessFunction):
+            if isinstance(other, GrammarFunction):
                 return model + other
             else:
                 return other(model)
-        return StatefulFunction(__add__, [], {})
+        return RawFunction(__add__, [], {})
     
     def __radd__(self, other):
         
@@ -76,14 +76,14 @@ class StatefulFunction(Function):
             return other + str(self)
         
         def __radd__(model):
-            if isinstance(other, StatelessFunction):
+            if isinstance(other, GrammarFunction):
                 model += other
             else:
                 model = other(model)
             return self(model)
-        return StatefulFunction(__radd__, [], {})
+        return RawFunction(__radd__, [], {})
 
-class StatelessFunction(Function):
+class GrammarFunction(Function):
     num_used_names = 0
 
     def __add__(self, value):
@@ -96,7 +96,7 @@ class StatelessFunction(Function):
                 value = string(value) 
         
         # see if we can keep building a stateless grammar
-        if isinstance(value, StatelessFunction):
+        if isinstance(value, GrammarFunction):
             return Join([self, value])
         
         # otherwise we let the stateful object handle things
@@ -113,7 +113,7 @@ class StatelessFunction(Function):
                 value = string(value) 
         
         # see if we can keep building a stateless grammar
-        if isinstance(value, StatelessFunction):
+        if isinstance(value, GrammarFunction):
             return Join([value, self])
         
         # otherwise we let the stateful object handle things
@@ -121,11 +121,11 @@ class StatelessFunction(Function):
             return value.__add__(self)
     
     def __getitem__(self, value):
-        raise StatefulException("StatelessFunctions can't access state!")
+        raise StatefulException("GrammarFunctions can't access state!")
     
     @staticmethod
     def _new_name():
-        num_used = StatelessFunction.num_used_names
+        num_used = GrammarFunction.num_used_names
 
         a_ord = ord('a')
 
@@ -138,7 +138,7 @@ class StatelessFunction(Function):
                 if num_used >= 17576:
                     name = chr(a_ord + (num_used % 456976) // 17576) + name
 
-        StatelessFunction.num_used_names += 1
+        GrammarFunction.num_used_names += 1
         
         return name
     
@@ -169,7 +169,7 @@ class StatelessFunction(Function):
     def _rec_serialize(self, index_map, nodes):
         if self not in nodes:
             v = self._to_proto(index_map)
-            node = _serialization_pb2.StatelessFunction()
+            node = _serialization_pb2.GrammarFunction()
             if isinstance(self, Byte):
                 node.byte.CopyFrom(v)
             elif isinstance(self, ByteRange):
@@ -217,7 +217,7 @@ class StatelessFunction(Function):
 
         return values[0] # the first element in the root node of the grammar
 
-class Terminal(StatelessFunction):
+class Terminal(GrammarFunction):
     def match_byte(self, byte):
         pass # abstract
 
@@ -358,7 +358,7 @@ class Null():
     def __radd__(self, other):
         return self.__add__(other) # left vs right makes no difference since we are null
         
-class ModelVariable(StatelessFunction):
+class ModelVariable(GrammarFunction):
     '''This represents a variable that will be read from the model object when this grammar is executed.
     
     Note that the name is the name of the attribute on the model object this node
@@ -510,7 +510,7 @@ def _wrap_as_grammar(value):
     '''This takes whatever value was given and tries to turn in into a guidance grammar.'''
 
     # if it is already a valid grammar we have no need to wrap it
-    if isinstance(value, StatelessFunction):
+    if isinstance(value, GrammarFunction):
         return value
     
     # if it is already a valid grammar we have no need to wrap it
@@ -546,20 +546,20 @@ def _rec_hide(grammar):
             for g in grammar.values:
                 _rec_hide(g)
 
-class Placeholder(StatelessFunction):
+class Placeholder(GrammarFunction):
     __slots__ = tuple("nullable")
     def __init__(self):
         self.nullable = False
 
 
-class Join(StatelessFunction):
+class Join(GrammarFunction):
     __slots__ = ("nullable", "values", "name", "hidden", "commit_point", "capture_name", "max_tokens")
 
     def __init__(self, values, name=None, max_tokens=100000000) -> None:
         values = [string(v) if isinstance(v, (str, bytes)) else v for v in values] # wrap raw strings
         self.nullable = all(getattr(v, "nullable", False) for v in values)
         self.values = [v for v in values if not isinstance(v, Null)]
-        self.name = name if name is not None else StatelessFunction._new_name()
+        self.name = name if name is not None else GrammarFunction._new_name()
         self.hidden = False
         self.commit_point = False
         self.capture_name = None
@@ -602,12 +602,12 @@ class Join(StatelessFunction):
         return out
 
 
-class Select(StatelessFunction):
+class Select(GrammarFunction):
     __slots__ = ("nullable", "_values", "name", "hidden", "commit_point", "capture_name", "max_tokens", "recursive")
 
     def __init__(self, values, capture_name=None, name=None, max_tokens=10000000, recursive=False) -> None:
         self.values = values
-        self.name = name if name is not None else StatelessFunction._new_name()
+        self.name = name if name is not None else GrammarFunction._new_name()
         self.hidden = False
         self.commit_point = False
         self.capture_name = capture_name
@@ -681,7 +681,7 @@ def select(options, name=None, list_append=False, recurse=False, skip_checks=Fal
     # TODO: also the full probabilites distribution over all items. We can implement this using the prob of the selected item by repeating the call, removing the selected item each time
     if not skip_checks:
         for i, value in enumerate(options):
-            assert not isinstance(value, StatefulFunction), "You cannot select between stateful functions in the current guidance implementation!"
+            assert not isinstance(value, RawFunction), "You cannot select between stateful functions in the current guidance implementation!"
             assert not isinstance(value, types.FunctionType), "Did you pass a function without calling it to select? You need to pass the results of a called guidance function to select."
             if isinstance(value, int) or isinstance(value, float):
                 options[i] = str(value)
@@ -791,10 +791,10 @@ def str_to_grammar(value):
             #     lm.suffix = parts[i+1]
             if is_id:
                 call = _call_pool[part]
-                if isinstance(call, StatelessFunction):
+                if isinstance(call, GrammarFunction):
                     partial_grammar += _call_pool[part]
                 else:
-                    partial_grammar = StatefulFunction(lambda lm, g, call: call(lm + g), partial_grammar, _call_pool[part])
+                    partial_grammar = RawFunction(lambda lm, g, call: call(lm + g), partial_grammar, _call_pool[part])
                     # lm += partial_grammar
                     # lm = _call_pool[part](lm)
                     # partial_grammar = _null_grammar

@@ -26,7 +26,7 @@ except ImportError:
     from .. import _cpp as cpp
 from .._utils import softmax, CaptureEvents
 from .._parser import EarleyCommitParser, Parser
-from .._grammar import StatelessFunction, string, _call_pool, _tag_pattern, Null, replace_model_variables, unreplace_model_variables, select
+from .._grammar import GrammarFunction, string, _call_pool, _tag_pattern, Null, replace_model_variables, unreplace_model_variables, select
 from .. import _serialization_pb2
 
 # define some constants we will reuse many times
@@ -891,7 +891,7 @@ class Model:
                             lm.suffix = parts[i+1]
                         if is_id:
                             call = _call_pool[part]
-                            if isinstance(call, StatelessFunction):
+                            if isinstance(call, GrammarFunction):
                                 partial_grammar += _call_pool[part]
                             else:
                                 lm += partial_grammar
@@ -907,7 +907,7 @@ class Model:
                 out = lm
             
             # run stateless functions (grammar nodes)
-            elif isinstance(value, StatelessFunction):
+            elif isinstance(value, GrammarFunction):
                 out = lm._run_stateless(value)
             
             # run stateful functions

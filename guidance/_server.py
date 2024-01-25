@@ -5,7 +5,7 @@ import os  # For environment variables or config files
 import base64
 
 from .models._model import Model, Engine
-from ._grammar import StatelessFunction
+from ._grammar import GrammarFunction
 
 class Server:
     def __init__(self, engine, api_key=None, ssl_certfile=None, ssl_keyfile=None):
@@ -42,7 +42,7 @@ class Server:
 
             data = await request.json()
             parser = data.get("parser")
-            grammar = StatelessFunction.deserialize(base64.b64decode(data.get("grammar")))
+            grammar = GrammarFunction.deserialize(base64.b64decode(data.get("grammar")))
 
             return StreamingResponse(
                 self.engine(parser, grammar),

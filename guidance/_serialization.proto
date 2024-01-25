@@ -3,7 +3,7 @@ syntax = "proto3";
 package guidance;
 
 message Grammar {
-    repeated StatelessFunction nodes = 1;
+    repeated GrammarFunction nodes = 1;
 }
 
 message EngineCallResponse {
@@ -77,7 +77,7 @@ message Select {
 //     }
 // }
 
-message StatelessFunction {
+message GrammarFunction {
     oneof function_type {
         Join join = 1;
         Select select = 2;

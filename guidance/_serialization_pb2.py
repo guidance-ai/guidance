@@ -19,7 +19,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\x14_serialization.proto\x12\x08guidance\"5\n\x07Grammar\x12*\n\x05nodes\x18\x01 \x03(\x0b\x32\x1b.guidance.StatelessFunction\"\x83\x03\n\x12\x45ngineCallResponse\x12\x11\n\tnew_bytes\x18\x01 \x01(\x0c\x12\x14\n\x0cis_generated\x18\x02 \x01(\x08\x12\x16\n\x0enew_bytes_prob\x18\x03 \x01(\x02\x12G\n\x0e\x63\x61pture_groups\x18\x04 \x03(\x0b\x32/.guidance.EngineCallResponse.CaptureGroupsEntry\x12W\n\x17\x63\x61pture_group_log_probs\x18\x05 \x03(\x0b\x32\x36.guidance.EngineCallResponse.CaptureGroupLogProbsEntry\x12\x17\n\x0fnew_token_count\x18\x06 \x01(\x05\x1a\x34\n\x12\x43\x61ptureGroupsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\x1a;\n\x19\x43\x61ptureGroupLogProbsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\x02:\x02\x38\x01\"w\n\x04\x42yte\x12\x0c\n\x04\x62yte\x18\x01 \x01(\x0c\x12\x0e\n\x06hidden\x18\x02 \x01(\x08\x12\x14\n\x0c\x63ommit_point\x18\x03 \x01(\x08\x12\x10\n\x08nullable\x18\x04 \x01(\x08\x12\x14\n\x0c\x63\x61pture_name\x18\x05 \x01(\t\x12\x13\n\x0btemperature\x18\x06 \x01(\x02\"p\n\tByteRange\x12\x12\n\nbyte_range\x18\x01 \x01(\x0c\x12\x0e\n\x06hidden\x18\x03 \x01(\x08\x12\x14\n\x0c\x63ommit_point\x18\x04 \x01(\x08\x12\x14\n\x0c\x63\x61pture_name\x18\x05 \x01(\t\x12\x13\n\x0btemperature\x18\x06 \x01(\x02\"\x06\n\x04Null\"k\n\rModelVariable\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x0e\n\x06hidden\x18\x02 \x01(\x08\x12\x14\n\x0c\x63ommit_point\x18\x03 \x01(\x08\x12\x14\n\x0c\x63\x61pture_name\x18\x04 \x01(\t\x12\x10\n\x08nullable\x18\x05 \x01(\x08\"\x86\x01\n\x04Join\x12\x10\n\x08nullable\x18\x01 \x01(\x08\x12\x0e\n\x06values\x18\x02 \x03(\x05\x12\x0c\n\x04name\x18\x03 \x01(\t\x12\x0e\n\x06hidden\x18\x04 \x01(\x08\x12\x14\n\x0c\x63ommit_point\x18\x05 \x01(\x08\x12\x14\n\x0c\x63\x61pture_name\x18\x06 \x01(\t\x12\x12\n\nmax_tokens\x18\x07 \x01(\x05\"\x9b\x01\n\x06Select\x12\x10\n\x08nullable\x18\x01 \x01(\x08\x12\x0e\n\x06values\x18\x02 \x03(\x05\x12\x0c\n\x04name\x18\x03 \x01(\t\x12\x0e\n\x06hidden\x18\x04 \x01(\x08\x12\x14\n\x0c\x63ommit_point\x18\x05 \x01(\x08\x12\x14\n\x0c\x63\x61pture_name\x18\x06 \x01(\t\x12\x12\n\nmax_tokens\x18\x07 \x01(\x05\x12\x11\n\trecursive\x18\x08 \x01(\x08\"\xe6\x01\n\x11StatelessFunction\x12\x1e\n\x04join\x18\x01 \x01(\x0b\x32\x0e.guidance.JoinH\x00\x12\"\n\x06select\x18\x02 \x01(\x0b\x32\x10.guidance.SelectH\x00\x12\x1e\n\x04\x62yte\x18\x03 \x01(\x0b\x32\x0e.guidance.ByteH\x00\x12)\n\nbyte_range\x18\x04 \x01(\x0b\x32\x13.guidance.ByteRangeH\x00\x12\x31\n\x0emodel_variable\x18\x05 \x01(\x0b\x32\x17.guidance.ModelVariableH\x00\x42\x0f\n\rfunction_typeb\x06proto3'
+  serialized_pb=b'\n\x14_serialization.proto\x12\x08guidance\"3\n\x07Grammar\x12(\n\x05nodes\x18\x01 \x03(\x0b\x32\x19.guidance.GrammarFunction\"\x83\x03\n\x12\x45ngineCallResponse\x12\x11\n\tnew_bytes\x18\x01 \x01(\x0c\x12\x14\n\x0cis_generated\x18\x02 \x01(\x08\x12\x16\n\x0enew_bytes_prob\x18\x03 \x01(\x02\x12G\n\x0e\x63\x61pture_groups\x18\x04 \x03(\x0b\x32/.guidance.EngineCallResponse.CaptureGroupsEntry\x12W\n\x17\x63\x61pture_group_log_probs\x18\x05 \x03(\x0b\x32\x36.guidance.EngineCallResponse.CaptureGroupLogProbsEntry\x12\x17\n\x0fnew_token_count\x18\x06 \x01(\x05\x1a\x34\n\x12\x43\x61ptureGroupsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\x1a;\n\x19\x43\x61ptureGroupLogProbsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\x02:\x02\x38\x01\"w\n\x04\x42yte\x12\x0c\n\x04\x62yte\x18\x01 \x01(\x0c\x12\x0e\n\x06hidden\x18\x02 \x01(\x08\x12\x14\n\x0c\x63ommit_point\x18\x03 \x01(\x08\x12\x10\n\x08nullable\x18\x04 \x01(\x08\x12\x14\n\x0c\x63\x61pture_name\x18\x05 \x01(\t\x12\x13\n\x0btemperature\x18\x06 \x01(\x02\"p\n\tByteRange\x12\x12\n\nbyte_range\x18\x01 \x01(\x0c\x12\x0e\n\x06hidden\x18\x03 \x01(\x08\x12\x14\n\x0c\x63ommit_point\x18\x04 \x01(\x08\x12\x14\n\x0c\x63\x61pture_name\x18\x05 \x01(\t\x12\x13\n\x0btemperature\x18\x06 \x01(\x02\"\x06\n\x04Null\"k\n\rModelVariable\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x0e\n\x06hidden\x18\x02 \x01(\x08\x12\x14\n\x0c\x63ommit_point\x18\x03 \x01(\x08\x12\x14\n\x0c\x63\x61pture_name\x18\x04 \x01(\t\x12\x10\n\x08nullable\x18\x05 \x01(\x08\"\x86\x01\n\x04Join\x12\x10\n\x08nullable\x18\x01 \x01(\x08\x12\x0e\n\x06values\x18\x02 \x03(\x05\x12\x0c\n\x04name\x18\x03 \x01(\t\x12\x0e\n\x06hidden\x18\x04 \x01(\x08\x12\x14\n\x0c\x63ommit_point\x18\x05 \x01(\x08\x12\x14\n\x0c\x63\x61pture_name\x18\x06 \x01(\t\x12\x12\n\nmax_tokens\x18\x07 \x01(\x05\"\x9b\x01\n\x06Select\x12\x10\n\x08nullable\x18\x01 \x01(\x08\x12\x0e\n\x06values\x18\x02 \x03(\x05\x12\x0c\n\x04name\x18\x03 \x01(\t\x12\x0e\n\x06hidden\x18\x04 \x01(\x08\x12\x14\n\x0c\x63ommit_point\x18\x05 \x01(\x08\x12\x14\n\x0c\x63\x61pture_name\x18\x06 \x01(\t\x12\x12\n\nmax_tokens\x18\x07 \x01(\x05\x12\x11\n\trecursive\x18\x08 \x01(\x08\"\xe4\x01\n\x0fGrammarFunction\x12\x1e\n\x04join\x18\x01 \x01(\x0b\x32\x0e.guidance.JoinH\x00\x12\"\n\x06select\x18\x02 \x01(\x0b\x32\x10.guidance.SelectH\x00\x12\x1e\n\x04\x62yte\x18\x03 \x01(\x0b\x32\x0e.guidance.ByteH\x00\x12)\n\nbyte_range\x18\x04 \x01(\x0b\x32\x13.guidance.ByteRangeH\x00\x12\x31\n\x0emodel_variable\x18\x05 \x01(\x0b\x32\x17.guidance.ModelVariableH\x00\x42\x0f\n\rfunction_typeb\x06proto3'
 )
 
 
@@ -53,7 +53,7 @@ _GRAMMAR = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=34,
-  serialized_end=87,
+  serialized_end=85,
 )
 
 
@@ -91,8 +91,8 @@ _ENGINECALLRESPONSE_CAPTUREGROUPSENTRY = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=364,
-  serialized_end=416,
+  serialized_start=362,
+  serialized_end=414,
 )
 
 _ENGINECALLRESPONSE_CAPTUREGROUPLOGPROBSENTRY = _descriptor.Descriptor(
@@ -129,8 +129,8 @@ _ENGINECALLRESPONSE_CAPTUREGROUPLOGPROBSENTRY = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=418,
-  serialized_end=477,
+  serialized_start=416,
+  serialized_end=475,
 )
 
 _ENGINECALLRESPONSE = _descriptor.Descriptor(
@@ -195,8 +195,8 @@ _ENGINECALLRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=90,
-  serialized_end=477,
+  serialized_start=88,
+  serialized_end=475,
 )
 
 
@@ -262,8 +262,8 @@ _BYTE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=479,
-  serialized_end=598,
+  serialized_start=477,
+  serialized_end=596,
 )
 
 
@@ -322,8 +322,8 @@ _BYTERANGE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=600,
-  serialized_end=712,
+  serialized_start=598,
+  serialized_end=710,
 )
 
 
@@ -347,8 +347,8 @@ _NULL = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=714,
-  serialized_end=720,
+  serialized_start=712,
+  serialized_end=718,
 )
 
 
@@ -407,8 +407,8 @@ _MODELVARIABLE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=722,
-  serialized_end=829,
+  serialized_start=720,
+  serialized_end=827,
 )
 
 
@@ -481,8 +481,8 @@ _JOIN = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=832,
-  serialized_end=966,
+  serialized_start=830,
+  serialized_end=964,
 )
 
 
@@ -562,49 +562,49 @@ _SELECT = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=969,
-  serialized_end=1124,
+  serialized_start=967,
+  serialized_end=1122,
 )
 
 
-_STATELESSFUNCTION = _descriptor.Descriptor(
-  name='StatelessFunction',
-  full_name='guidance.StatelessFunction',
+_GRAMMARFUNCTION = _descriptor.Descriptor(
+  name='GrammarFunction',
+  full_name='guidance.GrammarFunction',
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
   create_key=_descriptor._internal_create_key,
   fields=[
     _descriptor.FieldDescriptor(
-      name='join', full_name='guidance.StatelessFunction.join', index=0,
+      name='join', full_name='guidance.GrammarFunction.join', index=0,
       number=1, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='select', full_name='guidance.StatelessFunction.select', index=1,
+      name='select', full_name='guidance.GrammarFunction.select', index=1,
       number=2, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='byte', full_name='guidance.StatelessFunction.byte', index=2,
+      name='byte', full_name='guidance.GrammarFunction.byte', index=2,
       number=3, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='byte_range', full_name='guidance.StatelessFunction.byte_range', index=3,
+      name='byte_range', full_name='guidance.GrammarFunction.byte_range', index=3,
       number=4, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='model_variable', full_name='guidance.StatelessFunction.model_variable', index=4,
+      name='model_variable', full_name='guidance.GrammarFunction.model_variable', index=4,
       number=5, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
@@ -622,40 +622,40 @@ _STATELESSFUNCTION = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
     _descriptor.OneofDescriptor(
-      name='function_type', full_name='guidance.StatelessFunction.function_type',
+      name='function_type', full_name='guidance.GrammarFunction.function_type',
       index=0, containing_type=None,
       create_key=_descriptor._internal_create_key,
     fields=[]),
   ],
-  serialized_start=1127,
-  serialized_end=1357,
+  serialized_start=1125,
+  serialized_end=1353,
 )
 
-_GRAMMAR.fields_by_name['nodes'].message_type = _STATELESSFUNCTION
+_GRAMMAR.fields_by_name['nodes'].message_type = _GRAMMARFUNCTION
 _ENGINECALLRESPONSE_CAPTUREGROUPSENTRY.containing_type = _ENGINECALLRESPONSE
 _ENGINECALLRESPONSE_CAPTUREGROUPLOGPROBSENTRY.containing_type = _ENGINECALLRESPONSE
 _ENGINECALLRESPONSE.fields_by_name['capture_groups'].message_type = _ENGINECALLRESPONSE_CAPTUREGROUPSENTRY
 _ENGINECALLRESPONSE.fields_by_name['capture_group_log_probs'].message_type = _ENGINECALLRESPONSE_CAPTUREGROUPLOGPROBSENTRY
-_STATELESSFUNCTION.fields_by_name['join'].message_type = _JOIN
-_STATELESSFUNCTION.fields_by_name['select'].message_type = _SELECT
-_STATELESSFUNCTION.fields_by_name['byte'].message_type = _BYTE
-_STATELESSFUNCTION.fields_by_name['byte_range'].message_type = _BYTERANGE
-_STATELESSFUNCTION.fields_by_name['model_variable'].message_type = _MODELVARIABLE
-_STATELESSFUNCTION.oneofs_by_name['function_type'].fields.append(
-  _STATELESSFUNCTION.fields_by_name['join'])
-_STATELESSFUNCTION.fields_by_name['join'].containing_oneof = _STATELESSFUNCTION.oneofs_by_name['function_type']
-_STATELESSFUNCTION.oneofs_by_name['function_type'].fields.append(
-  _STATELESSFUNCTION.fields_by_name['select'])
-_STATELESSFUNCTION.fields_by_name['select'].containing_oneof = _STATELESSFUNCTION.oneofs_by_name['function_type']
-_STATELESSFUNCTION.oneofs_by_name['function_type'].fields.append(
-  _STATELESSFUNCTION.fields_by_name['byte'])
-_STATELESSFUNCTION.fields_by_name['byte'].containing_oneof = _STATELESSFUNCTION.oneofs_by_name['function_type']
-_STATELESSFUNCTION.oneofs_by_name['function_type'].fields.append(
-  _STATELESSFUNCTION.fields_by_name['byte_range'])
-_STATELESSFUNCTION.fields_by_name['byte_range'].containing_oneof = _STATELESSFUNCTION.oneofs_by_name['function_type']
-_STATELESSFUNCTION.oneofs_by_name['function_type'].fields.append(
-  _STATELESSFUNCTION.fields_by_name['model_variable'])
-_STATELESSFUNCTION.fields_by_name['model_variable'].containing_oneof = _STATELESSFUNCTION.oneofs_by_name['function_type']
+_GRAMMARFUNCTION.fields_by_name['join'].message_type = _JOIN
+_GRAMMARFUNCTION.fields_by_name['select'].message_type = _SELECT
+_GRAMMARFUNCTION.fields_by_name['byte'].message_type = _BYTE
+_GRAMMARFUNCTION.fields_by_name['byte_range'].message_type = _BYTERANGE
+_GRAMMARFUNCTION.fields_by_name['model_variable'].message_type = _MODELVARIABLE
+_GRAMMARFUNCTION.oneofs_by_name['function_type'].fields.append(
+  _GRAMMARFUNCTION.fields_by_name['join'])
+_GRAMMARFUNCTION.fields_by_name['join'].containing_oneof = _GRAMMARFUNCTION.oneofs_by_name['function_type']
+_GRAMMARFUNCTION.oneofs_by_name['function_type'].fields.append(
+  _GRAMMARFUNCTION.fields_by_name['select'])
+_GRAMMARFUNCTION.fields_by_name['select'].containing_oneof = _GRAMMARFUNCTION.oneofs_by_name['function_type']
+_GRAMMARFUNCTION.oneofs_by_name['function_type'].fields.append(
+  _GRAMMARFUNCTION.fields_by_name['byte'])
+_GRAMMARFUNCTION.fields_by_name['byte'].containing_oneof = _GRAMMARFUNCTION.oneofs_by_name['function_type']
+_GRAMMARFUNCTION.oneofs_by_name['function_type'].fields.append(
+  _GRAMMARFUNCTION.fields_by_name['byte_range'])
+_GRAMMARFUNCTION.fields_by_name['byte_range'].containing_oneof = _GRAMMARFUNCTION.oneofs_by_name['function_type']
+_GRAMMARFUNCTION.oneofs_by_name['function_type'].fields.append(
+  _GRAMMARFUNCTION.fields_by_name['model_variable'])
+_GRAMMARFUNCTION.fields_by_name['model_variable'].containing_oneof = _GRAMMARFUNCTION.oneofs_by_name['function_type']
 DESCRIPTOR.message_types_by_name['Grammar'] = _GRAMMAR
 DESCRIPTOR.message_types_by_name['EngineCallResponse'] = _ENGINECALLRESPONSE
 DESCRIPTOR.message_types_by_name['Byte'] = _BYTE
@@ -664,7 +664,7 @@ DESCRIPTOR.message_types_by_name['Null'] = _NULL
 DESCRIPTOR.message_types_by_name['ModelVariable'] = _MODELVARIABLE
 DESCRIPTOR.message_types_by_name['Join'] = _JOIN
 DESCRIPTOR.message_types_by_name['Select'] = _SELECT
-DESCRIPTOR.message_types_by_name['StatelessFunction'] = _STATELESSFUNCTION
+DESCRIPTOR.message_types_by_name['GrammarFunction'] = _GRAMMARFUNCTION
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
 Grammar = _reflection.GeneratedProtocolMessageType('Grammar', (_message.Message,), {
@@ -739,12 +739,12 @@ Select = _reflection.GeneratedProtocolMessageType('Select', (_message.Message,),
   })
 _sym_db.RegisterMessage(Select)
 
-StatelessFunction = _reflection.GeneratedProtocolMessageType('StatelessFunction', (_message.Message,), {
-  'DESCRIPTOR' : _STATELESSFUNCTION,
+GrammarFunction = _reflection.GeneratedProtocolMessageType('GrammarFunction', (_message.Message,), {
+  'DESCRIPTOR' : _GRAMMARFUNCTION,
   '__module__' : '_serialization_pb2'
-  # @@protoc_insertion_point(class_scope:guidance.StatelessFunction)
+  # @@protoc_insertion_point(class_scope:guidance.GrammarFunction)
   })
-_sym_db.RegisterMessage(StatelessFunction)
+_sym_db.RegisterMessage(GrammarFunction)
 
 
 _ENGINECALLRESPONSE_CAPTUREGROUPSENTRY._options = None
