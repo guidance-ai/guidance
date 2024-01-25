@@ -1,6 +1,7 @@
 import numpy as np
 
 from ._model import Tokenizer, Engine, Model, Chat
+from ._remote import RemoteEngine
 
 class MockEngine(Engine):
     def __init__(self, tokenizer, byte_patterns, compute_log_probs):
@@ -54,16 +55,23 @@ class MockEngine(Engine):
                 yield i
 
 class Mock(Model):
-    def __init__(self, byte_patterns=[], echo=True, compute_log_probs=False):
+    def __init__(self, byte_patterns=[], echo=True, compute_log_probs=False, **kwargs):
         '''Build a new Mock model object that represents a model in a given state.'''
-        tokenizer = Tokenizer(
-            # our tokens are all bytes and all lowercase letter pairs
-            [b"<s>"] + [bytes([i,j]) for i in range(ord('a'), ord('z')) for j in range(ord('a'), ord('z'))] + [bytes([i]) for i in range(256)],
-            0,
-            0
-        )
+
+        if isinstance(byte_patterns, str) and byte_patterns.startswith("http"):
+            engine = RemoteEngine(byte_patterns, **kwargs)
+        else:
+            tokenizer = Tokenizer(
+                # our tokens are all bytes and all lowercase letter pairs
+                [b"<s>"] + [bytes([i,j]) for i in range(ord('a'), ord('z')) for j in range(ord('a'), ord('z'))] + [bytes([i]) for i in range(256)],
+                0,
+                0
+            )
+            engine = MockEngine(tokenizer, byte_patterns, compute_log_probs)
+        
+        
         super().__init__(
-            MockEngine(tokenizer, byte_patterns, compute_log_probs),
+            engine,
             echo=echo
         )
         

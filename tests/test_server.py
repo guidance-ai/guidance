@@ -18,7 +18,7 @@ def running_server():
     yield p
     p.terminate()
 
-def test_remote_llama_cpp_gen(running_server):
+def test_remote_mock_gen(running_server):
     from guidance import models, gen
 
     m = models.Mock("http://localhost:8392", api_key="SDFSDF")
