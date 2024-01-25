@@ -41,7 +41,8 @@ setup(
         "numpy",
         "aiohttp",
         "ordered_set",
-        "pyformlang"
+        "pyformlang",
+        "protobuf"
     ],
     extras_require={
         'docs': [
