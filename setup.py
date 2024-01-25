@@ -42,7 +42,8 @@ setup(
         "aiohttp",
         "ordered_set",
         "pyformlang",
-        "protobuf"
+        "protobuf",
+        "fastapi"
     ],
     extras_require={
         'docs': [
