@@ -49,13 +49,15 @@ class Model:
     _grammar_only = 0 # a flag that tracks when we are forced to be executing only compiled grammars (like when we are inside a select)
     _throttle_refresh = 0 # a flag that tracks when we can throttle our display since we know future display calls are going to happen
 
-    def __init__(self, tokens, bos_token_id=None, eos_token_id=None, echo=True, compute_log_probs=False):
+    def __init__(self, tokens, temperature=0.0, bos_token_id=None, eos_token_id=None, echo=True, compute_log_probs=False):
         '''Build a new model object that represents a model in a given state.
         
         Parameters
         ----------
         tokens : list
             This is a list of all the tokens in byte-string form. The index of the token in the list is the token's id.
+        temperature : float
+            The amount of randomness to use when sampling tokens. A value of 0.0 means no randomness. (default is 0.0)
         bos_token_id : int
             The index of the special beginning-of-sequence token (if used for this model).
         eos_token_id : int
@@ -71,6 +73,7 @@ class Model:
         self.max_display_rate = 0.2 # this controls how frequently we are allowed to redraw the display (in seconds)
         self.opened_blocks = {} # what context blocks have been opened but not closed
         self.tokens = tokens # the token byte strings indexed by their token id
+        self.temperature = temperature
         self.bos_token_id = bos_token_id
         self.bos_token = None if self.bos_token_id is None else self.tokens[self.bos_token_id]
         self.eos_token_id = eos_token_id if eos_token_id is not None else bos_token_id
@@ -327,7 +330,7 @@ class Model:
             
             # run stateless functions (grammar nodes)
             elif isinstance(value, StatelessFunction):
-                out = lm._run_stateless(value)
+                out = lm._run_stateless(value, temperature=self.temperature)
             
             # run stateful functions
             else:
