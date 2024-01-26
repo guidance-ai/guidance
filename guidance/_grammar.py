@@ -5,6 +5,7 @@ import inspect
 import types
 import re
 from . import _serialization_pb2
+from . import _parser
 
 tag_start = "{{G|"
 tag_end = "|G}}"
@@ -83,6 +84,27 @@ class RawFunction(Function):
             return self(model)
         return RawFunction(__radd__, [], {})
 
+class Match:
+    def __init__(self, captures, log_probs, partial):
+        self.captures = captures
+        self.log_probs = log_probs
+        self.partial = partial
+    
+    def __getitem__(self, key):
+        return self.captures[key]
+    
+    def __len__(self):
+        return len(self.captures)
+    
+    def __bool__(self):
+        return True
+    
+    def __str__(self):
+        return str(self.captures)
+    
+    def __repr__(self):
+        return "<guidance.Match object; captures="+str(self.captures)+"; partial="+str(self.partial)+">"
+
 class GrammarFunction(Function):
     num_used_names = 0
 
@@ -122,6 +144,22 @@ class GrammarFunction(Function):
     
     def __getitem__(self, value):
         raise StatefulException("GrammarFunctions can't access state!")
+    
+    def match(self, byte_string, allow_partial=False):
+        if isinstance(byte_string, str):
+            byte_string = byte_string.encode()
+        parser = _parser.EarleyCommitParser(self)
+
+        for i in range(len(byte_string)):
+            try:
+                parser.consume_byte(byte_string[i:i+1])
+            except:
+                return None
+        
+        if not allow_partial and not parser.matched():
+            return None
+        else:
+            return Match(*parser.get_captures(), partial=not parser.matched())
     
     @staticmethod
     def _new_name():

@@ -4,7 +4,7 @@ from ._model import Tokenizer, Engine, Model, Chat
 from ._remote import RemoteEngine
 
 class MockEngine(Engine):
-    def __init__(self, tokenizer, byte_patterns, compute_log_probs):
+    def __init__(self, tokenizer, byte_patterns, compute_log_probs, force):
         super().__init__(tokenizer, compute_log_probs=compute_log_probs)
 
         self._valid_mask = np.zeros(len(tokenizer.tokens))
@@ -14,6 +14,7 @@ class MockEngine(Engine):
                 self._valid_mask[i] = 1.0
             except:
                 pass
+        self.force = force
 
         # allow a single byte pattern to be passed
         if isinstance(byte_patterns, (bytes, str)):
@@ -23,8 +24,10 @@ class MockEngine(Engine):
         for i,pattern in enumerate(byte_patterns):
             if isinstance(pattern, str):
                 byte_patterns[i] = pattern.encode("utf8")
-
+        
         self.byte_patterns = byte_patterns
+
+        # seed the random number generator
         self._rand_generator = np.random.default_rng(seed=42)
 
     def get_logits(self, token_ids, forced_bytes, current_temp):
@@ -34,8 +37,13 @@ class MockEngine(Engine):
         # build the byte strings
         byte_string = b"".join(self.tokenizer.tokens[i] for i in token_ids)
 
-        # we randomly generate valid unicode bytes
-        logits = self._rand_generator.standard_normal(len(self.tokenizer.tokens)) * self._valid_mask
+        # if we are forcing the bytes patterns then don't allow other tokens
+        if self.force:
+            logits = np.ones(len(self.tokenizer.tokens)) * -np.inf
+        
+        # otherwise we randomly generate valid unicode bytes
+        else:
+            logits = self._rand_generator.standard_normal(len(self.tokenizer.tokens)) * self._valid_mask
 
         # if we have a pattern that matches then force the next token
         bias = 100.0
@@ -55,7 +63,7 @@ class MockEngine(Engine):
                 yield i
 
 class Mock(Model):
-    def __init__(self, byte_patterns=[], echo=True, compute_log_probs=False, **kwargs):
+    def __init__(self, byte_patterns=[], echo=True, compute_log_probs=False, force=False, **kwargs):
         '''Build a new Mock model object that represents a model in a given state.'''
 
         if isinstance(byte_patterns, str) and byte_patterns.startswith("http"):
@@ -67,7 +75,7 @@ class Mock(Model):
                 0,
                 0
             )
-            engine = MockEngine(tokenizer, byte_patterns, compute_log_probs)
+            engine = MockEngine(tokenizer, byte_patterns, compute_log_probs, force)
         
         
         super().__init__(

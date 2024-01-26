@@ -311,6 +311,7 @@ class Engine:
             # if we walked all the way to a forced token then we advance without computing the logits
             # we are forced if there are no more options and we are either in the middle of the grammar or at a trie leaf
             is_forced = next_byte_mask_sum <= 1 and (len(trie) == 0 if parser.matched() else trie != self._token_trie)
+            token_pos = 0
             if is_forced:
                 sampled_token_ind = trie.value
                 sampled_token = self.tokenizer.tokens[sampled_token_ind]
@@ -319,7 +320,6 @@ class Engine:
 
             # we are at the end of the grammar
             elif next_byte_mask_sum == 0:
-                token_pos = 0
 
                 # mark the token we "sampled" if we have comsumed some bytes
                 if trie != self._token_trie:
