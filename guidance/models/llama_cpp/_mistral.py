@@ -1,7 +1,7 @@
-from .._model import Chat, Instruct
-from ._llama_cpp import LlamaCpp
+from .._model import Instruct
+from ._llama_cpp import LlamaCpp, LlamaCppChat
 
-class MistralChat(LlamaCpp, Chat):
+class MistralChat(LlamaCppChat):
     def get_role_start(self, role_name, **kwargs):
         if role_name == "user":
             return "[INST] "

@@ -7,9 +7,10 @@ import types
 import requests
 
 from . import models
-from ._grammar import (Placeholder, StatefulFunction, StatelessFunction,
+from ._grammar import (Placeholder, RawFunction, GrammarFunction,
                        Terminal, replace_grammar_node, string)
 from ._utils import load, strip_multiline_string_indents
+from ._server import Server
 
 curr_module = sys.modules[__name__]
 
@@ -78,7 +79,7 @@ def _decorator(f, *, stateless, cache, dedent, model):
 
             # otherwise must be stateful (which means we can't be inside a select() call)
             else:
-                return StatefulFunction(f, args, kwargs)
+                return RawFunction(f, args, kwargs)
         
         # attach this as a method of the model class (if given)
         # if model is not None:

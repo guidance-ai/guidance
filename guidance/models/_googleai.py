@@ -1,24 +1,38 @@
 import re
 from ._model import Chat, Instruct
-from ._remote import Remote
+from ._grammarless import Grammarless, GrammarlessEngine
 import tiktoken
 import os
 _image_token_pattern = re.compile(r'<\|_image:(.*)\|>')
 
-try:
-    import google.generativeai as genai
-    from google.ai.generativelanguage import Content, Part, Blob
-except ImportError:
-    pass
-    
-class GoogleAI(Remote):
-    def __init__(self, model, tokenizer=None, echo=True, caching=True, api_key=None, organization=None, base_url=None, temperature=0.0, top_p=1.0, max_streaming_tokens=1000, **kwargs):
-        '''Build a new Anthropic model object that represents a model in a given state.'''
+
+class GoogleAIEngine(GrammarlessEngine):
+    def __init__(self, model, tokenizer, api_key, max_streaming_tokens, timeout, compute_log_probs, **kwargs):
         try:
             import google.generativeai as genai
         except ImportError:
             raise Exception("Please install the Google AI Studio(makersuite.google.com) package using `pip install google-generativeai google-ai-generativelanguage` in order to use guidance.models.GoogleAI!")
+
+        assert not compute_log_probs, "We don't support compute_log_probs=True yet for GoogleAIEngine!"
+
+        if api_key is None:
+            api_key = os.environ.get("GOOGLEAI_API_KEY")
         
+        genai.configure(api_key=api_key)
+        
+        # Gemini does not have a public tokenizer, so we pretend it tokenizes like gpt2...
+        if tokenizer is None:
+            tokenizer = tiktoken.get_encoding("gpt2")
+        self.model_name = model
+
+        self.model_obj = genai.GenerativeModel(self.model_name, **kwargs)
+
+        super().__init__(tokenizer, max_streaming_tokens, timeout, compute_log_probs)
+
+class GoogleAI(Grammarless):
+    def __init__(self, model, tokenizer=None, echo=True, api_key=None, max_streaming_tokens=None, timeout=0.5, compute_log_probs=False, **kwargs):
+        '''Build a new GoogleAI model object that represents a model in a given state.'''
+
         # if we are called directly (as opposed to through super()) then we convert ourselves to a more specific subclass if possible
         if self.__class__ is GoogleAI:
             found_subclass = None
@@ -36,28 +50,29 @@ class GoogleAI(Remote):
             
             # convert to any found subclass
             self.__class__ = found_subclass
-            found_subclass.__init__(self, model, tokenizer=tokenizer, echo=echo, caching=caching, api_key=api_key, organization=organization, base_url=base_url, temperature=temperature, max_streaming_tokens=max_streaming_tokens, **kwargs)
+            found_subclass.__init__(self, model, tokenizer=None, echo=True, api_key=api_key, max_streaming_tokens=max_streaming_tokens, timeout=timeout, compute_log_probs=False, **kwargs)
             return # we return since we just ran init above and don't need to run again
 
+        # this allows us to use a single constructor for all our subclasses
+        engine_map = {
+            GoogleAIChat: GoogleAIChatEngine
+        }
+
         super().__init__(
-            model, tokenizer=tokenizer, echo=echo,
-            caching=caching, temperature=temperature,
-            max_streaming_tokens=max_streaming_tokens, **kwargs
+            engine=engine_map[self.__class__](
+                model=model,
+                tokenizer=tokenizer,
+                api_key=api_key,
+                max_streaming_tokens=max_streaming_tokens,
+                timeout=timeout,
+                compute_log_probs=compute_log_probs,
+                **kwargs
+            ),
+            echo=echo
         )
 
-        if api_key is None:
-            api_key = os.environ.get("GOOGLEAI_API_KEY")
-        
-        genai.configure(api_key=api_key)
-        
-        # Gemini does not have a public tokenizer, so we pretend it tokenizes like gpt2...
-        if tokenizer is None:
-            tokenizer = tiktoken.get_encoding("gpt2")
-        self.model_name = model
 
-        self.model_obj = genai.GenerativeModel(self.model_name)
-
-class GoogleAIChat(GoogleAI, Chat):
+class GoogleAIChatEngine(GoogleAIEngine):
     def _generator(self, prompt, temperature):
         
         # find the system text
@@ -106,7 +121,7 @@ class GoogleAIChat(GoogleAI, Chat):
             else:
                 raise Exception("It looks like your prompt is not a well formed chat prompt! Please enclose all model state appends inside chat role blocks like `user()` or `assistant()`.")
             
-        self._shared_state["data"] = prompt[:pos]
+        self._data = prompt[:pos]
 
         assert len(messages) > 0, "Bad chat format! No chat blocks were defined."
         assert messages[-1]["role"] == "user", "Bad chat format! There must be a user() role before the last assistant() role."
@@ -170,3 +185,6 @@ class GoogleAIChat(GoogleAI, Chat):
 
         for chunk in generator:
             yield chunk.candidates[0].content.parts[0].text.encode("utf8")
+
+class GoogleAIChat(GoogleAI, Chat):
+    pass

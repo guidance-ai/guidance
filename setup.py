@@ -41,7 +41,10 @@ setup(
         "numpy",
         "aiohttp",
         "ordered_set",
-        "pyformlang"
+        "pyformlang",
+        "protobuf",
+        "fastapi",
+        "uvicorn"
     ],
     extras_require={
         'docs': [

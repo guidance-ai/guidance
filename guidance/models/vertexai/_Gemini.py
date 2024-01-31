@@ -10,7 +10,7 @@ import time
 import tiktoken
 import re
 
-from ._vertexai import VertexAICompletion, VertexAIInstruct, VertexAIChat
+from ._vertexai import VertexAICompletion, VertexAIInstruct, VertexAIChat, VertexAIChatEngine
 _image_token_pattern = re.compile(r'<\|_image:(.*)\|>')
 
 try:
@@ -77,11 +77,9 @@ except ImportError:
 #         )
 
 class GeminiChat(VertexAIChat):
-    def __init__(self, model, tokenizer=None, echo=True, caching=True, temperature=0.0, max_streaming_tokens=None, **kwargs):
-    
+    def __init__(self, model, tokenizer=None, echo=True, max_streaming_tokens=None, **kwargs):
         if isinstance(model, str):
-            self.model_name = model
-            self.model_obj = GenerativeModel(self.model_name)
+            model = GenerativeModel(model)
         
         # Gemini does not have a public tokenizer, so we pretend it tokenizes like gpt2...
         if tokenizer is None:
@@ -92,12 +90,12 @@ class GeminiChat(VertexAIChat):
             model,
             tokenizer=tokenizer,
             echo=echo,
-            caching=caching,
-            temperature=temperature,
             max_streaming_tokens=max_streaming_tokens,
+            engine_class=GeminiChatEngine,
             **kwargs
         )
-    
+
+class GeminiChatEngine(VertexAIChatEngine):
     def _start_chat(self, system_text, messages):
         assert system_text == "", "We don't support passing system text to Gemini models (yet?)!"
         out = self.model_obj.start_chat(
