@@ -7,19 +7,29 @@ import re
 from . import _serialization_pb2
 from . import _parser
 
-tag_start = "{{G|"
-tag_end = "|G}}"
-_call_pool = {}
-_tag_pattern = re.compile(re.escape(tag_start) + r"([^\|]+)" + re.escape(tag_end))
+
+# to support the embedding of guidance functions inside Python f-strings we use tags with these delimiters
+tag_start = "{{G|" # start of a call tag
+tag_end = "|G}}" # end of a call tag
+_call_pool = {} # the functions associated with the call tags
+_tag_pattern = re.compile(re.escape(tag_start) + r"([^\|]+)" + re.escape(tag_end)) # the pattern for matching call tags
 
 class StatefulException(Exception):
     '''This is raised when we try and use the state of a grammar object like it was a live model.
     
-    Note that eventually we do want to support stateful parser/grammar constructs directly, but
-    for now we use a traditional parser and grammar separation (hence the need for this exception).'''
+    Note that eventually it would be nice to support stateful parser/grammar constructs directly, but
+    such "parser combinators" cannot be run effciently in Python. So we use a traditional parser and
+    grammar separation (hence the need for this exception).'''
     pass
 
 class Function():
+    ''' This is the abstract class representing all guidance functions.
+    
+    There are two main subclasses: GrammarFunction and RawFunction. GrammarFunctions
+    represent guidance grammars that can be serialized and sent across the wire, while
+    RawFunctions represent unconstrained native Python functions.
+    '''
+    
     def __init__(self, name, value=None) -> None:
         self.name = name
         self.value = value
