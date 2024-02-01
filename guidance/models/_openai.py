@@ -179,6 +179,8 @@ class OpenAIInstructEngine(OpenAIEngine):
                 chunk = ""
             yield chunk.encode("utf8")
 
+class OpenAIChat(OpenAI, Chat):
+    pass
 
 class OpenAIChatEngine(OpenAIEngine):
     def __init__(self, *args, **kwargs):
