@@ -4,20 +4,32 @@ import json
 import inspect
 import types
 import re
+from . import _serialization_pb2
+from . import _parser
 
-tag_start = "{{G|"
-tag_end = "|G}}"
-_call_pool = {}
-_tag_pattern = re.compile(re.escape(tag_start) + r"([^\|]+)" + re.escape(tag_end))
+
+# to support the embedding of guidance functions inside Python f-strings we use tags with these delimiters
+tag_start = "{{G|" # start of a call tag
+tag_end = "|G}}" # end of a call tag
+_call_pool = {} # the functions associated with the call tags
+_tag_pattern = re.compile(re.escape(tag_start) + r"([^\|]+)" + re.escape(tag_end)) # the pattern for matching call tags
 
 class StatefulException(Exception):
     '''This is raised when we try and use the state of a grammar object like it was a live model.
     
-    Note that eventually we do want to support stateful parser/grammar constructs directly, but
-    for now we use a traditional parser and grammar separation (hence the need for this exception).'''
+    Note that eventually it would be nice to support stateful parser/grammar constructs directly, but
+    such "parser combinators" cannot be run effciently in Python. So we use a traditional parser and
+    grammar separation (hence the need for this exception).'''
     pass
 
 class Function():
+    ''' This is the abstract class representing all guidance functions.
+    
+    There are two main subclasses: GrammarFunction and RawFunction. GrammarFunctions
+    represent guidance grammars that can be serialized and sent across the wire, while
+    RawFunctions represent unconstrained native Python functions.
+    '''
+    
     def __init__(self, name, value=None) -> None:
         self.name = name
         self.value = value
@@ -32,8 +44,16 @@ class Function():
 
         # return a string representation of this call so it can be combined with other strings/calls
         return tag_start + str_id + tag_end
+    
+    def serialize(self):
+        raise NotImplementedError()
+    
+    @classmethod
+    def deserialize(cls, serialized_grammar):
+        raise NotImplementedError()
 
-class StatefulFunction(Function):
+
+class RawFunction(Function):
     __slots__ = ("f", "args", "kwargs")
 
     def __init__(self, f, args, kwargs):
@@ -54,11 +74,11 @@ class StatefulFunction(Function):
             model = self(model)
             if model is None:
                 raise Exception(f"The guidance function `{self.f.__name__}` did not return a model object! You need to return an updated model object at the end of your guidance function.")
-            if isinstance(other, StatelessFunction):
+            if isinstance(other, GrammarFunction):
                 return model + other
             else:
                 return other(model)
-        return StatefulFunction(__add__, [], {})
+        return RawFunction(__add__, [], {})
     
     def __radd__(self, other):
         
@@ -67,14 +87,35 @@ class StatefulFunction(Function):
             return other + str(self)
         
         def __radd__(model):
-            if isinstance(other, StatelessFunction):
+            if isinstance(other, GrammarFunction):
                 model += other
             else:
                 model = other(model)
             return self(model)
-        return StatefulFunction(__radd__, [], {})
+        return RawFunction(__radd__, [], {})
 
-class StatelessFunction(Function):
+class Match:
+    def __init__(self, captures, log_probs, partial):
+        self.captures = captures
+        self.log_probs = log_probs
+        self.partial = partial
+    
+    def __getitem__(self, key):
+        return self.captures[key]
+    
+    def __len__(self):
+        return len(self.captures)
+    
+    def __bool__(self):
+        return True
+    
+    def __str__(self):
+        return str(self.captures)
+    
+    def __repr__(self):
+        return "<guidance.Match object; captures="+str(self.captures)+"; partial="+str(self.partial)+">"
+
+class GrammarFunction(Function):
     num_used_names = 0
 
     def __add__(self, value):
@@ -87,7 +128,7 @@ class StatelessFunction(Function):
                 value = string(value) 
         
         # see if we can keep building a stateless grammar
-        if isinstance(value, StatelessFunction):
+        if isinstance(value, GrammarFunction):
             return Join([self, value])
         
         # otherwise we let the stateful object handle things
@@ -104,7 +145,7 @@ class StatelessFunction(Function):
                 value = string(value) 
         
         # see if we can keep building a stateless grammar
-        if isinstance(value, StatelessFunction):
+        if isinstance(value, GrammarFunction):
             return Join([value, self])
         
         # otherwise we let the stateful object handle things
@@ -112,11 +153,27 @@ class StatelessFunction(Function):
             return value.__add__(self)
     
     def __getitem__(self, value):
-        raise StatefulException("StatelessFunctions can't access state!")
+        raise StatefulException("GrammarFunctions can't access state!")
+    
+    def match(self, byte_string, allow_partial=False):
+        if isinstance(byte_string, str):
+            byte_string = byte_string.encode()
+        parser = _parser.EarleyCommitParser(self)
+
+        for i in range(len(byte_string)):
+            try:
+                parser.consume_byte(byte_string[i:i+1])
+            except:
+                return None
+        
+        if not allow_partial and not parser.matched():
+            return None
+        else:
+            return Match(*parser.get_captures(), partial=not parser.matched())
     
     @staticmethod
     def _new_name():
-        num_used = StatelessFunction.num_used_names
+        num_used = GrammarFunction.num_used_names
 
         a_ord = ord('a')
 
@@ -129,7 +186,7 @@ class StatelessFunction(Function):
                 if num_used >= 17576:
                     name = chr(a_ord + (num_used % 456976) // 17576) + name
 
-        StatelessFunction.num_used_names += 1
+        GrammarFunction.num_used_names += 1
         
         return name
     
@@ -140,8 +197,75 @@ class StatelessFunction(Function):
         root_name = self._rec_gbnf_string(lines, used_names, names)
         lines.append("root ::= " + root_name)
         return "\n".join(lines)
+    
+    def serialize(self):
+        g = _serialization_pb2.Grammar()
+        index_map = {}
+        nodes = {}
+        self._rec_create_index_map(index_map) # gives all the nodes an index
+        self._rec_serialize(index_map, nodes) # nodes is filled in (as is index_map)
+        g.nodes.extend(list(nodes.values()))
+        return g.SerializeToString()
+    
+    def _rec_create_index_map(self, index_map):
+        if self not in index_map:
+            index_map[self] = len(index_map)
+            if hasattr(self, "values"):
+                for value in self.values:
+                    value._rec_create_index_map(index_map)
+    
+    def _rec_serialize(self, index_map, nodes):
+        if self not in nodes:
+            v = self._to_proto(index_map)
+            node = _serialization_pb2.GrammarFunction()
+            if isinstance(self, Byte):
+                node.byte.CopyFrom(v)
+            elif isinstance(self, ByteRange):
+                node.byte_range.CopyFrom(v)
+            elif isinstance(self, Select):
+                node.select.CopyFrom(v)
+            elif isinstance(self, Join):
+                node.join.CopyFrom(v)
+            elif isinstance(self, ModelVariable):
+                node.model_variable.CopyFrom(v)
+            else:
+                raise Exception("Unknown node type")
+            nodes[self] = node
+            if hasattr(self, "values"):
+                for value in self.values:
+                    value._rec_serialize(index_map, nodes)
+    
+    @classmethod
+    def deserialize(cls, serialized_grammar):
+        g = _serialization_pb2.Grammar()
+        g.ParseFromString(serialized_grammar)
 
-class Terminal(StatelessFunction):
+        # create the list of objects
+        values = []
+        for node in g.nodes:
+            if node.HasField("byte"):
+                node = Byte._from_proto(node.byte)
+            elif node.HasField("byte_range"):
+                node = ByteRange._from_proto(node.byte_range)
+            elif node.HasField("select"):
+                node = Select._from_proto(node.select)
+            elif node.HasField("join"):
+                node = Join._from_proto(node.join)
+            elif node.HasField("model_variable"):
+                node = ModelVariable._from_proto(node.model_variable)
+            else:
+                raise Exception("Unknown node type")
+            values.append(node)
+
+        # fill in the values pointers now that we have the full list of objects
+        for v in values:
+            if hasattr(v, "values"):
+                for i, index in enumerate(v.values):
+                    v.values[i] = values[index]
+
+        return values[0] # the first element in the root node of the grammar
+
+class Terminal(GrammarFunction):
     def match_byte(self, byte):
         pass # abstract
 
@@ -183,6 +307,24 @@ class Byte(Terminal):
     @property
     def nullable(self):
         return False
+    
+    def _to_proto(self, index_map):
+        data = _serialization_pb2.Byte()
+        data.byte = self.byte
+        data.hidden = self.hidden
+        data.commit_point = self.commit_point
+        data.capture_name = "" if self.capture_name is None else self.capture_name
+        data.temperature = self.temperature
+        return data
+    
+    @staticmethod
+    def _from_proto(data):
+        out = Byte(data.byte)
+        out.hidden = data.hidden
+        out.commit_point = data.commit_point
+        out.capture_name = None if data.capture_name == "" else data.capture_name
+        out.temperature = data.temperature
+        return out
 
 class ByteRange(Terminal):
     __slots__ = ("byte_range", "hidden", "commit_point", "capture_name", "temperature")
@@ -222,6 +364,24 @@ class ByteRange(Terminal):
     def __len__(self):
         return 1
 
+    def _to_proto(self, index_map):
+        data = _serialization_pb2.ByteRange()
+        data.byte_range = self.byte_range
+        data.hidden = self.hidden
+        data.commit_point = self.commit_point
+        data.capture_name = "" if self.capture_name is None else self.capture_name
+        data.temperature = self.temperature
+        return data
+
+    @staticmethod
+    def _from_proto(data):
+        out = ByteRange(data.byte_range)
+        out.hidden = data.hidden
+        out.commit_point = data.commit_point
+        out.capture_name = None if data.capture_name == "" else data.capture_name
+        out.temperature = data.temperature
+        return out
+
 class Null():
     __slots__ = ("name", "hidden", "commit_point", "capture_name")
 
@@ -246,7 +406,7 @@ class Null():
     def __radd__(self, other):
         return self.__add__(other) # left vs right makes no difference since we are null
         
-class ModelVariable(StatelessFunction):
+class ModelVariable(GrammarFunction):
     '''This represents a variable that will be read from the model object when this grammar is executed.
     
     Note that the name is the name of the attribute on the model object this node
@@ -260,6 +420,22 @@ class ModelVariable(StatelessFunction):
         self.commit_point = False
         self.capture_name = None
         self.nullable = False
+
+    def _to_proto(self, index_map):
+        data = _serialization_pb2.ModelVariable()
+        data.hidden = self.hidden
+        data.name = self.name
+        data.commit_point = self.commit_point
+        data.capture_name = "" if self.capture_name is None else self.capture_name
+        return data
+
+    @staticmethod
+    def _from_proto(data):
+        out = ModelVariable(data.name)
+        out.hidden = data.hidden
+        out.commit_point = data.commit_point
+        out.capture_name = None if data.capture_name == "" else data.capture_name
+        return out
 
 def replace_grammar_node(grammar, target, replacement):
     # Use a stack to keep track of the nodes to be visited
@@ -304,7 +480,7 @@ def replace_grammar_node(grammar, target, replacement):
 #         else:
 #             replace_grammar_node(value, target, replacement, visited_set)
 
-def replace_model_variables(grammar, model):
+def replace_model_variables(grammar, model, allowed_vars=None):
     '''Replace all the ModelVariable nodes with their values in an iterative manner.'''
     visited_set = set()
     stack = [(grammar, None, None)]  # Stack stores tuples of (node, parent_node, child_index)
@@ -325,12 +501,22 @@ def replace_model_variables(grammar, model):
             for i in reversed(range(len(current.values))):
                 value = current.values[i]
                 if isinstance(value, ModelVariable):
-                    # Replace the ModelVariable with its value from 'model'
-                    replacement_value = _wrap_as_grammar(getattr(model, value.name))
-                    if value.commit_point:
-                        replacement_value = commit_point(replacement_value, hidden=value.hidden)
-                    replacements.append((current, i, value))  # Record the replacement
-                    current.values[i] = replacement_value  # Perform the replacement
+                    if allowed_vars is not None and value.name not in allowed_vars:
+                        raise Exception(f"Invalid model variable name: {value.name}")
+                    # Replace the ModelVariable with its value from 'model' (or the tokenizer if model does not have it)
+                    # note we skip over attrs we don't have since we may be run twice, once on the model and once for the engine
+                    if hasattr(model, value.name):
+                        obj = model
+                    elif hasattr(model, "tokenizer") and hasattr(model.tokenizer, value.name):
+                        obj = model.tokenizer
+                    else:
+                        obj = None
+                    if obj is not None:
+                        replacement_value = _wrap_as_grammar(getattr(obj, value.name))
+                        if value.commit_point:
+                            replacement_value = commit_point(replacement_value, hidden=value.hidden)
+                        replacements.append((current, i, value))  # Record the replacement
+                        current.values[i] = replacement_value  # Perform the replacement
                 else:
                     # If not ModelVariable, push onto the stack to process later
                     stack.append((value, current, i))
@@ -372,7 +558,7 @@ def _wrap_as_grammar(value):
     '''This takes whatever value was given and tries to turn in into a guidance grammar.'''
 
     # if it is already a valid grammar we have no need to wrap it
-    if isinstance(value, StatelessFunction):
+    if isinstance(value, GrammarFunction):
         return value
     
     # if it is already a valid grammar we have no need to wrap it
@@ -408,20 +594,20 @@ def _rec_hide(grammar):
             for g in grammar.values:
                 _rec_hide(g)
 
-class Placeholder(StatelessFunction):
+class Placeholder(GrammarFunction):
     __slots__ = tuple("nullable")
     def __init__(self):
         self.nullable = False
 
 
-class Join(StatelessFunction):
+class Join(GrammarFunction):
     __slots__ = ("nullable", "values", "name", "hidden", "commit_point", "capture_name", "max_tokens")
 
     def __init__(self, values, name=None, max_tokens=100000000) -> None:
         values = [string(v) if isinstance(v, (str, bytes)) else v for v in values] # wrap raw strings
-        self.nullable = all(v.nullable for v in values)
+        self.nullable = all(getattr(v, "nullable", False) for v in values)
         self.values = [v for v in values if not isinstance(v, Null)]
-        self.name = name if name is not None else StatelessFunction._new_name()
+        self.name = name if name is not None else GrammarFunction._new_name()
         self.hidden = False
         self.commit_point = False
         self.capture_name = None
@@ -437,13 +623,39 @@ class Join(StatelessFunction):
             if v not in done and (isinstance(v, Join) or isinstance(v, Select)):
                 s += v.__repr__(indent, done)
         return s
+    
+    def _to_proto(self, index_map):
+        data = _serialization_pb2.Join()
+        data.nullable = self.nullable
+        for v in self.values:
+            data.values.append(index_map[v])
+        data.name = self.name
+        data.hidden = self.hidden
+        data.commit_point = self.commit_point
+        data.capture_name = "" if self.capture_name is None else self.capture_name
+        data.max_tokens = self.max_tokens
+        return data
 
-class Select(StatelessFunction):
+    @staticmethod
+    def _from_proto(data):
+        out = Join(
+            data.values, # we put ints in that will be replaced later by the deserialize method
+            name=data.name,
+            max_tokens=data.max_tokens
+        )
+        out.nullable = data.nullable
+        out.hidden = data.hidden
+        out.commit_point = data.commit_point
+        out.capture_name = None if data.capture_name == "" else data.capture_name
+        return out
+
+
+class Select(GrammarFunction):
     __slots__ = ("nullable", "_values", "name", "hidden", "commit_point", "capture_name", "max_tokens", "recursive")
 
     def __init__(self, values, capture_name=None, name=None, max_tokens=10000000, recursive=False) -> None:
         self.values = values
-        self.name = name if name is not None else StatelessFunction._new_name()
+        self.name = name if name is not None else GrammarFunction._new_name()
         self.hidden = False
         self.commit_point = False
         self.capture_name = capture_name
@@ -456,7 +668,7 @@ class Select(StatelessFunction):
     @values.setter
     def values(self, vals):
         self._values = [string(v) if isinstance(v, (str, bytes)) else v for v in vals]
-        self.nullable = any(v.nullable for v in self._values)
+        self.nullable = any(getattr(v, "nullable", False) for v in self._values)
         self._values = [v for v in self._values if not isinstance(v, Null)]
 
     def __repr__(self, indent="", done=None):
@@ -469,6 +681,34 @@ class Select(StatelessFunction):
             if v not in done and (isinstance(v, Join) or isinstance(v, Select)):
                 s += v.__repr__(indent, done)
         return s
+    
+    def _to_proto(self, index_map):
+        data = _serialization_pb2.Select()
+        data.nullable = self.nullable
+        for v in self.values:
+            data.values.append(index_map[v])
+        data.name = self.name
+        data.hidden = self.hidden
+        data.commit_point = self.commit_point
+        data.capture_name = "" if self.capture_name is None else self.capture_name
+        data.max_tokens = self.max_tokens
+        data.recursive = self.recursive
+
+        return data
+
+    @staticmethod
+    def _from_proto(data):
+        out = Select(
+            data.values, # we put ints in that will be replaced later by the deserialize method
+            name=data.name,
+            max_tokens=data.max_tokens
+        )
+        out.nullable = data.nullable
+        out.hidden = data.hidden
+        out.commit_point = data.commit_point
+        out.capture_name = None if data.capture_name == "" else data.capture_name
+        out.recursive = data.recursive
+        return out
 
 def string(value):
     if isinstance(value, str):
@@ -489,7 +729,7 @@ def select(options, name=None, list_append=False, recurse=False, skip_checks=Fal
     # TODO: also the full probabilites distribution over all items. We can implement this using the prob of the selected item by repeating the call, removing the selected item each time
     if not skip_checks:
         for i, value in enumerate(options):
-            assert not isinstance(value, StatefulFunction), "You cannot select between stateful functions in the current guidance implementation!"
+            assert not isinstance(value, RawFunction), "You cannot select between stateful functions in the current guidance implementation!"
             assert not isinstance(value, types.FunctionType), "Did you pass a function without calling it to select? You need to pass the results of a called guidance function to select."
             if isinstance(value, int) or isinstance(value, float):
                 options[i] = str(value)
@@ -563,8 +803,17 @@ def _re_with_temperature(grammar, temperature, visited_set):
         for g in grammar.values:
             _re_with_temperature(g, temperature, visited_set)
 
-def model_variable(name):
-    return ModelVariable(name)
+# def model_variable(name):
+#     return ModelVariable(name)
+
+def active_role_end():
+    return ModelVariable('active_role_end')
+
+def eos_token():
+    return ModelVariable('eos_token')
+
+def bos_token():
+    return ModelVariable('bos_token')
 
 _null_grammar = string('')
 # def char_range(low, high):
@@ -590,10 +839,10 @@ def str_to_grammar(value):
             #     lm.suffix = parts[i+1]
             if is_id:
                 call = _call_pool[part]
-                if isinstance(call, StatelessFunction):
+                if isinstance(call, GrammarFunction):
                     partial_grammar += _call_pool[part]
                 else:
-                    partial_grammar = StatefulFunction(lambda lm, g, call: call(lm + g), partial_grammar, _call_pool[part])
+                    partial_grammar = RawFunction(lambda lm, g, call: call(lm + g), partial_grammar, _call_pool[part])
                     # lm += partial_grammar
                     # lm = _call_pool[part](lm)
                     # partial_grammar = _null_grammar

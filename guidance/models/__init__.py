@@ -5,8 +5,8 @@ from .transformers._transformers import Transformers, TransformersChat
 from .llama_cpp import LlamaCpp, LlamaCppChat, MistralInstruct, MistralChat
 from ._mock import Mock, MockChat
 
-# remote models
-from ._remote import Remote
+# grammarless models (we can't do constrained decoding for them)
+from ._grammarless import Grammarless
 from .vertexai._vertexai import VertexAI, VertexAIChat, VertexAICompletion, VertexAIInstruct
 from ._azure_openai import AzureOpenAI, AzureOpenAIChat, AzureOpenAICompletion, AzureOpenAIInstruct
 from ._openai import OpenAI, OpenAIChat, OpenAIInstruct, OpenAICompletion

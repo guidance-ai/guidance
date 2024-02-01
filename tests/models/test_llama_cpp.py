@@ -55,37 +55,37 @@ def test_subtoken_forced():
 
 def test_llama_cpp_almost_one_batch():
     lm = get_model("llama_cpp:", n_batch=248)
-    long_str = lm.bos_token.decode("utf-8") * 247
+    long_str = lm.engine.tokenizer.bos_token.decode("utf-8") * 247
     lm += long_str + gen(max_tokens=10)
     assert len(str(lm)) > len(long_str)
 
 def test_llama_cpp_exactly_one_batch():
     lm = get_model("llama_cpp:", n_batch=248)
-    long_str = lm.bos_token.decode("utf-8") * 248
+    long_str = lm.engine.tokenizer.bos_token.decode("utf-8") * 248
     lm += long_str + gen(max_tokens=10)
     assert len(str(lm)) > len(long_str)
 
 def test_llama_cpp_more_than_one_batch():
     lm = get_model("llama_cpp:", n_batch=248)
-    long_str = lm.bos_token.decode("utf-8") * 249
+    long_str = lm.engine.tokenizer.bos_token.decode("utf-8") * 249
     lm += long_str + gen(max_tokens=10)
     assert len(str(lm)) > len(long_str)
 
 def test_llama_cpp_almost_two_batches():
     lm = get_model("llama_cpp:", n_batch=248)
-    long_str = lm.bos_token.decode("utf-8") * 495
+    long_str = lm.engine.tokenizer.bos_token.decode("utf-8") * 495
     lm += long_str + gen(max_tokens=10)
     assert len(str(lm)) > len(long_str)
 
 def test_llama_cpp_two_batches():
     lm = get_model("llama_cpp:", n_batch=248)
-    long_str = lm.bos_token.decode("utf-8") * 496
+    long_str = lm.engine.tokenizer.bos_token.decode("utf-8") * 496
     lm += long_str + gen(max_tokens=10)
     assert len(str(lm)) > len(long_str)
 
 def test_llama_cpp_more_than_two_batches():
     lm = get_model("llama_cpp:", n_batch=248)
-    long_str = lm.bos_token.decode("utf-8") * 497
+    long_str = lm.engine.tokenizer.bos_token.decode("utf-8") * 497
     lm += long_str + gen(max_tokens=10)
     assert len(str(lm)) > len(long_str)
 

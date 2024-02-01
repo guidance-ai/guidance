@@ -8,7 +8,7 @@ def test_gpt2():
     assert len(str(lm)) > len("this is a test")
 
 def test_recursion_error():
-    '''This is similar an infinite recursion error resulting from a terminal node at the root of a grammar.'''
+    '''This checks for an infinite recursion error resulting from a terminal node at the root of a grammar.'''
     gpt2 = get_model("transformers:gpt2")
 
     # define a guidance program that adapts a proverb

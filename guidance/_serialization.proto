@@ -1,0 +1,88 @@
+syntax = "proto3";
+
+package guidance;
+
+message Grammar {
+    repeated GrammarFunction nodes = 1;
+}
+
+message EngineCallResponse {
+    bytes new_bytes = 1;
+    bool is_generated = 2;
+    float new_bytes_prob = 3;
+    map<string, string> capture_groups = 4;
+    map<string, float> capture_group_log_probs = 5;
+    int32 new_token_count = 6;
+}
+
+message Byte {
+    bytes byte = 1;
+    bool hidden = 2;   
+    bool commit_point = 3;
+    bool nullable = 4;
+    string capture_name = 5;
+    float temperature = 6;
+}
+
+message ByteRange {
+   bytes byte_range = 1;
+   bool hidden = 3;
+   bool commit_point = 4;
+   string capture_name = 5;
+   float temperature = 6; 
+}
+
+message Null {
+}
+
+message ModelVariable {
+    string name = 1;
+    bool hidden = 2;
+    bool commit_point = 3;
+    string capture_name = 4;
+    bool nullable = 5;
+}
+
+message Join {
+    bool nullable = 1;
+
+    // Use a repeated field to store the list of values
+    repeated int32 values = 2; 
+
+    string name = 3;
+    bool hidden = 4;
+    bool commit_point = 5;
+    string capture_name = 6;
+    int32 max_tokens = 7;
+}
+
+message Select {
+    bool nullable = 1;
+
+    // Use a repeated field to store the list of values
+    repeated int32 values = 2; 
+
+    string name = 3;
+    bool hidden = 4;
+    bool commit_point = 5;
+    string capture_name = 6;
+    int32 max_tokens = 7;
+    bool recursive = 8;
+}
+
+// message Terminal {
+//     oneof function_type {
+//         Byte byte = 1;
+//         ByteRange byte_range = 2;
+//     }
+// }
+
+message GrammarFunction {
+    oneof function_type {
+        Join join = 1;
+        Select select = 2;
+        Byte byte = 3;
+        ByteRange byte_range = 4;
+        ModelVariable model_variable = 5;
+    }
+}

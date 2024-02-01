@@ -8,9 +8,7 @@ from .._grammar import commit_point
 from ._any_char import any_char
 from .._grammar import capture
 from ._regex import regex as regex_grammar
-from .._grammar import token_limit
-from .._grammar import with_temperature
-from .._grammar import model_variable
+from .._grammar import token_limit, eos_token, active_role_end, with_temperature
 from ._tool import Tool
 from ._block import block
 
@@ -108,7 +106,7 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, regex=None,
         if isinstance(stop, str):
             stop = [stop]
         if regex is None:
-            stop.append(model_variable('default_end_patterns'))
+            stop.append(select([eos_token(), active_role_end()]))
 
         if stop_regex is None:
             stop_regex = []
