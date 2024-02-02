@@ -1330,5 +1330,4 @@ class RemoteModel(Model):
         from ._remote import RemoteEngine
 
         engine = RemoteEngine(endpoint, **kwargs)
-
         super().__init__(engine, echo=echo)
