@@ -37,7 +37,6 @@ setup(
         "tiktoken>=0.3",
         "requests",
         "numpy",
-        "aiohttp",
         "ordered_set",
         "pyformlang",
         "protobuf",
