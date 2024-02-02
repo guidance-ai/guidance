@@ -946,6 +946,8 @@ class Model:
             for context in list(reversed(self.opened_blocks)):
                 if context.name == key:
                     return format_pattern.sub("", self._state[self.opened_blocks[context][0]:])
+                
+        raise KeyError(f"Model does not contain the variable '{key}'")
     
     def __contains__(self, item):
         return item in self._variables
