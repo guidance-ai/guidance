@@ -1323,3 +1323,12 @@ def _check_dominated(node, parser, match_version, next_byte_mask):
             if not child_dominate:
                 return False
     return True
+
+
+class RemoteModel(Model):
+    def __init__(self, endpoint, echo=True, **kwargs):
+        from ._remote import RemoteEngine
+
+        engine = RemoteEngine(endpoint, **kwargs)
+
+        super().__init__(engine, echo=echo)
