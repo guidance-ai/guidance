@@ -35,7 +35,6 @@ setup(
         "openai>=1.0",
         "platformdirs",
         "tiktoken>=0.3",
-        "msal",
         "requests",
         "numpy",
         "aiohttp",
