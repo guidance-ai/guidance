@@ -21,6 +21,8 @@ def running_server():
     time.sleep(10)
     yield p
     p.terminate()
+    time.sleep(10)
+    assert not p.is_alive(), "server_process failed to terminate"
 
 
 def test_remote_mock_gen(running_server):
