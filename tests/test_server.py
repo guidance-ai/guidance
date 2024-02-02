@@ -26,13 +26,13 @@ def running_server():
 
 
 def test_remote_mock_gen(running_server):
-    m = models.RemoteModel("http://localhost:8392", api_key="SDFSDF")
+    m = models.Model("http://localhost:8392", api_key="SDFSDF")
     m2 = m + "A story." + gen("test", max_tokens=20)
     assert len(str(m2)) > 20, "The model didn't generate enough data"
 
 
 def test_remote_mock_gen_bad_auth(running_server):
-    m = models.RemoteModel("http://localhost:8392", api_key="FDSFDS")
+    m = models.Model("http://localhost:8392", api_key="FDSFDS")
 
     with pytest.raises(requests.exceptions.HTTPError) as http_err:
         _ = m + "A story." + gen("test", max_tokens=20)

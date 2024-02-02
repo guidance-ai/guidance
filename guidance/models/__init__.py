@@ -1,4 +1,4 @@
-from ._model import Model, Instruct, Chat, RemoteModel
+from ._model import Model, Instruct, Chat
 
 # local models
 from .transformers._transformers import Transformers, TransformersChat

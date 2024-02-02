@@ -651,7 +651,7 @@ class Model:
     _grammar_only = 0 # a flag that tracks when we are forced to be executing only compiled grammars (like when we are inside a select)
     _throttle_refresh = 0 # a flag that tracks when we can throttle our display since we know future display calls are going to happen
 
-    def __init__(self, engine, echo=True):
+    def __init__(self, engine, echo=True, **kwargs):
         '''Build a new model object that represents a model in a given state.
 
         Note that this constructor is not meant to be used directly, since there
@@ -663,6 +663,10 @@ class Model:
         echo : bool
             If true the final result of creating this model state will be displayed (as HTML in a notebook).
         '''
+        if isinstance(engine, str) and engine.startswith("http"):
+            from ._remote import RemoteEngine
+
+            engine = RemoteEngine(engine, **kwargs)
 
         # # auto-wrap the tokenizer in the standard guidance interface
         # if not isinstance(tokenizer, Tokenizer):
@@ -1323,11 +1327,3 @@ def _check_dominated(node, parser, match_version, next_byte_mask):
             if not child_dominate:
                 return False
     return True
-
-
-class RemoteModel(Model):
-    def __init__(self, endpoint, echo=True, **kwargs):
-        from ._remote import RemoteEngine
-
-        engine = RemoteEngine(endpoint, **kwargs)
-        super().__init__(engine, echo=echo)
