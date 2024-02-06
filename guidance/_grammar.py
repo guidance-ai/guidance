@@ -5,7 +5,7 @@ import inspect
 import types
 import re
 
-from typing import TypeVar, Union
+from typing import List, TypeVar, Union
 
 from . import _serialization_pb2
 from . import _parser
@@ -728,7 +728,7 @@ def string(value):
     else:
         return Join([Byte(b[i:i+1]) for i in range(len(b))], name=str(b))
     
-def select(options: list[_T], name=None, list_append=False, recurse=False, skip_checks=False) -> Union[Select, _T]:
+def select(options: List[_T], name=None, list_append=False, recurse=False, skip_checks=False) -> Union[Select, _T]:
     # TODO: allow for returning the probabilites of the selected item
     # TODO: also the full probabilites distribution over all items. We can implement this using the prob of the selected item by repeating the call, removing the selected item each time
     if not skip_checks:
