@@ -1,7 +1,7 @@
 from .._grammar import select
 from ._char_range import char_range
 
-def char_set(def_string):
+def char_set(def_string: str):
     parts = []
     pos = 0
     while pos < len(def_string):
