@@ -1,11 +1,12 @@
 import json
 
-from ._grammar import Byte, Join, Select, GrammarFunction
+from ._grammar import Byte, Join, select, GrammarFunction
 
 from .library._char_range import char_range
+from .library._one_or_more import one_or_more
 
 _QUOTE = Byte(b'"')
-_SAFE_STRING = Select(
+_SAFE_STRING = select(
     [
         char_range("a", "z"),
         char_range("A", "Z"),
@@ -15,7 +16,7 @@ _SAFE_STRING = Select(
         "'",
         " ",
     ],
-    recursive=True,
+    recurse=True,
 )
 
 
