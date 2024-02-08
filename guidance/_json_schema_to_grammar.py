@@ -1,5 +1,7 @@
 import json
 
+from typing import Dict
+
 from ._grammar import Byte, Join, select, GrammarFunction
 
 from .library._char_range import char_range
@@ -24,7 +26,7 @@ _COLON = Byte(b":")
 _OPTIONAL_WHITESPACE = select([" ", ""], recurse=True)
 
 
-def _process_node(node: dict[str, any]) -> GrammarFunction:
+def _process_node(node: Dict[str, any]) -> GrammarFunction:
     if node["type"] == "string":
         return Join([_QUOTE, _SAFE_STRING, _QUOTE])
     elif node["type"] == "integer":
