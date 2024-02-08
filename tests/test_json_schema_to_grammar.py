@@ -5,7 +5,7 @@ from jsonschema import validate
 
 from guidance._grammar import GrammarFunction
 from guidance._json_schema_to_grammar import json_schema_to_grammar
-from guidance._parser import EarleyCommitParser
+from guidance._parser import EarleyCommitParser, ParserException
 
 
 def to_compact_json(target: any) -> str:
@@ -135,7 +135,7 @@ def test_nested_object():
     check_string_with_grammar(target_string, grammar)
 
 
-@pytest.mark.parametrize("target_list", [[], [0], [1, 2, 3]])
+@pytest.mark.parametrize("target_list", [[], [0], [34, 56], [1, 2, 3], [9, 8, 7, 6]])
 def test_integer_list(target_list):
     schema = """{
     "type" : "array",
@@ -226,6 +226,40 @@ def test_object_containing_list():
 
     target_string = to_compact_json(target_obj)
     check_string_with_grammar(target_string, grammar)
+
+
+@pytest.mark.parametrize(
+    ["bad_list", "unexpected_char"],
+    [
+        ("[,]", b","),
+        ("[,1]", b","),
+        ("[1,]", b"]"),
+        ("[1,2,]", b"]"),
+        ("[0,1,2,3,]", b"]"),
+        ("[0,,1]", b","),
+    ],
+)
+def test_bad_int_list(bad_list: str, unexpected_char):
+    schema = """{
+    "type" : "array",
+    "items" : {
+            "type" : "integer"
+        }
+    }
+"""
+
+    # First sanity check what we're setting up
+    schema_obj = json.loads(schema)
+    validate(instance=[1, 2, 3], schema=schema_obj)
+
+    grammar = json_schema_to_grammar(schema)
+    parser = EarleyCommitParser(grammar)
+    with pytest.raises(ParserException) as pe:
+        for c in bad_list:
+            next_byte = bytes(c, encoding="utf8")
+            print(f"Consuming: {next_byte}")
+            parser.consume_byte(next_byte)
+    assert pe.value.current_byte == unexpected_char
 
 
 @pytest.mark.parametrize("target_bool", [True, False])

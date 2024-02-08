@@ -88,10 +88,24 @@ def _process_node(node: Dict[str, any]) -> GrammarFunction:
         return Join(
             [
                 _OPEN_BRACKET,
-                # This may not be quite correct. The last item in a list must _not_
-                # be followed by a comma
-                select(["", Join([_process_node(item_node), _COMMA])], recurse=True),
-                select(["", _process_node(item_node)]),
+                select(
+                    [
+                        # Empty list
+                        "",
+                        # Single item
+                        _process_node(item_node),
+                        # Two or more items
+                        Join(
+                            [
+                                select(
+                                    ["", Join([_process_node(item_node), _COMMA])],
+                                    recurse=True,
+                                ),
+                                _process_node(item_node),
+                            ]
+                        ),
+                    ]
+                ),
                 _CLOSE_BRACKET,
             ]
         )
