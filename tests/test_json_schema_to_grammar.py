@@ -38,7 +38,7 @@ def check_string_with_grammar(input_string: str, grammar: GrammarFunction):
         '"MiXeD cAsInG"',
         '"with-hyphen"',
         '"Mix case_underscore-hyphens',
-        '"with a comma, in the string"'
+        '"with a comma, in the string"',
     ],
 )
 def test_string_schema(simple_json_string):
@@ -172,4 +172,43 @@ def test_string_list(target_list):
     grammar = json_schema_to_grammar(schema)
 
     target_string = to_compact_json(target_list)
+    check_string_with_grammar(target_string, grammar)
+
+
+@pytest.mark.parametrize("target_list", [[], [dict(a=1)], [dict(a=2), dict(a=3)]])
+def test_object_list(target_list):
+    schema = """{
+    "type" : "array",
+    "items" : {
+            "type" : "object",
+            "properties" : {
+                "a" : {
+                    "type": "integer"
+                }
+            }
+        }
+    }
+"""
+
+    # First sanity check what we're setting up
+    schema_obj = json.loads(schema)
+    validate(instance=target_list, schema=schema_obj)
+
+    grammar = json_schema_to_grammar(schema)
+
+    target_string = to_compact_json(target_list)
+    check_string_with_grammar(target_string, grammar)
+
+
+@pytest.mark.parametrize("target_bool", [True, False])
+def test_boolean(target_bool):
+    schema = """{"type": "boolean" }"""
+
+    # First sanity check what we're setting up
+    schema_obj = json.loads(schema)
+    validate(instance=target_bool, schema=schema_obj)
+
+    grammar = json_schema_to_grammar(schema)
+
+    target_string = to_compact_json(target_bool)
     check_string_with_grammar(target_string, grammar)
