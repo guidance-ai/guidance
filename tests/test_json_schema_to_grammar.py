@@ -38,3 +38,25 @@ def test_string_schema(simple_json_string):
         next_byte = bytes(c, encoding="utf8")
         print(f"Consuming: {next_byte}")
         parser.consume_byte(next_byte)
+
+
+@pytest.mark.parametrize(
+    "json_int",
+    [json.dumps(x) for x in [0, 1, 100, 9876543210, 99, 737, 858, -1, -10, -20]],
+)
+def test_integer_schema(json_int):
+    schema = """{ "type": "integer" }"""
+
+    # First sanity check what we're setting up
+    schema_obj = json.loads(schema)
+    validate(instance=json.loads(json_int), schema=schema_obj)
+
+    # Now set up the actual conversion
+    grammar = json_schema_to_grammar(schema)
+    parser = EarleyCommitParser(grammar)
+    for c in json_int:
+        print(f"Working on: {c}")
+        print(f"Valid next bytes: {parser.valid_next_bytes()}")
+        next_byte = bytes(c, encoding="utf8")
+        print(f"Consuming: {next_byte}")
+        parser.consume_byte(next_byte)
