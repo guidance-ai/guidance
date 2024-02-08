@@ -11,6 +11,11 @@ from guidance._json_schema_to_grammar import json_schema_to_grammar
 
 
 def to_compact_json(target: any) -> str:
+    # See 'Compact Encoding':
+    # https://docs.python.org/3/library/json.html
+    # Since this is ultimately about the generated
+    # output, we don't need to worry about pretty printing
+    # and whitespace
     return json.dumps(target, separators=(",", ":"))
 
 
