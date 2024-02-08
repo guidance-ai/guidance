@@ -4,9 +4,13 @@ import json
 import inspect
 import types
 import re
+
+from typing import List, TypeVar, Union
+
 from . import _serialization_pb2
 from . import _parser
 
+_T = TypeVar("_T")
 
 # to support the embedding of guidance functions inside Python f-strings we use tags with these delimiters
 tag_start = "{{G|" # start of a call tag
@@ -603,7 +607,7 @@ class Placeholder(GrammarFunction):
 class Join(GrammarFunction):
     __slots__ = ("nullable", "values", "name", "hidden", "commit_point", "capture_name", "max_tokens")
 
-    def __init__(self, values, name=None, max_tokens=100000000) -> None:
+    def __init__(self, values, name: Union[str, None]=None, max_tokens=100000000) -> None:
         values = [string(v) if isinstance(v, (str, bytes)) else v for v in values] # wrap raw strings
         self.nullable = all(getattr(v, "nullable", False) for v in values)
         self.values = [v for v in values if not isinstance(v, Null)]
@@ -710,7 +714,7 @@ class Select(GrammarFunction):
         out.recursive = data.recursive
         return out
 
-def string(value):
+def string(value) -> Union[str, bytes, Null, Byte, Join]:
     if isinstance(value, str):
         b = bytes(value, encoding="utf8")
     elif isinstance(value, bytes):
@@ -724,7 +728,7 @@ def string(value):
     else:
         return Join([Byte(b[i:i+1]) for i in range(len(b))], name=str(b))
     
-def select(options, name=None, list_append=False, recurse=False, skip_checks=False):
+def select(options: List[_T], name=None, list_append=False, recurse=False, skip_checks=False) -> Union[Select, _T]:
     # TODO: allow for returning the probabilites of the selected item
     # TODO: also the full probabilites distribution over all items. We can implement this using the prob of the selected item by repeating the call, removing the selected item each time
     if not skip_checks:
@@ -748,7 +752,7 @@ def select(options, name=None, list_append=False, recurse=False, skip_checks=Fal
         else:
             return Select(options, capture_name=name, recursive=False)
         
-def byte_range(low, high):
+def byte_range(low, high) -> ByteRange:
     return ByteRange(low + high)
 
 # def ignore_placeholders(value):
@@ -765,11 +769,11 @@ def capture(value, name):
     value.capture_name = name
     return value
 
-def token_limit(value, max_tokens):
+def token_limit(value, max_tokens: int):
     _rec_token_limit(value, max_tokens)
     return value
 
-def _rec_token_limit(grammar, max_tokens):
+def _rec_token_limit(grammar, max_tokens: int):
     if grammar.max_tokens > max_tokens and not isinstance(grammar, Terminal):
         if getattr(grammar, "recursive", False): # only restrict recursive selects, otherwise we would block all ways to complete the grammar
             grammar.max_tokens = max_tokens
@@ -806,13 +810,13 @@ def _re_with_temperature(grammar, temperature, visited_set):
 # def model_variable(name):
 #     return ModelVariable(name)
 
-def active_role_end():
+def active_role_end() -> ModelVariable:
     return ModelVariable('active_role_end')
 
-def eos_token():
+def eos_token() -> ModelVariable:
     return ModelVariable('eos_token')
 
-def bos_token():
+def bos_token() -> ModelVariable:
     return ModelVariable('bos_token')
 
 _null_grammar = string('')
@@ -822,7 +826,7 @@ _null_grammar = string('')
 #     if len(low_bytes) > 1 or len(high_bytes) > 1:
 #         raise Exception("We don't yet support multi-byte character ranges!")
 #     return ByteRange(low_bytes + high_bytes)
-def str_to_grammar(value):
+def str_to_grammar(value: str):
     is_id = False
     parts = re.split(_tag_pattern, value)
     

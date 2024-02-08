@@ -30,7 +30,7 @@ class RemoteEngine(Engine):
 
         # Check for valid response
         if response.status_code != 200:
-            raise Exception(f"Server returned an error: {response.status_code} - {response.text}")
+            response.raise_for_status()
 
         # Process and yield the response data
         for chunk in response.iter_content(chunk_size=None):  # chunk_size=None means it'll stream the content
