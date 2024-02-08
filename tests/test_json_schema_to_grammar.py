@@ -60,3 +60,37 @@ def test_integer_schema(json_int):
         next_byte = bytes(c, encoding="utf8")
         print(f"Consuming: {next_byte}")
         parser.consume_byte(next_byte)
+
+
+def test_simple_object():
+    schema = """{
+        "type": "object",
+        "properties": {
+            "name" : {
+                "type": "string"
+            },
+            "productId": {
+                "description": "The unique identifier for a product",
+                "type": "integer"
+            }
+        }
+    }
+"""
+    target_obj = dict(name="my product", productId=123)
+
+    # First sanity check what we're setting up
+    schema_obj = json.loads(schema)
+    validate(instance=target_obj, schema=schema_obj)
+
+    grammar = json_schema_to_grammar(schema)
+    parser = EarleyCommitParser(grammar)
+
+    target_string = json.dumps(target_obj)
+    print(f"target_string: {target_string}")
+
+    for c in target_string:
+        print(f"Working on: {c}")
+        print(f"Valid next bytes: {parser.valid_next_bytes()}")
+        next_byte = bytes(c, encoding="utf8")
+        print(f"Consuming: {next_byte}")
+        parser.consume_byte(next_byte)
