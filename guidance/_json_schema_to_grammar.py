@@ -33,6 +33,33 @@ def _process_node(node: Dict[str, any]) -> GrammarFunction:
         return select(["true", "false"])
     elif node["type"] == "integer":
         return Join([select(["-", ""]), select([char_range("0", "9")], recurse=True)])
+    elif node["type"] == "number":
+        return Join(
+            [
+                select(["", "-"]),
+                select([char_range("0", "9")], recurse=True),
+                select(
+                    [
+                        "",
+                        Join(
+                            [Byte(b"."), select([char_range("0", "9")], recurse=True)]
+                        ),
+                    ]
+                ),
+                select(
+                    [
+                        "",
+                        Join(
+                            [
+                                "e",
+                                select(["", "-", "+"]),
+                                select([char_range("0", "9")], recurse=True),
+                            ]
+                        ),
+                    ]
+                ),
+            ],
+        )
     elif node["type"] == "object":
         properties = []
         for name, nxt_node in node["properties"].items():
