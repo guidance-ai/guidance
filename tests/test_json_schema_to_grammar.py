@@ -200,6 +200,34 @@ def test_object_list(target_list):
     check_string_with_grammar(target_string, grammar)
 
 
+def test_object_containing_list():
+    schema = """{
+    "type": "object",
+    "properties" : {
+            "a" : { "type" : "string" },
+            "b list" : {
+                "type": "array",
+                "items" : {"type": "integer" }
+            }
+        }
+    }
+"""
+
+    target_obj = {
+        "a": "some lengthy string of characters",
+        "b list": [1, 2, 3, 2312, 123],
+    }
+
+    # First sanity check what we're setting up
+    schema_obj = json.loads(schema)
+    validate(instance=target_obj, schema=schema_obj)
+
+    grammar = json_schema_to_grammar(schema)
+
+    target_string = to_compact_json(target_obj)
+    check_string_with_grammar(target_string, grammar)
+
+
 @pytest.mark.parametrize("target_bool", [True, False])
 def test_boolean(target_bool):
     schema = """{"type": "boolean" }"""
