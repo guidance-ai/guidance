@@ -1,13 +1,11 @@
 import json
 
 import pytest
-
 from jsonschema import validate
 
-from guidance._parser import EarleyCommitParser
 from guidance._grammar import GrammarFunction
-
 from guidance._json_schema_to_grammar import json_schema_to_grammar
+from guidance._parser import EarleyCommitParser
 
 
 def to_compact_json(target: any) -> str:
@@ -101,6 +99,7 @@ def test_simple_object():
 
     target_string = to_compact_json(target_obj)
     check_string_with_grammar(target_string, grammar)
+
 
 def test_nested_object():
     schema = """{

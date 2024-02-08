@@ -1,9 +1,7 @@
 import json
-
 from typing import Dict
 
-from ._grammar import Byte, Join, select, GrammarFunction
-
+from ._grammar import Byte, GrammarFunction, Join, select
 from .library._char_range import char_range
 
 _QUOTE = Byte(b'"')
