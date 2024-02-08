@@ -1,7 +1,7 @@
 import json
 from typing import Dict
 
-from ._grammar import Byte, GrammarFunction, Join, select
+from ._grammar import Byte, GrammarFunction, Join, select, Select
 from .library._char_range import char_range
 
 _QUOTE = Byte(b'"')
@@ -27,7 +27,10 @@ _COLON = Byte(b":")
 
 
 def _process_node(node: Dict[str, any]) -> GrammarFunction:
-    if node["type"] == "string":
+    if node["type"] == "null":
+        # Not completely sure about this
+        return Select(["null"])
+    elif node["type"] == "string":
         return Join([_QUOTE, _SAFE_STRING, _QUOTE])
     elif node["type"] == "boolean":
         return select(["true", "false"])
