@@ -29,6 +29,8 @@ _COLON = Byte(b":")
 def _process_node(node: Dict[str, any]) -> GrammarFunction:
     if node["type"] == "string":
         return Join([_QUOTE, _SAFE_STRING, _QUOTE])
+    elif node["type"] == "boolean":
+        return select(["true", "false"])
     elif node["type"] == "integer":
         return Join([select(["-", ""]), select([char_range("0", "9")], recurse=True)])
     elif node["type"] == "object":
