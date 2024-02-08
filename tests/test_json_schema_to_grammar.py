@@ -10,6 +10,10 @@ from guidance._grammar import Byte
 from guidance._json_schema_to_grammar import json_schema_to_grammar
 
 
+def to_compact_json(target: any) -> str:
+    return json.dumps(target, separators=(",", ":"))
+
+
 @pytest.mark.parametrize(
     "simple_json_string",
     [
@@ -42,7 +46,7 @@ def test_string_schema(simple_json_string):
 
 @pytest.mark.parametrize(
     "json_int",
-    [json.dumps(x) for x in [0, 1, 100, 9876543210, 99, 737, 858, -1, -10, -20]],
+    [to_compact_json(x) for x in [0, 1, 100, 9876543210, 99, 737, 858, -1, -10, -20]],
 )
 def test_integer_schema(json_int):
     schema = """{ "type": "integer" }"""
@@ -85,7 +89,7 @@ def test_simple_object():
     grammar = json_schema_to_grammar(schema)
     parser = EarleyCommitParser(grammar)
 
-    target_string = json.dumps(target_obj)
+    target_string = to_compact_json(target_obj)
     print(f"target_string: {target_string}")
 
     for c in target_string:
