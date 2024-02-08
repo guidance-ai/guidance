@@ -36,8 +36,11 @@ def _process_node(node: Dict[str, any]) -> GrammarFunction:
     elif node["type"] == "number":
         return Join(
             [
+                # Leading sign
                 select(["", "-"]),
+                # Integer part of mantissa
                 select([char_range("0", "9")], recurse=True),
+                # Optional fractional part of mantissa
                 select(
                     [
                         "",
@@ -46,6 +49,7 @@ def _process_node(node: Dict[str, any]) -> GrammarFunction:
                         ),
                     ]
                 ),
+                # Optional exponent
                 select(
                     [
                         "",
