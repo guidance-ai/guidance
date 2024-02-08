@@ -43,7 +43,7 @@ def _process_node(node: Dict[str, any]) -> GrammarFunction:
                 properties.append(_COMMA)
         return Join([_OPEN_BRACE, *properties, _CLOSE_BRACE])
     else:
-        raise ValueError(f"Unsupposed type in schema: {node['type']}")
+        raise ValueError(f"Unsupported type in schema: {node['type']}")
 
 
 def json_schema_to_grammar(schema: str) -> GrammarFunction:

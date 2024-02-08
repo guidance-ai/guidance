@@ -127,3 +127,28 @@ def test_nested_object():
     # First sanity check what we're setting up
     schema_obj = json.loads(schema)
     validate(instance=target_obj, schema=schema_obj)
+
+    grammar = json_schema_to_grammar(schema)
+
+    target_string = to_compact_json(target_obj)
+    check_string_with_grammar(target_string, grammar)
+
+
+def test_list():
+    schema = """{
+    "type" : "array",
+    "items" : {
+            "type" : "integer"
+        }
+    }
+"""
+    target_list = [0, 1, 2, 3]
+
+    # First sanity check what we're setting up
+    schema_obj = json.loads(schema)
+    validate(instance=target_list, schema=schema_obj)
+
+    grammar = json_schema_to_grammar(schema)
+
+    target_string = to_compact_json(target_list)
+    check_string_with_grammar(target_string, grammar)
