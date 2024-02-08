@@ -5,7 +5,7 @@ import pytest
 from jsonschema import validate
 
 from guidance._parser import EarleyCommitParser
-from guidance._grammar import Byte
+from guidance._grammar import GrammarFunction
 
 from guidance._json_schema_to_grammar import json_schema_to_grammar
 
@@ -17,6 +17,18 @@ def to_compact_json(target: any) -> str:
     # output, we don't need to worry about pretty printing
     # and whitespace
     return json.dumps(target, separators=(",", ":"))
+
+
+def check_string_with_grammar(input_string: str, grammar: GrammarFunction):
+    parser = EarleyCommitParser(grammar)
+
+    print(f"Checking {input_string}")
+    for c in input_string:
+        print(f"Working on: {c}")
+        print(f"Valid next bytes: {parser.valid_next_bytes()}")
+        next_byte = bytes(c, encoding="utf8")
+        print(f"Consuming: {next_byte}")
+        parser.consume_byte(next_byte)
 
 
 @pytest.mark.parametrize(
@@ -62,13 +74,7 @@ def test_integer_schema(json_int):
 
     # Now set up the actual conversion
     grammar = json_schema_to_grammar(schema)
-    parser = EarleyCommitParser(grammar)
-    for c in json_int:
-        print(f"Working on: {c}")
-        print(f"Valid next bytes: {parser.valid_next_bytes()}")
-        next_byte = bytes(c, encoding="utf8")
-        print(f"Consuming: {next_byte}")
-        parser.consume_byte(next_byte)
+    check_string_with_grammar(json_int, grammar)
 
 
 def test_simple_object():
@@ -92,14 +98,33 @@ def test_simple_object():
     validate(instance=target_obj, schema=schema_obj)
 
     grammar = json_schema_to_grammar(schema)
-    parser = EarleyCommitParser(grammar)
 
     target_string = to_compact_json(target_obj)
-    print(f"target_string: {target_string}")
+    check_string_with_grammar(target_string, grammar)
 
-    for c in target_string:
-        print(f"Working on: {c}")
-        print(f"Valid next bytes: {parser.valid_next_bytes()}")
-        next_byte = bytes(c, encoding="utf8")
-        print(f"Consuming: {next_byte}")
-        parser.consume_byte(next_byte)
+def test_nested_object():
+    schema = """{
+        "type": "object",
+        "properties": {
+            "name" : {
+                "type": "string"
+            },
+            "info": {
+                "type": "object",
+                "properties" : {
+                    "a" : {
+                        "type" : "integer"
+                    },
+                    "b" : {
+                        "type" : "integer"
+                    }
+                }
+            }
+        }
+    }
+"""
+    target_obj = dict(name="my product", info=dict(a=1, b=2))
+
+    # First sanity check what we're setting up
+    schema_obj = json.loads(schema)
+    validate(instance=target_obj, schema=schema_obj)
