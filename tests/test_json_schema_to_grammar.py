@@ -134,7 +134,8 @@ def test_nested_object():
     check_string_with_grammar(target_string, grammar)
 
 
-def test_list():
+@pytest.mark.parametrize("target_list", [[], [0], [1, 2, 3]])
+def test_integer_list(target_list):
     schema = """{
     "type" : "array",
     "items" : {
@@ -142,7 +143,6 @@ def test_list():
         }
     }
 """
-    target_list = [0, 1, 2, 3]
 
     # First sanity check what we're setting up
     schema_obj = json.loads(schema)
