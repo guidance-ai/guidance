@@ -47,10 +47,13 @@ def _process_node(node: Dict[str, any]) -> GrammarFunction:
         return Join([_OPEN_BRACE, *properties, _CLOSE_BRACE])
     elif node["type"] == "array":
         item_node = dict(type=node["items"]["type"])
+        if item_node["type"] == "object":
+            item_node["properties"] = node["items"]["properties"]
         return Join(
             [
                 _OPEN_BRACKET,
-                # select(Join([_process_node(item_node), _COMMA]), recurse=True),
+                # This may not be quite correct. The last item in a list must _not_
+                # be followed by a comma
                 select(["", Join([_process_node(item_node), _COMMA])], recurse=True),
                 select(["", _process_node(item_node)]),
                 _CLOSE_BRACKET,
