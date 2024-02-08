@@ -55,6 +55,7 @@ setup(
             'nbsphinx'
         ],
         'test': [
+            "jsonschema",
             'pytest',
             'transformers',
             'torch',
