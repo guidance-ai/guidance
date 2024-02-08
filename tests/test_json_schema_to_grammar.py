@@ -212,3 +212,17 @@ def test_boolean(target_bool):
 
     target_string = to_compact_json(target_bool)
     check_string_with_grammar(target_string, grammar)
+
+
+@pytest.mark.parametrize("target_number", [0.1, 1.0, 1.23e23, -1.2e-22])
+def test_number(target_number):
+    schema = """{"type": "number" }"""
+
+    # First sanity check what we're setting up
+    schema_obj = json.loads(schema)
+    validate(instance=target_number, schema=schema_obj)
+
+    grammar = json_schema_to_grammar(schema)
+
+    target_string = to_compact_json(target_number)
+    check_string_with_grammar(target_string, grammar)
