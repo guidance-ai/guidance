@@ -216,6 +216,7 @@ def test_boolean(target_bool):
 
 @pytest.mark.parametrize(
     "target_number",
+    # It appears that Inf and NaN are not actually part of the JSON spec
     [0, 1, -1, 134, -234762, 0.1, 1.0, -10.33, 452.342, 1.23e23, -1.2e-22],
 )
 def test_number(target_number):
