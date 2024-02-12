@@ -59,6 +59,43 @@ def _process_number() -> GrammarFunction:
     )
 
 
+def _process_object(schema_properties: Dict[str, any]) -> GrammarFunction:
+    properties = []
+    for name, nxt_node in schema_properties.items():
+        nxt = Join(
+            [
+                Join([_QUOTE, name, _QUOTE]),
+                _COLON,
+                _process_node(nxt_node),
+            ]
+        )
+        properties.append(nxt)
+        if len(properties) < len(schema_properties):
+            properties.append(_COMMA)
+    return Join([_OPEN_BRACE, *properties, _CLOSE_BRACE])
+
+
+def _process_array(item_node: Dict[str, any]) -> GrammarFunction:
+    return Join(
+        [
+            _OPEN_BRACKET,
+            _make_optional(
+                # One or more items
+                Join(
+                    [
+                        select(
+                            ["", Join([_process_node(item_node), _COMMA])],
+                            recurse=True,
+                        ),
+                        _process_node(item_node),
+                    ]
+                )
+            ),
+            _CLOSE_BRACKET,
+        ]
+    )
+
+
 def _process_node(node: Dict[str, any]) -> GrammarFunction:
     if node["type"] == "null":
         # Not completely sure about this
@@ -72,45 +109,12 @@ def _process_node(node: Dict[str, any]) -> GrammarFunction:
     elif node["type"] == "number":
         return _process_number()
     elif node["type"] == "object":
-        properties = []
-        for name, nxt_node in node["properties"].items():
-            nxt = Join(
-                [
-                    Join([_QUOTE, name, _QUOTE]),
-                    _COLON,
-                    _process_node(nxt_node),
-                ]
-            )
-            properties.append(nxt)
-            if len(properties) < len(node["properties"]):
-                properties.append(_COMMA)
-        return Join([_OPEN_BRACE, *properties, _CLOSE_BRACE])
+        return _process_object(node["properties"])
     elif node["type"] == "array":
         item_node = dict(type=node["items"]["type"])
         if item_node["type"] == "object":
             item_node["properties"] = node["items"]["properties"]
-        return Join(
-            [
-                _OPEN_BRACKET,
-                select(
-                    [
-                        # Empty list
-                        "",
-                        # One or more items
-                        Join(
-                            [
-                                select(
-                                    ["", Join([_process_node(item_node), _COMMA])],
-                                    recurse=True,
-                                ),
-                                _process_node(item_node),
-                            ]
-                        ),
-                    ]
-                ),
-                _CLOSE_BRACKET,
-            ]
-        )
+        return _process_array(item_node)
     else:
         raise ValueError(f"Unsupported type in schema: {node['type']}")
 
