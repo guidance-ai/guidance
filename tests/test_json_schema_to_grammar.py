@@ -49,7 +49,7 @@ def check_string_with_grammar(input_string: str, grammar: GrammarFunction):
             r"End with backslash \ ",
             "Have a forward / slash",
             "Include [the] odd {brace} and (parentheses)",
-            "Some more symbols: ; are useful!"
+            "Some more symbols: ; are useful!",
         ]
     ],
 )
