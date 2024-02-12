@@ -159,7 +159,7 @@ class GrammarFunction(Function):
     def __getitem__(self, value):
         raise StatefulException("GrammarFunctions can't access state!")
     
-    def match(self, byte_string, allow_partial=False):
+    def match(self, byte_string: Union[str, bytes], allow_partial=False) -> Union[Match, None]:
         if isinstance(byte_string, str):
             byte_string = byte_string.encode()
         parser = _parser.EarleyCommitParser(self)
