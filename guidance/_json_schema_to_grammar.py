@@ -15,6 +15,7 @@ _SAFE_STRING = select(
         "'",
         " ",
         ",",
+        ".",
     ],
     recurse=True,
 )
