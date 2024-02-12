@@ -92,9 +92,7 @@ def _process_node(node: Dict[str, any]) -> GrammarFunction:
                     [
                         # Empty list
                         "",
-                        # Single item
-                        _process_node(item_node),
-                        # Two or more items
+                        # One or more items
                         Join(
                             [
                                 select(
