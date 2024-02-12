@@ -26,6 +26,39 @@ _COMMA = Byte(b",")
 _COLON = Byte(b":")
 
 
+def _make_optional(f: GrammarFunction) -> GrammarFunction:
+    return select(["", f])
+
+
+def _process_int() -> GrammarFunction:
+    return Join([select(["-", ""]), select([char_range("0", "9")], recurse=True)])
+
+
+def _process_number() -> GrammarFunction:
+    sign = select(["", "-"])
+    mantissa_int = select([char_range("0", "9")], recurse=True)
+    mantissa_frac = _make_optional(
+        Join([Byte(b"."), select([char_range("0", "9")], recurse=True)])
+    )
+    exponent = _make_optional(
+        Join(
+            [
+                "e",
+                select(["", "-", "+"]),
+                select([char_range("0", "9")], recurse=True),
+            ]
+        )
+    )
+    return Join(
+        [
+            sign,
+            mantissa_int,
+            mantissa_frac,
+            exponent,
+        ],
+    )
+
+
 def _process_node(node: Dict[str, any]) -> GrammarFunction:
     if node["type"] == "null":
         # Not completely sure about this
@@ -35,38 +68,9 @@ def _process_node(node: Dict[str, any]) -> GrammarFunction:
     elif node["type"] == "boolean":
         return select(["true", "false"])
     elif node["type"] == "integer":
-        return Join([select(["-", ""]), select([char_range("0", "9")], recurse=True)])
+        return _process_int()
     elif node["type"] == "number":
-        return Join(
-            [
-                # Leading sign
-                select(["", "-"]),
-                # Integer part of mantissa
-                select([char_range("0", "9")], recurse=True),
-                # Optional fractional part of mantissa
-                select(
-                    [
-                        "",
-                        Join(
-                            [Byte(b"."), select([char_range("0", "9")], recurse=True)]
-                        ),
-                    ]
-                ),
-                # Optional exponent
-                select(
-                    [
-                        "",
-                        Join(
-                            [
-                                "e",
-                                select(["", "-", "+"]),
-                                select([char_range("0", "9")], recurse=True),
-                            ]
-                        ),
-                    ]
-                ),
-            ],
-        )
+        return _process_number()
     elif node["type"] == "object":
         properties = []
         for name, nxt_node in node["properties"].items():
