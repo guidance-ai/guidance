@@ -5,7 +5,7 @@ from jsonschema import validate
 
 from guidance._grammar import GrammarFunction
 from guidance._json_schema_to_grammar import json_schema_to_grammar
-from guidance._parser import EarleyCommitParser, ParserException
+from guidance._parser import ParserException
 
 
 def to_compact_json(target: any) -> str:
@@ -18,15 +18,9 @@ def to_compact_json(target: any) -> str:
 
 
 def check_string_with_grammar(input_string: str, grammar: GrammarFunction):
-    parser = EarleyCommitParser(grammar)
-
     print(f"Checking {input_string}")
-    for c in input_string:
-        print(f"Working on: {c}")
-        print(f"Valid next bytes: {parser.valid_next_bytes()}")
-        next_byte = bytes(c, encoding="utf8")
-        print(f"Consuming: {next_byte}")
-        parser.consume_byte(next_byte)
+    matches = grammar.match(input_string.encode(), raise_exceptions=True)
+    assert matches.partial == False
 
 
 @pytest.mark.parametrize(
@@ -62,14 +56,7 @@ def test_string_schema(simple_json_string):
 
     # Now set up the actual conversion
     grammar = json_schema_to_grammar(schema)
-    parser = EarleyCommitParser(grammar)
-
-    for c in simple_json_string:
-        print(f"Working on: {c}")
-        print(f"Valid next bytes: {parser.valid_next_bytes()}")
-        next_byte = bytes(c, encoding="utf8")
-        print(f"Consuming: {next_byte}")
-        parser.consume_byte(next_byte)
+    check_string_with_grammar(simple_json_string, grammar)
 
 
 @pytest.mark.parametrize(
@@ -269,12 +256,8 @@ def test_bad_int_list(bad_list: str, unexpected_char):
     validate(instance=[1, 2, 3], schema=schema_obj)
 
     grammar = json_schema_to_grammar(schema)
-    parser = EarleyCommitParser(grammar)
     with pytest.raises(ParserException) as pe:
-        for c in bad_list:
-            next_byte = bytes(c, encoding="utf8")
-            print(f"Consuming: {next_byte}")
-            parser.consume_byte(next_byte)
+        _ = grammar.match(bad_list.encode(), raise_exceptions=True)
     assert pe.value.current_byte == unexpected_char
 
 
