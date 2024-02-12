@@ -175,7 +175,10 @@ def test_string_list(target_list):
     check_string_with_grammar(target_string, grammar)
 
 
-@pytest.mark.parametrize("target_list", [[], [dict(a=1)], [dict(a=2), dict(a=3)]])
+@pytest.mark.parametrize(
+    "target_list",
+    [[], [dict(a=1)], [dict(a=2), dict(a=3)], [dict(a=4), dict(a=5), dict(a=6)]],
+)
 def test_object_list(target_list):
     schema = """{
     "type" : "array",
@@ -237,6 +240,7 @@ def test_object_containing_list():
         ("[1,2,]", b"]"),
         ("[0,1,2,3,]", b"]"),
         ("[0,,1]", b","),
+        ("[0,1,,,1,2]", b","),
     ],
 )
 def test_bad_int_list(bad_list: str, unexpected_char):
