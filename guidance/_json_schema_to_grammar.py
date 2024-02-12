@@ -35,8 +35,7 @@ def _process_int() -> GrammarFunction:
 
 
 def _process_number() -> GrammarFunction:
-    sign = select(["", "-"])
-    mantissa_int = select([char_range("0", "9")], recurse=True)
+    mantissa_int = _process_int()
     mantissa_frac = _make_optional(
         Join([Byte(b"."), select([char_range("0", "9")], recurse=True)])
     )
@@ -44,6 +43,8 @@ def _process_number() -> GrammarFunction:
         Join(
             [
                 "e",
+                # Since the exponent can contain a '+', can't just reuse
+                # _process_int() here
                 select(["", "-", "+"]),
                 select([char_range("0", "9")], recurse=True),
             ]
@@ -51,7 +52,6 @@ def _process_number() -> GrammarFunction:
     )
     return Join(
         [
-            sign,
             mantissa_int,
             mantissa_frac,
             exponent,
