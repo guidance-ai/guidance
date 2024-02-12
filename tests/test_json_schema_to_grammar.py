@@ -32,13 +32,25 @@ def check_string_with_grammar(input_string: str, grammar: GrammarFunction):
 @pytest.mark.parametrize(
     "simple_json_string",
     [
-        '"with_underscore"',
-        '"ALLCAPS"',
-        '"with a space"',
-        '"MiXeD cAsInG"',
-        '"with-hyphen"',
-        '"Mix case_underscore-hyphens',
-        '"with a comma, in the string"',
+        to_compact_json(x)
+        for x in [
+            "with_underscore",
+            "ALLCAPS",
+            "with a space",
+            "MiXeD cAsInG",
+            "with-hyphen",
+            "Mix case_underscore-hyphens",
+            "with a comma, in the string",
+            "A full stop.",
+            """How about
+            a
+            multiline string?""",
+            "A \t tab \t between \t words",
+            r"End with backslash \ ",
+            "Have a forward / slash",
+            "Include [the] odd {brace} and (parentheses)",
+            "Some more symbols: ; are useful!"
+        ]
     ],
 )
 def test_string_schema(simple_json_string):
