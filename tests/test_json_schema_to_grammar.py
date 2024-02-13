@@ -3,6 +3,7 @@ import json
 import pytest
 from jsonschema import validate
 
+from guidance import models
 from guidance._grammar import GrammarFunction
 from guidance._json_schema_to_grammar import json_schema_to_grammar
 from guidance._parser import ParserException
@@ -306,3 +307,35 @@ def test_null():
 
     target_string = to_compact_json(target_obj)
     check_string_with_grammar(target_string, grammar)
+
+
+def test_with_mock_model():
+    schema = """{
+    "type": "object",
+    "properties" : {
+            "a" : { "type" : "string" },
+            "b_list" : {
+                "type": "array",
+                "items" : {"type": "integer" }
+            }
+        }
+    }
+"""
+    sample_obj = dict(
+        a="a.\nlong string containing many\tthings! Because it's good to have variety",
+        b_list=[0, -1, 20, -2313, 98012478623],
+    )
+
+    # First sanity check what we're setting up
+    schema_obj = json.loads(schema)
+    validate(instance=sample_obj, schema=schema_obj)
+
+    prepared_string = f"<s>{to_compact_json(sample_obj)}"
+    lm = models.Mock(prepared_string.encode())
+
+    # Run with the mock model
+    lm += json_schema_to_grammar(schema)
+
+    # Make sure the round trip works
+    loaded_obj = json.loads(str(lm))
+    assert sample_obj == loaded_obj
