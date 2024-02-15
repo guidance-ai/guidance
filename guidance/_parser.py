@@ -3,6 +3,14 @@ import numpy as np
 from ordered_set import OrderedSet
 from ._grammar import Join, Select, Terminal, Null, Byte, ByteRange
 
+
+class ParserException(Exception):
+    def __init__(self, *args, **kwargs):
+        self.current_byte = kwargs.pop("current_byte", None)
+        self.allowed_bytes = kwargs.pop("allowed_bytes", None)
+        super().__init__(*args, **kwargs)
+
+
 class EarleyItem:
     __slots__ = ("node", "values", "start", "pos", "log_prob", "children", "hidden_start")
 
@@ -78,7 +86,7 @@ class EarleyCommitParser(Parser):
         if new_pos == self.state_set_pos:
             return
         elif new_pos > self.state_set_pos:
-            raise Exception("Can't move the parser position forward! (only backward)")
+            raise ParserException("Can't move the parser position forward! (only backward)")
         
         # check if we are just moving the shadow position
         if new_pos >= self.shadow_pos:
@@ -277,7 +285,7 @@ class EarleyCommitParser(Parser):
             new_next_state_set.append(item)
             hidden_start = min(hidden_start, item.hidden_start)
         if not found_valid:
-            raise Exception("Attempted to consume a byte that the grammar does not accept!")
+            raise ParserException("Attempted to consume a byte that the grammar does not accept!",current_byte=byte)
         if found_invalid: # only update if we changed the set
             self.state_sets[self.state_set_pos + 1] = OrderedSet(new_next_state_set)
 
@@ -337,7 +345,7 @@ class EarleyCommitParser(Parser):
                 elif isinstance(item, ByteRange):
                     mask[item.byte_range[0]:item.byte_range[1]+1] = True
                 else:
-                    raise Exception("Unknown Terminal Type: "  + str(type(item)))
+                    raise ParserException("Unknown Terminal Type: "  + str(type(item)), )
         return mask
 
     def __repr__(self, state_sets=None) -> str:
@@ -535,4 +543,3 @@ class EarleyCommitParser(Parser):
                 return True
         
         return False
-
