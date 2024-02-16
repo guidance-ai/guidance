@@ -360,6 +360,65 @@ def test_simple_ref(target_obj):
     check_string_with_grammar(target_string, grammar)
 
 
+def test_nested_ref():
+    schema = """{
+  "$defs": {
+    "A": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "A",
+      "type": "object"
+    },
+    "B": {
+      "properties": {
+        "other_str": {
+          "title": "Other Str",
+          "type": "string"
+        },
+        "my_A": {
+          "$ref": "#/$defs/A"
+        }
+      },
+      "required": [
+        "other_str",
+        "my_A"
+      ],
+      "title": "B",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "my_B": {
+      "$ref": "#/$defs/B"
+    }
+  },
+  "required": [
+    "my_B"
+  ],
+  "title": "C",
+  "type": "object"
+}
+    """
+
+    target_obj = dict(my_B=dict(other_str="some string", my_A=dict(name="my name")))
+
+    # First sanity check what we're setting up
+    schema_obj = json.loads(schema)
+    validate(instance=target_obj, schema=schema_obj)
+
+    grammar = json_schema_to_grammar(schema)
+
+    target_string = to_compact_json(target_obj)
+    check_string_with_grammar(target_string, grammar)
+
+
 def test_with_mock_model():
     schema = """{
     "type": "object",
