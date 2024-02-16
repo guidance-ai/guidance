@@ -1,6 +1,7 @@
-from typing import List
+from typing import List, Union
 
 import pydantic
+import pytest
 
 from guidance._grammar import GrammarFunction
 from guidance._pydantic_to_grammar import pydantic_model_to_grammar
@@ -47,5 +48,23 @@ def test_nested_model():
         my_B: B = pydantic.Field(default_factory=B)
 
     my_obj = C(my_str="some other string!")
+    grammar = pydantic_model_to_grammar(my_obj)
+    check_object_with_grammar(my_obj, grammar)
+
+
+@pytest.mark.parametrize("has_A", [True, False])
+def test_model_with_optional(has_A):
+    class A(pydantic.BaseModel):
+        my_str: str = pydantic.Field(default="my_a_str")
+
+    class B(pydantic.BaseModel):
+        b_str: str = pydantic.Field(default="Some string")
+        my_A: Union[A, None] = pydantic.Field(default=None)
+
+    if has_A:
+        my_obj = B(my_A=A(my_str="a long string or two"))
+    else:
+        my_obj = B(b_str="A long b string")
+
     grammar = pydantic_model_to_grammar(my_obj)
     check_object_with_grammar(my_obj, grammar)
