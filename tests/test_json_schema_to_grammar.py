@@ -353,7 +353,7 @@ def test_simple_ref(target_obj):
     # First sanity check what we're setting up
     schema_obj = json.loads(schema)
     validate(instance=target_obj, schema=schema_obj)
-    
+
     grammar = json_schema_to_grammar(schema)
 
     target_string = to_compact_json(target_obj)
