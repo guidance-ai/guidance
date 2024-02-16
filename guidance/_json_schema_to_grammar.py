@@ -142,8 +142,7 @@ def _process_node(
         raise ValueError(f"Unsupported type in schema: {node['type']}")
 
 
-def json_schema_to_grammar(schema: str) -> GrammarFunction:
-    schema_obj = json.loads(schema)
+def _json_schema_obj_to_grammar(schema_obj: Dict[str, any]) -> GrammarFunction:
 
     _DEFS_KEY = "$defs"
 
@@ -153,3 +152,9 @@ def json_schema_to_grammar(schema: str) -> GrammarFunction:
         del schema_obj[_DEFS_KEY]
 
     return _process_node(schema_obj, definitions)
+
+
+def json_schema_to_grammar(schema: str) -> GrammarFunction:
+    schema_obj = json.loads(schema)
+
+    return _json_schema_obj_to_grammar(schema_obj)
