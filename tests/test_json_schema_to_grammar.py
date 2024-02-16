@@ -356,7 +356,7 @@ def test_simple_ref(target_obj):
     
     grammar = json_schema_to_grammar(schema)
 
-    target_string = to_compact_json(schema_obj)
+    target_string = to_compact_json(target_obj)
     check_string_with_grammar(target_string, grammar)
 
 
