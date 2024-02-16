@@ -309,6 +309,52 @@ def test_null():
     check_string_with_grammar(target_string, grammar)
 
 
+@pytest.mark.parametrize(
+    "target_obj",
+    [
+        dict(all_cats=[]),
+        dict(all_cats=[dict(name="Kasha")]),
+        dict(all_cats=[dict(name="Dawon"), dict(name="Barong")]),
+    ],
+)
+def test_simple_ref(target_obj):
+    schema = """{
+  "$defs": {
+    "Cat": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "Cat",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "all_cats": {
+      "items": {
+        "$ref": "#/$defs/Cat"
+      },
+      "title": "All Cats",
+      "type": "array"
+    }
+  },
+  "required": [
+    "all_cats"
+  ],
+  "title": "CatList",
+  "type": "object"
+}
+"""
+    # First sanity check what we're setting up
+    schema_obj = json.loads(schema)
+    validate(instance=target_obj, schema=schema_obj)
+
+
 def test_with_mock_model():
     schema = """{
     "type": "object",
