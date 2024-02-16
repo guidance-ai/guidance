@@ -156,7 +156,6 @@ def _process_node(
 
 
 def _json_schema_obj_to_grammar(schema_obj: Dict[str, any]) -> GrammarFunction:
-
     _DEFS_KEY = "$defs"
 
     definitions = None
