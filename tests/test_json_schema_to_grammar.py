@@ -419,6 +419,30 @@ def test_nested_ref():
     check_string_with_grammar(target_string, grammar)
 
 
+@pytest.mark.parametrize("target_obj", [123, True])
+def test_anyOf_simple(target_obj):
+    schema = """{
+    "anyOf": [
+                {
+                    "type": "integer"
+                },
+                {
+                    "type": "boolean"
+                }
+            ]
+}
+"""
+    # First sanity check what we're setting up
+    schema_obj = json.loads(schema)
+    validate(instance=target_obj, schema=schema_obj)
+
+    
+    grammar = json_schema_to_grammar(schema)
+
+    target_string = to_compact_json(target_obj)
+    check_string_with_grammar(target_string, grammar)
+
+
 def test_with_mock_model():
     schema = """{
     "type": "object",
