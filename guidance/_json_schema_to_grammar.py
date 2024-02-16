@@ -1,5 +1,5 @@
 import json
-from typing import Dict, Union
+from typing import Dict, List, Union
 
 from ._grammar import Byte, GrammarFunction, Join, Select, select
 from .library._char_range import char_range
@@ -110,9 +110,22 @@ def _get_definition(reference: str, definitions: Dict[str, any]) -> Dict[str, an
     return definitions[target_name]
 
 
+def _process_anyOf(
+    options: List[Dict[str, any]], definitions: Dict[str, any]
+) -> GrammarFunction:
+    all_opts = []
+    for opt in options:
+        all_opts.append(_process_node(opt, definitions))
+    return select(options=all_opts)
+
+
 def _process_node(
     node: Dict[str, any], definitions: Union[Dict[str, any], None]
 ) -> GrammarFunction:
+    ANYOF_STRING = "anyOf"
+    if ANYOF_STRING in node:
+        return _process_anyOf(node[ANYOF_STRING], definitions)
+
     REF_STRING = "$ref"
     if REF_STRING in node:
         node = _get_definition(node[REF_STRING], definitions)

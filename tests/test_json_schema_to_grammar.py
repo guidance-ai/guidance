@@ -436,7 +436,66 @@ def test_anyOf_simple(target_obj):
     schema_obj = json.loads(schema)
     validate(instance=target_obj, schema=schema_obj)
 
-    
+    grammar = json_schema_to_grammar(schema)
+
+    target_string = to_compact_json(target_obj)
+    check_string_with_grammar(target_string, grammar)
+
+
+@pytest.mark.parametrize(
+    "target_obj",
+    [
+        dict(my_val=dict(my_int=1)),
+        dict(my_val=dict(my_str="Some long string or other")),
+    ],
+)
+def test_anyOf_objects(target_obj):
+    schema = """{
+  "$defs": {
+    "A": {
+      "properties": {
+        "my_str": {
+          "default": "me",
+          "title": "My Str",
+          "type": "string"
+        }
+      },
+      "title": "A",
+      "type": "object"
+    },
+    "B": {
+      "properties": {
+        "my_int": {
+          "default": 1,
+          "title": "My Int",
+          "type": "integer"
+        }
+      },
+      "title": "B",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "my_val": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/A"
+        },
+        {
+          "$ref": "#/$defs/B"
+        }
+      ],
+      "title": "My Val"
+    }
+  },
+  "title": "C",
+  "type": "object"
+}
+"""
+    # First sanity check what we're setting up
+    schema_obj = json.loads(schema)
+    validate(instance=target_obj, schema=schema_obj)
+
     grammar = json_schema_to_grammar(schema)
 
     target_string = to_compact_json(target_obj)
