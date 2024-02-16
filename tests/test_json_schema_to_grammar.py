@@ -76,6 +76,27 @@ def test_integer_schema(json_int):
     check_string_with_grammar(json_int, grammar)
 
 
+@pytest.mark.parametrize(
+    ["bad_obj", "fail_byte"],
+    [
+        (0.1, b"."),
+        ("some string", b'"'),
+        (dict(a=1), b"{"),
+        ([], b"["),
+        ([1], b"["),
+        (["si tacuisses, philosophus mansisses"], b"["),
+    ],
+)
+def test_integer_schema_invalid(bad_obj, fail_byte):
+    schema = """{ "type": "integer" }"""
+    grammar = json_schema_to_grammar(schema)
+
+    bad_string = to_compact_json(bad_obj)
+    with pytest.raises(ParserException) as pe:
+        _ = grammar.match(bad_string.encode(), raise_exceptions=True)
+    assert pe.value.current_byte == fail_byte
+
+
 def test_simple_object():
     schema = """{
         "type": "object",
@@ -100,6 +121,40 @@ def test_simple_object():
 
     target_string = to_compact_json(target_obj)
     check_string_with_grammar(target_string, grammar)
+
+
+@pytest.mark.parametrize(
+    ["bad_obj", "fail_byte"],
+    [
+        (0, b"0"),
+        (1.1, b"1"),
+        ("some string", b'"'),
+        (dict(a=1), b"a"),
+        ([], b"["),
+        ([1], b"["),
+        (["Per ardua ad astra"], b"["),
+    ],
+)
+def test_simple_object_bad_input(bad_obj, fail_byte):
+    schema = """{
+        "type": "object",
+        "properties": {
+            "name" : {
+                "type": "string"
+            },
+            "productId": {
+                "description": "The unique identifier for a product",
+                "type": "integer"
+            }
+        }
+    }
+"""
+    grammar = json_schema_to_grammar(schema)
+
+    bad_string = to_compact_json(bad_obj)
+    with pytest.raises(ParserException) as pe:
+        _ = grammar.match(bad_string.encode(), raise_exceptions=True)
+    assert pe.value.current_byte == fail_byte
 
 
 def test_nested_object():
@@ -241,6 +296,7 @@ def test_object_containing_list():
         ("[0,1,2,3,]", b"]"),
         ("[0,,1]", b","),
         ("[0,1,,,1,2]", b","),
+        ("[0,1.2]", b"."),
     ],
 )
 def test_bad_int_list(bad_list: str, unexpected_char):
@@ -292,6 +348,26 @@ def test_number(target_number):
 
     target_string = to_compact_json(target_number)
     check_string_with_grammar(target_string, grammar)
+
+
+@pytest.mark.parametrize(
+    ["bad_obj", "fail_byte"],
+    [
+        ("hic sunt dracones", b'"'),
+        (dict(a=1), b"{"),
+        ([], b"["),
+        ([1], b"["),
+        (["Gallia est omnis divisa in partes tres"], b"["),
+    ],
+)
+def test_number_schema_invalid(bad_obj, fail_byte):
+    schema = """{ "type": "number" }"""
+    grammar = json_schema_to_grammar(schema)
+
+    bad_string = to_compact_json(bad_obj)
+    with pytest.raises(ParserException) as pe:
+        _ = grammar.match(bad_string.encode(), raise_exceptions=True)
+    assert pe.value.current_byte == fail_byte
 
 
 def test_null():
