@@ -113,6 +113,10 @@ def _get_definition(reference: str, definitions: Dict[str, any]) -> Dict[str, an
 def _process_node(
     node: Dict[str, any], definitions: Union[Dict[str, any], None]
 ) -> GrammarFunction:
+    REF_STRING = "$ref"
+    if REF_STRING in node:
+        node = _get_definition(node[REF_STRING], definitions)
+
     if node["type"] == "null":
         # Not completely sure about this
         return Select(["null"])
@@ -132,7 +136,7 @@ def _process_node(
             if item_node["type"] == "object":
                 item_node["properties"] = node["items"]["properties"]
         else:
-            item_node = _get_definition(node["items"]["$ref"], definitions)
+            item_node = _get_definition(node["items"][REF_STRING], definitions)
         return _process_array(item_node, definitions)
     else:
         raise ValueError(f"Unsupported type in schema: {node['type']}")
