@@ -662,8 +662,10 @@ class Placeholder(Join):
 
     def __eq__(self, other):
         if isinstance(other, __class__):
-            assert self.values == other.values
-            return super().__eq__(other)
+            if super().__eq__(other) is True:
+                assert self.values == other.values
+                return True
+            return False
         return self.values == [other]
 
     def __hash__(self):
