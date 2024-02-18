@@ -8,7 +8,7 @@ import requests
 
 from . import models
 from ._grammar import (Placeholder, RawFunction, GrammarFunction,
-                       Terminal, replace_grammar_node, string)
+                       Terminal, string)
 from ._utils import load, strip_multiline_string_indents
 from ._server import Server
 
@@ -72,7 +72,7 @@ def _decorator(f, *, stateless, cache, dedent, model):
 
                     # replace all the placeholders with our generated node
                     if no_args:
-                        replace_grammar_node(node, f._self_call_placeholder_, node)
+                        f._self_call_placeholder_.set(node)
                         del f._self_call_placeholder_
 
                     return node

@@ -601,12 +601,6 @@ def _rec_hide(grammar):
             for g in grammar.values:
                 _rec_hide(g)
 
-class Placeholder(GrammarFunction):
-    __slots__ = tuple("nullable")
-    def __init__(self):
-        self.nullable = False
-
-
 class Join(GrammarFunction):
     __slots__ = ("nullable", "values", "name", "hidden", "commit_point", "capture_name", "max_tokens")
 
@@ -656,6 +650,23 @@ class Join(GrammarFunction):
         out.capture_name = None if data.capture_name == "" else data.capture_name
         return out
 
+class Placeholder(Join):
+    def __init__(self):
+        super().__init__(values=[])
+
+    def set(self, value):
+        super().__init__(values=[value])
+
+    def __eq__(self, other):
+        if isinstance(other, __class__):
+            assert self.values == other.values
+            return super().__eq__(other)
+        return self.values == [other]
+
+    def __hash__(self):
+        if not self.values:
+            return super().__hash__()
+        return hash(*self.values)
 
 class Select(GrammarFunction):
     __slots__ = ("nullable", "_values", "name", "hidden", "commit_point", "capture_name", "max_tokens", "recursive")
