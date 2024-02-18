@@ -464,7 +464,10 @@ def replace_grammar_node(grammar, target, replacement):
         # Iterate through the node's values and replace target with replacement
         for i, value in enumerate(current.values):
             if value == target:
-                current.values[i] = replacement
+                if isinstance(value, Placeholder):
+                    value.set(replacement)
+                else:
+                    current.values[i] = replacement
             else:
                 stack.append(value)
 
