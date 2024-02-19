@@ -106,7 +106,7 @@ class AzureOpenAI(OpenAI):
 
         super().__init__(
             model=azure_endpoint,
-            tokenizer=tiktoken.encoding_for_model(model),
+            tokenizer=tokenizer or tiktoken.encoding_for_model(model),
             echo=echo,
             caching=caching,
             temperature=temperature,
