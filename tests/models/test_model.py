@@ -1,3 +1,5 @@
+import pytest
+
 import guidance
 from guidance import select, models, gen, zero_or_more, byte_range
 from ..utils import get_model
@@ -45,3 +47,20 @@ def test_token_healing():
     gpt2 = get_model("transformers:gpt2")
     lm = gpt2 + ("This is a story of 10 or 5 or " + zero_or_more(byte_range(b'0', b'9')))
     assert len(lm) > len("This is a story of 10 or 5 or ")
+
+def test_stream():
+    lm = get_model("transformers:gpt2").stream()
+    lm += select(["item1", "item2"])
+    *_, last_lm = lm
+    assert str(last_lm) in ["item1", "item2"]
+
+def test_stream_propagate_errors():
+    lm = get_model("transformers:gpt2").stream()
+
+    @guidance
+    def my_function(lm):
+        raise Exception()
+    
+    lm += my_function()
+    with pytest.raises(Exception):
+        list(lm)
