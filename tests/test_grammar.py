@@ -1,3 +1,4 @@
+import pytest
 import guidance
 from guidance import models, select, gen, optional
 
@@ -86,3 +87,32 @@ class TestRecursion:
         grammar1()
         grammar2()
         grammar3()
+
+
+@pytest.mark.parametrize('prefix', ['', 'abc'])
+@pytest.mark.parametrize('suffix', ['', '123'])
+@pytest.mark.parametrize('stop',   ['@', '@@'])
+def test_gen_stop_excluded(prefix, suffix, stop):
+    matchstr = f"{prefix}{stop}{suffix}"
+    grammar = gen(stop=stop)
+    match = grammar.match(matchstr, allow_partial=True)
+    assert match is None
+
+@pytest.mark.parametrize('prefix', ['', 'abc'])
+@pytest.mark.parametrize('suffix', ['', '123'])
+@pytest.mark.parametrize('stop',   ['@', '@@'])
+def test_gen_stop_continues(prefix, suffix, stop):
+    matchstr = f"{prefix}{stop}{suffix}"
+    grammar = gen(stop=stop) + stop + suffix
+    match = grammar.match(matchstr, allow_partial=True)
+    assert match is not None
+    assert not match.partial
+
+@pytest.mark.parametrize('prefix', ['', 'abc'])
+@pytest.mark.parametrize('suffix', ['', '123'])
+@pytest.mark.parametrize('stop',   ['@', '@@'])
+def test_gen_stop_repeat(prefix, suffix, stop):
+    matchstr = f"{prefix}{stop}{stop}{suffix}"
+    grammar = gen(stop=stop) + stop + suffix
+    match = grammar.match(matchstr, allow_partial=True)
+    assert match is None
