@@ -1,31 +1,15 @@
-import os
-from pathlib import Path
-import multiprocessing
-from itertools import takewhile
-import operator
-import threading
-import numpy as np
-import queue
-import time
 import tiktoken
-import re
 
 from ._model import Chat, Instruct
-from ._remote import Remote
+from ._grammarless import GrammarlessTokenizer, GrammarlessEngine, Grammarless
 
-
-class LiteLLM(Remote):
-    def __init__(self, model, tokenizer=None, echo=True, caching=True, api_base=None, api_key=None, custom_llm_provider=None, temperature=0.0, max_streaming_tokens=1000, **kwargs):
+class LiteLLMEngine(GrammarlessEngine):
+    def __init__(self, model, tokenizer, timeout, compute_log_probs, max_streaming_tokens, **kwargs):
         try:
             import litellm
         except ImportError:
             raise Exception("Please install the litellm package version >= 1.7 using `pip install litellm -U` in order to use guidance.models.LiteLLM!")
         
-        # if we are called directly (as opposed to through super()) then we convert ourselves to a more specific subclass if possible
-        if self.__class__ is LiteLLM:
-            raise Exception("The LightLLM class is not meant to be used directly! Please use LiteLLMChat, LiteLLMInstruct, or LiteLLMCompletion depending on the model you are using.")
-
-
         self.litellm = litellm
 
         # self.client = openai_package.OpenAI(api_key=api_key, organization=organization, base_url=base_url)
@@ -39,17 +23,43 @@ class LiteLLM(Remote):
                 tokenizer = tiktoken.get_encoding("gpt2")
 
         super().__init__(
-            model, tokenizer=tokenizer, echo=echo,
-            caching=caching, temperature=temperature,
-            max_streaming_tokens=max_streaming_tokens, **kwargs
+            tokenizer,
+            max_streaming_tokens=max_streaming_tokens,
+            timeout=timeout,
+            compute_log_probs=compute_log_probs
         )
 
+class LiteLLM(Grammarless):
+    def __init__(self, model, tokenizer=None, echo=True, timeout=0.5, max_streaming_tokens=1000, compute_log_probs=False):
+        '''Build a new LiteLLM model object that represents a model in a given state.'''
 
-class LiteLLMCompletion(LiteLLM, Instruct):
+        # if we are called directly (as opposed to through super()) then we convert ourselves to a more specific subclass if possible
+        if self.__class__ is LiteLLM:
+            raise Exception("The LightLLM class is not meant to be used directly! Please use LiteLLMChat, LiteLLMInstruct, or LiteLLMCompletion depending on the model you are using.")
 
-    def _generator(self, prompt):
-        self._shared_state["not_running_stream"].clear() # so we know we are running
-        self._shared_state["data"] = prompt # we start with this data
+        # this allows us to use a single constructor for all our subclasses
+        engine_map = {
+            LiteLLMCompletion: LiteLLMCompletionEngine,
+            LiteLLMInstruct: LiteLLMInstructEngine,
+            LiteLLMChat: LiteLLMChatEngine
+        }
+
+        for k in engine_map:
+            if issubclass(self.__class__, k):
+                super().__init__(
+                    engine_map[k](model, tokenizer, timeout, compute_log_probs, max_streaming_tokens),
+                    echo=echo
+                )
+
+class LiteLLMCompletion(LiteLLM):
+    pass
+
+class LiteLLMCompletionEngine(LiteLLMEngine):
+
+    def _generator(self, prompt, temperature):
+        
+        # update our shared data state
+        self._reset_shared_data(prompt, temperature)
 
         try:
             generator = self.litellm.completion(
@@ -58,7 +68,7 @@ class LiteLLMCompletion(LiteLLM, Instruct):
                 max_tokens=self.max_streaming_tokens,
                 n=1,
                 top_p=1,
-                temperature=0,
+                temperature=temperature,
                 stream=True
             )
         except Exception as e: # TODO: add retry logic
@@ -69,7 +79,6 @@ class LiteLLMCompletion(LiteLLM, Instruct):
             yield chunk.encode("utf8")
 
 class LiteLLMInstruct(LiteLLM, Instruct):
-
     def get_role_start(self, name):
         return ""
     
@@ -79,7 +88,9 @@ class LiteLLMInstruct(LiteLLM, Instruct):
         else:
             raise Exception(f"The LiteLLMInstruct model does not know about the {name} role type!")
 
-    def _generator(self, prompt):
+class LiteLLMInstructEngine(LiteLLMEngine):
+
+    def _generator(self, prompt, temperature):
         # start the new stream
         prompt_end = prompt.find(b'<|endofprompt|>')
         if prompt_end >= 0:
@@ -91,18 +102,18 @@ class LiteLLMInstruct(LiteLLM, Instruct):
         if b'<|endofprompt|>' in prompt[prompt_end + len(b'<|endofprompt|>'):]:
             raise Exception("This model has been given two separate instruct blocks, but this is not allowed!")
         
-        self._shared_state["not_running_stream"].clear() # so we know we are running
-        self._shared_state["data"] = stripped_prompt + b'<|endofprompt|>'# we start with this data
+        # update our shared data state
+        self._reset_shared_data(stripped_prompt + b'<|endofprompt|>', temperature)
 
         try:
             generator = self.litellm.completion(
                 model=self.model_name,
-                messages=[{"content": self._shared_state["data"].decode("utf8"), "role": "system"}], # note that role=system is just ignored by litellm but used by them to match chat syntax
-                prompt=self._shared_state["data"].decode("utf8"), 
+                messages=[{"content": self._data.decode("utf8"), "role": "system"}], # note that role=system is just ignored by litellm but used by them to match chat syntax
+                prompt=self._data.decode("utf8"), 
                 max_tokens=self.max_streaming_tokens, 
                 n=1, 
                 top_p=1, 
-                temperature=0, 
+                temperature=temperature, 
                 stream=True
             )
         except Exception as e: # TODO: add retry logic
@@ -113,10 +124,10 @@ class LiteLLMInstruct(LiteLLM, Instruct):
             yield chunk.encode("utf8")
 
 class LiteLLMChat(LiteLLM, Chat):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    pass
 
-    def _generator(self, prompt):
+class LiteLLMChatEngine(LiteLLMEngine):
+    def _generator(self, prompt, temperature):
         
         # find the system text
         pos = 0
@@ -142,7 +153,8 @@ class LiteLLMChat(LiteLLM, Chat):
                     found = True
                     break
         
-        self._shared_state["data"] = prompt[:pos]
+        # update our shared data state
+        self._reset_shared_data(prompt[:pos], temperature)
 
         try:
             generator = self.litellm.completion(
@@ -151,7 +163,7 @@ class LiteLLMChat(LiteLLM, Chat):
                 max_tokens=self.max_streaming_tokens, 
                 n=1, 
                 top_p=1, 
-                temperature=0, 
+                temperature=temperature, 
                 stream=True
             )
         except Exception as e: # TODO: add retry logic

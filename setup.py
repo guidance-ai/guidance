@@ -32,16 +32,16 @@ setup(
     python_requires=">=3.8",
     install_requires=[
         "diskcache",
-        "gptcache",
         "openai>=1.0",
         "platformdirs",
         "tiktoken>=0.3",
-        "msal",
         "requests",
         "numpy",
-        "aiohttp",
         "ordered_set",
-        "pyformlang"
+        "pyformlang",
+        "protobuf",
+        "fastapi",
+        "uvicorn"
     ],
     extras_require={
         'docs': [
@@ -52,6 +52,7 @@ setup(
             'nbsphinx'
         ],
         'test': [
+            "jsonschema",
             'pytest',
             'transformers',
             'torch',

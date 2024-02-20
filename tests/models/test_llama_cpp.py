@@ -36,7 +36,7 @@ def test_repeat_calls():
     a = []
     lm = llama2 + 'How much is 2 + 2? ' + gen(name='test', max_tokens=10)
     a.append(lm['test'])
-    lm = llama2 + 'How much is 2 + 2? ' + gen(name='test',max_tokens=10, pattern=r'\d+')
+    lm = llama2 + 'How much is 2 + 2? ' + gen(name='test',max_tokens=10, regex=r'\d+')
     a.append(lm['test'])
     lm = llama2 + 'How much is 2 + 2? ' + gen(name='test', max_tokens=10)
     a.append(lm['test'])
@@ -55,37 +55,37 @@ def test_subtoken_forced():
 
 def test_llama_cpp_almost_one_batch():
     lm = get_model("llama_cpp:", n_batch=248)
-    long_str = lm.bos_token.decode("utf-8") * 247
+    long_str = lm.engine.tokenizer.bos_token.decode("utf-8") * 247
     lm += long_str + gen(max_tokens=10)
     assert len(str(lm)) > len(long_str)
 
 def test_llama_cpp_exactly_one_batch():
     lm = get_model("llama_cpp:", n_batch=248)
-    long_str = lm.bos_token.decode("utf-8") * 248
+    long_str = lm.engine.tokenizer.bos_token.decode("utf-8") * 248
     lm += long_str + gen(max_tokens=10)
     assert len(str(lm)) > len(long_str)
 
 def test_llama_cpp_more_than_one_batch():
     lm = get_model("llama_cpp:", n_batch=248)
-    long_str = lm.bos_token.decode("utf-8") * 249
+    long_str = lm.engine.tokenizer.bos_token.decode("utf-8") * 249
     lm += long_str + gen(max_tokens=10)
     assert len(str(lm)) > len(long_str)
 
 def test_llama_cpp_almost_two_batches():
     lm = get_model("llama_cpp:", n_batch=248)
-    long_str = lm.bos_token.decode("utf-8") * 495
+    long_str = lm.engine.tokenizer.bos_token.decode("utf-8") * 495
     lm += long_str + gen(max_tokens=10)
     assert len(str(lm)) > len(long_str)
 
 def test_llama_cpp_two_batches():
     lm = get_model("llama_cpp:", n_batch=248)
-    long_str = lm.bos_token.decode("utf-8") * 496
+    long_str = lm.engine.tokenizer.bos_token.decode("utf-8") * 496
     lm += long_str + gen(max_tokens=10)
     assert len(str(lm)) > len(long_str)
 
 def test_llama_cpp_more_than_two_batches():
     lm = get_model("llama_cpp:", n_batch=248)
-    long_str = lm.bos_token.decode("utf-8") * 497
+    long_str = lm.engine.tokenizer.bos_token.decode("utf-8") * 497
     lm += long_str + gen(max_tokens=10)
     assert len(str(lm)) > len(long_str)
 
@@ -96,3 +96,15 @@ def test_llama_with_temp():
         lm += f"LINE {i+1}: " + gen(temperature=0.8, suffix="\n")
     # we just want to make sure we don't crash the numpy sampler
 
+def test_llama_with_temp2():
+    lm = get_model("llama_cpp:")
+    lm1 = lm + '2 + 2 =' + gen('answer', max_tokens=3)
+    lm2 = lm + '2 + 2 =' + gen('answer', temperature=0.0000001, max_tokens=3)
+    assert lm1["answer"] == lm2["answer"]
+
+def test_max_tokens():
+    lm = get_model("llama_cpp:")
+    lm += "Who won the last Kentucky derby and by how much?"
+    lm += "\n\n<<The last Kentucky Derby was held"
+    lm += gen(max_tokens=2)
+    assert str(lm)[-1] != "<" # the output should not end with "<" because that is coming from the stop sequence...

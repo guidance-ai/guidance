@@ -14,11 +14,13 @@ Guidance can be installed from `PyPI <https://pypi.org/project/guidance>`_::
    pip install guidance
 
 
-.. Contents
-.. ========
+Contents
+========
 
-.. .. toctree::
-..    :maxdepth: 2
+.. toctree::
+   :maxdepth: 2
 
-..    API reference <api>
-..    API examples <api_examples>
+   Tutorials <tutorials>
+   API reference <api>
+   API examples <api_examples>
+   The Art of Prompt Design <art_of_prompt_design>

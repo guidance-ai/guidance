@@ -1,7 +1,8 @@
-from ._lite_llm import LiteLLM, LiteLLMCompletion, LiteLLMInstruct
+from ._lite_llm import LiteLLMEngine, LiteLLM, LiteLLMCompletion, LiteLLMInstruct
 
 class Cohere(LiteLLM):
-    def __init__(self, model, tokenizer=None, echo=True, caching=True, api_base=None, api_key=None, custom_llm_provider=None, temperature=0.0, max_streaming_tokens=1000, **kwargs):
+    def __init__(self, model, tokenizer=None, echo=True, timeout=0.5, compute_log_probs=False, max_streaming_tokens=1000):
+        '''Build a new Anthropic model object that represents a model in a given state.'''
         try:
             import tokenizers
         except ImportError:
@@ -13,13 +14,11 @@ class Cohere(LiteLLM):
                 tokenizer = tokenizers.Tokenizer.from_pretrained("Cohere/"+model)
             except:
                 tokenizer = tokenizers.Tokenizer.from_pretrained("Cohere/command-nightly")
-        
-        super().__init__(
-            model, tokenizer=tokenizer, echo=echo,
-            caching=caching, temperature=temperature,
-            max_streaming_tokens=max_streaming_tokens, **kwargs
-        )
 
+        super().__init__(
+            model, tokenizer=tokenizer, echo=echo, timeout=timeout,
+            max_streaming_tokens=max_streaming_tokens, compute_log_probs=compute_log_probs
+        )
 
 class CohereCompletion(Cohere, LiteLLMCompletion):
     pass

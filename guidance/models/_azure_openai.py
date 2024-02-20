@@ -1,32 +1,30 @@
 import re
 from urllib.parse import urlparse, parse_qs
 
-import tiktoken
-
-from ._model import Chat
-from ._model import Instruct
 from ._openai import (
-    OAIChatMixin,
-    OAICompletionMixin,
-    OAIInstructMixin,
+    OpenAIChat,
+    OpenAICompletion,
+    OpenAIInstruct,
     chat_model_pattern,
 )
-from ._remote import Remote
+from ._openai import OpenAI
 
 try:
     # TODO: can we eliminate the torch requirement for llama.cpp by using numpy in the caller instead?
     import openai as openai_package
+    import tiktoken
 
     is_openai = True
 except ImportError:
     is_openai = False
 
 
-class AzureOpenAI(Remote):
+class AzureOpenAI(OpenAI):
     def __init__(
         self,
         model: str,
         azure_endpoint: str,
+        azure_deployment: str,
         azure_ad_token_provider=None,
         api_key: str = None,
         tokenizer=None,
@@ -38,6 +36,7 @@ class AzureOpenAI(Remote):
         version="2023-10-01-preview",
         **kwargs,
     ):
+        '''Build a new AzureOpenAI model object that represents a model in a given state.'''
         if not is_openai or not hasattr(openai_package, "OpenAI"):
             raise Exception(
                 "Please install the openai package version >= 1 using `pip install openai -U` "
@@ -74,6 +73,8 @@ class AzureOpenAI(Remote):
                 model=model,
                 azure_endpoint=azure_endpoint,
                 api_key=api_key,
+                azure_ad_token_provider=azure_ad_token_provider,
+                azure_deployment=azure_deployment,
                 tokenizer=tokenizer,
                 echo=echo,
                 caching=caching,
@@ -98,13 +99,14 @@ class AzureOpenAI(Remote):
             api_key=api_key,
             azure_ad_token_provider=azure_ad_token_provider,
             api_version=api_version,
+            azure_deployment=azure_deployment
         )
         self.model_name = model
         self.top_p = top_p
 
         super().__init__(
             model=azure_endpoint,
-            tokenizer=tiktoken.encoding_for_model(model),
+            tokenizer=tokenizer or tiktoken.encoding_for_model(model),
             echo=echo,
             caching=caching,
             temperature=temperature,
@@ -114,16 +116,16 @@ class AzureOpenAI(Remote):
         )
 
 
-class AzureOpenAIChat(AzureOpenAI, OAIChatMixin):
+class AzureOpenAIChat(AzureOpenAI, OpenAIChat):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
 
-class AzureOpenAIInstruct(AzureOpenAI, OAIInstructMixin):
+class AzureOpenAIInstruct(AzureOpenAI, OpenAIInstruct):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
 
-class AzureOpenAICompletion(AzureOpenAI, OAICompletionMixin):
+class AzureOpenAICompletion(AzureOpenAI, OpenAICompletion):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

@@ -14,8 +14,8 @@ def test_openai_class_detection():
         "ft:gpt-4": guidance.models.OpenAIChat,
         "ft:gpt-4-vision-preview": guidance.models.OpenAIChat,
         "ft:gpt-3.5-turbo:my-org:custom_suffix:id": guidance.models.OpenAIChat,
-        "gpt-3.5-turbo-instruct": guidance.models.OpenAIInstruct,
-        "ft:gpt-3.5-turbo-instruct": guidance.models.OpenAIInstruct,
+        "gpt-3.5-turbo-instruct": guidance.models.OpenAICompletion,
+        "ft:gpt-3.5-turbo-instruct": guidance.models.OpenAICompletion,
         "text-curie-001": guidance.models.OpenAICompletion,
         "ft:text-curie-001": guidance.models.OpenAICompletion,
         "text-davinci-003": guidance.models.OpenAICompletion,
@@ -29,7 +29,7 @@ def test_openai_class_detection():
 
 def test_openai_basic():
     try:
-        lm = guidance.models.OpenAI("text-curie-001")
+        lm = guidance.models.OpenAI("gpt-3.5-turbo-instruct")
     except:
         pytest.skip("Skipping OpenAI test because we can't load the model!")
     # lm = guidance.models.Transformers("gpt2")
@@ -40,9 +40,10 @@ def test_openai_basic():
     lm += f"""{gen(max_tokens=1, suffix=nl)}aaaaaa"""
     assert str(lm)[-5:] == "aaaaa"
 
+
 def test_openai_select():
     try:
-        lm = guidance.models.OpenAI("text-curie-001")
+        lm = guidance.models.OpenAI("gpt-3.5-turbo-instruct")
     except:
         pytest.skip("Skipping OpenAI test because we can't load the model!")
     lm += "Pick a number: "
@@ -75,14 +76,14 @@ def test_openai_chat_without_roles():
 def test_openai_chat_loop():
     # tests issue #509
     try:
-        lm = guidance.models.OpenAI("gpt-3.5-turbo", echo=False)
+        model = guidance.models.OpenAI("gpt-3.5-turbo", echo=False)
     except:
         pytest.skip("Skipping OpenAI test because we can't load the model!")
 
     for i in range(2):
 
         with system():
-            lm = llm + "You will just return whatever number I give you"
+            lm = model + "You will just return whatever number I give you"
         
         with user():
             lm += f'The number is: {i}'

@@ -1,6 +1,15 @@
+from sys import stderr
 import numpy as np
 from ordered_set import OrderedSet
 from ._grammar import Join, Select, Terminal, Null, Byte, ByteRange
+
+
+class ParserException(Exception):
+    def __init__(self, *args, **kwargs):
+        self.current_byte = kwargs.pop("current_byte", None)
+        self.allowed_bytes = kwargs.pop("allowed_bytes", None)
+        super().__init__(*args, **kwargs)
+
 
 class EarleyItem:
     __slots__ = ("node", "values", "start", "pos", "log_prob", "children", "hidden_start")
@@ -47,7 +56,11 @@ class EarleyItem:
             assert False
         return s + f"{rs:40} ({self.start}) {'nullable' if self.node.nullable else ''}"
 
-class EarleyCommitParser:
+class Parser:
+    '''An abstract base class for guidance parsers.'''
+    pass
+
+class EarleyCommitParser(Parser):
     def __init__(self, grammar):
 
         # we can't have a terminal as the root
@@ -73,7 +86,7 @@ class EarleyCommitParser:
         if new_pos == self.state_set_pos:
             return
         elif new_pos > self.state_set_pos:
-            raise Exception("Can't move the parser position forward! (only backward)")
+            raise ParserException("Can't move the parser position forward! (only backward)")
         
         # check if we are just moving the shadow position
         if new_pos >= self.shadow_pos:
@@ -251,7 +264,11 @@ class EarleyCommitParser:
         found_invalid = False
         hidden_start = 10000000000
         for item in self.state_sets[self.state_set_pos + 1]:
-            if item.pos > 0 and isinstance(item.values[item.pos - 1], Terminal):
+            token_span = self.token_counts[-1] - self.token_counts[item.start]
+            if item.node.max_tokens <= token_span:
+                found_invalid = True
+                continue
+            elif item.pos > 0 and isinstance(item.values[item.pos - 1], Terminal):
                 last_inner_node = item.values[item.pos - 1]
                 if not last_inner_node.match_byte(byte):
                     found_invalid = True
@@ -268,7 +285,7 @@ class EarleyCommitParser:
             new_next_state_set.append(item)
             hidden_start = min(hidden_start, item.hidden_start)
         if not found_valid:
-            raise Exception("Attempted to consume a byte that the grammar does not accept!")
+            raise ParserException("Attempted to consume a byte that the grammar does not accept!",current_byte=byte)
         if found_invalid: # only update if we changed the set
             self.state_sets[self.state_set_pos + 1] = OrderedSet(new_next_state_set)
 
@@ -328,7 +345,7 @@ class EarleyCommitParser:
                 elif isinstance(item, ByteRange):
                     mask[item.byte_range[0]:item.byte_range[1]+1] = True
                 else:
-                    raise Exception("Unknown Terminal Type: "  + str(type(item)))
+                    raise ParserException("Unknown Terminal Type: "  + str(type(item)), )
         return mask
 
     def __repr__(self, state_sets=None) -> str:
@@ -378,14 +395,94 @@ class EarleyCommitParser:
     
     def parse_tree(self):
         reversed_state_sets = self._reversed_state_sets()
+        root_item = None
 
         # find the matching root state
         for item in reversed_state_sets[0]:
             if item.node == self.grammar and item.start == len(self.bytes) and item.pos == len(item.values): # note that ".start" mean end because items are reversed
                 root_item = item
+        if root_item is None:
+            return None
         self._compute_parse_tree(0, root_item, reversed_state_sets)
         return root_item
-    
+
+    def get_captures(self, data=None, log_prob_data=None):
+        root_node = self.parse_tree()
+        if data is None:
+            data = {}
+        if log_prob_data is None:
+            log_prob_data = {}
+        if root_node is not None:
+            # parse complete, so we can get the captures
+            self._record_captures_from_root(root_node, data, log_prob_data)
+            return data, log_prob_data
+        # compute on partially parsed tree
+        self._record_captures_partial(data, log_prob_data)
+        return data, log_prob_data
+
+    def _record_captures_partial(self, data, log_prob_data):
+        byte_data = self.bytes
+
+        for item in self.state_sets[self.state_set_pos]:
+            cname = item.node.capture_name
+            if cname is None:
+                continue
+            captured_value = byte_data[item.start:self.earliest_hidden_start()]
+            if captured_value.endswith(b'<'):
+                print("WARNING: Captured value ends with '<' which is a special character in the parser!", file=stderr)
+            data[cname] = captured_value
+            log_prob_data[cname] = item.log_prob
+
+    def _record_captures_from_root(self, initial_item, data, log_prob_data):
+        byte_data = self.bytes
+        stack = [(initial_item, 0)]
+        used_names = set() # track which capture names have been used so self-recursive children don't overwrite their parents
+        
+        while stack:
+            item, byte_pos = stack.pop()
+            # terminal nodes
+            if isinstance(item, Terminal):
+
+                # if we are at a capture group node then we save the matched terminal byte
+                if item.capture_name is not None:
+                    data[item.capture_name] = item.byte
+                    log_prob_data[item.capture_name] = 0
+            
+            # internal nodes
+            else:
+                start_byte_pos = byte_pos
+
+                # recurse for all our non-null children
+                for child in item.children:
+                    if child is not None:
+                        stack.append((child, byte_pos))
+                        # _record_captures(child, data, log_prob_data, byte_data, byte_pos)
+                        if isinstance(child, Terminal):
+                            byte_pos += len(child)
+                        else:
+                            byte_pos = child.start # note that "start" means "end" since this is a reversed state set
+
+                # if we are at a capture group node then we save the matched bytes range
+                # note that we record this after calling our children so that we save the outermost version of self-recursive calls
+                cname = item.node.capture_name
+                if cname is not None and cname not in used_names and not item.node.hidden:
+                    
+                    # see if we are doing a list append
+                    if cname.startswith("__LIST_APPEND:"):
+                        cname = cname[14:] # trim off the list append tag
+                        if cname not in data or not isinstance(data[cname], list):
+                            data[cname] = []
+                            log_prob_data[cname] = []
+                        data[cname].append(byte_data[start_byte_pos:item.start])
+                        log_prob_data[cname].append(item.log_prob)
+                    
+                    # or just a regular assignment
+                    else:
+                        data[cname] = byte_data[start_byte_pos:item.start] # note that "start" means "end" since this is a reversed state set
+                        log_prob_data[cname] = item.log_prob
+
+                    used_names.add(cname)    
+
     def _compute_parse_tree(self, initial_pos, initial_item, reversed_state_sets):
         stack = [(initial_pos, initial_item)]
         
@@ -446,4 +543,3 @@ class EarleyCommitParser:
                 return True
         
         return False
-

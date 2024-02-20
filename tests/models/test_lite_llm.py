@@ -5,13 +5,13 @@ from ..utils import get_model
 
 def test_lite_llm_basic_openai():
     try:
-        lm = guidance.models.LiteLLMCompletion("text-curie-001")
+        lm = guidance.models.LiteLLMCompletion("gpt-3.5-turbo-instruct")
     except:
         pytest.skip("Skipping LiteLLM test because we can't load the model!")
     lm += "Count to 20: 1,2,3,4,"
     nl = "\n"
     lm += f"""\
-    5,6,7"""
+5,6,7"""
     lm += f"""{gen(max_tokens=1, suffix=nl)}aaaaaa"""
     assert str(lm)[-5:] == "aaaaa"
 
@@ -23,13 +23,13 @@ def test_lite_llm_basic_cohere():
     lm += "Count to 20: 1,2,3,4,"
     nl = "\n"
     lm += f"""\
-    5,6,7"""
+5,6,7"""
     lm += f"""{gen(max_tokens=1, suffix=nl)}aaaaaa"""
     assert str(lm)[-5:] == "aaaaa"
 
 def test_lite_llm_select():
     try:
-        lm = guidance.models.LiteLLMCompletion("text-curie-001")
+        lm = guidance.models.LiteLLMCompletion("gpt-3.5-turbo-instruct")
     except:
         pytest.skip("Skipping LiteLLM test because we can't load the model!")
     lm += "Pick a number: "

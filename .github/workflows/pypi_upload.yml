@@ -86,6 +86,8 @@ jobs:
           path: dist/*.tar.gz
 
   publish_wheels:
+    permissions:
+      id-token: write
     name: Publish wheels on pypi
     needs: [build_wheels, build_sdist]
     runs-on: ubuntu-latest
@@ -101,13 +103,8 @@ jobs:
           name: sdist_files
           path: dist
 
-      - name: Publish package to TestPyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          password: ${{ secrets.TEST_PYPI_TOKEN  }}
-          repository-url: https://test.pypi.org/legacy/
-
       - name: Publish package to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          password: ${{ secrets.PYPI_TOKEN }}
+          user: __token__
+          password: ${{ secrets.PYPI_API_TOKEN }}

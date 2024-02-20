@@ -9,11 +9,10 @@ except ImportError:
     is_vertexai = False
 
 class CodeyCompletion(VertexAICompletion):
-    def __init__(self, model, tokenizer=None, echo=True, caching=True, temperature=0.0, max_streaming_tokens=None, **kwargs):
+    def __init__(self, model, tokenizer=None, echo=True, max_streaming_tokens=None, **kwargs):
     
         if isinstance(model, str):
-            self.model_name = model
-            self.model_obj = CodeGenerationModel.from_pretrained(self.model_name)
+            model = CodeGenerationModel.from_pretrained(model)
         
         # Codey does not have a public tokenizer, so we pretend it tokenizes like gpt2...
         if tokenizer is None:
@@ -24,18 +23,15 @@ class CodeyCompletion(VertexAICompletion):
             model,
             tokenizer=tokenizer,
             echo=echo,
-            caching=caching,
-            temperature=temperature,
             max_streaming_tokens=max_streaming_tokens,
             **kwargs
         )
 
 class CodeyInstruct(VertexAIInstruct):
-    def __init__(self, model, tokenizer=None, echo=True, caching=True, temperature=0.0, max_streaming_tokens=None, **kwargs):
+    def __init__(self, model, tokenizer=None, echo=True, max_streaming_tokens=None, **kwargs):
     
         if isinstance(model, str):
-            self.model_name = model
-            self.model_obj = CodeGenerationModel.from_pretrained(self.model_name)
+            model = CodeGenerationModel.from_pretrained(model)
         
         # Codey does not have a public tokenizer, so we pretend it tokenizes like gpt2...
         if tokenizer is None:
@@ -46,18 +42,15 @@ class CodeyInstruct(VertexAIInstruct):
             model,
             tokenizer=tokenizer,
             echo=echo,
-            caching=caching,
-            temperature=temperature,
             max_streaming_tokens=max_streaming_tokens,
             **kwargs
         )
 
 class CodeyChat(VertexAIChat):
-    def __init__(self, model, tokenizer=None, echo=True, caching=True, temperature=0.0, max_streaming_tokens=None, **kwargs):
+    def __init__(self, model, tokenizer=None, echo=True, max_streaming_tokens=None, **kwargs):
     
         if isinstance(model, str):
-            self.model_name = model
-            self.model_obj = CodeChatModel.from_pretrained(self.model_name)
+            model = CodeChatModel.from_pretrained(model)
         
         # PaLM2 does not have a public tokenizer, so we pretend it tokenizes like gpt2...
         if tokenizer is None:
@@ -68,8 +61,6 @@ class CodeyChat(VertexAIChat):
             model,
             tokenizer=tokenizer,
             echo=echo,
-            caching=caching,
-            temperature=temperature,
             max_streaming_tokens=max_streaming_tokens,
             **kwargs
         )

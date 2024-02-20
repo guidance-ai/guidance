@@ -1,26 +1,20 @@
 import numpy as np
 
-from ._model import Model, Chat
+from ._model import Tokenizer, Engine, Model, Chat
+from ._remote import RemoteEngine
 
+class MockEngine(Engine):
+    def __init__(self, tokenizer, byte_patterns, compute_log_probs, force):
+        super().__init__(tokenizer, compute_log_probs=compute_log_probs)
 
-class Mock(Model):
-    def __init__(self, byte_patterns=[], echo=True):
-        
-        super().__init__(
-            # our tokens are all bytes and all lowercase letter pairs
-            [b"<s>"] + [bytes([i,j]) for i in range(ord('a'), ord('z')) for j in range(ord('a'), ord('z'))] + [bytes([i]) for i in range(256)],
-            0,
-            0,
-            echo=echo
-        )
-
-        self._valid_mask = np.zeros(len(self.tokens))
-        for i,t in enumerate(self.tokens):
+        self._valid_mask = np.zeros(len(tokenizer.tokens))
+        for i,t in enumerate(tokenizer.tokens):
             try:
                 t.decode("utf8")
                 self._valid_mask[i] = 1.0
             except:
                 pass
+        self.force = force
 
         # allow a single byte pattern to be passed
         if isinstance(byte_patterns, (bytes, str)):
@@ -30,23 +24,26 @@ class Mock(Model):
         for i,pattern in enumerate(byte_patterns):
             if isinstance(pattern, str):
                 byte_patterns[i] = pattern.encode("utf8")
-
+        
         self.byte_patterns = byte_patterns
+
+        # seed the random number generator
         self._rand_generator = np.random.default_rng(seed=42)
 
-        self._cache_state["past_key_values"] = None
-        self._cache_state["logits"] = None
-        self.eos_token = b"<s>"
-
-    def _get_logits(self, token_ids, forced_bytes):
+    def get_logits(self, token_ids, forced_bytes, current_temp):
         '''Pretends to compute the logits for the given token state.
         '''
 
         # build the byte strings
-        byte_string = b"".join(self.tokens[i] for i in token_ids)
+        byte_string = b"".join(self.tokenizer.tokens[i] for i in token_ids)
 
-        # we randomly generate valid unicode bytes
-        logits = self._rand_generator.standard_normal(len(self.tokens)) * self._valid_mask
+        # if we are forcing the bytes patterns then don't allow other tokens
+        if self.force:
+            logits = np.ones(len(self.tokenizer.tokens)) * -np.inf
+        
+        # otherwise we randomly generate valid unicode bytes
+        else:
+            logits = self._rand_generator.standard_normal(len(self.tokenizer.tokens)) * self._valid_mask
 
         # if we have a pattern that matches then force the next token
         bias = 100.0
@@ -61,9 +58,30 @@ class Mock(Model):
         return logits
     
     def _get_next_tokens(self, byte_string):
-        for i,t in enumerate(self.tokens):
+        for i,t in enumerate(self.tokenizer.tokens):
             if byte_string.startswith(t):
                 yield i
+
+class Mock(Model):
+    def __init__(self, byte_patterns=[], echo=True, compute_log_probs=False, force=False, **kwargs):
+        '''Build a new Mock model object that represents a model in a given state.'''
+
+        if isinstance(byte_patterns, str) and byte_patterns.startswith("http"):
+            engine = RemoteEngine(byte_patterns, **kwargs)
+        else:
+            tokenizer = Tokenizer(
+                # our tokens are all bytes and all lowercase letter pairs
+                [b"<s>"] + [bytes([i,j]) for i in range(ord('a'), ord('z')) for j in range(ord('a'), ord('z'))] + [bytes([i]) for i in range(256)],
+                0,
+                0
+            )
+            engine = MockEngine(tokenizer, byte_patterns, compute_log_probs, force)
+        
+        
+        super().__init__(
+            engine,
+            echo=echo
+        )
         
 
 class MockChat(Mock, Chat):

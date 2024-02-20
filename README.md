@@ -72,6 +72,8 @@ with assistant():
 
 6. **Easy to write reusable components**
 ```python
+import guidance
+
 @guidance
 def one_line_thing(lm, thing, topic):
     lm += f'Here is a one-line {thing} about {topic}: ' + gen(stop='\n')
@@ -154,7 +156,22 @@ with user():
 with assistant():
     lm += gen("fact")
 ```
-<img width="645" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/f31ed7b8-1868-44d2-b14c-4842b0a40e5c">
+<img width="645" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/f31ed7b8-1868-44d2-b14c-4842b0a40e5c"><br>
+
+14. **Multi-modal support.**
+```python
+from guidance import image
+
+gemini = models.VertexAI("gemini-pro-vision")
+
+with user():
+    lm = gemini + "What is this a picture of?" + image("longs_peak.jpg")
+
+with assistant():
+    lm += gen("answer")
+```
+<img width="673" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/6450d05d-52e9-4ef5-b280-8b57e733d46d">
+
 
 
 ## Table of Contents
@@ -261,7 +278,7 @@ with assistant():
 
 ## Example notebooks
 We are working on updating our example notebooks. The following ones have been updated:
-- [Basic tutorial](notebooks/tutorial.ipynb)
+- [Basic tutorial](notebooks/tutorials/intro_to_guidance.ipynb)
 - [Chatbot with search](notebooks/chat_with_search.ipynb)  
 
 More coming soon

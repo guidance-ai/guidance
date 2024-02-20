@@ -3,18 +3,18 @@
 .. _api_examples:
 
 API Examples
-----------------
+------------
 
 These examples parallel the namespace structure of Guidance. Each object or function in Guidance has a 
 corresponding example notebook here that demonstrates its API usage. The source notebooks
-are `available on GitHub <https://github.com/microsoft/guidance/tree/master/notebooks/api_examples>`_.
+are `available on GitHub <https://github.com/guidance-ai/guidance/tree/master/notebooks/api_examples>`_.
 
 
-.. _library_examples:
+.. _functions_examples:
 
-library
-==========
-.. Examples for members of :ref:`guidance.library <library_api>`.
+functions
+=========
+.. Examples for built-in guidance functions.
 
 .. toctree::
     :glob:
@@ -23,14 +23,14 @@ library
     example_notebooks/api_examples/library/*
 
 
-.. _llms_examples:
+.. _models_examples:
 
-llms
-=======
-.. Examples for members of :ref:`guidance.llms <llms_api>`.
+models
+======
+.. Examples for members of :ref:`guidance.models <models_api>`.
 
 .. toctree::
     :glob:
     :maxdepth: 1
 
-    example_notebooks/api_examples/llms/*
+    example_notebooks/api_examples/models/*
