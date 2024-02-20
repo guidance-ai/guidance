@@ -102,7 +102,7 @@ class AzureOpenAI(OpenAI):
             azure_deployment=azure_deployment
         )
         self.model_name = model
-        self.top_p = top_p
+        # self.top_p = top_p
 
         super().__init__(
             model=azure_endpoint,
