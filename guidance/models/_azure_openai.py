@@ -24,7 +24,7 @@ class AzureOpenAI(OpenAI):
         self,
         model: str,
         azure_endpoint: str,
-        azure_deployment: str,
+        azure_deployment: str = None,
         azure_ad_token_provider=None,
         api_key: str = None,
         tokenizer=None,
