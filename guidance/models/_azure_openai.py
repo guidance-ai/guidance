@@ -30,9 +30,9 @@ class AzureOpenAI(OpenAI):
         tokenizer=None,
         echo=True,
         # caching=True,
-        temperature=0.0,
-        top_p=1.0,
-        max_streaming_tokens=500,
+        # temperature=0.0,
+        # top_p=1.0,
+        # max_streaming_tokens=500,
         version="2023-10-01-preview",
         **kwargs,
     ):
@@ -78,10 +78,10 @@ class AzureOpenAI(OpenAI):
                 tokenizer=tokenizer,
                 echo=echo,
                 # caching=caching,
-                temperature=temperature,
-                max_streaming_tokens=max_streaming_tokens,
+                # temperature=temperature,
+                # max_streaming_tokens=max_streaming_tokens,
                 version=version,
-                top_p=top_p,
+                # top_p=top_p,
                 **kwargs,
             )
             return
@@ -109,9 +109,9 @@ class AzureOpenAI(OpenAI):
             tokenizer=tokenizer or tiktoken.encoding_for_model(model),
             echo=echo,
             # caching=caching,
-            temperature=temperature,
-            top_p=top_p,
-            max_streaming_tokens=max_streaming_tokens,
+            # temperature=temperature,
+            # top_p=top_p,
+            # max_streaming_tokens=max_streaming_tokens,
             **kwargs,
         )
 
