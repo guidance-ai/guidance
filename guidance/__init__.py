@@ -3,6 +3,7 @@ __version__ = "0.1.11"
 import functools
 import sys
 import types
+import inspect
 
 from . import models
 from ._grammar import (Placeholder, RawFunction, GrammarFunction,
@@ -71,6 +72,12 @@ def _decorator(f, *, stateless, cache, dedent, model):
             # otherwise must be stateful (which means we can't be inside a select() call)
             else:
                 return RawFunction(f, args, kwargs)
+
+        # Remove the first argument from the wrapped function
+        signature = inspect.signature(f)
+        params = list(signature.parameters.values())
+        params.pop(0)
+        wrapped.__signature__ = signature.replace(parameters=params)
         
         # attach this as a method of the model class (if given)
         # if model is not None:
