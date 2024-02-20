@@ -18,7 +18,8 @@ def test_azureai_openai_chat_smoke():
     azureai_key = _env_or_skip("AZUREAI_CHAT_KEY")
     model = _env_or_skip("AZUREAI_CHAT_MODEL")
 
-    print(f"====== Got mode: {model}")
+    print(f"====== Got endpoint: {azureai_endpoint}")
+    print(f"====== Got model: {model}")
 
     lm = models.AzureOpenAI(
         model=model, azure_endpoint=azureai_endpoint, api_key=azureai_key

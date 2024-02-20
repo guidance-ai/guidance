@@ -42,7 +42,7 @@ jobs:
           AZUREAI_COMPLETION_KEY: ${{ secrets.AZUREAI_COMPLETION_KEY }}
           AZUREAI_COMPLETION_MODEL: ${{ secrets.AZUREAI_COMPLETION_MODEL }}
         run: |
-          pytest --cov=guidance --cov-report=xml --cov-report=term-missing ./tests/test_openai.py
+          pytest --cov=guidance --cov-report=xml --cov-report=term-missing ./tests/models/test_azureai_openai.py
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v3
         with:
