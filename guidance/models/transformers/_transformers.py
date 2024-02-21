@@ -95,13 +95,16 @@ class TransformersEngine(Engine):
     def _joint_tokenize(self, token_ids):
         # first_decode = self.tokenizer._orig_tokenizer.decode(token_ids)
         first_decode = b''.join([self.tokenizer.tokens[id] for id in token_ids]).decode("utf8")
+
+        # HACK: work around a bug in the HuggingFace tokenizer (that will just add extra spaces during an encode-decode cycle)
+        first_decode = (
+            first_decode.replace("<s> ", "<s>")
+            .replace("</s> ", "</s>")
+            .replace("<unk> ", "<unk>")
+        )
+
         new_ids = self.tokenizer._orig_tokenizer(first_decode, add_special_tokens=False)["input_ids"]
 
-        # HACK: check for a bug in the HuggingFace tokenizer (that will just add extra spaces during an encode-decode cycle)
-        second_decode = self.tokenizer._orig_tokenizer.decode(new_ids)
-        if second_decode != first_decode and len(second_decode) == len(first_decode) + 1 and second_decode.startswith("<s>  "):
-            new_ids = new_ids[0:1] + new_ids[2:]
-        
         return new_ids
     
     def get_logits(self, token_ids, forced_bytes, current_temp):

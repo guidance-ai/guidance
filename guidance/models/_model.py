@@ -613,13 +613,20 @@ class Engine:
             for i,id in enumerate(joint_token_ids):
                 pos += len(self.tokenizer.tokens[id])
                 token_byte_positions.append(pos)
-            
+
             # ugly hack to deal with sentence peice craziness of space hiding after special tokens TODO: figure out how to make this more robust
-            if token_byte_positions[-1] == last_pos + 1 and self.tokenizer.tokens[token_ids[0]] == b'<s>' and self.tokenizer.tokens[token_ids[1]][0:1] == b' ':
-                for i in range(1, len(token_byte_positions)):
-                    token_byte_positions[i] -= 1
+            if token_byte_positions[-1] > last_pos:
+                spaces_hidden = 0
+                for i in range(0, len(token_byte_positions) - 1):
+                    token_byte_positions[i] -= spaces_hidden
+                    if (
+                        self.tokenizer.tokens[token_ids[i]]
+                        in [b"<s>", b"</s>", b"<unk>"]
+                        and self.tokenizer.tokens[token_ids[i + 1]][0:1] == b" "
+                    ):
+                        spaces_hidden += 1
             assert token_byte_positions[-1] == last_pos
-        
+
         return token_ids, token_byte_positions
     
     def get_logits(self, token_ids, forced_bytes, current_temp):
