@@ -1,6 +1,6 @@
 import pytest
 import guidance
-from guidance import models, select, gen, optional
+from guidance import models, select, gen, optional, one_or_more
 
 def test_select_reset_pos():
     model = models.Mock()
@@ -116,3 +116,10 @@ def test_gen_stop_repeat(prefix, suffix, stop):
     grammar = gen(stop=stop) + stop + suffix
     match = grammar.match(matchstr, allow_partial=True)
     assert match is None
+
+@pytest.mark.parametrize('stop',   ['@', '@@'])
+def test_multiple_gen_stops(stop):
+    grammar = one_or_more(gen(stop=stop) + stop)
+    matchstr = 'abc' + stop + '123' + stop + 'xyz' + stop
+    match = grammar.match(matchstr, allow_partial=True)
+    assert match is not None
