@@ -617,11 +617,12 @@ class Engine:
             # ugly hack to deal with sentence peice craziness of space hiding after special tokens TODO: figure out how to make this more robust
             if token_byte_positions[-1] > last_pos:
                 spaces_hidden = 0
-                for i in range(0, len(token_byte_positions) - 1):
+                for i in range(0, len(token_byte_positions)):
                     token_byte_positions[i] -= spaces_hidden
                     if (
                         self.tokenizer.tokens[token_ids[i]]
                         in [b"<s>", b"</s>", b"<unk>"]
+                        and len(token_ids) > i + 1
                         and self.tokenizer.tokens[token_ids[i + 1]][0:1] == b" "
                     ):
                         spaces_hidden += 1
