@@ -164,10 +164,11 @@ class GrammarFunction(Function):
             byte_string = byte_string.encode()
         parser = _parser.EarleyCommitParser(self)
 
-        i = 0
-        while i < len(byte_string):
+        byte_pos = 0
+        parser_pos = 0
+        while byte_pos < len(byte_string):
             try:
-                commit_point = parser.consume_byte(byte_string[i:i+1])
+                commit_point = parser.consume_byte(byte_string[byte_pos:byte_pos+1])
             except _parser.ParserException:
                 if raise_exceptions:
                     raise
@@ -175,9 +176,11 @@ class GrammarFunction(Function):
                     return None
             if commit_point is not None and commit_point.node.hidden:
                 # Re-consume hidden nodes
-                i = commit_point.hidden_start
-                continue
-            i += 1
+                rewind = parser_pos - commit_point.hidden_start
+                byte_pos = byte_pos - rewind
+            else:
+                byte_pos += 1
+            parser_pos += 1
 
         if not allow_partial and not parser.matched():
             return None
