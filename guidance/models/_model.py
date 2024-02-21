@@ -211,8 +211,6 @@ class Engine:
         self._was_forced = False
         self._captured_data = {}
         self._captured_log_prob_data = {}
-        self._is_response = False
-        self._is_logits_needed = False
 
     def next(self, logits):
         '''Move the grammar state machine processing forward to the next point where
@@ -223,8 +221,9 @@ class Engine:
         ----------
         logits : the logits obtained from the LLM after the last return from next(...)
         '''
-        self._is_response = False
-        self._is_logits_needed = False
+
+        logits_state = None
+        response_state = None
 
         token_pos = 0
         is_generated = True
@@ -402,13 +401,14 @@ class Engine:
                     # we have no valid log prob data if we didn't compute it
                     # yield new_bytes[self._hidden_count:], self._is_generated, self._new_bytes_prob, self._captured_data, self._captured_log_prob_data, token_count - last_token_count
 
-                    self._is_response = True
-                    self._response_new_bytes = new_bytes[self._hidden_count:]
-                    self._response_is_generated = is_generated
-                    self._response_new_bytes_prob = self._new_bytes_prob if self.compute_log_probs else 1.0
-                    self._response_capture_groups = self._captured_data
-                    self._response_capture_group_log_probs = self._captured_log_prob_data
-                    self._response_new_token_count = self._token_count - self._last_token_count
+                    response_state = (
+                        new_bytes[self._hidden_count:],
+                        is_generated,
+                        self._new_bytes_prob if self.compute_log_probs else 1.0, 
+                        self._captured_data, 
+                        self._captured_log_prob_data, 
+                        self._token_count - self._last_token_count
+                    )
 
                     self._last_token_count = self._token_count
 
@@ -428,13 +428,14 @@ class Engine:
                         # self._captured_log_prob_data.update(new_captured_log_prob_data)
                         #yield out, self._is_generated, self._new_bytes_prob, self._captured_data, self._captured_log_prob_data, self._token_count - self._last_token_count # note that we don't capture groups until a complete parse right now...
 
-                        self._is_response = True
-                        self._response_new_bytes = out
-                        self._response_is_generated = is_generated
-                        self._response_new_bytes_prob = self._new_bytes_prob if self.compute_log_probs else 1.0
-                        self._response_capture_groups = self._captured_data
-                        self._response_capture_group_log_probs = self._captured_log_prob_data
-                        self._response_new_token_count = self._token_count - self._last_token_count
+                        response_state = (
+                            out,
+                            is_generated,
+                            self._new_bytes_prob if self.compute_log_probs else 1.0, 
+                            self._captured_data, 
+                            self._captured_log_prob_data, 
+                            self._token_count - self._last_token_count
+                        )
 
                         self._last_token_count = self._token_count
                         self._hidden_count = 0
@@ -450,7 +451,7 @@ class Engine:
                     else:
                         self._token_byte_positions.append(self._token_byte_positions[-1] + len(self._sampled_token))
 
-                if self._is_response:
+                if response_state is not None:
                     break
 
             token_pos = 0
@@ -572,30 +573,12 @@ class Engine:
                         self._token_ids,self._token_byte_positions = self._cleanup_tokens(self._token_ids, self._token_byte_positions)
                         self._was_forced = False
 
-                    self._is_logits_needed = True
+                    grammar_temp = self._parser.next_byte_temperature()
+                    current_temp = grammar_temp if grammar_temp >= 0 else 0
+                    logits_state = (self._token_ids, self._parser.bytes[self._start_pos:self._forced_pos], current_temp)
                     break
 
-        return is_done
-
-    def get_response_state(self):
-        '''If the grammar state machine requires a EngineCallResponse to be sent this
-            will return the information for the EngineCallResponse
-        '''
-        if not self._is_response:
-            return None
-
-        return self._response_new_bytes, self._response_is_generated, self._response_new_bytes_prob, self._response_capture_groups, self._response_capture_group_log_probs, self._response_new_token_count
-
-    def get_logits_state(self):
-        '''If the grammar state machine requires logits from the LLM this
-            will return the parameters required to call get_logits
-        '''
-        if not self._is_logits_needed:
-            return None
-
-        grammar_temp = self._parser.next_byte_temperature()
-        current_temp = grammar_temp if grammar_temp >= 0 else 0
-        return self._token_ids, self._parser.bytes[self._start_pos:self._forced_pos], current_temp
+        return is_done, logits_state, response_state
 
     def __call__(self, parser, grammar, ensure_bos_token=True):
         '''Returns a new updated parser state executed through the grammar.
@@ -616,10 +599,9 @@ class Engine:
 
         logits = None
         while True:
-            is_done = self.next(logits)
+            is_done, logits_state, response_state = self.next(logits)
             logits = None
 
-            response_state = self.get_response_state()
             if response_state is not None:
                 (response_new_bytes,
                 response_is_generated,
@@ -637,14 +619,12 @@ class Engine:
                     new_token_count=response_new_token_count
                 )
 
-            logits_state = self.get_logits_state()
             if logits_state is not None:
                 token_ids, forced_bytes, current_temp = logits_state
                 logits = self.get_logits(token_ids, forced_bytes, current_temp)
 
             if is_done:
                 break
-
 
 
     def _tokenize_prefix(self, byte_string):
