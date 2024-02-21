@@ -101,8 +101,27 @@ def test_simple_object():
     target_string = to_compact_json(target_obj)
     check_string_with_grammar(target_string, grammar)
 
+def test_object_with_single_property():
+    schema = """{
+        "type": "object",
+        "properties": {
+            "a" : {"type": "integer"}
+        }
+    }
+"""
+    target_obj = dict(a=1)
 
-def test_object_with_many_fields():
+    # First sanity check what we're setting up
+    schema_obj = json.loads(schema)
+    validate(instance=target_obj, schema=schema_obj)
+
+    grammar = json_schema_to_grammar(schema)
+
+    target_string = to_compact_json(target_obj)
+    check_string_with_grammar(target_string, grammar)
+
+
+def test_object_with_many_properties():
     schema = """{
         "type": "object",
         "properties": {
