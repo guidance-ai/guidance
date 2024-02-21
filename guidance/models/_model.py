@@ -226,7 +226,13 @@ class Engine:
         self._is_response = False
         self._is_logits_needed = False
 
+        token_pos = 0
+        is_generated = True
+
+        is_new_token = False
         if logits is not None:
+            is_new_token = True
+
             # if requested we compute the log probabilities so we can track the probabilities of each node
             if self.compute_log_probs:
                 if torch:
@@ -258,9 +264,6 @@ class Engine:
                     probs += 1e-10 # ensure we have no zero probs that mess up numpy
                     probs /= np.sum(probs)
                     sampling_order = np.random.choice(len(probs), size=len(probs), p=probs, replace=False) # the 1e-10 is ensure we have no zero probs, which numpy does not like
-
-            retry_token_gen = False
-            token_pos = 0
 
             # loop over the tokens looking for a valid one
             for i,self._sampled_token_ind in enumerate(sampling_order):
@@ -346,7 +349,7 @@ class Engine:
                                     i -= 1
                                 # re-add any bytes we cut too far on
                                 self._parser.shadow_rewind(self._token_byte_positions[-1] - self._pre_parser_bytes)
-                            retry_token_gen = True # this restarts us at the top of the outer token gen loop
+                            is_new_token = False
                             break
 
                         elif token_pos == len(self._sampled_token):
@@ -359,7 +362,7 @@ class Engine:
                         break # this token is no longer valid
 
                 # see if we are breaking out of the whole loop
-                if retry_token_gen:
+                if not is_new_token:
                     break
 
                 # check if this token is dominated by other longer valid tokens (and hence would never be consistent with greedy tokenization)
@@ -374,12 +377,12 @@ class Engine:
                 if self._parser.matched():
                     break # if we already have a full match we don't try more tokens we just give up as soon as the model deviates from the grammar
 
-            # if we just collapased a hidden commit point then we start over looking for a new token
-            if not retry_token_gen:
+
+        is_done = False
+        while True: # each iteration generates one more token (and some of the associated bytes)
+            if is_new_token:
                 # emit whatever we know will not be hidden
                 new_bytes = self._parser.bytes[self._generated_pos:self._parser.earliest_hidden_start()]
-
-                # TODO (PK): should is_forced be always false here?
 
                 # if we cannot consume any more tokens then we are done
                 if not self._is_forced and token_pos < len(self._sampled_token) and self._trie == self._token_trie:
@@ -401,7 +404,7 @@ class Engine:
 
                     self._is_response = True
                     self._response_new_bytes = new_bytes[self._hidden_count:]
-                    self._response_is_generated = True
+                    self._response_is_generated = is_generated
                     self._response_new_bytes_prob = self._new_bytes_prob if self.compute_log_probs else 1.0
                     self._response_capture_groups = self._captured_data
                     self._response_capture_group_log_probs = self._captured_log_prob_data
@@ -412,7 +415,7 @@ class Engine:
                     # TODO: we only need to do this when we might re-use the grammar object...we might want to account for that
                     unreplace_model_variables(self._replacements)
 
-                    return True
+                    is_done = True
                 else:
                     self._generated_pos += len(new_bytes)
 
@@ -427,7 +430,7 @@ class Engine:
 
                         self._is_response = True
                         self._response_new_bytes = out
-                        self._response_is_generated = True
+                        self._response_is_generated = is_generated
                         self._response_new_bytes_prob = self._new_bytes_prob if self.compute_log_probs else 1.0
                         self._response_capture_groups = self._captured_data
                         self._response_capture_group_log_probs = self._captured_log_prob_data
@@ -447,11 +450,14 @@ class Engine:
                     else:
                         self._token_byte_positions.append(self._token_byte_positions[-1] + len(self._sampled_token))
 
-                    if self._is_response:
-                        return False
+                if self._is_response:
+                    break
 
-        is_done = False
-        while True: # each iteration generates one more token (and some of the associated bytes)
+            token_pos = 0
+            is_generated = False
+
+            is_new_token = True
+
             # note where we are starting for this token
             self._start_pos = self._parser.pos
 
@@ -459,7 +465,6 @@ class Engine:
             self._parser.mark_new_token()
 
             # walk down the trie as far as possible before computing the logits
-            retry_token_gen = False
             self._trie = self._token_trie
             self._trie.match_version += 1 # this invalidates all the match caches from the previous token
             # self._trie.prob = 0.0 # need to reset when we reset the match_version
@@ -526,123 +531,49 @@ class Engine:
                                     i -= 1
                                 # re-add any bytes we cut too far on
                                 self._parser.shadow_rewind(self._token_byte_positions[-1] - self._pre_parser_bytes)
-                            retry_token_gen = True # this restarts us at the top of the outer token gen loop
+                            is_new_token = False # this restarts us at the top of the outer token gen loop
                             break
                         
                         self._trie = self._trie.child(next_byte)
                 
             self._forced_pos = self._parser.pos # record how far the bytes are forced
 
-            if retry_token_gen:
-                continue
-
-            # back up if we got forced up to a point that is not a valid token
-            if next_byte_mask_sum <= 1:
-                while self._trie.value < 0 and self._trie.parent() is not None:
-                    self._trie = self._trie.parent()
-                    self._forced_pos -= 1
-                self._parser.pos = self._forced_pos
-            
-            # if we walked all the way to a forced token then we advance without computing the logits
-            # we are forced if there are no more options and we are either in the middle of the grammar or at a trie leaf
-            self._is_forced = next_byte_mask_sum <= 1 and (len(self._trie) == 0 if self._parser.matched() else self._trie != self._token_trie)
-            if self._is_forced:
-                self._sampled_token_ind = self._trie.value
-                self._sampled_token = self.tokenizer.tokens[self._sampled_token_ind]
-                self._new_bytes_prob = 1.0
-                self._was_forced = True
-
-            # we are at the end of the grammar
-            elif next_byte_mask_sum == 0:
-
-                # mark the token we "sampled" if we have comsumed some bytes
-                if self._trie != self._token_trie:
+            if is_new_token:
+                # back up if we got forced up to a point that is not a valid token
+                if next_byte_mask_sum <= 1:
+                    while self._trie.value < 0 and self._trie.parent() is not None:
+                        self._trie = self._trie.parent()
+                        self._forced_pos -= 1
+                    self._parser.pos = self._forced_pos
+                
+                # if we walked all the way to a forced token then we advance without computing the logits
+                # we are forced if there are no more options and we are either in the middle of the grammar or at a trie leaf
+                self._is_forced = next_byte_mask_sum <= 1 and (len(self._trie) == 0 if self._parser.matched() else self._trie != self._token_trie)
+                if self._is_forced:
                     self._sampled_token_ind = self._trie.value
                     self._sampled_token = self.tokenizer.tokens[self._sampled_token_ind]
                     self._new_bytes_prob = 1.0
-                    
-            # otherwise we need to compute the logits and sample a valid token
-            else:
+                    self._was_forced = True
 
-                # if we were forced we might need to clean up the greedy tokenization to match the global tokenization behavior as seen in training
-                if self._was_forced:
-                    self._token_ids,self._token_byte_positions = self._cleanup_tokens(self._token_ids, self._token_byte_positions)
-                    self._was_forced = False
+                # we are at the end of the grammar
+                elif next_byte_mask_sum == 0:
 
-                self._is_logits_needed = True
-                break
-
-            # emit whatever we know will not be hidden
-            new_bytes = self._parser.bytes[self._generated_pos:self._parser.earliest_hidden_start()]
-
-            # if we cannot consume any more tokens then we are done
-            if not self._is_forced and 0 < len(self._sampled_token) and self._trie == self._token_trie:
-
-                # which if can't consume any more tokens, but we are not yet done
-                if not self._parser.matched():
-                    self._parser.matched()
-                    raise self._report_failed_match(self._trimmed_prompt_prefix + self._parser.bytes)
-                
-                # TODO: if we exactly match the end of the pattern then we can commit to this last token 
-                # if m.span()[1] == len(generated_text):
-                #     self._cache_state["new_token_ids"].append(self._sampled_token_ind)
-
-                # capture the named groups from the parse tree
-                self._parser.get_captures(self._captured_data, self._captured_log_prob_data)
-
-                # we have no valid log prob data if we didn't compute it
-                # yield new_bytes[self._hidden_count:], self._is_generated, self._new_bytes_prob, self._captured_data, self._captured_log_prob_data, token_count - last_token_count
-
-                self._is_response = True
-                self._response_new_bytes = new_bytes[self._hidden_count:]
-                self._response_is_generated = False
-                self._response_new_bytes_prob = self._new_bytes_prob if self.compute_log_probs else 1.0
-                self._response_capture_groups = self._captured_data
-                self._response_capture_group_log_probs = self._captured_log_prob_data
-                self._response_new_token_count = self._token_count - self._last_token_count
-
-                self._last_token_count = self._token_count
-
-                # TODO: we only need to do this when we might re-use the grammar object...we might want to account for that
-                unreplace_model_variables(self._replacements)
-
-                is_done = True
-            else:
-                self._generated_pos += len(new_bytes)
-
-                # yeild the snippet of text created by the next token
-                out = new_bytes[self._hidden_count:]
-                if len(out) > 0:
-                    # capture the named groups from the (partial) parse tree, # TODO: disabled for now until we handle list_append correctly
-                    # new_captured_data, new_captured_log_prob_data = self._parser.get_captures()
-                    # self._captured_data.update(new_captured_data)
-                    # self._captured_log_prob_data.update(new_captured_log_prob_data)
-                    #yield out, self._is_generated, self._new_bytes_prob, self._captured_data, self._captured_log_prob_data, self._token_count - self._last_token_count # note that we don't capture groups until a complete parse right now...
-
-                    self._is_response = True
-                    self._response_new_bytes = out
-                    self._response_is_generated = False
-                    self._response_new_bytes_prob = self._new_bytes_prob if self.compute_log_probs else 1.0
-                    self._response_capture_groups = self._captured_data
-                    self._response_capture_group_log_probs = self._captured_log_prob_data
-                    self._response_new_token_count = self._token_count - self._last_token_count
-
-                    self._last_token_count = self._token_count
-                    self._hidden_count = 0
-                    self._token_count += 1 # note we only update this for tokens that emit non-hidden content
+                    # mark the token we "sampled" if we have comsumed some bytes
+                    if self._trie != self._token_trie:
+                        self._sampled_token_ind = self._trie.value
+                        self._sampled_token = self.tokenizer.tokens[self._sampled_token_ind]
+                        self._new_bytes_prob = 1.0
+                        
+                # otherwise we need to compute the logits and sample a valid token
                 else:
-                    self._hidden_count -= len(new_bytes)
 
-                self._token_ids.append(self._sampled_token_ind)
+                    # if we were forced we might need to clean up the greedy tokenization to match the global tokenization behavior as seen in training
+                    if self._was_forced:
+                        self._token_ids,self._token_byte_positions = self._cleanup_tokens(self._token_ids, self._token_byte_positions)
+                        self._was_forced = False
 
-                # track the byte position of each token
-                if len(self._token_byte_positions) == 0:
-                    self._token_byte_positions.append(len(self._sampled_token))
-                else:
-                    self._token_byte_positions.append(self._token_byte_positions[-1] + len(self._sampled_token))
-
-            if self._is_response:
-                break
+                    self._is_logits_needed = True
+                    break
 
         return is_done
 
