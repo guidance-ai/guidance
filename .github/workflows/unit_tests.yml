@@ -28,13 +28,6 @@ jobs:
           pip install -e .[test]
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
       - name: Test with pytest
-        env: # Configure endpoints
-          AZUREAI_CHAT_ENDPOINT: ${{ secrets.AZUREAI_CHAT_ENDPOINT }}
-          AZUREAI_CHAT_KEY: ${{ secrets.AZUREAI_CHAT_KEY }}
-          AZUREAI_CHAT_MODEL: ${{ secrets.AZUREAI_CHAT_MODEL }}
-          AZUREAI_COMPLETION_ENDPOINT: ${{ secrets.AZUREAI_COMPLETION_ENDPOINT }}
-          AZUREAI_COMPLETION_KEY: ${{ secrets.AZUREAI_COMPLETION_KEY }}
-          AZUREAI_COMPLETION_MODEL: ${{ secrets.AZUREAI_COMPLETION_MODEL }}
         run: |
           pytest --cov=guidance --cov-report=xml --cov-report=term-missing
       - name: Upload coverage reports to Codecov
