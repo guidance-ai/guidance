@@ -28,6 +28,18 @@ def _generate_and_check(target_obj: any, schema_obj):
     assert json.loads(str(lm)) == target_obj
 
 
+def test_null():
+    schema = """{"type": "null" }"""
+
+    target_obj = None
+
+    # First sanity check what we're setting up
+    schema_obj = json.loads(schema)
+    validate(instance=target_obj, schema=schema_obj)
+
+    _generate_and_check(target_obj, schema_obj)
+
+
 @pytest.mark.parametrize(
     "my_int",
     [0, 1, 100, 9876543210, 99, 737, 858, -1, -10, -20],

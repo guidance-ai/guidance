@@ -21,11 +21,15 @@ def gen_json(
     name: Union[str, None] = None,
     *,
     json_schema: collections.abc.Mapping[str, any],
-    json_schema_refs: collections.abc.MutableMapping[str, any] = dict()
+    json_schema_refs: collections.abc.MutableMapping[str, any] = dict(),
 ):
     _DEFS_KEY = "$defs"
     if _DEFS_KEY in json_schema:
         json_schema_refs.update(json_schema[_DEFS_KEY])
 
-    if json_schema["type"] == "integer":
+    if json_schema["type"] == "null":
+        return lm + "null"
+    elif json_schema["type"] == "integer":
         return lm + _gen_json_int()
+    else:
+        raise ValueError(f"Unsupported type in schema: {json_schema['type']}")
