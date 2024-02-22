@@ -1,12 +1,9 @@
 from typing import Any, Mapping, MutableMapping, Sequence, Union
 
 import guidance
+from guidance.library import char_range, one_or_more, optional, zero_or_more
 
 from .._grammar import select
-from ._char_range import char_range
-from ._one_or_more import one_or_more
-from ._optional import optional
-from ._zero_or_more import zero_or_more
 
 
 def _get_definition(
