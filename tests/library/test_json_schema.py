@@ -40,6 +40,7 @@ def _check_failed_generation(bad_string: str, expected_output: Any, schema_obj):
     # Run with the mock model
     CAPTURE_KEY = "my_capture"
     lm += gen_json(name=CAPTURE_KEY, json_schema=schema_obj)
+    print(f"{lm[CAPTURE_KEY]=}")
 
     assert json.loads(lm[CAPTURE_KEY]) == expected_output
 
@@ -82,15 +83,28 @@ class TestInteger:
         # The actual check
         _generate_and_check(my_int, schema_obj)
 
+    """
+    Note that '2' is the failure case in the following.
+
+    I have not fully decoded why, but ultimately, the
+    Mock model depends on MockEngine, and that generates
+    randomised logits for the next token (the PRNG is
+    seeded in the MockEngine constructor). Between the
+    (pseudo-)randomised logits and the grammar, it
+    appears that we manage to generate a '2' before
+    hitting a character which won't work with the grammar,
+    thereby terminating the generation
+    """
+
     @pytest.mark.parametrize(
         ["bad_string", "expected_capture"],
         [
-            ("9999a7777", 9999),
+            ("9999a7777", 9999),  # 'a' is first failure
             ("123, []", 123),
-            ("a321", 2),  # For some reason, '2' is the failure output from Mock
-            ("123789.456", 123789),
-            ("[]", 2),  # For some reason, '2' is the failure output from Mock
-            ('{"a":4}', 2),  # For some reason, '2' is the failure output from Mock
+            ("a321", 2),  # Failure case
+            ("123789.456", 123789),  # '.' is first failure
+            ("[]", 2),  # Failure case
+            ('{"a":4}', 2),  # Failure case
         ],
     )
     def test_bad_integer(self, bad_string, expected_capture: int):
@@ -114,14 +128,15 @@ class TestNumber:
         # The actual check
         _generate_and_check(target_obj, schema_obj)
 
+    # See above for explanation of the failure cases
     @pytest.mark.parametrize(
         ["bad_string", "expected_capture"],
         [
-            ("9999a7777", 9999),
-            ("123, []", 123),
-            ("a321", 2),  # For some reason, '2' is the failure output from Mock
-            ("[]", 2),  # For some reason, '2' is the failure output from Mock
-            ('{"a":4}', 2),  # For some reason, '2' is the failure output from Mock
+            ("9999a7777", 9999),  # 'a' is the first failure
+            ("123, []", 123),  # ',' is the first failure
+            ("a321", 2),  # Failure case
+            ("[]", 2),  # Failure case
+            ('{"a":4}', 2),  # Failure case
         ],
     )
     def test_bad_number(self, bad_string, expected_capture: int):
@@ -259,10 +274,23 @@ class TestSimpleObject:
         # The actual check
         _generate_and_check(target_obj, schema_obj)
 
+    """
+    The following is even more complicated than the failure cases
+    discussed above.
+
+    The key point is that the schema forces the generation of
+    '{"a":' and '}'. The only part where the mocked model will
+    actually be called is to generate the integer value.
+    And then values will be pulled from the string supplied to the
+    mocked model until an invalid character is encountered
+    """
+
     @pytest.mark.parametrize(
         ["bad_string", "expected_capture"],
         [
-            ("9999a7777", None),  # Not sure what goes wrong
+            ("9999a7777", {"a": 274153349361519053618738762}),
+            ('{"a":1255.4567}', {"a": 125553349361519053618738762}),
+            ('{"a":"123"}', {"a": 274153349361519053618738762}),
         ],
     )
     def test_bad_object(self, bad_string, expected_capture: int):
