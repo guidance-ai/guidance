@@ -21,10 +21,11 @@ def _generate_and_check(target_obj: any, schema_obj):
     lm = models.Mock(prepared_string.encode())
 
     # Run with the mock model
-    lm += gen_json(json_schema=schema_obj)
+    CAPTURE_KEY = "my_capture"
+    lm += gen_json(name=CAPTURE_KEY, json_schema=schema_obj)
 
     # Make sure the round trip works
-    assert json.loads(str(lm)) == target_obj
+    assert json.loads(lm[CAPTURE_KEY]) == target_obj
 
 
 def test_null():

@@ -124,8 +124,11 @@ def gen_json(
 
     ANYOF_STRING = "anyOf"
     if ANYOF_STRING in json_schema:
-        return _process_anyOf(
-            anyof_list=json_schema[ANYOF_STRING], json_schema_refs=json_schema_refs
+        return guidance.capture(
+            _process_anyOf(
+                anyof_list=json_schema[ANYOF_STRING], json_schema_refs=json_schema_refs
+            ),
+            name=name,
         )
 
     REF_STRING = "$ref"
@@ -136,18 +139,19 @@ def gen_json(
     else:
         target_type = json_schema["type"]
 
+    result = None
     if target_type == "null":
-        return lm + "null"
+        result = "null"
     elif target_type == "boolean":
-        return lm + select(["true", "false"])
+        result = select(["true", "false"])
     elif target_type == "integer":
-        return lm + _gen_json_int()
+        result = _gen_json_int()
     elif target_type == "number":
-        return lm + _gen_json_number()
+        result = _gen_json_number()
     elif target_type == "string":
-        return lm + _gen_json_string()
+        result = _gen_json_string()
     elif target_type == "array":
-        return lm + _gen_json_array(
+        result = _gen_json_array(
             item_schema=json_schema["items"], json_schema_refs=json_schema_refs
         )
     elif target_type == "object":
@@ -155,8 +159,10 @@ def gen_json(
             object_properties = json_schema["properties"]
         else:
             object_properties = object_schema["properties"]
-        return lm + _gen_json_object(
+        result = _gen_json_object(
             properties=object_properties, json_schema_refs=json_schema_refs
         )
     else:
         raise ValueError(f"Unsupported type in schema: {json_schema['type']}")
+
+    return guidance.capture(result, name=name)
