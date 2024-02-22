@@ -51,7 +51,7 @@ def test_boolean(target_obj):
     _generate_and_check(target_obj, schema_obj)
 
 
-class TestIntegers:
+class TestInteger:
     schema = """{ "type": "integer" }"""
 
     @pytest.mark.parametrize(
@@ -60,7 +60,7 @@ class TestIntegers:
     )
     def test_integer_schema(self, my_int):
         # First sanity check what we're setting up
-        schema_obj = json.loads(TestIntegers.schema)
+        schema_obj = json.loads(TestInteger.schema)
         validate(instance=my_int, schema=schema_obj)
 
         # The actual check
@@ -68,7 +68,7 @@ class TestIntegers:
 
     @pytest.mark.parametrize("bad_obj", ["a", [], dict(a=1), "1.0"])
     def test_bad_integer(self, bad_obj):
-        schema_obj = json.loads(TestIntegers.schema)
+        schema_obj = json.loads(TestInteger.schema)
         prepared_string = f"<s>{to_compact_json(bad_obj)}"
         lm = models.Mock(prepared_string.encode())
 
@@ -76,6 +76,23 @@ class TestIntegers:
         lm += gen_json(json_schema=schema_obj)
         print(str(lm))
         assert False
+
+
+class TestNumber:
+    schema = """{"type": "number" }"""
+
+    @pytest.mark.parametrize(
+        "target_obj",
+        # It appears that Inf and NaN are not actually part of the JSON spec
+        [0, 1, -1, 134, -234762, 0.1, 1.0, -10.33, 452.342, 1.23e23, -1.2e-22],
+    )
+    def test_number(self, target_obj):
+        # First sanity check what we're setting up
+        schema_obj = json.loads(TestNumber.schema)
+        validate(instance=target_obj, schema=schema_obj)
+
+        # The actual check
+        _generate_and_check(target_obj, schema_obj)
 
 
 @pytest.mark.parametrize(

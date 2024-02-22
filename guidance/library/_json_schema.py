@@ -17,6 +17,15 @@ def _gen_json_int(lm):
 
 
 @guidance(stateless=True)
+def _gen_json_number(lm):
+    mantissa_int = _gen_json_int()
+    mantissa_frac = "." + one_or_more(char_range("0", "9"))
+    exponent = "e" + select(["", "+", "-"]) + one_or_more(char_range("0", "9"))
+
+    return lm + mantissa_int + optional(mantissa_frac) + optional(exponent)
+
+
+@guidance(stateless=True)
 def _gen_json_string(lm):
     string_chars = select(
         [
@@ -94,6 +103,8 @@ def gen_json(
         return lm + select(["true", "false"])
     elif json_schema["type"] == "integer":
         return lm + _gen_json_int()
+    elif json_schema["type"] == "number":
+        return lm + _gen_json_number()
     elif json_schema["type"] == "string":
         return lm + _gen_json_string()
     elif json_schema["type"] == "array":
