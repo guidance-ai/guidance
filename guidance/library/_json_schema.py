@@ -1,10 +1,9 @@
 import collections.abc
-
 from typing import Union
 
 import guidance
-from .._grammar import select
 
+from .._grammar import select
 from ._char_range import char_range
 from ._one_or_more import one_or_more
 from ._optional import optional

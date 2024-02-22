@@ -4,7 +4,6 @@ import pytest
 from jsonschema import validate
 
 from guidance import models
-
 from guidance.library import gen_json
 
 
