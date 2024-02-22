@@ -1,5 +1,4 @@
-import collections.abc
-from typing import Any, Union
+from typing import Any, Mapping, MutableMapping, Sequence, Union
 
 import guidance
 
@@ -11,8 +10,8 @@ from ._zero_or_more import zero_or_more
 
 
 def _get_definition(
-    reference: str, definitions: collections.abc.Mapping[str, Any]
-) -> collections.abc.Mapping[str, any]:
+    reference: str, definitions: Mapping[str, Any]
+) -> Mapping[str, any]:
     assert definitions is not None
     REF_START = "#/$defs/"
     assert reference.startswith(
@@ -58,8 +57,8 @@ def _gen_json_string(lm):
 def _gen_json_object(
     lm,
     *,
-    properties: collections.abc.Mapping[str, Any],
-    json_schema_refs: collections.abc.MutableMapping[str, Any],
+    properties: Mapping[str, Any],
+    json_schema_refs: MutableMapping[str, Any],
 ):
     lm += "{"
     properties_added = 0
@@ -83,8 +82,8 @@ def _gen_json_object(
 def _gen_json_array(
     lm,
     *,
-    item_schema: collections.abc.Mapping[str, Any],
-    json_schema_refs: collections.abc.MutableMapping[str, Any],
+    item_schema: Mapping[str, Any],
+    json_schema_refs: MutableMapping[str, Any],
 ):
     lm += "["
     lm += optional(
@@ -101,8 +100,8 @@ def _gen_json_array(
 def _process_anyOf(
     lm,
     *,
-    anyof_list: collections.abc.Sequence[collections.abc.MutableMapping[str, Any]],
-    json_schema_refs: collections.abc.MutableMapping[str, Any],
+    anyof_list: Sequence[MutableMapping[str, Any]],
+    json_schema_refs: MutableMapping[str, Any],
 ):
     options = [
         gen_json(json_schema=item, json_schema_refs=json_schema_refs)
@@ -116,8 +115,8 @@ def gen_json(
     lm,
     name: Union[str, None] = None,
     *,
-    json_schema: collections.abc.Mapping[str, Any],
-    json_schema_refs: collections.abc.MutableMapping[str, Any] = dict(),
+    json_schema: Mapping[str, Any],
+    json_schema_refs: MutableMapping[str, Any] = dict(),
 ):
     _DEFS_KEY = "$defs"
     if _DEFS_KEY in json_schema:
