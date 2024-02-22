@@ -165,4 +165,4 @@ def gen_json(
     else:
         raise ValueError(f"Unsupported type in schema: {json_schema['type']}")
 
-    return guidance.capture(result, name=name)
+    return lm + guidance.capture(result, name=name)

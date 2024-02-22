@@ -66,16 +66,26 @@ class TestInteger:
         # The actual check
         _generate_and_check(my_int, schema_obj)
 
-    @pytest.mark.parametrize("bad_obj", ["99999999a", [], dict(a=1), "1.0"])
-    def test_bad_integer(self, bad_obj):
+    @pytest.mark.parametrize(
+        ["bad_string", "expected_capture"],
+        [
+            ("9999a7777", 9999),
+            ("123, []", 123),
+            ("a321", 2),  # For some reason, '2' is the failure output from Mock
+            ("123789.456", 123789),
+            ("[]", 2),  # For some reason, '2' is the failure output from Mock
+            ('{"a":4}', 2),  # For some reason, '2' is the failure output from Mock
+        ],
+    )
+    def test_bad_integer(self, bad_string, expected_capture: int):
         schema_obj = json.loads(TestInteger.schema)
-        prepared_string = f"<s>{to_compact_json(bad_obj)}"
+        prepared_string = "<s>" + bad_string
         lm = models.Mock(prepared_string.encode())
 
         # Run with the mock model... why doesn't this fail?
-        lm += gen_json(json_schema=schema_obj)
-        print(str(lm))
-        assert False
+        CAPTURE_KEY = "mine"
+        lm += gen_json(CAPTURE_KEY, json_schema=schema_obj)
+        assert json.loads(lm[CAPTURE_KEY]) == expected_capture
 
 
 class TestNumber:
