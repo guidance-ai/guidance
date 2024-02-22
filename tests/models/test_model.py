@@ -64,3 +64,12 @@ def test_stream_propagate_errors():
     lm += my_function()
     with pytest.raises(Exception):
         list(lm)
+
+def test_stream_add_multiple():
+    '''Test to make sure multiple additions to a ModelStream are all respected'''
+    lm = get_model("transformers:gpt2").stream()
+    lm += select(["item1", "item2"])
+    lm += ''
+    *_, last_lm = lm
+    assert str(last_lm) in ["item1", "item2"]
+

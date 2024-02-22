@@ -125,45 +125,6 @@ class CaptureEvents():
     def __exit__(self, type, value, traceback):
         self.lm._event_queue = None
 
-def load(guidance_file):
-    ''' Load a guidance program from the given text file.
-
-    If the passed file is a valid local file it will be loaded directly.
-    Otherwise, if it starts with "http://" or "https://" it will be loaded
-    from the web.
-    '''
-
-    if os.path.exists(guidance_file):
-        with open(guidance_file, 'r') as f:
-            return f.read()
-    elif guidance_file.startswith('http://') or guidance_file.startswith('https://'):
-        return requests.get(guidance_file).text
-    else:
-        raise ValueError('Invalid guidance file: %s' % guidance_file)
-
-
-def find_func_name(f, used_names):
-    if hasattr(f, "__name__"):
-        prefix = f.__name__.replace("<", "").replace(">", "")
-    else:
-        prefix = "function"
-
-    if prefix not in used_names:
-        return prefix
-    else:
-        for i in range(100):
-            fname = f"{prefix}{i}"
-            if fname not in used_names:
-                return fname
-
-class AsyncIter():    
-    def __init__(self, items):    
-        self.items = items    
-
-    async def __aiter__(self):    
-        for item in self.items:    
-            yield item
-
 class JupyterComm():
     def __init__(self, target_id, ipython_handle, callback=None, on_open=None, mode="register"):
         from ipykernel.comm import Comm

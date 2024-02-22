@@ -66,11 +66,10 @@ def _process_object(schema_properties: Dict[str, any]) -> GrammarFunction:
                 Join([_QUOTE, name, _QUOTE]),
                 _COLON,
                 _process_node(nxt_node),
+                _COMMA if len(properties) + 1 < len(schema_properties) else "",
             ]
         )
         properties.append(nxt)
-        if len(properties) < len(schema_properties):
-            properties.append(_COMMA)
     return Join([_OPEN_BRACE, *properties, _CLOSE_BRACE])
 
 
