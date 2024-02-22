@@ -1188,8 +1188,11 @@ class ModelStream:
 
     def __add__(self, grammar):
         '''Extend this delayed chain of execution with another grammar append.'''
-        return ModelStream(self.model, grammar)
-    
+        if self.grammar is None:
+            return ModelStream(self.model, grammar)
+        else:
+            return ModelStream(self.model, self.grammar + grammar)
+
     def _inner_run(self, model):
         '''This runs the model stream without iterating, and is only using internally by __iter__.'''
         if isinstance(self.grammar, ModelStream):
