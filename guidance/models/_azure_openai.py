@@ -49,19 +49,9 @@ class AzureOpenAI(Grammarless):
         # if we are called directly (as opposed to through super()) then we convert ourselves to
         # a more specific subclass if possible
         if self.__class__ is AzureOpenAI:
-            # if isinstance(model, str):
-            #     model_name = model
-            # else:
-            #     model_name = self.model_obj._model_id
-
             # chat
             if re.match(chat_model_pattern, model):
                 found_subclass = AzureOpenAIChat
-
-            # instruct
-            elif "instruct" in model:
-                found_subclass = AzureOpenAIInstruct
-
             # regular completion
             else:
                 found_subclass = AzureOpenAICompletion
