@@ -98,6 +98,20 @@ def _gen_json_array(
 
 
 @guidance(stateless=True)
+def _process_anyOf(
+    lm,
+    *,
+    anyof_list: collections.abc.Sequence[collections.abc.MutableMapping[str, any]],
+    json_schema_refs: collections.abc.MutableMapping[str, any],
+):
+    options = [
+        gen_json(json_schema=item, json_schema_refs=json_schema_refs)
+        for item in anyof_list
+    ]
+    return lm + select(options)
+
+
+@guidance(stateless=True)
 def gen_json(
     lm,
     name: Union[str, None] = None,
@@ -108,6 +122,12 @@ def gen_json(
     _DEFS_KEY = "$defs"
     if _DEFS_KEY in json_schema:
         json_schema_refs.update(json_schema[_DEFS_KEY])
+
+    ANYOF_STRING = "anyOf"
+    if ANYOF_STRING in json_schema:
+        return _process_anyOf(
+            anyof_list=json_schema[ANYOF_STRING], json_schema_refs=json_schema_refs
+        )
 
     REF_STRING = "$ref"
     object_schema = None

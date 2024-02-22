@@ -65,7 +65,7 @@ class TestInteger:
         # The actual check
         _generate_and_check(my_int, schema_obj)
 
-    @pytest.mark.parametrize("bad_obj", ["a", [], dict(a=1), "1.0"])
+    @pytest.mark.parametrize("bad_obj", ["99999999a", [], dict(a=1), "1.0"])
     def test_bad_integer(self, bad_obj):
         schema_obj = json.loads(TestInteger.schema)
         prepared_string = f"<s>{to_compact_json(bad_obj)}"
@@ -384,6 +384,85 @@ class TestWithReferences:
 
         target_obj = dict(my_B=dict(other_str="some string", my_A=dict(name="my name")))
 
+        # First sanity check what we're setting up
+        schema_obj = json.loads(schema)
+        validate(instance=target_obj, schema=schema_obj)
+
+        # The actual check
+        _generate_and_check(target_obj, schema_obj)
+
+
+class TestAnyOf:
+    @pytest.mark.parametrize("target_obj", [123, True])
+    def test_anyOf_simple(self, target_obj):
+        schema = """{
+        "anyOf": [
+                    {
+                        "type": "integer"
+                    },
+                    {
+                        "type": "boolean"
+                    }
+                ]
+    }
+    """
+        # First sanity check what we're setting up
+        schema_obj = json.loads(schema)
+        validate(instance=target_obj, schema=schema_obj)
+
+        # The actual check
+        _generate_and_check(target_obj, schema_obj)
+
+    @pytest.mark.parametrize(
+        "target_obj",
+        [
+            dict(my_val=dict(my_int=1)),
+            dict(my_val=dict(my_str="Some long string or other")),
+        ],
+    )
+    def test_anyOf_objects(self, target_obj):
+        schema = """{
+    "$defs": {
+        "A": {
+        "properties": {
+            "my_str": {
+            "default": "me",
+            "title": "My Str",
+            "type": "string"
+            }
+        },
+        "title": "A",
+        "type": "object"
+        },
+        "B": {
+        "properties": {
+            "my_int": {
+            "default": 1,
+            "title": "My Int",
+            "type": "integer"
+            }
+        },
+        "title": "B",
+        "type": "object"
+        }
+    },
+    "properties": {
+        "my_val": {
+        "anyOf": [
+            {
+            "$ref": "#/$defs/A"
+            },
+            {
+            "$ref": "#/$defs/B"
+            }
+        ],
+        "title": "My Val"
+        }
+    },
+    "title": "C",
+    "type": "object"
+    }
+    """
         # First sanity check what we're setting up
         schema_obj = json.loads(schema)
         validate(instance=target_obj, schema=schema_obj)
