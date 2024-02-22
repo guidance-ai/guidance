@@ -85,3 +85,46 @@ def test_string_schema(my_string: str):
 
     # The actual check
     _generate_and_check(my_string, schema_obj)
+
+
+def test_object_with_single_property():
+    schema = """{
+        "type": "object",
+        "properties": {
+            "a" : {"type": "integer"}
+        }
+    }
+"""
+    target_obj = dict(a=1)
+
+    # First sanity check what we're setting up
+    schema_obj = json.loads(schema)
+    validate(instance=target_obj, schema=schema_obj)
+
+    # The actual check
+    _generate_and_check(target_obj, schema_obj)
+
+
+def test_object_with_many_properties():
+    schema = """{
+        "type": "object",
+        "properties": {
+            "a" : {"type": "integer"},
+            "b" : {"type": "integer"},
+            "c" : {"type": "integer"},
+            "d" : {"type": "integer"},
+            "e" : {"type": "integer"},
+            "f" : {"type": "integer"},
+            "g" : {"type": "integer"},
+            "h" : {"type": "integer"}
+        }
+    }
+"""
+    target_obj = dict(a=1, b=2, c=3, d=4, e=5, f=6, g=7, h=8)
+
+    # First sanity check what we're setting up
+    schema_obj = json.loads(schema)
+    validate(instance=target_obj, schema=schema_obj)
+
+    # The actual check
+    _generate_and_check(target_obj, schema_obj)

@@ -17,23 +17,44 @@ def _gen_json_int(lm):
 
 @guidance(stateless=True)
 def _gen_json_string(lm):
-    return (
-        lm
-        + '"'
-        + select(
-            [
-                char_range("a", "z"),
-                char_range("A", "Z"),
-                char_range("0", "9"),
-                *[c for c in "-_' ,.!?/[]{}():;"],
-                "\\n",
-                "\\t",
-                "\\\\",
-            ],
-            recurse=True,
-        )
-        + '"'
+    string_chars = select(
+        [
+            char_range("a", "z"),
+            char_range("A", "Z"),
+            char_range("0", "9"),
+            *[c for c in "-_' ,.!?/[]{}():;"],
+            "\\n",
+            "\\t",
+            "\\\\",
+        ],
+        recurse=True,
     )
+    return lm + '"' + string_chars + '"'
+
+
+@guidance(stateless=True)
+def _gen_json_object(
+    lm,
+    *,
+    properties: collections.abc.Mapping[str, any],
+    json_schema_refs: collections.abc.MutableMapping[str, any],
+):
+    lm += "{"
+    properties_added = 0
+    for name, property_schema in properties.items():
+        lm += '"' + name + '"'
+
+        lm += ":"
+        lm += gen_json(
+            name=None,
+            json_schema=property_schema,
+            json_schema_refs=json_schema_refs,
+        )
+        properties_added += 1
+        if properties_added < len(properties):
+            lm += ","
+    lm += "}"
+    return lm
 
 
 @guidance(stateless=True)
@@ -54,5 +75,9 @@ def gen_json(
         return lm + _gen_json_int()
     elif json_schema["type"] == "string":
         return lm + _gen_json_string()
+    elif json_schema["type"] == "object":
+        return lm + _gen_json_object(
+            properties=json_schema["properties"], json_schema_refs=json_schema_refs
+        )
     else:
         raise ValueError(f"Unsupported type in schema: {json_schema['type']}")
