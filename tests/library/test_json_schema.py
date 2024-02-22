@@ -99,163 +99,162 @@ def test_string_schema(my_string: str):
     _generate_and_check(my_string, schema_obj)
 
 
-def test_object_with_single_property():
-    schema = """{
-        "type": "object",
-        "properties": {
-            "a" : {"type": "integer"}
+class TestSimpleObject:
+    # These are objects without cross references
+    def test_object_with_single_property(self):
+        schema = """{
+            "type": "object",
+            "properties": {
+                "a" : {"type": "integer"}
+            }
         }
-    }
-"""
-    target_obj = dict(a=1)
+    """
+        target_obj = dict(a=1)
 
-    # First sanity check what we're setting up
-    schema_obj = json.loads(schema)
-    validate(instance=target_obj, schema=schema_obj)
+        # First sanity check what we're setting up
+        schema_obj = json.loads(schema)
+        validate(instance=target_obj, schema=schema_obj)
 
-    # The actual check
-    _generate_and_check(target_obj, schema_obj)
+        # The actual check
+        _generate_and_check(target_obj, schema_obj)
 
-
-def test_object_with_many_properties():
-    schema = """{
-        "type": "object",
-        "properties": {
-            "a" : {"type": "integer"},
-            "b" : {"type": "integer"},
-            "c" : {"type": "integer"},
-            "d" : {"type": "integer"},
-            "e" : {"type": "integer"},
-            "f" : {"type": "integer"},
-            "g" : {"type": "integer"},
-            "h" : {"type": "integer"}
+    def test_object_with_many_properties(self):
+        schema = """{
+            "type": "object",
+            "properties": {
+                "a" : {"type": "integer"},
+                "b" : {"type": "integer"},
+                "c" : {"type": "integer"},
+                "d" : {"type": "integer"},
+                "e" : {"type": "integer"},
+                "f" : {"type": "integer"},
+                "g" : {"type": "integer"},
+                "h" : {"type": "integer"}
+            }
         }
-    }
-"""
-    target_obj = dict(a=1, b=2, c=3, d=4, e=5, f=6, g=7, h=8)
+    """
+        target_obj = dict(a=1, b=2, c=3, d=4, e=5, f=6, g=7, h=8)
 
-    # First sanity check what we're setting up
-    schema_obj = json.loads(schema)
-    validate(instance=target_obj, schema=schema_obj)
+        # First sanity check what we're setting up
+        schema_obj = json.loads(schema)
+        validate(instance=target_obj, schema=schema_obj)
 
-    # The actual check
-    _generate_and_check(target_obj, schema_obj)
+        # The actual check
+        _generate_and_check(target_obj, schema_obj)
 
-
-def test_directly_nested_object():
-    schema = """{
-        "type": "object",
-        "properties": {
-            "name" : {
-                "type": "string"
-            },
-            "info": {
-                "type": "object",
-                "properties" : {
-                    "a" : {
-                        "type" : "integer"
-                    },
-                    "b" : {
-                        "type" : "integer"
+    def test_directly_nested_object(self):
+        schema = """{
+            "type": "object",
+            "properties": {
+                "name" : {
+                    "type": "string"
+                },
+                "info": {
+                    "type": "object",
+                    "properties" : {
+                        "a" : {
+                            "type" : "integer"
+                        },
+                        "b" : {
+                            "type" : "integer"
+                        }
                     }
                 }
             }
         }
-    }
-"""
-    target_obj = dict(name="my product", info=dict(a=1, b=2))
+    """
+        target_obj = dict(name="my product", info=dict(a=1, b=2))
 
-    # First sanity check what we're setting up
-    schema_obj = json.loads(schema)
-    validate(instance=target_obj, schema=schema_obj)
+        # First sanity check what we're setting up
+        schema_obj = json.loads(schema)
+        validate(instance=target_obj, schema=schema_obj)
 
-    # The actual check
-    _generate_and_check(target_obj, schema_obj)
+        # The actual check
+        _generate_and_check(target_obj, schema_obj)
 
-
-@pytest.mark.parametrize("target_obj", [[], [0], [34, 56], [1, 2, 3], [9, 8, 7, 6]])
-def test_integer_list(target_obj):
-    schema = """{
-    "type" : "array",
-    "items" : {
-            "type" : "integer"
-        }
-    }
-"""
-
-    # First sanity check what we're setting up
-    schema_obj = json.loads(schema)
-    validate(instance=target_obj, schema=schema_obj)
-
-    # The actual check
-    _generate_and_check(target_obj, schema_obj)
-
-
-@pytest.mark.parametrize("target_obj", [[], ["a"], ["b c", "d, e"]])
-def test_string_list(target_obj):
-    schema = """{
-    "type" : "array",
-    "items" : {
-            "type" : "string"
-        }
-    }
-"""
-
-    # First sanity check what we're setting up
-    schema_obj = json.loads(schema)
-    validate(instance=target_obj, schema=schema_obj)
-
-    # The actual check
-    _generate_and_check(target_obj, schema_obj)
-
-
-@pytest.mark.parametrize(
-    "target_obj",
-    [[], [dict(a=1)], [dict(a=2), dict(a=3)], [dict(a=4), dict(a=5), dict(a=6)]],
-)
-def test_object_list(target_obj):
-    schema = """{
-    "type" : "array",
-    "items" : {
-            "type" : "object",
-            "properties" : {
-                "a" : {
-                    "type": "integer"
+    def test_object_containing_list(self):
+        schema = """{
+        "type": "object",
+        "properties" : {
+                "a" : { "type" : "string" },
+                "b list" : {
+                    "type": "array",
+                    "items" : {"type": "integer" }
                 }
             }
         }
-    }
-"""
+    """
 
-    # First sanity check what we're setting up
-    schema_obj = json.loads(schema)
-    validate(instance=target_obj, schema=schema_obj)
+        target_obj = {
+            "a": "some lengthy string of characters",
+            "b list": [1, 2, 3, 2312, 123],
+        }
 
-    # The actual check
-    _generate_and_check(target_obj, schema_obj)
+        # First sanity check what we're setting up
+        schema_obj = json.loads(schema)
+        validate(instance=target_obj, schema=schema_obj)
+
+        # The actual check
+        _generate_and_check(target_obj, schema_obj)
 
 
-def test_object_containing_list():
-    schema = """{
-    "type": "object",
-    "properties" : {
-            "a" : { "type" : "string" },
-            "b list" : {
-                "type": "array",
-                "items" : {"type": "integer" }
+class TestSimpleArray:
+    # These are array without references
+    @pytest.mark.parametrize("target_obj", [[], [0], [34, 56], [1, 2, 3], [9, 8, 7, 6]])
+    def test_integer_list(self, target_obj):
+        schema = """{
+        "type" : "array",
+        "items" : {
+                "type" : "integer"
             }
         }
-    }
-"""
+    """
 
-    target_obj = {
-        "a": "some lengthy string of characters",
-        "b list": [1, 2, 3, 2312, 123],
-    }
+        # First sanity check what we're setting up
+        schema_obj = json.loads(schema)
+        validate(instance=target_obj, schema=schema_obj)
 
-    # First sanity check what we're setting up
-    schema_obj = json.loads(schema)
-    validate(instance=target_obj, schema=schema_obj)
+        # The actual check
+        _generate_and_check(target_obj, schema_obj)
 
-    # The actual check
-    _generate_and_check(target_obj, schema_obj)
+    @pytest.mark.parametrize("target_obj", [[], ["a"], ["b c", "d, e"]])
+    def test_string_list(self, target_obj):
+        schema = """{
+        "type" : "array",
+        "items" : {
+                "type" : "string"
+            }
+        }
+    """
+
+        # First sanity check what we're setting up
+        schema_obj = json.loads(schema)
+        validate(instance=target_obj, schema=schema_obj)
+
+        # The actual check
+        _generate_and_check(target_obj, schema_obj)
+
+    @pytest.mark.parametrize(
+        "target_obj",
+        [[], [dict(a=1)], [dict(a=2), dict(a=3)], [dict(a=4), dict(a=5), dict(a=6)]],
+    )
+    def test_object_list(self, target_obj):
+        schema = """{
+        "type" : "array",
+        "items" : {
+                "type" : "object",
+                "properties" : {
+                    "a" : {
+                        "type": "integer"
+                    }
+                }
+            }
+        }
+    """
+
+        # First sanity check what we're setting up
+        schema_obj = json.loads(schema)
+        validate(instance=target_obj, schema=schema_obj)
+
+        # The actual check
+        _generate_and_check(target_obj, schema_obj)
