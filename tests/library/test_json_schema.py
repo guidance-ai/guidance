@@ -40,19 +40,31 @@ def test_null():
     _generate_and_check(target_obj, schema_obj)
 
 
-@pytest.mark.parametrize(
-    "my_int",
-    [0, 1, 100, 9876543210, 99, 737, 858, -1, -10, -20],
-)
-def test_integer_schema(my_int):
+class TestIntegers:
     schema = """{ "type": "integer" }"""
 
-    # First sanity check what we're setting up
-    schema_obj = json.loads(schema)
-    validate(instance=my_int, schema=schema_obj)
+    @pytest.mark.parametrize(
+        "my_int",
+        [0, 1, 100, 9876543210, 99, 737, 858, -1, -10, -20],
+    )
+    def test_integer_schema(self, my_int):
+        # First sanity check what we're setting up
+        schema_obj = json.loads(TestIntegers.schema)
+        validate(instance=my_int, schema=schema_obj)
 
-    # The actual check
-    _generate_and_check(my_int, schema_obj)
+        # The actual check
+        _generate_and_check(my_int, schema_obj)
+
+    @pytest.mark.parametrize("bad_obj", ["a", [], dict(a=1), "1.0"])
+    def test_bad_integer(self, bad_obj):
+        schema_obj = json.loads(TestIntegers.schema)
+        prepared_string = f"<s>{to_compact_json(bad_obj)}"
+        lm = models.Mock(prepared_string.encode())
+
+        # Run with the mock model... why doesn't this fail?
+        lm += gen_json(json_schema=schema_obj)
+        print(str(lm))
+        assert False
 
 
 @pytest.mark.parametrize(
