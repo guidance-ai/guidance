@@ -41,9 +41,6 @@ jobs:
           AZUREAI_CHAT_ENDPOINT: ${{ secrets.AZUREAI_CHAT_ENDPOINT }}
           AZUREAI_CHAT_KEY: ${{ secrets.AZUREAI_CHAT_KEY }}
           AZUREAI_CHAT_MODEL: ${{ secrets.AZUREAI_CHAT_MODEL }}
-          AZUREAI_COMPLETION_ENDPOINT: ${{ secrets.AZUREAI_COMPLETION_ENDPOINT }}
-          AZUREAI_COMPLETION_KEY: ${{ secrets.AZUREAI_COMPLETION_KEY }}
-          AZUREAI_COMPLETION_MODEL: ${{ secrets.AZUREAI_COMPLETION_MODEL }}
         run: |
           pytest --cov=guidance --cov-report=xml --cov-report=term-missing ./tests/models/test_azureai_openai.py
       - name: Upload coverage reports to Codecov
