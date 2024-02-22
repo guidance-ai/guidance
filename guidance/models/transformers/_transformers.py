@@ -97,11 +97,9 @@ class TransformersEngine(Engine):
         first_decode = b''.join([self.tokenizer.tokens[id] for id in token_ids]).decode("utf8")
 
         # HACK: work around a bug in the HuggingFace tokenizer (that will just add extra spaces during an encode-decode cycle)
-        first_decode = (
-            first_decode.replace("<s> ", "<s>")
-            .replace("</s> ", "</s>")
-            .replace("<unk> ", "<unk>")
-        )
+        if hasattr(self.tokenizer._orig_tokenizer, "all_special_tokens"):
+            for special_token in self.tokenizer._orig_tokenizer.all_special_tokens:
+                first_decode = first_decode.replace(f"{special_token} ", special_token)
 
         new_ids = self.tokenizer._orig_tokenizer(first_decode, add_special_tokens=False)["input_ids"]
 

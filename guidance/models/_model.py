@@ -615,13 +615,20 @@ class Engine:
                 token_byte_positions.append(pos)
 
             # ugly hack to deal with sentence peice craziness of space hiding after special tokens TODO: figure out how to make this more robust
-            if token_byte_positions[-1] > last_pos:
+            if (
+                hasattr(self.tokenizer, "_orig_tokenizer")
+                and hasattr(self.tokenizer._orig_tokenizer, "all_special_tokens")
+                and token_byte_positions[-1] > last_pos
+            ):
+                special_tokens = [
+                    bytes(s, encoding="utf8")
+                    for s in self.tokenizer._orig_tokenizer.all_special_tokens
+                ]
                 spaces_hidden = 0
                 for i in range(0, len(token_byte_positions)):
                     token_byte_positions[i] -= spaces_hidden
                     if (
-                        self.tokenizer.tokens[token_ids[i]]
-                        in [b"<s>", b"</s>", b"<unk>"]
+                        self.tokenizer.tokens[token_ids[i]] in special_tokens
                         and len(token_ids) > i + 1
                         and self.tokenizer.tokens[token_ids[i + 1]][0:1] == b" "
                     ):
