@@ -3,7 +3,7 @@ import collections.abc
 from typing import Union
 
 import guidance
-from .._grammar import capture
+from .._grammar import select
 
 from ._char_range import char_range
 from ._one_or_more import one_or_more
@@ -13,6 +13,27 @@ from ._optional import optional
 @guidance(stateless=True)
 def _gen_json_int(lm):
     return lm + optional("-") + one_or_more(char_range("0", "9"))
+
+
+@guidance(stateless=True)
+def _gen_json_string(lm):
+    return (
+        lm
+        + '"'
+        + select(
+            [
+                char_range("a", "z"),
+                char_range("A", "Z"),
+                char_range("0", "9"),
+                *[c for c in "-_' ,.!?/[]{}():;"],
+                "\\n",
+                "\\t",
+                "\\\\",
+            ],
+            recurse=True,
+        )
+        + '"'
+    )
 
 
 @guidance(stateless=True)
@@ -31,5 +52,7 @@ def gen_json(
         return lm + "null"
     elif json_schema["type"] == "integer":
         return lm + _gen_json_int()
+    elif json_schema["type"] == "string":
+        return lm + _gen_json_string()
     else:
         raise ValueError(f"Unsupported type in schema: {json_schema['type']}")

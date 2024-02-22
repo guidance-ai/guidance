@@ -53,3 +53,35 @@ def test_integer_schema(my_int):
 
     # The actual check
     _generate_and_check(my_int, schema_obj)
+
+
+@pytest.mark.parametrize(
+    "my_string",
+    [
+        "with_underscore",
+        "ALLCAPS",
+        "with a space",
+        "MiXeD cAsInG",
+        "with-hyphen",
+        "Mix case_underscore-hyphens",
+        "with a comma, in the string",
+        "A full stop.",
+        """How about
+            a
+            multiline string?""",
+        "A \t tab \t between \t words",
+        r"End with backslash \ ",
+        "Have a forward / slash",
+        "Include [the] odd {brace} and (parentheses)",
+        "Some more symbols: ; are useful!",
+    ],
+)
+def test_string_schema(my_string: str):
+    schema = """{ "type": "string" }"""
+
+    # First sanity check what we're setting up
+    schema_obj = json.loads(schema)
+    validate(instance=my_string, schema=schema_obj)
+
+    # The actual check
+    _generate_and_check(my_string, schema_obj)
