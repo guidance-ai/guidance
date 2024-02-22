@@ -128,3 +128,21 @@ def test_object_with_many_properties():
 
     # The actual check
     _generate_and_check(target_obj, schema_obj)
+
+
+@pytest.mark.parametrize("target_obj", [[], [0], [34, 56], [1, 2, 3], [9, 8, 7, 6]])
+def test_integer_list(target_obj):
+    schema = """{
+    "type" : "array",
+    "items" : {
+            "type" : "integer"
+        }
+    }
+"""
+
+    # First sanity check what we're setting up
+    schema_obj = json.loads(schema)
+    validate(instance=target_obj, schema=schema_obj)
+
+    # The actual check
+    _generate_and_check(target_obj, schema_obj)

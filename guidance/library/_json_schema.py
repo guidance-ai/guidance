@@ -8,6 +8,7 @@ from .._grammar import select
 from ._char_range import char_range
 from ._one_or_more import one_or_more
 from ._optional import optional
+from ._zero_or_more import zero_or_more
 
 
 @guidance(stateless=True)
@@ -58,6 +59,24 @@ def _gen_json_object(
 
 
 @guidance(stateless=True)
+def _gen_json_array(
+    lm,
+    *,
+    item_schema: collections.abc.Mapping[str, any],
+    json_schema_refs: collections.abc.MutableMapping[str, any],
+):
+    lm += "["
+    lm += optional(
+        zero_or_more(
+            gen_json(json_schema=item_schema, json_schema_refs=json_schema_refs) + ","
+        )
+        + gen_json(json_schema=item_schema, json_schema_refs=json_schema_refs)
+    )
+    lm += "]"
+    return lm
+
+
+@guidance(stateless=True)
 def gen_json(
     lm,
     name: Union[str, None] = None,
@@ -75,6 +94,10 @@ def gen_json(
         return lm + _gen_json_int()
     elif json_schema["type"] == "string":
         return lm + _gen_json_string()
+    elif json_schema["type"] == "array":
+        return lm + _gen_json_array(
+            item_schema=json_schema["items"], json_schema_refs=json_schema_refs
+        )
     elif json_schema["type"] == "object":
         return lm + _gen_json_object(
             properties=json_schema["properties"], json_schema_refs=json_schema_refs
