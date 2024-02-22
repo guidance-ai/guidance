@@ -226,8 +226,6 @@ class TestSimpleObject:
         _generate_and_check(target_obj, schema_obj)
 
 
-
-
 class TestSimpleArray:
     # These are array without references
     @pytest.mark.parametrize("target_obj", [[], [0], [34, 56], [1, 2, 3], [9, 8, 7, 6]])
@@ -331,6 +329,61 @@ class TestWithReferences:
         "title": "CatList",
         "type": "object"
         }"""
+
+        # First sanity check what we're setting up
+        schema_obj = json.loads(schema)
+        validate(instance=target_obj, schema=schema_obj)
+
+        # The actual check
+        _generate_and_check(target_obj, schema_obj)
+
+    def test_nested_ref(self):
+        schema = """{
+        "$defs": {
+            "A": {
+            "properties": {
+                "name": {
+                "title": "Name",
+                "type": "string"
+                }
+            },
+            "required": [
+                "name"
+            ],
+            "title": "A",
+            "type": "object"
+            },
+            "B": {
+            "properties": {
+                "other_str": {
+                "title": "Other Str",
+                "type": "string"
+                },
+                "my_A": {
+                "$ref": "#/$defs/A"
+                }
+            },
+            "required": [
+                "other_str",
+                "my_A"
+            ],
+            "title": "B",
+            "type": "object"
+            }
+        },
+        "properties": {
+            "my_B": {
+            "$ref": "#/$defs/B"
+            }
+        },
+        "required": [
+            "my_B"
+        ],
+        "title": "C",
+        "type": "object"
+        }"""
+
+        target_obj = dict(my_B=dict(other_str="some string", my_A=dict(name="my name")))
 
         # First sanity check what we're setting up
         schema_obj = json.loads(schema)
