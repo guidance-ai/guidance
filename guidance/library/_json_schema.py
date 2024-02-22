@@ -90,6 +90,8 @@ def gen_json(
 
     if json_schema["type"] == "null":
         return lm + "null"
+    elif json_schema["type"] == "boolean":
+        return lm + select(["true", "false"])
     elif json_schema["type"] == "integer":
         return lm + _gen_json_int()
     elif json_schema["type"] == "string":

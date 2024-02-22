@@ -40,6 +40,17 @@ def test_null():
     _generate_and_check(target_obj, schema_obj)
 
 
+@pytest.mark.parametrize("target_obj", [True, False])
+def test_boolean(target_obj):
+    schema = """{"type": "boolean" }"""
+
+    # First sanity check what we're setting up
+    schema_obj = json.loads(schema)
+    validate(instance=target_obj, schema=schema_obj)
+
+    _generate_and_check(target_obj, schema_obj)
+
+
 class TestIntegers:
     schema = """{ "type": "integer" }"""
 
