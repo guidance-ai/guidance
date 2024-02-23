@@ -19,6 +19,10 @@ class TogetherAI(OpenAI):
         # We pass explicitly to avoid OpenAI class complaining about a missing key
         if api_key is None:
             api_key = os.environ.get("TOGETHERAI_API_KEY", None)
+        if api_key is None:
+            raise Exception(
+                "The api_key client option must be set either by passing api_key to the client or by setting the TOGETHERAI_API_KEY environment variable"
+            )
 
         if engine_class is None:
             engine_map = {
