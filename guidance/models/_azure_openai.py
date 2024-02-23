@@ -46,11 +46,14 @@ class AzureOpenAI(Grammarless):
         if api_key is None and azure_ad_token_provider is None:
             raise ValueError("Please provide either api_key or azure_ad_token_provider")
 
+        
+        parsed_url = urlparse(azure_endpoint)
+
         # if we are called directly (as opposed to through super()) then we convert ourselves to
         # a more specific subclass if possible
         if self.__class__ is AzureOpenAI:
             # chat
-            if re.match(chat_model_pattern, model):
+            if parsed_url.path.endswith("/chat/completions"):
                 found_subclass = AzureOpenAIChat
             # regular completion
             else:
@@ -72,7 +75,6 @@ class AzureOpenAI(Grammarless):
             )
             return
 
-        parsed_url = urlparse(azure_endpoint)
         parsed_query = parse_qs(parsed_url.query)
         api_version = (
             version
