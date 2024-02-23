@@ -1,6 +1,6 @@
 import os
 from ._model import Chat, Instruct
-from ._openai import OpenAIChatEngine, OpenAI, OpenAIInstructEngine, OpenAICompletionEngine
+from ._openai import OpenAIChatEngine, OpenAI, OpenAIInstructEngine, OpenAICompletionEngine, OpenAIEngine
 from .transformers._transformers import TransformersTokenizer
 
 
@@ -45,7 +45,63 @@ class TogetherAICompletion(TogetherAI):
 
 
 class TogetherAIInstruct(TogetherAI, Instruct):
-    pass
+    """
+    Utilizes transformers chat templates to apply a user role to the prompt
+    """
+    def __init__(self, model, tokenizer=None, echo=True, api_key=None, max_streaming_tokens=1000, timeout=0.5, compute_log_probs=False, engine_class=None, **kwargs):
+        self.dummy_prompt = "$GUIDANCE_DUMMY_INPUT$"
+        super().__init__(
+            model, tokenizer, echo, api_key, max_streaming_tokens, timeout, compute_log_probs, engine_class, **kwargs
+        )
+
+    def get_template_prompt(self):
+        dummy_messages = [
+            {
+                "role": "user",
+                "content": self.dummy_prompt,
+            }
+        ]
+        template_prompt = self.engine.tokenizer._orig_tokenizer.apply_chat_template(dummy_messages, tokenize=False)
+        return template_prompt
+
+
+    def get_role_start(self, name):
+        template_prompt = self.get_template_prompt()
+        start = template_prompt[:template_prompt.index(self.dummy_prompt)]
+        return start
+    
+    def get_role_end(self, name):
+        if name == "instruction":
+            template_prompt = self.get_template_prompt()
+            end = template_prompt[template_prompt.index(self.dummy_prompt) + len(self.dummy_prompt):]
+            return end
+        else:
+            raise Exception(f"The TogetherAIInstruct model does not know about the {name} role type!")
+
+
+class TogetherAIInstructEngine(OpenAIEngine):
+    def _generator(self, prompt, temperature):
+        self._reset_shared_data(prompt, temperature)
+
+        try:
+            generator = self.client.completions.create(
+                model=self.model_name,
+                prompt=prompt.decode("utf8"), 
+                max_tokens=self.max_streaming_tokens, 
+                n=1, 
+                top_p=1.0, # TODO: this should be controllable like temp (from the grammar)
+                temperature=temperature, 
+                stream=True
+            )
+        except Exception as e: # TODO: add retry logic
+            raise e
+
+        for part in generator:
+            if len(part.choices) > 0:
+                chunk = part.choices[0].text or ""
+            else:
+                chunk = ""
+            yield chunk.encode("utf8")
 
 
 class TogetherAIChat(TogetherAI, Chat):
