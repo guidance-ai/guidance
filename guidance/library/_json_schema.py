@@ -121,7 +121,7 @@ def gen_json(
 
     ANYOF_STRING = "anyOf"
     if ANYOF_STRING in json_schema:
-        return guidance.capture(
+        return lm + guidance.capture(
             _process_anyOf(
                 anyof_list=json_schema[ANYOF_STRING], json_schema_refs=json_schema_refs
             ),
