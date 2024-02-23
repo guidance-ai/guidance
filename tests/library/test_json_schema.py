@@ -132,7 +132,23 @@ class TestNumber:
     @pytest.mark.parametrize(
         "target_obj",
         # It appears that Inf and NaN are not actually part of the JSON spec
-        [0, 1, -1, 134, -234762, 0.1, 1.0, -10.33, 452.342, 1.23e23, -1.2e-22],
+        [
+            0,
+            0.0,
+            1.0,
+            -1.0,
+            1,
+            -1,
+            134,
+            -234762,
+            0.1,
+            -0.1,
+            -10.33,
+            452.342,
+            1.23e23,
+            -1.2e-22,
+            123.6,
+        ],
     )
     def test_number(self, target_obj):
         # First sanity check what we're setting up
@@ -154,7 +170,7 @@ class TestNumber:
         ],
     )
     def test_bad_number(self, bad_string, expected_capture: int):
-        schema_obj = json.loads(TestInteger.schema)
+        schema_obj = json.loads(TestNumber.schema)
         _check_failed_generation(bad_string, expected_capture, schema_obj)
 
 
