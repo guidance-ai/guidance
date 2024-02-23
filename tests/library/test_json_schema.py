@@ -42,7 +42,14 @@ def _check_failed_generation(bad_string: str, expected_output: Any, schema_obj):
     lm += gen_json(name=CAPTURE_KEY, json_schema=schema_obj)
     print(f"{lm[CAPTURE_KEY]=}")
 
-    assert json.loads(lm[CAPTURE_KEY]) == expected_output
+    generated_obj = json.loads(lm[CAPTURE_KEY])
+    # Following is going to depend on implementation details
+    # of the mock
+    assert generated_obj == expected_output
+
+    # Ensure what what was output does still match
+    # the schema
+    validate(instance=generated_obj, schema=schema_obj)
 
 
 def test_null():
@@ -365,6 +372,30 @@ class TestSimpleArray:
 
         # The actual check
         _generate_and_check(target_obj, schema_obj)
+
+    """
+    Again, in the following, the exact output is dependent
+    on how many valid input characters the mock supplies vs
+    random ones, coupld with the brackets being forced.
+    """
+
+    @pytest.mark.parametrize(
+        ["bad_string", "expected_capture"],
+        [
+            ("9999a7777", []),
+            ("[321.654]", [32115, 3493615190]),
+            ('["123"]', []),
+        ],
+    )
+    def test_bad_object(self, bad_string, expected_capture: int):
+        schema = """{
+        "type" : "array",
+        "items" : {
+                "type" : "integer"
+            }
+        }"""
+        schema_obj = json.loads(schema)
+        _check_failed_generation(bad_string, expected_capture, schema_obj)
 
 
 class TestWithReferences:
