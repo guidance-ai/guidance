@@ -113,8 +113,11 @@ def gen_json(
     name: Union[str, None] = None,
     *,
     json_schema: Mapping[str, Any],
-    json_schema_refs: MutableMapping[str, Any] = dict(),
+    json_schema_refs: Union[MutableMapping[str, Any], None] = None,
 ):
+    if not json_schema_refs:
+        json_schema_refs = dict()
+
     _DEFS_KEY = "$defs"
     if _DEFS_KEY in json_schema:
         json_schema_refs.update(json_schema[_DEFS_KEY])
