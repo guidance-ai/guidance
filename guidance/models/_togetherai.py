@@ -1,3 +1,4 @@
+import os
 from ._model import Chat, Instruct
 from ._openai import OpenAIChatEngine, OpenAI, OpenAIInstructEngine, OpenAICompletionEngine
 from .transformers._transformers import TransformersTokenizer
@@ -10,6 +11,14 @@ class TogetherAI(OpenAI):
         '''
 
         tokenizer = TransformersTokenizer(model=model, tokenizer=tokenizer, ignore_bos_token=True)
+
+        # Default base_url is the together.ai endpoint
+        if not "base_url" in kwargs:
+            kwargs["base_url"] = 'https://api.together.xyz'
+        # TogetherAI uses TOGETHERAI_API_KEY env value instead of OPENAI_API_KEY
+        # We pass explicitly to avoid OpenAI class complaining about a missing key
+        if api_key is None:
+            api_key = os.environ.get("TOGETHERAI_API_KEY", None)
 
         if engine_class is None:
             engine_map = {
