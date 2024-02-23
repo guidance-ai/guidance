@@ -34,6 +34,13 @@ def _generate_and_check(target_obj: Any, schema_obj):
 
 
 def _check_failed_generation(bad_string: str, expected_output: Any, schema_obj):
+    """
+    One can argue that this is slightly misnamed. The generation should never
+    fail so long as the Mock model keeps producing output, and the output itself
+    should always conform to the specified schema. However, the final output
+    won't just reproduce the input because the input doesn't match the schema
+    in the negative test cases
+    """
     prepared_string = "<s>" + bad_string
     lm = models.Mock(prepared_string.encode())
 
@@ -140,7 +147,7 @@ class TestNumber:
         ["bad_string", "expected_capture"],
         [
             ("9999a7777", 9999),  # 'a' is the first failure
-            ("123, []", 123),  # ',' is the first failure
+            ("123.6, []", 123.6),  # ',' is the first failure
             ("a321", 2),  # Failure case
             ("[]", 2),  # Failure case
             ('{"a":4}', 2),  # Failure case
