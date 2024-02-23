@@ -603,3 +603,58 @@ class TestAnyOf:
 
         # The actual check
         _generate_and_check(target_obj, schema_obj)
+
+
+class TestRecursiveStructures:
+    @pytest.mark.parametrize(
+        "target_obj",
+        [
+            dict(my_list=None),
+            dict(my_list=dict(my_str="a", next=None)),
+            dict(my_list=dict(my_str="a", next=dict(my_str="b", next=None))),
+        ],
+    )
+    def test_linked_list(self, target_obj):
+        schema = """
+{
+    "$defs": {
+        "A": {
+            "properties": {
+                "my_str": {
+                    "default": "me",
+                    "title": "My Str",
+                    "type": "string"
+                },
+                "next": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/A"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                }
+            }
+        }
+    },
+    "properties": {
+        "my_list": {
+            "anyOf": [
+                {
+                    "$ref": "#/$defs/A"
+                },
+                {
+                    "type": "null"
+                }
+            ]
+        }
+    }
+}
+        """
+        # First sanity check what we're setting up
+        schema_obj = json.loads(schema)
+        validate(instance=target_obj, schema=schema_obj)
+
+        # The actual check
+        _generate_and_check(target_obj, schema_obj)
