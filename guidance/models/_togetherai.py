@@ -13,6 +13,7 @@ class TogetherAI(OpenAI):
 
         if engine_class is None:
             engine_map = {
+                TogetherAI: OpenAICompletionEngine,
                 TogetherAICompletion: OpenAICompletionEngine,
                 TogetherAIInstruct: OpenAIInstructEngine,
                 TogetherAIChat: OpenAIChatEngine
