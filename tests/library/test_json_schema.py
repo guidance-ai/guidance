@@ -638,6 +638,7 @@ class TestRecursiveStructures:
             }
         }
     },
+    "type": "object",
     "properties": {
         "my_list": {
             "anyOf": [
