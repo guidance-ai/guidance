@@ -1,4 +1,6 @@
 import os
+from peft import PeftModel
+
 
 try:
     import torch
@@ -38,7 +40,7 @@ class TransformersTokenizer(Tokenizer):
         )
 
 class TransformersEngine(Engine):
-    def __init__(self, model, tokenizer, compute_log_probs, **kwargs):
+    def __init__(self, model, tokenizer, peft_model_id, compute_log_probs, **kwargs):
         # fill in default model value
         if model is None:
             model = os.environ.get("TRANSFORMERS_MODEL", None)
@@ -49,7 +51,7 @@ class TransformersEngine(Engine):
             except:
                 pass
 
-        self.model_obj, orig_tokenizer = self._model_and_tokenizer(model, tokenizer, **kwargs)
+        self.model_obj, orig_tokenizer = self._model_and_tokenizer(model, tokenizer, peft_model_id, **kwargs)
 
         if not isinstance(model, str):
             self.model = model.__class__.__name__
@@ -64,7 +66,7 @@ class TransformersEngine(Engine):
             compute_log_probs=compute_log_probs
         )
 
-    def _model_and_tokenizer(self, model, tokenizer, **kwargs):
+    def _model_and_tokenizer(self, model, tokenizer, peft_model_id, **kwargs):
 
         # intantiate the model and tokenizer if needed
         if isinstance(model, str):
@@ -87,6 +89,14 @@ class TransformersEngine(Engine):
                 except:
                     tokenizer = transformers.AutoTokenizer.from_pretrained(model, use_fast=True, **kwargs) # fall back to the fast tokenizer
             model = transformers.AutoModelForCausalLM.from_pretrained(model, **kwargs)
+
+            if peft_model_id is not None:
+                try:
+                    model = PeftModel.from_pretrained(model, peft_model_id)
+                except ImportError as e:
+                    print("Cannot load peft module, please install with 'pip install peft' or 'pip install git+https://github.com/huggingface/peft")
+                except Exception as e: #fallthrough general exception
+                    print(f"Exception while applying peft model:\n{e.message}")
         
         assert tokenizer is not None, "You must give a tokenizer object when you provide a model object (as opposed to just a model name)!"
             
@@ -155,10 +165,10 @@ class TransformersEngine(Engine):
 
 
 class Transformers(Model):
-    def __init__(self, model=None, tokenizer=None, echo=True, compute_log_probs=False, **kwargs):
+    def __init__(self, model=None, tokenizer=None, peft_model_id=None, echo=True, compute_log_probs=False, **kwargs):
         '''Build a new Transformers model object that represents a model in a given state.'''
         super().__init__(
-            TransformersEngine(model, tokenizer, compute_log_probs, **kwargs),
+            TransformersEngine(model, tokenizer, peft_model_id, compute_log_probs, **kwargs),
             echo=echo
         )
 
