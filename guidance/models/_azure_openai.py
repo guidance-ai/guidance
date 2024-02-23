@@ -1,4 +1,3 @@
-import re
 from urllib.parse import parse_qs, urlparse
 
 from ._grammarless import Grammarless
@@ -6,9 +5,7 @@ from ._model import Chat, Instruct
 from ._openai import (
     OpenAIChatEngine,
     OpenAICompletionEngine,
-    OpenAIEngine,
     OpenAIInstructEngine,
-    chat_model_pattern,
 )
 
 try:
@@ -46,7 +43,6 @@ class AzureOpenAI(Grammarless):
         if api_key is None and azure_ad_token_provider is None:
             raise ValueError("Please provide either api_key or azure_ad_token_provider")
 
-        
         parsed_url = urlparse(azure_endpoint)
 
         # if we are called directly (as opposed to through super()) then we convert ourselves to
