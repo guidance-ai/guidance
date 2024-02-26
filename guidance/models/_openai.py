@@ -25,12 +25,12 @@ except ImportError:
 chat_model_pattern = r'^(ft:)?(gpt-3\.5-turbo|gpt-4)(?:(?!-instruct$)(-\w+)+)?(:[\w-]+(?:[:\w-]+)*)?(::\w+)?$'
 
 class OpenAIEngine(GrammarlessEngine):
-    def __init__(self, tokenizer, api_key, max_streaming_tokens, timeout, compute_log_probs, model, **kwargs):
+    def __init__(self, tokenizer, max_streaming_tokens, timeout, compute_log_probs, model, client_class = openai_package.OpenAI, **kwargs):
         
         if not is_openai or not hasattr(openai_package, "OpenAI"):
             raise Exception("Please install the openai package version >= 1 using `pip install openai -U` in order to use guidance.models.OpenAI!")
 
-        self.client = openai_package.OpenAI(api_key=api_key, **kwargs)
+        self.client = client_class(**kwargs)
         self.model_name = model
 
         if tokenizer is None:

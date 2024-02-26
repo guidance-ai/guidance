@@ -8,8 +8,11 @@ from guidance import models, gen, system, user, assistant
 def _env_or_skip(var_name: str) -> str:
     env_value = os.getenv(var_name, None)
 
-    if env_value is None:
-        pytest.skip(f"Did not find required environment variable: {var_name}")
+    if not env_value:
+        if os.getenv("EXPECT_SECRETS", None):
+            raise ValueError(f"Env '{var_name}' not found")
+        else:
+            pytest.skip(f"Did not find required environment variable: {var_name}")
     return env_value
 
 
