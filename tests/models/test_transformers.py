@@ -29,8 +29,22 @@ def test_recursion_error():
     )
 
 
-@pytest.mark.parametrize("model_name", ["gpt2", "microsoft/phi-2"])
-def test_transformer_smoke(model_name):
+TRANSFORMER_MODELS = ["gpt2", "microsoft/phi-2"]
+
+
+@pytest.mark.parametrize("model_name", TRANSFORMER_MODELS)
+def test_transformer_smoke_gen(model_name):
+    my_model = get_model(f"transformers:{model_name}", trust_remote_code=True)
+
+    prompt = dedent(f"""How many sides has a triangle?""")
+    lm = my_model + prompt + gen(name="answer", max_tokens=2)
+    assert len(lm["answer"]) > 0, f"Output: {lm['answer']}"
+    # Inexact, but at least make sure not too much was produced
+    assert len(lm["answer"]) < 8, f"Output: {lm['answer']}"
+
+
+@pytest.mark.parametrize("model_name", TRANSFORMER_MODELS)
+def test_transformer_smoke_select(model_name):
     my_model = get_model(f"transformers:{model_name}", trust_remote_code=True)
 
     prompt = dedent(
