@@ -635,7 +635,8 @@ class TestRecursiveStructures:
                         }
                     ]
                 }
-            }
+            },
+            "type": "object"
         }
     },
     "type": "object",
