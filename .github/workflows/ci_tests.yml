@@ -9,9 +9,6 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-  # Remove following two triggers before merge
-  pull_request:
-    branches: [main]
 
 jobs:
   build:
