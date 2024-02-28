@@ -1,0 +1,53 @@
+# CI Tests
+# These should only be run on main, because they access secrets
+
+name: CI Tests
+
+
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  schedule:
+    # * is a special character in YAML so we quote this string
+    # Run at 1030 UTC every day
+    - cron:  '30 10 * * *'
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest
+          pip install -e .[test]
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      - name: Test with pytest
+        env:
+          # Indicate that secrets should be available
+          EXPECT_SECRETS: 1
+          # Configure endpoints
+          AZUREAI_CHAT_ENDPOINT: ${{ secrets.AZUREAI_CHAT_ENDPOINT }}
+          AZUREAI_CHAT_KEY: ${{ secrets.AZUREAI_CHAT_KEY }}
+          AZUREAI_CHAT_MODEL: ${{ secrets.AZUREAI_CHAT_MODEL }}
+          AZUREAI_COMPLETION_ENDPOINT: ${{ secrets.AZUREAI_COMPLETION_ENDPOINT }}
+          AZUREAI_COMPLETION_KEY: ${{ secrets.AZUREAI_COMPLETION_KEY }}
+          AZUREAI_COMPLETION_MODEL: ${{ secrets.AZUREAI_COMPLETION_MODEL }}
+        run: |
+          pytest --cov=guidance --cov-report=xml --cov-report=term-missing ./tests/models/test_azureai_openai.py
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
