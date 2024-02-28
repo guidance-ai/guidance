@@ -1,5 +1,3 @@
-from textwrap import dedent
-
 import pytest
 
 from guidance import gen, select
@@ -36,7 +34,7 @@ TRANSFORMER_MODELS = ["gpt2", "microsoft/phi-2"]
 def test_transformer_smoke_gen(model_name):
     my_model = get_model(f"transformers:{model_name}", trust_remote_code=True)
 
-    prompt = dedent(f"""How many sides has a triangle?""")
+    prompt = "How many sides has a triangle?"
     lm = my_model + prompt + gen(name="answer", max_tokens=2)
     assert len(lm["answer"]) > 0, f"Output: {lm['answer']}"
     # Inexact, but at least make sure not too much was produced
@@ -47,13 +45,10 @@ def test_transformer_smoke_gen(model_name):
 def test_transformer_smoke_select(model_name):
     my_model = get_model(f"transformers:{model_name}", trust_remote_code=True)
 
-    prompt = dedent(
-        """How many sides has a triangle?
+    prompt = """How many sides has a triangle?
 
 p) 4
 t) 3
-w) 10
-"""
-    )
+w) 10"""
     lm = my_model + prompt + select(["p", "t", "w"], name="answer")
     assert lm["answer"] in ["p", "t", "w"]
