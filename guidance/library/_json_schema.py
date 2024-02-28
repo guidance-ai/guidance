@@ -1,9 +1,9 @@
-from typing import Any, Mapping, MutableMapping, Sequence, Optional, Callable
+from typing import Any, Callable, Mapping, MutableMapping, Optional, Sequence
 
 import guidance
 from guidance.library import char_range, one_or_more, optional, zero_or_more
 
-from .._grammar import select, GrammarFunction
+from .._grammar import GrammarFunction, select
 
 
 @guidance(stateless=True)
@@ -70,9 +70,7 @@ def _gen_json_array(
 ):
     lm += "["
     lm += optional(
-        zero_or_more(
-            _gen_json(json_schema=item_schema, definitions=definitions) + ","
-        )
+        zero_or_more(_gen_json(json_schema=item_schema, definitions=definitions) + ",")
         + _gen_json(json_schema=item_schema, definitions=definitions)
     )
     lm += "]"
@@ -87,8 +85,7 @@ def _process_anyOf(
     definitions: Mapping[str, Callable[[], GrammarFunction]],
 ):
     options = [
-        _gen_json(json_schema=item, definitions=definitions)
-        for item in anyof_list
+        _gen_json(json_schema=item, definitions=definitions) for item in anyof_list
     ]
     return lm + select(options)
 
@@ -102,8 +99,7 @@ def _gen_json(
     ANYOF_STRING = "anyOf"
     if ANYOF_STRING in json_schema:
         return lm + _process_anyOf(
-            anyof_list=json_schema[ANYOF_STRING],
-            definitions=definitions
+            anyof_list=json_schema[ANYOF_STRING], definitions=definitions
         )
 
     REF_STRING = "$ref"
@@ -133,9 +129,7 @@ def _gen_json(
             object_properties = json_schema["properties"]
         else:
             object_properties = object_schema["properties"]
-        result = _gen_json_object(
-            properties=object_properties, definitions=definitions
-        )
+        result = _gen_json_object(properties=object_properties, definitions=definitions)
     else:
         raise ValueError(f"Unsupported type in schema: {json_schema['type']}")
 
@@ -149,28 +143,34 @@ def gen_json(lm, json_schema: Mapping[str, Any], name: Optional[str] = None):
     if _DEFS_KEY in json_schema:
         definitions = _build_definitions(json_schema[_DEFS_KEY])
 
-    return lm + guidance.capture(
-        _gen_json(json_schema, definitions),
-        name=name
-    )
+    return lm + guidance.capture(_gen_json(json_schema, definitions), name=name)
 
 
-def _build_definitions(raw_definitions: Mapping[str, Any]) -> Mapping[str, Callable[[], GrammarFunction]]:
+def _build_definitions(
+    raw_definitions: Mapping[str, Any]
+) -> Mapping[str, Callable[[], GrammarFunction]]:
     definitions = {}
 
-    def build_definition(json_schema: Mapping[str, Any]) -> Callable[[], GrammarFunction]:
+    def build_definition(
+        json_schema: Mapping[str, Any]
+    ) -> Callable[[], GrammarFunction]:
         @guidance(stateless=True, dedent=False)
         def closure(lm):
             return lm + _gen_json(json_schema=json_schema, definitions=definitions)
+
         return closure
 
-    definitions = {ref: build_definition(schema) for ref, schema in raw_definitions.items()}
+    definitions = {
+        ref: build_definition(schema) for ref, schema in raw_definitions.items()
+    }
     return definitions
 
 
 @guidance(stateless=True)
 def _get_definition(
-    lm, reference: str, definitions: Mapping[str, Callable[[], GrammarFunction]],
+    lm,
+    reference: str,
+    definitions: Mapping[str, Callable[[], GrammarFunction]],
 ):
     assert definitions is not None
     REF_START = "#/$defs/"
