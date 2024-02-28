@@ -27,12 +27,16 @@ def test_recursion_error():
     )
 
 
-TRANSFORMER_MODELS = ["gpt2", "microsoft/phi-2"]
+TRANSFORMER_MODELS = {
+    "gpt2": {},
+    "microsoft/phi-2": {"trust_remote_code": True},
+    "HuggingFaceTB/cosmo-1b": {},
+}
 
 
-@pytest.mark.parametrize("model_name", TRANSFORMER_MODELS)
-def test_transformer_smoke_gen(model_name):
-    my_model = get_model(f"transformers:{model_name}", trust_remote_code=True)
+@pytest.mark.parametrize(["model_name", "model_kwargs"], TRANSFORMER_MODELS.items())
+def test_transformer_smoke_gen(model_name, model_kwargs):
+    my_model = get_model(f"transformers:{model_name}", **model_kwargs)
 
     prompt = "How many sides has a triangle?"
     lm = my_model + prompt + gen(name="answer", max_tokens=2)
