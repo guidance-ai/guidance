@@ -30,7 +30,7 @@ def get_openai_model(model_name, caching=False, **kwargs):
 transformers_model_cache = {}
 
 def get_transformers_model(model_name, caching=False, **kwargs):
-    """ Get an OpenAI LLM with model reuse.
+    """Get model from Hugging Face
     """
 
     # we cache the models so lots of tests using the same model don't have to
