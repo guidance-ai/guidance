@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 class _LlamaBatchContext:
     def __init__(self, n_batch, n_ctx):
         self._llama_batch_free = llama_cpp.llama_batch_free
-        self.batch = llama_cpp.llama_batch_init(n_tokens=n_batch, embd=0, n_seq_max=n_ctx)
+        self.batch = llama_cpp.llama_batch_init(n_batch, 0, n_ctx)
         if self.batch is None:
             raise Exception("call to llama_cpp.llama_batch_init returned NULL.")
 
@@ -38,6 +38,8 @@ class LlamaCppTokenizer(Tokenizer):
         self._model_obj = model_obj
 
         tokenizer = llama_cpp.LlamaTokenizer(model_obj)
+        if not hasattr(tokenizer, 'llama'):
+            tokenizer.llama = tokenizer._model
 
         # get the bytes strings for all the tokens
         tokens = []
