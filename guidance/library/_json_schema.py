@@ -8,7 +8,8 @@ from .._grammar import GrammarFunction, select
 
 @guidance(stateless=True)
 def _gen_json_int(lm):
-    return lm + optional("-") + one_or_more(char_range("0", "9"))
+    pos_nonzero = char_range("1", "9") + zero_or_more(char_range("0", "9"))
+    return lm + optional("-") + select(["0", pos_nonzero])
 
 
 @guidance(stateless=True)
