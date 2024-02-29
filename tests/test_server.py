@@ -1,7 +1,6 @@
 import json
 import multiprocessing
 import time
-
 from typing import List, Union
 
 import pytest
@@ -13,17 +12,17 @@ from guidance.library import gen_json
 
 from .utils import to_compact_json
 
-PROCESS_DELAY_SECS = 10
+PROCESS_DELAY_SECS = 15
 
 
 def server_process(*, mock_string: Union[str, List[str]] = ""):
+    byte_patterns = []
     if isinstance(mock_string, str):
-        prepared_string = f"<s>{mock_string}".encode()
+        byte_patterns = [f"<s>{mock_string}".encode()]
     else:
-        prepared_string = []
         for s in mock_string:
-            prepared_string.append(f"<s>{s}".encode())
-    lm = models.Mock(byte_patterns=prepared_string)
+            byte_patterns.append(f"<s>{s}".encode())
+    lm = models.Mock(byte_patterns=byte_patterns)
 
     temp_lm = lm + gen()
     print(f"=====Plain gen output: {temp_lm}=====")
@@ -49,35 +48,24 @@ class ServerContext:
         return False  # We don't handle exceptions
 
 
-@pytest.fixture
-def running_server(*, mock_string: str = ""):
-    p = multiprocessing.Process(
-        target=server_process, kwargs=dict(mock_string=mock_string)
-    )
-    p.start()
-    time.sleep(PROCESS_DELAY_SECS)
-    yield p
-    p.terminate()
-    time.sleep(PROCESS_DELAY_SECS)
-    assert not p.is_alive(), "server_process failed to terminate"
+def test_remote_mock_gen():
+    with ServerContext(mock_string=""):
+        m = models.Model("http://localhost:8392", api_key="SDFSDF")
+        m2 = m + "A story." + gen("test", max_tokens=20)
+        assert len(str(m2)) > 20, "The model didn't generate enough data"
 
 
-def n_test_remote_mock_gen(running_server):
-    m = models.Model("http://localhost:8392", api_key="SDFSDF")
-    m2 = m + "A story." + gen("test", max_tokens=20)
-    assert len(str(m2)) > 20, "The model didn't generate enough data"
+def test_remote_mock_gen_bad_auth():
+    with ServerContext(mock_string=""):
+        m = models.Model("http://localhost:8392", api_key="FDSFDS")
+
+        with pytest.raises(requests.exceptions.HTTPError) as http_err:
+            _ = m + "A story." + gen("test", max_tokens=20)
+        assert http_err.value.response.status_code == 401
+        assert http_err.value.response.text == '{"detail":"Invalid API key"}'
 
 
-def n_test_remote_mock_gen_bad_auth(running_server):
-    m = models.Model("http://localhost:8392", api_key="FDSFDS")
-
-    with pytest.raises(requests.exceptions.HTTPError) as http_err:
-        _ = m + "A story." + gen("test", max_tokens=20)
-    assert http_err.value.response.status_code == 401
-    assert http_err.value.response.text == '{"detail":"Invalid API key"}'
-
-
-def n_test_return_mock_string():
+def test_return_mock_string():
     my_string = "My roundtrip"
     with ServerContext(mock_string=my_string):
         m = models.Model("http://localhost:8392", api_key="SDFSDF")
@@ -189,7 +177,6 @@ def test_remote_gen_json(target_obj, mock_strings: List[str]):
 
     with ServerContext(mock_string=mock_strings):
         m = models.Model("http://localhost:8392", api_key="SDFSDF")
-        m += ""
         m += gen_json(schema_obj, name="my_json_string")
         print(f"Raw: {m['my_json_string']}")
 
