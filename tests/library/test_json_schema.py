@@ -8,14 +8,7 @@ from jsonschema import validate
 from guidance import models
 from guidance.library import gen_json
 
-
-def to_compact_json(target: any) -> str:
-    # See 'Compact Encoding':
-    # https://docs.python.org/3/library/json.html
-    # Since this is ultimately about the generated
-    # output, we don't need to worry about pretty printing
-    # and whitespace
-    return json.dumps(target, separators=(",", ":"))
+from ..utils import to_compact_json
 
 
 def _generate_and_check(target_obj: Any, schema_obj):
