@@ -12,7 +12,7 @@ from guidance.library import gen_json
 
 from .utils import to_compact_json
 
-PROCESS_DELAY_SECS = 15
+PROCESS_DELAY_SECS = 20
 
 
 def server_process(*, mock_string: Union[str, List[str]] = ""):
@@ -74,61 +74,14 @@ def test_return_mock_string():
 
 
 @pytest.mark.parametrize(
-    ["target_obj", "mock_strings"],
+    "target_obj",
     [
-        (dict(my_list=None), ['{"my_list":n']),
-        (
-            dict(my_list=dict(my_str="a", next=None)),
-            [
-                '{"my_list":{',
-                '{"my_list":{"my_str":"a"',
-                '{"my_list":{"my_str":"a","next":n',
-            ],
-        ),
-        (
-            dict(my_list=dict(my_str="a", next=dict(my_str="b", next=None))),
-            [
-                '{"my_list":{',
-                '{"my_list":{"my_str":"a"',
-                '{"my_list":{"my_str":"a","next":{',
-                '{"my_list":{"my_str":"a","next":{"my_str":"b"',
-                '{"my_list":{"my_str":"a","next":{"my_str":"b","next":n',
-            ],
-        ),
+        dict(my_list=None),
+        dict(my_list=dict(my_str="a", next=None)),
+        dict(my_list=dict(my_str="a", next=dict(my_str="b", next=None))),
     ],
 )
-def test_remote_gen_json(target_obj, mock_strings: List[str]):
-    # To explain the arguments:
-    # target_obj is what we're trying to generate
-    # mock_strings is the sequence of partial strings model.Mock
-    # needs to produce. Basically, these are the sequence of
-    # strings which reach the next 'unambiguous point' in the
-    # grammar. Also recall that if it can't use a supplied
-    # string, model.Mock() will just generate random bytes
-    #
-    # As an example, consider the two inputs:
-    # target_obj = dict(my_list=dict(my_str="a", next=None))
-    # mock_strings =
-    #        [
-    #            '{"my_list":{',
-    #            '{"my_list":{"my_str":"a"',
-    #            '{"my_list":{"my_str":"a","next":n',
-    #        ]
-    # When the remote model starts generating, the string:
-    # {"my_list":
-    # is going to be forced by the JSON schema we've supplied.
-    # So the first entry in mock_strings has to be this, plus
-    # the opening brace which indicates we do have a list entry
-    # Once the remote model knows this, then it can automatically
-    # generate up to:
-    # {"my_list":{"my_str":"
-    # so mock_strings[1] needs to append 'a"' in order to get
-    # to the next unambiguous point.
-    # Finally, everything up to
-    # {"my_list":{"my_str":"a","next":
-    # can be appended unambiguously, so mock_string[2] just
-    # needs to append 'n' to force the generation of 'null' to
-    # terminate the list
+def test_remote_gen_json(target_obj):
     schema = """
 {
     "$defs": {
@@ -175,7 +128,7 @@ def test_remote_gen_json(target_obj, mock_strings: List[str]):
 
     print(f"target_obj={to_compact_json(target_obj)}")
 
-    with ServerContext(mock_string=mock_strings):
+    with ServerContext(mock_string=[to_compact_json(target_obj)]):
         m = models.Model("http://localhost:8392", api_key="SDFSDF")
         m += gen_json(schema_obj, name="my_json_string")
         print(f"Raw: {m['my_json_string']}")
