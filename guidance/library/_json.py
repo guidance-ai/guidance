@@ -1,4 +1,5 @@
 from typing import Any, Callable, Mapping, MutableMapping, Optional, Sequence, Union
+from json import dumps as json_dumps
 
 import guidance
 from guidance.library import char_range, one_or_more, optional, zero_or_more
@@ -130,6 +131,15 @@ def _process_anyOf(
     ]
     return lm + select(options)
 
+@guidance(stateless=True)
+def _process_enum(lm, *, options: list[Any]):
+    # options will come in as python objects, so we need to convert to (compact) JSON
+    all_opts = []
+    for opt in options:
+        all_opts.append(
+            json_dumps(opt, separators=(",", ":"))
+        )
+    return lm + select(options=all_opts)
 
 @guidance(stateless=True)
 def _gen_json(
@@ -146,6 +156,10 @@ def _gen_json(
     REF_STRING = "$ref"
     if REF_STRING in json_schema:
         return lm + _get_definition(json_schema[REF_STRING], definitions)
+
+    ENUM_STRING = "enum"
+    if ENUM_STRING in json_schema:
+        return lm + _process_enum(options=json_schema["enum"])
 
     target_type = json_schema["type"]
     result = None
