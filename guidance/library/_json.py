@@ -104,7 +104,6 @@ def _gen_json(
         )
 
     REF_STRING = "$ref"
-    object_schema = None
     if REF_STRING in json_schema:
         return lm + _get_definition(json_schema[REF_STRING], definitions)
     else:
@@ -126,11 +125,10 @@ def _gen_json(
             item_schema=json_schema["items"], definitions=definitions
         )
     elif target_type == "object":
-        if object_schema is None:
-            object_properties = json_schema["properties"]
-        else:
-            object_properties = object_schema["properties"]
-        result = _gen_json_object(properties=object_properties, definitions=definitions)
+        result = _gen_json_object(
+            properties=json_schema["properties"],
+            definitions=definitions
+        )
     else:
         raise ValueError(f"Unsupported type in schema: {json_schema['type']}")
 
