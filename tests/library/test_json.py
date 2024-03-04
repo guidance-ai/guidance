@@ -596,6 +596,22 @@ class TestAnyOf:
         # The actual check
         _generate_and_check(target_obj, schema_obj)
 
+class TestEnum:
+
+    @pytest.mark.parametrize("target_obj", [1,"2",False])
+    def test_enum(self,target_obj):
+        schema = """{
+            "enum": [1,"2",false]
+        }
+        """
+        # First sanity check what we're setting up
+        schema_obj = json.loads(schema)
+        validate(instance=target_obj, schema=schema_obj)
+
+        # The actual check
+        _generate_and_check(target_obj, schema_obj)
+
+
 class TestAdditionalProperties:
     @pytest.mark.parametrize("target_obj", [{}, {'a': 1}, {'a':1, 'b':2}])
     def test_simple_additional_properties(self, target_obj):
