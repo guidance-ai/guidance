@@ -172,30 +172,27 @@ def _gen_json(
     TYPE_STRING = "type"
     if TYPE_STRING in json_schema:
         target_type = json_schema["type"]
-        result = None
         if target_type == "null":
-            result = "null"
-        elif target_type == "boolean":
-            result = select(["true", "false"])
-        elif target_type == "integer":
-            result = _gen_json_int()
-        elif target_type == "number":
-            result = _gen_json_number()
-        elif target_type == "string":
-            result = _gen_json_string()
-        elif target_type == "array":
-            result = _gen_json_array(
+            return lm + "null"
+        if target_type == "boolean":
+            return lm + select(["true", "false"])
+        if target_type == "integer":
+            return lm + _gen_json_int()
+        if target_type == "number":
+            return lm + _gen_json_number()
+        if target_type == "string":
+            return lm + _gen_json_string()
+        if target_type == "array":
+            return lm + _gen_json_array(
                 item_schema=json_schema["items"], definitions=definitions
             )
-        elif target_type == "object":
-            result = _gen_json_object(
+        if target_type == "object":
+            return lm + _gen_json_object(
                 properties=json_schema.get("properties"),
                 additional_properties=json_schema.get("additionalProperties"),
                 definitions=definitions
             )
-        if result is None:
-            raise ValueError(f"Unsupported type in schema: {target_type}")
-        return lm + result
+        raise ValueError(f"Unsupported type in schema: {target_type}")
 
     raise ValueError(f"Can't process JSON node: {json_schema}")
 
