@@ -163,7 +163,10 @@ def _gen_json(
 
     REF_STRING = "$ref"
     if REF_STRING in json_schema:
-        return lm + _get_definition(json_schema[REF_STRING], definitions)
+        return lm + _get_definition(
+            reference=json_schema[REF_STRING],
+            definitions=definitions
+        )
 
     ENUM_STRING = "enum"
     if ENUM_STRING in json_schema:
@@ -229,6 +232,7 @@ def _build_definitions(
 @guidance(stateless=True)
 def _get_definition(
     lm,
+    *,
     reference: str,
     definitions: Mapping[str, Callable[[], GrammarFunction]],
 ):
