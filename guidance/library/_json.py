@@ -169,33 +169,35 @@ def _gen_json(
     if ENUM_STRING in json_schema:
         return lm + _process_enum(options=json_schema["enum"])
 
-    target_type = json_schema["type"]
-    result = None
-    if target_type == "null":
-        result = "null"
-    elif target_type == "boolean":
-        result = select(["true", "false"])
-    elif target_type == "integer":
-        result = _gen_json_int()
-    elif target_type == "number":
-        result = _gen_json_number()
-    elif target_type == "string":
-        result = _gen_json_string()
-    elif target_type == "array":
-        result = _gen_json_array(
-            item_schema=json_schema["items"], definitions=definitions
-        )
-    elif target_type == "object":
-        result = _gen_json_object(
-            properties=json_schema.get("properties"),
-            additional_properties=json_schema.get("additionalProperties"),
-            definitions=definitions
-        )
-    else:
-        raise ValueError(f"Unsupported type in schema: {json_schema['type']}")
+    TYPE_STRING = "type"
+    if TYPE_STRING in json_schema:
+        target_type = json_schema["type"]
+        result = None
+        if target_type == "null":
+            result = "null"
+        elif target_type == "boolean":
+            result = select(["true", "false"])
+        elif target_type == "integer":
+            result = _gen_json_int()
+        elif target_type == "number":
+            result = _gen_json_number()
+        elif target_type == "string":
+            result = _gen_json_string()
+        elif target_type == "array":
+            result = _gen_json_array(
+                item_schema=json_schema["items"], definitions=definitions
+            )
+        elif target_type == "object":
+            result = _gen_json_object(
+                properties=json_schema.get("properties"),
+                additional_properties=json_schema.get("additionalProperties"),
+                definitions=definitions
+            )
+        if result is None:
+            raise ValueError(f"Unsupported type in schema: {target_type}")
+        return lm + result
 
-    return lm + result
-
+    raise ValueError(f"Can't process JSON node: {json_schema}")
 
 @guidance(stateless=True)
 def json(lm, json_schema: Mapping[str, Any], name: Optional[str] = None):
