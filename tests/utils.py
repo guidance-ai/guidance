@@ -82,12 +82,3 @@ def get_llama_cpp_model(model_name, caching=False, **kwargs):
         )
 
     return llama_cpp_model_cache[key]
-
-
-def to_compact_json(target: Any) -> str:
-    # See 'Compact Encoding':
-    # https://docs.python.org/3/library/json.html
-    # Since this is ultimately about the generated
-    # output, we don't need to worry about pretty printing
-    # and whitespace
-    return json.dumps(target, separators=(",", ":"))

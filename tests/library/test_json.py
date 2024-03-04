@@ -7,8 +7,7 @@ from jsonschema import validate
 
 from guidance import models
 from guidance.library import json as gen_json
-
-from ..utils import to_compact_json
+from guidance.library._json import to_compact_json
 
 
 def _generate_and_check(target_obj: Any, schema_obj):

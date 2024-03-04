@@ -6,6 +6,14 @@ from guidance.library import char_range, one_or_more, optional, zero_or_more
 
 from .._grammar import GrammarFunction, select
 
+def to_compact_json(target: Any) -> str:
+    # See 'Compact Encoding':
+    # https://docs.python.org/3/library/json.html
+    # Since this is ultimately about the generated
+    # output, we don't need to worry about pretty printing
+    # and whitespace
+    return json_dumps(target, separators=(",", ":"))
+
 
 @guidance(stateless=True)
 def _gen_json_int(lm):
@@ -137,7 +145,7 @@ def _process_enum(lm, *, options: list[Any]):
     all_opts = []
     for opt in options:
         all_opts.append(
-            json_dumps(opt, separators=(",", ":"))
+            to_compact_json(opt)
         )
     return lm + select(options=all_opts)
 

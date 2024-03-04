@@ -9,8 +9,7 @@ from jsonschema import validate
 
 from guidance import Server, gen, models
 from guidance.library import json as gen_json
-
-from .utils import to_compact_json
+from guidance.library._json import to_compact_json
 
 PROCESS_DELAY_SECS = 20
 
