@@ -146,9 +146,8 @@ def _gen_json(
     REF_STRING = "$ref"
     if REF_STRING in json_schema:
         return lm + _get_definition(json_schema[REF_STRING], definitions)
-    else:
-        target_type = json_schema["type"]
 
+    target_type = json_schema["type"]
     result = None
     if target_type == "null":
         result = "null"
