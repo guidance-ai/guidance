@@ -158,7 +158,8 @@ def _gen_json(
     ANYOF_STRING = "anyOf"
     if ANYOF_STRING in json_schema:
         return lm + _process_anyOf(
-            anyof_list=json_schema[ANYOF_STRING], definitions=definitions
+            anyof_list=json_schema[ANYOF_STRING],
+            definitions=definitions
         )
 
     REF_STRING = "$ref"
@@ -187,7 +188,8 @@ def _gen_json(
             return lm + _gen_json_string()
         if target_type == "array":
             return lm + _gen_json_array(
-                item_schema=json_schema["items"], definitions=definitions
+                item_schema=json_schema["items"],
+                definitions=definitions
             )
         if target_type == "object":
             return lm + _gen_json_object(
