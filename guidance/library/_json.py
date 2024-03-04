@@ -1,4 +1,4 @@
-from typing import Any, Callable, Mapping, MutableMapping, Optional, Sequence
+from typing import Any, Callable, Mapping, MutableMapping, Optional, Sequence, Union
 
 import guidance
 from guidance.library import char_range, one_or_more, optional, zero_or_more
@@ -42,10 +42,41 @@ def _gen_json_string(lm):
 def _gen_json_object(
     lm,
     *,
+    properties: Union[Mapping[str, Any], None],
+    additional_properties: Union[Mapping[str, Any], None],
+    definitions: Mapping[str, Callable[[], GrammarFunction]]
+):
+    lm += "{"
+    if properties:
+        lm += _process_properties(
+            properties=properties,
+            definitions=definitions
+        )
+    if properties and additional_properties:
+        lm += optional(
+            ','
+            + _process_additional_properties(
+                additional_properties=additional_properties,
+                definitions=definitions
+            )
+        )
+    elif additional_properties:
+        lm += optional(
+            _process_additional_properties(
+                additional_properties=additional_properties,
+                definitions=definitions
+            )
+        )
+    lm += "}"
+    return lm
+
+@guidance(stateless=True)
+def _process_properties(
+    lm,
+    *,
     properties: Mapping[str, Any],
     definitions: Mapping[str, Callable[[], GrammarFunction]],
 ):
-    lm += "{"
     properties_added = 0
     for name, property_schema in properties.items():
         lm += '"' + name + '"'
@@ -58,8 +89,17 @@ def _gen_json_object(
         properties_added += 1
         if properties_added < len(properties):
             lm += ","
-    lm += "}"
     return lm
+
+@guidance(stateless=True)
+def _process_additional_properties(
+    lm,
+    *,
+    additional_properties: Mapping[str, Any],
+    definitions: Mapping[str, Callable[[], GrammarFunction]],
+):
+    item = _gen_json_string() + ':' + _gen_json(json_schema=additional_properties, definitions=definitions)
+    return lm + zero_or_more(item + ",") + item
 
 
 @guidance(stateless=True)
@@ -126,7 +166,8 @@ def _gen_json(
         )
     elif target_type == "object":
         result = _gen_json_object(
-            properties=json_schema["properties"],
+            properties=json_schema.get("properties"),
+            additional_properties=json_schema.get("additionalProperties"),
             definitions=definitions
         )
     else:
