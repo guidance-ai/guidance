@@ -1210,8 +1210,11 @@ class ModelStream:
 
             # Define the target function for the thread
             def target():
-                self._inner_run(self.model)
-                events.put(None) # mark that we are done
+                try:
+                    self._inner_run(self.model)
+                    events.put(None) # mark that we are done
+                except BaseException as ex:
+                    events.put(ex)
 
             # Start the thread
             thread = threading.Thread(target=target)
@@ -1224,6 +1227,8 @@ class ModelStream:
                     event = events.get(timeout=self.timeout)
                     if event is None:
                         break
+                    elif isinstance(event, BaseException):
+                        raise event
                     yield event
                 except queue.Empty:
                     # Check if the thread is still alive
