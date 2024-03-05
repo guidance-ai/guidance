@@ -14,6 +14,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+        model: ["gpt2cpu", "phi2cpu"]
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -31,7 +32,7 @@ jobs:
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
       - name: Test with pytest
         run: |
-          pytest --cov=guidance --cov-report=xml --cov-report=term-missing
+          pytest --cov=guidance --cov-report=xml --cov-report=term-missing --selected_model ${{ matrix.model }}
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v3
         with:
