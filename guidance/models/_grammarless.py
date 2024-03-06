@@ -89,9 +89,13 @@ class GrammarlessEngine(Engine):
         self.max_repeated_calls = 10
         self.timeout = timeout
 
+        # If tokenizer is not already an instance of Tokenizer, then instantiate it as a GrammarlessTokenizer
+        if not isinstance(tokenizer, Tokenizer):
+            tokenizer = GrammarlessTokenizer(tokenizer)
+
         # build the 
         super().__init__(
-            tokenizer=GrammarlessTokenizer(tokenizer),
+            tokenizer=tokenizer,
             compute_log_probs=compute_log_probs
         )
 
