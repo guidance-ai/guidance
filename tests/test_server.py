@@ -8,7 +8,7 @@ import requests
 from jsonschema import validate
 
 from guidance import Server, gen, models
-from guidance.library import gen_json
+from guidance.library import json as gen_json
 
 from .utils import to_compact_json
 
