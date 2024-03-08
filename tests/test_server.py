@@ -12,7 +12,7 @@ from guidance.library import json as gen_json
 
 from .utils import to_compact_json
 
-PROCESS_DELAY_SECS = 30
+PROCESS_DELAY_SECS = 40
 
 
 def server_process(*, mock_string: Union[str, List[str]] = ""):
