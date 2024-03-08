@@ -1265,8 +1265,11 @@ class ModelStream:
 
     def __add__(self, grammar):
         '''Extend this delayed chain of execution with another grammar append.'''
-        return ModelStream(self.model, grammar)
-    
+        if self.grammar is None:
+            return ModelStream(self.model, grammar)
+        else:
+            return ModelStream(self.model, self.grammar + grammar)
+
     def _inner_run(self, model):
         '''This runs the model stream without iterating, and is only using internally by __iter__.'''
         if isinstance(self.grammar, ModelStream):
@@ -1284,8 +1287,11 @@ class ModelStream:
 
             # Define the target function for the thread
             def target():
-                self._inner_run(self.model)
-                events.put(None) # mark that we are done
+                try:
+                    self._inner_run(self.model)
+                    events.put(None) # mark that we are done
+                except BaseException as ex:
+                    events.put(ex)
 
             # Start the thread
             thread = threading.Thread(target=target)
@@ -1298,6 +1304,8 @@ class ModelStream:
                     event = events.get(timeout=self.timeout)
                     if event is None:
                         break
+                    elif isinstance(event, BaseException):
+                        raise event
                     yield event
                 except queue.Empty:
                     # Check if the thread is still alive

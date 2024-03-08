@@ -8,7 +8,10 @@ except ImportError:
 from .._model import Tokenizer, Engine, Model, Chat
 
 class TransformersTokenizer(Tokenizer):
-    def __init__(self, tokenizer):
+    def __init__(self, model, tokenizer, ignore_bos_token=False):
+        if tokenizer is None:
+            tokenizer = self._tokenizer(model)
+
 
         self._orig_tokenizer = tokenizer
 
@@ -18,7 +21,7 @@ class TransformersTokenizer(Tokenizer):
             for i in range(len(tokenizer)):
                 byte_coded = bytes([tokenizer.byte_decoder[c] for c in tokenizer.convert_ids_to_tokens(i)])
                 byte_tokens.append(byte_coded)
-        else:
+        elif hasattr(tokenizer, "convert_tokens_to_string"):
             byte_tokens = []
             for i in range(len(tokenizer)):
                 s = tokenizer.convert_tokens_to_string(['a', tokenizer.convert_ids_to_tokens(i)])
@@ -29,13 +32,40 @@ class TransformersTokenizer(Tokenizer):
                 else:
                     raise Exception("Can't determine tokenstring representation!")
                 byte_tokens.append(bytes(s, encoding="utf8"))
+        else:
+            raise Exception("Invalid tokenizer object!")
 
         # the superclass does most of the work once we have the tokens
         super().__init__(
             byte_tokens,
-            tokenizer.bos_token_id,
-            tokenizer.eos_token_id
+            None if ignore_bos_token else tokenizer.bos_token_id,
+            tokenizer.eos_token_id,
         )
+    
+
+    def _tokenizer(self, model, **kwargs):
+        # intantiate the tokenizer
+        if isinstance(model, str):
+            # make sure transformers is installed
+            try:
+                import transformers
+            except:
+                raise Exception("Please install transformers with `pip install transformers` in order to use guidance.models.togetherai!")
+
+            try:
+                tokenizer = transformers.AutoTokenizer.from_pretrained(model, use_fast=False, **kwargs)
+                # This is here because some tokenizers are bad and don't have all the bytes (I'm looking at you, microsoft/phi2)
+                if hasattr(tokenizer, "byte_decoder"):
+                    all_bytes = set()
+                    for x in tokenizer.get_vocab().keys():
+                        [all_bytes.add(y) for y in x]
+                    assert set(tokenizer.byte_decoder.keys()).intersection(all_bytes) == all_bytes
+            except:
+                tokenizer = transformers.AutoTokenizer.from_pretrained(model, use_fast=True, **kwargs) # fall back to the fast tokenizer
+        
+        assert tokenizer is not None, "You must give a model name when you provide a tokenizer object!"
+            
+        return tokenizer
 
 class TransformersEngine(Engine):
     def __init__(self, model, tokenizer, compute_log_probs, **kwargs):
@@ -49,7 +79,7 @@ class TransformersEngine(Engine):
             except:
                 pass
 
-        self.model_obj, orig_tokenizer = self._model_and_tokenizer(model, tokenizer, **kwargs)
+        self.model_obj = self._model(model, **kwargs)
 
         if not isinstance(model, str):
             self.model = model.__class__.__name__
@@ -60,13 +90,12 @@ class TransformersEngine(Engine):
         self._cached_token_ids = []
 
         super().__init__(
-            TransformersTokenizer(orig_tokenizer),
+            TransformersTokenizer(model, tokenizer),
             compute_log_probs=compute_log_probs
         )
 
-    def _model_and_tokenizer(self, model, tokenizer, **kwargs):
-
-        # intantiate the model and tokenizer if needed
+    def _model(self, model, **kwargs):
+        # intantiate the model if needed
         if isinstance(model, str):
 
             # make sure transformers is installed
@@ -74,23 +103,8 @@ class TransformersEngine(Engine):
                 import transformers
             except:
                 raise Exception("Please install transformers with `pip install transformers` in order to use guidance.models.Transformers!")
-
-            if tokenizer is None:
-                try:
-                    tokenizer = transformers.AutoTokenizer.from_pretrained(model, use_fast=False, **kwargs)
-                    # This is here because some tokenizers are bad and don't have all the bytes (I'm looking at you, microsoft/phi2)
-                    if hasattr(tokenizer, "byte_decoder"):
-                        all_bytes = set()
-                        for x in tokenizer.get_vocab().keys():
-                            [all_bytes.add(y) for y in x]
-                        assert set(tokenizer.byte_decoder.keys()).intersection(all_bytes) == all_bytes
-                except:
-                    tokenizer = transformers.AutoTokenizer.from_pretrained(model, use_fast=True, **kwargs) # fall back to the fast tokenizer
             model = transformers.AutoModelForCausalLM.from_pretrained(model, **kwargs)
-        
-        assert tokenizer is not None, "You must give a tokenizer object when you provide a model object (as opposed to just a model name)!"
-            
-        return model, tokenizer
+        return model
 
     def _joint_tokenize(self, token_ids):
         # first_decode = self.tokenizer._orig_tokenizer.decode(token_ids)
