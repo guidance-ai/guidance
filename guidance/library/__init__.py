@@ -34,4 +34,4 @@ from ._optional import optional
 from ._tool import Tool
 from ._any_char_but import any_char_but
 
-from ._json_schema import gen_json
+from ._json_schema import json
