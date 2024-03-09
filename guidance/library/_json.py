@@ -6,7 +6,7 @@ from guidance.library import char_range, one_or_more, optional, zero_or_more
 
 from .._grammar import GrammarFunction, select
 
-def to_compact_json(target: Any) -> str:
+def _to_compact_json(target: Any) -> str:
     # See 'Compact Encoding':
     # https://docs.python.org/3/library/json.html
     # Since this is ultimately about the generated
@@ -145,7 +145,7 @@ def _process_enum(lm, *, options: list[Any]):
     all_opts = []
     for opt in options:
         all_opts.append(
-            to_compact_json(opt)
+            _to_compact_json(opt)
         )
     return lm + select(options=all_opts)
 

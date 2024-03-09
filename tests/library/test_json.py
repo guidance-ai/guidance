@@ -7,14 +7,14 @@ from jsonschema import validate
 
 from guidance import models
 from guidance.library import json as gen_json
-from guidance.library._json import to_compact_json
+from guidance.library._json import _to_compact_json
 
 
 def _generate_and_check(target_obj: Any, schema_obj):
     # Sanity check what we're being asked
     validate(instance=target_obj, schema=schema_obj)
 
-    prepared_string = f"<s>{to_compact_json(target_obj)}"
+    prepared_string = f"<s>{_to_compact_json(target_obj)}"
     lm = models.Mock(prepared_string.encode())
 
     # Run with the mock model
