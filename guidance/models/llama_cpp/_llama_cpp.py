@@ -38,6 +38,8 @@ class LlamaCppTokenizer(Tokenizer):
         self._model_obj = model_obj
 
         tokenizer = llama_cpp.LlamaTokenizer(model_obj)
+        if not hasattr(tokenizer, 'llama'):
+            tokenizer.llama = tokenizer._model
 
         # get the bytes strings for all the tokens
         tokens = []

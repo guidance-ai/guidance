@@ -389,7 +389,7 @@ class ByteRange(Terminal):
         out.temperature = data.temperature
         return out
 
-class Null():
+class Null(Terminal):
     __slots__ = ("name", "hidden", "commit_point", "capture_name")
 
     nullable = True

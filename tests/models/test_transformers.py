@@ -44,9 +44,9 @@ def test_transformer_smoke_gen(model_name, model_kwargs):
     assert len(lm["answer"]) < 8, f"Output: {lm['answer']}"
 
 
-@pytest.mark.parametrize("model_name", TRANSFORMER_MODELS)
-def test_transformer_smoke_select(model_name):
-    my_model = get_model(f"transformers:{model_name}", trust_remote_code=True)
+@pytest.mark.parametrize(["model_name", "model_kwargs"], TRANSFORMER_MODELS.items())
+def test_transformer_smoke_select(model_name, model_kwargs):
+    my_model = get_model(f"transformers:{model_name}", **model_kwargs)
 
     prompt = """How many sides has a triangle?
 

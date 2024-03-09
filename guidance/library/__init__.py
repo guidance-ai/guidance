@@ -18,6 +18,7 @@ from ._format import monospace
 from ._silent import silent
 from ._set_var import set_var
 from ._set_attribute import set_attribute
+
 # from ..models._model import context_free
 
 # stateless library functions
@@ -32,3 +33,5 @@ from ._regex import regex
 from ._optional import optional
 from ._tool import Tool
 from ._any_char_but import any_char_but
+
+from ._json import json

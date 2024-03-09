@@ -14,3 +14,4 @@ from ._lite_llm import LiteLLM, LiteLLMChat, LiteLLMInstruct, LiteLLMCompletion
 from ._cohere import Cohere,CohereCompletion, CohereInstruct
 from ._anthropic import Anthropic, AnthropicChat
 from ._googleai import GoogleAI, GoogleAIChat
+from ._togetherai import TogetherAI, TogetherAIChat, TogetherAIInstruct, TogetherAICompletion
