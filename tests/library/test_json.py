@@ -612,6 +612,10 @@ class TestEnum:
     }
     """
 
+    prefix_schema = """{
+        "enum": ["aa", "bb", "cc"]
+    }"""
+
     @pytest.mark.parametrize("target_obj", [1, "2", False])
     def test_enum(self, target_obj):
         # First sanity check what we're setting up
@@ -634,6 +638,18 @@ class TestEnum:
         bad_str = _to_compact_json(bad_obj)
         _check_match_failure(bad_str, failure_byte, schema_obj)
 
+    @pytest.mark.parametrize(
+        "bad_obj, failure_byte",
+        [
+            ("ab", b'b'),
+            ("bc", b'c'),
+            ("ca", b'a'),
+        ]
+    )
+    def test_bad_prefix_enum(self, bad_obj, failure_byte):
+        schema_obj = json.loads(self.prefix_schema)
+        bad_str = _to_compact_json(bad_obj)
+        _check_match_failure(bad_str, failure_byte, schema_obj)
 
 
 class TestAdditionalProperties:
