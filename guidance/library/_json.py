@@ -1,4 +1,4 @@
-from typing import Any, Callable, Mapping, MutableMapping, Optional, Sequence, Union
+from typing import Any, Callable, Mapping, Optional, Sequence, Union
 from json import dumps as json_dumps
 
 import guidance
@@ -131,7 +131,7 @@ def _gen_json_array(
 def _process_anyOf(
     lm,
     *,
-    anyof_list: Sequence[MutableMapping[str, Any]],
+    anyof_list: Sequence[Mapping[str, Any]],
     definitions: Mapping[str, Callable[[], GrammarFunction]],
 ):
     options = [
@@ -140,7 +140,7 @@ def _process_anyOf(
     return lm + select(options)
 
 @guidance(stateless=True)
-def _process_enum(lm, *, options: list[Any]):
+def _process_enum(lm, *, options: Sequence[Mapping[str, Any]]):
     # options will come in as python objects, so we need to convert to (compact) JSON
     all_opts = []
     for opt in options:
