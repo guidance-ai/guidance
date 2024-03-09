@@ -51,6 +51,16 @@ def _check_failed_generation(bad_string: str, expected_output: Any, schema_obj):
     validate(instance=generated_obj, schema=schema_obj)
 
 
+def _check_match_failure(bad_string, failure_byte, schema_obj):
+    grammar = gen_json(schema_obj)
+    with pytest.raises(ParserException):
+        try:
+            grammar.match(bad_string, raise_exceptions=True)
+        except ParserException as e:
+            assert e.current_byte == failure_byte
+            raise e
+
+
 def test_null():
     schema = """{"type": "null" }"""
 
@@ -611,13 +621,19 @@ class TestEnum:
         # The actual check
         _generate_and_check(target_obj, schema_obj)
 
-    @pytest.mark.parametrize("bad_obj", ["1", 2, True])
-    def test_bad_enum(self, bad_obj):
+    @pytest.mark.parametrize(
+        "bad_obj, failure_byte",
+        [
+            ("1", b'1'),
+            (2, b'2'),
+            (True, b't'),
+        ]
+    )
+    def test_bad_enum(self, bad_obj, failure_byte):
         schema_obj = json.loads(self.simple_schema)
-        grammar = gen_json(schema_obj)
         bad_str = _to_compact_json(bad_obj)
-        with pytest.raises(ParserException):
-            grammar.match(bad_str, raise_exceptions=True)
+        _check_match_failure(bad_str, failure_byte, schema_obj)
+
 
 
 class TestAdditionalProperties:
@@ -661,13 +677,17 @@ class TestAdditionalProperties:
         # The actual check
         _generate_and_check(target_obj, schema_obj)
 
-    @pytest.mark.parametrize("bad_obj", [{'a': '1'}, {'a': 1, 'b': 1.5}])
-    def test_simple_bad_type(self, bad_obj):
+    @pytest.mark.parametrize(
+        "bad_obj, failure_byte",
+        [
+            ({'a': '1'}, b'"'),
+            ({'a': 1, 'b': 1.5}, b"."),
+        ]
+    )
+    def test_simple_bad_type(self, bad_obj, failure_byte):
         schema_obj = json.loads(self.simple_schema)
-        grammar = gen_json(schema_obj)
-        bad_str = _to_compact_json(bad_obj)
-        with pytest.raises(ParserException):
-            grammar.match(bad_str, raise_exceptions=True)
+        bad_string = _to_compact_json(bad_obj)
+        _check_match_failure(bad_string, failure_byte, schema_obj)
 
     @pytest.mark.parametrize("target_obj", [{}, {'a': 1}, {'a': '2'}, {'a': 1, 'b': '2'}])
     def test_anyOf_additional_properties(self, target_obj):
@@ -678,13 +698,18 @@ class TestAdditionalProperties:
         # The actual check
         _generate_and_check(target_obj, schema_obj)
 
-    @pytest.mark.parametrize("bad_obj", [{'a': 1.5}, {'a': True}, {'a': 1, 'b': False}])
-    def test_anyOf_bad_type(self, bad_obj):
+    @pytest.mark.parametrize(
+        "bad_obj, failure_byte",
+        [
+            ({'a': 1.5}, b"."),
+            ({'a': True}, b"t"),
+            ({'a': 1, 'b': False}, b"f")
+        ]
+    )
+    def test_anyOf_bad_type(self, bad_obj, failure_byte):
         schema_obj = json.loads(self.anyOf_schema)
-        grammar = gen_json(schema_obj)
-        bad_str = _to_compact_json(bad_obj)
-        with pytest.raises(ParserException):
-            grammar.match(bad_str, raise_exceptions=True)
+        bad_string = _to_compact_json(bad_obj)
+        _check_match_failure(bad_string, failure_byte, schema_obj)
 
     @pytest.mark.parametrize("target_obj", [{'mystr': 'hello'}, {'mystr': 'hello', 'a': 1}, {'mystr': 'hello', 'a': 1, 'b': 2}])
     def test_properties_and_additional_properties(self, target_obj):
@@ -695,21 +720,31 @@ class TestAdditionalProperties:
         # The actual check
         _generate_and_check(target_obj, schema_obj)
 
-    @pytest.mark.parametrize("bad_obj", [{}, {'a': 1}, {'a': 1, 'b': 2}])
-    def test_combined_missing_properties(self, bad_obj):
+    @pytest.mark.parametrize(
+        "bad_obj, failure_byte",
+        [
+            ({}, b"}"),
+            ({'a': 1}, b"a"),
+            ({'a': 1, 'b': 2}, b"a"),
+        ]
+    )
+    def test_combined_missing_properties(self, bad_obj, failure_byte):
         schema_obj = json.loads(self.combined_schema)
-        grammar = gen_json(schema_obj)
-        bad_str = _to_compact_json(bad_obj)
-        with pytest.raises(ParserException):
-            grammar.match(bad_str, raise_exceptions=True)
+        bad_string = _to_compact_json(bad_obj)
+        _check_match_failure(bad_string, failure_byte, schema_obj)
 
-    @pytest.mark.parametrize("bad_obj", [{'mystr': 1}, {'mystr': 1, 'a': 1}, {'mystr': 'hello', 'a': False}])
-    def test_combined_bad_type(self, bad_obj):
+    @pytest.mark.parametrize(
+        "bad_obj, failure_byte",
+        [
+            ({'mystr': 1}, b"1"),
+            ({'mystr': 1, 'a': 2}, b"1"),
+            ({'mystr': 'hello', 'a': False}, b"f"),
+        ]
+    )
+    def test_combined_bad_type(self, bad_obj, failure_byte):
         schema_obj = json.loads(self.combined_schema)
-        grammar = gen_json(schema_obj)
-        bad_str = _to_compact_json(bad_obj)
-        with pytest.raises(ParserException):
-            grammar.match(bad_str, raise_exceptions=True)
+        bad_string = _to_compact_json(bad_obj)
+        _check_match_failure(bad_string, failure_byte, schema_obj)
 
 class TestRecursiveStructures:
     @pytest.mark.parametrize(
