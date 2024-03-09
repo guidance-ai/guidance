@@ -8,7 +8,7 @@ from jsonschema import validate
 from guidance import models
 from guidance.library import json as gen_json
 from guidance.library._json import _to_compact_json
-
+from guidance._parser import ParserException
 
 def _generate_and_check(target_obj: Any, schema_obj):
     # Sanity check what we're being asked
@@ -597,75 +597,119 @@ class TestAnyOf:
         _generate_and_check(target_obj, schema_obj)
 
 class TestEnum:
+    simple_schema = """{
+        "enum": [1,"2",false]
+    }
+    """
 
-    @pytest.mark.parametrize("target_obj", [1,"2",False])
-    def test_enum(self,target_obj):
-        schema = """{
-            "enum": [1,"2",false]
-        }
-        """
+    @pytest.mark.parametrize("target_obj", [1, "2", False])
+    def test_enum(self, target_obj):
         # First sanity check what we're setting up
-        schema_obj = json.loads(schema)
+        schema_obj = json.loads(self.simple_schema)
         validate(instance=target_obj, schema=schema_obj)
 
         # The actual check
         _generate_and_check(target_obj, schema_obj)
+
+    @pytest.mark.parametrize("bad_obj", ["1", 2, True])
+    def test_bad_enum(self, bad_obj):
+        schema_obj = json.loads(self.simple_schema)
+        grammar = gen_json(schema_obj)
+        bad_str = _to_compact_json(bad_obj)
+        with pytest.raises(ParserException):
+            grammar.match(bad_str, raise_exceptions=True)
 
 
 class TestAdditionalProperties:
+
+    simple_schema = """{
+    "type": "object",
+    "additionalProperties": {
+            "type" : "integer"
+        }
+    }
+    """
+
+    anyOf_schema = """{
+    "type": "object",
+    "additionalProperties": {
+            "anyOf": [
+                {"type" : "string"},
+                {"type": "integer"}
+            ]
+        }
+    }
+    """
+
+    combined_schema = """{
+    "type": "object",
+    "properties": {
+            "mystr": {"type": "string"}
+        },
+    "additionalProperties": {
+            "type": "integer"
+        }
+    }
+    """
+
     @pytest.mark.parametrize("target_obj", [{}, {'a': 1}, {'a':1, 'b':2}])
     def test_simple_additional_properties(self, target_obj):
-        schema = """{
-        "type": "object",
-        "additionalProperties": {
-                "type" : "integer"
-            }
-        }
-        """
         # First sanity check what we're setting up
-        schema_obj = json.loads(schema)
+        schema_obj = json.loads(self.simple_schema)
         validate(instance=target_obj, schema=schema_obj)
 
         # The actual check
         _generate_and_check(target_obj, schema_obj)
 
-    @pytest.mark.parametrize("target_obj", [{}, {'a': 1}, {'a': '2'}, {'a':1, 'b':'2'}])
+    @pytest.mark.parametrize("bad_obj", [{'a': '1'}, {'a': 1, 'b': 1.5}])
+    def test_simple_bad_type(self, bad_obj):
+        schema_obj = json.loads(self.simple_schema)
+        grammar = gen_json(schema_obj)
+        bad_str = _to_compact_json(bad_obj)
+        with pytest.raises(ParserException):
+            grammar.match(bad_str, raise_exceptions=True)
+
+    @pytest.mark.parametrize("target_obj", [{}, {'a': 1}, {'a': '2'}, {'a': 1, 'b': '2'}])
     def test_anyOf_additional_properties(self, target_obj):
-        schema = """{
-        "type": "object",
-        "additionalProperties": {
-                "anyOf": [
-                    {"type" : "string"},
-                    {"type": "integer"}
-                ]
-            }
-        }
-        """
         # First sanity check what we're setting up
-        schema_obj = json.loads(schema)
+        schema_obj = json.loads(self.anyOf_schema)
         validate(instance=target_obj, schema=schema_obj)
 
         # The actual check
         _generate_and_check(target_obj, schema_obj)
 
-    @pytest.mark.parametrize("target_obj", [{'mystr': 'hello'}, {'mystr': 'hello', 'a': 1}, {'mystr': 'hello', 'a':1, 'b':2}])
+    @pytest.mark.parametrize("bad_obj", [{'a': 1.5}, {'a': True}, {'a': 1, 'b': False}])
+    def test_anyOf_bad_type(self, bad_obj):
+        schema_obj = json.loads(self.anyOf_schema)
+        grammar = gen_json(schema_obj)
+        bad_str = _to_compact_json(bad_obj)
+        with pytest.raises(ParserException):
+            grammar.match(bad_str, raise_exceptions=True)
+
+    @pytest.mark.parametrize("target_obj", [{'mystr': 'hello'}, {'mystr': 'hello', 'a': 1}, {'mystr': 'hello', 'a': 1, 'b': 2}])
     def test_properties_and_additional_properties(self, target_obj):
-        schema = """{
-        "type": "object",
-        "properties": {
-                "mystr": {"type": "string"}
-            },
-        "additionalProperties": {
-                "type": "integer"
-            }
-        }
-        """
         # First sanity check what we're setting up
-        schema_obj = json.loads(schema)
+        schema_obj = json.loads(self.combined_schema)
         validate(instance=target_obj, schema=schema_obj)
 
         # The actual check
         _generate_and_check(target_obj, schema_obj)
+
+    @pytest.mark.parametrize("bad_obj", [{}, {'a': 1}, {'a': 1, 'b': 2}])
+    def test_combined_missing_properties(self, bad_obj):
+        schema_obj = json.loads(self.combined_schema)
+        grammar = gen_json(schema_obj)
+        bad_str = _to_compact_json(bad_obj)
+        with pytest.raises(ParserException):
+            grammar.match(bad_str, raise_exceptions=True)
+
+    @pytest.mark.parametrize("bad_obj", [{'mystr': 1}, {'mystr': 1, 'a': 1}, {'mystr': 'hello', 'a': False}])
+    def test_combined_bad_type(self, bad_obj):
+        schema_obj = json.loads(self.combined_schema)
+        grammar = gen_json(schema_obj)
+        bad_str = _to_compact_json(bad_obj)
+        with pytest.raises(ParserException):
+            grammar.match(bad_str, raise_exceptions=True)
 
 class TestRecursiveStructures:
     @pytest.mark.parametrize(
