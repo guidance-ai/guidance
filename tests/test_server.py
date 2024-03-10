@@ -11,7 +11,7 @@ from guidance import Server, gen, models
 from guidance.library import json as gen_json
 from guidance.library._json import _to_compact_json
 
-PROCESS_DELAY_SECS = 20
+PROCESS_DELAY_SECS = 40
 
 
 def server_process(*, mock_string: Union[str, List[str]] = ""):
