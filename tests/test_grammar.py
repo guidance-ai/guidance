@@ -1,5 +1,5 @@
 import guidance
-from guidance import models, select, gen
+from guidance import models, select, gen, optional
 
 def test_select_reset_pos():
     model = models.Mock()
