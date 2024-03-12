@@ -12,6 +12,8 @@ from guidance.library import json as gen_json
 
 from .utils import to_compact_json
 
+pytestmark = pytest.mark.server
+
 PROCESS_DELAY_SECS = 40
 
 
