@@ -16,6 +16,10 @@ from .utils import to_compact_json
 # Mark is configured in pyproject.toml
 pytestmark = pytest.mark.server
 
+# We spin out a separate process, and it
+# has to start up and get ready to
+# respond to requests. Just waiting is
+# not ideal, but is the simplest option
 PROCESS_DELAY_SECS = 40
 
 
