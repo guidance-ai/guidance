@@ -70,9 +70,12 @@ Step 1"""
     )
 
 
-def test_unicode2():
+def test_unicode2(selected_model):
     # Does not work with Phi2
-    lm = get_model("transformers:gpt2")
+    model_type = type(selected_model.engine.model_obj).__name__
+    if model_type == "PhiForCausalLM":
+        pytest.xfail("See https://github.com/guidance-ai/guidance/issues/681")
+    lm = selected_model
     prompt = "Janet’s ducks lay 16 eggs per day"
     lm += prompt + gen(max_tokens=10)
     assert True
@@ -202,9 +205,12 @@ def test_various_regexes(selected_model: models.Model, prompt: str, pattern: str
 #     assert str(lm) == "hey there my friend what is truth 23+43=dog"
 
 
-def test_long_prompt():
-    # Doesn't seem to like Phi-2
-    lm = get_model("transformers:gpt2")
+def test_long_prompt(selected_model):
+    # Does not work with Phi2
+    model_type = type(selected_model.engine.model_obj).__name__
+    if model_type == "PhiForCausalLM":
+        pytest.xfail("See https://github.com/guidance-ai/guidance/issues/681")
+    lm = selected_model
     prompt = """Question: Legoland has 5 kangaroos for each koala. If Legoland has 180 kangaroos, how many koalas and kangaroos are there altogether?
 Let's think step by step, and then write the answer:
 Step 1: For every 5 kangaroos, there is one koala, meaning for the 180 kangaroos, there are 180/5 = 36 koalas.
