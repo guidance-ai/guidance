@@ -8,7 +8,7 @@ from guidance import models
 from guidance._parser import ParserException
 from guidance.library import json as gen_json
 from guidance.library._json import _to_compact_json
-from guidance._parser import ParserException
+
 
 def _generate_and_check(target_obj: Any, schema_obj):
     # Sanity check what we're being asked
@@ -554,6 +554,7 @@ class TestAnyOf:
         # The actual check
         _generate_and_check(target_obj, schema_obj)
 
+
 class TestEnum:
     simple_schema = """{
         "enum": [1,"2",false]
@@ -576,10 +577,10 @@ class TestEnum:
     @pytest.mark.parametrize(
         "bad_obj, failure_byte",
         [
-            ("1", b'1'),
-            (2, b'2'),
-            (True, b't'),
-        ]
+            ("1", b"1"),
+            (2, b"2"),
+            (True, b"t"),
+        ],
     )
     def test_bad_enum(self, bad_obj, failure_byte):
         schema_obj = json.loads(self.simple_schema)
@@ -589,10 +590,10 @@ class TestEnum:
     @pytest.mark.parametrize(
         "bad_obj, failure_byte",
         [
-            ("ab", b'b'),
-            ("bc", b'c'),
-            ("ca", b'a'),
-        ]
+            ("ab", b"b"),
+            ("bc", b"c"),
+            ("ca", b"a"),
+        ],
     )
     def test_bad_prefix_enum(self, bad_obj, failure_byte):
         schema_obj = json.loads(self.prefix_schema)
@@ -632,7 +633,7 @@ class TestAdditionalProperties:
     }
     """
 
-    @pytest.mark.parametrize("target_obj", [{}, {'a': 1}, {'a':1, 'b':2}])
+    @pytest.mark.parametrize("target_obj", [{}, {"a": 1}, {"a": 1, "b": 2}])
     def test_simple_additional_properties(self, target_obj):
         # First sanity check what we're setting up
         schema_obj = json.loads(self.simple_schema)
@@ -644,16 +645,18 @@ class TestAdditionalProperties:
     @pytest.mark.parametrize(
         "bad_obj, failure_byte",
         [
-            ({'a': '1'}, b'"'),
-            ({'a': 1, 'b': 1.5}, b"."),
-        ]
+            ({"a": "1"}, b'"'),
+            ({"a": 1, "b": 1.5}, b"."),
+        ],
     )
     def test_simple_bad_type(self, bad_obj, failure_byte):
         schema_obj = json.loads(self.simple_schema)
         bad_string = _to_compact_json(bad_obj)
         _check_match_failure(bad_string, failure_byte, schema_obj)
 
-    @pytest.mark.parametrize("target_obj", [{}, {'a': 1}, {'a': '2'}, {'a': 1, 'b': '2'}])
+    @pytest.mark.parametrize(
+        "target_obj", [{}, {"a": 1}, {"a": "2"}, {"a": 1, "b": "2"}]
+    )
     def test_anyOf_additional_properties(self, target_obj):
         # First sanity check what we're setting up
         schema_obj = json.loads(self.anyOf_schema)
@@ -664,18 +667,21 @@ class TestAdditionalProperties:
 
     @pytest.mark.parametrize(
         "bad_obj, failure_byte",
-        [
-            ({'a': 1.5}, b"."),
-            ({'a': True}, b"t"),
-            ({'a': 1, 'b': False}, b"f")
-        ]
+        [({"a": 1.5}, b"."), ({"a": True}, b"t"), ({"a": 1, "b": False}, b"f")],
     )
     def test_anyOf_bad_type(self, bad_obj, failure_byte):
         schema_obj = json.loads(self.anyOf_schema)
         bad_string = _to_compact_json(bad_obj)
         _check_match_failure(bad_string, failure_byte, schema_obj)
 
-    @pytest.mark.parametrize("target_obj", [{'mystr': 'hello'}, {'mystr': 'hello', 'a': 1}, {'mystr': 'hello', 'a': 1, 'b': 2}])
+    @pytest.mark.parametrize(
+        "target_obj",
+        [
+            {"mystr": "hello"},
+            {"mystr": "hello", "a": 1},
+            {"mystr": "hello", "a": 1, "b": 2},
+        ],
+    )
     def test_properties_and_additional_properties(self, target_obj):
         # First sanity check what we're setting up
         schema_obj = json.loads(self.combined_schema)
@@ -688,9 +694,9 @@ class TestAdditionalProperties:
         "bad_obj, failure_byte",
         [
             ({}, b"}"),
-            ({'a': 1}, b"a"),
-            ({'a': 1, 'b': 2}, b"a"),
-        ]
+            ({"a": 1}, b"a"),
+            ({"a": 1, "b": 2}, b"a"),
+        ],
     )
     def test_combined_missing_properties(self, bad_obj, failure_byte):
         schema_obj = json.loads(self.combined_schema)
@@ -700,15 +706,16 @@ class TestAdditionalProperties:
     @pytest.mark.parametrize(
         "bad_obj, failure_byte",
         [
-            ({'mystr': 1}, b"1"),
-            ({'mystr': 1, 'a': 2}, b"1"),
-            ({'mystr': 'hello', 'a': False}, b"f"),
-        ]
+            ({"mystr": 1}, b"1"),
+            ({"mystr": 1, "a": 2}, b"1"),
+            ({"mystr": "hello", "a": False}, b"f"),
+        ],
     )
     def test_combined_bad_type(self, bad_obj, failure_byte):
         schema_obj = json.loads(self.combined_schema)
         bad_string = _to_compact_json(bad_obj)
         _check_match_failure(bad_string, failure_byte, schema_obj)
+
 
 class TestEnum:
     simple_schema = """{
