@@ -1,21 +1,20 @@
 import json
-
 from typing import Any
 
 import pytest
 from jsonschema import validate
 
 from guidance import models
+from guidance._parser import ParserException
 from guidance.library import json as gen_json
-
-from ..utils import to_compact_json
+from guidance.library._json import _to_compact_json
 
 
 def _generate_and_check(target_obj: Any, schema_obj):
     # Sanity check what we're being asked
     validate(instance=target_obj, schema=schema_obj)
 
-    prepared_string = f"<s>{to_compact_json(target_obj)}"
+    prepared_string = f"<s>{_to_compact_json(target_obj)}"
     lm = models.Mock(prepared_string.encode())
 
     # Run with the mock model
@@ -26,30 +25,11 @@ def _generate_and_check(target_obj: Any, schema_obj):
     assert json.loads(lm[CAPTURE_KEY]) == target_obj
 
 
-def _check_failed_generation(bad_string: str, expected_output: Any, schema_obj):
-    """
-    One can argue that this is slightly misnamed. The generation should never
-    fail so long as the Mock model keeps producing output, and the output itself
-    should always conform to the specified schema. However, the final output
-    won't just reproduce the input because the input doesn't match the schema
-    in the negative test cases
-    """
-    prepared_string = "<s>" + bad_string
-    lm = models.Mock(prepared_string.encode())
-
-    # Run with the mock model
-    CAPTURE_KEY = "my_capture"
-    lm += gen_json(name=CAPTURE_KEY, json_schema=schema_obj)
-    print(f"{lm[CAPTURE_KEY]=}")
-
-    generated_obj = json.loads(lm[CAPTURE_KEY])
-    # Following is going to depend on implementation details
-    # of the mock
-    assert generated_obj == expected_output
-
-    # Ensure what what was output does still match
-    # the schema
-    validate(instance=generated_obj, schema=schema_obj)
+def _check_match_failure(bad_string, failure_byte, schema_obj):
+    grammar = gen_json(schema_obj)
+    with pytest.raises(ParserException) as pe:
+        grammar.match(bad_string, raise_exceptions=True)
+    assert pe.value.current_byte == failure_byte
 
 
 def test_null():
@@ -90,33 +70,20 @@ class TestInteger:
         # The actual check
         _generate_and_check(my_int, schema_obj)
 
-    """
-    Note that '2' is the failure case in the following.
-
-    I have not fully decoded why, but ultimately, the
-    Mock model depends on MockEngine, and that generates
-    randomised logits for the next token (the PRNG is
-    seeded in the MockEngine constructor). Between the
-    (pseudo-)randomised logits and the grammar, it
-    appears that we manage to generate a '2' before
-    hitting a character which won't work with the grammar,
-    thereby terminating the generation
-    """
-
     @pytest.mark.parametrize(
-        ["bad_string", "expected_capture"],
+        ["bad_string", "failure_byte"],
         [
-            ("9999a7777", 9999),  # 'a' is first failure
-            ("123, []", 123),
-            ("a321", 2),  # Failure case
-            ("123789.456", 123789),  # '.' is first failure
-            ("[]", 2),  # Failure case
-            ('{"a":4}', 2),  # Failure case
+            ("9999a7777", b"a"),  # 'a' is first failure
+            ("123, []", b","),
+            ("a321", b"a"),  # Failure case
+            ("123789.456", b"."),  # '.' is first failure
+            ("[]", b"["),  # Failure case
+            ('{"a":4}', b"{"),  # Failure case
         ],
     )
-    def test_bad_integer(self, bad_string, expected_capture: int):
+    def test_bad_integer(self, bad_string, failure_byte):
         schema_obj = json.loads(TestInteger.schema)
-        _check_failed_generation(bad_string, expected_capture, schema_obj)
+        _check_match_failure(bad_string, failure_byte, schema_obj)
 
 
 class TestNumber:
@@ -153,18 +120,18 @@ class TestNumber:
 
     # See above for explanation of the failure cases
     @pytest.mark.parametrize(
-        ["bad_string", "expected_capture"],
+        ["bad_string", "failure_byte"],
         [
-            ("9999a7777", 9999),  # 'a' is the first failure
-            ("123.6, []", 123.6),  # ',' is the first failure
-            ("a321", 2),  # Failure case
-            ("[]", 2),  # Failure case
-            ('{"a":4}', 2),  # Failure case
+            ("9999a7777", b"a"),  # 'a' is the first failure
+            ("123.6, []", b","),  # ',' is the first failure
+            ("a321", b"a"),  # Failure case
+            ("[]", b"["),  # Failure case
+            ('{"a":4}', b"{"),  # Failure case
         ],
     )
-    def test_bad_number(self, bad_string, expected_capture: int):
+    def test_bad_number(self, bad_string, failure_byte):
         schema_obj = json.loads(TestNumber.schema)
-        _check_failed_generation(bad_string, expected_capture, schema_obj)
+        _check_match_failure(bad_string, failure_byte, schema_obj)
 
 
 @pytest.mark.parametrize(
@@ -297,26 +264,15 @@ class TestSimpleObject:
         # The actual check
         _generate_and_check(target_obj, schema_obj)
 
-    """
-    The following is even more complicated than the failure cases
-    discussed above.
-
-    The key point is that the schema forces the generation of
-    '{"a":' and '}'. The only part where the mocked model will
-    actually be called is to generate the integer value.
-    And then values will be pulled from the string supplied to the
-    mocked model until an invalid character is encountered
-    """
-
     @pytest.mark.parametrize(
-        ["bad_string", "expected_capture"],
+        ["bad_string", "failure_byte"],
         [
-            ("9999a7777", {"a": 274153349361519053618738762}),
-            ('{"a":1255.4567}', {"a": 125553349361519053618738762}),
-            ('{"a":"123"}', {"a": 274153349361519053618738762}),
+            ("9999a7777", b"9"),
+            ('{"a":1255.4567}', b"."),
+            ('{"a":"123"}', b'"'),
         ],
     )
-    def test_bad_object(self, bad_string, expected_capture: int):
+    def test_bad_object(self, bad_string, failure_byte):
         schema = """{
             "type": "object",
             "properties": {
@@ -325,7 +281,7 @@ class TestSimpleObject:
         }
     """
         schema_obj = json.loads(schema)
-        _check_failed_generation(bad_string, expected_capture, schema_obj)
+        _check_match_failure(bad_string, failure_byte, schema_obj)
 
 
 class TestSimpleArray:
@@ -389,21 +345,15 @@ class TestSimpleArray:
         # The actual check
         _generate_and_check(target_obj, schema_obj)
 
-    """
-    Again, in the following, the exact output is dependent
-    on how many valid input characters the mock supplies vs
-    random ones, coupld with the brackets being forced.
-    """
-
     @pytest.mark.parametrize(
-        ["bad_string", "expected_capture"],
+        ["bad_string", "failure_byte"],
         [
-            ("9999a7777", []),
-            ("[321.654]", [32115, 3493615190]),
-            ('["123"]', []),
+            ("9999a7777", b"9"),
+            ("[321.654]", b"."),
+            ('["123"]', b'"'),
         ],
     )
-    def test_bad_object(self, bad_string, expected_capture: int):
+    def test_bad_object(self, bad_string, failure_byte):
         schema = """{
         "type" : "array",
         "items" : {
@@ -411,7 +361,7 @@ class TestSimpleArray:
             }
         }"""
         schema_obj = json.loads(schema)
-        _check_failed_generation(bad_string, expected_capture, schema_obj)
+        _check_match_failure(bad_string, failure_byte, schema_obj)
 
 
 class TestWithReferences:
@@ -596,6 +546,168 @@ class TestAnyOf:
 
         # The actual check
         _generate_and_check(target_obj, schema_obj)
+
+
+class TestEnum:
+    simple_schema = """{
+        "enum": [1,"2",false]
+    }
+    """
+
+    prefix_schema = """{
+        "enum": ["aa", "bb", "cc"]
+    }"""
+
+    @pytest.mark.parametrize("target_obj", [1, "2", False])
+    def test_enum(self, target_obj):
+        # First sanity check what we're setting up
+        schema_obj = json.loads(self.simple_schema)
+        validate(instance=target_obj, schema=schema_obj)
+
+        # The actual check
+        _generate_and_check(target_obj, schema_obj)
+
+    @pytest.mark.parametrize(
+        "bad_obj, failure_byte",
+        [
+            ("1", b"1"),
+            (2, b"2"),
+            (True, b"t"),
+        ],
+    )
+    def test_bad_enum(self, bad_obj, failure_byte):
+        schema_obj = json.loads(self.simple_schema)
+        bad_str = _to_compact_json(bad_obj)
+        _check_match_failure(bad_str, failure_byte, schema_obj)
+
+    @pytest.mark.parametrize(
+        "bad_obj, failure_byte",
+        [
+            ("ab", b"b"),
+            ("bc", b"c"),
+            ("ca", b"a"),
+        ],
+    )
+    def test_bad_prefix_enum(self, bad_obj, failure_byte):
+        schema_obj = json.loads(self.prefix_schema)
+        bad_str = _to_compact_json(bad_obj)
+        _check_match_failure(bad_str, failure_byte, schema_obj)
+
+
+class TestAdditionalProperties:
+
+    simple_schema = """{
+    "type": "object",
+    "additionalProperties": {
+            "type" : "integer"
+        }
+    }
+    """
+
+    anyOf_schema = """{
+    "type": "object",
+    "additionalProperties": {
+            "anyOf": [
+                {"type" : "string"},
+                {"type": "integer"}
+            ]
+        }
+    }
+    """
+
+    combined_schema = """{
+    "type": "object",
+    "properties": {
+            "mystr": {"type": "string"}
+        },
+    "additionalProperties": {
+            "type": "integer"
+        }
+    }
+    """
+
+    @pytest.mark.parametrize("target_obj", [{}, {"a": 1}, {"a": 1, "b": 2}])
+    def test_simple_additional_properties(self, target_obj):
+        # First sanity check what we're setting up
+        schema_obj = json.loads(self.simple_schema)
+        validate(instance=target_obj, schema=schema_obj)
+
+        # The actual check
+        _generate_and_check(target_obj, schema_obj)
+
+    @pytest.mark.parametrize(
+        "bad_obj, failure_byte",
+        [
+            ({"a": "1"}, b'"'),
+            ({"a": 1, "b": 1.5}, b"."),
+        ],
+    )
+    def test_simple_bad_type(self, bad_obj, failure_byte):
+        schema_obj = json.loads(self.simple_schema)
+        bad_string = _to_compact_json(bad_obj)
+        _check_match_failure(bad_string, failure_byte, schema_obj)
+
+    @pytest.mark.parametrize(
+        "target_obj", [{}, {"a": 1}, {"a": "2"}, {"a": 1, "b": "2"}]
+    )
+    def test_anyOf_additional_properties(self, target_obj):
+        # First sanity check what we're setting up
+        schema_obj = json.loads(self.anyOf_schema)
+        validate(instance=target_obj, schema=schema_obj)
+
+        # The actual check
+        _generate_and_check(target_obj, schema_obj)
+
+    @pytest.mark.parametrize(
+        "bad_obj, failure_byte",
+        [({"a": 1.5}, b"."), ({"a": True}, b"t"), ({"a": 1, "b": False}, b"f")],
+    )
+    def test_anyOf_bad_type(self, bad_obj, failure_byte):
+        schema_obj = json.loads(self.anyOf_schema)
+        bad_string = _to_compact_json(bad_obj)
+        _check_match_failure(bad_string, failure_byte, schema_obj)
+
+    @pytest.mark.parametrize(
+        "target_obj",
+        [
+            {"mystr": "hello"},
+            {"mystr": "hello", "a": 1},
+            {"mystr": "hello", "a": 1, "b": 2},
+        ],
+    )
+    def test_properties_and_additional_properties(self, target_obj):
+        # First sanity check what we're setting up
+        schema_obj = json.loads(self.combined_schema)
+        validate(instance=target_obj, schema=schema_obj)
+
+        # The actual check
+        _generate_and_check(target_obj, schema_obj)
+
+    @pytest.mark.parametrize(
+        "bad_obj, failure_byte",
+        [
+            ({}, b"}"),
+            ({"a": 1}, b"a"),
+            ({"a": 1, "b": 2}, b"a"),
+        ],
+    )
+    def test_combined_missing_properties(self, bad_obj, failure_byte):
+        schema_obj = json.loads(self.combined_schema)
+        bad_string = _to_compact_json(bad_obj)
+        _check_match_failure(bad_string, failure_byte, schema_obj)
+
+    @pytest.mark.parametrize(
+        "bad_obj, failure_byte",
+        [
+            ({"mystr": 1}, b"1"),
+            ({"mystr": 1, "a": 2}, b"1"),
+            ({"mystr": "hello", "a": False}, b"f"),
+        ],
+    )
+    def test_combined_bad_type(self, bad_obj, failure_byte):
+        schema_obj = json.loads(self.combined_schema)
+        bad_string = _to_compact_json(bad_obj)
+        _check_match_failure(bad_string, failure_byte, schema_obj)
 
 
 class TestRecursiveStructures:
