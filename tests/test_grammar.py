@@ -1,14 +1,13 @@
 import guidance
 from guidance import models, select, gen, optional
-from .utils import get_model
 
 def test_select_reset_pos():
     model = models.Mock()
     model += 'This is' + select(options=['bad', 'quite bad'])
     assert str(model) in ["This isbad", "This isquite bad"]
 
-def test_select_simple():
-    lm = get_model("transformers:gpt2")
+def test_select_simple(selected_model):
+    lm = selected_model
     options = ['baad I think', 'bad I think', 'bad']
     lm = lm + 'Scott is quite ' + select(name='bad', options=options)
     assert lm['bad'] in options
