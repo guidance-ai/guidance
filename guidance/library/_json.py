@@ -1,9 +1,18 @@
-from typing import Any, Callable, Mapping, MutableMapping, Optional, Sequence
+from typing import Any, Callable, Mapping, Optional, Sequence, Union
+from json import dumps as json_dumps
 
 import guidance
 from guidance.library import char_range, one_or_more, optional, zero_or_more
 
 from .._grammar import GrammarFunction, select
+
+def _to_compact_json(target: Any) -> str:
+    # See 'Compact Encoding':
+    # https://docs.python.org/3/library/json.html
+    # Since this is ultimately about the generated
+    # output, we don't need to worry about pretty printing
+    # and whitespace
+    return json_dumps(target, separators=(",", ":"))
 
 
 @guidance(stateless=True)
@@ -42,10 +51,41 @@ def _gen_json_string(lm):
 def _gen_json_object(
     lm,
     *,
+    properties: Union[Mapping[str, Any], None],
+    additional_properties: Union[Mapping[str, Any], None],
+    definitions: Mapping[str, Callable[[], GrammarFunction]]
+):
+    lm += "{"
+    if properties:
+        lm += _process_properties(
+            properties=properties,
+            definitions=definitions
+        )
+    if properties and additional_properties:
+        lm += optional(
+            ','
+            + _process_additional_properties(
+                additional_properties=additional_properties,
+                definitions=definitions
+            )
+        )
+    elif additional_properties:
+        lm += optional(
+            _process_additional_properties(
+                additional_properties=additional_properties,
+                definitions=definitions
+            )
+        )
+    lm += "}"
+    return lm
+
+@guidance(stateless=True)
+def _process_properties(
+    lm,
+    *,
     properties: Mapping[str, Any],
     definitions: Mapping[str, Callable[[], GrammarFunction]],
 ):
-    lm += "{"
     properties_added = 0
     for name, property_schema in properties.items():
         lm += '"' + name + '"'
@@ -58,8 +98,17 @@ def _gen_json_object(
         properties_added += 1
         if properties_added < len(properties):
             lm += ","
-    lm += "}"
     return lm
+
+@guidance(stateless=True)
+def _process_additional_properties(
+    lm,
+    *,
+    additional_properties: Mapping[str, Any],
+    definitions: Mapping[str, Callable[[], GrammarFunction]],
+):
+    item = _gen_json_string() + ':' + _gen_json(json_schema=additional_properties, definitions=definitions)
+    return lm + zero_or_more(item + ",") + item
 
 
 @guidance(stateless=True)
@@ -82,7 +131,7 @@ def _gen_json_array(
 def _process_anyOf(
     lm,
     *,
-    anyof_list: Sequence[MutableMapping[str, Any]],
+    anyof_list: Sequence[Mapping[str, Any]],
     definitions: Mapping[str, Callable[[], GrammarFunction]],
 ):
     options = [
@@ -90,6 +139,15 @@ def _process_anyOf(
     ]
     return lm + select(options)
 
+@guidance(stateless=True)
+def _process_enum(lm, *, options: Sequence[Mapping[str, Any]]):
+    # options will come in as python objects, so we need to convert to (compact) JSON
+    all_opts = []
+    for opt in options:
+        all_opts.append(
+            _to_compact_json(opt)
+        )
+    return lm + select(options=all_opts)
 
 @guidance(stateless=True)
 def _gen_json(
@@ -100,42 +158,48 @@ def _gen_json(
     ANYOF_STRING = "anyOf"
     if ANYOF_STRING in json_schema:
         return lm + _process_anyOf(
-            anyof_list=json_schema[ANYOF_STRING], definitions=definitions
+            anyof_list=json_schema[ANYOF_STRING],
+            definitions=definitions
         )
 
     REF_STRING = "$ref"
-    object_schema = None
     if REF_STRING in json_schema:
-        return lm + _get_definition(json_schema[REF_STRING], definitions)
-    else:
-        target_type = json_schema["type"]
-
-    result = None
-    if target_type == "null":
-        result = "null"
-    elif target_type == "boolean":
-        result = select(["true", "false"])
-    elif target_type == "integer":
-        result = _gen_json_int()
-    elif target_type == "number":
-        result = _gen_json_number()
-    elif target_type == "string":
-        result = _gen_json_string()
-    elif target_type == "array":
-        result = _gen_json_array(
-            item_schema=json_schema["items"], definitions=definitions
+        return lm + _get_definition(
+            reference=json_schema[REF_STRING],
+            definitions=definitions
         )
-    elif target_type == "object":
-        if object_schema is None:
-            object_properties = json_schema["properties"]
-        else:
-            object_properties = object_schema["properties"]
-        result = _gen_json_object(properties=object_properties, definitions=definitions)
-    else:
-        raise ValueError(f"Unsupported type in schema: {json_schema['type']}")
 
-    return lm + result
+    ENUM_STRING = "enum"
+    if ENUM_STRING in json_schema:
+        return lm + _process_enum(options=json_schema["enum"])
 
+    TYPE_STRING = "type"
+    if TYPE_STRING in json_schema:
+        target_type = json_schema["type"]
+        if target_type == "null":
+            return lm + "null"
+        if target_type == "boolean":
+            return lm + select(["true", "false"])
+        if target_type == "integer":
+            return lm + _gen_json_int()
+        if target_type == "number":
+            return lm + _gen_json_number()
+        if target_type == "string":
+            return lm + _gen_json_string()
+        if target_type == "array":
+            return lm + _gen_json_array(
+                item_schema=json_schema["items"],
+                definitions=definitions
+            )
+        if target_type == "object":
+            return lm + _gen_json_object(
+                properties=json_schema.get("properties"),
+                additional_properties=json_schema.get("additionalProperties"),
+                definitions=definitions
+            )
+        raise ValueError(f"Unsupported type in schema: {target_type}")
+
+    raise ValueError(f"Can't process JSON node: {json_schema}")
 
 @guidance(stateless=True)
 def json(lm, json_schema: Mapping[str, Any], name: Optional[str] = None):
@@ -170,6 +234,7 @@ def _build_definitions(
 @guidance(stateless=True)
 def _get_definition(
     lm,
+    *,
     reference: str,
     definitions: Mapping[str, Callable[[], GrammarFunction]],
 ):
