@@ -1,14 +1,13 @@
 import json
-
 from typing import Any
 
 import pytest
 from jsonschema import validate
 
 from guidance import models
+from guidance._parser import ParserException
 from guidance.library import json as gen_json
 from guidance.library._json import _to_compact_json
-from guidance._parser import ParserException
 
 
 def _generate_and_check(target_obj: Any, schema_obj):
