@@ -73,12 +73,12 @@ class TestInteger:
     @pytest.mark.parametrize(
         ["bad_string", "failure_byte"],
         [
-            ("9999a7777", b"a"),  # 'a' is first failure
+            ("9999a7777", b"a"),
             ("123, []", b","),
-            ("a321", b"a"),  # Failure case
-            ("123789.456", b"."),  # '.' is first failure
-            ("[]", b"["),  # Failure case
-            ('{"a":4}', b"{"),  # Failure case
+            ("a321", b"a"),
+            ("123789.456", b"."),
+            ("[]", b"["),
+            ('{"a":4}', b"{"),
         ],
     )
     def test_bad_integer(self, bad_string, failure_byte):
@@ -118,15 +118,14 @@ class TestNumber:
         # The actual check
         _generate_and_check(target_obj, schema_obj)
 
-    # See above for explanation of the failure cases
     @pytest.mark.parametrize(
         ["bad_string", "failure_byte"],
         [
-            ("9999a7777", b"a"),  # 'a' is the first failure
-            ("123.6, []", b","),  # ',' is the first failure
-            ("a321", b"a"),  # Failure case
-            ("[]", b"["),  # Failure case
-            ('{"a":4}', b"{"),  # Failure case
+            ("9999a7777", b"a"),
+            ("123.6, []", b","),
+            ("a321", b"a"),
+            ("[]", b"["),
+            ('{"a":4}', b"{"),
         ],
     )
     def test_bad_number(self, bad_string, failure_byte):
