@@ -11,6 +11,14 @@ from guidance import Server, gen, models
 from guidance.library import json as gen_json
 from guidance.library._json import _to_compact_json
 
+# Everything in here is a 'server' test
+# Mark is configured in pyproject.toml
+pytestmark = pytest.mark.server
+
+# We spin out a separate process, and it
+# has to start up and get ready to
+# respond to requests. Just waiting is
+# not ideal, but is the simplest option
 PROCESS_DELAY_SECS = 40
 
 
