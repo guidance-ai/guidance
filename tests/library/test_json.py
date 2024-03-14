@@ -593,52 +593,6 @@ class TestEnum:
         _check_match_failure(bad_str, failure_byte, schema_obj)
 
 
-class TestEnum:
-    simple_schema = """{
-        "enum": [1,"2",false]
-    }
-    """
-
-    prefix_schema = """{
-        "enum": ["aa", "bb", "cc"]
-    }"""
-
-    @pytest.mark.parametrize("target_obj", [1, "2", False])
-    def test_enum(self, target_obj):
-        # First sanity check what we're setting up
-        schema_obj = json.loads(self.simple_schema)
-        validate(instance=target_obj, schema=schema_obj)
-
-        # The actual check
-        _generate_and_check(target_obj, schema_obj)
-
-    @pytest.mark.parametrize(
-        "bad_obj, failure_byte",
-        [
-            ("1", b"1"),
-            (2, b"2"),
-            (True, b"t"),
-        ],
-    )
-    def test_bad_enum(self, bad_obj, failure_byte):
-        schema_obj = json.loads(self.simple_schema)
-        bad_str = _to_compact_json(bad_obj)
-        _check_match_failure(bad_str, failure_byte, schema_obj)
-
-    @pytest.mark.parametrize(
-        "bad_obj, failure_byte",
-        [
-            ("ab", b"b"),
-            ("bc", b"c"),
-            ("ca", b"a"),
-        ],
-    )
-    def test_bad_prefix_enum(self, bad_obj, failure_byte):
-        schema_obj = json.loads(self.prefix_schema)
-        bad_str = _to_compact_json(bad_obj)
-        _check_match_failure(bad_str, failure_byte, schema_obj)
-
-
 class TestAdditionalProperties:
 
     simple_schema = """{
