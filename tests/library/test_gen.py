@@ -154,6 +154,7 @@ def test_long_prompt(selected_model):
     model_type = type(selected_model.engine.model_obj).__name__
     if model_type == "PhiForCausalLM":
         pytest.xfail("See https://github.com/guidance-ai/guidance/issues/681")
+    lm = selected_model
     prompt = '''Question: Legoland has 5 kangaroos for each koala. If Legoland has 180 kangaroos, how many koalas and kangaroos are there altogether?
 Let's think step by step, and then write the answer:
 Step 1: For every 5 kangaroos, there is one koala, meaning for the 180 kangaroos, there are 180/5 = 36 koalas.
