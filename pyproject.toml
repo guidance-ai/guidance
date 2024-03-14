@@ -5,3 +5,16 @@ requires = [
     "pybind11>=2.10.0",
 ]
 build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+addopts = "--strict-markers"
+markers = [
+    "server: Potentially unreliable tests of the server functionality",
+]
+
+[tool.black]
+line-length = 88
+target_version = ['py38', 'py39', 'py310', 'py311']
+
+[tool.isort]
+profile = "black"
