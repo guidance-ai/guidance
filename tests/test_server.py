@@ -9,8 +9,7 @@ from jsonschema import validate
 
 from guidance import Server, gen, models
 from guidance.library import json as gen_json
-
-from .utils import to_compact_json
+from guidance.library._json import _to_compact_json
 
 # Everything in here is a 'server' test
 # Mark is configured in pyproject.toml
@@ -134,9 +133,9 @@ def test_remote_gen_json(target_obj):
     # Sanity check input
     validate(target_obj, schema_obj)
 
-    print(f"target_obj={to_compact_json(target_obj)}")
+    print(f"target_obj={_to_compact_json(target_obj)}")
 
-    with ServerContext(mock_string=[to_compact_json(target_obj)]):
+    with ServerContext(mock_string=[_to_compact_json(target_obj)]):
         m = models.Model("http://localhost:8392", api_key="SDFSDF")
         m += gen_json(schema_obj, name="my_json_string")
         print(f"Raw: {m['my_json_string']}")
