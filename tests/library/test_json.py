@@ -26,32 +26,6 @@ def _generate_and_check(target_obj: Any, schema_obj):
     assert json.loads(lm[CAPTURE_KEY]) == target_obj
 
 
-def _check_failed_generation(bad_string: str, expected_output: Any, schema_obj):
-    """
-    One can argue that this is slightly misnamed. The generation should never
-    fail so long as the Mock model keeps producing output, and the output itself
-    should always conform to the specified schema. However, the final output
-    won't just reproduce the input because the input doesn't match the schema
-    in the negative test cases
-    """
-    prepared_string = "<s>" + bad_string
-    lm = models.Mock(prepared_string.encode())
-
-    # Run with the mock model
-    CAPTURE_KEY = "my_capture"
-    lm += gen_json(name=CAPTURE_KEY, json_schema=schema_obj)
-    print(f"{lm[CAPTURE_KEY]=}")
-
-    generated_obj = json.loads(lm[CAPTURE_KEY])
-    # Following is going to depend on implementation details
-    # of the mock
-    assert generated_obj == expected_output
-
-    # Ensure what what was output does still match
-    # the schema
-    validate(instance=generated_obj, schema=schema_obj)
-
-
 def _check_match_failure(bad_string, failure_byte, schema_obj):
     grammar = gen_json(schema_obj)
     with pytest.raises(ParserException) as pe:
@@ -291,17 +265,6 @@ class TestSimpleObject:
         # The actual check
         _generate_and_check(target_obj, schema_obj)
 
-    """
-    The following is even more complicated than the failure cases
-    discussed above.
-
-    The key point is that the schema forces the generation of
-    '{"a":' and '}'. The only part where the mocked model will
-    actually be called is to generate the integer value.
-    And then values will be pulled from the string supplied to the
-    mocked model until an invalid character is encountered
-    """
-
     @pytest.mark.parametrize(
         ["bad_string", "failure_byte"],
         [
@@ -383,21 +346,15 @@ class TestSimpleArray:
         # The actual check
         _generate_and_check(target_obj, schema_obj)
 
-    """
-    Again, in the following, the exact output is dependent
-    on how many valid input characters the mock supplies vs
-    random ones, coupld with the brackets being forced.
-    """
-
     @pytest.mark.parametrize(
-        ["bad_string", "expected_capture"],
+        ["bad_string", "failure_byte"],
         [
-            ("9999a7777", []),
-            ("[321.654]", [32115, 3493615190]),
-            ('["123"]', []),
+            ("9999a7777", b"9"),
+            ("[321.654]", b"."),
+            ('["123"]', b'"'),
         ],
     )
-    def test_bad_object(self, bad_string, expected_capture: int):
+    def test_bad_object(self, bad_string, failure_byte):
         schema = """{
         "type" : "array",
         "items" : {
@@ -405,7 +362,7 @@ class TestSimpleArray:
             }
         }"""
         schema_obj = json.loads(schema)
-        _check_failed_generation(bad_string, expected_capture, schema_obj)
+        _check_match_failure(bad_string, failure_byte, schema_obj)
 
 
 class TestWithReferences:
