@@ -54,7 +54,7 @@ def test_stream(selected_model):
     assert str(last_lm) in ["item1", "item2"]
 
 def test_stream_propagate_errors(selected_model):
-    lm = selected_model
+    lm = selected_model.stream()
 
     @guidance
     def my_function(lm):
