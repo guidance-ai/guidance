@@ -18,11 +18,11 @@ def test_stop_char():
     lm += "Count to 10: 1, 2, 3, 4, 5, 6, 7, " + gen('text', stop=",")
     assert lm["text"] == "8"
 
-def test_stop_list_side_effect():
+def test_stop_list_side_effect(selected_model):
     '''Tests a bug where a stop list has an item appended to it in place instead of being updated non-destructively. The bug only occurs whe regex is also None'''
     stop_list = ['\nStep', '\n\n', '\nAnswer'];
     stop_list_length = len(stop_list);
-    lm = get_model("transformers:gpt2")
+    lm = selected_model
     lm + '''Question: Josh decides to try flipping a house.  He buys a house for $80,000 and then puts in $50,000 in repairs.  This increased the value of the house by 150%.  How much profit did he make?
 Let's think step by step, and then write the answer:
 Step 1''' + gen('steps', list_append=True, stop=['\nStep', '\n\n', '\nAnswer'], temperature=0.7, max_tokens=20) + '\n'
