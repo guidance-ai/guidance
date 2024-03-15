@@ -106,7 +106,7 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, regex=None,
         if isinstance(stop, str):
             stop = [stop]
         if regex is None:
-            stop.append(select([eos_token(), active_role_end()]))
+            stop = stop + [select([eos_token(), active_role_end()])]
 
         if stop_regex is None:
             stop_regex = []
