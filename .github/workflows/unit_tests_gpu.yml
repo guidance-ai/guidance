@@ -33,6 +33,9 @@ jobs:
           pip install pytest
           pip install -e .[test]
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      - name: Install accelerate
+        run: |
+          pip install accelerate
       - name: Check GPU available
         run: |
           python -c "import torch; assert torch.cuda.is_available()"
