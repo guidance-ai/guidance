@@ -19,7 +19,7 @@ def _generate_and_check(target_obj: Any, schema_obj):
 
     # Run with the mock model
     CAPTURE_KEY = "my_capture"
-    lm += gen_json(name=CAPTURE_KEY, json_schema=schema_obj)
+    lm += gen_json(name=CAPTURE_KEY, schema=schema_obj)
 
     # Make sure the round trip works
     assert json.loads(lm[CAPTURE_KEY]) == target_obj
