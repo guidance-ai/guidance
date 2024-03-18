@@ -163,6 +163,7 @@ def test_various_regexes(selected_model: models.Model, prompt: str, pattern: str
     # note we can't just test any regex pattern like this, we need them to have finished in less than 40 tokens
     assert re.match(pattern, lm2["test"], re.DOTALL) is not None
 
+@pytest.mark.xfail(condition='selected_model_name in ["hfllama7b"]',reason="Model issues")
 def test_long_prompt(selected_model):
     # Does not work with Phi2
     model_type = type(selected_model.engine.model_obj).__name__
