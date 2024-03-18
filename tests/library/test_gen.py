@@ -51,10 +51,8 @@ Step 1''' + gen('steps', list_append=True, stop=['\nStep', '\n\n', '\nAnswer'], 
     i = 2
     lm + f'Step {i}:' + gen('steps', list_append=True, stop=['\nStep', '\n\n', '\nAnswer'], temperature=0.7, max_tokens=20) + '\n'
 
-def test_unicode2(selected_model):
-    # Does not work with Phi2
-    model_type = type(selected_model.engine.model_obj).__name__
-    if model_type == "PhiForCausalLM":
+def test_unicode2(selected_model, selected_model_name):
+    if selected_model_name == "phi2cpu":
         pytest.xfail("See https://github.com/guidance-ai/guidance/issues/681")
     lm = selected_model
     prompt = 'Janet’s ducks lay 16 eggs per day'
