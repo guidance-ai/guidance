@@ -166,6 +166,7 @@ def test_various_regexes(selected_model: models.Model, prompt: str, pattern: str
 def test_long_prompt(selected_model):
     # Does not work with Phi2
     model_type = type(selected_model.engine.model_obj).__name__
+    print(f"model_type={model_type}")
     if model_type == "PhiForCausalLM":
         pytest.xfail("See https://github.com/guidance-ai/guidance/issues/681")
     lm = selected_model
