@@ -51,7 +51,7 @@ Step 1''' + gen('steps', list_append=True, stop=['\nStep', '\n\n', '\nAnswer'], 
     i = 2
     lm + f'Step {i}:' + gen('steps', list_append=True, stop=['\nStep', '\n\n', '\nAnswer'], temperature=0.7, max_tokens=20) + '\n'
 
-def test_unicode2(selected_model, selected_model_name):
+def test_unicode2(selected_model):
     lm = selected_model
     prompt = 'Janet’s ducks lay 16 eggs per day'
     lm +=  prompt + gen(max_tokens=10)
