@@ -52,8 +52,6 @@ Step 1''' + gen('steps', list_append=True, stop=['\nStep', '\n\n', '\nAnswer'], 
     lm + f'Step {i}:' + gen('steps', list_append=True, stop=['\nStep', '\n\n', '\nAnswer'], temperature=0.7, max_tokens=20) + '\n'
 
 def test_unicode2(selected_model, selected_model_name):
-    if selected_model_name == "phi2cpu":
-        pytest.xfail("See https://github.com/guidance-ai/guidance/issues/681")
     lm = selected_model
     prompt = 'Janet’s ducks lay 16 eggs per day'
     lm +=  prompt + gen(max_tokens=10)
@@ -162,8 +160,6 @@ def test_various_regexes(selected_model: models.Model, prompt: str, pattern: str
     assert re.match(pattern, lm2["test"], re.DOTALL) is not None
 
 def test_long_prompt(selected_model, selected_model_name):
-    if selected_model_name == "phi2cpu":
-        pytest.xfail("See https://github.com/guidance-ai/guidance/issues/681")
     if selected_model_name == "hfllama7b":
         pytest.xfail("Insufficient context window in model")
     lm = selected_model
