@@ -14,7 +14,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
-        model: ["gpt2cpu", "phi2cpu"]
+        model: ["gpt2cpu", "phi2cpu", "hfllama7b"]
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -30,6 +30,9 @@ jobs:
           pip install pytest
           pip install -e .[test]
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      - name: Install model-specific dependencies
+        run: |
+          pip install llama-cpp-python
       - name: Run tests (except server)
         run: |
           pytest --cov=guidance --cov-report=xml --cov-report=term-missing --selected_model ${{ matrix.model }} -m "not server" ./tests/
