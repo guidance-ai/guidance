@@ -9,18 +9,10 @@ AVAILABLE_MODELS = {
     "phi2cpu": dict(
         name="transformers:microsoft/phi-2", kwargs={"trust_remote_code": True}
     ),
-    "hfllama7b": dict(
-        name="huggingface_hubllama:TheBloke/Llama-2-7B-GGUF:llama-2-7b.Q5_K_M.gguf",
-        kwargs=dict(),
-    ),
     "gpt2gpu": dict(name="transformers:gpt2", kwargs={"device_map": "cuda:0"}),
     "phi2gpu": dict(
         name="transformers:microsoft/phi-2",
         kwargs={"trust_remote_code": True, "device_map": "cuda:0"},
-    ),
-    "hfllama7bgpu": dict(
-        name="huggingface_hubllama:TheBloke/Llama-2-7B-GGUF:llama-2-7b.Q5_K_M.gguf",
-        kwargs={"n_gpu_layers": -1, "verbose": True},
     ),
 }
 
@@ -36,12 +28,7 @@ def pytest_addoption(parser):
 
 
 @pytest.fixture(scope="session")
-def selected_model_name(pytestconfig) -> str:
-    return pytestconfig.getoption("selected_model")
-
-# Temporarily scope to function for more output
-@pytest.fixture(scope="function")
-def selected_model(selected_model_name: str) -> models.Model:
+def selected_model(pytestconfig) -> models.Model:
     """Get a concrete model for tests
 
     This fixture is for tests which are supposed
@@ -54,7 +41,9 @@ def selected_model(selected_model_name: str) -> models.Model:
     controlled by the '--selected_model' command
     line argument to pytest.
     """
-    model_info = AVAILABLE_MODELS[selected_model_name]
+    model_key = pytestconfig.getoption("selected_model")
+
+    model_info = AVAILABLE_MODELS[model_key]
 
     model = get_model(model_info["name"], **(model_info["kwargs"]))
     return model

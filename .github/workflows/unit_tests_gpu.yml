@@ -8,13 +8,13 @@ on:
   workflow_dispatch:
 
 jobs:
-  unit-tests-gpu:
+  unit-tests:
 
     strategy:
       matrix:
         os: [gpu-runner]
-        python-version: [ "3.10" ]
-        model: ["gpt2gpu", "phi2gpu", "hfllama7bgpu"]
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+        model: ["gpt2gpu", "phi2gpu"]
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -33,10 +33,9 @@ jobs:
           pip install pytest
           pip install -e .[test]
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-      - name: Install GPU-specific requirements
+      - name: Install accelerate
         run: |
           pip install accelerate
-          CMAKE_ARGS="-DLLAMA_CUBLAS=on" pip install --verbose llama-cpp-python
       - name: Check GPU available
         run: |
           python -c "import torch; assert torch.cuda.is_available()"
