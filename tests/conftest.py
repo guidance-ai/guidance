@@ -9,6 +9,11 @@ AVAILABLE_MODELS = {
     "phi2cpu": dict(
         name="transformers:microsoft/phi-2", kwargs={"trust_remote_code": True}
     ),
+    "gpt2gpu": dict(name="transformers:gpt2", kwargs={"device_map": "cuda:0"}),
+    "phi2gpu": dict(
+        name="transformers:microsoft/phi-2",
+        kwargs={"trust_remote_code": True, "device_map": "cuda:0"},
+    ),
 }
 
 
