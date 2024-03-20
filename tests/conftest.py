@@ -39,8 +39,8 @@ def pytest_addoption(parser):
 def selected_model_name(pytestconfig) -> str:
     return pytestconfig.getoption("selected_model")
 
-
-@pytest.fixture(scope="session")
+# Temporarily scope to function for more output
+@pytest.fixture(scope="function")
 def selected_model(selected_model_name: str) -> models.Model:
     """Get a concrete model for tests
 
