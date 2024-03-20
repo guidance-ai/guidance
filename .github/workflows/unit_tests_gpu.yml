@@ -36,10 +36,7 @@ jobs:
       - name: Install GPU-specific requirements
         run: |
           pip install accelerate
-          echo
-          which nvcc
-          echo
-          CMAKE_ARGS="-DLLAMA_CUBLAS=on --trace" pip install --verbose llama-cpp-python
+          CMAKE_ARGS="-DLLAMA_CUBLAS=on" pip install --verbose llama-cpp-python
       - name: Check GPU available
         run: |
           python -c "import torch; assert torch.cuda.is_available()"
