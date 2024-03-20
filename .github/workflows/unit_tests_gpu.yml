@@ -13,7 +13,7 @@ jobs:
     strategy:
       matrix:
         os: [gpu-runner]
-        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+        python-version: [ "3.10" ]
         model: ["gpt2gpu", "phi2gpu", "hfllama7bgpu"]
 
     runs-on: ${{ matrix.os }}
@@ -36,7 +36,7 @@ jobs:
       - name: Install GPU-specific requirements
         run: |
           pip install accelerate
-          pip install llama-cpp-python
+          pip install --verbose llama-cpp-python
       - name: Check GPU available
         run: |
           python -c "import torch; assert torch.cuda.is_available()"
