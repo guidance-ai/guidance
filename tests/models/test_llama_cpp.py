@@ -17,13 +17,13 @@ def test_llama_cpp_gen(llamacpp_model: guidance.models.Model):
     lm = lm + "this is a test" + gen("test", max_tokens=10)
     assert len(str(lm)) > len("this is a test")
 
-def test_llama_cpp_gen_log_probs():
-    lm = get_model("llama_cpp:")
+def test_llama_cpp_gen_log_probs(llamacpp_model: guidance.models.Model):
+    lm = llamacpp_model
     lm = lm + "this is a test" + gen("test", max_tokens=1)
     assert 1 >= np.exp(lm.log_prob("test")) >= 0
 
-def test_llama_cpp_recursion_error():
-    lm = get_model("llama_cpp:")
+def test_llama_cpp_recursion_error(llamacpp_model: guidance.models.Model):
+    lm = llamacpp_model
 
     # define a guidance program that adapts a proverb
     lm = lm + f"""Tweak this proverb to apply to model instructions instead.
@@ -31,8 +31,8 @@ def test_llama_cpp_recursion_error():
     """
     assert len(str(lm)) > len("Tweak this proverb to apply to model instructions instead.\n\n")
 
-def test_llama_cpp_select2():
-    lm = get_model("llama_cpp:")
+def test_llama_cpp_select2(llamacpp_model: guidance.models.Model):
+    lm = llamacpp_model
     lm += f'this is a test1 {select(["item1", "item2"])} and test2 {select(["item3", "item4"])}'
     assert str(lm) in [
         "this is a test1 item1 and test2 item3", 
@@ -40,8 +40,8 @@ def test_llama_cpp_select2():
         "this is a test1 item2 and test2 item3", 
         "this is a test1 item2 and test2 item4"]
 
-def test_repeat_calls():
-    llama2 = get_model("llama_cpp:")
+def test_repeat_calls(llamacpp_model: guidance.models.Model):
+    llama2 = llamacpp_model
     a = []
     lm = llama2 + 'How much is 2 + 2? ' + gen(name='test', max_tokens=10)
     a.append(lm['test'])
@@ -51,14 +51,14 @@ def test_repeat_calls():
     a.append(lm['test'])
     assert a[-1] == a[0]
 
-def test_suffix():
-    llama2 = get_model("llama_cpp:")
+def test_suffix(llamacpp_model: guidance.models.Model):
+    llama2 = llamacpp_model
     lm = llama2 + '1. Here is a sentence ' + gen(name='bla', list_append=True, suffix='\n')
     assert (str(lm))[-1] == '\n'
     assert (str(lm))[-2] != '\n'
 
-def test_subtoken_forced():
-    llama2 = get_model("llama_cpp:")
+def test_subtoken_forced(llamacpp_model: guidance.models.Model):
+    llama2 = llamacpp_model
     lm = llama2 + 'How much is 2 + 2? ' + gen(name='test', max_tokens=10, regex=r'\(')
     assert str(lm) == "How much is 2 + 2? ("
 
@@ -98,21 +98,21 @@ def test_llama_cpp_more_than_two_batches():
     lm += long_str + gen(max_tokens=10)
     assert len(str(lm)) > len(long_str)
 
-def test_llama_with_temp():
-    lm = get_model("llama_cpp:")
+def test_llama_with_temp(llamacpp_model: guidance.models.Model):
+    lm = llamacpp_model
     lm += 'Here is a cute 5-line poem about cats and dogs:\n'
     for i in range(5):
         lm += f"LINE {i+1}: " + gen(temperature=0.8, suffix="\n")
     # we just want to make sure we don't crash the numpy sampler
 
-def test_llama_with_temp2():
-    lm = get_model("llama_cpp:")
+def test_llama_with_temp2(llamacpp_model: guidance.models.Model):
+    lm = llamacpp_model
     lm1 = lm + '2 + 2 =' + gen('answer', max_tokens=3)
     lm2 = lm + '2 + 2 =' + gen('answer', temperature=0.0000001, max_tokens=3)
     assert lm1["answer"] == lm2["answer"]
 
-def test_max_tokens():
-    lm = get_model("llama_cpp:")
+def test_max_tokens(llamacpp_model: guidance.models.Model):
+    lm = llamacpp_model
     lm += "Who won the last Kentucky derby and by how much?"
     lm += "\n\n<<The last Kentucky Derby was held"
     lm += gen(max_tokens=2)
