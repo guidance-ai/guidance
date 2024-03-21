@@ -3,8 +3,17 @@ import guidance
 from guidance import select, gen
 from ..utils import get_model
 
-def test_llama_cpp_gen():
-    lm = get_model("llama_cpp:")
+import pytest
+
+@pytest.fixture(scope="session")
+def llamacpp_model(selected_model, selected_model_name):
+    if selected_model_name in ["hfllama7b"]:
+        return selected_model
+    else:
+        pytest.skip("Requires Llama-Cpp model")
+
+def test_llama_cpp_gen(llamacpp_model: guidance.models.Model):
+    lm = llamacpp_model
     lm = lm + "this is a test" + gen("test", max_tokens=10)
     assert len(str(lm)) > len("this is a test")
 
