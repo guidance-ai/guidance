@@ -53,6 +53,7 @@ setup(
     extras_require={
         "docs": ["ipython", "numpydoc", "sphinx_rtd_theme", "sphinx", "nbsphinx"],
         "test": [
+            "accelerate",
             "jsonschema",
             "jupyter",
             "papermill",
