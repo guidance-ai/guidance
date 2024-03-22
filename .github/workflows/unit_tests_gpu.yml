@@ -14,7 +14,7 @@ jobs:
       matrix:
         os: [gpu-runner]
         python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
-        model: ["gpt2gpu", "phi2gpu"]
+        model: ["gpt2gpu", "phi2gpu", "hfllama_7b_gpu"]
 
     runs-on: ${{ matrix.os }}
     steps:
