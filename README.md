@@ -5,6 +5,7 @@
 </picture></div>
 <br/>
 
+ORIGINAL GIT: https://github.com/guidance-ai/guidance
 
 > *Note that v0.1 is a dramatically new version developed while releases had to be paused over the summer. If you are looking for the old version based on handlebars, you can use v0.0.64, but you should instead try porting over to the much better new version :)*
 
