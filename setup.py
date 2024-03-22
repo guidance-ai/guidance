@@ -54,6 +54,7 @@ setup(
         "docs": ["ipython", "numpydoc", "sphinx_rtd_theme", "sphinx", "nbsphinx"],
         "test": [
             "jsonschema",
+            "jupyter",
             "papermill",
             "pytest",
             "pytest-cov",
