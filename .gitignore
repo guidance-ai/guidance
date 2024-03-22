@@ -15,3 +15,5 @@ node_modules
 # Ignore native library built by setup
 guidance/*.so
 guidance/cpp.*.pyd
+
+notebooks/**/*.papermill_out.ipynb
