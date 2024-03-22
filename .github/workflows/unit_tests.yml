@@ -14,7 +14,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
-        model: ["gpt2cpu", "phi2cpu", "hfllama7b", "mistraltransformers"]
+        model: ["gpt2cpu", "phi2cpu", "hfllama7b", "transformers_mistral_7b", "hfllama_mistral_7b"]
 
     runs-on: ${{ matrix.os }}
     steps:
