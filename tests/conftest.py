@@ -13,6 +13,9 @@ AVAILABLE_MODELS = {
         name="huggingface_hubllama:TheBloke/Llama-2-7B-GGUF:llama-2-7b.Q5_K_M.gguf",
         kwargs={"verbose": True},
     ),
+    "mistraltransformers": dict(
+        name="transformers:mistralai/Mistral-7B-v0.1", kwargs=dict()
+    ),
     "gpt2gpu": dict(name="transformers:gpt2", kwargs={"device_map": "cuda:0"}),
     "phi2gpu": dict(
         name="transformers:microsoft/phi-2",
