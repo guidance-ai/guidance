@@ -16,6 +16,10 @@ def run_notebook(notebook_path: pathlib.Path):
 class TestTutorials:
     BASE_TUTORIAL_PATH = BASE_NB_PATH / "tutorials"
 
+    def test_adding_new_models(self):
+        nb_path = TestTutorials.BASE_TUTORIAL_PATH / "adding_new_models.ipynb"
+        run_notebook(nb_path)
+
     def test_regex_constraints(self):
         nb_path = TestTutorials.BASE_TUTORIAL_PATH / "regex_constraints.ipynb"
         run_notebook(nb_path)
