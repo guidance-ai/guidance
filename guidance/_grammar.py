@@ -747,7 +747,12 @@ def select(options: List[_T], name=None, list_append=False, recurse=False, skip_
 
     if recurse:
         node = Select([], capture_name=name, recursive=True)
-        node.values = [node + v for v in options if v != ""] + options
+        if "" in options:
+            # if we have an empty option, 'node + v' also covers the case of 'v' itself
+            # thus, we don't have to add 'options' (except for the empty string)
+            node.values = [node + v for v in options if v != ""] + [""]
+        else:
+            node.values = [node + v for v in options if v != ""] + options
         return node
     else:
         if len(options) == 1 and name is None:
