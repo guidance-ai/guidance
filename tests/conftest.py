@@ -20,7 +20,7 @@ AVAILABLE_MODELS = {
     ),
     "hfllama_7b_gpu": dict(
         name="huggingface_hubllama:TheBloke/Llama-2-7B-GGUF:llama-2-7b.Q5_K_M.gguf",
-        kwargs={"verbose": True, "device_map": "cuda:0"},
+        kwargs={"verbose": True, "n_gpu_layers": -1},
     ),
 }
 
