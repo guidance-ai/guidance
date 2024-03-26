@@ -30,9 +30,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get -y upgrade
-      - name: Ensure cmake available
-        run: |
-          sudo apt-get -y install cmake
       - name: Ensure NVIDIA SDK available
         run: |
           sudo apt-get -y install cuda-toolkit
@@ -46,7 +43,7 @@ jobs:
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
       - name: GPU pip installs
         run: |
-          pip install cmake
+          pip install cmake<3.29
           pip install accelerate
           CMAKE_ARGS="-DLLAMA_CUBLAS=on" pip install llama-cpp-python
       - name: Check GPU available
