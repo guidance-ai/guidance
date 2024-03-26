@@ -39,9 +39,13 @@ def pytest_addoption(parser):
 def selected_model_name(pytestconfig) -> str:
     return pytestconfig.getoption("selected_model")
 
+@pytest.fixture(scope="session")
+def selected_model_info(selected_model_name: str):
+    model_info = AVAILABLE_MODELS[selected_model_name]
+    return model_info
 
 @pytest.fixture(scope="session")
-def selected_model(selected_model_name: str) -> models.Model:
+def selected_model(selected_model_info: str) -> models.Model:
     """Get a concrete model for tests
 
     This fixture is for tests which are supposed
@@ -54,7 +58,5 @@ def selected_model(selected_model_name: str) -> models.Model:
     controlled by the '--selected_model' command
     line argument to pytest.
     """
-    model_info = AVAILABLE_MODELS[selected_model_name]
-
-    model = get_model(model_info["name"], **(model_info["kwargs"]))
+    model = get_model(selected_model_info["name"], **(selected_model_info["kwargs"]))
     return model
