@@ -43,6 +43,8 @@ jobs:
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
       - name: GPU pip installs
         run: |
+          # Seems to be a problem with latest PyPI cmake release
+          # https://github.com/scikit-build/cmake-python-distributions/issues/472
           pip install cmake<3.29
           pip install accelerate
           CMAKE_ARGS="-DLLAMA_CUBLAS=on" pip install llama-cpp-python
