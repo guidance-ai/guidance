@@ -26,6 +26,14 @@ jobs:
       - name: Show GPUs
         run: |
           nvidia-smi
+      - name: Update Ubuntu
+        run: |
+          sudo apt-get update
+          sudo apt-get -y upgrade
+      - name: Ensure NVIDIA SDK available
+        run: |
+          sudo apt-get -y install cuda-toolkit
+          echo "/usr/local/cuda-12.4/bin" >> $GITHUB_PATH
       - name: Install dependencies
         shell: bash
         run: |
@@ -33,10 +41,6 @@ jobs:
           pip install pytest
           pip install -e .[test]
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-      - name: Ensure NVIDIA SDK available
-        run: |
-          sudo apt-get -y install cuda-toolkit
-          echo "/usr/local/cuda-12.4/bin" >> $GITHUB_PATH
       - name: GPU pip installs
         run: |
           pip install accelerate
