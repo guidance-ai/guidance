@@ -30,7 +30,7 @@ Step 1''' + gen('steps', list_append=True, stop=['\nStep', '\n\n', '\nAnswer'], 
     i = 2
     lm + f'Step {i}:' + gen('steps', list_append=True, stop=['\nStep', '\n\n', '\nAnswer'], temperature=0.7, max_tokens=20) + '\n'
     assert stop_list_length == len(stop_list)
-    
+
 
 def test_save_stop():
     lm = models.Mock(b"<s>Count to 10: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10")
@@ -160,7 +160,7 @@ def test_various_regexes(selected_model: models.Model, prompt: str, pattern: str
     assert re.match(pattern, lm2["test"], re.DOTALL) is not None
 
 def test_long_prompt(selected_model, selected_model_name):
-    if selected_model_name == "hfllama7b":
+    if selected_model_name in ["hfllama7b", "hfllama_7b_gpu"]:
         pytest.xfail("Insufficient context window in model")
     lm = selected_model
     prompt = '''Question: Legoland has 5 kangaroos for each koala. If Legoland has 180 kangaroos, how many koalas and kangaroos are there altogether?
