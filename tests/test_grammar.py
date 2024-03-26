@@ -1,6 +1,7 @@
 import pytest
 import guidance
 from guidance import models, select, gen, optional, one_or_more
+from guidance._parser import ParserException
 
 def test_select_reset_pos():
     model = models.Mock()
@@ -123,3 +124,45 @@ def test_multiple_gen_stops(stop):
     matchstr = 'abc' + stop + '123' + stop + 'xyz' + stop
     match = grammar.match(matchstr, allow_partial=True)
     assert match is not None
+
+
+# Cartesian product of stop token (in grammar, not in grammar) and (in matchstr, not in matchstr)
+
+def test_stop_no_grammar_no_matchstr():
+    grammar = gen(regex=r'a*', stop='@') + gen(regex=r'b*')
+    matchstr = 'aaaaaabbbbb'
+    grammar.match(matchstr, raise_exceptions=True)
+
+def test_stop_no_grammar_yes_matchstr():
+    # Somehow a '@' made it into our string even though it should have been hidden.
+    grammar = gen(regex=r'a*', stop='@') + gen(regex=r'b*')
+    matchstr = 'aaaaaa@bbbbb'
+    with pytest.raises(ParserException):
+        # TODO: should be a HiddenCommitPointException
+        grammar.match(matchstr, allow_partial=True, raise_exceptions=True)
+
+def test_stop_yes_grammar_no_matchstr():
+    # We got a 'b' when we were expecting an 'a' or an '@'
+    grammar = gen(regex=r'a*', stop='@') + '@' + gen(regex=r'b*')
+    matchstr = 'aaaaaabbbbb'
+    with pytest.raises(ParserException):
+        grammar.match(matchstr, allow_partial=True, raise_exceptions=True)
+
+def test_stop_yes_grammar_yes_matchstr():
+    grammar = gen(regex=r'a*', stop='@') + '@' + gen(regex=r'b*')
+    matchstr = 'aaaaaa@bbbbb'
+    grammar.match(matchstr, raise_exceptions=True)
+
+
+def test_ambiguous_hidden_stop_bad():
+    # Cannot be a match because once we see an "@" we know that no numbers can appear 
+    # (since an "@" can't appear in the first pattern and numbers can't appear in the second).
+    grammar = gen(regex=r'.*', stop='@') + gen(regex=r'[^0-9]*', name="end")
+    matchstr = 'ajdkjck@sk9dfjjsdfjk'
+    with pytest.raises(ParserException):
+        grammar.match(matchstr, allow_partial=True, raise_exceptions=True)
+
+def test_ambiguous_hidden_stop_good():
+    grammar = gen(regex=r'.*', stop='@') + gen(regex=r'[^0-9]*', name="end")
+    matchstr = 'ajdkjcksk9dfjjsdfjk'
+    grammar.match(matchstr, raise_exceptions=True)
