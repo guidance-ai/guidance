@@ -52,10 +52,6 @@ Step 1''' + gen('steps', list_append=True, stop=['\nStep', '\n\n', '\nAnswer'], 
     lm + f'Step {i}:' + gen('steps', list_append=True, stop=['\nStep', '\n\n', '\nAnswer'], temperature=0.7, max_tokens=20) + '\n'
 
 def test_unicode2(selected_model):
-    # Does not work with Phi2
-    model_type = type(selected_model.engine.model_obj).__name__
-    if model_type == "PhiForCausalLM":
-        pytest.xfail("See https://github.com/guidance-ai/guidance/issues/681")
     lm = selected_model
     prompt = 'Janet’s ducks lay 16 eggs per day'
     lm +=  prompt + gen(max_tokens=10)
@@ -163,11 +159,9 @@ def test_various_regexes(selected_model: models.Model, prompt: str, pattern: str
     # note we can't just test any regex pattern like this, we need them to have finished in less than 40 tokens
     assert re.match(pattern, lm2["test"], re.DOTALL) is not None
 
-def test_long_prompt(selected_model):
-    # Does not work with Phi2
-    model_type = type(selected_model.engine.model_obj).__name__
-    if model_type == "PhiForCausalLM":
-        pytest.xfail("See https://github.com/guidance-ai/guidance/issues/681")
+def test_long_prompt(selected_model, selected_model_name):
+    if selected_model_name == "hfllama7b":
+        pytest.xfail("Insufficient context window in model")
     lm = selected_model
     prompt = '''Question: Legoland has 5 kangaroos for each koala. If Legoland has 180 kangaroos, how many koalas and kangaroos are there altogether?
 Let's think step by step, and then write the answer:

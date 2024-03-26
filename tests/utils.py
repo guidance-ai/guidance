@@ -1,7 +1,8 @@
-import json
 import os
 
 from typing import Any
+
+from huggingface_hub import hf_hub_download
 
 import pytest
 
@@ -18,6 +19,11 @@ def get_model(model_name, caching=False, **kwargs):
         return get_transformers_model(model_name[13:], caching, **kwargs)
     elif model_name.startswith("llama_cpp:"):
         return get_llama_cpp_model(model_name[10:], caching, **kwargs)
+    elif model_name.startswith("huggingface_hubllama"):
+        name_parts = model_name.split(":")
+        return get_llama_hugging_face_model(
+            repo_id=name_parts[1], filename=name_parts[2], **kwargs
+        )
 
 
 def get_openai_model(model_name, caching=False, **kwargs):
@@ -32,6 +38,12 @@ def get_openai_model(model_name, caching=False, **kwargs):
         )
     lm = opanai_model_cache[key]
 
+    return lm
+
+
+def get_llama_hugging_face_model(repo_id: str, filename: str, **kwargs):
+    downloaded_file = hf_hub_download(repo_id=repo_id, filename=filename)
+    lm = guidance.models.LlamaCpp(downloaded_file, **kwargs)
     return lm
 
 
