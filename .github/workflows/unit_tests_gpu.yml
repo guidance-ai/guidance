@@ -37,6 +37,10 @@ jobs:
         run: |
           sudo apt-get -y install cuda-toolkit
           echo "/usr/local/cuda-12.4/bin" >> $GITHUB_PATH
+      - name: Update cmake
+        run: |
+          sudo apt update
+          sudo apt upgrade cmake
       - name: GPU pip installs
         run: |
           pip install cmake
