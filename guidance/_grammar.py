@@ -162,6 +162,7 @@ class GrammarFunction(Function):
     def match(self, byte_string: Union[str, bytes], allow_partial: bool=False, raise_exceptions: bool=False) -> Union[Match, None]:
         if isinstance(byte_string, str):
             byte_string = byte_string.encode()
+        replace_grammar_node(self, lambda node: getattr(node, "commit_point") and node.hidden, lambda node: select([node, '']))
         parser = _parser.EarleyCommitParser(self)
 
         byte_pos = 0
@@ -470,8 +471,11 @@ def replace_grammar_node(grammar, target, replacement):
         
         # Iterate through the node's values and replace target with replacement
         for i, value in enumerate(current.values):
-            if value == target:
-                current.values[i] = replacement
+            if value == target or (callable(target) and target(value)):
+                if callable(replacement):
+                    current.values[i] = replacement(value)
+                else:
+                    current.values[i] = replacement
             else:
                 stack.append(value)
 
