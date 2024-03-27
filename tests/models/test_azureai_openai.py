@@ -5,21 +5,22 @@ import pytest
 from guidance import models, gen, system, user, assistant
 
 
-def _env_or_skip(var_name: str) -> str:
+# Everything in here needs credentials to work
+# Mark is configured in pyproject.toml
+pytestmark = pytest.mark.needs_credentials
+
+def _env_or_fail(var_name: str) -> str:
     env_value = os.getenv(var_name, None)
 
-    if not env_value:
-        if os.getenv("EXPECT_SECRETS", None):
-            raise ValueError(f"Env '{var_name}' not found")
-        else:
-            pytest.skip(f"Did not find required environment variable: {var_name}")
+    assert env_value is not None, f"Env '{var_name}' not found"
+
     return env_value
 
 
 def test_azureai_openai_chat_smoke():
-    azureai_endpoint = _env_or_skip("AZUREAI_CHAT_ENDPOINT")
-    azureai_key = _env_or_skip("AZUREAI_CHAT_KEY")
-    model = _env_or_skip("AZUREAI_CHAT_MODEL")
+    azureai_endpoint = _env_or_fail("AZUREAI_CHAT_ENDPOINT")
+    azureai_key = _env_or_fail("AZUREAI_CHAT_KEY")
+    model = _env_or_fail("AZUREAI_CHAT_MODEL")
 
     lm = models.AzureOpenAI(
         model=model, azure_endpoint=azureai_endpoint, api_key=azureai_key
@@ -41,9 +42,9 @@ def test_azureai_openai_chat_smoke():
 
 
 def test_azureai_openai_completion_smoke():
-    azureai_endpoint = _env_or_skip("AZUREAI_COMPLETION_ENDPOINT")
-    azureai_key = _env_or_skip("AZUREAI_COMPLETION_KEY")
-    model = _env_or_skip("AZUREAI_COMPLETION_MODEL")
+    azureai_endpoint = _env_or_fail("AZUREAI_COMPLETION_ENDPOINT")
+    azureai_key = _env_or_fail("AZUREAI_COMPLETION_KEY")
+    model = _env_or_fail("AZUREAI_COMPLETION_MODEL")
 
     lm = models.AzureOpenAI(
         model=model, azure_endpoint=azureai_endpoint, api_key=azureai_key
@@ -56,9 +57,9 @@ def test_azureai_openai_completion_smoke():
 
 
 def test_azureai_openai_chat_loop():
-    azureai_endpoint = _env_or_skip("AZUREAI_CHAT_ENDPOINT")
-    azureai_key = _env_or_skip("AZUREAI_CHAT_KEY")
-    model = _env_or_skip("AZUREAI_CHAT_MODEL")
+    azureai_endpoint = _env_or_fail("AZUREAI_CHAT_ENDPOINT")
+    azureai_key = _env_or_fail("AZUREAI_CHAT_KEY")
+    model = _env_or_fail("AZUREAI_CHAT_MODEL")
 
     lm = models.AzureOpenAI(
         model=model, azure_endpoint=azureai_endpoint, api_key=azureai_key
