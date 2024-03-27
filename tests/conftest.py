@@ -1,3 +1,6 @@
+import random
+import time
+
 import pytest
 
 from guidance import models
@@ -60,3 +63,9 @@ def selected_model(selected_model_info: str) -> models.Model:
     """
     model = get_model(selected_model_info["name"], **(selected_model_info["kwargs"]))
     return model
+
+@pytest.fixture(scope="function")
+def rate_limiter() -> int:
+    delay_secs = random.randint(1,10)
+    time.sleep(delay_secs)
+    return delay_secs

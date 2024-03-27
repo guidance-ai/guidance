@@ -17,7 +17,7 @@ def _env_or_fail(var_name: str) -> str:
     return env_value
 
 
-def test_azureai_openai_chat_smoke():
+def test_azureai_openai_chat_smoke(rate_limiter):
     azureai_endpoint = _env_or_fail("AZUREAI_CHAT_ENDPOINT")
     azureai_key = _env_or_fail("AZUREAI_CHAT_KEY")
     model = _env_or_fail("AZUREAI_CHAT_MODEL")
@@ -41,7 +41,7 @@ def test_azureai_openai_chat_smoke():
     assert len(lm["text"]) > 0
 
 
-def test_azureai_openai_completion_smoke():
+def test_azureai_openai_completion_smoke(rate_limiter):
     azureai_endpoint = _env_or_fail("AZUREAI_COMPLETION_ENDPOINT")
     azureai_key = _env_or_fail("AZUREAI_COMPLETION_KEY")
     model = _env_or_fail("AZUREAI_COMPLETION_MODEL")
@@ -56,7 +56,7 @@ def test_azureai_openai_completion_smoke():
     assert len(result["text"]) > 0
 
 
-def test_azureai_openai_chat_loop():
+def test_azureai_openai_chat_loop(rate_limiter):
     azureai_endpoint = _env_or_fail("AZUREAI_CHAT_ENDPOINT")
     azureai_key = _env_or_fail("AZUREAI_CHAT_KEY")
     model = _env_or_fail("AZUREAI_CHAT_MODEL")
