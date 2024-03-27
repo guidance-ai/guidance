@@ -71,10 +71,11 @@ def selected_model(selected_model_info: str) -> models.Model:
 def rate_limiter() -> int:
     """Limit test execution rate
 
-    This fixture introduces a random delay of up
-    to 10 seconds. It can be used as a crude rate
-    limiter for tests which call external APIs
+    Any test using this fixture will have a
+    random delay inserted before the test runs.
+    It can be used as a crude rate limiter for
+    tests which call external APIs
     """
-    delay_secs = random.randint(5, 20)
+    delay_secs = random.randint(10, 30)
     time.sleep(delay_secs)
     return delay_secs
