@@ -202,13 +202,13 @@ def _gen_json(
     raise ValueError(f"Can't process JSON node: {json_schema}")
 
 @guidance(stateless=True)
-def json(lm, json_schema: Mapping[str, Any], name: Optional[str] = None):
+def json(lm, schema: Mapping[str, Any], name: Optional[str] = None):
     _DEFS_KEY = "$defs"
     definitions = {}
-    if _DEFS_KEY in json_schema:
-        definitions = _build_definitions(json_schema[_DEFS_KEY])
+    if _DEFS_KEY in schema:
+        definitions = _build_definitions(schema[_DEFS_KEY])
 
-    return lm + guidance.capture(_gen_json(json_schema, definitions), name=name)
+    return lm + guidance.capture(_gen_json(schema, definitions), name=name)
 
 
 def _build_definitions(
