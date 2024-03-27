@@ -1,3 +1,6 @@
+import random
+import time
+
 import pytest
 
 from guidance import models
@@ -39,10 +42,12 @@ def pytest_addoption(parser):
 def selected_model_name(pytestconfig) -> str:
     return pytestconfig.getoption("selected_model")
 
+
 @pytest.fixture(scope="session")
 def selected_model_info(selected_model_name: str):
     model_info = AVAILABLE_MODELS[selected_model_name]
     return model_info
+
 
 @pytest.fixture(scope="session")
 def selected_model(selected_model_info: str) -> models.Model:
@@ -60,3 +65,17 @@ def selected_model(selected_model_info: str) -> models.Model:
     """
     model = get_model(selected_model_info["name"], **(selected_model_info["kwargs"]))
     return model
+
+
+@pytest.fixture(scope="function")
+def rate_limiter() -> int:
+    """Limit test execution rate
+
+    Any test using this fixture will have a
+    random delay inserted before the test runs.
+    It can be used as a crude rate limiter for
+    tests which call external APIs
+    """
+    delay_secs = random.randint(10, 30)
+    time.sleep(delay_secs)
+    return delay_secs

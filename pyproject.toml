@@ -10,6 +10,7 @@ build-backend = "setuptools.build_meta"
 addopts = "--strict-markers"
 markers = [
     "server: Potentially unreliable tests of the server functionality",
+    "needs_credentials: Test which needs access to credentials to work",
 ]
 
 [tool.black]
