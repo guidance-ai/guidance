@@ -34,9 +34,6 @@ jobs:
           pip install pytest
           pip install -e .[test]
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-      - name: Install dependencies for tests
-        run: |
-          pip install azure-identity
       - name: Test with pytest
         env:
           # Configure endpoints
