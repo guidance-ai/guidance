@@ -75,6 +75,6 @@ def rate_limiter() -> int:
     to 10 seconds. It can be used as a crude rate
     limiter for tests which call external APIs
     """
-    delay_secs = random.randint(1, 10)
+    delay_secs = random.randint(5, 20)
     time.sleep(delay_secs)
     return delay_secs
