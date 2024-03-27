@@ -28,12 +28,15 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install dependencies
+      - name: Install regular dependencies
         run: |
           python -m pip install --upgrade pip
           pip install pytest
           pip install -e .[test]
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      - name: Install dependencies for tests
+        run: |
+          pip install azure-identity
       - name: Test with pytest
         env:
           # Configure endpoints
