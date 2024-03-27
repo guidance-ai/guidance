@@ -29,7 +29,7 @@ class TestTutorials:
 class TestModels:
     BASE_MODEL_PATH = BASE_NB_PATH / "api_examples" / "models"
 
-    @pytest.mark("needs_credentials")
+    @pytest.mark.needs_credentials
     def test_azure_openai(self, rate_limiter):
         nb_path = TestModels.BASE_MODEL_PATH / "AzureOpenAI.ipynb"
         run_notebook(nb_path)
