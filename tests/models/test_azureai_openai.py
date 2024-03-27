@@ -9,6 +9,7 @@ from guidance import models, gen, system, user, assistant
 # Mark is configured in pyproject.toml
 pytestmark = pytest.mark.needs_credentials
 
+
 def _env_or_fail(var_name: str) -> str:
     env_value = os.getenv(var_name, None)
 
