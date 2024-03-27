@@ -53,10 +53,12 @@ setup(
         ],
         'test': [
             "jsonschema",
+            "jupyter",
+            "papermill",
             'pytest',
-            'transformers',
+            'pytest-cov',
             'torch',
-            'pytest-cov'
+            'transformers',
         ]
     },
     

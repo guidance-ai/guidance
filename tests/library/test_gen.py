@@ -162,6 +162,7 @@ def test_various_regexes(selected_model: models.Model, prompt: str, pattern: str
 def test_long_prompt(selected_model, selected_model_name):
     if selected_model_name in [
         "hfllama7b",
+        "hfllama_7b_gpu",
         "hfllama_mistral_7b",
         "transformers_mistral_7b",
     ]:
