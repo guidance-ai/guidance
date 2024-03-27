@@ -1,6 +1,7 @@
 import pathlib
 
 import papermill as pm
+import pytest
 
 BASE_NB_PATH = pathlib.Path("./notebooks").absolute()
 
@@ -22,4 +23,13 @@ class TestTutorials:
 
     def test_token_healing(self):
         nb_path = TestTutorials.BASE_TUTORIAL_PATH / "token_healing.ipynb"
+        run_notebook(nb_path)
+
+
+class TestModels:
+    BASE_MODEL_PATH = BASE_NB_PATH / "api_examples" / "models"
+
+    @pytest.mark("needs_credentials")
+    def test_azure_openai(self, rate_limiter):
+        nb_path = TestModels.BASE_MODEL_PATH / "AzureOpenAI.ipynb"
         run_notebook(nb_path)

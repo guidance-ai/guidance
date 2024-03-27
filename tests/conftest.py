@@ -69,6 +69,12 @@ def selected_model(selected_model_info: str) -> models.Model:
 
 @pytest.fixture(scope="function")
 def rate_limiter() -> int:
+    """Limit test execution rate
+
+    This fixture introduces a random delay of up
+    to 10 seconds. It can be used as a crude rate
+    limiter for tests which call external APIs
+    """
     delay_secs = random.randint(1, 10)
     time.sleep(delay_secs)
     return delay_secs
