@@ -1,0 +1,70 @@
+from typing import List, Union
+
+import pydantic
+import pytest
+
+from guidance import pydantic as gen_pydantic
+from guidance._grammar import GrammarFunction
+
+
+def check_object_with_grammar(
+    target_object: pydantic.BaseModel, grammar: GrammarFunction
+):
+    print(f"Checking {target_object}")
+    json_string = target_object.model_dump_json()
+    matches = grammar.match(json_string.encode(), raise_exceptions=True)
+    assert matches.partial == False
+
+
+def test_simple_model():
+    class Simple(pydantic.BaseModel):
+        my_string: str
+
+    my_obj = Simple(my_string="some string")
+
+    grammar = gen_pydantic(my_obj)
+    check_object_with_grammar(my_obj, grammar)
+
+
+def test_model_with_int_list():
+    class MyModel(pydantic.BaseModel):
+        my_list: List[int] = pydantic.Field(default_factory=list)
+
+    my_obj = MyModel(my_list=[1, 2, 3, 4])
+    grammar = gen_pydantic(my_obj)
+    check_object_with_grammar(my_obj, grammar)
+
+
+def test_nested_model():
+    class A(pydantic.BaseModel):
+        my_str: str = pydantic.Field(default="my_a_str")
+
+    class B(pydantic.BaseModel):
+        my_str: str = pydantic.Field(default="my_b_str")
+        my_A: A = pydantic.Field(default_factory=A)
+
+    class C(pydantic.BaseModel):
+        my_str: str = pydantic.Field(default="my_c_str")
+        my_B: B = pydantic.Field(default_factory=B)
+
+    my_obj = C(my_str="some other string!")
+    grammar = gen_pydantic(my_obj)
+    check_object_with_grammar(my_obj, grammar)
+
+
+@pytest.mark.parametrize("has_A", [True, False])
+def test_model_with_optional(has_A):
+    class A(pydantic.BaseModel):
+        my_str: str = pydantic.Field(default="my_a_str")
+
+    class B(pydantic.BaseModel):
+        b_str: str = pydantic.Field(default="Some string")
+        my_A: Union[A, None] = pydantic.Field(default=None)
+
+    if has_A:
+        my_obj = B(my_A=A(my_str="a long string or two"))
+    else:
+        my_obj = B(b_str="A long b string")
+
+    grammar = gen_pydantic(my_obj)
+    check_object_with_grammar(my_obj, grammar)
