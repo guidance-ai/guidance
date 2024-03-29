@@ -1,6 +1,7 @@
 from typing import Type, Union, Any, Optional
 from pydantic import BaseModel, TypeAdapter
 from pydantic.json_schema import GenerateJsonSchema
+import inspect
 
 import guidance
 from ._json import json as gen_json
@@ -25,7 +26,7 @@ class GenerateJsonSchemaSafe(GenerateJsonSchema):
 def generate_json_schema(
     pydantic_model: Union[Type[BaseModel], TypeAdapter]
 ) -> dict[str, Any]:
-    if issubclass(pydantic_model, BaseModel):
+    if inspect.isclass(pydantic_model) and issubclass(pydantic_model, BaseModel):
         return pydantic_model.model_json_schema(schema_generator=GenerateJsonSchemaSafe)
     if isinstance(pydantic_model, TypeAdapter):
         return pydantic_model.json_schema(schema_generator=GenerateJsonSchemaSafe)

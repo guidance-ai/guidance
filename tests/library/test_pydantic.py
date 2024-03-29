@@ -1,5 +1,5 @@
 from typing import List, Union, Type, Any
-
+import inspect
 import pydantic
 from pydantic.json_schema import to_jsonable_python
 import pytest
@@ -22,7 +22,7 @@ def validate_obj(
     target_obj: Any,
     pydantic_model: Union[Type[pydantic.BaseModel], pydantic.TypeAdapter],
 ):
-    if issubclass(pydantic_model, pydantic.BaseModel):
+    if inspect.isclass(pydantic_model) and issubclass(pydantic_model, pydantic.BaseModel):
         return pydantic_model.model_validate(target_obj)
     if isinstance(pydantic_model, pydantic.TypeAdapter):
         return pydantic_model.validate_python(target_obj)
@@ -35,7 +35,7 @@ def validate_string(
     target_str: Any,
     pydantic_model: Union[Type[pydantic.BaseModel], pydantic.TypeAdapter],
 ):
-    if issubclass(pydantic_model, pydantic.BaseModel):
+    if inspect.isclass(pydantic_model) and issubclass(pydantic_model, pydantic.BaseModel):
         return pydantic_model.model_validate_json(target_str)
     if isinstance(pydantic_model, pydantic.TypeAdapter):
         return pydantic_model.validate_json(target_str)
