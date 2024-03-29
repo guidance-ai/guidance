@@ -23,9 +23,9 @@ def validate_obj(
     pydantic_model: Union[Type[pydantic.BaseModel], pydantic.TypeAdapter],
 ):
     if inspect.isclass(pydantic_model) and issubclass(pydantic_model, pydantic.BaseModel):
-        return pydantic_model.model_validate(target_obj)
+        return pydantic_model.model_validate(target_obj, strict=True)
     if isinstance(pydantic_model, pydantic.TypeAdapter):
-        return pydantic_model.validate_python(target_obj)
+        return pydantic_model.validate_python(target_obj, strict=True)
     raise TypeError(
         f"Expected pydantic_model to be a BaseModel or TypeAdapter, got {type(pydantic_model)}"
     )
@@ -36,9 +36,9 @@ def validate_string(
     pydantic_model: Union[Type[pydantic.BaseModel], pydantic.TypeAdapter],
 ):
     if inspect.isclass(pydantic_model) and issubclass(pydantic_model, pydantic.BaseModel):
-        return pydantic_model.model_validate_json(target_str)
+        return pydantic_model.model_validate_json(target_str, strict=True)
     if isinstance(pydantic_model, pydantic.TypeAdapter):
-        return pydantic_model.validate_json(target_str)
+        return pydantic_model.validate_json(target_str, strict=True)
     raise TypeError(
         f"Expected pydantic_model to be a BaseModel or TypeAdapter, got {type(pydantic_model)}"
     )
