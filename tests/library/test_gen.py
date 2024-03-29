@@ -1,7 +1,7 @@
-import guidance
-from guidance import gen, models, commit_point, Tool, select, capture, string
-from ..utils import get_model
 import re
+import pytest
+
+from guidance import gen, models
 
 def test_basic():
     lm = models.Mock()
@@ -18,27 +18,41 @@ def test_stop_char():
     lm += "Count to 10: 1, 2, 3, 4, 5, 6, 7, " + gen('text', stop=",")
     assert lm["text"] == "8"
 
+def test_stop_list_side_effect(selected_model):
+    '''Tests a bug where a stop list has an item appended to it in place instead of being updated non-destructively. The bug only occurs whe regex is also None'''
+    stop_list = ['\nStep', '\n\n', '\nAnswer'];
+    stop_list_length = len(stop_list);
+    lm = selected_model
+    lm + '''Question: Josh decides to try flipping a house.  He buys a house for $80,000 and then puts in $50,000 in repairs.  This increased the value of the house by 150%.  How much profit did he make?
+Let's think step by step, and then write the answer:
+Step 1''' + gen('steps', list_append=True, stop=['\nStep', '\n\n', '\nAnswer'], temperature=0.7, max_tokens=20) + '\n'
+    assert stop_list_length == len(stop_list)
+    i = 2
+    lm + f'Step {i}:' + gen('steps', list_append=True, stop=['\nStep', '\n\n', '\nAnswer'], temperature=0.7, max_tokens=20) + '\n'
+    assert stop_list_length == len(stop_list)
+
+
 def test_save_stop():
     lm = models.Mock(b"<s>Count to 10: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10")
     lm += "Count to 10: 1, 2, 3, 4, 5, 6, 7, " + gen('text', stop=",", save_stop_text='stop_text')
     assert lm["stop_text"] == ","
 
 
-def test_stop_quote():
-    lm = get_model("transformers:gpt2")
+def test_stop_quote(selected_model):
+    lm = selected_model
     lm += '''A title: "''' + gen('title', max_tokens=30, stop='"')
     assert not lm["title"].endswith('"')
 
-def test_unicode():
-    lm = get_model("transformers:gpt2")
+def test_unicode(selected_model):
+    lm = selected_model
     lm + '''Question: Josh decides to try flipping a house.  He buys a house for $80,000 and then puts in $50,000 in repairs.  This increased the value of the house by 150%.  How much profit did he make?
 Let's think step by step, and then write the answer:
 Step 1''' + gen('steps', list_append=True, stop=['\nStep', '\n\n', '\nAnswer'], temperature=0.7, max_tokens=20) + '\n'
     i = 2
     lm + f'Step {i}:' + gen('steps', list_append=True, stop=['\nStep', '\n\n', '\nAnswer'], temperature=0.7, max_tokens=20) + '\n'
 
-def test_unicode2():
-    lm = get_model("transformers:gpt2")
+def test_unicode2(selected_model):
+    lm = selected_model
     prompt = 'Janet’s ducks lay 16 eggs per day'
     lm +=  prompt + gen(max_tokens=10)
     assert True
@@ -49,16 +63,16 @@ def test_gsm8k():
 Answer: ''' + gen(max_tokens=30)
     assert True
 
-def test_pattern_kleene():
-    lm = get_model("transformers:gpt2")
+def test_pattern_kleene(selected_model):
+    lm = selected_model
     lm += 'The Lord is my'
     x = lm + gen(name='tmp', max_tokens=10)
     y = lm + gen(name='tmp', regex='.*', max_tokens=10)
     assert y['tmp'].startswith(x['tmp']) # TODO: we just check startswith because exact token limits are not perfect yet...
 
-def test_non_token_force():
+def test_non_token_force(selected_model):
     '''This forces some bytes that don't match a token (only longer tokens)'''
-    lm = get_model("transformers:gpt2")
+    lm = selected_model
     lm += 'ae ae' + gen(regex=r'\d')
     assert len(str(lm)) == 6
 
@@ -120,21 +134,35 @@ def test_empty_pattern():
     lm2 = lm + 'J' + gen(name='test', regex=pattern, max_tokens=30)
     assert lm2['test'] == ''
 
-def test_various_regexes():
-    lm = get_model("transformers:gpt2")
-    prompts = ['Hi there', '2 + 2 = ', 'Scott is a', 'I have never seen a more', 'What is the', '?FD32']
-    patterns = ['(Scott is a person|Scott is a persimmon)', r'Scott is a persimmon.*\.', r'\d\.*\d+']
-    for prompt in prompts:
-        for pattern in patterns:
-            lm2 = lm + prompt + gen(name='test', regex=pattern, max_tokens=40)
-            assert re.match(pattern, lm2['test'], re.DOTALL) is not None # note we can't just test any regex pattern like this, we need them to have finished in less than 40 tokens
-# def test_pattern():
-#     lm = get_model("transformers:gpt2")
-#     lm += 'hey there my friend what is truth 23+43=' + gen(regex=r'dog(?P<stop>.+)', max_tokens=30)
-#     assert str(lm) == "hey there my friend what is truth 23+43=dog"
+@pytest.mark.parametrize(
+    "prompt",
+    [
+        "Hi there",
+        "2 + 2 = ",
+        "Scott is a",
+        "I have never seen a more",
+        "What is the",
+        "?FD32",
+    ],
+)
+@pytest.mark.parametrize(
+    "pattern",
+    [
+        "(Scott is a person|Scott is a persimmon)",
+        r"Scott is a persimmon.*\.",
+        r"\d\.*\d+",
+    ],
+)
+def test_various_regexes(selected_model: models.Model, prompt: str, pattern: str):
+    lm = selected_model
+    lm2 = lm + prompt + gen(name="test", regex=pattern, max_tokens=40)
+    # note we can't just test any regex pattern like this, we need them to have finished in less than 40 tokens
+    assert re.match(pattern, lm2["test"], re.DOTALL) is not None
 
-def test_long_prompt():
-    lm = get_model("transformers:gpt2")
+def test_long_prompt(selected_model, selected_model_name):
+    if selected_model_name in ["hfllama7b", "hfllama_7b_gpu"]:
+        pytest.xfail("Insufficient context window in model")
+    lm = selected_model
     prompt = '''Question: Legoland has 5 kangaroos for each koala. If Legoland has 180 kangaroos, how many koalas and kangaroos are there altogether?
 Let's think step by step, and then write the answer:
 Step 1: For every 5 kangaroos, there is one koala, meaning for the 180 kangaroos, there are 180/5 = 36 koalas.
@@ -209,7 +237,7 @@ def test_one_char_stop_and_regex():
     model += gen(regex=".*", stop="\n", max_tokens=20)
     assert str(model) == "this is"
 
-def test_tool_call():
+def test_tool_call(selected_model):
     import guidance
     from guidance import one_or_more, select, zero_or_more
     from guidance import capture, Tool
@@ -249,6 +277,6 @@ def test_tool_call():
         lm += f' = {eval(expression)}'
         return lm
     calculator_tool = Tool(calculator_call(), calculator)
-    gpt2 = get_model("transformers:gpt2")
+    gpt2 = selected_model
     lm = gpt2 + 'Here are five expressions:\nCalculator(3 * 3) = 33\nCalculator(2 + 1 * 3) = 5\n'
     lm += gen(max_tokens=30, temperature=0.5, tools=[calculator_tool], stop='\n\n')

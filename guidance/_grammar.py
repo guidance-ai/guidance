@@ -389,7 +389,7 @@ class ByteRange(Terminal):
         out.temperature = data.temperature
         return out
 
-class Null():
+class Null(Terminal):
     __slots__ = ("name", "hidden", "commit_point", "capture_name")
 
     nullable = True
@@ -458,7 +458,7 @@ def replace_grammar_node(grammar, target, replacement):
         visited_set.add(current)
 
         # We are done with this node if it's a terminal
-        if isinstance(current, (Terminal, ModelVariable)):
+        if isinstance(current, (Terminal, ModelVariable, Placeholder)):
             continue
         
         # Iterate through the node's values and replace target with replacement

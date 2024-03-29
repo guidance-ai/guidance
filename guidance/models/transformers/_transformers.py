@@ -10,34 +10,72 @@ except ImportError:
 from .._model import Tokenizer, Engine, Model, Chat
 
 class TransformersTokenizer(Tokenizer):
-    def __init__(self, tokenizer):
+    def __init__(self, model, tokenizer, ignore_bos_token=False):
+        if tokenizer is None:
+            tokenizer = self._tokenizer(model)
+
 
         self._orig_tokenizer = tokenizer
 
         # build out the set of byte_string tokens
         if hasattr(tokenizer, "byte_decoder"):
-            byte_tokens = []
-            for i in range(len(tokenizer)):
-                byte_coded = bytes([tokenizer.byte_decoder[c] for c in tokenizer.convert_ids_to_tokens(i)])
-                byte_tokens.append(byte_coded)
+            byte_decoder = tokenizer.byte_decoder
         else:
-            byte_tokens = []
-            for i in range(len(tokenizer)):
-                s = tokenizer.convert_tokens_to_string(['a', tokenizer.convert_ids_to_tokens(i)])
-                if s[0] == 'a':
-                    s = s[1:]
-                elif s[1] == 'a':
-                    s = s[2:]
-                else:
-                    raise Exception("Can't determine tokenstring representation!")
-                byte_tokens.append(bytes(s, encoding="utf8"))
+            import transformers
+            byte_decoder = transformers.AutoTokenizer.from_pretrained("gpt2", use_fast=False).byte_decoder # fall back to gpt2 mapping
+            
+            # some special tokens may not have their whitespace encoded...
+            byte_decoder[' '] = 32
+            byte_decoder['\n'] = 10
+            byte_decoder['\r'] = 13
+            byte_decoder['\t'] = 9
+
+            # run a quick spot check to verify we can rebuild complex multi-token unicode suymbols
+            s = "’•¶∂ƒ˙∆£Ħ爨ൠᅘ∰፨"
+            t = tokenizer
+            reconstructed = b''
+            for id in t(s)["input_ids"]:
+                reconstructed += bytes([byte_decoder[c] for c in t.convert_ids_to_tokens(id)])
+            assert reconstructed.decode() == s, "The passed tokenizer does have a byte_decoder property and using a standard gpt2 byte_decoder fails!"
+        
+        byte_tokens = []
+        for i in range(len(tokenizer)):
+            byte_coded = bytes([byte_decoder[c] for c in tokenizer.convert_ids_to_tokens(i)])
+            byte_tokens.append(byte_coded)
+
+        
 
         # the superclass does most of the work once we have the tokens
         super().__init__(
             byte_tokens,
-            tokenizer.bos_token_id,
-            tokenizer.eos_token_id
+            None if ignore_bos_token else tokenizer.bos_token_id,
+            tokenizer.eos_token_id,
         )
+    
+
+    def _tokenizer(self, model, **kwargs):
+        # intantiate the tokenizer
+        if isinstance(model, str):
+            # make sure transformers is installed
+            try:
+                import transformers
+            except:
+                raise Exception("Please install transformers with `pip install transformers` in order to use guidance.models.togetherai!")
+
+            try:
+                tokenizer = transformers.AutoTokenizer.from_pretrained(model, use_fast=False, **kwargs)
+                # This is here because some tokenizers are bad and don't have all the bytes (I'm looking at you, microsoft/phi2)
+                if hasattr(tokenizer, "byte_decoder"):
+                    all_bytes = set()
+                    for x in tokenizer.get_vocab().keys():
+                        [all_bytes.add(y) for y in x]
+                    assert set(tokenizer.byte_decoder.keys()).intersection(all_bytes) == all_bytes
+            except:
+                tokenizer = transformers.AutoTokenizer.from_pretrained(model, use_fast=True, **kwargs) # fall back to the fast tokenizer
+        
+        assert tokenizer is not None, "You must give a model name when you provide a tokenizer object!"
+            
+        return tokenizer
 
 class TransformersEngine(Engine):
     def __init__(self, model, tokenizer, peft_model_id, compute_log_probs, **kwargs):
@@ -62,9 +100,10 @@ class TransformersEngine(Engine):
         self._cached_token_ids = []
 
         super().__init__(
-            TransformersTokenizer(orig_tokenizer),
+            TransformersTokenizer(model, tokenizer),
             compute_log_probs=compute_log_probs
         )
+
 
     def _model_and_tokenizer(self, model, tokenizer, peft_model_id, **kwargs):
 
@@ -76,20 +115,7 @@ class TransformersEngine(Engine):
                 import transformers
             except:
                 raise Exception("Please install transformers with `pip install transformers` in order to use guidance.models.Transformers!")
-
-            if tokenizer is None:
-                try:
-                    tokenizer = transformers.AutoTokenizer.from_pretrained(model, use_fast=False, **kwargs)
-                    # This is here because some tokenizers are bad and don't have all the bytes (I'm looking at you, microsoft/phi2)
-                    if hasattr(tokenizer, "byte_decoder"):
-                        all_bytes = set()
-                        for x in tokenizer.get_vocab().keys():
-                            [all_bytes.add(y) for y in x]
-                        assert set(tokenizer.byte_decoder.keys()).intersection(all_bytes) == all_bytes
-                except:
-                    tokenizer = transformers.AutoTokenizer.from_pretrained(model, use_fast=True, **kwargs) # fall back to the fast tokenizer
             model = transformers.AutoModelForCausalLM.from_pretrained(model, **kwargs)
-
             if peft_model_id is not None:
                 try:
                     model = PeftModel.from_pretrained(model, peft_model_id)
@@ -102,10 +128,24 @@ class TransformersEngine(Engine):
             
         return model, tokenizer
 
+
     def _joint_tokenize(self, token_ids):
         # first_decode = self.tokenizer._orig_tokenizer.decode(token_ids)
-        first_decode = b''.join([self.tokenizer.tokens[id] for id in token_ids]).decode("utf8")
+
+        # the encode/decode cycle might not work if we have partial unicode strings
+        used_tokens = len(token_ids)
+        for _ in range(3):
+            try:
+                first_decode = b''.join([self.tokenizer.tokens[id] for id in token_ids[:used_tokens]]).decode("utf8")
+            except UnicodeDecodeError:
+                if used_tokens == 0:
+                    break
+                else:
+                    used_tokens -= 1
+
         new_ids = self.tokenizer._orig_tokenizer(first_decode, add_special_tokens=False)["input_ids"]
+        if used_tokens < len(token_ids):
+            new_ids += token_ids[used_tokens:]
 
         # HACK: check for a bug in the HuggingFace tokenizer (that will just add extra spaces during an encode-decode cycle)
         second_decode = self.tokenizer._orig_tokenizer.decode(new_ids)
