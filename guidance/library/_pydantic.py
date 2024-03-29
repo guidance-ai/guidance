@@ -1,4 +1,4 @@
-from typing import Type, Union, Any
+from typing import Type, Union, Any, Optional
 from pydantic import BaseModel, TypeAdapter
 from pydantic.json_schema import GenerateJsonSchema
 
@@ -33,8 +33,10 @@ def generate_json_schema(
 
 
 @guidance(stateless=True)
-def pydantic(lm, pydantic_model: Union[Type[BaseModel], TypeAdapter]):
+def pydantic(
+    lm, pydantic_model: Union[Type[BaseModel], TypeAdapter], name: Optional[str] = None
+):
     # TODO: add a Literal["json", "python"] "mode" argument
     # to support various genneration modes?
     schema = generate_json_schema(pydantic_model)
-    return lm + gen_json(schema)
+    return lm + gen_json(schema, name=name)
