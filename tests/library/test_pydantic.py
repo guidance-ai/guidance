@@ -1,6 +1,6 @@
 import inspect
 from json import dumps as json_dumps
-from typing import Any, List, Literal, Type, Union
+from typing import Any, List, Literal, Type, Union, Dict, Tuple
 
 import pydantic
 import pytest
@@ -145,32 +145,32 @@ class TestTuple:
 
     @pytest.mark.parametrize("target_obj", [(1,), (1, 2), (1, 2, 3, 4, 5)])
     def test_variadic(self, target_obj):
-        model = pydantic.TypeAdapter(tuple[int, ...])
+        model = pydantic.TypeAdapter(Tuple[int, ...])
         generate_and_check(target_obj, model)
 
     @pytest.mark.xfail(
         reason="Underlying guidance.json does not yet support sequences with length specifications"
     )
     def test_homogeneous(self):
-        model = pydantic.TypeAdapter(tuple[float, float, float])
+        model = pydantic.TypeAdapter(Tuple[float, float, float])
         generate_and_check((3.14, 2.718, 1.41), model)
 
     @pytest.mark.xfail(
         reason="Underlying guidance.json does not yet support prefixItems"
     )
     def test_heterogeneous(self):
-        model = pydantic.TypeAdapter(tuple[int, bool])
+        model = pydantic.TypeAdapter(Tuple[int, bool])
         generate_and_check((1, True), model)
 
 
 class TestDict:
     def test_simple(self):
-        model = pydantic.TypeAdapter(dict[str, int])
+        model = pydantic.TypeAdapter(Dict[str, int])
         generate_and_check({"hello": 42}, model)
 
     @pytest.mark.xfail(reason="Json schemas cannot specify non-string keys")
     def test_non_string_keys_fail(self):
-        model = pydantic.TypeAdapter(dict[int, int])
+        model = pydantic.TypeAdapter(Dict[int, int])
         bad_str = '{"one":2}'
         grammar = gen_json(model.json_schema())
         with pytest.raises(ParserException):
@@ -178,6 +178,6 @@ class TestDict:
 
     def test_prevent_non_string_keys(self):
         "Test that we catch attempt to generate non-string keys"
-        model = pydantic.TypeAdapter(dict[int, int])
+        model = pydantic.TypeAdapter(Dict[int, int])
         with pytest.raises(TypeError):
             generate_and_check({1: 2}, model)
