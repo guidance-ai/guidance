@@ -1,4 +1,4 @@
-from typing import List, Union
+from typing import List, Union, Type
 
 import pydantic
 import pytest
@@ -8,9 +8,8 @@ from guidance._grammar import GrammarFunction
 
 
 def check_object_with_grammar(
-    target_object: pydantic.BaseModel, grammar: GrammarFunction
+    target_object: Union[Type[pydantic.BaseModel], pydantic.TypeAdapter], grammar: GrammarFunction
 ):
-    print(f"Checking {target_object}")
     json_string = target_object.model_dump_json()
     matches = grammar.match(json_string.encode(), raise_exceptions=True)
     assert matches.partial == False
@@ -22,7 +21,7 @@ def test_simple_model():
 
     my_obj = Simple(my_string="some string")
 
-    grammar = gen_pydantic(my_obj)
+    grammar = gen_pydantic(Simple)
     check_object_with_grammar(my_obj, grammar)
 
 
@@ -31,7 +30,7 @@ def test_model_with_int_list():
         my_list: List[int] = pydantic.Field(default_factory=list)
 
     my_obj = MyModel(my_list=[1, 2, 3, 4])
-    grammar = gen_pydantic(my_obj)
+    grammar = gen_pydantic(MyModel)
     check_object_with_grammar(my_obj, grammar)
 
 
@@ -48,7 +47,7 @@ def test_nested_model():
         my_B: B = pydantic.Field(default_factory=B)
 
     my_obj = C(my_str="some other string!")
-    grammar = gen_pydantic(my_obj)
+    grammar = gen_pydantic(C)
     check_object_with_grammar(my_obj, grammar)
 
 
@@ -66,5 +65,5 @@ def test_model_with_optional(has_A):
     else:
         my_obj = B(b_str="A long b string")
 
-    grammar = gen_pydantic(my_obj)
+    grammar = gen_pydantic(B)
     check_object_with_grammar(my_obj, grammar)

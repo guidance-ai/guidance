@@ -23,9 +23,9 @@ class GenerateJsonSchemaSafe(GenerateJsonSchema):
 
 
 def generate_json_schema(
-    pydantic_model: Union[Type[BaseModel], Type[TypeAdapter]]
+    pydantic_model: Union[Type[BaseModel], TypeAdapter]
 ) -> dict[str, Any]:
-    if isinstance(pydantic_model, BaseModel):
+    if issubclass(pydantic_model, BaseModel):
         return pydantic_model.model_json_schema(schema_generator=GenerateJsonSchemaSafe)
     if isinstance(pydantic_model, TypeAdapter):
         return pydantic_model.json_schema(schema_generator=GenerateJsonSchemaSafe)
@@ -33,7 +33,7 @@ def generate_json_schema(
 
 
 @guidance(stateless=True)
-def pydantic(lm, pydantic_model: Union[Type[BaseModel], Type[TypeAdapter]]):
+def pydantic(lm, pydantic_model: Union[Type[BaseModel], TypeAdapter]):
     # TODO: add a Literal["json", "python"] "mode" argument
     # to support various genneration modes?
     schema = generate_json_schema(pydantic_model)
