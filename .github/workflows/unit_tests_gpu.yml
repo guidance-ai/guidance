@@ -50,7 +50,7 @@ jobs:
           python -c "import torch; assert torch.cuda.is_available()"
       - name: Run tests (except server)
         run: |
-          pytest --cov=guidance --cov-report=xml --cov-report=term-missing --selected_model ${{ matrix.model }} -m "not server" ./tests/
+          pytest --cov=guidance --cov-report=xml --cov-report=term-missing --selected_model ${{ matrix.model }} -m "not server" -m "not needs_credentials" ./tests/
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v3
         with:
