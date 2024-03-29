@@ -57,12 +57,12 @@ def generate_and_check(
 
     # Test that grammar matches string
     json_string = to_compact_json(target_obj)
-    matches = grammar.match(json_string.encode(), raise_exceptions=True)
+    matches = grammar.match(json_string, raise_exceptions=True)
     assert matches.partial == False
 
     # Run with the mock model
     prepared_string = f"<s>{json_string}"
-    lm = models.Mock(prepared_string.encode())
+    lm = models.Mock(prepared_string.encode(), echo=False)
     lm += grammar
 
     # Make sure the round trip works
