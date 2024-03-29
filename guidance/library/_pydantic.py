@@ -15,7 +15,7 @@ class GenerateJsonSchemaSafe(GenerateJsonSchema):
     def generate_inner(self, schema):
         if schema["type"] == "dict":
             key_type = schema["keys_schema"]["type"]
-            if key_type != "string":
+            if key_type != "str":
                 raise TypeError(
                     f"JSON does not support non-string keys, got type {key_type}"
                 )
