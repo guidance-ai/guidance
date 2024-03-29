@@ -1,6 +1,6 @@
 import inspect
 from json import dumps as json_dumps
-from typing import Any, List, Literal, Type, Union, Dict, Tuple
+from typing import Any, Dict, List, Literal, Tuple, Type, Union
 
 import pydantic
 import pytest

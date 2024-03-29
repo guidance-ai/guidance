@@ -1,5 +1,5 @@
 import inspect
-from typing import Any, Optional, Type, Union, Dict
+from typing import Any, Dict, Optional, Type, Union
 
 from pydantic import BaseModel, TypeAdapter
 from pydantic.json_schema import GenerateJsonSchema
