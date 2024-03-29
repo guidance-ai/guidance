@@ -1,13 +1,13 @@
-from typing import List, Union, Type, Any
+from typing import List, Union, Type, Any, Literal
 import inspect
 import pydantic
 from pydantic.json_schema import to_jsonable_python
 import pytest
 from json import dumps as json_dumps
 
-from guidance import pydantic as gen_pydantic
+from guidance import pydantic as gen_pydantic, json as gen_json
 from guidance import models
-
+from guidance._parser import ParserException
 
 def to_compact_json(target: Any) -> str:
     # See 'Compact Encoding':
@@ -117,3 +117,62 @@ def test_model_with_optional(has_A):
         my_obj = B(b_str="A long b string")
 
     generate_and_check(my_obj, B)
+
+@pytest.mark.parametrize(
+    'target_obj',
+    [
+        "hello", 42, False
+    ]
+)
+def test_literal(target_obj):
+    model = pydantic.TypeAdapter(Literal["hello", 42, False])
+    generate_and_check(target_obj, model)
+
+class TestTuple:
+
+    @pytest.mark.parametrize(
+        "target_obj",
+        [
+            (1,),
+            (1,2),
+            (1,2,3,4,5)
+        ]
+    )
+    def test_variadic(self, target_obj):
+        model = pydantic.TypeAdapter(tuple[int, ...])
+        generate_and_check(target_obj, model)
+
+    @pytest.mark.xfail(
+        reason="Underlying guidance.json does not yet support sequences with length specifications"
+    )
+    def test_homogeneous(self):
+        model = pydantic.TypeAdapter(tuple[float, float, float])
+        generate_and_check((3.14, 2.718, 1.41), model)
+
+    @pytest.mark.xfail(
+        reason="Underlying guidance.json does not yet support prefixItems"
+    )
+    def test_heterogeneous(self):
+        model = pydantic.TypeAdapter(tuple[int, bool])
+        generate_and_check((1, True), model)
+
+class TestDict():
+    def test_simple(self):
+        model = pydantic.TypeAdapter(dict[str, int])
+        generate_and_check({"hello": 42}, model)
+
+    @pytest.mark.xfail(
+        reason="Json schemas cannot specify non-string keys"
+    )
+    def test_non_string_keys_fail(self):
+        model = pydantic.TypeAdapter(dict[int, int])
+        bad_str = '{"one":2}'
+        grammar = gen_json(model.json_schema())
+        with pytest.raises(ParserException):
+            grammar.match(bad_str, raise_exceptions=True)
+
+    def test_prevent_non_string_keys(self):
+        "Test that we catch attempt to generate non-string keys"
+        model = pydantic.TypeAdapter(dict[int, int])
+        with pytest.raises(TypeError):
+            generate_and_check({1:2}, model)
