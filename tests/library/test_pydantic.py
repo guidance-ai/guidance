@@ -1,13 +1,16 @@
-from typing import List, Union, Type, Any, Literal
 import inspect
-import pydantic
-from pydantic.json_schema import to_jsonable_python
-import pytest
 from json import dumps as json_dumps
+from typing import Any, List, Literal, Type, Union
 
-from guidance import pydantic as gen_pydantic, json as gen_json
+import pydantic
+import pytest
+from pydantic.json_schema import to_jsonable_python
+
+from guidance import json as gen_json
 from guidance import models
+from guidance import pydantic as gen_pydantic
 from guidance._parser import ParserException
+
 
 def to_compact_json(target: Any) -> str:
     # See 'Compact Encoding':
@@ -22,7 +25,9 @@ def validate_obj(
     target_obj: Any,
     pydantic_model: Union[Type[pydantic.BaseModel], pydantic.TypeAdapter],
 ):
-    if inspect.isclass(pydantic_model) and issubclass(pydantic_model, pydantic.BaseModel):
+    if inspect.isclass(pydantic_model) and issubclass(
+        pydantic_model, pydantic.BaseModel
+    ):
         return pydantic_model.model_validate(target_obj, strict=True)
     if isinstance(pydantic_model, pydantic.TypeAdapter):
         return pydantic_model.validate_python(target_obj, strict=True)
@@ -35,7 +40,9 @@ def validate_string(
     target_str: Any,
     pydantic_model: Union[Type[pydantic.BaseModel], pydantic.TypeAdapter],
 ):
-    if inspect.isclass(pydantic_model) and issubclass(pydantic_model, pydantic.BaseModel):
+    if inspect.isclass(pydantic_model) and issubclass(
+        pydantic_model, pydantic.BaseModel
+    ):
         return pydantic_model.model_validate_json(target_str, strict=True)
     if isinstance(pydantic_model, pydantic.TypeAdapter):
         return pydantic_model.validate_json(target_str, strict=True)
@@ -118,26 +125,16 @@ def test_model_with_optional(has_A):
 
     generate_and_check(my_obj, B)
 
-@pytest.mark.parametrize(
-    'target_obj',
-    [
-        "hello", 42, False
-    ]
-)
+
+@pytest.mark.parametrize("target_obj", ["hello", 42, False])
 def test_literal(target_obj):
     model = pydantic.TypeAdapter(Literal["hello", 42, False])
     generate_and_check(target_obj, model)
 
+
 class TestTuple:
 
-    @pytest.mark.parametrize(
-        "target_obj",
-        [
-            (1,),
-            (1,2),
-            (1,2,3,4,5)
-        ]
-    )
+    @pytest.mark.parametrize("target_obj", [(1,), (1, 2), (1, 2, 3, 4, 5)])
     def test_variadic(self, target_obj):
         model = pydantic.TypeAdapter(tuple[int, ...])
         generate_and_check(target_obj, model)
@@ -156,14 +153,13 @@ class TestTuple:
         model = pydantic.TypeAdapter(tuple[int, bool])
         generate_and_check((1, True), model)
 
-class TestDict():
+
+class TestDict:
     def test_simple(self):
         model = pydantic.TypeAdapter(dict[str, int])
         generate_and_check({"hello": 42}, model)
 
-    @pytest.mark.xfail(
-        reason="Json schemas cannot specify non-string keys"
-    )
+    @pytest.mark.xfail(reason="Json schemas cannot specify non-string keys")
     def test_non_string_keys_fail(self):
         model = pydantic.TypeAdapter(dict[int, int])
         bad_str = '{"one":2}'
@@ -175,4 +171,4 @@ class TestDict():
         "Test that we catch attempt to generate non-string keys"
         model = pydantic.TypeAdapter(dict[int, int])
         with pytest.raises(TypeError):
-            generate_and_check({1:2}, model)
+            generate_and_check({1: 2}, model)

@@ -1,9 +1,11 @@
-from typing import Type, Union, Any, Optional
+import inspect
+from typing import Any, Optional, Type, Union
+
 from pydantic import BaseModel, TypeAdapter
 from pydantic.json_schema import GenerateJsonSchema
-import inspect
 
 import guidance
+
 from ._json import json as gen_json
 
 
