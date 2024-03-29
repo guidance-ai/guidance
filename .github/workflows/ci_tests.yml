@@ -36,8 +36,6 @@ jobs:
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
       - name: Test with pytest
         env:
-          # Indicate that secrets should be available
-          EXPECT_SECRETS: 1
           # Configure endpoints
           AZUREAI_CHAT_ENDPOINT: ${{ secrets.AZUREAI_CHAT_ENDPOINT }}
           AZUREAI_CHAT_KEY: ${{ secrets.AZUREAI_CHAT_KEY }}
@@ -46,7 +44,7 @@ jobs:
           AZUREAI_COMPLETION_KEY: ${{ secrets.AZUREAI_COMPLETION_KEY }}
           AZUREAI_COMPLETION_MODEL: ${{ secrets.AZUREAI_COMPLETION_MODEL }}
         run: |
-          pytest --cov=guidance --cov-report=xml --cov-report=term-missing ./tests/models/test_azureai_openai.py
+          pytest --cov=guidance --cov-report=xml --cov-report=term-missing -m needs_credentials ./tests/
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v3
         with:
