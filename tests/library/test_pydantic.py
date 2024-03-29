@@ -4,7 +4,7 @@ from typing import Any, List, Literal, Type, Union
 
 import pydantic
 import pytest
-from pydantic.json_schema import to_jsonable_python
+from pydantic.json_schema import to_jsonable_python as pydantic_to_jsonable_python
 
 from guidance import json as gen_json
 from guidance import models
@@ -13,12 +13,21 @@ from guidance._parser import ParserException
 
 
 def to_compact_json(target: Any) -> str:
-    # See 'Compact Encoding':
-    # https://docs.python.org/3/library/json.html
-    # Since this is ultimately about the generated
-    # output, we don't need to worry about pretty printing
-    # and whitespace
-    return json_dumps(target, separators=(",", ":"), default=to_jsonable_python)
+    """
+    See 'Compact Encoding':
+    https://docs.python.org/3/library/json.html
+    Since this is ultimately about the generated
+    output, we don't need to worry about pretty printing
+    and whitespace
+
+    This function differs from the identically named one in
+    `library._json` by the  `default=pydantic_to_jsonable_python`
+    kwarg to json_dumps, which allows json_dumps to dump pydantic
+    objects.
+    """
+    return json_dumps(
+        target, separators=(",", ":"), default=pydantic_to_jsonable_python
+    )
 
 
 def validate_obj(
