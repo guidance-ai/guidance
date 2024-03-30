@@ -16,6 +16,13 @@ AVAILABLE_MODELS = {
         name="huggingface_hubllama:TheBloke/Llama-2-7B-GGUF:llama-2-7b.Q5_K_M.gguf",
         kwargs={"verbose": True},
     ),
+    "transformers_mistral_7b": dict(
+        name="transformers:mistralai/Mistral-7B-v0.1", kwargs=dict()
+    ),
+    "hfllama_mistral_7b": dict(
+        name="huggingface_hubllama:TheBloke/Mistral-7B-Instruct-v0.2-GGUF:mistral-7b-instruct-v0.2.Q8_0.gguf",
+        kwargs={"verbose": True},
+    ),
     "gpt2gpu": dict(name="transformers:gpt2", kwargs={"device_map": "cuda:0"}),
     "phi2gpu": dict(
         name="transformers:microsoft/phi-2",
