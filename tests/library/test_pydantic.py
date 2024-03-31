@@ -173,5 +173,9 @@ class TestDict:
         Test that we catch attempts to generate non-string keys.
         """
         model = pydantic.TypeAdapter(Dict[int, int])
-        with pytest.raises(TypeError):
+        with pytest.raises(TypeError) as exc_info:
             generate_and_check({1: 2}, model)
+        assert (
+            exc_info.value.args[0]
+            == "JSON does not support non-string keys, got type int"
+        )
