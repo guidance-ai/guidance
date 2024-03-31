@@ -1,6 +1,6 @@
 import inspect
 from json import dumps as json_dumps
-from typing import Any, Dict, List, Literal, Tuple, Type, Union
+from typing import Any, Dict, Generic, List, Literal, Tuple, Type, TypeVar, Union
 
 import pydantic
 import pytest
@@ -207,4 +207,24 @@ class TestComposite:
     )
     def test_dict_of_object(self, obj):
         model = pydantic.TypeAdapter(Dict[str, self.Simple])
+        generate_and_check(obj, model)
+
+
+class TestGeneric:
+    T = TypeVar("T")
+
+    class SimpleGeneric(pydantic.BaseModel, Generic[T]):
+        my_obj: "T"
+
+    @pytest.mark.parametrize(
+        "my_type, my_obj",
+        [
+            (bool, True),
+            (str, "Hello"),
+            (int, 42),
+        ],
+    )
+    def test_generic(self, my_type, my_obj):
+        model = self.SimpleGeneric[my_type]
+        obj = model(my_obj=my_obj)
         generate_and_check(obj, model)
