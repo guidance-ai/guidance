@@ -160,7 +160,12 @@ def test_various_regexes(selected_model: models.Model, prompt: str, pattern: str
     assert re.match(pattern, lm2["test"], re.DOTALL) is not None
 
 def test_long_prompt(selected_model, selected_model_name):
-    if selected_model_name in ["hfllama7b", "hfllama_7b_gpu"]:
+    if selected_model_name in [
+        "hfllama7b",
+        "hfllama_7b_gpu",
+        "hfllama_mistral_7b",
+        "transformers_mistral_7b",
+    ]:
         pytest.xfail("Insufficient context window in model")
     lm = selected_model
     prompt = '''Question: Legoland has 5 kangaroos for each koala. If Legoland has 180 kangaroos, how many koalas and kangaroos are there altogether?
