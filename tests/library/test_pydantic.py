@@ -65,7 +65,7 @@ def generate_and_check(
     pydantic_model: Union[Type[pydantic.BaseModel], pydantic.TypeAdapter],
 ):
     # Sanity check what we're being asked
-    validate_obj(target_obj, pydantic_model)
+    target_obj = validate_obj(target_obj, pydantic_model)
 
     # Define grammar with capture key
     CAPTURE_KEY = "my_capture"
@@ -84,6 +84,18 @@ def generate_and_check(
     # Make sure the round trip works
     round_trip_object = validate_string(lm[CAPTURE_KEY], pydantic_model)
     assert round_trip_object == target_obj
+
+
+def check_match_failure(
+    bad_obj: Any,
+    failure_byte: bytes,
+    pydantic_model: Union[Type[pydantic.BaseModel], pydantic.TypeAdapter],
+):
+    bad_string = to_compact_json(bad_obj)
+    grammar = gen_pydantic(pydantic_model)
+    with pytest.raises(ParserException) as pe:
+        grammar.match(bad_string, raise_exceptions=True)
+    assert pe.value.current_byte == failure_byte
 
 
 def test_simple_model():
@@ -226,5 +238,18 @@ class TestGeneric:
     )
     def test_generic(self, my_type, my_obj):
         model = self.SimpleGeneric[my_type]
-        obj = model(my_obj=my_obj)
+        obj = {"my_obj": my_obj}
         generate_and_check(obj, model)
+
+    @pytest.mark.parametrize(
+        "my_type, my_obj, failure_byte",
+        [
+            (bool, "True", b'"'),
+            (str, 42, b"4"),
+            (int, False, b"f"),
+        ],
+    )
+    def test_bad_generic(self, my_type, my_obj, failure_byte):
+        model = self.SimpleGeneric[my_type]
+        obj = {"my_obj": my_obj}
+        check_match_failure(obj, failure_byte, model)
