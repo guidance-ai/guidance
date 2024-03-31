@@ -179,3 +179,32 @@ class TestDict:
             exc_info.value.args[0]
             == "JSON does not support non-string keys, got type int"
         )
+
+
+class TestComposite:
+    class Simple(pydantic.BaseModel):
+        my_str: str
+
+    @pytest.mark.parametrize(
+        "obj",
+        [
+            [],
+            [Simple(my_str="hello, world!")],
+            [Simple(my_str="hello"), Simple(my_str="world")],
+        ],
+    )
+    def test_list_of_object(self, obj):
+        model = pydantic.TypeAdapter(List[self.Simple])
+        generate_and_check(obj, model)
+
+    @pytest.mark.parametrize(
+        "obj",
+        [
+            {},
+            {"key": Simple(my_str="hello, world!")},
+            {"key1": Simple(my_str="hello"), "key2": Simple(my_str="world")},
+        ],
+    )
+    def test_dict_of_object(self, obj):
+        model = pydantic.TypeAdapter(Dict[str, self.Simple])
+        generate_and_check(obj, model)
