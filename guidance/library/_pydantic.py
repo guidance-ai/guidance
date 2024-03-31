@@ -12,7 +12,12 @@ from ._json import json as gen_json
 class GenerateJsonSchemaSafe(GenerateJsonSchema):
     """
     Subclass pydantic's GenerateJsonSchema to catch pydantic schemas that will not
-    translate properly to json schemas used for generation
+    translate properly to json schemas used for generation.
+
+    In particular, JSON schemas do not offer a way to specify "key type",
+    so we need to raise an exception if users attempt to specify non-string
+    keys through pydantic. Otherwise, they may get unexpected output from
+    model generation.
     """
 
     def generate_inner(self, schema):

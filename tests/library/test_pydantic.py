@@ -168,16 +168,10 @@ class TestDict:
         model = pydantic.TypeAdapter(Dict[str, int])
         generate_and_check({"hello": 42}, model)
 
-    @pytest.mark.xfail(reason="Json schemas cannot specify non-string keys")
-    def test_non_string_keys_fail(self):
-        model = pydantic.TypeAdapter(Dict[int, int])
-        bad_str = '{"one":2}'
-        grammar = gen_json(model.json_schema())
-        with pytest.raises(ParserException):
-            grammar.match(bad_str, raise_exceptions=True)
-
     def test_prevent_non_string_keys(self):
-        "Test that we catch attempt to generate non-string keys"
+        """
+        Test that we catch attempts to generate non-string keys.
+        """
         model = pydantic.TypeAdapter(Dict[int, int])
         with pytest.raises(TypeError):
             generate_and_check({1: 2}, model)
