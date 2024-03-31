@@ -363,6 +363,130 @@ class TestSimpleArray:
         _check_match_failure(bad_string, failure_byte, schema_obj)
 
 
+class TestArrayWithLengthConstraints:
+    prefix_schema_obj = [
+        {"type": "integer"},
+        {"type": "boolean"}
+    ]
+    items_schema_obj = {"type": "string"}
+
+    @pytest.mark.parametrize(
+        "min_items, max_items, target_obj",
+        [
+            (0, 2, []),  # Empty array, within min and max bounds.
+            (0, 1, [42]),  # Array with one prefix item, within min and max bounds
+            (1, 2, [42, True]),  # Array with all prefix items, no extra items.
+            (0, 3, [42, True, "hello"]),  # Array with prefix items followed by item matching 'items' schema.
+            (3, 4, [42, True, "hello"]),  # Min and prefix items satisfied, one item matches 'items' schema.
+            (3, 4, [42, True, "hello", "world"]),  # Max items with prefix items and additional items.
+            (5, 5, [42, True, "hello", "world", "test"]),  # Array exactly meets minItems and maxItems.
+            (0, 10, [42, True] + ["extra"] * 8),  # Prefix items followed by a large number of items.
+        ]
+    )
+    def test_good_with_prefix_and_items(self, min_items, max_items, target_obj):
+        schema_obj = {
+            "prefixItems": self.prefix_schema_obj,
+            "items": self.items_schema_obj,
+            "minItems": min_items,
+            "maxItems": max_items,
+            "type": "array",
+        }
+        _generate_and_check(target_obj, schema_obj)
+
+    @pytest.mark.parametrize(
+        "min_items, max_items, target_obj",
+        [
+            (1, 3, [42]),  # Single prefix item
+            (1, 3, [42, True]),  # All prefix items satisfied, no extra items
+        ]
+    )
+    def test_good_with_prefix(self, min_items, max_items, target_obj):
+        schema_obj = {
+            "prefixItems": self.prefix_schema_obj,
+            "minItems": min_items,
+            "maxItems": max_items,
+            "type": "array",
+        }
+        _generate_and_check(target_obj, schema_obj)
+
+    @pytest.mark.parametrize(
+        "min_items, max_items, target_obj",
+        [
+            (1, 2, ["hello"]),  # Single item array, matching 'items' schema.
+            (1, 2, ["hello", "world"]),  # Two items array, both matching 'items' schema.
+            (0, 8, ["extra"]*8),  # Large number of items
+        ]
+    )
+    def test_good_with_items(self, min_items, max_items, target_obj):
+        schema_obj = {
+            "items": self.items_schema_obj,
+            "minItems": min_items,
+            "maxItems": max_items,
+            "type": "array",
+        }
+        _generate_and_check(target_obj, schema_obj)
+
+    @pytest.mark.parametrize(
+        "min_items, max_items, bad_obj, failure_byte",
+        [
+            (1, 4, [42, "string_not_bool", "hello", "extra"], b'"'),  # Second item does not match prefix schema
+            (0, 3, [42, True, 100], b"1"),  # Last item does not match general item schema
+            (3, 5, [42, True, "valid", "extra1", "extra2", "too_many"], b","),  # Exceeds maxItems
+            (2, 3, [42], b"]"),  # Not enough items
+            (1, 1, [42, True], b","),  # Too many items for maxItems
+            (0, 0, [42, True, "str"], b"4"),  # maxItems set to 0, but array is not empty
+            (3, 5, [42, True], b"]"),  # Array has one fewer item than required by minItems
+        ]
+    )
+    def test_bad_with_prefix_and_items(self, min_items, max_items, bad_obj, failure_byte):
+        schema_obj = {
+            "prefixItems": self.prefix_schema_obj,
+            "items": self.items_schema_obj,
+            "minItems": min_items,
+            "maxItems": max_items,
+            "type": "array",
+        }
+        bad_string = _to_compact_json(bad_obj)
+        _check_match_failure(bad_string, failure_byte, schema_obj)
+
+    @pytest.mark.parametrize(
+        "min_items, max_items, bad_obj, failure_byte",
+        [
+            (2, 2, [42], b"]"),  # Array too short to meet minItems, despite matching prefixItems
+            (1, 2, [42, "not_bool"], b'"'),  # Second item violates prefixItems type requirement
+            (0, 1, [42, True], b","),  # Array exceeds maxItems with valid prefixItems types
+            (1, 5, [42, True, "extra"], b","),  # Item beyond prefixItems with no "items" schema
+        ]
+    )
+    def test_bad_with_prefix(self, min_items, max_items, bad_obj, failure_byte):
+        schema_obj = {
+            "prefixItems": self.prefix_schema_obj,
+            "minItems": min_items,
+            "maxItems": max_items,
+            "type": "array",
+        }
+        bad_string = _to_compact_json(bad_obj)
+        _check_match_failure(bad_string, failure_byte, schema_obj)
+
+    @pytest.mark.parametrize(
+        "min_items, max_items, bad_obj, failure_byte",
+        [
+            (1, 2, ["hello", "world", "extra"], b","),  # Too many items for maxItems
+            (2, 3, ["hello"], b"]"),  # Not enough items
+            (2, 3, ["hello", 42], b"4"),  # Badly typed second item
+        ]
+    )
+    def test_bad_with_items(self, min_items, max_items, bad_obj, failure_byte):
+        schema_obj = {
+            "items": self.items_schema_obj,
+            "minItems": min_items,
+            "maxItems": max_items,
+            "type": "array",
+        }
+        bad_string = _to_compact_json(bad_obj)
+        _check_match_failure(bad_string, failure_byte, schema_obj)
+
+
 class TestWithReferences:
     @pytest.mark.parametrize(
         "target_obj",
