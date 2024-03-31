@@ -115,16 +115,52 @@ def _process_additional_properties(
 def _gen_json_array(
     lm,
     *,
-    item_schema: Mapping[str, Any],
+    prefix_items_schema: Optional[Sequence[Mapping[str, Any]]],
+    item_schema: Optional[Mapping[str, Any]],
     definitions: Mapping[str, Callable[[], GrammarFunction]],
 ):
     lm += "["
-    lm += optional(
-        zero_or_more(_gen_json(json_schema=item_schema, definitions=definitions) + ",")
-        + _gen_json(json_schema=item_schema, definitions=definitions)
-    )
+    if prefix_items_schema:
+        lm += _process_prefix_items(
+            prefix_items=prefix_items_schema,
+            definitions=definitions
+        )
+    if prefix_items_schema and item_schema:
+        lm += optional(
+            ','
+            + _process_items(
+                item_schema=item_schema,
+                definitions=definitions
+            )
+        )
+    elif item_schema:
+        lm += optional(
+            _process_items(
+                item_schema=item_schema,
+                definitions=definitions
+            )
+        )
     lm += "]"
     return lm
+
+@guidance(stateless=True)
+def _process_prefix_items(lm, *, prefix_items: Sequence[Mapping[str, Any]], definitions: Mapping[str, Callable[[], GrammarFunction]]):
+    items_added = 0
+    for item_schema in prefix_items:
+        lm += _gen_json(
+            json_schema=item_schema,
+            definitions=definitions,
+        )
+        items_added += 1
+        if items_added < len(prefix_items):
+            lm += ","
+    return lm
+
+@guidance(stateless=True)
+def _process_items(lm, *, item_schema: Mapping[str, Any], definitions: Mapping[str, Any]):
+    return lm \
+        + _gen_json(json_schema=item_schema, definitions=definitions) \
+        + zero_or_more("," + _gen_json(json_schema=item_schema, definitions=definitions))
 
 
 @guidance(stateless=True)
@@ -188,7 +224,8 @@ def _gen_json(
             return lm + _gen_json_string()
         if target_type == "array":
             return lm + _gen_json_array(
-                item_schema=json_schema["items"],
+                prefix_items_schema=json_schema.get("prefixItems"),
+                item_schema=json_schema.get("items"),
                 definitions=definitions
             )
         if target_type == "object":
