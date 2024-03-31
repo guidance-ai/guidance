@@ -117,6 +117,8 @@ def _gen_json_array(
     *,
     prefix_items_schema: Optional[Sequence[Mapping[str, Any]]],
     item_schema: Optional[Mapping[str, Any]],
+    min_items: Optional[int],
+    max_items: Optional[int],
     definitions: Mapping[str, Callable[[], GrammarFunction]],
 ):
     lm += "["
@@ -226,7 +228,9 @@ def _gen_json(
             return lm + _gen_json_array(
                 prefix_items_schema=json_schema.get("prefixItems"),
                 item_schema=json_schema.get("items"),
-                definitions=definitions
+                min_items=json_schema.get("minItems"),
+                max_items=json_schema.get("maxItems"),
+                definitions=definitions,
             )
         if target_type == "object":
             return lm + _gen_json_object(
