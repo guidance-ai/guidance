@@ -208,6 +208,28 @@ def json(
     *,
     schema: Mapping[str, Any],
 ):
+    """Generate tokens according to the supplied JSON schema.
+
+    Not all parts of JSON schema (https://json-schema.org/) are supported. Indeed some parts
+    (such as bounds on numbers) cannot really be supported in the context of LLM generation.
+
+    >>> schema = ''{ "type": "object", "properties": { "a" : {"type": "integer"} } }'
+    >>> schema_obj = json.loads(schema)
+    >>> lm += json(name="generated_object", schema=schema_obj)
+    >>> print(json.loads(lm["generated_object"]))
+    { "a" : 2 }
+
+
+    Parameters
+    ----------
+
+    name : str or None
+        If this is not None then the the results of the generation will be saved as a variable on
+        the Model object (so you can access the result as `lm["var_name"]`).
+
+    schema : Mapping[str, Any]
+        A JSON schema object. This is a JSON schema string which has been passed to `json.loads()`.
+    """
     _DEFS_KEY = "$defs"
     definitions = {}
     if _DEFS_KEY in schema:
