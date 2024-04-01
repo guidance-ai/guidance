@@ -164,8 +164,9 @@ def _gen_json_array(
             lm += ',' + item
 
     if optional_items:
-        # This is a bit subtle and would not be required if not for prefixItems.
-        # This essentially produces (first optional(,second optional(,third (optional(,...)))))
+        # This is a bit subtle and would not be required if not for prefixItems -- the previous
+        # must be present before the next one may be added, meaning we have nested optionals:
+        # (first optional(,second optional(,third (optional(,...)))))
         first, *rest = optional_items
         tail = ''
         for item in reversed(rest):
