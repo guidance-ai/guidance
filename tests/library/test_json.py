@@ -456,6 +456,7 @@ class TestArrayWithLengthConstraints:
             (1, 2, [42, "not_bool"], b'"'),  # Second item violates prefixItems type requirement
             (0, 1, [42, True], b","),  # Array exceeds maxItems with valid prefixItems types
             (1, 5, [42, True, "extra"], b","),  # Item beyond prefixItems with no "items" schema
+            (0, 0, [42], b"4"),  # maxItems set to 0, but array is not empty
         ]
     )
     def test_bad_with_prefix(self, min_items, max_items, bad_obj, failure_byte):
@@ -474,6 +475,7 @@ class TestArrayWithLengthConstraints:
             (1, 2, ["hello", "world", "extra"], b","),  # Too many items for maxItems
             (2, 3, ["hello"], b"]"),  # Not enough items
             (2, 3, ["hello", 42], b"4"),  # Badly typed second item
+            (0, 0, ["hello"], b'"'),  # maxItems set to 0, but array is not empty
         ]
     )
     def test_bad_with_items(self, min_items, max_items, bad_obj, failure_byte):
