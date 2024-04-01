@@ -373,14 +373,15 @@ class TestArrayWithLengthConstraints:
     @pytest.mark.parametrize(
         "min_items, max_items, target_obj",
         [
-            (0, 2, []),  # Empty array, within min and max bounds.
-            (0, 1, [42]),  # Array with one prefix item, within min and max bounds
-            (1, 2, [42, True]),  # Array with all prefix items, no extra items.
-            (0, 3, [42, True, "hello"]),  # Array with prefix items followed by item matching 'items' schema.
-            (3, 4, [42, True, "hello"]),  # Min and prefix items satisfied, one item matches 'items' schema.
-            (3, 4, [42, True, "hello", "world"]),  # Max items with prefix items and additional items.
-            (5, 5, [42, True, "hello", "world", "test"]),  # Array exactly meets minItems and maxItems.
-            (0, 10, [42, True] + ["extra"] * 8),  # Prefix items followed by a large number of items.
+            (0, 0, []), # None allowed, none provided
+            (0, 1, []), # Some prefixItems allowed, none provided
+            (0, 1, [42]), # Some prefixItems allowed, one provided
+            (1, 2, [42, True]),  # All prefix items, no extra items allowed or provided.
+            (1, 3, [42, True]),  # All prefix items, some extra items allowed but not provided.
+            (0, 3, [42, True, "hello"]),  # All prefix items and one extra item
+            (3, 4, [42, True, "hello"]),  # All prefix items and one extra item but more allowed
+            (5, 5, [42, True, "hello", "world", "test"]),  # Exactly meets minItems and maxItems.
+            (0, 10, [42, True] + ["extra"] * 8),  # Exactly meet large number of extra items
         ]
     )
     def test_good_with_prefix_and_items(self, min_items, max_items, target_obj):
@@ -396,8 +397,12 @@ class TestArrayWithLengthConstraints:
     @pytest.mark.parametrize(
         "min_items, max_items, target_obj",
         [
-            (1, 3, [42]),  # Single prefix item
-            (1, 3, [42, True]),  # All prefix items satisfied, no extra items
+            (0, 0, []), # None allowed, none provided
+            (0, 2, []), # Some allowed, none provided
+            (1, 2, [42, True]), # All prefix items, no extra allowed
+            (2, 2, [42, True]), # Exactly match min, max
+            (1, 3, [42]),  # Single prefix item, extra allowed
+            (1, 3, [42, True]), # All prefix items, extra allowed
         ]
     )
     def test_good_with_prefix(self, min_items, max_items, target_obj):
@@ -412,8 +417,11 @@ class TestArrayWithLengthConstraints:
     @pytest.mark.parametrize(
         "min_items, max_items, target_obj",
         [
-            (1, 2, ["hello"]),  # Single item array, matching 'items' schema.
-            (1, 2, ["hello", "world"]),  # Two items array, both matching 'items' schema.
+            (0, 0, []), # None allowed, none provided
+            (0, 2, []), # Some allowed, none provided
+            (1, 2, ["hello"]),  # Single item, more allowed
+            (1, 2, ["hello", "world"]),  # Meet max
+            (3, 3, ["hello", "world", "extra"]), # Exactly match min, max
             (0, 8, ["extra"]*8),  # Large number of items
         ]
     )
