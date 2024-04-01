@@ -125,8 +125,11 @@ def _gen_json_array(
         prefix_items_schema = []
 
     if len(prefix_items_schema) < min_items and item_schema is None:
-        raise ValueError("Not enough prefixItems to satisfy minItems")
-    
+        raise ValueError(f"Not enough prefixItems ({len(prefix_items_schema)}) to satisfy minItems ({min_items})")
+
+    if max_items is not None and max_items < min_items:
+        raise ValueError(f"maxItems ({max_items}) can't be greater than minItems ({min_items})")
+
     required_items = []
     optional_items = []
 
@@ -148,6 +151,7 @@ def _gen_json_array(
             optional_items.append(item)
 
     if max_items is None and item_schema is not None:
+        # Add an infinite tail of items
         item = _gen_json(json_schema=item_schema, definitions=definitions)
         optional_items.append(item + zero_or_more(',' + item))
 
@@ -160,15 +164,18 @@ def _gen_json_array(
             lm += ',' + item
 
     if optional_items:
+        # This is a bit subtle and would not be required if not for prefixItems.
+        # This essentially produces (first optional(,second optional(,third (optional(,...)))))
         first, *rest = optional_items
         tail = ''
         for item in reversed(rest):
             tail = optional(',' + item + tail)
+        tail = first + tail
 
         if required_items:
-            lm += optional(',' + first + tail)
+            lm += optional(',' + tail)
         else:
-            lm += optional(first + tail)
+            lm += optional(tail)
 
     lm += "]"
     return lm
