@@ -14,7 +14,7 @@ from ._vertexai import VertexAICompletion, VertexAIInstruct, VertexAIChat
 try:
     from vertexai.language_models import TextGenerationModel, ChatModel, InputOutputTextPair
     is_vertexai = True
-except ImportError:
+except ModuleNotFoundError:
     is_vertexai = False
 
 class PaLM2Completion(VertexAICompletion):
