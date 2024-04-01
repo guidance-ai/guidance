@@ -26,7 +26,7 @@ def _generate_and_check(target_obj: Any, schema_obj):
 
 
 def _check_match_failure(bad_string, failure_byte, schema_obj):
-    grammar = gen_json(schema_obj)
+    grammar = gen_json(schema=schema_obj)
     with pytest.raises(ParserException) as pe:
         grammar.match(bad_string, raise_exceptions=True)
     assert pe.value.current_byte == failure_byte
