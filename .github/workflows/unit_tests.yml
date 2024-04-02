@@ -37,7 +37,7 @@ jobs:
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
       - name: Install model-specific dependencies
         run: |
-          pip install llama-cpp-python
+          pip install "llama-cpp-python<0.2.58"
       - name: Run tests (except server)
         run: |
           pytest --cov=guidance --cov-report=xml --cov-report=term-missing --selected_model ${{ matrix.model }} -m "not server"  -m "not needs_credentials" ./tests/

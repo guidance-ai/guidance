@@ -19,7 +19,7 @@ from ._grammarless import GrammarlessEngine, Grammarless
 try:
     import openai as openai_package
     is_openai = True
-except ImportError:
+except ModuleNotFoundError:
     is_openai = False
 
 chat_model_pattern = r'^(ft:)?(gpt-3\.5-turbo|gpt-4)(?:(?!-instruct$)(-\w+)+)?(:[\w-]+(?:[:\w-]+)*)?(::\w+)?$'

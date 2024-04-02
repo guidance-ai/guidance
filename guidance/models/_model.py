@@ -1,12 +1,12 @@
 try:
     from IPython.display import clear_output, display, HTML
     ipython_is_imported = True
-except ImportError:
+except ModuleNotFoundError:
     ipython_is_imported = False
 try:
     import torch
     torch_is_imported = True
-except ImportError:
+except ModuleNotFoundError:
     torch_is_imported = False
 import html
 from pprint import pprint

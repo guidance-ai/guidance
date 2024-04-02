@@ -2,7 +2,7 @@ import os
 
 try:
     import torch
-except ImportError:
+except ModuleNotFoundError:
     pass
 
 from .._model import Tokenizer, Engine, Model, Chat

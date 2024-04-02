@@ -10,11 +10,9 @@ from ._openai import (
 )
 
 try:
-    # TODO: can we eliminate the torch requirement for llama.cpp by using numpy in the caller instead?
     import openai as openai_package
-
     is_openai = True
-except ImportError:
+except ModuleNotFoundError:
     is_openai = False
 
 

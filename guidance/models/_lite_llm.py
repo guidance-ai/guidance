@@ -7,7 +7,7 @@ class LiteLLMEngine(GrammarlessEngine):
     def __init__(self, model, tokenizer, timeout, compute_log_probs, max_streaming_tokens, **kwargs):
         try:
             import litellm
-        except ImportError:
+        except ModuleNotFoundError:
             raise Exception("Please install the litellm package version >= 1.7 using `pip install litellm -U` in order to use guidance.models.LiteLLM!")
         
         self.litellm = litellm
