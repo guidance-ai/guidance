@@ -27,6 +27,10 @@ strict = false  # TODO: set to true
 exclude = ["tests"]
 
 [[tool.mypy.overrides]]
+module = "guidance.*"
+disable_error_code = "operator"  # "guidance" Module is not callable https://github.com/python/mypy/issues/9240
+
+[[tool.mypy.overrides]]
 module = "pyformlang.*"
 ignore_missing_imports = true
 
