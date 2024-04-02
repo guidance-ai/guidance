@@ -875,7 +875,7 @@ class Model:
                 display(HTML(self._html()))
             else:
                 pprint(self._state)
-
+                
     def reset(self, clear_variables=True):
         '''This resets the state of the model object.
 
