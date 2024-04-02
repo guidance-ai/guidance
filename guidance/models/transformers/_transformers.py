@@ -32,8 +32,12 @@ class TransformersTokenizer(Tokenizer):
             s = "’•¶∂ƒ˙∆£Ħ爨ൠᅘ∰፨"
             t = tokenizer
             reconstructed = b''
+            print(t(s))
+            print(t(s)["input_ids"])
             for id in t(s)["input_ids"]:
+                print(id)
                 reconstructed += bytes([byte_decoder[c] for c in t.convert_ids_to_tokens(id)])
+                print(reconstructed)
             assert reconstructed.decode() == s, "The passed tokenizer does have a byte_decoder property and using a standard gpt2 byte_decoder fails!"
         
         byte_tokens = []
@@ -76,7 +80,7 @@ class TransformersTokenizer(Tokenizer):
         return tokenizer
 
 class TransformersEngine(Engine):
-    def __init__(self, model, tokenizer, compute_log_probs, **kwargs):
+    def __init__(self, model, tokenizer, compute_log_probs, quantisation_method, **kwargs):
         # fill in default model value
         if model is None:
             model = os.environ.get("TRANSFORMERS_MODEL", None)
@@ -87,7 +91,7 @@ class TransformersEngine(Engine):
             except:
                 pass
 
-        self.model_obj = self._model(model, **kwargs)
+        self.model_obj = self._model(model, quantisation_method, **kwargs)
 
         if not isinstance(model, str):
             self.model = model.__class__.__name__
@@ -102,16 +106,30 @@ class TransformersEngine(Engine):
             compute_log_probs=compute_log_probs
         )
 
-    def _model(self, model, **kwargs):
+    def _model(self, model, quantisation_method, **kwargs):
         # intantiate the model if needed
         if isinstance(model, str):
 
             # make sure transformers is installed
             try:
                 import transformers
-            except:
+            except: 
                 raise Exception("Please install transformers with `pip install transformers` in order to use guidance.models.Transformers!")
-            model = transformers.AutoModelForCausalLM.from_pretrained(model, **kwargs)
+            if quantisation_method == "none":
+                model = transformers.AutoModelForCausalLM.from_pretrained(model, **kwargs)
+            elif quantisation_method == "GPTQ":
+                try:
+                    from auto_gptq import AutoGPTQForCausalLM
+                except:
+                    raise Exception("Please install auto_gptq with `pip install auto-gptq` in order to use gptq quantisation!")
+                model = AutoGPTQForCausalLM.from_quantized(model, **kwargs)
+            elif quantisation_method == "AWQ":
+                try:
+                    from awq import AutoAWQForCausalLM
+                except:
+                    raise Exception("Please install awq with `pip install awq` in order to use awq quantisation!")
+                model = AutoAWQForCausalLM.from_quantized(model, **kwargs)
+                
         return model
 
     def _joint_tokenize(self, token_ids):
@@ -190,10 +208,11 @@ class TransformersEngine(Engine):
 
 
 class Transformers(Model):
-    def __init__(self, model=None, tokenizer=None, echo=True, compute_log_probs=False, **kwargs):
+    def __init__(self, model=None, tokenizer=None, echo=True, compute_log_probs=False, quantisation_method="none",**kwargs):
         '''Build a new Transformers model object that represents a model in a given state.'''
+        '''Quantisation method can be "none", "GPTQ" or "AWQ"'''
         super().__init__(
-            TransformersEngine(model, tokenizer, compute_log_probs, **kwargs),
+            TransformersEngine(model, tokenizer, compute_log_probs, quantisation_method, **kwargs),
             echo=echo
         )
 
