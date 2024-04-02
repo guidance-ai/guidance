@@ -10,7 +10,7 @@ class GoogleAIEngine(GrammarlessEngine):
     def __init__(self, model, tokenizer, api_key, max_streaming_tokens, timeout, compute_log_probs, **kwargs):
         try:
             import google.generativeai as genai
-        except ImportError:
+        except ModuleNotFoundError:
             raise Exception("Please install the Google AI Studio(makersuite.google.com) package using `pip install google-generativeai google-ai-generativelanguage` in order to use guidance.models.GoogleAI!")
 
         assert not compute_log_probs, "We don't support compute_log_probs=True yet for GoogleAIEngine!"

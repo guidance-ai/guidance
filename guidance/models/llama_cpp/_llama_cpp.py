@@ -13,7 +13,7 @@ from ..._utils import normalize_notebook_stdout_stderr
 try:
     import llama_cpp
     is_llama_cpp = True
-except ImportError:
+except ModuleNotFoundError:
     is_llama_cpp = False
 
 logger = logging.getLogger(__name__)

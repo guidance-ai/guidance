@@ -1,12 +1,12 @@
 try:
     from IPython.display import clear_output, display, HTML
-except ImportError:
+except ModuleNotFoundError:
     clear_output = lambda wait=True: None
     display = lambda arg: None
     HTML = lambda arg: None
 try:
     import torch
-except ImportError:
+except ModuleNotFoundError:
     torch = None
 import html
 import re
