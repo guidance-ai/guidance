@@ -7,7 +7,7 @@ class ContextBlock:
         self.name = name
 
     def __enter__(self):
-        models.Model.open_blocks[self] = None
+        models.Model.open_blocks.add(self)
     
     def __exit__(self, exc_type, exc_value, traceback):
         del models.Model.open_blocks[self]
