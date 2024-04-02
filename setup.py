@@ -41,7 +41,8 @@ setup(
         "pyformlang",
         "protobuf",
         "fastapi",
-        "uvicorn"
+        "uvicorn",
+        "peft"
     ],
     extras_require={
         'docs': [
