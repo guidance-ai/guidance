@@ -351,8 +351,10 @@ class EarleyCommitParser(Parser):
     def __repr__(self, state_sets=None) -> str:
         s = ""
         if state_sets is None:
-            state_sets = self.state_sets
-        for i,states in enumerate(state_sets):
+            _state_sets = self.state_sets
+        else:
+            _state_sets = state_sets
+        for i,states in enumerate(_state_sets):
             s += f"\n=== {i} ==="
             if self.state_set_pos == i:
                 s += " (state_set_pos)"
@@ -380,7 +382,7 @@ class EarleyCommitParser(Parser):
                             rs += "•"
                 else:
                     assert False
-                s += f"{rs:40} ({state.start}) {'nullable' if state.node.nullable else ''}\n"
+                s += f"{rs:40} ({state.start}) {'nullable' if state.node.nullable else ''}\n"  # type: ignore[attr-defined]
         return s
     
     def _reversed_state_sets(self):

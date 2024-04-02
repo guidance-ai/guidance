@@ -1,3 +1,4 @@
+from typing import Type
 from urllib.parse import parse_qs, urlparse
 
 from ._grammarless import Grammarless
@@ -50,7 +51,7 @@ class AzureOpenAI(Grammarless):
         if self.__class__ is AzureOpenAI:
             # chat
             if parsed_url.path.endswith("/chat/completions"):
-                found_subclass = AzureOpenAIChat
+                found_subclass: Type[AzureOpenAI] = AzureOpenAIChat
             # regular completion
             else:
                 found_subclass = AzureOpenAICompletion

@@ -1,4 +1,4 @@
-from typing import Any, Callable, Mapping, Optional, Sequence, Union
+from typing import Any, Callable, Dict, Mapping, Optional, Sequence, Union
 from json import dumps as json_dumps
 
 import guidance
@@ -204,7 +204,7 @@ def _gen_json(
 @guidance(stateless=True)
 def json(lm, json_schema: Mapping[str, Any], name: Optional[str] = None):
     _DEFS_KEY = "$defs"
-    definitions = {}
+    definitions: Mapping[str, Callable[[], GrammarFunction]] = {}
     if _DEFS_KEY in json_schema:
         definitions = _build_definitions(json_schema[_DEFS_KEY])
 
@@ -214,7 +214,7 @@ def json(lm, json_schema: Mapping[str, Any], name: Optional[str] = None):
 def _build_definitions(
     raw_definitions: Mapping[str, Any]
 ) -> Mapping[str, Callable[[], GrammarFunction]]:
-    definitions = {}
+    definitions: Dict[str, Callable[[], GrammarFunction]] = {}
 
     def build_definition(
         json_schema: Mapping[str, Any]
