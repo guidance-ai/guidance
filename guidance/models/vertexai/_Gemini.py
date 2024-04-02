@@ -29,7 +29,7 @@ try:
     # print(get_chat_response("What are all the colors in a rainbow?"))
     # print(get_chat_response("Why does it appear when it rains?"))
     is_vertexai = True
-except ImportError:
+except ModuleNotFoundError:
     is_vertexai = False
 
 # class GeminiCompletion(VertexAICompletion):

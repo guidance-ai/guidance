@@ -1,4 +1,5 @@
 import os
+import atexit
 from pathlib import Path
 from itertools import takewhile
 import operator
@@ -13,10 +14,17 @@ from ..._utils import normalize_notebook_stdout_stderr
 try:
     import llama_cpp
     is_llama_cpp = True
-except ImportError:
+except ModuleNotFoundError:
     is_llama_cpp = False
 
 logger = logging.getLogger(__name__)
+
+shutdown_none = True
+def set_shutdown_flag():
+    global shutdown_none
+    # python can set anything to None at shutdown, so use None
+    shutdown_none = None 
+atexit.register(set_shutdown_flag)
 
 class _LlamaBatchContext:
     def __init__(self, n_batch, n_ctx):
@@ -26,12 +34,13 @@ class _LlamaBatchContext:
             raise Exception("call to llama_cpp.llama_batch_init returned NULL.")
 
     def __del__(self):
-        llama_batch_free = getattr(self, "_llama_batch_free", None)
-        batch = getattr(self, "batch", None)
-        if batch is not None and llama_batch_free is not None:
-            self._llama_batch_free = None
-            self.batch = None
-            llama_batch_free(batch)
+        if shutdown_none is not None:
+            llama_batch_free = getattr(self, "_llama_batch_free", None)
+            batch = getattr(self, "batch", None)
+            if batch is not None and llama_batch_free is not None:
+                self._llama_batch_free = None
+                self.batch = None
+                llama_batch_free(batch)
 
 class LlamaCppTokenizer(Tokenizer):
     def __init__(self, model_obj):
