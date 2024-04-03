@@ -6,6 +6,7 @@ from guidance.library import char_range, one_or_more, optional, zero_or_more
 
 from .._grammar import GrammarFunction, select
 
+
 def _to_compact_json(target: Any) -> str:
     # See 'Compact Encoding':
     # https://docs.python.org/3/library/json.html
@@ -53,31 +54,27 @@ def _gen_json_object(
     *,
     properties: Union[Mapping[str, Any], None],
     additional_properties: Union[Mapping[str, Any], None],
-    definitions: Mapping[str, Callable[[], GrammarFunction]]
+    definitions: Mapping[str, Callable[[], GrammarFunction]],
 ):
     lm += "{"
     if properties:
-        lm += _process_properties(
-            properties=properties,
-            definitions=definitions
-        )
+        lm += _process_properties(properties=properties, definitions=definitions)
     if properties and additional_properties:
         lm += optional(
-            ','
+            ","
             + _process_additional_properties(
-                additional_properties=additional_properties,
-                definitions=definitions
+                additional_properties=additional_properties, definitions=definitions
             )
         )
     elif additional_properties:
         lm += optional(
             _process_additional_properties(
-                additional_properties=additional_properties,
-                definitions=definitions
+                additional_properties=additional_properties, definitions=definitions
             )
         )
     lm += "}"
     return lm
+
 
 @guidance(stateless=True)
 def _process_properties(
@@ -100,6 +97,7 @@ def _process_properties(
             lm += ","
     return lm
 
+
 @guidance(stateless=True)
 def _process_additional_properties(
     lm,
@@ -107,7 +105,11 @@ def _process_additional_properties(
     additional_properties: Mapping[str, Any],
     definitions: Mapping[str, Callable[[], GrammarFunction]],
 ):
-    item = _gen_json_string() + ':' + _gen_json(json_schema=additional_properties, definitions=definitions)
+    item = (
+        _gen_json_string()
+        + ":"
+        + _gen_json(json_schema=additional_properties, definitions=definitions)
+    )
     return lm + zero_or_more(item + ",") + item
 
 
@@ -139,15 +141,15 @@ def _process_anyOf(
     ]
     return lm + select(options)
 
+
 @guidance(stateless=True)
 def _process_enum(lm, *, options: Sequence[Mapping[str, Any]]):
     # options will come in as python objects, so we need to convert to (compact) JSON
     all_opts = []
     for opt in options:
-        all_opts.append(
-            _to_compact_json(opt)
-        )
+        all_opts.append(_to_compact_json(opt))
     return lm + select(options=all_opts)
+
 
 @guidance(stateless=True)
 def _gen_json(
@@ -158,15 +160,13 @@ def _gen_json(
     ANYOF_STRING = "anyOf"
     if ANYOF_STRING in json_schema:
         return lm + _process_anyOf(
-            anyof_list=json_schema[ANYOF_STRING],
-            definitions=definitions
+            anyof_list=json_schema[ANYOF_STRING], definitions=definitions
         )
 
     REF_STRING = "$ref"
     if REF_STRING in json_schema:
         return lm + _get_definition(
-            reference=json_schema[REF_STRING],
-            definitions=definitions
+            reference=json_schema[REF_STRING], definitions=definitions
         )
 
     ENUM_STRING = "enum"
@@ -188,27 +188,54 @@ def _gen_json(
             return lm + _gen_json_string()
         if target_type == "array":
             return lm + _gen_json_array(
-                item_schema=json_schema["items"],
-                definitions=definitions
+                item_schema=json_schema["items"], definitions=definitions
             )
         if target_type == "object":
             return lm + _gen_json_object(
                 properties=json_schema.get("properties"),
                 additional_properties=json_schema.get("additionalProperties"),
-                definitions=definitions
+                definitions=definitions,
             )
         raise ValueError(f"Unsupported type in schema: {target_type}")
 
     raise ValueError(f"Can't process JSON node: {json_schema}")
 
+
 @guidance(stateless=True)
-def json(lm, json_schema: Mapping[str, Any], name: Optional[str] = None):
+def json(
+    lm,
+    name: Optional[str] = None,
+    *,
+    schema: Mapping[str, Any],
+):
+    """Generate tokens according to the supplied JSON schema.
+
+    Not all parts of JSON schema (https://json-schema.org/) are supported. Indeed some parts
+    (such as bounds on numbers) cannot really be supported in the context of LLM generation.
+
+    >>> schema = ''{ "type": "object", "properties": { "a" : {"type": "integer"} } }'
+    >>> schema_obj = json.loads(schema)
+    >>> lm += json(name="generated_object", schema=schema_obj)
+    >>> print(json.loads(lm["generated_object"]))
+    { "a" : 2 }
+
+
+    Parameters
+    ----------
+
+    name : str or None
+        If this is not None then the the results of the generation will be saved as a variable on
+        the Model object (so you can access the result as `lm["var_name"]`).
+
+    schema : Mapping[str, Any]
+        A JSON schema object. This is a JSON schema string which has been passed to `json.loads()`.
+    """
     _DEFS_KEY = "$defs"
     definitions: Mapping[str, Callable[[], GrammarFunction]] = {}
-    if _DEFS_KEY in json_schema:
-        definitions = _build_definitions(json_schema[_DEFS_KEY])
+    if _DEFS_KEY in schema:
+        definitions = _build_definitions(schema[_DEFS_KEY])
 
-    return lm + guidance.capture(_gen_json(json_schema, definitions), name=name)
+    return lm + guidance.capture(_gen_json(schema, definitions), name=name)
 
 
 def _build_definitions(

@@ -6,7 +6,7 @@ from jsonschema import validate
 
 from guidance import models
 from guidance._parser import ParserException
-from guidance.library import json as gen_json
+from guidance import json as gen_json
 from guidance.library._json import _to_compact_json
 
 
@@ -19,14 +19,14 @@ def _generate_and_check(target_obj: Any, schema_obj):
 
     # Run with the mock model
     CAPTURE_KEY = "my_capture"
-    lm += gen_json(name=CAPTURE_KEY, json_schema=schema_obj)
+    lm += gen_json(name=CAPTURE_KEY, schema=schema_obj)
 
     # Make sure the round trip works
     assert json.loads(lm[CAPTURE_KEY]) == target_obj
 
 
 def _check_match_failure(bad_string, failure_byte, schema_obj):
-    grammar = gen_json(schema_obj)
+    grammar = gen_json(schema=schema_obj)
     with pytest.raises(ParserException) as pe:
         grammar.match(bad_string, raise_exceptions=True)
     assert pe.value.current_byte == failure_byte
