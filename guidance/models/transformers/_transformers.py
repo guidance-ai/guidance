@@ -1,8 +1,9 @@
 import os
+import re
 
 try:
     import torch
-except ImportError:
+except ModuleNotFoundError:
     pass
 
 from .._model import Tokenizer, Engine, Model, Chat
@@ -16,8 +17,20 @@ class TransformersTokenizer(Tokenizer):
         self._orig_tokenizer = tokenizer
 
         # build out the set of byte_string tokens
+        byte_tokens = []
         if hasattr(tokenizer, "byte_decoder"):
             byte_decoder = tokenizer.byte_decoder
+
+            for i in range(len(tokenizer)):
+                byte_coded = bytes([byte_decoder[c] for c in tokenizer.convert_ids_to_tokens(i)])
+                byte_tokens.append(byte_coded)
+
+        elif hasattr(tokenizer, "sp_model"):
+            space_prefix = '▁'.encode()
+            for i in range(len(tokenizer)):
+                byte_coded = re.sub(br'<0x(..)>', lambda x: bytes.fromhex(x[1].decode()), tokenizer.sp_model.id_to_piece(i).encode())
+                byte_tokens.append(byte_coded.replace(space_prefix, b" "))
+
         else:
             import transformers
             byte_decoder = transformers.AutoTokenizer.from_pretrained("gpt2", use_fast=False).byte_decoder # fall back to gpt2 mapping
@@ -27,8 +40,9 @@ class TransformersTokenizer(Tokenizer):
             byte_decoder['\n'] = 10
             byte_decoder['\r'] = 13
             byte_decoder['\t'] = 9
+            byte_decoder['▁'] = 32
 
-            # run a quick spot check to verify we can rebuild complex multi-token unicode suymbols
+            # run a quick spot check to verify we can rebuild complex multi-token unicode symbols
             s = "’•¶∂ƒ˙∆£Ħ爨ൠᅘ∰፨"
             t = tokenizer
             reconstructed = b''
@@ -36,10 +50,9 @@ class TransformersTokenizer(Tokenizer):
                 reconstructed += bytes([byte_decoder[c] for c in t.convert_ids_to_tokens(id)])
             assert reconstructed.decode() == s, "The passed tokenizer does have a byte_decoder property and using a standard gpt2 byte_decoder fails!"
         
-        byte_tokens = []
-        for i in range(len(tokenizer)):
-            byte_coded = bytes([byte_decoder[c] for c in tokenizer.convert_ids_to_tokens(i)])
-            byte_tokens.append(byte_coded)
+            for i in range(len(tokenizer)):
+                byte_coded = bytes([byte_decoder[c] for c in tokenizer.convert_ids_to_tokens(i)])
+                byte_tokens.append(byte_coded)
 
         
 

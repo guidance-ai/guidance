@@ -5,7 +5,7 @@ from .._grammarless import GrammarlessEngine, Grammarless
 try:
     import vertexai
     is_vertexai = True
-except ImportError:
+except ModuleNotFoundError:
     is_vertexai = False
 
 class VertexAIEngine(GrammarlessEngine):

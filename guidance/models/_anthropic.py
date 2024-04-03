@@ -8,7 +8,7 @@ class AnthropicEngine(GrammarlessEngine):
     def __init__(self, model, tokenizer, api_key, timeout, max_streaming_tokens, compute_log_probs, **kwargs):        
         try:
             from anthropic import Anthropic
-        except ImportError:
+        except ModuleNotFoundError:
             raise Exception("Please install the anthropic package version >= 0.7 using `pip install anthropic -U` in order to use guidance.models.Anthropic!")
         
         # if we are called directly (as opposed to through super()) then we convert ourselves to a more specific subclass if possible

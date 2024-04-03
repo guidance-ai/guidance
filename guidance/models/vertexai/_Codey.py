@@ -5,7 +5,7 @@ from ._vertexai import VertexAICompletion, VertexAIInstruct, VertexAIChat
 try:
     from vertexai.language_models import CodeGenerationModel, CodeChatModel
     is_vertexai = True
-except ImportError:
+except ModuleNotFoundError:
     is_vertexai = False
 
 class CodeyCompletion(VertexAICompletion):

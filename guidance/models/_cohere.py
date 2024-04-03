@@ -5,7 +5,7 @@ class Cohere(LiteLLM):
         '''Build a new Anthropic model object that represents a model in a given state.'''
         try:
             import tokenizers
-        except ImportError:
+        except ModuleNotFoundError:
             raise Exception("Please install the HuggingFace tokenizers package using `pip install tokenizers -U` in order to use guidance.models.Cohere!")
 
         # get the tokenizer
