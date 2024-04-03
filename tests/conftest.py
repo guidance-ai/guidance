@@ -32,7 +32,7 @@ AVAILABLE_MODELS = {
     ),
     "transformers_mistral_7b_gpu": dict(
         name="transformers:mistralai/Mistral-7B-v0.1",
-        kwargs={"device_map": "cuda:0", "torch_dtype": torch.float16},
+        kwargs=dict() # {"device_map": "cuda:0", "torch_dtype": torch.float16},
     ),
     "hfllama_7b_gpu": dict(
         name="huggingface_hubllama:TheBloke/Llama-2-7B-GGUF:llama-2-7b.Q5_K_M.gguf",
