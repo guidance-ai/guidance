@@ -2,6 +2,7 @@ import random
 import time
 
 import pytest
+import torch
 
 from guidance import models
 
@@ -17,7 +18,8 @@ AVAILABLE_MODELS = {
         kwargs={"verbose": True},
     ),
     "transformers_mistral_7b": dict(
-        name="transformers:mistralai/Mistral-7B-v0.1", kwargs={"torch_dtype": "float16"}
+        name="transformers:mistralai/Mistral-7B-v0.1",
+        kwargs={"torch_dtype": torch.float16},
     ),
     "hfllama_mistral_7b": dict(
         name="huggingface_hubllama:TheBloke/Mistral-7B-Instruct-v0.2-GGUF:mistral-7b-instruct-v0.2.Q8_0.gguf",
@@ -30,7 +32,7 @@ AVAILABLE_MODELS = {
     ),
     "transformers_mistral_7b_gpu": dict(
         name="transformers:mistralai/Mistral-7B-v0.1",
-        kwargs={"device_map": "cuda:0", "torch_dtype": "float16"},
+        kwargs={"device_map": "cuda:0", "torch_dtype": torch.float16},
     ),
     "hfllama_7b_gpu": dict(
         name="huggingface_hubllama:TheBloke/Llama-2-7B-GGUF:llama-2-7b.Q5_K_M.gguf",

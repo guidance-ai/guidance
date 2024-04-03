@@ -17,7 +17,7 @@ jobs:
         model:
           - "gpt2cpu"
           - "phi2cpu"
-          # - "transformers_mistral_7b" Memory issues?
+          - "transformers_mistral_7b"
           - "hfllama7b"
           - "hfllama_mistral_7b"
 
