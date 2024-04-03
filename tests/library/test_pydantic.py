@@ -68,7 +68,7 @@ def generate_and_check(
 
     # Define grammar with capture key
     CAPTURE_KEY = "my_capture"
-    grammar = gen_pydantic(pydantic_model, name=CAPTURE_KEY)
+    grammar = gen_pydantic(name=CAPTURE_KEY, model=pydantic_model)
 
     # Test that grammar matches string
     json_string = to_compact_json(target_obj)
@@ -91,7 +91,7 @@ def check_match_failure(
     pydantic_model: Union[Type[pydantic.BaseModel], pydantic.TypeAdapter],
 ):
     bad_string = to_compact_json(bad_obj)
-    grammar = gen_pydantic(pydantic_model)
+    grammar = gen_pydantic(model=pydantic_model)
     with pytest.raises(ParserException) as pe:
         grammar.match(bad_string, raise_exceptions=True)
     assert pe.value.current_byte == failure_byte
