@@ -23,6 +23,7 @@ profile = "black"
 [tool.mypy]
 no_implicit_optional = false  # TODO: PEP484, set to true
 strict = false  # TODO: set to true
+exclude = ["tests"]
 
 [[tool.mypy.overrides]]
 module = "guidance.*"
