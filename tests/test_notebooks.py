@@ -48,7 +48,7 @@ class TestModels:
 class TestArtOfPromptDesign:
     BASE_APD_PATH = BASE_NB_PATH / "art_of_prompt_design"
 
-    @pytest.mark.skip(reason="Build machines insufficient to run")
+    #@pytest.mark.skip(reason="Build machines insufficient to run")
     def test_prompt_boundaries_and_token_healing(self):
         nb_path = (
             TestArtOfPromptDesign.BASE_APD_PATH
