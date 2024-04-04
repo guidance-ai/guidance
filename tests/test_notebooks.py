@@ -9,6 +9,7 @@ BASE_NB_PATH = pathlib.Path("./notebooks").absolute()
 
 
 def run_notebook(notebook_path: pathlib.Path, params: Optional[Dict[str, Any]] = None):
+    assert notebook_path.exists(), f"Checking for: {notebook_path}"
     output_nb = notebook_path.stem + ".papermill_out" + notebook_path.suffix
     output_path = TestTutorials.BASE_TUTORIAL_PATH / output_nb
 
@@ -42,3 +43,11 @@ class TestModels:
     def test_azure_openai(self, rate_limiter):
         nb_path = TestModels.BASE_MODEL_PATH / "AzureOpenAI.ipynb"
         run_notebook(nb_path, params=dict(call_delay_secs=rate_limiter))
+
+
+class TestArtOfPromptDesign:
+    BASE_APD_PATH = BASE_NB_PATH / "art_of_prompt_design"
+
+    def test_prompt_boundaries_and_token_healing(self):
+        nb_path = TestArtOfPromptDesign.BASE_APD_PATH / "prompt_boundaries_and_token_healing.ipynb"
+        run_notebook(nb_path)
