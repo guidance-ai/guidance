@@ -159,23 +159,14 @@ class TestTuple:
         model = pydantic.TypeAdapter(Tuple[int, ...])
         generate_and_check(target_obj, model)
 
-    @pytest.mark.xfail(
-        reason="Underlying guidance.json does not yet support sequences with length specifications"
-    )
     def test_homogeneous(self):
         model = pydantic.TypeAdapter(Tuple[float, float, float])
         generate_and_check((3.14, 2.718, 1.41), model)
 
-    @pytest.mark.xfail(
-        reason="Underlying guidance.json does not yet support prefixItems"
-    )
     def test_heterogeneous(self):
         model = pydantic.TypeAdapter(Tuple[int, bool])
         generate_and_check((1, True), model)
 
-    @pytest.mark.xfail(
-        reason="Underlying guidance.json does not yet support maxItems"
-    )
     def test_maxitems(self):
         model = pydantic.TypeAdapter(Tuple[int,])
         check_match_failure((1, 2), b",", model)
