@@ -11,6 +11,7 @@ addopts = "--strict-markers"
 markers = [
     "server: Potentially unreliable tests of the server functionality",
     "needs_credentials: Test which needs access to credentials to work",
+    "use_gpu: Test which uses always uses GPU (model not injected via fixture)",
 ]
 
 [tool.black]
