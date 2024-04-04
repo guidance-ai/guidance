@@ -13,6 +13,9 @@ on:
     # * is a special character in YAML so we quote this string
     # Run at 1030 UTC every day
     - cron:  '30 10 * * *'
+  # To be removed.....
+  pr:
+    branches: [main]
 
 jobs:
   build:
