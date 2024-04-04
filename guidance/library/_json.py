@@ -127,14 +127,18 @@ def _gen_json_array(
         prefix_items_schema = []
 
     if len(prefix_items_schema) < min_items and item_schema is None:
-        raise ValueError(f"Not enough prefixItems ({len(prefix_items_schema)}) to satisfy minItems ({min_items})")
+        raise ValueError(
+            "No items schema provided, but prefixItems has too few elements "
+            f"({len(prefix_items_schema)}) to satisfy minItems ({min_items})"
+        )
 
     if max_items is not None and max_items < min_items:
-        raise ValueError(f"maxItems ({max_items}) can't be greater than minItems ({min_items})")
+        raise ValueError(f"maxItems ({max_items}) can't be less than minItems ({min_items})")
 
     required_items = []
     optional_items = []
 
+    # If max_items is None, we can add an infinite tail of items later
     n_to_add = max(len(prefix_items_schema), min_items) if max_items is None else max_items
     for i in range(n_to_add):
         if i < len(prefix_items_schema):
