@@ -21,6 +21,11 @@ def run_notebook(notebook_path: pathlib.Path, params: Optional[Dict[str, Any]] =
 class TestTutorials:
     BASE_TUTORIAL_PATH = BASE_NB_PATH / "tutorials"
 
+    @pytest.mark.needs_credentials
+    def test_chat(self, rate_limiter):
+        nb_path = TestTutorials.BASE_TUTORIAL_PATH / "chat.ipynb"
+        run_notebook(nb_path, params=dict(call_delay_secs=rate_limiter))
+
     def test_regex_constraints(self):
         nb_path = TestTutorials.BASE_TUTORIAL_PATH / "regex_constraints.ipynb"
         run_notebook(nb_path)

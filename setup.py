@@ -52,7 +52,6 @@ setup(
             'nbsphinx'
         ],
         'test': [
-            "datasets",
             "jsonschema",
             "jupyter",
             "papermill",
