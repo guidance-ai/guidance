@@ -39,8 +39,14 @@ jobs:
         run: |
           pip install "llama-cpp-python<0.2.58"
       - name: Run tests (except server)
+        shell: bash
         run: |
-          pytest --cov=guidance --cov-report=xml --cov-report=term-missing --selected_model ${{ matrix.model }} -m "not server"  -m "not needs_credentials" -m "not use_gpu" ./tests/
+          pytest --cov=guidance --cov-report=xml --cov-report=term-missing \
+          --selected_model ${{ matrix.model }} \
+          -m "not server" \
+          -m "not needs_credentials" \
+          -m "not use_gpu" \
+          ./tests/
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v3
         with:

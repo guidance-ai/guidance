@@ -62,6 +62,7 @@ class TestArtOfPromptDesign:
         run_notebook(nb_path)
 
     @pytest.mark.use_gpu
+    @pytest.mark.needs_credentials
     def test_use_clear_syntax(self):
         nb_path = TestArtOfPromptDesign.BASE_APD_PATH / "use_clear_syntax.ipynb"
         run_notebook(nb_path)
