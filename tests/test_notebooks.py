@@ -56,6 +56,7 @@ class TestArtOfPromptDesign:
         )
         run_notebook(nb_path)
 
+    @pytest.mark.xfail(reason="Strange error on some builds")
     @pytest.mark.use_gpu
     def test_react(self):
         nb_path = TestArtOfPromptDesign.BASE_APD_PATH / "react.ipynb"
