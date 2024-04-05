@@ -100,7 +100,7 @@ class LlamaCppEngine(Engine):
                 kwargs["verbose"] = True # llama-cpp-python can't hide output in this case
 
             with normalize_notebook_stdout_stderr():
-                self.model_obj = llama_cpp.Llama(model_path=model, **kwargs)
+                self.model_obj = llama_cpp.Llama(model_path=model, logits_all=True, **kwargs)
         elif isinstance(model, llama_cpp.Llama):
             self.model = model.__class__.__name__
             self.model_obj = model
