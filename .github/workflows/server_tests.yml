@@ -29,6 +29,9 @@ jobs:
           pip install -e .[test]
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
       - name: Run server tests
+        shell: bash
         run: |
-          pytest --cov=guidance --cov-report=xml --cov-report=term-missing -m server ./tests/
+          pytest --cov=guidance --cov-report=xml --cov-report=term-missing \
+          -m server \
+          ./tests/
 
