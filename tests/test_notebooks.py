@@ -57,7 +57,6 @@ class TestArtOfPromptDesign:
         )
         run_notebook(nb_path)
 
-    @pytest.mark.xfail(reason="Strange error on some builds")
     @pytest.mark.use_gpu
     def test_react(self):
         nb_path = TestArtOfPromptDesign.BASE_APD_PATH / "react.ipynb"
@@ -65,6 +64,6 @@ class TestArtOfPromptDesign:
 
     @pytest.mark.use_gpu
     @pytest.mark.needs_credentials
-    def test_use_clear_syntax(self):
+    def test_use_clear_syntax(self, rate_limiter):
         nb_path = TestArtOfPromptDesign.BASE_APD_PATH / "use_clear_syntax.ipynb"
-        run_notebook(nb_path)
+        run_notebook(nb_path, params=dict(call_delay_secs=rate_limiter))
