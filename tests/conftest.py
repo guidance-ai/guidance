@@ -45,12 +45,12 @@ def pytest_addoption(parser):
     )
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def selected_model_name(pytestconfig) -> str:
     return pytestconfig.getoption("selected_model")
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def selected_model_info(selected_model_name: str):
     model_info = AVAILABLE_MODELS[selected_model_name]
     return model_info
