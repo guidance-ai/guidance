@@ -732,6 +732,35 @@ def string(value) -> Union[str, bytes, Null, Byte, Join]:
         return Join([Byte(b[i:i+1]) for i in range(len(b))], name=str(b))
     
 def select(options: List[_T], name=None, list_append=False, recurse=False, skip_checks=False) -> Union[Select, _T]:
+    """Choose between a set of options.
+
+    This function constrains the next generation from the LLM to be one of the
+    given `options`.
+    If the list only has a single element, then that value can be returned
+    immediately, without calling the LLM.
+
+    Parameters
+    ----------
+    name : str or None
+        If this is not None then the the results of the generation will be saved as a variable on
+        the Model object (so you can access the result as `lm["var_name"]`).
+
+    options : List
+        The set of available choices for the next generation
+
+    list_append : bool
+        If this is True then the results saved to `lm[name]` will not be written directly but rather appended
+        to a list (if no list with the current name is present one will be created). This is useful for
+        building lists inside python loops.
+
+    recurse : bool
+        Indicate whether multiple choices should be made. This is useful for tasks such as
+        building up integers digit by digit: `select(options=list(range(10)), recurse=True)`
+
+    skip_checks: bool
+        Whether or not to perform sanity checks on the supplied options, to ensure
+        that more obscure errors do not appear later.
+    """
     # TODO: allow for returning the probabilites of the selected item
     # TODO: also the full probabilites distribution over all items. We can implement this using the prob of the selected item by repeating the call, removing the selected item each time
     if not skip_checks:
