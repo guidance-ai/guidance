@@ -14,7 +14,6 @@ functions
 
     guidance.gen
     guidance.select
-
     guidance.json
 
 
