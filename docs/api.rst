@@ -15,6 +15,8 @@ functions
     guidance.gen
     guidance.select
 
+    guidance.json
+
 
 .. _contexts_api:
 
