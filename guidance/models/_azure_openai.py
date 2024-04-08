@@ -16,6 +16,16 @@ except ModuleNotFoundError:
 
 
 class AzureOpenAI(Grammarless):
+    """Represents an Azure OpenAI model as exposed through their remote API.
+    
+    Note that because this uses a remote API endpoint without built-in guidance support
+    there are some things we cannot do, like force the model to follow a pattern inside
+    a chat role block.
+
+    Authentication can be provided via an `api_key` or through Entra/Azure Active
+    Directory.
+    """
+
     def __init__(
         self,
         model: str,
