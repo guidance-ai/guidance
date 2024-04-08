@@ -1,3 +1,5 @@
+from typing import Optional
+
 import guidance
 # from ._prefix_tree import prefix_tree
 from .._grammar import string, select
@@ -83,8 +85,8 @@ class SuffixAutomaton:
         self.last = cur
 
 @guidance(stateless=True, dedent=False)
-def substring(lm, s):
-    suffix_automaton = SuffixAutomaton(s)
+def substring(lm, target_string: str, name: Optional[str] = None):
+    suffix_automaton = SuffixAutomaton(target_string)
     node_cache = {}
     state_stack = [0]  # Start with the initial state index (0) on the stack
 
@@ -115,7 +117,7 @@ def substring(lm, s):
             node_cache[state_ind] = optional(select(options, skip_checks=True)) if len(options) > 1 else optional(options[0])
             state_stack.pop()
 
-    return lm + node_cache[0]
+    return lm + guidance.capture(node_cache[0], name=name)
 
 # @guidance(stateless=True, dedent=False)
 # def substring(s):
