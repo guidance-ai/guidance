@@ -117,16 +117,76 @@ def _process_additional_properties(
 def _gen_json_array(
     lm,
     *,
-    item_schema: Mapping[str, Any],
+    prefix_items_schema: Optional[Sequence[Mapping[str, Any]]],
+    item_schema: Optional[Mapping[str, Any]],
+    min_items: int,
+    max_items: Optional[int],
     definitions: Mapping[str, Callable[[], GrammarFunction]],
 ):
+    if prefix_items_schema is None:
+        prefix_items_schema = []
+
+    if len(prefix_items_schema) < min_items and item_schema is None:
+        raise ValueError(
+            "No items schema provided, but prefixItems has too few elements "
+            f"({len(prefix_items_schema)}) to satisfy minItems ({min_items})"
+        )
+
+    if max_items is not None and max_items < min_items:
+        raise ValueError(f"maxItems ({max_items}) can't be less than minItems ({min_items})")
+
+    required_items = []
+    optional_items = []
+
+    # If max_items is None, we can add an infinite tail of items later
+    n_to_add = max(len(prefix_items_schema), min_items) if max_items is None else max_items
+    for i in range(n_to_add):
+        if i < len(prefix_items_schema):
+            schema = prefix_items_schema[i]
+        elif item_schema is not None:
+            schema = item_schema
+        else:
+            assert i >= min_items
+            break
+
+        item = _gen_json(json_schema=schema, definitions=definitions)
+
+        if i < min_items:
+            required_items.append(item)
+        else:
+            optional_items.append(item)
+
+    if max_items is None and item_schema is not None:
+        # Add an infinite tail of items
+        item = _gen_json(json_schema=item_schema, definitions=definitions)
+        optional_items.append(item + zero_or_more(',' + item))
+
     lm += "["
-    lm += optional(
-        zero_or_more(_gen_json(json_schema=item_schema, definitions=definitions) + ",")
-        + _gen_json(json_schema=item_schema, definitions=definitions)
-    )
+
+    if required_items:
+        first, *rest = required_items
+        lm += first
+        for item in rest:
+            lm += ',' + item
+
+    if optional_items:
+        # This is a bit subtle and would not be required if not for prefixItems -- the previous
+        # must be present before the next one may be added, meaning we have nested optionals:
+        # (first optional(,second optional(,third (optional(,...)))))
+        first, *rest = optional_items
+        tail = ''
+        for item in reversed(rest):
+            tail = optional(',' + item + tail)
+        tail = first + tail
+
+        if required_items:
+            lm += optional(',' + tail)
+        else:
+            lm += optional(tail)
+
     lm += "]"
     return lm
+
 
 
 @guidance(stateless=True)
@@ -188,7 +248,11 @@ def _gen_json(
             return lm + _gen_json_string()
         if target_type == "array":
             return lm + _gen_json_array(
-                item_schema=json_schema["items"], definitions=definitions
+                prefix_items_schema=json_schema.get("prefixItems"),
+                item_schema=json_schema.get("items"),
+                min_items=json_schema.get("minItems", 0),
+                max_items=json_schema.get("maxItems"),
+                definitions=definitions,
             )
         if target_type == "object":
             return lm + _gen_json_object(
