@@ -286,7 +286,7 @@ def json(
     { 'a' : 2 }
 
     Using a `pydantic.BaseModel`:
-    >>> class Schema:
+    >>> class Schema(BaseModel):
     ...     b: bool
     >>> lm += json(name="generated_object", schema=Schema)
     >>> print(json.loads(lm["generated_object"]))
