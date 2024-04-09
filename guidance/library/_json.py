@@ -273,17 +273,30 @@ def json(
     *,
     schema: Union[Mapping[str, Any], Type[pydantic.BaseModel], pydantic.TypeAdapter]
 ):
-    """Generate tokens according to the supplied JSON schema.
+    """Generate valid JSON according to the supplied JSON schema or `pydantic` model.
 
     Not all parts of JSON schema (https://json-schema.org/) are supported. Indeed some parts
     (such as bounds on numbers) cannot really be supported in the context of LLM generation.
 
+    Using a JSON schema:
     >>> schema = ''{ "type": "object", "properties": { "a" : {"type": "integer"} } }'
     >>> schema_obj = json.loads(schema)
     >>> lm += json(name="generated_object", schema=schema_obj)
     >>> print(json.loads(lm["generated_object"]))
-    { "a" : 2 }
+    { 'a' : 2 }
 
+    Using a `pydantic.BaseModel`:
+    >>> class Schema:
+    ...     b: bool
+    >>> lm += json(name="generated_object", schema=Schema)
+    >>> print(json.loads(lm["generated_object"]))
+    { 'b' : False }
+
+    Using a `pydantic.TypeAdapter`:
+    >>> schema = TypeAdapter(list[int])
+    >>> lm += json(name="generated_object", schema=schema)
+    >>> print(json.loads(lm["generated_object"]))
+    [1, 2, 3]
 
     Parameters
     ----------
@@ -292,8 +305,11 @@ def json(
         If this is not None then the the results of the generation will be saved as a variable on
         the Model object (so you can access the result as `lm["var_name"]`).
 
-    schema : Mapping[str, Any]
-        A JSON schema object. This is a JSON schema string which has been passed to `json.loads()`.
+    schema : Union[Mapping[str, Any], Type[pydantic.BaseModel], pydantic.TypeAdapter]
+        One of:
+            - A JSON schema object. This is a JSON schema string which has been passed to `json.loads()`.
+            - A subclass of `pydantic.BaseModel`
+            - An instance of `pydantic.TypeAdapter`
     """
     if isinstance(schema, Mapping):
         # TODO: maybe use jsonschema.validators.Draft202012Validator
