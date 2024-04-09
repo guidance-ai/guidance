@@ -1,12 +1,8 @@
 import inspect
-from typing import Any, Dict, Optional, Type, Union
+from typing import Any, Dict, Type, Union
 
 from pydantic import BaseModel, TypeAdapter
 from pydantic.json_schema import GenerateJsonSchema
-
-import guidance
-
-from ._json import json as gen_json
 
 
 class GenerateJsonSchemaSafe(GenerateJsonSchema):
@@ -30,24 +26,11 @@ class GenerateJsonSchemaSafe(GenerateJsonSchema):
         return super().generate_inner(schema)
 
 
-def generate_json_schema(
-    pydantic_model: Union[Type[BaseModel], TypeAdapter]
+def pydantic_to_json_schema(
+    schema: Union[Type[BaseModel], TypeAdapter]
 ) -> Dict[str, Any]:
-    if inspect.isclass(pydantic_model) and issubclass(pydantic_model, BaseModel):
-        return pydantic_model.model_json_schema(schema_generator=GenerateJsonSchemaSafe)
-    if isinstance(pydantic_model, TypeAdapter):
-        return pydantic_model.json_schema(schema_generator=GenerateJsonSchemaSafe)
-    raise TypeError(f"Cannot generate json schema from type {type(pydantic_model)}")
-
-
-@guidance(stateless=True)
-def pydantic(
-    lm,
-    name: Optional[str] = None,
-    *,
-    model: Union[Type[BaseModel], TypeAdapter]
-):
-    # TODO: add a Literal["json", "python"] "mode" argument
-    # to support various genneration modes?
-    schema = generate_json_schema(model)
-    return lm + gen_json(name=name, schema=schema)
+    if inspect.isclass(schema) and issubclass(schema, BaseModel):
+        return schema.model_json_schema(schema_generator=GenerateJsonSchemaSafe)
+    if isinstance(schema, TypeAdapter):
+        return schema.json_schema(schema_generator=GenerateJsonSchemaSafe)
+    raise TypeError(f"Cannot generate json schema from type {type(schema)}")

@@ -1,11 +1,12 @@
-from typing import Any, Callable, Mapping, Optional, Sequence, Union
+from typing import Any, Callable, Mapping, Optional, Sequence, Union, Type
 from json import dumps as json_dumps
+import pydantic
 
 import guidance
 from guidance.library import char_range, one_or_more, optional, zero_or_more
 
 from .._grammar import GrammarFunction, select
-
+from ._pydantic import pydantic_to_json_schema
 
 def _to_compact_json(target: Any) -> str:
     # See 'Compact Encoding':
@@ -270,7 +271,7 @@ def json(
     lm,
     name: Optional[str] = None,
     *,
-    schema: Mapping[str, Any],
+    schema: Union[Mapping[str, Any], Type[pydantic.BaseModel], pydantic.TypeAdapter]
 ):
     """Generate tokens according to the supplied JSON schema.
 
@@ -294,6 +295,13 @@ def json(
     schema : Mapping[str, Any]
         A JSON schema object. This is a JSON schema string which has been passed to `json.loads()`.
     """
+    if isinstance(schema, Mapping):
+        # TODO: maybe use jsonschema.validators.Draft202012Validator
+        if not all(isinstance(key, str) for key in schema.keys()):
+            raise TypeError(f"Schema provided is not a valid JSON schema (non-string keys): {schema}")
+    else:
+        schema = pydantic_to_json_schema(schema)
+
     _DEFS_KEY = "$defs"
     definitions = {}
     if _DEFS_KEY in schema:

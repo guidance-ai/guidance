@@ -35,4 +35,3 @@ from ._tool import Tool
 from ._any_char_but import any_char_but
 
 from ._json import json
-from ._pydantic import pydantic
