@@ -13,7 +13,7 @@ from pprint import pprint
 import re
 import copy
 import time
-from typing import Dict, Set
+from typing import TYPE_CHECKING, Dict
 import numpy as np
 import logging
 import base64
@@ -30,7 +30,8 @@ from .._utils import softmax, CaptureEvents
 from .._parser import EarleyCommitParser, Parser
 from .._grammar import GrammarFunction, string, _call_pool, _tag_pattern, Null, replace_model_variables, unreplace_model_variables, select
 from .. import _serialization_pb2
-from ..library._block import ContextBlock
+if TYPE_CHECKING:
+    from ..library._block import ContextBlock
 
 # define some constants we will reuse many times
 _null_grammar = string('')
@@ -727,7 +728,7 @@ class Model:
     .. automethod:: __add__
     '''
 
-    open_blocks: Set[ContextBlock] = set() # track what context blocks are open
+    open_blocks: Dict["ContextBlock", None] = {} # track what context blocks are open
     _grammar_only = 0 # a flag that tracks when we are forced to be executing only compiled grammars (like when we are inside a select)
     _throttle_refresh = 0 # a flag that tracks when we can throttle our display since we know future display calls are going to happen
 
