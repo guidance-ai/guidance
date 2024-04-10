@@ -1,4 +1,4 @@
-from guidance import guidance
+from .._guidance import guidance
 from .._grammar import byte_range, select
 
 @guidance(stateless=True)

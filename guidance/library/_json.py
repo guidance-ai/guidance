@@ -3,8 +3,8 @@ from json import dumps as json_dumps
 from jsonschema.validators import Draft202012Validator
 import pydantic
 
-from guidance import guidance
-from guidance.library import char_range, one_or_more, optional, zero_or_more
+from .._guidance import guidance
+from ..library import char_range, one_or_more, optional, zero_or_more
 
 from .._grammar import GrammarFunction, select, capture
 from ._pydantic import pydantic_to_json_schema
