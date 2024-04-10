@@ -5,7 +5,7 @@ import inspect
 import types
 import re
 
-from typing import Dict, List, TypeVar, Union
+from typing import Any, Dict, List, TypeVar, Union
 
 from . import _serialization_pb2
 from . import _parser
@@ -20,7 +20,7 @@ _tag_pattern = re.compile(re.escape(tag_start) + r"([^\|]+)" + re.escape(tag_end
 
 class StatefulException(Exception):
     '''This is raised when we try and use the state of a grammar object like it was a live model.
-    
+
     Note that eventually it would be nice to support stateful parser/grammar constructs directly, but
     such "parser combinators" cannot be run effciently in Python. So we use a traditional parser and
     grammar separation (hence the need for this exception).'''
@@ -28,19 +28,19 @@ class StatefulException(Exception):
 
 class Function():
     ''' This is the abstract class representing all guidance functions.
-    
+
     There are two main subclasses: GrammarFunction and RawFunction. GrammarFunctions
     represent guidance grammars that can be serialized and sent across the wire, while
     RawFunctions represent unconstrained native Python functions.
     '''
-    
+
     def __init__(self, name, value=None) -> None:
         self.name = name
         self.value = value
 
     def __str__(self):
         '''Creates a string tag that can be used to retrieve this object.'''
-    
+
         # save the call in our call pool, ready to be run when it is attached to an LM object
         str_id = str(id(self))
         if str_id not in _call_pool:
@@ -48,10 +48,10 @@ class Function():
 
         # return a string representation of this call so it can be combined with other strings/calls
         return tag_start + str_id + tag_end
-    
+
     def serialize(self):
         raise NotImplementedError()
-    
+
     @classmethod
     def deserialize(cls, serialized_grammar):
         raise NotImplementedError()
@@ -64,16 +64,16 @@ class RawFunction(Function):
         self.f = f
         self.args = args
         self.kwargs = kwargs
-    
+
     def __call__(self, model):
         return self.f(model, *self.args, **self.kwargs)
-    
+
     def __add__(self, other):
-        
+
         # if we are joining with a string we use the string representation for ourselves
         if isinstance(other, str):
             return str(self) + other
-        
+
         def __add__(model):
             model = self(model)
             if model is None:
@@ -83,13 +83,13 @@ class RawFunction(Function):
             else:
                 return other(model)
         return RawFunction(__add__, [], {})
-    
+
     def __radd__(self, other):
-        
+
         # if we are joining with a string we use the string representation for ourselves
         if isinstance(other, str):
             return other + str(self)
-        
+
         def __radd__(model):
             if isinstance(other, GrammarFunction):
                 model += other
@@ -103,19 +103,19 @@ class Match:
         self.captures = captures
         self.log_probs = log_probs
         self.partial = partial
-    
+
     def __getitem__(self, key):
         return self.captures[key]
-    
+
     def __len__(self):
         return len(self.captures)
-    
+
     def __bool__(self):
         return True
-    
+
     def __str__(self):
         return str(self.captures)
-    
+
     def __repr__(self):
         return "<guidance.Match object; captures="+str(self.captures)+"; partial="+str(self.partial)+">"
 
@@ -124,41 +124,41 @@ class GrammarFunction(Function):
 
     def __add__(self, value):
 
-        # see if we have a string with calls or a simple string 
+        # see if we have a string with calls or a simple string
         if isinstance(value, str) or isinstance(value, bytes):
             if isinstance(value, str) and re.search(_tag_pattern, value):
                 return str(self) + value
             else:
-                value = string(value) 
-        
+                value = string(value)
+
         # see if we can keep building a stateless grammar
         if isinstance(value, GrammarFunction):
             return Join([self, value])
-        
+
         # otherwise we let the stateful object handle things
         else:
             return value.__radd__(self)
-    
+
     def __radd__(self, value):
 
-        # see if we have a string with calls or a simple string 
+        # see if we have a string with calls or a simple string
         if isinstance(value, str) or isinstance(value, bytes):
             if isinstance(value, str) and re.search(_tag_pattern, value):
                 return value + str(self)
             else:
-                value = string(value) 
-        
+                value = string(value)
+
         # see if we can keep building a stateless grammar
         if isinstance(value, GrammarFunction):
             return Join([value, self])
-        
+
         # otherwise we let the stateful object handle things
         else:
             return value.__add__(self)
-    
+
     def __getitem__(self, value):
         raise StatefulException("GrammarFunctions can't access state!")
-    
+
     def match(self, byte_string: Union[str, bytes], allow_partial: bool=False, raise_exceptions: bool=False) -> Union[Match, None]:
         if isinstance(byte_string, str):
             byte_string = byte_string.encode()
@@ -172,12 +172,12 @@ class GrammarFunction(Function):
                     raise
                 else:
                     return None
-        
+
         if not allow_partial and not parser.matched():
             return None
         else:
             return Match(*parser.get_captures(), partial=not parser.matched())  # type: ignore[misc]
-    
+
     @staticmethod
     def _new_name():
         num_used = GrammarFunction.num_used_names
@@ -194,9 +194,9 @@ class GrammarFunction(Function):
                     name = chr(a_ord + (num_used % 456976) // 17576) + name
 
         GrammarFunction.num_used_names += 1
-        
+
         return name
-    
+
     def gbnf_string(self):
         used_names = set()
         names = {}
@@ -204,7 +204,7 @@ class GrammarFunction(Function):
         root_name = self._rec_gbnf_string(lines, used_names, names)
         lines.append("root ::= " + root_name)
         return "\n".join(lines)
-    
+
     def serialize(self):
         g = _serialization_pb2.Grammar()
         index_map = {}
@@ -213,14 +213,14 @@ class GrammarFunction(Function):
         self._rec_serialize(index_map, nodes) # nodes is filled in (as is index_map)
         g.nodes.extend(list(nodes.values()))
         return g.SerializeToString()
-    
+
     def _rec_create_index_map(self, index_map):
         if self not in index_map:
             index_map[self] = len(index_map)
             if hasattr(self, "values"):
                 for value in self.values:
                     value._rec_create_index_map(index_map)
-    
+
     def _rec_serialize(self, index_map, nodes):
         if self not in nodes:
             v = self._to_proto(index_map)
@@ -241,7 +241,7 @@ class GrammarFunction(Function):
             if hasattr(self, "values"):
                 for value in self.values:
                     value._rec_serialize(index_map, nodes)
-    
+
     @classmethod
     def deserialize(cls, serialized_grammar):
         g = _serialization_pb2.Grammar()
@@ -295,26 +295,26 @@ class Byte(Terminal):
     @property
     def name(self):
         return str(self.byte)
-    
+
     def __hash__(self):
         return self.byte[0]
-    
+
     def __eq__(self, other):
         return isinstance(other, Byte) and self.byte[0] == other.byte[0]
-    
+
     def __repr__(self) -> str:
         return str(self.byte)
-    
+
     def __len__(self):
         return 1
-    
+
     def match_byte(self, byte):
         return byte == self.byte
-    
+
     @property
     def nullable(self):
         return False
-    
+
     def _to_proto(self, index_map):
         data = _serialization_pb2.Byte()
         data.byte = self.byte
@@ -323,7 +323,7 @@ class Byte(Terminal):
         data.capture_name = "" if self.capture_name is None else self.capture_name
         data.temperature = self.temperature
         return data
-    
+
     @staticmethod
     def _from_proto(data):
         out = Byte(data.byte)
@@ -354,20 +354,20 @@ class ByteRange(Terminal):
     @name.setter
     def name(self, value):
         pass # we ignore name changes
-    
+
     @property
     def nullable(self):
         return False
-    
+
     def __hash__(self):
         return self.byte_range[0] + 256 * self.byte_range[1]
-    
+
     def __eq__(self, other):
         return isinstance(other, ByteRange) and self.byte_range[0] == other.byte_range[0] and self.byte_range[1] == other.byte_range[1]
-    
+
     def __repr__(self) -> str:
         return str(self.byte_range)
-    
+
     def __len__(self):
         return 1
 
@@ -405,17 +405,17 @@ class Null(Terminal):
             return string(other)
         elif isinstance(other, str):
             return str_to_grammar(other)
-        
+
         # otherwise we return unchanged
         else:
             return other
-        
+
     def __radd__(self, other):
         return self.__add__(other) # left vs right makes no difference since we are null
-        
+
 class ModelVariable(GrammarFunction):
     '''This represents a variable that will be read from the model object when this grammar is executed.
-    
+
     Note that the name is the name of the attribute on the model object this node
     will get replaced with.
     '''
@@ -451,7 +451,7 @@ def replace_grammar_node(grammar, target, replacement):
 
     while stack:
         current = stack.pop()
-        
+
         # Check if we have already visited this node
         if current in visited_set:
             continue
@@ -460,7 +460,7 @@ def replace_grammar_node(grammar, target, replacement):
         # We are done with this node if it's a terminal
         if isinstance(current, (Terminal, ModelVariable, Placeholder)):
             continue
-        
+
         # Iterate through the node's values and replace target with replacement
         for i, value in enumerate(current.values):
             if value == target:
@@ -469,17 +469,17 @@ def replace_grammar_node(grammar, target, replacement):
                 stack.append(value)
 
 # def replace_grammar_node(grammar, target, replacement, visited_set={}):
-    
+
 #     # see if we have already visited this node
 #     if grammar in visited_set:
 #         return
 #     else:
 #         visited_set[grammar] = True
-   
+
 #     # we are done if this is a terminal
 #     if isinstance(grammar, (Terminal, ModelVariable)):
 #         return
-    
+
 #     # replace all matching sub-nodes
 #     for i,value in enumerate(grammar.values):
 #         if value == target:
@@ -532,17 +532,17 @@ def replace_model_variables(grammar, model, allowed_vars=None):
 
 # def replace_model_variables(grammar, model, visited_set={}):
 #     '''Replace all the ModelVariable nodes with their values.'''
-    
+
 #     # see if we have already visited this node
 #     if grammar in visited_set:
 #         return []
 #     else:
 #         visited_set[grammar] = True
-   
+
 #     # we are done if this is a terminal
 #     if isinstance(grammar, Terminal):
 #         return []
-    
+
 #     # replace all matching sub-nodes
 #     replacements = []
 #     for i,value in enumerate(grammar.values):
@@ -567,20 +567,20 @@ def _wrap_as_grammar(value):
     # if it is already a valid grammar we have no need to wrap it
     if isinstance(value, GrammarFunction):
         return value
-    
+
     # if it is already a valid grammar we have no need to wrap it
     if value is None:
-        return Null() 
-    
+        return Null()
+
     # we have a constant value
     if isinstance(value, (str, bytes)):
         return string(value)
-    
+
     raise Exception("Can't wrap as a grammar!")
 
 def commit_point(value, hidden=False):
     '''Force the grammar to commit to a parse that includes this node once it can.
-    
+
     Not that commit point nodes can be optionally hidden (in fact they are the only
     nodes that can be hidden since they are by definition not impacted by multiple possible
     inconsistent parses.)'''
@@ -630,7 +630,7 @@ class Join(GrammarFunction):
             if v not in done and (isinstance(v, Join) or isinstance(v, Select)):
                 s += v.__repr__(indent, done)
         return s
-    
+
     def _to_proto(self, index_map):
         data = _serialization_pb2.Join()
         data.nullable = self.nullable
@@ -688,7 +688,7 @@ class Select(GrammarFunction):
             if v not in done and (isinstance(v, Join) or isinstance(v, Select)):
                 s += v.__repr__(indent, done)
         return s
-    
+
     def _to_proto(self, index_map):
         data = _serialization_pb2.Select()
         data.nullable = self.nullable
@@ -717,7 +717,7 @@ class Select(GrammarFunction):
         out.recursive = data.recursive
         return out
 
-def string(value: Union[str, bytes]) -> Union[Null, Byte, Join]:
+def string(value: Union[bytes, str]) -> Union[Null, Byte, Join]:
     if isinstance(value, str):
         b = bytes(value, encoding="utf8")
     elif isinstance(value, bytes):
@@ -730,7 +730,7 @@ def string(value: Union[str, bytes]) -> Union[Null, Byte, Join]:
         return Byte(b)
     else:
         return Join([Byte(b[i:i+1]) for i in range(len(b))], name=str(b))
-    
+
 def select(options: List[_T], name=None, list_append=False, recurse=False, skip_checks=False) -> Union[Select, _T]:
     """Choose between a set of options.
 
@@ -788,7 +788,7 @@ def select(options: List[_T], name=None, list_append=False, recurse=False, skip_
             return options[0]
         else:
             return Select(options, capture_name=name, recursive=False)
-        
+
 def byte_range(low, high) -> ByteRange:
     return ByteRange(low + high)
 
@@ -823,7 +823,7 @@ def _rec_token_limit(grammar, max_tokens: int):
 
 def with_temperature(value, temperature):
     '''This sets the sampling temperature to be used for the given portion of the grammar.
-    
+
     Note that if the grammar passed to us already has some portions with a temperature
     setting in place, those settings will not be overridden.
     '''
@@ -831,7 +831,7 @@ def with_temperature(value, temperature):
     return value
 
 def _re_with_temperature(grammar, temperature, visited_set):
-    
+
     # don't go down the same path twice
     if grammar in visited_set:
         return
@@ -863,17 +863,17 @@ _null_grammar = string('')
 #     if len(low_bytes) > 1 or len(high_bytes) > 1:
 #         raise Exception("We don't yet support multi-byte character ranges!")
 #     return ByteRange(low_bytes + high_bytes)
-def str_to_grammar(value: str) -> Union[str, bytes, Null, Byte, Join, Function]:
+def str_to_grammar(value: str):
     is_id = False
     parts = re.split(_tag_pattern, value)
-    
+
     # we have no embedded objects
     if len(parts) == 1:
         return string(value)
-    
+
     # if we have embedded objects we have to convert the string to a grammar tree
     else:
-        partial_grammar: Union[str, bytes, Null, Byte, Join, Function] = _null_grammar
+        partial_grammar: Any = _null_grammar
         # lm.suffix = ""
         for i,part in enumerate(parts):
             # if i < len(parts) - 1:
