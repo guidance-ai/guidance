@@ -137,7 +137,7 @@ def test_remote_gen_json(target_obj):
 
     with ServerContext(mock_string=[_to_compact_json(target_obj)]):
         m = models.Model("http://localhost:8392", api_key="SDFSDF")
-        m += gen_json(schema=schema_obj, name="my_json_string")
+        m += gen_json(schema_obj, name="my_json_string")
         print(f"Raw: {m['my_json_string']}")
 
         my_obj = json.loads(m["my_json_string"])

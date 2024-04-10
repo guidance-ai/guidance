@@ -1,8 +1,8 @@
 from typing import Optional
 
-from guidance import guidance, capture
+from guidance import guidance
 # from ._prefix_tree import prefix_tree
-from .._grammar import string, select
+from .._grammar import string, select, capture
 from ._optional import optional
 
 

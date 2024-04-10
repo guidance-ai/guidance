@@ -6,7 +6,7 @@ from huggingface_hub import hf_hub_download
 
 import pytest
 
-from guidance import models
+import guidance
 
 opanai_model_cache = {}
 
@@ -33,7 +33,7 @@ def get_openai_model(model_name, caching=False, **kwargs):
     # load it over and over again
     key = model_name + "_" + str(caching) + "_" + str(kwargs)
     if key not in opanai_model_cache:
-        opanai_model_cache[key] = models.OpenAI(
+        opanai_model_cache[key] = guidance.models.OpenAI(
             model_name, caching=caching, **kwargs
         )
     lm = opanai_model_cache[key]
@@ -43,7 +43,7 @@ def get_openai_model(model_name, caching=False, **kwargs):
 
 def get_llama_hugging_face_model(repo_id: str, filename: str, **kwargs):
     downloaded_file = hf_hub_download(repo_id=repo_id, filename=filename)
-    lm = models.LlamaCpp(downloaded_file, **kwargs)
+    lm = guidance.models.LlamaCpp(downloaded_file, **kwargs)
     return lm
 
 
@@ -57,7 +57,7 @@ def get_transformers_model(model_name, caching=False, **kwargs):
     # load it over and over again
     key = model_name + "_" + str(caching) + "_" + str(kwargs)
     if key not in transformers_model_cache:
-        transformers_model_cache[key] = models.Transformers(
+        transformers_model_cache[key] = guidance.models.Transformers(
             model_name, **kwargs
         )
 
@@ -89,7 +89,7 @@ def get_llama_cpp_model(model_name, caching=False, **kwargs):
     # load it over and over again
     key = model_name + "_" + str(caching) + "_" + str(kwargs)
     if key not in llama_cpp_model_cache:
-        llama_cpp_model_cache[key] = models.LlamaCpp(
+        llama_cpp_model_cache[key] = guidance.models.LlamaCpp(
             model_name, caching=caching, **kwargs
         )
 

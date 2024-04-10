@@ -1,4 +1,4 @@
-from guidance import guidance
+import guidance
 from guidance import models, select, gen, optional
 
 def test_select_reset_pos():
