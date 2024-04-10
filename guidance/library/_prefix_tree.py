@@ -1,4 +1,4 @@
-import guidance
+from guidance import guidance
 from .._grammar import select, string
 
 @guidance(stateless=True, dedent=False)

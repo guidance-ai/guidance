@@ -1,6 +1,6 @@
 from typing import Optional
 
-import guidance
+from guidance import guidance, capture
 # from ._prefix_tree import prefix_tree
 from .._grammar import string, select
 from ._optional import optional
@@ -117,7 +117,7 @@ def substring(lm, target_string: str, name: Optional[str] = None):
             node_cache[state_ind] = optional(select(options, skip_checks=True)) if len(options) > 1 else optional(options[0])
             state_stack.pop()
 
-    return lm + guidance.capture(node_cache[0], name=name)
+    return lm + capture(node_cache[0], name=name)
 
 # @guidance(stateless=True, dedent=False)
 # def substring(s):

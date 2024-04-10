@@ -14,10 +14,13 @@ from ._server import Server
 newline = "\n"
 
 # This makes the guidance module callable
-class Guidance(types.ModuleType):
+class _Guidance(types.ModuleType):
     def __call__(self, f=None, *, stateless=False, cache=None, dedent=True, model=models.Model):
         return _decorator(f, stateless=stateless, cache=cache, dedent=dedent, model=model)
-sys.modules[__name__].__class__ = Guidance
+sys.modules[__name__].__class__ = _Guidance
+
+def guidance(f=None, *, stateless=False, cache=None, dedent=True, model=models.Model):
+    return _decorator(f, stateless=stateless, cache=cache, dedent=dedent, model=model)
     
 _null_grammar = string('')
 

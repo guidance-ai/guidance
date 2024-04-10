@@ -243,7 +243,7 @@ def test_one_char_stop_and_regex():
     assert str(model) == "this is"
 
 def test_tool_call(selected_model):
-    import guidance
+    from guidance import guidance
     from guidance import one_or_more, select, zero_or_more
     from guidance import capture, Tool
 

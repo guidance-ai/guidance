@@ -3,7 +3,7 @@ from json import dumps as json_dumps
 from jsonschema.validators import Draft202012Validator
 import pydantic
 
-import guidance
+from guidance import guidance, capture
 from guidance.library import char_range, one_or_more, optional, zero_or_more
 
 from .._grammar import GrammarFunction, select
@@ -324,7 +324,7 @@ def json(
     if _DEFS_KEY in schema:
         definitions = _build_definitions(schema[_DEFS_KEY])
 
-    return lm + guidance.capture(_gen_json(schema, definitions), name=name)
+    return lm + capture(_gen_json(schema, definitions), name=name)
 
 
 def _build_definitions(

@@ -1,4 +1,4 @@
-import guidance
+from guidance import guidance
 from ._block import block
 
 @guidance

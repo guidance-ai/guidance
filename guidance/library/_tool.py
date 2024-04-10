@@ -1,4 +1,4 @@
-import guidance
+from guidance import guidance
 from ._any_char import any_char
 from .._grammar import select, capture, string, commit_point
 from ._zero_or_more import zero_or_more

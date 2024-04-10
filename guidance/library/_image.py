@@ -1,4 +1,4 @@
-import guidance
+from guidance import guidance
 import urllib
 import typing
 import http

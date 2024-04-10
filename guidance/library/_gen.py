@@ -1,6 +1,6 @@
 import regex as regex_module
 import logging
-import guidance
+from guidance import guidance
 from ._silent import silent
 from .._grammar import select
 from ._zero_or_more import zero_or_more
