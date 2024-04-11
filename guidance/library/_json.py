@@ -1,5 +1,6 @@
 from typing import Any, Callable, Mapping, Optional, Sequence, Union, Type
 from json import dumps as json_dumps
+from jsonschema.validators import Draft202012Validator
 import pydantic
 
 import guidance
@@ -312,9 +313,9 @@ def json(
             - An instance of `pydantic.TypeAdapter`
     """
     if isinstance(schema, Mapping):
-        # TODO: maybe use jsonschema.validators.Draft202012Validator
-        if not all(isinstance(key, str) for key in schema.keys()):
-            raise TypeError(f"Schema provided is not a valid JSON schema (non-string keys): {schema}")
+        # Raises jsonschema.exceptions.SchemaError or ValueError
+        # if schema is not valid
+        Draft202012Validator.check_schema(schema)
     else:
         schema = pydantic_to_json_schema(schema)
 
