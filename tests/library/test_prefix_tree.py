@@ -14,7 +14,11 @@ def test_smoke(selected_model: models.Model):
             partial_matches=False,
         )
     )
-    print(selected_model + "abc def\ndef ghi\nabc def\ndef " + gen(max_tokens=3))
+    print(
+        selected_model
+        + "abc def\ndef ghi\nabc def\ndef "
+        + gen(max_tokens=3, stop="\n")
+    )
     print("Done unconstrained")
 
     print(str(lm))
