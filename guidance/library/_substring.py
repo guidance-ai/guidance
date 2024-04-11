@@ -1,17 +1,9 @@
 from typing import Optional
 
 import guidance
-# from ._prefix_tree import prefix_tree
 from .._grammar import string, select
 from ._optional import optional
 
-
-# @guidance(stateless=True, dedent=False)
-# def substring(lm, s):
-    
-#     # build a prefix tree over all suffixes
-#     strings = [s[i:] for i in range(len(s))]
-#     return lm + prefix_tree(strings, partial_matches=True)
 
 @guidance(stateless=True, dedent=False)
 def substring_simple(lm, s):

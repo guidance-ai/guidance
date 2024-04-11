@@ -27,7 +27,6 @@ from ._zero_or_more import zero_or_more
 from ._one_or_more import one_or_more
 from ._char_range import char_range
 from ._char_set import char_set
-from ._prefix_tree import prefix_tree
 from ._substring import substring
 from ._regex import regex
 from ._optional import optional
