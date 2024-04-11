@@ -17,9 +17,11 @@ jobs:
         uses: actions/setup-python@v1
         with:
           python-version: 3.8
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install .[test]
       - uses: tsuyoshicho/action-mypy@v4
         with:
           github_token: ${{ secrets.github_token }}
-          setup_command: |
-            python -m pip install --upgrade pip
-            pip install .[test]
+            
