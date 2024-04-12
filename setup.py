@@ -32,15 +32,16 @@ setup(
     python_requires=">=3.8",
     install_requires=[
         "diskcache",
-        "openai>=1.0",
-        "platformdirs",
-        "tiktoken>=0.3",
-        "requests",
-        "numpy",
-        "ordered_set",
-        "pyformlang",
-        "protobuf",
         "fastapi",
+        "jsonschema",
+        "numpy",
+        "openai>=1.0",
+        "ordered_set",
+        "platformdirs",
+        "protobuf",
+        "pyformlang",
+        "requests",
+        "tiktoken>=0.3",
         "uvicorn"
     ],
     extras_require={
@@ -52,7 +53,6 @@ setup(
             'nbsphinx'
         ],
         'test': [
-            "jsonschema",
             "jupyter",
             "papermill",
             'pytest',
