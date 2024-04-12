@@ -1,0 +1,191 @@
+name: QA tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Setup Python
+        uses: actions/setup-python@v1
+        with:
+          python-version: 3.8
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install .[test]
+      - name: Run mypy
+        run: |
+          python -m mypy guidance
+
+  # Since server tests aren't model dependent, we run them seperate from other tests to save on runners
+  server-tests:
+    needs: qa
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest
+          pip install -e .[test]
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      - name: Run server tests
+        shell: bash
+        run: |
+          pytest --cov=guidance --cov-report=xml --cov-report=term-missing \
+          -m server \
+          ./tests/
+
+  # Since ubuntu is free, we run the tests on ubuntu first
+  unit-tests-ubuntu:
+    needs: qa
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+        model:
+          - "gpt2cpu"
+          - "phi2cpu"
+          # - "transformers_mistral_7b" See Issue 713
+          - "hfllama7b"
+          - "hfllama_mistral_7b"
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest
+          pip install -e .[test]
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      - name: Install model-specific dependencies
+        run: |
+          pip install "llama-cpp-python<0.2.58"
+      - name: Run tests (except server)
+        shell: bash
+        run: |
+          pytest --cov=guidance --cov-report=xml --cov-report=term-missing \
+          --selected_model ${{ matrix.model }} \
+          -m "not (needs_credentials or use_gpu or server)" \
+          ./tests/
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  unit-tests-other:
+    needs: unit-tests-ubuntu
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest]
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+        model:
+          - "gpt2cpu"
+          - "phi2cpu"
+          # - "transformers_mistral_7b" See Issue 713
+          - "hfllama7b"
+          - "hfllama_mistral_7b"
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest
+          pip install -e .[test]
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      - name: Install model-specific dependencies
+        run: |
+          pip install "llama-cpp-python<0.2.58"
+      - name: Run tests (except server)
+        shell: bash
+        run: |
+          pytest --cov=guidance --cov-report=xml --cov-report=term-missing \
+          --selected_model ${{ matrix.model }} \
+          -m "not (needs_credentials or use_gpu or server)" \
+          ./tests/
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  unit-tests-gpu:
+    needs: unit-tests
+    strategy:
+      matrix:
+        os: [gpu-runner]
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+        model: ["gpt2gpu", "phi2gpu", "hfllama_7b_gpu"]
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Show GPUs
+        run: |
+          nvidia-smi
+      - name: Update Ubuntu
+        run: |
+          sudo apt-get update
+          sudo apt-get -y upgrade
+      - name: Ensure NVIDIA SDK available
+        run: |
+          sudo apt-get -y install cuda-toolkit
+          echo "/usr/local/cuda-12.4/bin" >> $GITHUB_PATH
+      - name: Install dependencies
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest
+          pip install -e .[test]
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      - name: GPU pip installs
+        run: |
+          pip install accelerate
+          CMAKE_ARGS="-DLLAMA_CUBLAS=on" pip install "llama-cpp-python<0.2.58"
+      - name: Check GPU available
+        run: |
+          python -c "import torch; assert torch.cuda.is_available()"
+      - name: Run tests (except server)
+        run: |
+          pytest --cov=guidance --cov-report=xml --cov-report=term-missing \
+            --selected_model ${{ matrix.model }} \
+            -m "not (server or needs_credentials)" \
+            ./tests/
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
