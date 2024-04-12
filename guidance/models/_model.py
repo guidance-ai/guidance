@@ -42,17 +42,17 @@ image_pattern = re.compile(r"&lt;\|_image:(.*?)\|&gt;")
 
 class Tokenizer:
     '''This is the standardized tokenizer interface used by guidance models.
-
+    
     This class should be subclassed by specific implementations and then used as the
     tokenizer in the corresponding Engine subclass.
     '''
 
     def __init__(self, tokens, bos_token_id=None, eos_token_id=None):
-
+        
         # a numpy array of token byte strings indexed by their token id
         if isinstance(tokens, list):
             self.tokens = np.array(tokens, dtype='object') # note that we need np.bytes_ to zero bytes are not treated as null terminations
-
+        
         # a numpy array of token byte strings indexed by their token id
         elif isinstance(tokens, np.array):
             self.tokens = tokens
@@ -66,7 +66,7 @@ class Tokenizer:
         self.bos_token = None if self.bos_token_id is None else self.tokens[self.bos_token_id]
         self.eos_token_id = eos_token_id if eos_token_id is not None else bos_token_id
         self.eos_token = None if self.eos_token_id is None else self.tokens[self.eos_token_id]
-
+        
         # track which tokens are duplicates
         self.duplicate_tokens = []
         found = {}
@@ -117,15 +117,15 @@ class EngineCallResponse():
             capture_group_log_probs=self.capture_group_log_probs,
             new_token_count=self.new_token_count
         )
-
+    
     def encode(self, charset):
         '''Used to support FastAPI encoding of EngineCallResponse objects.'''
         return self.serialize()
-
+    
     def serialize(self):
         proto = self._to_proto()
         return proto.SerializeToString()
-
+    
     @staticmethod
     def deserialize(byte_data):
         proto = _serialization_pb2.EngineCallResponse()
@@ -142,7 +142,7 @@ class EngineCallResponse():
 
 class Engine:
     '''The engine owns the inference computation and is used/created by the Model class.
-
+    
     Engine objects represent the expensive parts of inference. While Model objects are cheap and do not
     need to know about the tokenizer or the model parameters, Engine objects know about both. Many
     Model objects can reference a single Engine object. Engine objects can also be hidden behind a
@@ -160,7 +160,7 @@ class Engine:
 
     def start(self, parser, grammar, ensure_bos_token=True):
         '''Start processing parser state executed through the grammar.
-
+        
         Parameters
         ----------
         parser : str or Parser
@@ -191,7 +191,7 @@ class Engine:
         # add the beginning of sequence token if needed
         if ensure_bos_token and self.tokenizer.bos_token is not None and not prompt.startswith(self.tokenizer.bos_token):
             prompt = self.tokenizer.bos_token + prompt
-
+        
         # run a simple tokenizer (that does not use a grammar) on the prefix for better performance
         self._token_ids, self._token_byte_positions = self._tokenize_prefix(prompt)
         self._token_ids, self._token_byte_positions = self._cleanup_tokens(self._token_ids, self._token_byte_positions)
@@ -202,13 +202,13 @@ class Engine:
         else:
             self._trimmed_prompt_prefix = b''
             self._pre_parser_bytes = 0
-
+        
         # create a parser with a grammar that includes both our context and the passed grammar
         self._parser = EarleyCommitParser(prompt + grammar)
 
         # loop until we have generated a complete pattern
         self._hidden_count = len(prompt) # we don't emit the prompt
-        self._generated_pos = 0
+        self._generated_pos = 0 
         self._sampled_token_ind = None
         self._token_count = 0
         self._last_token_count = 0
@@ -218,9 +218,9 @@ class Engine:
 
     def next(self, logits):
         '''Move the grammar state machine processing forward to the next point where
-            either get_logits is required to be called or we have a partial response
+            either get_logits is required to be called or we have a partial response 
             to stream back.
-
+        
         Parameters
         ----------
         logits : the logits obtained from the LLM after the last return from next(...)
@@ -305,7 +305,7 @@ class Engine:
                             child = node.child(byte)
                             child.match_version = self._token_trie.match_version
                             child.match = next_byte_mask[byte[0]]
-
+                    
                     # advance or fail according to the (now up-to-date) match cache
                     if next_node.match:
 
@@ -324,7 +324,7 @@ class Engine:
                         # mark that we accepted this byte
                         node = next_node
                         token_pos += 1
-
+                    
                         # if we are at a hidden commit point then we need to hide the bytes that match that node
                         if commit_point is not None and commit_point.node.hidden:
 
@@ -337,11 +337,11 @@ class Engine:
                             # This takes the item and commits to it as part of the parse and then shrinks it to zero width
                             # in other words this hides the item
                             self._parser.commit_and_collapse_item(commit_point)
-
+                            
                             # keep the bytes we still need to emit
                             if self._forced_pos < commit_point.start:
                                 self._parser.shadow_rewind(self._forced_pos)
-
+                            
                             else:
                                 # pop off any tokens that overlap the hidden bytes
                                 i = len(self._token_byte_positions) - 1
@@ -394,8 +394,8 @@ class Engine:
                     if not self._parser.matched():
                         self._parser.matched()
                         raise self._report_failed_match(self._trimmed_prompt_prefix + self._parser.bytes)
-
-                    # TODO: if we exactly match the end of the pattern then we can commit to this last token
+                    
+                    # TODO: if we exactly match the end of the pattern then we can commit to this last token 
                     # if m.span()[1] == len(generated_text):
                     #     self._cache_state["new_token_ids"].append(self._sampled_token_ind)
 
@@ -408,9 +408,9 @@ class Engine:
                     response_state = (
                         new_bytes[self._hidden_count:],
                         is_generated,
-                        self._new_bytes_prob if self.compute_log_probs else 1.0,
-                        self._captured_data,
-                        self._captured_log_prob_data,
+                        self._new_bytes_prob if self.compute_log_probs else 1.0, 
+                        self._captured_data, 
+                        self._captured_log_prob_data, 
                         self._token_count - self._last_token_count
                     )
 
@@ -435,9 +435,9 @@ class Engine:
                         response_state = (
                             out,
                             is_generated,
-                            self._new_bytes_prob if self.compute_log_probs else 1.0,
-                            self._captured_data,
-                            self._captured_log_prob_data,
+                            self._new_bytes_prob if self.compute_log_probs else 1.0, 
+                            self._captured_data, 
+                            self._captured_log_prob_data, 
                             self._token_count - self._last_token_count
                         )
 
@@ -476,12 +476,12 @@ class Engine:
             while True:
                 next_byte_mask = self._parser.next_byte_mask()
                 next_byte_mask_sum = next_byte_mask.sum()
-
+                
                 # see if we reached a dead end of the grammar
                 if next_byte_mask_sum == 0:
                     break
-
-                # if there is more than one option we cannot advance without computing the logits
+                
+                # if there is more than one option we cannot advance without computing the logits 
                 elif next_byte_mask_sum != 1:
                     break
 
@@ -495,13 +495,13 @@ class Engine:
                     # look for valid children
                     next_byte = None
                     for byte in self._trie.keys():
-
+                        
                         # mark this self._trie node with an up-to-date match flag (may save work later)
                         node = self._trie.child(byte)
                         node.match_version = self._token_trie.match_version
                         # node.prob = 0.0 # reset when we reset the match_version
                         node.match = next_byte_mask[byte[0]]
-
+                        
                         # see if we found a match
                         if node.match:
                             next_byte = byte
@@ -510,22 +510,22 @@ class Engine:
                     # if we can't extend then this token is forced
                     if next_byte is None:
                         break
-
+                    
                     # otherwise since there is only one possible next byte we keep going
                     else:
                         commit_point = self._parser.consume_byte(next_byte, log_prob=0.0)
-
+                        
                         # if we are at a hidden commit point then we need to hide the bytes that match that node
                         if commit_point is not None and commit_point.node.hidden:
 
                             # This takes the item and commits to it as part of the parse and then shrinks it to zero width
                             # in other words this hides the item
                             self._parser.commit_and_collapse_item(commit_point)
-
+                            
                             # keep the bytes we still need to emit
                             if self._start_pos < commit_point.start:
                                 self._parser.shadow_rewind(self._start_pos)
-
+                            
                             else:
                                 # pop off any tokens that overlap the hidden bytes
                                 i = len(self._token_byte_positions) - 1
@@ -538,9 +538,9 @@ class Engine:
                                 self._parser.shadow_rewind(self._token_byte_positions[-1] - self._pre_parser_bytes)
                             is_new_token = False # this restarts us at the top of the outer token gen loop
                             break
-
+                        
                         self._trie = self._trie.child(next_byte)
-
+                
             self._forced_pos = self._parser.pos # record how far the bytes are forced
 
             if is_new_token:
@@ -550,7 +550,7 @@ class Engine:
                         self._trie = self._trie.parent()
                         self._forced_pos -= 1
                     self._parser.pos = self._forced_pos
-
+                
                 # if we walked all the way to a forced token then we advance without computing the logits
                 # we are forced if there are no more options and we are either in the middle of the grammar or at a trie leaf
                 self._is_forced = next_byte_mask_sum <= 1 and (len(self._trie) == 0 if self._parser.matched() else self._trie != self._token_trie)
@@ -568,7 +568,7 @@ class Engine:
                         self._sampled_token_ind = self._trie.value
                         self._sampled_token = self.tokenizer.tokens[self._sampled_token_ind]
                         self._new_bytes_prob = 1.0
-
+                        
                 # otherwise we need to compute the logits and sample a valid token
                 else:
 
@@ -586,7 +586,7 @@ class Engine:
 
     def __call__(self, parser, grammar, ensure_bos_token=True):
         '''Returns a new updated parser state executed through the grammar.
-
+        
         Parameters
         ----------
         parser : str or Parser
@@ -635,7 +635,7 @@ class Engine:
         '''This is used to speed up the tokenization of long prompts without using the parser.'''
         token_ids = []
         token_byte_positions = []
-
+        
         # loop trying to decode a new token at each iteration
         pos = 0
         while True:
@@ -661,7 +661,7 @@ class Engine:
                         valid_value = trie.value
                 else:
                     break # we can't go any farther
-
+            
             if valid_pos == -1:
                 break
             else:
@@ -670,12 +670,12 @@ class Engine:
                 pos = valid_pos
 
         return token_ids,token_byte_positions
-
+    
     def _cleanup_tokens(self, token_ids, token_byte_positions):
 
         # compute a joint tokenization
         joint_token_ids = self._joint_tokenize(token_ids)
-
+        
         # see if we need to redo the tokenization
         redo = False
         if len(joint_token_ids) != len(token_ids):
@@ -685,7 +685,7 @@ class Engine:
                 if token_ids[i] != id:
                     redo = True
                     break
-
+        
         if redo:
             token_ids = joint_token_ids
             last_pos = token_byte_positions[-1]
@@ -694,15 +694,15 @@ class Engine:
             for i,id in enumerate(joint_token_ids):
                 pos += len(self.tokenizer.tokens[id])
                 token_byte_positions.append(pos)
-
+            
             # ugly hack to deal with sentence peice craziness of space hiding after special tokens TODO: figure out how to make this more robust
             if token_byte_positions[-1] == last_pos + 1 and self.tokenizer.tokens[token_ids[0]] == b'<s>' and self.tokenizer.tokens[token_ids[1]][0:1] == b' ':
                 for i in range(1, len(token_byte_positions)):
                     token_byte_positions[i] -= 1
             assert token_byte_positions[-1] == last_pos
-
+        
         return token_ids, token_byte_positions
-
+    
     def get_logits(self, token_ids, forced_bytes, current_temp):
         '''A fake method designed to be overriden by subclasses.'''
 
@@ -719,7 +719,7 @@ class Engine:
 
 class Model:
     '''The base guidance model object, which represents a model in a given state.
-
+    
     Model objects are immutable representations of model state, so whenever you change
     them you get a new Model object. However, these copies share the "expensive"
     parts of the underlying model like the the parameters and KV-cache, through a shared
@@ -736,7 +736,7 @@ class Model:
         '''Build a new model object that represents a model in a given state.
 
         Note that this constructor is not meant to be used directly, since there
-
+        
         Parameters
         ----------
         engine : Engine
@@ -752,7 +752,7 @@ class Model:
         # # auto-wrap the tokenizer in the standard guidance interface
         # if not isinstance(tokenizer, Tokenizer):
         #     tokenizer = Tokenizer(tokenizer)
-
+        
         self.engine = engine
         self.echo = echo
         self.token_count = 0 # tracks how many tokens our byte state represents
@@ -763,7 +763,7 @@ class Model:
         # private attributes
         self._variables = {} # these are the state variables stored with the model
         self._variables_log_probs = {} # these are the state variables stored with the model
-        self._cache_state = {} # mutable caching state used to save computation
+        self._cache_state = {} # mutable caching state used to save computation        
         self._state = "" # the current bytes that represent the state of the model
         self._event_queue = None # TODO: these are for streaming results in code, but that needs implemented
         self._event_parent = None
@@ -774,9 +774,9 @@ class Model:
     def active_role_end(self):
         '''The default end patterns we should use for `gen` calls.
         TODO: move this logic into the gen call...we can do with if we allow model_variables to run functions.
-
+        
         These patterns are computed dynamically by the model object because they can depend on
-        what the current open roles are, which is something
+        what the current open roles are, which is something 
         '''
 
         # add any active non-empty role ends. Ignore role ends that are spaces
@@ -799,10 +799,10 @@ class Model:
         display_out = image_pattern.sub(lambda x: '<img src="data:image/png;base64,' + base64.b64encode(self[x.groups(1)[0]]).decode() + '" style="max-width: 400px; vertical-align: middle; margin: 4px;">', display_out)
         display_out = "<pre style='margin: 0px; padding: 0px; vertical-align: middle; padding-left: 8px; margin-left: -8px; border-radius: 0px; border-left: 1px solid rgba(127, 127, 127, 0.2); white-space: pre-wrap; font-family: ColfaxAI, Arial; font-size: 15px; line-height: 23px;'>"+display_out+"</pre>"
         return display_out
-
+    
     def _send_to_event_queue(self, value):
         '''For streaming in code.
-
+        
         TODO: Is this still needed?'''
         if self._event_queue is not None:
             self._event_queue.put(value)
@@ -811,10 +811,10 @@ class Model:
 
     def stream(self):
         return ModelStream(self)
-
+    
     def copy(self):
         '''Create a shallow copy of the model object.'''
-
+        
         # start with a shallow copy
         new_lm = copy.copy(self)
 
@@ -822,19 +822,19 @@ class Model:
         new_lm._variables = self._variables.copy()
         new_lm._variables_log_probs = self._variables_log_probs.copy()
         new_lm.opened_blocks = self.opened_blocks.copy()
-
+        
         # create a new clean event queue
         new_lm._event_queue = None # we start with no event queue because nobody is listening to us yet
         if self._event_queue is not None:
             new_lm._event_parent = self # the current lm has an event que we make it our parent
         elif self._event_parent is not None:
             new_lm._event_parent = self._event_parent # otherwise if the current event que has an event parent then that is also our parent
-
+        
         return new_lm
-
+    
     def _inplace_append(self, value, force_silent=False):
         '''This is the base way to add content to the current LM object that is being constructed.
-
+        
         All updates to the model state should eventually use this function.
         Note this should only be used after making a copy, otherwise immutability would be violated.
 
@@ -850,7 +850,7 @@ class Model:
         # see if we should update the display
         if not force_silent:
             self._update_display()
-
+        
         # this is for programmatic streaming among other things
         if Model._throttle_refresh > 0:
             curr_time = time.time()
@@ -859,7 +859,7 @@ class Model:
                 self._send_to_event_queue(self)
         else:
             self._send_to_event_queue(self)
-
+                
 
     def _update_display(self, throttle=True):
         if self.echo:
@@ -869,15 +869,16 @@ class Model:
                     return # we are throttling the update
                 else:
                     self._last_display = curr_time
+        
             if ipython_is_imported:
                 clear_output(wait=True)
                 display(HTML(self._html()))
             else:
                 pprint(self._state)
-
+    
     def reset(self, clear_variables=True):
         '''This resets the state of the model object.
-
+        
         Parameters
         ----------
         clear_variables : bool
@@ -893,21 +894,21 @@ class Model:
         if ipython_is_imported:
             clear_output(wait=True)
         return self._html()
-
+    
     def _current_prompt(self):
         '''The current prompt in bytes (which is the state without the context close tags).'''
         return format_pattern.sub("", self._state)
-
+    
     def __str__(self):
         '''A string representation of the current model object (that includes context closers).'''
         out = self._current_prompt()
         for context in reversed(self.opened_blocks):
             out += format_pattern.sub("", self.opened_blocks[context][1])
         return out
-
+    
     def __add__(self, value):
         '''Adding is the primary mechanism for extending model state.
-
+        
         Parameters
         ----------
         value : guidance grammar
@@ -952,24 +953,24 @@ class Model:
                     tmp = lm + context.closer
                 close_text = tmp._state[len(lm._state):] # get the new state added by calling the closer
                 lm.opened_blocks[context] = (len(lm._state), close_text)
-
+                
                 # clear out names that we override
                 if context.name is not None:
                     if context.name in lm._variables:
                         del lm._variables[context.name]
                         if context.name in lm._variables_log_probs:
                             del lm._variables_log_probs[context.name]
-
+            
             # wrap raw string values
             if isinstance(value, str):
                 is_id = False
                 parts = re.split(_tag_pattern, value)
-
+                
                 # we have no embedded objects
                 if len(parts) == 1:
                     lm._inplace_append(value)
                     out = lm
-
+                
                 # if we have embedded objects we have to convert the string to a grammar tree
                 else:
                     partial_grammar = _null_grammar
@@ -989,15 +990,15 @@ class Model:
                             partial_grammar += string(part)
                         is_id = not is_id
                     out = lm + partial_grammar
-
+            
             # if we find a null value we do nothing
             elif isinstance(value, Null):
                 out = lm
-
+            
             # run stateless functions (grammar nodes)
             elif isinstance(value, GrammarFunction):
                 out = lm._run_stateless(value)
-
+            
             # run stateful functions
             else:
                 out = value(lm)
@@ -1005,44 +1006,44 @@ class Model:
                     raise Exception(f"A guidance function returned `None`, not a model object! Did you forget to return the new lm at the end of your function?")
                 if not isinstance(out, Model):
                     raise Exception(f"A guidance function did not return a model object! Did you try to add a function to a model without calling the function? For example `model + guidance_function()` is correct, while `model + guidance_function` will cause this error.")
-
+        
         # this flushes the display
         out._inplace_append("")
 
         return out
-
+    
     # def endswith(self, s):
     #     '''Checks if the current model state ends with the given value.'''
     #     return self._current_prompt().endswith(s)
-
+    
     def __len__(self):
         '''The string length of the current state.
-
+        
         TODO: This should change to the byte length...
         '''
         return len(str(self))
-
+    
     def __setitem__(self, key, value):
         raise Exception("Model objects are immutable so you can't use __setitem__! Consider using the .set(key, value) method instead to create a new updated model object.")
 
     def __getitem__(self, key):
         if key in self._variables:
             return self._variables[key]
-
+        
         # look for named blocks that are still open with the given key as their name
         else:
             for context in list(reversed(self.opened_blocks)):
                 if context.name == key:
                     return format_pattern.sub("", self._state[self.opened_blocks[context][0]:])
-
+                
         raise KeyError(f"Model does not contain the variable '{key}'")
-
+    
     def __contains__(self, item):
         return item in self._variables
-
+    
     def get(self, key, default=None):
         '''Return the value of a variable, or a default value if the variable is not present.
-
+        
         Parameters
         ----------
         key : str
@@ -1051,10 +1052,10 @@ class Model:
             The value to return if the variable is not current set.
         '''
         return self._variables.get(key, default)
-
+    
     def setattr(self, key, value):
         '''Return a new model with the given model attribute set.
-
+        
         Parameters
         ----------
         key : str
@@ -1065,10 +1066,10 @@ class Model:
         copy = self.copy()
         setattr(copy, key, value)
         return copy
-
+    
     def delattr(self, key):
         '''Return a new model with the given attribute deleted.
-
+        
         Parameters
         ----------
         key : str
@@ -1080,7 +1081,7 @@ class Model:
 
     def set(self, key, value):
         '''Return a new model with the given variable value set.
-
+        
         Parameters
         ----------
         key : str
@@ -1091,10 +1092,10 @@ class Model:
         copy = self.copy()
         copy._variables[key] = value
         return copy
-
+    
     def remove(self, key):
         '''Return a new model with the given variable deleted.
-
+        
         Parameters
         ----------
         key : str
@@ -1108,10 +1109,10 @@ class Model:
         else:
             copy = self
         return copy
-
+    
     def log_prob(self, key, default=None):
         '''Return the log prob of a variable, or a default value if the variable is not present.
-
+        
         Parameters
         ----------
         key : str
@@ -1121,10 +1122,10 @@ class Model:
         '''
         # TODO: support calling without a key to get the log prob of the whole model
         return self._variables_log_probs.get(key, default)
-
+    
     # def get_cache(self):
     #     return self.engine.cache
-
+    
 #     def tool_def(self, functions):
 
 #         self += """
@@ -1154,7 +1155,7 @@ class Model:
 #                             self += " | "
 #                 else:
 #                     self += prop_data["type"]
-
+                
 #                 if prop_name != list(function["parameters"]["properties"].keys())[-1]:
 #                     self += ",\n"
 #             self += """
@@ -1163,12 +1164,12 @@ class Model:
 # """
 #             self[function['name']] = function
 #         self += "} // namespace functions\n"
-
+        
 #         return self
 
     def _run_stateless(self, stateless_function, temperature=0.0, top_p=1.0, n=1):
         assert Model._grammar_only == 0, "We can't run grammar parsing while in context free mode! (for example inside a block closer)"
-
+        
         logger.debug("start Model._run_stateless")
 
         # This needs to be here for streaming
@@ -1197,7 +1198,7 @@ class Model:
                 # we make everything full probability if we are not computing uncertainty
                 # if not self.engine.compute_log_probs:
                 #     chunk.new_bytes_prob = 1.0
-
+                
                 # convert the bytes to a string (delaying if we don't yet have a valid unicode string)
                 lm.token_count += chunk.new_token_count
                 chunk.new_bytes = delayed_bytes + chunk.new_bytes
@@ -1215,13 +1216,13 @@ class Model:
                     lm += new_text
                     if chunk.is_generated:
                         lm += "<||_html:</span>_||>"
-
+                
                 # last_is_generated = chunk.is_generated
 
                 if len(chunk.capture_groups) > 0:
                     for k in chunk.capture_groups:
                         v = chunk.capture_groups[k]
-
+                            
                         # see if we are in a list_append mode
                         if isinstance(v, list):
                             for i,inner_v in enumerate(v):
@@ -1253,7 +1254,7 @@ class Model:
             #     for k in chunk.capture_groups:
             #         v = chunk.capture_groups[k]
             #         lm[k] = v.decode("utf8") if isinstance(v, bytes) else v
-
+        
         unreplace_model_variables(replacements)
 
         logger.debug("finish Model._run_stateless")
@@ -1285,10 +1286,10 @@ class ModelStream:
             model = self.model + ""
         else:
             model = self.model + self.grammar
-
+    
     def __iter__(self):
         '''Starts a thread to execute the model and grammar, yielding events as they occur.'''
-
+        
         # Create a thread-safe queue to hold events
         with CaptureEvents(self.model) as events:
 
@@ -1324,12 +1325,12 @@ class ModelStream:
 
 class Chat(Model):
     '''The base class for all chat-tuned models.'''
-
+    
     def get_role_start(self, role_name, **kwargs):
         '''The starting grammar for a role.
-
+        
         By default we follow the GPT role tag start conventions.
-
+        
         Parameters
         ----------
         role_name : str
@@ -1338,34 +1339,34 @@ class Chat(Model):
             This kwargs are added to the role start as arguments.
         '''
         return "<|im_start|>"+role_name+"".join([f' {k}="{v}"' for k,v in kwargs.items()])+"\n"
-
+    
     def get_role_end(self, role_name=None):
         '''The ending bytes for a role.
-
+        
         Note that we cannot use a grammar in closers because they need to remain constant
         so we can append them whenever we need a representation before the final closing of the context.
         By default we follow the GPT role tag end conventions.
-
+        
         Parameters
         ----------
         role_name : str
             The name of the role, like "user", or "assistant"
         '''
         return "<|im_end|>"
-
+    
 class Instruct(Model):
     '''The base class for all instruction-tuned models.'''
 
     def get_role_start(self, role_name, **kwargs):
         raise Exception("Subclasses need to define what the role start should be!")
-
+    
     def get_role_end(self, role_name=None):
         raise Exception("Subclasses need to define what the role end should be!")
-
+    
 class GrammarOnly:
     def __enter__(self):
         Model._grammar_only += 1
-
+    
     def __exit__(self, exc_type, exc_value, traceback):
         Model._grammar_only -= 1
 
@@ -1376,7 +1377,7 @@ def grammar_only():
 class ThrottleRefresh:
     def __enter__(self):
         Model._throttle_refresh += 1
-
+    
     def __exit__(self, exc_type, exc_value, traceback):
         Model._throttle_refresh -= 1
 
@@ -1392,7 +1393,7 @@ class ConstraintException(Exception):
 #     if trie.value is not None:
 #         found[trie.value] = 1
 #         trie.prob += probs[trie.value]
-
+    
 #     if len(trie) > 0:
 #         # child_probs = []
 #         for b in trie.keys():
@@ -1411,7 +1412,7 @@ def _check_dominated(node, parser, match_version, next_byte_mask):
         if child.match_version < match_version:
             child.match_version = match_version
             child.match = next_byte_mask[next_byte[0]]
-
+        
         if not child.match:
             return False # this child does not dominate the node, so the node is not dominated
         elif child.value is None: # this child might not dominate the node
