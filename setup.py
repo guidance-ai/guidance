@@ -59,7 +59,12 @@ setup(
             'pytest-cov',
             'torch',
             'transformers',
+            'mypy==1.9.0',
+            'types-protobuf',
+            'types-regex',
+            'types-requests',
+            'types-jsonschema',
         ]
     },
-    
+
 )

@@ -1,4 +1,4 @@
-from typing import Any, Callable, Mapping, Optional, Sequence, Union, Type
+from typing import Any, Callable, Dict, Mapping, Optional, Sequence, Union, Type
 from json import dumps as json_dumps
 from jsonschema.validators import Draft202012Validator
 import pydantic
@@ -320,7 +320,7 @@ def json(
         schema = pydantic_to_json_schema(schema)
 
     _DEFS_KEY = "$defs"
-    definitions = {}
+    definitions: Mapping[str, Callable[[], GrammarFunction]] = {}
     if _DEFS_KEY in schema:
         definitions = _build_definitions(schema[_DEFS_KEY])
 
@@ -330,7 +330,7 @@ def json(
 def _build_definitions(
     raw_definitions: Mapping[str, Any]
 ) -> Mapping[str, Callable[[], GrammarFunction]]:
-    definitions = {}
+    definitions: Dict[str, Callable[[], GrammarFunction]] = {}
 
     def build_definition(
         json_schema: Mapping[str, Any]

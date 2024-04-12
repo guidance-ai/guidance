@@ -205,7 +205,7 @@ def log_softmax(array: np.ndarray, axis: int = -1) -> np.ndarray:
     if array_maxs.ndim > 0:
         array_maxs[~np.isfinite(array_maxs)] = 0
     elif not np.isfinite(array_maxs):
-        array_maxs = 0
+        array_maxs = np.zeros(array_maxs.shape)
     subtract_maxs = array - array_maxs
     exp = np.exp(subtract_maxs)
     # suppress warnings about log of zero

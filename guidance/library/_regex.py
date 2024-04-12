@@ -10,7 +10,7 @@ from pyformlang.regular_expression import PythonRegex
 @guidance(stateless=True, dedent=False)
 def regex(lm, pattern):
     # find all of the brackets we'll need to negate later
-    nots = re.findall('\[\^(.*?)\]', pattern)
+    nots = re.findall(r'\[\^(.*?)\]', pattern)
     nots = [re.compile('[' + x + ']') for x in nots]
     # Compensating for a weird design choice in pyformlang where they don't accept \n in .
     pattern = re.sub(r'(?<!\\)\.', '(.|\n)', pattern)
