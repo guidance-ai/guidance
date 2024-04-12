@@ -321,8 +321,8 @@ def json(
 
     _DEFS_KEY = "$defs"
     definitions: Mapping[str, Callable[[], GrammarFunction]] = {}
-    if _DEFS_KEY in json_schema:
-        definitions = _build_definitions(json_schema[_DEFS_KEY])
+    if _DEFS_KEY in schema:
+        definitions = _build_definitions(schema[_DEFS_KEY])
 
     return lm + guidance.capture(_gen_json(schema, definitions), name=name)
 
