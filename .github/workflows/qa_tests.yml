@@ -21,7 +21,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install .[test]
-      - uses: tsuyoshicho/action-mypy@v4
-        with:
-          github_token: ${{ secrets.github_token }}
-            
+      - name: Run mypy
+        run: |
+          python -m mypy guidance
