@@ -717,7 +717,7 @@ class Select(GrammarFunction):
         out.recursive = data.recursive
         return out
 
-def string(value) -> Union[str, bytes, Null, Byte, Join]:
+def string(value: Union[str, bytes]) -> Union[Null, Byte, Join]:
     if isinstance(value, str):
         b = bytes(value, encoding="utf8")
     elif isinstance(value, bytes):
