@@ -62,8 +62,9 @@ setup(
             'mypy==1.9.0',
             'types-protobuf',
             'types-regex',
-            'types-requests'
+            'types-requests',
+            'types-jsonschema',
         ]
     },
-    
+
 )
