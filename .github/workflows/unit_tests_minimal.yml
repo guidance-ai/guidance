@@ -1,8 +1,10 @@
-name: Unit tests
+name: Unit Tests Minimal
 
 on:
-  pull_request_review:
-    types: [submitted, edited]
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -10,14 +12,10 @@ jobs:
 
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+        os: [ubuntu-latest]
+        python-version: ["3.8", "3.12"]
         model:
           - "gpt2cpu"
-          - "phi2cpu"
-          # - "transformers_mistral_7b" See Issue 713
-          - "hfllama7b"
-          - "hfllama_mistral_7b"
 
     runs-on: ${{ matrix.os }}
     steps:

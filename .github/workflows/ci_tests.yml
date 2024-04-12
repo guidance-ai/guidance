@@ -6,8 +6,8 @@ name: CI Tests
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
+  pull_request_review:
+    types: [submitted, edited]
   schedule:
     # * is a special character in YAML so we quote this string
     # Run at 1030 UTC every day
@@ -15,12 +15,11 @@ on:
 
 jobs:
   build:
-
     runs-on: gpu-runner
     strategy:
       matrix:
         python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
-
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' || github.event_name == 'pull_request_review' && github.event.review.state == 'APPROVED'
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python ${{ matrix.python-version }}
