@@ -1,0 +1,2 @@
+# Protect the github workflows by assigning code owners to the .github folder.
+/.github/ @riedgar-ms @paulbkoch @Harsha-Nori
