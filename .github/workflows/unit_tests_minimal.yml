@@ -13,9 +13,13 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        python-version: ["3.8", "3.12"]
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
         model:
           - "gpt2cpu"
+          - "phi2cpu"
+          # - "transformers_mistral_7b" See Issue 713
+          - "hfllama7b"
+          - "hfllama_mistral_7b"
 
     runs-on: ${{ matrix.os }}
     steps:

@@ -18,7 +18,7 @@ jobs:
           # - "transformers_mistral_7b" See Issue 713
           - "hfllama7b"
           - "hfllama_mistral_7b"
-
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request_review' && github.event.review.state == 'APPROVED'
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
