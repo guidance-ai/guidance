@@ -140,7 +140,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
 
   unit-tests-gpu:
-    needs: unit-tests
+    needs: unit-tests-other
     strategy:
       matrix:
         os: [gpu-runner]
