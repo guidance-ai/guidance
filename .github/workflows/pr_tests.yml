@@ -1,4 +1,4 @@
-name: QA tests
+name: PR Tests
 
 on:
   push:
