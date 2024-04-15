@@ -14,6 +14,7 @@ functions
 
     guidance.gen
     guidance.select
+    guidance.json
 
 
 .. _contexts_api:
@@ -42,9 +43,10 @@ models
     guidance.models.LlamaCpp
     guidance.models.Transformers
     guidance.models.Remote
-        guidance.models.VertexAI
-        guidance.models.GoogleAI
-        guidance.models.OpenAI
-        guidance.models.LiteLLM
-        guidance.models.Cohere
         guidance.models.Anthropic
+        guidance.models.AzureOpenAI
+        guidance.models.Cohere
+        guidance.models.GoogleAI
+        guidance.models.LiteLLM
+        guidance.models.OpenAI
+        guidance.models.VertexAI

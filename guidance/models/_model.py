@@ -1,17 +1,19 @@
 try:
     from IPython.display import clear_output, display, HTML
-except ModuleNotFoundError:
-    clear_output = lambda wait=True: None
-    display = lambda arg: None
-    HTML = lambda arg: None
+    ipython_is_imported = True
+except ImportError:
+    ipython_is_imported = False
 try:
     import torch
-except ModuleNotFoundError:
-    torch = None
+    torch_is_imported = True
+except ImportError:
+    torch_is_imported = False
 import html
+from pprint import pprint
 import re
 import copy
 import time
+from typing import TYPE_CHECKING, Dict
 import numpy as np
 import logging
 import base64
@@ -20,7 +22,7 @@ import threading
 
 logger = logging.getLogger(__name__)
 try:
-    from .. import cpp
+    from .. import cpp # type: ignore[attr-defined]
 except ImportError:
     logger.warn("Failed to load guidance.cpp, falling back to Python mirror implementations...")
     from .. import _cpp as cpp
@@ -28,6 +30,8 @@ from .._utils import softmax, CaptureEvents
 from .._parser import EarleyCommitParser, Parser
 from .._grammar import GrammarFunction, string, _call_pool, _tag_pattern, Null, replace_model_variables, unreplace_model_variables, select
 from .. import _serialization_pb2
+if TYPE_CHECKING:
+    from ..library._block import ContextBlock
 
 # define some constants we will reuse many times
 _null_grammar = string('')
@@ -234,7 +238,7 @@ class Engine:
 
             # if requested we compute the log probabilities so we can track the probabilities of each node
             if self.compute_log_probs:
-                if torch:
+                if torch_is_imported:
                     probs = torch.nn.functional.softmax(torch.tensor(logits), dim=-1).cpu().numpy() # note we don't adjust for temp since we consider that a sampling step, not part of the probs
                 else:
                     probs = softmax(logits, axis=-1) # this numpy code is slower, so we don't use it if we have torch...
@@ -251,7 +255,7 @@ class Engine:
                 sampling_order = np.argsort(-logits) # we need numpy so the enumerate below does not get really slow...
             else:
                 # assert top_p == 1, "Still need to add support for top_p!"
-                if torch:
+                if torch_is_imported:
                     logits = torch.tensor(logits)
                     torch.div(logits, current_temp, out=logits)
                     probs_torch = torch.nn.functional.softmax(logits, dim=-1)
@@ -724,7 +728,7 @@ class Model:
     .. automethod:: __add__
     '''
 
-    open_blocks = {} # track what context blocks are open
+    open_blocks: Dict["ContextBlock", None] = {} # track what context blocks are open
     _grammar_only = 0 # a flag that tracks when we are forced to be executing only compiled grammars (like when we are inside a select)
     _throttle_refresh = 0 # a flag that tracks when we can throttle our display since we know future display calls are going to happen
 
@@ -866,8 +870,11 @@ class Model:
                 else:
                     self._last_display = curr_time
         
-            clear_output(wait=True)
-            display(HTML(self._html()))
+            if ipython_is_imported:
+                clear_output(wait=True)
+                display(HTML(self._html()))
+            else:
+                pprint(self._state)
     
     def reset(self, clear_variables=True):
         '''This resets the state of the model object.
@@ -884,7 +891,8 @@ class Model:
         return self
 
     def _repr_html_(self):
-        clear_output(wait=True)
+        if ipython_is_imported:
+            clear_output(wait=True)
         return self._html()
     
     def _current_prompt(self):

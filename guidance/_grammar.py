@@ -5,7 +5,7 @@ import inspect
 import types
 import re
 
-from typing import List, TypeVar, Union
+from typing import Dict, List, TypeVar, Union
 
 from . import _serialization_pb2
 from . import _parser
@@ -15,7 +15,7 @@ _T = TypeVar("_T")
 # to support the embedding of guidance functions inside Python f-strings we use tags with these delimiters
 tag_start = "{{G|" # start of a call tag
 tag_end = "|G}}" # end of a call tag
-_call_pool = {} # the functions associated with the call tags
+_call_pool: Dict[str, "Function"] = {} # the functions associated with the call tags
 _tag_pattern = re.compile(re.escape(tag_start) + r"([^\|]+)" + re.escape(tag_end)) # the pattern for matching call tags
 
 class StatefulException(Exception):
@@ -176,7 +176,7 @@ class GrammarFunction(Function):
         if not allow_partial and not parser.matched():
             return None
         else:
-            return Match(*parser.get_captures(), partial=not parser.matched())
+            return Match(*parser.get_captures(), partial=not parser.matched())  # type: ignore[misc]
     
     @staticmethod
     def _new_name():
@@ -717,7 +717,7 @@ class Select(GrammarFunction):
         out.recursive = data.recursive
         return out
 
-def string(value) -> Union[str, bytes, Null, Byte, Join]:
+def string(value: Union[str, bytes]) -> Union[Null, Byte, Join]:
     if isinstance(value, str):
         b = bytes(value, encoding="utf8")
     elif isinstance(value, bytes):
@@ -732,6 +732,35 @@ def string(value) -> Union[str, bytes, Null, Byte, Join]:
         return Join([Byte(b[i:i+1]) for i in range(len(b))], name=str(b))
     
 def select(options: List[_T], name=None, list_append=False, recurse=False, skip_checks=False) -> Union[Select, _T]:
+    """Choose between a set of options.
+
+    This function constrains the next generation from the LLM to be one of the
+    given `options`.
+    If the list only has a single element, then that value can be returned
+    immediately, without calling the LLM.
+
+    Parameters
+    ----------
+    name : str or None
+        If this is not None then the the results of the generation will be saved as a variable on
+        the Model object (so you can access the result as `lm["var_name"]`).
+
+    options : List
+        The set of available choices for the next generation
+
+    list_append : bool
+        If this is True then the results saved to `lm[name]` will not be written directly but rather appended
+        to a list (if no list with the current name is present one will be created). This is useful for
+        building lists inside python loops.
+
+    recurse : bool
+        Indicate whether multiple choices should be made. This is useful for tasks such as
+        building up integers digit by digit: `select(options=list(range(10)), recurse=True)`
+
+    skip_checks: bool
+        Whether or not to perform sanity checks on the supplied options, to ensure
+        that more obscure errors do not appear later.
+    """
     # TODO: allow for returning the probabilites of the selected item
     # TODO: also the full probabilites distribution over all items. We can implement this using the prob of the selected item by repeating the call, removing the selected item each time
     if not skip_checks:
@@ -739,7 +768,7 @@ def select(options: List[_T], name=None, list_append=False, recurse=False, skip_
             assert not isinstance(value, RawFunction), "You cannot select between stateful functions in the current guidance implementation!"
             assert not isinstance(value, types.FunctionType), "Did you pass a function without calling it to select? You need to pass the results of a called guidance function to select."
             if isinstance(value, int) or isinstance(value, float):
-                options[i] = str(value)
+                options[i] = str(value)  # type: ignore[assignment]
 
     # set up list append var saving if requested
     if list_append:
@@ -834,7 +863,7 @@ _null_grammar = string('')
 #     if len(low_bytes) > 1 or len(high_bytes) > 1:
 #         raise Exception("We don't yet support multi-byte character ranges!")
 #     return ByteRange(low_bytes + high_bytes)
-def str_to_grammar(value: str):
+def str_to_grammar(value: str) -> Union[str, bytes, Null, Byte, Join, Function]:
     is_id = False
     parts = re.split(_tag_pattern, value)
     
@@ -844,7 +873,7 @@ def str_to_grammar(value: str):
     
     # if we have embedded objects we have to convert the string to a grammar tree
     else:
-        partial_grammar = _null_grammar
+        partial_grammar: Union[str, bytes, Null, Byte, Join, Function] = _null_grammar
         # lm.suffix = ""
         for i,part in enumerate(parts):
             # if i < len(parts) - 1:
