@@ -54,7 +54,7 @@ class Tokenizer:
             self.tokens = np.array(tokens, dtype='object') # note that we need np.bytes_ to zero bytes are not treated as null terminations
         
         # a numpy array of token byte strings indexed by their token id
-        elif isinstance(tokens, np.array):
+        elif isinstance(tokens, np.ndarray):
             self.tokens = tokens
 
         else:
