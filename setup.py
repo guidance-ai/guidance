@@ -56,6 +56,7 @@ setup(
             "jupyter",
             "papermill",
             'pytest',
+            'sentencepiece', # Sometimes helps with loading via transformers
             'pytest-cov',
             'torch',
             'transformers',
