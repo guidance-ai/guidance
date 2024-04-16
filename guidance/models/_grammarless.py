@@ -24,13 +24,25 @@ class GrammarlessTokenizer(Tokenizer):
             for k in special_map:
                 if k < first_special:
                     first_special = k
-            byte_tokens = tokenizer.decode_tokens_bytes(np.arange(first_special))
-            for i in range(first_special, tokenizer.n_vocab):
+            
+            # consume one-by-one until we have passed all the special tokens AND gotten a valid token
+            i = tokenizer.n_vocab - 1
+            byte_tokens = []
+            while True:
                 try:
                     bval = tokenizer.decode_single_token_bytes(i)
+                    found = True
                 except KeyError:
                     bval = special_map.get(i, b'<|invalid_special_token|>')
+                    found = False
                 byte_tokens.append(bval)
+                
+                if i < first_special and found:
+                    break
+                i -= 1
+
+            # do the rest of the tokens as a batch
+            byte_tokens = tokenizer.decode_tokens_bytes(np.arange(i+1)) + byte_tokens
 
             if hasattr(tokenizer, "bos_token_id"):
                 bos_token_id = tokenizer.bos_token_id
