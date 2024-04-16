@@ -9,6 +9,7 @@ from guidance.library import char_range, one_or_more, optional, zero_or_more
 from .._grammar import GrammarFunction, select
 from ._pydantic import pydantic_to_json_schema
 
+
 def _to_compact_json(target: Any) -> str:
     # See 'Compact Encoding':
     # https://docs.python.org/3/library/json.html
@@ -135,13 +136,17 @@ def _gen_json_array(
         )
 
     if max_items is not None and max_items < min_items:
-        raise ValueError(f"maxItems ({max_items}) can't be less than minItems ({min_items})")
+        raise ValueError(
+            f"maxItems ({max_items}) can't be less than minItems ({min_items})"
+        )
 
     required_items = []
     optional_items = []
 
     # If max_items is None, we can add an infinite tail of items later
-    n_to_add = max(len(prefix_items_schema), min_items) if max_items is None else max_items
+    n_to_add = (
+        max(len(prefix_items_schema), min_items) if max_items is None else max_items
+    )
     for i in range(n_to_add):
         if i < len(prefix_items_schema):
             schema = prefix_items_schema[i]
@@ -161,7 +166,7 @@ def _gen_json_array(
     if max_items is None and item_schema is not None:
         # Add an infinite tail of items
         item = _gen_json(json_schema=item_schema, definitions=definitions)
-        optional_items.append(item + zero_or_more(',' + item))
+        optional_items.append(item + zero_or_more("," + item))
 
     lm += "["
 
@@ -169,26 +174,25 @@ def _gen_json_array(
         first, *rest = required_items
         lm += first
         for item in rest:
-            lm += ',' + item
+            lm += "," + item
 
     if optional_items:
         # This is a bit subtle and would not be required if not for prefixItems -- the previous
         # must be present before the next one may be added, meaning we have nested optionals:
         # (first optional(,second optional(,third (optional(,...)))))
         first, *rest = optional_items
-        tail = ''
+        tail = ""
         for item in reversed(rest):
-            tail = optional(',' + item + tail)
+            tail = optional("," + item + tail)
         tail = first + tail
 
         if required_items:
-            lm += optional(',' + tail)
+            lm += optional("," + tail)
         else:
             lm += optional(tail)
 
     lm += "]"
     return lm
-
 
 
 @guidance(stateless=True)
@@ -272,7 +276,7 @@ def json(
     lm,
     name: Optional[str] = None,
     *,
-    schema: Union[Mapping[str, Any], Type[pydantic.BaseModel], pydantic.TypeAdapter]
+    schema: Union[Mapping[str, Any], Type[pydantic.BaseModel], pydantic.TypeAdapter],
 ):
     """Generate valid JSON according to the supplied JSON schema or `pydantic` model.
 

@@ -2,6 +2,7 @@ import pytest
 from guidance import select, gen, models, instruction
 from ..utils import get_model
 
+
 def test_gemini_pro():
     from guidance import models, gen, system, user, assistant
 

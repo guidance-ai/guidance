@@ -1,22 +1,26 @@
 import guidance
 from guidance import models, select, gen, optional
 
+
 def test_select_reset_pos():
     model = models.Mock()
-    model += 'This is' + select(options=['bad', 'quite bad'])
+    model += "This is" + select(options=["bad", "quite bad"])
     assert str(model) in ["This isbad", "This isquite bad"]
+
 
 def test_select_simple(selected_model):
     lm = selected_model
-    options = ['baad I think', 'bad I think', 'bad']
-    lm = lm + 'Scott is quite ' + select(name='bad', options=options)
-    assert lm['bad'] in options
+    options = ["baad I think", "bad I think", "bad"]
+    lm = lm + "Scott is quite " + select(name="bad", options=options)
+    assert lm["bad"] in options
+
 
 def test_select_longer():
-    '''This tests to ensure that the grammar is extended greedily.'''
+    """This tests to ensure that the grammar is extended greedily."""
     lm = models.Mock(b"<s>Scott is a very nice man.")
-    lm += "Scott is a very " + select(name='text', options=['nice', 'nice man.'])
-    assert lm["text"] == 'nice man.'
+    lm += "Scott is a very " + select(name="text", options=["nice", "nice man."])
+    assert lm["text"] == "nice man."
+
 
 def test_grammar_plus_fstring():
     @guidance(stateless=True, dedent=False)
@@ -36,7 +40,7 @@ class TestRecursion:
 
         @guidance(stateless=True, dedent=False)
         def grammar(lm):
-            return lm + 'x' + optional(grammar())
+            return lm + "x" + optional(grammar())
 
         grammar()
 
@@ -44,11 +48,11 @@ class TestRecursion:
 
         @guidance(stateless=True, dedent=False)
         def grammar1(lm):
-            return lm + 'x' + grammar2()
+            return lm + "x" + grammar2()
 
         @guidance(stateless=True, dedent=False)
         def grammar2(lm):
-            return lm + 'y' + optional(grammar1())
+            return lm + "y" + optional(grammar1())
 
         grammar1()
         grammar2()
@@ -56,15 +60,15 @@ class TestRecursion:
     def test_multiple_mutual_recursion(self):
         @guidance(stateless=True, dedent=False)
         def grammar1(lm):
-            return lm + 'x' + grammar2()
+            return lm + "x" + grammar2()
 
         @guidance(stateless=True, dedent=False)
         def grammar2(lm):
-            return lm + 'y' + grammar3()
+            return lm + "y" + grammar3()
 
         @guidance(stateless=True, dedent=False)
         def grammar3(lm):
-            return lm + 'z' + optional(grammar1())
+            return lm + "z" + optional(grammar1())
 
         grammar1()
         grammar2()
@@ -73,15 +77,15 @@ class TestRecursion:
     def test_branching_mutual_recursion(self):
         @guidance(stateless=True, dedent=False)
         def grammar1(lm):
-            return lm + 'x' + grammar2()
+            return lm + "x" + grammar2()
 
         @guidance(stateless=True, dedent=False)
         def grammar2(lm):
-            return lm + 'y' + select([grammar1(), grammar3()])
+            return lm + "y" + select([grammar1(), grammar3()])
 
         @guidance(stateless=True, dedent=False)
         def grammar3(lm):
-            return lm + 'z' + optional(grammar1())
+            return lm + "z" + optional(grammar1())
 
         grammar1()
         grammar2()
