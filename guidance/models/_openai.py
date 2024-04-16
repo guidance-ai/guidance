@@ -12,13 +12,14 @@ import re
 import diskcache as dc
 import hashlib
 import platformdirs
+import typing
 
 from ._model import Chat, Instruct
 from ._grammarless import GrammarlessEngine, Grammarless
 
 try:
     import openai
-    client_class = openai.OpenAI
+    client_class : typing.Optional[typing.Type[openai.OpenAI]] = openai.OpenAI
 except ImportError:
     client_class = None
 
