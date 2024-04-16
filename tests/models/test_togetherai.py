@@ -1,6 +1,7 @@
 import pytest
+
 import guidance
-from guidance import gen, select, user, system, assistant
+from guidance import assistant, gen, select, system, user
 
 
 def test_togetherai_basic():

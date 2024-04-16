@@ -1,9 +1,9 @@
 import tiktoken
 
-from ._vertexai import VertexAICompletion, VertexAIInstruct, VertexAIChat
+from ._vertexai import VertexAIChat, VertexAICompletion, VertexAIInstruct
 
 try:
-    from vertexai.language_models import CodeGenerationModel, CodeChatModel
+    from vertexai.language_models import CodeChatModel, CodeGenerationModel
 
     is_vertexai = True
 except ModuleNotFoundError:

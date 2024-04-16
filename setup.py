@@ -1,8 +1,9 @@
+import codecs
 import os
 import re
-import codecs
-from setuptools import setup, find_packages
+
 from pybind11.setup_helpers import Pybind11Extension, build_ext
+from setuptools import find_packages, setup
 
 here = os.path.abspath(os.path.dirname(__file__))
 

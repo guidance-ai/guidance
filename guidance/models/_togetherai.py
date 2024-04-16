@@ -1,11 +1,12 @@
 import os
+
 from ._model import Chat, Instruct
 from ._openai import (
-    OpenAIChatEngine,
     OpenAI,
-    OpenAIInstructEngine,
+    OpenAIChatEngine,
     OpenAICompletionEngine,
     OpenAIEngine,
+    OpenAIInstructEngine,
 )
 from .transformers._transformers import TransformersTokenizer
 

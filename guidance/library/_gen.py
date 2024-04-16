@@ -1,16 +1,24 @@
-import regex as regex_module
 import logging
+
+import regex as regex_module
+
 import guidance
-from ._silent import silent
-from .._grammar import select
-from ._zero_or_more import zero_or_more
-from .._grammar import commit_point
+
+from .._grammar import (
+    active_role_end,
+    capture,
+    commit_point,
+    eos_token,
+    select,
+    token_limit,
+    with_temperature,
+)
 from ._any_char import any_char
-from .._grammar import capture
-from ._regex import regex as regex_grammar
-from .._grammar import token_limit, eos_token, active_role_end, with_temperature
-from ._tool import Tool
 from ._block import block
+from ._regex import regex as regex_grammar
+from ._silent import silent
+from ._tool import Tool
+from ._zero_or_more import zero_or_more
 
 logger = logging.getLogger(__name__)
 

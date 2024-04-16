@@ -1,4 +1,4 @@
-from guidance import models, one_or_more, char_set
+from guidance import char_set, models, one_or_more
 
 
 def test_string():

@@ -1,32 +1,33 @@
-import os
-from pathlib import Path
 import multiprocessing
-from itertools import takewhile
 import operator
-import threading
-import numpy as np
+import os
 import queue
-import time
-import tiktoken
 import re
+import threading
+import time
+from itertools import takewhile
+from pathlib import Path
+
+import numpy as np
+import tiktoken
 
 from ._vertexai import (
-    VertexAICompletion,
-    VertexAIInstruct,
     VertexAIChat,
     VertexAIChatEngine,
+    VertexAICompletion,
+    VertexAIInstruct,
 )
 
 _image_token_pattern = re.compile(r"<\|_image:(.*)\|>")
 
 try:
+    import vertexai
     from vertexai.language_models import (
-        TextGenerationModel,
         ChatModel,
         InputOutputTextPair,
+        TextGenerationModel,
     )
-    from vertexai.preview.generative_models import GenerativeModel, Content, Part, Image
-    import vertexai
+    from vertexai.preview.generative_models import Content, GenerativeModel, Image, Part
 
     # def get_chat_response(message):
     #     vertexai.init(project="PROJECT_ID", location="us-central1")
@@ -34,7 +35,6 @@ try:
     #     chat = model.start_chat()
     #     response = chat.send_message(message)
     #     return response.text
-
     # print(get_chat_response("Hello"))
     # print(get_chat_response("What are all the colors in a rainbow?"))
     # print(get_chat_response("Why does it appear when it rains?"))

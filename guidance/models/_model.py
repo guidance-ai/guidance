@@ -1,5 +1,5 @@
 try:
-    from IPython.display import clear_output, display, HTML
+    from IPython.display import HTML, clear_output, display
 
     ipython_is_imported = True
 except ImportError:
@@ -10,17 +10,18 @@ try:
     torch_is_imported = True
 except ImportError:
     torch_is_imported = False
-import html
-from pprint import pprint
-import re
-import copy
-import time
-from typing import TYPE_CHECKING, Dict
-import numpy as np
-import logging
 import base64
+import copy
+import html
+import logging
 import queue
+import re
 import threading
+import time
+from pprint import pprint
+from typing import TYPE_CHECKING, Dict
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 try:
@@ -30,19 +31,20 @@ except ImportError:
         "Failed to load guidance.cpp, falling back to Python mirror implementations..."
     )
     from .. import _cpp as cpp
-from .._utils import softmax, CaptureEvents
-from .._parser import EarleyCommitParser, Parser
+
+from .. import _serialization_pb2
 from .._grammar import (
     GrammarFunction,
-    string,
+    Null,
     _call_pool,
     _tag_pattern,
-    Null,
     replace_model_variables,
-    unreplace_model_variables,
     select,
+    string,
+    unreplace_model_variables,
 )
-from .. import _serialization_pb2
+from .._parser import EarleyCommitParser, Parser
+from .._utils import CaptureEvents, softmax
 
 if TYPE_CHECKING:
     from ..library._block import ContextBlock

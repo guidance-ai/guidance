@@ -1,4 +1,4 @@
-from guidance import models, any_char
+from guidance import any_char, models
 
 
 def test_single_char():

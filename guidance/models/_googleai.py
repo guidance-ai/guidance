@@ -1,8 +1,10 @@
-import re
-from ._model import Chat, Instruct
-from ._grammarless import Grammarless, GrammarlessEngine
-import tiktoken
 import os
+import re
+
+import tiktoken
+
+from ._grammarless import Grammarless, GrammarlessEngine
+from ._model import Chat, Instruct
 
 _image_token_pattern = re.compile(r"<\|_image:(.*)\|>")
 
@@ -189,7 +191,7 @@ class GoogleAIChatEngine(GoogleAIEngine):
         return out
 
     def _start_generator(self, system_text, messages, temperature):
-        from google.ai.generativelanguage import Content, Part, Blob
+        from google.ai.generativelanguage import Blob, Content, Part
 
         # last_user_text = messages[-1]["content"]
         formated_messages = []

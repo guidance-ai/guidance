@@ -1,14 +1,12 @@
 import base64
-import uuid
-import json
 import inspect
-import types
+import json
 import re
-
+import types
+import uuid
 from typing import Dict, List, TypeVar, Union
 
-from . import _serialization_pb2
-from . import _parser
+from . import _parser, _serialization_pb2
 
 _T = TypeVar("_T")
 

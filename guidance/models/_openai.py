@@ -1,20 +1,21 @@
-import os
-from pathlib import Path
-import multiprocessing
-from itertools import takewhile
-import operator
-import threading
-import numpy as np
-import queue
-import time
-import tiktoken
-import re
-import diskcache as dc
 import hashlib
-import platformdirs
+import multiprocessing
+import operator
+import os
+import queue
+import re
+import threading
+import time
+from itertools import takewhile
+from pathlib import Path
 
+import diskcache as dc
+import numpy as np
+import platformdirs
+import tiktoken
+
+from ._grammarless import Grammarless, GrammarlessEngine
 from ._model import Chat, Instruct
-from ._grammarless import GrammarlessEngine, Grammarless
 
 try:
     import openai as openai_package

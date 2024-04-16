@@ -1,15 +1,16 @@
-import os
 import atexit
-from pathlib import Path
-from itertools import takewhile
-import operator
-import sys
 import logging
+import operator
+import os
+import sys
+from itertools import takewhile
+from pathlib import Path
+
 import numpy as np
 
-from .._model import Tokenizer, Engine, Model, Chat
-from .._remote import RemoteEngine
 from ..._utils import normalize_notebook_stdout_stderr
+from .._model import Chat, Engine, Model, Tokenizer
+from .._remote import RemoteEngine
 
 try:
     import llama_cpp

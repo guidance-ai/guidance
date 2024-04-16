@@ -1,10 +1,10 @@
 import guidance
+
+from .._grammar import capture, commit_point, select, string
 from ._any_char import any_char
-from .._grammar import select, capture, string, commit_point
-from ._zero_or_more import zero_or_more
-from ._one_or_more import one_or_more
 from ._any_char_but import any_char_but
-from ._any_char import any_char
+from ._one_or_more import one_or_more
+from ._zero_or_more import zero_or_more
 
 
 class Tool:

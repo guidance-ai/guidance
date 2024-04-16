@@ -1,3 +1,3 @@
-from ._PaLM2 import PaLM2Completion, PaLM2Chat, PaLM2Instruct
-from ._Codey import CodeyCompletion, CodeyInstruct, CodeyChat
+from ._Codey import CodeyChat, CodeyCompletion, CodeyInstruct
 from ._Gemini import GeminiChat
+from ._PaLM2 import PaLM2Chat, PaLM2Completion, PaLM2Instruct

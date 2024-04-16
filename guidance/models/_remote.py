@@ -1,6 +1,7 @@
-import requests
-import os
 import base64
+import os
+
+import requests
 
 from ._model import Engine, EngineCallResponse
 

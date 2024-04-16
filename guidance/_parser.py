@@ -1,7 +1,9 @@
 from sys import stderr
+
 import numpy as np
 from ordered_set import OrderedSet
-from ._grammar import Join, Select, Terminal, Null, Byte, ByteRange
+
+from ._grammar import Byte, ByteRange, Join, Null, Select, Terminal
 
 
 class ParserException(Exception):

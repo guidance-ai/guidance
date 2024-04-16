@@ -1,4 +1,4 @@
-from guidance import commit_point, models, Tool, select, capture, string
+from guidance import Tool, capture, commit_point, models, select, string
 
 
 def test_hidden():

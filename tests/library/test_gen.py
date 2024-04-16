@@ -1,4 +1,5 @@
 import re
+
 import pytest
 
 from guidance import gen, models
@@ -324,8 +325,7 @@ def test_one_char_stop_and_regex():
 
 def test_tool_call(selected_model):
     import guidance
-    from guidance import one_or_more, select, zero_or_more
-    from guidance import capture, Tool
+    from guidance import Tool, capture, one_or_more, select, zero_or_more
 
     @guidance(
         stateless=True, dedent=False

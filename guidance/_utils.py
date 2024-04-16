@@ -1,14 +1,15 @@
-import os
-import requests
+import ast
+import asyncio
 import inspect
 import json
-import asyncio
+import os
 import queue
-import ast
-import types
-import textwrap
 import sys
+import textwrap
+import types
+
 import numpy as np
+import requests
 
 
 class _Rewrite(ast.NodeTransformer):

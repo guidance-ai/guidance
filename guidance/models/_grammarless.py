@@ -1,11 +1,13 @@
-import threading
-import numpy as np
-import queue
-import time
-import tiktoken
-import re
 import logging
-from ._model import Tokenizer, Engine, Model, format_pattern, ConstraintException
+import queue
+import re
+import threading
+import time
+
+import numpy as np
+import tiktoken
+
+from ._model import ConstraintException, Engine, Model, Tokenizer, format_pattern
 
 logger = logging.getLogger(__name__)
 

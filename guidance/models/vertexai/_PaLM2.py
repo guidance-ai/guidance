@@ -1,21 +1,22 @@
-import os
-from pathlib import Path
 import multiprocessing
-from itertools import takewhile
 import operator
-import threading
-import numpy as np
+import os
 import queue
+import threading
 import time
+from itertools import takewhile
+from pathlib import Path
+
+import numpy as np
 import tiktoken
 
-from ._vertexai import VertexAICompletion, VertexAIInstruct, VertexAIChat
+from ._vertexai import VertexAIChat, VertexAICompletion, VertexAIInstruct
 
 try:
     from vertexai.language_models import (
-        TextGenerationModel,
         ChatModel,
         InputOutputTextPair,
+        TextGenerationModel,
     )
 
     is_vertexai = True

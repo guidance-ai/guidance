@@ -1,8 +1,9 @@
 import os
+
 import tiktoken
 
+from ._grammarless import Grammarless, GrammarlessEngine
 from ._model import Chat, Instruct
-from ._grammarless import GrammarlessEngine, Grammarless
 
 
 class AnthropicEngine(GrammarlessEngine):

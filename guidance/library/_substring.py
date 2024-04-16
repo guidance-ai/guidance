@@ -3,9 +3,8 @@ from typing import Optional
 import guidance
 
 # from ._prefix_tree import prefix_tree
-from .._grammar import string, select
+from .._grammar import select, string
 from ._optional import optional
-
 
 # @guidance(stateless=True, dedent=False)
 # def substring(lm, s):

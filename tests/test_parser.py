@@ -1,4 +1,4 @@
-from guidance import one_or_more, zero_or_more, char_set, string, select
+from guidance import char_set, one_or_more, select, string, zero_or_more
 from guidance._grammar import Byte, ByteRange
 from guidance._parser import EarleyCommitParser
 

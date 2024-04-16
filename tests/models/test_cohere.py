@@ -1,6 +1,7 @@
 import pytest
+
 import guidance
-from guidance import gen, capture, select, user, system, assistant, instruction
+from guidance import assistant, capture, gen, instruction, select, system, user
 
 
 def test_lite_llm_basic():

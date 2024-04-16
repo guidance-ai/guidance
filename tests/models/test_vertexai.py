@@ -1,5 +1,7 @@
 import pytest
-from guidance import select, gen, models, instruction
+
+from guidance import gen, instruction, models, select
+
 from ..utils import get_model
 
 
@@ -16,7 +18,7 @@ def test_palm2_instruct():
 
 
 def test_palm2_chat():
-    from guidance import models, gen, system, user, assistant
+    from guidance import assistant, gen, models, system, user
 
     try:
         vmodel = models.VertexAI("chat-bison@001")
@@ -63,7 +65,7 @@ def test_palm2_chat():
 
 
 def test_gemini_chat():
-    from guidance import models, gen, system, user, assistant
+    from guidance import assistant, gen, models, system, user
 
     try:
         vmodel = models.VertexAI("gemini-pro")

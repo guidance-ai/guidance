@@ -1,7 +1,7 @@
 import tiktoken
 
+from ._grammarless import Grammarless, GrammarlessEngine, GrammarlessTokenizer
 from ._model import Chat, Instruct
-from ._grammarless import GrammarlessTokenizer, GrammarlessEngine, Grammarless
 
 
 class LiteLLMEngine(GrammarlessEngine):

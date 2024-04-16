@@ -1,13 +1,13 @@
-from fastapi import FastAPI, Request, HTTPException, Security
-from fastapi.security import APIKeyHeader
-from fastapi.responses import StreamingResponse
-import os  # For environment variables or config files
 import base64
+import os  # For environment variables or config files
 
-from .models._model import Model, Engine
-from ._grammar import GrammarFunction
-
+from fastapi import FastAPI, HTTPException, Request, Security
+from fastapi.responses import StreamingResponse
+from fastapi.security import APIKeyHeader
 from pydantic import BaseModel, Field
+
+from ._grammar import GrammarFunction
+from .models._model import Engine, Model
 
 
 class GuidanceRequest(BaseModel):

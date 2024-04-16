@@ -1,8 +1,10 @@
 import pytest
-import guidance
-from guidance import gen, capture, select, user, system, assistant
-from ..utils import get_model
 import tiktoken
+
+import guidance
+from guidance import assistant, capture, gen, select, system, user
+
+from ..utils import get_model
 
 
 def test_anthropic_chat():

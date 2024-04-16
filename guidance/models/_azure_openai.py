@@ -3,11 +3,7 @@ from urllib.parse import parse_qs, urlparse
 
 from ._grammarless import Grammarless
 from ._model import Chat, Instruct
-from ._openai import (
-    OpenAIChatEngine,
-    OpenAICompletionEngine,
-    OpenAIInstructEngine,
-)
+from ._openai import OpenAIChatEngine, OpenAICompletionEngine, OpenAIInstructEngine
 
 try:
     import openai as openai_package

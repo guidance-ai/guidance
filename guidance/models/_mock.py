@@ -1,6 +1,6 @@
 import numpy as np
 
-from ._model import Tokenizer, Engine, Model, Chat
+from ._model import Chat, Engine, Model, Tokenizer
 from ._remote import RemoteEngine
 
 

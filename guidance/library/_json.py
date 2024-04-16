@@ -1,7 +1,8 @@
-from typing import Any, Callable, Dict, Mapping, Optional, Sequence, Union, Type
 from json import dumps as json_dumps
-from jsonschema.validators import Draft202012Validator
+from typing import Any, Callable, Dict, Mapping, Optional, Sequence, Type, Union
+
 import pydantic
+from jsonschema.validators import Draft202012Validator
 
 import guidance
 from guidance.library import char_range, one_or_more, optional, zero_or_more

@@ -1,8 +1,9 @@
-import guidance
-import urllib
-import typing
 import http
 import re
+import typing
+import urllib
+
+import guidance
 
 
 @guidance

@@ -1,21 +1,21 @@
 __version__ = "0.1.13"
 
 import functools
+import inspect
 import sys
 import types
-import inspect
 
 from . import models
 from ._grammar import (
+    GrammarFunction,
     Placeholder,
     RawFunction,
-    GrammarFunction,
     Terminal,
     replace_grammar_node,
     string,
 )
-from ._utils import strip_multiline_string_indents
 from ._server import Server
+from ._utils import strip_multiline_string_indents
 
 newline = "\n"
 
