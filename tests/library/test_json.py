@@ -364,25 +364,38 @@ class TestSimpleArray:
 
 
 class TestArrayWithLengthConstraints:
-    prefix_schema_obj = [
-        {"type": "integer"},
-        {"type": "boolean"}
-    ]
+    prefix_schema_obj = [{"type": "integer"}, {"type": "boolean"}]
     items_schema_obj = {"type": "string"}
 
     @pytest.mark.parametrize(
         "min_items, max_items, target_obj",
         [
-            (0, 0, []), # None allowed, none provided
-            (0, 1, []), # Some prefixItems allowed, none provided
-            (0, 1, [42]), # Some prefixItems allowed, one provided
+            (0, 0, []),  # None allowed, none provided
+            (0, 1, []),  # Some prefixItems allowed, none provided
+            (0, 1, [42]),  # Some prefixItems allowed, one provided
             (1, 2, [42, True]),  # All prefix items, no extra items allowed or provided.
-            (1, 3, [42, True]),  # All prefix items, some extra items allowed but not provided.
+            (
+                1,
+                3,
+                [42, True],
+            ),  # All prefix items, some extra items allowed but not provided.
             (0, 3, [42, True, "hello"]),  # All prefix items and one extra item
-            (3, 4, [42, True, "hello"]),  # All prefix items and one extra item but more allowed
-            (5, 5, [42, True, "hello", "world", "test"]),  # Exactly meets minItems and maxItems.
-            (0, 10, [42, True] + ["extra"] * 8),  # Exactly meet large number of extra items
-        ]
+            (
+                3,
+                4,
+                [42, True, "hello"],
+            ),  # All prefix items and one extra item but more allowed
+            (
+                5,
+                5,
+                [42, True, "hello", "world", "test"],
+            ),  # Exactly meets minItems and maxItems.
+            (
+                0,
+                10,
+                [42, True] + ["extra"] * 8,
+            ),  # Exactly meet large number of extra items
+        ],
     )
     def test_good_with_prefix_and_items(self, min_items, max_items, target_obj):
         schema_obj = {
@@ -397,13 +410,13 @@ class TestArrayWithLengthConstraints:
     @pytest.mark.parametrize(
         "min_items, max_items, target_obj",
         [
-            (0, 0, []), # None allowed, none provided
-            (0, 2, []), # Some allowed, none provided
-            (1, 2, [42, True]), # All prefix items, no extra allowed
-            (2, 2, [42, True]), # Exactly match min, max
+            (0, 0, []),  # None allowed, none provided
+            (0, 2, []),  # Some allowed, none provided
+            (1, 2, [42, True]),  # All prefix items, no extra allowed
+            (2, 2, [42, True]),  # Exactly match min, max
             (1, 3, [42]),  # Single prefix item, extra allowed
-            (1, 3, [42, True]), # All prefix items, extra allowed
-        ]
+            (1, 3, [42, True]),  # All prefix items, extra allowed
+        ],
     )
     def test_good_with_prefix(self, min_items, max_items, target_obj):
         schema_obj = {
@@ -417,13 +430,13 @@ class TestArrayWithLengthConstraints:
     @pytest.mark.parametrize(
         "min_items, max_items, target_obj",
         [
-            (0, 0, []), # None allowed, none provided
-            (0, 2, []), # Some allowed, none provided
+            (0, 0, []),  # None allowed, none provided
+            (0, 2, []),  # Some allowed, none provided
             (1, 2, ["hello"]),  # Single item, more allowed
             (1, 2, ["hello", "world"]),  # Meet max
-            (3, 3, ["hello", "world", "extra"]), # Exactly match min, max
-            (0, 8, ["extra"]*8),  # Large number of items
-        ]
+            (3, 3, ["hello", "world", "extra"]),  # Exactly match min, max
+            (0, 8, ["extra"] * 8),  # Large number of items
+        ],
     )
     def test_good_with_items(self, min_items, max_items, target_obj):
         schema_obj = {
@@ -437,16 +450,43 @@ class TestArrayWithLengthConstraints:
     @pytest.mark.parametrize(
         "min_items, max_items, bad_obj, failure_byte",
         [
-            (1, 4, [42, "string_not_bool", "hello", "extra"], b'"'),  # Second item does not match prefix schema
-            (0, 3, [42, True, 100], b"1"),  # Last item does not match general item schema
-            (3, 5, [42, True, "valid", "extra1", "extra2", "too_many"], b","),  # Exceeds maxItems
+            (
+                1,
+                4,
+                [42, "string_not_bool", "hello", "extra"],
+                b'"',
+            ),  # Second item does not match prefix schema
+            (
+                0,
+                3,
+                [42, True, 100],
+                b"1",
+            ),  # Last item does not match general item schema
+            (
+                3,
+                5,
+                [42, True, "valid", "extra1", "extra2", "too_many"],
+                b",",
+            ),  # Exceeds maxItems
             (2, 3, [42], b"]"),  # Not enough items
             (1, 1, [42, True], b","),  # Too many items for maxItems
-            (0, 0, [42, True, "str"], b"4"),  # maxItems set to 0, but array is not empty
-            (3, 5, [42, True], b"]"),  # Array has one fewer item than required by minItems
-        ]
+            (
+                0,
+                0,
+                [42, True, "str"],
+                b"4",
+            ),  # maxItems set to 0, but array is not empty
+            (
+                3,
+                5,
+                [42, True],
+                b"]",
+            ),  # Array has one fewer item than required by minItems
+        ],
     )
-    def test_bad_with_prefix_and_items(self, min_items, max_items, bad_obj, failure_byte):
+    def test_bad_with_prefix_and_items(
+        self, min_items, max_items, bad_obj, failure_byte
+    ):
         schema_obj = {
             "prefixItems": self.prefix_schema_obj,
             "items": self.items_schema_obj,
@@ -460,12 +500,32 @@ class TestArrayWithLengthConstraints:
     @pytest.mark.parametrize(
         "min_items, max_items, bad_obj, failure_byte",
         [
-            (2, 2, [42], b"]"),  # Array too short to meet minItems, despite matching prefixItems
-            (1, 2, [42, "not_bool"], b'"'),  # Second item violates prefixItems type requirement
-            (0, 1, [42, True], b","),  # Array exceeds maxItems with valid prefixItems types
-            (1, 5, [42, True, "extra"], b","),  # Item beyond prefixItems with no "items" schema
+            (
+                2,
+                2,
+                [42],
+                b"]",
+            ),  # Array too short to meet minItems, despite matching prefixItems
+            (
+                1,
+                2,
+                [42, "not_bool"],
+                b'"',
+            ),  # Second item violates prefixItems type requirement
+            (
+                0,
+                1,
+                [42, True],
+                b",",
+            ),  # Array exceeds maxItems with valid prefixItems types
+            (
+                1,
+                5,
+                [42, True, "extra"],
+                b",",
+            ),  # Item beyond prefixItems with no "items" schema
             (0, 0, [42], b"4"),  # maxItems set to 0, but array is not empty
-        ]
+        ],
     )
     def test_bad_with_prefix(self, min_items, max_items, bad_obj, failure_byte):
         schema_obj = {
@@ -484,7 +544,7 @@ class TestArrayWithLengthConstraints:
             (2, 3, ["hello"], b"]"),  # Not enough items
             (2, 3, ["hello", 42], b"4"),  # Badly typed second item
             (0, 0, ["hello"], b'"'),  # maxItems set to 0, but array is not empty
-        ]
+        ],
     )
     def test_bad_with_items(self, min_items, max_items, bad_obj, failure_byte):
         schema_obj = {

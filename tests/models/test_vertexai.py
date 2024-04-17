@@ -2,6 +2,7 @@ import pytest
 from guidance import select, gen, models, instruction
 from ..utils import get_model
 
+
 def test_palm2_instruct():
     try:
         vmodel = models.VertexAI("text-bison@001")
@@ -12,6 +13,7 @@ def test_palm2_instruct():
         lm = vmodel + "this is a test about"
     lm += gen("test", max_tokens=100)
     assert len(lm["test"]) > 0
+
 
 def test_palm2_chat():
     from guidance import models, gen, system, user, assistant
@@ -58,6 +60,7 @@ def test_palm2_chat():
     assert len(lm["test1"]) > 0
     assert len(lm["test2"]) > 0
     assert lm["test1"].find("<|im_end|>") < 0
+
 
 def test_gemini_chat():
     from guidance import models, gen, system, user, assistant

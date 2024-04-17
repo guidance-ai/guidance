@@ -4,6 +4,7 @@ from guidance import gen, capture, select, user, system, assistant
 from ..utils import get_model
 import tiktoken
 
+
 def test_openai_class_detection():
     # TODO: expand this with other variants of openAI models
     test_models = {
@@ -23,9 +24,13 @@ def test_openai_class_detection():
 
     for model_name, model_class in test_models.items():
         # setting random tokenizer and fake API key to allow this test to run without tiktoken detection errors
-        initialized_model = guidance.models.OpenAI(model_name, tokenizer=tiktoken.encoding_for_model("gpt-3.5-turbo"), api_key="blah")
+        initialized_model = guidance.models.OpenAI(
+            model_name,
+            tokenizer=tiktoken.encoding_for_model("gpt-3.5-turbo"),
+            api_key="blah",
+        )
         assert isinstance(initialized_model, model_class)
-    
+
 
 def test_openai_basic():
     try:
@@ -47,8 +52,11 @@ def test_openai_select():
     except:
         pytest.skip("Skipping OpenAI test because we can't load the model!")
     lm += "Pick a number: "
-    lm += select(["1", "11", "111", "1111", "11111", "111111", "1111111"], name='the number')
+    lm += select(
+        ["1", "11", "111", "1111", "11111", "111111", "1111111"], name="the number"
+    )
     assert str(lm)[-1] in "123"
+
 
 def test_openai_chat():
     try:
@@ -67,11 +75,17 @@ def test_openai_chat():
 
     assert len(lm["text"]) > 0
 
+
 def test_openai_chat_without_roles():
     # fake model tokenizer and API key to allow this test to run without tiktoken detection errors
-    lm = guidance.models.OpenAI("gpt-3.5-turbo", tokenizer=tiktoken.encoding_for_model("gpt-3.5-turbo"), api_key="blah")
+    lm = guidance.models.OpenAI(
+        "gpt-3.5-turbo",
+        tokenizer=tiktoken.encoding_for_model("gpt-3.5-turbo"),
+        api_key="blah",
+    )
     with pytest.raises(ValueError) as error_info:
         lm += "You are a math wiz. What is 1+1?" + gen(max_tokens=10, name="text")
+
 
 def test_openai_chat_loop():
     # tests issue #509
@@ -84,9 +98,9 @@ def test_openai_chat_loop():
 
         with system():
             lm = model + "You will just return whatever number I give you"
-        
+
         with user():
-            lm += f'The number is: {i}'
-        
+            lm += f"The number is: {i}"
+
         with assistant():
-            lm += gen(name='answer', max_tokens=2)
+            lm += gen(name="answer", max_tokens=2)

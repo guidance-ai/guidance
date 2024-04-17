@@ -4,6 +4,7 @@ from guidance import gen, capture, select, user, system, assistant
 from ..utils import get_model
 import tiktoken
 
+
 def test_anthropic_chat():
     try:
         lm = guidance.models.AnthropicChat(model="claude-instant-1.2")
@@ -30,8 +31,10 @@ def test_anthropic_select():
     with user():
         lm += "Pick a number: "
     with assistant():
-        lm += select(["1", "11", "111", "1111", "11111", "111111", "1111111"], name='the number')
-    
+        lm += select(
+            ["1", "11", "111", "1111", "11111", "111111", "1111111"], name="the number"
+        )
+
     assert str(lm)[-1] in "123"
 
 
@@ -46,9 +49,9 @@ def test_anthropic_chat_loop():
 
         with system():
             lm = model + "You will just return whatever number I give you"
-        
+
         with user():
-            lm += f'The number is: {i}'
-        
+            lm += f"The number is: {i}"
+
         with assistant():
-            lm += gen(name='answer', max_tokens=2)
+            lm += gen(name="answer", max_tokens=2)

@@ -1,6 +1,7 @@
 from guidance import gen, models, silent
 from ..utils import get_model
 
+
 def test_basic():
     lm = models.Mock()
     lm += "Start text"
