@@ -1,1 +1,3 @@
 # .git-blame-ignore-revs
+# Ran black on all files to standardize codebase
+57da386795bc94a34275b333da586f171f96d7c8
