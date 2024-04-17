@@ -5,8 +5,6 @@ from . import models
 from ._grammar import Placeholder, RawFunction, Terminal, replace_grammar_node, string
 from ._utils import strip_multiline_string_indents
 
-newline = "\n"
-
 
 def guidance(f=None, *, stateless=False, cache=None, dedent=True, model=models.Model):
     return _decorator(f, stateless=stateless, cache=cache, dedent=dedent, model=model)
