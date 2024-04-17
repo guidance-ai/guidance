@@ -116,5 +116,6 @@ def function(text=None, **kwargs):
 def instruction(text=None, **kwargs):
     return role("instruction", text, **kwargs)
 
+
 def indent_roles(indent=True):
     return set_attribute("indent_roles", indent)

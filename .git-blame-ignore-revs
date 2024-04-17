@@ -1,0 +1,5 @@
+# .git-blame-ignore-revs
+# Ran black on major files to standardize codebase
+57da386795bc94a34275b333da586f171f96d7c8
+# Ran black on tests and other ancillary python files in code
+083fb9877b507ed27136441c683ce051edf37e81

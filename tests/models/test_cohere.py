@@ -1,6 +1,8 @@
 import pytest
+
 import guidance
-from guidance import gen, capture, select, user, system, assistant, instruction
+from guidance import assistant, capture, gen, instruction, select, system, user
+
 
 def test_lite_llm_basic():
     try:
@@ -14,6 +16,7 @@ def test_lite_llm_basic():
     lm += f"""{gen(max_tokens=1, suffix=nl)}aaaaaa"""
     assert str(lm)[-5:] == "aaaaa"
 
+
 def test_lite_llm_instruct():
     try:
         lm = guidance.models.CohereInstruct("command-nightly")
@@ -21,5 +24,5 @@ def test_lite_llm_instruct():
         pytest.skip("Skipping LiteLLM test because we can't load the model!")
     with instruction():
         lm += "Count to 20."
-    lm += gen('val', max_tokens=1)
-    assert len(lm['val']) > 0
+    lm += gen("val", max_tokens=1)
+    assert len(lm["val"]) > 0
