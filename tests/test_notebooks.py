@@ -1,5 +1,4 @@
 import pathlib
-
 from typing import Any, Dict, Optional
 
 import papermill as pm
