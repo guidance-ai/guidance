@@ -52,16 +52,16 @@ class LlamaCppTokenizer(Tokenizer):
 
         # get the bytes strings for all the tokens
         tokens = []
-        for i in range(tokenizer.llama.n_vocab()):
-            tok = tokenizer.llama.detokenize([i]) # note that detokenize returns bytes directly
+        for i in range(tokenizer._model.n_vocab()):
+            tok = tokenizer._model.detokenize([i]) # note that detokenize returns bytes directly
             if tok == b'':
                 tok = llama_cpp.llama_token_get_text(model_obj.model, i) # get text rep of special tokens
             tokens.append(tok)
 
         super().__init__(
             tokens,
-            tokenizer.llama.token_bos(),
-            tokenizer.llama.token_eos()
+            tokenizer._model.token_bos(),
+            tokenizer._model.token_eos()
         )
 
     def __call__(self, byte_string):
