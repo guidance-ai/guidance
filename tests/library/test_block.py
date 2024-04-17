@@ -1,4 +1,4 @@
-from guidance import models, block, any_char
+from guidance import any_char, block, models
 
 
 def test_text_opener():

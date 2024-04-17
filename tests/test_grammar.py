@@ -1,5 +1,5 @@
 import guidance
-from guidance import models, select, gen, optional
+from guidance import gen, models, optional, select
 
 
 def test_select_reset_pos():

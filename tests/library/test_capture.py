@@ -1,4 +1,5 @@
-from guidance import select, capture, models, one_or_more
+from guidance import capture, models, one_or_more, select
+
 from ..utils import get_model
 
 

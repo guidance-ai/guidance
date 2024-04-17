@@ -1,7 +1,7 @@
 import pytest
 
 import guidance
-from guidance import select, models, gen, zero_or_more, byte_range
+from guidance import byte_range, gen, models, select, zero_or_more
 
 
 def test_fstring(selected_model):

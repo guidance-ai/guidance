@@ -4,9 +4,9 @@ from typing import Any
 import pytest
 from jsonschema import validate
 
+from guidance import json as gen_json
 from guidance import models
 from guidance._parser import ParserException
-from guidance import json as gen_json
 from guidance.library._json import _to_compact_json
 
 
