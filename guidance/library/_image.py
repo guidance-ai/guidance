@@ -4,16 +4,17 @@ import typing
 import http
 import re
 
+
 @guidance
 def image(lm, src, allow_local=True):
 
     # load the image bytes
     # ...from a url
-    if isinstance(src, str) and re.match(r'$[^:/]+://', src):
+    if isinstance(src, str) and re.match(r"$[^:/]+://", src):
         with urllib.request.urlopen(src) as response:
             response = typing.cast(http.client.HTTPResponse, response)
             bytes_data = response.read()
-    
+
     # ...from a local path
     elif allow_local and isinstance(src, str):
         with open(src, "rb") as f:
@@ -22,7 +23,7 @@ def image(lm, src, allow_local=True):
     # ...from image file bytes
     elif isinstance(src, bytes):
         bytes_data = src
-        
+
     else:
         raise Exception(f"Unable to load image bytes from {src}!")
 
@@ -30,5 +31,5 @@ def image(lm, src, allow_local=True):
 
     # set the image bytes
     lm = lm.set(bytes_id, bytes_data)
-    lm += f'<|_image:{bytes_id}|>'
+    lm += f"<|_image:{bytes_id}|>"
     return lm

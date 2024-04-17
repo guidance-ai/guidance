@@ -11,6 +11,7 @@ from ._openai import (
 
 try:
     import openai as openai_package
+
     is_openai = True
 except ModuleNotFoundError:
     is_openai = False
@@ -18,7 +19,7 @@ except ModuleNotFoundError:
 
 class AzureOpenAI(Grammarless):
     """Represents an Azure OpenAI model as exposed through their remote API.
-    
+
     Note that because this uses a remote API endpoint without built-in guidance support
     there are some things we cannot do, like force the model to follow a pattern inside
     a chat role block.

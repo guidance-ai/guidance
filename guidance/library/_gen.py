@@ -14,12 +14,29 @@ from ._block import block
 
 logger = logging.getLogger(__name__)
 
+
 # TODO: make this stateless!
-@guidance(stateless=lambda *args, **kwargs: kwargs.get("tools", None) is None) # TODO: uncomment this once we get temperature stateless
-def gen(lm, name=None, *, max_tokens=1000, list_append=False, regex=None,
-        tools=None, hide_tool_call=False, stop=None, stop_regex=None, suffix="", n=1, temperature=0.0, top_p=1.0,
-        save_stop_text=False):
-    """ Generate a set of tokens until a given stop criteria has been met.
+@guidance(
+    stateless=lambda *args, **kwargs: kwargs.get("tools", None) is None
+)  # TODO: uncomment this once we get temperature stateless
+def gen(
+    lm,
+    name=None,
+    *,
+    max_tokens=1000,
+    list_append=False,
+    regex=None,
+    tools=None,
+    hide_tool_call=False,
+    stop=None,
+    stop_regex=None,
+    suffix="",
+    n=1,
+    temperature=0.0,
+    top_p=1.0,
+    save_stop_text=False,
+):
+    """Generate a set of tokens until a given stop criteria has been met.
 
     This function is a useful utility that can allow you to specify most grammars used by typical
     LM generation programs. It also has the added ability to interleave generation with tool calls.
@@ -39,7 +56,7 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, regex=None,
             If this is True then the results saved to `lm[name]` will not be written directly but rather appended
             to a list (if no list with the current name is present one will be created). This is useful for
             building lists inside python loops.
-        
+
         regex : str or None
             This is a regular expression that will be used to constrain the generation. The model is only allowed
             to generate tokens that match this regular expression. Note that for variable length expressions the
@@ -77,9 +94,11 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, regex=None,
             call from the model's context if you plan to change it's format after the call is made.
     """
     # TODO: expand the tools doc string
-    assert n == 1, "We still need to add support for n>1! Consider putting your gen call in a loop for now."
+    assert (
+        n == 1
+    ), "We still need to add support for n>1! Consider putting your gen call in a loop for now."
     assert top_p == 1, "We still need to add support for top_p != 1!"
-    
+
     logger.debug(f'start gen(name="{name}")')
 
     # set stream if we are interactive
@@ -117,7 +136,7 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, regex=None,
     # This needs to be here for streaming
     # if name is not None and not list_append:
     #     lm[name] = ""
-    
+
     # define the generation pattern
     if regex is not None:
         pattern = regex_grammar(regex)
@@ -129,13 +148,13 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, regex=None,
     # define any capture group for non-tool calls
     if name is not None and tools is None:
         pattern = capture(pattern, name=tagged_name)
-    
+
     # limit the number of tokens
     pattern = token_limit(pattern, max_tokens)
-    
+
     # define the stop pattern
     if stop is False or len(stop + stop_regex) == 0:
-        stop_pattern = ''
+        stop_pattern = ""
     else:
         stop_pattern = select(stop + stop_regex)
         if save_stop_text is True:
@@ -150,12 +169,23 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, regex=None,
         with block(tagged_name):
             tools = [Tool(callable=x) if not isinstance(x, Tool) else x for x in tools]
             init_token_count = lm.token_count
-            gen_grammar = pattern + select([stop_pattern] + [capture(commit_point(x.call_grammar, hidden=hide_tool_call), name=f'tool{i}') for i, x in enumerate(tools)])
+            gen_grammar = pattern + select(
+                [stop_pattern]
+                + [
+                    capture(
+                        commit_point(x.call_grammar, hidden=hide_tool_call),
+                        name=f"tool{i}",
+                    )
+                    for i, x in enumerate(tools)
+                ]
+            )
             while lm.token_count <= max_tokens + init_token_count:
-                lm = lm._run_stateless(gen_grammar, temperature=temperature) # TODO: we should not be using this internal method
+                lm = lm._run_stateless(
+                    gen_grammar, temperature=temperature
+                )  # TODO: we should not be using this internal method
                 tool_called = False
                 for i in range(len(tools)):
-                    tool_i = f'tool{i}'
+                    tool_i = f"tool{i}"
                     if tool_i in lm:
                         tool_called = True
                         lm += tools[i].tool_call()
@@ -166,12 +196,13 @@ def gen(lm, name=None, *, max_tokens=1000, list_append=False, regex=None,
     elif n == 1:
         lm += with_temperature(pattern + stop_pattern + suffix, temperature)
 
-    logger.debug(f'finish gen')
+    logger.debug(f"finish gen")
     return lm
 
 
 def click_loop_start(id, total_count, echo, color):
-    click_script = '''
+    click_script = (
+        """
 function cycle_IDVAL(button_el) {
 var i = 0;
 while (i < 50) {
@@ -191,23 +222,32 @@ i += 1;
 }
 button_el.innerHTML = (((i+1) % TOTALCOUNT) + 1)  + "/" + TOTALCOUNT;
 }
-cycle_IDVAL(this);'''.replace("IDVAL", id).replace("TOTALCOUNT", str(total_count)).replace("\n", "")
-    out = f'''<div style='background: rgba(255, 255, 255, 0.0); border-radius: 4px 0px 0px 4px; border: 1px solid {color}; border-right: 0px; padding-left: 3px; padding-right: 3px; user-select: none; color: {color}; display: inline; font-weight: normal; cursor: pointer' onClick='{click_script}'>1/{total_count}</div>'''
+cycle_IDVAL(this);""".replace(
+            "IDVAL", id
+        )
+        .replace("TOTALCOUNT", str(total_count))
+        .replace("\n", "")
+    )
+    out = f"""<div style='background: rgba(255, 255, 255, 0.0); border-radius: 4px 0px 0px 4px; border: 1px solid {color}; border-right: 0px; padding-left: 3px; padding-right: 3px; user-select: none; color: {color}; display: inline; font-weight: normal; cursor: pointer' onClick='{click_script}'>1/{total_count}</div>"""
     out += f"<div style='display: inline;' id='{id}_0'>"
     return "<||_html:" + out + "_||>"
+
 
 def click_loop_mid(id, index, echo):
     alpha = 1.0 if not echo else 0.5
     out = f"</div><div style='display: none; opacity: {alpha}' id='{id}_{index}'>"
     return "<||_html:" + out + "_||>"
 
+
 @guidance
 def gen_line(lm, *args, **kwargs):
-    return lm.gen(*args, suffix='\n', **kwargs)
+    return lm.gen(*args, suffix="\n", **kwargs)
+
 
 @guidance
 def gen_quote(lm, name=None, quote='"', *args, **kwargs):
-    return lm(quote).gen(*args,name=name, suffix=quote, **kwargs)
+    return lm(quote).gen(*args, name=name, suffix=quote, **kwargs)
+
 
 @guidance
 def will_gen(lm, stop=None, stop_regex=None, ignore_spaces=False, max_tokens=30):
@@ -222,17 +262,20 @@ def will_gen(lm, stop=None, stop_regex=None, ignore_spaces=False, max_tokens=30)
     if not stop_regex:
         stop_regex = []
     regexes = [regex_module.escape(x) for x in stop + stop_regex]
-    optional_space = '\\s*' if ignore_spaces else ''
+    optional_space = "\\s*" if ignore_spaces else ""
     pattern = regex_module.compile(f'{optional_space}({"|".join(regexes)})')
     lm2 = lm
     with silent():
         for _ in range(max_tokens):
-            lm2 += gen('temp_variable', list_append=True, max_tokens=1)
-            if not lm2['temp_variable'] or not pattern.match(''.join(lm2['temp_variable']), partial=True):
+            lm2 += gen("temp_variable", list_append=True, max_tokens=1)
+            if not lm2["temp_variable"] or not pattern.match(
+                "".join(lm2["temp_variable"]), partial=True
+            ):
                 return False
-            if pattern.match(''.join(lm2['temp_variable']), partial=False):
+            if pattern.match("".join(lm2["temp_variable"]), partial=False):
                 return True
     return False
+
 
 @guidance
 def call_tool(lm, tool):
