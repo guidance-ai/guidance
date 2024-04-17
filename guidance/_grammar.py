@@ -5,7 +5,7 @@ import inspect
 import types
 import re
 
-from typing import Dict, List, TypeVar, Union
+from typing import Any, Dict, List, TypeVar, Union
 
 from . import _serialization_pb2
 from . import _parser
@@ -863,7 +863,7 @@ _null_grammar = string('')
 #     if len(low_bytes) > 1 or len(high_bytes) > 1:
 #         raise Exception("We don't yet support multi-byte character ranges!")
 #     return ByteRange(low_bytes + high_bytes)
-def str_to_grammar(value: str) -> Union[str, bytes, Null, Byte, Join, Function]:
+def str_to_grammar(value: str):
     is_id = False
     parts = re.split(_tag_pattern, value)
     
@@ -873,7 +873,7 @@ def str_to_grammar(value: str) -> Union[str, bytes, Null, Byte, Join, Function]:
     
     # if we have embedded objects we have to convert the string to a grammar tree
     else:
-        partial_grammar: Union[str, bytes, Null, Byte, Join, Function] = _null_grammar
+        partial_grammar: Any = _null_grammar
         # lm.suffix = ""
         for i,part in enumerate(parts):
             # if i < len(parts) - 1:
