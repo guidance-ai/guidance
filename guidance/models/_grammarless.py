@@ -18,18 +18,40 @@ class GrammarlessTokenizer(Tokenizer):
             tokenizer = tiktoken.get_encoding("gpt2")
 
         # tiktoken tokenizer was given
-        if hasattr(tokenizer, "decode_single_token_bytes"):
+        if hasattr(tokenizer, "decode_tokens_bytes"):
             special_map = {v: k for k,v in tokenizer._special_tokens.items()}
-            byte_tokens = [] # b'<|invalid_special_token|>'
-            for i in range(tokenizer.n_vocab):
+            first_special = tokenizer.n_vocab
+            for k in special_map:
+                if k < first_special:
+                    first_special = k
+            
+            # consume one-by-one until we have passed all the special tokens AND gotten a valid token
+            i = tokenizer.n_vocab - 1
+            byte_tokens = []
+            while True:
                 try:
                     bval = tokenizer.decode_single_token_bytes(i)
+                    found = True
                 except KeyError:
                     bval = special_map.get(i, b'<|invalid_special_token|>')
+                    found = False
                 byte_tokens.append(bval)
+                
+                if i < first_special and found:
+                    break
+                i -= 1
 
-            bos_token_id = None
-            eos_token_id = tokenizer._special_tokens["<|endoftext|>"]
+            # do the rest of the tokens as a batch
+            byte_tokens = tokenizer.decode_tokens_bytes(np.arange(i+1)) + byte_tokens
+
+            if hasattr(tokenizer, "bos_token_id"):
+                bos_token_id = tokenizer.bos_token_id
+            else:
+                bos_token_id = None
+            if hasattr(tokenizer, "eos_token_id"):
+                eos_token_id = tokenizer.eos_token_id
+            else:
+                eos_token_id = tokenizer._special_tokens["<|endoftext|>"]
         
         # a transformer tokenizer was given that has a byte_decoder
         elif hasattr(tokenizer, "byte_decoder"):

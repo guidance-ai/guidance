@@ -12,22 +12,23 @@ import re
 import diskcache as dc
 import hashlib
 import platformdirs
+import typing
 
 from ._model import Chat, Instruct
 from ._grammarless import GrammarlessEngine, Grammarless
 
 try:
-    import openai as openai_package
-    is_openai = True
-except ModuleNotFoundError:
-    is_openai = False
+    import openai
+    client_class : typing.Optional[typing.Type[openai.OpenAI]] = openai.OpenAI
+except ImportError:
+    client_class = None
 
 chat_model_pattern = r'^(ft:)?(gpt-3\.5-turbo|gpt-4)(?:(?!-instruct$)(-\w+)+)?(:[\w-]+(?:[:\w-]+)*)?(::\w+)?$'
 
 class OpenAIEngine(GrammarlessEngine):
-    def __init__(self, tokenizer, max_streaming_tokens, timeout, compute_log_probs, model, client_class = openai_package.OpenAI, **kwargs):
+    def __init__(self, tokenizer, max_streaming_tokens, timeout, compute_log_probs, model, client_class=client_class, **kwargs):
         
-        if not is_openai or not hasattr(openai_package, "OpenAI"):
+        if client_class is None:
             raise Exception("Please install the openai package version >= 1 using `pip install openai -U` in order to use guidance.models.OpenAI!")
 
         self.client = client_class(**kwargs)
@@ -67,7 +68,7 @@ class OpenAI(Grammarless):
             names include `base_url` and `organization`
         '''
 
-        if not is_openai or not hasattr(openai_package, "OpenAI"):
+        if client_class is None:
             raise Exception("Please install the openai package version >= 1 using `pip install openai -U` in order to use guidance.models.OpenAI!")
         
         # if we are called directly (as opposed to through super()) then we convert ourselves to a more specific subclass if possible
