@@ -3,6 +3,7 @@ import re
 import codecs
 from setuptools import setup, find_packages
 from pybind11.setup_helpers import Pybind11Extension, build_ext
+from setuptools_rust import Binding, RustExtension
 
 here = os.path.abspath(os.path.dirname(__file__))
 
@@ -28,6 +29,7 @@ setup(
     packages=find_packages(exclude=["notebooks", "client", "tests", "tests.*"]),
     package_data={"guidance": ["resources/*"]},
     ext_modules=[Pybind11Extension("guidance.cpp", ["guidance/_cpp/main.cpp", "guidance/_cpp/byte_trie.cpp"])],
+    rust_extensions=[RustExtension("guidance._rust.guidancerust", "guidance/_rust/Cargo.toml", binding=Binding.PyO3)],
     cmdclass={"build_ext": build_ext},
     python_requires=">=3.8",
     install_requires=[
