@@ -6,6 +6,32 @@ from pybind11.setup_helpers import Pybind11Extension, build_ext
 
 here = os.path.abspath(os.path.dirname(__file__))
 
+# Our basic list of 'extras'
+extras_requires = {
+    "schemas": ["jsonschema", "pydantic"],
+}
+
+# Create the union of all our requirements
+all_requires = set()
+for v in extras_requires.values():
+    all_requires.union(v)
+
+# Required for builds etc.
+doc_requires = ["ipython", "nbsphinx", "numpydoc", "sphinx_rtd_theme", "sphinx"]
+test_requires = [
+    "jupyter",
+    "papermill",
+    "pytest",
+    "pytest-cov",
+    "torch",
+    "transformers",
+    "mypy==1.9.0",
+    "types-protobuf",
+    "types-regex",
+    "types-requests",
+    "types-jsonschema",
+]
+
 
 def read(*parts):
     with codecs.open(os.path.join(here, *parts), "r") as fp:
@@ -51,20 +77,9 @@ setup(
         "uvicorn",
     ],
     extras_require={
-        "docs": ["ipython", "numpydoc", "sphinx_rtd_theme", "sphinx", "nbsphinx"],
-        "schemas": ["jsonschema", "pydantic"],
-        "test": [
-            "jupyter",
-            "papermill",
-            "pytest",
-            "pytest-cov",
-            "torch",
-            "transformers",
-            "mypy==1.9.0",
-            "types-protobuf",
-            "types-regex",
-            "types-requests",
-            "types-jsonschema",
-        ],
+        "all": all_requires,
+        "docs": doc_requires,
+        "test": test_requires,
+        **extras_requires,
     },
 )
