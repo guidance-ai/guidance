@@ -71,7 +71,7 @@ class TransformersTokenizer(Tokenizer):
                 byte_coded = bytes(
                     [byte_decoder[c] for c in tokenizer.convert_ids_to_tokens(i)]
                 )
-                byte_tokens.append(byte_coded)
+                byte_tokens[i] = byte_coded
 
         # the superclass does most of the work once we have the tokens
         super().__init__(
