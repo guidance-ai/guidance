@@ -9,6 +9,7 @@ here = os.path.abspath(os.path.dirname(__file__))
 # Our basic list of 'extras'
 extras_requires = {
     "schemas": ["jsonschema", "pydantic"],
+    "server": ["fastapi", "protobuf"],
 }
 
 # Create the union of all our requirements
@@ -72,9 +73,6 @@ setup(
         "numpy",
         "ordered_set",
         "pyformlang",
-        "protobuf",
-        "fastapi",
-        "uvicorn",
     ],
     extras_require={
         "all": all_requires,

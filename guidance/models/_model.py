@@ -15,7 +15,7 @@ from pprint import pprint
 import re
 import copy
 import time
-from typing import TYPE_CHECKING, Dict
+from typing import Dict, TYPE_CHECKING
 import numpy as np
 import logging
 import base64
@@ -42,7 +42,12 @@ from .._grammar import (
     unreplace_model_variables,
     select,
 )
-from .. import _serialization_pb2
+
+try:
+    from .. import _serialization_pb2
+except ImportError:
+    if TYPE_CHECKING:
+        raise
 
 if TYPE_CHECKING:
     from ..library._block import ContextBlock

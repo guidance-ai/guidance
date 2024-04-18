@@ -1,13 +1,20 @@
-from fastapi import FastAPI, Request, HTTPException, Security
-from fastapi.security import APIKeyHeader
-from fastapi.responses import StreamingResponse
-import os  # For environment variables or config files
 import base64
+import os
+
+from typing import TYPE_CHECKING
+
+try:
+    from fastapi import FastAPI, HTTPException, Security
+    from fastapi.security import APIKeyHeader
+    from fastapi.responses import StreamingResponse
+
+    from pydantic import BaseModel, Field
+except ImportError:
+    if TYPE_CHECKING:
+        raise
 
 from .models._model import Model, Engine
 from ._grammar import GrammarFunction
-
-from pydantic import BaseModel, Field
 
 
 class GuidanceRequest(BaseModel):
