@@ -294,8 +294,8 @@ def json(
     *,
     schema: Union[
         Mapping[str, Any],
-        Type[pydantic.BaseModel],
-        pydantic.TypeAdapter,
+        Type["pydantic.BaseModel"],
+        "pydantic.TypeAdapter",
     ],
 ):
     """Generate valid JSON according to the supplied JSON schema or `pydantic` model.
