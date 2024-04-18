@@ -52,8 +52,8 @@ setup(
     ],
     extras_require={
         "docs": ["ipython", "numpydoc", "sphinx_rtd_theme", "sphinx", "nbsphinx"],
+        "schemas": ["jsonschema", "pydantic"],
         "test": [
-            "jsonschema",
             "jupyter",
             "papermill",
             "pytest",
