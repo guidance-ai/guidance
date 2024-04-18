@@ -4,11 +4,11 @@ import os
 from typing import TYPE_CHECKING
 
 try:
+    import pydantic
+
     from fastapi import FastAPI, HTTPException, Security
     from fastapi.security import APIKeyHeader
     from fastapi.responses import StreamingResponse
-
-    from pydantic import BaseModel, Field
 except ImportError:
     if TYPE_CHECKING:
         raise
@@ -17,16 +17,18 @@ from .models._model import Model, Engine
 from ._grammar import GrammarFunction
 
 
+class GuidanceRequest(pydantic.BaseModel):
+    parser: str = pydantic.Field(
+        title="parser",
+        description="The text generated so far by the guidance program",
+    )
+    grammar: str = pydantic.Field(
+        title="grammar",
+        description="Guidance grammar to constrain the next characters generated",
+    )
+
+
 class Server:
-    class GuidanceRequest(BaseModel):
-        parser: str = Field(
-            title="parser",
-            description="The text generated so far by the guidance program",
-        )
-        grammar: str = Field(
-            title="grammar",
-            description="Guidance grammar to constrain the next characters generated",
-        )
 
     def __init__(self, engine, api_key=None, ssl_certfile=None, ssl_keyfile=None):
         """This exposes an Engine object over the network."""
@@ -57,7 +59,8 @@ class Server:
 
         @self.app.post("/extend")
         async def extend_parser(
-            guidance_request: "GuidanceRequest", x_api_key: str = Security(api_key_header)
+            guidance_request: "GuidanceRequest",
+            x_api_key: str = Security(api_key_header),
         ):
             if x_api_key not in self.valid_api_keys:
                 raise HTTPException(status_code=401, detail="Invalid API key")
