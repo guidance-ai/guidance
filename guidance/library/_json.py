@@ -18,7 +18,6 @@ except ImportError:
     if TYPE_CHECKING:
         raise
 
-from .._optional_imports import optional_import
 from .._guidance import guidance
 from ..library import char_range, one_or_more, optional, zero_or_more
 
