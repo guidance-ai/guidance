@@ -1,13 +1,16 @@
-from typing import Any, Callable, Dict, Mapping, Optional, Sequence, Union, Type
 from json import dumps as json_dumps
-from jsonschema.validators import Draft202012Validator
-import pydantic
+from typing import Any, Callable, Dict, Mapping, Optional, Sequence, Union, Type
 
+
+from .._optional_imports import optional_import
 from .._guidance import guidance
 from ..library import char_range, one_or_more, optional, zero_or_more
 
 from .._grammar import GrammarFunction, select, capture
 from ._pydantic import pydantic_to_json_schema
+
+_jsonschema_module = optional_import("jsonschema")
+_pydantic_module = optional_import("pydantic")
 
 
 def _to_compact_json(target: Any) -> str:
@@ -276,7 +279,11 @@ def json(
     lm,
     name: Optional[str] = None,
     *,
-    schema: Union[Mapping[str, Any], Type[pydantic.BaseModel], pydantic.TypeAdapter],
+    schema: Union[
+        Mapping[str, Any],
+        Type[_pydantic_module.BaseModel],
+        _pydantic_module.TypeAdapter,
+    ],
 ):
     """Generate valid JSON according to the supplied JSON schema or `pydantic` model.
 
@@ -319,7 +326,7 @@ def json(
     if isinstance(schema, Mapping):
         # Raises jsonschema.exceptions.SchemaError or ValueError
         # if schema is not valid
-        Draft202012Validator.check_schema(schema)
+        _jsonschema_module.validators.Draft202012Validator.check_schema(schema)
     else:
         schema = pydantic_to_json_schema(schema)
 
