@@ -728,6 +728,9 @@ class Engine:
 
         self.start(parser, grammar, ensure_bos_token)
 
+        # TODO: remove this after the next release. This verifies that calling Rust works.
+        assert("def" == engine_start("abc", "def", 1))
+
         logits = None
         while True:
             is_done, logits_state, response_state = self.next(logits)

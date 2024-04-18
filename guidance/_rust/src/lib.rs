@@ -3,7 +3,8 @@ use pyo3::wrap_pyfunction;
 
 #[pyfunction]
 fn engine_start(parser: &str, grammar: &str, ensure_bos_token: i32) -> PyResult<String> {
-    Ok(format!("You passed {} and {}", parser, grammar))
+    // return a new string with the grammar for testing
+    Ok(format!("{}", grammar))
 }
 
 #[pymodule]
