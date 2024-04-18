@@ -9,7 +9,7 @@ here = os.path.abspath(os.path.dirname(__file__))
 # Our basic list of 'extras'
 extras_requires = {
     "schemas": ["jsonschema", "pydantic"],
-    "server": ["fastapi", "protobuf"],
+    "server": ["fastapi", "protobuf", "uvicorn"],
 }
 
 # Create the union of all our requirements

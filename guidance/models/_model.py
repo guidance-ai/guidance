@@ -51,7 +51,7 @@ from .._grammar import (
 
 
 try:
-    from . import _serialization_pb2
+    from .. import _serialization_pb2
 
     _serialization_pb2_is_imported = True
 except ImportError:
