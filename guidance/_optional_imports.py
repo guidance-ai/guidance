@@ -2,7 +2,7 @@ import importlib
 import typing
 
 
-def optional_import(name: str) -> typing.Optional[typing.ModuleType]:
+def optional_import(name: str):
     msg = f"Import of package {name} failed."
     module = None
     try:
