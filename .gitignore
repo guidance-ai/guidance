@@ -18,3 +18,5 @@ guidance/*.so
 guidance/cpp.*.pyd
 
 notebooks/**/*.papermill_out.ipynb
+
+.mypy_cache/*
