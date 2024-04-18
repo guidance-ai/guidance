@@ -15,7 +15,9 @@ class TransformersTokenizer(Tokenizer):
             tokenizer = self._tokenizer(model)
 
         self._orig_tokenizer = tokenizer
-        special_tokens_map = {id:token for token, id in tokenizer.get_added_vocab().items()}
+        special_tokens_map = {
+            id: token for token, id in tokenizer.get_added_vocab().items()
+        }
 
         # build out the set of byte_string tokens
         byte_tokens = [None] * len(tokenizer)
