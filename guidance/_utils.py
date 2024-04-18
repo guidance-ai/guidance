@@ -1,14 +1,19 @@
-import os
-import requests
-import inspect
-import json
-import asyncio
-import queue
 import ast
-import types
-import textwrap
+import asyncio
+import json
+import inspect
+import queue
 import sys
+import textwrap
+import types
+
 import numpy as np
+
+
+def _handle_serialization_pb2_import(_serialization_pb2_is_imported: bool):
+    msg = "You must install guidance with the 'server' extra package via 'pip install guidance[server]'"
+    if not _serialization_pb2_is_imported:
+        raise ImportError(msg)
 
 
 class _Rewrite(ast.NodeTransformer):

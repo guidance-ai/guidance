@@ -1,3 +1,19 @@
+import base64
+import copy
+import html
+import logging
+import queue
+import re
+import threading
+import time
+
+
+from pprint import pprint
+from typing import Dict, TYPE_CHECKING
+
+
+import numpy as np
+
 try:
     from IPython.display import clear_output, display, HTML
 
@@ -10,17 +26,7 @@ try:
     torch_is_imported = True
 except ImportError:
     torch_is_imported = False
-import html
-from pprint import pprint
-import re
-import copy
-import time
-from typing import Dict, TYPE_CHECKING
-import numpy as np
-import logging
-import base64
-import queue
-import threading
+
 
 logger = logging.getLogger(__name__)
 try:
@@ -30,7 +36,7 @@ except ImportError:
         "Failed to load guidance.cpp, falling back to Python mirror implementations..."
     )
     from .. import _cpp as cpp
-from .._utils import softmax, CaptureEvents
+from .._utils import softmax, CaptureEvents, _handle_serialization_pb2_import
 from .._parser import EarleyCommitParser, Parser
 from .._grammar import (
     GrammarFunction,
@@ -43,11 +49,16 @@ from .._grammar import (
     select,
 )
 
+
 try:
-    from .. import _serialization_pb2
+    from . import _serialization_pb2
+
+    _serialization_pb2_is_imported = True
 except ImportError:
     if TYPE_CHECKING:
         raise
+    _serialization_pb2_is_imported = False
+
 
 if TYPE_CHECKING:
     from ..library._block import ContextBlock
@@ -149,7 +160,7 @@ class EngineCallResponse:
         Returns:
             engine_response_pb2.EngineCallResponse: The Protobuf equivalent of this object.
         """
-
+        _handle_serialization_pb2_import(_serialization_pb2_is_imported)
         return _serialization_pb2.EngineCallResponse(
             new_bytes=self.new_bytes,
             is_generated=self.is_generated,
@@ -169,6 +180,7 @@ class EngineCallResponse:
 
     @staticmethod
     def deserialize(byte_data):
+        _handle_serialization_pb2_import(_serialization_pb2_is_imported)
         proto = _serialization_pb2.EngineCallResponse()
         proto.ParseFromString(byte_data)
         return EngineCallResponse(
