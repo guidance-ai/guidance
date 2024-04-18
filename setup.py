@@ -15,7 +15,7 @@ extras_requires = {
 # Create the union of all our requirements
 all_requires = set()
 for v in extras_requires.values():
-    all_requires.union(v)
+    all_requires = all_requires.union(v)
 
 # Required for builds etc.
 doc_requires = ["ipython", "nbsphinx", "numpydoc", "sphinx_rtd_theme", "sphinx"]
