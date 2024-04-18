@@ -1,7 +1,10 @@
 import pytest
+
 import guidance
-from guidance import gen, capture, select, user, system, assistant
+from guidance import assistant, capture, gen, select, system, user
+
 from ..utils import get_model
+
 
 def test_lite_llm_basic_openai():
     try:
@@ -15,6 +18,7 @@ def test_lite_llm_basic_openai():
     lm += f"""{gen(max_tokens=1, suffix=nl)}aaaaaa"""
     assert str(lm)[-5:] == "aaaaa"
 
+
 def test_lite_llm_basic_cohere():
     try:
         lm = guidance.models.LiteLLMCompletion("command-nightly")
@@ -27,14 +31,18 @@ def test_lite_llm_basic_cohere():
     lm += f"""{gen(max_tokens=1, suffix=nl)}aaaaaa"""
     assert str(lm)[-5:] == "aaaaa"
 
+
 def test_lite_llm_select():
     try:
         lm = guidance.models.LiteLLMCompletion("gpt-3.5-turbo-instruct")
     except:
         pytest.skip("Skipping LiteLLM test because we can't load the model!")
     lm += "Pick a number: "
-    lm += select(["1", "11", "111", "1111", "11111", "111111", "1111111"], name='the number')
+    lm += select(
+        ["1", "11", "111", "1111", "11111", "111111", "1111111"], name="the number"
+    )
     assert str(lm)[-1] in "123"
+
 
 def test_lite_llm_chat():
     try:

@@ -19,17 +19,30 @@ from ._grammarless import GrammarlessEngine, Grammarless
 
 try:
     import openai
-    client_class : typing.Optional[typing.Type[openai.OpenAI]] = openai.OpenAI
+
+    client_class: typing.Optional[typing.Type[openai.OpenAI]] = openai.OpenAI
 except ImportError:
     client_class = None
 
-chat_model_pattern = r'^(ft:)?(gpt-3\.5-turbo|gpt-4)(?:(?!-instruct$)(-\w+)+)?(:[\w-]+(?:[:\w-]+)*)?(::\w+)?$'
+chat_model_pattern = r"^(ft:)?(gpt-3\.5-turbo|gpt-4)(?:(?!-instruct$)(-\w+)+)?(:[\w-]+(?:[:\w-]+)*)?(::\w+)?$"
+
 
 class OpenAIEngine(GrammarlessEngine):
-    def __init__(self, tokenizer, max_streaming_tokens, timeout, compute_log_probs, model, client_class=client_class, **kwargs):
-        
+    def __init__(
+        self,
+        tokenizer,
+        max_streaming_tokens,
+        timeout,
+        compute_log_probs,
+        model,
+        client_class=client_class,
+        **kwargs,
+    ):
+
         if client_class is None:
-            raise Exception("Please install the openai package version >= 1 using `pip install openai -U` in order to use guidance.models.OpenAI!")
+            raise Exception(
+                "Please install the openai package version >= 1 using `pip install openai -U` in order to use guidance.models.OpenAI!"
+            )
 
         self.client = client_class(**kwargs)
         self.model_name = model
@@ -37,17 +50,27 @@ class OpenAIEngine(GrammarlessEngine):
         if tokenizer is None:
             tokenizer = tiktoken.encoding_for_model(model)
 
-        super().__init__(
-            tokenizer, max_streaming_tokens, timeout, compute_log_probs
-        )
+        super().__init__(tokenizer, max_streaming_tokens, timeout, compute_log_probs)
+
 
 class OpenAI(Grammarless):
-    def __init__(self, model, tokenizer=None, echo=True, api_key=None, max_streaming_tokens=1000, timeout=0.5, compute_log_probs=False, engine_class=None, **kwargs):
-        '''Build a new OpenAI model object that represents a model in a given state.
+    def __init__(
+        self,
+        model,
+        tokenizer=None,
+        echo=True,
+        api_key=None,
+        max_streaming_tokens=1000,
+        timeout=0.5,
+        compute_log_probs=False,
+        engine_class=None,
+        **kwargs,
+    ):
+        """Build a new OpenAI model object that represents a model in a given state.
 
         This class automatically subclasses itself into the appropriate OpenAIChat, OpenAIInstruct,
         or OpenAICompletion subclass based on the model name.
-        
+
         Parameters
         ----------
         model : str
@@ -63,14 +86,16 @@ class OpenAI(Grammarless):
             high and we rely either on early stopping on the remote side, or on the grammar terminating causing the
             stream loop to break on the local side. This number needs to be longer than the longest stream you want
             to generate.
-        **kwargs : 
+        **kwargs :
             All extra keyword arguments are passed directly to the `openai.OpenAI` constructor. Commonly used argument
             names include `base_url` and `organization`
-        '''
+        """
 
         if client_class is None:
-            raise Exception("Please install the openai package version >= 1 using `pip install openai -U` in order to use guidance.models.OpenAI!")
-        
+            raise Exception(
+                "Please install the openai package version >= 1 using `pip install openai -U` in order to use guidance.models.OpenAI!"
+            )
+
         # if we are called directly (as opposed to through super()) then we convert ourselves to a more specific subclass if possible
         if self.__class__ is OpenAI:
             found_subclass = None
@@ -80,24 +105,32 @@ class OpenAI(Grammarless):
                 found_subclass = OpenAIChat
 
             # instruct
-            # elif "instruct" in model: # All current OpenAI instruct models behave as Completion models. 
+            # elif "instruct" in model: # All current OpenAI instruct models behave as Completion models.
             #     found_subclass = OpenAIInstruct
 
             # regular completion
             else:
                 found_subclass = OpenAICompletion
-            
+
             # convert to any found subclass
             self.__class__ = found_subclass
-            found_subclass.__init__(self, model, tokenizer=tokenizer, echo=echo, api_key=api_key, max_streaming_tokens=max_streaming_tokens, **kwargs)
-            return # we return since we just ran init above and don't need to run again
+            found_subclass.__init__(
+                self,
+                model,
+                tokenizer=tokenizer,
+                echo=echo,
+                api_key=api_key,
+                max_streaming_tokens=max_streaming_tokens,
+                **kwargs,
+            )
+            return  # we return since we just ran init above and don't need to run again
 
         # this allows us to use a single constructor for all our subclasses
         if engine_class is None:
             engine_map = {
                 OpenAICompletion: OpenAICompletionEngine,
                 OpenAIInstruct: OpenAIInstructEngine,
-                OpenAIChat: OpenAIChatEngine
+                OpenAIChat: OpenAIChatEngine,
             }
             for k in engine_map:
                 if issubclass(self.__class__, k):
@@ -106,19 +139,26 @@ class OpenAI(Grammarless):
 
         super().__init__(
             engine_class(
-                tokenizer=tokenizer, api_key=api_key, max_streaming_tokens=max_streaming_tokens,
-                timeout=timeout, compute_log_probs=compute_log_probs, model=model, **kwargs
+                tokenizer=tokenizer,
+                api_key=api_key,
+                max_streaming_tokens=max_streaming_tokens,
+                timeout=timeout,
+                compute_log_probs=compute_log_probs,
+                model=model,
+                **kwargs,
             ),
-            echo=echo
+            echo=echo,
         )
+
 
 class OpenAICompletion(OpenAI):
     pass
 
+
 class OpenAICompletionEngine(OpenAIEngine):
     def _generator(self, prompt, temperature):
-        
-        self._reset_shared_data(prompt, temperature) # update our shared data state
+
+        self._reset_shared_data(prompt, temperature)  # update our shared data state
 
         try:
             generator = self.client.completions.create(
@@ -126,11 +166,11 @@ class OpenAICompletionEngine(OpenAIEngine):
                 prompt=prompt.decode("utf8"),
                 max_tokens=self.max_streaming_tokens,
                 n=1,
-                top_p=1.0, # TODO: this should be controllable like temp (from the grammar)
-                temperature=temperature, 
-                stream=True
+                top_p=1.0,  # TODO: this should be controllable like temp (from the grammar)
+                temperature=temperature,
+                stream=True,
             )
-        except Exception as e: # TODO: add retry logic
+        except Exception as e:  # TODO: add retry logic
             raise e
 
         for part in generator:
@@ -140,37 +180,43 @@ class OpenAICompletionEngine(OpenAIEngine):
                 chunk = ""
             yield chunk.encode("utf8")
 
+
 class OpenAIInstruct(OpenAI, Instruct):
     def get_role_start(self, name):
         return ""
-    
+
     def get_role_end(self, name):
         if name == "instruction":
             return "<|endofprompt|>"
         else:
-            raise Exception(f"The OpenAIInstruct model does not know about the {name} role type!")
+            raise Exception(
+                f"The OpenAIInstruct model does not know about the {name} role type!"
+            )
+
 
 class OpenAIInstructEngine(OpenAIEngine):
     def _generator(self, prompt, temperature):
         # start the new stream
-        eop_count = prompt.count(b'<|endofprompt|>')
+        eop_count = prompt.count(b"<|endofprompt|>")
         if eop_count > 1:
-            raise Exception("This model has been given multiple instruct blocks or <|endofprompt|> tokens, but this is not allowed!")
-        updated_prompt = prompt + b'<|endofprompt|>' if eop_count == 0 else prompt
+            raise Exception(
+                "This model has been given multiple instruct blocks or <|endofprompt|> tokens, but this is not allowed!"
+            )
+        updated_prompt = prompt + b"<|endofprompt|>" if eop_count == 0 else prompt
 
         self._reset_shared_data(updated_prompt, temperature)
 
         try:
             generator = self.client.completions.create(
                 model=self.model_name,
-                prompt=self._shared_state["data"].decode("utf8"), 
-                max_tokens=self.max_streaming_tokens, 
-                n=1, 
-                top_p=1.0, # TODO: this should be controllable like temp (from the grammar)
-                temperature=temperature, 
-                stream=True
+                prompt=self._shared_state["data"].decode("utf8"),
+                max_tokens=self.max_streaming_tokens,
+                n=1,
+                top_p=1.0,  # TODO: this should be controllable like temp (from the grammar)
+                temperature=temperature,
+                stream=True,
             )
-        except Exception as e: # TODO: add retry logic
+        except Exception as e:  # TODO: add retry logic
             raise e
 
         for part in generator:
@@ -180,51 +226,60 @@ class OpenAIInstructEngine(OpenAIEngine):
                 chunk = ""
             yield chunk.encode("utf8")
 
+
 class OpenAIChat(OpenAI, Chat):
     pass
+
 
 class OpenAIChatEngine(OpenAIEngine):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         path = os.path.join(platformdirs.user_cache_dir("guidance"), "openai.tokens")
         self.cache = dc.Cache(path)
-        
+
     def _hash_prompt(self, prompt):
         return hashlib.sha256(f"{prompt}".encode()).hexdigest()
 
     def _generator(self, prompt, temperature):
-        
+
         # find the role tags
         pos = 0
-        role_end = b'<|im_end|>'
+        role_end = b"<|im_end|>"
         messages = []
         found = True
         while found:
 
             # find the role text blocks
             found = False
-            for role_name,start_bytes in (("system", b'<|im_start|>system\n'), ("user", b'<|im_start|>user\n'), ("assistant", b'<|im_start|>assistant\n')):
+            for role_name, start_bytes in (
+                ("system", b"<|im_start|>system\n"),
+                ("user", b"<|im_start|>user\n"),
+                ("assistant", b"<|im_start|>assistant\n"),
+            ):
                 if prompt[pos:].startswith(start_bytes):
                     pos += len(start_bytes)
                     end_pos = prompt[pos:].find(role_end)
                     if end_pos < 0:
-                        assert role_name == "assistant", "Bad chat format! Last role before gen needs to be assistant!"
+                        assert (
+                            role_name == "assistant"
+                        ), "Bad chat format! Last role before gen needs to be assistant!"
                         break
-                    btext = prompt[pos:pos+end_pos]
+                    btext = prompt[pos : pos + end_pos]
                     pos += end_pos + len(role_end)
-                    messages.append({"role": role_name, "content": btext.decode("utf8")})
+                    messages.append(
+                        {"role": role_name, "content": btext.decode("utf8")}
+                    )
                     found = True
                     break
-        
-        
-        
+
         # Add nice exception if no role tags were used in the prompt.
         # TODO: Move this somewhere more general for all chat models?
         if messages == []:
-            raise ValueError(f"The OpenAI model {self.model_name} is a Chat-based model and requires role tags in the prompt! \
+            raise ValueError(
+                f"The OpenAI model {self.model_name} is a Chat-based model and requires role tags in the prompt! \
             Make sure you are using guidance context managers like `with system():`, `with user():` and `with assistant():` \
-            to appropriately format your guidance program for this type of model.")
-  
+            to appropriately format your guidance program for this type of model."
+            )
 
         # Update shared data state
         self._reset_shared_data(prompt[:pos], temperature)
@@ -246,9 +301,9 @@ class OpenAIChatEngine(OpenAIEngine):
                 messages=messages,
                 max_tokens=self.max_streaming_tokens,
                 n=1,
-                top_p=1.0,# TODO: this should be controllable like temp (from the grammar)
+                top_p=1.0,  # TODO: this should be controllable like temp (from the grammar)
                 temperature=temperature,
-                stream=True
+                stream=True,
             )
 
             if temperature == 0:
@@ -269,5 +324,5 @@ class OpenAIChatEngine(OpenAIEngine):
             if temperature == 0:
                 self.cache[cache_key] = cached_results
 
-        except Exception as e: # TODO: add retry logic
+        except Exception as e:  # TODO: add retry logic
             raise e

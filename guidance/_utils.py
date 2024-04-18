@@ -10,32 +10,44 @@ import textwrap
 import sys
 import numpy as np
 
+
 class _Rewrite(ast.NodeTransformer):
     def visit_Constant(self, node):
         if isinstance(node.value, str) and node.lineno < node.end_lineno:
-            self.start_counts[node.lineno-1] += 1
-            start_line = self.source_lines[node.lineno-1]
-            start_string = start_line[node.col_offset:]
-            
+            self.start_counts[node.lineno - 1] += 1
+            start_line = self.source_lines[node.lineno - 1]
+            start_string = start_line[node.col_offset :]
+
             # check for literal multiline strings
-            if start_string.startswith("f'''") or start_string.startswith("'''") or start_string.startswith('f"""') or start_string.startswith('"""'):
-                
+            if (
+                start_string.startswith("f'''")
+                or start_string.startswith("'''")
+                or start_string.startswith('f"""')
+                or start_string.startswith('"""')
+            ):
+
                 # track our indentation level
-                if self.indentation[node.lineno-1] is None:
-                    indent = start_line[:len(start_line) - len(start_line.lstrip())]
-                    for i in range(node.lineno-1, node.end_lineno):
+                if self.indentation[node.lineno - 1] is None:
+                    indent = start_line[: len(start_line) - len(start_line.lstrip())]
+                    for i in range(node.lineno - 1, node.end_lineno):
                         self.indentation[i] = indent
-                indent = self.indentation[node.lineno-1]
+                indent = self.indentation[node.lineno - 1]
 
                 # strip indentation when it is consistent
                 lines = node.value.split("\n")
                 fail = False
                 new_lines = []
-                for i,line in enumerate(lines):
-                    if (i == 0 and (self.start_counts[node.lineno-1] > 1 or not start_line.endswith("\\"))) or line == "":
+                for i, line in enumerate(lines):
+                    if (
+                        i == 0
+                        and (
+                            self.start_counts[node.lineno - 1] > 1
+                            or not start_line.endswith("\\")
+                        )
+                    ) or line == "":
                         new_lines.append(line)
                     elif line.startswith(indent):
-                        new_lines.append(line[len(indent):])
+                        new_lines.append(line[len(indent) :])
                     # elif (i == 0 and line.endswith("\\")) or line == "":
                     #     new_lines.append(line)
                     else:
@@ -45,22 +57,30 @@ class _Rewrite(ast.NodeTransformer):
                     node.value = "\n".join(new_lines)
 
         return node
-class normalize_notebook_stdout_stderr():
-    '''Remaps stdout and stderr back to their normal selves from what ipykernel did to them.
-    
+
+
+class normalize_notebook_stdout_stderr:
+    """Remaps stdout and stderr back to their normal selves from what ipykernel did to them.
+
     Based on: https://github.com/ipython/ipykernel/issues/795
-    '''
+    """
 
     def __enter__(self):
         normal_stdout = sys.__stdout__.fileno()
         self.restore_stdout = None
-        if getattr(sys.stdout, "_original_stdstream_copy", normal_stdout) != normal_stdout:
+        if (
+            getattr(sys.stdout, "_original_stdstream_copy", normal_stdout)
+            != normal_stdout
+        ):
             self.restore_stdout = sys.stdout._original_stdstream_copy
             sys.stdout._original_stdstream_copy = normal_stdout
 
         normal_stderr = sys.__stderr__.fileno()
         self.restore_stderr = None
-        if getattr(sys.stderr, "_original_stdstream_copy", normal_stderr) != normal_stderr:
+        if (
+            getattr(sys.stderr, "_original_stdstream_copy", normal_stderr)
+            != normal_stderr
+        ):
             self.restore_stderr = sys.stderr._original_stdstream_copy
             sys.stderr._original_stdstream_copy = normal_stderr
 
@@ -70,19 +90,33 @@ class normalize_notebook_stdout_stderr():
         if self.restore_stderr is not None:
             sys.stderr._original_stdstream_copy = self.restore_stderr
 
+
 def strip_multiline_string_indents(f):
 
     source = textwrap.dedent(inspect.getsource(f))
-    blanks = '\n' * f.__code__.co_firstlineno # padd the source so the lines in the file line up for the debugger
-    source = blanks + '\n'.join(source.splitlines()[1:]) # remove the decorator first line.
-    
+    blanks = (
+        "\n" * f.__code__.co_firstlineno
+    )  # padd the source so the lines in the file line up for the debugger
+    source = blanks + "\n".join(
+        source.splitlines()[1:]
+    )  # remove the decorator first line.
+
     # define the external closure variables so f.__closure__ will match our recompiled version
     if len(f.__code__.co_freevars) > 0:
-        raise Exception("You currently must use @guidance(dedent=False) for closure functions (function nested within other functions that reference the outer functions variables)!")
+        raise Exception(
+            "You currently must use @guidance(dedent=False) for closure functions (function nested within other functions that reference the outer functions variables)!"
+        )
         lines = source.split("\n")
         lines[0] = "def __outer__closure_wrap():"
-        lines[1] = "    " + ",".join(f.__code__.co_freevars) + " = " + ",".join("None" for _ in f.__code__.co_freevars)
-        source = "    \n".join(lines) # TODO: this does not quite work because new_code_obj is now the __outer__closure_wrap() function...could be fixed with work...
+        lines[1] = (
+            "    "
+            + ",".join(f.__code__.co_freevars)
+            + " = "
+            + ",".join("None" for _ in f.__code__.co_freevars)
+        )
+        source = "    \n".join(
+            lines
+        )  # TODO: this does not quite work because new_code_obj is now the __outer__closure_wrap() function...could be fixed with work...
 
     old_code_obj = f.__code__
     old_ast = ast.parse(source)
@@ -92,7 +126,7 @@ def strip_multiline_string_indents(f):
     r.start_counts = [0 for l in r.source_lines]
     # r._avoid_backslashes = True
     new_ast = r.visit(old_ast)
-    new_code_obj = compile(new_ast, old_code_obj.co_filename, 'exec')
+    new_code_obj = compile(new_ast, old_code_obj.co_filename, "exec")
 
     # find the code block
     for i in range(len(new_code_obj.co_consts)):
@@ -105,19 +139,21 @@ def strip_multiline_string_indents(f):
         f.__globals__,
         name=f.__name__,
         argdefs=f.__defaults__,
-        closure=f.__closure__
+        closure=f.__closure__,
     )
     new_f.__kwdefaults__ = f.__kwdefaults__
     return new_f
 
-class CaptureEvents():
+
+class CaptureEvents:
     """Creates a scope where all the events are captured in a queue.
-    
+
     Note that this does not stop the events from being captured by higher level scopes.
     """
+
     def __init__(self, lm):
         self.lm = lm
-    
+
     def __enter__(self):
         self.lm._event_queue = queue.Queue()
         return self.lm._event_queue
@@ -125,8 +161,11 @@ class CaptureEvents():
     def __exit__(self, type, value, traceback):
         self.lm._event_queue = None
 
-class JupyterComm():
-    def __init__(self, target_id, ipython_handle, callback=None, on_open=None, mode="register"):
+
+class JupyterComm:
+    def __init__(
+        self, target_id, ipython_handle, callback=None, on_open=None, mode="register"
+    ):
         from ipykernel.comm import Comm
 
         self.target_name = "guidance_interface_target_" + target_id
@@ -151,7 +190,9 @@ class JupyterComm():
                 self.open_event.set()
                 self._fire_callback({"content": {"data": {"event": "opened"}}})
 
-            self.ipython_handle.kernel.comm_manager.register_target(self.target_name, comm_opened)
+            self.ipython_handle.kernel.comm_manager.register_target(
+                self.target_name, comm_opened
+            )
             # get_ipython().kernel.comm_manager.register_target(self.target_name, comm_opened) # noqa: F821
         elif mode == "open":
             # log("OPENING", self.target_name)
@@ -196,7 +237,8 @@ class JupyterComm():
 # https://stackoverflow.com/questions/15411967/how-can-i-check-if-code-is-executed-in-the-ipython-notebook
 def is_interactive():
     import __main__ as main
-    return not hasattr(main, '__file__')
+
+    return not hasattr(main, "__file__")
 
 
 def log_softmax(array: np.ndarray, axis: int = -1) -> np.ndarray:
@@ -209,7 +251,7 @@ def log_softmax(array: np.ndarray, axis: int = -1) -> np.ndarray:
     subtract_maxs = array - array_maxs
     exp = np.exp(subtract_maxs)
     # suppress warnings about log of zero
-    with np.errstate(divide='ignore'):
+    with np.errstate(divide="ignore"):
         summed = np.sum(exp, axis=axis, keepdims=True)
         out = np.log(summed)
     return subtract_maxs - out

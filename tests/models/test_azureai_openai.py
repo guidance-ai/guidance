@@ -2,8 +2,7 @@ import os
 
 import pytest
 
-from guidance import models, gen, system, user, assistant
-
+from guidance import assistant, gen, models, system, user
 
 # Everything in here needs credentials to work
 # Mark is configured in pyproject.toml

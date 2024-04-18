@@ -6,8 +6,8 @@ import pydantic
 import pytest
 from pydantic.json_schema import to_jsonable_python as pydantic_to_jsonable_python
 
-from guidance import models
 from guidance import json as gen_json
+from guidance import models
 from guidance._parser import ParserException
 
 
