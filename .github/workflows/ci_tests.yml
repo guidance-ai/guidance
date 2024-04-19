@@ -24,11 +24,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
+        shell: bash
+        run: curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.75.0
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
