@@ -7,10 +7,22 @@ from setuptools_rust import Binding, RustExtension
 
 here = os.path.abspath(os.path.dirname(__file__))
 
+instal_requires = [
+    "diskcache",
+    "numpy",
+    "openai>=1.0",
+    "ordered_set",
+    "platformdirs",
+    "pyformlang",
+    "protobuf",
+    "requests",
+    "tiktoken>=0.3",
+]
+
 # Our basic list of 'extras'
 extras_requires = {
     "schemas": ["jsonschema", "pydantic"],
-    "server": ["fastapi", "protobuf", "uvicorn"],
+    "server": ["fastapi", "uvicorn"],
 }
 
 # Create the union of all our requirements
@@ -58,20 +70,21 @@ setup(
     long_description="Guidance enables you to control modern language models more effectively and efficiently than traditional prompting or chaining. Guidance programs allow you to interleave generation, prompting, and logical control into a single continuous flow matching how the language model actually processes the text.",
     packages=find_packages(exclude=["notebooks", "client", "tests", "tests.*"]),
     package_data={"guidance": ["resources/*"]},
-    ext_modules=[Pybind11Extension("guidance.cpp", ["guidance/_cpp/main.cpp", "guidance/_cpp/byte_trie.cpp"])],
-    rust_extensions=[RustExtension("guidance._rust.guidancerust", "guidance/_rust/Cargo.toml", binding=Binding.PyO3)],
+    ext_modules=[
+        Pybind11Extension(
+            "guidance.cpp", ["guidance/_cpp/main.cpp", "guidance/_cpp/byte_trie.cpp"]
+        )
+    ],
+    rust_extensions=[
+        RustExtension(
+            "guidance._rust.guidancerust",
+            "guidance/_rust/Cargo.toml",
+            binding=Binding.PyO3,
+        )
+    ],
     cmdclass={"build_ext": build_ext},
     python_requires=">=3.8",
-    install_requires=[
-        "diskcache",
-        "openai>=1.0",
-        "platformdirs",
-        "tiktoken>=0.3",
-        "requests",
-        "numpy",
-        "ordered_set",
-        "pyformlang",
-    ],
+    install_requires=instal_requires,
     extras_require={
         "all": all_requires,
         "docs": doc_requires,

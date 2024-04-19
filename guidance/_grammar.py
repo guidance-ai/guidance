@@ -3,16 +3,8 @@ import types
 
 from typing import Any, Dict, List, TYPE_CHECKING, TypeVar, Union
 
-try:
-    from . import _serialization_pb2
-    _serialization_pb2_is_imported = True
-except ImportError:
-    if TYPE_CHECKING:
-        raise
-    _serialization_pb2_is_imported = False
-
+from . import _serialization_pb2
 from . import _parser
-from ._utils import _handle_serialization_pb2_import
 
 _T = TypeVar("_T")
 
@@ -231,7 +223,6 @@ class GrammarFunction(Function):
         return "\n".join(lines)
 
     def serialize(self):
-        _handle_serialization_pb2_import(_serialization_pb2_is_imported)
         g = _serialization_pb2.Grammar()
         index_map = {}
         nodes = {}
@@ -248,7 +239,6 @@ class GrammarFunction(Function):
                     value._rec_create_index_map(index_map)
 
     def _rec_serialize(self, index_map, nodes):
-        _handle_serialization_pb2_import(_serialization_pb2_is_imported)
         if self not in nodes:
             v = self._to_proto(index_map)
             node = _serialization_pb2.GrammarFunction()
@@ -271,7 +261,6 @@ class GrammarFunction(Function):
 
     @classmethod
     def deserialize(cls, serialized_grammar):
-        _handle_serialization_pb2_import(_serialization_pb2_is_imported)
         g = _serialization_pb2.Grammar()
         g.ParseFromString(serialized_grammar)
 
@@ -346,7 +335,6 @@ class Byte(Terminal):
         return False
 
     def _to_proto(self, index_map):
-        _handle_serialization_pb2_import(_serialization_pb2_is_imported)
         data = _serialization_pb2.Byte()
         data.byte = self.byte
         data.hidden = self.hidden
@@ -409,7 +397,6 @@ class ByteRange(Terminal):
         return 1
 
     def _to_proto(self, index_map):
-        _handle_serialization_pb2_import(_serialization_pb2_is_imported)
         data = _serialization_pb2.ByteRange()
         data.byte_range = self.byte_range
         data.hidden = self.hidden
@@ -473,7 +460,6 @@ class ModelVariable(GrammarFunction):
         self.nullable = False
 
     def _to_proto(self, index_map):
-        _handle_serialization_pb2_import(_serialization_pb2_is_imported)
         data = _serialization_pb2.ModelVariable()
         data.hidden = self.hidden
         data.name = self.name
@@ -716,7 +702,6 @@ class Join(GrammarFunction):
         return s
 
     def _to_proto(self, index_map):
-        _handle_serialization_pb2_import(_serialization_pb2_is_imported)
         data = _serialization_pb2.Join()
         data.nullable = self.nullable
         for v in self.values:
@@ -793,7 +778,6 @@ class Select(GrammarFunction):
         return s
 
     def _to_proto(self, index_map):
-        _handle_serialization_pb2_import(_serialization_pb2_is_imported)
         data = _serialization_pb2.Select()
         data.nullable = self.nullable
         for v in self.values:

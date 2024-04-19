@@ -10,12 +10,6 @@ import types
 import numpy as np
 
 
-def _handle_serialization_pb2_import(_serialization_pb2_is_imported: bool):
-    msg = "You must install guidance with the 'server' extra package via 'pip install guidance[server]'"
-    if not _serialization_pb2_is_imported:
-        raise ImportError(msg)
-
-
 class _Rewrite(ast.NodeTransformer):
     def visit_Constant(self, node):
         if isinstance(node.value, str) and node.lineno < node.end_lineno:

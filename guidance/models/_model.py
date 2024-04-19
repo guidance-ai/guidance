@@ -50,16 +50,7 @@ from .._grammar import (
     select,
 )
 
-
-try:
-    from .. import _serialization_pb2
-
-    _serialization_pb2_is_imported = True
-except ImportError:
-    if TYPE_CHECKING:
-        raise
-    _serialization_pb2_is_imported = False
-
+from .. import _serialization_pb2
 
 if TYPE_CHECKING:
     from ..library._block import ContextBlock
@@ -161,7 +152,6 @@ class EngineCallResponse:
         Returns:
             engine_response_pb2.EngineCallResponse: The Protobuf equivalent of this object.
         """
-        _handle_serialization_pb2_import(_serialization_pb2_is_imported)
         return _serialization_pb2.EngineCallResponse(
             new_bytes=self.new_bytes,
             is_generated=self.is_generated,
@@ -181,7 +171,6 @@ class EngineCallResponse:
 
     @staticmethod
     def deserialize(byte_data):
-        _handle_serialization_pb2_import(_serialization_pb2_is_imported)
         proto = _serialization_pb2.EngineCallResponse()
         proto.ParseFromString(byte_data)
         return EngineCallResponse(
