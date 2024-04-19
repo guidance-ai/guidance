@@ -3,12 +3,15 @@ import re
 import codecs
 from setuptools import setup, find_packages
 from pybind11.setup_helpers import Pybind11Extension, build_ext
+from setuptools_rust import Binding, RustExtension
 
 here = os.path.abspath(os.path.dirname(__file__))
+
 
 def read(*parts):
     with codecs.open(os.path.join(here, *parts), "r") as fp:
         return fp.read()
+
 
 def find_version(*file_paths):
     version_file = read(*file_paths)
@@ -16,6 +19,7 @@ def find_version(*file_paths):
     if version_match:
         return version_match.group(1)
     raise RuntimeError("Unable to find version string.")
+
 
 setup(
     name="guidance",
@@ -28,6 +32,7 @@ setup(
     packages=find_packages(exclude=["notebooks", "client", "tests", "tests.*"]),
     package_data={"guidance": ["resources/*"]},
     ext_modules=[Pybind11Extension("guidance.cpp", ["guidance/_cpp/main.cpp", "guidance/_cpp/byte_trie.cpp"])],
+    rust_extensions=[RustExtension("guidance._rust.guidancerust", "guidance/_rust/Cargo.toml", binding=Binding.PyO3)],
     cmdclass={"build_ext": build_ext},
     python_requires=">=3.8",
     install_requires=[
@@ -41,25 +46,23 @@ setup(
         "pyformlang",
         "protobuf",
         "fastapi",
-        "uvicorn"
+        "uvicorn",
     ],
     extras_require={
-        'docs': [
-            'ipython',
-            'numpydoc',
-            'sphinx_rtd_theme',
-            'sphinx',
-            'nbsphinx'
-        ],
-        'test': [
+        "docs": ["ipython", "numpydoc", "sphinx_rtd_theme", "sphinx", "nbsphinx"],
+        "test": [
             "jsonschema",
             "jupyter",
             "papermill",
-            'pytest',
-            'pytest-cov',
-            'torch',
-            'transformers',
-        ]
+            "pytest",
+            "pytest-cov",
+            "torch",
+            "transformers",
+            "mypy==1.9.0",
+            "types-protobuf",
+            "types-regex",
+            "types-requests",
+            "types-jsonschema",
+        ],
     },
-    
 )

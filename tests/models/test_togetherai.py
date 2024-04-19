@@ -1,6 +1,8 @@
 import pytest
+
 import guidance
-from guidance import gen, select, user, system, assistant
+from guidance import assistant, gen, select, system, user
+
 
 def test_togetherai_basic():
     try:
@@ -8,7 +10,7 @@ def test_togetherai_basic():
     except:
         pytest.skip("Skipping TogetherAI test because we can't load the model!")
     lm += "Count to 20: 1,2,3,4,"
-    stop = '\n'
+    stop = "\n"
     lm += f"""{gen(max_tokens=1, stop=stop, name="text")}"""
     assert str(lm)[-1] == "5"
 
@@ -20,7 +22,7 @@ def test_togetherai_select():
         pytest.skip("Skipping TogetherAI test because we can't load the model!")
     nums = ["1", "11", "111", "1111", "11111", "111111", "1111111"]
     lm += "Pick a number: "
-    lm += select(nums, name='number')
+    lm += select(nums, name="number")
     assert str(lm["number"]) in nums
 
 
@@ -53,17 +55,19 @@ def test_togetherai_chat_without_roles():
 
 def test_togetherai_chat_loop():
     try:
-        model = guidance.models.TogetherAIChat("teknium/OpenHermes-2-Mistral-7B", echo=False)
+        model = guidance.models.TogetherAIChat(
+            "teknium/OpenHermes-2-Mistral-7B", echo=False
+        )
     except:
         pytest.skip("Skipping TogetherAI test because we can't load the model!")
 
     with system():
         lm = model + "You will just return whatever number I give you"
-    
+
     for i in range(2):
         with user():
-            lm += f'The number is: {i}'
-        
+            lm += f"The number is: {i}"
+
         with assistant():
-            lm += gen(name='answer', max_tokens=10)
+            lm += gen(name="answer", max_tokens=10)
     assert len(lm["answer"]) > 0

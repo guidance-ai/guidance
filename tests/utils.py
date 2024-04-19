@@ -1,10 +1,8 @@
 import os
-
 from typing import Any
 
-from huggingface_hub import hf_hub_download
-
 import pytest
+from huggingface_hub import hf_hub_download
 
 import guidance
 

@@ -1,6 +1,5 @@
 from typing import Optional
-
-import guidance
+from .._guidance import guidance
 from .._grammar import select, string
 
 
@@ -18,7 +17,6 @@ def prefix_tree(lm, strings, partial_matches=False, name: Optional[str] = None):
             if s[0] not in char_groups:
                 char_groups[s[0]] = []
             char_groups[s[0]].append(s[1:])
-    print(f"prefix_tree: {strings}  {char_groups=}")
 
     # enable any empty followup if partial matches are allowed
     if partial_matches:
@@ -29,7 +27,6 @@ def prefix_tree(lm, strings, partial_matches=False, name: Optional[str] = None):
         string(k) + prefix_tree(v, partial_matches=partial_matches)
         for k, v in char_groups.items()
     ]
-    print(f"prefix_tree: {strings} {suboptions=}")
 
     # We shouldn't call select if we don't have any choices
     if len(suboptions)==0:

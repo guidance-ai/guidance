@@ -3,6 +3,7 @@ requires = [
     "setuptools>=42",
     "wheel",
     "pybind11>=2.10.0",
+    "setuptools-rust",
 ]
 build-backend = "setuptools.build_meta"
 
@@ -20,3 +21,52 @@ target_version = ['py38', 'py39', 'py310', 'py311', 'py312']
 
 [tool.isort]
 profile = "black"
+
+[tool.mypy]
+no_implicit_optional = false  # TODO: PEP484, set to true
+strict = false  # TODO: set to true
+exclude = ["tests"]
+
+[[tool.mypy.overrides]]
+module = "pyformlang.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "pybind11.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "vertexai.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "google.generativeai.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "google.ai.generativelanguage.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "llama_cpp.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "anthropic.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "litellm.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "transformers.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "diskcache.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "tokenizers.*"
+ignore_missing_imports = true

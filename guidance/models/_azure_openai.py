@@ -1,3 +1,4 @@
+from typing import Type
 from urllib.parse import parse_qs, urlparse
 
 from ._grammarless import Grammarless
@@ -10,6 +11,7 @@ from ._openai import (
 
 try:
     import openai as openai_package
+
     is_openai = True
 except ModuleNotFoundError:
     is_openai = False
@@ -17,7 +19,7 @@ except ModuleNotFoundError:
 
 class AzureOpenAI(Grammarless):
     """Represents an Azure OpenAI model as exposed through their remote API.
-    
+
     Note that because this uses a remote API endpoint without built-in guidance support
     there are some things we cannot do, like force the model to follow a pattern inside
     a chat role block.
@@ -58,7 +60,7 @@ class AzureOpenAI(Grammarless):
         if self.__class__ is AzureOpenAI:
             # chat
             if parsed_url.path.endswith("/chat/completions"):
-                found_subclass = AzureOpenAIChat
+                found_subclass: Type[AzureOpenAI] = AzureOpenAIChat
             # regular completion
             else:
                 found_subclass = AzureOpenAICompletion

@@ -1,10 +1,13 @@
-from typing import Any, Callable, Mapping, Optional, Sequence, Union
+from typing import Any, Callable, Dict, Mapping, Optional, Sequence, Union, Type
 from json import dumps as json_dumps
+from jsonschema.validators import Draft202012Validator
+import pydantic
 
-import guidance
-from guidance.library import char_range, one_or_more, optional, zero_or_more
+from .._guidance import guidance
+from ..library import char_range, one_or_more, optional, zero_or_more
 
-from .._grammar import GrammarFunction, select
+from .._grammar import GrammarFunction, select, capture
+from ._pydantic import pydantic_to_json_schema
 
 
 def _to_compact_json(target: Any) -> str:
@@ -133,13 +136,17 @@ def _gen_json_array(
         )
 
     if max_items is not None and max_items < min_items:
-        raise ValueError(f"maxItems ({max_items}) can't be less than minItems ({min_items})")
+        raise ValueError(
+            f"maxItems ({max_items}) can't be less than minItems ({min_items})"
+        )
 
     required_items = []
     optional_items = []
 
     # If max_items is None, we can add an infinite tail of items later
-    n_to_add = max(len(prefix_items_schema), min_items) if max_items is None else max_items
+    n_to_add = (
+        max(len(prefix_items_schema), min_items) if max_items is None else max_items
+    )
     for i in range(n_to_add):
         if i < len(prefix_items_schema):
             schema = prefix_items_schema[i]
@@ -159,7 +166,7 @@ def _gen_json_array(
     if max_items is None and item_schema is not None:
         # Add an infinite tail of items
         item = _gen_json(json_schema=item_schema, definitions=definitions)
-        optional_items.append(item + zero_or_more(',' + item))
+        optional_items.append(item + zero_or_more("," + item))
 
     lm += "["
 
@@ -167,26 +174,25 @@ def _gen_json_array(
         first, *rest = required_items
         lm += first
         for item in rest:
-            lm += ',' + item
+            lm += "," + item
 
     if optional_items:
         # This is a bit subtle and would not be required if not for prefixItems -- the previous
         # must be present before the next one may be added, meaning we have nested optionals:
         # (first optional(,second optional(,third (optional(,...)))))
         first, *rest = optional_items
-        tail = ''
+        tail = ""
         for item in reversed(rest):
-            tail = optional(',' + item + tail)
+            tail = optional("," + item + tail)
         tail = first + tail
 
         if required_items:
-            lm += optional(',' + tail)
+            lm += optional("," + tail)
         else:
             lm += optional(tail)
 
     lm += "]"
     return lm
-
 
 
 @guidance(stateless=True)
@@ -270,19 +276,32 @@ def json(
     lm,
     name: Optional[str] = None,
     *,
-    schema: Mapping[str, Any],
+    schema: Union[Mapping[str, Any], Type[pydantic.BaseModel], pydantic.TypeAdapter],
 ):
-    """Generate tokens according to the supplied JSON schema.
+    """Generate valid JSON according to the supplied JSON schema or `pydantic` model.
 
     Not all parts of JSON schema (https://json-schema.org/) are supported. Indeed some parts
     (such as bounds on numbers) cannot really be supported in the context of LLM generation.
 
+    Using a JSON schema:
     >>> schema = ''{ "type": "object", "properties": { "a" : {"type": "integer"} } }'
     >>> schema_obj = json.loads(schema)
     >>> lm += json(name="generated_object", schema=schema_obj)
     >>> print(json.loads(lm["generated_object"]))
-    { "a" : 2 }
+    { 'a' : 2 }
 
+    Using a `pydantic.BaseModel`:
+    >>> class Schema(BaseModel):
+    ...     b: bool
+    >>> lm += json(name="generated_object", schema=Schema)
+    >>> print(json.loads(lm["generated_object"]))
+    { 'b' : False }
+
+    Using a `pydantic.TypeAdapter`:
+    >>> schema = TypeAdapter(list[int])
+    >>> lm += json(name="generated_object", schema=schema)
+    >>> print(json.loads(lm["generated_object"]))
+    [1, 2, 3]
 
     Parameters
     ----------
@@ -291,21 +310,31 @@ def json(
         If this is not None then the the results of the generation will be saved as a variable on
         the Model object (so you can access the result as `lm["var_name"]`).
 
-    schema : Mapping[str, Any]
-        A JSON schema object. This is a JSON schema string which has been passed to `json.loads()`.
+    schema : Union[Mapping[str, Any], Type[pydantic.BaseModel], pydantic.TypeAdapter]
+        One of:
+            - A JSON schema object. This is a JSON schema string which has been passed to `json.loads()`.
+            - A subclass of `pydantic.BaseModel`
+            - An instance of `pydantic.TypeAdapter`
     """
+    if isinstance(schema, Mapping):
+        # Raises jsonschema.exceptions.SchemaError or ValueError
+        # if schema is not valid
+        Draft202012Validator.check_schema(schema)
+    else:
+        schema = pydantic_to_json_schema(schema)
+
     _DEFS_KEY = "$defs"
-    definitions = {}
+    definitions: Mapping[str, Callable[[], GrammarFunction]] = {}
     if _DEFS_KEY in schema:
         definitions = _build_definitions(schema[_DEFS_KEY])
 
-    return lm + guidance.capture(_gen_json(schema, definitions), name=name)
+    return lm + capture(_gen_json(schema, definitions), name=name)
 
 
 def _build_definitions(
     raw_definitions: Mapping[str, Any]
 ) -> Mapping[str, Callable[[], GrammarFunction]]:
-    definitions = {}
+    definitions: Dict[str, Callable[[], GrammarFunction]] = {}
 
     def build_definition(
         json_schema: Mapping[str, Any]

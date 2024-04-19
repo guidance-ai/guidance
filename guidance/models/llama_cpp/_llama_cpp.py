@@ -13,6 +13,7 @@ from ..._utils import normalize_notebook_stdout_stderr
 
 try:
     import llama_cpp
+
     is_llama_cpp = True
 except ModuleNotFoundError:
     is_llama_cpp = False
@@ -20,11 +21,16 @@ except ModuleNotFoundError:
 logger = logging.getLogger(__name__)
 
 shutdown_none = True
+
+
 def set_shutdown_flag():
     global shutdown_none
     # python can set anything to None at shutdown, so use None
-    shutdown_none = None 
+    shutdown_none = None
+
+
 atexit.register(set_shutdown_flag)
+
 
 class _LlamaBatchContext:
     def __init__(self, n_batch, n_ctx):
@@ -42,37 +48,43 @@ class _LlamaBatchContext:
                 self.batch = None
                 llama_batch_free(batch)
 
+
 class LlamaCppTokenizer(Tokenizer):
     def __init__(self, model_obj):
         self._model_obj = model_obj
 
         tokenizer = llama_cpp.LlamaTokenizer(model_obj)
-        if not hasattr(tokenizer, 'llama'):
+        if not hasattr(tokenizer, "llama"):
             tokenizer.llama = tokenizer._model
 
         # get the bytes strings for all the tokens
         tokens = []
         for i in range(tokenizer.llama.n_vocab()):
-            tok = tokenizer.llama.detokenize([i]) # note that detokenize returns bytes directly
-            if tok == b'':
-                tok = llama_cpp.llama_token_get_text(model_obj.model, i) # get text rep of special tokens
+            tok = tokenizer.llama.detokenize(
+                [i]
+            )  # note that detokenize returns bytes directly
+            if tok == b"":
+                tok = llama_cpp.llama_token_get_text(
+                    model_obj.model, i
+                )  # get text rep of special tokens
             tokens.append(tok)
 
         super().__init__(
-            tokens,
-            tokenizer.llama.token_bos(),
-            tokenizer.llama.token_eos()
+            tokens, tokenizer.llama.token_bos(), tokenizer.llama.token_eos()
         )
 
     def __call__(self, byte_string):
         return self._model_obj.tokenize(byte_string, add_bos=False, special=True)
 
+
 class LlamaCppEngine(Engine):
-    '''The core class that runs inference using llama.cpp.'''
+    """The core class that runs inference using llama.cpp."""
 
     def __init__(self, model, compute_log_probs, **kwargs):
         if not is_llama_cpp:
-            raise Exception("Please install llama-cpp-python with `pip install llama-cpp-python` in order to use guidance.models.LlamaCpp!")
+            raise Exception(
+                "Please install llama-cpp-python with `pip install llama-cpp-python` in order to use guidance.models.LlamaCpp!"
+            )
 
         if isinstance(model, Path):
             model = str(model)
@@ -80,12 +92,14 @@ class LlamaCppEngine(Engine):
             model = os.environ.get("LLAMA_CPP_MODEL", "")
             if len(model.strip()) == 0:
                 try:
-                    with open(os.path.expanduser('~/.llama_cpp_model'), 'r') as file:
-                        model = file.read().replace('\n', '')
+                    with open(os.path.expanduser("~/.llama_cpp_model"), "r") as file:
+                        model = file.read().replace("\n", "")
                 except:
                     pass
                 if len(model.strip()) == 0:
-                    raise ValueError("If model is None then a model file must be specified in either the LLAMA_CPP_MODEL environment variable or in the ~/.llama_cpp_model file.")
+                    raise ValueError(
+                        "If model is None then a model file must be specified in either the LLAMA_CPP_MODEL environment variable or in the ~/.llama_cpp_model file."
+                    )
 
         if isinstance(model, str):
             self.model = model
@@ -96,8 +110,12 @@ class LlamaCppEngine(Engine):
             try:
                 sys.stdout.fileno()
             except:
-                logger.warn("Cannot use verbose=True in this context (probably CoLab). See https://github.com/abetlen/llama-cpp-python/issues/729")
-                kwargs["verbose"] = True # llama-cpp-python can't hide output in this case
+                logger.warn(
+                    "Cannot use verbose=True in this context (probably CoLab). See https://github.com/abetlen/llama-cpp-python/issues/729"
+                )
+                kwargs["verbose"] = (
+                    True  # llama-cpp-python can't hide output in this case
+                )
 
             with normalize_notebook_stdout_stderr():
                 self.model_obj = llama_cpp.Llama(model_path=model, **kwargs)
@@ -105,44 +123,53 @@ class LlamaCppEngine(Engine):
             self.model = model.__class__.__name__
             self.model_obj = model
         else:
-            raise TypeError("model must be None, a file path string, or a llama_cpp.Llama object.")
+            raise TypeError(
+                "model must be None, a file path string, or a llama_cpp.Llama object."
+            )
 
-        self._context = _LlamaBatchContext(self.model_obj.n_batch, self.model_obj.n_ctx())
+        self._context = _LlamaBatchContext(
+            self.model_obj.n_batch, self.model_obj.n_ctx()
+        )
         self._cache_token_ids = []
 
         super().__init__(
-            LlamaCppTokenizer(self.model_obj),
-            compute_log_probs=compute_log_probs
+            LlamaCppTokenizer(self.model_obj), compute_log_probs=compute_log_probs
         )
 
         self._n_vocab = len(self.tokenizer.tokens)
 
     def _joint_tokenize(self, token_ids):
-        '''What a full joint tokenizer would give for a given byte string'''
+        """What a full joint tokenizer would give for a given byte string"""
         byte_string = b"".join([self.tokenizer.tokens[t] for t in token_ids])
         return self.tokenizer(byte_string)
 
     def get_logits(self, token_ids, forced_bytes, current_temp):
-        '''Computes the logits for the given token state.
-        
+        """Computes the logits for the given token state.
+
         This overrides a method from the LocalEngine class that is used to get
         inference results from the model.
-        '''
+        """
 
         if len(token_ids) == 0:
             raise ValueError("token_ids must contain some tokens.")
 
         # check what we have already cached
         cache_token_ids = self._cache_token_ids
-        num_cached = sum(takewhile(operator.truth, map(operator.eq, token_ids, cache_token_ids)))
+        num_cached = sum(
+            takewhile(operator.truth, map(operator.eq, token_ids, cache_token_ids))
+        )
         if num_cached == len(token_ids):
             if num_cached == len(cache_token_ids):
                 return self._cached_logits
-            num_cached = num_cached - 1 # llama_cpp doesn't like it when we pass in 0 new tokens, so re-input one
-        
+            num_cached = (
+                num_cached - 1
+            )  # llama_cpp doesn't like it when we pass in 0 new tokens, so re-input one
+
         # make sure we don't run off the end of the model's context
         if self.model_obj.n_ctx() <= len(token_ids):
-            raise Exception(f"Attempted to use a context length of {len(token_ids)} tokens, but this LlamaCpp model is only configured to support up to {self.model_obj.n_ctx()}!")
+            raise Exception(
+                f"Attempted to use a context length of {len(token_ids)} tokens, but this LlamaCpp model is only configured to support up to {self.model_obj.n_ctx()}!"
+            )
 
         self._cache_token_ids = token_ids.copy()
 
@@ -178,19 +205,26 @@ class LlamaCppEngine(Engine):
 
         return logits
 
+
 class LlamaCpp(Model):
-    def __init__(self, model=None, echo=True, compute_log_probs=False, api_key=None, **llama_cpp_kwargs):
-        '''Build a new LlamaCpp model object that represents a model in a given state.'''
+    def __init__(
+        self,
+        model=None,
+        echo=True,
+        compute_log_probs=False,
+        api_key=None,
+        **llama_cpp_kwargs,
+    ):
+        """Build a new LlamaCpp model object that represents a model in a given state."""
 
         if isinstance(model, str) and model.startswith("http"):
             engine = RemoteEngine(model, api_key=api_key, **llama_cpp_kwargs)
         else:
-            engine = LlamaCppEngine(model, compute_log_probs=compute_log_probs, **llama_cpp_kwargs)
+            engine = LlamaCppEngine(
+                model, compute_log_probs=compute_log_probs, **llama_cpp_kwargs
+            )
 
-        super().__init__(
-            engine,
-            echo=echo
-        )
+        super().__init__(engine, echo=echo)
 
 
 class LlamaCppChat(LlamaCpp, Chat):
@@ -202,12 +236,12 @@ class LlamaCppChat(LlamaCpp, Chat):
                 return ""
             else:
                 return "[INST] "
-        
+
         elif role_name == "assistant":
             return " "
-        
+
         elif role_name == "system":
-            
+
             # check if we are already embedded at the top of a user role
             if self._current_prompt().endswith("[INST] "):
                 return "<<SYS>>\n"
@@ -215,7 +249,7 @@ class LlamaCppChat(LlamaCpp, Chat):
             # if not then we auto nest ourselves
             else:
                 return "[INST] <<SYS>>\n"
-    
+
     def get_role_end(self, role_name=None):
         if role_name == "user":
             return " [/INST]"
