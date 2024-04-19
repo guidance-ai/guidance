@@ -12,7 +12,6 @@ install_requires = [
     "numpy",
     "ordered_set",
     "platformdirs",
-    "pydantic",
     "pyformlang",
     "protobuf",
     "requests",
@@ -23,7 +22,7 @@ install_requires = [
 extras_requires = {
     "azureai": ["openai>=1.0"],
     "openai": ["openai>=1.0"],
-    "schemas": ["jsonschema"],
+    "schemas": ["jsonschema", "pydantic"],
     "server": ["fastapi", "uvicorn"],
 }
 

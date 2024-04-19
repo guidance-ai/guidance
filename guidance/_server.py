@@ -9,23 +9,27 @@ try:
     from fastapi import FastAPI, HTTPException, Security
     from fastapi.security import APIKeyHeader
     from fastapi.responses import StreamingResponse
+
+    
+    class GuidanceRequest(pydantic.BaseModel):
+        parser: str = pydantic.Field(
+            title="parser",
+            description="The text generated so far by the guidance program",
+        )
+        grammar: str = pydantic.Field(
+            title="grammar",
+            description="Guidance grammar to constrain the next characters generated",
+        )
+
 except ImportError:
     if TYPE_CHECKING:
         raise
+    class GuidanceRequest:
+        pass
 
 from .models._model import Model, Engine
 from ._grammar import GrammarFunction
 
-
-class GuidanceRequest(pydantic.BaseModel):
-    parser: str = pydantic.Field(
-        title="parser",
-        description="The text generated so far by the guidance program",
-    )
-    grammar: str = pydantic.Field(
-        title="grammar",
-        description="Guidance grammar to constrain the next characters generated",
-    )
 
 
 class Server:
