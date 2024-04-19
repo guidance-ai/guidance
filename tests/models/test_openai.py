@@ -2,11 +2,10 @@ import pytest
 import tiktoken
 
 import guidance
-from guidance import assistant, capture, gen, select, system, user
-
-from ..utils import get_model
+from guidance import assistant, gen, select, system, user
 
 
+@pytest.importorskip("openai")
 def test_openai_class_detection():
     # TODO: expand this with other variants of openAI models
     test_models = {
@@ -78,6 +77,7 @@ def test_openai_chat():
     assert len(lm["text"]) > 0
 
 
+@pytest.importorskip("openai")
 def test_openai_chat_without_roles():
     # fake model tokenizer and API key to allow this test to run without tiktoken detection errors
     lm = guidance.models.OpenAI(
