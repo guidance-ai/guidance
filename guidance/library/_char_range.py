@@ -1,5 +1,6 @@
 from .._grammar import byte_range
-    
+
+
 def char_range(low, high):
     low_bytes = bytes(low, encoding="utf8")
     high_bytes = bytes(high, encoding="utf8")

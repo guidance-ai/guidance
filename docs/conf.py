@@ -385,7 +385,7 @@ texinfo_documents = [
 
 
 def setup(app):
-    import guidance
+    from guidance import guidance
     app.connect('build-finished', build_finished)
 
 

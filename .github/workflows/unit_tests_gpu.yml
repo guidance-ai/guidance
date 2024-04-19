@@ -18,9 +18,15 @@ jobs:
 
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
       - name: Show GPUs
@@ -50,8 +56,11 @@ jobs:
           python -c "import torch; assert torch.cuda.is_available()"
       - name: Run tests (except server)
         run: |
-          pytest --cov=guidance --cov-report=xml --cov-report=term-missing --selected_model ${{ matrix.model }} -m "not server" -m "not needs_credentials" ./tests/
+          pytest --cov=guidance --cov-report=xml --cov-report=term-missing \
+            --selected_model ${{ matrix.model }} \
+            -m "not (server or needs_credentials)" \
+            ./tests/
       - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}

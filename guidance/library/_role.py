@@ -1,4 +1,4 @@
-import guidance
+from .._guidance import guidance
 from ._block import block
 from ._set_attribute import set_attribute
 
@@ -73,14 +73,39 @@ def role(role_name, text=None, **kwargs):
 
 
 def system(text=None, **kwargs):
+    """Indicate the 'system' prompt
+
+    A convention has grown up around 'chat' APIs that
+    prompts are split into three parts: system, user
+    and assistant.
+    This indicates the start of a 'system' block, which
+    provides background information to the LLM.
+    """
     return role("system", text, **kwargs)
 
 
 def user(text=None, **kwargs):
+    """Indicate the 'user' prompt
+
+    A convention has grown up around 'chat' APIs that
+    prompts are split into three parts: system, user
+    and assistant.
+    This indicates the start of a 'user' block, which
+    provides input to the LLM from the user.
+    """
     return role("user", text, **kwargs)
 
 
 def assistant(text=None, **kwargs):
+    """Indicate the 'assistant' prompt
+
+    A convention has grown up around 'chat' APIs that
+    prompts are split into three parts: system, user
+    and assistant.
+    This indicates the start of an 'assistant' block, which
+    marks LLM response (or where the LLM will generate
+    the next response).
+    """
     return role("assistant", text, **kwargs)
 
 
@@ -90,6 +115,7 @@ def function(text=None, **kwargs):
 
 def instruction(text=None, **kwargs):
     return role("instruction", text, **kwargs)
+
 
 def indent_roles(indent=True):
     return set_attribute("indent_roles", indent)

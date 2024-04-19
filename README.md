@@ -5,9 +5,6 @@
 </picture></div>
 <br/>
 
-
-> *Note that v0.1 is a dramatically new version developed while releases had to be paused over the summer. If you are looking for the old version based on handlebars, you can use v0.0.64, but you should instead try porting over to the much better new version :)*
-
 **`guidance`** is a programming paradigm that offers superior control and efficiency compared to conventional prompting and chaining. It allows users to constrain generation (e.g. with regex and CFGs) as well as to interleave control (conditional, loops) and generation seamlessly. Here are some important features: 
 
 1. **Pure, beautiful python** with additional LM functionality. E.g. here is [basic generation](#basic-generation):
@@ -132,13 +129,19 @@ lm + gen(max_tokens=15, tools=[add, subtract, multiply, divide])
 
 10. **Token healing**: Users deal with text (or bytes) rather than tokens, and thus don't have to worry about [perverse token boundaries issues](https://towardsdatascience.com/the-art-of-prompt-design-prompt-boundaries-and-token-healing-3b2448b0be38) such as 'prompt ending in whitespace'.
 
-11. **Streaming support**, also integrated with jupyter notebooks:
+11. **Streaming support**, also integrated with Jupyter notebooks:
 ```python
 lm = llama2 + 'Here is a cute 5-line poem about cats and dogs:\n'
 for i in range(5):
     lm += f"LINE {i+1}: " + gen(temperature=0.8, suffix="\n")
 ```
 <img src="docs/figures/simple_streaming_example.gif" width="337">
+
+For environments that don't support guidance's rich IPython/Jupyter/HTML based visualizations (e.g. console applications), all visualizations and console outputs can be supressed by setting `echo=False` in the constructor of any `guidance.models` object:
+
+```python
+llama2 = models.LlamaCpp(path, echo=False)
+```
 
 13. **High compatibility:** works with Transformers, llama.cpp, VertexAI, OpenAI. Users can write one guidance program and execute it on many backends. (note that the most powerful control features require endpoint integration, and for now work best with Transformers and llama.cpp).
 ```python
