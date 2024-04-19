@@ -23,9 +23,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - uses: hecrj/setup-rust-action@v2.0.1
-        with:
-          rust-version: 1.75.0
+      - name: Install Rust
+        shell: bash
+        run: |
+           curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.75.0
+           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
