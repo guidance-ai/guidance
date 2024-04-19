@@ -1,38 +1,29 @@
 import inspect
 from typing import Any, Dict, Type, TYPE_CHECKING, Union
 
-pydantic_is_available = False
-try:
-    import pydantic
+import pydantic
 
-    pydantic_is_available = True
-except ImportError:
-    if TYPE_CHECKING:
-        raise
 
-if pydantic_is_available:
-    class GenerateJsonSchemaSafe(pydantic.json_schema.GenerateJsonSchema):
-        """
-        Subclass pydantic's GenerateJsonSchema to catch pydantic schemas that will not
-        translate properly to json schemas used for generation.
+class GenerateJsonSchemaSafe(pydantic.json_schema.GenerateJsonSchema):
+    """
+    Subclass pydantic's GenerateJsonSchema to catch pydantic schemas that will not
+    translate properly to json schemas used for generation.
 
-        In particular, JSON schemas do not offer a way to specify "key type",
-        so we need to raise an exception if users attempt to specify non-string
-        keys through pydantic. Otherwise, they may get unexpected output from
-        model generation.
-        """
+    In particular, JSON schemas do not offer a way to specify "key type",
+    so we need to raise an exception if users attempt to specify non-string
+    keys through pydantic. Otherwise, they may get unexpected output from
+    model generation.
+    """
 
-        def generate_inner(self, schema):
-            if schema["type"] == "dict":
-                key_type = schema["keys_schema"]["type"]
-                if key_type != "str":
-                    raise TypeError(
-                        f"JSON does not support non-string keys, got type {key_type}"
-                    )
-            return super().generate_inner(schema)
-else:
-    class GenerateJsonSchemaSafe:
-        pass
+    def generate_inner(self, schema):
+        if schema["type"] == "dict":
+            key_type = schema["keys_schema"]["type"]
+            if key_type != "str":
+                raise TypeError(
+                    f"JSON does not support non-string keys, got type {key_type}"
+                )
+        return super().generate_inner(schema)
+
 
 def pydantic_to_json_schema(
     schema: Union[Type["pydantic.BaseModel"], "pydantic.TypeAdapter"]
