@@ -14,7 +14,7 @@ AVAILABLE_MODELS = {
     ),
     "hfllama7b": dict(
         name="huggingface_hubllama:TheBloke/Llama-2-7B-GGUF:llama-2-7b.Q5_K_M.gguf",
-        kwargs={"verbose": True},
+        kwargs={"verbose": True, "n_ctx": 4096},
     ),
     "transformers_mistral_7b": dict(
         name="transformers:mistralai/Mistral-7B-v0.1", kwargs=dict()
@@ -30,7 +30,7 @@ AVAILABLE_MODELS = {
     ),
     "hfllama_7b_gpu": dict(
         name="huggingface_hubllama:TheBloke/Llama-2-7B-GGUF:llama-2-7b.Q5_K_M.gguf",
-        kwargs={"verbose": True, "n_gpu_layers": -1},
+        kwargs={"verbose": True, "n_gpu_layers": -1, "n_ctx": 4096},
     ),
 }
 
