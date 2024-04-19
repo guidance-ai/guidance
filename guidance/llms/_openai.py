@@ -158,8 +158,8 @@ class OpenAI(LLM):
 
         # auto detect chat completion mode
         if chat_mode == "auto":
-            # parse to determin if the model need to use the chat completion API
-            chat_model_pattern = r'^(gpt-3\.5-turbo|gpt-4)(-\d+k)?(-\d{4})?(-preview)?$'
+            # parse to determine if the model need to use the chat completion API
+            chat_model_pattern = r'^(gpt-3\.5-turbo|gpt-4|gpt-4-turbo)(-\d+k)?(-\d{4})?(-preview)?$'
             if re.match(chat_model_pattern, model):
                 chat_mode = True
             else:
