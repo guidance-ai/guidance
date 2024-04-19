@@ -1,18 +1,12 @@
 import os
-from pathlib import Path
-import multiprocessing
-from itertools import takewhile
-import operator
-import threading
-import numpy as np
-import queue
-import time
-import tiktoken
 import re
+import typing
+
 import diskcache as dc
 import hashlib
 import platformdirs
-import typing
+import tiktoken
+
 
 from ._model import Chat, Instruct
 from ._grammarless import GrammarlessEngine, Grammarless
