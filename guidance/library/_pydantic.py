@@ -1,9 +1,16 @@
 import inspect
 from typing import Any, Dict, Type, TYPE_CHECKING, Union
 
+pydantic_is_available = False
 try:
     import pydantic
 
+    pydantic_is_available = True
+except ImportError:
+    if TYPE_CHECKING:
+        raise
+
+if pydantic_is_available:
     class GenerateJsonSchemaSafe(pydantic.json_schema.GenerateJsonSchema):
         """
         Subclass pydantic's GenerateJsonSchema to catch pydantic schemas that will not
@@ -23,14 +30,9 @@ try:
                         f"JSON does not support non-string keys, got type {key_type}"
                     )
             return super().generate_inner(schema)
-
-except ImportError:
-    if TYPE_CHECKING:
-        raise
-
+else:
     class GenerateJsonSchemaSafe:
         pass
-
 
 def pydantic_to_json_schema(
     schema: Union[Type["pydantic.BaseModel"], "pydantic.TypeAdapter"]
