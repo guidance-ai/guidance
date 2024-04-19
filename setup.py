@@ -10,7 +10,6 @@ here = os.path.abspath(os.path.dirname(__file__))
 install_requires = [
     "diskcache",
     "numpy",
-    "openai>=1.0",
     "ordered_set",
     "platformdirs",
     "pyformlang",
@@ -21,6 +20,8 @@ install_requires = [
 
 # Our basic list of 'extras'
 extras_requires = {
+    "azureai": ["openai>=1.0"],
+    "openai": ["openai>=1.0"],
     "schemas": ["jsonschema", "pydantic"],
     "server": ["fastapi", "uvicorn"],
 }
