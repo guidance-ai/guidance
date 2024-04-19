@@ -23,7 +23,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - uses: hecrj/setup-rust-action@latest
+      - uses: hecrj/setup-rust-action@v2.0.1
         with:
           rust-version: 1.75.0
       - name: Set up Python ${{ matrix.python-version }}
