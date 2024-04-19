@@ -7,7 +7,7 @@ from setuptools_rust import Binding, RustExtension
 
 here = os.path.abspath(os.path.dirname(__file__))
 
-instal_requires = [
+install_requires = [
     "diskcache",
     "numpy",
     "openai>=1.0",
@@ -84,7 +84,7 @@ setup(
     ],
     cmdclass={"build_ext": build_ext},
     python_requires=">=3.8",
-    install_requires=instal_requires,
+    install_requires=install_requires,
     extras_require={
         "all": all_requires,
         "docs": doc_requires,
