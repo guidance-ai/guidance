@@ -36,7 +36,8 @@ except ImportError:
         "Failed to load guidance.cpp, falling back to Python mirror implementations..."
     )
     from .. import _cpp as cpp
-from .._utils import softmax, CaptureEvents, _handle_serialization_pb2_import
+from .._rust.guidancerust import engine_start
+from .._utils import softmax, CaptureEvents
 from .._parser import EarleyCommitParser, Parser
 from .._grammar import (
     GrammarFunction,
@@ -743,6 +744,9 @@ class Engine:
         """
 
         self.start(parser, grammar, ensure_bos_token)
+
+        # TODO: remove this after the next release. This verifies that calling Rust works.
+        assert("def" == engine_start("abc", "def", 1))
 
         logits = None
         while True:
