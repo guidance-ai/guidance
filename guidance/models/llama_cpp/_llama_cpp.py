@@ -198,7 +198,6 @@ class LlamaCppEngine(Engine):
 
         # get the logits
         logits = llama_cpp.llama_get_logits(self.model_obj.ctx)
-        logits = logits[(n_tokens - 1) * self._n_vocab : n_tokens * self._n_vocab]
         logits = np.ctypeslib.as_array(logits, shape=(self._n_vocab,)).copy()
 
         self._cached_logits = logits
