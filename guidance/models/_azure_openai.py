@@ -9,7 +9,7 @@ from ._openai import (
     OpenAIChatEngine,
     OpenAICompletionEngine,
     OpenAIInstructEngine,
-    chat_model_pattern
+    chat_model_pattern,
 )
 
 try:
@@ -68,8 +68,6 @@ class AzureOpenAI(Grammarless):
                 found_subclass = AzureOpenAIChat
             elif re.match(chat_model_pattern, model):
                 found_subclass = AzureOpenAIChat
-        
-
 
             # convert to any found subclass
             self.__class__ = found_subclass
