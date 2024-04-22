@@ -1,4 +1,7 @@
 import os
+import pathlib
+
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 
@@ -26,6 +29,39 @@ def test_azureai_openai_chat_smoke(rate_limiter):
         model=model, azure_endpoint=azureai_endpoint, api_key=azureai_key
     )
     assert isinstance(lm, models.AzureOpenAIChat)
+
+    with system():
+        lm += "You are a math wiz."
+
+    with user():
+        lm += "What is 1 + 1?"
+
+    with assistant():
+        lm += gen(max_tokens=10, name="text")
+        lm += "Pick a number: "
+
+    print(str(lm))
+    assert len(lm["text"]) > 0
+
+
+def test_azureai_openai_chat_alt_args(rate_limiter):
+    azureai_endpoint = _env_or_fail("AZUREAI_CHAT_ENDPOINT")
+    azureai_key = _env_or_fail("AZUREAI_CHAT_KEY")
+    model = _env_or_fail("AZUREAI_CHAT_MODEL")
+
+    parsed_url = urlparse(azureai_endpoint)
+    parsed_query = parse_qs(parsed_url.query)
+    azureai_deployment = pathlib.Path(parsed_url.path).parts[3]
+    version = parsed_query["api-version"]
+    min_azureai_endpoint = f"{parsed_url.scheme}://{parsed_url.netloc}"
+
+    lm = models.AzureOpenAI(
+        model=model,
+        azure_endpoint=min_azureai_endpoint,
+        version=version,
+        api_key=azureai_key,
+        azure_deployment=azureai_deployment,
+    )
 
     with system():
         lm += "You are a math wiz."

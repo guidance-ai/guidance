@@ -1,7 +1,10 @@
+import pathlib
 import re
 
 from typing import Type
 from urllib.parse import parse_qs, urlparse
+
+import tiktoken
 
 from ._grammarless import Grammarless
 from ._model import Chat, Instruct
@@ -85,6 +88,8 @@ class AzureOpenAI(Grammarless):
             )
             return
 
+        if azure_deployment is None:
+            azure_deployment = pathlib.Path(parsed_url.path).parts[3]
         parsed_query = parse_qs(parsed_url.query)
         api_version = (
             version
@@ -97,6 +102,9 @@ class AzureOpenAI(Grammarless):
             AzureOpenAIInstruct: OpenAIInstructEngine,
         }
         engine_class = engine_map[self.__class__]
+
+        if tokenizer is None:
+            tokenizer = tiktoken.encoding_for_model(model)
 
         engine_instance = engine_class(
             tokenizer=tokenizer,
