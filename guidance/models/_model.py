@@ -1,3 +1,19 @@
+import base64
+import copy
+import html
+import logging
+import queue
+import re
+import threading
+import time
+
+
+from pprint import pprint
+from typing import Dict, TYPE_CHECKING
+
+
+import numpy as np
+
 try:
     from IPython.display import clear_output, display, HTML
 
@@ -10,17 +26,7 @@ try:
     torch_is_imported = True
 except ImportError:
     torch_is_imported = False
-import html
-from pprint import pprint
-import re
-import copy
-import time
-from typing import TYPE_CHECKING, Dict
-import numpy as np
-import logging
-import base64
-import queue
-import threading
+
 
 logger = logging.getLogger(__name__)
 try:
@@ -43,6 +49,7 @@ from .._grammar import (
     unreplace_model_variables,
     select,
 )
+
 from .. import _serialization_pb2
 
 if TYPE_CHECKING:
@@ -145,7 +152,6 @@ class EngineCallResponse:
         Returns:
             engine_response_pb2.EngineCallResponse: The Protobuf equivalent of this object.
         """
-
         return _serialization_pb2.EngineCallResponse(
             new_bytes=self.new_bytes,
             is_generated=self.is_generated,
