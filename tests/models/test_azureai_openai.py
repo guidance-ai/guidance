@@ -92,6 +92,31 @@ def test_azureai_openai_completion_smoke(rate_limiter):
     assert len(result["text"]) > 0
 
 
+def test_azureai_openai_completion_alt_args(rate_limiter):
+    azureai_endpoint = _env_or_fail("AZUREAI_COMPLETION_ENDPOINT")
+    azureai_key = _env_or_fail("AZUREAI_COMPLETION_KEY")
+    model = _env_or_fail("AZUREAI_COMPLETION_MODEL")
+
+    parsed_url = urlparse(azureai_endpoint)
+    parsed_query = parse_qs(parsed_url.query)
+    azureai_deployment = pathlib.Path(parsed_url.path).parts[3]
+    version = parsed_query["api-version"]
+    min_azureai_endpoint = f"{parsed_url.scheme}://{parsed_url.netloc}"
+
+    lm = models.AzureOpenAI(
+        model=model,
+        azure_endpoint=min_azureai_endpoint,
+        version=version,
+        api_key=azureai_key,
+        azure_deployment=azureai_deployment,
+    )
+    assert isinstance(lm, models.AzureOpenAICompletion)
+
+    result = lm + "What is 2+2?" + gen(max_tokens=10, name="text")
+    print(f"result: {result['text']}")
+    assert len(result["text"]) > 0
+
+
 def test_azureai_openai_chat_loop(rate_limiter):
     azureai_endpoint = _env_or_fail("AZUREAI_CHAT_ENDPOINT")
     azureai_key = _env_or_fail("AZUREAI_CHAT_KEY")

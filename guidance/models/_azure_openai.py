@@ -49,7 +49,21 @@ class AzureOpenAI(Grammarless):
         compute_log_probs=False,
         **kwargs,
     ):
-        """Build a new AzureOpenAI model object that represents a model in a given state."""
+        """Build a new AzureOpenAI model object that represents a model in a given state.
+
+        Parameters
+        ----------
+        model : str
+            The name of the OpenAI model to use (e.g. gpt-3.5-turbo).
+        azure_endpoint: str
+            The endpoint of the deployed model (e.g. https://my_azureai_instance.openai.azure.com)
+        azure_deployment: str
+            The deployed name of the model (given when the deployment was created)
+        api_key: str
+            The API key for calling the model
+        azure_ad_token_provider:
+            Alternative to the api_key, allows for use of Azure Entra authentication
+        """
         if not is_openai or not hasattr(openai_package, "OpenAI"):
             raise ImportError(
                 "Please install the openai package version >= 1 using `pip install openai -U` "
