@@ -1,3 +1,5 @@
+import re
+
 from typing import Type
 from urllib.parse import parse_qs, urlparse
 
@@ -7,6 +9,7 @@ from ._openai import (
     OpenAIChatEngine,
     OpenAICompletionEngine,
     OpenAIInstructEngine,
+    chat_model_pattern
 )
 
 try:
@@ -58,12 +61,15 @@ class AzureOpenAI(Grammarless):
         # if we are called directly (as opposed to through super()) then we convert ourselves to
         # a more specific subclass if possible
         if self.__class__ is AzureOpenAI:
-            # chat
+            # Default to a completion model
+            found_subclass: Type[AzureOpenAI] = AzureOpenAICompletion
+            # Now see if we should be using a chat model
             if parsed_url.path.endswith("/chat/completions"):
-                found_subclass: Type[AzureOpenAI] = AzureOpenAIChat
-            # regular completion
-            else:
-                found_subclass = AzureOpenAICompletion
+                found_subclass = AzureOpenAIChat
+            elif re.match(chat_model_pattern, model):
+                found_subclass = AzureOpenAIChat
+        
+
 
             # convert to any found subclass
             self.__class__ = found_subclass
