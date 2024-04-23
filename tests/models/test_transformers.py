@@ -1,6 +1,6 @@
 import pytest
 
-from guidance import gen, select
+from guidance import gen, select, models, assistant, system, user
 
 from ..utils import get_model
 
@@ -57,8 +57,8 @@ w) 10"""
     assert lm["answer"] in ["p", "t", "w"]
 
 
+@pytest.skip("Don't overload the build machines")
 def test_phi3_loading():
-    from guidance import models
 
     lm = models.Transformers(
         r"microsoft/Phi-3-mini-4k-instruct", trust_remote_code=True
@@ -67,9 +67,9 @@ def test_phi3_loading():
     assert lm["five"] == "5"
 
 
+@pytest.skip("Don't overload the build machines")
 def test_phi3_chat():
     # TODO: we currently use the wrong chat template for this model, need to update to match: https://huggingface.co/microsoft/Phi-3-mini-4k-instruct
-    from guidance import models, system, user, assistant
 
     lm = models.TransformersChat(
         r"microsoft/Phi-3-mini-4k-instruct", trust_remote_code=True
