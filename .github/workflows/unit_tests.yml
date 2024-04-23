@@ -37,7 +37,7 @@ jobs:
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
       - name: Install model-specific dependencies
         run: |
-          pip install "llama-cpp-python<0.2.58"
+          pip install "llama-cpp-python!=0.2.58"
       - name: Run tests (except server)
         shell: bash
         run: |
