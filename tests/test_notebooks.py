@@ -95,5 +95,16 @@ class TestArtOfPromptDesign:
     @pytest.mark.use_gpu
     @pytest.mark.needs_credentials
     def test_use_clear_syntax(self, rate_limiter):
+        azureai_endpoint = os.getenv("AZUREAI_CHAT_ENDPOINT", None)
+
+        parsed_url = urlparse(azureai_endpoint)
+        parsed_query = parse_qs(parsed_url.query)
+        azureai_deployment = pathlib.Path(parsed_url.path).parts[3]
+        version = parsed_query["api-version"]
+        min_azureai_endpoint = f"{parsed_url.scheme}://{parsed_url.netloc}"
+
+        os.environ["AZUREAI_CHAT_BASE_ENDPOINT"] = min_azureai_endpoint
+        os.environ["AZUREAI_CHAT_API_VERSION"] = version[0]
+        os.environ["AZUREAI_CHAT_DEPLOYMENT"] = azureai_deployment
         nb_path = TestArtOfPromptDesign.BASE_APD_PATH / "use_clear_syntax.ipynb"
         run_notebook(nb_path, params=dict(call_delay_secs=rate_limiter))
