@@ -15,6 +15,7 @@ node_modules
 
 # Ignore native library built by setup
 guidance/*.so
+guidance/_rust/*.so
 guidance/_rust/target/
 guidance/_rust/Cargo.lock
 *.pyd
