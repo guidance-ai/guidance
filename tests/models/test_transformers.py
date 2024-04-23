@@ -57,7 +57,7 @@ w) 10"""
     assert lm["answer"] in ["p", "t", "w"]
 
 
-@pytest.skip("Don't overload the build machines")
+@pytest.mark.skip("Don't overload the build machines")
 def test_phi3_loading():
 
     lm = models.Transformers(
@@ -67,7 +67,7 @@ def test_phi3_loading():
     assert lm["five"] == "5"
 
 
-@pytest.skip("Don't overload the build machines")
+@pytest.mark.skip("Don't overload the build machines")
 def test_phi3_chat():
     # TODO: we currently use the wrong chat template for this model, need to update to match: https://huggingface.co/microsoft/Phi-3-mini-4k-instruct
 
