@@ -61,13 +61,16 @@ class TransformersTokenizer(Tokenizer):
             s = "’•¶∂ƒ˙∆£Ħ爨ൠᅘ∰፨"
             t = tokenizer
             reconstructed = b""
-            for id in t(s)["input_ids"]:
-                reconstructed += bytes(
-                    [byte_decoder[c] for c in t.convert_ids_to_tokens(id)]
-                )
+            try:
+                for id in t(s)["input_ids"]:
+                    reconstructed += bytes(
+                        [byte_decoder[c] for c in t.convert_ids_to_tokens(id)]
+                    )
+            except:
+                raise ValueError(f"The tokenizer being used is unable to convert a special character in {s}. For models with sentencepiece based tokenizers (e.g. llama, phi-3-mini), installing sentencepiece often fixes this issue (pip install sentencepiece).")
             assert (
                 reconstructed.decode() == s
-            ), "The passed tokenizer does have a byte_decoder property and using a standard gpt2 byte_decoder fails!"
+            ), "The passed tokenizer does not have a byte_decoder property and using a standard gpt2 byte_decoder fails!"
 
             for i in range(len(tokenizer)):
                 byte_coded = bytes(
