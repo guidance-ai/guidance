@@ -67,7 +67,9 @@ class TransformersTokenizer(Tokenizer):
                         [byte_decoder[c] for c in t.convert_ids_to_tokens(i)]
                     )
             except:
-                raise ValueError(f"The tokenizer being used is unable to convert a special character in {s}. For models with sentencepiece based tokenizers (e.g. llama, phi-3-mini), installing sentencepiece often fixes this issue (pip install sentencepiece).")
+                raise ValueError(
+                    f"The tokenizer being used is unable to convert a special character in {s}. For models with sentencepiece based tokenizers (e.g. llama, phi-3-mini), installing sentencepiece often fixes this issue (pip install sentencepiece)."
+                )
             assert (
                 reconstructed.decode() == s
             ), "The passed tokenizer does not have a byte_decoder property and using a standard gpt2 byte_decoder fails!"
