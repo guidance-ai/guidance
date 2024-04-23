@@ -62,9 +62,9 @@ class TransformersTokenizer(Tokenizer):
             t = tokenizer
             reconstructed = b""
             try:
-                for id in t(s)["input_ids"]:
+                for i in t(s)["input_ids"]:
                     reconstructed += bytes(
-                        [byte_decoder[c] for c in t.convert_ids_to_tokens(id)]
+                        [byte_decoder[c] for c in t.convert_ids_to_tokens(i)]
                     )
             except:
                 raise ValueError(f"The tokenizer being used is unable to convert a special character in {s}. For models with sentencepiece based tokenizers (e.g. llama, phi-3-mini), installing sentencepiece often fixes this issue (pip install sentencepiece).")
