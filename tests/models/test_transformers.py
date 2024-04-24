@@ -55,3 +55,30 @@ t) 3
 w) 10"""
     lm = my_model + prompt + select(["p", "t", "w"], name="answer")
     assert lm["answer"] in ["p", "t", "w"]
+
+
+def test_phi3_loading():
+    from guidance import models
+
+    lm = models.Transformers(
+        r"microsoft/Phi-3-mini-4k-instruct", trust_remote_code=True
+    )
+    lm += f"""Finish counting to 5: 1,2,3,4, + {gen("five", max_tokens=1)}"""
+    assert lm["five"] == "5"
+
+
+def test_phi3_chat():
+    # TODO: we currently use the wrong chat template for this model, need to update to match: https://huggingface.co/microsoft/Phi-3-mini-4k-instruct
+    from guidance import models, system, user, assistant
+
+    lm = models.TransformersChat(
+        r"microsoft/Phi-3-mini-4k-instruct", trust_remote_code=True
+    )
+    with system():
+        lm += "You are a counting bot. Just keep counting numbers."
+    with user():
+        lm += "1,2,3,4"
+    with assistant():
+        lm += gen(name="five", max_tokens=1)
+
+    assert lm["five"] == "5"
