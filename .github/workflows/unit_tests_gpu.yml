@@ -50,13 +50,13 @@ jobs:
       - name: GPU pip installs
         run: |
           pip install accelerate
-          CMAKE_ARGS="-DLLAMA_CUBLAS=on" pip install "llama-cpp-python==0.2.59"
+          CMAKE_ARGS="-DLLAMA_CUBLAS=on" pip install "llama-cpp-python!=0.2.58"
       - name: Check GPU available
         run: |
           python -c "import torch; assert torch.cuda.is_available()"
       - name: Run tests (except server)
         run: |
-          pytest --cov=guidance --cov-report=xml --cov-report=term-missing \
+          pytest -vv --cov=guidance --cov-report=xml --cov-report=term-missing \
             --selected_model ${{ matrix.model }} \
             -m "not (server or needs_credentials)" \
             ./tests/
