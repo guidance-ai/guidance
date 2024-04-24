@@ -14,7 +14,7 @@ on:
         type: string
 
 jobs:
-  unit-tests-gpu:
+  unit-tests-on-gpu:
     runs-on: ${{ inputs.os }}
 
     steps:
