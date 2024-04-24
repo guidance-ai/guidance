@@ -11,8 +11,7 @@ from ._model import Chat, Instruct
 from ._openai import (
     OpenAIChatEngine,
     OpenAICompletionEngine,
-    OpenAIInstructEngine,
-    chat_model_pattern,
+    OpenAIInstructEngine
 )
 
 try:
@@ -21,6 +20,9 @@ try:
     is_openai = True
 except ModuleNotFoundError:
     is_openai = False
+    
+    
+chat_model_pattern = r"^(ft:)?(gpt-35-turbo|gpt-4)(?:(?!-instruct$)(-\w+)+)?(:[\w-]+(?:[:\w-]+)*)?(::\w+)?$"
 
 
 class AzureOpenAI(Grammarless):
@@ -103,7 +105,10 @@ class AzureOpenAI(Grammarless):
             return
 
         if azure_deployment is None:
-            azure_deployment = pathlib.Path(parsed_url.path).parts[3]
+            parts = pathlib.Path(parsed_url.path).parts
+            if len(parts) > 2:
+                azure_deployment = parts[3]
+                
         parsed_query = parse_qs(parsed_url.query)
         api_version = (
             version
