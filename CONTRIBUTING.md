@@ -55,7 +55,18 @@ These fall into three categories: CPU-based, GPU-based and endpoint-based (which
 Due to the limited resources of the regular GitHub runner machines, the LLM under test is a dimension of our test matrix (otherwise the GitHub runners will tend to run out of RAM and/or hard drive space).
 New models should be configured in the `AVAILABLE_MODELS` dictionary in `conftest.py`, and then that key added to the `model` list in `unit_tests.yml` or `unit_tests_gpu.yml` as appropriate.
 The model will then be available via the `selected_model` fixture for all tests.
-If you have a test which should only
+If you have a test which should only run for particular models, you can use the `selected_model_name` fixture to check, and call `pytest.skip()` if necessary.
+An example of this is given in `test_llama_cpp.py`.
+
+### New endpoint based models
+
+If your model requires credentials, then those will need to be added to our GitHub repository as secrets.
+The endpoint itself (and any other required information) should be configured as environment variables too.
+When the test runs, the environment variables will be set, and can then be used to configure the model as required.
+See `test_azureai_openai.py` for examples of this being done.
+The tests should also be marked as `needs_credentials` - if this is needed for the entire module, then `pytestmark` can be used - see `test_azureai_openai.py` again for this.
+
+The environment variables and secrets will also need to be configured in the `ci_tests.yml` file.
 
 ## Linting
 
