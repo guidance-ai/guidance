@@ -1,5 +1,4 @@
 import pathlib
-import re
 
 from typing import Type
 from urllib.parse import parse_qs, urlparse
@@ -20,9 +19,6 @@ try:
     is_openai = True
 except ModuleNotFoundError:
     is_openai = False
-    
-    
-chat_model_pattern = r"^(ft:)?(gpt-35-turbo|gpt-4)(?:(?!-instruct$)(-\w+)+)?(:[\w-]+(?:[:\w-]+)*)?(::\w+)?$"
 
 
 class AzureOpenAI(Grammarless):
@@ -75,18 +71,15 @@ class AzureOpenAI(Grammarless):
         if api_key is None and azure_ad_token_provider is None:
             raise ValueError("Please provide either api_key or azure_ad_token_provider")
 
-        parsed_url = urlparse(azure_endpoint)
-
         # if we are called directly (as opposed to through super()) then we convert ourselves to
         # a more specific subclass if possible
         if self.__class__ is AzureOpenAI:
             # Default to a completion model
-            found_subclass: Type[AzureOpenAI] = AzureOpenAICompletion
-            # Now see if we should be using a chat model
-            if parsed_url.path.endswith("/chat/completions"):
-                found_subclass = AzureOpenAIChat
-            elif re.match(chat_model_pattern, model):
-                found_subclass = AzureOpenAIChat
+            found_subclass: Type[AzureOpenAI] = (
+                AzureOpenAICompletion
+                if model.endswith("-instruct") 
+                else AzureOpenAIChat
+            )
 
             # convert to any found subclass
             self.__class__ = found_subclass
@@ -103,6 +96,8 @@ class AzureOpenAI(Grammarless):
                 **kwargs,
             )
             return
+        
+        parsed_url = urlparse(azure_endpoint)
 
         if azure_deployment is None:
             parts = pathlib.Path(parsed_url.path).parts

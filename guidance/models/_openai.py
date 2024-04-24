@@ -1,5 +1,4 @@
 import os
-import re
 import typing
 
 import diskcache as dc
@@ -17,8 +16,6 @@ try:
     client_class: typing.Optional[typing.Type[openai.OpenAI]] = openai.OpenAI
 except ImportError:
     client_class = None
-
-chat_model_pattern = r"^(ft:)?(gpt-3\.5-turbo|gpt-4)(?:(?!-instruct$)(-\w+)+)?(:[\w-]+(?:[:\w-]+)*)?(::\w+)?$"
 
 
 class OpenAIEngine(GrammarlessEngine):
@@ -92,19 +89,16 @@ class OpenAI(Grammarless):
 
         # if we are called directly (as opposed to through super()) then we convert ourselves to a more specific subclass if possible
         if self.__class__ is OpenAI:
-            found_subclass = None
-
-            # chat
-            if re.match(chat_model_pattern, model):
-                found_subclass = OpenAIChat
 
             # instruct
             # elif "instruct" in model: # All current OpenAI instruct models behave as Completion models.
             #     found_subclass = OpenAIInstruct
-
-            # regular completion
-            else:
-                found_subclass = OpenAICompletion
+                
+            found_subclass: typing.Type[OpenAI] = (
+                OpenAICompletion
+                if model.endswith("-instruct") 
+                else OpenAIChat
+            )
 
             # convert to any found subclass
             self.__class__ = found_subclass
