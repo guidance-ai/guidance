@@ -47,7 +47,15 @@ where `<MODELNAME>` is taken from the `AVAILABLE_MODELS` dictionary defined in `
 
 ## Adding LLMs to the test matrix
 
-Our
+Our tests run on a variety of LLMs.
+These fall into three categories: CPU-based, GPU-based and endpoint-based (which need credentials).
+
+### New CPU or GPU-based models
+
+Due to the limited resources of the regular GitHub runner machines, the LLM under test is a dimension of our test matrix (otherwise the GitHub runners will tend to run out of RAM and/or hard drive space).
+New models should be configured in the `AVAILABLE_MODELS` dictionary in `conftest.py`, and then that key added to the `model` list in `unit_tests.yml` or `unit_tests_gpu.yml` as appropriate.
+The model will then be available via the `selected_model` fixture for all tests.
+If you have a test which should only
 
 ## Linting
 
