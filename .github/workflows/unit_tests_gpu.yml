@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  unit-tests:
+  unit-tests-gpu:
 
     strategy:
       fail-fast: false # Don't cancel all on first failure

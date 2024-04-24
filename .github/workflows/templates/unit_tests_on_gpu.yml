@@ -1,4 +1,4 @@
-name: unit-tests-gpu
+name: unit-tests-gpu-template
 
 on:
   workflow_call:
