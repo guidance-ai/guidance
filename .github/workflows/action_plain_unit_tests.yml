@@ -6,7 +6,6 @@ on:
       os:
         required: true
         type: string
-    inputs:
       python-version:
         required: true
         type: string
