@@ -109,17 +109,27 @@ jobs:
     needs:
       - unit-tests-linux-python-other
       - unit-tests-gpu-python-latest
+    strategy:
+      fail-fast: false # Don't cancel all on first failure
+      matrix:
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
     uses: ./.github/workflows/action_plain_unit_tests.yml
     with:
       os: windows-latest
+      python-version: ${{ matrix.python-version }}
 
   unit-tests-mac:
     needs:
       - unit-tests-linux-python-other
       - unit-tests-gpu-python-latest
+    strategy:
+      fail-fast: false # Don't cancel all on first failure
+      matrix:
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
     uses: ./.github/workflows/action_plain_unit_tests.yml
     with:
       os: macos-12
+      python-version: ${{ matrix.python-version }}
 
   unit-tests-gpu-python-others:
     needs:
