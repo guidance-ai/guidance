@@ -73,7 +73,7 @@ jobs:
       fail-fast: false # Don't cancel all on first failure
       matrix:
         model: ["gpt2gpu", "phi2gpu", "hfllama_7b_gpu"]
-    uses: ./.github/workflows/template_unit_tests_on_gpu.yml
+    uses: ./.github/workflows/action_gpu_unit_tests.yml
     with:
       os: gpu-runner
       python: "3.12"
@@ -101,7 +101,7 @@ jobs:
       matrix:
         model: ["gpt2gpu", "phi2gpu", "hfllama_7b_gpu"]
         python-version: ["3.8", "3.9", "3.10", "3.11"]
-    uses: ./.github/workflows/template_unit_tests_on_gpu.yml
+    uses: ./.github/workflows/action_gpu_unit_tests.yml
     with:
       os: gpu-runner
       python: ${{ matrix.python-version }}
