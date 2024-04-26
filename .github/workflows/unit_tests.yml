@@ -17,10 +17,10 @@ jobs:
     uses: ./.github/workflows/action_plain_unit_tests.yml
     with:
       os: windows-latest
-    need: unit-tests-linux
+    needs: unit-tests-linux
 
   unit-tests-mac:
     uses: ./.github/workflows/action_plain_unit_tests.yml
     with:
       os: macos-12
-    need: unit-tests-linux
+    needs: unit-tests-linux
