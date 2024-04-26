@@ -69,7 +69,7 @@ jobs:
       - bare-install
       - linting-black
       - linting-mypy
-      - unit-tests-linux]
+      - unit-tests-linux
     strategy:
       fail-fast: false # Don't cancel all on first failure
       matrix:
@@ -84,16 +84,16 @@ jobs:
 
 
   unit-tests-win:
+    needs: unit-tests-gpu-python-latest
     uses: ./.github/workflows/action_plain_unit_tests.yml
     with:
       os: windows-latest
-    needs: unit-tests-gpu-python-latest
 
   unit-tests-mac:
+    needs: unit-tests-gpu-python-latest
     uses: ./.github/workflows/action_plain_unit_tests.yml
     with:
       os: macos-12
-    needs: unit-tests-gpu-python-latest
 
   unit-tests-gpu-python-others:
     needs: unit-tests-gpu-python-latest
