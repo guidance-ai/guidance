@@ -75,15 +75,10 @@ jobs:
       - linting-black
       - linting-mypy
       - unit-tests-linux-python-latest
-    strategy:
-      fail-fast: false # Don't cancel all on first failure
-      matrix:
-        model: ["gpt2gpu", "phi2gpu", "hfllama_7b_gpu"]
     uses: ./.github/workflows/action_gpu_unit_tests.yml
     with:
       os: gpu-runner
       python-version: "3.12"
-      model: ${{ matrix.model }}
 
   unit-tests-linux-python-other:
     needs:
@@ -138,11 +133,9 @@ jobs:
     strategy:
       fail-fast: false # Don't cancel all on first failure
       matrix:
-        model: ["gpt2gpu", "phi2gpu", "hfllama_7b_gpu"]
         python-version: ["3.8", "3.9", "3.10", "3.11"]
     uses: ./.github/workflows/action_gpu_unit_tests.yml
     with:
       os: gpu-runner
       python-version: ${{ matrix.python-version }}
-      model: ${{ matrix.model }}
 

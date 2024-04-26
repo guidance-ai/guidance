@@ -9,12 +9,16 @@ on:
       python-version:
         required: true
         type: string
-      model:
-        required: true
-        type: string
 
 jobs:
   unit-tests-on-gpu:
+    strategy:
+      fail-fast: false # Don't cancel all on first failure
+      matrix:
+        model:
+          - "gpt2gpu"
+          - "phi2gpu"
+          - "hfllama_7b_gpu"
     runs-on: ${{ inputs.os }}
 
     steps:
@@ -54,10 +58,10 @@ jobs:
       - name: Check GPU available
         run: |
           python -c "import torch; assert torch.cuda.is_available()"
-      - name: Run tests (except server) for ${{ inputs.model }}
+      - name: Run tests (except server) for ${{ matrix.model }}
         run: |
           pytest -vv --cov=guidance --cov-report=xml --cov-report=term-missing \
-            --selected_model ${{ inputs.model }} \
+            --selected_model ${{ matrix.model }} \
             -m "not (server or needs_credentials)" \
             ./tests/
       - name: Upload coverage reports to Codecov
