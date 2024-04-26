@@ -75,7 +75,7 @@ jobs:
     - run: echo "End of Stage 1"
 
 # Second stage =======================================================================
-# Remaining CPU-based tests on Linux, plus basic GPU testing
+# Remaining CPU-based tests on Linux, plus server tests and basic GPU testing
 
 
   unit-tests-gpu-python-latest:
@@ -92,10 +92,21 @@ jobs:
       matrix:
         python-version: ["3.8", "3.9", "3.10", "3.11"]
     uses: ./.github/workflows/action_plain_unit_tests.yml
-    
     with:
       os: ubuntu-latest
       python-version: ${{ matrix.python-version }}
+
+  server-tests:
+    needs: end-stage-1
+    strategy:
+      fail-fast: false # Don't cancel all on first failure
+      matrix:
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+    uses: ./.github/workflows/action_server_tests.yml
+    with:
+      os: ubuntu-latest
+      python-version: ${{ matrix.python-version }}
+
 
 
   end-stage-2:
