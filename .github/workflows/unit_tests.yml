@@ -15,8 +15,9 @@ jobs:
       - uses: actions/checkout@v3
       # https://black.readthedocs.io/en/stable/integrations/github_actions.html
       - uses: psf/black@23.9.1
-        use_pyproject: true
-        options: "--diff" # Remove this to start enforcement
+        with:
+          use_pyproject: true
+          options: "--diff" # Remove this to start enforcement
 
   linting-mypy:
     runs-on: ubuntu-latest
