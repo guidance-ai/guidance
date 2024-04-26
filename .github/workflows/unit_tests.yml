@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       # https://black.readthedocs.io/en/stable/integrations/github_actions.html
-      - uses: psf/black@24.4.2
+      - uses: psf/black@stable
         with:
           options: "--diff" # Remove this to start enforcement
 
