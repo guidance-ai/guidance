@@ -18,7 +18,6 @@ jobs:
       # https://black.readthedocs.io/en/stable/integrations/github_actions.html
       - uses: psf/black@24.4.2
         with:
-          use_pyproject: true
           options: "--diff" # Remove this to start enforcement
 
   linting-mypy:
@@ -64,28 +63,22 @@ jobs:
       os: ubuntu-latest
       python-version: "3.12"
 
+  end-stage-1:
+    name: End Stage 1
 
 # Second stage =======================================================================
 # Remaining CPU-based tests on Linux, plus basic GPU testing
 
 
   unit-tests-gpu-python-latest:
-    needs:
-      - bare-install
-      - linting-black
-      - linting-mypy
-      - unit-tests-linux-python-latest
+    needs: end-stage-1
     uses: ./.github/workflows/action_gpu_unit_tests.yml
     with:
       os: gpu-runner
       python-version: "3.12"
 
   unit-tests-linux-python-other:
-    needs:
-      - bare-install
-      - linting-black
-      - linting-mypy
-      - unit-tests-linux-python-latest
+    needs: end-stage-1
     strategy:
       fail-fast: false # Don't cancel all on first failure
       matrix:
