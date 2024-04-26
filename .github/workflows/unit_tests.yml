@@ -13,7 +13,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      # https://black.readthedocs.io/en/stable/integrations/github_actions.html
       - uses: psf/black@23.9.1
+        use_pyproject: true
+        options: "--diff" # Remove this to start enforcement
 
   linting-mypy:
     runs-on: ubuntu-latest
@@ -32,13 +35,7 @@ jobs:
         run: |
           python -m mypy guidance
 
-  unit-tests-linux:
-    uses: ./.github/workflows/action_plain_unit_tests.yml
-    with:
-      os: ubuntu-latest
-
   bare-install:
-    needs: [linting-black, linting-mypy, unit-tests-linux]
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-12]
@@ -57,14 +54,56 @@ jobs:
         run: |
           python -c "import guidance"
 
+
+
+  unit-tests-linux:
+    uses: ./.github/workflows/action_plain_unit_tests.yml
+    with:
+      os: ubuntu-latest
+
+
+
+  unit-tests-gpu-python-latest:
+    needs:
+      - bare-install
+      - linting-black
+      - linting-mypy
+      - unit-tests-linux]
+    strategy:
+      fail-fast: false # Don't cancel all on first failure
+      matrix:
+        model: ["gpt2gpu", "phi2gpu", "hfllama_7b_gpu"]
+    uses: ./.github/workflows/template_unit_tests_on_gpu.yml
+    with:
+      os: gpu-runner
+      python: "3.12"
+      model: ${{ matrix.model }}
+
+
+
+
   unit-tests-win:
     uses: ./.github/workflows/action_plain_unit_tests.yml
     with:
       os: windows-latest
-    needs: bare-install
+    needs: unit-tests-gpu-python-latest
 
   unit-tests-mac:
     uses: ./.github/workflows/action_plain_unit_tests.yml
     with:
       os: macos-12
-    needs: bare-install
+    needs: unit-tests-gpu-python-latest
+
+  unit-tests-gpu-python-others:
+    needs: unit-tests-gpu-python-latest
+    strategy:
+      fail-fast: false # Don't cancel all on first failure
+      matrix:
+        model: ["gpt2gpu", "phi2gpu", "hfllama_7b_gpu"]
+        python-version: ["3.8", "3.9", "3.10", "3.11"]
+    uses: ./.github/workflows/template_unit_tests_on_gpu.yml
+    with:
+      os: gpu-runner
+      python: ${{ matrix.python-version }}
+      model: ${{ matrix.model }}
+
