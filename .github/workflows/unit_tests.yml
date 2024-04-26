@@ -65,6 +65,9 @@ jobs:
 
   end-stage-1:
     name: End Stage 1
+    runs-on: ubuntu-latest
+    steps:
+    - run: echo "End of Stage 1"
 
 # Second stage =======================================================================
 # Remaining CPU-based tests on Linux, plus basic GPU testing
