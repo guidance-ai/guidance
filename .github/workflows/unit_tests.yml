@@ -82,7 +82,7 @@ jobs:
     uses: ./.github/workflows/action_gpu_unit_tests.yml
     with:
       os: gpu-runner
-      python: "3.12"
+      python-version: "3.12"
       model: ${{ matrix.model }}
 
   unit-tests-linux-python-other:
@@ -133,6 +133,6 @@ jobs:
     uses: ./.github/workflows/action_gpu_unit_tests.yml
     with:
       os: gpu-runner
-      python: ${{ matrix.python-version }}
+      python-version: ${{ matrix.python-version }}
       model: ${{ matrix.model }}
 
