@@ -98,13 +98,20 @@ jobs:
       python-version: ${{ matrix.python-version }}
 
 
+  end-stage-2:
+    needs:
+      - unit-tests-linux-python-other
+      - unit-tests-gpu-python-latest
+    name: End Stage 2
+    runs-on: ubuntu-latest
+    steps:
+    - run: echo "End of Stage 1"
+
 # Third Stage ==============================================================
 # Windows and MacOS, plus other GPU Linux tests
 
   unit-tests-win:
-    needs:
-      - unit-tests-linux-python-other
-      - unit-tests-gpu-python-latest
+    needs: end-stage-2
     strategy:
       fail-fast: false # Don't cancel all on first failure
       matrix:
@@ -115,9 +122,7 @@ jobs:
       python-version: ${{ matrix.python-version }}
 
   unit-tests-mac:
-    needs:
-      - unit-tests-linux-python-other
-      - unit-tests-gpu-python-latest
+    needs: end-stage-2
     strategy:
       fail-fast: false # Don't cancel all on first failure
       matrix:
@@ -128,9 +133,7 @@ jobs:
       python-version: ${{ matrix.python-version }}
 
   unit-tests-gpu-python-others:
-    needs:
-      - unit-tests-linux-python-other
-      - unit-tests-gpu-python-latest
+    needs: end-stage-2
     strategy:
       fail-fast: false # Don't cancel all on first failure
       matrix:
