@@ -74,7 +74,7 @@ jobs:
       - bare-install
       - linting-black
       - linting-mypy
-      - unit-tests-linux
+      - unit-tests-linux-python-latest
     strategy:
       fail-fast: false # Don't cancel all on first failure
       matrix:
@@ -86,7 +86,11 @@ jobs:
       model: ${{ matrix.model }}
 
   unit-tests-linux-python-other:
-    needs: unit-tests-gpu-python-latest
+    needs:
+      - bare-install
+      - linting-black
+      - linting-mypy
+      - unit-tests-linux-python-latest
     strategy:
       fail-fast: false # Don't cancel all on first failure
       matrix:
