@@ -1,6 +1,10 @@
 import hashlib
 import json
+import pathlib
 import urllib.request
+
+import diskcache as dc
+import platformdirs
 
 from ._model import Chat
 from ._grammarless import GrammarlessEngine, Grammarless
@@ -22,6 +26,12 @@ class AzureAIStudioChatEngine(GrammarlessEngine):
         self._deployment = azureai_model_deployment
         self._api_key = azureai_studio_key
 
+        path = (
+            pathlib.Path(platformdirs.user_cache_dir("guidance"))
+            / "azureaistudio.tokens"
+        )
+        self.cache = dc.Cache(path)
+
         super().__init__(tokenizer, max_streaming_tokens, timeout, compute_log_probs)
 
     def _hash_prompt(self, prompt):
@@ -30,6 +40,11 @@ class AzureAIStudioChatEngine(GrammarlessEngine):
 
     def _generator(self, prompt, temperature: float):
         # Initial parts of this straight up copied from OpenAIChatEngine
+
+        # The next loop (or one like it) appears in several places,
+        # and quite possibly belongs in a library function or superclass
+        # That said, I'm not _completely sure that there aren't subtle
+        # differences between the various versions
 
         # find the role tags
         pos = 0
@@ -84,6 +99,7 @@ class AzureAIStudioChatEngine(GrammarlessEngine):
                 return
 
         # Now switch to the example code from AzureAI Studio
+        # Might want to rewrite this to the requests package
 
         # Prepare for the API call (this might be model specific....)
         parameters = dict(temperature=temperature)
@@ -102,14 +118,17 @@ class AzureAIStudioChatEngine(GrammarlessEngine):
         response = urllib.request.urlopen(req)
         result = json.loads(response.read())
 
-        # Now back to OpenAIChatEngine
+        # Now back to OpenAIChatEngine, with slight modifications since
+        # this isn't a streaming API
         if temperature == 0:
             cached_results = []
 
-        yield result["output"]
+        encoded_chunk = result["output"].encode("utf8")
+
+        yield encoded_chunk
 
         if temperature == 0:
-            cached_results.append(result["output"])
+            cached_results.append(encoded_chunk)
 
         # Cache the results after the generator is exhausted
         if temperature == 0:
