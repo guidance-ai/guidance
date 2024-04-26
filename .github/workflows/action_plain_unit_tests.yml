@@ -11,6 +11,7 @@ on:
 jobs:
   run-plain-unit-tests:
     strategy:
+      fail-fast: false # Don't cancel all on first failure
       matrix:
         os: [ubuntu-latest, windows-latest, macos-12]
         python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]

@@ -8,14 +8,19 @@ on:
   workflow_dispatch:
 
 jobs:
-  unit-tests:
-
-    strategy:
-      fail-fast: false # Don't cancel all on first failure
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-12]
-
-
+  unit-tests-linux:
     uses: ./.github/workflows/action_plain_unit_tests.yml
     with:
-      os: ${{ matrix.os }}
+      os: ubuntu-latest
+
+  unit-tests-win:
+    uses: ./.github/workflows/action_plain_unit_tests.yml
+    with:
+      os: windows-latest
+    need: unit-tests-linux
+
+  unit-tests-mac:
+    uses: ./.github/workflows/action_plain_unit_tests.yml
+    with:
+      os: macos-12
+    need: unit-tests-linux
