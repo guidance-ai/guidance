@@ -38,7 +38,7 @@ jobs:
       os: ubuntu-latest
 
   bare-install:
-    needs: linting-black, linting-mypy, unit-tests-linux
+    needs: [linting-black, linting-mypy, unit-tests-linux]
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-12]
