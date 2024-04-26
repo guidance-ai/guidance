@@ -1,3 +1,4 @@
+import hashlib
 import json
 import urllib.request
 
@@ -22,6 +23,10 @@ class AzureAIStudioChatEngine(GrammarlessEngine):
         self._api_key = azureai_studio_key
 
         super().__init__(tokenizer, max_streaming_tokens, timeout, compute_log_probs)
+
+    def _hash_prompt(self, prompt):
+        # Copied from OpenAIChatEngine
+        return hashlib.sha256(f"{prompt}".encode()).hexdigest()
 
     def _generator(self, prompt, temperature: float):
         # Initial parts of this straight up copied from OpenAIChatEngine

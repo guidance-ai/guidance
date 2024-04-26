@@ -13,10 +13,12 @@ pytestmark = pytest.mark.needs_credentials
 
 def test_azureai_openai_chat_smoke(rate_limiter):
     azureai_studio_endpoint = env_or_fail("AZURE_AI_STUDIO_ENDPOINT")
+    azureai_studio_deployment = env_or_fail("AZURE_AI_STUDIO_DEPLOYMENT")
     azureai_studio_key = env_or_fail("AZURE_AI_STUDIO_KEY")
 
     lm = models.AzureAIStudioChat(
         azureai_studio_endpoint=azureai_studio_endpoint,
+        azureai_studio_deployment=azureai_studio_deployment,
         azureai_studio_key=azureai_studio_key,
     )
     assert isinstance(lm, models.AzureAIStudioChat)
