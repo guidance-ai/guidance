@@ -6,6 +6,8 @@ from guidance import byte_range, gen, models, select, zero_or_more
 
 def test_fstring(selected_model):
     lm = selected_model
+    print(f"{dir(lm.engine.tokenizer)=}")
+    assert hasattr(lm.engine.tokenizer,"sp_model")
     lm += f'this is a test {select(["item1", "item2"])}'
     assert str(lm) in ["this is a test item1", "this is a test item2"]
 
