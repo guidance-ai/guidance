@@ -7,7 +7,7 @@ import pytest
 
 from guidance import assistant, gen, models, system, user
 
-from utils import env_or_fail
+from ..utils import env_or_fail
 
 # Everything in here needs credentials to work
 # Mark is configured in pyproject.toml

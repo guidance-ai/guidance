@@ -4,7 +4,7 @@ import pytest
 
 from guidance import assistant, gen, models, system, user
 
-from utils import env_or_fail
+from ..utils import env_or_fail
 
 # Everything in here needs credentials to work
 # Mark is configured in pyproject.toml
@@ -13,12 +13,13 @@ pytestmark = pytest.mark.needs_credentials
 
 def test_azureai_openai_chat_smoke(rate_limiter):
     azureai_studio_endpoint = env_or_fail("AZURE_AI_STUDIO_ENDPOINT")
-    azureai_studio_key = env_or_fail("AZUREAI_CHAT_KEY")
+    azureai_studio_key = env_or_fail("AZURE_AI_STUDIO_KEY")
 
-    lm = models.AzureOpenAI(
-        model=model, azure_endpoint=azureai_endpoint, api_key=azureai_key
+    lm = models.AzureAIStudioChat(
+        azureai_studio_endpoint=azureai_studio_endpoint,
+        azureai_studio_key=azureai_studio_key,
     )
-    assert isinstance(lm, models.AzureOpenAIChat)
+    assert isinstance(lm, models.AzureAIStudioChat)
 
     with system():
         lm += "You are a math wiz."
