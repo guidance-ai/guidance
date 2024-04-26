@@ -64,6 +64,11 @@ jobs:
       python-version: "3.12"
 
   end-stage-1:
+    needs:
+      - linting-black
+      - linting-mypy
+      - bare-install
+      - unit-tests-linux-python-latest
     name: End Stage 1
     runs-on: ubuntu-latest
     steps:
