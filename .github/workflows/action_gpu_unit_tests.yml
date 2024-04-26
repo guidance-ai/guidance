@@ -6,7 +6,7 @@ on:
       os:
         required: true
         type: string
-      python:
+      python-version:
         required: true
         type: string
       model:
@@ -25,10 +25,10 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
-      - name: Set up Python ${{ inputs.python }}
+      - name: Set up Python ${{ inputs.python-version }}
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ inputs.python }}
+          python-version: ${{ inputs.python-version }}
       - name: Show GPUs
         run: |
           nvidia-smi

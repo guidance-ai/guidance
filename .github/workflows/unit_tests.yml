@@ -8,13 +8,15 @@ on:
   workflow_dispatch:
 
 jobs:
+  # First Stage =======================================================================
+  # Linting and basic CPU-based tests
+
   linting-black:
-    # Need to keep black version consistent
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
       # https://black.readthedocs.io/en/stable/integrations/github_actions.html
-      - uses: psf/black@23.9.1
+      - uses: psf/black@latest
         with:
           use_pyproject: true
           options: "--diff" # Remove this to start enforcement
@@ -56,12 +58,15 @@ jobs:
           python -c "import guidance"
 
 
-
-  unit-tests-linux:
+  unit-tests-linux-python-latest:
     uses: ./.github/workflows/action_plain_unit_tests.yml
     with:
       os: ubuntu-latest
+      python-version: "3.12"
 
+
+# Second stage =======================================================================
+# Remaining CPU-based tests on Linux, plus basic GPU testing
 
 
   unit-tests-gpu-python-latest:
@@ -80,23 +85,42 @@ jobs:
       python: "3.12"
       model: ${{ matrix.model }}
 
+  unit-tests-linux-python-other:
+    needs: unit-tests-gpu-python-latest
+    strategy:
+      fail-fast: false # Don't cancel all on first failure
+      matrix:
+        python-version: ["3.8", "3.9", "3.10", "3.11"]
+    uses: ./.github/workflows/action_plain_unit_tests.yml
+    
+    with:
+      os: ubuntu-latest
+      python-version: ${{ matrix.python-version }}
 
 
+# Third Stage ==============================================================
+# Windows and MacOS, plus other GPU Linux tests
 
   unit-tests-win:
-    needs: unit-tests-gpu-python-latest
+    needs:
+      - unit-tests-linux-python-other
+      - unit-tests-gpu-python-latest
     uses: ./.github/workflows/action_plain_unit_tests.yml
     with:
       os: windows-latest
 
   unit-tests-mac:
-    needs: unit-tests-gpu-python-latest
+    needs:
+      - unit-tests-linux-python-other
+      - unit-tests-gpu-python-latest
     uses: ./.github/workflows/action_plain_unit_tests.yml
     with:
       os: macos-12
 
   unit-tests-gpu-python-others:
-    needs: unit-tests-gpu-python-latest
+    needs:
+      - unit-tests-linux-python-other
+      - unit-tests-gpu-python-latest
     strategy:
       fail-fast: false # Don't cancel all on first failure
       matrix:

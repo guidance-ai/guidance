@@ -6,6 +6,10 @@ on:
       os:
         required: true
         type: string
+    inputs:
+      python-version:
+        required: true
+        type: string
 
 
 jobs:
@@ -13,7 +17,6 @@ jobs:
     strategy:
       fail-fast: false # Don't cancel all on first failure
       matrix:
-        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
         model:
           - "gpt2cpu"
           - "phi2cpu"
@@ -24,10 +27,16 @@ jobs:
     runs-on: ${{ inputs.os }}
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python ${{ matrix.python-version }}
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      - name: Set up Python ${{ inputs.python-version }}
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: ${{ inputs.python-version }}
       - name: Install dependencies
         shell: bash
         run: |
