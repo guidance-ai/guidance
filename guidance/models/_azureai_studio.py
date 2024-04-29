@@ -1,10 +1,9 @@
 import hashlib
-import json
 import pathlib
-import urllib.request
 
 import diskcache as dc
 import platformdirs
+import requests
 
 from ._model import Chat
 from ._grammarless import GrammarlessEngine, Grammarless
@@ -98,9 +97,6 @@ class AzureAIStudioChatEngine(GrammarlessEngine):
                     yield chunk
                 return
 
-        # Now switch to the example code from AzureAI Studio
-        # Might want to rewrite this to the requests package
-
         # Prepare for the API call (this might be model specific....)
         parameters = dict(temperature=temperature)
         payload = dict(input_data=dict(input_string=messages, parameters=parameters))
@@ -111,12 +107,13 @@ class AzureAIStudioChatEngine(GrammarlessEngine):
             "azureml-model-deployment": self._deployment,
         }
 
-        body = str.encode(json.dumps(payload))
+        response = requests.post(
+            self._endpoint,
+            json=payload,
+            headers=headers,
+        )
 
-        req = urllib.request.Request(self._endpoint, body, headers)
-
-        response = urllib.request.urlopen(req)
-        result = json.loads(response.read())
+        result = response.json()
 
         # Now back to OpenAIChatEngine, with slight modifications since
         # this isn't a streaming API
