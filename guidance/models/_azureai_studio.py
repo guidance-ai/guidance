@@ -48,7 +48,7 @@ class AzureAIStudioChatEngine(GrammarlessEngine):
         # and quite possibly belongs in a library function or superclass
         # That said, I'm not _completely sure that there aren't subtle
         # differences between the various versions
-        
+
         # find the role tags
         pos = 0
         role_end = b"<|im_end|>"

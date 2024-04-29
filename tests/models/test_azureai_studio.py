@@ -50,15 +50,16 @@ def test_azureai_mistral_chat_smoke(rate_limiter):
     assert isinstance(lm, models.AzureAIStudioChat)
     lm.engine.cache.clear()
 
-    with system():
-        lm += "You are a math wiz."
+    # No "system" role for Mistral?
+    # with system():
+    #    lm += "You are a math wiz."
 
     with user():
         lm += "What is 1 + 1?"
 
     with assistant():
-        lm += gen(max_tokens=10, name="text", temperature=0.5)
-        lm += "Pick a number: "
+        lm += gen(max_tokens=15, name="text", temperature=0.5)
+        lm += "\nPick a number: "
 
     print(str(lm))
-    assert len(lm["text"]) < 0
+    assert len(lm["text"]) > 0
