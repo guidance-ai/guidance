@@ -25,9 +25,13 @@ class AzureAIStudioChatEngine(GrammarlessEngine):
         self._deployment = azureai_model_deployment
         self._api_key = azureai_studio_key
 
+        # There is a cache... better make sure it's specific
+        # to the endpoint and deployment
+        deployment_id = self._hash_prompt(self._endpoint + self._deployment)
+
         path = (
             pathlib.Path(platformdirs.user_cache_dir("guidance"))
-            / "azureaistudio.tokens"
+            / f"azureaistudio.tokens.{deployment_id}"
         )
         self.cache = dc.Cache(path)
 
@@ -44,7 +48,7 @@ class AzureAIStudioChatEngine(GrammarlessEngine):
         # and quite possibly belongs in a library function or superclass
         # That said, I'm not _completely sure that there aren't subtle
         # differences between the various versions
-
+        
         # find the role tags
         pos = 0
         role_end = b"<|im_end|>"
