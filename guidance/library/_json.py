@@ -21,7 +21,7 @@ except ImportError:
 from .._guidance import guidance
 from ..library import char_range, one_or_more, optional, zero_or_more
 
-from .._grammar import GrammarFunction, select, capture
+from .._grammar import GrammarFunction, select, capture, with_temperature
 from ._pydantic import pydantic_to_json_schema
 
 
@@ -296,6 +296,7 @@ def json(
         Type["pydantic.BaseModel"],
         "pydantic.TypeAdapter",
     ],
+    temperature: float = 0.0,
 ):
     """Generate valid JSON according to the supplied JSON schema or `pydantic` model.
 
@@ -347,7 +348,10 @@ def json(
     if _DEFS_KEY in schema:
         definitions = _build_definitions(schema[_DEFS_KEY])
 
-    return lm + capture(_gen_json(schema, definitions), name=name)
+    return lm + capture(
+        with_temperature(_gen_json(schema, definitions), temperature=temperature),
+        name=name,
+    )
 
 
 def _build_definitions(
