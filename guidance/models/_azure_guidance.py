@@ -47,7 +47,7 @@ class AzureGuidanceEngine(Engine):
                     text = d["message"]
             except:
                 pass
-            return RuntimeError(
+            raise RuntimeError(
                 f"Bad response to Guidance request {resp.status_code} {resp.reason}: {text}."
             )
 
@@ -60,37 +60,41 @@ class AzureGuidanceEngine(Engine):
                 if "forks" not in d:
                     continue
                 for ch in d["forks"]:
-                    texts = [""]
-                    logs = [""]
                     capture_groups = {}
                     capture_group_log_probs = {}
 
                     if "Previous WASM Error" in ch["logs"]:
                         return RuntimeError("Previous WASM Error.")
                     idx = ch["index"]
-                    while len(texts) <= idx:
-                        texts.append("")
-                        logs.append("")
-                    for s in ch.get("storage", []):
-                        w = s.get("WriteVar", None)
-                        if w:
-                            capture_groups[w["name"]] = w["value"]
-                            capture_group_log_probs[w["name"]] = (
-                                0  # TODO: get this from the server
-                            )
+                    assert idx == 0, "unexpected index in response from server"
+                    new_bytes = b""
+                    new_token_count = 0
+                    new_bytes_prob = 0.0
+                    num_text_entries = 0
+                    for ln in ch["logs"].split("\n"):
+                        ln: str
+                        if ln.startswith("JSON-OUT: "):
+                            j = json.loads(ln[10:])
+                            tag = j.get("object", "")
+                            if tag == "capture":
+                                capture_groups[j["name"]] = bytes.fromhex(j["hex"])
+                                capture_group_log_probs[j["name"]] = j["log_prob"]
+                            elif tag == "text":
+                                # it actually should only happen once per round...
+                                new_bytes += bytes.fromhex(j["hex"])
+                                new_token_count += j["num_tokens"]
+                                new_bytes_prob += j["log_prob"]
+                                num_text_entries += 1
+                    if num_text_entries > 0:
+                        new_bytes_prob /= num_text_entries
+
                     err = ch.get("error", "")
                     if err:
                         return RuntimeError(f"Error returned by grammar server {err}.")
-                    logs[idx] += ch["logs"]
-                    texts[idx] += ch["text"]
 
-                    # TODO: simplify this if it is always one
-                    assert len(texts) == 1
+                    # print(ch["logs"].rstrip("\n"), flush=True)
 
-                    new_bytes = bytes(texts[0], encoding="utf8")
                     is_generated = True  # TODO: get this from the server
-                    new_bytes_prob = 1.0  # TODO: get this from the server
-                    new_token_count = 1  # we process one token at a time
 
                     response_data = EngineCallResponse(
                         new_bytes,
