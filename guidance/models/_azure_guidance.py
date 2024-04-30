@@ -5,16 +5,19 @@ import json
 import urllib.parse
 from ._model import Engine, Model, EngineCallResponse
 
+
 class AzureGuidanceEngine(Engine):
     """This connects to a remote guidance server on Azure and runs all computation using the remote engine."""
 
     def __init__(self, server_url, max_streaming_tokens=1000):
-        if server_url is None or isinstance(server_url, str) and len(server_url.strip()) == 0:
+        if (
+            server_url is None
+            or isinstance(server_url, str)
+            and len(server_url.strip()) == 0
+        ):
             server_url = os.getenv("AZURE_GUIDANCE_URL", "")
         elif not isinstance(server_url, str):
-            raise ValueError(
-                "server_url must contain a URL string."
-            )
+            raise ValueError("server_url must contain a URL string.")
         if not server_url.startswith("http"):
             raise ValueError(
                 "AzureGuidance requires a remote model URL that starts with http"
@@ -45,7 +48,8 @@ class AzureGuidanceEngine(Engine):
             except:
                 pass
             return RuntimeError(
-                f"Bad response to Guidance request {resp.status_code} {resp.reason}: {text}.")
+                f"Bad response to Guidance request {resp.status_code} {resp.reason}: {text}."
+            )
 
         for line in resp.iter_lines():
             if not line:
@@ -71,7 +75,9 @@ class AzureGuidanceEngine(Engine):
                         w = s.get("WriteVar", None)
                         if w:
                             capture_groups[w["name"]] = w["value"]
-                            capture_group_log_probs[w["name"]] = 0  # TODO: get this from the server
+                            capture_group_log_probs[w["name"]] = (
+                                0  # TODO: get this from the server
+                            )
                     err = ch.get("error", "")
                     if err:
                         return RuntimeError(f"Error returned by grammar server {err}.")
@@ -79,7 +85,7 @@ class AzureGuidanceEngine(Engine):
                     texts[idx] += ch["text"]
 
                     # TODO: simplify this if it is always one
-                    assert(len(texts) == 1)
+                    assert len(texts) == 1
 
                     new_bytes = bytes(texts[0], encoding="utf8")
                     is_generated = True  # TODO: get this from the server
@@ -100,6 +106,7 @@ class AzureGuidanceEngine(Engine):
             else:
                 raise RuntimeError(f"bad response line: {decoded_line}")
 
+
 class AzureGuidance(Model):
     def __init__(
         self,
@@ -112,6 +119,7 @@ class AzureGuidance(Model):
         engine = AzureGuidanceEngine(model, max_streaming_tokens)
         super().__init__(engine, echo=echo)
 
+
 def _parse_base_url(base_url: str):
     p = urllib.parse.urlparse(base_url)
     key = ""
@@ -123,6 +131,7 @@ def _parse_base_url(base_url: str):
         r += "/"
     return r, key
 
+
 def _headers(arg_base_url: str) -> dict:
     _, key = _parse_base_url(arg_base_url)
     if key:
@@ -130,9 +139,11 @@ def _headers(arg_base_url: str) -> dict:
     else:
         return {}
 
+
 def _mk_url(path: str, arg_base_url: str) -> str:
     pref, _ = _parse_base_url(arg_base_url)
     return pref + path
+
 
 def req(tp: str, path: str, base_url: str, **kwargs):
     url = _mk_url(path, arg_base_url=base_url)
