@@ -606,6 +606,55 @@ class TestWithReferences:
         # The actual check
         _generate_and_check(target_obj, schema_obj)
 
+    @pytest.mark.parametrize(
+        "target_obj",
+        [
+            dict(all_cats=[]),
+            dict(all_cats=[dict(name="Kasha")]),
+            dict(all_cats=[dict(name="Dawon"), dict(name="Barong")]),
+        ],
+    )
+    def test_simple_ref_alt(self, target_obj):
+        # Uses 'definitions' rather than '$defs'
+        schema = """{
+        "definitions": {
+            "Cat": {
+            "properties": {
+                "name": {
+                "title": "Name",
+                "type": "string"
+                }
+            },
+            "required": [
+                "name"
+            ],
+            "title": "Cat",
+            "type": "object"
+            }
+        },
+        "properties": {
+            "all_cats": {
+            "items": {
+                "$ref": "#/definitions/Cat"
+            },
+            "title": "All Cats",
+            "type": "array"
+            }
+        },
+        "required": [
+            "all_cats"
+        ],
+        "title": "CatList",
+        "type": "object"
+        }"""
+
+        # First sanity check what we're setting up
+        schema_obj = json.loads(schema)
+        validate(instance=target_obj, schema=schema_obj)
+
+        # The actual check
+        _generate_and_check(target_obj, schema_obj)
+
     def test_nested_ref(self):
         schema = """{
         "$defs": {
