@@ -247,6 +247,13 @@ def _gen_json(
             anyof_list=json_schema[ANYOF_STRING], definitions=definitions
         )
 
+    ALLOF_STRING = "allOf"
+    if ALLOF_STRING in json_schema:
+        allof_list = json_schema[ALLOF_STRING]
+        if len(allof_list) != 1:
+            raise ValueError("Only support allOf with exactly one item")
+        return lm + _gen_json(allof_list[0], definitions)
+
     REF_STRING = "$ref"
     if REF_STRING in json_schema:
         return lm + _get_definition(

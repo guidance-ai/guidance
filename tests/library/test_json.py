@@ -807,6 +807,44 @@ class TestAllOf:
         # The actual check
         _generate_and_check(my_int, schema_obj)
 
+    def test_allOf_ref(self):
+        schema = """{
+            "definitions": {
+                "Cat": {
+                    "properties": {
+                        "name": {
+                            "title": "Name",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "name"
+                    ],
+                    "title": "Cat",
+                    "type": "object"
+                }
+            },
+            "type": "object",
+            "properties": {
+                "my_cat": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Cat"
+                        }
+                    ]
+                }
+            }
+        }
+        """
+
+        target_obj = dict(my_cat=dict(name="Sampson"))
+        # First sanity check what we're setting up
+        schema_obj = json.loads(schema)
+        validate(instance=target_obj, schema=schema_obj)
+
+        # The actual check
+        _generate_and_check(target_obj, schema_obj)
+
 
 class TestEnum:
     simple_schema = """{
