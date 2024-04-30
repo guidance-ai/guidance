@@ -69,7 +69,7 @@ def test_phi3_loading():
 
 @pytest.mark.skip("Don't overload the build machines")
 def test_phi3_chat():
-    # TODO: we currently use the wrong chat template for this model, need to update to match: https://huggingface.co/microsoft/Phi-3-mini-4k-instruct
+    # TODO: Double check chat format: https://huggingface.co/microsoft/Phi-3-mini-4k-instruct
 
     lm = models.TransformersChat(
         r"microsoft/Phi-3-mini-4k-instruct", trust_remote_code=True
