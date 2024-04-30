@@ -790,6 +790,24 @@ class TestAnyOf:
         _generate_and_check(target_obj, schema_obj)
 
 
+class TestAllOf:
+    @pytest.mark.parametrize(
+        "my_int",
+        [0, 1, 100, 9876543210, 99, 737, 858, -1, -10, -20],
+    )
+    def test_allOf_integer(self, my_int):
+        schema = """{
+        "allOf" : [{ "type": "integer" }]
+        }
+        """
+        # First sanity check what we're setting up
+        schema_obj = json.loads(schema)
+        validate(instance=my_int, schema=schema_obj)
+
+        # The actual check
+        _generate_and_check(my_int, schema_obj)
+
+
 class TestEnum:
     simple_schema = """{
         "enum": [1,"2",false]
