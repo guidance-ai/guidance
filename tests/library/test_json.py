@@ -845,6 +845,26 @@ class TestAllOf:
         # The actual check
         _generate_and_check(target_obj, schema_obj)
 
+    def test_allOf_bad_schema(self):
+        schema = """{
+        "allOf" : [{ "type": "integer" }, { "type": "number" }]
+        }
+        """
+        # First sanity check what we're setting up
+        schema_obj = json.loads(schema)
+
+        TARGET_VALUE = 20
+        validate(instance=TARGET_VALUE, schema=schema_obj)
+
+        prepared_string = f"<s>{_to_compact_json(TARGET_VALUE)}"
+        lm = models.Mock(prepared_string.encode())
+
+        # Run with the mock model
+        CAPTURE_KEY = "my_capture"
+        with pytest.raises(ValueError) as ve:
+            lm += gen_json(name=CAPTURE_KEY, schema=schema_obj)
+        assert ve.value.args[0] == "Only support allOf with exactly one item"
+
 
 class TestEnum:
     simple_schema = """{
