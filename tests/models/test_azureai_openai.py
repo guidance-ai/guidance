@@ -41,9 +41,9 @@ def test_azureai_openai_chat_smoke(rate_limiter):
 
 
 def test_azureai_openai_chat_longer_1(rate_limiter):
-    azureai_endpoint = _env_or_fail("AZUREAI_CHAT_ENDPOINT")
-    azureai_key = _env_or_fail("AZUREAI_CHAT_KEY")
-    model = _env_or_fail("AZUREAI_CHAT_MODEL")
+    azureai_endpoint = env_or_fail("AZUREAI_CHAT_ENDPOINT")
+    azureai_key = env_or_fail("AZUREAI_CHAT_KEY")
+    model = env_or_fail("AZUREAI_CHAT_MODEL")
 
     lm = models.AzureOpenAI(
         model=model, azure_endpoint=azureai_endpoint, api_key=azureai_key
@@ -75,9 +75,9 @@ def test_azureai_openai_chat_longer_1(rate_limiter):
 
 
 def test_azureai_openai_chat_longer_2(rate_limiter):
-    azureai_endpoint = _env_or_fail("AZUREAI_CHAT_ENDPOINT")
-    azureai_key = _env_or_fail("AZUREAI_CHAT_KEY")
-    model = _env_or_fail("AZUREAI_CHAT_MODEL")
+    azureai_endpoint = env_or_fail("AZUREAI_CHAT_ENDPOINT")
+    azureai_key = env_or_fail("AZUREAI_CHAT_KEY")
+    model = env_or_fail("AZUREAI_CHAT_MODEL")
 
     lm = models.AzureOpenAI(
         model=model, azure_endpoint=azureai_endpoint, api_key=azureai_key
