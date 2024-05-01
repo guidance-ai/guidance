@@ -20,6 +20,7 @@ def test_azureai_phi3_chat_smoke(rate_limiter):
         azureai_studio_endpoint=azureai_studio_endpoint,
         azureai_studio_deployment=azureai_studio_deployment,
         azureai_studio_key=azureai_studio_key,
+        clear_cache=True,
     )
     assert isinstance(lm, models.AzureAIStudioChat)
 
@@ -46,6 +47,7 @@ def test_azureai_mistral_chat_smoke(rate_limiter):
         azureai_studio_endpoint=azureai_studio_endpoint,
         azureai_studio_deployment=azureai_studio_deployment,
         azureai_studio_key=azureai_studio_key,
+        clear_cache=True,
     )
     assert isinstance(lm, models.AzureAIStudioChat)
     lm.engine.cache.clear()
@@ -74,6 +76,7 @@ def test_azureai_llama3_chat_smoke(rate_limiter):
         azureai_studio_endpoint=azureai_studio_endpoint,
         azureai_studio_deployment=azureai_studio_deployment,
         azureai_studio_key=azureai_studio_key,
+        clear_cache=True,
     )
     assert isinstance(lm, models.AzureAIStudioChat)
 

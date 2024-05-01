@@ -20,6 +20,7 @@ class AzureAIStudioChatEngine(GrammarlessEngine):
         azureai_studio_endpoint: str,
         azureai_model_deployment: str,
         azureai_studio_key: str,
+        clear_cache: bool,
     ):
         self._endpoint = azureai_studio_endpoint
         self._deployment = azureai_model_deployment
@@ -34,6 +35,8 @@ class AzureAIStudioChatEngine(GrammarlessEngine):
             / f"azureaistudio.tokens.{deployment_id}"
         )
         self.cache = dc.Cache(path)
+        if clear_cache:
+            self.cache.clear()
 
         super().__init__(tokenizer, max_streaming_tokens, timeout, compute_log_probs)
 
@@ -147,6 +150,7 @@ class AzureAIStudioChat(Grammarless, Chat):
         max_streaming_tokens: int = 1000,
         timeout: float = 0.5,
         compute_log_probs: bool = False,
+        clear_cache: bool = False,
     ):
         super().__init__(
             AzureAIStudioChatEngine(
@@ -157,6 +161,7 @@ class AzureAIStudioChat(Grammarless, Chat):
                 max_streaming_tokens=max_streaming_tokens,
                 timeout=timeout,
                 compute_log_probs=compute_log_probs,
+                clear_cache=False,
             ),
             echo=echo,
         )
