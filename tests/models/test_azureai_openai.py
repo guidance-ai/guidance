@@ -7,6 +7,7 @@ import pytest
 
 from guidance import assistant, gen, models, system, user
 
+from . import common_chat_testing
 from ..utils import env_or_fail
 
 # Everything in here needs credentials to work
@@ -25,19 +26,7 @@ def test_azureai_openai_chat_smoke(rate_limiter):
     )
     assert isinstance(lm, models.AzureOpenAIChat)
 
-    with system():
-        lm += "You are a math wiz."
-
-    with user():
-        lm += "What is 1 + 1?"
-
-    with assistant():
-        lm += gen(max_tokens=10, name="text")
-        lm += "Pick a number: "
-
-    print(str(lm))
-    assert len(lm["text"]) > 0
-    assert str(lm).endswith("Pick a number: <|im_end|>")
+    common_chat_testing.smoke_chat(lm)
 
 
 def test_azureai_openai_chat_longer_1(rate_limiter):
@@ -50,28 +39,7 @@ def test_azureai_openai_chat_longer_1(rate_limiter):
     )
     assert isinstance(lm, models.AzureOpenAIChat)
 
-    with system():
-        lm += "You are a math wiz."
-
-    with user():
-        lm += "What is 1 + 1?"
-
-    with assistant():
-        lm += gen(max_tokens=10, name="text")
-        lm += "Pick a number: "
-
-    print(str(lm))
-    assert len(lm["text"]) > 0
-    assert str(lm).endswith("Pick a number: <|im_end|>")
-
-    with user():
-        lm += "10. Now you pick a number between 0 and 20"
-
-    with assistant():
-        lm += gen(max_tokens=2, name="number")
-
-    print(str(lm))
-    assert len(lm["number"]) > 0
+    common_chat_testing.longer_chat_1(lm)
 
 
 def test_azureai_openai_chat_longer_2(rate_limiter):
@@ -84,34 +52,7 @@ def test_azureai_openai_chat_longer_2(rate_limiter):
     )
     assert isinstance(lm, models.AzureOpenAIChat)
 
-    with system():
-        lm += "You are a math wiz."
-
-    with user():
-        lm += "What is 1 + 1?"
-
-    with assistant():
-        lm += "2"
-
-    with user():
-        lm += "What is 2 + 3?"
-
-    with assistant():
-        lm += gen(max_tokens=10, name="text")
-        lm += "Pick a number: "
-
-    print(str(lm))
-    assert len(lm["text"]) > 0
-    assert str(lm).endswith("Pick a number: <|im_end|>")
-
-    with user():
-        lm += "10. Now you pick a number between 0 and 20"
-
-    with assistant():
-        lm += gen(max_tokens=2, name="number")
-
-    print(str(lm))
-    assert len(lm["number"]) > 0
+    common_chat_testing.longer_chat_2(lm)
 
 
 def test_azureai_openai_chat_alt_args(rate_limiter):
@@ -133,18 +74,7 @@ def test_azureai_openai_chat_alt_args(rate_limiter):
         azure_deployment=azureai_deployment,
     )
 
-    with system():
-        lm += "You are a math wiz."
-
-    with user():
-        lm += "What is 1 + 1?"
-
-    with assistant():
-        lm += gen(max_tokens=10, name="text")
-        lm += "Pick a number: "
-
-    print(str(lm))
-    assert len(lm["text"]) > 0
+    common_chat_testing.smoke_chat(lm)
 
 
 def test_azureai_openai_completion_smoke(rate_limiter):

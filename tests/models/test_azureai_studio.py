@@ -4,6 +4,8 @@ import pytest
 
 from guidance import assistant, gen, models, system, user
 
+
+from . import common_chat_testing
 from ..utils import env_or_fail
 
 # Everything in here needs credentials to work
@@ -36,84 +38,16 @@ def _get_chat_model(model_name: str):
 def test_azureai_chat_smoke(rate_limiter, chat_model_name: str):
     lm = _get_chat_model(chat_model_name)
 
-    # This makes me unhappy
-    if chat_model_name != "mistral":
-        with system():
-            lm += "You are a math wiz."
-
-    with user():
-        lm += "What is 1 + 1?"
-
-    with assistant():
-        lm += gen(max_tokens=10, name="text", temperature=0.5)
-        lm += "Pick a number: "
-
-    print(str(lm))
-    assert len(lm["text"]) > 0
-    assert str(lm).endswith("Pick a number: <|im_end|>")
+    common_chat_testing.smoke_chat(lm, chat_model_name != "mistral")
 
 
 @pytest.mark.parametrize("chat_model_name", _chat_models.keys())
 def test_azureai_chat_longer_1(rate_limiter, chat_model_name: str):
     lm = _get_chat_model(chat_model_name)
-
-    # This makes me unhappy
-    if chat_model_name != "mistral":
-        with system():
-            lm += "You are a math wiz."
-
-    with user():
-        lm += "What is 1 + 1?"
-
-    with assistant():
-        lm += gen(max_tokens=10, name="text")
-        lm += "Pick a number: "
-
-    print(str(lm))
-    assert len(lm["text"]) > 0
-    assert str(lm).endswith("Pick a number: <|im_end|>")
-
-    with user():
-        lm += "10. Now you pick a number between 0 and 20"
-
-    with assistant():
-        lm += gen(max_tokens=2, name="number")
-
-    print(str(lm))
-    assert len(lm["number"]) > 0
+    common_chat_testing.longer_chat_1(lm, chat_model_name != "mistral")
 
 
 @pytest.mark.parametrize("chat_model_name", _chat_models.keys())
 def test_azureai_chat_longer_2(rate_limiter, chat_model_name: str):
     lm = _get_chat_model(chat_model_name)
-
-    # This makes me unhappy
-    if chat_model_name != "mistral":
-        with system():
-            lm += "You are a math wiz."
-
-    with user():
-        lm += "What is 1 + 1?"
-
-    with assistant():
-        lm += "2"
-
-    with user():
-        lm += "What is 2 + 3?"
-
-    with assistant():
-        lm += gen(max_tokens=10, name="text")
-        lm += "Pick a number: "
-
-    print(str(lm))
-    assert len(lm["text"]) > 0
-    assert str(lm).endswith("Pick a number: <|im_end|>")
-
-    with user():
-        lm += "10. Now you pick a number between 0 and 20"
-
-    with assistant():
-        lm += gen(max_tokens=2, name="number")
-
-    print(str(lm))
-    assert len(lm["number"]) > 0
+    common_chat_testing.longer_chat_2(lm, chat_model_name != "mistral")
