@@ -1,0 +1,156 @@
+name: Pull Request Gate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  # First Stage =======================================================================
+  # Linting and basic CPU-based tests
+
+  linting-black:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # https://black.readthedocs.io/en/stable/integrations/github_actions.html
+      - uses: psf/black@stable
+        with:
+          options: "--diff" # Remove this to start enforcement
+
+  linting-mypy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.8
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install .[all,test]
+      - name: Run mypy
+        run: |
+          python -m mypy guidance
+
+  bare-install:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-12]
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Minimal install
+        run: |
+          pip install -e .
+      - name: Attempt import
+        run: |
+          python -c "import guidance"
+
+
+  unit-tests-linux-python-latest:
+    uses: ./.github/workflows/action_plain_unit_tests.yml
+    with:
+      os: ubuntu-latest
+      python-version: "3.12"
+
+  end-stage-1:
+    needs:
+      - linting-black
+      - linting-mypy
+      - bare-install
+      - unit-tests-linux-python-latest
+    name: End Stage 1
+    runs-on: ubuntu-latest
+    steps:
+    - run: echo "End of Stage 1"
+
+# Second stage =======================================================================
+# Remaining CPU-based tests on Linux, plus server tests and basic GPU testing
+
+
+  unit-tests-gpu-python-latest:
+    needs: end-stage-1
+    uses: ./.github/workflows/action_gpu_unit_tests.yml
+    with:
+      os: gpu-runner
+      python-version: "3.12"
+
+  unit-tests-linux-python-other:
+    needs: end-stage-1
+    strategy:
+      fail-fast: false # Don't cancel all on first failure
+      matrix:
+        python-version: ["3.8", "3.9", "3.10", "3.11"]
+    uses: ./.github/workflows/action_plain_unit_tests.yml
+    with:
+      os: ubuntu-latest
+      python-version: ${{ matrix.python-version }}
+
+  server-tests:
+    needs: end-stage-1
+    strategy:
+      fail-fast: false # Don't cancel all on first failure
+      matrix:
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+    uses: ./.github/workflows/action_server_tests.yml
+    with:
+      os: ubuntu-latest
+      python-version: ${{ matrix.python-version }}
+
+
+
+  end-stage-2:
+    needs:
+      - unit-tests-linux-python-other
+      - unit-tests-gpu-python-latest
+    name: End Stage 2
+    runs-on: ubuntu-latest
+    steps:
+    - run: echo "End of Stage 1"
+
+# Third Stage ==============================================================
+# Windows and MacOS, plus other GPU Linux tests
+
+  unit-tests-win:
+    needs: end-stage-2
+    strategy:
+      fail-fast: false # Don't cancel all on first failure
+      matrix:
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+    uses: ./.github/workflows/action_plain_unit_tests.yml
+    with:
+      os: windows-latest
+      python-version: ${{ matrix.python-version }}
+
+  unit-tests-mac:
+    needs: end-stage-2
+    strategy:
+      fail-fast: false # Don't cancel all on first failure
+      matrix:
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+    uses: ./.github/workflows/action_plain_unit_tests.yml
+    with:
+      os: macos-12
+      python-version: ${{ matrix.python-version }}
+
+  unit-tests-gpu-python-others:
+    needs: end-stage-2
+    strategy:
+      fail-fast: false # Don't cancel all on first failure
+      matrix:
+        python-version: ["3.8", "3.9", "3.10", "3.11"]
+    uses: ./.github/workflows/action_gpu_unit_tests.yml
+    with:
+      os: gpu-runner
+      python-version: ${{ matrix.python-version }}
+
