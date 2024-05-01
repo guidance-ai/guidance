@@ -34,6 +34,9 @@ def _to_compact_json(target: Any) -> str:
     return json_dumps(target, separators=(",", ":"))
 
 
+_DEFS_KEYS = ["$defs", "definitions"]
+
+
 @guidance(stateless=True)
 def _gen_json_int(lm):
     pos_nonzero = char_range("1", "9") + zero_or_more(char_range("0", "9"))
@@ -244,6 +247,13 @@ def _gen_json(
             anyof_list=json_schema[ANYOF_STRING], definitions=definitions
         )
 
+    ALLOF_STRING = "allOf"
+    if ALLOF_STRING in json_schema:
+        allof_list = json_schema[ALLOF_STRING]
+        if len(allof_list) != 1:
+            raise ValueError("Only support allOf with exactly one item")
+        return lm + _gen_json(allof_list[0], definitions)
+
     REF_STRING = "$ref"
     if REF_STRING in json_schema:
         return lm + _get_definition(
@@ -342,10 +352,11 @@ def json(
     else:
         schema = pydantic_to_json_schema(schema)
 
-    _DEFS_KEY = "$defs"
     definitions: Mapping[str, Callable[[], GrammarFunction]] = {}
-    if _DEFS_KEY in schema:
-        definitions = _build_definitions(schema[_DEFS_KEY])
+    for dk in _DEFS_KEYS:
+        if dk in schema:
+            assert len(definitions) == 0, "Found duplicate definitions"
+            definitions = _build_definitions(schema[dk])
 
     return lm + capture(_gen_json(schema, definitions), name=name)
 
@@ -378,11 +389,12 @@ def _get_definition(
     definitions: Mapping[str, Callable[[], GrammarFunction]],
 ):
     assert definitions is not None
-    REF_START = "#/$defs/"
-    assert reference.startswith(
-        REF_START
-    ), f"Reference {reference} must start with {REF_START}"
+    target_definition = None
+    for dk in _DEFS_KEYS:
+        ref_start = f"#/{dk}/"
+        if reference.startswith(ref_start):
+            target_name = reference[len(ref_start) :]
+            target_definition = definitions[target_name]
 
-    target_name = reference[len(REF_START) :]
-    definition = definitions[target_name]
-    return lm + definition()
+    assert target_definition is not None
+    return lm + target_definition()
