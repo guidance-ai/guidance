@@ -10,24 +10,17 @@ from ..utils import env_or_fail
 # Mark is configured in pyproject.toml
 pytestmark = pytest.mark.needs_credentials
 
+# How to fill out the environment variables to
+# set up the models
+_chat_models = {"phi3": "PHI3", "mistral": "MISTRAL_CHAT", "llama3": "LLAMA3_CHAT"}
+
 
 def _get_chat_model(model_name: str):
-    if model_name == "phi3":
-        azureai_studio_endpoint = env_or_fail("AZURE_AI_STUDIO_PHI3_ENDPOINT")
-        azureai_studio_deployment = env_or_fail("AZURE_AI_STUDIO_PHI3_DEPLOYMENT")
-        azureai_studio_key = env_or_fail("AZURE_AI_STUDIO_PHI3_KEY")
-    elif model_name == "mistral":
-        azureai_studio_endpoint = env_or_fail("AZURE_AI_STUDIO_MISTRAL_CHAT_ENDPOINT")
-        azureai_studio_deployment = env_or_fail(
-            "AZURE_AI_STUDIO_MISTRAL_CHAT_DEPLOYMENT"
-        )
-        azureai_studio_key = env_or_fail("AZURE_AI_STUDIO_MISTRAL_CHAT_KEY")
-    elif model_name == "llama3":
-        azureai_studio_endpoint = env_or_fail("AZURE_AI_STUDIO_LLAMA3_CHAT_ENDPOINT")
-        azureai_studio_deployment = env_or_fail(
-            "AZURE_AI_STUDIO_LLAMA3_CHAT_DEPLOYMENT"
-        )
-        azureai_studio_key = env_or_fail("AZURE_AI_STUDIO_LLAMA3_CHAT_KEY")
+    env_string = _chat_models[model_name]
+
+    azureai_studio_endpoint = env_or_fail(f"AZURE_AI_STUDIO_{env_string}_ENDPOINT")
+    azureai_studio_deployment = env_or_fail(f"AZURE_AI_STUDIO_{env_string}_DEPLOYMENT")
+    azureai_studio_key = env_or_fail(f"AZURE_AI_STUDIO_{env_string}_KEY")
 
     lm = models.AzureAIStudioChat(
         azureai_studio_endpoint=azureai_studio_endpoint,
@@ -39,12 +32,14 @@ def _get_chat_model(model_name: str):
     return lm
 
 
-@pytest.mark.parametrize("chat_model_name", ["phi3", "llama3"])
+@pytest.mark.parametrize("chat_model_name", _chat_models.keys())
 def test_azureai_chat_smoke(rate_limiter, chat_model_name: str):
     lm = _get_chat_model(chat_model_name)
 
-    with system():
-        lm += "You are a math wiz."
+    # This makes me unhappy
+    if chat_model_name != "mistral":
+        with system():
+            lm += "You are a math wiz."
 
     with user():
         lm += "What is 1 + 1?"
@@ -58,31 +53,14 @@ def test_azureai_chat_smoke(rate_limiter, chat_model_name: str):
     assert str(lm).endswith("Pick a number: <|im_end|>")
 
 
-def test_azureai_mistral_chat_smoke(rate_limiter):
-    lm = _get_chat_model("mistral")
-
-    # No "system" role for Mistral?
-    # with system():
-    #    lm += "You are a math wiz."
-
-    with user():
-        lm += "What is 1 + 1?"
-
-    with assistant():
-        lm += gen(max_tokens=15, name="text", temperature=0.5)
-        lm += "\nPick a number: "
-
-    print(str(lm))
-    assert len(lm["text"]) > 0
-    assert str(lm).endswith("Pick a number: <|im_end|>")
-
-
-@pytest.mark.parametrize("chat_model_name", ["phi3", "llama3"])
+@pytest.mark.parametrize("chat_model_name", _chat_models.keys())
 def test_azureai_chat_longer_1(rate_limiter, chat_model_name: str):
     lm = _get_chat_model(chat_model_name)
 
-    with system():
-        lm += "You are a math wiz."
+    # This makes me unhappy
+    if chat_model_name != "mistral":
+        with system():
+            lm += "You are a math wiz."
 
     with user():
         lm += "What is 1 + 1?"
@@ -105,12 +83,14 @@ def test_azureai_chat_longer_1(rate_limiter, chat_model_name: str):
     assert len(lm["number"]) > 0
 
 
-@pytest.mark.parametrize("chat_model_name", ["phi3", "llama3"])
+@pytest.mark.parametrize("chat_model_name", _chat_models.keys())
 def test_azureai_chat_longer_2(rate_limiter, chat_model_name: str):
     lm = _get_chat_model(chat_model_name)
 
-    with system():
-        lm += "You are a math wiz."
+    # This makes me unhappy
+    if chat_model_name != "mistral":
+        with system():
+            lm += "You are a math wiz."
 
     with user():
         lm += "What is 1 + 1?"
