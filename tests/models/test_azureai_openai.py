@@ -111,7 +111,7 @@ def test_azureai_openai_chat_longer_2(rate_limiter):
         lm += gen(max_tokens=2, name="number")
 
     print(str(lm))
-    assert len(lm["number"]) < 0
+    assert len(lm["number"]) > 0
 
 
 def test_azureai_openai_chat_alt_args(rate_limiter):
