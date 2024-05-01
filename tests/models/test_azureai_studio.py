@@ -36,6 +36,7 @@ def test_azureai_phi3_chat_smoke(rate_limiter):
 
     print(str(lm))
     assert len(lm["text"]) > 0
+    assert str(lm).endswith("Pick a number: <|im_end|>")
 
 
 def test_azureai_mistral_chat_smoke(rate_limiter):
@@ -65,6 +66,7 @@ def test_azureai_mistral_chat_smoke(rate_limiter):
 
     print(str(lm))
     assert len(lm["text"]) > 0
+    assert str(lm).endswith("Pick a number: <|im_end|>")
 
 
 def test_azureai_llama3_chat_smoke(rate_limiter):
@@ -87,8 +89,23 @@ def test_azureai_llama3_chat_smoke(rate_limiter):
         lm += "What is 1 + 1?"
 
     with assistant():
+        lm += "2"
+    
+    with user():
+        lm += "What is 2 + 3?"
+
+    with assistant():
         lm += gen(max_tokens=10, name="text", temperature=0.5)
         lm += "Pick a number: "
 
-    print(str(lm))
     assert len(lm["text"]) > 0
+    assert str(lm).endswith("Pick a number: <|im_end|>")
+
+    with user():
+        lm += "I pick 10. Can you pick a number between 0 and 20?"
+
+    with assistant():
+        lm += gen(max_tokens=2, name="number")
+
+    print(str(lm))
+    assert len(lm["number"]) < 0
