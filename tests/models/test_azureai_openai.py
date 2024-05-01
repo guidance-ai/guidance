@@ -37,6 +37,81 @@ def test_azureai_openai_chat_smoke(rate_limiter):
 
     print(str(lm))
     assert len(lm["text"]) > 0
+    assert str(lm).endswith("Pick a number: <|im_end|>")
+
+
+def test_azureai_openai_chat_longer_1(rate_limiter):
+    azureai_endpoint = _env_or_fail("AZUREAI_CHAT_ENDPOINT")
+    azureai_key = _env_or_fail("AZUREAI_CHAT_KEY")
+    model = _env_or_fail("AZUREAI_CHAT_MODEL")
+
+    lm = models.AzureOpenAI(
+        model=model, azure_endpoint=azureai_endpoint, api_key=azureai_key
+    )
+    assert isinstance(lm, models.AzureOpenAIChat)
+
+    with system():
+        lm += "You are a math wiz."
+
+    with user():
+        lm += "What is 1 + 1?"
+
+    with assistant():
+        lm += gen(max_tokens=10, name="text")
+        lm += "Pick a number: "
+
+    print(str(lm))
+    assert len(lm["text"]) > 0
+    assert str(lm).endswith("Pick a number: <|im_end|>")
+
+    with user():
+        lm += "10. Now you pick a number between 0 and 20"
+
+    with assistant():
+        lm += gen(max_tokens=2, name="number")
+
+    print(str(lm))
+    assert len(lm["number"]) > 0
+
+
+def test_azureai_openai_chat_longer_2(rate_limiter):
+    azureai_endpoint = _env_or_fail("AZUREAI_CHAT_ENDPOINT")
+    azureai_key = _env_or_fail("AZUREAI_CHAT_KEY")
+    model = _env_or_fail("AZUREAI_CHAT_MODEL")
+
+    lm = models.AzureOpenAI(
+        model=model, azure_endpoint=azureai_endpoint, api_key=azureai_key
+    )
+    assert isinstance(lm, models.AzureOpenAIChat)
+
+    with system():
+        lm += "You are a math wiz."
+
+    with user():
+        lm += "What is 1 + 1?"
+
+    with assistant():
+        lm += "2"
+
+    with user():
+        lm += "What is 2 + 3?"
+
+    with assistant():
+        lm += gen(max_tokens=10, name="text")
+        lm += "Pick a number: "
+
+    print(str(lm))
+    assert len(lm["text"]) > 0
+    assert str(lm).endswith("Pick a number: <|im_end|>")
+
+    with user():
+        lm += "10. Now you pick a number between 0 and 20"
+
+    with assistant():
+        lm += gen(max_tokens=2, name="number")
+
+    print(str(lm))
+    assert len(lm["number"]) < 0
 
 
 def test_azureai_openai_chat_alt_args(rate_limiter):
