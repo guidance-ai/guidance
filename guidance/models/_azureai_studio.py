@@ -152,6 +152,10 @@ class AzureAIStudioChat(Grammarless, Chat):
         compute_log_probs: bool = False,
         clear_cache: bool = False,
     ):
+        """Create a model object for interacting with Azure AI Studio chat endpoints
+
+
+        """
         super().__init__(
             AzureAIStudioChatEngine(
                 azureai_studio_endpoint=azureai_studio_endpoint,
@@ -161,7 +165,7 @@ class AzureAIStudioChat(Grammarless, Chat):
                 max_streaming_tokens=max_streaming_tokens,
                 timeout=timeout,
                 compute_log_probs=compute_log_probs,
-                clear_cache=False,
+                clear_cache=clear_cache,
             ),
             echo=echo,
         )
