@@ -1,11 +1,10 @@
 import inspect
-from typing import Any, Dict, Type, Union
+from typing import Any, Dict, Type, TYPE_CHECKING, Union
 
-from pydantic import BaseModel, TypeAdapter
-from pydantic.json_schema import GenerateJsonSchema
+import pydantic
 
 
-class GenerateJsonSchemaSafe(GenerateJsonSchema):
+class GenerateJsonSchemaSafe(pydantic.json_schema.GenerateJsonSchema):
     """
     Subclass pydantic's GenerateJsonSchema to catch pydantic schemas that will not
     translate properly to json schemas used for generation.
@@ -27,10 +26,10 @@ class GenerateJsonSchemaSafe(GenerateJsonSchema):
 
 
 def pydantic_to_json_schema(
-    schema: Union[Type[BaseModel], TypeAdapter]
+    schema: Union[Type["pydantic.BaseModel"], "pydantic.TypeAdapter"]
 ) -> Dict[str, Any]:
-    if inspect.isclass(schema) and issubclass(schema, BaseModel):
+    if inspect.isclass(schema) and issubclass(schema, pydantic.BaseModel):
         return schema.model_json_schema(schema_generator=GenerateJsonSchemaSafe)
-    if isinstance(schema, TypeAdapter):
+    if isinstance(schema, pydantic.TypeAdapter):
         return schema.json_schema(schema_generator=GenerateJsonSchemaSafe)
     raise TypeError(f"Cannot generate json schema from type {type(schema)}")

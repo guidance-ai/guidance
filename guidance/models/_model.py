@@ -1,3 +1,19 @@
+import base64
+import copy
+import html
+import logging
+import queue
+import re
+import threading
+import time
+
+
+from pprint import pprint
+from typing import Dict, TYPE_CHECKING
+
+
+import numpy as np
+
 try:
     from IPython.display import clear_output, display, HTML
 
@@ -10,17 +26,7 @@ try:
     torch_is_imported = True
 except ImportError:
     torch_is_imported = False
-import html
-from pprint import pprint
-import re
-import copy
-import time
-from typing import TYPE_CHECKING, Dict
-import numpy as np
-import logging
-import base64
-import queue
-import threading
+
 
 logger = logging.getLogger(__name__)
 try:
@@ -30,6 +36,7 @@ except ImportError:
         "Failed to load guidance.cpp, falling back to Python mirror implementations..."
     )
     from .. import _cpp as cpp
+from .._rust.guidancerust import engine_start
 from .._utils import softmax, CaptureEvents
 from .._parser import EarleyCommitParser, Parser
 from .._grammar import (
@@ -42,6 +49,7 @@ from .._grammar import (
     unreplace_model_variables,
     select,
 )
+
 from .. import _serialization_pb2
 
 if TYPE_CHECKING:
@@ -144,7 +152,6 @@ class EngineCallResponse:
         Returns:
             engine_response_pb2.EngineCallResponse: The Protobuf equivalent of this object.
         """
-
         return _serialization_pb2.EngineCallResponse(
             new_bytes=self.new_bytes,
             is_generated=self.is_generated,
@@ -726,6 +733,9 @@ class Engine:
         """
 
         self.start(parser, grammar, ensure_bos_token)
+
+        # TODO: remove this after the next release. This verifies that calling Rust works.
+        assert("def" == engine_start("abc", "def", 1))
 
         logits = None
         while True:

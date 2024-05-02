@@ -15,9 +15,12 @@ class TransformersTokenizer(Tokenizer):
             tokenizer = self._tokenizer(model)
 
         self._orig_tokenizer = tokenizer
+        special_tokens_map = {
+            id: token for token, id in tokenizer.get_added_vocab().items()
+        }
 
         # build out the set of byte_string tokens
-        byte_tokens = []
+        byte_tokens = [None] * len(tokenizer)
         if hasattr(tokenizer, "byte_decoder"):
             byte_decoder = tokenizer.byte_decoder
 
@@ -25,17 +28,20 @@ class TransformersTokenizer(Tokenizer):
                 byte_coded = bytes(
                     [byte_decoder[c] for c in tokenizer.convert_ids_to_tokens(i)]
                 )
-                byte_tokens.append(byte_coded)
+                byte_tokens[i] = byte_coded
 
         elif hasattr(tokenizer, "sp_model"):
             space_prefix = "▁".encode()
             for i in range(len(tokenizer)):
-                byte_coded = re.sub(
-                    rb"<0x(..)>",
-                    lambda x: bytes.fromhex(x[1].decode()),
-                    tokenizer.sp_model.id_to_piece(i).encode(),
-                )
-                byte_tokens.append(byte_coded.replace(space_prefix, b" "))
+                if i in special_tokens_map:
+                    byte_coded = special_tokens_map[i].encode()
+                else:
+                    byte_coded = re.sub(
+                        rb"<0x(..)>",
+                        lambda x: bytes.fromhex(x[1].decode()),
+                        tokenizer.sp_model.id_to_piece(i).encode(),
+                    )
+                byte_tokens[i] = byte_coded.replace(space_prefix, b" ")
 
         else:
             import transformers
@@ -55,19 +61,24 @@ class TransformersTokenizer(Tokenizer):
             s = "’•¶∂ƒ˙∆£Ħ爨ൠᅘ∰፨"
             t = tokenizer
             reconstructed = b""
-            for id in t(s)["input_ids"]:
-                reconstructed += bytes(
-                    [byte_decoder[c] for c in t.convert_ids_to_tokens(id)]
+            try:
+                for i in t(s)["input_ids"]:
+                    reconstructed += bytes(
+                        [byte_decoder[c] for c in t.convert_ids_to_tokens(i)]
+                    )
+            except:
+                raise ValueError(
+                    f"The tokenizer being used is unable to convert a special character in {s}. For models with sentencepiece based tokenizers (e.g. llama, phi-3-mini), installing sentencepiece often fixes this issue (pip install sentencepiece)."
                 )
             assert (
                 reconstructed.decode() == s
-            ), "The passed tokenizer does have a byte_decoder property and using a standard gpt2 byte_decoder fails!"
+            ), "The passed tokenizer does not have a byte_decoder property and using a standard gpt2 byte_decoder fails!"
 
             for i in range(len(tokenizer)):
                 byte_coded = bytes(
                     [byte_decoder[c] for c in tokenizer.convert_ids_to_tokens(i)]
                 )
-                byte_tokens.append(byte_coded)
+                byte_tokens[i] = byte_coded
 
         # the superclass does most of the work once we have the tokens
         super().__init__(

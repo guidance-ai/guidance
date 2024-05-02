@@ -1,28 +1,38 @@
-name: Unit tests GPU
+name: unit-tests-gpu-template
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-  workflow_dispatch:
+  workflow_call:
+    inputs:
+      os:
+        required: true
+        type: string
+      python-version:
+        required: true
+        type: string
 
 jobs:
-  unit-tests:
-
+  unit-tests-on-gpu:
     strategy:
+      fail-fast: false # Don't cancel all on first failure
       matrix:
-        os: [gpu-runner]
-        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
-        model: ["gpt2gpu", "phi2gpu", "transformers_mistral_7b_gpu", "hfllama_7b_gpu"]
+        model:
+          - "gpt2gpu"
+          - "phi2gpu"
+          - "hfllama_7b_gpu"
+          - "transformers_mistral_7b_gpu"
+    runs-on: ${{ inputs.os }}
 
-    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python ${{ matrix.python-version }}
+      - name: Install Rust
+        shell: bash
+        run: |
+           curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.75.0
+           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      - name: Set up Python ${{ inputs.python-version }}
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: ${{ inputs.python-version }}
       - name: Show GPUs
         run: |
           nvidia-smi
@@ -39,18 +49,18 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install pytest
-          pip install -e .[test]
+          pip install -e .[schemas,test]
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
       - name: GPU pip installs
         run: |
           pip install accelerate
-          CMAKE_ARGS="-DLLAMA_CUBLAS=on" pip install "llama-cpp-python<0.2.58"
+          CMAKE_ARGS="-DLLAMA_CUBLAS=on" pip install "llama-cpp-python!=0.2.58"
       - name: Check GPU available
         run: |
           python -c "import torch; assert torch.cuda.is_available()"
-      - name: Run tests (except server)
+      - name: Run tests (except server) for ${{ matrix.model }}
         run: |
-          pytest --cov=guidance --cov-report=xml --cov-report=term-missing \
+          pytest -vv --cov=guidance --cov-report=xml --cov-report=term-missing \
             --selected_model ${{ matrix.model }} \
             -m "not (server or needs_credentials)" \
             ./tests/

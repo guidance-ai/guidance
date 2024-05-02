@@ -3,8 +3,50 @@ import re
 import codecs
 from setuptools import setup, find_packages
 from pybind11.setup_helpers import Pybind11Extension, build_ext
+from setuptools_rust import Binding, RustExtension
 
 here = os.path.abspath(os.path.dirname(__file__))
+
+install_requires = [
+    "diskcache",
+    "numpy",
+    "ordered_set",
+    "platformdirs",
+    "pyformlang",
+    "protobuf",
+    "pydantic",
+    "requests",
+    "tiktoken>=0.3",
+]
+
+# Our basic list of 'extras'
+extras_requires = {
+    "azureai": ["openai>=1.0"],
+    "openai": ["openai>=1.0"],
+    "schemas": ["jsonschema"],
+    "server": ["fastapi", "uvicorn"],
+}
+
+# Create the union of all our requirements
+all_requires = set()
+for v in extras_requires.values():
+    all_requires = all_requires.union(v)
+
+# Required for builds etc.
+doc_requires = ["ipython", "nbsphinx", "numpydoc", "sphinx_rtd_theme", "sphinx"]
+test_requires = [
+    "jupyter",
+    "papermill",
+    "pytest",
+    "pytest-cov",
+    "torch",
+    "transformers",
+    "mypy==1.9.0",
+    "types-protobuf",
+    "types-regex",
+    "types-requests",
+    "types-jsonschema",
+]
 
 
 def read(*parts):
@@ -35,37 +77,20 @@ setup(
             "guidance.cpp", ["guidance/_cpp/main.cpp", "guidance/_cpp/byte_trie.cpp"]
         )
     ],
+    rust_extensions=[
+        RustExtension(
+            "guidance._rust.guidancerust",
+            "guidance/_rust/Cargo.toml",
+            binding=Binding.PyO3,
+        )
+    ],
     cmdclass={"build_ext": build_ext},
     python_requires=">=3.8",
-    install_requires=[
-        "diskcache",
-        "openai>=1.0",
-        "platformdirs",
-        "tiktoken>=0.3",
-        "requests",
-        "numpy",
-        "ordered_set",
-        "pyformlang",
-        "protobuf",
-        "fastapi",
-        "uvicorn",
-    ],
+    install_requires=install_requires,
     extras_require={
-        "docs": ["ipython", "numpydoc", "sphinx_rtd_theme", "sphinx", "nbsphinx"],
-        "test": [
-            "jsonschema",
-            "jupyter",
-            "papermill",
-            "pytest",
-            "pytest-cov",
-            "torch",
-            "transformers",
-            "mypy==1.9.0",
-            "types-protobuf",
-            "types-regex",
-            "types-requests",
-            "types-jsonschema",
-            "sentencepiece",  # Sometimes helps with loading via transformers
-        ],
+        "all": all_requires,
+        "docs": doc_requires,
+        "test": test_requires,
+        **extras_requires,
     },
 )

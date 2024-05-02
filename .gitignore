@@ -15,6 +15,11 @@ node_modules
 
 # Ignore native library built by setup
 guidance/*.so
-guidance/cpp.*.pyd
+guidance/_rust/*.so
+guidance/_rust/target/
+guidance/_rust/Cargo.lock
+*.pyd
 
 notebooks/**/*.papermill_out.ipynb
+
+.mypy_cache/*

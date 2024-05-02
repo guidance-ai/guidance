@@ -1,10 +1,10 @@
 import pytest
 import tiktoken
 
-import guidance
-from guidance import assistant, capture, gen, select, system, user
+_ = pytest.importorskip("openai")
 
-from ..utils import get_model
+import guidance
+from guidance import assistant, gen, select, system, user
 
 
 def test_openai_class_detection():

@@ -1,12 +1,16 @@
+import pathlib
+
 from typing import Type
 from urllib.parse import parse_qs, urlparse
+
+import tiktoken
 
 from ._grammarless import Grammarless
 from ._model import Chat, Instruct
 from ._openai import (
     OpenAIChatEngine,
     OpenAICompletionEngine,
-    OpenAIInstructEngine,
+    OpenAIInstructEngine
 )
 
 try:
@@ -43,7 +47,21 @@ class AzureOpenAI(Grammarless):
         compute_log_probs=False,
         **kwargs,
     ):
-        """Build a new AzureOpenAI model object that represents a model in a given state."""
+        """Build a new AzureOpenAI model object that represents a model in a given state.
+
+        Parameters
+        ----------
+        model : str
+            The name of the OpenAI model to use (e.g. gpt-3.5-turbo).
+        azure_endpoint: str
+            The endpoint of the deployed model (e.g. https://my_azureai_instance.openai.azure.com)
+        azure_deployment: str
+            The deployed name of the model (given when the deployment was created)
+        api_key: str
+            The API key for calling the model
+        azure_ad_token_provider:
+            Alternative to the api_key, allows for use of Azure Entra authentication
+        """
         if not is_openai or not hasattr(openai_package, "OpenAI"):
             raise ImportError(
                 "Please install the openai package version >= 1 using `pip install openai -U` "
@@ -53,17 +71,15 @@ class AzureOpenAI(Grammarless):
         if api_key is None and azure_ad_token_provider is None:
             raise ValueError("Please provide either api_key or azure_ad_token_provider")
 
-        parsed_url = urlparse(azure_endpoint)
-
         # if we are called directly (as opposed to through super()) then we convert ourselves to
         # a more specific subclass if possible
         if self.__class__ is AzureOpenAI:
-            # chat
-            if parsed_url.path.endswith("/chat/completions"):
-                found_subclass: Type[AzureOpenAI] = AzureOpenAIChat
-            # regular completion
-            else:
-                found_subclass = AzureOpenAICompletion
+            # Default to a completion model
+            found_subclass: Type[AzureOpenAI] = (
+                AzureOpenAICompletion
+                if model.endswith("-instruct") 
+                else AzureOpenAIChat
+            )
 
             # convert to any found subclass
             self.__class__ = found_subclass
@@ -80,7 +96,14 @@ class AzureOpenAI(Grammarless):
                 **kwargs,
             )
             return
+        
+        parsed_url = urlparse(azure_endpoint)
 
+        if azure_deployment is None:
+            parts = pathlib.Path(parsed_url.path).parts
+            if len(parts) > 2:
+                azure_deployment = parts[3]
+                
         parsed_query = parse_qs(parsed_url.query)
         api_version = (
             version
@@ -93,6 +116,9 @@ class AzureOpenAI(Grammarless):
             AzureOpenAIInstruct: OpenAIInstructEngine,
         }
         engine_class = engine_map[self.__class__]
+
+        if tokenizer is None:
+            tokenizer = tiktoken.encoding_for_model(model)
 
         engine_instance = engine_class(
             tokenizer=tokenizer,
