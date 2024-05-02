@@ -152,9 +152,25 @@ class AzureAIStudioChat(Grammarless, Chat):
         compute_log_probs: bool = False,
         clear_cache: bool = False,
     ):
-        """Create a model object for interacting with Azure AI Studio chat endpoints
+        """Create a model object for interacting with Azure AI Studio chat endpoints.
 
+        The required information about the deployed endpoint can
+        be obtained from Azure AI Studio.
 
+        A `diskcache`-based caching system is used to speed up
+        repeated calls when the temperature is specified to be
+        zero.
+
+        Parameters
+        ----------
+        azureai_studio_endpoint : str
+            The HTTPS endpoint deployed by Azure AI Studio
+        azureai_studio_deployment : str
+            The specific model deployed to the endpoint
+        azureai_studio_key : str
+            The key required for access to the API
+        clear_cache : bool
+            Whether to empty the internal cache
         """
         super().__init__(
             AzureAIStudioChatEngine(
