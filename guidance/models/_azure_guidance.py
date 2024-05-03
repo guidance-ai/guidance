@@ -64,7 +64,7 @@ class AzureGuidanceEngine(Engine):
                     capture_group_log_probs = {}
 
                     if "Previous WASM Error" in ch["logs"]:
-                        return RuntimeError("Previous WASM Error.")
+                        raise RuntimeError("Previous WASM Error.")
                     idx = ch["index"]
                     assert idx == 0, "unexpected index in response from server"
                     new_bytes = b""
@@ -90,7 +90,7 @@ class AzureGuidanceEngine(Engine):
 
                     err = ch.get("error", "")
                     if err:
-                        return RuntimeError(f"Error returned by grammar server {err}.")
+                        raise RuntimeError(f"Error returned by grammar server {err}.")
 
                     # print(ch["logs"].rstrip("\n"), flush=True)
 
