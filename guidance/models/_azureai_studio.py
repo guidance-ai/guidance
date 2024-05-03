@@ -146,13 +146,13 @@ class AzureAIStudioChatEngine(GrammarlessEngine):
                 "Authorization": ("Bearer " + self._api_key),
                 "azureml-model-deployment": self._deployment,
             }
-            response = requests.post(
+            response_score = requests.post(
                 self._endpoint,
                 json=payload,
                 headers=headers,
             )
 
-            result = response.json()
+            result = response_score.json()
 
             encoded_chunk = result["output"].encode("utf8")
 
