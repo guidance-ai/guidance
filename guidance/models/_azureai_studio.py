@@ -9,10 +9,13 @@ import requests
 from ._model import Chat
 from ._grammarless import GrammarlessEngine, Grammarless
 
+
 try:
     import openai
-except ImportError:
-    openai = None
+
+    is_openai = True
+except ModuleNotFoundError:
+    is_openai = False
 
 class AzureAIStudioChatEngine(GrammarlessEngine):
     def __init__(
@@ -32,6 +35,8 @@ class AzureAIStudioChatEngine(GrammarlessEngine):
             self._is_openai_compatible = False
             self._endpoint = azureai_studio_endpoint
         else:
+            if not is_openai:
+                raise ValueError("Detected OpenAI compatible model; please install openai package")
             self._is_openai_compatible = True
             self._endpoint = f"{endpoint_parts.scheme}://{endpoint_parts.hostname}"
         self._deployment = azureai_model_deployment
