@@ -106,3 +106,13 @@ def test_max_tokens(azure_guidance_model: guidance.models.Model):
     assert (
         str(lm)[-1] != "<"
     )  # the output should not end with "<" because that is coming from the stop sequence...
+
+
+def test_stop_token(azure_guidance_model: guidance.models.Model):
+    lm = azure_guidance_model
+    lm += f'<color>red</color>\n<color>{gen(stop="</color>")} and test2'
+    r = str(lm)
+    print(r)
+    print(r[20:])
+    assert "</color>" not in r[20:]
+    assert " and test2" in r[20:]
