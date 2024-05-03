@@ -137,7 +137,7 @@ class AzureAIStudioChatEngine(GrammarlessEngine):
             )
 
             result = response.choices[0]
-            encoded_chunk = result.message.content.encode("utf8")
+            encoded_chunk = result.message.content.encode("utf8")  # type: ignore[union-attr]
         else:
             parameters = dict(temperature=temperature)
             payload = dict(
@@ -155,9 +155,9 @@ class AzureAIStudioChatEngine(GrammarlessEngine):
                 headers=headers,
             )
 
-            result = response_score.json()
+            result_score = response_score.json()
 
-            encoded_chunk = result["output"].encode("utf8")
+            encoded_chunk = result_score["output"].encode("utf8")
 
         # Now back to OpenAIChatEngine, with slight modifications since
         # this isn't a streaming API
