@@ -17,6 +17,7 @@ try:
 except ModuleNotFoundError:
     is_openai = False
 
+
 class AzureAIStudioChatEngine(GrammarlessEngine):
     def __init__(
         self,
@@ -36,7 +37,9 @@ class AzureAIStudioChatEngine(GrammarlessEngine):
             self._endpoint = azureai_studio_endpoint
         else:
             if not is_openai:
-                raise ValueError("Detected OpenAI compatible model; please install openai package")
+                raise ValueError(
+                    "Detected OpenAI compatible model; please install openai package"
+                )
             self._is_openai_compatible = True
             self._endpoint = f"{endpoint_parts.scheme}://{endpoint_parts.hostname}"
         self._deployment = azureai_model_deployment
@@ -125,7 +128,7 @@ class AzureAIStudioChatEngine(GrammarlessEngine):
             client = openai.OpenAI(api_key=self._api_key, base_url=self._endpoint)
             response = client.chat.completions.create(
                 model=self._deployment,
-                messages=messages,
+                messages=messages,  # type: ignore[arg-type]
                 # max_tokens=self.max_streaming_tokens,
                 n=1,
                 top_p=1.0,  # TODO: this should be controllable like temp (from the grammar)
