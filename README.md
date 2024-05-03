@@ -5,9 +5,41 @@
 </picture></div>
 <br/>
 
-**`guidance`** is a programming paradigm that offers superior control and efficiency compared to conventional prompting and chaining. It allows users to constrain generation (e.g. with regex and CFGs) as well as to interleave control (conditional, loops) and generation seamlessly. Here are some important features: 
+# An efficient programming paradigm for steering language models
+**`{guidance}`** is a programming paradigm that offers superior control and efficiency compared to conventional prompting and chaining. With `{guidance}`, you can control how output is structured and get high-quality output for your use case—**while reducing latency and costs of conventional prompting or fine-tuning.** It allows users to constrain generation (e.g. with regex and CFGs) as well as to interleave control (conditional, loops) and generation seamlessly.
 
-1. **Pure, beautiful python** with additional LM functionality. E.g. here is [basic generation](#basic-generation):
+With `{guidance}`, developers write prompt-programs using a blend of text and Python to express the rules and constraints the model must follow. Constraints are then compiled by `{guidance}` software that sits directly in the model's decoding loop and examines generation token by token, eliminating tokens that don’t match what you expressed.
+
+## Demo video
+Demo video here
+
+# Key Features
+The **`{guidance}`** library offers developers an elegant prompt-writing experience, allowing users to interleave control (conditional, loops) and constrain generation seamlessly:
+
+## Developer workflow
+- Write pure Python, with additional LM functionality. For example, see [basic generation](#basic-generation).
+- [Constrain generation](#constrained-generation) with [selects](#select-basic) (i.e., sets of options), [regular expressions](#regular-expressions), and [context-free grammars](#context-free-grammars), as well as with pre-built components (e.g., substring).
+- [Call and deploy tools easily](#easy-tool-use) with automatic interleaving of control and generation.
+- [Get high compatibility](#high-compatibility)—execute a single {guidance} program on many backends (Transformers, llama.cpp, VertexAI, OpenAI). 
+- Gain [speed](#speed) with [stateful control + generation functions](#stateful-control--generation)—no need for intermediate parsers. 
+- Ensure valid code easily with [token healing](#token-healing)—a `{guidance}` feature that lets you avoid worrying about token boundaries (e.g., ending a prompt with a white space). 
+
+## Guidance also includes
+- [Rich templates with f-strings.](#rich-templates-with-f-strings)
+- [Abstract chat interface that uses correct special tokens for any chat model.](#abstract-chat-interface-that-uses-the-correct-special-tokens-for-any-chat-model)
+- [Easy-to-write reusable components.](#easy-to-write-reusable-components)
+- [Streaming support, also integrated with Jupyter notebooks.](#streaming-support-also-integrated-with-jupyter-notebooks)
+- [Multi-modal support.](#multi-modal-support)
+
+# Getting started
+You can see a brief walkthrough of `{guidance}` before installing:
+
+Tutorial (as a button/hyperlink)   Install (button/hyperlink)   Load models (button/hyperlink)
+
+## Features and examples
+
+### **Pure, beautiful python** with additional LM functionality.
+E.g. here is [basic generation](#basic-generation):
 ```python
 from guidance import models, gen
 
@@ -19,7 +51,7 @@ llama2 + f'Do you want a joke or a poem? ' + gen(stop='.')
 ```
 <img alt="Do you want a joke or a poem? I'll give you a poem" src="docs/figures/simple_gen_llama2_7b.png" width="354">
 
-2. [**Constrained generation**](#constrained-generation) with [selects](#select-basic), [regular expressions](#regular-expressions), and [context-free grammars](#context-free-grammars).
+### [**Constrained generation**](#constrained-generation) with [selects](#select-basic), [regular expressions](#regular-expressions), and [context-free grammars](#context-free-grammars)
 ```python
 from guidance import select
 
@@ -28,7 +60,7 @@ llama2 + f'Do you want a joke or a poem? A ' + select(['joke', 'poem'])
 ```
 <img alt="Do you want a joke or a poem? A poem" src="docs/figures/simple_select_llama2_7b.png" width="277">
 
-3. **Rich templates with f-strings**:
+### Rich templates with f-strings
 ```python
 llama2 + f'''\
 Do you want a joke or a poem? A {select(['joke', 'poem'])}.
@@ -37,7 +69,7 @@ Okay, here is a one-liner: "{gen(stop='"')}"
 ```
 <img width="358" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/486ca968-89b1-4c02-b914-3b9714fe5890"><br>
 
-4. [**Stateful control + generation**](#stateful-control--generation) makes it easy to interleave prompting / logic / generation, no need for intermediate parsers:
+### [**Stateful control + generation**](#stateful-control--generation) makes it easy to interleave prompting / logic / generation, no need for intermediate parsers
 ```python
 # capture our selection under the name 'answer'
 lm = llama2 + f"Do you want a joke or a poem? A {select(['joke', 'poem'], name='answer')}.\n"
@@ -51,7 +83,7 @@ else:
 <img width="393" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/66d47ce7-1d5a-4dbd-b676-66b9c1094184"><br>
 
 
-5. **Abstract chat interface** that uses the correct special tokens for any chat model:
+### **Abstract chat interface** that uses the correct special tokens for any chat model
 ```python
 from guidance import user, assistant
 
@@ -67,7 +99,7 @@ with assistant():
 ```
 <img width="331" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/89c3e0e2-ed0a-4715-8366-2efca74b7b71"><br>
 
-6. **Easy to write reusable components**
+### Easy to write reusable components
 ```python
 import guidance
 
@@ -96,7 +128,8 @@ llama2 + f'Here is a true statement about the guidance library: "{substring(text
 ```
 <img width="589" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/9a7178ad-ed73-4e6b-b418-f9d2a3a76b88"><br>
 
-8. [**Easy tool use**](#automatic-interleaving-of-control-and-generation-tool-use), where the model stops generation when a tool is called, calls the tool, then resumes generation. For example, here is a simple version of a calculator, via four separate 'tools':
+### Easy tool use
+**[Easy tool use]**(#automatic-interleaving-of-control-and-generation-tool-use), where the model stops generation when a tool is called, calls the tool, then resumes generation. For example, here is a simple version of a calculator, via four separate 'tools':
 ```python
 @guidance
 def add(lm, input1, input2):
@@ -125,11 +158,13 @@ lm + gen(max_tokens=15, tools=[add, subtract, multiply, divide])
 ```
 <img width="201" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/646e1a7d-0206-419b-8206-1d835c3a0e0a"><br>
 
-9. **Speed**: In contrast to chaining, `guidance` programs are the equivalent of a single LLM call. More so, whatever non-generated text that gets appended is batched, so that `guidance` programs are **faster** than having the LM generate intermediate text when you have a set structure.
+### Speed
+In contrast to chaining, `{guidance}` programs are the equivalent of a single LLM call. More so, whatever non-generated text that gets appended is batched, so that `{guidance}` programs are **faster** than having the LM generate intermediate text when you have a set structure.
 
-10. **Token healing**: Users deal with text (or bytes) rather than tokens, and thus don't have to worry about [perverse token boundaries issues](https://towardsdatascience.com/the-art-of-prompt-design-prompt-boundaries-and-token-healing-3b2448b0be38) such as 'prompt ending in whitespace'.
+### Token healing
+Users deal with text (or bytes) rather than tokens, and thus don't have to worry about [perverse token boundaries issues](https://towardsdatascience.com/the-art-of-prompt-design-prompt-boundaries-and-token-healing-3b2448b0be38) such as 'prompt ending in whitespace'.
 
-11. **Streaming support**, also integrated with Jupyter notebooks:
+### Streaming support, also integrated with Jupyter notebooks
 ```python
 lm = llama2 + 'Here is a cute 5-line poem about cats and dogs:\n'
 for i in range(5):
@@ -143,7 +178,8 @@ For environments that don't support guidance's rich IPython/Jupyter/HTML based v
 llama2 = models.LlamaCpp(path, echo=False)
 ```
 
-13. **High compatibility:** works with Transformers, llama.cpp, VertexAI, OpenAI. Users can write one guidance program and execute it on many backends. (note that the most powerful control features require endpoint integration, and for now work best with Transformers and llama.cpp).
+### High compatibility
+Works with Transformers, llama.cpp, VertexAI, OpenAI. Users can write one guidance program and execute it on many backends. (note that the most powerful control features require endpoint integration, and for now work best with Transformers and llama.cpp).
 ```python
 gpt = models.OpenAI("gpt-3.5-turbo")
 
@@ -161,7 +197,7 @@ with assistant():
 ```
 <img width="645" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/f31ed7b8-1868-44d2-b14c-4842b0a40e5c"><br>
 
-14. **Multi-modal support.**
+### Multi-modal support
 ```python
 from guidance import image
 
@@ -479,7 +515,7 @@ lm['test'], lm['test2']
 ```
 <img width="296" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/f0f9d180-6209-40df-9401-40da35d46e1a"><br>
 
-### Stateful `guidance` functions
+### Stateful `{guidance}` functions
 The guidance decorator is `@guidance(stateless=False)` by default, meaning that a function with this decorator depends on the lm state to execute (either prior state or state generated within the function). For example:
 ```python
 @guidance(stateless=False)
@@ -663,7 +699,7 @@ hf_gen(prompt, max_tokens=5)
 ```
 <img width="52" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/df649320-ec8e-468a-bb2f-e1994f16c9b6"><br>
 
-While problematic enough for normal prompts, these problems would be a disaster in the kinds of prompts we wrote in this readme, where there is interleaving of prompting and generation happening multiple times (and thus multiple opportunities for problems). This is why `guidance` implements [token healing](https://towardsdatascience.com/the-art-of-prompt-design-prompt-boundaries-and-token-healing-3b2448b0be38), a feature that deals with prompt boundaries automatically, allowing users to just think in terms of **text** rather than tokens. For example:
+While problematic enough for normal prompts, these problems would be a disaster in the kinds of prompts we wrote in this readme, where there is interleaving of prompting and generation happening multiple times (and thus multiple opportunities for problems). This is why `{guidance}` implements [token healing](https://towardsdatascience.com/the-art-of-prompt-design-prompt-boundaries-and-token-healing-3b2448b0be38), a feature that deals with prompt boundaries automatically, allowing users to just think in terms of **text** rather than tokens. For example:
 
 ```python
 from guidance import models
@@ -691,7 +727,7 @@ If instead we're calling a server, we pay the extra cost of making additional re
 Every time we call `calculator`, we have to stop generation, append the result to the prompt, and resume generation. To avoid slowing down after the first call, a server would need to keep the KV cache up to '3 for breakfast. So she has calculator(16 - 3)', then roll forward generation from that point on. Even servers that _do_ have caching often don't have a way to guarantee state is preserved at each stop and start, and so user's pay a significant overhead at each interruption. The normal approach of considering everything as a new prompt would cause significant slow downs every time `calculator` is called.
 
 ### Guidance acceleration
-In addition to the benefit above, `guidance` calls are often **faster** than running equivalent prompts the traditional way, because we can batch any additional text that is added by the user as execution unrolls (rather than generating it). Take the example below, where we generate a json with a GGUF compressed `llama2` 7B executed using llama.cpp:
+In addition to the benefit above, `{guidance}` calls are often **faster** than running equivalent prompts the traditional way, because we can batch any additional text that is added by the user as execution unrolls (rather than generating it). Take the example below, where we generate a json with a GGUF compressed `llama2` 7B executed using llama.cpp:
 ```python
 @guidance
 def character_maker(lm, id, description, valid_weapons):
