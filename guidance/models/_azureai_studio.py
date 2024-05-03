@@ -3,13 +3,16 @@ import pathlib
 import urllib.parse
 
 import diskcache as dc
-import openai
 import platformdirs
 import requests
 
 from ._model import Chat
 from ._grammarless import GrammarlessEngine, Grammarless
 
+try:
+    import openai
+except ImportError:
+    openai = None
 
 class AzureAIStudioChatEngine(GrammarlessEngine):
     def __init__(
