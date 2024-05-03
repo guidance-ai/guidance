@@ -1,7 +1,9 @@
 import hashlib
 import pathlib
+import urllib.parse
 
 import diskcache as dc
+import openai
 import platformdirs
 import requests
 
@@ -22,7 +24,13 @@ class AzureAIStudioChatEngine(GrammarlessEngine):
         azureai_studio_key: str,
         clear_cache: bool,
     ):
-        self._endpoint = azureai_studio_endpoint
+        endpoint_parts = urllib.parse.urlparse(azureai_studio_endpoint)
+        if endpoint_parts.path == "/score":
+            self._is_openai_compatible = False
+            self._endpoint = azureai_studio_endpoint
+        else:
+            self._is_openai_compatible = True
+            self._endpoint = f"{endpoint_parts.scheme}://{endpoint_parts.hostname}"
         self._deployment = azureai_model_deployment
         self._api_key = azureai_studio_key
 
@@ -104,30 +112,46 @@ class AzureAIStudioChatEngine(GrammarlessEngine):
                     yield chunk
                 return
 
-        # Prepare for the API call (this might be model specific....)
-        parameters = dict(temperature=temperature)
-        payload = dict(input_data=dict(input_string=messages, parameters=parameters))
+        # Call the actual API and extract the next chunk
+        if self._is_openai_compatible:
+            client = openai.OpenAI(api_key=self._api_key, base_url=self._endpoint)
+            response = client.chat.completions.create(
+                model=self._deployment,
+                messages=messages,
+                # max_tokens=self.max_streaming_tokens,
+                n=1,
+                top_p=1.0,  # TODO: this should be controllable like temp (from the grammar)
+                temperature=temperature,
+                # stream=True,
+            )
 
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": ("Bearer " + self._api_key),
-            "azureml-model-deployment": self._deployment,
-        }
+            result = response.choices[0]
+            encoded_chunk = result.message.content.encode("utf8")
+        else:
+            parameters = dict(temperature=temperature)
+            payload = dict(
+                input_data=dict(input_string=messages, parameters=parameters)
+            )
 
-        response = requests.post(
-            self._endpoint,
-            json=payload,
-            headers=headers,
-        )
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": ("Bearer " + self._api_key),
+                "azureml-model-deployment": self._deployment,
+            }
+            response = requests.post(
+                self._endpoint,
+                json=payload,
+                headers=headers,
+            )
 
-        result = response.json()
+            result = response.json()
+
+            encoded_chunk = result["output"].encode("utf8")
 
         # Now back to OpenAIChatEngine, with slight modifications since
         # this isn't a streaming API
         if temperature == 0:
             cached_results = []
-
-        encoded_chunk = result["output"].encode("utf8")
 
         yield encoded_chunk
 
