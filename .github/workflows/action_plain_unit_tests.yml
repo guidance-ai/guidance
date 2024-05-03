@@ -22,6 +22,7 @@ jobs:
           # - "transformers_mistral_7b" See Issue 713
           - "hfllama7b"
           - "hfllama_mistral_7b"
+          - "phi3cpu-mini-4k-instruct"
 
     runs-on: ${{ inputs.os }}
     steps:
@@ -44,6 +45,7 @@ jobs:
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
       - name: Install model-specific dependencies
         run: |
+          pip install sentencepiece
           pip install "llama-cpp-python!=0.2.58"
       - name: Run tests (except server)
         shell: bash
