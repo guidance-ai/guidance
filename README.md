@@ -24,7 +24,7 @@ The **`{guidance}`** library offers developers an elegant prompt-writing experie
 - Gain [speed](#speed) with [stateful control + generation functions](#stateful-control--generation)—no need for intermediate parsers. 
 - Ensure valid code easily with [token healing](#token-healing)—a `{guidance}` feature that lets you avoid worrying about token boundaries (e.g., ending a prompt with a white space). 
 
-## Guidance also includes
+## Guidance API features
 - [Rich templates with f-strings.](#rich-templates-with-f-strings)
 - [Abstract chat interface that uses correct special tokens for any chat model.](#abstract-chat-interface-that-uses-the-correct-special-tokens-for-any-chat-model)
 - [Easy-to-write reusable components.](#easy-to-write-reusable-components)
@@ -36,7 +36,7 @@ You can see a brief walkthrough of `{guidance}` before installing:
 
 Tutorial (as a button/hyperlink)   Install (button/hyperlink)   Load models (button/hyperlink)
 
-## Features and examples
+# Features and examples
 
 ### **Pure, beautiful python** with additional LM functionality.
 E.g. here is [basic generation](#basic-generation):
