@@ -43,7 +43,7 @@ jobs:
         shell: bash
         run: |
           pytest --cov=guidance --cov-report=xml --cov-report=term-missing \
-          --selected_model ${{ matrix.model }} \
+          --selected_model ${{ inputs.model }} \
           -m "not (needs_credentials or use_gpu or server)" \
           ./tests/
       - name: Upload coverage reports to Codecov
