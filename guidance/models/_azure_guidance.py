@@ -26,7 +26,7 @@ class AzureGuidanceEngine(Engine):
         self.max_streaming_tokens = max_streaming_tokens
 
     def __call__(self, parser, grammar, ensure_bos_token=True):
-        current_temp = 0.5  # TODO: handle temperature better
+        current_temp = 0.0  # TODO: handle temperature better
 
         b64 = base64.b64encode(grammar.serialize()).decode("utf-8")
 
