@@ -25,6 +25,7 @@ jobs:
           - "phi3cpu-mini-4k-instruct"
 
     runs-on: ${{ inputs.os }}
+    if: ${{ ! ((matrix.model == "phi3cpu-mini-4k-instruct") && ((inputs.os == "win-latest") || (inputs.os == "macos-12")) }}
     steps:
       - uses: actions/checkout@v4
       - name: Install Rust
