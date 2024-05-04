@@ -9,21 +9,13 @@ on:
       python-version:
         required: true
         type: string
+      model:
+        required: true
+        type: string
 
 
 jobs:
   run-plain-unit-tests:
-    strategy:
-      fail-fast: false # Don't cancel all on first failure
-      matrix:
-        model:
-          - "gpt2cpu"
-          - "phi2cpu"
-          # - "transformers_mistral_7b" See Issue 713
-          - "hfllama7b"
-          - "hfllama_mistral_7b"
-          - "phi3cpu-mini-4k-instruct"
-
     runs-on: ${{ inputs.os }}
     steps:
       - uses: actions/checkout@v4
@@ -51,7 +43,7 @@ jobs:
         shell: bash
         run: |
           pytest --cov=guidance --cov-report=xml --cov-report=term-missing \
-          --selected_model ${{ matrix.model }} \
+          --selected_model ${{ inputs.model }} \
           -m "not (needs_credentials or use_gpu or server)" \
           ./tests/
       - name: Upload coverage reports to Codecov
