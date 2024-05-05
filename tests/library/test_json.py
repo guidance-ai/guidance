@@ -16,7 +16,21 @@ def _generate_and_check(
     # Sanity check what we're being asked
     validate(instance=target_obj, schema=schema_obj)
 
-    prepared_string = f"<s>{_to_compact_json(target_obj)}"
+    # The next part is to prevent intermittent test failures
+    # when the temperature is non-zero
+    # The Mock model generates random characters once the
+    # supplied string has been exhausted. Sometimes
+    # these can also be valid according to the grammar
+    # (especially when generating numbers) which interferes
+    # with our round trip check.
+    # So append a 'stop' character which we don't
+    # use in any of our tests
+
+    STOP_CHAR = "\g"
+    prepared_json = _to_compact_json(target_obj)
+    assert STOP_CHAR not in prepared_json, "STOP_CHAR in string"
+
+    prepared_string = f"<s>{prepared_json}{STOP_CHAR}"
     lm = models.Mock(prepared_string.encode())
 
     # Run with the mock model
