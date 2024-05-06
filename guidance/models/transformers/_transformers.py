@@ -261,7 +261,10 @@ class TransformersEngine(Engine):
             # save the results
             self._past_key_values = model_out.past_key_values
             cache_token_ids.extend(new_token_ids)
-            self._cached_logits = model_out.logits[0, -1, :].cpu().numpy()
+            # Need to add special truncating logic here for weird models that have a different output size than tokenizer vocab
+            self._cached_logits = (
+                model_out.logits[0, -1, : len(self.tokenizer.tokens)].cpu().numpy()
+            )
 
         return self._cached_logits
 

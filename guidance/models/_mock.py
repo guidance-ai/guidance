@@ -16,6 +16,7 @@ class MockEngine(Engine):
             except:
                 pass
         self.force = force
+        self.called_temperatures = []
 
         # allow a single byte pattern to be passed
         if isinstance(byte_patterns, (bytes, str)):
@@ -33,6 +34,7 @@ class MockEngine(Engine):
 
     def get_logits(self, token_ids, forced_bytes, current_temp):
         """Pretends to compute the logits for the given token state."""
+        self.called_temperatures.append(current_temp)
 
         # build the byte strings
         byte_string = b"".join(self.tokenizer.tokens[i] for i in token_ids)
