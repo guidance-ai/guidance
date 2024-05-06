@@ -70,7 +70,7 @@ jobs:
           - "hfllama_mistral_7b"
           - "phi3cpu-mini-4k-instruct"
     with:
-      os: Linux_Latest
+      os: Linux_Large
       python-version: "3.12"
       model: ${{ matrix.model }}
 
