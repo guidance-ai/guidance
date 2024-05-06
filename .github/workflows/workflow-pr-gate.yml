@@ -68,7 +68,8 @@ jobs:
           # - "transformers_mistral_7b" See Issue 713
           - "hfllama7b"
           - "hfllama_mistral_7b"
-          - "phi3cpu-mini-4k-instruct"
+          - "transformers_phi3cpu_mini_4k_instruct"
+          - "hfllama_phi3cpu_mini_4k_instruct"
     with:
       os: ubuntu-latest
       python-version: "3.12"
@@ -108,7 +109,8 @@ jobs:
           # - "transformers_mistral_7b" See Issue 713
           - "hfllama7b"
           - "hfllama_mistral_7b"
-          - "phi3cpu-mini-4k-instruct"
+          - "transformers_phi3cpu_mini_4k_instruct"
+          - "hfllama_phi3cpu_mini_4k_instruct"
     uses: ./.github/workflows/action_plain_unit_tests.yml
     with:
       os: ubuntu-latest
@@ -153,7 +155,8 @@ jobs:
           # - "transformers_mistral_7b" See Issue 713
           - "hfllama7b"
           - "hfllama_mistral_7b"
-          # - "phi3cpu-mini-4k-instruct" Gives trouble on Win/MacOS
+          # - "transformers_phi3cpu_mini_4k_instruct" Gives trouble on Win/MacOS
+          - "hfllama_phi3cpu_mini_4k_instruct"
     uses: ./.github/workflows/action_plain_unit_tests.yml
     with:
       os: windows-latest
