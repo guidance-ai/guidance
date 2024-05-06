@@ -70,7 +70,7 @@ jobs:
           - "hfllama_mistral_7b"
           - "phi3cpu-mini-4k-instruct"
     with:
-      os: Linux_Large
+      os: Large_Linux
       python-version: "3.12"
       model: ${{ matrix.model }}
 
@@ -111,7 +111,7 @@ jobs:
           - "phi3cpu-mini-4k-instruct"
     uses: ./.github/workflows/action_plain_unit_tests.yml
     with:
-      os: Linux_Large
+      os: Large_Linux
       python-version: ${{ matrix.python-version }}
       model: ${{ matrix.model }}
 
@@ -174,7 +174,7 @@ jobs:
           - "phi3cpu-mini-4k-instruct"
     uses: ./.github/workflows/action_plain_unit_tests.yml
     with:
-      os: Windows_Large
+      os: Large_Windows
       python-version: ${{ matrix.python-version }}
       model: ${{ matrix.model }}
 
