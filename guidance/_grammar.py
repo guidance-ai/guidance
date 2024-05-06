@@ -170,6 +170,10 @@ class GrammarFunction(Function):
 
     def __getitem__(self, value):
         raise StatefulException("GrammarFunctions can't access state!")
+    
+    @property
+    def token_count(self):
+        raise StatefulException("GrammarFunctions can't access state!")
 
     def match(
         self,
