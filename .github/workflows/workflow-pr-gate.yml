@@ -159,7 +159,7 @@ jobs:
           - "hfllama_phi3cpu_mini_4k_instruct"
     uses: ./.github/workflows/action_plain_unit_tests.yml
     with:
-      os: windows-latest
+      os: ${{ matrix.os }}
       python-version: ${{ matrix.python-version }}
       model: ${{ matrix.model }}
 
