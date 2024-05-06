@@ -2,7 +2,7 @@ import functools
 import inspect
 
 from . import models
-from ._grammar import Placeholder, RawFunction, Terminal, replace_grammar_node, string
+from ._grammar import Placeholder, RawFunction, Terminal, replace_grammar_node, string, StatefulException
 from ._utils import strip_multiline_string_indents
 
 
@@ -36,9 +36,7 @@ def _decorator(f, *, stateless, cache, dedent, model):
         def wrapped(*args, **kwargs):
 
             # make a stateless grammar if we can
-            if stateless is True or (
-                callable(stateless) and stateless(*args, **kwargs)
-            ):
+            try:
 
                 # if we have a placeholder set then we must be in a recursive definition and so we return the placeholder
                 placeholder = getattr(f, "_self_call_placeholder_", None)
@@ -66,7 +64,7 @@ def _decorator(f, *, stateless, cache, dedent, model):
                     return node
 
             # otherwise must be stateful (which means we can't be inside a select() call)
-            else:
+            except StatefulException:
                 return RawFunction(f, args, kwargs)
 
         # Remove the first argument from the wrapped function
