@@ -139,13 +139,12 @@ jobs:
 
 # Third Stage ==============================================================
 # Windows and MacOS, plus other GPU Linux tests
-
-  unit-tests-other-os:
+  
+  unit-tests-mac:
     needs: end-stage-2
     strategy:
       fail-fast: false # Don't cancel all on first failure
       matrix:
-        os: [ "windows-latest", "macos-12" ]
         python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
         model:
           - "gpt2cpu"
@@ -153,10 +152,29 @@ jobs:
           # - "transformers_mistral_7b" See Issue 713
           - "hfllama7b"
           - "hfllama_mistral_7b"
-          # - "phi3cpu-mini-4k-instruct" Gives trouble on Win/MacOS
+          # - "phi3cpu-mini-4k-instruct" Gives trouble on MacOS
     uses: ./.github/workflows/action_plain_unit_tests.yml
     with:
-      os: windows-latest
+      os: macos-12
+      python-version: ${{ matrix.python-version }}
+      model: ${{ matrix.model }}
+
+  unit-tests-win:
+    needs: end-stage-2
+    strategy:
+      fail-fast: false # Don't cancel all on first failure
+      matrix:
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+        model:
+          - "gpt2cpu"
+          - "phi2cpu"
+          # - "transformers_mistral_7b" See Issue 713
+          - "hfllama7b"
+          - "hfllama_mistral_7b"
+          - "phi3cpu-mini-4k-instruct"
+    uses: ./.github/workflows/action_plain_unit_tests.yml
+    with:
+      os: Windows_Large
       python-version: ${{ matrix.python-version }}
       model: ${{ matrix.model }}
 
