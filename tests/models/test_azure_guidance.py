@@ -76,11 +76,10 @@ def test_suffix(azure_guidance_model: guidance.models.Model):
     assert (str(lm))[-2] != "\n"
 
 
-# TODO: enable this test. It currently crashes the server
-# def test_subtoken_forced(azure_guidance_model: guidance.models.Model):
-#     lm_orig = azure_guidance_model
-#     lm = lm_orig + "How much is 2 + 2? " + gen(name="test", max_tokens=10, regex=r"\(")
-#     assert str(lm) == "How much is 2 + 2? ("
+def test_subtoken_forced(azure_guidance_model: guidance.models.Model):
+    lm_orig = azure_guidance_model
+    lm = lm_orig + "How much is 2 + 2? " + gen(name="test", max_tokens=10, regex=r"\(")
+    assert str(lm) == "How much is 2 + 2? ("
 
 
 def test_llama_with_temp(azure_guidance_model: guidance.models.Model):
