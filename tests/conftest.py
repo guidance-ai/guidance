@@ -12,11 +12,11 @@ AVAILABLE_MODELS = {
     "phi2cpu": dict(
         name="transformers:microsoft/phi-2", kwargs={"trust_remote_code": True}
     ),
-    "phi3cpu-mini-4k-instruct": dict(
+    "transformers_phi3cpu_mini_4k_instruct": dict(
         name="transformers:microsoft/Phi-3-mini-4k-instruct",
         kwargs={"trust_remote_code": True},
     ),
-    "hfllama-phi3cpu-mini-4k-instruct": dict(
+    "hfllama_phi3cpu_mini_4k_instruct": dict(
         name="huggingface_hubllama:microsoft/Phi-3-mini-4k-instruct-gguf:Phi-3-mini-4k-instruct-q4.gguf",
         kwargs={"verbose": True, "n_ctx": 4096},
     ),
