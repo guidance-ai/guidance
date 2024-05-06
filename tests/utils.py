@@ -8,6 +8,12 @@ import guidance
 
 opanai_model_cache = {}
 
+def env_or_fail(var_name: str) -> str:
+    env_value = os.getenv(var_name, None)
+
+    assert env_value is not None, f"Env '{var_name}' not found"
+
+    return env_value
 
 def get_model(model_name, caching=False, **kwargs):
     """Get an LLM by name."""
