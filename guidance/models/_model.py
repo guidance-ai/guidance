@@ -925,6 +925,8 @@ class Model:
         self._last_event_stream = (
             0  # used to track the last event streaming call to enable throttling
         )
+
+        # Metrics for the model
         self.metrics = GuidanceMetrics()
 
     @property
