@@ -71,7 +71,7 @@ jobs:
           - "transformers_phi3cpu_mini_4k_instruct"
           - "hfllama_phi3cpu_mini_4k_instruct"
     with:
-      os: ubuntu-latest
+      os: Large_Linux
       python-version: "3.12"
       model: ${{ matrix.model }}
 
@@ -113,7 +113,7 @@ jobs:
           - "hfllama_phi3cpu_mini_4k_instruct"
     uses: ./.github/workflows/action_plain_unit_tests.yml
     with:
-      os: ubuntu-latest
+      os: Large_Linux
       python-version: ${{ matrix.python-version }}
       model: ${{ matrix.model }}
 
@@ -141,13 +141,12 @@ jobs:
 
 # Third Stage ==============================================================
 # Windows and MacOS, plus other GPU Linux tests
-
-  unit-tests-other-os:
+  
+  unit-tests-mac:
     needs: end-stage-2
     strategy:
       fail-fast: false # Don't cancel all on first failure
       matrix:
-        os: [ "windows-latest", "macos-12" ]
         python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
         model:
           - "gpt2cpu"
@@ -155,11 +154,31 @@ jobs:
           # - "transformers_mistral_7b" See Issue 713
           - "hfllama7b"
           - "hfllama_mistral_7b"
-          # - "transformers_phi3cpu_mini_4k_instruct" Gives trouble on Win/MacOS
+          # - "transformers_phi3cpu_mini_4k_instruct" Gives trouble on MacOS
           - "hfllama_phi3cpu_mini_4k_instruct"
     uses: ./.github/workflows/action_plain_unit_tests.yml
     with:
-      os: ${{ matrix.os }}
+      os: macos-12
+      python-version: ${{ matrix.python-version }}
+      model: ${{ matrix.model }}
+
+  unit-tests-win:
+    needs: end-stage-2
+    strategy:
+      fail-fast: false # Don't cancel all on first failure
+      matrix:
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+        model:
+          - "gpt2cpu"
+          - "phi2cpu"
+          # - "transformers_mistral_7b" See Issue 713
+          - "hfllama7b"
+          - "hfllama_mistral_7b"
+          - "transformers_phi3cpu_mini_4k_instruct"
+          - "hfllama_phi3cpu_mini_4k_instruct"
+    uses: ./.github/workflows/action_plain_unit_tests.yml
+    with:
+      os: Large_Windows
       python-version: ${{ matrix.python-version }}
       model: ${{ matrix.model }}
 
