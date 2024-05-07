@@ -52,6 +52,8 @@ from .._grammar import (
 
 from .. import _serialization_pb2
 
+from ._guidance_metrics import GuidanceMetrics
+
 if TYPE_CHECKING:
     from ..library._block import ContextBlock
 
