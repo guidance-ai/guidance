@@ -131,7 +131,6 @@ class EngineCallResponse:
     capture_groups: dict
     capture_group_log_probs: dict
     new_token_count: int
-    metrics: GuidanceMetrics
 
     def __init__(
         self,
