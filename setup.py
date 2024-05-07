@@ -9,7 +9,7 @@ if __name__ == "__main__":
             "Please use 'pip' to build and install this package, like so:\n"
             "  pip install . (for the current directory)\n"
             "  pip install -e . (for an editable install)\n"
-            "  pip wheel . (to build a wheel)"
+            "  pip wheel . --no-deps (to build a wheel)"
         )
 
 import os
