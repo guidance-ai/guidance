@@ -9,7 +9,7 @@ import time
 
 
 from pprint import pprint
-from typing import Dict, Tuple, TYPE_CHECKING
+from typing import Dict, TYPE_CHECKING
 
 
 import numpy as np
@@ -741,7 +741,7 @@ class Engine:
         self.start(parser, grammar, ensure_bos_token)
 
         # TODO: remove this after the next release. This verifies that calling Rust works.
-        assert("def" == engine_start("abc", "def", 1))
+        assert "def" == engine_start("abc", "def", 1)
 
         logits = None
         while True:
@@ -850,11 +850,11 @@ class Engine:
 
         return token_ids, token_byte_positions
 
-    def get_logits(self, token_ids, forced_bytes, current_temp) -> Tuple[np.ndarray, GuidanceMetrics]:
+    def get_logits(self, token_ids, forced_bytes, current_temp) -> np.ndarray:
         """A fake method designed to be overriden by subclasses."""
 
         # pretend to extend the KV cache and update the log probs
-        return np.randn(len(self.tokenizer.tokens)), GuidanceMetrics()
+        return np.randn(len(self.tokenizer.tokens))
 
     def _report_failed_match(self, prompt):
         """Note that this can be overridden by subclasses that have more likely reasons than a bug in the token set (like remote models)."""
@@ -1456,8 +1456,12 @@ class Model:
         unreplace_model_variables(replacements)
 
         # Now update our metrics while maintaining Thread Unsafety
-        lm.metrics.prompt_tokens += (self.engine.metrics.prompt_tokens - metrics_before.prompt_tokens)
-        lm.metrics.generated_tokens += (self.engine.metrics.generated_tokens - metrics_before.generated_tokens)
+        lm.metrics.prompt_tokens += (
+            self.engine.metrics.prompt_tokens - metrics_before.prompt_tokens
+        )
+        lm.metrics.generated_tokens += (
+            self.engine.metrics.generated_tokens - metrics_before.generated_tokens
+        )
 
         logger.debug("finish Model._run_stateless")
 
