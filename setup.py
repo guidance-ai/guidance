@@ -1,3 +1,17 @@
+import sys
+
+# Check if 'setup.py' is run directly with 'build'
+# TODO: Consider generalizing this check further?
+if __name__ == "__main__":
+    if len(sys.argv) >= 2 and sys.argv[1] == 'build':
+        raise SystemExit(
+            "Error: Direct invocation of 'setup.py build' is not recommended."
+            "Please use 'pip' to build and install this package, like so:\n"
+            "  pip install . (for the current directory)\n"
+            "  pip install -e . (for an editable install)\n"
+            "  pip wheel . (to build a wheel)"
+        )
+    
 import os
 import re
 import codecs
