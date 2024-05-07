@@ -75,6 +75,7 @@ def test_stop_quote(selected_model):
 
 def test_metrics_smoke(selected_model):
     lm = selected_model
+    lm.reset_metrics()
 
     lm += "abc"
     lm += gen("first", max_tokens=1)
@@ -99,6 +100,7 @@ Step 1''' + gen('steps', list_append=True, stop=['\nStep', '\n\n', '\nAnswer'], 
 
 def test_unicode2(selected_model: models.Model):
     lm = selected_model
+    lm.reset_metrics()
     prompt = "Janet’s ducks lay 16 eggs per day"
     lm += prompt + gen(max_tokens=10)
     print(f"Output: {str(lm)}")

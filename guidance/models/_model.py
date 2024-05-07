@@ -929,6 +929,9 @@ class Model:
         # Metrics for the model
         self.metrics = GuidanceMetrics()
 
+    def reset_metrics(self):
+        self.metrics = GuidanceMetrics()
+
     @property
     def active_role_end(self):
         """The default end patterns we should use for `gen` calls.
