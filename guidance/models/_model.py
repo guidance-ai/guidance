@@ -9,7 +9,7 @@ import time
 
 
 from pprint import pprint
-from typing import Dict, TYPE_CHECKING
+from typing import Dict, Tuple, TYPE_CHECKING
 
 
 import numpy as np
@@ -131,6 +131,7 @@ class EngineCallResponse:
     capture_groups: dict
     capture_group_log_probs: dict
     new_token_count: int
+    metrics: GuidanceMetrics
 
     def __init__(
         self,
@@ -204,6 +205,9 @@ class Engine:
         )
         self._token_trie.match = True
         self._token_trie.match_version = 0
+        # Any time get_logits is called, it should update this
+        # This does add to the list of "Thread Unsafety"
+        self.metrics = GuidanceMetrics()
 
     def start(self, parser, grammar, ensure_bos_token=True):
         """Start processing parser state executed through the grammar.
@@ -846,11 +850,11 @@ class Engine:
 
         return token_ids, token_byte_positions
 
-    def get_logits(self, token_ids, forced_bytes, current_temp):
+    def get_logits(self, token_ids, forced_bytes, current_temp) -> Tuple[np.ndarray, GuidanceMetrics]:
         """A fake method designed to be overriden by subclasses."""
 
         # pretend to extend the KV cache and update the log probs
-        return np.randn(len(self.tokenizer.tokens))
+        return np.randn(len(self.tokenizer.tokens)), GuidanceMetrics()
 
     def _report_failed_match(self, prompt):
         """Note that this can be overridden by subclasses that have more likely reasons than a bug in the token set (like remote models)."""
@@ -1367,6 +1371,9 @@ class Model:
         # we will return a new extended version of ourselves, which we track as `lm`
         lm = self
 
+        # Prepare our metrics update. This is part of our Thread Unsafety programme
+        metrics_before = lm.engine.metrics.model_copy(deep=True)
+
         # single generation
         if n == 1:
             generated_value = ""
@@ -1447,6 +1454,10 @@ class Model:
             #         lm[k] = v.decode("utf8") if isinstance(v, bytes) else v
 
         unreplace_model_variables(replacements)
+
+        # Now update our metrics while maintaining Thread Unsafety
+        lm.metrics.prompt_tokens += (self.engine.metrics.prompt_tokens - metrics_before.prompt_tokens)
+        lm.metrics.generated_tokens += (self.engine.metrics.generated_tokens - metrics_before.generated_tokens)
 
         logger.debug("finish Model._run_stateless")
 

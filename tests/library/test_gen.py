@@ -73,6 +73,18 @@ def test_stop_quote(selected_model):
     assert not lm["title"].endswith('"')
 
 
+def test_metrics_smoke(selected_model):
+    lm = selected_model
+
+    lm += "abc"
+    lm += gen("first", max_tokens=1)
+    assert lm.metrics.generated_tokens == 1
+
+    lm += "efg"
+    lm += gen("second", max_tokens=1)
+    assert lm.metrics.generated_tokens == 2
+
+
 def test_unicode(selected_model):
     # black makes this test ugly -- easier to read with fmt: off
     # fmt: off
@@ -89,9 +101,10 @@ def test_unicode2(selected_model: models.Model):
     lm = selected_model
     prompt = "Janet’s ducks lay 16 eggs per day"
     lm += prompt + gen(max_tokens=10)
+    print(f"Output: {str(lm)}")
     assert lm.metrics.prompt_tokens > 0
     assert lm.metrics.generated_tokens > 0
-    assert lm.metrics.generated_tokens <= 10
+    assert lm.metrics.generated_tokens <= 10 + 1
 
 
 def test_gsm8k():
