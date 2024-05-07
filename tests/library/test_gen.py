@@ -85,11 +85,13 @@ Step 1''' + gen('steps', list_append=True, stop=['\nStep', '\n\n', '\nAnswer'], 
     # fmt: on
 
 
-def test_unicode2(selected_model):
+def test_unicode2(selected_model: models.Model):
     lm = selected_model
     prompt = "Janet’s ducks lay 16 eggs per day"
     lm += prompt + gen(max_tokens=10)
-    assert True
+    assert lm.metrics.prompt_tokens > 0
+    assert lm.metrics.generated_tokens > 0
+    assert lm.metrics.generated_tokens <= 10
 
 
 def test_gsm8k():

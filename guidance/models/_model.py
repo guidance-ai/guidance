@@ -922,6 +922,7 @@ class Model:
         self._last_event_stream = (
             0  # used to track the last event streaming call to enable throttling
         )
+        self.metrics = GuidanceMetrics()
 
     @property
     def active_role_end(self):
