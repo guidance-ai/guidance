@@ -269,10 +269,6 @@ class TransformersEngine(Engine):
                 model_out.logits[0, -1, : len(self.tokenizer.tokens)].cpu().numpy()
             )
 
-        # Update metrics
-        self.metrics.prompt_tokens += len(new_token_ids)
-        self.metrics.generated_tokens += 1
-
         return self._cached_logits
 
 

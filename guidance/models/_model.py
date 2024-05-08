@@ -204,9 +204,6 @@ class Engine:
         )
         self._token_trie.match = True
         self._token_trie.match_version = 0
-        # Any time get_logits is called, it should update this
-        # This does add to the list of "Thread Unsafety"
-        self.metrics = GuidanceEngineMetrics()
 
     def start(self, parser, grammar, ensure_bos_token=True):
         """Start processing parser state executed through the grammar.
@@ -687,7 +684,6 @@ class Engine:
                     self._sampled_token = self.tokenizer.tokens[self._sampled_token_ind]
                     self._new_bytes_prob = 1.0
                     self._was_forced = True
-                    self.metrics.forced_tokens += 1
 
                 # we are at the end of the grammar
                 elif next_byte_mask_sum == 0:
@@ -757,6 +753,8 @@ class Engine:
                     response_capture_group_log_probs,
                     response_new_token_count,
                 ) = response_state
+
+                print(f"{response_is_generated=} {response_new_token_count=} {response_new_bytes=}")
 
                 yield EngineCallResponse(
                     new_bytes=response_new_bytes,
@@ -1382,9 +1380,6 @@ class Model:
         # we will return a new extended version of ourselves, which we track as `lm`
         lm = self
 
-        # Prepare our metrics update. This is part of our Thread Unsafety programme
-        metrics_before = lm.engine.metrics.model_copy(deep=True)
-
         # single generation
         if n == 1:
             generated_value = ""
@@ -1397,6 +1392,11 @@ class Model:
                 # we make everything full probability if we are not computing uncertainty
                 # if not self.engine.compute_log_probs:
                 #     chunk.new_bytes_prob = 1.0
+
+                if chunk.is_generated:
+                    self.engine_metrics.generated_tokens += chunk.new_token_count
+                else:
+                    self.engine_metrics.forced_tokens += chunk.new_token_count
 
                 # convert the bytes to a string (delaying if we don't yet have a valid unicode string)
                 lm.token_count += chunk.new_token_count
@@ -1465,17 +1465,6 @@ class Model:
             #         lm[k] = v.decode("utf8") if isinstance(v, bytes) else v
 
         unreplace_model_variables(replacements)
-
-        # Now update our metrics while maintaining Thread Unsafety
-        lm.engine_metrics.prompt_tokens += (
-            self.engine.metrics.prompt_tokens - metrics_before.prompt_tokens
-        )
-        lm.engine_metrics.generated_tokens += (
-            self.engine.metrics.generated_tokens - metrics_before.generated_tokens
-        )
-        lm.engine_metrics.forced_tokens += (
-            self.engine.metrics.forced_tokens - metrics_before.forced_tokens
-        )
 
         logger.debug("finish Model._run_stateless")
 
