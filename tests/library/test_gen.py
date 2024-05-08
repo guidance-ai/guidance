@@ -92,6 +92,7 @@ def test_metrics_smoke(selected_model: models.Model):
         lm.engine_metrics.prompt_tokens + lm.engine_metrics.generated_tokens
     )
 
+
 def test_metrics_select(selected_model: models.Model):
     lm = selected_model
     lm.reset_metrics()
@@ -100,7 +101,12 @@ def test_metrics_select(selected_model: models.Model):
     lm += select(["ride a bike", "row a boat", "go for a swim"])
     print(f"lm={str(lm)}")
     print(f"{lm.engine_metrics=}")
+    lm += " and afterwards "
+    lm += select(["walk to town", "walk to a show"])
+    print(f"lm={str(lm)}")
+    print(f"{lm.engine_metrics=}")
     assert False
+
 
 def test_unicode(selected_model):
     # black makes this test ugly -- easier to read with fmt: off
