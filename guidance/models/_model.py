@@ -52,7 +52,7 @@ from .._grammar import (
 
 from .. import _serialization_pb2
 
-from ._guidance_metrics import GuidanceMetrics
+from ._guidance_engine_metrics import GuidanceEngineMetrics
 
 if TYPE_CHECKING:
     from ..library._block import ContextBlock
@@ -206,7 +206,7 @@ class Engine:
         self._token_trie.match_version = 0
         # Any time get_logits is called, it should update this
         # This does add to the list of "Thread Unsafety"
-        self.metrics = GuidanceMetrics()
+        self.metrics = GuidanceEngineMetrics()
 
     def start(self, parser, grammar, ensure_bos_token=True):
         """Start processing parser state executed through the grammar.
@@ -927,10 +927,10 @@ class Model:
         )
 
         # Metrics for the model
-        self.metrics = GuidanceMetrics()
+        self.engine_metrics = GuidanceEngineMetrics()
 
     def reset_metrics(self):
-        self.metrics = GuidanceMetrics()
+        self.engine_metrics = GuidanceEngineMetrics()
 
     @property
     def current_token_count(self) -> int:
@@ -1466,10 +1466,10 @@ class Model:
         unreplace_model_variables(replacements)
 
         # Now update our metrics while maintaining Thread Unsafety
-        lm.metrics.prompt_tokens += (
+        lm.engine_metrics.prompt_tokens += (
             self.engine.metrics.prompt_tokens - metrics_before.prompt_tokens
         )
-        lm.metrics.generated_tokens += (
+        lm.engine_metrics.generated_tokens += (
             self.engine.metrics.generated_tokens - metrics_before.generated_tokens
         )
 

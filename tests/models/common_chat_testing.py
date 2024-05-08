@@ -16,9 +16,9 @@ def smoke_chat(lm: models.Chat, has_system_role: bool = True):
     print(str(lm))
     assert len(lm["text"]) > 0
     assert str(lm).endswith("Pick a number: <|im_end|>")
-    assert lm.metrics.prompt_tokens > 0
-    assert lm.metrics.generated_tokens > 0
-    assert lm.metrics.generated_tokens <= 10
+    assert lm.engine_metrics.prompt_tokens > 0
+    assert lm.engine_metrics.generated_tokens > 0
+    assert lm.engine_metrics.generated_tokens <= 10
 
 
 def longer_chat_1(lm: models.Chat, has_system_role: bool = True):

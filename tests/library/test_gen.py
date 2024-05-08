@@ -79,14 +79,14 @@ def test_metrics_smoke(selected_model: models.Model):
 
     lm += "abc"
     lm += gen("first", max_tokens=1)
-    assert lm.metrics.generated_tokens == 1
+    assert lm.engine_metrics.generated_tokens == 1
 
     lm += "efg"
     lm += gen("second", max_tokens=1)
-    assert lm.metrics.generated_tokens == 2
+    assert lm.engine_metrics.generated_tokens == 2
 
     assert lm.current_token_count >= (
-        lm.metrics.prompt_tokens + lm.metrics.generated_tokens
+        lm.engine_metrics.prompt_tokens + lm.engine_metrics.generated_tokens
     )
 
 
@@ -108,9 +108,9 @@ def test_unicode2(selected_model: models.Model):
     prompt = "Janet’s ducks lay 16 eggs per day"
     lm += prompt + gen(max_tokens=10)
     print(f"Output: {str(lm)}")
-    assert lm.metrics.prompt_tokens > 0
-    assert lm.metrics.generated_tokens > 0
-    assert lm.metrics.generated_tokens <= 10 + 1
+    assert lm.engine_metrics.prompt_tokens > 0
+    assert lm.engine_metrics.generated_tokens > 0
+    assert lm.engine_metrics.generated_tokens <= 10 + 1
 
 
 def test_gsm8k():
