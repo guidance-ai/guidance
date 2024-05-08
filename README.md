@@ -11,7 +11,8 @@
 With `{guidance}`, developers write prompt-programs using a blend of text and Python to express the rules and constraints the model must follow. Constraints are then compiled by `{guidance}` software that sits directly in the model's decoding loop and examines generation token by token, eliminating tokens that don’t match what you expressed.
 
 ## Demo video
-Demo video here
+[![Watch the video](https://img.youtube.com/vi/9oXjP5IIMzQ/hqdefault.jpg)](https://www.youtube.com/watch?v=9oXjP5IIMzQ)
+
 
 # Key Features
 The **`{guidance}`** library offers developers an elegant prompt-writing experience, allowing users to interleave control (conditional, loops) and constrain generation seamlessly:
@@ -34,7 +35,9 @@ The **`{guidance}`** library offers developers an elegant prompt-writing experie
 # Getting started
 You can see a brief walkthrough of `{guidance}` before installing:
 
-Tutorial (as a button/hyperlink)   Install (button/hyperlink)   Load models (button/hyperlink)
+- [Basic tutorial](notebooks/tutorials/intro_to_guidance.ipynb)
+- [Install](#install)
+- [Loading models](#loading-models)
 
 # Features and examples
 
