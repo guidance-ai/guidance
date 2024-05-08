@@ -933,7 +933,7 @@ class Model:
         self.metrics = GuidanceMetrics()
 
     @property
-    def current_token_count(self)->int:
+    def current_token_count(self) -> int:
         current_string = str(self)
         current_tokens = self.engine.tokenizer(current_string)
         return len(current_tokens)
