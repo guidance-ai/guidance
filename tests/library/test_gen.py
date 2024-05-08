@@ -73,7 +73,7 @@ def test_stop_quote(selected_model):
     assert not lm["title"].endswith('"')
 
 
-def test_metrics_smoke(selected_model):
+def test_metrics_smoke(selected_model: models.Model):
     lm = selected_model
     lm.reset_metrics()
 
@@ -84,6 +84,10 @@ def test_metrics_smoke(selected_model):
     lm += "efg"
     lm += gen("second", max_tokens=1)
     assert lm.metrics.generated_tokens == 2
+
+    assert lm.current_token_count >= (
+        lm.metrics.prompt_tokens + lm.metrics.generated_tokens
+    )
 
 
 def test_unicode(selected_model):

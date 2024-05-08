@@ -933,6 +933,12 @@ class Model:
         self.metrics = GuidanceMetrics()
 
     @property
+    def current_token_count(self)->int:
+        current_string = str(self)
+        current_tokens = self.engine.tokenizer(current_string)
+        return len(current_tokens)
+
+    @property
     def active_role_end(self):
         """The default end patterns we should use for `gen` calls.
         TODO: move this logic into the gen call...we can do with if we allow model_variables to run functions.
