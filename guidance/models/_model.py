@@ -754,7 +754,9 @@ class Engine:
                     response_new_token_count,
                 ) = response_state
 
-                print(f"{response_is_generated=} {response_new_token_count=} {response_new_bytes=}")
+                print(
+                    f"{response_is_generated=} {response_new_token_count=} {response_new_bytes=}"
+                )
 
                 yield EngineCallResponse(
                     new_bytes=response_new_bytes,
@@ -930,12 +932,6 @@ class Model:
 
     def reset_metrics(self):
         self.engine_metrics = GuidanceEngineMetrics()
-
-    @property
-    def current_token_count(self) -> int:
-        current_string = str(self)
-        current_tokens = self.engine.tokenizer(current_string)
-        return len(current_tokens)
 
     @property
     def active_role_end(self):
