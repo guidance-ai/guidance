@@ -2,7 +2,7 @@ import re
 
 import pytest
 
-from guidance import gen, models
+from guidance import gen, models, select
 
 
 def test_basic():
@@ -78,17 +78,29 @@ def test_metrics_smoke(selected_model: models.Model):
     lm.reset_metrics()
 
     lm += "abc"
+    print(f"{lm.engine_metrics=}")
     lm += gen("first", max_tokens=1)
+    print(f"{lm.engine_metrics=}")
     assert lm.engine_metrics.generated_tokens == 1
 
     lm += "efg"
     lm += gen("second", max_tokens=1)
+    print(f"{lm.engine_metrics=}")
     assert lm.engine_metrics.generated_tokens == 2
 
     assert lm.current_token_count >= (
         lm.engine_metrics.prompt_tokens + lm.engine_metrics.generated_tokens
     )
 
+def test_metrics_select(selected_model: models.Model):
+    lm = selected_model
+    lm.reset_metrics()
+
+    lm += "This is a great day to "
+    lm += select(["ride a bike", "row a boat", "go for a swim"])
+    print(f"lm={str(lm)}")
+    print(f"{lm.engine_metrics=}")
+    assert False
 
 def test_unicode(selected_model):
     # black makes this test ugly -- easier to read with fmt: off

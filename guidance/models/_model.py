@@ -687,6 +687,7 @@ class Engine:
                     self._sampled_token = self.tokenizer.tokens[self._sampled_token_ind]
                     self._new_bytes_prob = 1.0
                     self._was_forced = True
+                    self.metrics.forced_tokens += 1
 
                 # we are at the end of the grammar
                 elif next_byte_mask_sum == 0:
@@ -1471,6 +1472,9 @@ class Model:
         )
         lm.engine_metrics.generated_tokens += (
             self.engine.metrics.generated_tokens - metrics_before.generated_tokens
+        )
+        lm.engine_metrics.forced_tokens += (
+            self.engine.metrics.forced_tokens - metrics_before.forced_tokens
         )
 
         logger.debug("finish Model._run_stateless")
