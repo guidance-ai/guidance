@@ -121,7 +121,10 @@ class TransformersTokenizer(Tokenizer):
         ), "You must give a model name when you provide a tokenizer object!"
 
         return tokenizer
-
+    
+    def __call__(self, byte_string):
+        tokenisation = self._orig_tokenizer(byte_string)
+        return tokenisation['input_ids']
 
 class TransformersEngine(Engine):
     def __init__(self, model, tokenizer, compute_log_probs, **kwargs):
