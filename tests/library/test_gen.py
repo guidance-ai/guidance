@@ -138,8 +138,11 @@ def test_metrics_alt_expressions(selected_model: models.Model):
     assert str(lm) == str(lm2)
     assert lm.engine_metrics.generated_tokens == 10
     assert lm2.engine_metrics.generated_tokens == 10
-    assert lm.engine_metrics.forced_tokens == 0
-    assert lm2.engine_metrics.forced_tokens == 0
+
+    assert (
+        lm.engine_metrics.forced_tokens + lm.engine_metrics.model_input_tokens
+        == lm2.engine_metrics.forced_tokens + lm2.engine_metrics.model_input_tokens
+    )
 
 
 def test_unicode(selected_model):

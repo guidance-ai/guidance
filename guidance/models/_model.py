@@ -131,6 +131,7 @@ class EngineCallResponse:
     capture_groups: dict
     capture_group_log_probs: dict
     new_token_count: int
+    last_model_token_count: int
 
     def __init__(
         self,
@@ -140,6 +141,7 @@ class EngineCallResponse:
         capture_groups,
         capture_group_log_probs,
         new_token_count,
+        last_model_token_count,
     ):
         self.new_bytes = new_bytes
         self.is_generated = is_generated
@@ -147,6 +149,7 @@ class EngineCallResponse:
         self.capture_groups = capture_groups
         self.capture_group_log_probs = capture_group_log_probs
         self.new_token_count = new_token_count
+        self.last_model_token_count = last_model_token_count
 
     def _to_proto(self):
         """Converts an EngineCallResponse object to its Protobuf representation.
@@ -739,6 +742,7 @@ class Engine:
         # TODO: remove this after the next release. This verifies that calling Rust works.
         assert "def" == engine_start("abc", "def", 1)
 
+        last_model_token_count = 0
         logits = None
         while True:
             is_done, logits_state, response_state = self.next(logits)
@@ -765,13 +769,19 @@ class Engine:
                     capture_groups=response_capture_groups,
                     capture_group_log_probs=response_capture_group_log_probs,
                     new_token_count=response_new_token_count,
+                    last_model_token_count=last_model_token_count,
                 )
+                last_model_token_count = 0
 
             if logits_state is not None:
                 token_ids, forced_bytes, current_temp = logits_state
-                logits = self.get_logits(token_ids, forced_bytes, current_temp)
+                logits, model_token_count = self.get_logits(
+                    token_ids, forced_bytes, current_temp
+                )
+                last_model_token_count = model_token_count
 
             if is_done:
+                assert last_model_token_count == 0, "Unyielded input tokens"
                 break
 
     def _tokenize_prefix(self, byte_string):
@@ -1393,6 +1403,7 @@ class Model:
                     self.engine_metrics.generated_tokens += chunk.new_token_count
                 else:
                     self.engine_metrics.forced_tokens += chunk.new_token_count
+                self.engine_metrics.model_input_tokens += chunk.last_model_token_count
 
                 # convert the bytes to a string (delaying if we don't yet have a valid unicode string)
                 lm.token_count += chunk.new_token_count

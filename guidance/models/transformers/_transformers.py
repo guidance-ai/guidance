@@ -269,7 +269,7 @@ class TransformersEngine(Engine):
                 model_out.logits[0, -1, : len(self.tokenizer.tokens)].cpu().numpy()
             )
 
-        return self._cached_logits
+        return self._cached_logits, len(new_token_ids)
 
 
 class Transformers(Model):
