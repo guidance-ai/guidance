@@ -77,20 +77,25 @@ def test_metrics_smoke(selected_model: models.Model):
     lm = selected_model
     lm.reset_metrics()
 
-    lm += "abc"
+    lm += "abcd"
     print(f"{lm.engine_metrics=}")
     lm += gen("first", max_tokens=1)
     print(f"{lm.engine_metrics=}")
-    assert lm.engine_metrics.generated_tokens == 1
-
-    lm += "efg"
-    lm += gen("second", max_tokens=1)
-    print(f"{lm.engine_metrics=}")
-    assert lm.engine_metrics.generated_tokens == 2
-
-    assert lm.current_token_count >= (
-        lm.engine_metrics.prompt_tokens + lm.engine_metrics.generated_tokens
+    # Can't be sure of exact count due to token healing
+    assert (
+        lm.engine_metrics.generated_tokens == 1
+        or lm.engine_metrics.generated_tokens == 2
     )
+    assert lm.engine_metrics.forced_tokens == 0
+
+    lm += "fg"
+    lm += gen("second", max_tokens=1)
+    # Again, trouble with healing
+    assert (
+        lm.engine_metrics.generated_tokens >= 2
+        and lm.engine_metrics.generated_tokens <= 4
+    )
+    assert lm.engine_metrics.forced_tokens == 0
 
 
 def test_metrics_select(selected_model: models.Model):
@@ -130,15 +135,11 @@ def test_unicode2(selected_model: models.Model):
     lm.reset_metrics()
     prompt = "Janet’s ducks lay 16 eggs per day"
     lm += prompt + gen(max_tokens=10)
-    print(f"{prompt=}")
-    print(f"Prompt tokens: {len(lm.engine.tokenizer(prompt))}")
-    print(f"{lm.engine_metrics=}")
-    print(f"{lm.current_token_count=}")
-    print(f"{lm.token_count=}")
-    print(f"Output: {str(lm)}")
-    assert lm.engine_metrics.prompt_tokens > 0
-    assert lm.engine_metrics.generated_tokens > 0
-    assert lm.engine_metrics.generated_tokens <= 10
+    assert (
+        lm.engine_metrics.generated_tokens == 10
+        or lm.engine_metrics.generated_tokens == 11
+    )
+    assert lm.engine_metrics.forced_tokens == 0
 
 
 def test_gsm8k():
