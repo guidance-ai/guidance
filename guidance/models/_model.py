@@ -546,7 +546,7 @@ class Engine:
                             self._new_bytes_prob if self.compute_log_probs else 1.0,
                             self._captured_data,
                             self._captured_log_prob_data,
-                            self._token_count - self._last_token_count + 1,
+                            self._token_count - self._last_token_count,
                         )
 
                         self._last_token_count = self._token_count

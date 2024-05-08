@@ -74,7 +74,7 @@ def test_stop_quote(selected_model):
 
 
 def test_metrics_smoke(selected_model: models.Model):
-    lm = selected_model
+    lm = selected_model.copy()
     lm.reset_metrics()
 
     lm += "abcd"
@@ -99,7 +99,7 @@ def test_metrics_smoke(selected_model: models.Model):
 
 
 def test_metrics_select(selected_model: models.Model):
-    lm = selected_model
+    lm = selected_model.copy()
     lm.reset_metrics()
 
     lm += "This is a great day to "
@@ -116,6 +116,30 @@ def test_metrics_select(selected_model: models.Model):
     print(f"{lm.engine_metrics=}")
     assert lm.engine_metrics.forced_tokens > prev_stats.forced_tokens
     assert lm.engine_metrics.generated_tokens > prev_stats.generated_tokens
+
+
+def test_metrics_alt_expressions(selected_model: models.Model):
+    lm = selected_model.copy()
+    lm2 = selected_model.copy()
+    lm.reset_metrics()
+    lm2.reset_metrics()
+
+    prompt = "abcdefg"
+
+    lm += prompt + gen(max_tokens=10)
+    print(f"\nlm={str(lm)}")
+    print(f"{lm.engine_metrics=}\n")
+
+    lm2 += prompt
+    lm2 += gen(max_tokens=10)
+    print(f"\nlm2={str(lm2)}")
+    print(f"{lm2.engine_metrics=}\n")
+
+    assert str(lm) == str(lm2)
+    assert lm.engine_metrics.generated_tokens == 10
+    assert lm2.engine_metrics.generated_tokens == 10
+    assert lm.engine_metrics.forced_tokens == 0
+    assert lm2.engine_metrics.forced_tokens == 0
 
 
 def test_unicode(selected_model):
