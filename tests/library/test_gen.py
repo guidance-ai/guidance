@@ -107,10 +107,15 @@ def test_unicode2(selected_model: models.Model):
     lm.reset_metrics()
     prompt = "Janet’s ducks lay 16 eggs per day"
     lm += prompt + gen(max_tokens=10)
+    print(f"{prompt=}")
+    print(f"Prompt tokens: {len(lm.engine.tokenizer(prompt))}")
+    print(f"{lm.engine_metrics=}")
+    print(f"{lm.current_token_count=}")
+    print(f"{lm.token_count=}")
     print(f"Output: {str(lm)}")
     assert lm.engine_metrics.prompt_tokens > 0
     assert lm.engine_metrics.generated_tokens > 0
-    assert lm.engine_metrics.generated_tokens <= 10 + 1
+    assert lm.engine_metrics.generated_tokens <= 10
 
 
 def test_gsm8k():
