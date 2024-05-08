@@ -539,18 +539,18 @@ class Engine:
                         # self._captured_log_prob_data.update(new_captured_log_prob_data)
                         # yield out, self._is_generated, self._new_bytes_prob, self._captured_data, self._captured_log_prob_data, self._token_count - self._last_token_count # note that we don't capture groups until a complete parse right now...
 
+                        self._token_count += 1  # note we only update this for tokens that emit non-hidden content
                         response_state = (
                             out,
                             is_generated,
                             self._new_bytes_prob if self.compute_log_probs else 1.0,
                             self._captured_data,
                             self._captured_log_prob_data,
-                            self._token_count - self._last_token_count,
+                            self._token_count - self._last_token_count + 1,
                         )
 
                         self._last_token_count = self._token_count
                         self._hidden_count = 0
-                        self._token_count += 1  # note we only update this for tokens that emit non-hidden content
                     else:
                         self._hidden_count -= len(new_bytes)
 

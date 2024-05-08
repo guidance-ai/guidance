@@ -101,11 +101,16 @@ def test_metrics_select(selected_model: models.Model):
     lm += select(["ride a bike", "row a boat", "go for a swim"])
     print(f"lm={str(lm)}")
     print(f"{lm.engine_metrics=}")
+    assert lm.engine_metrics.forced_tokens > 0
+    assert lm.engine_metrics.generated_tokens > 0
+    assert lm.engine_metrics.forced_tokens > lm.engine_metrics.generated_tokens
+    prev_stats = lm.engine_metrics.copy()
     lm += " and afterwards "
     lm += select(["walk to town", "walk to a show"])
     print(f"lm={str(lm)}")
     print(f"{lm.engine_metrics=}")
-    assert False
+    assert lm.engine_metrics.forced_tokens > prev_stats.forced_tokens
+    assert lm.engine_metrics.generated_tokens > prev_stats.generated_tokens
 
 
 def test_unicode(selected_model):
