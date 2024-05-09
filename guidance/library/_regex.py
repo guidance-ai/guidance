@@ -108,4 +108,4 @@ class Transformer:
 
 @guidance(stateless=True)
 def regex(lm, pattern):
-    return lm + Transformer.transform(pattern)
+    return lm + Transformer.transform(parser.parse(pattern))
