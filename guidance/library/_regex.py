@@ -5,6 +5,7 @@ from typing import Any, Tuple, Union
 from .._grammar import Byte, Join, byte_range, select
 from .._guidance import guidance
 from ._any_char import any_char
+from ._any_char_but import any_char_but
 from ._optional import optional
 from ._zero_or_more import zero_or_more
 
@@ -64,6 +65,14 @@ class Transformer:
     def IN(cls, args):
         # char_set
         assert isinstance(args, list)
+        if args[0] == (constants.NEGATE, None):
+            args.pop(0)
+            if all([node[0] == constants.LITERAL for node in args]):
+                bytes = [cls.transform(arg).byte for arg in args]
+                return any_char_but(bytes)
+            raise NotImplementedError(
+                "Negation not implemented for non-literals (e.g. ranges)"
+            )
         transformed_args = [cls.transform(arg) for arg in args]
         return select(transformed_args)
 
