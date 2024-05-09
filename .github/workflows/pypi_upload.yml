@@ -31,8 +31,8 @@ jobs:
               | jq -nRc '{"only": inputs, "os": "macos-12"}' \
               && cibuildwheel --print-build-identifiers --platform macos --archs arm64 \
               | jq -nRc '{"only": inputs, "os": "macos-latest"}' \
-              # && cibuildwheel --print-build-identifiers --platform windows \
-              # | jq -nRc '{"only": inputs, "os": "windows-latest"}'
+              && cibuildwheel --print-build-identifiers --platform windows --archs auto64 \
+              | jq -nRc '{"only": inputs, "os": "windows-latest"}'
             } | jq -sc
           )
           echo "include=$MATRIX" >> $GITHUB_OUTPUT
