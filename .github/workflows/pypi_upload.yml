@@ -87,6 +87,11 @@ jobs:
           curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.75.0
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
+      - name: Run cargo check
+        shell: bash
+        run: |
+          cargo --version
+
       - name: Build sdist (pep517)
         run: |
           python -m pip install build
@@ -97,26 +102,26 @@ jobs:
           name: sdist_files
           path: dist/*.tar.gz
 
-  publish_wheels:
-    permissions:
-      id-token: write
-    name: Publish wheels on pypi
-    needs: [build_wheels, build_sdist]
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags')
-    steps:
-      - uses: actions/download-artifact@v3
-        with:
-          name: bdist_files
-          path: dist
+  # publish_wheels:
+  #   permissions:
+  #     id-token: write
+  #   name: Publish wheels on pypi
+  #   needs: [build_wheels, build_sdist]
+  #   runs-on: ubuntu-latest
+  #   if: startsWith(github.ref, 'refs/tags')
+  #   steps:
+  #     - uses: actions/download-artifact@v3
+  #       with:
+  #         name: bdist_files
+  #         path: dist
 
-      - uses: actions/download-artifact@v3
-        with:
-          name: sdist_files
-          path: dist
+  #     - uses: actions/download-artifact@v3
+  #       with:
+  #         name: sdist_files
+  #         path: dist
 
-      - name: Publish package to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          user: __token__
-          password: ${{ secrets.PYPI_API_TOKEN }}
+  #     - name: Publish package to PyPI
+  #       uses: pypa/gh-action-pypi-publish@release/v1
+  #       with:
+  #         user: __token__
+  #         password: ${{ secrets.PYPI_API_TOKEN }}
