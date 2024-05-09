@@ -25,11 +25,11 @@ jobs:
         run: |
           MATRIX=$(
             {
-              cibuildwheel --print-build-identifiers --platform linux \
+              cibuildwheel --print-build-identifiers --platform linux --archs x86_64 \
               | jq -nRc '{"only": inputs, "os": "ubuntu-latest"}' \
               && cibuildwheel --print-build-identifiers --platform macos \
               | jq -nRc '{"only": inputs, "os": "macos-12"}' \
-              # && cibuildwheel --print-build-identifiers --platform windows \
+              # && cibuildwheel --print-build-identifiers --platform windows  --archs x86_64 \
               # | jq -nRc '{"only": inputs, "os": "windows-latest"}'
             } | jq -sc
           )
