@@ -36,6 +36,7 @@ except ImportError:
         "Failed to load guidance.cpp, falling back to Python mirror implementations..."
     )
     from .. import _cpp as cpp
+from ._guidance_engine_metrics import GuidanceEngineMetrics
 from .._utils import softmax, CaptureEvents
 from .._parser import EarleyCommitParser, Parser
 from .._grammar import (
@@ -201,6 +202,11 @@ class Engine:
         )
         self._token_trie.match = True
         self._token_trie.match_version = 0
+
+        self.metrics = GuidanceEngineMetrics()
+
+    def reset_metrics(self):
+        self.metrics = GuidanceEngineMetrics()
 
     def start(self, parser, grammar, ensure_bos_token=True):
         """Start processing parser state executed through the grammar.
