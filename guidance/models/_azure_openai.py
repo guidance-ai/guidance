@@ -7,11 +7,7 @@ import tiktoken
 
 from ._grammarless import Grammarless
 from ._model import Chat, Instruct
-from ._openai import (
-    OpenAIChatEngine,
-    OpenAICompletionEngine,
-    OpenAIInstructEngine
-)
+from ._openai import OpenAIChatEngine, OpenAICompletionEngine, OpenAIInstructEngine
 
 try:
     import openai as openai_package
@@ -77,7 +73,7 @@ class AzureOpenAI(Grammarless):
             # Default to a completion model
             found_subclass: Type[AzureOpenAI] = (
                 AzureOpenAICompletion
-                if model.endswith("-instruct") 
+                if model.endswith("-instruct")
                 else AzureOpenAIChat
             )
 
@@ -96,14 +92,14 @@ class AzureOpenAI(Grammarless):
                 **kwargs,
             )
             return
-        
+
         parsed_url = urlparse(azure_endpoint)
 
         if azure_deployment is None:
             parts = pathlib.Path(parsed_url.path).parts
             if len(parts) > 2:
                 azure_deployment = parts[3]
-                
+
         parsed_query = parse_qs(parsed_url.query)
         api_version = (
             version

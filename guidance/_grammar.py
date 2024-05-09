@@ -16,6 +16,7 @@ _tag_pattern = re.compile(
     re.escape(tag_start) + r"([^\|]+)" + re.escape(tag_end)
 )  # the pattern for matching call tags
 
+
 class StatefulException(Exception):
     """This is raised when we try and use the state of a grammar object like it was a live model.
 

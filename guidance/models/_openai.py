@@ -93,11 +93,9 @@ class OpenAI(Grammarless):
             # instruct
             # elif "instruct" in model: # All current OpenAI instruct models behave as Completion models.
             #     found_subclass = OpenAIInstruct
-                
+
             found_subclass: typing.Type[OpenAI] = (
-                OpenAICompletion
-                if model.endswith("-instruct") 
-                else OpenAIChat
+                OpenAICompletion if model.endswith("-instruct") else OpenAIChat
             )
 
             # convert to any found subclass

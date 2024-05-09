@@ -15,7 +15,6 @@ from ..utils import env_or_fail
 pytestmark = pytest.mark.needs_credentials
 
 
-
 def test_azureai_openai_chat_smoke(rate_limiter):
     azureai_endpoint = env_or_fail("AZUREAI_CHAT_ENDPOINT")
     azureai_key = env_or_fail("AZUREAI_CHAT_KEY")
