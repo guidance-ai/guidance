@@ -207,6 +207,9 @@ class Engine:
 
         self.metrics = GuidanceEngineMetrics()
 
+    def reset_metrics(self):
+        self.metrics = GuidanceEngineMetrics()
+
     def start(self, parser, grammar, ensure_bos_token=True):
         """Start processing parser state executed through the grammar.
 
