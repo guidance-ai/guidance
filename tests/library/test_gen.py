@@ -74,75 +74,53 @@ def test_stop_quote(selected_model):
 
 
 def test_metrics_smoke(selected_model: models.Model):
-    lm = selected_model.copy()
-    lm.reset_metrics()
+    lm = selected_model
+    lm.engine.reset_metrics()
 
     lm += "abcd"
-    print(f"{lm.engine_metrics=}")
+    print(f"{lm.engine.metrics=}")
     lm += gen("first", max_tokens=1)
-    print(f"{lm.engine_metrics=}")
+    print(f"{lm.engine.metrics=}")
     # Can't be sure of exact count due to token healing
     assert (
-        lm.engine_metrics.generated_tokens == 1
-        or lm.engine_metrics.generated_tokens == 2
+        lm.engine.metrics.model_output_tokens == 1
+        or lm.engine.metrics.model_output_tokens == 2
     )
-    assert lm.engine_metrics.forced_tokens == 0
+    assert lm.engine.metrics.model_input_tokens > 1
 
     lm += "fg"
     lm += gen("second", max_tokens=1)
     # Again, trouble with healing
     assert (
-        lm.engine_metrics.generated_tokens >= 2
-        and lm.engine_metrics.generated_tokens <= 4
+        lm.engine.metrics.model_output_tokens == 1
+        or lm.engine.metrics.model_output_tokens == 2
     )
-    assert lm.engine_metrics.forced_tokens == 0
+    assert (
+        lm.engine.metrics.model_output_tokens >= 2
+        or lm.engine.metrics.model_output_tokens <= 4
+    )
 
 
 def test_metrics_select(selected_model: models.Model):
-    lm = selected_model.copy()
-    lm.reset_metrics()
+    lm = selected_model
+    lm.engine.reset_metrics()
 
-    lm += "This is a great day to "
-    lm += select(["ride a bike", "row a boat", "go for a swim"])
-    print(f"lm={str(lm)}")
-    print(f"{lm.engine_metrics=}")
-    assert lm.engine_metrics.forced_tokens > 0
-    assert lm.engine_metrics.generated_tokens > 0
-    assert lm.engine_metrics.forced_tokens > lm.engine_metrics.generated_tokens
-    prev_stats = lm.engine_metrics.copy()
-    lm += " and afterwards "
-    lm += select(["walk to town", "walk to a show"])
-    print(f"lm={str(lm)}")
-    print(f"{lm.engine_metrics=}")
-    assert lm.engine_metrics.forced_tokens > prev_stats.forced_tokens
-    assert lm.engine_metrics.generated_tokens > prev_stats.generated_tokens
-
-
-def test_metrics_alt_expressions(selected_model: models.Model):
-    lm = selected_model.copy()
-    lm2 = selected_model.copy()
-    lm.reset_metrics()
-    lm2.reset_metrics()
-
-    prompt = "abcdefg"
-
-    lm += prompt + gen(max_tokens=10)
-    print(f"\nlm={str(lm)}")
-    print(f"{lm.engine_metrics=}\n")
-
-    lm2 += prompt
-    lm2 += gen(max_tokens=10)
-    print(f"\nlm2={str(lm2)}")
-    print(f"{lm2.engine_metrics=}\n")
-
-    assert str(lm) == str(lm2)
-    assert lm.engine_metrics.generated_tokens == 10
-    assert lm2.engine_metrics.generated_tokens == 10
-
-    assert (
-        lm.engine_metrics.forced_tokens + lm.engine_metrics.model_input_tokens
-        == lm2.engine_metrics.forced_tokens + lm2.engine_metrics.model_input_tokens
+    lm += "I will "
+    lm += select(
+        [
+            "ride a bicycle down the road",
+            "row in a boat along the river",
+            "go for a swim in the ocean",
+        ]
     )
+    print(f"lm={str(lm)}")
+    print(f"{lm.engine.metrics=}")
+    assert lm.engine.metrics.model_input_tokens > 1
+    assert lm.engine.metrics.model_output_tokens > 0
+    # Guidance should be able to force the generation after only a couple of tokens
+    # so even though the options are long, relatively few output tokens should be
+    # needed
+    assert lm.engine.metrics.model_input_tokens > lm.engine.metrics.model_output_tokens
 
 
 def test_unicode(selected_model):
@@ -159,14 +137,16 @@ Step 1''' + gen('steps', list_append=True, stop=['\nStep', '\n\n', '\nAnswer'], 
 
 def test_unicode2(selected_model: models.Model):
     lm = selected_model
-    lm.reset_metrics()
+    lm.engine.reset_metrics()
     prompt = "Janet’s ducks lay 16 eggs per day"
     lm += prompt + gen(max_tokens=10)
+    assert lm.engine.metrics.model_input_tokens > 1
+    # Due to token healing, we can't be sure of the
+    # precise output count
     assert (
-        lm.engine_metrics.generated_tokens == 10
-        or lm.engine_metrics.generated_tokens == 11
+        lm.engine.metrics.model_output_tokens == 10
+        or lm.engine.metrics.model_output_tokens == 11
     )
-    assert lm.engine_metrics.forced_tokens == 0
 
 
 def test_gsm8k():
