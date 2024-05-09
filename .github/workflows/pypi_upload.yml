@@ -47,17 +47,17 @@ jobs:
       - name: Check out the repo
         uses: actions/checkout@v3
 
-      - name: Set up QEMU
-        if: runner.os == 'Linux'
-        uses: docker/setup-qemu-action@v2
-        with:
-          platforms: all
-
       - name: Install Rust
         shell: bash
         run: |
           curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.75.0
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Set up QEMU
+        if: runner.os == 'Linux'
+        uses: docker/setup-qemu-action@v2
+        with:
+          platforms: all
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.14.0
