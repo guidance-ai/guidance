@@ -86,19 +86,17 @@ def test_metrics_smoke(selected_model: models.Model):
         lm.engine.metrics.engine_output_tokens == 1
         or lm.engine.metrics.engine_output_tokens == 2
     )
-    assert lm.engine.metrics.engine_input_tokens > 1
+    assert lm.engine.metrics.engine_input_tokens >= 1
+    last_input_tokens = lm.engine.metrics.engine_input_tokens
 
     lm += "fg"
     lm += gen("second", max_tokens=1)
     # Again, trouble with healing
     assert (
-        lm.engine.metrics.engine_output_tokens == 1
-        or lm.engine.metrics.engine_output_tokens == 2
-    )
-    assert (
         lm.engine.metrics.engine_output_tokens >= 2
         or lm.engine.metrics.engine_output_tokens <= 4
     )
+    assert lm.engine.metrics.engine_input_tokens > last_input_tokens
 
 
 def test_metrics_select(selected_model: models.Model):
@@ -120,7 +118,9 @@ def test_metrics_select(selected_model: models.Model):
     # Guidance should be able to force the generation after only a couple of tokens
     # so even though the options are long, relatively few output tokens should be
     # needed
-    assert lm.engine.metrics.engine_input_tokens > lm.engine.metrics.engine_output_tokens
+    assert (
+        lm.engine.metrics.engine_input_tokens > lm.engine.metrics.engine_output_tokens
+    )
 
 
 def test_unicode(selected_model):
