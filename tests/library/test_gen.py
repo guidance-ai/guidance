@@ -83,21 +83,21 @@ def test_metrics_smoke(selected_model: models.Model):
     print(f"{lm.engine.metrics=}")
     # Can't be sure of exact count due to token healing
     assert (
-        lm.engine.metrics.model_output_tokens == 1
-        or lm.engine.metrics.model_output_tokens == 2
+        lm.engine.metrics.engine_output_tokens == 1
+        or lm.engine.metrics.engine_output_tokens == 2
     )
-    assert lm.engine.metrics.model_input_tokens > 1
+    assert lm.engine.metrics.engine_input_tokens > 1
 
     lm += "fg"
     lm += gen("second", max_tokens=1)
     # Again, trouble with healing
     assert (
-        lm.engine.metrics.model_output_tokens == 1
-        or lm.engine.metrics.model_output_tokens == 2
+        lm.engine.metrics.engine_output_tokens == 1
+        or lm.engine.metrics.engine_output_tokens == 2
     )
     assert (
-        lm.engine.metrics.model_output_tokens >= 2
-        or lm.engine.metrics.model_output_tokens <= 4
+        lm.engine.metrics.engine_output_tokens >= 2
+        or lm.engine.metrics.engine_output_tokens <= 4
     )
 
 
@@ -115,12 +115,12 @@ def test_metrics_select(selected_model: models.Model):
     )
     print(f"lm={str(lm)}")
     print(f"{lm.engine.metrics=}")
-    assert lm.engine.metrics.model_input_tokens > 1
-    assert lm.engine.metrics.model_output_tokens > 0
+    assert lm.engine.metrics.engine_input_tokens > 1
+    assert lm.engine.metrics.engine_output_tokens > 0
     # Guidance should be able to force the generation after only a couple of tokens
     # so even though the options are long, relatively few output tokens should be
     # needed
-    assert lm.engine.metrics.model_input_tokens > lm.engine.metrics.model_output_tokens
+    assert lm.engine.metrics.engine_input_tokens > lm.engine.metrics.engine_output_tokens
 
 
 def test_unicode(selected_model):
@@ -140,12 +140,12 @@ def test_unicode2(selected_model: models.Model):
     lm.engine.reset_metrics()
     prompt = "Janet’s ducks lay 16 eggs per day"
     lm += prompt + gen(max_tokens=10)
-    assert lm.engine.metrics.model_input_tokens > 1
+    assert lm.engine.metrics.engine_input_tokens > 1
     # Due to token healing, we can't be sure of the
     # precise output count
     assert (
-        lm.engine.metrics.model_output_tokens == 10
-        or lm.engine.metrics.model_output_tokens == 11
+        lm.engine.metrics.engine_output_tokens == 10
+        or lm.engine.metrics.engine_output_tokens == 11
     )
 
 
