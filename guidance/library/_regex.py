@@ -25,11 +25,12 @@ class Transformer:
             return Join([cls.transform(node) for node in tree.data])
 
         opcode, args = tree
+        opcode_name = opcode.name
         try:
-            method = getattr(cls, opcode.name)
+            method = getattr(cls, opcode_name)
         except AttributeError as e:
             raise NotImplementedError(
-                f"No method implemented for opcode {opcode}"
+                f"No method implemented for opcode {opcode_name}"
             ) from e
         return method(args)
 
