@@ -1,3 +1,22 @@
+<style>
+    a button {
+        background-color: #0164D9;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        padding-top: 7px;
+        padding-bottom: 7px;
+        width: 120px;
+        text-decoration: none;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+
+    a button:hover {
+        background-color: #014CAB;
+    }
+</style>
+
 <div align="right"><a href="https://guidance.readthedocs.org"><img src="https://readthedocs.org/projects/guidance/badge/?version=latest&style=flat" /></a></div>
 <div align="center"><picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/figures/guidance_logo_blue_dark.svg">
@@ -8,41 +27,16 @@
 # An efficient programming paradigm for steering language models
 **`{guidance}`** is a programming paradigm that offers superior control and efficiency compared to conventional prompting and chaining. With `{guidance}`, you can control how output is structured and get high-quality output for your use case—**while reducing latency and costs of conventional prompting or fine-tuning.** It allows users to constrain generation (e.g. with regex and CFGs) as well as to interleave control (conditional, loops) and generation seamlessly.
 
-With `{guidance}`, developers write prompt-programs using a blend of text and Python to express the rules and constraints the model must follow. Constraints are then compiled by `{guidance}` software that sits directly in the model's decoding loop and examines generation token by token, eliminating tokens that don’t match what you expressed.
+<a href="https://www.youtube.com/watch?v=9oXjP5IIMzQ"  aria-label="Watch demo"><button>Watch demo</button></a>
 
-## Demo video
-[![Watch the video](https://img.youtube.com/vi/9oXjP5IIMzQ/hqdefault.jpg)](https://www.youtube.com/watch?v=9oXjP5IIMzQ)
-
+<a href="#get-started" aria-label="Get started"><button>Get started</button></a>
 
 # Key Features
 The **`{guidance}`** library offers developers an elegant prompt-writing experience, allowing users to interleave control (conditional, loops) and constrain generation seamlessly:
 
 ## Developer workflow
-- Write pure Python, with additional LM functionality. For example, see [basic generation](#basic-generation).
-- [Constrain generation](#constrained-generation) with [selects](#select-basic) (i.e., sets of options), [regular expressions](#regular-expressions), and [context-free grammars](#context-free-grammars), as well as with pre-built components (e.g., substring).
-- [Call and deploy tools easily](#easy-tool-use) with automatic interleaving of control and generation.
-- [Get high compatibility](#high-compatibility)—execute a single {guidance} program on many backends (Transformers, llama.cpp, VertexAI, OpenAI). 
-- Gain [speed](#speed) with [stateful control + generation functions](#stateful-control--generation)—no need for intermediate parsers. 
-- Ensure valid code easily with [token healing](#token-healing)—a `{guidance}` feature that lets you avoid worrying about token boundaries (e.g., ending a prompt with a white space). 
+### Write pure Python, with additional LM functionality. For example, see [basic generation](#basic-generation).
 
-## Guidance API features
-- [Rich templates with f-strings.](#rich-templates-with-f-strings)
-- [Abstract chat interface that uses correct special tokens for any chat model.](#abstract-chat-interface-that-uses-the-correct-special-tokens-for-any-chat-model)
-- [Easy-to-write reusable components.](#easy-to-write-reusable-components)
-- [Streaming support, also integrated with Jupyter notebooks.](#streaming-support-also-integrated-with-jupyter-notebooks)
-- [Multi-modal support.](#multi-modal-support)
-
-# Getting started
-You can see a brief walkthrough of `{guidance}` before installing:
-
-- [Basic tutorial](notebooks/tutorials/intro_to_guidance.ipynb)
-- [Install](#install)
-- [Loading models](#loading-models)
-
-# Features and examples
-
-### **Pure, beautiful python** with additional LM functionality.
-E.g. here is [basic generation](#basic-generation):
 ```python
 from guidance import models, gen
 
@@ -54,7 +48,8 @@ llama2 + f'Do you want a joke or a poem? ' + gen(stop='.')
 ```
 <img alt="Do you want a joke or a poem? I'll give you a poem" src="docs/figures/simple_gen_llama2_7b.png" width="354">
 
-### [**Constrained generation**](#constrained-generation) with [selects](#select-basic), [regular expressions](#regular-expressions), and [context-free grammars](#context-free-grammars)
+### [Constrain generation](#constrained-generation) with [selects](#select-basic) (i.e., sets of options), [regular expressions](#regular-expressions), and [context-free grammars](#context-free-grammars), as well as with pre-built components (e.g., substring).
+
 ```python
 from guidance import select
 
@@ -63,76 +58,8 @@ llama2 + f'Do you want a joke or a poem? A ' + select(['joke', 'poem'])
 ```
 <img alt="Do you want a joke or a poem? A poem" src="docs/figures/simple_select_llama2_7b.png" width="277">
 
-### Rich templates with f-strings
-```python
-llama2 + f'''\
-Do you want a joke or a poem? A {select(['joke', 'poem'])}.
-Okay, here is a one-liner: "{gen(stop='"')}"
-'''
-```
-<img width="358" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/486ca968-89b1-4c02-b914-3b9714fe5890"><br>
-
-### [**Stateful control + generation**](#stateful-control--generation) makes it easy to interleave prompting / logic / generation, no need for intermediate parsers
-```python
-# capture our selection under the name 'answer'
-lm = llama2 + f"Do you want a joke or a poem? A {select(['joke', 'poem'], name='answer')}.\n"
-
-# make a choice based on the model's previous selection
-if lm["answer"] == "joke":
-    lm += f"Here is a one-line joke about cats: " + gen('output', stop='\n')
-else:
-    lm += f"Here is a one-line poem about dogs: " + gen('output', stop='\n')
-```
-<img width="393" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/66d47ce7-1d5a-4dbd-b676-66b9c1094184"><br>
-
-
-### **Abstract chat interface** that uses the correct special tokens for any chat model
-```python
-from guidance import user, assistant
-
-# load a chat model
-chat_lm = models.LlamaCppChat(path)
-
-# wrap with chat block contexts
-with user():
-    lm = chat_lm + 'Do you want a joke or a poem?'
-
-with assistant():
-    lm += f"A {select(['joke', 'poem'])}."`
-```
-<img width="331" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/89c3e0e2-ed0a-4715-8366-2efca74b7b71"><br>
-
-### Easy to write reusable components
-```python
-import guidance
-
-@guidance
-def one_line_thing(lm, thing, topic):
-    lm += f'Here is a one-line {thing} about {topic}: ' + gen(stop='\n')
-    return lm # return our updated model
-
-# pick either a joke or a poem
-lm = llama2 + f"Do you want a joke or a poem? A {select(['joke', 'poem'], name='thing')}.\n"
-
-# call our guidance function
-lm += one_line_thing(lm['thing'], 'cats')
-```
-<img width="386" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/60071680-8bbb-4fa5-a298-613d4fd55fa7"><br>
-
-7. **A library of pre-built components**, e.g. substring:
-```python
-from guidance import substring
-
-# define a set of possible statements
-text = 'guidance is awesome. guidance is so great. guidance is the best thing since sliced bread.'
-
-# force the model to make an exact quote
-llama2 + f'Here is a true statement about the guidance library: "{substring(text)}"'
-```
-<img width="589" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/9a7178ad-ed73-4e6b-b418-f9d2a3a76b88"><br>
-
-### Easy tool use
-**[Easy tool use]**(#automatic-interleaving-of-control-and-generation-tool-use), where the model stops generation when a tool is called, calls the tool, then resumes generation. For example, here is a simple version of a calculator, via four separate 'tools':
+### Call and deploy tools easily with automatic interleaving of control and generation.
+[Easy tool use](#automatic-interleaving-of-control-and-generation-tool-use), where the model stops generation when a tool is called, calls the tool, then resumes generation. For example, here is a simple version of a calculator, via four separate 'tools':
 ```python
 @guidance
 def add(lm, input1, input2):
@@ -161,27 +88,7 @@ lm + gen(max_tokens=15, tools=[add, subtract, multiply, divide])
 ```
 <img width="201" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/646e1a7d-0206-419b-8206-1d835c3a0e0a"><br>
 
-### Speed
-In contrast to chaining, `{guidance}` programs are the equivalent of a single LLM call. More so, whatever non-generated text that gets appended is batched, so that `{guidance}` programs are **faster** than having the LM generate intermediate text when you have a set structure.
-
-### Token healing
-Users deal with text (or bytes) rather than tokens, and thus don't have to worry about [perverse token boundaries issues](https://towardsdatascience.com/the-art-of-prompt-design-prompt-boundaries-and-token-healing-3b2448b0be38) such as 'prompt ending in whitespace'.
-
-### Streaming support, also integrated with Jupyter notebooks
-```python
-lm = llama2 + 'Here is a cute 5-line poem about cats and dogs:\n'
-for i in range(5):
-    lm += f"LINE {i+1}: " + gen(temperature=0.8, suffix="\n")
-```
-<img src="docs/figures/simple_streaming_example.gif" width="337">
-
-For environments that don't support guidance's rich IPython/Jupyter/HTML based visualizations (e.g. console applications), all visualizations and console outputs can be supressed by setting `echo=False` in the constructor of any `guidance.models` object:
-
-```python
-llama2 = models.LlamaCpp(path, echo=False)
-```
-
-### High compatibility
+### Get high compatibility—execute a single {guidance} program on many backends (Transformers, llama.cpp, VertexAI, OpenAI). 
 Works with Transformers, llama.cpp, VertexAI, OpenAI. Users can write one guidance program and execute it on many backends. (note that the most powerful control features require endpoint integration, and for now work best with Transformers and llama.cpp).
 ```python
 gpt = models.OpenAI("gpt-3.5-turbo")
@@ -200,7 +107,78 @@ with assistant():
 ```
 <img width="645" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/f31ed7b8-1868-44d2-b14c-4842b0a40e5c"><br>
 
-### Multi-modal support
+### Gain speed with [stateful control + generation functions](#stateful-control--generation)—no need for intermediate parsers. 
+In contrast to chaining, `{guidance}` programs are the equivalent of a single LLM call. More so, whatever non-generated text that gets appended is batched, so that `{guidance}` programs are **faster** than having the LM generate intermediate text when you have a set structure.
+
+### Ensure valid code easily with token healing—a `{guidance}` feature that lets you avoid worrying about token boundaries (e.g., ending a prompt with a white space). 
+Users deal with text (or bytes) rather than tokens, and thus don't have to worry about [perverse token boundaries issues](https://towardsdatascience.com/the-art-of-prompt-design-prompt-boundaries-and-token-healing-3b2448b0be38) such as 'prompt ending in whitespace'.
+
+## Guidance API features
+### Rich templates with f-strings.
+```python
+llama2 + f'''\
+Do you want a joke or a poem? A {select(['joke', 'poem'])}.
+Okay, here is a one-liner: "{gen(stop='"')}"
+'''
+```
+<img width="358" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/486ca968-89b1-4c02-b914-3b9714fe5890"><br>
+
+### Abstract chat interface that uses correct special tokens for any chat model.
+```python
+# capture our selection under the name 'answer'
+lm = llama2 + f"Do you want a joke or a poem? A {select(['joke', 'poem'], name='answer')}.\n"
+
+# make a choice based on the model's previous selection
+if lm["answer"] == "joke":
+    lm += f"Here is a one-line joke about cats: " + gen('output', stop='\n')
+else:
+    lm += f"Here is a one-line poem about dogs: " + gen('output', stop='\n')
+```
+<img width="393" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/66d47ce7-1d5a-4dbd-b676-66b9c1094184"><br>
+
+### Easy-to-write reusable components.
+```python
+import guidance
+
+@guidance
+def one_line_thing(lm, thing, topic):
+    lm += f'Here is a one-line {thing} about {topic}: ' + gen(stop='\n')
+    return lm # return our updated model
+
+# pick either a joke or a poem
+lm = llama2 + f"Do you want a joke or a poem? A {select(['joke', 'poem'], name='thing')}.\n"
+
+# call our guidance function
+lm += one_line_thing(lm['thing'], 'cats')
+```
+<img width="386" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/60071680-8bbb-4fa5-a298-613d4fd55fa7"><br>
+
+### A library of pre-built components, e.g. substring:
+```python
+from guidance import substring
+
+# define a set of possible statements
+text = 'guidance is awesome. guidance is so great. guidance is the best thing since sliced bread.'
+
+# force the model to make an exact quote
+llama2 + f'Here is a true statement about the guidance library: "{substring(text)}"'
+```
+<img width="589" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/9a7178ad-ed73-4e6b-b418-f9d2a3a76b88"><br>
+
+### Streaming support, also integrated with Jupyter notebooks.
+```python
+lm = llama2 + 'Here is a cute 5-line poem about cats and dogs:\n'
+for i in range(5):
+    lm += f"LINE {i+1}: " + gen(temperature=0.8, suffix="\n")
+```
+<img src="docs/figures/simple_streaming_example.gif" width="337">
+
+For environments that don't support guidance's rich IPython/Jupyter/HTML based visualizations (e.g. console applications), all visualizations and console outputs can be supressed by setting `echo=False` in the constructor of any `guidance.models` object:
+
+```python
+llama2 = models.LlamaCpp(path, echo=False)
+```
+### Multi-modal support.
 ```python
 from guidance import image
 
@@ -214,6 +192,13 @@ with assistant():
 ```
 <img width="673" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/6450d05d-52e9-4ef5-b280-8b57e733d46d">
 
+
+# Get started
+You can see a brief walkthrough of `{guidance}` before installing:
+
+- [Basic tutorial](notebooks/tutorials/intro_to_guidance.ipynb)
+- [Install](#install)
+- [Loading models](#loading-models)
 
 
 ## Table of Contents
