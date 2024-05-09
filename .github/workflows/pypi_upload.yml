@@ -53,6 +53,12 @@ jobs:
         with:
           platforms: all
 
+      - name: Install Rust
+        shell: bash
+        run: |
+          curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.75.0
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.14.0
         with:
@@ -74,6 +80,12 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
+
+      - name: Install Rust
+        shell: bash
+        run: |
+          curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.75.0
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
       - name: Build sdist (pep517)
         run: |
