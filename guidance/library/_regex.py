@@ -1,5 +1,12 @@
-import re._constants as constants
-import re._parser as parser
+import sys
+
+if sys.version_info >= (3, 11):
+    import re._constants as constants
+    import re._parser as parser
+else:
+    import sre_parse as parser
+    import sre_constants as constants
+
 from typing import Any, Tuple, Union
 
 from .._grammar import Byte, Join, byte_range, select
@@ -47,7 +54,7 @@ class Transformer:
     def LITERAL(cls, args):
         # byte
         assert isinstance(args, int)
-        return Byte(args.to_bytes())
+        return Byte(args.to_bytes(length=1, byteorder="big"))
 
     @classmethod
     def RANGE(cls, args):
@@ -55,7 +62,10 @@ class Transformer:
         low, high = args
         assert isinstance(low, int)
         assert isinstance(high, int)
-        return byte_range(low.to_bytes(), high.to_bytes())
+        return byte_range(
+            low.to_bytes(length=1, byteorder="big"),
+            high.to_bytes(length=1, byteorder="big"),
+        )
 
     @classmethod
     def ANY(cls, _):
