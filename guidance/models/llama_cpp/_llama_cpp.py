@@ -193,8 +193,11 @@ class LlamaCppEngine(Engine):
                 batch.logits[n_tokens - 1] = True
 
             ret = llama_cpp.llama_decode(self.model_obj.ctx, batch)
+            self.metrics.engine_input_tokens += n_tokens
             if ret != 0:
                 raise Exception(f"Call to llama_cpp.llama_decode returned {ret}.")
+
+        self.metrics.engine_output_tokens += 1
 
         # get the logits
         logits = llama_cpp.llama_get_logits(self.model_obj.ctx)
