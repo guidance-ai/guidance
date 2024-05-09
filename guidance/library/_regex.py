@@ -4,6 +4,7 @@ from typing import Any, Tuple, Union
 
 from .._grammar import Byte, Join, byte_range, select
 from .._guidance import guidance
+from ._any_char import any_char
 from ._optional import optional
 from ._zero_or_more import zero_or_more
 
@@ -53,6 +54,10 @@ class Transformer:
         assert isinstance(low, int)
         assert isinstance(high, int)
         return byte_range(low.to_bytes(), high.to_bytes())
+
+    @classmethod
+    def ANY(cls, _):
+        return any_char()
 
     @classmethod
     def IN(cls, args):
