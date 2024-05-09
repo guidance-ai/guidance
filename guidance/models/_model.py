@@ -36,6 +36,8 @@ except ImportError:
         "Failed to load guidance.cpp, falling back to Python mirror implementations..."
     )
     from .. import _cpp as cpp
+
+from ._guidance_engine_metrics import GuidanceEngineMetrics
 from .._rust.guidancerust import engine_start
 from .._utils import softmax, CaptureEvents
 from .._parser import EarleyCommitParser, Parser
@@ -51,8 +53,6 @@ from .._grammar import (
 )
 
 from .. import _serialization_pb2
-
-from ._guidance_engine_metrics import GuidanceEngineMetrics
 
 if TYPE_CHECKING:
     from ..library._block import ContextBlock
@@ -131,7 +131,6 @@ class EngineCallResponse:
     capture_groups: dict
     capture_group_log_probs: dict
     new_token_count: int
-    last_model_token_count: int
 
     def __init__(
         self,
@@ -141,7 +140,6 @@ class EngineCallResponse:
         capture_groups,
         capture_group_log_probs,
         new_token_count,
-        last_model_token_count,
     ):
         self.new_bytes = new_bytes
         self.is_generated = is_generated
@@ -149,7 +147,6 @@ class EngineCallResponse:
         self.capture_groups = capture_groups
         self.capture_group_log_probs = capture_group_log_probs
         self.new_token_count = new_token_count
-        self.last_model_token_count = last_model_token_count
 
     def _to_proto(self):
         """Converts an EngineCallResponse object to its Protobuf representation.
@@ -207,6 +204,8 @@ class Engine:
         )
         self._token_trie.match = True
         self._token_trie.match_version = 0
+
+        self.metrics = GuidanceEngineMetrics()
 
     def start(self, parser, grammar, ensure_bos_token=True):
         """Start processing parser state executed through the grammar.
@@ -542,7 +541,6 @@ class Engine:
                         # self._captured_log_prob_data.update(new_captured_log_prob_data)
                         # yield out, self._is_generated, self._new_bytes_prob, self._captured_data, self._captured_log_prob_data, self._token_count - self._last_token_count # note that we don't capture groups until a complete parse right now...
 
-                        self._token_count += 1  # note we only update this for tokens that emit non-hidden content
                         response_state = (
                             out,
                             is_generated,
@@ -554,6 +552,7 @@ class Engine:
 
                         self._last_token_count = self._token_count
                         self._hidden_count = 0
+                        self._token_count += 1  # note we only update this for tokens that emit non-hidden content
                     else:
                         self._hidden_count -= len(new_bytes)
 
@@ -740,9 +739,8 @@ class Engine:
         self.start(parser, grammar, ensure_bos_token)
 
         # TODO: remove this after the next release. This verifies that calling Rust works.
-        assert "def" == engine_start("abc", "def", 1)
+        assert("def" == engine_start("abc", "def", 1))
 
-        last_model_token_count = 0
         logits = None
         while True:
             is_done, logits_state, response_state = self.next(logits)
@@ -758,10 +756,6 @@ class Engine:
                     response_new_token_count,
                 ) = response_state
 
-                print(
-                    f"{response_is_generated=} {response_new_token_count=} {response_new_bytes=}"
-                )
-
                 yield EngineCallResponse(
                     new_bytes=response_new_bytes,
                     is_generated=response_is_generated,
@@ -769,19 +763,13 @@ class Engine:
                     capture_groups=response_capture_groups,
                     capture_group_log_probs=response_capture_group_log_probs,
                     new_token_count=response_new_token_count,
-                    last_model_token_count=last_model_token_count,
                 )
-                last_model_token_count = 0
 
             if logits_state is not None:
                 token_ids, forced_bytes, current_temp = logits_state
-                logits, model_token_count = self.get_logits(
-                    token_ids, forced_bytes, current_temp
-                )
-                last_model_token_count = model_token_count
+                logits = self.get_logits(token_ids, forced_bytes, current_temp)
 
             if is_done:
-                assert last_model_token_count == 0, "Unyielded input tokens"
                 break
 
     def _tokenize_prefix(self, byte_string):
@@ -860,7 +848,7 @@ class Engine:
 
         return token_ids, token_byte_positions
 
-    def get_logits(self, token_ids, forced_bytes, current_temp) -> np.ndarray:
+    def get_logits(self, token_ids, forced_bytes, current_temp):
         """A fake method designed to be overriden by subclasses."""
 
         # pretend to extend the KV cache and update the log probs
@@ -936,12 +924,6 @@ class Model:
         self._last_event_stream = (
             0  # used to track the last event streaming call to enable throttling
         )
-
-        # Metrics for the model
-        self.engine_metrics = GuidanceEngineMetrics()
-
-    def reset_metrics(self):
-        self.engine_metrics = GuidanceEngineMetrics()
 
     @property
     def active_role_end(self):
@@ -1398,12 +1380,6 @@ class Model:
                 # we make everything full probability if we are not computing uncertainty
                 # if not self.engine.compute_log_probs:
                 #     chunk.new_bytes_prob = 1.0
-
-                if chunk.is_generated:
-                    self.engine_metrics.generated_tokens += chunk.new_token_count
-                else:
-                    self.engine_metrics.forced_tokens += chunk.new_token_count
-                self.engine_metrics.model_input_tokens += chunk.last_model_token_count
 
                 # convert the bytes to a string (delaying if we don't yet have a valid unicode string)
                 lm.token_count += chunk.new_token_count
