@@ -150,7 +150,7 @@ jobs:
         name: Install guidance from wheels
       - run: pip install transformers torch
         name: Other installs
-      - run: python -c "import guidance; lm = guidance.models.Transformers('gpt2'); lm += '1,2,3,4,5,' + guidance.gen('num', max_tokens=5); assert lm['num'].startswith("6")"
+      - run: python -c "import guidance; lm = guidance.models.Transformers('gpt2'); lm += '1,2,3,4,5,' + guidance.gen('num', max_tokens=5); assert lm['num'].startswith('6')"
         name: Run smoke test
 
   publish_wheels:
