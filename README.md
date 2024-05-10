@@ -1,22 +1,3 @@
-<style>
-    a button {
-        background-color: #0164D9;
-        color: white;
-        border: none;
-        border-radius: 5px;
-        padding-top: 7px;
-        padding-bottom: 7px;
-        width: 120px;
-        text-decoration: none;
-        cursor: pointer;
-        transition: background-color 0.2s;
-    }
-
-    a button:hover {
-        background-color: #014CAB;
-    }
-</style>
-
 <div align="right"><a href="https://guidance.readthedocs.org"><img src="https://readthedocs.org/projects/guidance/badge/?version=latest&style=flat" /></a></div>
 <div align="center"><picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/figures/guidance_logo_blue_dark.svg">
@@ -27,9 +8,10 @@
 # An efficient programming paradigm for steering language models
 **`{guidance}`** is a programming paradigm that offers superior control and efficiency compared to conventional prompting and chaining. With `{guidance}`, you can control how output is structured and get high-quality output for your use case—**while reducing latency and costs of conventional prompting or fine-tuning.** It allows users to constrain generation (e.g. with regex and CFGs) as well as to interleave control (conditional, loops) and generation seamlessly.
 
-<a href="https://www.youtube.com/watch?v=9oXjP5IIMzQ"  aria-label="Watch demo"><button>Watch demo</button></a>
+<a href="https://www.youtube.com/watch?v=9oXjP5IIMzQ"  aria-label="Watch demo"><img alt="Watch demo" src="docs/figures/watch_demo_button.png" width="120"></a>
 
-<a href="#get-started" aria-label="Get started"><button>Get started</button></a>
+
+<a href="#get-started" aria-label="Get started"><img alt="Watch demo" src="docs/figures/get_started_button.png" width="120"></a>
 
 # Key Features
 The **`{guidance}`** library offers developers an elegant prompt-writing experience, allowing users to interleave control (conditional, loops) and constrain generation seamlessly:
