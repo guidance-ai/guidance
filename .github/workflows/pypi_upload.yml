@@ -125,8 +125,8 @@ jobs:
           path: dist
 
       - uses: actions/download-artifact@v3
-          with:
-            name: sdist_files
+        with:
+          name: sdist_files
           path: dist
 
     #- name: Publish package to PyPI
