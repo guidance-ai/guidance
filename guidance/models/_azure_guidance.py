@@ -26,16 +26,14 @@ class AzureGuidanceEngine(Engine):
         self.max_streaming_tokens = max_streaming_tokens
 
     def __call__(self, parser, grammar, ensure_bos_token=True):
-        current_temp = 0.0  # TODO: handle temperature better
-
         b64 = base64.b64encode(grammar.serialize()).decode("utf-8")
 
         data = {
-            "controller": "guidance_ctrl-latest",
-            "controller_arg": json.dumps({"guidance_b64": b64}),
+            "controller": "guidance",
+            "controller_arg": {"guidance_b64": b64},
             "prompt": parser,
             "max_tokens": self.max_streaming_tokens,
-            "temperature": current_temp,
+            "temperature": 0.0, # this is just default temperature
         }
 
         resp = req("post", "run", json=data, stream=True, base_url=self.server_url)
@@ -88,11 +86,11 @@ class AzureGuidanceEngine(Engine):
                     if num_text_entries > 0:
                         new_bytes_prob /= num_text_entries
 
+                    print(ch["logs"].rstrip("\n"), flush=True)
+
                     err = ch.get("error", "")
                     if err:
                         raise RuntimeError(f"Error returned by grammar server {err}.")
-
-                    # print(ch["logs"].rstrip("\n"), flush=True)
 
                     is_generated = True  # TODO: get this from the server
 
