@@ -130,6 +130,9 @@ jobs:
           name: sdist_files
           path: dist
 
+      - run: ls -R
+        name: View downloaded artifacts
+
     #- name: Publish package to PyPI
     #   uses: pypa/gh-action-pypi-publish@release/v1
     #   with:
