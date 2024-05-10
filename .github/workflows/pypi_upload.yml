@@ -111,10 +111,9 @@ jobs:
           name: sdist_files
           path: dist/*.tar.gz
 
-  publish_wheels:
-    permissions:
-      id-token: write
-    name: Publish wheels on pypi
+
+  assemble_wheels:
+    name: Combine wheels
     needs: [build_wheels, build_sdist]
     runs-on: ubuntu-latest
     steps:
@@ -133,6 +132,38 @@ jobs:
         with:
           path: ./dist/*
           name: collected_dist_files
+
+  test_wheels:
+    name: Test Wheels
+    needs: [assemble_wheels]
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-12, macos-latest]
+        python-version: ["3.11", "3.12"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: collected_dist_files
+          path: wheelhouse
+      - run: pip install guidance -f ./wheelhouse/
+        name: Install guidance from wheels
+      - run: pip install transformers torch
+        name: Other installs
+      - run: python -c "import guidance; lm = guidance.models.Transformers('gpt2'); lm += '1,2,3,4,5,' + gen('num', max_tokens=5); assert lm['num'].startswith("6")"
+        name: Run smoke test
+
+  publish_wheels:
+    permissions:
+      id-token: write
+    name: Publish wheels on pypi
+    needs: [test_wheels]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: collected_dist_files
+          path: wheelhouse
 
       - name: Publish package to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
