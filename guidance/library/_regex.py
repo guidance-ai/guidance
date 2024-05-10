@@ -1,13 +1,14 @@
 import sys
 
 if sys.version_info >= (3, 11):
-    import re._constants as constants
-    import re._parser as parser
+    import re._constants as constants  # type: ignore[import-not-found]
+    import re._parser as parser  # type: ignore[import-not-found]
 else:
     import sre_parse as parser
     import sre_constants as constants
 
 from typing import Any, Tuple, Union
+from typing_extensions import TypeAlias
 
 from .._grammar import Byte, Join, byte_range, select
 from .._guidance import guidance
@@ -17,10 +18,10 @@ from ._optional import optional
 from ._zero_or_more import zero_or_more
 
 # Type aliases
-Subpattern = parser.SubPattern
-Opcode = constants._NamedIntConstant  # TODO: enum?
-Argument = Any
-Node = Tuple[Opcode, Argument]
+Subpattern: TypeAlias = parser.SubPattern
+Opcode: TypeAlias = constants._NamedIntConstant  # TODO: enum?
+Argument: TypeAlias = Any
+Node: TypeAlias = Tuple[Opcode, Argument]
 
 
 class Transformer:
