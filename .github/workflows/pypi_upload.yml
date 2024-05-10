@@ -117,7 +117,6 @@ jobs:
     name: Publish wheels on pypi
     needs: [build_wheels, build_sdist]
     runs-on: ubuntu-latest
-    # if: startsWith(github.ref, 'refs/tags')
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -130,16 +129,14 @@ jobs:
           name: sdist_files
           path: dist
 
-      - run: ls -R
-        name: View downloaded artifacts
-      
       - uses: actions/upload-artifact@v4
         with:
           path: ./dist/*
           name: collected_dist_files
 
-    #- name: Publish package to PyPI
-    #   uses: pypa/gh-action-pypi-publish@release/v1
-    #   with:
-    #     user: __token__
-    #     password: ${{ secrets.PYPI_API_TOKEN }}
+      - name: Publish package to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        if: startsWith(github.ref, 'refs/tags')
+        with:
+          user: __token__
+          password: ${{ secrets.PYPI_API_TOKEN }}
