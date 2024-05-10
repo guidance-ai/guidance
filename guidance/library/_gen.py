@@ -11,6 +11,8 @@ def load_alt_model(model_name):
     from guidance import llms
     if model_name.startswith("gpt-"):
         return llms.OpenAI(model_name, caching=False)
+    elif model_name.startswith("claude-"):
+        return llms.Anthropic(model_name, caching=False)
     else:
         return llms.Transformers(model_name, device='cpu', caching=False)
 
