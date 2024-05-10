@@ -13,8 +13,8 @@
 # Key Features
 The **`{guidance}`** library offers developers an elegant prompt-writing experience, allowing users to interleave control (conditional, loops) and constrain generation seamlessly:
 
+## Developer workflow
 ### Write pure Python, with additional LM functionality. For example, see [basic generation](#basic-generation).
-
 ```python
 from guidance import models, gen
 
@@ -91,6 +91,7 @@ In contrast to chaining, `{guidance}` programs are the equivalent of a single LL
 ### Ensure valid code easily with token healing—a `{guidance}` feature that lets you avoid worrying about token boundaries (e.g., ending a prompt with a white space). 
 Users deal with text (or bytes) rather than tokens, and thus don't have to worry about [perverse token boundaries issues](https://towardsdatascience.com/the-art-of-prompt-design-prompt-boundaries-and-token-healing-3b2448b0be38) such as 'prompt ending in whitespace'.
 
+## Guidance API features
 ### Rich templates with f-strings.
 ```python
 llama2 + f'''\
