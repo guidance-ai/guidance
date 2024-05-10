@@ -63,7 +63,7 @@ jobs:
 
       - name: Set up QEMU
         if: runner.os == 'Linux'
-        uses: docker/setup-qemu-action@v2
+        uses: docker/setup-qemu-action@v3
         with:
           platforms: all
 
@@ -132,6 +132,11 @@ jobs:
 
       - run: ls -R
         name: View downloaded artifacts
+      
+      - uses: actions/upload-artifact@v4
+        with:
+          path: ./dist/*
+          name: collected_dist_files
 
     #- name: Publish package to PyPI
     #   uses: pypa/gh-action-pypi-publish@release/v1
