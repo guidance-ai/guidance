@@ -124,10 +124,10 @@ jobs:
           name: bdist_files
           path: dist
 
-    - uses: actions/download-artifact@v3
-        with:
-          name: sdist_files
-        path: dist
+      - uses: actions/download-artifact@v3
+          with:
+            name: sdist_files
+          path: dist
 
     #- name: Publish package to PyPI
     #   uses: pypa/gh-action-pypi-publish@release/v1
