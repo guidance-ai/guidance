@@ -11,8 +11,6 @@
 <a href="https://www.youtube.com/watch?v=9oXjP5IIMzQ"  aria-label="Watch demo"><img alt="Watch demo" src="docs/figures/watch_demo_button.png" width="120"></a> <a href="#get-started" aria-label="Get started"><img alt="Watch demo" src="docs/figures/get_started_button.png" width="120"></a>
 
 # Key Features
-The **`{guidance}`** library offers developers an elegant prompt-writing experience, allowing users to interleave control (conditional, loops) and constrain generation seamlessly:
-
 ## Developer workflow
 ### Write pure Python, with additional LM functionality. For example, see [basic generation](#basic-generation).
 ```python
@@ -88,7 +86,7 @@ with assistant():
 ### Gain speed with [stateful control + generation functions](#stateful-control--generation)—no need for intermediate parsers. 
 In contrast to chaining, `{guidance}` programs are the equivalent of a single LLM call. More so, whatever non-generated text that gets appended is batched, so that `{guidance}` programs are **faster** than having the LM generate intermediate text when you have a set structure.
 
-### Ensure valid code easily with token healing—a `{guidance}` feature that lets you avoid worrying about token boundaries (e.g., ending a prompt with a white space). 
+### Token healing
 Users deal with text (or bytes) rather than tokens, and thus don't have to worry about [perverse token boundaries issues](https://towardsdatascience.com/the-art-of-prompt-design-prompt-boundaries-and-token-healing-3b2448b0be38) such as 'prompt ending in whitespace'.
 
 ## Guidance API features
