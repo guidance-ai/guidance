@@ -7,7 +7,8 @@ else:
     import sre_parse as parser
     import sre_constants as constants
 
-from typing import Any, Tuple, Union
+from typing import Any, List, Tuple, Type, Union
+
 from typing_extensions import TypeAlias
 
 from .._grammar import Byte, Join, byte_range, select
@@ -44,38 +45,33 @@ class Transformer:
         return method(args)
 
     @classmethod
-    def SUBPATTERN(cls, args):
+    def SUBPATTERN(cls, args: Tuple[int, int, int, Subpattern]):
         # capture group
         # TODO: handle/capture?
         _, _, _, arg = args
-        assert isinstance(arg, Subpattern)
         return cls.transform(arg)
 
     @classmethod
-    def LITERAL(cls, args):
+    def LITERAL(cls, args: int):
         # byte
-        assert isinstance(args, int)
         return Byte(args.to_bytes(length=1, byteorder="big"))
 
     @classmethod
-    def RANGE(cls, args):
+    def RANGE(cls, args: Tuple[int, int]):
         # byte_range
         low, high = args
-        assert isinstance(low, int)
-        assert isinstance(high, int)
         return byte_range(
             low.to_bytes(length=1, byteorder="big"),
             high.to_bytes(length=1, byteorder="big"),
         )
 
     @classmethod
-    def ANY(cls, _):
+    def ANY(cls, _: Type[None]):
         return any_char()
 
     @classmethod
-    def IN(cls, args):
+    def IN(cls, args: List[Node]):
         # char_set
-        assert isinstance(args, list)
         if args[0] == (constants.NEGATE, None):
             args.pop(0)
             if all([node[0] == constants.LITERAL for node in args]):
@@ -88,39 +84,42 @@ class Transformer:
         return select(transformed_args)
 
     @classmethod
-    def BRANCH(cls, args):
-        _, args = args
+    def BRANCH(cls, args: Tuple[Any, List[Subpattern]]):
+        _, arg = args
         if _ is not None:
             raise NotImplementedError(
                 "First time seeing BRANCH with non-None first arg"
             )
-        transformed_args = [cls.transform(arg) for arg in args]
+        transformed_args = [cls.transform(a) for a in arg]
         return select(transformed_args)
 
     @classmethod
-    def MAX_REPEAT(cls, args):
+    def MAX_REPEAT(
+        cls, args: Tuple[int, Union[int, constants._NamedIntConstant], Subpattern]
+    ):
+        # TODO: type for this constants._NamedIntConstant? (not an opcode)
         low, high, arg = args
-        assert isinstance(low, int)
-        assert isinstance(high, int) or high == constants.MAXREPEAT
-        assert isinstance(arg, Subpattern)
         transformed_arg = cls.transform(arg)
-        if low == 0 and high == constants.MAXREPEAT:
-            # kleene star
-            return zero_or_more(transformed_arg)
-        if low > 0 and high == constants.MAXREPEAT:
-            return Join([transformed_arg] * low + [zero_or_more(transformed_arg)])
-        if low == 0 and isinstance(high, int):
-            return Join([optional(transformed_arg)] * high)
-        if low > 0 and isinstance(high, int):
+        if isinstance(high, int):
             return Join(
                 [transformed_arg] * low + [optional(transformed_arg)] * (high - low)
             )
-        raise RuntimeError
+        if isinstance(high, constants._NamedIntConstant):
+            if high != constants.MAXREPEAT:
+                raise NotImplementedError(f"No handler for MAX_REPEAT with high={high}")
+            if low == 0:
+                # kleene star
+                return zero_or_more(transformed_arg)
+            if low > 0:
+                return Join([transformed_arg] * low + [zero_or_more(transformed_arg)])
+
+        raise TypeError(
+            "high has type {type(high)}, expected one of int, constants._NamedIntConstant"
+        )
 
     @classmethod
-    def CATEGORY(cls, args):
-        # Not an opcode
-        assert isinstance(args, constants._NamedIntConstant)
+    def CATEGORY(cls, args: constants._NamedIntConstant):
+        # TODO: type for this constants._NamedIntConstant? (not an opcode)
         if args.name == "CATEGORY_DIGIT":
             return byte_range(b"0", b"9")
         raise NotImplementedError(f"No implementation for category {args}")
