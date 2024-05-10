@@ -72,10 +72,10 @@ jobs:
         with:
           only: ${{ matrix.only }}
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           path: ./wheelhouse/*.whl
-          name: bdist_files
+          name: bdist_files_${{ matrix.include }}
 
   build_sdist:
     name: Build source distribution
@@ -117,7 +117,7 @@ jobs:
     name: Publish wheels on pypi
     needs: [build_wheels, build_sdist]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags')
+    # if: startsWith(github.ref, 'refs/tags')
     steps:
       - uses: actions/download-artifact@v3
         with:
