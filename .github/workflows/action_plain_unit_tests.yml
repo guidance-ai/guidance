@@ -1,33 +1,33 @@
-name: Unit tests
+name: plain-unit-tests
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-  workflow_dispatch:
+  workflow_call:
+    inputs:
+      os:
+        required: true
+        type: string
+      python-version:
+        required: true
+        type: string
+      model:
+        required: true
+        type: string
+
 
 jobs:
-  unit-tests:
-
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-12]
-        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
-        model:
-          - "gpt2cpu"
-          - "phi2cpu"
-          # - "transformers_mistral_7b" See Issue 713
-          - "hfllama7b"
-          - "hfllama_mistral_7b"
-
-    runs-on: ${{ matrix.os }}
+  run-plain-unit-tests:
+    runs-on: ${{ inputs.os }}
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python ${{ matrix.python-version }}
+      - name: Install Rust
+        shell: bash
+        run: |
+           curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.75.0
+           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      - name: Set up Python ${{ inputs.python-version }}
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: ${{ inputs.python-version }}
       - name: Install dependencies
         shell: bash
         run: |
@@ -37,12 +37,13 @@ jobs:
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
       - name: Install model-specific dependencies
         run: |
+          pip install sentencepiece
           pip install "llama-cpp-python!=0.2.58"
       - name: Run tests (except server)
         shell: bash
         run: |
           pytest --cov=guidance --cov-report=xml --cov-report=term-missing \
-          --selected_model ${{ matrix.model }} \
+          --selected_model ${{ inputs.model }} \
           -m "not (needs_credentials or use_gpu or server)" \
           ./tests/
       - name: Upload coverage reports to Codecov

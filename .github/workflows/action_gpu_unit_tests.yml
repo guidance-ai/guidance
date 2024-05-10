@@ -6,29 +6,32 @@ on:
       os:
         required: true
         type: string
-      python:
-        required: true
-        type: string
-      model:
+      python-version:
         required: true
         type: string
 
 jobs:
   unit-tests-on-gpu:
+    strategy:
+      fail-fast: false # Don't cancel all on first failure
+      matrix:
+        model:
+          - "gpt2gpu"
+          - "phi2gpu"
+          - "hfllama_7b_gpu"
     runs-on: ${{ inputs.os }}
 
     steps:
       - uses: actions/checkout@v4
       - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - name: Set up Python ${{ inputs.python }}
+        shell: bash
+        run: |
+           curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.75.0
+           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      - name: Set up Python ${{ inputs.python-version }}
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ inputs.python }}
+          python-version: ${{ inputs.python-version }}
       - name: Show GPUs
         run: |
           nvidia-smi
@@ -47,6 +50,9 @@ jobs:
           pip install pytest
           pip install -e .[schemas,test]
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      - name: Other dependencies
+        run: |
+          pip install sentencepiece
       - name: GPU pip installs
         run: |
           pip install accelerate
@@ -54,10 +60,10 @@ jobs:
       - name: Check GPU available
         run: |
           python -c "import torch; assert torch.cuda.is_available()"
-      - name: Run tests (except server) for ${{ inputs.model }}
+      - name: Run tests (except server) for ${{ matrix.model }}
         run: |
           pytest -vv --cov=guidance --cov-report=xml --cov-report=term-missing \
-            --selected_model ${{ inputs.model }} \
+            --selected_model ${{ matrix.model }} \
             -m "not (server or needs_credentials)" \
             ./tests/
       - name: Upload coverage reports to Codecov

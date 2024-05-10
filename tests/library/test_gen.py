@@ -2,7 +2,7 @@ import re
 
 import pytest
 
-from guidance import gen, models
+from guidance import gen, models, select
 
 
 def test_basic():
@@ -73,6 +73,56 @@ def test_stop_quote(selected_model):
     assert not lm["title"].endswith('"')
 
 
+def test_metrics_smoke(selected_model: models.Model):
+    lm = selected_model
+    lm.engine.reset_metrics()
+
+    lm += "abcd"
+    print(f"{lm.engine.metrics=}")
+    lm += gen("first", max_tokens=1)
+    print(f"{lm.engine.metrics=}")
+    # Can't be sure of exact count due to token healing
+    assert (
+        lm.engine.metrics.engine_output_tokens == 1
+        or lm.engine.metrics.engine_output_tokens == 2
+    )
+    assert lm.engine.metrics.engine_input_tokens >= 1
+    last_input_tokens = lm.engine.metrics.engine_input_tokens
+
+    lm += "fg"
+    lm += gen("second", max_tokens=1)
+    # Again, trouble with healing
+    assert (
+        lm.engine.metrics.engine_output_tokens >= 2
+        or lm.engine.metrics.engine_output_tokens <= 4
+    )
+    assert lm.engine.metrics.engine_input_tokens > last_input_tokens
+
+
+def test_metrics_select(selected_model: models.Model):
+    lm = selected_model
+    lm.engine.reset_metrics()
+
+    lm += "I will "
+    lm += select(
+        [
+            "ride a bicycle down the road",
+            "row in a boat along the river",
+            "go for a swim in the ocean",
+        ]
+    )
+    print(f"lm={str(lm)}")
+    print(f"{lm.engine.metrics=}")
+    assert lm.engine.metrics.engine_input_tokens > 1
+    assert lm.engine.metrics.engine_output_tokens > 0
+    # Guidance should be able to force the generation after only a couple of tokens
+    # so even though the options are long, relatively few output tokens should be
+    # needed
+    assert (
+        lm.engine.metrics.engine_input_tokens > lm.engine.metrics.engine_output_tokens
+    )
+
+
 def test_unicode(selected_model):
     # black makes this test ugly -- easier to read with fmt: off
     # fmt: off
@@ -85,11 +135,18 @@ Step 1''' + gen('steps', list_append=True, stop=['\nStep', '\n\n', '\nAnswer'], 
     # fmt: on
 
 
-def test_unicode2(selected_model):
+def test_unicode2(selected_model: models.Model):
     lm = selected_model
+    lm.engine.reset_metrics()
     prompt = "Janet’s ducks lay 16 eggs per day"
     lm += prompt + gen(max_tokens=10)
-    assert True
+    assert lm.engine.metrics.engine_input_tokens > 1
+    # Due to token healing, we can't be sure of the
+    # precise output count
+    assert (
+        lm.engine.metrics.engine_output_tokens == 10
+        or lm.engine.metrics.engine_output_tokens == 11
+    )
 
 
 def test_gsm8k():

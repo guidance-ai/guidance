@@ -122,6 +122,10 @@ class TransformersTokenizer(Tokenizer):
 
         return tokenizer
 
+    def __call__(self, byte_string):
+        tokenisation = self._orig_tokenizer(byte_string)
+        return tokenisation["input_ids"]
+
 
 class TransformersEngine(Engine):
     def __init__(self, model, tokenizer, compute_log_probs, **kwargs):
@@ -261,7 +265,12 @@ class TransformersEngine(Engine):
             # save the results
             self._past_key_values = model_out.past_key_values
             cache_token_ids.extend(new_token_ids)
-            self._cached_logits = model_out.logits[0, -1, :].cpu().numpy()
+            # Need to add special truncating logic here for weird models that have a different output size than tokenizer vocab
+            self._cached_logits = (
+                model_out.logits[0, -1, : len(self.tokenizer.tokens)].cpu().numpy()
+            )
+            self.metrics.engine_input_tokens += len(new_token_ids)
+            self.metrics.engine_output_tokens += 1
 
         return self._cached_logits
 
