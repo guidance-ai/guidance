@@ -146,11 +146,15 @@ jobs:
         with:
           name: collected_dist_files
           path: wheelhouse
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
       - run: pip install guidance -f ./wheelhouse/
         name: Install guidance from wheels
       - run: pip install transformers torch
         name: Other installs
-      - run: python -c "import guidance; lm = guidance.models.Transformers('gpt2'); lm += '1,2,3,4,5,' + guidance.gen('num', max_tokens=5); print(f'\n{str(lm)=}\n'); assert lm['num'].startswith('6')"
+      - run: python -c "import guidance; lm = guidance.models.Transformers('gpt2'); lm += '1,2,3,4,5,' + guidance.gen('num', max_tokens=5, temperature=0); print(f'\n{str(lm)=}\n'); assert lm['num'].startswith('6')"
         name: Run smoke test
 
   publish_wheels:
