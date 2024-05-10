@@ -1,5 +1,4 @@
 import pathlib
-import re
 
 from typing import Type
 from urllib.parse import parse_qs, urlparse
@@ -11,8 +10,7 @@ from ._model import Chat, Instruct
 from ._openai import (
     OpenAIChatEngine,
     OpenAICompletionEngine,
-    OpenAIInstructEngine,
-    chat_model_pattern,
+    OpenAIInstructEngine
 )
 
 try:
@@ -73,18 +71,15 @@ class AzureOpenAI(Grammarless):
         if api_key is None and azure_ad_token_provider is None:
             raise ValueError("Please provide either api_key or azure_ad_token_provider")
 
-        parsed_url = urlparse(azure_endpoint)
-
         # if we are called directly (as opposed to through super()) then we convert ourselves to
         # a more specific subclass if possible
         if self.__class__ is AzureOpenAI:
             # Default to a completion model
-            found_subclass: Type[AzureOpenAI] = AzureOpenAICompletion
-            # Now see if we should be using a chat model
-            if parsed_url.path.endswith("/chat/completions"):
-                found_subclass = AzureOpenAIChat
-            elif re.match(chat_model_pattern, model):
-                found_subclass = AzureOpenAIChat
+            found_subclass: Type[AzureOpenAI] = (
+                AzureOpenAICompletion
+                if model.endswith("-instruct") 
+                else AzureOpenAIChat
+            )
 
             # convert to any found subclass
             self.__class__ = found_subclass
@@ -101,9 +96,14 @@ class AzureOpenAI(Grammarless):
                 **kwargs,
             )
             return
+        
+        parsed_url = urlparse(azure_endpoint)
 
         if azure_deployment is None:
-            azure_deployment = pathlib.Path(parsed_url.path).parts[3]
+            parts = pathlib.Path(parsed_url.path).parts
+            if len(parts) > 2:
+                azure_deployment = parts[3]
+                
         parsed_query = parse_qs(parsed_url.query)
         api_version = (
             version

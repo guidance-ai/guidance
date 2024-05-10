@@ -18,6 +18,7 @@ jobs:
 
     runs-on: gpu-runner
     strategy:
+      fail-fast: false # Don't cancel all on first failure
       matrix:
         python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
 
@@ -58,13 +59,23 @@ jobs:
           python -c "import torch; assert torch.cuda.is_available()"
       - name: Test with pytest
         env:
-          # Configure endpoints
+          # Configure endpoints for Azure OpenAI
           AZUREAI_CHAT_ENDPOINT: ${{ secrets.AZUREAI_CHAT_ENDPOINT }}
           AZUREAI_CHAT_KEY: ${{ secrets.AZUREAI_CHAT_KEY }}
           AZUREAI_CHAT_MODEL: ${{ secrets.AZUREAI_CHAT_MODEL }}
           AZUREAI_COMPLETION_ENDPOINT: ${{ secrets.AZUREAI_COMPLETION_ENDPOINT }}
           AZUREAI_COMPLETION_KEY: ${{ secrets.AZUREAI_COMPLETION_KEY }}
           AZUREAI_COMPLETION_MODEL: ${{ secrets.AZUREAI_COMPLETION_MODEL }}
+          # Configure endpoints for Azure AI Studio
+          AZURE_AI_STUDIO_PHI3_ENDPOINT: ${{ vars.AZURE_AI_STUDIO_PHI3_ENDPOINT }}
+          AZURE_AI_STUDIO_PHI3_DEPLOYMENT: ${{ vars.AZURE_AI_STUDIO_PHI3_DEPLOYMENT }}
+          AZURE_AI_STUDIO_PHI3_KEY: ${{ secrets.AZURE_AI_STUDIO_PHI3_KEY }}
+          AZURE_AI_STUDIO_MISTRAL_CHAT_ENDPOINT: ${{ vars.AZURE_AI_STUDIO_MISTRAL_CHAT_ENDPOINT }}
+          AZURE_AI_STUDIO_MISTRAL_CHAT_DEPLOYMENT: ${{ vars.AZURE_AI_STUDIO_MISTRAL_CHAT_DEPLOYMENT }}
+          AZURE_AI_STUDIO_MISTRAL_CHAT_KEY: ${{ secrets.AZURE_AI_STUDIO_MISTRAL_CHAT_KEY }}
+          AZURE_AI_STUDIO_LLAMA3_CHAT_ENDPOINT: ${{ vars.AZURE_AI_STUDIO_LLAMA3_CHAT_ENDPOINT }}
+          AZURE_AI_STUDIO_LLAMA3_CHAT_DEPLOYMENT: ${{ vars.AZURE_AI_STUDIO_LLAMA3_CHAT_DEPLOYMENT }}
+          AZURE_AI_STUDIO_LLAMA3_CHAT_KEY: ${{ secrets.AZURE_AI_STUDIO_LLAMA3_CHAT_KEY }}
         run: |
           pytest --cov=guidance --cov-report=xml --cov-report=term-missing \
             -m needs_credentials \

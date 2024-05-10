@@ -7,47 +7,58 @@ import pytest
 
 from guidance import assistant, gen, models, system, user
 
+from . import common_chat_testing
+from ..utils import env_or_fail
+
 # Everything in here needs credentials to work
 # Mark is configured in pyproject.toml
 pytestmark = pytest.mark.needs_credentials
 
 
-def _env_or_fail(var_name: str) -> str:
-    env_value = os.getenv(var_name, None)
-
-    assert env_value is not None, f"Env '{var_name}' not found"
-
-    return env_value
-
 
 def test_azureai_openai_chat_smoke(rate_limiter):
-    azureai_endpoint = _env_or_fail("AZUREAI_CHAT_ENDPOINT")
-    azureai_key = _env_or_fail("AZUREAI_CHAT_KEY")
-    model = _env_or_fail("AZUREAI_CHAT_MODEL")
+    azureai_endpoint = env_or_fail("AZUREAI_CHAT_ENDPOINT")
+    azureai_key = env_or_fail("AZUREAI_CHAT_KEY")
+    model = env_or_fail("AZUREAI_CHAT_MODEL")
 
     lm = models.AzureOpenAI(
         model=model, azure_endpoint=azureai_endpoint, api_key=azureai_key
     )
     assert isinstance(lm, models.AzureOpenAIChat)
 
-    with system():
-        lm += "You are a math wiz."
+    common_chat_testing.smoke_chat(lm)
 
-    with user():
-        lm += "What is 1 + 1?"
 
-    with assistant():
-        lm += gen(max_tokens=10, name="text")
-        lm += "Pick a number: "
+def test_azureai_openai_chat_longer_1(rate_limiter):
+    azureai_endpoint = env_or_fail("AZUREAI_CHAT_ENDPOINT")
+    azureai_key = env_or_fail("AZUREAI_CHAT_KEY")
+    model = env_or_fail("AZUREAI_CHAT_MODEL")
 
-    print(str(lm))
-    assert len(lm["text"]) > 0
+    lm = models.AzureOpenAI(
+        model=model, azure_endpoint=azureai_endpoint, api_key=azureai_key
+    )
+    assert isinstance(lm, models.AzureOpenAIChat)
+
+    common_chat_testing.longer_chat_1(lm)
+
+
+def test_azureai_openai_chat_longer_2(rate_limiter):
+    azureai_endpoint = env_or_fail("AZUREAI_CHAT_ENDPOINT")
+    azureai_key = env_or_fail("AZUREAI_CHAT_KEY")
+    model = env_or_fail("AZUREAI_CHAT_MODEL")
+
+    lm = models.AzureOpenAI(
+        model=model, azure_endpoint=azureai_endpoint, api_key=azureai_key
+    )
+    assert isinstance(lm, models.AzureOpenAIChat)
+
+    common_chat_testing.longer_chat_2(lm)
 
 
 def test_azureai_openai_chat_alt_args(rate_limiter):
-    azureai_endpoint = _env_or_fail("AZUREAI_CHAT_ENDPOINT")
-    azureai_key = _env_or_fail("AZUREAI_CHAT_KEY")
-    model = _env_or_fail("AZUREAI_CHAT_MODEL")
+    azureai_endpoint = env_or_fail("AZUREAI_CHAT_ENDPOINT")
+    azureai_key = env_or_fail("AZUREAI_CHAT_KEY")
+    model = env_or_fail("AZUREAI_CHAT_MODEL")
 
     parsed_url = urlparse(azureai_endpoint)
     parsed_query = parse_qs(parsed_url.query)
@@ -63,24 +74,13 @@ def test_azureai_openai_chat_alt_args(rate_limiter):
         azure_deployment=azureai_deployment,
     )
 
-    with system():
-        lm += "You are a math wiz."
-
-    with user():
-        lm += "What is 1 + 1?"
-
-    with assistant():
-        lm += gen(max_tokens=10, name="text")
-        lm += "Pick a number: "
-
-    print(str(lm))
-    assert len(lm["text"]) > 0
+    common_chat_testing.smoke_chat(lm)
 
 
 def test_azureai_openai_completion_smoke(rate_limiter):
-    azureai_endpoint = _env_or_fail("AZUREAI_COMPLETION_ENDPOINT")
-    azureai_key = _env_or_fail("AZUREAI_COMPLETION_KEY")
-    model = _env_or_fail("AZUREAI_COMPLETION_MODEL")
+    azureai_endpoint = env_or_fail("AZUREAI_COMPLETION_ENDPOINT")
+    azureai_key = env_or_fail("AZUREAI_COMPLETION_KEY")
+    model = env_or_fail("AZUREAI_COMPLETION_MODEL")
 
     lm = models.AzureOpenAI(
         model=model, azure_endpoint=azureai_endpoint, api_key=azureai_key
@@ -93,9 +93,9 @@ def test_azureai_openai_completion_smoke(rate_limiter):
 
 
 def test_azureai_openai_completion_alt_args(rate_limiter):
-    azureai_endpoint = _env_or_fail("AZUREAI_COMPLETION_ENDPOINT")
-    azureai_key = _env_or_fail("AZUREAI_COMPLETION_KEY")
-    model = _env_or_fail("AZUREAI_COMPLETION_MODEL")
+    azureai_endpoint = env_or_fail("AZUREAI_COMPLETION_ENDPOINT")
+    azureai_key = env_or_fail("AZUREAI_COMPLETION_KEY")
+    model = env_or_fail("AZUREAI_COMPLETION_MODEL")
 
     parsed_url = urlparse(azureai_endpoint)
     parsed_query = parse_qs(parsed_url.query)
@@ -118,9 +118,9 @@ def test_azureai_openai_completion_alt_args(rate_limiter):
 
 
 def test_azureai_openai_chat_loop(rate_limiter):
-    azureai_endpoint = _env_or_fail("AZUREAI_CHAT_ENDPOINT")
-    azureai_key = _env_or_fail("AZUREAI_CHAT_KEY")
-    model = _env_or_fail("AZUREAI_CHAT_MODEL")
+    azureai_endpoint = env_or_fail("AZUREAI_CHAT_ENDPOINT")
+    azureai_key = env_or_fail("AZUREAI_CHAT_KEY")
+    model = env_or_fail("AZUREAI_CHAT_MODEL")
 
     lm = models.AzureOpenAI(
         model=model, azure_endpoint=azureai_endpoint, api_key=azureai_key
