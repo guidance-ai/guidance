@@ -1,11 +1,12 @@
 import functools
 import inspect
+from typing import Callable, ParamSpec, overload, Literal, Concatenate
+
 
 from .models import Model
 from ._grammar import GrammarFunction, RawFunction, Terminal, string, DeferredReference
 from ._utils import strip_multiline_string_indents
 
-from typing import Callable, ParamSpec, overload, Literal, Concatenate, Union
 P = ParamSpec("P")
 
 @overload
@@ -17,18 +18,18 @@ def guidance(
     dedent = ...,
     model = ...,
 ) -> Callable[[Callable[Concatenate[Model, P], Model]], Callable[P, GrammarFunction]]:
-    ...
+    """Case when guidance is used as a decorator, `stateless=False`"""
 
 @overload
 def guidance(
     f: None = None,
     *,
-    stateless: Literal[False] = ...,
+    stateless: Literal[False],
     cache = ...,
     dedent = ...,
     model = ...,
 ) -> Callable[[Callable[Concatenate[Model, P], Model]], Callable[P, RawFunction]]:
-    ...
+    """Case when guidance is used as a decorator, `stateless=False`"""
 
 @overload
 def guidance(
@@ -39,18 +40,24 @@ def guidance(
     dedent = ...,
     model = ...,
 ) -> Callable[P, GrammarFunction]:
-    ...
+    """Case when guidance is called as a function rather than a decorator, `stateless=True`"""
 
 @overload
 def guidance(
     f: Callable[Concatenate[Model, P], Model],
     *,
-    stateless: Literal[False] = ...,
+    stateless: Literal[False],
     cache = ...,
     dedent = ...,
     model = ...,
 ) -> Callable[P, RawFunction]:
-    ...
+    """Case when guidance is called as a function rather than a decorator, `stateless=False`"""
+
+@overload
+def guidance(
+    f: Callable[Concatenate[Model, P], Model],
+) -> Callable[P, RawFunction]:
+    """Explicit case when decorator is used without calling first"""
 
 def guidance(f=None, *, stateless=False, cache=None, dedent=True, model=Model):
     return _decorator(f, stateless=stateless, cache=cache, dedent=dedent, model=model)
