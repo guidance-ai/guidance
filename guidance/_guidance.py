@@ -1,12 +1,58 @@
 import functools
 import inspect
 
-from . import models
-from ._grammar import RawFunction, Terminal, string, DeferredReference
+from .models import Model
+from ._grammar import GrammarFunction, RawFunction, Terminal, string, DeferredReference
 from ._utils import strip_multiline_string_indents
 
+from typing import Callable, ParamSpec, overload, Literal, Concatenate, Union
+P = ParamSpec("P")
 
-def guidance(f=None, *, stateless=False, cache=None, dedent=True, model=models.Model):
+@overload
+def guidance(
+    f: None = None,
+    *,
+    stateless: Literal[True],
+    cache = ...,
+    dedent = ...,
+    model = ...,
+) -> Callable[[Callable[Concatenate[Model, P], Model]], Callable[P, GrammarFunction]]:
+    ...
+
+@overload
+def guidance(
+    f: None = None,
+    *,
+    stateless: Literal[False] = ...,
+    cache = ...,
+    dedent = ...,
+    model = ...,
+) -> Callable[[Callable[Concatenate[Model, P], Model]], Callable[P, RawFunction]]:
+    ...
+
+@overload
+def guidance(
+    f: Callable[Concatenate[Model, P], Model],
+    *,
+    stateless: Literal[True],
+    cache = ...,
+    dedent = ...,
+    model = ...,
+) -> Callable[P, GrammarFunction]:
+    ...
+
+@overload
+def guidance(
+    f: Callable[Concatenate[Model, P], Model],
+    *,
+    stateless: Literal[False] = ...,
+    cache = ...,
+    dedent = ...,
+    model = ...,
+) -> Callable[P, RawFunction]:
+    ...
+
+def guidance(f=None, *, stateless=False, cache=None, dedent=True, model=Model):
     return _decorator(f, stateless=stateless, cache=cache, dedent=dedent, model=model)
 
 
