@@ -100,10 +100,6 @@ class Transformer:
         # TODO: type for this constants._NamedIntConstant? (not an opcode)
         low, high, arg = args
         transformed_arg = cls.transform(arg)
-        if isinstance(high, int):
-            return Join(
-                [transformed_arg] * low + [optional(transformed_arg)] * (high - low)
-            )
         if isinstance(high, constants._NamedIntConstant):
             if high != constants.MAXREPEAT:
                 raise NotImplementedError(f"No handler for MAX_REPEAT with high={high}")
@@ -112,7 +108,10 @@ class Transformer:
                 return zero_or_more(transformed_arg)
             if low > 0:
                 return Join([transformed_arg] * low + [zero_or_more(transformed_arg)])
-
+        if isinstance(high, int):
+            return Join(
+                [transformed_arg] * low + [optional(transformed_arg)] * (high - low)
+            )
         raise TypeError(
             "high has type {type(high)}, expected one of int, constants._NamedIntConstant"
         )
