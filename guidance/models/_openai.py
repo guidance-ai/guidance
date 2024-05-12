@@ -254,8 +254,10 @@ class OpenAIChatEngine(OpenAIEngine):
                         break
                     btext = prompt[pos : pos + end_pos]
                     pos += end_pos + len(role_end)
+                    message_content = btext.decode("utf8")
+                    self.metrics.engine_input_tokens += len(self.tokenizer(message_content))
                     messages.append(
-                        {"role": role_name, "content": btext.decode("utf8")}
+                        {"role": role_name, "content": message_content}
                     )
                     found = True
                     break
