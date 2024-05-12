@@ -1591,9 +1591,7 @@ def _check_dominated(node, parser, match_version, next_byte_mask):
             return False  # this child does not dominate the node, so the node is not dominated
         elif child.value is None:  # this child might not dominate the node
             parser.consume_byte(next_byte, log_prob=0.0)
-            child_dominate = _check_dominated(
-                child, parser, match_version, parser.next_byte_mask()
-            )
+            child_dominate = _check_dominated(child, parser, match_version, parser.next_byte_mask())
             parser.pos = curr_pos
             if not child_dominate:
                 return False
