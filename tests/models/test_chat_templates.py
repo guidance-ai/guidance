@@ -1,6 +1,6 @@
 import pytest
 
-from guidance._chat import ChatTemplate, load_template_class, CHAT_TEMPLATE_CACHE
+from guidance._chat import load_template_class, CHAT_TEMPLATE_CACHE
 import transformers
 
 def test_popular_models_in_cache():
@@ -24,5 +24,7 @@ def test_popular_models_in_cache():
     model_chat_template = tokenizer.chat_template
     assert model_chat_template not in CHAT_TEMPLATE_CACHE
 
-# TODO: Expand testing to actually verify that tokenizer.apply_chat_template() produces same results as our ChatTemplate subclasses
+# TODO: Expand testing to verify that tokenizer.apply_chat_template() produces same results as our ChatTemplate subclasses
+# once I hook up the new ChatTemplate to guidance.models.Transformers and guidance.models.LlamaCPP, we can do this
+
 

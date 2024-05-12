@@ -1,2 +1,2 @@
-from ._llama import Llama, LlamaChat
-from ._transformers import Transformers, TransformersChat
+from ._llama import Llama
+from ._transformers import Transformers

@@ -71,7 +71,7 @@ def test_phi3_loading():
 def test_phi3_chat():
     # TODO: Double check chat format: https://huggingface.co/microsoft/Phi-3-mini-4k-instruct
 
-    lm = models.TransformersChat(
+    lm = models.Transformers(
         r"microsoft/Phi-3-mini-4k-instruct", trust_remote_code=True
     )
     with system():
