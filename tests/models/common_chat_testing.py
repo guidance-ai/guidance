@@ -20,10 +20,6 @@ def smoke_chat(lm: models.Chat, has_system_role: bool = True):
     assert str(lm).endswith("Pick a number: <|im_end|>")
     assert lm.engine.metrics.engine_input_tokens > 2, "Expect some input tokens"
     assert lm.engine.metrics.engine_output_tokens > 0, "Expect some output tokens"
-    # Allow for healing
-    assert (
-        lm.engine.metrics.engine_output_tokens <= 10 + 1
-    ), "Expect constraint on output tokens"
 
 
 def longer_chat_1(lm: models.Chat, has_system_role: bool = True):

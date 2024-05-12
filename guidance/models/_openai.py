@@ -233,6 +233,7 @@ class OpenAIChatEngine(OpenAIEngine):
         role_end = b"<|im_end|>"
         messages = []
         found = True
+        input_token_count = 0
         while found:
 
             # find the role text blocks
@@ -253,7 +254,7 @@ class OpenAIChatEngine(OpenAIEngine):
                     btext = prompt[pos : pos + end_pos]
                     pos += end_pos + len(role_end)
                     message_content = btext.decode("utf8")
-                    self.metrics.engine_input_tokens += len(
+                    input_token_count += len(
                         self.tokenizer(message_content)
                     )
                     messages.append({"role": role_name, "content": message_content})
@@ -296,6 +297,7 @@ class OpenAIChatEngine(OpenAIEngine):
                 temperature=temperature,
                 stream=True,
             )
+            self.metrics.engine_input_tokens += input_token_count
 
             if temperature == 0:
                 cached_results = []
