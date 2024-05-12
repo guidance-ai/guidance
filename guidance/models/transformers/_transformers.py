@@ -183,9 +183,7 @@ class TransformersEngine(Engine):
                 else:
                     used_tokens -= 1
 
-        new_ids = self.tokenizer._orig_tokenizer(
-            first_decode, add_special_tokens=False
-        )["input_ids"]
+        new_ids = self.tokenizer._orig_tokenizer(first_decode, add_special_tokens=False)["input_ids"]
         if used_tokens < len(token_ids):
             new_ids += token_ids[used_tokens:]
 
@@ -208,9 +206,7 @@ class TransformersEngine(Engine):
         """
 
         # make sure we don't run off the end of the model
-        if len(token_ids) >= getattr(
-            self.model_obj.config, "max_position_embeddings", 1e10
-        ):
+        if len(token_ids) >= getattr(self.model_obj.config, "max_position_embeddings", 1e10):
             raise Exception(
                 f"Attempted to run a transformers model past its maximum context window size of {self.model_obj.config.max_position_embeddings}!"
             )
@@ -229,16 +225,11 @@ class TransformersEngine(Engine):
 
         # reset the cache length according to that number of positions
         past_key_values = self._past_key_values
-        past_length = (
-            past_key_values[0][0].size(-2) if past_key_values is not None else 0
-        )
+        past_length = past_key_values[0][0].size(-2) if past_key_values is not None else 0
         if past_length > num_cached:
-            past_length = max(
-                0, num_cached - 1
-            )  # note we recompute the last token because we don't bother to handle the special case of just computing logits
-            self._past_key_values = tuple(
-                tuple(p[..., :past_length, :] for p in v) for v in past_key_values
-            )
+            # note we recompute the last token because we don't bother to handle the special case of just computing logits
+            past_length = max(0, num_cached - 1)  
+            self._past_key_values = tuple(tuple(p[..., :past_length, :] for p in v) for v in past_key_values)
         cache_token_ids[past_length:] = []
 
         # call the model
@@ -249,14 +240,8 @@ class TransformersEngine(Engine):
                     input_ids=torch.tensor(new_token_ids).unsqueeze(0).to(self.device),
                     past_key_values=self._past_key_values,
                     use_cache=True,
-                    position_ids=torch.arange(
-                        past_length, past_length + len(new_token_ids)
-                    )
-                    .unsqueeze(0)
-                    .to(self.device),
-                    attention_mask=torch.ones(1, past_length + len(new_token_ids)).to(
-                        self.device
-                    ),
+                    position_ids=torch.arange(past_length, past_length + len(new_token_ids)).unsqueeze(0).to(self.device),
+                    attention_mask=torch.ones(1, past_length + len(new_token_ids)).to(self.device),
                     return_dict=True,
                     output_attentions=False,
                     output_hidden_states=False,

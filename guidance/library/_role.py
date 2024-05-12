@@ -60,7 +60,7 @@ def role_closer(lm, role_name, **kwargs):
 
     return lm
 
-
+# TODO HN: Add a docstring to better describe arbitrary role functions
 def role(role_name, text=None, **kwargs):
     if text is None:
         return block(
