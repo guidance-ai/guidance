@@ -93,11 +93,9 @@ class OpenAI(Grammarless):
             # instruct
             # elif "instruct" in model: # All current OpenAI instruct models behave as Completion models.
             #     found_subclass = OpenAIInstruct
-                
+
             found_subclass: typing.Type[OpenAI] = (
-                OpenAICompletion
-                if model.endswith("-instruct") 
-                else OpenAIChat
+                OpenAICompletion if model.endswith("-instruct") else OpenAIChat
             )
 
             # convert to any found subclass
@@ -255,10 +253,10 @@ class OpenAIChatEngine(OpenAIEngine):
                     btext = prompt[pos : pos + end_pos]
                     pos += end_pos + len(role_end)
                     message_content = btext.decode("utf8")
-                    self.metrics.engine_input_tokens += len(self.tokenizer(message_content))
-                    messages.append(
-                        {"role": role_name, "content": message_content}
+                    self.metrics.engine_input_tokens += len(
+                        self.tokenizer(message_content)
                     )
+                    messages.append({"role": role_name, "content": message_content})
                     found = True
                     break
 
@@ -286,6 +284,9 @@ class OpenAIChatEngine(OpenAIEngine):
 
         # API call and response handling
         try:
+            # Ideally, for the metrics we would use those returned by the
+            # OpenAI API. Unfortunately, it appears that AzureAI hosted
+            # models do not support returning metrics when streaming yet
             generator = self.client.chat.completions.create(
                 model=self.model_name,
                 messages=messages,
@@ -305,6 +306,7 @@ class OpenAIChatEngine(OpenAIEngine):
                 else:
                     chunk = ""
                 encoded_chunk = chunk.encode("utf8")
+                self.metrics.engine_output_tokens += len(self.tokenizer(chunk))
                 yield encoded_chunk
 
                 if temperature == 0:
