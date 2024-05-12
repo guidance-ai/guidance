@@ -82,7 +82,7 @@ def test_subtoken_forced(azure_guidance_model: guidance.models.Model):
     assert str(lm) == "How much is 2 + 2? ("
 
 
-def test_llama_with_temp(azure_guidance_model: guidance.models.Model):
+def test_azure_guidance_with_temp(azure_guidance_model: guidance.models.Model):
     lm = azure_guidance_model
     lm += "Here is a cute 5-line poem about cats and dogs:\n"
     for i in range(5):
@@ -90,7 +90,7 @@ def test_llama_with_temp(azure_guidance_model: guidance.models.Model):
     # we just want to make sure we don't crash the numpy sampler
 
 
-def test_llama_with_temp2(azure_guidance_model: guidance.models.Model):
+def test_azure_guidance_with_temp2(azure_guidance_model: guidance.models.Model):
     lm = azure_guidance_model
     lm1 = lm + "2 + 2 =" + gen("answer", max_tokens=3)
     lm2 = lm + "2 + 2 =" + gen("answer", temperature=0.0000001, max_tokens=3)
