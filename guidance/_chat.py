@@ -1,19 +1,19 @@
-import abc
-class ChatTemplate(abc.ABC):
-    """Contains template for all chat and instruct tuned models."""
+import warnings
+import uuid
 
-    @abc.abstractmethod
+class ChatTemplate:
+    """Contains template for all chat and instruct tuned models."""
+    available_roles = None # supports all roles TODO [HN]: Think about best semantics for specifying limited role support?
+
     def get_role_start(self, role_name, **kwargs):
         raise NotImplementedError(
             "You need to use a ChatTemplate subclass that overrides the get_role_start method"
         )
 
-    @abc.abstractmethod
     def get_role_end(self, role_name=None):
         raise NotImplementedError(
             "You need to use a ChatTemplate subclass that overrides the get_role_start method"
         )
-
 
 class UnsupportedRoleException(Exception):
     def __init__(self, role_name, instance):
@@ -22,17 +22,62 @@ class UnsupportedRoleException(Exception):
         super().__init__(self._format_message())
 
     def _format_message(self):
-        return (f"Role {self.role_name} is not supported by the {self.instance.__class__.__name__} chat template. "
-                f"Use one of the following roles: {self.instance.available_roles} or pass in a new chat template.")
+        return (f"Role {self.role_name} is not supported by the {self.instance.__class__.__name__} chat template. ")
 
+def load_template_class(chat_template=None):
+    """Utility method to find the best chat template.
+    
+    Order of precedence:
+    - If it's a chat template class, use it directly
+    - If it's a string, check the cache of popular model templates
+    - If it's a string and not in the cache, try to create a class dynamically
+    - [TODO] If it's a string and can't be created, default to ChatML and raise a warning
+    - If it's None, default to ChatML and raise a warning
+    """
+    if issubclass(chat_template, ChatTemplate):
+        if chat_template is ChatTemplate:
+            raise Exception("You can't use the base ChatTemplate class directly. Create or use a subclass instead.")
+        return chat_template
+    
+    elif isinstance(chat_template, str):
+        # First check the cache of popular model types
+        # TODO: Expand keys of cache to include aliases for popular model types (e.g. "llama2, phi3")
+        # Can possibly accomplish this with an "aliases" dictionary that maps all aliases to the canonical key in cache
+        if chat_template.replace(" ", "") in CHAT_TEMPLATE_CACHE:
+            return CHAT_TEMPLATE_CACHE[chat_template.replace(" ", "")]
+        # TODO: Add logic here to try to auto-create class dynamically via template_class_from_string method
+        else:
+            warnings.warn(f"Chat template {chat_template} was unable to be loaded directly into guidance.
+                          Defaulting to the ChatML format which may not be optimal for the selected model. 
+                          For best results, create and pass in a `guidance.ChatTemplate` subclass for your model.")
+            return ChatMLTemplate
+        
+
+def template_class_from_string(template_str):
+    """Utility method to try to create a chat template class from a string."""
+    # TODO: Implement this based on unit tests we create.
+    pass
 
 CHAT_TEMPLATE_CACHE = {}
+
+# Standard ChatML Template -- used as default
+chatml_template = "{% for message in messages %}{{'<|im_start|>' + message['role'] + '\n' + message['content'] + '<|im_end|>' + '\n'}}{% endfor %}"
+class ChatMLTemplate(ChatTemplate):
+    template_str = chatml_template
+
+    def get_role_start(self, role_name):
+        return f"<|im_start|>{role_name}\n"
+        
+    def get_role_end(self, role_name=None):
+        return "<|im_end|>\n"
+    
+CHAT_TEMPLATE_CACHE[chatml_template.replace(" ", "")] = ChatMLTemplate
 
 # Llama-2
 # [05/08/24] https://huggingface.co/meta-llama/Llama-2-7b-chat-hf/blob/main/tokenizer_config.json#L12
 llama2_template = "{% if messages[0]['role'] == 'system' %}{% set loop_messages = messages[1:] %}{% set system_message = messages[0]['content'] %}{% else %}{% set loop_messages = messages %}{% set system_message = false %}{% endif %}{% for message in loop_messages %}{% if (message['role'] == 'user') != (loop.index0 % 2 == 0) %}{{ raise_exception('Conversation roles must alternate user/assistant/user/assistant/...') }}{% endif %}{% if loop.index0 == 0 and system_message != false %}{% set content = '<<SYS>>\\n' + system_message + '\\n<</SYS>>\\n\\n' + message['content'] %}{% else %}{% set content = message['content'] %}{% endif %}{% if message['role'] == 'user' %}{{ bos_token + '[INST] ' + content.strip() + ' [/INST]' }}{% elif message['role'] == 'assistant' %}{{ ' '  + content.strip() + ' ' + eos_token }}{% endif %}{% endfor %}"
 class Llama2ChatTemplate(ChatTemplate):
-    available_roles = ["system", "user", "assistant"]
+    # available_roles = ["system", "user", "assistant"]
     template_str = llama2_template
 
     def get_role_start(self, role_name):
@@ -62,7 +107,7 @@ CHAT_TEMPLATE_CACHE[llama2_template] = Llama2ChatTemplate
 # [05/08/24] https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct/blob/main/tokenizer_config.json#L2053
 llama3_template = "{% set loop_messages = messages %}{% for message in loop_messages %}{% set content = '<|start_header_id|>' + message['role'] + '<|end_header_id|>\n\n'+ message['content'] | trim + '<|eot_id|>' %}{% if loop.index0 == 0 %}{% set content = bos_token + content %}{% endif %}{{ content }}{% endfor %}{% if add_generation_prompt %}{{ '<|start_header_id|>assistant<|end_header_id|>\n\n' }}{% endif %}"
 class Llama3ChatTemplate(ChatTemplate):
-    available_roles = ["system", "user", "assistant"]
+    # available_roles = ["system", "user", "assistant"]
     template_str = llama3_template
 
     def get_role_start(self, role_name):
@@ -84,7 +129,7 @@ CHAT_TEMPLATE_CACHE[llama3_template] = Llama3ChatTemplate
 # Phi-3 doesn't support system roles
 phi3_template = "{{ bos_token }}{% for message in messages %}{% if (message['role'] == 'user') %}{{'<|user|>' + '\n' + message['content'] + '<|end|>' + '\n' + '<|assistant|>' + '\n'}}{% elif (message['role'] == 'assistant') %}{{message['content'] + '<|end|>' + '\n'}}{% endif %}{% endfor %}"
 class Phi3ChatTemplate(ChatTemplate):
-    available_roles = ["user", "assistant"]
+    # available_roles = ["user", "assistant"]
     template_str = phi3_template
 
     def get_role_start(self, role_name):
@@ -104,7 +149,7 @@ CHAT_TEMPLATE_CACHE[phi3_template] = Phi3ChatTemplate
 # [05/08/24] https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.2/blob/main/tokenizer_config.json#L42
 mistral_7b_instruct_template = "{{ bos_token }}{% for message in messages %}{% if (message['role'] == 'user') != (loop.index0 % 2 == 0) %}{{ raise_exception('Conversation roles must alternate user/assistant/user/assistant/...') }}{% endif %}{% if message['role'] == 'user' %}{{ '[INST] ' + message['content'] + ' [/INST]' }}{% elif message['role'] == 'assistant' %}{{ message['content'] + eos_token}}{% else %}{{ raise_exception('Only user and assistant roles are supported!') }}{% endif %}{% endfor %}"
 class Mistral7BInstructChatTemplate(ChatTemplate):
-    available_roles = ["user", "assistant"]
+    # available_roles = ["user", "assistant"]
     template_str = mistral_7b_instruct_template
 
     def get_role_start(self, role_name):
