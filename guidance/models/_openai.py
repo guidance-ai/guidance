@@ -147,6 +147,9 @@ class OpenAICompletionEngine(OpenAIEngine):
         self._reset_shared_data(prompt, temperature)  # update our shared data state
 
         try:
+            # Ideally, for the metrics we would use those returned by the
+            # OpenAI API. Unfortunately, it appears that AzureAI hosted
+            # models do not support returning metrics when streaming yet
             prompt_string = prompt.decode("utf8")
             generator = self.client.completions.create(
                 model=self.model_name,
