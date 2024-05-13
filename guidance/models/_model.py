@@ -51,6 +51,7 @@ from .._grammar import (
 )
 
 from .. import _serialization_pb2
+from .._chat import load_template_class
 
 if TYPE_CHECKING:
     from ..library._block import ContextBlock
@@ -72,7 +73,7 @@ class Tokenizer:
     tokenizer in the corresponding Engine subclass.
     """
 
-    def __init__(self, tokens, bos_token_id=None, eos_token_id=None):
+    def __init__(self, tokens, chat_template, bos_token_id=None, eos_token_id=None):
 
         # a numpy array of token byte strings indexed by their token id
         if isinstance(tokens, list):
@@ -90,6 +91,11 @@ class Tokenizer:
         assert isinstance(
             self.tokens[0], bytes
         ), "The tokens need to be provided as bytes!"
+
+
+        # This method supports None, a huggingface style jinja2_template_str, or a ChatTemplate subclass
+        # Defaults to ChatML if nothing is found
+        self.chat_template = load_template_class(chat_template)
 
         self.bos_token_id = bos_token_id
         self.bos_token = (
@@ -205,6 +211,9 @@ class Engine:
 
         self.metrics = GuidanceEngineMetrics()
 
+    def get_chat_template(self): # TODO [HN]: Add more logic here...should we instantiate class here? do we even need to?
+        return self.tokenizer.chat_template() # Instantiate the class before returning to client for now
+    
     def reset_metrics(self):
         self.metrics = GuidanceEngineMetrics()
 
@@ -825,6 +834,8 @@ class Engine:
             ):
                 for i in range(1, len(token_byte_positions)):
                     token_byte_positions[i] -= 1
+            
+            
             assert token_byte_positions[-1] == last_pos
 
         return token_ids, token_byte_positions
@@ -884,6 +895,7 @@ class Model:
         #     tokenizer = Tokenizer(tokenizer)
 
         self.engine = engine
+        self.chat_template = engine.get_chat_template() # TODO [HN]: Should this be a method or attr?
         self.echo = echo
         self.token_count = 0  # tracks how many tokens our byte state represents
         self.max_display_rate = 0.2  # this controls how frequently we are allowed to redraw the display (in seconds)

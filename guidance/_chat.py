@@ -1,5 +1,6 @@
 import warnings
 import uuid
+import inspect
 
 class ChatTemplate:
     """Contains template for all chat and instruct tuned models."""
@@ -32,6 +33,7 @@ class ChatTemplateCache:
         return key_compact in self._cache
     
 # Feels weird having to instantiate this, but it's a singleton for all purposes
+# TODO [HN]: Add an alias system so we can instantiate with other simple keys (e.g. "llama2" instead of the full template string)
 CHAT_TEMPLATE_CACHE = ChatTemplateCache() 
 
 class UnsupportedRoleException(Exception):
@@ -53,7 +55,7 @@ def load_template_class(chat_template=None):
     - [TODO] If it's a string and can't be created, default to ChatML and raise a warning
     - If it's None, default to ChatML and raise a warning
     """
-    if issubclass(chat_template, ChatTemplate):
+    if inspect.isclass(chat_template) and issubclass(chat_template, ChatTemplate):
         if chat_template is ChatTemplate:
             raise Exception("You can't use the base ChatTemplate class directly. Create or use a subclass instead.")
         return chat_template
@@ -65,11 +67,15 @@ def load_template_class(chat_template=None):
         if chat_template in CHAT_TEMPLATE_CACHE:
             return CHAT_TEMPLATE_CACHE[chat_template]
         # TODO: Add logic here to try to auto-create class dynamically via _template_class_from_string method
-        else:
-            warnings.warn(f"""Chat template {chat_template} was unable to be loaded directly into guidance.
-                          Defaulting to the ChatML format which may not be optimal for the selected model. 
-                          For best results, create and pass in a `guidance.ChatTemplate` subclass for your model.""")
-            return ChatMLTemplate
+    
+    # Only warn when a user provided a chat template that we couldn't load
+    if chat_template is not None:
+        warnings.warn(f"""Chat template {chat_template} was unable to be loaded directly into guidance.
+                        Defaulting to the ChatML format which may not be optimal for the selected model. 
+                        For best results, create and pass in a `guidance.ChatTemplate` subclass for your model.""")
+    
+    # By default, use the ChatML Template. Warnings to user will happen downstream only if they use chat roles.
+    return ChatMLTemplate
         
 
 def _template_class_from_string(template_str):
@@ -83,6 +89,7 @@ def _template_class_from_string(template_str):
 # --------------------------------------------------
 # @@@@ ChatML @@@@
 # --------------------------------------------------
+# Note that all grammarless models will default to this syntax, since we typically send chat formatted messages.
 chatml_template = "{% for message in messages %}{{'<|im_start|>' + message['role'] + '\n' + message['content'] + '<|im_end|>' + '\n'}}{% endfor %}"
 class ChatMLTemplate(ChatTemplate):
     template_str = chatml_template
@@ -113,7 +120,7 @@ class Llama2ChatTemplate(ChatTemplate):
         elif role_name == "assistant":
             return " "
         else:
-            return UnsupportedRoleException(role_name, self)
+            raise UnsupportedRoleException(role_name, self)
         
     def get_role_end(self, role_name=None):
         if role_name == "system":
@@ -123,7 +130,7 @@ class Llama2ChatTemplate(ChatTemplate):
         elif role_name == "assistant":
             return "</s>"
         else:
-            return UnsupportedRoleException(role_name, self)
+            raise UnsupportedRoleException(role_name, self)
 
 CHAT_TEMPLATE_CACHE[llama2_template] = Llama2ChatTemplate
 
@@ -145,7 +152,7 @@ class Llama3ChatTemplate(ChatTemplate):
         elif role_name == "assistant":
             return "<|start_header_id|>assistant<|end_header_id>\n\n"
         else:
-            return UnsupportedRoleException(role_name, self)
+            raise UnsupportedRoleException(role_name, self)
         
     def get_role_end(self, role_name=None):
         return "<|eot_id|>"
@@ -167,7 +174,7 @@ class Phi3ChatTemplate(ChatTemplate):
         elif role_name == "assistant":
             return "<|assistant|>\n"
         else:
-            return UnsupportedRoleException(role_name, self)
+            raise UnsupportedRoleException(role_name, self)
         
     def get_role_end(self, role_name=None):
         return "<|end|>\n"
@@ -190,7 +197,7 @@ class Mistral7BInstructChatTemplate(ChatTemplate):
         elif role_name == "assistant":
             return " "
         else:
-            return UnsupportedRoleException(role_name, self)
+            raise UnsupportedRoleException(role_name, self)
         
     def get_role_end(self, role_name=None):
         if role_name == "user":
@@ -198,6 +205,6 @@ class Mistral7BInstructChatTemplate(ChatTemplate):
         elif role_name == "assistant":
             return "</s>"
         else:
-            return UnsupportedRoleException(role_name, self)
+            raise UnsupportedRoleException(role_name, self)
         
 CHAT_TEMPLATE_CACHE[mistral_7b_instruct_template] = Mistral7BInstructChatTemplate

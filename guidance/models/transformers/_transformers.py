@@ -6,11 +6,11 @@ try:
 except ModuleNotFoundError:
     pass
 
-from .._model import Tokenizer, Engine, Model, Chat
+from .._model import Tokenizer, Engine, Model
 
 
 class TransformersTokenizer(Tokenizer):
-    def __init__(self, model, tokenizer, ignore_bos_token=False):
+    def __init__(self, model, tokenizer, chat_template=None, ignore_bos_token=False):
         if tokenizer is None:
             tokenizer = self._tokenizer(model)
 
@@ -80,9 +80,14 @@ class TransformersTokenizer(Tokenizer):
                 )
                 byte_tokens[i] = byte_coded
 
+        # Chat Template logic
+        if chat_template is None and hasattr(self._orig_tokenizer, "chat_template"):
+            chat_template = self._orig_tokenizer.chat_template
+
         # the superclass does most of the work once we have the tokens
         super().__init__(
             byte_tokens,
+            chat_template,
             None if ignore_bos_token else tokenizer.bos_token_id,
             tokenizer.eos_token_id,
         )
@@ -128,7 +133,7 @@ class TransformersTokenizer(Tokenizer):
 
 
 class TransformersEngine(Engine):
-    def __init__(self, model, tokenizer, compute_log_probs, **kwargs):
+    def __init__(self, model, tokenizer, compute_log_probs, chat_template=None, **kwargs):
         # fill in default model value
         if model is None:
             model = os.environ.get("TRANSFORMERS_MODEL", None)
@@ -150,7 +155,7 @@ class TransformersEngine(Engine):
         self._cached_token_ids = []
 
         super().__init__(
-            TransformersTokenizer(model, tokenizer), compute_log_probs=compute_log_probs
+            TransformersTokenizer(model, tokenizer, chat_template), compute_log_probs=compute_log_probs
         )
         assert self._token_trie.match
 
@@ -261,9 +266,9 @@ class TransformersEngine(Engine):
 
 class Transformers(Model):
     def __init__(
-        self, model=None, tokenizer=None, echo=True, compute_log_probs=False, **kwargs
+        self, model=None, tokenizer=None, echo=True, compute_log_probs=False, chat_template=None, **kwargs
     ):
         """Build a new Transformers model object that represents a model in a given state."""
         super().__init__(
-            TransformersEngine(model, tokenizer, compute_log_probs, **kwargs), echo=echo
+            TransformersEngine(model, tokenizer, compute_log_probs, chat_template=chat_template, **kwargs), echo=echo
         )

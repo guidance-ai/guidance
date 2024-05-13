@@ -1,7 +1,7 @@
 from ._model import Model, Instruct, Chat
 
 # local models
-from .transformers._transformers import Transformers, TransformersChat
+from .transformers._transformers import Transformers
 from .llama_cpp import LlamaCpp, LlamaCppChat, MistralInstruct, MistralChat
 from ._mock import Mock, MockChat
 

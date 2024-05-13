@@ -2,11 +2,6 @@ from ._transformers import Transformers
 
 
 class Llama(Transformers):
-    pass
-
-
-class LlamaChat(TransformersChat, Llama):
-
     def system(self):
         """Patch up the system command to convert normal system role structure into Llama structure (nested in the first user message)."""
         self._system_prefex = "[INST] " if str(self) == "" else ""

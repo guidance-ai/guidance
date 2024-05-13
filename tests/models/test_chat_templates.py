@@ -18,7 +18,7 @@ def test_popular_models_in_cache():
         model_chat_template = tokenizer.chat_template
         assert model_chat_template in CHAT_TEMPLATE_CACHE
 
-    # Extend to a random model not explicitly coded for
+    # Extend tests to some random model not explicitly coded for in the cache
     not_in_cache_model = "HuggingFaceH4/zephyr-7b-beta"
     tokenizer = transformers.AutoTokenizer.from_pretrained(not_in_cache_model)
     model_chat_template = tokenizer.chat_template

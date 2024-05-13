@@ -38,8 +38,7 @@ class RemoteEngine(Engine):
             response.raise_for_status()
 
         # Process and yield the response data
-        for chunk in response.iter_content(
-            chunk_size=None
-        ):  # chunk_size=None means it'll stream the content
+        # chunk_size=None means it'll stream the content
+        for chunk in response.iter_content(chunk_size=None):
             response_data = EngineCallResponse.deserialize(chunk)
             yield response_data
