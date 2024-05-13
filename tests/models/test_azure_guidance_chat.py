@@ -43,6 +43,8 @@ def test_azure_guidance_chat_loop(azure_guidance_chat: guidance.models.Model):
 
     for i in range(2):
         with user():
-            lm = model + f"The number is: {i}"
+            lm = model + f"You will just return whatever number I give you. The number is: {i}"
         with assistant():
             lm += gen(name="answer", max_tokens=2)
+
+

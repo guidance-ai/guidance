@@ -115,3 +115,80 @@ def test_azure_guidance_stop_token(azure_guidance_model: guidance.models.Model):
     print(r[20:])
     assert "</color>" not in r[20:]
     assert " and test2" in r[20:]
+
+def test_azure_guidance_basic(azure_guidance_model: guidance.models.Model):
+    model = azure_guidance_model
+    lm = model + "Count to 20: 1,2,3,4,"
+    nl = "\n"
+    lm += "5,6,7" + f"""{gen(max_tokens=1, suffix=nl)}aaaaaa"""
+    assert str(lm)[-6:] == "aaaaaa"
+
+def test_azure_guidance_fstring(azure_guidance_model: guidance.models.Model):
+    lm = azure_guidance_model
+    lm += f'this is a test {select(["item1", "item2"])}'
+    assert str(lm) in ["this is a test item1", "this is a test item2"]
+
+
+def test_azure_guidance_fstring_custom(azure_guidance_model: guidance.models.Model):
+    lm = azure_guidance_model
+
+    @guidance
+    def my_function(lm):
+        return lm + f'another {select(["item1", "item2"])}'
+
+    lm += f"this is a test {my_function()}"
+    assert str(lm) in ["this is a test another item1", "this is a test another item2"]
+
+
+def test_azure_guidance_token_count(azure_guidance_model: guidance.models.Model):
+    lm = azure_guidance_model
+    lm2 = lm + " 1 1 1 1 1" + gen(max_tokens=9) + gen(max_tokens=9)
+    assert (
+        18 <= lm2.token_count <= 20
+    )  # note we allow ourselves to be off by one because it is hard to know when we are continuing vs starting a new token in the parser
+
+
+def test_azure_guidance_call_embeddings(azure_guidance_model: guidance.models.Model):
+    model = azure_guidance_model
+
+    @guidance(dedent=False)
+    def bla(lm, bla):
+        lm += bla + "ae" + gen(max_tokens=10)
+        return lm
+
+    @guidance(dedent=False)
+    def ble(lm):
+        lm += f"""
+    ae galera! {bla('33')}
+    let's do more stuff!!""" + gen(
+            max_tokens=10
+        )
+        return lm
+
+    assert "{{G|" not in str(model + ble())
+
+
+def test_azure_guidance_stream(azure_guidance_model: guidance.models.Model):
+    lm = azure_guidance_model
+    lm = lm + select(["item1", "item2"])
+    assert str(lm) in ["item1", "item2"]
+
+
+def test_azure_guidance_stream_propagate_errors(azure_guidance_model: guidance.models.Model):
+    lm = azure_guidance_model
+
+    @guidance
+    def my_function(lm):
+        raise Exception()
+
+    with pytest.raises(Exception):
+        lm += my_function()
+        list(lm)
+
+
+def test_azure_guidance_stream_add_multiple(azure_guidance_model: guidance.models.Model):
+    """Test to make sure multiple additions to a ModelStream are all respected"""
+    lm = azure_guidance_model
+    lm = lm + select(["item1", "item2"])
+    lm += ""
+    assert str(lm) in ["item1", "item2"]
