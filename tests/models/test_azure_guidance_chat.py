@@ -33,7 +33,8 @@ def test_azure_guidance_chat_select(azure_guidance_chat: guidance.models.Model):
         lm += select(
             ["1", "11", "111", "1111", "11111", "111111", "1111111"], name="the number"
         )
-    assert str(lm)[-1] == "1"
+    print(repr( str(lm) ))
+    assert lm["the number"][-1] == "1"
 
 
 def test_azure_guidance_chat_loop(azure_guidance_chat: guidance.models.Model):
