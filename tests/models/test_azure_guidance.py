@@ -53,7 +53,7 @@ def test_azure_guidance_select2(azure_guidance_model: guidance.models.Model):
     ]
 
 
-def test_repeat_calls(azure_guidance_model: guidance.models.Model):
+def test_azure_guidance_repeat_calls(azure_guidance_model: guidance.models.Model):
     lm_orig = azure_guidance_model
     a = []
     lm = lm_orig + "How much is 2 + 2? " + gen(name="test", max_tokens=10)
@@ -65,7 +65,7 @@ def test_repeat_calls(azure_guidance_model: guidance.models.Model):
     assert a[-1] == a[0]
 
 
-def test_suffix(azure_guidance_model: guidance.models.Model):
+def test_azure_guidance_suffix(azure_guidance_model: guidance.models.Model):
     lm_orig = azure_guidance_model
     lm = (
         lm_orig
@@ -76,7 +76,7 @@ def test_suffix(azure_guidance_model: guidance.models.Model):
     assert (str(lm))[-2] != "\n"
 
 
-def test_subtoken_forced(azure_guidance_model: guidance.models.Model):
+def test_azure_guidance_subtoken_forced(azure_guidance_model: guidance.models.Model):
     lm_orig = azure_guidance_model
     lm = lm_orig + "How much is 2 + 2? " + gen(name="test", max_tokens=10, regex=r"\(")
     assert str(lm) == "How much is 2 + 2? ("
@@ -97,7 +97,7 @@ def test_azure_guidance_with_temp2(azure_guidance_model: guidance.models.Model):
     assert lm1["answer"] == lm2["answer"]
 
 
-def test_max_tokens(azure_guidance_model: guidance.models.Model):
+def test_azure_guidance_max_tokens(azure_guidance_model: guidance.models.Model):
     lm = azure_guidance_model
     lm += "Who won the last Kentucky derby and by how much?"
     lm += "\n\n<<The last Kentucky Derby was held"
@@ -107,7 +107,7 @@ def test_max_tokens(azure_guidance_model: guidance.models.Model):
     )  # the output should not end with "<" because that is coming from the stop sequence...
 
 
-def test_stop_token(azure_guidance_model: guidance.models.Model):
+def test_azure_guidance_stop_token(azure_guidance_model: guidance.models.Model):
     lm = azure_guidance_model
     lm += f'<color>red</color>\n<color>{gen(stop="</color>")} and test2'
     r = str(lm)

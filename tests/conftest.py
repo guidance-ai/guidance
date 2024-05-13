@@ -16,6 +16,10 @@ AVAILABLE_MODELS = {
         name="azure_guidance:",
         kwargs={},
     ),
+    "azure_guidance_chat": dict(
+        name="azure_guidance_chat:",
+        kwargs={},
+    ),
     "transformers_phi3cpu_mini_4k_instruct": dict(
         name="transformers:microsoft/Phi-3-mini-4k-instruct",
         kwargs={"trust_remote_code": True},

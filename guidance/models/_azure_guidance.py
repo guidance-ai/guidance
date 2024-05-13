@@ -3,7 +3,7 @@ import os
 import base64
 import json
 import urllib.parse
-from ._model import Engine, Model, EngineCallResponse
+from ._model import Chat, Engine, Model, EngineCallResponse
 
 
 class AzureGuidanceEngine(Engine):
@@ -152,3 +152,17 @@ def req(tp: str, path: str, base_url: str, **kwargs):
     headers = _headers(arg_base_url=base_url)
     resp = requests.request(tp, url, headers=headers, **kwargs)
     return resp
+
+
+class AzureGuidanceChat(AzureGuidance, Chat):
+    def get_role_start(self, role_name, **kwargs):
+        if role_name == "user":
+            return "<|user|>\n"
+        elif role_name == "assistant":
+            return "<|assistant|>\n"
+        else:
+            # TODO: replace with UnsupportedRoleException
+            raise Exception("UnsupportedRoleException")  
+
+    def get_role_end(self, role_name=None):
+        return "<|end|>\n"
