@@ -147,9 +147,10 @@ class OpenAICompletionEngine(OpenAIEngine):
         self._reset_shared_data(prompt, temperature)  # update our shared data state
 
         try:
+            prompt_string = prompt.decode("utf8")
             generator = self.client.completions.create(
                 model=self.model_name,
-                prompt=prompt.decode("utf8"),
+                prompt=prompt_string,
                 max_tokens=self.max_streaming_tokens,
                 n=1,
                 top_p=1.0,  # TODO: this should be controllable like temp (from the grammar)
@@ -164,6 +165,8 @@ class OpenAICompletionEngine(OpenAIEngine):
                 chunk = part.choices[0].text or ""
             else:
                 chunk = ""
+            self.metrics.engine_input_tokens += len(self.tokenizer(prompt_string))
+            self.metrics.engine_output_tokens += len(self.tokenizer(chunk))
             yield chunk.encode("utf8")
 
 
@@ -210,6 +213,7 @@ class OpenAIInstructEngine(OpenAIEngine):
                 chunk = part.choices[0].text or ""
             else:
                 chunk = ""
+
             yield chunk.encode("utf8")
 
 
@@ -254,9 +258,7 @@ class OpenAIChatEngine(OpenAIEngine):
                     btext = prompt[pos : pos + end_pos]
                     pos += end_pos + len(role_end)
                     message_content = btext.decode("utf8")
-                    input_token_count += len(
-                        self.tokenizer(message_content)
-                    )
+                    input_token_count += len(self.tokenizer(message_content))
                     messages.append({"role": role_name, "content": message_content})
                     found = True
                     break
