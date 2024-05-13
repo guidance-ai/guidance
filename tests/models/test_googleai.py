@@ -17,6 +17,17 @@ def test_googleai_basic():
     lm += f"""{gen(max_tokens=1, suffix=nl)}aaaaaa"""
     assert str(lm)[-5:] == "aaaaa"
 
+def test_googleai_instruct():
+    try:
+        lm = models.GoogleAIInstruct("gemini-pro")
+    except:
+        pytest.skip("Skipping GoogleAI test because we can't load the model!")
+    
+    with instruction():
+        lm += "this is a test about"
+    lm += gen("test", max_tokens=100)
+    assert len(lm["test"]) > 0
+
 def test_gemini_pro():
     from guidance import assistant, gen, models, system, user
 
