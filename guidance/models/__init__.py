@@ -2,7 +2,7 @@ from ._model import Model, Instruct, Chat
 
 # local models
 from .transformers._transformers import Transformers
-from .llama_cpp import LlamaCpp, LlamaCppChat, MistralInstruct, MistralChat
+from .llama_cpp import LlamaCpp
 from ._mock import Mock, MockChat
 
 # grammarless models (we can't do constrained decoding for them)
