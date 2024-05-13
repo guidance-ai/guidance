@@ -57,28 +57,90 @@ w) 10"""
     assert lm["answer"] in ["p", "t", "w"]
 
 
+pytest.mark.skip("Don't overload the build machines")
+def test_phi3_transformers_orig():
+    import torch
+    from transformers import AutoModelForCausalLM, pipeline, AutoTokenizer
+
+    torch.random.manual_seed(0)
+    model = AutoModelForCausalLM.from_pretrained(
+        "microsoft/Phi-3-mini-4k-instruct", 
+        device_map="mps",
+        trust_remote_code=True,
+    )
+
+    tokenizer = AutoTokenizer.from_pretrained("microsoft/Phi-3-mini-4k-instruct")
+    pipe = pipeline(
+        "text-generation",
+        model=model,
+        tokenizer=tokenizer,
+    )
+
+    generation_args = {
+        "max_new_tokens": 5,
+        "return_full_text": True,
+        "temperature": 0.0,
+        "do_sample": False,
+    }
+
+    input_text = "You are a counting bot. Just keep counting numbers. 1,2,3,4"
+    output = pipe(input_text, **generation_args)
+    assert "5" in (output[0]['generated_text'])
+
+
 @pytest.mark.skip("Don't overload the build machines")
 def test_phi3_loading():
-
     lm = models.Transformers(
         r"microsoft/Phi-3-mini-4k-instruct", trust_remote_code=True
     )
-    lm += f"""Finish counting to 5: 1,2,3,4, + {gen("five", max_tokens=1)}"""
-    assert lm["five"] == "5"
+    lm += f"""You are a counting bot. Just keep counting numbers. 1,2,3,4, <|assistant|>"""
+    lm += gen("five", max_tokens=10)
+    assert "5" in lm["five"]
 
 
 @pytest.mark.skip("Don't overload the build machines")
 def test_phi3_chat():
-    # TODO: Double check chat format: https://huggingface.co/microsoft/Phi-3-mini-4k-instruct
-
     lm = models.Transformers(
-        r"microsoft/Phi-3-mini-4k-instruct", trust_remote_code=True
+        r"meta-llama/Meta-Llama-3-8B-Instruct", trust_remote_code=True
     )
-    with system():
-        lm += "You are a counting bot. Just keep counting numbers."
+    # System prompts raise exceptions for phi-3 models that don't have a system role.
+    # TODO [HN]: Decide if we should perhaps merge with first user message as a default w/ warning?
+    # with system():
+    #     lm += "You are a counting bot. Just keep counting numbers."
+    # lm += "You are a counting bot. Just keep counting numbers."
+    with user():
+        lm += "Tell me what you want, what you really really want."
+    with assistant():
+        lm += "I'll tell you what I want, what I really really want." 
+        lm += gen(name="five", max_tokens=1)
+
+    assert len(lm["five"] > 0) 
+
+
+@pytest.mark.skip("Don't overload the build machines")
+def test_phi3_failure_minimal():
+    lm = models.Transformers(
+        r"microsoft/Phi-3-mini-4k-instruct", trust_remote_code=True, device_map="mps"
+    )
+    # NOTE: This SHOULD NOT raise an exception, but guidance currently has a bug where 
+    # directly passing in newlines next to special tokens for a tokenizer that does rstrip on those tokens
+    # (like phi-3) will cause a tokenization mismatch issue. 
+    # We're leaving this test in so that we can reliably reproduce and debug this in the future. 
+    with pytest.raises(Exception):
+        lm += f"""numbers.<|user|>\n1,2,3,4<|end|>\n<|assistant|>\n"""
+        lm += gen("five", max_tokens=10)
+
+@pytest.mark.skip("Don't overload the build machines")
+def test_phi3_chat_fixed():
+    lm = models.Transformers(
+        r"microsoft/Phi-3-mini-4k-instruct", trust_remote_code=True, device_map="mps"
+    )
+
+    lm += "You are a counting bot. Just keep counting numbers."
     with user():
         lm += "1,2,3,4"
     with assistant():
-        lm += gen(name="five", max_tokens=1)
+        lm += gen(name="five", max_tokens=10)
 
-    assert lm["five"] == "5"
+    assert "5" in lm["five"]
+

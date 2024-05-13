@@ -170,14 +170,14 @@ class Phi3ChatTemplate(ChatTemplate):
 
     def get_role_start(self, role_name):
         if role_name == "user":
-            return "<|user|>\n"
+            return "<|user|>"
         elif role_name == "assistant":
-            return "<|assistant|>\n"
+            return "<|assistant|>"
         else:
             raise UnsupportedRoleException(role_name, self)
         
     def get_role_end(self, role_name=None):
-        return "<|end|>\n"
+        return "<|end|>"
     
 CHAT_TEMPLATE_CACHE[phi3_template] = Phi3ChatTemplate
 
