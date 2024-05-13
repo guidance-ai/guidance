@@ -4,6 +4,18 @@ from guidance import gen, instruction, models, select
 
 from ..utils import get_model
 
+def test_googleai_basic():
+    try:
+        lm = models.GoogleAICompletion("gemini-pro")
+    except:
+        pytest.skip("Skipping GoogleAI test because we can't load the model!")
+    
+    lm += "Count to 20: 1,2,3,4,"
+    nl = "\n"
+    lm += f"""\
+5,6,7"""
+    lm += f"""{gen(max_tokens=1, suffix=nl)}aaaaaa"""
+    assert str(lm)[-5:] == "aaaaa"
 
 def test_gemini_pro():
     from guidance import assistant, gen, models, system, user
