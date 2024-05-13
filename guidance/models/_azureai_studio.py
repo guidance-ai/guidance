@@ -142,8 +142,9 @@ class AzureAIStudioChatEngine(GrammarlessEngine):
             encoded_chunk = chunk.encode("utf8")  # type: ignore[union-attr]
 
             # Non-streaming OpenAI call, so we can just get the metrics directly
-            self.metrics.engine_input_tokens += response.usage.prompt_tokens
-            self.metrics.engine_output_tokens += response.usage.completion_tokens
+            if response.usage is not None:
+                self.metrics.engine_input_tokens += response.usage.prompt_tokens
+                self.metrics.engine_output_tokens += response.usage.completion_tokens
         else:
             parameters = dict(temperature=temperature)
             payload = dict(
