@@ -116,7 +116,7 @@ class GoogleAICompletionEngine(GoogleAIEngine):
             kwargs["generation_config"] = generation_config
 
             generator = self.model_obj.generate_content(
-                contents=prompt,
+                contents=self._data.decode("utf8"),
                 stream=True,
                 **kwargs,
             )
