@@ -6,6 +6,7 @@ import tiktoken
 import re
 import logging
 from ._model import Tokenizer, Engine, Model, format_pattern, ConstraintException
+from .._chat import ChatMLTemplate
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +105,9 @@ class GrammarlessTokenizer(Tokenizer):
         else:
             raise Exception("The tokenizer given was not of a recognized type!")
 
-        super().__init__(byte_tokens, bos_token_id, eos_token_id)
+        # Grammarless Tokenizers MUST use the ChatMLTemplate in guidance today
+        chat_template = ChatMLTemplate
+        super().__init__(byte_tokens, chat_template, bos_token_id, eos_token_id)
 
 
 class GrammarlessEngine(Engine):
@@ -133,6 +136,7 @@ class GrammarlessEngine(Engine):
         if not isinstance(tokenizer, Tokenizer):
             tokenizer = GrammarlessTokenizer(tokenizer)
 
+        # GrammarlessEngines must use the ChatML tokenizer
         # build the
         super().__init__(tokenizer=tokenizer, compute_log_probs=compute_log_probs)
 

@@ -23,7 +23,7 @@ from ._azureai_studio import AzureAIStudioChat
 from ._openai import OpenAI, OpenAIChat, OpenAIInstruct, OpenAICompletion
 from ._lite_llm import LiteLLM, LiteLLMChat, LiteLLMInstruct, LiteLLMCompletion
 from ._cohere import Cohere, CohereCompletion, CohereInstruct
-from ._anthropic import Anthropic, AnthropicChat
+from ._anthropic import Anthropic
 from ._googleai import GoogleAI, GoogleAIChat
 from ._togetherai import (
     TogetherAI,
