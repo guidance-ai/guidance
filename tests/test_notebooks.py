@@ -6,6 +6,10 @@ from urllib.parse import urlparse, parse_qs
 import papermill as pm
 import pytest
 
+# Everything in here is a notebook...
+# Mark is configured in pyproject.toml
+pytestmark = pytest.mark.notebooks
+
 BASE_NB_PATH = pathlib.Path("./notebooks").absolute()
 
 
