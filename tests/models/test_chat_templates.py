@@ -5,6 +5,7 @@ import transformers
 
 from ..utils import env_or_fail
 
+@pytest.mark.needs_credentials
 @pytest.mark.parametrize(
     "model_info",
     [
