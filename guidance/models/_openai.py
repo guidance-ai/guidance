@@ -40,7 +40,12 @@ class OpenAIEngine(GrammarlessEngine):
 
         # Create a simple registry of models that use completion endpoints.
         self._completion_models = set(
-            ["gpt-3.5-turbo-instruct", "babbage-002", "davinci-002"]
+            [
+                "gpt-35-turbo-instruct",
+                "gpt-3.5-turbo-instruct",
+                "babbage-002",
+                "davinci-002",
+            ]
         )
 
         if tokenizer is None:
