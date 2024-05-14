@@ -147,7 +147,7 @@ class GrammarlessEngine(Engine):
         if tokenizer.chat_template is not ChatMLTemplate:
             raise Exception("The tokenizer provided to the engine follows a non-ChatML format in its chat_template. \
                     Using a transformers, tiktoken, or guidance.GrammarlessTokenizer directly will solve this issue.")
-        # build the
+        # build the Engine
         super().__init__(tokenizer=tokenizer, compute_log_probs=compute_log_probs)
 
     def __call__(self, *args, **kwargs):
