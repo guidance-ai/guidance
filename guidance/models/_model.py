@@ -836,7 +836,7 @@ class Engine:
                     token_byte_positions[i] -= 1
             
             
-            assert token_byte_positions[-1] == last_pos
+            assert token_byte_positions[-1] == last_pos, "Cross check last_pos"
 
         return token_ids, token_byte_positions
 
