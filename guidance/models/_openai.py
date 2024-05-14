@@ -39,13 +39,14 @@ class OpenAIEngine(GrammarlessEngine):
         self.model_name = model
 
         # Create a simple registry of models that use completion endpoints.
-        self._completion_models = set(["gpt-3.5-turbo-instruct", "babbage-002", "davinci-002"])
+        self._completion_models = set(
+            ["gpt-3.5-turbo-instruct", "babbage-002", "davinci-002"]
+        )
 
         if tokenizer is None:
             tokenizer = tiktoken.encoding_for_model(model)
 
         super().__init__(tokenizer, max_streaming_tokens, timeout, compute_log_probs)
-
 
     def _generator(self, prompt, temperature):
         if self.model_name in self._completion_models:
@@ -53,15 +54,17 @@ class OpenAIEngine(GrammarlessEngine):
             self._reset_shared_data(prompt, temperature)  # update our shared data state
 
             try:
+                prompt_decoded = prompt.decode("utf8")
                 generator = self.client.completions.create(
                     model=self.model_name,
-                    prompt=prompt.decode("utf8"),
+                    prompt=prompt_decoded,
                     max_tokens=self.max_streaming_tokens,
                     n=1,
                     top_p=1.0,  # TODO: this should be controllable like temp (from the grammar)
                     temperature=temperature,
                     stream=True,
                 )
+                self.metrics.engine_output_tokens += len(self.tokenizer(prompt_decoded))
             except Exception as e:  # TODO: add retry logic
                 raise e
 
@@ -70,15 +73,17 @@ class OpenAIEngine(GrammarlessEngine):
                     chunk = part.choices[0].text or ""
                 else:
                     chunk = ""
+                self.metrics.engine_output_tokens += len(self.tokenizer(chunk))
                 yield chunk.encode("utf8")
 
         # Otherwise we are in a chat context
-        
+
         # find the role tags
         pos = 0
         role_end = b"<|im_end|>\n"
         messages = []
         found = True
+        input_token_count = 0
 
         # TODO: refactor this to method on parent class? (or a util function)
         while found:
@@ -99,9 +104,9 @@ class OpenAIEngine(GrammarlessEngine):
                         break
                     btext = prompt[pos : pos + end_pos]
                     pos += end_pos + len(role_end)
-                    messages.append(
-                        {"role": role_name, "content": btext.decode("utf8")}
-                    )
+                    message_content = btext.decode("utf8")
+                    input_token_count += len(self.tokenizer(message_content))
+                    messages.append({"role": role_name, "content": message_content})
                     found = True
                     break
 
@@ -119,6 +124,9 @@ class OpenAIEngine(GrammarlessEngine):
 
         # API call and response handling
         try:
+            # Ideally, for the metrics we would use those returned by the
+            # OpenAI API. Unfortunately, it appears that AzureAI hosted
+            # models do not support returning metrics when streaming yet
             generator = self.client.chat.completions.create(
                 model=self.model_name,
                 messages=messages,
@@ -128,6 +136,7 @@ class OpenAIEngine(GrammarlessEngine):
                 temperature=temperature,
                 stream=True,
             )
+            self.metrics.engine_input_tokens += input_token_count
 
             for part in generator:
                 if len(part.choices) > 0:
@@ -135,10 +144,12 @@ class OpenAIEngine(GrammarlessEngine):
                 else:
                     chunk = ""
                 encoded_chunk = chunk.encode("utf8")
+                self.metrics.engine_output_tokens += len(self.tokenizer(chunk))
                 yield encoded_chunk
 
         except Exception as e:  # TODO: add retry logic
             raise e
+
 
 class OpenAI(Grammarless):
     def __init__(
@@ -178,7 +189,7 @@ class OpenAI(Grammarless):
             raise Exception(
                 "Please install the openai package version >= 1 using `pip install openai -U` in order to use guidance.models.OpenAI!"
             )
-        
+
         super().__init__(
             engine=OpenAIEngine(
                 tokenizer=tokenizer,

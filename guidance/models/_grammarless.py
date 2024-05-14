@@ -106,9 +106,15 @@ class GrammarlessTokenizer(Tokenizer):
         else:
             raise Exception("The tokenizer given was not of a recognized type!")
 
+        self._orig_tokenizer = tokenizer
+
         # Grammarless Tokenizers MUST use the ChatMLTemplate in guidance today
         chat_template = ChatMLTemplate
         super().__init__(byte_tokens, chat_template, bos_token_id, eos_token_id)
+
+    def __call__(self, byte_string):
+        """Returns a list of tokens that represent the given byte string."""
+        return self._orig_tokenizer.encode(byte_string)
 
 
 class GrammarlessEngine(Engine):
