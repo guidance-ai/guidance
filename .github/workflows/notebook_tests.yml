@@ -1,7 +1,10 @@
-# CI Tests
-# These should only be run on main, because they access secrets
+# Notebook Tests
 
-name: CI Tests
+# These should only be run on main, because they access secrets
+# Not part of the regular CI run, since notebook tests seem
+# particularly flaky
+
+name: Notebook Tests
 
 
 on:
@@ -10,8 +13,8 @@ on:
     branches: [main]
   schedule:
     # * is a special character in YAML so we quote this string
-    # Run at 1030 UTC every day
-    - cron:  '30 10 * * *'
+    # Run at 0830 UTC every day
+    - cron:  '30 08 * * *'
 
 jobs:
   build:
@@ -79,7 +82,7 @@ jobs:
           AZURE_AI_STUDIO_LLAMA3_CHAT_KEY: ${{ secrets.AZURE_AI_STUDIO_LLAMA3_CHAT_KEY }}
         run: |
           pytest --cov=guidance --cov-report=xml --cov-report=term-missing \
-            -m "needs_credentials and (not notebooks)" \
+            -m "notebooks" \
             ./tests/
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4
