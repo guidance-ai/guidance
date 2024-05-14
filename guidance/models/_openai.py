@@ -48,36 +48,35 @@ class OpenAIEngine(GrammarlessEngine):
 
         super().__init__(tokenizer, max_streaming_tokens, timeout, compute_log_probs)
 
-    def _generator(self, prompt, temperature):
-        if self.model_name in self._completion_models:
-            # Only runs on legacy openAI models that use old completion endpoints.
-            self._reset_shared_data(prompt, temperature)  # update our shared data state
+    def _generator_completion(self, prompt, temperature):
+        # Only runs on legacy openAI models that use old completion endpoints.
+        self._reset_shared_data(prompt, temperature)  # update our shared data state
 
-            try:
-                prompt_decoded = prompt.decode("utf8")
-                generator = self.client.completions.create(
-                    model=self.model_name,
-                    prompt=prompt_decoded,
-                    max_tokens=self.max_streaming_tokens,
-                    n=1,
-                    top_p=1.0,  # TODO: this should be controllable like temp (from the grammar)
-                    temperature=temperature,
-                    stream=True,
-                )
-                self.metrics.engine_input_tokens += len(self.tokenizer(prompt_decoded))
-            except Exception as e:  # TODO: add retry logic
-                raise e
+        try:
+            prompt_decoded = prompt.decode("utf8")
+            generator = self.client.completions.create(
+                model=self.model_name,
+                prompt=prompt_decoded,
+                max_tokens=self.max_streaming_tokens,
+                n=1,
+                top_p=1.0,  # TODO: this should be controllable like temp (from the grammar)
+                temperature=temperature,
+                stream=True,
+            )
+            self.metrics.engine_input_tokens += len(self.tokenizer(prompt_decoded))
+        except Exception as e:
+            # TODO: add retry logic, but keep token counts straight
+            raise e
 
-            for part in generator:
-                if len(part.choices) > 0:
-                    chunk = part.choices[0].text or ""
-                else:
-                    chunk = ""
-                self.metrics.engine_output_tokens += len(self.tokenizer(chunk))
-                yield chunk.encode("utf8")
+        for part in generator:
+            if len(part.choices) > 0:
+                chunk = part.choices[0].text or ""
+            else:
+                chunk = ""
+            self.metrics.engine_output_tokens += len(self.tokenizer(chunk))
+            yield chunk.encode("utf8")
 
-        # Otherwise we are in a chat context
-
+    def _generator_chat(self, prompt, temperature):
         # find the role tags
         pos = 0
         role_end = b"<|im_end|>\n"
@@ -147,8 +146,16 @@ class OpenAIEngine(GrammarlessEngine):
                 self.metrics.engine_output_tokens += len(self.tokenizer(chunk))
                 yield encoded_chunk
 
-        except Exception as e:  # TODO: add retry logic
+        except Exception as e:
+            # TODO: add retry logic, keeping mind of token counts
             raise e
+
+    def _generator(self, prompt, temperature):
+        if self.model_name in self._completion_models:
+            return self._generator_completion(prompt, temperature)
+        else:
+            # Otherwise we are in a chat context
+            return self._generator_chat(prompt, temperature)
 
 
 class OpenAI(Grammarless):
