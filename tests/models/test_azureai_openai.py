@@ -81,6 +81,9 @@ def test_azureai_openai_completion_smoke(rate_limiter):
     azureai_key = env_or_fail("AZUREAI_COMPLETION_KEY")
     model = env_or_fail("AZUREAI_COMPLETION_MODEL")
 
+    print(f"endpoint: {' '.join(azureai_endpoint)}")
+    print(f"model: {' '.join(model)}")
+
     lm = models.AzureOpenAI(
         model=model, azure_endpoint=azureai_endpoint, api_key=azureai_key
     )
