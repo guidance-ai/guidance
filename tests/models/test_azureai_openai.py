@@ -15,7 +15,6 @@ from ..utils import env_or_fail
 pytestmark = pytest.mark.needs_credentials
 
 
-
 def test_azureai_openai_chat_smoke(rate_limiter):
     azureai_endpoint = env_or_fail("AZUREAI_CHAT_ENDPOINT")
     azureai_key = env_or_fail("AZUREAI_CHAT_KEY")
@@ -86,10 +85,13 @@ def test_azureai_openai_completion_smoke(rate_limiter):
         model=model, azure_endpoint=azureai_endpoint, api_key=azureai_key
     )
     assert isinstance(lm, models.AzureOpenAICompletion)
+    assert isinstance(lm.engine, models._openai.OpenAICompletionEngine)
 
     result = lm + "What is 2+2?" + gen(max_tokens=10, name="text")
     print(f"result: {result['text']}")
     assert len(result["text"]) > 0
+    assert lm.engine.metrics.engine_input_tokens > 0
+    assert lm.engine.metrics.engine_output_tokens > 0
 
 
 def test_azureai_openai_completion_alt_args(rate_limiter):
@@ -111,10 +113,13 @@ def test_azureai_openai_completion_alt_args(rate_limiter):
         azure_deployment=azureai_deployment,
     )
     assert isinstance(lm, models.AzureOpenAICompletion)
+    assert isinstance(lm.engine, models._openai.OpenAICompletionEngine)
 
     result = lm + "What is 2+2?" + gen(max_tokens=10, name="text")
     print(f"result: {result['text']}")
     assert len(result["text"]) > 0
+    assert lm.engine.metrics.engine_input_tokens > 0
+    assert lm.engine.metrics.engine_output_tokens > 0
 
 
 def test_azureai_openai_chat_loop(rate_limiter):

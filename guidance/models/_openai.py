@@ -93,11 +93,9 @@ class OpenAI(Grammarless):
             # instruct
             # elif "instruct" in model: # All current OpenAI instruct models behave as Completion models.
             #     found_subclass = OpenAIInstruct
-                
+
             found_subclass: typing.Type[OpenAI] = (
-                OpenAICompletion
-                if model.endswith("-instruct") 
-                else OpenAIChat
+                OpenAICompletion if model.endswith("-instruct") else OpenAIChat
             )
 
             # convert to any found subclass
@@ -149,9 +147,13 @@ class OpenAICompletionEngine(OpenAIEngine):
         self._reset_shared_data(prompt, temperature)  # update our shared data state
 
         try:
+            # Ideally, for the metrics we would use those returned by the
+            # OpenAI API. Unfortunately, it appears that AzureAI hosted
+            # models do not support returning metrics when streaming yet
+            prompt_string = prompt.decode("utf8")
             generator = self.client.completions.create(
                 model=self.model_name,
-                prompt=prompt.decode("utf8"),
+                prompt=prompt_string,
                 max_tokens=self.max_streaming_tokens,
                 n=1,
                 top_p=1.0,  # TODO: this should be controllable like temp (from the grammar)
@@ -166,6 +168,8 @@ class OpenAICompletionEngine(OpenAIEngine):
                 chunk = part.choices[0].text or ""
             else:
                 chunk = ""
+            self.metrics.engine_input_tokens += len(self.tokenizer(prompt_string))
+            self.metrics.engine_output_tokens += len(self.tokenizer(chunk))
             yield chunk.encode("utf8")
 
 
@@ -212,6 +216,7 @@ class OpenAIInstructEngine(OpenAIEngine):
                 chunk = part.choices[0].text or ""
             else:
                 chunk = ""
+
             yield chunk.encode("utf8")
 
 
@@ -235,6 +240,7 @@ class OpenAIChatEngine(OpenAIEngine):
         role_end = b"<|im_end|>"
         messages = []
         found = True
+        input_token_count = 0
         while found:
 
             # find the role text blocks
@@ -254,9 +260,9 @@ class OpenAIChatEngine(OpenAIEngine):
                         break
                     btext = prompt[pos : pos + end_pos]
                     pos += end_pos + len(role_end)
-                    messages.append(
-                        {"role": role_name, "content": btext.decode("utf8")}
-                    )
+                    message_content = btext.decode("utf8")
+                    input_token_count += len(self.tokenizer(message_content))
+                    messages.append({"role": role_name, "content": message_content})
                     found = True
                     break
 
@@ -284,6 +290,9 @@ class OpenAIChatEngine(OpenAIEngine):
 
         # API call and response handling
         try:
+            # Ideally, for the metrics we would use those returned by the
+            # OpenAI API. Unfortunately, it appears that AzureAI hosted
+            # models do not support returning metrics when streaming yet
             generator = self.client.chat.completions.create(
                 model=self.model_name,
                 messages=messages,
@@ -293,6 +302,7 @@ class OpenAIChatEngine(OpenAIEngine):
                 temperature=temperature,
                 stream=True,
             )
+            self.metrics.engine_input_tokens += input_token_count
 
             if temperature == 0:
                 cached_results = []
@@ -303,6 +313,7 @@ class OpenAIChatEngine(OpenAIEngine):
                 else:
                     chunk = ""
                 encoded_chunk = chunk.encode("utf8")
+                self.metrics.engine_output_tokens += len(self.tokenizer(chunk))
                 yield encoded_chunk
 
                 if temperature == 0:
