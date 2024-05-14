@@ -106,3 +106,21 @@ def test_openai_chat_loop():
 
         with assistant():
             lm += gen(name="answer", max_tokens=2)
+
+
+def test_openai_prefill():
+    try:
+        model = guidance.models.OpenAI("gpt-3.5-turbo", echo=False)
+    except:
+        pytest.skip("Skipping OpenAI test because we can't load the model!")
+
+    with system():
+        lm = model + "You are a helpful assistant."
+
+    with user():
+        lm += "What is the capital of France?"
+
+    with assistant():
+        lm += "The capital of France is " + gen(name="capital", suffix=".")
+
+    assert lm["capital"] == "Paris"

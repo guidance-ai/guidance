@@ -257,6 +257,9 @@ class OpenAIChatEngine(OpenAIEngine):
                         assert (
                             role_name == "assistant"
                         ), "Bad chat format! Last role before gen needs to be assistant!"
+                        btext = prompt[pos:]
+                        pos = len(prompt)
+                        messages.append({"role": role_name, "content": btext.decode("utf8")})
                         break
                     btext = prompt[pos : pos + end_pos]
                     pos += end_pos + len(role_end)
