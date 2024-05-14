@@ -64,7 +64,7 @@ class OpenAIEngine(GrammarlessEngine):
                     temperature=temperature,
                     stream=True,
                 )
-                self.metrics.engine_output_tokens += len(self.tokenizer(prompt_decoded))
+                self.metrics.engine_input_tokens += len(self.tokenizer(prompt_decoded))
             except Exception as e:  # TODO: add retry logic
                 raise e
 
