@@ -72,7 +72,7 @@ class Tokenizer:
     This class should be subclassed by specific implementations and then used as the
     tokenizer in the corresponding Engine subclass.
     """
-
+    # TODO: We should probably have encode and decode methods on here...
     def __init__(self, tokens, chat_template, bos_token_id=None, eos_token_id=None):
 
         # a numpy array of token byte strings indexed by their token id

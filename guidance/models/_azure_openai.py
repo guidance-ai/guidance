@@ -7,11 +7,7 @@ import tiktoken
 
 from ._grammarless import Grammarless
 from ._model import Chat, Instruct
-from ._openai import (
-    OpenAIChatEngine,
-    OpenAICompletionEngine,
-    OpenAIInstructEngine
-)
+from ._openai import OpenAIEngine
 
 try:
     import openai as openai_package
@@ -111,9 +107,9 @@ class AzureOpenAI(Grammarless):
             else parsed_query["api-version"]
         )
         engine_map = {
-            AzureOpenAICompletion: OpenAICompletionEngine,
-            AzureOpenAIChat: OpenAIChatEngine,
-            AzureOpenAIInstruct: OpenAIInstructEngine,
+            AzureOpenAICompletion: OpenAIEngine,
+            AzureOpenAIChat: OpenAIEngine,
+            AzureOpenAIInstruct: OpenAIEngine,
         }
         engine_class = engine_map[self.__class__]
 

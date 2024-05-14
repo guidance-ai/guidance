@@ -20,7 +20,7 @@ from ._azure_openai import (
     AzureOpenAIInstruct,
 )
 from ._azureai_studio import AzureAIStudioChat
-from ._openai import OpenAI, OpenAIChat, OpenAIInstruct, OpenAICompletion
+from ._openai import OpenAI
 from ._lite_llm import LiteLLM, LiteLLMChat, LiteLLMInstruct, LiteLLMCompletion
 from ._cohere import Cohere, CohereCompletion, CohereInstruct
 from ._anthropic import Anthropic
