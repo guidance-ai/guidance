@@ -98,23 +98,19 @@ def test_phi3_loading():
     assert "5" in lm["five"]
 
 
-@pytest.mark.skip("Don't overload the build machines")
-def test_phi3_chat():
+# @pytest.mark.skip("Don't overload the build machines")
+def test_llama3_chat():
     lm = models.Transformers(
         r"meta-llama/Meta-Llama-3-8B-Instruct", trust_remote_code=True
     )
-    # System prompts raise exceptions for phi-3 models that don't have a system role.
-    # TODO [HN]: Decide if we should perhaps merge with first user message as a default w/ warning?
-    # with system():
-    #     lm += "You are a counting bot. Just keep counting numbers."
-    # lm += "You are a counting bot. Just keep counting numbers."
+    with system():
+        lm += "You are a counting bot. Just keep counting numbers."
     with user():
-        lm += "Tell me what you want, what you really really want."
+        lm += "1,2,3,4"
     with assistant():
-        lm += "I'll tell you what I want, what I really really want." 
-        lm += gen(name="five", max_tokens=1)
+        lm += gen(name="five", max_tokens=10)
 
-    assert len(lm["five"] > 0) 
+    assert "5" in lm["five"]
 
 
 @pytest.mark.skip("Don't overload the build machines")
@@ -130,7 +126,7 @@ def test_phi3_failure_minimal():
         lm += f"""numbers.<|user|>\n1,2,3,4<|end|>\n<|assistant|>\n"""
         lm += gen("five", max_tokens=10)
 
-@pytest.mark.skip("Don't overload the build machines")
+# @pytest.mark.skip("Don't overload the build machines")
 def test_phi3_chat_fixed():
     lm = models.Transformers(
         r"microsoft/Phi-3-mini-4k-instruct", trust_remote_code=True, device_map="mps"

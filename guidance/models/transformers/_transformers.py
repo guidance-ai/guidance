@@ -66,6 +66,10 @@ class TransformersTokenizer(Tokenizer):
                     reconstructed += bytes(
                         [byte_decoder[c] for c in t.convert_ids_to_tokens(i)]
                     )
+                # Check if the tokenizer has a bos_token attribute, and if it does, check if it's at the start of the reconstructed bytes
+                # Some tokenizers add this automatically as part of the call function, so we need to remove it to compare
+                if hasattr(t, "bos_token") and reconstructed.startswith(t.bos_token.encode()):
+                    reconstructed = reconstructed[len(t.bos_token) :]
             except:
                 raise ValueError(
                     f"The tokenizer being used is unable to convert a special character in {s}. For models with sentencepiece based tokenizers (e.g. llama, phi-3-mini), installing sentencepiece often fixes this issue (pip install sentencepiece)."
