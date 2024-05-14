@@ -195,7 +195,7 @@ class Mistral7BInstructChatTemplate(ChatTemplate):
         if role_name == "user":
             return "[INST] "
         elif role_name == "assistant":
-            return " "
+            return ""
         else:
             raise UnsupportedRoleException(role_name, self)
         
