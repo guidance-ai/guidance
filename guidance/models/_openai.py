@@ -49,7 +49,7 @@ class OpenAIEngine(GrammarlessEngine):
 
     def _generator(self, prompt, temperature):
         if self.model_name in self._completion_models:
-            """Only runs on legacy openAI models that use old completion endpoints."""
+            # Only runs on legacy openAI models that use old completion endpoints.
             self._reset_shared_data(prompt, temperature)  # update our shared data state
 
             try:
@@ -71,6 +71,9 @@ class OpenAIEngine(GrammarlessEngine):
                 else:
                     chunk = ""
                 yield chunk.encode("utf8")
+
+        # Otherwise we are in a chat context
+        
         # find the role tags
         pos = 0
         role_end = b"<|im_end|>\n"
