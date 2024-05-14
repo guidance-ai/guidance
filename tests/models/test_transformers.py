@@ -57,7 +57,7 @@ w) 10"""
     assert lm["answer"] in ["p", "t", "w"]
 
 
-pytest.mark.skip("Don't overload the build machines")
+@pytest.mark.skip("Don't overload the build machines")
 def test_phi3_transformers_orig():
     import torch
     from transformers import AutoModelForCausalLM, pipeline, AutoTokenizer
@@ -98,7 +98,7 @@ def test_phi3_loading():
     assert "5" in lm["five"]
 
 
-# @pytest.mark.skip("Don't overload the build machines")
+@pytest.mark.skip("Don't overload the build machines")
 def test_llama3_chat():
     lm = models.Transformers(
         r"meta-llama/Meta-Llama-3-8B-Instruct", trust_remote_code=True
@@ -126,7 +126,7 @@ def test_phi3_failure_minimal():
         lm += f"""numbers.<|user|>\n1,2,3,4<|end|>\n<|assistant|>\n"""
         lm += gen("five", max_tokens=10)
 
-# @pytest.mark.skip("Don't overload the build machines")
+@pytest.mark.skip("Don't overload the build machines")
 def test_phi3_chat_fixed():
     lm = models.Transformers(
         r"microsoft/Phi-3-mini-4k-instruct", trust_remote_code=True, device_map="mps"
