@@ -59,6 +59,7 @@ jobs:
           python -c "import torch; assert torch.cuda.is_available()"
       - name: Test with pytest
         env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
           # Configure endpoints for Azure OpenAI
           AZUREAI_CHAT_ENDPOINT: ${{ secrets.AZUREAI_CHAT_ENDPOINT }}
           AZUREAI_CHAT_KEY: ${{ secrets.AZUREAI_CHAT_KEY }}
