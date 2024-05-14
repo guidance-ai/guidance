@@ -15,9 +15,6 @@ from .vertexai._vertexai import (
 )
 from ._azure_openai import (
     AzureOpenAI,
-    AzureOpenAIChat,
-    AzureOpenAICompletion,
-    AzureOpenAIInstruct,
 )
 from ._azureai_studio import AzureAIStudioChat
 from ._openai import OpenAI
