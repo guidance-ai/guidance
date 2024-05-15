@@ -1,6 +1,15 @@
 import functools
 import inspect
-from typing import Callable, Concatenate, Literal, ParamSpec, Union, overload
+from typing import (
+    Callable,
+    Concatenate,
+    Literal,
+    Optional,
+    ParamSpec,
+    Type,
+    Union,
+    overload,
+)
 
 from ._grammar import DeferredReference, GrammarFunction, RawFunction, Terminal, string,
 from ._utils import strip_multiline_string_indents
@@ -108,7 +117,20 @@ def guidance(
     """
 
 
-def guidance(f=None, *, stateless=False, cache=None, dedent=True, model=Model):
+def guidance(
+    f: Optional[Callable[Concatenate[Model, P], Model]] = None,
+    *,
+    stateless: Union[bool, Callable[..., bool]] = False,
+    cache: bool = False,
+    dedent: bool = True,
+    model: Type[Model] = Model,
+) -> Union[
+    Callable[P, Union[RawFunction, GrammarFunction]],
+    Callable[
+        [Callable[Concatenate[Model, P], Model]],
+        Callable[P, Union[RawFunction, GrammarFunction]],
+    ],
+]:
     return _decorator(f, stateless=stateless, cache=cache, dedent=dedent, model=model)
 
 
