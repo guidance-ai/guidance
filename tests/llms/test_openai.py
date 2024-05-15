@@ -1,5 +1,41 @@
 import guidance
 from ..utils import get_llm
+import re
+
+
+def test_chat_model_pattern():
+    chat_models = [
+        'gpt-4o',
+        'gpt-4o-2024-05-13',
+        'gpt-4-turbo',
+        'gpt-4-turbo-2024-04-09',
+        'gpt-4-turbo-preview',
+        'gpt-4-0125-preview',
+        'gpt-4-vision-preview',
+        'gpt-4-1106-vision-preview',
+        'gpt-4',
+        'gpt-4-0613',
+        'gpt-4-32k',
+        'gpt-4-32k-0613',
+        'gpt-3.5-turbo',
+        'gpt-3.5-turbo-instruct',
+        'gpt-3.5-turbo-16k-0613',
+    ]
+
+    chat_model_pattern = guidance.llms.OpenAI.chat_model_pattern
+    all_good = True
+    failed = []
+    for model in chat_models:
+        if re.match(chat_model_pattern, model):
+            chat_mode = True
+        else:
+            chat_mode = False
+            failed.append(model)
+
+        all_good = all_good and chat_mode
+
+    assert all_good, f"Model(s) not recognized: {failed}"
+
 
 def test_geneach_chat_gpt():
     """ Test a geneach loop with ChatGPT.
