@@ -30,4 +30,4 @@ from ._togetherai import (
 )
 
 # server based grammar models
-from ._azure_guidance import AzureGuidance, AzureGuidanceChat
+from ._azure_guidance import AzureGuidance

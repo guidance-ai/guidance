@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 import guidance
-from guidance import gen, select
+from guidance import gen, select, assistant, user
 
 from ..utils import get_model
 
@@ -192,3 +192,74 @@ def test_azure_guidance_stream_add_multiple(azure_guidance_model: guidance.model
     lm = lm + select(["item1", "item2"])
     lm += ""
     assert str(lm) in ["item1", "item2"]
+
+
+def test_azure_guidance(azure_guidance_model: guidance.models.Model):
+    lm = azure_guidance_model
+    with user():
+        lm += "What is 1 + 1?"
+    with assistant():
+        lm += gen(max_tokens=10, name="text")
+        lm += "Pick a number: "
+    assert len(lm["text"]) > 0
+
+
+def test_azure_guidance_select(azure_guidance_model: guidance.models.Model):
+    lm = azure_guidance_model
+    with user():
+        lm += "Pick a number: "
+    with assistant():
+        lm += select(
+            ["1", "11", "111", "1111", "11111", "111111", "1111111"], name="the number"
+        )
+    print(repr( str(lm) ))
+    assert lm["the number"][-1] == "1"
+
+
+def test_azure_guidance_loop(azure_guidance_model: guidance.models.Model):
+    # tests issue #509
+    model = azure_guidance_model
+
+    for i in range(2):
+        with user():
+            lm = model + f"You will just return whatever number I give you. The number is: {i}"
+        with assistant():
+            lm += gen(name="answer", max_tokens=2)
+
+
+
+def test_azure_guidance_chat(azure_guidance_model: guidance.models.Model):
+    lm = azure_guidance_model
+
+    with user():
+        lm += "The economy is crashing!"
+
+    with assistant():
+        lm += gen("test1", max_tokens=100)
+
+    with user():
+        lm += "What is the best again?"
+
+    with assistant():
+        lm += gen("test2", max_tokens=100)
+
+    assert len(lm["test1"]) > 0
+    assert len(lm["test2"]) > 0
+
+    # second time to make sure cache reuse is okay
+    lm = azure_guidance_model
+
+    with user():
+        lm += "The economy is crashing!"
+
+    with assistant():
+        lm += gen("test1", max_tokens=100)
+
+    with user():
+        lm += "What is the best again?"
+
+    with assistant():
+        lm += gen("test2", max_tokens=100)
+
+    assert len(lm["test1"]) > 0
+    assert len(lm["test2"]) > 0

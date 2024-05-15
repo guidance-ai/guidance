@@ -3,13 +3,15 @@ import os
 import base64
 import json
 import urllib.parse
-from ._model import Chat, Engine, Model, EngineCallResponse
+from ._model import Engine, Model, EngineCallResponse
+from .._chat import Phi3ChatTemplate
+from ._byte_tokenizer import ByteTokenizer
 
 
 class AzureGuidanceEngine(Engine):
     """This connects to a remote guidance server on Azure and runs all computation using the remote engine."""
 
-    def __init__(self, server_url, max_streaming_tokens=1000):
+    def __init__(self, server_url, max_streaming_tokens=1000, chat_template=None):
         if (
             server_url is None
             or isinstance(server_url, str)
@@ -24,6 +26,15 @@ class AzureGuidanceEngine(Engine):
             )
         self.server_url = server_url
         self.max_streaming_tokens = max_streaming_tokens
+
+        if chat_template is None:
+            # TODO [PK]: obtain this from the server
+            chat_template=Phi3ChatTemplate
+
+        tokenizer = ByteTokenizer(chat_template)
+
+        # build the Engine
+        super().__init__(tokenizer=tokenizer, compute_log_probs=False)
 
     def __call__(self, parser, grammar, ensure_bos_token=True):
         b64 = base64.b64encode(grammar.serialize()).decode("utf-8")
@@ -115,10 +126,11 @@ class AzureGuidance(Model):
         model=None,
         echo=True,
         max_streaming_tokens=1000,
+        chat_template=None,
     ):
         """Build a new remote grammar processing Azure model object that represents a model in a given state."""
 
-        engine = AzureGuidanceEngine(model, max_streaming_tokens)
+        engine = AzureGuidanceEngine(model, max_streaming_tokens, chat_template)
         super().__init__(engine, echo=echo)
 
 
@@ -152,17 +164,3 @@ def req(tp: str, path: str, base_url: str, **kwargs):
     headers = _headers(arg_base_url=base_url)
     resp = requests.request(tp, url, headers=headers, **kwargs)
     return resp
-
-
-class AzureGuidanceChat(AzureGuidance, Chat):
-    def get_role_start(self, role_name, **kwargs):
-        if role_name == "user":
-            return "<|user|>\n"
-        elif role_name == "assistant":
-            return "<|assistant|>\n"
-        else:
-            # TODO: replace with UnsupportedRoleException
-            raise Exception("UnsupportedRoleException")  
-
-    def get_role_end(self, role_name=None):
-        return "<|end|>\n"
