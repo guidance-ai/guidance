@@ -1,12 +1,27 @@
 import functools
 import inspect
-from typing import Callable, Concatenate, Literal, ParamSpec, overload
+from typing import Callable, Concatenate, Literal, ParamSpec, Union, overload
 
 from ._grammar import DeferredReference, GrammarFunction, RawFunction, Terminal, string,
 from ._utils import strip_multiline_string_indents
 from .models import Model
 
 P = ParamSpec("P")
+
+
+@overload
+def guidance(
+    f: Callable[Concatenate[Model, P], Model],
+    *,
+    stateless: Literal[False] = False,
+    cache=...,
+    dedent=...,
+    model=...,
+) -> Callable[P, RawFunction]:
+    """
+    Case when guidance decorator is called with a passed function,
+    with or without explicitly passing `stateless=False`
+    """
 
 
 @overload
@@ -21,6 +36,21 @@ def guidance(
     """
     Case where guidance decorator is called without passing a function,
     with or without explicitly passing `stateless=False`
+    """
+
+
+@overload
+def guidance(
+    f: Callable[Concatenate[Model, P], Model],
+    *,
+    stateless: Literal[True],
+    cache=...,
+    dedent=...,
+    model=...,
+) -> Callable[P, GrammarFunction]:
+    """
+    Case when guidance decorator is called with a passed function,
+    explicitly passing `stateless=True`
     """
 
 
@@ -43,29 +73,38 @@ def guidance(
 def guidance(
     f: Callable[Concatenate[Model, P], Model],
     *,
-    stateless: Literal[False] = False,
+    stateless: Callable[..., bool],
     cache=...,
     dedent=...,
     model=...,
-) -> Callable[P, RawFunction]:
+) -> Callable[P, Union[RawFunction, GrammarFunction]]:
     """
     Case when guidance decorator is called with a passed function,
-    with or without explicitly passing `stateless=False`
+    where `stateless` is passed as a Callable that returns a bool.
+
+    The return type of the wrapped function, either RawFunction or GrammarFunction,
+    cannot be statically determined in this case.
     """
 
 
 @overload
 def guidance(
-    f: Callable[Concatenate[Model, P], Model],
+    f: None = None,
     *,
-    stateless: Literal[True],
+    stateless: Callable[..., bool],
     cache=...,
     dedent=...,
     model=...,
-) -> Callable[P, GrammarFunction]:
+) -> Callable[
+    [Callable[Concatenate[Model, P], Model]],
+    Callable[P, Union[RawFunction, GrammarFunction]],
+]:
     """
-    Case when guidance decorator is called with a passed function,
-    explicitly passing `stateless=True`
+    Case when guidance decorator is called without passing a function,
+    where `stateless` is passed as a Callable that returns a bool.
+
+    The return type of the wrapped function, either RawFunction or GrammarFunction,
+    cannot be statically determined in this case.
     """
 
 

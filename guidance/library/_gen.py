@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 # TODO: make this stateless!
 # TODO: uncomment this once we get temperature stateless
-@guidance(stateless=lambda *args, **kwargs: kwargs.get("tools", None) is None) # type: ignore[call-overload]
+@guidance(stateless=lambda *args, **kwargs: kwargs.get("tools", None) is None)
 def gen(
     lm,
     name=None,
