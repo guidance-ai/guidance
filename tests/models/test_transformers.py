@@ -5,6 +5,25 @@ from guidance import gen, select, models, assistant, system, user
 from ..utils import get_model
 
 
+@pytest.fixture(scope="module")
+def phi3_model(selected_model, selected_model_name):
+    if selected_model_name in ["transformers_phi3cpu_mini_4k_instruct"]:
+        return selected_model
+    else:
+        pytest.skip("Requires Phi3 model")
+
+
+@pytest.fixture(scope="module")
+def llama3_model(selected_model, selected_model_name):
+    if (
+        selected_model_name in ["transformers_llama3cpu_8b"]
+        and selected_model is not None
+    ):
+        return selected_model
+    else:
+        pytest.skip("Requires Llama3 model (needs HF_TOKEN to be set)")
+
+
 def test_gpt2():
     gpt2 = get_model("transformers:gpt2")
     lm = gpt2 + "this is a test" + gen("test", max_tokens=10)
@@ -58,27 +77,79 @@ w) 10"""
 
 
 @pytest.mark.skip("Don't overload the build machines")
-def test_phi3_loading():
+def test_phi3_transformers_orig():
+    import torch
+    from transformers import AutoModelForCausalLM, pipeline, AutoTokenizer
 
-    lm = models.Transformers(
-        r"microsoft/Phi-3-mini-4k-instruct", trust_remote_code=True
+    torch.random.manual_seed(0)
+    model = AutoModelForCausalLM.from_pretrained(
+        "microsoft/Phi-3-mini-4k-instruct",
+        device_map="mps",
+        trust_remote_code=True,
     )
-    lm += f"""Finish counting to 5: 1,2,3,4, + {gen("five", max_tokens=1)}"""
-    assert lm["five"] == "5"
+
+    tokenizer = AutoTokenizer.from_pretrained("microsoft/Phi-3-mini-4k-instruct")
+    pipe = pipeline(
+        "text-generation",
+        model=model,
+        tokenizer=tokenizer,
+    )
+
+    generation_args = {
+        "max_new_tokens": 5,
+        "return_full_text": True,
+        "temperature": 0.0,
+        "do_sample": False,
+    }
+
+    input_text = "You are a counting bot. Just keep counting numbers. 1,2,3,4"
+    output = pipe(input_text, **generation_args)
+    assert "5" in (output[0]["generated_text"])
 
 
-@pytest.mark.skip("Don't overload the build machines")
-def test_phi3_chat():
-    # TODO: Double check chat format: https://huggingface.co/microsoft/Phi-3-mini-4k-instruct
+def test_phi3_loading(phi3_model: models.Model):
+    lm = phi3_model
+    lm += f"""You are a counting bot. Just keep counting numbers. 1,2,3,4, <|assistant|>"""
+    lm += gen("five", max_tokens=10)
+    assert "5" in lm["five"]
 
-    lm = models.TransformersChat(
-        r"microsoft/Phi-3-mini-4k-instruct", trust_remote_code=True
+
+@pytest.mark.needs_credentials
+@pytest.mark.skip("Need to figure out auth")
+def test_llama3_chat():
+    lm = models.Transformers(
+        r"meta-llama/Meta-Llama-3-8B-Instruct", trust_remote_code=True
     )
     with system():
         lm += "You are a counting bot. Just keep counting numbers."
     with user():
         lm += "1,2,3,4"
     with assistant():
-        lm += gen(name="five", max_tokens=1)
+        lm += gen(name="five", max_tokens=10)
 
-    assert lm["five"] == "5"
+    assert "5" in lm["five"]
+
+
+def test_phi3_failure_minimal(phi3_model: models.Model):
+    lm = phi3_model
+    # NOTE: This SHOULD NOT raise an exception, but guidance currently has a bug where
+    # directly passing in newlines next to special tokens for a tokenizer that does rstrip on those tokens
+    # (like phi-3) will cause a tokenization mismatch issue.
+    # We're leaving this test in so that we can reliably reproduce and debug this in the future.
+    with pytest.raises(AssertionError) as ae:
+        lm += f"""numbers.<|user|>\n1,2,3,4<|end|>\n<|assistant|>\n"""
+        lm += gen("five", max_tokens=10)
+    print(f"{ae.value.args=}")
+    assert ae.value.args[0] == "Cross check last_pos"
+
+
+def test_phi3_chat_fixed(phi3_model: models.Model):
+    lm = phi3_model
+
+    lm += "You are a counting bot. Just keep counting numbers."
+    with user():
+        lm += "1,2,3,4"
+    with assistant():
+        lm += gen(name="five", max_tokens=10)
+
+    assert "5" in lm["five"]

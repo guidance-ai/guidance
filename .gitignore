@@ -23,3 +23,5 @@ guidance/_rust/Cargo.lock
 notebooks/**/*.papermill_out.ipynb
 
 .mypy_cache/*
+
+**/scratch.*
