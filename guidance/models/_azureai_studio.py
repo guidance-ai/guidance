@@ -106,7 +106,7 @@ class AzureAIStudioChatEngine(GrammarlessEngine):
         # TODO: Move this somewhere more general for all chat models?
         if messages == []:
             raise ValueError(
-                f"The model is a Chat-based model and requires role tags in the prompt! \
+                f"AzureAIStudio currently only supports chat-based models and requires role tags in the prompt! \
             Make sure you are using guidance context managers like `with system():`, `with user():` and `with assistant():` \
             to appropriately format your guidance program for this type of model."
             )
