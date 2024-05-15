@@ -6,7 +6,9 @@ import tiktoken
 import re
 import logging
 from ._model import Tokenizer, Engine, Model, format_pattern, ConstraintException
+from .._chat import ChatMLTemplate
 
+import warnings
 logger = logging.getLogger(__name__)
 
 
@@ -106,7 +108,9 @@ class GrammarlessTokenizer(Tokenizer):
 
         self._orig_tokenizer = tokenizer
 
-        super().__init__(byte_tokens, bos_token_id, eos_token_id)
+        # Grammarless Tokenizers MUST use the ChatMLTemplate in guidance today
+        chat_template = ChatMLTemplate
+        super().__init__(byte_tokens, chat_template, bos_token_id, eos_token_id)
 
     def __call__(self, byte_string):
         """Returns a list of tokens that represent the given byte string."""
@@ -118,13 +122,12 @@ class GrammarlessEngine(Engine):
         self.max_streaming_tokens = max_streaming_tokens
         self.timeout = timeout
 
-        self._data_queue = (
-            queue.Queue()
-        )  # this is where the streaming thread puts results
+        # this is where the streaming thread puts results
+        self._data_queue = queue.Queue()
         self._data = b""  # these are the bytes we are ready to use in the main thread
-        self._not_running_stream = (
-            threading.Event()
-        )  # this is phrased negatively so we can wait for the stop event
+        
+        # this is phrased negatively so we can wait for the stop event
+        self._not_running_stream = threading.Event() 
         self._last_call = 0
         self._num_calls_made = 0
         self._current_temp = 0
@@ -139,7 +142,12 @@ class GrammarlessEngine(Engine):
         if not isinstance(tokenizer, Tokenizer):
             tokenizer = GrammarlessTokenizer(tokenizer)
 
-        # build the
+        # GrammarlessEngines must use the ChatML tokenizer
+        # TODO: Consider different enforcement of this 
+        if tokenizer.chat_template is not ChatMLTemplate:
+            raise Exception("The tokenizer provided to the engine follows a non-ChatML format in its chat_template. \
+                    Using a transformers, tiktoken, or guidance.GrammarlessTokenizer directly will solve this issue.")
+        # build the Engine
         super().__init__(tokenizer=tokenizer, compute_log_probs=compute_log_probs)
 
     def __call__(self, *args, **kwargs):
