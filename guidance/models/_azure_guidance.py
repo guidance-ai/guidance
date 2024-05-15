@@ -20,6 +20,7 @@ class AzureGuidanceEngine(Engine):
             server_url = os.getenv("AZURE_GUIDANCE_URL", "")
         elif not isinstance(server_url, str):
             raise ValueError("server_url must contain a URL string.")
+
         if not server_url.startswith("http"):
             raise ValueError(
                 "AzureGuidance requires a remote model URL that starts with http"
@@ -97,7 +98,7 @@ class AzureGuidanceEngine(Engine):
                     if num_text_entries > 0:
                         new_bytes_prob /= num_text_entries
 
-                    print(ch["logs"].rstrip("\n"), flush=True)
+                    # print(ch["logs"].rstrip("\n"), flush=True)
 
                     err = ch.get("error", "")
                     if err:
