@@ -153,14 +153,10 @@ class AzureAIStudio(Grammarless, Chat):
         timeout: float = 0.5,
         compute_log_probs: bool = False,
     ):
-        """Create a model object for interacting with Azure AI Studio chat endpoints.
+        """Create a model object for interacting with Azure AI Studio endpoints.
 
         The required information about the deployed endpoint can
         be obtained from Azure AI Studio.
-
-        A `diskcache`-based caching system is used to speed up
-        repeated calls when the temperature is specified to be
-        zero.
 
         Parameters
         ----------
@@ -170,8 +166,6 @@ class AzureAIStudio(Grammarless, Chat):
             The specific model deployed to the endpoint
         azureai_studio_key : str
             The key required for access to the API
-        clear_cache : bool
-            Whether to empty the internal cache
         """
         super().__init__(
             AzureAIStudioEngine(
