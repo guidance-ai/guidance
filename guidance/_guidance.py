@@ -1,11 +1,10 @@
 import functools
 import inspect
-from typing import Callable, ParamSpec, overload, Literal, Concatenate
+from typing import Callable, Concatenate, Literal, ParamSpec, overload
 
-
-from .models import Model
-from ._grammar import GrammarFunction, RawFunction, Terminal, string, DeferredReference
+from ._grammar import DeferredReference, GrammarFunction, RawFunction, Terminal, string,
 from ._utils import strip_multiline_string_indents
+from .models import Model
 
 P = ParamSpec("P")
 
