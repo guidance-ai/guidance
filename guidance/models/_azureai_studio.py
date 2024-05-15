@@ -33,6 +33,7 @@ class AzureAIStudioEngine(GrammarlessEngine):
         if endpoint_type not in _ENDPOINT_TYPES:
             msg = f"endpoint_type {endpoint_type} not valid"
             raise ValueError(msg)
+        self.endpoint_type = endpoint_type
         endpoint_parts = urllib.parse.urlparse(azureai_studio_endpoint)
         if endpoint_parts.path == "/score":
             self._is_openai_compatible = False
@@ -49,8 +50,8 @@ class AzureAIStudioEngine(GrammarlessEngine):
 
         super().__init__(tokenizer, max_streaming_tokens, timeout, compute_log_probs)
 
-    def _generator(self, prompt, temperature: float):
-        # Initial parts of this straight up copied from OpenAIChatEngine
+    def _generator_chat(self, prompt, temperature: float):
+        # Initial parts of this straight up copied from OpenAIEngine
 
         # The next loop (or one like it) appears in several places,
         # and quite possibly belongs in a library function or superclass
@@ -146,6 +147,15 @@ class AzureAIStudioEngine(GrammarlessEngine):
             self.metrics.engine_output_tokens += len(self.tokenizer(chunk))
 
         yield encoded_chunk
+
+    def _generator_completion(self, prompt, temperature: float):
+        raise NotImplementedError("_generator_completion")
+
+    def _generator(self, prompt, temperature: float):
+        if self.endpoint_type == "chat":
+            return self._generator_chat(prompt, temperature)
+        else:
+            return self._generator_completion(prompt, temperature)
 
 
 class AzureAIStudio(Grammarless, Chat):
