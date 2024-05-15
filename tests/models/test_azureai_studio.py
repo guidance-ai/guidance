@@ -2,7 +2,7 @@ import pytest
 
 import pytest
 
-from guidance import assistant, gen, models, system, user
+from guidance import models
 
 
 from . import common_chat_testing
@@ -28,7 +28,6 @@ def _get_chat_model(model_name: str):
         azureai_studio_endpoint=azureai_studio_endpoint,
         azureai_studio_deployment=azureai_studio_deployment,
         azureai_studio_key=azureai_studio_key,
-        clear_cache=True,
     )
     assert isinstance(lm, models.AzureAIStudio)
     return lm

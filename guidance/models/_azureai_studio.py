@@ -1,9 +1,5 @@
-import hashlib
-import pathlib
 import urllib.parse
 
-import diskcache as dc
-import platformdirs
 import requests
 
 from ._model import Chat
@@ -29,7 +25,6 @@ class AzureAIStudioEngine(GrammarlessEngine):
         azureai_studio_endpoint: str,
         azureai_model_deployment: str,
         azureai_studio_key: str,
-        clear_cache: bool,
     ):
         endpoint_parts = urllib.parse.urlparse(azureai_studio_endpoint)
         if endpoint_parts.path == "/score":
@@ -45,23 +40,7 @@ class AzureAIStudioEngine(GrammarlessEngine):
         self._deployment = azureai_model_deployment
         self._api_key = azureai_studio_key
 
-        # There is a cache... better make sure it's specific
-        # to the endpoint and deployment
-        deployment_id = self._hash_prompt(self._endpoint + self._deployment)
-
-        path = (
-            pathlib.Path(platformdirs.user_cache_dir("guidance"))
-            / f"azureaistudio.tokens.{deployment_id}"
-        )
-        self.cache = dc.Cache(path)
-        if clear_cache:
-            self.cache.clear()
-
         super().__init__(tokenizer, max_streaming_tokens, timeout, compute_log_probs)
-
-    def _hash_prompt(self, prompt):
-        # Copied from OpenAIChatEngine
-        return hashlib.sha256(f"{prompt}".encode()).hexdigest()
 
     def _generator(self, prompt, temperature: float):
         # Initial parts of this straight up copied from OpenAIChatEngine
@@ -114,16 +93,6 @@ class AzureAIStudioEngine(GrammarlessEngine):
         # Update shared data state
         self._reset_shared_data(prompt[:pos], temperature)
 
-        # Use cache only when temperature is 0
-        if temperature == 0:
-            cache_key = self._hash_prompt(prompt)
-
-            # Check if the result is already in the cache
-            if cache_key in self.cache:
-                for chunk in self.cache[cache_key]:
-                    yield chunk
-                return
-
         # Call the actual API and extract the next chunk
         if self._is_openai_compatible:
             client = openai.OpenAI(api_key=self._api_key, base_url=self._endpoint)
@@ -169,19 +138,7 @@ class AzureAIStudioEngine(GrammarlessEngine):
             self.metrics.engine_input_tokens += input_token_count
             self.metrics.engine_output_tokens += len(self.tokenizer(chunk))
 
-        # Now back to OpenAIChatEngine, with slight modifications since
-        # this isn't a streaming API
-        if temperature == 0:
-            cached_results = []
-
         yield encoded_chunk
-
-        if temperature == 0:
-            cached_results.append(encoded_chunk)
-
-        # Cache the results after the generator is exhausted
-        if temperature == 0:
-            self.cache[cache_key] = cached_results
 
 
 class AzureAIStudio(Grammarless, Chat):
@@ -195,7 +152,6 @@ class AzureAIStudio(Grammarless, Chat):
         max_streaming_tokens: int = 1000,
         timeout: float = 0.5,
         compute_log_probs: bool = False,
-        clear_cache: bool = False,
     ):
         """Create a model object for interacting with Azure AI Studio chat endpoints.
 
@@ -226,7 +182,6 @@ class AzureAIStudio(Grammarless, Chat):
                 max_streaming_tokens=max_streaming_tokens,
                 timeout=timeout,
                 compute_log_probs=compute_log_probs,
-                clear_cache=clear_cache,
             ),
             echo=echo,
         )
