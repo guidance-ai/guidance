@@ -9,55 +9,66 @@ from ._utils import strip_multiline_string_indents
 
 P = ParamSpec("P")
 
-@overload
-def guidance(
-    f: None = None,
-    *,
-    stateless: Literal[True],
-    cache = ...,
-    dedent = ...,
-    model = ...,
-) -> Callable[[Callable[Concatenate[Model, P], Model]], Callable[P, GrammarFunction]]:
-    """Case when guidance is used as a decorator, `stateless=False`"""
 
 @overload
 def guidance(
     f: None = None,
     *,
-    stateless: Literal[False],
-    cache = ...,
-    dedent = ...,
-    model = ...,
+    stateless: Literal[False] = False,
+    cache=...,
+    dedent=...,
+    model=...,
 ) -> Callable[[Callable[Concatenate[Model, P], Model]], Callable[P, RawFunction]]:
-    """Case when guidance is used as a decorator, `stateless=False`"""
+    """
+    Case where guidance decorator is called without passing a function,
+    with or without explicitly passing `stateless=False`
+    """
+
+
+@overload
+def guidance(
+    f: None = None,
+    *,
+    stateless: Literal[True],
+    cache=...,
+    dedent=...,
+    model=...,
+) -> Callable[[Callable[Concatenate[Model, P], Model]], Callable[P, GrammarFunction]]:
+    """
+    Case when guidance decorator is called without passing a function,
+    explicitly passing `stateless=True`
+    """
+
+
+@overload
+def guidance(
+    f: Callable[Concatenate[Model, P], Model],
+    *,
+    stateless: Literal[False] = False,
+    cache=...,
+    dedent=...,
+    model=...,
+) -> Callable[P, RawFunction]:
+    """
+    Case when guidance decorator is called with a passed function,
+    with or without explicitly passing `stateless=False`
+    """
+
 
 @overload
 def guidance(
     f: Callable[Concatenate[Model, P], Model],
     *,
     stateless: Literal[True],
-    cache = ...,
-    dedent = ...,
-    model = ...,
+    cache=...,
+    dedent=...,
+    model=...,
 ) -> Callable[P, GrammarFunction]:
-    """Case when guidance is called as a function rather than a decorator, `stateless=True`"""
+    """
+    Case when guidance decorator is called with a passed function,
+    explicitly passing `stateless=True`
+    """
 
-@overload
-def guidance(
-    f: Callable[Concatenate[Model, P], Model],
-    *,
-    stateless: Literal[False],
-    cache = ...,
-    dedent = ...,
-    model = ...,
-) -> Callable[P, RawFunction]:
-    """Case when guidance is called as a function rather than a decorator, `stateless=False`"""
-
-@overload
-def guidance(
-    f: Callable[Concatenate[Model, P], Model],
-) -> Callable[P, RawFunction]:
-    """Explicit case when decorator is used without calling first"""
 
 def guidance(f=None, *, stateless=False, cache=None, dedent=True, model=Model):
     return _decorator(f, stateless=stateless, cache=cache, dedent=dedent, model=model)
