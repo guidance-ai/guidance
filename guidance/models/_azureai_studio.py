@@ -102,7 +102,7 @@ class AzureAIStudioEngine(GrammarlessEngine):
         self._reset_shared_data(prompt[:pos], temperature)
 
         # Call the actual API and extract the next chunk
-        encoded_chunk = ""
+        encoded_chunk = b''
         if self._is_openai_compatible:
             client = openai.OpenAI(api_key=self._api_key, base_url=self._endpoint)
             response = client.chat.completions.create(
@@ -145,7 +145,7 @@ class AzureAIStudioEngine(GrammarlessEngine):
             chunk_score = result_score["output"]
             encoded_chunk = chunk_score.encode("utf8")
             self.metrics.engine_input_tokens += input_token_count
-            self.metrics.engine_output_tokens += len(self.tokenizer(chunk))
+            self.metrics.engine_output_tokens += len(self.tokenizer(chunk_score))
 
         yield encoded_chunk
 
