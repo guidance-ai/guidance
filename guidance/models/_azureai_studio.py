@@ -149,7 +149,30 @@ class AzureAIStudioEngine(GrammarlessEngine):
         yield encoded_chunk
 
     def _generator_completion(self, prompt, temperature: float):
-        raise NotImplementedError("_generator_completion")
+        prompt_decoded = prompt.decode("utf8")
+        parameters = dict(temperature=temperature, return_full_text=True)
+        payload = dict(
+            input_data=dict(input_string=[prompt_decoded], parameters=parameters)
+        )
+
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": ("Bearer " + self._api_key),
+            "azureml-model-deployment": self._deployment,
+        }
+        response_score = requests.post(
+            self._endpoint,
+            json=payload,
+            headers=headers,
+        )
+
+        result_score = response_score.json()
+
+        chunk = result_score[0]["0"]
+        encoded_chunk = chunk.encode("utf8")
+        self.metrics.engine_input_tokens += len(self.tokenizer(prompt_decoded))
+        self.metrics.engine_output_tokens += len(self.tokenizer(chunk))
+        yield encoded_chunk
 
     def _generator(self, prompt, temperature: float):
         if self.endpoint_type == "chat":

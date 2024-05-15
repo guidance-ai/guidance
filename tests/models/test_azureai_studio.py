@@ -67,10 +67,10 @@ def test_azureai_chat_longer_2(rate_limiter, chat_model_name: str):
 
 
 @pytest.mark.parametrize("completion_model_name", _completion_models.keys())
-def test_azureai_completion_cmoke(rate_limiter, completion_model_name: str):
+def test_azureai_completion_smoke(rate_limiter, completion_model_name: str):
     lm = _get_completion_model(completion_model_name)
 
-    lm += "What is 2+2?"
+    lm += "What is your name?"
     lm += gen(max_tokens=4, name="text", temperature=0.5)
 
     print(str(lm))
