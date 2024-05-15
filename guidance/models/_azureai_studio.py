@@ -14,6 +14,9 @@ except ModuleNotFoundError:
     is_openai = False
 
 
+_ENDPOINT_TYPES = ["chat", "completion"]
+
+
 class AzureAIStudioEngine(GrammarlessEngine):
     def __init__(
         self,
@@ -25,7 +28,11 @@ class AzureAIStudioEngine(GrammarlessEngine):
         azureai_studio_endpoint: str,
         azureai_model_deployment: str,
         azureai_studio_key: str,
+        endpoint_type: str,
     ):
+        if endpoint_type not in _ENDPOINT_TYPES:
+            msg = f"endpoint_type {endpoint_type} not valid"
+            raise ValueError(msg)
         endpoint_parts = urllib.parse.urlparse(azureai_studio_endpoint)
         if endpoint_parts.path == "/score":
             self._is_openai_compatible = False
@@ -152,6 +159,7 @@ class AzureAIStudio(Grammarless, Chat):
         max_streaming_tokens: int = 1000,
         timeout: float = 0.5,
         compute_log_probs: bool = False,
+        endpoint_type: str = "chat",
     ):
         """Create a model object for interacting with Azure AI Studio endpoints.
 
@@ -166,6 +174,8 @@ class AzureAIStudio(Grammarless, Chat):
             The specific model deployed to the endpoint
         azureai_studio_key : str
             The key required for access to the API
+        endpoint_type : str
+            Indicates whether the endpoint is 'chat' or 'completion'
         """
         super().__init__(
             AzureAIStudioEngine(
@@ -176,6 +186,7 @@ class AzureAIStudio(Grammarless, Chat):
                 max_streaming_tokens=max_streaming_tokens,
                 timeout=timeout,
                 compute_log_probs=compute_log_probs,
+                endpoint_type=endpoint_type,
             ),
             echo=echo,
         )
