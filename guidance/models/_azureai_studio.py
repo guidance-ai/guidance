@@ -141,7 +141,7 @@ class AzureAIStudioEngine(GrammarlessEngine):
 
             result_score = response_score.json()
 
-            chunk = result_score["output"]
+            chunk: str = result_score["output"]
             encoded_chunk = chunk.encode("utf8")
             self.metrics.engine_input_tokens += input_token_count
             self.metrics.engine_output_tokens += len(self.tokenizer(chunk))
