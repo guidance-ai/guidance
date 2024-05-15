@@ -134,6 +134,7 @@ jobs:
     needs:
       - unit-tests-linux-python-other
       - unit-tests-gpu-python-latest
+      - server-tests
     name: End Stage 2
     runs-on: ubuntu-latest
     steps:

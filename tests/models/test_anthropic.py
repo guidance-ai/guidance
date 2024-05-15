@@ -9,7 +9,7 @@ from ..utils import get_model
 
 def test_anthropic_chat():
     try:
-        lm = guidance.models.AnthropicChat(model="claude-instant-1.2")
+        lm = guidance.models.Anthropic(model="claude-3-haiku-20240307")
     except:
         pytest.skip("Skipping Anthropic test because we can't load the model!")
     with system():
@@ -27,23 +27,24 @@ def test_anthropic_chat():
 
 def test_anthropic_select():
     try:
-        lm = guidance.models.AnthropicChat(model="claude-instant-1.2")
+        lm = guidance.models.Anthropic(model="claude-instant-1.2")
     except:
         pytest.skip("Skipping Anthropic test because we can't load the model!")
-    with user():
-        lm += "Pick a number: "
-    with assistant():
-        lm += select(
-            ["1", "11", "111", "1111", "11111", "111111", "1111111"], name="the number"
-        )
-
-    assert str(lm)[-1] in "123"
+    
+    # We can't meaningfully test or enforce select on this model
+    with pytest.raises(guidance.models._model.ConstraintException):
+        with user():
+            lm += "Write the next number in the list: 1,2,3,4,5,6,"
+        with assistant():
+            lm += select(
+                ["harsha", "scott", "marco"], name="the number"
+            )
 
 
 def test_anthropic_chat_loop():
     # tests issue #509
     try:
-        model = guidance.models.AnthropicChat(model="claude-instant-1.2")
+        model = guidance.models.Anthropic(model="claude-3-haiku-20240307")
     except:
         pytest.skip("Skipping Anthropic test because we can't load the model!")
 
@@ -57,3 +58,21 @@ def test_anthropic_chat_loop():
 
         with assistant():
             lm += gen(name="answer", max_tokens=2)
+
+# def test_direct_anthropic_api():
+#     import anthropic
+
+#     client = anthropic.Anthropic()
+
+#     with client.messages.stream(
+#         max_tokens=10,
+#         system="You are a counting robot. Do nothing but continue counting numbers in the same format the user presented.",
+#         messages=[{"role": "user", "content": "1,2,3,4,5,"}],
+#         model="claude-3-haiku-20240307",
+#     ) as stream:
+#         text_list = []
+#         for text in stream.text_stream:
+#             print(text, end="", flush=True)
+#             text_list.append(text)
+    
+#     assert len(text_list) > 0

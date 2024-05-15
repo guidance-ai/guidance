@@ -73,6 +73,7 @@ class AzureAIStudioChatEngine(GrammarlessEngine):
 
         # find the role tags
         pos = 0
+        input_token_count = 0
         role_end = b"<|im_end|>"
         messages = []
         found = True
@@ -95,9 +96,9 @@ class AzureAIStudioChatEngine(GrammarlessEngine):
                         break
                     btext = prompt[pos : pos + end_pos]
                     pos += end_pos + len(role_end)
-                    messages.append(
-                        {"role": role_name, "content": btext.decode("utf8")}
-                    )
+                    message_content = btext.decode("utf8")
+                    input_token_count += len(self.tokenizer(message_content))
+                    messages.append({"role": role_name, "content": message_content})
                     found = True
                     break
 
@@ -137,7 +138,13 @@ class AzureAIStudioChatEngine(GrammarlessEngine):
             )
 
             result = response.choices[0]
-            encoded_chunk = result.message.content.encode("utf8")  # type: ignore[union-attr]
+            chunk = result.message.content
+            encoded_chunk = chunk.encode("utf8")  # type: ignore[union-attr]
+
+            # Non-streaming OpenAI call, so we can just get the metrics directly
+            if response.usage is not None:
+                self.metrics.engine_input_tokens += response.usage.prompt_tokens
+                self.metrics.engine_output_tokens += response.usage.completion_tokens
         else:
             parameters = dict(temperature=temperature)
             payload = dict(
@@ -157,7 +164,10 @@ class AzureAIStudioChatEngine(GrammarlessEngine):
 
             result_score = response_score.json()
 
-            encoded_chunk = result_score["output"].encode("utf8")
+            chunk = result_score["output"]
+            encoded_chunk = chunk.encode("utf8")
+            self.metrics.engine_input_tokens += input_token_count
+            self.metrics.engine_output_tokens += len(self.tokenizer(chunk))
 
         # Now back to OpenAIChatEngine, with slight modifications since
         # this isn't a streaming API
