@@ -16,7 +16,7 @@ from .vertexai._vertexai import (
 from ._azure_openai import (
     AzureOpenAI,
 )
-from ._azureai_studio import AzureAIStudioChat
+from ._azureai_studio import AzureAIStudio
 from ._openai import OpenAI
 from ._lite_llm import LiteLLM, LiteLLMChat, LiteLLMInstruct, LiteLLMCompletion
 from ._cohere import Cohere, CohereCompletion, CohereInstruct

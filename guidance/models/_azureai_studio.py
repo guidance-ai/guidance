@@ -184,7 +184,7 @@ class AzureAIStudioChatEngine(GrammarlessEngine):
             self.cache[cache_key] = cached_results
 
 
-class AzureAIStudioChat(Grammarless, Chat):
+class AzureAIStudio(Grammarless, Chat):
     def __init__(
         self,
         azureai_studio_endpoint: str,

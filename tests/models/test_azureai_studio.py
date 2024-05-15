@@ -24,13 +24,13 @@ def _get_chat_model(model_name: str):
     azureai_studio_deployment = env_or_fail(f"AZURE_AI_STUDIO_{env_string}_DEPLOYMENT")
     azureai_studio_key = env_or_fail(f"AZURE_AI_STUDIO_{env_string}_KEY")
 
-    lm = models.AzureAIStudioChat(
+    lm = models.AzureAIStudio(
         azureai_studio_endpoint=azureai_studio_endpoint,
         azureai_studio_deployment=azureai_studio_deployment,
         azureai_studio_key=azureai_studio_key,
         clear_cache=True,
     )
-    assert isinstance(lm, models.AzureAIStudioChat)
+    assert isinstance(lm, models.AzureAIStudio)
     return lm
 
 
