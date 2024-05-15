@@ -18,7 +18,7 @@ except ModuleNotFoundError:
     is_openai = False
 
 
-class AzureAIStudioChatEngine(GrammarlessEngine):
+class AzureAIStudioEngine(GrammarlessEngine):
     def __init__(
         self,
         *,
@@ -218,7 +218,7 @@ class AzureAIStudio(Grammarless, Chat):
             Whether to empty the internal cache
         """
         super().__init__(
-            AzureAIStudioChatEngine(
+            AzureAIStudioEngine(
                 azureai_studio_endpoint=azureai_studio_endpoint,
                 azureai_model_deployment=azureai_studio_deployment,
                 azureai_studio_key=azureai_studio_key,
