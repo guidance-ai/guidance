@@ -38,15 +38,12 @@ models
     :toctree: generated/
 
     guidance.models.Model
-        guidance.models.Instruct
-        guidance.models.Chat
     guidance.models.LlamaCpp
     guidance.models.Transformers
-    guidance.models.Remote
-        guidance.models.Anthropic
-        guidance.models.AzureOpenAI
-        guidance.models.Cohere
-        guidance.models.GoogleAI
-        guidance.models.LiteLLM
-        guidance.models.OpenAI
-        guidance.models.VertexAI
+    guidance.models.Anthropic
+    guidance.models.AzureOpenAI
+    guidance.models.Cohere
+    guidance.models.GoogleAI
+    guidance.models.LiteLLM
+    guidance.models.OpenAI
+    guidance.models.VertexAI
