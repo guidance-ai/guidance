@@ -12,6 +12,10 @@ AVAILABLE_MODELS = {
     "phi2cpu": dict(
         name="transformers:microsoft/phi-2", kwargs={"trust_remote_code": True}
     ),
+    "azure_guidance": dict(
+        name="azure_guidance:",
+        kwargs={},
+    ),
     "transformers_phi3cpu_mini_4k_instruct": dict(
         name="transformers:microsoft/Phi-3-mini-4k-instruct",
         kwargs={"trust_remote_code": True},
