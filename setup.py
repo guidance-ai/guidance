@@ -46,7 +46,16 @@ for v in extras_requires.values():
     all_requires = all_requires.union(v)
 
 # Required for builds etc.
-doc_requires = ["ipython", "nbsphinx", "numpydoc", "sphinx_rtd_theme", "sphinx"]
+doc_requires = [
+    "ipython",
+    "nbsphinx",
+    "numpydoc",
+    "sphinx_rtd_theme",
+    "sphinx",
+    "ipykernel",
+    "huggingface_hub",
+    "llama-cpp-python",
+]
 test_requires = [
     "jupyter",
     "papermill",
