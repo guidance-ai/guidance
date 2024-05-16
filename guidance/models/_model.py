@@ -804,6 +804,14 @@ class Engine:
 
     def _cleanup_tokens(self, token_ids, token_byte_positions):
 
+        # Some tokenizers like Phi-3 are unstable on encode/decode loops
+        # which means we can't cleanup their token representations.
+        # This can result in misaligned model behavior but we can't do anything else.
+        # TODO: This hidden attr is a hack to scope it to only Phi-3...if more models 
+        # exhibit this bad behavior, we should generalize this approach. 
+        if hasattr(self, "_disable_retokenize"):
+            return token_ids, token_byte_positions
+
         # compute a joint tokenization
         joint_token_ids = self._joint_tokenize(token_ids)
 
