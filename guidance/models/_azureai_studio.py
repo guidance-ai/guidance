@@ -62,7 +62,7 @@ class AzureAIStudioEngine(GrammarlessEngine):
         # find the role tags
         pos = 0
         input_token_count = 0
-        role_end = b"<|im_end|>"
+        role_end = b"<|im_end|>\n"
         messages = []
         found = True
         while found:
@@ -160,7 +160,7 @@ class AzureAIStudioEngine(GrammarlessEngine):
         for ct in chat_tokens:
             if prompt.find(ct) != -1:
                 msg = textwrap.dedent(
-                    f"""Detected chat token {ct} with a completion endpoint.
+                    f"""Detected chat token {ct!r} with a completion endpoint.
                         The guidance context managers `with system():`,
                         `with user():` and `with assistant():` are not compatible
                         with Models with an endpoint_type of 'completion'.
@@ -201,7 +201,7 @@ class AzureAIStudioEngine(GrammarlessEngine):
             return self._generator_completion(prompt, temperature)
 
 
-class AzureAIStudio(Grammarless, Chat):
+class AzureAIStudio(Grammarless):
     def __init__(
         self,
         azureai_studio_endpoint: str,
