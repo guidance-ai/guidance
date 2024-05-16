@@ -1,0 +1,23 @@
+"""Shared utility functions for module."""
+
+import os
+from pathlib import Path
+
+
+def lib_bench_dir() -> Path:
+    """Library directory to store configurations and cached assets for benchmarking.
+
+    If the library directory does not exist, it is created as a side effect.
+
+    Returns:
+        Path of library's directory for benchmarking.
+    """
+
+    lib_path = os.environ.get("GUIDANCE_BENCH_DIR", None)
+    if lib_path is None:
+        lib_path = Path.joinpath(Path.home(), ".guidance-bench")
+    else:
+        lib_path = Path(lib_path)  # pragma: no cover
+    Path.mkdir(lib_path, parents=True, exist_ok=True)
+
+    return lib_path
