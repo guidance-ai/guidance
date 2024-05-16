@@ -1,6 +1,6 @@
 import numpy as np
 from ._model import Tokenizer
-from .._chat import load_template_class
+from ..chat import load_template_class
 import typing
 
 class ByteTokenizer(Tokenizer):

@@ -51,7 +51,7 @@ from .._grammar import (
 )
 
 from .. import _serialization_pb2
-from .._chat import load_template_class
+from ..chat import load_template_class
 
 if TYPE_CHECKING:
     from ..library._block import ContextBlock
