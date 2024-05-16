@@ -155,11 +155,9 @@ def test_phi3_chat_fixed(phi3_model: models.Model):
     assert "5" in lm["five"]
 
 
-def test_phi3_newline_chat():
-    from guidance.models import Transformers
-    lm = Transformers("microsoft/Phi-3-mini-4k-instruct",
-        trust_remote_code=True,
-    )
+def test_phi3_newline_chat(phi3_model: models.Model):
+    lm = phi3_model
+
     lm += "You are a counting bot. Just keep counting numbers."
     with user():
         lm += "1\n2\n3\n4\n"
@@ -170,11 +168,9 @@ def test_phi3_newline_chat():
     assert True
 
 # TODO: put this in the rest of the testing framework 
-def test_phi3_unstable_tokenization():
-    from guidance.models import Transformers
-    lm = Transformers("microsoft/Phi-3-mini-4k-instruct",
-        trust_remote_code=True,
-    )
+def test_phi3_unstable_tokenization(phi3_model: models.Model):
+    lm = phi3_model
+    
     lm += "You are a counting bot. Just keep counting numbers."
     with user():
         lm += "1,2,3,4,"
