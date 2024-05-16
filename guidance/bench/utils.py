@@ -9,6 +9,8 @@ def lib_bench_dir() -> Path:
 
     If the library directory does not exist, it is created as a side effect.
 
+    The library bench directory path can also be set via env var `GUIDANCE_BENCH_DIR`.
+
     Returns:
         Path of library's directory for benchmarking.
     """
