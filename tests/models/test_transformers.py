@@ -130,19 +130,6 @@ def test_llama3_chat():
     assert "5" in lm["five"]
 
 
-def test_phi3_failure_minimal(phi3_model: models.Model):
-    lm = phi3_model
-    # NOTE: This SHOULD NOT raise an exception, but guidance currently has a bug where
-    # directly passing in newlines next to special tokens for a tokenizer that does rstrip on those tokens
-    # (like phi-3) will cause a tokenization mismatch issue.
-    # We're leaving this test in so that we can reliably reproduce and debug this in the future.
-    with pytest.raises(AssertionError) as ae:
-        lm += f"""numbers.<|user|>\n1,2,3,4<|end|>\n<|assistant|>\n"""
-        lm += gen("five", max_tokens=10)
-    print(f"{ae.value.args=}")
-    assert ae.value.args[0] == "Cross check last_pos"
-
-
 def test_phi3_chat_fixed(phi3_model: models.Model):
     lm = phi3_model
 
@@ -170,7 +157,7 @@ def test_phi3_newline_chat(phi3_model: models.Model):
 # TODO: put this in the rest of the testing framework 
 def test_phi3_unstable_tokenization(phi3_model: models.Model):
     lm = phi3_model
-    
+
     lm += "You are a counting bot. Just keep counting numbers."
     with user():
         lm += "1,2,3,4,"
