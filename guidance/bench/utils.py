@@ -12,14 +12,14 @@ def lib_bench_dir() -> Path:
     The library bench directory path can also be set via env var `GUIDANCE_BENCH_DIR`.
 
     Returns:
-        Path of library's directory for benchmarking.
+        Path: Library's directory path for benchmarking.
     """
 
     lib_path = os.environ.get("GUIDANCE_BENCH_DIR", None)
     if lib_path is None:
         lib_path = Path.joinpath(Path.home(), ".guidance-bench")
     else:
-        lib_path = Path(lib_path)  # pragma: no cover
+        lib_path = Path(lib_path)
     Path.mkdir(lib_path, parents=True, exist_ok=True)
 
     return lib_path
