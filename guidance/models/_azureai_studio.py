@@ -1,3 +1,4 @@
+import textwrap
 import urllib.parse
 
 import requests
@@ -93,7 +94,7 @@ class AzureAIStudioEngine(GrammarlessEngine):
         # TODO: Move this somewhere more general for all chat models?
         if messages == []:
             raise ValueError(
-                f"AzureAIStudio currently only supports chat-based models and requires role tags in the prompt! \
+                f"Setting the endpoint_type to 'chat' requires role tags in the prompt! \
             Make sure you are using guidance context managers like `with system():`, `with user():` and `with assistant():` \
             to appropriately format your guidance program for this type of model."
             )
@@ -102,7 +103,7 @@ class AzureAIStudioEngine(GrammarlessEngine):
         self._reset_shared_data(prompt[:pos], temperature)
 
         # Call the actual API and extract the next chunk
-        encoded_chunk = b''
+        encoded_chunk = b""
         if self._is_openai_compatible:
             client = openai.OpenAI(api_key=self._api_key, base_url=self._endpoint)
             response = client.chat.completions.create(
@@ -149,7 +150,25 @@ class AzureAIStudioEngine(GrammarlessEngine):
 
         yield encoded_chunk
 
-    def _generator_completion(self, prompt, temperature: float):
+    def _generator_completion(self, prompt: bytes, temperature: float):
+        chat_tokens = [
+            b"<|im_end|>",
+            b"<|im_start|>system",
+            b"<|im_start|>user",
+            b"<|im_start|>assistant",
+        ]
+        for ct in chat_tokens:
+            if prompt.find(ct) != -1:
+                msg = textwrap.dedent(
+                    f"""Detected chat token {ct} with a completion endpoint.
+                        The guidance context managers `with system():`,
+                        `with user():` and `with assistant():` are not compatible
+                        with Models with an endpoint_type of 'completion'.
+                        Please use a 'chat' endpoint or remove the context
+                        managers."""
+                )
+                raise ValueError(msg)
+
         prompt_decoded = prompt.decode("utf8")
         parameters = dict(temperature=temperature, return_full_text=True)
         payload = dict(
