@@ -21,9 +21,9 @@ class AzureGuidanceEngine(Engine):
         elif not isinstance(server_url, str):
             raise ValueError("server_url must contain a URL string.")
 
-        if not server_url.startswith("http"):
+        if not server_url.startswith("https://"):
             raise ValueError(
-                "AzureGuidance requires a remote model URL that starts with http"
+                "AzureGuidance requires a remote model URL that starts with https://"
             )
         self.server_url = server_url
         self.max_streaming_tokens = max_streaming_tokens
