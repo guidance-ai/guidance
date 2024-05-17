@@ -4,7 +4,9 @@ from typing import Generator, Optional
 import pathlib
 
 
-def retrieve_langchain(cache_dir: Optional[str] = None) -> Generator[object, None, None]:
+def retrieve_langchain(
+    cache_dir: Optional[str] = None,
+) -> Generator[object, None, None]:
     """Retrieves LangChain datasets appropriate for guidance benchmarking. Requires env `LANGCHAIN_API_KEY` to be set on first call.
 
     Args:
@@ -39,29 +41,42 @@ def retrieve_langchain(cache_dir: Optional[str] = None) -> Generator[object, Non
         dataset = client.read_dataset(dataset_name=task.name)
         examples = list(client.list_examples(dataset_id=dataset.id, as_of=None))
 
-        system_prompt = "You are a data extraction bot tasked with " + \
-                        "extracting and inferring information from dialogues and generating tickets. Always respond " + \
-                        f"only with json based on the following JSON schema:\n{task.schema.schema_json()}"
+        system_prompt = (
+            "You are a data extraction bot tasked with "
+            + "extracting and inferring information from dialogues and generating tickets. Always respond "
+            + f"only with json based on the following JSON schema:\n{task.schema.schema_json()}"
+        )
 
         user_prompts = []
         for example in examples:
-            dialogue = f"<question>\n{example.inputs['question']}\n</question>\n" + \
-                        f"<assistant-response>\n{example.inputs['answer']}\n</assistant-response>"
-            user_prompt = "Generate a ticket from the following question-response pair:\n" + \
-                            f"<Dialogue>\n{dialogue}\n</Dialogue>\n" + \
-                            "Remember, respond directly with this format:\n" + \
-                            f'{{"{task.schema.schema()["title"]}": ...}}\n' + \
-                            "RESPOND ONLY IN JSON THEN STOP."
+            dialogue = (
+                f"<question>\n{example.inputs['question']}\n</question>\n"
+                + f"<assistant-response>\n{example.inputs['answer']}\n</assistant-response>"
+            )
+            user_prompt = (
+                "Generate a ticket from the following question-response pair:\n"
+                + f"<Dialogue>\n{dialogue}\n</Dialogue>\n"
+                + "Remember, respond directly with this format:\n"
+                + f'{{"{task.schema.schema()["title"]}": ...}}\n'
+                + "RESPOND ONLY IN JSON THEN STOP."
+            )
             user_prompts.append(user_prompt)
 
-        inputs = pd.DataFrame.from_records([{
-            "input": example.inputs,
-            "schema": task.schema.schema_json(),
-            "system_prompt": system_prompt,
-            "user_prompt": user_prompts[i],
-        } for i, example in enumerate(examples)])
+        inputs = pd.DataFrame.from_records(
+            [
+                {
+                    "input": example.inputs,
+                    "schema": task.schema.schema_json(),
+                    "system_prompt": system_prompt,
+                    "user_prompt": user_prompts[i],
+                }
+                for i, example in enumerate(examples)
+            ]
+        )
 
-        outputs = pd.DataFrame.from_records([{"output": example.outputs} for example in examples])
+        outputs = pd.DataFrame.from_records(
+            [{"output": example.outputs} for example in examples]
+        )
         meta = {
             "name": name,
             "problem": "guidance/struct_decode",
@@ -74,7 +89,7 @@ def retrieve_langchain(cache_dir: Optional[str] = None) -> Generator[object, Non
         guidance_dataset = DataFrameDataset(inputs, outputs, meta)
     else:
         guidance_dataset = DataFrameDataset.deserialize(*cached)
-    
+
     if cache_dir is not None:
         serialized = DataFrameDataset.serialize(guidance_dataset)
         update_cache(cache_dir, [inputs_name, outputs_name, meta_name], serialized)
