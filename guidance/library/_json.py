@@ -315,8 +315,6 @@ def json(
 
     Using a JSON schema:
 
-    .. highlight:: python
-
         >>> schema = ''{ "type": "object", "properties": { "a" : {"type": "integer"} } }'
         >>> schema_obj = json.loads(schema)
         >>> lm += json(name="generated_object", schema=schema_obj)
@@ -332,7 +330,7 @@ def json(
         { 'b' : False }
 
     Using a ``pydantic.TypeAdapter``:
-    
+
         >>> schema = TypeAdapter(list[int])
         >>> lm += json(name="generated_object", schema=schema)
         >>> print(json.loads(lm["generated_object"]))
