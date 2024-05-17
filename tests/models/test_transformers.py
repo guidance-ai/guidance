@@ -76,6 +76,23 @@ w) 10"""
     assert lm["answer"] in ["p", "t", "w"]
 
 
+@pytest.mark.needs_credentials
+@pytest.mark.skip("Need to figure out auth")
+def test_llama3_chat():
+    lm = models.Transformers(
+        r"meta-llama/Meta-Llama-3-8B-Instruct", trust_remote_code=True
+    )
+    with system():
+        lm += "You are a counting bot. Just keep counting numbers."
+    with user():
+        lm += "1,2,3,4"
+    with assistant():
+        lm += gen(name="five", max_tokens=10)
+
+    assert "5" in lm["five"]
+
+# Phi-3 tests 
+
 @pytest.mark.skip("Don't overload the build machines")
 def test_phi3_transformers_orig():
     import torch
@@ -107,31 +124,13 @@ def test_phi3_transformers_orig():
     assert "5" in (output[0]["generated_text"])
 
 
-def test_phi3_loading(phi3_model: models.Model):
-    lm = phi3_model
-    lm += f"""You are a counting bot. Just keep counting numbers. 1,2,3,4, <|assistant|>"""
-    lm += gen("five", max_tokens=10)
-    assert "5" in lm["five"]
+# TODO: put this in the rest of the testing framework
 
 
-@pytest.mark.needs_credentials
-@pytest.mark.skip("Need to figure out auth")
-def test_llama3_chat():
+def test_phi3_chat_basic():
     lm = models.Transformers(
-        r"meta-llama/Meta-Llama-3-8B-Instruct", trust_remote_code=True
+        "microsoft/Phi-3-mini-4k-instruct", trust_remote_code=True
     )
-    with system():
-        lm += "You are a counting bot. Just keep counting numbers."
-    with user():
-        lm += "1,2,3,4"
-    with assistant():
-        lm += gen(name="five", max_tokens=10)
-
-    assert "5" in lm["five"]
-
-
-def test_phi3_chat_fixed(phi3_model: models.Model):
-    lm = phi3_model
 
     lm += "You are a counting bot. Just keep counting numbers."
     with user():
@@ -139,11 +138,21 @@ def test_phi3_chat_fixed(phi3_model: models.Model):
     with assistant():
         lm += gen(name="five", max_tokens=10)
 
-    assert "five" in lm
+    assert "5" in lm["five"]
 
+def test_phi3_chat_unrolled():
+    lm = models.Transformers(
+        "microsoft/Phi-3-mini-4k-instruct", trust_remote_code=True
+    )
+    # Manually convert the chat format into completions style
+    lm += f"""<|user|>\nYou are a counting bot. Just keep counting numbers.<|end|><|assistant|>1,2,3,4,"""
+    lm += gen("five", max_tokens=10)
+    assert "5" in lm["five"]
 
-def test_phi3_newline_chat(phi3_model: models.Model):
-    lm = phi3_model
+def test_phi3_newline_chat():
+    lm = models.Transformers(
+        "microsoft/Phi-3-mini-4k-instruct", trust_remote_code=True
+    )
 
     lm += "You are a counting bot. Just keep counting numbers."
     with user():
@@ -152,11 +161,14 @@ def test_phi3_newline_chat(phi3_model: models.Model):
         lm += "\n" + gen(name="five", max_tokens=1)
         lm += "\n" + gen(name="six", max_tokens=1)
     
+    # This test would raise an exception earlier if we didn't fix the tokenizer.
     assert True
 
 # TODO: put this in the rest of the testing framework 
-def test_phi3_unstable_tokenization(phi3_model: models.Model):
-    lm = phi3_model
+def test_phi3_unstable_tokenization():
+    lm = models.Transformers(
+        "microsoft/Phi-3-mini-4k-instruct", trust_remote_code=True
+    )
 
     lm += "You are a counting bot. Just keep counting numbers."
     with user():
@@ -167,3 +179,13 @@ def test_phi3_unstable_tokenization(phi3_model: models.Model):
         lm += "," + gen(name="six", max_tokens=1)
 
     assert True
+
+
+def test_phi3_basic_completion_badtokens():
+    lm = models.Transformers(
+        "microsoft/Phi-3-mini-4k-instruct", trust_remote_code=True
+    )
+    # Bad user tokens, but we should still generate /something/
+    lm += f"""<|use\n\nYou are a counting bot. Just keep counting numbers.<|end|><|assistant|>1,2,3,4,"""
+    lm += gen("five", max_tokens=10)
+    assert len(str(lm)) > 0

@@ -162,7 +162,7 @@ class TransformersEngine(Engine):
         # If more models start doing this, generalize into a util function.
         if hasattr(self.model_obj.config, "model_type"):
             if self.model_obj.config.model_type in ["phi3"]:
-                self._disable_retokenize = True
+                self._disable_retokenize_check = True
 
         super().__init__(
             TransformersTokenizer(model, tokenizer, chat_template), compute_log_probs=compute_log_probs

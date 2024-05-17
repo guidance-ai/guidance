@@ -804,14 +804,6 @@ class Engine:
 
     def _cleanup_tokens(self, token_ids, token_byte_positions):
 
-        # Some tokenizers like Phi-3 are unstable on encode/decode loops
-        # which means we can't cleanup their token representations.
-        # This can result in misaligned model behavior but we can't do anything else.
-        # TODO: This hidden attr is a hack to scope it to only Phi-3...if more models 
-        # exhibit this bad behavior, we should generalize this approach. 
-        if hasattr(self, "_disable_retokenize"):
-            return token_ids, token_byte_positions
-
         # compute a joint tokenization
         joint_token_ids = self._joint_tokenize(token_ids)
 
@@ -834,7 +826,8 @@ class Engine:
                 pos += len(self.tokenizer.tokens[id])
                 token_byte_positions.append(pos)
 
-            # ugly hack to deal with sentence peice craziness of space hiding after special tokens TODO: figure out how to make this more robust
+            # ugly hack to deal with sentence piece craziness of space hiding after special tokens 
+            # TODO: figure out how to make this more robust
             if (
                 token_byte_positions[-1] == last_pos + 1
                 and self.tokenizer.tokens[token_ids[0]] == b"<s>"
@@ -843,8 +836,10 @@ class Engine:
                 for i in range(1, len(token_byte_positions)):
                     token_byte_positions[i] -= 1
             
-            
-            assert token_byte_positions[-1] == last_pos, "Cross check last_pos"
+            # another ugly hack for tokenizers that are not stable on encode/decode cycles
+            # currently only Phi-3, should generalize this method if we see more of these
+            if not hasattr(self, "_disable_retokenize_check"):
+                assert token_byte_positions[-1] == last_pos, "Cross check last_pos"
 
         return token_ids, token_byte_positions
 
