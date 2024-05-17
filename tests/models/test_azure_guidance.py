@@ -1,8 +1,11 @@
 import numpy as np
 import pytest
+from jsonschema import validate
+import json
 
 import guidance
 from guidance import gen, select, assistant, user, optional
+from guidance.library import json as gen_json
 
 from ..utils import get_model
 
@@ -340,3 +343,61 @@ def test_azure_guidance_branching_mutual_recursion(azure_guidance_model: guidanc
     lm += grammar1()
     lm += grammar2()
     lm += grammar3()
+
+
+def test_remote_gen_json(azure_guidance_model: guidance.models.Model):
+    schema = """
+{
+    "$defs": {
+        "A": {
+            "properties": {
+                "my_str": {
+                    "default": "me",
+                    "title": "My Str",
+                    "type": "string"
+                },
+                "next": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/A"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                }
+            },
+            "type": "object"
+        }
+    },
+    "type": "object",
+    "properties": {
+        "my_list": {
+            "anyOf": [
+                {
+                    "$ref": "#/$defs/A"
+                },
+                {
+                    "type": "null"
+                }
+            ]
+        }
+    }
+}
+        """
+    schema_obj = json.loads(schema)
+
+    target_obj = dict(my_list=dict(my_str="a", next=dict(my_str="b", next=None)))
+
+    # Sanity check input
+    validate(target_obj, schema_obj)
+
+    m = azure_guidance_model
+    m += gen_json(schema=schema_obj, name="my_json_string")
+    print(f"Raw: {m['my_json_string']}")
+
+    my_obj = json.loads(m["my_json_string"])
+    print(f"Received object: {json.dumps(my_obj, indent=4)}")
+    validate(my_obj, schema_obj)
+    assert my_obj == target_obj
+
