@@ -313,21 +313,26 @@ def json(
     Not all parts of `JSON schema <https://json-schema.org/>`_ are supported. Indeed some parts
     (such as bounds on numbers) cannot really be supported in the context of LLM generation.
 
-    Using a JSON schema::
+    Using a JSON schema:
+
+    .. highlight:: python
+
         >>> schema = ''{ "type": "object", "properties": { "a" : {"type": "integer"} } }'
         >>> schema_obj = json.loads(schema)
         >>> lm += json(name="generated_object", schema=schema_obj)
         >>> print(json.loads(lm["generated_object"]))
         { 'a' : 2 }
 
-    Using a ``pydantic.BaseModel``::
+    Using a ``pydantic.BaseModel``:
+
         >>> class Schema(BaseModel):
         ...     b: bool
         >>> lm += json(name="generated_object", schema=Schema)
         >>> print(json.loads(lm["generated_object"]))
         { 'b' : False }
 
-    Using a ``pydantic.TypeAdapter``::
+    Using a ``pydantic.TypeAdapter``:
+    
         >>> schema = TypeAdapter(list[int])
         >>> lm += json(name="generated_object", schema=schema)
         >>> print(json.loads(lm["generated_object"]))
