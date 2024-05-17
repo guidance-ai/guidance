@@ -90,6 +90,10 @@ def system(text=None, **kwargs):
     and assistant.
     This indicates the start of a 'system' block, which
     provides background information to the LLM.
+
+        >>> with system():
+        >>>     lm += "A system prompt"
+
     """
     return role("system", text, **kwargs)
 
@@ -102,6 +106,10 @@ def user(text=None, **kwargs):
     and assistant.
     This indicates the start of a 'user' block, which
     provides input to the LLM from the user.
+
+        >>> with user():
+        >>>     lm += "What the user said"
+
     """
     return role("user", text, **kwargs)
 
@@ -115,6 +123,10 @@ def assistant(text=None, **kwargs):
     This indicates the start of an 'assistant' block, which
     marks LLM response (or where the LLM will generate
     the next response).
+
+        >>> with assistant():
+        >>>     lm += gen(name="model_output", max_tokens=20)
+
     """
     return role("assistant", text, **kwargs)
 
