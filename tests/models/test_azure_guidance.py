@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 import guidance
-from guidance import gen, select, assistant, user
+from guidance import gen, select, assistant, user, optional
 
 from ..utils import get_model
 
@@ -263,3 +263,80 @@ def test_azure_guidance_chat(azure_guidance_model: guidance.models.Model):
 
     assert len(lm["test1"]) > 0
     assert len(lm["test2"]) > 0
+
+def test_azure_guidance_phi3_newline_chat(azure_guidance_model: guidance.models.Model):
+    lm = azure_guidance_model
+    lm += "You are a counting bot. Just keep counting numbers."
+    with user():
+        lm += "1\n2\n3\n4\n"
+    with assistant():
+        lm += "\n" + gen(name="five", max_tokens=1)
+        lm += "\n" + gen(name="six", max_tokens=1)
+
+def test_azure_guidance_phi3_unstable_tokenization(azure_guidance_model: guidance.models.Model):
+    lm = azure_guidance_model
+    lm += "You are a counting bot. Just keep counting numbers."
+    with user():
+        lm += "1,2,3,4,"
+    with assistant():
+        lm += "\n" # comment and uncomment this line to get the error
+        lm += gen(name="five", max_tokens=1)
+        lm += "," + gen(name="six", max_tokens=1)
+
+
+def test_azure_guidance_simple_recursion(azure_guidance_model: guidance.models.Model):
+    @guidance(stateless=True, dedent=False)
+    def grammar(lm):
+        return lm + "x" + optional(grammar())
+    lm = azure_guidance_model
+    lm += grammar()
+
+
+def test_azure_guidance_mutual_recursion(azure_guidance_model: guidance.models.Model):
+    @guidance(stateless=True, dedent=False)
+    def grammar1(lm):
+        return lm + "x" + grammar2()
+
+    @guidance(stateless=True, dedent=False)
+    def grammar2(lm):
+        return lm + "y" + optional(grammar1())
+
+    lm = azure_guidance_model
+    lm += grammar1()
+    lm += grammar2()
+
+def test_azure_guidance_multiple_mutual_recursion(azure_guidance_model: guidance.models.Model):
+    @guidance(stateless=True, dedent=False)
+    def grammar1(lm):
+        return lm + "x" + grammar2()
+
+    @guidance(stateless=True, dedent=False)
+    def grammar2(lm):
+        return lm + "y" + grammar3()
+
+    @guidance(stateless=True, dedent=False)
+    def grammar3(lm):
+        return lm + "z" + optional(grammar1())
+
+    lm = azure_guidance_model
+    lm += grammar1()
+    lm += grammar2()
+    lm += grammar3()
+
+def test_azure_guidance_branching_mutual_recursion(azure_guidance_model: guidance.models.Model):
+    @guidance(stateless=True, dedent=False)
+    def grammar1(lm):
+        return lm + "x" + grammar2()
+
+    @guidance(stateless=True, dedent=False)
+    def grammar2(lm):
+        return lm + "y" + select([grammar1(), grammar3()])
+
+    @guidance(stateless=True, dedent=False)
+    def grammar3(lm):
+        return lm + "z" + optional(grammar1())
+
+    lm = azure_guidance_model
+    lm += grammar1()
+    lm += grammar2()
+    lm += grammar3()
