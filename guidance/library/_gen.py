@@ -22,7 +22,7 @@ def gen(
     lm,
     name=None,
     *,
-    max_tokens=1000,
+    max_tokens=1e10,
     list_append=False,
     regex=None,
     tools=None,
