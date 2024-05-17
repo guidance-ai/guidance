@@ -9,6 +9,7 @@ General guidelines:
 - Goalposts shift - some of the code for benchmarking will change frequently and that's okay
 """
 
+from guidance.bench._powerlift import retrieve_langchain
+
 # TODO(nopdive): Integrate powerlift for benchmarking backend
-# TODO(nopdive): Implement langchain chat extraction task
 # TODO(nopdive): Enable docker containers to execute benchmarking easily

@@ -1,14 +1,11 @@
-"""Backend integration for benchmarking.
-
-Currently supports powerlift.
-"""
+"""Backend powerlift integration for benchmarking."""
 
 from typing import Generator, Optional
 import pathlib
 
 
 def retrieve_langchain(cache_dir: Optional[str] = None) -> Generator[object, None, None]:
-    """Retrieves LangChain datasets appropriate for guidance benchmarking. Requires env `LANGCHAIN_API_KEY` to be set.
+    """Retrieves LangChain datasets appropriate for guidance benchmarking. Requires env `LANGCHAIN_API_KEY` to be set on first call.
 
     Args:
         cache_dir (Optional[str], optional): Directory to store downloaded datasets. Defaults to None.
@@ -24,9 +21,6 @@ def retrieve_langchain(cache_dir: Optional[str] = None) -> Generator[object, Non
     from powerlift.bench.store import update_cache, retrieve_cache, DataFrameDataset
     import os
 
-    if os.getenv("LANGCHAIN_API_KEY") is None:
-        raise ValueError("Env variable LANGCHAIN_API_KEY is not set.")
-
     if cache_dir is not None:
         cache_dir = pathlib.Path(cache_dir, "langchain")
 
@@ -36,6 +30,9 @@ def retrieve_langchain(cache_dir: Optional[str] = None) -> Generator[object, Non
     meta_name = f"{name}.meta.json"
     cached = retrieve_cache(cache_dir, [inputs_name, outputs_name, meta_name])
     if cached is None:
+        if os.getenv("LANGCHAIN_API_KEY") is None:
+            raise ValueError("Env variable LANGCHAIN_API_KEY is not set.")
+
         task = registry["Chat Extraction"]
         clone_public_dataset(task.dataset_id, dataset_name=task.name)
         client = Client()

@@ -1,7 +1,7 @@
 import pytest
 import tempfile
 
-from guidance.bench.backend import retrieve_langchain
+from guidance.bench._powerlift import retrieve_langchain
 from pathlib import Path
 
 def test_retrieve_langchain_err(monkeypatch):
@@ -10,6 +10,7 @@ def test_retrieve_langchain_err(monkeypatch):
         gen = retrieve_langchain()
         _ = list(gen)
 
+# @pytest.mark.skip
 @pytest.mark.needs_credentials
 def test_retrieve_langchain_basic():
     with tempfile.TemporaryDirectory() as tmp_dir:
