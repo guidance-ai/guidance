@@ -83,6 +83,7 @@ jobs:
         run: |
           pytest --cov=guidance --cov-report=xml --cov-report=term-missing \
             -m "notebooks" \
+            -vv \
             ./tests/
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4
