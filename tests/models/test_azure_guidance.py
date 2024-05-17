@@ -289,60 +289,87 @@ def test_azure_guidance_phi3_unstable_tokenization(azure_guidance_model: guidanc
 
 def test_azure_guidance_simple_recursion(azure_guidance_model: guidance.models.Model):
     @guidance(stateless=True, dedent=False)
-    def grammar(lm):
-        return lm + "x" + optional(grammar())
+    def grammar(lm, depth):
+        if depth != 0:
+            depth -= 1
+            lm += "x" + optional(grammar(depth))
+        return lm
     lm = azure_guidance_model
-    lm += grammar()
+    lm += grammar(5)
 
 
 def test_azure_guidance_mutual_recursion(azure_guidance_model: guidance.models.Model):
     @guidance(stateless=True, dedent=False)
-    def grammar1(lm):
-        return lm + "x" + grammar2()
+    def grammar1(lm, depth):
+        if depth != 0:
+            depth -= 1
+            lm += "x" + grammar2(depth)
+        return lm
 
     @guidance(stateless=True, dedent=False)
-    def grammar2(lm):
-        return lm + "y" + optional(grammar1())
+    def grammar2(lm, depth):
+        if depth != 0:
+            depth -= 1
+            lm += "y" + optional(grammar1(depth))
+        return lm
 
     lm = azure_guidance_model
-    lm += grammar1()
-    lm += grammar2()
+    lm += grammar1(5)
+    lm += grammar2(5)
 
 def test_azure_guidance_multiple_mutual_recursion(azure_guidance_model: guidance.models.Model):
     @guidance(stateless=True, dedent=False)
-    def grammar1(lm):
-        return lm + "x" + grammar2()
+    def grammar1(lm, depth):
+        if depth != 0:
+            depth -= 1
+            lm += "x" + grammar2(depth)
+        return lm
 
     @guidance(stateless=True, dedent=False)
-    def grammar2(lm):
-        return lm + "y" + grammar3()
+    def grammar2(lm, depth):
+        if depth != 0:
+            depth -= 1
+            lm += "y" + grammar3(depth)
+        return lm
 
     @guidance(stateless=True, dedent=False)
-    def grammar3(lm):
-        return lm + "z" + optional(grammar1())
+    def grammar3(lm, depth):
+        if depth != 0:
+            depth -= 1
+            lm += "z" + optional(grammar1(depth))
+        return lm
 
     lm = azure_guidance_model
-    lm += grammar1()
-    lm += grammar2()
-    lm += grammar3()
+    lm += grammar1(5)
+    lm += grammar2(5)
+    lm += grammar3(5)
 
 def test_azure_guidance_branching_mutual_recursion(azure_guidance_model: guidance.models.Model):
     @guidance(stateless=True, dedent=False)
-    def grammar1(lm):
-        return lm + "x" + grammar2()
+    def grammar1(lm, depth):
+        if depth != 0:
+            depth -= 1
+            lm += "x" + grammar2(depth)
+        return lm
 
     @guidance(stateless=True, dedent=False)
-    def grammar2(lm):
-        return lm + "y" + select([grammar1(), grammar3()])
+    def grammar2(lm, depth):
+        if depth != 0:
+            depth -= 1
+            lm += "y" + select([grammar1(depth), grammar3(depth)])
+        return lm
 
     @guidance(stateless=True, dedent=False)
-    def grammar3(lm):
-        return lm + "z" + optional(grammar1())
+    def grammar3(lm, depth):
+        if depth != 0:
+            depth -= 1
+            lm += "z" + optional(grammar1(depth))
+        return lm
 
     lm = azure_guidance_model
-    lm += grammar1()
-    lm += grammar2()
-    lm += grammar3()
+    lm += grammar1(5)
+    lm += grammar2(5)
+    lm += grammar3(5)
 
 
 def test_remote_gen_json(azure_guidance_model: guidance.models.Model):
