@@ -127,10 +127,8 @@ def test_phi3_transformers_orig():
 # TODO: put this in the rest of the testing framework
 
 
-def test_phi3_chat_basic():
-    lm = models.Transformers(
-        "microsoft/Phi-3-mini-4k-instruct", trust_remote_code=True
-    )
+def test_phi3_chat_basic(phi3_model: models.Model):
+    lm = phi3_model
 
     lm += "You are a counting bot. Just keep counting numbers."
     with user():
@@ -140,19 +138,15 @@ def test_phi3_chat_basic():
 
     assert "5" in lm["five"]
 
-def test_phi3_chat_unrolled():
-    lm = models.Transformers(
-        "microsoft/Phi-3-mini-4k-instruct", trust_remote_code=True
-    )
+def test_phi3_chat_unrolled(phi3_model: models.Model):
+    lm = phi3_model
     # Manually convert the chat format into completions style
     lm += f"""<|user|>\nYou are a counting bot. Just keep counting numbers.<|end|><|assistant|>1,2,3,4,"""
     lm += gen("five", max_tokens=10)
     assert "5" in lm["five"]
 
-def test_phi3_newline_chat():
-    lm = models.Transformers(
-        "microsoft/Phi-3-mini-4k-instruct", trust_remote_code=True
-    )
+def test_phi3_newline_chat(phi3_model: models.Model):
+    lm = phi3_model
 
     lm += "You are a counting bot. Just keep counting numbers."
     with user():
@@ -165,10 +159,8 @@ def test_phi3_newline_chat():
     assert True
 
 # TODO: put this in the rest of the testing framework 
-def test_phi3_unstable_tokenization():
-    lm = models.Transformers(
-        "microsoft/Phi-3-mini-4k-instruct", trust_remote_code=True
-    )
+def test_phi3_unstable_tokenization(phi3_model: models.Model):
+    lm = phi3_model
 
     lm += "You are a counting bot. Just keep counting numbers."
     with user():
@@ -181,10 +173,8 @@ def test_phi3_unstable_tokenization():
     assert True
 
 
-def test_phi3_basic_completion_badtokens():
-    lm = models.Transformers(
-        "microsoft/Phi-3-mini-4k-instruct", trust_remote_code=True
-    )
+def test_phi3_basic_completion_badtokens(phi3_model: models.Model):
+    lm = phi3_model
     # Bad user tokens, but we should still generate /something/
     lm += f"""<|use\n\nYou are a counting bot. Just keep counting numbers.<|end|><|assistant|>1,2,3,4,"""
     lm += gen("five", max_tokens=10)
