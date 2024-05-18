@@ -27,6 +27,7 @@ def llama3_model(selected_model, selected_model_name):
 def test_gpt2():
     gpt2 = get_model("transformers:gpt2")
     lm = gpt2 + "this is a test" + gen("test", max_tokens=10)
+    
     assert len(str(lm)) > len("this is a test")
 
 
@@ -59,6 +60,7 @@ def test_transformer_smoke_gen(model_name, model_kwargs):
     prompt = "How many sides has a triangle?"
     lm = my_model + prompt + gen(name="answer", max_tokens=2)
     assert len(lm["answer"]) > 0, f"Output: {lm['answer']}"
+
     # Inexact, but at least make sure not too much was produced
     assert len(lm["answer"]) < 8, f"Output: {lm['answer']}"
 
@@ -73,25 +75,11 @@ p) 4
 t) 3
 w) 10"""
     lm = my_model + prompt + select(["p", "t", "w"], name="answer")
+
     assert lm["answer"] in ["p", "t", "w"]
 
 
-@pytest.mark.needs_credentials
-@pytest.mark.skip("Need to figure out auth")
-def test_llama3_chat():
-    lm = models.Transformers(
-        r"meta-llama/Meta-Llama-3-8B-Instruct", trust_remote_code=True
-    )
-    with system():
-        lm += "You are a counting bot. Just keep counting numbers."
-    with user():
-        lm += "1,2,3,4"
-    with assistant():
-        lm += gen(name="five", max_tokens=10)
-
-    assert "5" in lm["five"]
-
-# Phi-3 tests 
+# Phi-3 specific tests
 
 @pytest.mark.skip("Don't overload the build machines")
 def test_phi3_transformers_orig():
@@ -121,10 +109,8 @@ def test_phi3_transformers_orig():
 
     input_text = "You are a counting bot. Just keep counting numbers. 1,2,3,4"
     output = pipe(input_text, **generation_args)
+
     assert "5" in (output[0]["generated_text"])
-
-
-# TODO: put this in the rest of the testing framework
 
 
 def test_phi3_chat_basic(phi3_model: models.Model):
@@ -138,12 +124,15 @@ def test_phi3_chat_basic(phi3_model: models.Model):
 
     assert "5" in lm["five"]
 
+
 def test_phi3_chat_unrolled(phi3_model: models.Model):
     lm = phi3_model
     # Manually convert the chat format into completions style
-    lm += f"""<|user|>\nYou are a counting bot. Just keep counting numbers.<|end|><|assistant|>1,2,3,4,"""
+    lm += f"""<|user|>\nYou are a counting bot. Just keep counting numbers.<|end|>\n<|assistant|>\n1,2,3,4,"""
     lm += gen("five", max_tokens=10)
+
     assert "5" in lm["five"]
+
 
 def test_phi3_newline_chat(phi3_model: models.Model):
     lm = phi3_model
@@ -158,7 +147,7 @@ def test_phi3_newline_chat(phi3_model: models.Model):
     # This test would raise an exception earlier if we didn't fix the tokenizer.
     assert True
 
-# TODO: put this in the rest of the testing framework 
+
 def test_phi3_unstable_tokenization(phi3_model: models.Model):
     lm = phi3_model
 
@@ -178,4 +167,5 @@ def test_phi3_basic_completion_badtokens(phi3_model: models.Model):
     # Bad user tokens, but we should still generate /something/
     lm += f"""<|use\n\nYou are a counting bot. Just keep counting numbers.<|end|><|assistant|>1,2,3,4,"""
     lm += gen("five", max_tokens=10)
-    assert len(str(lm)) > 0
+
+    assert len(lm["five"]) > 0
