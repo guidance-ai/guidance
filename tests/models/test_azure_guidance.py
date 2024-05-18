@@ -1,10 +1,11 @@
+import re
 import numpy as np
 import pytest
 from jsonschema import validate
 import json
 
 import guidance
-from guidance import gen, select, assistant, user, optional, substring
+from guidance import gen, select, assistant, user, optional, substring, one_or_more
 from guidance.library import json as gen_json
 
 from ..utils import get_model
@@ -15,6 +16,16 @@ def azure_guidance_model(selected_model, selected_model_name):
         return selected_model
     else:
         pytest.skip("Requires Azure Guidance model")
+
+
+
+
+def test_stop_string(azure_guidance_model: guidance.models.Model):
+    lm = azure_guidance_model
+    lm += "Count to 10: 1, 2, 3, 4, 5, 6, 7, " + gen("text", stop=", 9")
+    print(str(lm))
+    assert lm["text"] == "8"
+
 
 
 def test_azure_guidance_gen(azure_guidance_model: guidance.models.Model):
@@ -464,5 +475,12 @@ def test_azure_guidance_stateless_inside_stateful(azure_guidance_model: guidance
     lm += "begin:" + stateful_grammar1()
     result = str(lm)
     assert result == "begin:+p43LYyA" or result == "begin:-p43LYyA" or result == "begin:+p43LYyB" or result == "begin:-p43LYyB"
+
+
+def test_azure_guidance_string(azure_guidance_model: guidance.models.Model):
+    model = azure_guidance_model
+    s = str(model + "ab" + one_or_more("ab"))
+    assert len(s) >= 4
+    assert bool(re.fullmatch(r'(ab)*', s)) or bool(re.fullmatch(r'(ab)*', s))[:-1]
 
 
