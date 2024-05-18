@@ -4,11 +4,10 @@ from jsonschema import validate
 import json
 
 import guidance
-from guidance import gen, select, assistant, user, optional
+from guidance import gen, select, assistant, user, optional, substring
 from guidance.library import json as gen_json
 
 from ..utils import get_model
-
 
 @pytest.fixture(scope="module")
 def azure_guidance_model(selected_model, selected_model_name):
@@ -414,11 +413,6 @@ def test_remote_gen_json(azure_guidance_model: guidance.models.Model):
         """
     schema_obj = json.loads(schema)
 
-    target_obj = dict(my_list=dict(my_str="a", next=dict(my_str="b", next=None)))
-
-    # Sanity check input
-    validate(target_obj, schema_obj)
-
     m = azure_guidance_model
     m += gen_json(schema=schema_obj, name="my_json_string")
     print(f"Raw: {m['my_json_string']}")
@@ -426,4 +420,22 @@ def test_remote_gen_json(azure_guidance_model: guidance.models.Model):
     my_obj = json.loads(m["my_json_string"])
     print(f"Received object: {json.dumps(my_obj, indent=4)}")
     validate(my_obj, schema_obj)
+
+
+@pytest.mark.parametrize(
+    "test_str",
+    [
+        "is this legal",
+        "I'm not sure ias;ldlkas is the best",
+        "\n\nit works\n\n",
+        "0123456789",
+    ],
+)
+def test_mocked_substring(test_str, azure_guidance_model: guidance.models.Model):
+    m = azure_guidance_model
+
+    lm = m + substring(test_str, name="result")
+    print(f'Substring: \'{lm["result"]}\'  ::::  \'{test_str}\'')
+    assert lm["result"] in test_str
+
 
