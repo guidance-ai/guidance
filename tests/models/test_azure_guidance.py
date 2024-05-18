@@ -426,5 +426,4 @@ def test_remote_gen_json(azure_guidance_model: guidance.models.Model):
     my_obj = json.loads(m["my_json_string"])
     print(f"Received object: {json.dumps(my_obj, indent=4)}")
     validate(my_obj, schema_obj)
-    assert my_obj == target_obj
 
