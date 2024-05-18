@@ -18,9 +18,19 @@ def azure_guidance_model(selected_model, selected_model_name):
         pytest.skip("Requires Azure Guidance model")
 
 
+def test_azure_guidance_basic(azure_guidance_model: guidance.models.Model):
+    lm = azure_guidance_model
+    lm += "Write a number: " + gen("text", max_tokens=3)
+    assert len(lm["text"]) >= 3
 
 
-def test_stop_string(azure_guidance_model: guidance.models.Model):
+def test_azure_guidance_stop_char(azure_guidance_model: guidance.models.Model):
+    lm = azure_guidance_model
+    lm += "Count to 10: 1, 2, 3, 4, 5, 6, 7, " + gen("text", stop=",")
+    assert lm["text"] == "8"
+
+
+def test_azure_guidance_stop_string(azure_guidance_model: guidance.models.Model):
     lm = azure_guidance_model
     lm += "Count to 10: 1, 2, 3, 4, 5, 6, 7, " + gen("text", stop=", 9")
     print(str(lm))
