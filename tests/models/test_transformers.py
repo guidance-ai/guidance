@@ -27,6 +27,7 @@ def llama3_model(selected_model, selected_model_name):
 def test_gpt2():
     gpt2 = get_model("transformers:gpt2")
     lm = gpt2 + "this is a test" + gen("test", max_tokens=10)
+    
     assert len(str(lm)) > len("this is a test")
 
 
@@ -59,6 +60,7 @@ def test_transformer_smoke_gen(model_name, model_kwargs):
     prompt = "How many sides has a triangle?"
     lm = my_model + prompt + gen(name="answer", max_tokens=2)
     assert len(lm["answer"]) > 0, f"Output: {lm['answer']}"
+
     # Inexact, but at least make sure not too much was produced
     assert len(lm["answer"]) < 8, f"Output: {lm['answer']}"
 
@@ -73,8 +75,11 @@ p) 4
 t) 3
 w) 10"""
     lm = my_model + prompt + select(["p", "t", "w"], name="answer")
+
     assert lm["answer"] in ["p", "t", "w"]
 
+
+# Phi-3 specific tests
 
 @pytest.mark.skip("Don't overload the build machines")
 def test_phi3_transformers_orig():
@@ -104,46 +109,11 @@ def test_phi3_transformers_orig():
 
     input_text = "You are a counting bot. Just keep counting numbers. 1,2,3,4"
     output = pipe(input_text, **generation_args)
+
     assert "5" in (output[0]["generated_text"])
 
 
-def test_phi3_loading(phi3_model: models.Model):
-    lm = phi3_model
-    lm += f"""You are a counting bot. Just keep counting numbers. 1,2,3,4, <|assistant|>"""
-    lm += gen("five", max_tokens=10)
-    assert "5" in lm["five"]
-
-
-@pytest.mark.needs_credentials
-@pytest.mark.skip("Need to figure out auth")
-def test_llama3_chat():
-    lm = models.Transformers(
-        r"meta-llama/Meta-Llama-3-8B-Instruct", trust_remote_code=True
-    )
-    with system():
-        lm += "You are a counting bot. Just keep counting numbers."
-    with user():
-        lm += "1,2,3,4"
-    with assistant():
-        lm += gen(name="five", max_tokens=10)
-
-    assert "5" in lm["five"]
-
-
-def test_phi3_failure_minimal(phi3_model: models.Model):
-    lm = phi3_model
-    # NOTE: This SHOULD NOT raise an exception, but guidance currently has a bug where
-    # directly passing in newlines next to special tokens for a tokenizer that does rstrip on those tokens
-    # (like phi-3) will cause a tokenization mismatch issue.
-    # We're leaving this test in so that we can reliably reproduce and debug this in the future.
-    with pytest.raises(AssertionError) as ae:
-        lm += f"""numbers.<|user|>\n1,2,3,4<|end|>\n<|assistant|>\n"""
-        lm += gen("five", max_tokens=10)
-    print(f"{ae.value.args=}")
-    assert ae.value.args[0] == "Cross check last_pos"
-
-
-def test_phi3_chat_fixed(phi3_model: models.Model):
+def test_phi3_chat_basic(phi3_model: models.Model):
     lm = phi3_model
 
     lm += "You are a counting bot. Just keep counting numbers."
@@ -153,3 +123,49 @@ def test_phi3_chat_fixed(phi3_model: models.Model):
         lm += gen(name="five", max_tokens=10)
 
     assert "5" in lm["five"]
+
+
+def test_phi3_chat_unrolled(phi3_model: models.Model):
+    lm = phi3_model
+    # Manually convert the chat format into completions style
+    lm += f"""<|user|>\nYou are a counting bot. Just keep counting numbers.<|end|>\n<|assistant|>\n1,2,3,4,"""
+    lm += gen("five", max_tokens=10)
+
+    assert "5" in lm["five"]
+
+
+def test_phi3_newline_chat(phi3_model: models.Model):
+    lm = phi3_model
+
+    lm += "You are a counting bot. Just keep counting numbers."
+    with user():
+        lm += "1\n2\n3\n4\n"
+    with assistant():
+        lm += "\n" + gen(name="five", max_tokens=1)
+        lm += "\n" + gen(name="six", max_tokens=1)
+    
+    # This test would raise an exception earlier if we didn't fix the tokenizer.
+    assert True
+
+
+def test_phi3_unstable_tokenization(phi3_model: models.Model):
+    lm = phi3_model
+
+    lm += "You are a counting bot. Just keep counting numbers."
+    with user():
+        lm += "1,2,3,4,"
+    with assistant():
+        lm += "\n" # comment and uncomment this line to get the error
+        lm += gen(name="five", max_tokens=1)
+        lm += "," + gen(name="six", max_tokens=1)
+
+    assert True
+
+
+def test_phi3_basic_completion_badtokens(phi3_model: models.Model):
+    lm = phi3_model
+    # Bad user tokens, but we should still generate /something/
+    lm += f"""<|use\n\nYou are a counting bot. Just keep counting numbers.<|end|><|assistant|>1,2,3,4,"""
+    lm += gen("five", max_tokens=10)
+
+    assert len(lm["five"]) > 0

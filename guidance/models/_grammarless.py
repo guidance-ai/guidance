@@ -6,7 +6,7 @@ import tiktoken
 import re
 import logging
 from ._model import Tokenizer, Engine, Model, format_pattern, ConstraintException
-from .._chat import ChatMLTemplate
+from ..chat import ChatMLTemplate
 
 import warnings
 logger = logging.getLogger(__name__)

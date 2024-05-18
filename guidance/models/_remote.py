@@ -3,7 +3,7 @@ import os
 import base64
 
 from ._model import Tokenizer, Engine, EngineCallResponse
-from .._chat import ChatMLTemplate
+from ..chat import ChatMLTemplate
 from ._grammarless import GrammarlessTokenizer
 
 class RemoteEngine(Engine):
