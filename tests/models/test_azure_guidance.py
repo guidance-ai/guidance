@@ -439,3 +439,30 @@ def test_mocked_substring(test_str, azure_guidance_model: guidance.models.Model)
     assert lm["result"] in test_str
 
 
+def test_azure_guidance_stateless_inside_stateful(azure_guidance_model: guidance.models.Model):
+    @guidance(stateless=False, dedent=False)
+    def stateful_grammar1(lm):
+        return lm + select(["+", "-"]) + stateful_grammar2()
+
+    @guidance(stateless=False, dedent=False)
+    def stateful_grammar2(lm):
+        return lm + "p4" + stateless_grammar1()
+
+    @guidance(stateless=True, dedent=False)
+    def stateless_grammar1(lm):
+        return lm + "3L" + stateless_grammar2()
+
+    @guidance(stateless=True, dedent=False)
+    def stateless_grammar2(lm):
+        return lm + "Yy" + stateless_grammar3()
+
+    @guidance(stateless=True, dedent=False)
+    def stateless_grammar3(lm):
+        return lm + select(["A", "B"])
+
+    lm = azure_guidance_model
+    lm += "begin:" + stateful_grammar1()
+    result = str(lm)
+    assert result == "begin:+p43LYyA" or result == "begin:-p43LYyA" or result == "begin:+p43LYyB" or result == "begin:-p43LYyB"
+
+
