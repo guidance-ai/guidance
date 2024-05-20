@@ -38,7 +38,6 @@ extras_requires = {
     "openai": ["openai>=1.0"],
     "schemas": ["jsonschema"],
     "server": ["fastapi", "uvicorn"],
-    "bench": ["pandas", "langchain_benchmarks", "langchain-community", "langsmith", "powerlift"]
 }
 
 # Create the union of all our requirements
@@ -69,6 +68,13 @@ test_requires = [
     "types-regex",
     "types-requests",
     "types-jsonschema",
+]
+bench_requires = [
+    "pandas",
+    "langchain_benchmarks",
+    "langchain-community",
+    "langsmith",
+    "powerlift"
 ]
 
 
@@ -107,6 +113,7 @@ setup(
         "all": all_requires,
         "docs": doc_requires,
         "test": test_requires,
+        "bench": bench_requires,
         **extras_requires,
     },
 )
