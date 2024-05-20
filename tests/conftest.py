@@ -74,7 +74,7 @@ def selected_model_info(selected_model_name: str):
     return model_info
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def selected_model(selected_model_info: str) -> models.Model:
     """Get a concrete model for tests
 
