@@ -71,7 +71,7 @@ test_requires = [
 ]
 bench_requires = [
     "pandas",
-    "huggingface_hub"
+    "huggingface_hub",
     "langchain_benchmarks",
     "langchain-community",
     "langsmith",
