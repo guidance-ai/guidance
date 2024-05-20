@@ -38,6 +38,7 @@ extras_requires = {
     "openai": ["openai>=1.0"],
     "schemas": ["jsonschema"],
     "server": ["fastapi", "uvicorn"],
+    "bench": ["pandas", "langchain_benchmarks", "langchain-community", "langsmith", "powerlift"]
 }
 
 # Create the union of all our requirements

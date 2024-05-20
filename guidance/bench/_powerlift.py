@@ -2,7 +2,6 @@
 
 from typing import Generator, List, Optional, Tuple, Union
 import pathlib
-import pandas as pd
 from pathlib import Path
 
 
@@ -415,7 +414,7 @@ def bench(
     timeout: Optional[int] = 3600,
     cache_dir: Optional[Union[str, Path]] = Path.home() / ".guidance-bench" / "cache",
     debug_mode: Optional[bool] = False,
-) -> Tuple[pd.DataFrame, pd.DataFrame]:
+) -> Tuple[object, object]:
     """Benchmarks guidance against preset tasks.
 
     This runs on a single machine, one trial at a time.
@@ -431,7 +430,7 @@ def bench(
         debug_mode (Optional[bool]): Set this when you require a debugger to step line by line in the trial_runner.
 
     Returns:
-        Tuple[pd.DataFrame, pd.DataFrame]: (status, results) where status relates to trials, results are wide form aggregates of each model.
+        Tuple[object, object]: (status, results) data frames where status relates to trials, results are wide form aggregates of each model.
     """
     from powerlift.bench import Benchmark, Store, populate_with_datasets
     from powerlift.executors import LocalMachine
