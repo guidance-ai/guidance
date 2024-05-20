@@ -1,9 +1,22 @@
+import sys
+
+# Check if 'setup.py' is run directly with 'build'
+# TODO: Consider generalizing this check further?
+if __name__ == "__main__":
+    if len(sys.argv) >= 2 and sys.argv[1] == "build":
+        raise SystemExit(
+            "Error: Direct invocation of 'setup.py build' is not recommended."
+            "Please use 'pip' to build and install this package, like so:\n"
+            "  pip install . (for the current directory)\n"
+            "  pip install -e . (for an editable install)\n"
+            "  pip wheel . --no-deps (to build a wheel)"
+        )
+
 import os
 import re
 import codecs
 from setuptools import setup, find_packages
 from pybind11.setup_helpers import Pybind11Extension, build_ext
-from setuptools_rust import Binding, RustExtension
 
 here = os.path.abspath(os.path.dirname(__file__))
 
@@ -33,7 +46,16 @@ for v in extras_requires.values():
     all_requires = all_requires.union(v)
 
 # Required for builds etc.
-doc_requires = ["ipython", "nbsphinx", "numpydoc", "sphinx_rtd_theme", "sphinx"]
+doc_requires = [
+    "ipython",
+    "nbsphinx",
+    "numpydoc",
+    "sphinx_rtd_theme",
+    "sphinx",
+    "ipykernel",
+    "huggingface_hub",
+    "llama-cpp-python",
+]
 test_requires = [
     "jupyter",
     "papermill",
@@ -75,13 +97,6 @@ setup(
     ext_modules=[
         Pybind11Extension(
             "guidance.cpp", ["guidance/_cpp/main.cpp", "guidance/_cpp/byte_trie.cpp"]
-        )
-    ],
-    rust_extensions=[
-        RustExtension(
-            "guidance._rust.guidancerust",
-            "guidance/_rust/Cargo.toml",
-            binding=Binding.PyO3,
         )
     ],
     cmdclass={"build_ext": build_ext},

@@ -3,7 +3,6 @@ requires = [
     "setuptools>=42",
     "wheel",
     "pybind11>=2.10.0",
-    "setuptools-rust",
 ]
 build-backend = "setuptools.build_meta"
 
@@ -13,6 +12,7 @@ markers = [
     "server: Potentially unreliable tests of the server functionality",
     "needs_credentials: Test which needs access to credentials to work",
     "use_gpu: Test which uses always uses GPU (model not injected via fixture)",
+    "notebooks: Test of the notebooks",
 ]
 
 [tool.black]

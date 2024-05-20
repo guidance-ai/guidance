@@ -12,9 +12,23 @@ AVAILABLE_MODELS = {
     "phi2cpu": dict(
         name="transformers:microsoft/phi-2", kwargs={"trust_remote_code": True}
     ),
-    "phi3cpu-mini-4k-instruct": dict(
+    "azure_guidance": dict(
+        name="azure_guidance:",
+        kwargs={},
+    ),
+    "transformers_phi3cpu_mini_4k_instruct": dict(
         name="transformers:microsoft/Phi-3-mini-4k-instruct",
         kwargs={"trust_remote_code": True},
+    ),
+    "transformers_llama3cpu_8b": dict(
+        # Note that this model requires an appropriate
+        # HF_TOKEN environment variable
+        name="meta-llama/Meta-Llama-3-8B-Instruct",
+        kwargs={"trust_remote_code": True},
+    ),
+    "hfllama_phi3cpu_mini_4k_instruct": dict(
+        name="huggingface_hubllama:microsoft/Phi-3-mini-4k-instruct-gguf:Phi-3-mini-4k-instruct-q4.gguf",
+        kwargs={"verbose": True, "n_ctx": 4096},
     ),
     "hfllama7b": dict(
         name="huggingface_hubllama:TheBloke/Llama-2-7B-GGUF:llama-2-7b.Q5_K_M.gguf",

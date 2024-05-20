@@ -36,7 +36,7 @@ except ImportError:
         "Failed to load guidance.cpp, falling back to Python mirror implementations..."
     )
     from .. import _cpp as cpp
-from .._rust.guidancerust import engine_start
+from ._guidance_engine_metrics import GuidanceEngineMetrics
 from .._utils import softmax, CaptureEvents
 from .._parser import EarleyCommitParser, Parser
 from .._grammar import (
@@ -51,6 +51,7 @@ from .._grammar import (
 )
 
 from .. import _serialization_pb2
+from ..chat import load_template_class
 
 if TYPE_CHECKING:
     from ..library._block import ContextBlock
@@ -71,8 +72,8 @@ class Tokenizer:
     This class should be subclassed by specific implementations and then used as the
     tokenizer in the corresponding Engine subclass.
     """
-
-    def __init__(self, tokens, bos_token_id=None, eos_token_id=None):
+    # TODO: We should probably have encode and decode methods on here...
+    def __init__(self, tokens, chat_template, bos_token_id=None, eos_token_id=None):
 
         # a numpy array of token byte strings indexed by their token id
         if isinstance(tokens, list):
@@ -90,6 +91,11 @@ class Tokenizer:
         assert isinstance(
             self.tokens[0], bytes
         ), "The tokens need to be provided as bytes!"
+
+
+        # This method supports None, a huggingface style jinja2_template_str, or a ChatTemplate subclass
+        # Defaults to ChatML if nothing is found
+        self.chat_template = load_template_class(chat_template)
 
         self.bos_token_id = bos_token_id
         self.bos_token = (
@@ -203,6 +209,14 @@ class Engine:
         self._token_trie.match = True
         self._token_trie.match_version = 0
 
+        self.metrics = GuidanceEngineMetrics()
+
+    def get_chat_template(self): # TODO [HN]: Add more logic here...should we instantiate class here? do we even need to?
+        return self.tokenizer.chat_template() # Instantiate the class before returning to client for now
+    
+    def reset_metrics(self):
+        self.metrics = GuidanceEngineMetrics()
+
     def start(self, parser, grammar, ensure_bos_token=True):
         """Start processing parser state executed through the grammar.
 
@@ -294,15 +308,11 @@ class Engine:
             # if requested we compute the log probabilities so we can track the probabilities of each node
             if self.compute_log_probs:
                 if torch_is_imported:
-                    probs = (
-                        torch.nn.functional.softmax(torch.tensor(logits), dim=-1)
-                        .cpu()
-                        .numpy()
-                    )  # note we don't adjust for temp since we consider that a sampling step, not part of the probs
+                    # note we don't adjust for temp since we consider that a sampling step, not part of the probs
+                    probs = torch.nn.functional.softmax(torch.tensor(logits), dim=-1).cpu().numpy()
                 else:
-                    probs = softmax(
-                        logits, axis=-1
-                    )  # this numpy code is slower, so we don't use it if we have torch...
+                     # this numpy code is slower, so we don't use it if we have torch...
+                    probs = softmax(logits, axis=-1)
                 self.tokenizer.clean_duplicate_tokens(probs)
                 self._trie.compute_probs(probs)  # C++ impl
             else:
@@ -313,18 +323,15 @@ class Engine:
 
             # get the sampling order
             if current_temp == 0:
-                sampling_order = np.argsort(
-                    -logits
-                )  # we need numpy so the enumerate below does not get really slow...
+                # we need numpy so the enumerate below does not get really slow...
+                sampling_order = np.argsort(-logits)  
             else:
                 # assert top_p == 1, "Still need to add support for top_p!"
                 if torch_is_imported:
                     logits = torch.tensor(logits)
                     torch.div(logits, current_temp, out=logits)
                     probs_torch = torch.nn.functional.softmax(logits, dim=-1)
-                    sampling_order = (
-                        torch.multinomial(probs_torch, len(probs_torch)).cpu().numpy()
-                    )
+                    sampling_order = torch.multinomial(probs_torch, len(probs_torch)).cpu().numpy()
                 else:
                     # this numpy version allows us to drop our dependence on pytorch...but it is way slower
                     if probs is None:
@@ -344,9 +351,7 @@ class Engine:
                     break
 
                 # make sure it matches any forced prefix
-                used_forced_pos = min(
-                    self._forced_pos, self._start_pos + len(self._sampled_token)
-                )
+                used_forced_pos = min(self._forced_pos, self._start_pos + len(self._sampled_token))
                 if (
                     self._start_pos < self._forced_pos
                     and not self._sampled_token.startswith(
@@ -366,9 +371,9 @@ class Engine:
 
                 # check to see if the sampled token is allowed
                 token_pos = offset
-                node = (
-                    self._trie
-                )  # this is the Trie node we were left at when we could force the next byte above
+
+                # this is the Trie node we were left at when we could force the next byte above
+                node = self._trie
 
                 while token_pos < len(self._sampled_token):
                     next_byte = self._sampled_token[token_pos : token_pos + 1]
@@ -377,11 +382,9 @@ class Engine:
                     # if we don't have a cached match flag compute it using the grammar
                     if next_node.match_version < self._token_trie.match_version:
                         next_byte_mask = self._parser.next_byte_mask()
-                        for (
-                            byte
-                        ) in (
-                            node.keys()
-                        ):  # we update all the children since the parser knows the full mask
+
+                        # we update all the children since the parser knows the full mask
+                        for byte in node.keys():  
                             child = node.child(byte)
                             child.match_version = self._token_trie.match_version
                             child.match = next_byte_mask[byte[0]]
@@ -475,14 +478,10 @@ class Engine:
                     break  # if we already have a full match we don't try more tokens we just give up as soon as the model deviates from the grammar
 
         is_done = False
-        while (
-            True
-        ):  # each iteration generates one more token (and some of the associated bytes)
+        while True:  # each iteration generates one more token (and some of the associated bytes)
             if is_new_token:
                 # emit whatever we know will not be hidden
-                new_bytes = self._parser.bytes[
-                    self._generated_pos : self._parser.earliest_hidden_start()
-                ]
+                new_bytes = self._parser.bytes[self._generated_pos : self._parser.earliest_hidden_start()]
 
                 # if we cannot consume any more tokens then we are done
                 if (
@@ -503,9 +502,7 @@ class Engine:
                     #     self._cache_state["new_token_ids"].append(self._sampled_token_ind)
 
                     # capture the named groups from the parse tree
-                    self._parser.get_captures(
-                        self._captured_data, self._captured_log_prob_data
-                    )
+                    self._parser.get_captures(self._captured_data, self._captured_log_prob_data)
 
                     # we have no valid log prob data if we didn't compute it
                     # yield new_bytes[self._hidden_count:], self._is_generated, self._new_bytes_prob, self._captured_data, self._captured_log_prob_data, token_count - last_token_count
@@ -578,9 +575,9 @@ class Engine:
 
             # walk down the trie as far as possible before computing the logits
             self._trie = self._token_trie
-            self._trie.match_version += (
-                1  # this invalidates all the match caches from the previous token
-            )
+            
+            # this invalidates all the match caches from the previous token
+            self._trie.match_version += 1
             # self._trie.prob = 0.0 # need to reset when we reset the match_version
             while True:
                 next_byte_mask = self._parser.next_byte_mask()
@@ -734,9 +731,6 @@ class Engine:
 
         self.start(parser, grammar, ensure_bos_token)
 
-        # TODO: remove this after the next release. This verifies that calling Rust works.
-        assert("def" == engine_start("abc", "def", 1))
-
         logits = None
         while True:
             is_done, logits_state, response_state = self.next(logits)
@@ -832,7 +826,8 @@ class Engine:
                 pos += len(self.tokenizer.tokens[id])
                 token_byte_positions.append(pos)
 
-            # ugly hack to deal with sentence peice craziness of space hiding after special tokens TODO: figure out how to make this more robust
+            # ugly hack to deal with sentence piece craziness of space hiding after special tokens 
+            # TODO: figure out how to make this more robust
             if (
                 token_byte_positions[-1] == last_pos + 1
                 and self.tokenizer.tokens[token_ids[0]] == b"<s>"
@@ -840,7 +835,11 @@ class Engine:
             ):
                 for i in range(1, len(token_byte_positions)):
                     token_byte_positions[i] -= 1
-            assert token_byte_positions[-1] == last_pos
+            
+            # another ugly hack for tokenizers that are not stable on encode/decode cycles
+            # currently only Phi-3, should generalize this method if we see more of these
+            if not hasattr(self, "_disable_retokenize_check"):
+                assert token_byte_positions[-1] == last_pos, "Cross check last_pos"
 
         return token_ids, token_byte_positions
 
@@ -867,7 +866,7 @@ class Model:
 
     Model objects are immutable representations of model state, so whenever you change
     them you get a new Model object. However, these copies share the "expensive"
-    parts of the underlying model like the the parameters and KV-cache, through a shared
+    parts of the underlying model like the parameters and KV-cache, through a shared
     Engine, so making copies of Model objects is cheap.
 
     .. automethod:: __add__
@@ -899,6 +898,7 @@ class Model:
         #     tokenizer = Tokenizer(tokenizer)
 
         self.engine = engine
+        self.chat_template = engine.get_chat_template() # TODO [HN]: Should this be a method or attr?
         self.echo = echo
         self.token_count = 0  # tracks how many tokens our byte state represents
         self.max_display_rate = 0.2  # this controls how frequently we are allowed to redraw the display (in seconds)
@@ -907,19 +907,13 @@ class Model:
 
         # private attributes
         self._variables = {}  # these are the state variables stored with the model
-        self._variables_log_probs = (
-            {}
-        )  # these are the state variables stored with the model
+        self._variables_log_probs = {}  # these are the state variables stored with the model
         self._cache_state = {}  # mutable caching state used to save computation
         self._state = ""  # the current bytes that represent the state of the model
         self._event_queue = None  # TODO: these are for streaming results in code, but that needs implemented
         self._event_parent = None
-        self._last_display = (
-            0  # used to track the last display call to enable throttling
-        )
-        self._last_event_stream = (
-            0  # used to track the last event streaming call to enable throttling
-        )
+        self._last_display = 0  # used to track the last display call to enable throttling
+        self._last_event_stream = 0  # used to track the last event streaming call to enable throttling
 
     @property
     def active_role_end(self):
@@ -984,17 +978,15 @@ class Model:
         new_lm.opened_blocks = self.opened_blocks.copy()
 
         # create a new clean event queue
-        new_lm._event_queue = (
-            None  # we start with no event queue because nobody is listening to us yet
-        )
+        new_lm._event_queue = None  # we start with no event queue because nobody is listening to us yet
+
         if self._event_queue is not None:
-            new_lm._event_parent = (
-                self  # the current lm has an event que we make it our parent
-            )
+            # if the current lm has an event queue, we make it our parent
+            new_lm._event_parent = self
+
         elif self._event_parent is not None:
-            new_lm._event_parent = (
-                self._event_parent
-            )  # otherwise if the current event que has an event parent then that is also our parent
+            # otherwise if the current event que has an event parent then that is also our parent
+            new_lm._event_parent = self._event_parent  
 
         return new_lm
 
@@ -1118,9 +1110,7 @@ class Model:
                 lm += context.opener
                 with grammar_only():
                     tmp = lm + context.closer
-                close_text = tmp._state[
-                    len(lm._state) :
-                ]  # get the new state added by calling the closer
+                close_text = tmp._state[len(lm._state):]  # get the new state added by calling the closer
                 lm.opened_blocks[context] = (len(lm._state), close_text)
 
                 # clear out names that we override
@@ -1415,9 +1405,7 @@ class Model:
                                 except UnicodeDecodeError:
                                     pass
 
-                                if k not in lm or not isinstance(
-                                    lm._variables[k], list
-                                ):
+                                if k not in lm or not isinstance(lm._variables[k], list):
                                     lm._variables[k] = []
                                     lm._variables_log_probs[k] = []
                                 lm._variables[k].append(inner_v)
@@ -1434,9 +1422,7 @@ class Model:
                             except UnicodeDecodeError:
                                 pass
                             lm._variables[k] = v
-                            lm._variables_log_probs[k] = chunk.capture_group_log_probs[
-                                k
-                            ]
+                            lm._variables_log_probs[k] = chunk.capture_group_log_probs[k]
 
             # if len(chunk.capture_groups) > 0:
             #     for k in chunk.capture_groups:
@@ -1620,9 +1606,7 @@ def _check_dominated(node, parser, match_version, next_byte_mask):
             return False  # this child does not dominate the node, so the node is not dominated
         elif child.value is None:  # this child might not dominate the node
             parser.consume_byte(next_byte, log_prob=0.0)
-            child_dominate = _check_dominated(
-                child, parser, match_version, parser.next_byte_mask()
-            )
+            child_dominate = _check_dominated(child, parser, match_version, parser.next_byte_mask())
             parser.pos = curr_pos
             if not child_dominate:
                 return False
