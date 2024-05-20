@@ -227,7 +227,7 @@ def langchain_chat_extract_runner(trial):
                 if "mistral" in trial.method.name:
                     lm_path = hf_hub_download(
                         "TheBloke/Mistral-7B-Instruct-v0.2-GGUF",
-                        "mistral-7b-instruct-v0.2.Q8_0.gguf"
+                        "mistral-7b-instruct-v0.2.Q8_0.gguf",
                     )
                 elif "llama2-7b" in trial.method.name:
                     lm_path = hf_hub_download(
@@ -240,7 +240,9 @@ def langchain_chat_extract_runner(trial):
                         "Phi-3-mini-4k-instruct-fp16.gguf",
                     )
                 else:
-                    raise ValueError(f"No support for method {trial.method.name}")  # pragma: no cover
+                    raise ValueError(
+                        f"No support for method {trial.method.name}"
+                    )  # pragma: no cover
 
                 base_lm = models.LlamaCpp(
                     lm_path,
@@ -413,7 +415,7 @@ def bench(
     force_recreate: bool,
     timeout: int,
     cache_dir: Union[str, Path],
-    debug_mode: bool
+    debug_mode: bool,
 ) -> Tuple[object, object]:
     """Runs the benchmark.
 
