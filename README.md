@@ -55,8 +55,8 @@ else:
 ```python
 from guidance import user, assistant
 
-# load a chat model
-chat_lm = models.LlamaCppChat(path)
+# load a model
+chat_lm = models.LlamaCpp(path)
 
 # wrap with chat block contexts
 with user():

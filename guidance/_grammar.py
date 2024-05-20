@@ -831,6 +831,10 @@ def select(
     If the list only has a single element, then that value can be returned
     immediately, without calling the LLM.
 
+        >>> lm += select(["Temeraire", "Redoutable", "Bucentaure"], name="my_selection")
+        >>> print(lm["my_selection"])
+        Temeraire
+
     Parameters
     ----------
     name : str or None

@@ -7,14 +7,10 @@ nodisp_end = "<||_/NODISP_||>"
 span_start = "<||_html:<span style='background-color: rgba(255, 180, 0, 0.3); border-radius: 3px;'>_||>"
 span_end = "<||_html:</span>_||>"
 
-
 @guidance
 def role_opener(lm, role_name, **kwargs):
     indent = getattr(lm, "indent_roles", True)
-    if not hasattr(lm, "get_role_start"):
-        raise Exception(
-            f"You need to use a chat model in order the use role blocks like `with {role_name}():`! Perhaps you meant to use the {type(lm).__name__}Chat class?"
-        )
+
 
     # Block start container (centers elements)
     if indent:
@@ -25,8 +21,17 @@ def role_opener(lm, role_name, **kwargs):
         lm += nodisp_start
     else:
         lm += span_start
-
-    lm += lm.get_role_start(role_name, **kwargs)
+    
+    # TODO [HN]: Temporary change while I instrument chat_template in transformers only.
+    # Eventually have all models use chat_template.
+    if hasattr(lm, "get_role_start"):
+        lm += lm.get_role_start(role_name, **kwargs)
+    elif hasattr(lm, "chat_template"):
+        lm += lm.chat_template.get_role_start(role_name)
+    else:
+        raise Exception(
+            f"You need to use a chat model in order the use role blocks like `with {role_name}():`! Perhaps you meant to use the {type(lm).__name__}Chat class?"
+        )
 
     # End of either debug or HTML no disp block
     if indent:
@@ -46,7 +51,12 @@ def role_closer(lm, role_name, **kwargs):
     else:
         lm += span_start
 
-    lm += lm.get_role_end(role_name)
+    # TODO [HN]: Temporary change while I instrument chat_template in transformers only.
+    # Eventually have all models use chat_template.
+    if hasattr(lm, "get_role_end"):
+        lm += lm.get_role_end(role_name)
+    elif hasattr(lm, "chat_template"):
+        lm += lm.chat_template.get_role_end(role_name)
 
     # End of either debug or HTML no disp block
     if indent:
@@ -60,7 +70,7 @@ def role_closer(lm, role_name, **kwargs):
 
     return lm
 
-
+# TODO HN: Add a docstring to better describe arbitrary role functions
 def role(role_name, text=None, **kwargs):
     if text is None:
         return block(
@@ -80,6 +90,10 @@ def system(text=None, **kwargs):
     and assistant.
     This indicates the start of a 'system' block, which
     provides background information to the LLM.
+
+        >>> with system():
+        >>>     lm += "A system prompt"
+
     """
     return role("system", text, **kwargs)
 
@@ -92,6 +106,10 @@ def user(text=None, **kwargs):
     and assistant.
     This indicates the start of a 'user' block, which
     provides input to the LLM from the user.
+
+        >>> with user():
+        >>>     lm += "What the user said"
+
     """
     return role("user", text, **kwargs)
 
@@ -105,6 +123,10 @@ def assistant(text=None, **kwargs):
     This indicates the start of an 'assistant' block, which
     marks LLM response (or where the LLM will generate
     the next response).
+
+        >>> with assistant():
+        >>>     lm += gen(name="model_output", max_tokens=20)
+
     """
     return role("assistant", text, **kwargs)
 

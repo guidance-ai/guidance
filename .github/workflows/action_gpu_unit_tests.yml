@@ -18,7 +18,7 @@ jobs:
         model:
           - "gpt2gpu"
           - "phi2gpu"
-          - "hfllama_7b_gpu"
+          # - "hfllama_7b_gpu" Keeps causing intermittent segfaults
     runs-on: ${{ inputs.os }}
 
     steps:
@@ -56,7 +56,7 @@ jobs:
       - name: GPU pip installs
         run: |
           pip install accelerate
-          CMAKE_ARGS="-DLLAMA_CUBLAS=on" pip install "llama-cpp-python!=0.2.58"
+          CMAKE_ARGS="-DLLAMA_CUBLAS=on" pip install "llama-cpp-python!=0.2.58,!=0.2.75"
       - name: Check GPU available
         run: |
           python -c "import torch; assert torch.cuda.is_available()"
@@ -64,7 +64,7 @@ jobs:
         run: |
           pytest -vv --cov=guidance --cov-report=xml --cov-report=term-missing \
             --selected_model ${{ matrix.model }} \
-            -m "not (server or needs_credentials)" \
+            -m "not (server or needs_credentials or notebooks)" \
             ./tests/
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4

@@ -6,32 +6,32 @@ _ = pytest.importorskip("openai")
 import guidance
 from guidance import assistant, gen, select, system, user
 
+# This is all redundant with the class unification
+# def test_openai_class_detection():
+#     # TODO: expand this with other variants of openAI models
+#     test_models = {
+#         "gpt-3.5-turbo": guidance.models.OpenAIChat,
+#         "gpt-4": guidance.models.OpenAIChat,
+#         "gpt-4-vision-preview": guidance.models.OpenAIChat,
+#         "ft:gpt-3.5-turbo": guidance.models.OpenAIChat,
+#         "ft:gpt-4": guidance.models.OpenAIChat,
+#         "ft:gpt-4-vision-preview": guidance.models.OpenAIChat,
+#         "ft:gpt-3.5-turbo:my-org:custom_suffix:id": guidance.models.OpenAIChat,
+#         "gpt-3.5-turbo-instruct": guidance.models.OpenAICompletion,
+#         "ft:gpt-3.5-turbo-instruct": guidance.models.OpenAICompletion,
+#         "text-curie-001": guidance.models.OpenAICompletion,
+#         "ft:text-curie-001": guidance.models.OpenAICompletion,
+#         "text-davinci-003": guidance.models.OpenAICompletion,
+#     }
 
-def test_openai_class_detection():
-    # TODO: expand this with other variants of openAI models
-    test_models = {
-        "gpt-3.5-turbo": guidance.models.OpenAIChat,
-        "gpt-4": guidance.models.OpenAIChat,
-        "gpt-4-vision-preview": guidance.models.OpenAIChat,
-        "ft:gpt-3.5-turbo": guidance.models.OpenAIChat,
-        "ft:gpt-4": guidance.models.OpenAIChat,
-        "ft:gpt-4-vision-preview": guidance.models.OpenAIChat,
-        "ft:gpt-3.5-turbo:my-org:custom_suffix:id": guidance.models.OpenAIChat,
-        "gpt-3.5-turbo-instruct": guidance.models.OpenAICompletion,
-        "ft:gpt-3.5-turbo-instruct": guidance.models.OpenAICompletion,
-        "text-curie-001": guidance.models.OpenAICompletion,
-        "ft:text-curie-001": guidance.models.OpenAICompletion,
-        "text-davinci-003": guidance.models.OpenAICompletion,
-    }
-
-    for model_name, model_class in test_models.items():
-        # setting random tokenizer and fake API key to allow this test to run without tiktoken detection errors
-        initialized_model = guidance.models.OpenAI(
-            model_name,
-            tokenizer=tiktoken.encoding_for_model("gpt-3.5-turbo"),
-            api_key="blah",
-        )
-        assert isinstance(initialized_model, model_class)
+#     for model_name, model_class in test_models.items():
+#         # setting random tokenizer and fake API key to allow this test to run without tiktoken detection errors
+#         initialized_model = guidance.models.OpenAI(
+#             model_name,
+#             tokenizer=tiktoken.encoding_for_model("gpt-3.5-turbo"),
+#             api_key="blah",
+#         )
+#         assert isinstance(initialized_model, model_class)
 
 
 def test_openai_basic():
