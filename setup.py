@@ -75,6 +75,8 @@ bench_requires = [
     "langchain_benchmarks",
     "langchain-community",
     "langsmith",
+    "json_stream",
+    "llama-cpp-python",
     "powerlift"
 ]
 

@@ -410,28 +410,28 @@ def bench(
     db_url: str,
     experiment_name: str,
     models: List[str],
-    force_recreate: Optional[bool] = False,
-    timeout: Optional[int] = 3600,
-    cache_dir: Optional[Union[str, Path]] = Path.home() / ".guidance-bench" / "cache",
-    debug_mode: Optional[bool] = False,
+    force_recreate: bool,
+    timeout: int,
+    cache_dir: Union[str, Path],
+    debug_mode: bool
 ) -> Tuple[object, object]:
-    """Benchmarks guidance against preset tasks.
+    """Runs the benchmark.
 
-    This runs on a single machine, one trial at a time.
-    To run this the first time you will need API_LANGCHAIN_KEY set as an environment variable.
+    Requires LANGCHAIN_API_KEY to be set as an environment variable the first time.
 
     Args:
         db_url (str): Database connection string.
         experiment_name (str): Name of experiment to create / run.
         models (List[str]): Models to benchmark.
-        force_recreate (Optional[bool], optional): Recreate the database before benchmarking. Defaults to False.
-        timeout (Optional[int], optional): Max execution time per trial. Defaults to 3600.
-        cache_dir (Optional[Union[str, Path]], optional): Cache to store external datasets. Defaults to Path.home()/".guidance-bench"/"cache".
-        debug_mode (Optional[bool]): Set this when you require a debugger to step line by line in the trial_runner.
+        force_recreate (bool): Recreate the database before benchmarking.
+        timeout (int): Max execution time per trial.
+        cache_dir (Union[str, Path]): Cache to store external datasets.
+        debug_mode (bool): Set this when you require a debugger to step line by line in the trial runner.
 
     Returns:
         Tuple[object, object]: (status, results) data frames where status relates to trials, results are wide form aggregates of each model.
     """
+
     from powerlift.bench import Benchmark, Store, populate_with_datasets
     from powerlift.executors import LocalMachine
 

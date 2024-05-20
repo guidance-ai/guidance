@@ -2,6 +2,7 @@
 
 from typing import List, Optional, Tuple, Union
 from pathlib import Path
+from guidance.bench._utils import lib_bench_dir
 
 """Available models to run benchmark against."""
 AVAILABLE_MODELS = [
@@ -20,7 +21,7 @@ def bench(
     models: Optional[List[str]] = AVAILABLE_MODELS,
     force_recreate: Optional[bool] = False,
     timeout: Optional[int] = 3600,
-    cache_dir: Optional[Union[str, Path]] = Path.home() / ".guidance-bench" / "cache",
+    cache_dir: Optional[Union[str, Path]] = lib_bench_dir() / "cache",
     debug_mode: Optional[bool] = False,
 ) -> Tuple[object, object]:
     """Benchmarks guidance against preset tasks.
@@ -34,7 +35,7 @@ def bench(
         models (Optional[List[str]], optional): Models to benchmark. Defaults to AVAILABLE_MODELS.
         force_recreate (Optional[bool], optional): Recreate the database before benchmarking. Defaults to False.
         timeout (Optional[int], optional): Max execution time per trial. Defaults to 3600.
-        cache_dir (Optional[Union[str, Path]], optional): Cache to store external datasets. Defaults to Path.home()/".guidance-bench"/"cache".
+        cache_dir (Optional[Union[str, Path]], optional): Cache to store external datasets. Defaults to lib_bench_dir() / "cache".
         debug_mode (Optional[bool]): Set this when you require a debugger to step line by line in the trial_runner.
 
     Returns:

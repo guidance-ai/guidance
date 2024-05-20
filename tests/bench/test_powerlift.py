@@ -10,8 +10,8 @@ def test_retrieve_langchain_err(monkeypatch):
         gen = retrieve_langchain()
         _ = list(gen)
 
-# @pytest.mark.skip("Waiting on CI upgrades. Need access to env var LANGCHAIN_API_KEY.")
-@pytest.mark.needs_credentials
+@pytest.mark.skip("Waiting on CI upgrades. Need access to env var LANGCHAIN_API_KEY.")
+# @pytest.mark.needs_credentials
 def test_retrieve_langchain_basic():
     with tempfile.TemporaryDirectory() as tmp_dir:
         # Run once
@@ -23,3 +23,9 @@ def test_retrieve_langchain_basic():
         second_results = list(retrieve_langchain(cache_dir=tmp_dir))
         for first, second in zip(first_results, second_results):
             assert first.inputs.equals(second.inputs)
+
+def test_retrieve_langchain():
+    import os
+    cache_dir = Path(os.path.expanduser("~/.guidance-bench/cache"))
+    _ = list(retrieve_langchain(cache_dir=cache_dir))
+    assert Path.exists(cache_dir)

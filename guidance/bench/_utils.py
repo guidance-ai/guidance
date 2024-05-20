@@ -17,7 +17,7 @@ def lib_bench_dir() -> Path:
 
     lib_path = os.environ.get("GUIDANCE_BENCH_DIR", None)
     if lib_path is None:
-        lib_path = Path.joinpath(Path.home(), ".guidance-bench")
+        lib_path = Path.home() / ".guidance-bench"
     else:
         lib_path = Path(lib_path)
     Path.mkdir(lib_path, parents=True, exist_ok=True)
