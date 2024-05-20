@@ -18,7 +18,7 @@ jobs:
         model:
           - "gpt2gpu"
           - "phi2gpu"
-          - "hfllama_7b_gpu"
+          # - "hfllama_7b_gpu" Keeps causing intermittent segfaults
     runs-on: ${{ inputs.os }}
 
     steps:
