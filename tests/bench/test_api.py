@@ -3,7 +3,7 @@ from pathlib import Path
 import tempfile
 import pytest
 
-@pytest.mark.skip("Waiting on CI upgrades. Need access to env var LANGCHAIN_API_KEY and specific llamacpp models.")
+# @pytest.mark.skip("Waiting on CI upgrades. Need access to env var LANGCHAIN_API_KEY and specific llamacpp models.")
 def test_bench():
     # TODO(nopdive): Parameterize models once CI is upgraded.
     with tempfile.TemporaryDirectory() as tmp_dir:

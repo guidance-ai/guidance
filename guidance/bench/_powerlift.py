@@ -121,11 +121,11 @@ def langchain_chat_extract_runner(trial):
     """
     from guidance import models, gen, guidance, select, zero_or_more
     from time import time
-    from pathlib import Path
     import pandas as pd
     import json
     import json_stream
     import io
+    from huggingface_hub import hf_hub_download
 
     if trial.task.name == "chat_extract":
         inputs, outputs, meta = trial.task.data(["inputs", "outputs", "meta"])
@@ -224,31 +224,31 @@ def langchain_chat_extract_runner(trial):
         for i, row in merged_df.iterrows():
             # Initialize LLM
             if i == 0:
-                model_dir = Path.home() / ".guidance-bench" / "models"
                 if "mistral" in trial.method.name:
-                    base_lm = models.LlamaCpp(
-                        model_dir / "Mistral-7B-Instruct-v0.2-GGUF/mistral-7b-instruct-v0.2.Q8_0.gguf",
-                        n_ctx=8192,
-                        n_gpu_layers=-1,
-                        echo=False,
-                        verbose=False,
+                    lm_path = hf_hub_download(
+                        "TheBloke/Mistral-7B-Instruct-v0.2-GGUF",
+                        "mistral-7b-instruct-v0.2.Q8_0.gguf"
                     )
                 elif "llama2-7b" in trial.method.name:
-                    base_lm = models.LlamaCpp(
-                        model_dir / "Llama-2-7B-32K-Instruct-GGUF/llama-2-7b-32k-instruct.Q8_0.gguf",
-                        n_ctx=8192,
-                        n_gpu_layers=-1,
-                        echo=False,
-                        verbose=False,
+                    lm_path = hf_hub_download(
+                        "TheBloke/Llama-2-7B-32K-Instruct-GGUF",
+                        "llama-2-7b-32k-instruct.Q8_0.gguf",
+                    )
+                elif "phi-3" in trial.method.name:
+                    lm_path = hf_hub_download(
+                        "microsoft/Phi-3-mini-4k-instruct-gguf",
+                        "Phi-3-mini-4k-instruct-fp16.gguf",
                     )
                 else:
-                    base_lm = models.LlamaCpp(
-                        model_dir / "Phi-3-mini-4k-instruct-gguf/Phi-3-mini-4k-instruct-fp16.gguf",
-                        n_ctx=8192,
-                        n_gpu_layers=-1,
-                        echo=False,
-                        verbose=False,
-                    )
+                    raise ValueError(f"No support for method {trial.method.name}")  # pragma: no cover
+
+                base_lm = models.LlamaCpp(
+                    lm_path,
+                    n_ctx=8192,
+                    n_gpu_layers=-1,
+                    echo=False,
+                    verbose=False,
+                )
 
             # Execute LLM
             print(f"{trial.method.name}[{i}]")
