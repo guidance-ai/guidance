@@ -122,6 +122,7 @@ jobs:
     strategy:
       fail-fast: false # Don't cancel all on first failure
       matrix:
+        # Need to figure out what happened to 3.12
         python-version: ["3.8", "3.9", "3.10", "3.11"]
     uses: ./.github/workflows/action_server_tests.yml
     with:
