@@ -20,7 +20,12 @@ Not implemented yet, but we intend to provide an avenue of running the benchmark
 docker containers that have GPU resourcing to scale horizontally.
 """
 
-from guidance.bench._powerlift import retrieve_langchain
+from guidance.bench._powerlift import (
+    retrieve_langchain,
+    langchain_chat_extract_runner,
+    langchain_chat_extract_filter_template,
+)
+from guidance.bench._api import bench
 
 # TODO(nopdive): Integrate powerlift for benchmarking backend
 # TODO(nopdive): Enable docker containers to execute benchmarking easily
