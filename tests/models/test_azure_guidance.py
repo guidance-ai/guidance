@@ -18,6 +18,32 @@ def azure_guidance_model(selected_model, selected_model_name):
         pytest.skip("Requires Azure Guidance model")
 
 
+def test_azure_guidance_fill_in_json(azure_guidance_model: guidance.models.Model):
+    lm = azure_guidance_model
+    @guidance(stateless=True, dedent=False)
+    def character_maker(lm, id, description, valid_weapons):
+        lm += f"""\
+        The following is a character profile for an RPG game in JSON format.
+        ```json
+        {{
+            "id": "{id}",
+            "description": "{description}",
+            "name": "{gen('name', stop='"')}",
+            "age": {gen('age', regex='[0-9]+', stop=',')},
+            "armor": "{select(options=['leather', 'chainmail', 'plate'], name='armor')}",
+            "weapon": "{select(options=valid_weapons, name='weapon')}",
+            "class": "{gen('class', stop='"')}",
+            "mantra": "{gen('mantra', stop='"')}",
+            "strength": {gen('strength', regex='[0-9]+', stop=',')},
+            "items": ["{gen('item', list_append=True, stop='"')}", "{gen('item', list_append=True, stop='"')}", "{gen('item', list_append=True, stop='"')}"]
+        }}```"""
+        return lm
+    lm += character_maker(1, 'A nimble fighter', ['axe', 'sword', 'bow'])
+    result = str(lm)
+    json_text = result[result.find("```json") + 8:-3]
+    json.loads(json_text)  # check for valid JSON
+
+
 def test_azure_guidance_basic(azure_guidance_model: guidance.models.Model):
     lm = azure_guidance_model
     lm += "Write a number: " + gen("text", max_tokens=3)
