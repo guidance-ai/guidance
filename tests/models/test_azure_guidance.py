@@ -7,7 +7,7 @@ from guidance import gen, select, assistant, user
 from ..utils import get_model
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="module")
 def azure_guidance_model(selected_model, selected_model_name):
     if selected_model_name in ["azure_guidance"]:
         return selected_model
