@@ -5,14 +5,26 @@
 </picture></div>
 <br/>
 
-# An efficient programming paradigm for steering language models
-**`{guidance}`** is a programming paradigm that offers superior control and efficiency compared to conventional prompting and chaining. With `{guidance}`, you can control how output is structured and get high-quality output for your use case—**while reducing latency and costs of conventional prompting or fine-tuning.** It allows users to constrain generation (e.g. with regex and CFGs) as well as to interleave control (conditional, loops) and generation seamlessly.
+**Guidance is an efficient programming paradigm for steering language models.** With Guidance, you can control how output is structured and get high-quality output for your use case—*while reducing latency and cost vs. conventional prompting or fine-tuning.* It allows users to constrain generation (e.g. with regex and CFGs) as well as to interleave control (conditionals, loops, tool use) and generation seamlessly.
 
-<a href="https://www.youtube.com/watch?v=9oXjP5IIMzQ"  aria-label="Watch demo"><img alt="Watch demo" src="docs/figures/watch_demo_button.png" width="120"></a> <a href="#get-started" aria-label="Get started"><img alt="Watch demo" src="docs/figures/get_started_button.png" width="120"></a>
+   * [Install](#install)
+   * [Features](#features)
+   * [Example notebooks](#example-notebooks)
+   * [Basic generation](#basic-generation)
+   * [Constrained generation](#constrained-generation)
+   * [Stateful control + generation](#stateful-control--generation)
 
-# Key Features
-## Developer workflow
-### Write pure Python, with additional LM functionality. For example, see [basic generation](#basic-generation).
+
+## Install
+Guidance is available through PyPI, to use a specific model see [loading models](#loading-models).
+```bash
+pip install guidance
+```
+
+<!-- <a href="https://www.youtube.com/watch?v=9oXjP5IIMzQ"  aria-label="Watch demo"><img alt="Watch demo" src="docs/figures/watch_demo_button.png" width="120"></a> <a href="#get-started" aria-label="Get started"><img alt="Watch demo" src="docs/figures/get_started_button.png" width="120"></a> -->
+
+## Features
+### Write [pure Python](#basic-generation), with additional LM functionality.
 ```python
 from guidance import models, gen
 
@@ -24,7 +36,7 @@ llama2 + f'Do you want a joke or a poem? ' + gen(stop='.')
 ```
 <img alt="Do you want a joke or a poem? I'll give you a poem" src="docs/figures/simple_gen_llama2_7b.png" width="354">
 
-### [Constrain generation](#constrained-generation) with [selects](#select-basic) (i.e., sets of options), [regular expressions](#regular-expressions), and [context-free grammars](#context-free-grammars), as well as with pre-built components (e.g., substring).
+### [Constrain generation](#constrained-generation) with [selects](#select-basic) (i.e., sets of options), [regular expressions](#regular-expressions), and [context-free grammars](#context-free-grammars), as well as with pre-built components (e.g., substring, json).
 
 ```python
 from guidance import select
@@ -64,8 +76,8 @@ lm + gen(max_tokens=15, tools=[add, subtract, multiply, divide])
 ```
 <img width="201" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/646e1a7d-0206-419b-8206-1d835c3a0e0a"><br>
 
-### Get high compatibility—execute a single {guidance} program on many backends (Transformers, llama.cpp, VertexAI, OpenAI). 
-Works with Transformers, llama.cpp, VertexAI, OpenAI. Users can write one guidance program and execute it on many backends. (note that the most powerful control features require endpoint integration, and for now work best with Transformers and llama.cpp).
+### Get high compatibility—execute a single Guidance program on many backends 
+Works with Transformers, llama.cpp, AzureAI, VertexAI, OpenAI and others. Users can write one guidance program and execute it on many backends. (note that the most powerful control features require endpoint integration, and for now work best with Transformers and llama.cpp).
 ```python
 gpt = models.OpenAI("gpt-3.5-turbo")
 
@@ -84,12 +96,11 @@ with assistant():
 <img width="645" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/f31ed7b8-1868-44d2-b14c-4842b0a40e5c"><br>
 
 ### Gain speed with [stateful control + generation functions](#stateful-control--generation)—no need for intermediate parsers. 
-In contrast to chaining, `{guidance}` programs are the equivalent of a single LLM call. More so, whatever non-generated text that gets appended is batched, so that `{guidance}` programs are **faster** than having the LM generate intermediate text when you have a set structure.
+In contrast to chaining, Guidance programs are the equivalent of a single LLM call. More so, whatever non-generated text that gets appended is batched, so that Guidance programs are **faster** than having the LM generate intermediate text when you have a set structure.
 
 ### Token healing
 Users deal with text (or bytes) rather than tokens, and thus don't have to worry about [perverse token boundaries issues](https://towardsdatascience.com/the-art-of-prompt-design-prompt-boundaries-and-token-healing-3b2448b0be38) such as 'prompt ending in whitespace'.
 
-## Guidance API features
 ### Rich templates with f-strings.
 ```python
 llama2 + f'''\
@@ -129,7 +140,8 @@ lm += one_line_thing(lm['thing'], 'cats')
 ```
 <img width="386" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/60071680-8bbb-4fa5-a298-613d4fd55fa7"><br>
 
-### A library of pre-built components, e.g. substring:
+### A library of pre-built components
+Common syntax elements are avilable out of the box, below is an example of `substring` for others (like `json`) checkout the [docs](https://guidance.readthedocs.io/en/latest/api.html#functions).
 ```python
 from guidance import substring
 
@@ -169,117 +181,6 @@ with assistant():
 <img width="673" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/6450d05d-52e9-4ef5-b280-8b57e733d46d">
 
 
-# Get started
-You can see a brief walkthrough of `{guidance}` before installing:
-
-- [Basic tutorial](notebooks/tutorials/intro_to_guidance.ipynb)
-- [Install](#install)
-- [Loading models](#loading-models)
-
-
-## Table of Contents
-   * [Install](#install)
-   * [Loading models](#loading-models)
-      * [llama.cpp](#llamacpp)
-      * [transformers](#transformers)
-      * [Vertex](#vertex-ai)
-      * [OpenAI](#openai)
-   * [Example notebooks](#example-notebooks)
-   * [Basic generation](#basic-generation)
-   * [Constrained Generation](#constrained-generation)
-      * [Select (basic)](#select-basic)
-      * [Regular expressions](#regular-expressions)
-         * [Regex to constrain generation](#regex-to-constrain-generation)
-         * [Regex as stopping criterion](#regex-as-stopping-criterion)
-      * [Context-free grammars](#context-free-grammars)
-      * [Capture a generation](#capture-a-generation)
-   * [Stateful control + generation](#stateful-control--generation)
-      * [State in immutable objects](#state-in-immutable-objects)
-      * [Stateful guidance functions](#stateful-guidance-functions)
-      * [Example: ReAct](#example-react)
-      * [Example: Changing intermediate step of a Chat session](#example-changing-intermediate-step-of-a-chat-session)
-      * [Automatic interleaving of control and generation: tool use](#automatic-interleaving-of-control-and-generation-tool-use)
-      * [Gsm8k example](#gsm8k-example)
-      * [Automatic call grammar for @guidance functions](#automatic-call-grammar-for-guidance-functions)
-   * [Text, not tokens](#text-not-tokens)
-   * [Fast](#fast)
-      * [Integrated stateful control is faster](#integrated-stateful-control-is-faster)
-      * [Guidance acceleration](#guidance-acceleration)
-
-## Install
-```bash
-pip install guidance
-```
-## Loading models
-### llama.cpp
-Install the python bindings:
-```bash
-CMAKE_ARGS="-DLLAMA_CUBLAS=on" pip install llama-cpp-python
-```
-Loading the model:
-```python
-from guidance import models
-lm = models.LlamaCpp(path_to_model, n_gpu_layers=-1)
-```
-
-### Transformers
-Install transformers:
-```python
-from guidance import models
-lm = models.Transformers(model_name_or_path)
-```
-
-### Vertex AI
-Remote endpoints that don't have explicit guidance integration are run "optimistically". This means that all the text that can be forced is given to the model as a prompt (or chat context) and then the model is run in streaming mode without hard constrants (since the remote API doesn't support them). If the model ever violates the contraints then the model stream is stopped and we optionally try it again at that point. This means that all the API-supported control work as expected, and more complex controls/parsing that is not supported by the API work if the model stays consistent with the program.
-```python
-palm2 = models.VertexAI("text-bison@001")
-
-with instruction():
-    lm = palm2 + "What is one funny fact about Seattle?"
-
-lm + gen("fact", max_tokens=100)
-```
-<img width="635" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/693ae08f-68f7-4368-bd25-19afc9bfc0a5"><br>
-
-### OpenAI
-OpenAI endpoint don't have direct support for guidance grammars, but through optimistic running we can still control them in ways that match the model type:
-
-*Legacy completion models:*
-```python
-curie = models.OpenAI("text-curie-001")
-
-curie + "The smallest cats are" + gen(stop=".")
-```
-<img width="263" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/116a906c-ea77-4a13-a83a-682029d5e5c8"><br>
-
-*Instruct tuned models:*
-```python
-gpt_instruct = models.OpenAI("gpt-3.5-turbo-instruct")
-
-with instruction():
-    lm = gpt_instruct + "What are the smallest cats?"
-    
-lm += gen(stop=".")
-```
-<img width="574" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/56a53ce1-89f5-4e9d-bdb8-86fb3eebf309"><br>
-
-*Chat models:*
-```python
-gpt = models.OpenAI("gpt-3.5-turbo")
-
-with system():
-    lm = gpt + "You are a cat expert."
-
-with user():
-    lm += "What are the smallest cats?"
-
-with assistant():
-    lm += gen("answer", stop=".")
-```
-<img width="367" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/46102f0f-37dc-4bb1-99b7-e5895bdee772"><br>
-
-
-
 ## Example notebooks
 We are working on updating our example notebooks. The following ones have been updated:
 - [Basic tutorial](notebooks/tutorials/intro_to_guidance.ipynb)
@@ -311,7 +212,7 @@ lm = llama2 + 'I like to play with my ' + gen(stop=' ') + ' in' + gen(stop=['\n'
 ```
 <img width="279" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/2d47fd65-1982-4dd8-9ba9-a01e62fba455"><br>
 
-## Constrained Generation
+## Constrained generation
 ### Select (basic)
 `select` constrains generation to a set of options:
 ```python
@@ -743,3 +644,70 @@ time.time() - a
 ```
 <img width="586" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/9c55500d-4c90-4f42-9343-43aa2a25efa4"><br>
 
+## Loading models
+### llama.cpp
+Install the python bindings:
+```bash
+CMAKE_ARGS="-DLLAMA_CUBLAS=on" pip install llama-cpp-python
+```
+Loading the model:
+```python
+from guidance import models
+lm = models.LlamaCpp(path_to_model, n_gpu_layers=-1)
+```
+
+### Transformers
+Install transformers:
+```python
+from guidance import models
+lm = models.Transformers(model_name_or_path)
+```
+
+### Vertex AI
+Remote endpoints that don't have explicit guidance integration are run "optimistically". This means that all the text that can be forced is given to the model as a prompt (or chat context) and then the model is run in streaming mode without hard constrants (since the remote API doesn't support them). If the model ever violates the contraints then the model stream is stopped and we optionally try it again at that point. This means that all the API-supported control work as expected, and more complex controls/parsing that is not supported by the API work if the model stays consistent with the program.
+```python
+palm2 = models.VertexAI("text-bison@001")
+
+with instruction():
+    lm = palm2 + "What is one funny fact about Seattle?"
+
+lm + gen("fact", max_tokens=100)
+```
+<img width="635" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/693ae08f-68f7-4368-bd25-19afc9bfc0a5"><br>
+
+### OpenAI
+OpenAI endpoint don't have direct support for guidance grammars, but through optimistic running we can still control them in ways that match the model type:
+
+*Legacy completion models:*
+```python
+curie = models.OpenAI("text-curie-001")
+
+curie + "The smallest cats are" + gen(stop=".")
+```
+<img width="263" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/116a906c-ea77-4a13-a83a-682029d5e5c8"><br>
+
+*Instruct tuned models:*
+```python
+gpt_instruct = models.OpenAI("gpt-3.5-turbo-instruct")
+
+with instruction():
+    lm = gpt_instruct + "What are the smallest cats?"
+    
+lm += gen(stop=".")
+```
+<img width="574" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/56a53ce1-89f5-4e9d-bdb8-86fb3eebf309"><br>
+
+*Chat models:*
+```python
+gpt = models.OpenAI("gpt-3.5-turbo")
+
+with system():
+    lm = gpt + "You are a cat expert."
+
+with user():
+    lm += "What are the smallest cats?"
+
+with assistant():
+    lm += gen("answer", stop=".")
+```
+<img width="367" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/46102f0f-37dc-4bb1-99b7-e5895bdee772"><br>
