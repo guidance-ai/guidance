@@ -3,7 +3,6 @@
 import os
 from pathlib import Path
 
-
 def lib_bench_dir() -> Path:
     """Library directory to store configurations and cached assets for benchmarking.
 
@@ -15,8 +14,8 @@ def lib_bench_dir() -> Path:
         Path: Library's directory path for benchmarking.
     """
 
-    lib_path = os.environ.get("GUIDANCE_BENCH_DIR", None)
-    if lib_path is None:
+    env_lib_path = os.environ.get("GUIDANCE_BENCH_DIR", None)
+    if env_lib_path is None:
         lib_path = Path.home() / ".guidance-bench"
     else:
         lib_path = Path(lib_path)

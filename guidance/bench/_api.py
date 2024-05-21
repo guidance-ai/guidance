@@ -18,11 +18,11 @@ AVAILABLE_MODELS = [
 def bench(
     db_url: str,
     experiment_name: str,
-    models: Optional[List[str]] = AVAILABLE_MODELS,
-    force_recreate: Optional[bool] = False,
-    timeout: Optional[int] = 3600,
-    cache_dir: Optional[Union[str, Path]] = lib_bench_dir() / "cache",
-    debug_mode: Optional[bool] = False,
+    models: List[str] = AVAILABLE_MODELS,
+    force_recreate: bool = False,
+    timeout: int = 3600,
+    cache_dir: Union[str, Path] = lib_bench_dir() / "cache",
+    debug_mode: bool = False,
 ) -> Tuple[object, object]:
     """Benchmarks guidance against preset tasks.
 
@@ -32,11 +32,11 @@ def bench(
     Args:
         db_url (str): Database connection string.
         experiment_name (str): Name of experiment to create / run.
-        models (Optional[List[str]], optional): Models to benchmark. Defaults to AVAILABLE_MODELS.
-        force_recreate (Optional[bool], optional): Recreate the database before benchmarking. Defaults to False.
-        timeout (Optional[int], optional): Max execution time per trial. Defaults to 3600.
-        cache_dir (Optional[Union[str, Path]], optional): Cache to store external datasets. Defaults to lib_bench_dir() / "cache".
-        debug_mode (Optional[bool]): Set this when you require a debugger to step line by line in the trial_runner.
+        models (List[str], optional): Models to benchmark. Defaults to AVAILABLE_MODELS.
+        force_recreate (bool, optional): Recreate the database before benchmarking. Defaults to False.
+        timeout (int, optional): Max execution time per trial. Defaults to 3600.
+        cache_dir (Union[str, Path], optional): Cache to store external datasets. Defaults to lib_bench_dir() / "cache".
+        debug_mode (bool): Set this when you require a debugger to step line by line in the trial_runner.
 
     Returns:
         Tuple[object, object]: (status, results) data frames where status relates to trials, results are wide form aggregates of each model.

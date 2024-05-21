@@ -1,3 +1,6 @@
+# mypy: ignore-errors
+# NOTE(nopdive): This module has multiple imports from
+#   dependencies without stubs / markers. Ignoring mypy for now.
 """Backend powerlift integration for benchmarking."""
 
 from typing import Generator, List, Optional, Tuple, Union
