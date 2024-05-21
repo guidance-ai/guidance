@@ -27,5 +27,4 @@ from guidance.bench._powerlift import (
 )
 from guidance.bench._api import bench
 
-# TODO(nopdive): Integrate powerlift for benchmarking backend
 # TODO(nopdive): Enable docker containers to execute benchmarking easily
