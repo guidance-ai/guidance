@@ -77,6 +77,7 @@ bench_requires = [
     "langsmith",
     "json_stream",
     "llama-cpp-python",
+    "setuptools",
     "powerlift"
 ]
 
