@@ -60,6 +60,10 @@ jobs:
           pip install triton
           pip uninstall -y llama-cpp-python
           CMAKE_ARGS="-DLLAMA_CUBLAS=on" pip install "llama-cpp-python!=0.2.58,!=0.2.75"
+      - name: Flash Attention
+        run: |
+          pip install packaging ninja
+          pip install flash-attn --no-build-isolation
       - name: Check GPU available
         run: |
           python -c "import torch; assert torch.cuda.is_available()"
