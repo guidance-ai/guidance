@@ -20,10 +20,6 @@ AVAILABLE_MODELS = {
         name="transformers:microsoft/Phi-3-mini-4k-instruct",
         kwargs={"trust_remote_code": True},
     ),
-    "transformers_phi3cpu_small_8k_instruct": dict(
-        name="transformers:microsoft/Phi-3-small-8k-instruct",
-        kwargs={"trust_remote_code": True},
-    ),
     "transformers_llama3cpu_8b": dict(
         # Note that this model requires an appropriate
         # HF_TOKEN environment variable
@@ -48,6 +44,10 @@ AVAILABLE_MODELS = {
     "gpt2gpu": dict(name="transformers:gpt2", kwargs={"device_map": "cuda:0"}),
     "phi2gpu": dict(
         name="transformers:microsoft/phi-2",
+        kwargs={"trust_remote_code": True, "device_map": "cuda:0"},
+    ),
+    "transformers_phi3gpu_small_8k_instruct": dict(
+        name="transformers:microsoft/Phi-3-small-8k-instruct",
         kwargs={"trust_remote_code": True, "device_map": "cuda:0"},
     ),
     "hfllama_7b_gpu": dict(

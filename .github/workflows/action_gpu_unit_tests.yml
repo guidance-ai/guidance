@@ -18,7 +18,7 @@ jobs:
         model:
           - "gpt2gpu"
           - "phi2gpu"
-          - "transformers_phi3cpu_small_8k_instruct" # Says CPU, but also Linux only for triton
+          - "transformers_phi3gpu_small_8k_instruct"
           # - "hfllama_7b_gpu" Keeps causing intermittent segfaults
     runs-on: ${{ inputs.os }}
 
