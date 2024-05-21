@@ -6,12 +6,12 @@ from pathlib import Path
 
 
 def retrieve_langchain(
-    cache_dir: Optional[str] = None,
+    cache_dir: Optional[Union[str, Path]] = None,
 ) -> Generator[object, None, None]:
     """Retrieves LangChain datasets appropriate for guidance benchmarking. Requires env `LANGCHAIN_API_KEY` to be set on first call.
 
     Args:
-        cache_dir (Optional[str], optional): Directory to store downloaded datasets. Defaults to None.
+        cache_dir (Optional[Union[str, Path]], optional): Directory to store downloaded datasets. Defaults to None.
 
     Yields:
         Generator[object, None, None]: DataFrameDataset required for powerlift.
