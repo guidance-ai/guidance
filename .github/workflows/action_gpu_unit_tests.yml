@@ -62,7 +62,7 @@ jobs:
           CMAKE_ARGS="-DLLAMA_CUBLAS=on" pip install "llama-cpp-python!=0.2.58,!=0.2.75"
       - name: Flash Attention
         run: |
-          pip install packaging ninja
+          pip install --upgrade packaging ninja wheel setuptools
           pip install flash-attn --no-build-isolation
       - name: Check GPU available
         run: |
