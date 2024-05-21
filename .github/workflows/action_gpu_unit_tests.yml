@@ -18,6 +18,7 @@ jobs:
         model:
           - "gpt2gpu"
           - "phi2gpu"
+          - "transformers_phi3cpu_small_8k_instruct" # Says CPU, but also Linux only for triton
           # - "hfllama_7b_gpu" Keeps causing intermittent segfaults
     runs-on: ${{ inputs.os }}
 
@@ -52,10 +53,11 @@ jobs:
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
       - name: Other dependencies
         run: |
-          pip install sentencepiece
+          pip install sentencepiece einops
       - name: GPU pip installs
         run: |
           pip install accelerate
+          pip install triton
           CMAKE_ARGS="-DLLAMA_CUBLAS=on" pip install "llama-cpp-python!=0.2.58,!=0.2.75"
       - name: Check GPU available
         run: |
