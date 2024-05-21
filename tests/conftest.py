@@ -20,6 +20,10 @@ AVAILABLE_MODELS = {
         name="transformers:microsoft/Phi-3-mini-4k-instruct",
         kwargs={"trust_remote_code": True},
     ),
+    "transformers_phi3cpu_small_8k_instruct": dict(
+        name="transformers:microsoft/Phi-3-small-8k-instruct",
+        kwargs={"trust_remote_code": True},
+    ),
     "transformers_llama3cpu_8b": dict(
         # Note that this model requires an appropriate
         # HF_TOKEN environment variable

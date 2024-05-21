@@ -7,7 +7,10 @@ from ..utils import get_model
 
 @pytest.fixture(scope="module")
 def phi3_model(selected_model, selected_model_name):
-    if selected_model_name in ["transformers_phi3cpu_mini_4k_instruct"]:
+    if selected_model_name in [
+        "transformers_phi3cpu_mini_4k_instruct",
+        "transformers_phi3cpu_small_8k_instruct",
+    ]:
         return selected_model
     else:
         pytest.skip("Requires Phi3 model")
@@ -27,7 +30,7 @@ def llama3_model(selected_model, selected_model_name):
 def test_gpt2():
     gpt2 = get_model("transformers:gpt2")
     lm = gpt2 + "this is a test" + gen("test", max_tokens=10)
-    
+
     assert len(str(lm)) > len("this is a test")
 
 
@@ -80,6 +83,7 @@ w) 10"""
 
 
 # Phi-3 specific tests
+
 
 @pytest.mark.skip("Don't overload the build machines")
 def test_phi3_transformers_orig():
@@ -143,7 +147,7 @@ def test_phi3_newline_chat(phi3_model: models.Model):
     with assistant():
         lm += "\n" + gen(name="five", max_tokens=1)
         lm += "\n" + gen(name="six", max_tokens=1)
-    
+
     # This test would raise an exception earlier if we didn't fix the tokenizer.
     assert True
 
@@ -155,7 +159,7 @@ def test_phi3_unstable_tokenization(phi3_model: models.Model):
     with user():
         lm += "1,2,3,4,"
     with assistant():
-        lm += "\n" # comment and uncomment this line to get the error
+        lm += "\n"  # comment and uncomment this line to get the error
         lm += gen(name="five", max_tokens=1)
         lm += "," + gen(name="six", max_tokens=1)
 
