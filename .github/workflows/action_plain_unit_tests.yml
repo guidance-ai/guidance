@@ -38,6 +38,7 @@ jobs:
       - name: Install model-specific dependencies
         run: |
           pip install sentencepiece
+          pip uninstall llama-cpp-python
           pip install "llama-cpp-python!=0.2.58"
       - name: Run tests (except server)
         shell: bash
