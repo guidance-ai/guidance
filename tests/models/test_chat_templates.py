@@ -1,6 +1,6 @@
 import pytest
 
-from guidance._chat import load_template_class, CHAT_TEMPLATE_CACHE
+from guidance.chat import load_template_class, CHAT_TEMPLATE_CACHE
 import transformers
 
 from ..utils import env_or_fail

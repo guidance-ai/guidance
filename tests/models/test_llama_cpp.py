@@ -15,14 +15,6 @@ def llamacpp_model(selected_model, selected_model_name):
         pytest.skip("Requires Llama-Cpp model")
 
 
-def get_llama_with_batchsize(model_info, n_batch: int = 248):
-    # Now load the model we actually want
-    my_kwargs = model_info["kwargs"]
-    my_kwargs["n_batch"] = n_batch
-    lm = get_model(model_info["name"], **my_kwargs)
-    return lm
-
-
 def test_llama_cpp_gen(llamacpp_model: guidance.models.Model):
     lm = llamacpp_model
     lm = lm + "this is a test" + gen("test", max_tokens=10)
@@ -91,66 +83,48 @@ def test_subtoken_forced(llamacpp_model: guidance.models.Model):
 
 
 def test_llama_cpp_almost_one_batch(llamacpp_model, selected_model_info):
-    batch_size = 248
-    # We use llamacpp_model for its 'skip' functionality
-    assert llamacpp_model is not None
-    # Now load the model we actually want
-    lm = get_llama_with_batchsize(selected_model_info, batch_size)
+    lm = llamacpp_model
+    batch_size = lm.engine.model_obj.n_batch
     long_str = lm.engine.tokenizer.bos_token.decode("utf-8") * (batch_size - 1)
     lm += long_str + gen(max_tokens=10)
     assert len(str(lm)) > len(long_str)
 
 
 def test_llama_cpp_exactly_one_batch(llamacpp_model, selected_model_info):
-    batch_size = 248
-    # We use llamacpp_model for its 'skip' functionality
-    assert llamacpp_model is not None
-    # Now load the model we actually want
-    lm = get_llama_with_batchsize(selected_model_info, batch_size)
+    lm = llamacpp_model
+    batch_size = lm.engine.model_obj.n_batch
     long_str = lm.engine.tokenizer.bos_token.decode("utf-8") * batch_size
     lm += long_str + gen(max_tokens=10)
     assert len(str(lm)) > len(long_str)
 
 
 def test_llama_cpp_more_than_one_batch(llamacpp_model, selected_model_info):
-    batch_size = 248
-    # We use llamacpp_model for its 'skip' functionality
-    assert llamacpp_model is not None
-    # Now load the model we actually want
-    lm = get_llama_with_batchsize(selected_model_info, batch_size)
+    lm = llamacpp_model
+    batch_size = lm.engine.model_obj.n_batch
     long_str = lm.engine.tokenizer.bos_token.decode("utf-8") * (batch_size + 1)
     lm += long_str + gen(max_tokens=10)
     assert len(str(lm)) > len(long_str)
 
 
 def test_llama_cpp_almost_two_batches(llamacpp_model, selected_model_info):
-    batch_size = 248
-    # We use llamacpp_model for its 'skip' functionality
-    assert llamacpp_model is not None
-    # Now load the model we actually want
-    lm = get_llama_with_batchsize(selected_model_info, batch_size)
+    lm = llamacpp_model
+    batch_size = lm.engine.model_obj.n_batch
     long_str = lm.engine.tokenizer.bos_token.decode("utf-8") * ((2 * batch_size) - 1)
     lm += long_str + gen(max_tokens=10)
     assert len(str(lm)) > len(long_str)
 
 
 def test_llama_cpp_two_batches(llamacpp_model, selected_model_info):
-    batch_size = 248
-    # We use llamacpp_model for its 'skip' functionality
-    assert llamacpp_model is not None
-    # Now load the model we actually want
-    lm = get_llama_with_batchsize(selected_model_info, batch_size)
+    lm = llamacpp_model
+    batch_size = lm.engine.model_obj.n_batch
     long_str = lm.engine.tokenizer.bos_token.decode("utf-8") * (2 * batch_size)
     lm += long_str + gen(max_tokens=10)
     assert len(str(lm)) > len(long_str)
 
 
 def test_llama_cpp_more_than_two_batches(llamacpp_model, selected_model_info):
-    batch_size = 248
-    # We use llamacpp_model for its 'skip' functionality
-    assert llamacpp_model is not None
-    # Now load the model we actually want
-    lm = get_llama_with_batchsize(selected_model_info, batch_size)
+    lm = llamacpp_model
+    batch_size = lm.engine.model_obj.n_batch
     long_str = lm.engine.tokenizer.bos_token.decode("utf-8") * ((2 * batch_size) + 1)
     lm += long_str + gen(max_tokens=10)
     assert len(str(lm)) > len(long_str)

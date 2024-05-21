@@ -158,6 +158,12 @@ class TransformersEngine(Engine):
         self._cached_logits = None
         self._cached_token_ids = []
 
+        # Set attr for malformed tokenizer hack.
+        # If more models start doing this, generalize into a util function.
+        if hasattr(self.model_obj.config, "model_type"):
+            if self.model_obj.config.model_type in ["phi3"]:
+                self._disable_retokenize_check = True
+
         super().__init__(
             TransformersTokenizer(model, tokenizer, chat_template), compute_log_probs=compute_log_probs
         )

@@ -22,7 +22,7 @@ def gen(
     lm,
     name=None,
     *,
-    max_tokens=1000,
+    max_tokens=1e10,
     list_append=False,
     regex=None,
     tools=None,
@@ -40,8 +40,13 @@ def gen(
     This function is a useful utility that can allow you to specify most grammars used by typical
     LM generation programs. It also has the added ability to interleave generation with tool calls.
 
+        >>> lm += gen("my_generation", max_tokens=10)
+        >>> print(lm["my_generation"])
+        some text from the LLM
+
     Parameters
-        ----------
+    ----------
+
         name : str or None
             If this is not None then the the results of the generation will be saved as a variable on
             the Model object (so you can access the result as `lm["var_name"]`).

@@ -22,6 +22,13 @@ def test_select_longer():
     assert lm["text"] == "nice man."
 
 
+def test_select_empty():
+    """This tests to ensure that we save empty capture groups."""
+    lm = models.Mock(b"<s>This is a test")
+    lm += "This is a" + select(name="text", options=["", "nope"])
+    assert lm["text"] == ""
+
+
 def test_grammar_plus_fstring():
     @guidance(stateless=True, dedent=False)
     def test(lm):
