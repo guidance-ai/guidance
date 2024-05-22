@@ -2,7 +2,7 @@ import regex as regex_module
 import logging
 from .._guidance import guidance
 from ._silent import silent
-from .._grammar import select
+from .._grammar import select, Gen, quote_regex
 from ._zero_or_more import zero_or_more
 from .._grammar import commit_point
 from ._any_char import any_char
@@ -14,10 +14,13 @@ from ._block import block
 
 logger = logging.getLogger(__name__)
 
+# use Gen class?
+gen_mode = True
+
 
 # TODO: make this stateless!
 # TODO: uncomment this once we get temperature stateless
-@guidance(stateless=lambda *args, **kwargs: kwargs.get("tools", None) is None)  
+@guidance(stateless=lambda *args, **kwargs: kwargs.get("tools", None) is None)
 def gen(
     lm,
     name=None,
@@ -117,30 +120,45 @@ def gen(
     #     elif lm.suffix.startswith("'") and str(lm).endswith("'"):
     #         stop = "'"
 
+    gen_stop = ""
+
     # fall back to stopping at the EOS token
     if stop is not False:
         if stop is None:
             stop = []
         if isinstance(stop, str):
             stop = [stop]
-        if regex is None:
+        if not gen_mode and regex is None:
             stop = stop + [select([eos_token(), active_role_end()])]
 
         if stop_regex is None:
             stop_regex = []
         if isinstance(stop_regex, str):
             stop_regex = [stop_regex]
+        if gen_mode:
+            stop_regex += [quote_regex(s) for s in stop]
+            if len(stop_regex) == 1:
+                gen_stop = stop_regex[0]
+            else:
+                gen_stop = "|".join("(" + s + ")" for s in stop_regex)
         stop_regex = [regex_grammar(x) for x in stop_regex]
 
     # This needs to be here for streaming
     # if name is not None and not list_append:
     #     lm[name] = ""
 
-    # define the generation pattern
-    if regex is not None:
-        pattern = regex_grammar(regex)
+    if gen_mode:
+        if regex is None:
+            regex = ""
+        pattern = Gen(body_regex=regex, stop_regex=gen_stop)
+        # Gen is Terminal, so token_limit() doesn't work on it
+        pattern._max_tokens = max_tokens
     else:
-        pattern = zero_or_more(any_char())
+        # define the generation pattern
+        if regex is not None:
+            pattern = regex_grammar(regex)
+        else:
+            pattern = zero_or_more(any_char())
 
     tagged_name = "__LIST_APPEND:" + name if list_append and name is not None else name
 
@@ -152,7 +170,7 @@ def gen(
     pattern = token_limit(pattern, max_tokens)
 
     # define the stop pattern
-    if stop is False or len(stop + stop_regex) == 0:
+    if gen_mode or stop is False or len(stop + stop_regex) == 0:
         stop_pattern = ""
     else:
         stop_pattern = select(stop + stop_regex)

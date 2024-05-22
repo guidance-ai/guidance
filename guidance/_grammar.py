@@ -1,7 +1,7 @@
 import re
 import types
 
-from typing import Any, Dict, List, TYPE_CHECKING, TypeVar, Union
+from typing import Any, Dict, List, TYPE_CHECKING, TypeVar, Union, cast
 
 from . import _serialization_pb2
 from . import _parser
@@ -15,6 +15,7 @@ _call_pool: Dict[str, "Function"] = {}  # the functions associated with the call
 _tag_pattern = re.compile(
     re.escape(tag_start) + r"([^\|]+)" + re.escape(tag_end)
 )  # the pattern for matching call tags
+
 
 class StatefulException(Exception):
     """This is raised when we try and use the state of a grammar object like it was a live model.
@@ -289,6 +290,8 @@ class GrammarFunction(Function):
 
         return values[0]  # the first element in the root node of the grammar
 
+    def ag2_serialize(self):
+        return {"grammars": [Ag2Serializer(self).run()]}
 
 class Terminal(GrammarFunction):
     def match_byte(self, byte):
@@ -727,6 +730,66 @@ class Join(GrammarFunction):
         return out
 
 
+def quote_regex(value: str) -> str:
+    assert isinstance(value, str)
+    return re.sub(r"([\\+*?^$(){}\[\]\.|])", r"\\\1", value)
+
+
+class Gen(Terminal):
+    __slots__ = (
+        "nullable",
+        "body_regex",
+        "stop_regex",
+        "name",
+        "hidden",
+        "commit_point",
+        "capture_name",
+        "_max_tokens",
+    )
+
+    def __init__(
+        self,
+        body_regex: str,
+        stop_regex: str,
+        name: Union[str, None] = None,
+        max_tokens=100000000,
+    ) -> None:
+        self.nullable = False
+        self.body_regex = body_regex
+        self.stop_regex = stop_regex
+        self.name = name if name is not None else GrammarFunction._new_name()
+        self.hidden = False
+        self.commit_point = True
+        self.capture_name = None
+        self._max_tokens = max_tokens
+        self.temperature = -1
+    
+    @property
+    def max_tokens(self):
+        return self._max_tokens
+
+    def __repr__(self, indent="", done=None):
+        if done is None:
+            done = set()
+        s = (
+            self.name.ljust(20)
+            + " <- "
+            + repr(self.body_regex)
+            + " + "
+            + repr(self.stop_regex)
+        )
+        s += (
+            "        "
+            + ("hidden " if self.hidden else "")
+            + ("commit_point " if self.commit_point else "")
+            + (f"capture_name={self.capture_name} " if self.capture_name else "")
+            + (f"max_tokens={self.max_tokens}" if self.max_tokens < 100000 else "")
+            + "\n"
+        )
+        done.add(self)
+        return s
+
+
 class Select(GrammarFunction):
     __slots__ = (
         "nullable",
@@ -1015,3 +1078,75 @@ def str_to_grammar(value: str):
                 partial_grammar += string(part)
             is_id = not is_id
     return partial_grammar
+
+
+class Ag2Serializer:
+    def __init__(self, node: GrammarFunction) -> None:
+        self.top_level_node = node
+        self.nodes: List[dict] = []
+        self.curr_grammar = {
+            "greedy_lexer": False,
+            "nodes": self.nodes,
+        }
+        self.node_id_cache: Dict[GrammarFunction, int] = {}
+        self.todo: List[GrammarFunction] = []
+
+    def node(self, node: GrammarFunction):
+        if node in self.node_id_cache:
+            return self.node_id_cache[node]
+        id = len(self.nodes)
+        self.node_id_cache[node] = id
+        self.nodes.append({})
+        self.todo.append(node)
+        return id
+
+    def process(self, node: GrammarFunction):
+        obj = {}
+        if isinstance(node, Select):
+            obj = {
+                "Select": {
+                    "among": [self.node(v) for v in node.values],
+                }
+            }
+        elif isinstance(node, Join):
+            if all(isinstance(v, Byte) for v in node.values):
+                literal = b"".join(cast(Byte, v).byte for v in node.values)
+                obj = {
+                    "String": {
+                        "literal": literal.decode("utf-8", errors="strict"),
+                    }
+                }
+            else:
+                obj = {
+                    "Join": {
+                        "sequence": [self.node(v) for v in node.values],
+                    }
+                }
+        elif isinstance(node, Gen):
+            obj = {
+                "Gen": {
+                    "body_rx": node.body_regex,
+                    "stop_rx": node.stop_regex,
+                    "temperature": node.temperature if node.temperature >= 0 else None,
+                }
+            }
+        else:
+            raise Exception("Unknown node type: " + node)
+        tp = next(iter(obj))
+        inner: dict = obj[tp]
+        if getattr(node, "capture_name", None):
+            inner["capture_name"] = node.capture_name
+        # Names on nodes are mostly useless
+        # if getattr(node, "name", None):
+        #     inner["name"] = node.name
+        if getattr(node, "max_tokens", None) and node.max_tokens < 1000000:
+            inner["max_tokens"] = node.max_tokens
+        self.nodes[self.node(node)] = obj
+
+    def run(self):
+        id = self.node(self.top_level_node)
+        assert id == 0
+        while self.todo:
+            node = self.todo.pop()
+            self.process(node)
+        return self.curr_grammar

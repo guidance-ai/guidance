@@ -102,7 +102,7 @@ class AzureGuidanceEngine(Engine):
                     if num_text_entries > 0:
                         new_bytes_prob /= num_text_entries
 
-                    # print(ch["logs"].rstrip("\n"), flush=True)
+                    print(ch["logs"].rstrip("\n"), flush=True)
 
                     err = ch.get("error", "")
                     if err:
