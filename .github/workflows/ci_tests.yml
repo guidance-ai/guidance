@@ -42,9 +42,8 @@ jobs:
           sudo apt-get -y upgrade
       - name: Ensure NVIDIA SDK available
         run: |
-          # We are having trouble with CUDA toolkit 12.5.....
-          sudo apt satisfy -y "cuda-toolkit (<=12.4)"
-          echo "/usr/local/cuda-12.4/bin" >> $GITHUB_PATH
+          sudo apt-get -y install cuda-toolkit
+          echo "/usr/local/cuda-12.5/bin" >> $GITHUB_PATH
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
