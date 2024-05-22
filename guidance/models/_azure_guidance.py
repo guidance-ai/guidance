@@ -21,7 +21,11 @@ class AzureGuidanceEngine(Engine):
         elif not isinstance(server_url, str):
             raise ValueError("server_url must contain a URL string.")
 
-        if not server_url.startswith("https://"):
+        if (
+            not server_url.startswith("https://")
+            and not server_url.startswith("http://localhost:")
+            and not server_url.startswith("http://127.0.0.1:")
+        ):
             raise ValueError(
                 "AzureGuidance requires a remote model URL that starts with https://"
             )
