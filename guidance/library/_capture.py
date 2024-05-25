@@ -7,6 +7,4 @@ def capture(lm, value, name):
     if isinstance(value, GrammarFunction):
         return lm + grammar_capture(value, name)
     else:
-        start_len = len(lm)
-        lm += value
-        return lm.set(name, str(lm)[start_len:])
+        return lm.set(name, value)
