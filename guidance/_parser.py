@@ -657,9 +657,9 @@ class EarleyCommitParser(Parser):
             if self._compute_children(
                 state_set_pos, item, reversed_state_sets, values_pos + 1
             ):
-                item.children[values_pos] = (
-                    EarleyItem(value, tuple(), 0, state_set_pos, 0, state_set_pos)  # this child has zero length since it was nullable
-                )
+                item.children[values_pos] = EarleyItem(
+                    value, tuple(), 0, state_set_pos, 0, state_set_pos
+                )  # this child has zero length since it was nullable
                 return True
 
         return False
