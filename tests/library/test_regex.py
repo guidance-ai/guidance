@@ -7,11 +7,16 @@ class TestCharacterClasses:
     @pytest.mark.parametrize(
         "pattern, string",
         [
-            (r"[abc]", "a"),
-            (r"[abc]", "b"),
-            (r"[^abc]", "d"),
-            (r"[a-z]", "m"),
-            (r"[0-9]", "5"),
+            (r"[abc]+", "cbabbaccabc"),
+            (r"[a-z]+", "thequickbrownfoxjumpsoverthelazydog"),
+            (r"[0-9]+", "9876543210"),
+            (r"[a-f0-9]+", "abcdef0123456789"),
+            (r"[abcA-Z]+", "abcABCXYZ"),
+            (r"[a-z\d]+", "abc123"),
+            (r"[^abc]+", "ABCxyz8743-!@#$%^&*()_+"),
+            (r"[^\d]+", "abcXYZ-!@#$%^&*()_+"),
+            (r"[^B-Z]+", "qwertyA"),
+            (r"[^a-z\d]+", "ABCDEF-!@#$%^&*()_+"),
         ],
     )
     def test_good(self, pattern, string):
@@ -20,10 +25,17 @@ class TestCharacterClasses:
     @pytest.mark.parametrize(
         "pattern, string, failure_byte",
         [
-            (r"[abc]+", "bx", b"x"),  # Bad character not in [abc]
-            (r"[^abc]+", "xb", b"b"),  # Negated but matched 'b'
-            (r"[0-9a-f]+", "3bz", b"z"),  # Character outside the range
-            (r"[a-z]+", "g1", b"1"),  # Digit where a letter is expected
+            (r"[abc]", "x", b"x"),
+            (r"[a-z]", "g1", b"1"),
+            (r"[0-9]", "x", b"x"),
+            (r"[a-f0-9]", "g", b"g"),
+            (r"[abcA-Z]", "z", b"z"),
+            (r"[a-z\d]", "Z", b"Z"),
+            (r"[^abc]", "b", b"b"),
+            (r"[^\d]", "1", b"1"),
+            (r"[^B-Z]", "B", b"B"),
+            (r"[^a-z\d]", "a", b"a"),
+            (r"[^a-z\d]", "5", b"5"),
         ],
     )
     def test_bad(self, pattern, string, failure_byte):
