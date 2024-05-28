@@ -198,3 +198,36 @@ class TestDot:
         with pytest.raises(ParserException) as pe:
             regex(pattern).match(string, raise_exceptions=True)
         assert pe.value.current_byte == failure_byte
+
+
+class TestSpecialCharacters:
+    @pytest.mark.parametrize(
+        "pattern, string",
+        [
+            (r"\d+", "1234567890"),
+            (r"\D+", "ABCxyz-!@#$%^&*()_+"),
+            (r"\w+", "abcABC123_"),
+            (r"\W+", " -!@#$%^&*()+"),
+            (r"\s+", " \t\n\r\f\v"),
+            (r"\S+", "ABCxyz8743-!@#$%^&*()_+"),
+        ],
+    )
+    def test_good(self, pattern, string):
+        assert regex(pattern).match(string) is not None
+
+    # TODO: more extensive negative tests
+    @pytest.mark.parametrize(
+        "pattern, string, failure_byte",
+        [
+            (r"\d", "x", b"x"),
+            (r"\D", "1", b"1"),
+            (r"\w", " ", b" "),
+            (r"\W", "x", b"x"),
+            (r"\s", "x", b"x"),
+            (r"\S", " ", b" "),
+        ],
+    )
+    def test_bad(self, pattern, string, failure_byte):
+        with pytest.raises(ParserException) as pe:
+            regex(pattern).match(string, raise_exceptions=True)
+        assert pe.value.current_byte == failure_byte

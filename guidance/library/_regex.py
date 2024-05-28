@@ -119,7 +119,17 @@ class Transformer:
     @classmethod
     def CATEGORY(cls, args: constants._NamedIntConstant):
         if args.name == "CATEGORY_DIGIT":
-            return byte_range(b"0", b"9")
+            return regex(r"[0-9]")
+        if args.name == "CATEGORY_NOT_DIGIT":
+            return regex(r"[^0-9]")
+        if args.name == "CATEGORY_WORD":
+            return regex(r"[0-9A-Za-z_]")
+        if args.name == "CATEGORY_NOT_WORD":
+            return regex(r"[^0-9A-Za-z_]")
+        if args.name == "CATEGORY_SPACE":
+            return regex(r"[ \t\n\r\f\v]")
+        if args.name == "CATEGORY_NOT_SPACE":
+            return regex(r"[^ \t\n\r\f\v]")
         raise NotImplementedError(f"No implementation for category {args}")
 
 
