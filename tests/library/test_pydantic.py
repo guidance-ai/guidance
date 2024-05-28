@@ -85,6 +85,7 @@ def generate_and_check(
     round_trip_object = validate_string(lm[CAPTURE_KEY], pydantic_model)
     assert round_trip_object == target_obj
 
+
 def check_match_failure(
     bad_obj: Any,
     good_bytes: bytes,
@@ -99,6 +100,7 @@ def check_match_failure(
     assert pe.value.consumed_bytes[:-1] == good_bytes
     assert pe.value.current_byte == failure_byte
     assert pe.value.allowed_bytes == allowed_bytes
+
 
 def test_simple_model():
     class Simple(pydantic.BaseModel):
@@ -176,8 +178,8 @@ class TestTuple:
             bad_obj=(1, 2),
             good_bytes=b"[1",
             failure_byte=b",",
-            allowed_bytes={ByteRange(b"09"), Byte(b"]")},            
-            pydantic_model=model
+            allowed_bytes={ByteRange(b"09"), Byte(b"]")},
+            pydantic_model=model,
         )
 
 
@@ -250,12 +252,14 @@ class TestGeneric:
     @pytest.mark.parametrize(
         "my_type, my_obj, good_bytes, failure_byte, allowed_bytes",
         [
-            (bool, "True", b'', b'"', {Byte(b"t"), Byte(b"f")}),
-            (str, 42, b'', b"4", {Byte(b'"')}),
-            (int, False, b'', b"f", {Byte(b'0'), ByteRange(b'19'), Byte(b'-')}),
+            (bool, "True", b"", b'"', {Byte(b"t"), Byte(b"f")}),
+            (str, 42, b"", b"4", {Byte(b'"')}),
+            (int, False, b"", b"f", {Byte(b"0"), ByteRange(b"19"), Byte(b"-")}),
         ],
     )
-    def test_bad_generic(self, my_type, my_obj, good_bytes, failure_byte, allowed_bytes):
+    def test_bad_generic(
+        self, my_type, my_obj, good_bytes, failure_byte, allowed_bytes
+    ):
         model = self.SimpleGeneric[my_type]
         obj = {"my_obj": my_obj}
         check_match_failure(
@@ -263,6 +267,5 @@ class TestGeneric:
             good_bytes=b'{"my_obj":' + good_bytes,
             failure_byte=failure_byte,
             allowed_bytes=allowed_bytes,
-            pydantic_model=model
+            pydantic_model=model,
         )
-
