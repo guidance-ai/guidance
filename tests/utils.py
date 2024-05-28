@@ -10,12 +10,14 @@ from guidance._parser import ParserException
 
 opanai_model_cache = {}
 
+
 def env_or_fail(var_name: str) -> str:
     env_value = os.getenv(var_name, None)
 
     assert env_value is not None, f"Env '{var_name}' not found"
 
     return env_value
+
 
 def get_model(model_name, caching=False, **kwargs):
     """Get an LLM by name."""
@@ -97,9 +99,7 @@ def get_llama_cpp_model(model_name, caching=False, **kwargs):
     # load it over and over again
     key = model_name + "_" + str(caching) + "_" + str(kwargs)
     if key not in llama_cpp_model_cache:
-        llama_cpp_model_cache[key] = guidance.models.LlamaCpp(
-            model_name, **kwargs
-        )
+        llama_cpp_model_cache[key] = guidance.models.LlamaCpp(model_name, **kwargs)
 
     return llama_cpp_model_cache[key]
 
