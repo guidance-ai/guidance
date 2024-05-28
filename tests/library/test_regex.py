@@ -9,20 +9,12 @@ class TestCharacterClasses:
         [
             (r"[abc]", "a"),
             (r"[abc]", "b"),
-            (r"[^abc]", "d"),  # Negation
-        ],
-    )
-    def test_character_classes(self, pattern, string):
-        assert regex(pattern).match(string) is not None
-
-    @pytest.mark.parametrize(
-        "pattern, string",
-        [
+            (r"[^abc]", "d"),
             (r"[a-z]", "m"),
             (r"[0-9]", "5"),
         ],
     )
-    def test_ranges(self, pattern, string):
+    def test_good(self, pattern, string):
         assert regex(pattern).match(string) is not None
 
     @pytest.mark.parametrize(
@@ -30,21 +22,11 @@ class TestCharacterClasses:
         [
             (r"[abc]+", "bx", b"x"),  # Bad character not in [abc]
             (r"[^abc]+", "xb", b"b"),  # Negated but matched 'b'
-        ],
-    )
-    def test_character_classes_failure(self, pattern, string, failure_byte):
-        with pytest.raises(ParserException) as pe:
-            regex(pattern).match(string, raise_exceptions=True)
-        assert pe.value.current_byte == failure_byte
-
-    @pytest.mark.parametrize(
-        "pattern, string, failure_byte",
-        [
             (r"[0-9a-f]+", "3bz", b"z"),  # Character outside the range
             (r"[a-z]+", "g1", b"1"),  # Digit where a letter is expected
         ],
     )
-    def test_ranges_failure(self, pattern, string, failure_byte):
+    def test_bad(self, pattern, string, failure_byte):
         with pytest.raises(ParserException) as pe:
             regex(pattern).match(string, raise_exceptions=True)
         assert pe.value.current_byte == failure_byte
