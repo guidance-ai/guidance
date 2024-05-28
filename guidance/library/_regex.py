@@ -64,7 +64,8 @@ class Transformer:
 
     @classmethod
     def ANY(cls, _: None):
-        return any_char()
+        # TODO: introduce re flags, e.g. DOTALL?
+        return any_char_but("\n")
 
     @classmethod
     def IN(cls, args: List[Node]):

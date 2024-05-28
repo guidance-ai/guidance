@@ -173,3 +173,25 @@ class TestAlternations:
         with pytest.raises(ParserException) as pe:
             regex(pattern).match(string, raise_exceptions=True)
         assert pe.value.current_byte == failure_byte
+
+
+class TestDot:
+    @pytest.mark.parametrize(
+        "pattern, string",
+        [
+            (r".+", "ABCxyz8743-!@#$%^&*()_+ \t"),
+        ],
+    )
+    def test_dot(self, pattern, string):
+        assert regex(pattern).match(string) is not None
+
+    @pytest.mark.parametrize(
+        "pattern, string, failure_byte",
+        [
+            (r".+", "ABCxyz\n8743-!@#$%^&*()_+", b"\n"),
+        ],
+    )
+    def test_dot_failures(self, pattern, string, failure_byte):
+        with pytest.raises(ParserException) as pe:
+            regex(pattern).match(string, raise_exceptions=True)
+        assert pe.value.current_byte == failure_byte
