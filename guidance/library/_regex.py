@@ -7,13 +7,12 @@ else:
     import sre_parse as parser
     import sre_constants as constants
 
-from typing import Any, List, Tuple, Type, Union
+from typing import Any, List, Tuple, Union
 
 from typing_extensions import TypeAlias
 
-from .._grammar import Byte, Join, byte_range, select
+from .._grammar import Byte, ByteRange, Join, byte_range, select
 from .._guidance import guidance
-from ._any_char import any_char
 from ._any_char_but import any_char_but
 from ._optional import optional
 from ._zero_or_more import zero_or_more
@@ -72,15 +71,19 @@ class Transformer:
         # char_set
         if args[0] == (constants.NEGATE, None):
             args.pop(0)
-            bytes = []
+            excluded_bytes = set()
             for node in args:
-                type = node[0]
                 value = cls.transform(node)
-                if type == constants.LITERAL:
-                    bytes.append(value.byte)
+                if isinstance(value, Byte):
+                    excluded_bytes.add(value.byte)
+                elif isinstance(value, ByteRange):
+                    low, high = value.byte_range
+                    excluded_bytes.update([bytes([i]) for i in range(low, high + 1)])
                 else:
-                    raise NotImplementedError(f"No NEGATE handler for type {type}")
-            return any_char_but(bytes)
+                    raise NotImplementedError(
+                        f"No NEGATE handler for type {type(value)} (opcode was {node[0]})"
+                    )
+            return any_char_but(excluded_bytes)
         transformed_args = [cls.transform(arg) for arg in args]
         return select(transformed_args)
 

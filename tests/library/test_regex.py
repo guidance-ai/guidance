@@ -10,6 +10,7 @@ class TestCharacterClasses:
             (r"[abc]+", "cbabbaccabc"),
             (r"[a-z]+", "thequickbrownfoxjumpsoverthelazydog"),
             (r"[0-9]+", "9876543210"),
+            (r"[b-y]+", "by"),  # range is left and right inclusive
             (r"[a-f0-9]+", "abcdef0123456789"),
             (r"[abcA-Z]+", "abcABCXYZ"),
             (r"[a-z\d]+", "abc123"),
@@ -28,6 +29,8 @@ class TestCharacterClasses:
             (r"[abc]", "x", b"x"),
             (r"[a-z]", "g1", b"1"),
             (r"[0-9]", "x", b"x"),
+            (r"[b-y]", "a", b"a"),  # range doesn't overflow left
+            (r"[b-y]", "z", b"z"),  # range doesn't overflow right
             (r"[a-f0-9]", "g", b"g"),
             (r"[abcA-Z]", "z", b"z"),
             (r"[a-z\d]", "Z", b"Z"),
