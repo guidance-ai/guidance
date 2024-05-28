@@ -79,6 +79,7 @@ def _check_match_failure(
     assert pe.value.current_byte == failure_byte
     assert pe.value.allowed_bytes == allowed_bytes
 
+
 # Common sets of allowed_bytes
 INTEGER_LEADING = {Byte(b"-"), Byte(b"0"), ByteRange(b"19")}
 INTEGER_FOLLOWING = {ByteRange(b"09")}
@@ -197,6 +198,7 @@ class TestNumber:
             allowed_bytes=allowed_bytes,
             schema_obj=schema_obj,
         )
+
 
 @pytest.mark.parametrize(
     "my_string",
@@ -356,6 +358,7 @@ class TestSimpleObject:
             schema_obj=schema_obj,
         )
 
+
 class TestSimpleArray:
     # These are array without references
     @pytest.mark.parametrize("target_obj", [[], [0], [34, 56], [1, 2, 3], [9, 8, 7, 6]])
@@ -423,8 +426,8 @@ class TestSimpleArray:
         ["bad_string", "good_bytes", "failure_byte", "allowed_bytes"],
         [
             ("9999a7777", b"", b"9", {Byte(b"[")}),
-            ("[321.654]", b"[321", b".", {Byte(b"]"), Byte(b','), *INTEGER_FOLLOWING}),
-            ('["123"]', b"[", b'"', {Byte(b']'), *INTEGER_LEADING}),
+            ("[321.654]", b"[321", b".", {Byte(b"]"), Byte(b","), *INTEGER_FOLLOWING}),
+            ('["123"]', b"[", b'"', {Byte(b"]"), *INTEGER_LEADING}),
         ],
     )
     def test_bad_object(self, bad_string, good_bytes, failure_byte, allowed_bytes):
@@ -442,6 +445,7 @@ class TestSimpleArray:
             allowed_bytes=allowed_bytes,
             schema_obj=schema_obj,
         )
+
 
 class TestArrayWithLengthConstraints:
     prefix_schema_obj = [{"type": "integer"}, {"type": "boolean"}]
@@ -606,6 +610,7 @@ class TestArrayWithLengthConstraints:
             allowed_bytes=allowed_bytes,
             schema_obj=schema_obj,
         )
+
     @pytest.mark.parametrize(
         "min_items, max_items, bad_obj, good_bytes, failure_byte, allowed_bytes",
         [
@@ -651,7 +656,9 @@ class TestArrayWithLengthConstraints:
             ),  # maxItems set to 0, but array is not empty
         ],
     )
-    def test_bad_with_prefix(self, min_items, max_items, bad_obj, good_bytes, failure_byte, allowed_bytes):
+    def test_bad_with_prefix(
+        self, min_items, max_items, bad_obj, good_bytes, failure_byte, allowed_bytes
+    ):
         schema_obj = {
             "prefixItems": self.prefix_schema_obj,
             "minItems": min_items,
@@ -666,6 +673,7 @@ class TestArrayWithLengthConstraints:
             allowed_bytes=allowed_bytes,
             schema_obj=schema_obj,
         )
+
     @pytest.mark.parametrize(
         "min_items, max_items, bad_obj, good_bytes, failure_byte, allowed_bytes",
         [
@@ -703,7 +711,9 @@ class TestArrayWithLengthConstraints:
             ),  # maxItems set to 0, but array is not empty
         ],
     )
-    def test_bad_with_items(self, min_items, max_items, bad_obj, good_bytes, failure_byte, allowed_bytes):
+    def test_bad_with_items(
+        self, min_items, max_items, bad_obj, good_bytes, failure_byte, allowed_bytes
+    ):
         schema_obj = {
             "items": self.items_schema_obj,
             "minItems": min_items,
@@ -718,6 +728,7 @@ class TestArrayWithLengthConstraints:
             allowed_bytes=allowed_bytes,
             schema_obj=schema_obj,
         )
+
 
 class TestWithReferences:
     @pytest.mark.parametrize(
@@ -1069,6 +1080,7 @@ class TestEnum:
             allowed_bytes=allowed_bytes,
             schema_obj=schema_obj,
         )
+
     @pytest.mark.parametrize(
         "bad_obj, good_bytes, failure_byte, allowed_bytes",
         [
@@ -1087,6 +1099,7 @@ class TestEnum:
             allowed_bytes=allowed_bytes,
             schema_obj=schema_obj,
         )
+
 
 class TestAdditionalProperties:
 
@@ -1134,7 +1147,12 @@ class TestAdditionalProperties:
         "bad_obj, good_bytes, failure_byte, allowed_bytes",
         [
             ({"a": "1"}, b'{"a":', b'"', INTEGER_LEADING),
-            ({"a": 1, "b": 1.5}, b'{"a":1,"b":1', b".", {Byte(b","), Byte(b"}"), *INTEGER_FOLLOWING}),
+            (
+                {"a": 1, "b": 1.5},
+                b'{"a":1,"b":1',
+                b".",
+                {Byte(b","), Byte(b"}"), *INTEGER_FOLLOWING},
+            ),
         ],
     )
     def test_simple_bad_type(self, bad_obj, good_bytes, failure_byte, allowed_bytes):
@@ -1147,6 +1165,7 @@ class TestAdditionalProperties:
             allowed_bytes=allowed_bytes,
             schema_obj=schema_obj,
         )
+
     @pytest.mark.parametrize(
         "target_obj", [{}, {"a": 1}, {"a": "2"}, {"a": 1, "b": "2"}]
     )
@@ -1163,7 +1182,12 @@ class TestAdditionalProperties:
         [
             ({"a": 1.5}, b'{"a":1', b".", {Byte(b","), Byte(b"}"), *INTEGER_FOLLOWING}),
             ({"a": True}, b'{"a":', b"t", {Byte(b'"'), *INTEGER_LEADING}),
-            ({"a": 1, "b": False}, b'{"a":1,"b":', b"f", {Byte(b'"'), *INTEGER_LEADING}),
+            (
+                {"a": 1, "b": False},
+                b'{"a":1,"b":',
+                b"f",
+                {Byte(b'"'), *INTEGER_LEADING},
+            ),
         ],
     )
     def test_anyOf_bad_type(self, bad_obj, good_bytes, failure_byte, allowed_bytes):
@@ -1176,6 +1200,7 @@ class TestAdditionalProperties:
             allowed_bytes=allowed_bytes,
             schema_obj=schema_obj,
         )
+
     @pytest.mark.parametrize(
         "target_obj",
         [
@@ -1201,7 +1226,9 @@ class TestAdditionalProperties:
             ({"a": 1, "b": 2}, b'{"', b"a", {Byte(b"m")}),
         ],
     )
-    def test_combined_missing_properties(self, bad_obj, good_bytes, failure_byte, allowed_bytes):
+    def test_combined_missing_properties(
+        self, bad_obj, good_bytes, failure_byte, allowed_bytes
+    ):
         schema_obj = json.loads(self.combined_schema)
         bad_string = _to_compact_json(bad_obj)
         _check_match_failure(
@@ -1211,12 +1238,18 @@ class TestAdditionalProperties:
             allowed_bytes=allowed_bytes,
             schema_obj=schema_obj,
         )
+
     @pytest.mark.parametrize(
         "bad_obj, good_bytes, failure_byte, allowed_bytes",
         [
             ({"mystr": 1}, b'{"mystr":', b"1", {Byte(b'"')}),
             ({"mystr": 1, "a": 2}, b'{"mystr":', b"1", {Byte(b'"')}),
-            ({"mystr": "hello", "a": False}, b'{"mystr":"hello","a":', b"f", INTEGER_LEADING),
+            (
+                {"mystr": "hello", "a": False},
+                b'{"mystr":"hello","a":',
+                b"f",
+                INTEGER_LEADING,
+            ),
         ],
     )
     def test_combined_bad_type(self, bad_obj, good_bytes, failure_byte, allowed_bytes):
@@ -1229,6 +1262,7 @@ class TestAdditionalProperties:
             allowed_bytes=allowed_bytes,
             schema_obj=schema_obj,
         )
+
 
 class TestRecursiveStructures:
     @pytest.mark.parametrize(
