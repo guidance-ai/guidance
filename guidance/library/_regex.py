@@ -63,7 +63,7 @@ class Transformer:
         )
 
     @classmethod
-    def ANY(cls, _: Type[None]):
+    def ANY(cls, _: None):
         return any_char()
 
     @classmethod
@@ -95,7 +95,6 @@ class Transformer:
         cls,
         args: Tuple[int, Union[int, constants._NamedIntConstant], parser.SubPattern],
     ):
-        # TODO: type for this constants._NamedIntConstant? (not an opcode)
         low, high, arg = args
         transformed_arg = cls.transform(arg)
         if isinstance(high, constants._NamedIntConstant):
@@ -106,17 +105,12 @@ class Transformer:
                 return zero_or_more(transformed_arg)
             if low > 0:
                 return Join([transformed_arg] * low + [zero_or_more(transformed_arg)])
-        if isinstance(high, int):
-            return Join(
-                [transformed_arg] * low + [optional(transformed_arg)] * (high - low)
-            )
-        raise TypeError(
-            "high has type {type(high)}, expected one of int, constants._NamedIntConstant"
+        return Join(
+            [transformed_arg] * low + [optional(transformed_arg)] * (high - low)
         )
 
     @classmethod
     def CATEGORY(cls, args: constants._NamedIntConstant):
-        # TODO: type for this constants._NamedIntConstant? (not an opcode)
         if args.name == "CATEGORY_DIGIT":
             return byte_range(b"0", b"9")
         raise NotImplementedError(f"No implementation for category {args}")
