@@ -1,6 +1,6 @@
 import inspect
 from json import dumps as json_dumps
-from typing import Any, Dict, Generic, List, Literal, Tuple, Type, TypeVar, Union
+from typing import Any, Dict, Generic, List, Literal, Tuple, Type, TypeVar, Union, Set
 
 import pydantic
 import pytest
@@ -8,6 +8,7 @@ from pydantic.json_schema import to_jsonable_python as pydantic_to_jsonable_pyth
 
 from guidance import json as gen_json
 from guidance import models
+from guidance._grammar import Byte, ByteRange
 from guidance._parser import ParserException
 
 
@@ -84,18 +85,20 @@ def generate_and_check(
     round_trip_object = validate_string(lm[CAPTURE_KEY], pydantic_model)
     assert round_trip_object == target_obj
 
-
 def check_match_failure(
     bad_obj: Any,
+    good_bytes: bytes,
     failure_byte: bytes,
+    allowed_bytes: Set[Union[Byte, ByteRange]],
     pydantic_model: Union[Type[pydantic.BaseModel], pydantic.TypeAdapter],
 ):
     bad_string = to_compact_json(bad_obj)
     grammar = gen_json(schema=pydantic_model)
     with pytest.raises(ParserException) as pe:
         grammar.match(bad_string, raise_exceptions=True)
+    assert pe.value.consumed_bytes[:-1] == good_bytes
     assert pe.value.current_byte == failure_byte
-
+    assert pe.value.allowed_bytes == allowed_bytes
 
 def test_simple_model():
     class Simple(pydantic.BaseModel):
@@ -169,7 +172,13 @@ class TestTuple:
 
     def test_maxitems(self):
         model = pydantic.TypeAdapter(Tuple[int,])
-        check_match_failure((1, 2), b",", model)
+        check_match_failure(
+            bad_obj=(1, 2),
+            good_bytes=b"[1",
+            failure_byte=b",",
+            allowed_bytes={ByteRange(b"09"), Byte(b"]")},            
+            pydantic_model=model
+        )
 
 
 class TestDict:
@@ -239,14 +248,21 @@ class TestGeneric:
         generate_and_check(obj, model)
 
     @pytest.mark.parametrize(
-        "my_type, my_obj, failure_byte",
+        "my_type, my_obj, good_bytes, failure_byte, allowed_bytes",
         [
-            (bool, "True", b'"'),
-            (str, 42, b"4"),
-            (int, False, b"f"),
+            (bool, "True", b'', b'"', {Byte(b"t"), Byte(b"f")}),
+            (str, 42, b'', b"4", {Byte(b'"')}),
+            (int, False, b'', b"f", {Byte(b'0'), ByteRange(b'19'), Byte(b'-')}),
         ],
     )
-    def test_bad_generic(self, my_type, my_obj, failure_byte):
+    def test_bad_generic(self, my_type, my_obj, good_bytes, failure_byte, allowed_bytes):
         model = self.SimpleGeneric[my_type]
         obj = {"my_obj": my_obj}
-        check_match_failure(obj, failure_byte, model)
+        check_match_failure(
+            bad_obj=obj,
+            good_bytes=b'{"my_obj":' + good_bytes,
+            failure_byte=failure_byte,
+            allowed_bytes=allowed_bytes,
+            pydantic_model=model
+        )
+
