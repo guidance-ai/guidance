@@ -7,8 +7,8 @@ from jsonschema import validate
 from guidance import json as gen_json
 from guidance import models
 from guidance._grammar import Byte, ByteRange
-from guidance._parser import ParserException
 from guidance.library._json import _to_compact_json
+from ..utils import check_match_failure as _check_match_failure
 
 
 def _generate_and_check(
@@ -65,7 +65,7 @@ def _generate_and_check(
         )
 
 
-def _check_match_failure(
+def check_match_failure(
     bad_string: str,
     good_bytes: bytes,
     failure_byte: bytes,
@@ -73,11 +73,13 @@ def _check_match_failure(
     schema_obj: dict[str, Any],
 ):
     grammar = gen_json(schema=schema_obj)
-    with pytest.raises(ParserException) as pe:
-        grammar.match(bad_string, raise_exceptions=True)
-    assert pe.value.consumed_bytes[:-1] == good_bytes
-    assert pe.value.current_byte == failure_byte
-    assert pe.value.allowed_bytes == allowed_bytes
+    _check_match_failure(
+        bad_string=bad_string,
+        good_bytes=good_bytes,
+        failure_byte=failure_byte,
+        allowed_bytes=allowed_bytes,
+        grammar=grammar,
+    )
 
 
 # Common sets of allowed_bytes
@@ -137,7 +139,7 @@ class TestInteger:
     )
     def test_bad_integer(self, bad_string, good_bytes, failure_byte, allowed_bytes):
         schema_obj = json.loads(TestInteger.schema)
-        _check_match_failure(
+        check_match_failure(
             bad_string=bad_string,
             good_bytes=good_bytes,
             failure_byte=failure_byte,
@@ -191,7 +193,7 @@ class TestNumber:
     )
     def test_bad_number(self, bad_string, good_bytes, failure_byte, allowed_bytes):
         schema_obj = json.loads(TestNumber.schema)
-        _check_match_failure(
+        check_match_failure(
             bad_string=bad_string,
             good_bytes=good_bytes,
             failure_byte=failure_byte,
@@ -350,7 +352,7 @@ class TestSimpleObject:
         }
     """
         schema_obj = json.loads(schema)
-        _check_match_failure(
+        check_match_failure(
             bad_string=bad_string,
             good_bytes=good_bytes,
             failure_byte=failure_byte,
@@ -438,7 +440,7 @@ class TestSimpleArray:
             }
         }"""
         schema_obj = json.loads(schema)
-        _check_match_failure(
+        check_match_failure(
             bad_string=bad_string,
             good_bytes=good_bytes,
             failure_byte=failure_byte,
@@ -603,7 +605,7 @@ class TestArrayWithLengthConstraints:
             "type": "array",
         }
         bad_string = _to_compact_json(bad_obj)
-        _check_match_failure(
+        check_match_failure(
             bad_string=bad_string,
             good_bytes=good_bytes,
             failure_byte=failure_byte,
@@ -666,7 +668,7 @@ class TestArrayWithLengthConstraints:
             "type": "array",
         }
         bad_string = _to_compact_json(bad_obj)
-        _check_match_failure(
+        check_match_failure(
             bad_string=bad_string,
             good_bytes=good_bytes,
             failure_byte=failure_byte,
@@ -721,7 +723,7 @@ class TestArrayWithLengthConstraints:
             "type": "array",
         }
         bad_string = _to_compact_json(bad_obj)
-        _check_match_failure(
+        check_match_failure(
             bad_string=bad_string,
             good_bytes=good_bytes,
             failure_byte=failure_byte,
@@ -1073,7 +1075,7 @@ class TestEnum:
     def test_bad_enum(self, bad_obj, good_bytes, failure_byte, allowed_bytes):
         schema_obj = json.loads(self.simple_schema)
         bad_string = _to_compact_json(bad_obj)
-        _check_match_failure(
+        check_match_failure(
             bad_string=bad_string,
             good_bytes=good_bytes,
             failure_byte=failure_byte,
@@ -1092,7 +1094,7 @@ class TestEnum:
     def test_bad_prefix_enum(self, bad_obj, good_bytes, failure_byte, allowed_bytes):
         schema_obj = json.loads(self.prefix_schema)
         bad_string = _to_compact_json(bad_obj)
-        _check_match_failure(
+        check_match_failure(
             bad_string=bad_string,
             good_bytes=good_bytes,
             failure_byte=failure_byte,
@@ -1158,7 +1160,7 @@ class TestAdditionalProperties:
     def test_simple_bad_type(self, bad_obj, good_bytes, failure_byte, allowed_bytes):
         schema_obj = json.loads(self.simple_schema)
         bad_string = _to_compact_json(bad_obj)
-        _check_match_failure(
+        check_match_failure(
             bad_string=bad_string,
             good_bytes=good_bytes,
             failure_byte=failure_byte,
@@ -1193,7 +1195,7 @@ class TestAdditionalProperties:
     def test_anyOf_bad_type(self, bad_obj, good_bytes, failure_byte, allowed_bytes):
         schema_obj = json.loads(self.anyOf_schema)
         bad_string = _to_compact_json(bad_obj)
-        _check_match_failure(
+        check_match_failure(
             bad_string=bad_string,
             good_bytes=good_bytes,
             failure_byte=failure_byte,
@@ -1231,7 +1233,7 @@ class TestAdditionalProperties:
     ):
         schema_obj = json.loads(self.combined_schema)
         bad_string = _to_compact_json(bad_obj)
-        _check_match_failure(
+        check_match_failure(
             bad_string=bad_string,
             good_bytes=good_bytes,
             failure_byte=failure_byte,
@@ -1255,7 +1257,7 @@ class TestAdditionalProperties:
     def test_combined_bad_type(self, bad_obj, good_bytes, failure_byte, allowed_bytes):
         schema_obj = json.loads(self.combined_schema)
         bad_string = _to_compact_json(bad_obj)
-        _check_match_failure(
+        check_match_failure(
             bad_string=bad_string,
             good_bytes=good_bytes,
             failure_byte=failure_byte,

@@ -1,10 +1,12 @@
 import os
-from typing import Any
+from typing import Set, Union
 
 import pytest
 from huggingface_hub import hf_hub_download
 
 import guidance
+from guidance._grammar import Byte, ByteRange, GrammarFunction
+from guidance._parser import ParserException
 
 opanai_model_cache = {}
 
@@ -132,3 +134,22 @@ def get_azure_guidance_model(model_name, caching=False, **kwargs):
         )
 
     return azure_guidance_model_cache[key]
+
+
+def check_match_failure(
+    bad_string: str,
+    good_bytes: bytes,
+    failure_byte: bytes,
+    allowed_bytes: Set[Union[Byte, ByteRange]],
+    grammar: GrammarFunction,
+):
+    """
+    Helper function to check that a string fails to match a grammar after consuming
+    zero or more bytes. It checks that the consumed bytes are as expected, that the
+    failure byte is as expected, and that the allowed bytes are as expected.
+    """
+    with pytest.raises(ParserException) as pe:
+        grammar.match(bad_string, raise_exceptions=True)
+    assert pe.value.consumed_bytes[:-1] == good_bytes
+    assert pe.value.current_byte == failure_byte
+    assert pe.value.allowed_bytes == allowed_bytes

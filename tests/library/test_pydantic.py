@@ -9,7 +9,7 @@ from pydantic.json_schema import to_jsonable_python as pydantic_to_jsonable_pyth
 from guidance import json as gen_json
 from guidance import models
 from guidance._grammar import Byte, ByteRange
-from guidance._parser import ParserException
+from ..utils import check_match_failure as _check_match_failure
 
 
 def to_compact_json(target: Any) -> str:
@@ -95,11 +95,13 @@ def check_match_failure(
 ):
     bad_string = to_compact_json(bad_obj)
     grammar = gen_json(schema=pydantic_model)
-    with pytest.raises(ParserException) as pe:
-        grammar.match(bad_string, raise_exceptions=True)
-    assert pe.value.consumed_bytes[:-1] == good_bytes
-    assert pe.value.current_byte == failure_byte
-    assert pe.value.allowed_bytes == allowed_bytes
+    _check_match_failure(
+        bad_string=bad_string,
+        good_bytes=good_bytes,
+        failure_byte=failure_byte,
+        allowed_bytes=allowed_bytes,
+        grammar=grammar,
+    )
 
 
 def test_simple_model():
