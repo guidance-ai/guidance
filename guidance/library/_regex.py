@@ -19,17 +19,14 @@ from ._optional import optional
 from ._zero_or_more import zero_or_more
 
 # Type aliases
-Subpattern: TypeAlias = parser.SubPattern
-Opcode: TypeAlias = constants._NamedIntConstant  # TODO: enum?
-Argument: TypeAlias = Any
-Node: TypeAlias = Tuple[Opcode, Argument]
+Node: TypeAlias = Tuple[constants._NamedIntConstant, Any]
 
 
 class Transformer:
 
     @classmethod
-    def transform(cls, tree: Union[Subpattern, Node]):
-        if isinstance(tree, Subpattern):
+    def transform(cls, tree: Union[parser.SubPattern, Node]):
+        if isinstance(tree, parser.SubPattern):
             if len(tree.data) == 1:
                 return cls.transform(tree.data[0])
             return Join([cls.transform(node) for node in tree.data])
@@ -45,7 +42,7 @@ class Transformer:
         return method(args)
 
     @classmethod
-    def SUBPATTERN(cls, args: Tuple[int, int, int, Subpattern]):
+    def SUBPATTERN(cls, args: Tuple[int, int, int, parser.SubPattern]):
         # capture group
         # TODO: handle/capture?
         _, _, _, arg = args
@@ -84,7 +81,7 @@ class Transformer:
         return select(transformed_args)
 
     @classmethod
-    def BRANCH(cls, args: Tuple[Any, List[Subpattern]]):
+    def BRANCH(cls, args: Tuple[Any, List[parser.SubPattern]]):
         _, arg = args
         if _ is not None:
             raise NotImplementedError(
@@ -95,7 +92,8 @@ class Transformer:
 
     @classmethod
     def MAX_REPEAT(
-        cls, args: Tuple[int, Union[int, constants._NamedIntConstant], Subpattern]
+        cls,
+        args: Tuple[int, Union[int, constants._NamedIntConstant], parser.SubPattern],
     ):
         # TODO: type for this constants._NamedIntConstant? (not an opcode)
         low, high, arg = args
