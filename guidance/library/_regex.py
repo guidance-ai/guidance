@@ -72,12 +72,15 @@ class Transformer:
         # char_set
         if args[0] == (constants.NEGATE, None):
             args.pop(0)
-            if all([node[0] == constants.LITERAL for node in args]):
-                bytes = [cls.transform(arg).byte for arg in args]
-                return any_char_but(bytes)
-            raise NotImplementedError(
-                "Negation not implemented for non-literals (e.g. ranges)"
-            )
+            bytes = []
+            for node in args:
+                type = node[0]
+                value = cls.transform(node)
+                if type == constants.LITERAL:
+                    bytes.append(value.byte)
+                else:
+                    raise NotImplementedError(f"No NEGATE handler for type {type}")
+            return any_char_but(bytes)
         transformed_args = [cls.transform(arg) for arg in args]
         return select(transformed_args)
 
