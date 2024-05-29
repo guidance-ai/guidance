@@ -53,6 +53,10 @@ class Transformer:
         return Byte(args.to_bytes(length=1, byteorder="big"))
 
     @classmethod
+    def NOT_LITERAL(cls, args: int):
+        return any_char_but(args.to_bytes(length=1, byteorder="big").decode("utf-8"))
+
+    @classmethod
     def RANGE(cls, args: Tuple[int, int]):
         # byte_range
         low, high = args
