@@ -14,7 +14,7 @@ def test_multi_char():
     assert str(model + "<s>" + any_char_but("5b")) == "<s>a"
 
 
-def test_single_char_in_compliment():
+def test_singleton_compliment():
     # Char in middle of range
     not_newline = [chr(i) for i in range(128) if i != 10]
     assert any_char_but(not_newline).match(chr(10)) is not None
