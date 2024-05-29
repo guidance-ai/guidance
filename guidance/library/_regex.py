@@ -89,7 +89,6 @@ class Transformer:
                 low, high = value.byte_range
                 negated_bytes.update([bytes([i]) for i in range(low, high + 1)])
             elif isinstance(value, Select):
-                print(b"\n" in cls._get_negated_bytes(value._values))
                 negated_bytes.update(cls._get_negated_bytes(value._values))
             else:
                 raise NotImplementedError(
