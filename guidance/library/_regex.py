@@ -50,20 +50,17 @@ class Transformer:
     @classmethod
     def LITERAL(cls, args: int):
         # byte
-        return Byte(args.to_bytes(length=1, byteorder="big"))
+        return Byte(bytes([args]))
 
     @classmethod
     def NOT_LITERAL(cls, args: int):
-        return any_char_but(args.to_bytes(length=1, byteorder="big").decode("utf-8"))
+        return any_char_but(chr(args))
 
     @classmethod
     def RANGE(cls, args: Tuple[int, int]):
         # byte_range
         low, high = args
-        return byte_range(
-            low.to_bytes(length=1, byteorder="big"),
-            high.to_bytes(length=1, byteorder="big"),
-        )
+        return byte_range(bytes([low]), bytes([high]))
 
     @classmethod
     def ANY(cls, _: None):
