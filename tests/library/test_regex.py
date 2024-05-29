@@ -205,11 +205,17 @@ class TestSpecialCharacters:
         "pattern, string",
         [
             (r"\d+", "1234567890"),
+            (r"[^\D]+", "1234567890"),
             (r"\D+", "ABCxyz-!@#$%^&*()_+"),
+            (r"[^\d]+", "ABCxyz-!@#$%^&*()_+"),
             (r"\w+", "abcABC123_"),
+            (r"[^\W]+", "abcABC123_"),
             (r"\W+", " -!@#$%^&*()+"),
+            (r"[^\w]+", "-!@#$%^&*()_+"),
             (r"\s+", " \t\n\r\f\v"),
+            (r"[^\S]+", " \t\n\r\f\v"),
             (r"\S+", "ABCxyz8743-!@#$%^&*()_+"),
+            (r"[^\s]+", "ABCxyz8743-!@#$%^&*()_+"),
         ],
     )
     def test_good(self, pattern, string):
