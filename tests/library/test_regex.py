@@ -18,6 +18,7 @@ class TestCharacterClasses:
             (r"[^\d]+", "abcXYZ-!@#$%^&*()_+"),
             (r"[^B-Z]+", "qwertyA"),
             (r"[^a-z\d]+", "ABCDEF-!@#$%^&*()_+"),
+            (r"[^\n]+", "ABCxyz8743-!@#$%^&*()_+"),
         ],
     )
     def test_good(self, pattern, string):
@@ -39,6 +40,7 @@ class TestCharacterClasses:
             (r"[^B-Z]", "B", b"B"),
             (r"[^a-z\d]", "a", b"a"),
             (r"[^a-z\d]", "5", b"5"),
+            (r"[^\n]+", "ABCxyz8743-!@#$%^&*()_+\n", b"\n"),
         ],
     )
     def test_bad(self, pattern, string, failure_byte):
