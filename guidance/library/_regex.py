@@ -11,7 +11,7 @@ from typing import Any, List, Tuple, Union
 
 from typing_extensions import TypeAlias
 
-from .._grammar import Byte, ByteRange, Join, byte_range, select
+from .._grammar import Byte, ByteRange, Join, Select, byte_range, select
 from .._guidance import guidance
 from ._any_char_but import any_char_but
 from ._optional import optional
@@ -68,24 +68,30 @@ class Transformer:
 
     @classmethod
     def IN(cls, args: List[Node]):
-        # char_set
-        if args[0] == (constants.NEGATE, None):
-            args.pop(0)
-            excluded_bytes = set()
-            for node in args:
-                value = cls.transform(node)
-                if isinstance(value, Byte):
-                    excluded_bytes.add(value.byte)
-                elif isinstance(value, ByteRange):
-                    low, high = value.byte_range
-                    excluded_bytes.update([bytes([i]) for i in range(low, high + 1)])
-                else:
-                    raise NotImplementedError(
-                        f"No NEGATE handler for type {type(value)} (opcode was {node[0]})"
-                    )
-            return any_char_but(excluded_bytes)
+        if args[0][0] == constants.NEGATE:
+            transformed_args = [cls.transform(arg) for arg in args[1:]]
+            negated_bytes = cls._get_negated_bytes(transformed_args)
+            return any_char_but(negated_bytes)
         transformed_args = [cls.transform(arg) for arg in args]
         return select(transformed_args)
+
+    @classmethod
+    def _get_negated_bytes(cls, grammars: List[Union[Byte, ByteRange, Select]]):
+        negated_bytes = set()
+        for value in grammars:
+            if isinstance(value, Byte):
+                negated_bytes.add(value.byte)
+            elif isinstance(value, ByteRange):
+                low, high = value.byte_range
+                negated_bytes.update([bytes([i]) for i in range(low, high + 1)])
+            elif isinstance(value, Select):
+                print(b"\n" in cls._get_negated_bytes(value._values))
+                negated_bytes.update(cls._get_negated_bytes(value._values))
+            else:
+                raise NotImplementedError(
+                    f"No implementation of negation for type {type(value)}"
+                )
+        return negated_bytes
 
     @classmethod
     def BRANCH(cls, args: Tuple[Any, List[parser.SubPattern]]):
