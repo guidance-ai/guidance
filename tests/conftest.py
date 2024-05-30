@@ -92,6 +92,14 @@ def selected_model(selected_model_info: str) -> models.Model:
     return model
 
 
+@pytest.fixture(scope="module")
+def model_with_role_tags(selected_model, selected_model_name):
+    if selected_model_name in ["transformers_phi3cpu_mini_4k_instruct", "transformers_llama3cpu_8b", "hfllama_phi3cpu_mini_4k_instruct", "hfllama_mistral_7b"]:
+        return selected_model
+    else:
+        pytest.skip("Requires a model that supports role tags!")
+
+
 @pytest.fixture(scope="function")
 def rate_limiter() -> int:
     """Limit test execution rate

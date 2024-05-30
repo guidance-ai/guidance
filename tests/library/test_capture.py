@@ -1,16 +1,7 @@
 from guidance import capture, models, one_or_more, select, guidance, user
-import pytest
 
 from ..utils import get_model
-
-
-@pytest.fixture(scope="module")
-def instruct_model(selected_model, selected_model_name):
-    if selected_model_name in ["transformers_phi3cpu_mini_4k_instruct"]:
-        return selected_model
-    else:
-        pytest.skip("Requires Phi3 4k Instruct model")
-
+from ..conftest import model_with_role_tags
 
 
 def test_capture():
@@ -56,8 +47,9 @@ def test_capture_raw_function():
     assert str(lm_cap_arg).endswith("|the end")
     assert str(lm_cap_kwarg).endswith("|the end")
 
-def test_capture_within_role(instruct_model: guidance.models.Model):
-    lm = instruct_model
+
+def test_capture_within_role(model_with_role_tags: guidance.models.Model):
+    lm = model_with_role_tags
     test_text = "This is some text in a role."
     with user():
         lm += capture(test_text, "test")
