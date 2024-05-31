@@ -1,5 +1,5 @@
 import json
-from typing import Any, Union, Set
+from typing import Any, Union, Set, Dict
 
 import pytest
 from jsonschema import validate
@@ -70,7 +70,7 @@ def check_match_failure(
     good_bytes: bytes,
     failure_byte: bytes,
     allowed_bytes: Set[Union[Byte, ByteRange]],
-    schema_obj: dict[str, Any],
+    schema_obj: Dict[str, Any],
 ):
     grammar = gen_json(schema=schema_obj)
     _check_match_failure(
