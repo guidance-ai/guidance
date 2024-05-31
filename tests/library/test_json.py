@@ -27,7 +27,7 @@ def _generate_and_check(
     # So append a 'stop' character which we don't
     # use in any of our tests
 
-    STOP_CHAR = "\g"
+    STOP_CHAR = chr(7)
     prepared_json = _to_compact_json(target_obj)
     assert STOP_CHAR not in prepared_json, "STOP_CHAR in string"
 
