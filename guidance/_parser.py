@@ -594,10 +594,14 @@ class EarleyCommitParser(Parser):
 
     def _compute_parse_tree(self, initial_pos, initial_item, reversed_state_sets):
         stack = [(initial_pos, initial_item)]
+        seen = set()
 
         while stack:
             pos, item = stack.pop()
-
+            if (pos, item) in seen:
+                # Skip items we have already processed
+                continue
+            seen.add((pos, item))
             # compute the children for this item
             assert self._compute_children(pos, item, reversed_state_sets)
 
