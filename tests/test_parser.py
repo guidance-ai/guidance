@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import patch
 
 from guidance import char_set, one_or_more, select, string, zero_or_more
-from guidance._grammar import Byte, ByteRange, Select
+from guidance._grammar import Byte, ByteRange, Select, Join
 from guidance._parser import EarleyCommitParser
 
 
@@ -141,11 +141,14 @@ class TestRecursiveNullableGrammars:
     Computing parse tree of recursive nullable grammars will cause an infinite
     loop if not handled correctly
     """
+
     @pytest.mark.timeout(5)
     def test_no_infinite_loop(self):
         """
         A -> A
         A ->
+
+        Loop occurs because `A -> A` is a nullable rule
         """
         # Note that we get a different grammar if we made `A = select([''], recurse=True)`
         A = Select([], recursive=True)
@@ -163,9 +166,37 @@ class TestRecursiveNullableGrammars:
         A ->
         B -> 'x'
         B ->
+
+        Loop occurs because `A -> A B` is a nullable rule
         """
         B = select(["x", ""])
         A = select([B, ""], recurse=True)
+        parser = EarleyCommitParser(A)
+        # Test that computing the parse tree doesn't hang
+        parser.parse_tree()
+        # Test that getting captures doesn't hang
+        parser.get_captures()
+
+    @pytest.mark.timeout(5)
+    def test_no_infinite_loop_extra_indirection(self):
+        """
+        A -> A C
+        A -> B
+        A ->
+        B -> A
+        C -> 'x'
+
+        Loop occurs because `A -> B`, `B -> A` are nullable rules
+        """
+        C = Join(["x"])
+        # Initialize as nullable -- quirk in how nullability is determined in Select
+        B = Select([""])
+        # Initialize as nullable -- quirk in how nullability is determined in Select
+        A = Select([""])
+        B.values = [A]
+        A.values = [A + C, B, ""]
+        assert A.nullable
+        assert B.nullable
         parser = EarleyCommitParser(A)
         # Test that computing the parse tree doesn't hang
         parser.parse_tree()
