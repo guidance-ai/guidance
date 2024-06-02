@@ -535,13 +535,14 @@ class EarleyCommitParser(Parser):
     def _record_captures_from_root(self, initial_item, data, log_prob_data):
         byte_data = self.bytes
         stack = [(initial_item, 0)]
-        used_names = (
-            set()
-        )  # track which capture names have been used so self-recursive children don't overwrite their parents
+        # track which capture names have been used so self-recursive children don't overwrite their parents
+        used_names = set()
+        # track which items we have seen so we don't process them multiple times, leading to infinite loops
         seen = set()
         while stack:
             item, byte_pos = stack.pop()
             if (item, byte_pos) in seen:
+                # skip items we have already processed
                 continue
             seen.add((item, byte_pos))
             # terminal nodes
@@ -597,12 +598,12 @@ class EarleyCommitParser(Parser):
 
     def _compute_parse_tree(self, initial_pos, initial_item, reversed_state_sets):
         stack = [(initial_pos, initial_item)]
+        # track which items we have seen so we don't process them multiple times, leading to infinite loops
         seen = set()
-
         while stack:
             pos, item = stack.pop()
             if (pos, item) in seen:
-                # Skip items we have already processed
+                # skip items we have already processed
                 continue
             seen.add((pos, item))
             # compute the children for this item

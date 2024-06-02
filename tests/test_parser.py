@@ -137,6 +137,10 @@ def test_string_utf8():
 
 
 class TestRecursiveNullableGrammars:
+    """
+    Computing parse tree of recursive nullable grammars will cause an infinite
+    loop if not handled correctly
+    """
     @pytest.mark.timeout(5)
     def test_no_infinite_loop(self):
         """
