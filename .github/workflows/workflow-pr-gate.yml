@@ -172,7 +172,7 @@ jobs:
         python-version: ["3.9", "3.10", "3.11", "3.12"]
         model:
           - "gpt2cpu"
-          - "phi2cpu"
+          # - "phi2cpu" Seems to get stuck
           # - "transformers_mistral_7b" See Issue 713
           - "hfllama7b"
           - "hfllama_mistral_7b"
