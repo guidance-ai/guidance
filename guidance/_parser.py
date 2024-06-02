@@ -538,9 +538,12 @@ class EarleyCommitParser(Parser):
         used_names = (
             set()
         )  # track which capture names have been used so self-recursive children don't overwrite their parents
-
+        seen = set()
         while stack:
             item, byte_pos = stack.pop()
+            if (item, byte_pos) in seen:
+                continue
+            seen.add((item, byte_pos))
             # terminal nodes
             if isinstance(item, Terminal):
 
