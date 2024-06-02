@@ -61,6 +61,7 @@ test_requires = [
     "papermill",
     "pytest",
     "pytest-cov",
+    "pytest-timeout",
     "torch",
     "transformers",
     "mypy==1.9.0",

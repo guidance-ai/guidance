@@ -1,5 +1,7 @@
+import pytest
+
 from guidance import char_set, one_or_more, select, string, zero_or_more
-from guidance._grammar import Byte, ByteRange
+from guidance._grammar import Byte, ByteRange, Select
 from guidance._parser import EarleyCommitParser
 
 
@@ -131,3 +133,48 @@ def test_string_utf8():
     parser.consume_byte(b[:1])
     assert parser.valid_next_bytes() == set([Byte(b[1:])])
     parser.consume_byte(b[1:])
+
+
+class TestRecursiveNullableGrammars:
+    @pytest.mark.timeout(5)
+    def test_no_infinite_loop(self):
+        """
+        A -> A
+        A ->
+        """
+        # Note that we get a different grammar if we made `A = select([''], recurse=True)`
+        A = Select([], recursive=True)
+        A.values = [A, ""]
+        parser = EarleyCommitParser(A)
+        # Test that computing the parse tree doesn't hang
+        parser.parse_tree()
+        # Test that getting captures doesn't hang
+        parser.get_captures()
+
+    @pytest.mark.timeout(5)
+    def test_no_infinite_loop_with_terminal(self):
+        """
+        A -> A B
+        A ->
+        B -> 'x'
+        B ->
+        """
+        B = select(["x", ""])
+        A = select([B, ""], recurse=True)
+        parser = EarleyCommitParser(A)
+        # Test that computing the parse tree doesn't hang
+        parser.parse_tree()
+        # Test that getting captures doesn't hang
+        parser.get_captures()
+
+    @pytest.mark.timeout(5)
+    def test_captures(self):
+        B = select(["x", ""], name="B")
+        A = select([B, ""], recurse=True, name="A")
+        parser = EarleyCommitParser(A)
+        parser.consume_byte(b"x")
+        captures, _ = parser.get_captures()
+        assert captures == {"B": b"x", "A": b"x"}
+        parser.consume_byte(b"x")
+        captures, _ = parser.get_captures()
+        assert captures == {"B": b"x", "A": b"xx"}
