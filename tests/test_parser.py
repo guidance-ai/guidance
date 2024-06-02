@@ -1,4 +1,5 @@
 import pytest
+from unittest.mock import patch
 
 from guidance import char_set, one_or_more, select, string, zero_or_more
 from guidance._grammar import Byte, ByteRange, Select
@@ -168,13 +169,51 @@ class TestRecursiveNullableGrammars:
         parser.get_captures()
 
     @pytest.mark.timeout(5)
-    def test_captures(self):
+    def test_captures_from_root(self):
         B = select(["x", ""], name="B")
         A = select([B, ""], recurse=True, name="A")
         parser = EarleyCommitParser(A)
-        parser.consume_byte(b"x")
-        captures, _ = parser.get_captures()
-        assert captures == {"B": b"x", "A": b"x"}
-        parser.consume_byte(b"x")
-        captures, _ = parser.get_captures()
-        assert captures == {"B": b"x", "A": b"xx"}
+
+        with patch.object(
+            parser,
+            "_record_captures_from_root",
+            wraps=parser._record_captures_from_root,
+        ) as mock:
+            parser.consume_byte(b"x")
+            captures, _ = parser.get_captures()
+            assert mock.call_count == 1
+            assert captures == {"B": b"x", "A": b"x"}
+
+            parser.consume_byte(b"x")
+            captures, _ = parser.get_captures()
+            assert mock.call_count == 2
+            assert captures == {"B": b"x", "A": b"xx"}
+
+    @pytest.mark.timeout(5)
+    def test_partial_captures(self):
+        B = select(["x", ""], name="B")
+        A = select([B, ""], recurse=True, name="A")
+        C = A + "y"
+        parser = EarleyCommitParser(C)
+
+        with patch.object(
+            parser,
+            "_record_captures_partial",
+            wraps=parser._record_captures_partial,
+        ) as mock:
+            parser.consume_byte(b"x")
+            captures, _ = parser.get_captures()
+            assert mock.call_count == 1
+            assert captures == {"B": b"", "A": b"x"}
+
+            parser.consume_byte(b"x")
+            captures, _ = parser.get_captures()
+            assert mock.call_count == 2
+            assert captures == {"B": b"", "A": b"xx"}
+
+            # No new call to _record_captures_partial, but make sure that the captures are updated
+            # when finally called from root
+            parser.consume_byte(b"y")
+            captures, _ = parser.get_captures()
+            assert mock.call_count == 2  # no new call
+            assert captures == {"B": b"x", "A": b"xx"}
