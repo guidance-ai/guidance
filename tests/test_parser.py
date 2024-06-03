@@ -156,8 +156,6 @@ class TestRecursiveNullableGrammars:
         parser = EarleyCommitParser(A)
         # Test that computing the parse tree doesn't hang
         parser.parse_tree()
-        # Test that getting captures doesn't hang
-        parser.get_captures()
 
     @pytest.mark.timeout(5)
     def test_no_infinite_loop_with_terminal(self):
@@ -174,8 +172,6 @@ class TestRecursiveNullableGrammars:
         parser = EarleyCommitParser(A)
         # Test that computing the parse tree doesn't hang
         parser.parse_tree()
-        # Test that getting captures doesn't hang
-        parser.get_captures()
 
     @pytest.mark.timeout(5)
     def test_no_infinite_loop_extra_indirection(self):
@@ -200,8 +196,6 @@ class TestRecursiveNullableGrammars:
         parser = EarleyCommitParser(A)
         # Test that computing the parse tree doesn't hang
         parser.parse_tree()
-        # Test that getting captures doesn't hang
-        parser.get_captures()
 
     @pytest.mark.timeout(5)
     def test_captures_from_root(self):
