@@ -51,7 +51,7 @@ class Tokenizer:
 
         # track which tokens are duplicates
         self._duplicate_tokens = []
-        found: Dict[int, bytes] = {}
+        found: Dict[bytes, int] = {}
         for i, t in enumerate(self.tokens):
             if t in found:
                 self._duplicate_tokens.append((i, found[t]))
