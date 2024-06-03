@@ -24,7 +24,10 @@ Node: TypeAlias = Tuple[constants._NamedIntConstant, Any]
 class Transformer:
 
     @classmethod
-    def transform(cls, tree: Union[parser.SubPattern, Node]):
+    def transform(cls, tree: Union[parser.SubPattern, Node], flags: int = 0):
+        if flags != 0:
+            # Equivalent to re.NOFLAG
+            raise NotImplementedError("Regex flags not implemented")
         if isinstance(tree, parser.SubPattern):
             if len(tree.data) == 1:
                 return cls.transform(tree.data[0])
@@ -43,9 +46,12 @@ class Transformer:
     @classmethod
     def SUBPATTERN(cls, args: Tuple[int, int, int, parser.SubPattern]):
         # capture group
-        # TODO: handle/capture?
-        _, _, _, arg = args
-        return cls.transform(arg)
+        grpno, flags, unknown, arg = args
+        if unknown != 0:
+            # Unsure of the semantics of this value, but
+            # it seems to be 0 in all cases tested so far
+            raise NotImplementedError("Unknown value in SUBPATTERN: {unknown}")
+        return cls.transform(arg, flags)
 
     @classmethod
     def LITERAL(cls, args: int):
@@ -64,7 +70,6 @@ class Transformer:
 
     @classmethod
     def ANY(cls, _: None):
-        # TODO: introduce re flags, e.g. DOTALL?
         return any_char_but("\n")
 
     @classmethod
