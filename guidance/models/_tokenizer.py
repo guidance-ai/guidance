@@ -1,4 +1,4 @@
-from typing import Any, Sequence, Union
+from typing import Any, Dict, Sequence, Union
 
 import numpy as np
 
@@ -51,7 +51,7 @@ class Tokenizer:
 
         # track which tokens are duplicates
         self._duplicate_tokens = []
-        found = {}
+        found: Dict[int, bytes] = {}
         for i, t in enumerate(self.tokens):
             if t in found:
                 self._duplicate_tokens.append((i, found[t]))
