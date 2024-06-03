@@ -7,8 +7,9 @@ import sys
 import logging
 import numpy as np
 
-from .._model import Tokenizer, Engine, Model, Chat
+from .._model import Engine, Model, Chat
 from .._remote import RemoteEngine
+from .._tokenizer import Tokenizer
 from ..._utils import normalize_notebook_stdout_stderr
 
 try:
@@ -60,18 +61,28 @@ class LlamaCppTokenizer(Tokenizer):
         # get the bytes strings for all the tokens
         tokens = []
         for i in range(tokenizer.llama.n_vocab()):
-            tok = tokenizer.llama.detokenize([i])  # note that detokenize returns bytes directly
+            tok = tokenizer.llama.detokenize(
+                [i]
+            )  # note that detokenize returns bytes directly
             if tok == b"":
-                tok = llama_cpp.llama_token_get_text(model_obj.model, i)  # get text rep of special tokens
+                tok = llama_cpp.llama_token_get_text(
+                    model_obj.model, i
+                )  # get text rep of special tokens
             tokens.append(tok)
 
         # Chat Template logic
         if chat_template is None:
-            if hasattr(self._model_obj, "metadata") and "tokenizer.chat_template" in self._model_obj.metadata:
+            if (
+                hasattr(self._model_obj, "metadata")
+                and "tokenizer.chat_template" in self._model_obj.metadata
+            ):
                 chat_template = self._model_obj.metadata["tokenizer.chat_template"]
 
         super().__init__(
-            tokens, chat_template, tokenizer.llama.token_bos(), tokenizer.llama.token_eos()
+            tokens,
+            chat_template,
+            tokenizer.llama.token_bos(),
+            tokenizer.llama.token_eos(),
         )
 
     def __call__(self, byte_string):
@@ -119,7 +130,9 @@ class LlamaCppEngine(Engine):
                 )
 
             with normalize_notebook_stdout_stderr():
-                self.model_obj = llama_cpp.Llama(model_path=model, logits_all=True, **kwargs)
+                self.model_obj = llama_cpp.Llama(
+                    model_path=model, logits_all=True, **kwargs
+                )
         elif isinstance(model, llama_cpp.Llama):
             self.model = model.__class__.__name__
             self.model_obj = model
@@ -134,7 +147,8 @@ class LlamaCppEngine(Engine):
         self._cache_token_ids = []
 
         super().__init__(
-            LlamaCppTokenizer(self.model_obj, chat_template=chat_template), compute_log_probs=compute_log_probs
+            LlamaCppTokenizer(self.model_obj, chat_template=chat_template),
+            compute_log_probs=compute_log_probs,
         )
 
         self._n_vocab = len(self.tokenizer.tokens)
@@ -227,7 +241,10 @@ class LlamaCpp(Model):
             engine = RemoteEngine(model, api_key=api_key, **llama_cpp_kwargs)
         else:
             engine = LlamaCppEngine(
-                model, compute_log_probs=compute_log_probs, chat_template=chat_template, **llama_cpp_kwargs
+                model,
+                compute_log_probs=compute_log_probs,
+                chat_template=chat_template,
+                **llama_cpp_kwargs,
             )
 
         super().__init__(engine, echo=echo)

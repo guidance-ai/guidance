@@ -2,8 +2,9 @@ import requests
 import os
 import base64
 
-from ._model import Tokenizer, Engine, EngineCallResponse
+from ._model import Engine, EngineCallResponse
 from ..chat import ChatMLTemplate
+from ._tokenizer import Tokenizer
 from ._grammarless import GrammarlessTokenizer
 
 class RemoteEngine(Engine):

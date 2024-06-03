@@ -5,7 +5,8 @@ import time
 import tiktoken
 import re
 import logging
-from ._model import Tokenizer, Engine, Model, format_pattern, ConstraintException
+from ._model import Engine, Model, format_pattern, ConstraintException
+from ._tokenizer import Tokenizer
 from ..chat import ChatMLTemplate
 
 import warnings
