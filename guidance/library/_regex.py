@@ -29,6 +29,10 @@ class UnsupportedRegexError(Exception):
 class RegexPatternConverter:
 
     @classmethod
+    def parse(cls, pattern: str):
+        return cls.convert(parser.parse(pattern))
+
+    @classmethod
     def convert(cls, tree: Union[parser.SubPattern, Node], flags: int = 0):
         if flags != 0:
             # Equivalent to re.NOFLAG
@@ -157,4 +161,4 @@ class RegexPatternConverter:
 
 @guidance(stateless=True)
 def regex(lm, pattern):
-    return lm + RegexPatternConverter.convert(parser.parse(pattern))
+    return lm + RegexPatternConverter.parse(pattern)
