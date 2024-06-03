@@ -26,10 +26,10 @@ class UnsupportedRegexError(Exception):
     pass
 
 
-class Transformer:
+class RegexPatternConverter:
 
     @classmethod
-    def transform(cls, tree: Union[parser.SubPattern, Node], flags: int = 0):
+    def convert(cls, tree: Union[parser.SubPattern, Node], flags: int = 0):
         if flags != 0:
             # Equivalent to re.NOFLAG
             raise UnsupportedRegexError(
@@ -37,8 +37,8 @@ class Transformer:
             )
         if isinstance(tree, parser.SubPattern):
             if len(tree.data) == 1:
-                return cls.transform(tree.data[0])
-            return Join([cls.transform(node) for node in tree.data])
+                return cls.convert(tree.data[0])
+            return Join([cls.convert(node) for node in tree.data])
 
         opcode, args = tree
         opcode_name = opcode.name
@@ -58,7 +58,7 @@ class Transformer:
             # Unsure of the semantics of this value, but
             # it seems to be 0 in all cases tested so far
             raise UnsupportedRegexError(f"Unknown argument in SUBPATTERN: {unknown}")
-        return cls.transform(arg, flags)
+        return cls.convert(arg, flags)
 
     @classmethod
     def LITERAL(cls, args: int):
@@ -82,10 +82,10 @@ class Transformer:
     @classmethod
     def IN(cls, args: List[Node]):
         if args[0][0] == constants.NEGATE:
-            transformed_args = [cls.transform(arg) for arg in args[1:]]
+            transformed_args = [cls.convert(arg) for arg in args[1:]]
             negated_bytes = cls._get_negated_bytes(transformed_args)
             return any_char_but(negated_bytes)
-        transformed_args = [cls.transform(arg) for arg in args]
+        transformed_args = [cls.convert(arg) for arg in args]
         return select(transformed_args)
 
     @classmethod
@@ -110,7 +110,7 @@ class Transformer:
             # Unsure of the semantics of this value, but it seems to be
             # None in all cases tested so far
             raise UnsupportedRegexError(f"Unkwnown argument in BRANCH: {unknown}")
-        transformed_args = [cls.transform(a) for a in arg]
+        transformed_args = [cls.convert(a) for a in arg]
         return select(transformed_args)
 
     @classmethod
@@ -119,7 +119,7 @@ class Transformer:
         args: Tuple[int, Union[int, constants._NamedIntConstant], parser.SubPattern],
     ):
         low, high, arg = args
-        transformed_arg = cls.transform(arg)
+        transformed_arg = cls.convert(arg)
         if isinstance(high, constants._NamedIntConstant):
             if high != constants.MAXREPEAT:
                 raise UnsupportedRegexError(f"Unsupported high value in range: {high}")
@@ -157,4 +157,4 @@ class Transformer:
 
 @guidance(stateless=True)
 def regex(lm, pattern):
-    return lm + Transformer.transform(parser.parse(pattern))
+    return lm + RegexPatternConverter.convert(parser.parse(pattern))
