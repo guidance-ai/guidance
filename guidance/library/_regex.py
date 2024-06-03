@@ -7,6 +7,7 @@ else:
     import sre_parse as parser
     import sre_constants as constants
 
+from re import RegexFlag
 from typing import Any, List, Tuple, Union
 
 from typing_extensions import TypeAlias
@@ -21,13 +22,19 @@ from ._zero_or_more import zero_or_more
 Node: TypeAlias = Tuple[constants._NamedIntConstant, Any]
 
 
+class UnsupportedRegexError(Exception):
+    pass
+
+
 class Transformer:
 
     @classmethod
     def transform(cls, tree: Union[parser.SubPattern, Node], flags: int = 0):
         if flags != 0:
             # Equivalent to re.NOFLAG
-            raise NotImplementedError("Regex flags not implemented")
+            raise UnsupportedRegexError(
+                f"Flags other than re.NOFLAG not supported; got {RegexFlag(flags)}"
+            )
         if isinstance(tree, parser.SubPattern):
             if len(tree.data) == 1:
                 return cls.transform(tree.data[0])
@@ -38,8 +45,8 @@ class Transformer:
         try:
             method = getattr(cls, opcode_name)
         except AttributeError as e:
-            raise NotImplementedError(
-                f"No method implemented for opcode {opcode_name}"
+            raise UnsupportedRegexError(
+                f"Unsupported regex feature with opcode {opcode_name}"
             ) from e
         return method(args)
 
@@ -50,7 +57,7 @@ class Transformer:
         if unknown != 0:
             # Unsure of the semantics of this value, but
             # it seems to be 0 in all cases tested so far
-            raise NotImplementedError("Unknown value in SUBPATTERN: {unknown}")
+            raise UnsupportedRegexError(f"Unknown argument in SUBPATTERN: {unknown}")
         return cls.transform(arg, flags)
 
     @classmethod
@@ -93,18 +100,16 @@ class Transformer:
             elif isinstance(value, Select):
                 negated_bytes.update(cls._get_negated_bytes(value._values))
             else:
-                raise NotImplementedError(
-                    f"No implementation of negation for type {type(value)}"
-                )
+                raise TypeError(f"Can't negate {type(value)} object")
         return negated_bytes
 
     @classmethod
     def BRANCH(cls, args: Tuple[Any, List[parser.SubPattern]]):
-        _, arg = args
-        if _ is not None:
-            raise NotImplementedError(
-                "First time seeing BRANCH with non-None first arg"
-            )
+        unknown, arg = args
+        if unknown is not None:
+            # Unsure of the semantics of this value, but it seems to be
+            # None in all cases tested so far
+            raise UnsupportedRegexError(f"Unkwnown argument in BRANCH: {unknown}")
         transformed_args = [cls.transform(a) for a in arg]
         return select(transformed_args)
 
@@ -117,7 +122,7 @@ class Transformer:
         transformed_arg = cls.transform(arg)
         if isinstance(high, constants._NamedIntConstant):
             if high != constants.MAXREPEAT:
-                raise NotImplementedError(f"No handler for MAX_REPEAT with high={high}")
+                raise UnsupportedRegexError(f"Unsupported high value in range: {high}")
             if low == 0:
                 # kleene star
                 return zero_or_more(transformed_arg)
@@ -147,7 +152,7 @@ class Transformer:
         # \S
         if args.name == "CATEGORY_NOT_SPACE":
             return regex(r"[^ \t\n\r\f\v]")
-        raise NotImplementedError(f"No implementation for category {args}")
+        raise UnsupportedRegexError(f"Unsupported category: {args.name}")
 
 
 @guidance(stateless=True)
