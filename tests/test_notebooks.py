@@ -1,3 +1,4 @@
+import logging
 import os
 import pathlib
 from typing import Any, Dict, Optional
@@ -14,6 +15,8 @@ BASE_NB_PATH = pathlib.Path("./notebooks").absolute()
 
 
 def run_notebook(notebook_path: pathlib.Path, params: Optional[Dict[str, Any]] = None):
+    # Crank up the logging in the notebook tests
+    logging.basicConfig(level=logging.DEBUG)
     assert notebook_path.exists(), f"Checking for: {notebook_path}"
     output_nb = notebook_path.stem + ".papermill_out" + notebook_path.suffix
     output_path = TestTutorials.BASE_TUTORIAL_PATH / output_nb
