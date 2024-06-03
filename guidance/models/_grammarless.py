@@ -9,6 +9,7 @@ from ._model import Tokenizer, Engine, Model, format_pattern, ConstraintExceptio
 from ..chat import ChatMLTemplate
 
 import warnings
+
 logger = logging.getLogger(__name__)
 
 
@@ -125,9 +126,9 @@ class GrammarlessEngine(Engine):
         # this is where the streaming thread puts results
         self._data_queue = queue.Queue()
         self._data = b""  # these are the bytes we are ready to use in the main thread
-        
+
         # this is phrased negatively so we can wait for the stop event
-        self._not_running_stream = threading.Event() 
+        self._not_running_stream = threading.Event()
         self._last_call = 0
         self._num_calls_made = 0
         self._current_temp = 0
@@ -143,10 +144,12 @@ class GrammarlessEngine(Engine):
             tokenizer = GrammarlessTokenizer(tokenizer)
 
         # GrammarlessEngines must use the ChatML tokenizer
-        # TODO: Consider different enforcement of this 
+        # TODO: Consider different enforcement of this
         if tokenizer.chat_template is not ChatMLTemplate:
-            raise Exception("The tokenizer provided to the engine follows a non-ChatML format in its chat_template. \
-                    Using a transformers, tiktoken, or guidance.GrammarlessTokenizer directly will solve this issue.")
+            raise Exception(
+                "The tokenizer provided to the engine follows a non-ChatML format in its chat_template. \
+                    Using a transformers, tiktoken, or guidance.GrammarlessTokenizer directly will solve this issue."
+            )
         # build the Engine
         super().__init__(tokenizer=tokenizer, compute_log_probs=compute_log_probs)
 
@@ -418,7 +421,9 @@ class GrammarlessEngine(Engine):
             + "not match the given grammar constraints! Since your model is a remote API that does not support full guidance\n"
             + "integration we cannot force the model to follow the grammar, only flag an error when it fails to match.\n"
             + "You can try to address this by improving the prompt, making your grammar more flexible, rerunning with\n"
-            + "a non-zero temperature, or using a model that supports full guidance grammar constraints."
+            + "a non-zero temperature, or using a model that supports full guidance grammar constraints.",
+            prompt=prompt,
+            data=data,
         )
 
     def _get_next_token(self, pos, allow_early_stop=False):
