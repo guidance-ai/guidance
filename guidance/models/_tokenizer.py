@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import Sequence, Union
 
 import numpy as np
 
@@ -12,18 +12,17 @@ class Tokenizer:
     tokenizer in the corresponding Engine subclass.
     """
 
-    # TODO: We should probably have encode and decode methods on here...
     def __init__(
         self,
         tokens: Union[list, np.ndarray],
         chat_template: Union[str, ChatTemplate, None],
-        bos_token_id: Optional[int] = None,
-        eos_token_id: Optional[int] = None,
+        bos_token_id: Union[int, None] = None,
+        eos_token_id: Union[int, None] = None,
     ):
 
         # a numpy array of token byte strings indexed by their token id
         if isinstance(tokens, list):
-            # note that we need np.bytes_ to zero bytes are not treated as null terminations
+            # note that we need np.bytes_ so zero bytes are not treated as null terminations
             self._tokens = np.array(tokens, dtype="object")
 
         # a numpy array of token byte strings indexed by their token id
@@ -80,13 +79,22 @@ class Tokenizer:
         return self._eos_token
 
     def __call__(self, byte_string: bytes):
+        return self.bytes_to_tokens(byte_string)
+
+    def bytes_to_tokens(self, byte_string: bytes) -> Sequence[int]:
         """Returns a list of tokens that represent the given byte string."""
         raise NotImplementedError(
-            "You need to use a Tokenize subclass that overrides the __call__ method"
+            "You need to use a Tokenize subclass that overrides the bytes_to_tokens method"
+        )
+
+    def tokens_to_bytes(self, tokens: Sequence[int]) -> bytes:
+        """Returns the bytes represented by the given list of tokens."""
+        raise NotImplementedError(
+            "You need to use a Tokenize subclass that overrides the tokens_to_bytes method"
         )
 
     def clean_duplicate_tokens(self, probs):
         """This moves all the probability mass from duplicate positons on to their primary index."""
-        for i, j in self.duplicate_tokens:
+        for i, j in self._duplicate_tokens:
             probs[j] += probs[i]
             probs[i] = 0
