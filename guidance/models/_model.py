@@ -68,66 +68,6 @@ html_pattern = re.compile(r"&lt;\|\|_html:(.*?)_\|\|&gt;", flags=re.DOTALL)
 image_pattern = re.compile(r"&lt;\|_image:(.*?)\|&gt;")
 
 
-class Tokenizer:
-    """This is the standardized tokenizer interface used by guidance models.
-
-    This class should be subclassed by specific implementations and then used as the
-    tokenizer in the corresponding Engine subclass.
-    """
-    # TODO: We should probably have encode and decode methods on here...
-    def __init__(self, tokens, chat_template, bos_token_id=None, eos_token_id=None):
-
-        # a numpy array of token byte strings indexed by their token id
-        if isinstance(tokens, list):
-            self.tokens = np.array(
-                tokens, dtype="object"
-            )  # note that we need np.bytes_ to zero bytes are not treated as null terminations
-
-        # a numpy array of token byte strings indexed by their token id
-        elif isinstance(tokens, np.ndarray):
-            self.tokens = tokens
-
-        else:
-            raise Exception("Unknown tokenizer was passed!")
-
-        assert isinstance(
-            self.tokens[0], bytes
-        ), "The tokens need to be provided as bytes!"
-
-
-        # This method supports None, a huggingface style jinja2_template_str, or a ChatTemplate subclass
-        # Defaults to ChatML if nothing is found
-        self.chat_template = load_template_class(chat_template)
-
-        self.bos_token_id = bos_token_id
-        self.bos_token = (
-            None if self.bos_token_id is None else self.tokens[self.bos_token_id]
-        )
-        self.eos_token_id = eos_token_id if eos_token_id is not None else bos_token_id
-        self.eos_token = (
-            None if self.eos_token_id is None else self.tokens[self.eos_token_id]
-        )
-
-        # track which tokens are duplicates
-        self.duplicate_tokens = []
-        found = {}
-        for i, t in enumerate(self.tokens):
-            if t in found:
-                self.duplicate_tokens.append((i, found[t]))
-            else:
-                found[t] = i
-
-    def __call__(self, byte_string):
-        """Returns a list of tokens that represent the given byte string."""
-        raise NotImplementedError(
-            "You need to use a Tokenize subclass that overrides the __call__ method"
-        )
-
-    def clean_duplicate_tokens(self, probs):
-        """This moves all the probability mass from duplicate positons on to their primary index."""
-        for i, j in self.duplicate_tokens:
-            probs[j] += probs[i]
-            probs[i] = 0
 
 
 class EngineCallResponse:
