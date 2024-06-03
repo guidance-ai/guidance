@@ -1,4 +1,4 @@
-from typing import Sequence, Union
+from typing import Any, Sequence, Union
 
 import numpy as np
 
@@ -38,7 +38,7 @@ class Tokenizer:
 
         # This method supports None, a huggingface style jinja2_template_str, or a ChatTemplate subclass
         # Defaults to ChatML if nothing is found
-        self.chat_template = load_template_class(chat_template)
+        self._chat_template = load_template_class(chat_template)
 
         self._bos_token_id = bos_token_id
         self._bos_token = (
@@ -77,6 +77,10 @@ class Tokenizer:
     @property
     def eos_token(self) -> Union[bytes, None]:
         return self._eos_token
+
+    @property
+    def chat_template(self) -> Union[Any, None]:
+        return self._chat_template
 
     def __call__(self, byte_string: bytes):
         return self.bytes_to_tokens(byte_string)
