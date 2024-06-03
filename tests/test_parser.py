@@ -205,7 +205,7 @@ class TestRecursiveNullableGrammars:
 
     @pytest.mark.timeout(5)
     def test_captures_from_root(self):
-        B = select(["x", ""], name="B")
+        B = select(["x", "y", ""], name="B")
         A = select([B, ""], recurse=True, name="A")
         parser = EarleyCommitParser(A)
 
@@ -219,16 +219,21 @@ class TestRecursiveNullableGrammars:
             assert mock.call_count == 1
             assert captures == {"B": b"x", "A": b"x"}
 
-            parser.consume_byte(b"x")
+            parser.consume_byte(b"y")
             captures, _ = parser.get_captures()
             assert mock.call_count == 2
-            assert captures == {"B": b"x", "A": b"xx"}
+            assert captures == {"B": b"y", "A": b"xy"}
+
+            parser.consume_byte(b"x")
+            captures, _ = parser.get_captures()
+            assert mock.call_count == 3
+            assert captures == {"B": b"x", "A": b"xyx"}
 
     @pytest.mark.timeout(5)
     def test_partial_captures(self):
-        B = select(["x", ""], name="B")
+        B = select(["x", "y", ""], name="B")
         A = select([B, ""], recurse=True, name="A")
-        C = A + "y"
+        C = A + "z"
         parser = EarleyCommitParser(C)
 
         with patch.object(
@@ -241,14 +246,14 @@ class TestRecursiveNullableGrammars:
             assert mock.call_count == 1
             assert captures == {"B": b"", "A": b"x"}
 
-            parser.consume_byte(b"x")
+            parser.consume_byte(b"y")
             captures, _ = parser.get_captures()
             assert mock.call_count == 2
-            assert captures == {"B": b"", "A": b"xx"}
+            assert captures == {"B": b"", "A": b"xy"}
 
             # No new call to _record_captures_partial, but make sure that the captures are updated
             # when finally called from root
-            parser.consume_byte(b"y")
+            parser.consume_byte(b"z")
             captures, _ = parser.get_captures()
             assert mock.call_count == 2  # no new call
-            assert captures == {"B": b"x", "A": b"xx"}
+            assert captures == {"B": b"y", "A": b"xy"}
