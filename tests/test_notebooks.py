@@ -15,8 +15,6 @@ BASE_NB_PATH = pathlib.Path("./notebooks").absolute()
 
 
 def run_notebook(notebook_path: pathlib.Path, params: Optional[Dict[str, Any]] = None):
-    # Crank up the logging in the notebook tests
-    logging.basicConfig(level=logging.DEBUG)
     assert notebook_path.exists(), f"Checking for: {notebook_path}"
     output_nb = notebook_path.stem + ".papermill_out" + notebook_path.suffix
     output_path = TestTutorials.BASE_TUTORIAL_PATH / output_nb
@@ -44,7 +42,12 @@ class TestTutorials:
         os.environ["AZUREAI_CHAT_API_VERSION"] = version[0]
         os.environ["AZUREAI_CHAT_DEPLOYMENT"] = azureai_deployment
         nb_path = TestTutorials.BASE_TUTORIAL_PATH / "chat.ipynb"
-        run_notebook(nb_path, params=dict(call_delay_secs=rate_limiter))
+        run_notebook(
+            nb_path,
+            params=dict(
+                call_delay_secs=rate_limiter, requested_log_level=logging.DEBUG
+            ),
+        )
 
     def test_regex_constraints(self):
         nb_path = TestTutorials.BASE_TUTORIAL_PATH / "regex_constraints.ipynb"
