@@ -57,11 +57,8 @@ class RegexPatternConverter:
     @classmethod
     def SUBPATTERN(cls, args: Tuple[int, int, int, parser.SubPattern]):
         # capture group
-        grpno, flags, unknown, arg = args
-        if unknown != 0:
-            # Unsure of the semantics of this value, but
-            # it seems to be 0 in all cases tested so far
-            raise UnsupportedRegexError(f"Unknown argument in SUBPATTERN: {unknown}")
+        group, add_flags, del_flags, arg = args
+        flags = add_flags & ~del_flags
         return cls.convert(arg, flags)
 
     @classmethod
@@ -161,5 +158,4 @@ class RegexPatternConverter:
 
 @guidance(stateless=True)
 def regex(lm, pattern, *, name=None):
-
     return lm + capture(RegexPatternConverter.parse(pattern), name=name)
