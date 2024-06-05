@@ -91,8 +91,19 @@ class AzureGuidanceEngine(Engine):
                             j = json.loads(ln[10:])
                             tag = j.get("object", "")
                             if tag == "capture":
-                                capture_groups[j["name"]] = bytes.fromhex(j["hex"])
-                                capture_group_log_probs[j["name"]] = j["log_prob"]
+                                cname: str = j["name"]
+                                data = bytes.fromhex(j["hex"])
+                                if cname.startswith("__LIST_APPEND:"):
+                                    cname = cname[14:]
+                                    if cname not in capture_groups or \
+                                        not isinstance(capture_groups[cname], list):
+                                        capture_groups[cname] = []
+                                        capture_group_log_probs[cname] = []
+                                    capture_groups[cname].append(data)
+                                    capture_group_log_probs[cname].append(j["log_prob"])
+                                else:
+                                    capture_groups[cname] = data
+                                    capture_group_log_probs[cname] = j["log_prob"]
                             elif tag == "text":
                                 # it actually should only happen once per round...
                                 new_bytes += bytes.fromhex(j["hex"])
