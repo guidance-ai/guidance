@@ -6,7 +6,7 @@ from ._grammarless import Grammarless, GrammarlessEngine
 
 
 try:
-    import qianfan
+    import qianfan  # type: ignore
 
     client_class: typing.Optional[typing.Type[qianfan.ChatCompletion]] = qianfan.ChatCompletion
 except ImportError:
