@@ -83,15 +83,15 @@ class Tokenizer:
         return self._chat_template
 
     def __call__(self, byte_string: bytes):
-        return self.bytes_to_tokens(byte_string)
+        return self.encode(byte_string)
 
-    def bytes_to_tokens(self, byte_string: bytes) -> Sequence[int]:
+    def encode(self, byte_string: bytes) -> Sequence[int]:
         """Returns a list of tokens that represent the given byte string."""
         raise NotImplementedError(
             "You need to use a Tokenize subclass that overrides the bytes_to_tokens method"
         )
 
-    def tokens_to_bytes(self, tokens: Sequence[int]) -> bytes:
+    def decode(self, tokens: Sequence[int]) -> bytes:
         """Returns the bytes represented by the given list of tokens."""
         raise NotImplementedError(
             "You need to use a Tokenize subclass that overrides the tokens_to_bytes method"
