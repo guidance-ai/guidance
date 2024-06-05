@@ -1,9 +1,16 @@
 import copy
-import re
-from ._model import Chat
+
+import typing
+
 from ._grammarless import Grammarless, GrammarlessEngine
 
-_image_token_pattern = re.compile(r"<\|_image:(.*)\|>")
+
+try:
+    import qianfan
+
+    client_class: typing.Optional[typing.Type[qianfan.ChatCompletion]] = qianfan.ChatCompletion
+except ImportError:
+    client_class = None
 
 
 class ClassUnavailableException(Exception):
@@ -18,25 +25,21 @@ class QianfanAI(Grammarless):
         max_streaming_tokens=None,
         timeout=0.5,
         compute_log_probs=False,
+        is_chat_model=True,
         **kwargs,
     ):
         """Build a new QianfanAI model object that represents a model in a given state."""
 
-        # if we are called directly (as opposed to through super()) then we convert ourselves to a more specific subclass if possible
-        if self.__class__ is QianfanAI:
-            raise ClassUnavailableException("Cannot use `QianfanAI` directly, please use `QianfanAIChat` or `QianfanAICompletion` instead")
-
-        engine_map = {
-            QianfanAIChat: QianfanAIChatEngine,
-            QianfanAICompletion: QianfanAICompletionEngine,
-        }
+        if client_class is None:
+            raise ClassUnavailableException("Please execute `pip install qianfan` before using QianfanAI component")
 
         super().__init__(
-            engine=engine_map[self.__class__](
+            engine=QianfanAIEngine(
                 model=model,
                 max_streaming_tokens=max_streaming_tokens,
                 timeout=timeout,
                 compute_log_probs=compute_log_probs,
+                is_chat_model=is_chat_model,
                 **kwargs,
             ),
             echo=echo,
@@ -51,35 +54,33 @@ class QianfanAIEngine(GrammarlessEngine):
         max_streaming_tokens,
         timeout,
         compute_log_probs,
+        is_chat_model=True,
         **kwargs,
     ):
-        try:
-            from qianfan import ChatCompletion, Completion
-        except ModuleNotFoundError:
-            raise Exception(
-                "Please install the Baidu Qianfan package using `pip install qianfan` "
-                "in order to use guidance.models.QianfanAI!"
-            )
+        if client_class is None:
+            raise ClassUnavailableException("Please execute `pip install qianfan` before using QianfanAI component")
 
         assert (
             not compute_log_probs
         ), "We don't support compute_log_probs=True yet for QianfanAIEngine!"
+
         self.model_name = model
 
-        self.model_obj = ChatCompletion(model=model, **kwargs) if self.__class__ is QianfanAIChatEngine else Completion(model=model, **kwargs)
+        self.is_chat_model = is_chat_model
+        self.model_obj = qianfan.ChatCompletion(model=model, **kwargs) if self.is_chat_model else qianfan.Completion(model=model, **kwargs)
 
         self.extra_arguments = copy.deepcopy(kwargs)
         self.extra_arguments.pop("endpoint") if "endpoint" in kwargs else None
 
         super().__init__(None, max_streaming_tokens, timeout, compute_log_probs)
 
-
-class QianfanAIChat(QianfanAI, Chat):
-    pass
-
-
-class QianfanAIChatEngine(QianfanAIEngine):
     def _generator(self, prompt, temperature):
+        if self.is_chat_model:
+            return self._chat_generator(prompt, temperature)
+
+        return self._completion_generator(prompt, temperature)
+
+    def _chat_generator(self, prompt, temperature):
 
         # find the system text
         pos = 0
@@ -156,13 +157,7 @@ class QianfanAIChatEngine(QianfanAIEngine):
         for response in result_iter:
             yield response.body["result"].encode("utf8")
 
-
-class QianfanAICompletion(QianfanAI):
-    pass
-
-
-class QianfanAICompletionEngine(QianfanAIEngine):
-    def _generator(self, prompt, temperature):
+    def _completion_generator(self, prompt, temperature):
         if temperature == 0.0:
             temperature = 0.0001
 
