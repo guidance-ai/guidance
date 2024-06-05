@@ -1,3 +1,4 @@
+import os
 import random
 import time
 
@@ -6,6 +7,9 @@ import pytest
 from guidance import models
 
 from .utils import get_model
+
+
+SELECTED_MODEL_ENV_VARIABLE = "GUIDANCE_SELECTED_MODEL"
 
 AVAILABLE_MODELS = {
     "gpt2cpu": dict(name="transformers:gpt2", kwargs=dict()),
@@ -54,12 +58,14 @@ AVAILABLE_MODELS = {
 
 
 def pytest_addoption(parser):
+    default_model = os.getenv(SELECTED_MODEL_ENV_VARIABLE, "gpt2cpu")
     parser.addoption(
         "--selected_model",
         action="store",
-        default="gpt2cpu",
+        default=default_model,
         type=str,
         choices=AVAILABLE_MODELS.keys(),
+        help=f"LLM to load when needed. Set default via environment variable {SELECTED_MODEL_ENV_VARIABLE}",
     )
 
 
