@@ -1078,6 +1078,22 @@ class TestEnum:
         )
 
 
+class TestConst:
+    simple_schema = """{
+        "const": 1
+    }
+    """
+    target_obj = 1
+
+    def test_const(self):
+        # First sanity check what we're setting up
+        schema_obj = json.loads(self.simple_schema)
+        validate(instance=self.target_obj, schema=schema_obj)
+
+        # The actual check
+        generate_and_check(self.target_obj, schema_obj)
+
+
 class TestAdditionalProperties:
 
     simple_schema = """{

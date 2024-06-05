@@ -293,6 +293,10 @@ def _gen_json(
             )
         raise ValueError(f"Unsupported type in schema: {target_type}")
 
+    CONST_STRING = "const"
+    if CONST_STRING in json_schema:
+        return lm + _to_compact_json(json_schema[CONST_STRING])
+
     raise ValueError(f"Can't process JSON node: {json_schema}")
 
 
