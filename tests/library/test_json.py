@@ -1079,19 +1079,59 @@ class TestEnum:
 
 
 class TestConst:
-    simple_schema = """{
-        "const": 1
-    }
-    """
-    target_obj = 1
-
-    def test_const(self):
+    def test_constant_int(self):
         # First sanity check what we're setting up
-        schema_obj = json.loads(self.simple_schema)
-        validate(instance=self.target_obj, schema=schema_obj)
+        schema_obj = {"const": 1}
+        target_obj = 1
+        validate(instance=target_obj, schema=schema_obj)
 
         # The actual check
-        generate_and_check(self.target_obj, schema_obj)
+        generate_and_check(target_obj, schema_obj)
+
+    def test_constant_string(self):
+        # First sanity check what we're setting up
+        schema_obj = {"const": "hello"}
+        target_obj = "hello"
+        validate(instance=target_obj, schema=schema_obj)
+
+        # The actual check
+        generate_and_check(target_obj, schema_obj)
+
+    def test_constant_array(self):
+        # First sanity check what we're setting up
+        schema_obj = {"const": [1, 2, 3]}
+        target_obj = [1, 2, 3]
+        validate(instance=target_obj, schema=schema_obj)
+
+        # The actual check
+        generate_and_check(target_obj, schema_obj)
+
+    def test_constant_object(self):
+        # First sanity check what we're setting up
+        schema_obj = {"const": {"a": 1, "b": 2}}
+        target_obj = {"a": 1, "b": 2}
+        validate(instance=target_obj, schema=schema_obj)
+
+        # The actual check
+        generate_and_check(target_obj, schema_obj)
+
+    def test_nested_constant(self):
+        # First sanity check what we're setting up
+        schema_obj = {"type": "object", "properties": {"a": {"const": 1}}}
+        target_obj = {"a": 1}
+        validate(instance=target_obj, schema=schema_obj)
+
+        # The actual check
+        generate_and_check(target_obj, schema_obj)
+
+    def test_type_specified_constant(self):
+        # First sanity check what we're setting up
+        schema_obj = {"type": "integer", "const": 1}
+        target_obj = 1
+        validate(instance=target_obj, schema=schema_obj)
+
+        # The actual check
+        generate_and_check(target_obj, schema_obj)
 
 
 class TestAdditionalProperties:
