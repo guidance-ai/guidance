@@ -215,7 +215,8 @@ def langchain_chat_extract_runner(trial):
 
                 lm += f""""confidence_level": {select([0, 1, 2, 3, 4, 5])}"""
                 lm += f"""{select(['', ',' + NEW_REC + '"followup_actions":'], name='follow_up')}"""
-                if lm.get("follow_up", None) is not None:
+                follow_up = lm.get("follow_up", None)
+                if follow_up is not None and follow_up != '':
                     lm += f""" {guidance_list()}"""
 
                 lm += f"""

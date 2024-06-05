@@ -8,6 +8,7 @@ class ParserException(Exception):
     def __init__(self, *args, **kwargs):
         self.current_byte = kwargs.pop("current_byte", None)
         self.allowed_bytes = kwargs.pop("allowed_bytes", None)
+        self.consumed_bytes = kwargs.pop("consumed_bytes", None)
         super().__init__(*args, **kwargs)
 
 
@@ -357,6 +358,8 @@ class EarleyCommitParser(Parser):
             raise ParserException(
                 "Attempted to consume a byte that the grammar does not accept!",
                 current_byte=byte,
+                allowed_bytes=self.valid_next_bytes(),
+                consumed_bytes=self.bytes,
             )
         if found_invalid:  # only update if we changed the set
             self.state_sets[self.state_set_pos + 1] = OrderedSet(new_next_state_set)
@@ -654,8 +657,9 @@ class EarleyCommitParser(Parser):
             if self._compute_children(
                 state_set_pos, item, reversed_state_sets, values_pos + 1
             ):
-                item.children[values_pos] = (
-                    EarleyItem(value, tuple(), 0, state_set_pos, 0, state_set_pos)  # this child has zero length since it was nullable
+                # this child has zero length since it was nullable
+                item.children[values_pos] = EarleyItem(
+                    value, tuple(), 0, state_set_pos, 0, state_set_pos
                 )
                 return True
 

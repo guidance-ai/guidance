@@ -4,8 +4,10 @@ import html
 import logging
 import queue
 import re
+import textwrap
 import threading
 import time
+import warnings
 
 
 from pprint import pprint
@@ -838,8 +840,16 @@ class Engine:
             
             # another ugly hack for tokenizers that are not stable on encode/decode cycles
             # currently only Phi-3, should generalize this method if we see more of these
-            if not hasattr(self, "_disable_retokenize_check"):
-                assert token_byte_positions[-1] == last_pos, "Cross check last_pos"
+            if token_byte_positions[-1] != last_pos:
+                if not hasattr(self, "_disable_retokenize_check"):
+                    msg = textwrap.dedent(
+                        """Self-consistency check in _cleanup_tokens() failed.
+                        
+                        This is not a fatal issue, but if there are subsequent
+                        generation problems, please include this warning in
+                        your bug report."""
+                    )
+                    warnings.warn(msg)
 
         return token_ids, token_byte_positions
 
@@ -1573,7 +1583,10 @@ def throttle_refresh():
 
 
 class ConstraintException(Exception):
-    pass
+    def __init__(self, *args, **kwargs):
+        self.prompt = kwargs.pop("prompt", None)
+        self.data = kwargs.pop("data", None)
+        super().__init__(*args, **kwargs)
 
 
 # def _compute_probs(trie, probs, found):

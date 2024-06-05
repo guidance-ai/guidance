@@ -28,7 +28,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: 3.8
+          python-version: 3.9
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -41,7 +41,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-12]
-        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -102,7 +102,7 @@ jobs:
     strategy:
       fail-fast: false # Don't cancel all on first failure
       matrix:
-        python-version: ["3.8", "3.9", "3.10", "3.11"]
+        python-version: ["3.9", "3.10", "3.11"]
         model:
           - "gpt2cpu"
           - "phi2cpu"
@@ -123,7 +123,7 @@ jobs:
       fail-fast: false # Don't cancel all on first failure
       matrix:
         # Need to figure out what happened to 3.12
-        python-version: ["3.8", "3.9", "3.10", "3.11"]
+        python-version: ["3.9", "3.10", "3.11"]
     uses: ./.github/workflows/action_server_tests.yml
     with:
       os: ubuntu-latest
@@ -144,12 +144,12 @@ jobs:
 # Third Stage ==============================================================
 # Windows and MacOS, plus other GPU Linux tests
   
-  unit-tests-mac:
+  unit-tests-mac-x86:
     needs: end-stage-2
     strategy:
       fail-fast: false # Don't cancel all on first failure
       matrix:
-        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
         model:
           - "gpt2cpu"
           - "phi2cpu"
@@ -164,12 +164,32 @@ jobs:
       python-version: ${{ matrix.python-version }}
       model: ${{ matrix.model }}
 
+  unit-tests-mac-arm:
+    needs: end-stage-2
+    strategy:
+      fail-fast: false # Don't cancel all on first failure
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        model:
+          - "gpt2cpu"
+          # - "phi2cpu" Seems to get stuck
+          # - "transformers_mistral_7b" See Issue 713
+          # - "hfllama7b" Getting stuck with llama-cpp-python 0.2.77
+          # - "hfllama_mistral_7b"
+          # - "transformers_phi3cpu_mini_4k_instruct" Gives trouble on MacOS
+          - "hfllama_phi3cpu_mini_4k_instruct"
+    uses: ./.github/workflows/action_plain_unit_tests.yml
+    with:
+      os: macos-latest
+      python-version: ${{ matrix.python-version }}
+      model: ${{ matrix.model }}
+
   unit-tests-win:
     needs: end-stage-2
     strategy:
       fail-fast: false # Don't cancel all on first failure
       matrix:
-        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
         model:
           - "gpt2cpu"
           - "phi2cpu"
@@ -189,7 +209,7 @@ jobs:
     strategy:
       fail-fast: false # Don't cancel all on first failure
       matrix:
-        python-version: ["3.8", "3.9", "3.10", "3.11"]
+        python-version: ["3.9", "3.10", "3.11"]
     uses: ./.github/workflows/action_gpu_unit_tests.yml
     with:
       os: gpu-runner
