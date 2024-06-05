@@ -3,66 +3,41 @@ from typing import Any, Union, Set, Dict
 
 import pytest
 from jsonschema import validate
+from functools import partial
 
 from guidance import json as gen_json
 from guidance import models
 from guidance._grammar import Byte, ByteRange
 from guidance.library._json import _to_compact_json
-from ..utils import check_match_failure as _check_match_failure
+from ..utils import (
+    check_run_with_temperature,
+    check_match_failure as _check_match_failure,
+    generate_and_check as _generate_and_check,
+)
 
 
-def _generate_and_check(
+def generate_and_check(
     target_obj: Any, schema_obj, desired_temperature: Union[float, None] = None
 ):
     # Sanity check what we're being asked
     validate(instance=target_obj, schema=schema_obj)
-
-    # The next part is to prevent intermittent test failures
-    # when the temperature is non-zero
-    # The Mock model generates random characters once the
-    # supplied string has been exhausted. Sometimes
-    # these can also be valid according to the grammar
-    # (especially when generating numbers) which interferes
-    # with our round trip check.
-    # So append a 'stop' character which we don't
-    # use in any of our tests
-
-    STOP_CHAR = chr(7)
     prepared_json = _to_compact_json(target_obj)
-    assert STOP_CHAR not in prepared_json, "STOP_CHAR in string"
+    assert json.loads(prepared_json) == target_obj
 
-    prepared_string = f"<s>{prepared_json}{STOP_CHAR}"
-    lm = models.Mock(prepared_string.encode())
-
-    # Run with the mock model
-    CAPTURE_KEY = "my_capture"
+    # Now test that the grammar can recognize and generate prepared_json
+    # We partial in the grammar_callable
     if desired_temperature is not None:
-        lm += gen_json(
-            name=CAPTURE_KEY, schema=schema_obj, temperature=desired_temperature
+        grammar_callable = partial(
+            gen_json, schema=schema_obj, temperature=desired_temperature
         )
     else:
-        lm += gen_json(name=CAPTURE_KEY, schema=schema_obj)
+        grammar_callable = partial(gen_json, schema=schema_obj)
 
-    # Make sure the round trip works
-    assert json.loads(lm[CAPTURE_KEY]) == target_obj
-
-    # Check on some temperatures
-    if desired_temperature is not None:
-        assert len(lm.engine.called_temperatures) > 0
-        # Make sure that at least one temperature matches exactly
-        temperature_matches = [
-            x == desired_temperature for x in lm.engine.called_temperatures
-        ]
-        assert any(temperature_matches)
-        # Check that all temperatures were 0 or the desired temperature
-        # If there has been a forced byte, then get_logits() is
-        # called with a temperature of zero
-        assert all(
-            [
-                (x == desired_temperature or x == 0)
-                for x in lm.engine.called_temperatures
-            ]
-        )
+    lm = _generate_and_check(
+        grammar_callable,
+        test_string=prepared_json,
+    )
+    check_run_with_temperature(lm, desired_temperature)
 
 
 def check_match_failure(
@@ -96,7 +71,7 @@ def test_null():
     schema_obj = json.loads(schema)
     validate(instance=target_obj, schema=schema_obj)
 
-    _generate_and_check(target_obj, schema_obj)
+    generate_and_check(target_obj, schema_obj)
 
 
 @pytest.mark.parametrize("target_obj", [True, False])
@@ -108,7 +83,7 @@ def test_boolean(target_obj, temperature):
     schema_obj = json.loads(schema)
     validate(instance=target_obj, schema=schema_obj)
 
-    _generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
+    generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
 
 
 class TestInteger:
@@ -124,7 +99,7 @@ class TestInteger:
         validate(instance=my_int, schema=schema_obj)
 
         # The actual check
-        _generate_and_check(my_int, schema_obj)
+        generate_and_check(my_int, schema_obj)
 
     @pytest.mark.parametrize(
         ["bad_string", "good_bytes", "failure_byte", "allowed_bytes"],
@@ -179,7 +154,7 @@ class TestNumber:
         validate(instance=target_obj, schema=schema_obj)
 
         # The actual check
-        _generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
+        generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
 
     @pytest.mark.parametrize(
         ["bad_string", "good_bytes", "failure_byte", "allowed_bytes"],
@@ -232,7 +207,7 @@ def test_string_schema(my_string: str, temperature):
     validate(instance=my_string, schema=schema_obj)
 
     # The actual check
-    _generate_and_check(my_string, schema_obj, desired_temperature=temperature)
+    generate_and_check(my_string, schema_obj, desired_temperature=temperature)
 
 
 class TestSimpleObject:
@@ -252,7 +227,7 @@ class TestSimpleObject:
         validate(instance=target_obj, schema=schema_obj)
 
         # The actual check
-        _generate_and_check(target_obj, schema_obj)
+        generate_and_check(target_obj, schema_obj)
 
     def test_object_with_many_properties(self):
         schema = """{
@@ -276,7 +251,7 @@ class TestSimpleObject:
         validate(instance=target_obj, schema=schema_obj)
 
         # The actual check
-        _generate_and_check(target_obj, schema_obj)
+        generate_and_check(target_obj, schema_obj)
 
     @pytest.mark.parametrize("temperature", [None, 0.1, 1])
     def test_directly_nested_object(self, temperature):
@@ -307,7 +282,7 @@ class TestSimpleObject:
         validate(instance=target_obj, schema=schema_obj)
 
         # The actual check
-        _generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
+        generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
 
     @pytest.mark.parametrize("temperature", [None, 0.1, 1])
     def test_object_containing_list(self, temperature):
@@ -333,7 +308,7 @@ class TestSimpleObject:
         validate(instance=target_obj, schema=schema_obj)
 
         # The actual check
-        _generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
+        generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
 
     @pytest.mark.parametrize(
         ["bad_string", "good_bytes", "failure_byte", "allowed_bytes"],
@@ -379,7 +354,7 @@ class TestSimpleArray:
         validate(instance=target_obj, schema=schema_obj)
 
         # The actual check
-        _generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
+        generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
 
     @pytest.mark.parametrize("target_obj", [[], ["a"], ["b c", "d, e"]])
     def test_string_list(self, target_obj):
@@ -396,7 +371,7 @@ class TestSimpleArray:
         validate(instance=target_obj, schema=schema_obj)
 
         # The actual check
-        _generate_and_check(target_obj, schema_obj)
+        generate_and_check(target_obj, schema_obj)
 
     @pytest.mark.parametrize(
         "target_obj",
@@ -422,7 +397,7 @@ class TestSimpleArray:
         validate(instance=target_obj, schema=schema_obj)
 
         # The actual check
-        _generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
+        generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
 
     @pytest.mark.parametrize(
         ["bad_string", "good_bytes", "failure_byte", "allowed_bytes"],
@@ -491,7 +466,7 @@ class TestArrayWithLengthConstraints:
             "maxItems": max_items,
             "type": "array",
         }
-        _generate_and_check(target_obj, schema_obj)
+        generate_and_check(target_obj, schema_obj)
 
     @pytest.mark.parametrize(
         "min_items, max_items, target_obj",
@@ -511,7 +486,7 @@ class TestArrayWithLengthConstraints:
             "maxItems": max_items,
             "type": "array",
         }
-        _generate_and_check(target_obj, schema_obj)
+        generate_and_check(target_obj, schema_obj)
 
     @pytest.mark.parametrize(
         "min_items, max_items, target_obj",
@@ -531,7 +506,7 @@ class TestArrayWithLengthConstraints:
             "maxItems": max_items,
             "type": "array",
         }
-        _generate_and_check(target_obj, schema_obj)
+        generate_and_check(target_obj, schema_obj)
 
     @pytest.mark.parametrize(
         "min_items, max_items, bad_obj, good_bytes, failure_byte, allowed_bytes",
@@ -779,7 +754,7 @@ class TestWithReferences:
         validate(instance=target_obj, schema=schema_obj)
 
         # The actual check
-        _generate_and_check(target_obj, schema_obj)
+        generate_and_check(target_obj, schema_obj)
 
     @pytest.mark.parametrize(
         "target_obj",
@@ -828,7 +803,7 @@ class TestWithReferences:
         validate(instance=target_obj, schema=schema_obj)
 
         # The actual check
-        _generate_and_check(target_obj, schema_obj)
+        generate_and_check(target_obj, schema_obj)
 
     @pytest.mark.parametrize("temperature", [None, 0.1, 1])
     def test_nested_ref(self, temperature):
@@ -884,7 +859,7 @@ class TestWithReferences:
         validate(instance=target_obj, schema=schema_obj)
 
         # The actual check
-        _generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
+        generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
 
 
 class TestAnyOf:
@@ -907,7 +882,7 @@ class TestAnyOf:
         validate(instance=target_obj, schema=schema_obj)
 
         # The actual check
-        _generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
+        generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
 
     @pytest.mark.parametrize(
         "target_obj",
@@ -965,7 +940,7 @@ class TestAnyOf:
         validate(instance=target_obj, schema=schema_obj)
 
         # The actual check
-        _generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
+        generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
 
 
 class TestAllOf:
@@ -983,7 +958,7 @@ class TestAllOf:
         validate(instance=my_int, schema=schema_obj)
 
         # The actual check
-        _generate_and_check(my_int, schema_obj)
+        generate_and_check(my_int, schema_obj)
 
     def test_allOf_ref(self):
         schema = """{
@@ -1021,7 +996,7 @@ class TestAllOf:
         validate(instance=target_obj, schema=schema_obj)
 
         # The actual check
-        _generate_and_check(target_obj, schema_obj)
+        generate_and_check(target_obj, schema_obj)
 
     def test_allOf_bad_schema(self):
         schema = """{
@@ -1062,7 +1037,7 @@ class TestEnum:
         validate(instance=target_obj, schema=schema_obj)
 
         # The actual check
-        _generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
+        generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
 
     @pytest.mark.parametrize(
         "bad_obj, good_bytes, failure_byte, allowed_bytes",
@@ -1143,7 +1118,7 @@ class TestAdditionalProperties:
         validate(instance=target_obj, schema=schema_obj)
 
         # The actual check
-        _generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
+        generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
 
     @pytest.mark.parametrize(
         "bad_obj, good_bytes, failure_byte, allowed_bytes",
@@ -1177,7 +1152,7 @@ class TestAdditionalProperties:
         validate(instance=target_obj, schema=schema_obj)
 
         # The actual check
-        _generate_and_check(target_obj, schema_obj)
+        generate_and_check(target_obj, schema_obj)
 
     @pytest.mark.parametrize(
         "bad_obj, good_bytes, failure_byte, allowed_bytes",
@@ -1218,7 +1193,7 @@ class TestAdditionalProperties:
         validate(instance=target_obj, schema=schema_obj)
 
         # The actual check
-        _generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
+        generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
 
     @pytest.mark.parametrize(
         "bad_obj, good_bytes, failure_byte, allowed_bytes",
@@ -1320,4 +1295,4 @@ class TestRecursiveStructures:
         validate(instance=target_obj, schema=schema_obj)
 
         # The actual check
-        _generate_and_check(target_obj, schema_obj)
+        generate_and_check(target_obj, schema_obj)

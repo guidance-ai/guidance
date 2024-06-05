@@ -6,6 +6,9 @@ import pytest
 
 from guidance import models
 
+# Ensure that asserts from tests/utils.py are rewritten by pytest to show helpful messages
+pytest.register_assert_rewrite("tests.utils")
+
 from .utils import get_model
 
 
