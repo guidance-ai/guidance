@@ -28,10 +28,6 @@ strict = false  # TODO: set to true
 exclude = ["tests"]
 
 [[tool.mypy.overrides]]
-module = "pyformlang.*"
-ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
 module = "pybind11.*"
 ignore_missing_imports = true
 
