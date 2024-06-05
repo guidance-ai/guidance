@@ -36,7 +36,6 @@ def generate_and_check(
     lm = _generate_and_check(
         grammar_callable,
         test_string=prepared_json,
-        desired_temperature=desired_temperature,
     )
     check_run_with_temperature(lm, desired_temperature)
 

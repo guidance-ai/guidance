@@ -195,6 +195,9 @@ def generate_and_check(
     # Make sure the round trip works
     assert lm[capture_key] == test_string
 
+    # Return model for further checks if needed
+    return lm
+
 
 def check_run_with_temperature(lm: models.Model, desired_temperature: float):
     # Check on some temperatures
