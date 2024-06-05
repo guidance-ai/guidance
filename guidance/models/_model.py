@@ -1523,7 +1523,10 @@ def throttle_refresh():
 
 
 class ConstraintException(Exception):
-    pass
+    def __init__(self, *args, **kwargs):
+        self.prompt = kwargs.pop("prompt", None)
+        self.data = kwargs.pop("data", None)
+        super().__init__(*args, **kwargs)
 
 
 # def _compute_probs(trie, probs, found):

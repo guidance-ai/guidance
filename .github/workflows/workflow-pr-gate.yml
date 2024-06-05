@@ -174,8 +174,8 @@ jobs:
           - "gpt2cpu"
           # - "phi2cpu" Seems to get stuck
           # - "transformers_mistral_7b" See Issue 713
-          - "hfllama7b"
-          - "hfllama_mistral_7b"
+          # - "hfllama7b" Getting stuck with llama-cpp-python 0.2.77
+          # - "hfllama_mistral_7b"
           # - "transformers_phi3cpu_mini_4k_instruct" Gives trouble on MacOS
           - "hfllama_phi3cpu_mini_4k_instruct"
     uses: ./.github/workflows/action_plain_unit_tests.yml
