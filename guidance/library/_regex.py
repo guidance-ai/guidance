@@ -12,7 +12,7 @@ from typing import Any, List, Tuple, Union
 
 from typing_extensions import TypeAlias
 
-from .._grammar import Byte, ByteRange, Join, Select, byte_range, select
+from .._grammar import Byte, ByteRange, Join, Select, byte_range, select, capture
 from .._guidance import guidance
 from ._any_char_but import any_char_but
 from ._optional import optional
@@ -140,25 +140,26 @@ class RegexPatternConverter:
     def CATEGORY(cls, args: constants._NamedIntConstant):
         # \d
         if args.name == "CATEGORY_DIGIT":
-            return regex(r"[0-9]")
+            return cls.parse(r"[0-9]")
         # \D
         if args.name == "CATEGORY_NOT_DIGIT":
-            return regex(r"[^0-9]")
+            return cls.parse(r"[^0-9]")
         # \w
         if args.name == "CATEGORY_WORD":
-            return regex(r"[0-9A-Za-z_]")
+            return cls.parse(r"[0-9A-Za-z_]")
         # \W
         if args.name == "CATEGORY_NOT_WORD":
-            return regex(r"[^0-9A-Za-z_]")
+            return cls.parse(r"[^0-9A-Za-z_]")
         # \s
         if args.name == "CATEGORY_SPACE":
-            return regex(r"[ \t\n\r\f\v]")
+            return cls.parse(r"[ \t\n\r\f\v]")
         # \S
         if args.name == "CATEGORY_NOT_SPACE":
-            return regex(r"[^ \t\n\r\f\v]")
+            return cls.parse(r"[^ \t\n\r\f\v]")
         raise UnsupportedRegexError(f"Unsupported category: {args.name}")
 
 
 @guidance(stateless=True)
-def regex(lm, pattern):
-    return lm + RegexPatternConverter.parse(pattern)
+def regex(lm, pattern, *, name=None):
+
+    return lm + capture(RegexPatternConverter.parse(pattern), name=name)

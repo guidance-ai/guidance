@@ -1,9 +1,10 @@
 import pytest
+from functools import partial
 
 from guidance import regex
 from guidance._grammar import Byte, ByteRange
 
-from ..utils import check_match_failure
+from ..utils import check_match_failure, generate_and_check
 
 
 class TestCharacterClasses:
@@ -25,7 +26,8 @@ class TestCharacterClasses:
         ],
     )
     def test_good(self, pattern, string):
-        assert regex(pattern).match(string) is not None
+        grammar_callable = partial(regex, pattern=pattern)
+        generate_and_check(grammar_callable, string)
 
     @pytest.mark.parametrize(
         "pattern, string, good_bytes, failure_byte, allowed_bytes",
@@ -147,7 +149,8 @@ class TestQuantifiers:
         ],
     )
     def test_kleene_star_optional_one_or_more(self, pattern, string):
-        assert regex(pattern).match(string) is not None
+        grammar_callable = partial(regex, pattern=pattern)
+        generate_and_check(grammar_callable, string)
 
     @pytest.mark.parametrize(
         "pattern, string",
@@ -157,7 +160,8 @@ class TestQuantifiers:
         ],
     )
     def test_exact_repetitions(self, pattern, string):
-        assert regex(pattern).match(string) is not None
+        grammar_callable = partial(regex, pattern=pattern)
+        generate_and_check(grammar_callable, string)
 
     @pytest.mark.parametrize(
         "pattern, string",
@@ -170,7 +174,8 @@ class TestQuantifiers:
         ],
     )
     def test_nested_quantifiers(self, pattern, string):
-        assert regex(pattern).match(string) is not None
+        grammar_callable = partial(regex, pattern=pattern)
+        generate_and_check(grammar_callable, string)
 
     @pytest.mark.parametrize(
         "pattern, string, good_bytes, failure_byte, allowed_bytes",
@@ -277,7 +282,8 @@ class TestAlternations:
         ],
     )
     def test_simple_alternations(self, pattern, string):
-        assert regex(pattern).match(string) is not None
+        grammar_callable = partial(regex, pattern=pattern)
+        generate_and_check(grammar_callable, string)
 
     @pytest.mark.parametrize(
         "pattern, string",
@@ -289,7 +295,8 @@ class TestAlternations:
         ],
     )
     def test_alternations_multiple_characters(self, pattern, string):
-        assert regex(pattern).match(string) is not None
+        grammar_callable = partial(regex, pattern=pattern)
+        generate_and_check(grammar_callable, string)
 
     @pytest.mark.parametrize(
         "pattern, string",
@@ -300,7 +307,8 @@ class TestAlternations:
         ],
     )
     def test_nested_alternations(self, pattern, string):
-        assert regex(pattern).match(string) is not None
+        grammar_callable = partial(regex, pattern=pattern)
+        generate_and_check(grammar_callable, string)
 
     @pytest.mark.parametrize(
         "pattern, string",
@@ -313,7 +321,8 @@ class TestAlternations:
         ],
     )
     def test_alternations_with_quantifiers(self, pattern, string):
-        assert regex(pattern).match(string) is not None
+        grammar_callable = partial(regex, pattern=pattern)
+        generate_and_check(grammar_callable, string)
 
     @pytest.mark.parametrize(
         "pattern, string, good_bytes, failure_byte, allowed_bytes",
@@ -389,7 +398,8 @@ class TestDot:
         ],
     )
     def test_dot(self, pattern, string):
-        assert regex(pattern).match(string) is not None
+        grammar_callable = partial(regex, pattern=pattern)
+        generate_and_check(grammar_callable, string)
 
     @pytest.mark.parametrize(
         "pattern, string, good_bytes, failure_byte, allowed_bytes",
@@ -434,7 +444,8 @@ class TestSpecialCharacters:
         ],
     )
     def test_good(self, pattern, string):
-        assert regex(pattern).match(string) is not None
+        grammar_callable = partial(regex, pattern=pattern)
+        generate_and_check(grammar_callable, string)
 
     @pytest.mark.parametrize(
         "pattern, string, good_bytes, failure_byte, allowed_bytes",
