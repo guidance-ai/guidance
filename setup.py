@@ -46,7 +46,16 @@ for v in extras_requires.values():
     all_requires = all_requires.union(v)
 
 # Required for builds etc.
-doc_requires = ["ipython", "nbsphinx", "numpydoc", "sphinx_rtd_theme", "sphinx"]
+doc_requires = [
+    "ipython",
+    "nbsphinx",
+    "numpydoc",
+    "sphinx_rtd_theme",
+    "sphinx",
+    "ipykernel",
+    "huggingface_hub",
+    "llama-cpp-python",
+]
 test_requires = [
     "jupyter",
     "papermill",
@@ -59,6 +68,17 @@ test_requires = [
     "types-regex",
     "types-requests",
     "types-jsonschema",
+]
+bench_requires = [
+    "pandas",
+    "huggingface_hub",
+    "langchain_benchmarks",
+    "langchain-community",
+    "langsmith",
+    "json_stream",
+    "llama-cpp-python",
+    "setuptools",
+    "powerlift"
 ]
 
 
@@ -91,12 +111,13 @@ setup(
         )
     ],
     cmdclass={"build_ext": build_ext},
-    python_requires=">=3.8",
+    python_requires=">=3.9",
     install_requires=install_requires,
     extras_require={
         "all": all_requires,
         "docs": doc_requires,
         "test": test_requires,
+        "bench": bench_requires,
         **extras_requires,
     },
 )

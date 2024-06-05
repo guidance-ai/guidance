@@ -12,11 +12,12 @@ markers = [
     "server: Potentially unreliable tests of the server functionality",
     "needs_credentials: Test which needs access to credentials to work",
     "use_gpu: Test which uses always uses GPU (model not injected via fixture)",
+    "notebooks: Test of the notebooks",
 ]
 
 [tool.black]
 line-length = 88
-target_version = ['py38', 'py39', 'py310', 'py311', 'py312']
+target_version = ['py39', 'py310', 'py311', 'py312']
 
 [tool.isort]
 profile = "black"

@@ -1,3 +1,4 @@
+import logging
 import os
 import pathlib
 from typing import Any, Dict, Optional
@@ -5,6 +6,10 @@ from urllib.parse import urlparse, parse_qs
 
 import papermill as pm
 import pytest
+
+# Everything in here is a notebook...
+# Mark is configured in pyproject.toml
+pytestmark = pytest.mark.notebooks
 
 BASE_NB_PATH = pathlib.Path("./notebooks").absolute()
 
@@ -37,7 +42,12 @@ class TestTutorials:
         os.environ["AZUREAI_CHAT_API_VERSION"] = version[0]
         os.environ["AZUREAI_CHAT_DEPLOYMENT"] = azureai_deployment
         nb_path = TestTutorials.BASE_TUTORIAL_PATH / "chat.ipynb"
-        run_notebook(nb_path, params=dict(call_delay_secs=rate_limiter))
+        run_notebook(
+            nb_path,
+            params=dict(
+                call_delay_secs=rate_limiter, requested_log_level=logging.DEBUG
+            ),
+        )
 
     def test_regex_constraints(self):
         nb_path = TestTutorials.BASE_TUTORIAL_PATH / "regex_constraints.ipynb"

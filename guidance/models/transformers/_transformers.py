@@ -6,11 +6,11 @@ try:
 except ModuleNotFoundError:
     pass
 
-from .._model import Tokenizer, Engine, Model, Chat
+from .._model import Tokenizer, Engine, Model
 
 
 class TransformersTokenizer(Tokenizer):
-    def __init__(self, model, tokenizer, ignore_bos_token=False):
+    def __init__(self, model, tokenizer, chat_template=None, ignore_bos_token=False):
         if tokenizer is None:
             tokenizer = self._tokenizer(model)
 
@@ -66,6 +66,10 @@ class TransformersTokenizer(Tokenizer):
                     reconstructed += bytes(
                         [byte_decoder[c] for c in t.convert_ids_to_tokens(i)]
                     )
+                # Check if the tokenizer has a bos_token attribute, and if it does, check if it's at the start of the reconstructed bytes
+                # Some tokenizers add this automatically as part of the call function, so we need to remove it to compare
+                if hasattr(t, "bos_token") and reconstructed.startswith(t.bos_token.encode()):
+                    reconstructed = reconstructed[len(t.bos_token) :]
             except:
                 raise ValueError(
                     f"The tokenizer being used is unable to convert a special character in {s}. For models with sentencepiece based tokenizers (e.g. llama, phi-3-mini), installing sentencepiece often fixes this issue (pip install sentencepiece)."
@@ -80,9 +84,14 @@ class TransformersTokenizer(Tokenizer):
                 )
                 byte_tokens[i] = byte_coded
 
+        # Chat Template logic
+        if chat_template is None and hasattr(self._orig_tokenizer, "chat_template"):
+            chat_template = self._orig_tokenizer.chat_template
+
         # the superclass does most of the work once we have the tokens
         super().__init__(
             byte_tokens,
+            chat_template,
             None if ignore_bos_token else tokenizer.bos_token_id,
             tokenizer.eos_token_id,
         )
@@ -128,7 +137,7 @@ class TransformersTokenizer(Tokenizer):
 
 
 class TransformersEngine(Engine):
-    def __init__(self, model, tokenizer, compute_log_probs, **kwargs):
+    def __init__(self, model, tokenizer, compute_log_probs, chat_template=None, **kwargs):
         # fill in default model value
         if model is None:
             model = os.environ.get("TRANSFORMERS_MODEL", None)
@@ -149,9 +158,16 @@ class TransformersEngine(Engine):
         self._cached_logits = None
         self._cached_token_ids = []
 
+        # Set attr for malformed tokenizer hack.
+        # If more models start doing this, generalize into a util function.
+        if hasattr(self.model_obj.config, "model_type"):
+            if self.model_obj.config.model_type in ["phi3"]:
+                self._disable_retokenize_check = True
+
         super().__init__(
-            TransformersTokenizer(model, tokenizer), compute_log_probs=compute_log_probs
+            TransformersTokenizer(model, tokenizer, chat_template), compute_log_probs=compute_log_probs
         )
+        assert self._token_trie.match
 
     def _model(self, model, **kwargs):
         # intantiate the model if needed
@@ -183,9 +199,7 @@ class TransformersEngine(Engine):
                 else:
                     used_tokens -= 1
 
-        new_ids = self.tokenizer._orig_tokenizer(
-            first_decode, add_special_tokens=False
-        )["input_ids"]
+        new_ids = self.tokenizer._orig_tokenizer(first_decode, add_special_tokens=False)["input_ids"]
         if used_tokens < len(token_ids):
             new_ids += token_ids[used_tokens:]
 
@@ -208,9 +222,7 @@ class TransformersEngine(Engine):
         """
 
         # make sure we don't run off the end of the model
-        if len(token_ids) >= getattr(
-            self.model_obj.config, "max_position_embeddings", 1e10
-        ):
+        if len(token_ids) >= getattr(self.model_obj.config, "max_position_embeddings", 1e10):
             raise Exception(
                 f"Attempted to run a transformers model past its maximum context window size of {self.model_obj.config.max_position_embeddings}!"
             )
@@ -229,16 +241,11 @@ class TransformersEngine(Engine):
 
         # reset the cache length according to that number of positions
         past_key_values = self._past_key_values
-        past_length = (
-            past_key_values[0][0].size(-2) if past_key_values is not None else 0
-        )
+        past_length = past_key_values[0][0].size(-2) if past_key_values is not None else 0
         if past_length > num_cached:
-            past_length = max(
-                0, num_cached - 1
-            )  # note we recompute the last token because we don't bother to handle the special case of just computing logits
-            self._past_key_values = tuple(
-                tuple(p[..., :past_length, :] for p in v) for v in past_key_values
-            )
+            # note we recompute the last token because we don't bother to handle the special case of just computing logits
+            past_length = max(0, num_cached - 1)  
+            self._past_key_values = tuple(tuple(p[..., :past_length, :] for p in v) for v in past_key_values)
         cache_token_ids[past_length:] = []
 
         # call the model
@@ -249,14 +256,8 @@ class TransformersEngine(Engine):
                     input_ids=torch.tensor(new_token_ids).unsqueeze(0).to(self.device),
                     past_key_values=self._past_key_values,
                     use_cache=True,
-                    position_ids=torch.arange(
-                        past_length, past_length + len(new_token_ids)
-                    )
-                    .unsqueeze(0)
-                    .to(self.device),
-                    attention_mask=torch.ones(1, past_length + len(new_token_ids)).to(
-                        self.device
-                    ),
+                    position_ids=torch.arange(past_length, past_length + len(new_token_ids)).unsqueeze(0).to(self.device),
+                    attention_mask=torch.ones(1, past_length + len(new_token_ids)).to(self.device),
                     return_dict=True,
                     output_attentions=False,
                     output_hidden_states=False,
@@ -266,9 +267,7 @@ class TransformersEngine(Engine):
             self._past_key_values = model_out.past_key_values
             cache_token_ids.extend(new_token_ids)
             # Need to add special truncating logic here for weird models that have a different output size than tokenizer vocab
-            self._cached_logits = (
-                model_out.logits[0, -1, : len(self.tokenizer.tokens)].cpu().numpy()
-            )
+            self._cached_logits = model_out.logits[0, -1, : len(self.tokenizer.tokens)].cpu().numpy()
             self.metrics.engine_input_tokens += len(new_token_ids)
             self.metrics.engine_output_tokens += 1
 
@@ -277,13 +276,9 @@ class TransformersEngine(Engine):
 
 class Transformers(Model):
     def __init__(
-        self, model=None, tokenizer=None, echo=True, compute_log_probs=False, **kwargs
+        self, model=None, tokenizer=None, echo=True, compute_log_probs=False, chat_template=None, **kwargs
     ):
         """Build a new Transformers model object that represents a model in a given state."""
         super().__init__(
-            TransformersEngine(model, tokenizer, compute_log_probs, **kwargs), echo=echo
+            TransformersEngine(model, tokenizer, compute_log_probs, chat_template=chat_template, **kwargs), echo=echo
         )
-
-
-class TransformersChat(Transformers, Chat):
-    pass

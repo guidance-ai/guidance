@@ -1,10 +1,7 @@
 import os
 from ._model import Chat, Instruct
 from ._openai import (
-    OpenAIChatEngine,
     OpenAI,
-    OpenAIInstructEngine,
-    OpenAICompletionEngine,
     OpenAIEngine,
 )
 from .transformers._transformers import TransformersTokenizer
@@ -45,10 +42,10 @@ class TogetherAI(OpenAI):
 
         if engine_class is None:
             engine_map = {
-                TogetherAICompletion: OpenAICompletionEngine,
-                TogetherAIInstruct: OpenAIChatEngine,
-                TogetherAIChat: OpenAIChatEngine,
-                TogetherAI: OpenAICompletionEngine,
+                TogetherAICompletion: OpenAIEngine,
+                TogetherAIInstruct: OpenAIEngine,
+                TogetherAIChat: OpenAIEngine,
+                TogetherAI: OpenAIEngine,
             }
             for k in engine_map:
                 if issubclass(self.__class__, k):

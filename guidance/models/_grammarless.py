@@ -6,6 +6,9 @@ import tiktoken
 import re
 import logging
 from ._model import Tokenizer, Engine, Model, format_pattern, ConstraintException
+from ..chat import ChatMLTemplate
+
+import warnings
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +107,15 @@ class GrammarlessTokenizer(Tokenizer):
         else:
             raise Exception("The tokenizer given was not of a recognized type!")
 
-        super().__init__(byte_tokens, bos_token_id, eos_token_id)
+        self._orig_tokenizer = tokenizer
+
+        # Grammarless Tokenizers MUST use the ChatMLTemplate in guidance today
+        chat_template = ChatMLTemplate
+        super().__init__(byte_tokens, chat_template, bos_token_id, eos_token_id)
+
+    def __call__(self, byte_string):
+        """Returns a list of tokens that represent the given byte string."""
+        return self._orig_tokenizer.encode(byte_string)
 
 
 class GrammarlessEngine(Engine):
@@ -112,13 +123,12 @@ class GrammarlessEngine(Engine):
         self.max_streaming_tokens = max_streaming_tokens
         self.timeout = timeout
 
-        self._data_queue = (
-            queue.Queue()
-        )  # this is where the streaming thread puts results
+        # this is where the streaming thread puts results
+        self._data_queue = queue.Queue()
         self._data = b""  # these are the bytes we are ready to use in the main thread
-        self._not_running_stream = (
-            threading.Event()
-        )  # this is phrased negatively so we can wait for the stop event
+
+        # this is phrased negatively so we can wait for the stop event
+        self._not_running_stream = threading.Event()
         self._last_call = 0
         self._num_calls_made = 0
         self._current_temp = 0
@@ -133,7 +143,14 @@ class GrammarlessEngine(Engine):
         if not isinstance(tokenizer, Tokenizer):
             tokenizer = GrammarlessTokenizer(tokenizer)
 
-        # build the
+        # GrammarlessEngines must use the ChatML tokenizer
+        # TODO: Consider different enforcement of this
+        if tokenizer.chat_template is not ChatMLTemplate:
+            raise Exception(
+                "The tokenizer provided to the engine follows a non-ChatML format in its chat_template. \
+                    Using a transformers, tiktoken, or guidance.GrammarlessTokenizer directly will solve this issue."
+            )
+        # build the Engine
         super().__init__(tokenizer=tokenizer, compute_log_probs=compute_log_probs)
 
     def __call__(self, *args, **kwargs):
@@ -221,14 +238,16 @@ class GrammarlessEngine(Engine):
         inference results from the model.
         """
 
-        logger.debug(f"start Grammarless._get_logits(token_ids={token_ids})")
-
+        logger.debug(
+            f"Start Grammarless.get_logits({token_ids=}, {forced_bytes=}, {current_temp=})"
+        )
         if len(token_ids) == 0:
             raise ValueError("token_ids must contain some tokens.")
 
         # compute the prompt bytes
         whole_token_prompt = b"".join([self.tokenizer.tokens[i] for i in token_ids])
         prompt = whole_token_prompt + forced_bytes
+        logger.debug(f"Grammarless.get_logits: {prompt=}")
 
         self._last_call = time.time()
 
@@ -236,28 +255,35 @@ class GrammarlessEngine(Engine):
         token_id = None
         restarted = False  # track if we have restarted the data stream during this call
         while True:
+            logger.debug(f"Grammarless.get_logits: Starting main loop")
 
             # if the generation temperature changes we have to restart
             if self._current_temp != current_temp:
+                logger.debug(f"Grammarless.get_logits: Starting new stream")
                 self._start_new_stream(prompt, current_temp)
                 continue
 
             # try and get the next token id
             elif self._data.startswith(prompt):
+                logger.debug(f"Grammarless.get_logits: Getting next token id")
                 token_id = self._get_next_token(len(prompt) - len(forced_bytes))
+                logger.debug(f"Grammarless.get_logits: {token_id=}")
                 if token_id is not None:
 
                     # if we have a non-zero sampling temperature we can't reuse bytes
                     new_used_len = len(whole_token_prompt) + len(
                         self.tokenizer.tokens[token_id]
                     )
+                    logger.debug(f"Grammarless.get_logits: {new_used_len=}")
                     if current_temp > 0 and self._used_bytes_len >= new_used_len:
+                        logger.debug(f"Grammarless.get_logits: Need to restart stream")
                         token_id = None
                         self._start_new_stream(prompt, current_temp)
                         continue
 
                     # ...otherwise we have found the token id we want to emit
                     else:
+                        logger.debug(f"Grammarless.get_logits: Found token id")
                         self._used_bytes_len = len(whole_token_prompt) + len(
                             self.tokenizer.tokens[token_id]
                         )
@@ -267,7 +293,7 @@ class GrammarlessEngine(Engine):
             elif not self._data.startswith(prompt) and len(self._data) >= len(
                 prompt
             ):  # not prompt.startswith(self._data): # len(self._data) >= len(prompt) or
-
+                logger.debug(f"Grammarless.get_logits: Data will not match prompt")
                 # check if we have already restarted once and so retrying by default is not likely to be helpful
                 if restarted:
                     raise self._report_failed_match(prompt)
@@ -283,6 +309,7 @@ class GrammarlessEngine(Engine):
                 if not found_mismatch:
                     match_len = len(prompt)
                 leftover = prompt[match_len:]
+                logger.debug(f"Grammarless.get_logits: {leftover=}")
 
                 # record any active non-empty role ends. Ignore role ends that are spaces
                 parts = [
@@ -301,6 +328,7 @@ class GrammarlessEngine(Engine):
                 # see if adding an end token would work here (if so we avoid recalling the server and just produce an end token)
                 found_match = False
                 for p in parts:
+                    logger.debug(f"Grammarless.get_logits: Considering part {p}")
                     if p.startswith(leftover):
                         self._data = self._data[:match_len] + p
                         logger.debug(
@@ -345,9 +373,8 @@ class GrammarlessEngine(Engine):
                 if isinstance(new_bytes, Exception):
                     raise new_bytes
                 self._data += new_bytes
-                self._last_call = (
-                    time.time()
-                )  # reset out call time to allow the data stream to time out if we happen to be done with it
+                # reset out call time to allow the data stream to time out if we happen to be done with it
+                self._last_call = time.time()  
 
         # # if we don't have the next byte of data yet then we wait for it (from the streaming thread)
         # if len(self._data) == len(prompt):
@@ -356,17 +383,16 @@ class GrammarlessEngine(Engine):
         # token_id = self._get_next_token(len(prompt))
 
         # set the logits to the next byte the model picked
+        logger.debug(f"Grammarless.get_logits: Creating logits for {token_id=}")
         logits = np.ones(len(self.tokenizer.tokens)) * -np.inf
         logits[token_id] = 100
         if token_id != self.tokenizer.eos_token:
-            logits[self.tokenizer.eos_token_id] = (
-                0  # we always allow the model to use EOS if that is the only way forward
-            )
-
+            # we always allow the model to use EOS if that is the only way forward
+            logits[self.tokenizer.eos_token_id] = 0
         return logits
 
     def _report_failed_match(self, prompt):
-
+        logger.debug(f"_report_failed_match: {prompt=}")
         # check the length of the prefix match
         match_len = 0
         found_mismatch = False
@@ -404,7 +430,9 @@ class GrammarlessEngine(Engine):
             + "not match the given grammar constraints! Since your model is a remote API that does not support full guidance\n"
             + "integration we cannot force the model to follow the grammar, only flag an error when it fails to match.\n"
             + "You can try to address this by improving the prompt, making your grammar more flexible, rerunning with\n"
-            + "a non-zero temperature, or using a model that supports full guidance grammar constraints."
+            + "a non-zero temperature, or using a model that supports full guidance grammar constraints.",
+            prompt=prompt,
+            data=data,
         )
 
     def _get_next_token(self, pos, allow_early_stop=False):
