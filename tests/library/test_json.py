@@ -1124,14 +1124,17 @@ class TestConst:
         # The actual check
         generate_and_check(target_obj, schema_obj)
 
-    def test_type_specified_constant(self):
-        # First sanity check what we're setting up
+    def test_constant_precedence(self):
         schema_obj = {"type": "integer", "const": 1}
-        target_obj = 1
-        validate(instance=target_obj, schema=schema_obj)
+        bad_string = _to_compact_json(2)
 
-        # The actual check
-        generate_and_check(target_obj, schema_obj)
+        check_match_failure(
+            bad_string=bad_string,
+            good_bytes=b"",
+            failure_byte=b"2",
+            allowed_bytes={Byte(b"1")},
+            schema_obj=schema_obj,
+        )
 
 
 class TestAdditionalProperties:
