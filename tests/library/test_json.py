@@ -1078,6 +1078,65 @@ class TestEnum:
         )
 
 
+class TestConst:
+    def test_constant_int(self):
+        # First sanity check what we're setting up
+        schema_obj = {"const": 1}
+        target_obj = 1
+        validate(instance=target_obj, schema=schema_obj)
+
+        # The actual check
+        generate_and_check(target_obj, schema_obj)
+
+    def test_constant_string(self):
+        # First sanity check what we're setting up
+        schema_obj = {"const": "hello"}
+        target_obj = "hello"
+        validate(instance=target_obj, schema=schema_obj)
+
+        # The actual check
+        generate_and_check(target_obj, schema_obj)
+
+    def test_constant_array(self):
+        # First sanity check what we're setting up
+        schema_obj = {"const": [1, 2, 3]}
+        target_obj = [1, 2, 3]
+        validate(instance=target_obj, schema=schema_obj)
+
+        # The actual check
+        generate_and_check(target_obj, schema_obj)
+
+    def test_constant_object(self):
+        # First sanity check what we're setting up
+        schema_obj = {"const": {"a": 1, "b": 2}}
+        target_obj = {"a": 1, "b": 2}
+        validate(instance=target_obj, schema=schema_obj)
+
+        # The actual check
+        generate_and_check(target_obj, schema_obj)
+
+    def test_nested_constant(self):
+        # First sanity check what we're setting up
+        schema_obj = {"type": "object", "properties": {"a": {"const": 1}}}
+        target_obj = {"a": 1}
+        validate(instance=target_obj, schema=schema_obj)
+
+        # The actual check
+        generate_and_check(target_obj, schema_obj)
+
+    def test_constant_precedence(self):
+        schema_obj = {"type": "integer", "const": 1}
+        bad_string = _to_compact_json(2)
+
+        check_match_failure(
+            bad_string=bad_string,
+            good_bytes=b"",
+            failure_byte=b"2",
+            allowed_bytes={Byte(b"1")},
+            schema_obj=schema_obj,
+        )
+
+
 class TestAdditionalProperties:
 
     simple_schema = """{
