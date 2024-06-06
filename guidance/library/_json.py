@@ -298,7 +298,7 @@ def _gen_json(
         raise ValueError(f"Unsupported type in schema: {target_type}")
 
     ANY_KEY = "__ANY"
-    if "ANY_KEY" not in definitions:
+    if ANY_KEY not in definitions:
 
         @guidance(stateless=True, dedent=False)
         def ANY(lm):
