@@ -297,7 +297,41 @@ def _gen_json(
             )
         raise ValueError(f"Unsupported type in schema: {target_type}")
 
-    raise ValueError(f"Can't process JSON node: {json_schema}")
+    ANY_KEY = "__ANY"
+    if "ANY_KEY" not in definitions:
+
+        @guidance(stateless=True, dedent=False)
+        def ANY(lm):
+            return lm + select(
+                [
+                    _gen_json(json_schema={"type": "null"}, definitions={}),
+                    _gen_json(json_schema={"type": "boolean"}, definitions={}),
+                    _gen_json(json_schema={"type": "integer"}, definitions={}),
+                    _gen_json(json_schema={"type": "number"}, definitions={}),
+                    _gen_json(json_schema={"type": "string"}, definitions={}),
+                    # Recursive cases
+                    _gen_json(
+                        json_schema={
+                            "type": "array",
+                            "items": {REF_STRING: f"#/{_DEFS_KEYS[0]}/{ANY_KEY}"},
+                        },
+                        definitions=definitions,
+                    ),
+                    _gen_json(
+                        json_schema={
+                            "type": "object",
+                            "additionalProperties": {
+                                REF_STRING: f"#/{_DEFS_KEYS[0]}/{ANY_KEY}"
+                            },
+                        },
+                        definitions=definitions,
+                    ),
+                ]
+            )
+
+        definitions[ANY_KEY] = ANY
+
+    return lm + ANY()
 
 
 @guidance(stateless=True)
