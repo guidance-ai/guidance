@@ -148,9 +148,9 @@ class Llama3ChatTemplate(ChatTemplate):
         if role_name == "system":
             return "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\n"
         elif role_name == "user":
-            return "<|start_header_id|>user<|end_header_id>\n\n"
+            return "<|start_header_id|>user<|end_header_id|>\n\n"
         elif role_name == "assistant":
-            return "<|start_header_id|>assistant<|end_header_id>\n\n"
+            return "<|start_header_id|>assistant<|end_header_id|>\n\n"
         else:
             raise UnsupportedRoleException(role_name, self)
         

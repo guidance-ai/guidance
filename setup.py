@@ -25,7 +25,6 @@ install_requires = [
     "numpy",
     "ordered_set",
     "platformdirs",
-    "pyformlang",
     "protobuf",
     "pydantic",
     "requests",
