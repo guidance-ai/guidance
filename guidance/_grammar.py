@@ -1130,6 +1130,12 @@ class Ag2Serializer:
                     "temperature": node.temperature if node.temperature >= 0 else None,
                 }
             }
+        elif isinstance(node, Byte):
+            obj = {
+                "String": {
+                    "literal": node.byte.decode("utf-8", errors="strict"),
+                }
+            }
         else:
             raise Exception("Unknown node type: " + node)
         tp = next(iter(obj))

@@ -49,6 +49,27 @@ def test_azure_guidance_basic(azure_guidance_model: guidance.models.Model):
     lm += "Write a number: " + gen("text", max_tokens=3)
     assert len(lm["text"]) >= 3
 
+def test_azure_guidance_56(azure_guidance_model: guidance.models.Model):
+    lm = azure_guidance_model
+    # make sure we recognize EOS token correctly
+    lm += "Q: 7 * 8\nA: " + gen("text", regex="[0-9]+", max_tokens=20)
+    assert lm["text"] == "56"
+
+def test_azure_guidance_56_newline(azure_guidance_model: guidance.models.Model):
+    lm = azure_guidance_model
+    # make sure we recognize EOS token correctly
+    lm += "Q: 7 * 8\nA: " + gen("text", regex="[0-9]+", max_tokens=20) + "\n"
+    assert lm["text"] == "56"
+
+def test_azure_guidance_1003(azure_guidance_model: guidance.models.Model):
+    lm = azure_guidance_model
+    lm += "Q: 1000 + 3\nA: " + gen("text", regex="[0-9]+", max_tokens=20)
+    assert lm["text"] == "1003"
+
+def test_azure_guidance_1003_max_tokens(azure_guidance_model: guidance.models.Model):
+    lm = azure_guidance_model
+    lm += "Q: 1000 + 3\nA: " + gen("text", regex="[0-9]+", max_tokens=2)
+    assert lm["text"] == "10"
 
 def test_azure_guidance_stop_char(azure_guidance_model: guidance.models.Model):
     lm = azure_guidance_model
@@ -165,7 +186,7 @@ def test_azure_guidance_stop_token(azure_guidance_model: guidance.models.Model):
     assert "</color>" not in r[20:]
     assert " and test2" in r[20:]
 
-def test_azure_guidance_basic(azure_guidance_model: guidance.models.Model):
+def test_azure_guidance_basic_2(azure_guidance_model: guidance.models.Model):
     model = azure_guidance_model
     lm = model + "Count to 20: 1,2,3,4,"
     nl = "\n"

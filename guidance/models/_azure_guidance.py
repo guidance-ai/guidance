@@ -42,11 +42,10 @@ class AzureGuidanceEngine(Engine):
         super().__init__(tokenizer=tokenizer, compute_log_probs=False)
 
     def __call__(self, parser, grammar, ensure_bos_token=True):
-        b64 = base64.b64encode(grammar.serialize()).decode("utf-8")
-
+        serialized = {"grammar": grammar.ag2_serialize()}
         data = {
-            "controller": "guidance",
-            "controller_arg": {"guidance_b64": b64},
+            "controller": "ag2",
+            "controller_arg": serialized,
             "prompt": parser,
             "max_tokens": self.max_streaming_tokens,
             "temperature": 0.0, # this is just default temperature
