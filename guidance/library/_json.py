@@ -35,6 +35,13 @@ def _to_compact_json(target: Any) -> str:
 
 
 _DEFS_KEYS = ["$defs", "definitions"]
+_REF_STRING = "$ref"
+_CONST_STRING = "const"
+_ANYOF_STRING = "anyOf"
+_ALLOF_STRING = "allOf"
+_ENUM_STRING = "enum"
+_TYPE_STRING = "type"
+_ANY_KEY = "__ANY"
 
 
 @guidance(stateless=True)
@@ -241,35 +248,29 @@ def _gen_json(
     json_schema: Mapping[str, Any],
     definitions: Mapping[str, Callable[[], GrammarFunction]],
 ):
-    ANYOF_STRING = "anyOf"
-    if ANYOF_STRING in json_schema:
+    if _ANYOF_STRING in json_schema:
         return lm + _process_anyOf(
-            anyof_list=json_schema[ANYOF_STRING], definitions=definitions
+            anyof_list=json_schema[_ANYOF_STRING], definitions=definitions
         )
 
-    ALLOF_STRING = "allOf"
-    if ALLOF_STRING in json_schema:
-        allof_list = json_schema[ALLOF_STRING]
+    if _ALLOF_STRING in json_schema:
+        allof_list = json_schema[_ALLOF_STRING]
         if len(allof_list) != 1:
             raise ValueError("Only support allOf with exactly one item")
         return lm + _gen_json(allof_list[0], definitions)
 
-    REF_STRING = "$ref"
-    if REF_STRING in json_schema:
+    if _REF_STRING in json_schema:
         return lm + _get_definition(
-            reference=json_schema[REF_STRING], definitions=definitions
+            reference=json_schema[_REF_STRING], definitions=definitions
         )
 
-    CONST_STRING = "const"
-    if CONST_STRING in json_schema:
-        return lm + _to_compact_json(json_schema[CONST_STRING])
+    if _CONST_STRING in json_schema:
+        return lm + _to_compact_json(json_schema[_CONST_STRING])
 
-    ENUM_STRING = "enum"
-    if ENUM_STRING in json_schema:
+    if _ENUM_STRING in json_schema:
         return lm + _process_enum(options=json_schema["enum"])
 
-    TYPE_STRING = "type"
-    if TYPE_STRING in json_schema:
+    if _TYPE_STRING in json_schema:
         target_type = json_schema["type"]
         if target_type == "null":
             return lm + "null"
@@ -297,8 +298,7 @@ def _gen_json(
             )
         raise ValueError(f"Unsupported type in schema: {target_type}")
 
-    ANY_KEY = "__ANY"
-    if ANY_KEY not in definitions:
+    if _ANY_KEY not in definitions:
 
         @guidance(stateless=True, dedent=False)
         def ANY(lm):
@@ -313,7 +313,7 @@ def _gen_json(
                     _gen_json(
                         json_schema={
                             "type": "array",
-                            "items": {REF_STRING: f"#/{_DEFS_KEYS[0]}/{ANY_KEY}"},
+                            "items": {_REF_STRING: f"#/{_DEFS_KEYS[0]}/{_ANY_KEY}"},
                         },
                         definitions=definitions,
                     ),
@@ -321,7 +321,7 @@ def _gen_json(
                         json_schema={
                             "type": "object",
                             "additionalProperties": {
-                                REF_STRING: f"#/{_DEFS_KEYS[0]}/{ANY_KEY}"
+                                _REF_STRING: f"#/{_DEFS_KEYS[0]}/{_ANY_KEY}"
                             },
                         },
                         definitions=definitions,
@@ -329,7 +329,7 @@ def _gen_json(
                 ]
             )
 
-        definitions[ANY_KEY] = ANY
+        definitions[_ANY_KEY] = ANY
 
     return lm + ANY()
 
