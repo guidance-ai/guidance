@@ -861,6 +861,39 @@ class TestWithReferences:
         # The actual check
         generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
 
+    @pytest.mark.parametrize("temperature", [None, 0.1, 1])
+    def test_multiple_refs_to_same_def(self, temperature):
+        schema = """{
+        "$defs": {
+            "A": {
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            }
+        },
+        "properties": {
+            "A1": {
+                "$ref": "#/$defs/A"
+            },
+            "A2": {
+                "$ref": "#/$defs/A"
+            }
+        },
+        "type": "object"
+        }"""
+
+        target_obj = dict(A1=dict(name="Romulus"), A2=dict(name="Remus"))
+
+        # First sanity check what we're setting up
+        schema_obj = json.loads(schema)
+        validate(instance=target_obj, schema=schema_obj)
+
+        # The actual check
+        generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
+
 
 class TestAnyOf:
     @pytest.mark.parametrize("target_obj", [123, True])
