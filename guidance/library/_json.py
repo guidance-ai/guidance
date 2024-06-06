@@ -344,11 +344,13 @@ def json(
     lm,
     name: Optional[str] = None,
     *,
-    schema: Union[
-        Mapping[str, Any],
-        Type["pydantic.BaseModel"],
-        "pydantic.TypeAdapter",
-    ],
+    schema: Optional[
+        Union[
+            Mapping[str, Any],
+            Type["pydantic.BaseModel"],
+            "pydantic.TypeAdapter",
+        ]
+    ] = None,
     temperature: float = 0.0,
 ):
     """Generate valid JSON according to the supplied JSON schema or `pydantic` model.
@@ -396,6 +398,8 @@ def json(
         # Raises jsonschema.exceptions.SchemaError or ValueError
         # if schema is not valid
         jsonschema.validators.Draft202012Validator.check_schema(schema)
+    elif schema is None:
+        schema = {}
     else:
         schema = pydantic_to_json_schema(schema)
 
