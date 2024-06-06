@@ -1388,3 +1388,126 @@ class TestRecursiveStructures:
 
         # The actual check
         generate_and_check(target_obj, schema_obj)
+
+
+class TestEmptySchemas:
+    empty_schema = "{}"
+    nested_empty_schema = """{
+    "properties": {
+        "a": {}
+    },
+    "type": "object"
+    }"""
+
+    @pytest.mark.parametrize(
+        "target_obj",
+        [
+            1,
+            "2",
+            False,
+            [1, 2, 3],
+            {"a": 1},
+            None,
+            [{"a": 1}],
+            {"a": [1, 2, 3]},
+            {"a": {"b": 1}},
+        ],
+    )
+    @pytest.mark.parametrize("temperature", [None, 0.1, 1])
+    def test_empty_schema(self, target_obj, temperature):
+        # First sanity check what we're setting up
+        schema_obj = json.loads(self.empty_schema)
+        validate(instance=target_obj, schema=schema_obj)
+
+        # The actual check
+        generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
+
+    @pytest.mark.parametrize(
+        "bad_string, good_bytes, failure_byte, allowed_bytes",
+        [
+            # {} is not carte blanche for malformed JSON
+            ("{a:1}", b"{", b"a", {Byte(b'"'), Byte(b"}")}),
+            (
+                "[1,2} ",
+                b"[1,2",
+                b"}",
+                {Byte(b","), Byte(b"]"), Byte(b"e"), Byte(b"."), *INTEGER_FOLLOWING},
+            ),
+            ("123a", b"123", b"a", {Byte(b"e"), Byte(b"."), *INTEGER_FOLLOWING}),
+            (
+                "]",
+                b"",
+                b"]",
+                {
+                    Byte(b"["),
+                    Byte(b"{"),
+                    Byte(b'"'),
+                    Byte(b"t"),
+                    Byte(b"f"),
+                    Byte(b"n"),
+                    *INTEGER_LEADING,
+                },
+            ),
+        ],
+    )
+    def test_bad_empty_schema(
+        self, bad_string, good_bytes, failure_byte, allowed_bytes
+    ):
+        schema_obj = json.loads(self.empty_schema)
+        check_match_failure(
+            bad_string=bad_string,
+            good_bytes=good_bytes,
+            failure_byte=failure_byte,
+            allowed_bytes=allowed_bytes,
+            schema_obj=schema_obj,
+        )
+
+    @pytest.mark.parametrize(
+        "target_obj",
+        [
+            {"a": 1},
+            {"a": "2"},
+            {"a": False},
+            {"a": [1, 2, 3]},
+            {"a": {"b": 1}},
+            {"a": None},
+            {"a": [{"b": 1}]},
+            {"a": {"b": [1, 2, 3]}},
+            {"a": {"b": {"c": 1}}},
+        ],
+    )
+    @pytest.mark.parametrize("temperature", [None, 0.1, 1])
+    def test_nested_empty_schema(self, target_obj, temperature):
+        # First sanity check what we're setting up
+        schema_obj = json.loads(self.nested_empty_schema)
+        validate(instance=target_obj, schema=schema_obj)
+
+        # The actual check
+        generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
+
+    @pytest.mark.parametrize(
+        "bad_obj, good_bytes, failure_byte, allowed_bytes",
+        [
+            # Missing property -- presence of {} deeper in the schema isn't carte blanche
+            ({"b": 42}, b'{"', b"b", {Byte(b"a")}),
+        ],
+    )
+    def test_nested_empty_schema_bad(
+        self, bad_obj, good_bytes, failure_byte, allowed_bytes
+    ):
+        schema = """{
+            "properties": {
+                "a": {}
+            },
+            "type": "object"
+        }
+        """
+        schema_obj = json.loads(schema)
+        bad_string = _to_compact_json(bad_obj)
+        check_match_failure(
+            bad_string=bad_string,
+            good_bytes=good_bytes,
+            failure_byte=failure_byte,
+            allowed_bytes=allowed_bytes,
+            schema_obj=schema_obj,
+        )
