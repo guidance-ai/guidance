@@ -325,7 +325,7 @@ class GrammarlessEngine(Engine):
                 logger.debug(f"Grammarless.get_logits: {leftover=}")
 
                 # record any active non-empty role ends. Ignore role ends that are spaces
-                parts: Sequence[bytes | None] = [
+                parts: Sequence[Optional[bytes]] = [
                     b"<|im_end|>",
                     self.tokenizer.eos_token,
                 ]  # note we assume we are role tags that end with <|im_end|>
