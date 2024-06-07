@@ -103,10 +103,10 @@ def test_azure_guidance_gen(azure_guidance_model: guidance.models.Model):
     assert len(str(lm)) > len("this is a test")
 
 
-# def test_azure_guidance_gen_log_probs(azure_guidance_model: guidance.models.Model):
-#     lm = azure_guidance_model
-#     lm = lm + "this is a test" + gen("test", max_tokens=1)
-#     assert 1 >= np.exp(lm.log_prob("test")) >= 0
+def test_azure_guidance_gen_log_probs(azure_guidance_model: guidance.models.Model):
+    lm = azure_guidance_model
+    lm = lm + "this is a test" + gen("test", max_tokens=1)
+    assert 1 >= np.exp(lm.log_prob("test")) >= 0
 
 
 def test_azure_guidance_recursion_error(azure_guidance_model: guidance.models.Model):
@@ -178,21 +178,21 @@ def test_azure_guidance_with_temp(azure_guidance_model: guidance.models.Model):
     # we just want to make sure we don't crash the numpy sampler
 
 
-# def test_azure_guidance_with_temp2(azure_guidance_model: guidance.models.Model):
-#     lm = azure_guidance_model
-#     lm1 = lm + "2 + 2 =" + gen("answer", max_tokens=3)
-#     lm2 = lm + "2 + 2 =" + gen("answer", temperature=0.0000001, max_tokens=3)
-#     assert lm1["answer"] == lm2["answer"]
+def test_azure_guidance_with_temp2(azure_guidance_model: guidance.models.Model):
+    lm = azure_guidance_model
+    lm1 = lm + "2 + 2 =" + gen("answer", max_tokens=3)
+    lm2 = lm + "2 + 2 =" + gen("answer", temperature=0.0000001, max_tokens=3)
+    assert lm1["answer"] == lm2["answer"]
 
 
-# def test_azure_guidance_max_tokens(azure_guidance_model: guidance.models.Model):
-#     lm = azure_guidance_model
-#     lm += "Who won the last Kentucky derby and by how much?"
-#     lm += "\n\n<<The last Kentucky Derby was held"
-#     lm += gen(max_tokens=2)
-#     assert (
-#         str(lm)[-1] != "<"
-#     )  # the output should not end with "<" because that is coming from the stop sequence...
+def test_azure_guidance_max_tokens(azure_guidance_model: guidance.models.Model):
+    lm = azure_guidance_model
+    lm += "Who won the last Kentucky derby and by how much?"
+    lm += "\n\n<<The last Kentucky Derby was held"
+    lm += gen(max_tokens=2)
+    assert (
+        str(lm)[-1] != "<"
+    )  # the output should not end with "<" because that is coming from the stop sequence...
 
 
 # def test_azure_guidance_stop_token(azure_guidance_model: guidance.models.Model):
@@ -228,12 +228,12 @@ def test_azure_guidance_fstring(azure_guidance_model: guidance.models.Model):
 #     assert str(lm) in ["this is a test another item1", "this is a test another item2"]
 
 
-# def test_azure_guidance_token_count(azure_guidance_model: guidance.models.Model):
-#     lm = azure_guidance_model
-#     lm2 = lm + " 1 1 1 1 1" + gen(max_tokens=9) + gen(max_tokens=9)
-#     assert (
-#         18 <= lm2.token_count <= 20
-#     )  # note we allow ourselves to be off by one because it is hard to know when we are continuing vs starting a new token in the parser
+def test_azure_guidance_token_count(azure_guidance_model: guidance.models.Model):
+    lm = azure_guidance_model
+    lm2 = lm + " 1 1 1 1 1" + gen(max_tokens=9) + gen(max_tokens=9)
+    assert (
+        18 <= lm2.token_count <= 20
+    )  # note we allow ourselves to be off by one because it is hard to know when we are continuing vs starting a new token in the parser
 
 
 # def test_azure_guidance_call_embeddings(azure_guidance_model: guidance.models.Model):
@@ -282,14 +282,14 @@ def test_azure_guidance_stream_add_multiple(azure_guidance_model: guidance.model
     assert str(lm) in ["item1", "item2"]
 
 
-# def test_azure_guidance(azure_guidance_model: guidance.models.Model):
-#     lm = azure_guidance_model
-#     with user():
-#         lm += "What is 1 + 1?"
-#     with assistant():
-#         lm += gen(max_tokens=10, name="text")
-#         lm += "Pick a number: "
-#     assert len(lm["text"]) > 0
+def test_azure_guidance(azure_guidance_model: guidance.models.Model):
+    lm = azure_guidance_model
+    with user():
+        lm += "What is 1 + 1?"
+    with assistant():
+        lm += gen(max_tokens=10, name="text")
+        lm += "Pick a number: "
+    assert len(lm["text"]) > 0
 
 
 def test_azure_guidance_select(azure_guidance_model: guidance.models.Model):
@@ -316,41 +316,42 @@ def test_azure_guidance_loop(azure_guidance_model: guidance.models.Model):
 
 
 
-# def test_azure_guidance_chat(azure_guidance_model: guidance.models.Model):
-#     lm = azure_guidance_model
+def test_azure_guidance_chat(azure_guidance_model: guidance.models.Model):
+    lm = azure_guidance_model
+    max_tokens=30
 
-#     with user():
-#         lm += "The economy is crashing!"
+    with user():
+        lm += "The economy is crashing!"
 
-#     with assistant():
-#         lm += gen("test1", max_tokens=100)
+    with assistant():
+        lm += gen("test1", max_tokens=max_tokens)
 
-#     with user():
-#         lm += "What is the best again?"
+    with user():
+        lm += "What is the best again?"
 
-#     with assistant():
-#         lm += gen("test2", max_tokens=100)
+    with assistant():
+        lm += gen("test2", max_tokens=max_tokens)
 
-#     assert len(lm["test1"]) > 0
-#     assert len(lm["test2"]) > 0
+    assert len(lm["test1"]) > 0
+    assert len(lm["test2"]) > 0
 
-#     # second time to make sure cache reuse is okay
-#     lm = azure_guidance_model
+    # second time to make sure cache reuse is okay
+    lm = azure_guidance_model
 
-#     with user():
-#         lm += "The economy is crashing!"
+    with user():
+        lm += "The economy is crashing!"
 
-#     with assistant():
-#         lm += gen("test1", max_tokens=100)
+    with assistant():
+        lm += gen("test1", max_tokens=max_tokens)
 
-#     with user():
-#         lm += "What is the best again?"
+    with user():
+        lm += "What is the best again?"
 
-#     with assistant():
-#         lm += gen("test2", max_tokens=100)
+    with assistant():
+        lm += gen("test2", max_tokens=max_tokens)
 
-#     assert len(lm["test1"]) > 0
-#     assert len(lm["test2"]) > 0
+    assert len(lm["test1"]) > 0
+    assert len(lm["test2"]) > 0
 
 def test_azure_guidance_phi3_newline_chat(azure_guidance_model: guidance.models.Model):
     lm = azure_guidance_model
