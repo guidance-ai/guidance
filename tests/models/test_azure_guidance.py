@@ -5,7 +5,7 @@ from jsonschema import validate
 import json
 
 import guidance
-from guidance import gen, select, assistant, user, optional, substring, one_or_more
+from guidance import gen, select, assistant, user, optional, substring, one_or_more, token_limit
 from guidance.library import json as gen_json
 
 from ..utils import get_model
@@ -554,9 +554,10 @@ def test_azure_guidance_phi3_unstable_tokenization(azure_guidance_model: guidanc
 
 def test_azure_guidance_string(azure_guidance_model: guidance.models.Model):
     model = azure_guidance_model
-    s = str(model + "ab" + one_or_more("ab"))
+    # limit number of tokens, otherwise test is very slow
+    s = str(model + "ab" + token_limit(one_or_more("ab"), 30))
     assert len(s) >= 4
-    assert bool(re.fullmatch(r'(ab)*', s)) or bool(re.fullmatch(r'(ab)*', s))[:-1]
+    assert bool(re.fullmatch(r'(ab)*', s)) or bool(re.fullmatch(r'(ab)*', s[:-1]))
 
 
 # def test_azure_guidance_stop_token_name(azure_guidance_model: guidance.models.Model):
