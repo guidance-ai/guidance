@@ -129,14 +129,14 @@ class GrammarlessEngine(Engine):
         self.timeout = timeout
 
         # this is where the streaming thread puts results
-        self._data_queue = queue.Queue()
+        self._data_queue: queue.Queue = queue.Queue()
         self._data = b""  # these are the bytes we are ready to use in the main thread
 
         # this is phrased negatively so we can wait for the stop event
-        self._not_running_stream = threading.Event()
+        self._not_running_stream: threading.Event = threading.Event()
         self._last_call = 0
         self._num_calls_made = 0
-        self._current_temp = 0
+        self._current_temp = 0.0
         self._last_stream_start = None
 
         self._not_running_stream.set()
@@ -317,7 +317,7 @@ class GrammarlessEngine(Engine):
                 logger.debug(f"Grammarless.get_logits: {leftover=}")
 
                 # record any active non-empty role ends. Ignore role ends that are spaces
-                parts = [
+                parts: Sequence[bytes] = [
                     b"<|im_end|>",
                     self.tokenizer.eos_token,
                 ]  # note we assume we are role tags that end with <|im_end|>
@@ -373,7 +373,7 @@ class GrammarlessEngine(Engine):
 
             # we wait for the running stream to put something in the queue
             else:
-                self._last_call = 10e9  # set to essentialy infinity so we don't stop the data stream while we are waiting for it
+                self._last_call = 1e9  # set to essentialy infinity so we don't stop the data stream while we are waiting for it
                 new_bytes = self._data_queue.get()
                 if isinstance(new_bytes, Exception):
                     raise new_bytes
@@ -424,14 +424,14 @@ class GrammarlessEngine(Engine):
             already_shown = len(self._current_prompt().encode())
             self += (
                 self._data[already_shown:match_len].decode()
-                + f"<||_html:<span style='color: rgba(165,0,0,1);' title='{leftover}'><span style='text-decoration: underline;'>{data_after_prompt.decode()}</span></span>_||>"
+                + f"<||_html:<span style='color: rgba(165,0,0,1);' title='{str(leftover)}'><span style='text-decoration: underline;'>{data_after_prompt.decode()}</span></span>_||>"
             )
         except:
             pass  # could not decode the data the model generated into a string...
 
         # create an exception for users to deal with (that our caller can throw)
         return ConstraintException(
-            f"The model attempted to generate {str(data_after_prompt)} after the prompt `{prompt_tail}`, but that does\n"
+            f"The model attempted to generate {str(data_after_prompt)} after the prompt `{str(prompt_tail)}`, but that does\n"
             + "not match the given grammar constraints! Since your model is a remote API that does not support full guidance\n"
             + "integration we cannot force the model to follow the grammar, only flag an error when it fails to match.\n"
             + "You can try to address this by improving the prompt, making your grammar more flexible, rerunning with\n"
