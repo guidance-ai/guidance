@@ -121,7 +121,7 @@ class GrammarlessTokenizer(Tokenizer):
         return self._orig_tokenizer.encode(byte_string.decode())
 
 class GrammarlessEngine(Engine):
-    def __init__(self, tokenizer, max_streaming_tokens, timeout, compute_log_probs):
+    def __init__(self, tokenizer, max_streaming_tokens:int, timeout, compute_log_probs:bool):
         self.max_streaming_tokens = max_streaming_tokens
         self.timeout = timeout
 
@@ -193,8 +193,8 @@ class GrammarlessEngine(Engine):
             b""
         )  # so we never get stuck waiting for a running stream to return something
 
-    def _start_new_stream(self, prompt, temperature):
-
+    def _start_new_stream(self, prompt:bytes, temperature:float):
+        assert isinstance(prompt, bytes)
         # make sure the display is up to date (since we are about to delay for a while)
         # TODO: how can we handle this better since the engine is now separate from the client?
         #       we could use a timeout for the GUI update throttling, those were just kind of slow... (but would be best)
@@ -233,7 +233,7 @@ class GrammarlessEngine(Engine):
         self._data = new_data
         self._last_stream_start = self._data
 
-    def get_logits(self, token_ids, forced_bytes, current_temp):
+    def get_logits(self, token_ids, forced_bytes:bytes, current_temp):
         """Computes the logits for the given token state.
 
         This overrides a method from the Local class that is used to get
@@ -247,7 +247,7 @@ class GrammarlessEngine(Engine):
             raise ValueError("token_ids must contain some tokens.")
 
         # compute the prompt bytes
-        whole_token_prompt = b"".join([self.tokenizer.tokens[i] for i in token_ids])
+        whole_token_prompt = self.tokenizer.decode(token_ids)
         prompt = whole_token_prompt + forced_bytes
         logger.debug(f"Grammarless.get_logits: {prompt=}")
 
@@ -393,7 +393,7 @@ class GrammarlessEngine(Engine):
             logits[self.tokenizer.eos_token_id] = 0
         return logits
 
-    def _report_failed_match(self, prompt):
+    def _report_failed_match(self, prompt: bytes):
         logger.debug(f"_report_failed_match: {prompt=}")
         # check the length of the prefix match
         match_len = 0
