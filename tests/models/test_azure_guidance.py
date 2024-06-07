@@ -195,14 +195,14 @@ def test_azure_guidance_max_tokens(azure_guidance_model: guidance.models.Model):
     )  # the output should not end with "<" because that is coming from the stop sequence...
 
 
-# def test_azure_guidance_stop_token(azure_guidance_model: guidance.models.Model):
-#     lm = azure_guidance_model
-#     lm += f'<color>red</color>\n<color>{gen(stop="</color>")} and test2'
-#     r = str(lm)
-#     print(r)
-#     print(r[20:])
-#     assert "</color>" not in r[20:]
-#     assert " and test2" in r[20:]
+def test_azure_guidance_stop_token(azure_guidance_model: guidance.models.Model):
+    lm = azure_guidance_model
+    lm += f'<color>red</color>\n<color>{gen(stop="</color>")} and test2'
+    r = str(lm)
+    print(r)
+    print(r[20:])
+    assert "</color>" not in r[20:]
+    assert " and test2" in r[20:]
 
 def test_azure_guidance_basic_2(azure_guidance_model: guidance.models.Model):
     model = azure_guidance_model
