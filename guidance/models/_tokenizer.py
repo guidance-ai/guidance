@@ -14,7 +14,7 @@ class Tokenizer:
 
     def __init__(
         self,
-        tokens: Union[list, np.ndarray],
+        tokens: Union[Sequence[bytes], np.ndarray],
         chat_template: Union[str, ChatTemplate, None],
         bos_token_id: Union[int, None] = None,
         eos_token_id: Union[int, None] = None,

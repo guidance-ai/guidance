@@ -117,7 +117,8 @@ class GrammarlessTokenizer(Tokenizer):
 
     def encode(self, byte_string: bytes) -> Sequence[int]:
         """Returns a list of tokens that represent the given byte string."""
-        return self._orig_tokenizer.encode(byte_string)
+        assert isinstance(byte_string, bytes)
+        return self._orig_tokenizer.encode(byte_string.decode())
 
 class GrammarlessEngine(Engine):
     def __init__(self, tokenizer, max_streaming_tokens, timeout, compute_log_probs):
