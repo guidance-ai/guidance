@@ -43,6 +43,8 @@ class AzureGuidanceEngine(Engine):
 
     def __call__(self, parser, grammar, ensure_bos_token=True):
         serialized = {"grammar": grammar.ag2_serialize()}
+        # this is a hack to avoid loops
+        serialized["grammar"]["max_tokens"] = self.max_streaming_tokens
         data = {
             "controller": "ag2",
             "controller_arg": serialized,
