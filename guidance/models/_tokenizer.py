@@ -94,7 +94,7 @@ class Tokenizer:
     def decode(self, tokens: Sequence[int]) -> bytes:
         """Returns the bytes represented by the given list of tokens."""
         return b"".join([self.tokens[t] for t in tokens])
-    
+
     def recode(self, tokens: Sequence[int]) -> Sequence[int]:
         """Redoes a tokenisation.
 
