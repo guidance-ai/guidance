@@ -120,8 +120,11 @@ class GrammarlessTokenizer(Tokenizer):
         assert isinstance(byte_string, bytes)
         return self._orig_tokenizer.encode(byte_string.decode())
 
+
 class GrammarlessEngine(Engine):
-    def __init__(self, tokenizer, max_streaming_tokens:int, timeout, compute_log_probs:bool):
+    def __init__(
+        self, tokenizer, max_streaming_tokens: int, timeout, compute_log_probs: bool
+    ):
         self.max_streaming_tokens = max_streaming_tokens
         self.timeout = timeout
 
@@ -193,7 +196,7 @@ class GrammarlessEngine(Engine):
             b""
         )  # so we never get stuck waiting for a running stream to return something
 
-    def _start_new_stream(self, prompt:bytes, temperature:float):
+    def _start_new_stream(self, prompt: bytes, temperature: float):
         assert isinstance(prompt, bytes)
         # make sure the display is up to date (since we are about to delay for a while)
         # TODO: how can we handle this better since the engine is now separate from the client?
@@ -233,7 +236,7 @@ class GrammarlessEngine(Engine):
         self._data = new_data
         self._last_stream_start = self._data
 
-    def get_logits(self, token_ids, forced_bytes:bytes, current_temp):
+    def get_logits(self, token_ids, forced_bytes: bytes, current_temp):
         """Computes the logits for the given token state.
 
         This overrides a method from the Local class that is used to get
@@ -376,7 +379,7 @@ class GrammarlessEngine(Engine):
                     raise new_bytes
                 self._data += new_bytes
                 # reset out call time to allow the data stream to time out if we happen to be done with it
-                self._last_call = time.time()  
+                self._last_call = time.time()
 
         # # if we don't have the next byte of data yet then we wait for it (from the streaming thread)
         # if len(self._data) == len(prompt):
