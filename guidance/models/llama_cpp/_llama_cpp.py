@@ -1,10 +1,14 @@
-import os
 import atexit
-from pathlib import Path
-from itertools import takewhile
-import operator
-import sys
 import logging
+import operator
+import os
+import sys
+
+from typing import Sequence
+
+from itertools import takewhile
+from pathlib import Path
+
 import numpy as np
 
 from .._model import Engine, Model, Chat
@@ -75,7 +79,7 @@ class LlamaCppTokenizer(Tokenizer):
             tokens, chat_template, tokenizer.llama.token_bos(), tokenizer.llama.token_eos()
         )
 
-    def __call__(self, byte_string):
+    def encode(self, byte_string: bytes) -> Sequence[int]:
         return self._model_obj.tokenize(byte_string, add_bos=False, special=True)
 
 
