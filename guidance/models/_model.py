@@ -1000,7 +1000,7 @@ class Model:
             clear_output(wait=True)
         return self._html()
 
-    def _current_prompt(self) -> bytes:
+    def _current_prompt(self) -> str:
         """The current prompt in bytes (which is the state without the context close tags)."""
         return format_pattern.sub("", self._state)
 

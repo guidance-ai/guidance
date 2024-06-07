@@ -3,7 +3,7 @@ import queue
 import threading
 import time
 
-from typing import Sequence
+from typing import Optional, Sequence
 
 import numpy as np
 import tiktoken
@@ -113,6 +113,10 @@ class GrammarlessTokenizer(Tokenizer):
 
         # Grammarless Tokenizers MUST use the ChatMLTemplate in guidance today
         chat_template = ChatMLTemplate
+
+        self._model_interaction_thread: threading.Thread | None = None
+        self._used_bytes_len = 0
+
         super().__init__(byte_tokens, chat_template, bos_token_id, eos_token_id)
 
     def encode(self, byte_string: bytes) -> Sequence[int]:
@@ -134,7 +138,7 @@ class GrammarlessEngine(Engine):
 
         # this is phrased negatively so we can wait for the stop event
         self._not_running_stream: threading.Event = threading.Event()
-        self._last_call = 0
+        self._last_call = 0.0
         self._num_calls_made = 0
         self._current_temp = 0.0
         self._last_stream_start = None
@@ -157,6 +161,9 @@ class GrammarlessEngine(Engine):
             )
         # build the Engine
         super().__init__(tokenizer=tokenizer, compute_log_probs=compute_log_probs)
+
+    def _generator(self, prompt: bytes, temperature: float):
+        raise NotImplementedError("Child classes must implement _generator()")
 
     def __call__(self, *args, **kwargs):
         self._num_calls_made = 0  # reset the number of calls count so we only limit the number of calls within a single grammar execution
@@ -209,9 +216,10 @@ class GrammarlessEngine(Engine):
             )
 
         # stop any running stream
-        if self._running_stream():
-            self._not_running_stream.set()  # stop the generator
-            self._remote_thread.join()  # wait for the thread to finish
+        if isinstance(self._model_interaction_thread, threading.Thread):
+            if self._running_stream():
+                self._not_running_stream.set()  # stop the generator
+                self._model_interaction_thread.join()  # wait for the thread to finish
 
         # clear the data queue
         while not self._data_queue.empty():
@@ -224,10 +232,10 @@ class GrammarlessEngine(Engine):
         generator = self._generator(prompt, temperature)
         self._not_running_stream.clear()  # so we know we are running
         self._num_calls_made += 1
-        self._remote_thread = threading.Thread(
+        self._model_interaction_thread = threading.Thread(
             target=self._start_generator_stream, args=(generator,)
         )
-        self._remote_thread.start()
+        self._model_interaction_thread.start()
 
     def _reset_shared_data(self, new_data, temperature):
         """Should be called by _generator calls to reset the shared data state."""
@@ -236,7 +244,7 @@ class GrammarlessEngine(Engine):
         self._data = new_data
         self._last_stream_start = self._data
 
-    def get_logits(self, token_ids, forced_bytes: bytes, current_temp):
+    def get_logits(self, token_ids, forced_bytes: bytes, current_temp: float):
         """Computes the logits for the given token state.
 
         This overrides a method from the Local class that is used to get
@@ -317,7 +325,7 @@ class GrammarlessEngine(Engine):
                 logger.debug(f"Grammarless.get_logits: {leftover=}")
 
                 # record any active non-empty role ends. Ignore role ends that are spaces
-                parts: Sequence[bytes] = [
+                parts: Sequence[bytes | None] = [
                     b"<|im_end|>",
                     self.tokenizer.eos_token,
                 ]  # note we assume we are role tags that end with <|im_end|>
@@ -333,14 +341,15 @@ class GrammarlessEngine(Engine):
                 # see if adding an end token would work here (if so we avoid recalling the server and just produce an end token)
                 found_match = False
                 for p in parts:
-                    logger.debug(f"Grammarless.get_logits: Considering part {p}")
-                    if p.startswith(leftover):
-                        self._data = self._data[:match_len] + p
-                        logger.debug(
-                            f"automatically adding an end token since it fits the forcing of the grammar"
-                        )
-                        found_match = True
-                        break
+                    logger.debug(f"Grammarless.get_logits: Considering part {str(p)}")
+                    if p is not None:
+                        if p.startswith(leftover):
+                            self._data = self._data[:match_len] + p
+                            logger.debug(
+                                f"automatically adding an end token since it fits the forcing of the grammar"
+                            )
+                            found_match = True
+                            break
                 if found_match:
                     continue  # start our loop over again
 
@@ -417,17 +426,6 @@ class GrammarlessEngine(Engine):
         prompt_tail = prompt[:match_len]
         if len(prompt_tail) > 40:
             prompt_tail = b"..." + prompt_tail[-40:]
-
-        # show in the model output where and how we diverged from the grammar
-        try:
-            # just for display when echo is on
-            already_shown = len(self._current_prompt().encode())
-            self += (
-                self._data[already_shown:match_len].decode()
-                + f"<||_html:<span style='color: rgba(165,0,0,1);' title='{str(leftover)}'><span style='text-decoration: underline;'>{data_after_prompt.decode()}</span></span>_||>"
-            )
-        except:
-            pass  # could not decode the data the model generated into a string...
 
         # create an exception for users to deal with (that our caller can throw)
         return ConstraintException(
