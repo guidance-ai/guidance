@@ -1,14 +1,9 @@
-import os
 import typing
 
-import diskcache as dc
-import hashlib
-import platformdirs
 import tiktoken
 
 
-from ._model import Chat, Instruct
-from ._grammarless import GrammarlessEngine, Grammarless, GrammarlessTokenizer
+from ._grammarless import GrammarlessEngine, Grammarless
 
 try:
     import openai
