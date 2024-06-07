@@ -6,7 +6,8 @@ try:
 except ModuleNotFoundError:
     pass
 
-from .._model import Tokenizer, Engine, Model
+from .._model import Engine, Model
+from .._tokenizer import Tokenizer
 
 
 class TransformersTokenizer(Tokenizer):
