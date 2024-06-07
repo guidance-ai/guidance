@@ -242,7 +242,7 @@ def _process_enum(lm, *, options: Sequence[Mapping[str, Any]]):
     return lm + select(options=all_opts)
 
 
-@guidance(stateless=True, cache=True)
+@guidance(stateless=True)
 def _gen_json_any(lm):
     definitions = {}
 
