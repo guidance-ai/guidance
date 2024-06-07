@@ -106,9 +106,7 @@ class OpenAIEngine(GrammarlessEngine):
                     btext = prompt[pos : pos + end_pos]
                     pos += end_pos + len(role_end)
                     message_content: str = btext.decode("utf8")
-                    input_token_count += len(
-                        self.tokenizer.encode(btext)
-                    )
+                    input_token_count += len(self.tokenizer.encode(btext))
                     messages.append({"role": role_name, "content": message_content})
                     found = True
                     break
