@@ -203,7 +203,7 @@ class GrammarlessEngine(Engine):
             b""
         )  # so we never get stuck waiting for a running stream to return something
 
-    def _start_new_stream(self, prompt: bytes, temperature: float):
+    def _start_new_stream(self, prompt: bytes, temperature: float) -> None:
         assert isinstance(prompt, bytes)
         # make sure the display is up to date (since we are about to delay for a while)
         # TODO: how can we handle this better since the engine is now separate from the client?
@@ -216,10 +216,10 @@ class GrammarlessEngine(Engine):
             )
 
         # stop any running stream
-        if isinstance(self._model_interaction_thread, threading.Thread):
-            if self._running_stream():
-                self._not_running_stream.set()  # stop the generator
-                self._model_interaction_thread.join()  # wait for the thread to finish
+        if self._running_stream():
+            # Stop generator and wait for thread to complete
+            self._not_running_stream.set()
+            self._model_interaction_thread.join()  # type: ignore # mypy being strange
 
         # clear the data queue
         while not self._data_queue.empty():
