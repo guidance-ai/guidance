@@ -135,27 +135,33 @@ def test_azure_guidance_select2(azure_guidance_model: guidance.models.Model):
     ]
 
 
-# def test_azure_guidance_repeat_calls(azure_guidance_model: guidance.models.Model):
-#     lm_orig = azure_guidance_model
-#     a = []
-#     lm = lm_orig + "How much is 2 + 2? " + gen(name="test", max_tokens=10)
-#     a.append(lm["test"])
-#     lm = lm_orig + "How much is 2 + 2? " + gen(name="test", max_tokens=10, regex=r"\d+")
-#     a.append(lm["test"])
-#     lm = lm_orig + "How much is 2 + 2? " + gen(name="test", max_tokens=10)
-#     a.append(lm["test"])
-#     assert a[-1] == a[0]
+def test_azure_guidance_repeat_calls(azure_guidance_model: guidance.models.Model):
+    lm_orig = azure_guidance_model
+    a = []
+    lm = lm_orig + "How much is 2 + 2? " + gen(name="test", max_tokens=10)
+    a.append(lm["test"])
+    lm = lm_orig + "How much is 2 + 2? " + gen(name="test", max_tokens=10, regex=r"\d+")
+    a.append(lm["test"])
+    lm = lm_orig + "How much is 2 + 2? " + gen(name="test", max_tokens=10)
+    a.append(lm["test"])
+    assert a[-1] == a[0]
 
 
-# def test_azure_guidance_suffix(azure_guidance_model: guidance.models.Model):
-#     lm_orig = azure_guidance_model
-#     lm = (
-#         lm_orig
-#         + "1. Here is a sentence "
-#         + gen(name="bla", list_append=True, suffix="\n")
-#     )
-#     assert (str(lm))[-1] == "\n"
-#     assert (str(lm))[-2] != "\n"
+def test_azure_guidance_suffix(azure_guidance_model: guidance.models.Model):
+    lm_orig = azure_guidance_model
+    lm = (
+        lm_orig
+        + "1. Here is a sentence "
+        + gen(name="bla", list_append=True, suffix="\n")
+    )
+    # list_append
+    assert isinstance(lm["bla"], list)
+    assert len(lm["bla"]) == 1
+    # the capture should not have a newline
+    assert lm["bla"][0][-1] != "\n"
+    # the whole lm object *should* have a newline
+    assert (str(lm))[-1] == "\n"
+    assert (str(lm))[-2] != "\n"
 
 
 # def test_azure_guidance_subtoken_forced(azure_guidance_model: guidance.models.Model):
