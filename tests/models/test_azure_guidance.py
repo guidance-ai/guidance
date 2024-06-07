@@ -140,7 +140,7 @@ def test_azure_guidance_repeat_calls(azure_guidance_model: guidance.models.Model
     a = []
     lm = lm_orig + "How much is 2 + 2? " + gen(name="test", max_tokens=10)
     a.append(lm["test"])
-    lm = lm_orig + "How much is 2 + 2? " + gen(name="test", max_tokens=10, regex=r"\d+")
+    lm = lm_orig + "How much is 2 + 2? " + gen(name="test", max_tokens=10, regex=r"[0-9]+")
     a.append(lm["test"])
     lm = lm_orig + "How much is 2 + 2? " + gen(name="test", max_tokens=10)
     a.append(lm["test"])
