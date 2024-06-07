@@ -152,6 +152,36 @@ class TransformersTokenizer(Tokenizer):
     def decode(self, tokens: Sequence[int]) -> bytes:
         decoded_str = self._orig_tokenizer.decode(tokens)
         return decoded_str.encode()
+    
+    def recode( self, tokens: Sequence[int]) -> Sequence[int]:
+        # the encode/decode cycle might not work if we have partial unicode strings
+        used_tokens = len(tokens)
+        for _ in range(3):
+            try:
+                first_decode = self.decode(tokens).decode("utf8")
+            except UnicodeDecodeError:
+                if used_tokens == 0:
+                    break
+                else:
+                    used_tokens -= 1
+
+        new_ids = self._orig_tokenizer(
+            first_decode, add_special_tokens=False
+        )["input_ids"]
+        if used_tokens < len(tokens):
+            new_ids += tokens[used_tokens:]
+
+        # HACK: check for a bug in the HuggingFace tokenizer
+        # (that will just add extra spaces during an encode-decode cycle)
+        second_decode = self._orig_tokenizer.decode(new_ids)
+        if (
+            second_decode != first_decode
+            and len(second_decode) == len(first_decode) + 1
+            and second_decode.startswith("<s>  ")
+        ):
+            new_ids = new_ids[0:1] + new_ids[2:]
+
+        return new_ids
 
 
 class TransformersEngine(Engine):
@@ -204,38 +234,6 @@ class TransformersEngine(Engine):
             model = transformers.AutoModelForCausalLM.from_pretrained(model, **kwargs)
         return model
 
-    def _joint_tokenize(self, token_ids):
-        # first_decode = self.tokenizer._orig_tokenizer.decode(token_ids)
-
-        # the encode/decode cycle might not work if we have partial unicode strings
-        used_tokens = len(token_ids)
-        for _ in range(3):
-            try:
-                first_decode = b"".join(
-                    [self.tokenizer.tokens[id] for id in token_ids[:used_tokens]]
-                ).decode("utf8")
-            except UnicodeDecodeError:
-                if used_tokens == 0:
-                    break
-                else:
-                    used_tokens -= 1
-
-        new_ids = self.tokenizer._orig_tokenizer(
-            first_decode, add_special_tokens=False
-        )["input_ids"]
-        if used_tokens < len(token_ids):
-            new_ids += token_ids[used_tokens:]
-
-        # HACK: check for a bug in the HuggingFace tokenizer (that will just add extra spaces during an encode-decode cycle)
-        second_decode = self.tokenizer._orig_tokenizer.decode(new_ids)
-        if (
-            second_decode != first_decode
-            and len(second_decode) == len(first_decode) + 1
-            and second_decode.startswith("<s>  ")
-        ):
-            new_ids = new_ids[0:1] + new_ids[2:]
-
-        return new_ids
 
     def get_logits(self, token_ids, forced_bytes, current_temp):
         """Computes the logits for the given token state.
