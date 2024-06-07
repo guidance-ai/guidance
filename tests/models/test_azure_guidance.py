@@ -217,15 +217,26 @@ def test_azure_guidance_fstring(azure_guidance_model: guidance.models.Model):
     assert str(lm) in ["this is a test item1", "this is a test item2"]
 
 
-# def test_azure_guidance_fstring_custom(azure_guidance_model: guidance.models.Model):
-#     lm = azure_guidance_model
+def test_azure_guidance_fstring_custom(azure_guidance_model: guidance.models.Model):
+    lm = azure_guidance_model
 
-#     @guidance
-#     def my_function(lm):
-#         return lm + f'another {select(["item1", "item2"])}'
+    @guidance
+    def my_function(lm):
+        return lm + f'another {select(["item1", "item2"])}'
 
-#     lm += f"this is a test {my_function()}"
-#     assert str(lm) in ["this is a test another item1", "this is a test another item2"]
+    lm += f"this is a test {my_function()}"
+    assert str(lm) in ["this is a test another item1", "this is a test another item2"]
+
+
+def test_azure_guidance_fstring_custom_stateless(azure_guidance_model: guidance.models.Model):
+    lm = azure_guidance_model
+
+    @guidance(stateless=True)
+    def my_function(lm):
+        return lm + f'another {select(["item1", "item2"])}'
+
+    lm += f"this is a test {my_function()}"
+    assert str(lm) in ["this is a test another item1", "this is a test another item2"]
 
 
 def test_azure_guidance_token_count(azure_guidance_model: guidance.models.Model):
@@ -236,24 +247,24 @@ def test_azure_guidance_token_count(azure_guidance_model: guidance.models.Model)
     )  # note we allow ourselves to be off by one because it is hard to know when we are continuing vs starting a new token in the parser
 
 
-# def test_azure_guidance_call_embeddings(azure_guidance_model: guidance.models.Model):
-#     model = azure_guidance_model
+def test_azure_guidance_call_embeddings(azure_guidance_model: guidance.models.Model):
+    model = azure_guidance_model
 
-#     @guidance(dedent=False)
-#     def bla(lm, bla):
-#         lm += bla + "ae" + gen(max_tokens=10)
-#         return lm
+    @guidance(dedent=False)
+    def bla(lm, bla):
+        lm += bla + "ae" + gen(max_tokens=10)
+        return lm
 
-#     @guidance(dedent=False)
-#     def ble(lm):
-#         lm += f"""
-#     ae galera! {bla('33')}
-#     let's do more stuff!!""" + gen(
-#             max_tokens=10
-#         )
-#         return lm
+    @guidance(dedent=False)
+    def ble(lm):
+        lm += f"""
+    ae galera! {bla('33')}
+    let's do more stuff!!""" + gen(
+            max_tokens=10
+        )
+        return lm
 
-#     assert "{{G|" not in str(model + ble())
+    assert "{{G|" not in str(model + ble())
 
 
 def test_azure_guidance_stream(azure_guidance_model: guidance.models.Model):

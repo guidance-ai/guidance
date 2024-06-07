@@ -293,6 +293,7 @@ class GrammarFunction(Function):
     def ag2_serialize(self):
         return {"grammars": [Ag2Serializer(self).run()]}
 
+
 class Terminal(GrammarFunction):
     def match_byte(self, byte):
         pass  # abstract
@@ -763,7 +764,7 @@ class Gen(Terminal):
         self.capture_name = None
         self._max_tokens = max_tokens
         self.temperature = -1
-    
+
     @property
     def max_tokens(self):
         return self._max_tokens
@@ -1080,8 +1081,19 @@ def str_to_grammar(value: str):
     return partial_grammar
 
 
+def _is_string_literal(node: GrammarFunction):
+    if isinstance(node, Byte):
+        return True
+    if isinstance(node, Join):
+        return all(_is_string_literal(v) for v in node.values)
+    return False
+
+
 class Ag2Serializer:
     def __init__(self, node: GrammarFunction) -> None:
+        # avoid top-level node being a String
+        if _is_string_literal(node):
+            node = Select([node])
         self.top_level_node = node
         self.nodes: List[dict] = []
         self.curr_grammar = {
