@@ -1,15 +1,16 @@
-import threading
-import numpy as np
-import queue
-import time
-import tiktoken
-import re
 import logging
-from ._model import Engine, Model, format_pattern, ConstraintException
-from ._tokenizer import Tokenizer
-from ..chat import ChatMLTemplate
+import queue
+import threading
+import time
 
-import warnings
+from typing import Sequence
+
+import numpy as np
+import tiktoken
+
+from ..chat import ChatMLTemplate
+from ._model import ConstraintException, Engine, Model, format_pattern
+from ._tokenizer import Tokenizer
 
 logger = logging.getLogger(__name__)
 
@@ -114,10 +115,9 @@ class GrammarlessTokenizer(Tokenizer):
         chat_template = ChatMLTemplate
         super().__init__(byte_tokens, chat_template, bos_token_id, eos_token_id)
 
-    def __call__(self, byte_string):
+    def encode(self, byte_string: bytes) -> Sequence[int]:
         """Returns a list of tokens that represent the given byte string."""
         return self._orig_tokenizer.encode(byte_string)
-
 
 class GrammarlessEngine(Engine):
     def __init__(self, tokenizer, max_streaming_tokens, timeout, compute_log_probs):
