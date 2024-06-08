@@ -208,8 +208,9 @@ class GrammarlessEngine(Engine):
 
         # stop any running stream
         if self._running_stream():
-            self._not_running_stream.set()  # stop the generator
-            self._remote_thread.join()  # wait for the thread to finish
+            # Stop stream and wait for thread to complete
+            self._not_running_stream.set()
+            self._remote_thread.join()  # type: ignore # mypy being strange
 
         # clear the data queue
         while not self._data_queue.empty():
