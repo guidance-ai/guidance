@@ -31,11 +31,13 @@ class GrammarlessTokenizer(Tokenizer):
             # consume one-by-one until we have passed all the special tokens AND gotten a valid token
             i = tokenizer.n_vocab - 1
             byte_tokens = []
+            n_ist_count = 0
             while True:
                 try:
                     bval = tokenizer.decode_single_token_bytes(i)
                     found = True
                 except KeyError:
+                    n_ist_count += 1
                     bval = special_map.get(i, b"<|invalid_special_token|>")
                     found = False
                 byte_tokens.append(bval)
@@ -43,6 +45,7 @@ class GrammarlessTokenizer(Tokenizer):
                 if i < first_special and found:
                     break
                 i -= 1
+            logger.debug(f"Found {n_ist_count} invalid special tokens")
 
             # do the rest of the tokens as a batch
             byte_tokens = tokenizer.decode_tokens_bytes(np.arange(i + 1)) + byte_tokens
@@ -374,7 +377,7 @@ class GrammarlessEngine(Engine):
                     raise new_bytes
                 self._data += new_bytes
                 # reset out call time to allow the data stream to time out if we happen to be done with it
-                self._last_call = time.time()  
+                self._last_call = time.time()
 
         # # if we don't have the next byte of data yet then we wait for it (from the streaming thread)
         # if len(self._data) == len(prompt):
@@ -412,17 +415,6 @@ class GrammarlessEngine(Engine):
         prompt_tail = prompt[:match_len]
         if len(prompt_tail) > 40:
             prompt_tail = b"..." + prompt_tail[-40:]
-
-        # show in the model output where and how we diverged from the grammar
-        try:
-            # just for display when echo is on
-            already_shown = len(self._current_prompt().encode())
-            self += (
-                self._data[already_shown:match_len].decode()
-                + f"<||_html:<span style='color: rgba(165,0,0,1);' title='{leftover}'><span style='text-decoration: underline;'>{data_after_prompt.decode()}</span></span>_||>"
-            )
-        except:
-            pass  # could not decode the data the model generated into a string...
 
         # create an exception for users to deal with (that our caller can throw)
         return ConstraintException(
