@@ -127,14 +127,14 @@ class GrammarlessEngine(Engine):
         self.timeout = timeout
 
         # this is where the streaming thread puts results
-        self._data_queue = queue.Queue()
+        self._data_queue: queue.Queue = queue.Queue()
         self._data = b""  # these are the bytes we are ready to use in the main thread
 
         # this is phrased negatively so we can wait for the stop event
-        self._not_running_stream = threading.Event()
-        self._last_call = 0
+        self._not_running_stream: threading.Event = threading.Event()
+        self._last_call = 0.0
         self._num_calls_made = 0
-        self._current_temp = 0
+        self._current_temp = 0.0
         self._last_stream_start = None
 
         self._not_running_stream.set()
