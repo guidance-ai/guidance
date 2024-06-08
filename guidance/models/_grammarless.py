@@ -144,7 +144,7 @@ class GrammarlessEngine(Engine):
         self._last_call = 0.0
         self._num_calls_made = 0
         self._current_temp = 0.0
-        self._last_stream_start = None
+        self._last_stream_start = b""
 
         self._not_running_stream.set()
 
@@ -240,8 +240,9 @@ class GrammarlessEngine(Engine):
         )
         self._model_interaction_thread.start()
 
-    def _reset_shared_data(self, new_data, temperature: float):
+    def _reset_shared_data(self, new_data: bytes, temperature: float):
         """Should be called by _generator calls to reset the shared data state."""
+        assert isinstance(new_data, bytes)
         if temperature == 0 and self._last_stream_start == new_data:
             raise self._report_failed_match(new_data)
         self._data = new_data
