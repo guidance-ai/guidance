@@ -3,6 +3,8 @@ import queue
 import threading
 import time
 
+from typing import Sequence
+
 import numpy as np
 import tiktoken
 
@@ -239,7 +241,9 @@ class GrammarlessEngine(Engine):
         self._data = new_data
         self._last_stream_start = self._data
 
-    def get_logits(self, token_ids, forced_bytes: bytes, current_temp: float):
+    def get_logits(
+        self, token_ids: Sequence[int], forced_bytes: bytes, current_temp: float
+    ):
         """Computes the logits for the given token state.
 
         This overrides a method from the Local class that is used to get
