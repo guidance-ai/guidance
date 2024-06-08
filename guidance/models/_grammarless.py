@@ -194,7 +194,7 @@ class GrammarlessEngine(Engine):
             b""
         )  # so we never get stuck waiting for a running stream to return something
 
-    def _start_new_stream(self, prompt, temperature):
+    def _start_new_stream(self, prompt, temperature: float):
 
         # make sure the display is up to date (since we are about to delay for a while)
         # TODO: how can we handle this better since the engine is now separate from the client?
@@ -227,14 +227,14 @@ class GrammarlessEngine(Engine):
         )
         self._remote_thread.start()
 
-    def _reset_shared_data(self, new_data, temperature):
+    def _reset_shared_data(self, new_data, temperature: float):
         """Should be called by _generator calls to reset the shared data state."""
         if temperature == 0 and self._last_stream_start == new_data:
             raise self._report_failed_match(new_data)
         self._data = new_data
         self._last_stream_start = self._data
 
-    def get_logits(self, token_ids, forced_bytes, current_temp):
+    def get_logits(self, token_ids, forced_bytes: bytes, current_temp: float):
         """Computes the logits for the given token state.
 
         This overrides a method from the Local class that is used to get
