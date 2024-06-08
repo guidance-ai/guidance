@@ -9,7 +9,7 @@ import numpy as np
 import tiktoken
 
 from ..chat import ChatMLTemplate
-from ._model import ConstraintException, Engine, Model, format_pattern
+from ._model import ConstraintException, Engine, Model
 from ._tokenizer import Tokenizer
 
 logger = logging.getLogger(__name__)
@@ -33,11 +33,13 @@ class GrammarlessTokenizer(Tokenizer):
             # consume one-by-one until we have passed all the special tokens AND gotten a valid token
             i = tokenizer.n_vocab - 1
             byte_tokens = []
+            n_ist_count = 0
             while True:
                 try:
                     bval = tokenizer.decode_single_token_bytes(i)
                     found = True
                 except KeyError:
+                    n_ist_count += 1
                     bval = special_map.get(i, b"<|invalid_special_token|>")
                     found = False
                 byte_tokens.append(bval)
@@ -45,6 +47,7 @@ class GrammarlessTokenizer(Tokenizer):
                 if i < first_special and found:
                     break
                 i -= 1
+            logger.debug(f"Found {n_ist_count} invalid special tokens")
 
             # do the rest of the tokens as a batch
             byte_tokens = tokenizer.decode_tokens_bytes(np.arange(i + 1)) + byte_tokens
@@ -217,9 +220,9 @@ class GrammarlessEngine(Engine):
 
         # stop any running stream
         if self._running_stream():
-            # Stop generator and wait for thread to complete
+            # Stop stream and wait for thread to complete
             self._not_running_stream.set()
-            self._model_interaction_thread.join()  # type: ignore # mypy being strange
+            self._remote_thread.join()  # type: ignore # mypy being strange
 
         # clear the data queue
         while not self._data_queue.empty():
@@ -237,14 +240,16 @@ class GrammarlessEngine(Engine):
         )
         self._model_interaction_thread.start()
 
-    def _reset_shared_data(self, new_data, temperature):
+    def _reset_shared_data(self, new_data, temperature: float):
         """Should be called by _generator calls to reset the shared data state."""
         if temperature == 0 and self._last_stream_start == new_data:
             raise self._report_failed_match(new_data)
         self._data = new_data
         self._last_stream_start = self._data
 
-    def get_logits(self, token_ids, forced_bytes: bytes, current_temp: float):
+    def get_logits(
+        self, token_ids: Sequence[int], forced_bytes: bytes, current_temp: float
+    ):
         """Computes the logits for the given token state.
 
         This overrides a method from the Local class that is used to get
@@ -362,6 +367,7 @@ class GrammarlessEngine(Engine):
             # extend our data with a chunk from the model stream
             if not self._data_queue.empty():
                 new_bytes = self._data_queue.get_nowait()
+                logger.debug(f"Got {new_bytes} from _data_queue")
                 if isinstance(new_bytes, Exception):
                     raise new_bytes
 
@@ -382,8 +388,11 @@ class GrammarlessEngine(Engine):
 
             # we wait for the running stream to put something in the queue
             else:
-                self._last_call = 1e9  # set to essentialy infinity so we don't stop the data stream while we are waiting for it
+                # Set to essentialy infinity so we don't stop the data stream while we are waiting for it
+                self._last_call = 1e11
+
                 new_bytes = self._data_queue.get()
+                logger.debug(f"Got {new_bytes} from _data_queue")
                 if isinstance(new_bytes, Exception):
                     raise new_bytes
                 self._data += new_bytes
