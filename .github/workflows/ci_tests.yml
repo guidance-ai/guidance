@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false # Don't cancel all on first failure
       matrix:
-        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
 
     steps:
       - uses: actions/checkout@v4
@@ -43,7 +43,7 @@ jobs:
       - name: Ensure NVIDIA SDK available
         run: |
           sudo apt-get -y install cuda-toolkit
-          echo "/usr/local/cuda-12.4/bin" >> $GITHUB_PATH
+          echo "/usr/local/cuda-12.5/bin" >> $GITHUB_PATH
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -53,7 +53,7 @@ jobs:
       - name: GPU pip installs
         run: |
           pip install accelerate
-          CMAKE_ARGS="-DLLAMA_CUBLAS=on" pip install "llama-cpp-python<0.2.58"
+          CMAKE_ARGS="-DLLAMA_CUBLAS=on" pip install "llama-cpp-python!=0.2.58,!=0.2.75"
       - name: Check GPU available
         run: |
           python -c "import torch; assert torch.cuda.is_available()"

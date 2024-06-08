@@ -6,7 +6,8 @@ try:
 except ModuleNotFoundError:
     pass
 
-from .._model import Tokenizer, Engine, Model
+from .._model import Engine, Model
+from .._tokenizer import Tokenizer
 
 
 class TransformersTokenizer(Tokenizer):
@@ -157,6 +158,12 @@ class TransformersEngine(Engine):
         self._past_key_values = None
         self._cached_logits = None
         self._cached_token_ids = []
+
+        # Set attr for malformed tokenizer hack.
+        # If more models start doing this, generalize into a util function.
+        if hasattr(self.model_obj.config, "model_type"):
+            if self.model_obj.config.model_type in ["phi3"]:
+                self._disable_retokenize_check = True
 
         super().__init__(
             TransformersTokenizer(model, tokenizer, chat_template), compute_log_probs=compute_log_probs

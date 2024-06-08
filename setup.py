@@ -25,7 +25,6 @@ install_requires = [
     "numpy",
     "ordered_set",
     "platformdirs",
-    "pyformlang",
     "protobuf",
     "pydantic",
     "requests",
@@ -69,6 +68,17 @@ test_requires = [
     "types-requests",
     "types-jsonschema",
 ]
+bench_requires = [
+    "pandas",
+    "huggingface_hub",
+    "langchain_benchmarks",
+    "langchain-community",
+    "langsmith",
+    "json_stream",
+    "llama-cpp-python",
+    "setuptools",
+    "powerlift"
+]
 
 
 def read(*parts):
@@ -100,12 +110,13 @@ setup(
         )
     ],
     cmdclass={"build_ext": build_ext},
-    python_requires=">=3.8",
+    python_requires=">=3.9",
     install_requires=install_requires,
     extras_require={
         "all": all_requires,
         "docs": doc_requires,
         "test": test_requires,
+        "bench": bench_requires,
         **extras_requires,
     },
 )

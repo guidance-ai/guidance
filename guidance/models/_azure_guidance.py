@@ -4,7 +4,7 @@ import base64
 import json
 import urllib.parse
 from ._model import Engine, Model, EngineCallResponse
-from .._chat import Phi3ChatTemplate
+from ..chat import Phi3ChatTemplate
 from ._byte_tokenizer import ByteTokenizer
 
 

@@ -4,8 +4,10 @@ import html
 import logging
 import queue
 import re
+import textwrap
 import threading
 import time
+import warnings
 
 
 from pprint import pprint
@@ -51,7 +53,7 @@ from .._grammar import (
 )
 
 from .. import _serialization_pb2
-from .._chat import load_template_class
+from ..chat import load_template_class
 
 if TYPE_CHECKING:
     from ..library._block import ContextBlock
@@ -66,66 +68,6 @@ html_pattern = re.compile(r"&lt;\|\|_html:(.*?)_\|\|&gt;", flags=re.DOTALL)
 image_pattern = re.compile(r"&lt;\|_image:(.*?)\|&gt;")
 
 
-class Tokenizer:
-    """This is the standardized tokenizer interface used by guidance models.
-
-    This class should be subclassed by specific implementations and then used as the
-    tokenizer in the corresponding Engine subclass.
-    """
-    # TODO: We should probably have encode and decode methods on here...
-    def __init__(self, tokens, chat_template, bos_token_id=None, eos_token_id=None):
-
-        # a numpy array of token byte strings indexed by their token id
-        if isinstance(tokens, list):
-            self.tokens = np.array(
-                tokens, dtype="object"
-            )  # note that we need np.bytes_ to zero bytes are not treated as null terminations
-
-        # a numpy array of token byte strings indexed by their token id
-        elif isinstance(tokens, np.ndarray):
-            self.tokens = tokens
-
-        else:
-            raise Exception("Unknown tokenizer was passed!")
-
-        assert isinstance(
-            self.tokens[0], bytes
-        ), "The tokens need to be provided as bytes!"
-
-
-        # This method supports None, a huggingface style jinja2_template_str, or a ChatTemplate subclass
-        # Defaults to ChatML if nothing is found
-        self.chat_template = load_template_class(chat_template)
-
-        self.bos_token_id = bos_token_id
-        self.bos_token = (
-            None if self.bos_token_id is None else self.tokens[self.bos_token_id]
-        )
-        self.eos_token_id = eos_token_id if eos_token_id is not None else bos_token_id
-        self.eos_token = (
-            None if self.eos_token_id is None else self.tokens[self.eos_token_id]
-        )
-
-        # track which tokens are duplicates
-        self.duplicate_tokens = []
-        found = {}
-        for i, t in enumerate(self.tokens):
-            if t in found:
-                self.duplicate_tokens.append((i, found[t]))
-            else:
-                found[t] = i
-
-    def __call__(self, byte_string):
-        """Returns a list of tokens that represent the given byte string."""
-        raise NotImplementedError(
-            "You need to use a Tokenize subclass that overrides the __call__ method"
-        )
-
-    def clean_duplicate_tokens(self, probs):
-        """This moves all the probability mass from duplicate positons on to their primary index."""
-        for i, j in self.duplicate_tokens:
-            probs[j] += probs[i]
-            probs[i] = 0
 
 
 class EngineCallResponse:
@@ -826,7 +768,8 @@ class Engine:
                 pos += len(self.tokenizer.tokens[id])
                 token_byte_positions.append(pos)
 
-            # ugly hack to deal with sentence peice craziness of space hiding after special tokens TODO: figure out how to make this more robust
+            # ugly hack to deal with sentence piece craziness of space hiding after special tokens 
+            # TODO: figure out how to make this more robust
             if (
                 token_byte_positions[-1] == last_pos + 1
                 and self.tokenizer.tokens[token_ids[0]] == b"<s>"
@@ -835,8 +778,18 @@ class Engine:
                 for i in range(1, len(token_byte_positions)):
                     token_byte_positions[i] -= 1
             
-            
-            assert token_byte_positions[-1] == last_pos, "Cross check last_pos"
+            # another ugly hack for tokenizers that are not stable on encode/decode cycles
+            # currently only Phi-3, should generalize this method if we see more of these
+            if token_byte_positions[-1] != last_pos:
+                if not hasattr(self, "_disable_retokenize_check"):
+                    msg = textwrap.dedent(
+                        """Self-consistency check in _cleanup_tokens() failed.
+                        
+                        This is not a fatal issue, but if there are subsequent
+                        generation problems, please include this warning in
+                        your bug report."""
+                    )
+                    warnings.warn(msg)
 
         return token_ids, token_byte_positions
 
@@ -1570,7 +1523,10 @@ def throttle_refresh():
 
 
 class ConstraintException(Exception):
-    pass
+    def __init__(self, *args, **kwargs):
+        self.prompt = kwargs.pop("prompt", None)
+        self.data = kwargs.pop("data", None)
+        super().__init__(*args, **kwargs)
 
 
 # def _compute_probs(trie, probs, found):

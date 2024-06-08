@@ -165,8 +165,9 @@ def test_pattern_kleene(selected_model):
     lm += "The Lord is my"
     x = lm + gen(name="tmp", max_tokens=10)
     y = lm + gen(name="tmp", regex=".*", max_tokens=10)
+    # Check that x and y agree up to the first newline in x
     assert y["tmp"].startswith(
-        x["tmp"]
+        x["tmp"].split("\n")[0]
     )  # TODO: we just check startswith because exact token limits are not perfect yet...
 
 

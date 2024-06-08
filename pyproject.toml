@@ -17,7 +17,7 @@ markers = [
 
 [tool.black]
 line-length = 88
-target_version = ['py38', 'py39', 'py310', 'py311', 'py312']
+target_version = ['py39', 'py310', 'py311', 'py312']
 
 [tool.isort]
 profile = "black"
@@ -26,10 +26,6 @@ profile = "black"
 no_implicit_optional = false  # TODO: PEP484, set to true
 strict = false  # TODO: set to true
 exclude = ["tests"]
-
-[[tool.mypy.overrides]]
-module = "pyformlang.*"
-ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "pybind11.*"

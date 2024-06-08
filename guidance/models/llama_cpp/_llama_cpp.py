@@ -7,8 +7,9 @@ import sys
 import logging
 import numpy as np
 
-from .._model import Tokenizer, Engine, Model, Chat
+from .._model import Engine, Model, Chat
 from .._remote import RemoteEngine
+from .._tokenizer import Tokenizer
 from ..._utils import normalize_notebook_stdout_stderr
 
 try:
