@@ -222,7 +222,7 @@ class GrammarlessEngine(Engine):
         if self._running_stream():
             # Stop stream and wait for thread to complete
             self._not_running_stream.set()
-            self._remote_thread.join()  # type: ignore # mypy being strange
+            self._model_interaction_thread.join()  # type: ignore # mypy being strange
 
         # clear the data queue
         while not self._data_queue.empty():
