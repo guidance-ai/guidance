@@ -1,15 +1,16 @@
-import threading
-import numpy as np
-import queue
-import time
-import tiktoken
-import re
 import logging
-from ._model import Engine, Model, format_pattern, ConstraintException
-from ._tokenizer import Tokenizer
-from ..chat import ChatMLTemplate
+import queue
+import threading
+import time
 
-import warnings
+from typing import Sequence
+
+import numpy as np
+import tiktoken
+
+from ..chat import ChatMLTemplate
+from ._model import ConstraintException, Engine, Model
+from ._tokenizer import Tokenizer
 
 logger = logging.getLogger(__name__)
 
@@ -32,11 +33,13 @@ class GrammarlessTokenizer(Tokenizer):
             # consume one-by-one until we have passed all the special tokens AND gotten a valid token
             i = tokenizer.n_vocab - 1
             byte_tokens = []
+            n_ist_count = 0
             while True:
                 try:
                     bval = tokenizer.decode_single_token_bytes(i)
                     found = True
                 except KeyError:
+                    n_ist_count += 1
                     bval = special_map.get(i, b"<|invalid_special_token|>")
                     found = False
                 byte_tokens.append(bval)
@@ -44,6 +47,7 @@ class GrammarlessTokenizer(Tokenizer):
                 if i < first_special and found:
                     break
                 i -= 1
+            logger.debug(f"Found {n_ist_count} invalid special tokens")
 
             # do the rest of the tokens as a batch
             byte_tokens = tokenizer.decode_tokens_bytes(np.arange(i + 1)) + byte_tokens
@@ -125,14 +129,14 @@ class GrammarlessEngine(Engine):
         self.timeout = timeout
 
         # this is where the streaming thread puts results
-        self._data_queue = queue.Queue()
+        self._data_queue: queue.Queue = queue.Queue()
         self._data = b""  # these are the bytes we are ready to use in the main thread
 
         # this is phrased negatively so we can wait for the stop event
-        self._not_running_stream = threading.Event()
-        self._last_call = 0
+        self._not_running_stream: threading.Event = threading.Event()
+        self._last_call = 0.0
         self._num_calls_made = 0
-        self._current_temp = 0
+        self._current_temp = 0.0
         self._last_stream_start = None
 
         self._not_running_stream.set()
@@ -153,6 +157,10 @@ class GrammarlessEngine(Engine):
             )
         # build the Engine
         super().__init__(tokenizer=tokenizer, compute_log_probs=compute_log_probs)
+
+    def _generator(self, prompt: bytes, temperature: float):
+        # Not quite the implementation yet....
+        raise NotImplementedError("Child classes must implement _generator()")
 
     def __call__(self, *args, **kwargs):
         self._num_calls_made = 0  # reset the number of calls count so we only limit the number of calls within a single grammar execution
@@ -192,7 +200,7 @@ class GrammarlessEngine(Engine):
             b""
         )  # so we never get stuck waiting for a running stream to return something
 
-    def _start_new_stream(self, prompt, temperature):
+    def _start_new_stream(self, prompt, temperature: float):
 
         # make sure the display is up to date (since we are about to delay for a while)
         # TODO: how can we handle this better since the engine is now separate from the client?
@@ -206,8 +214,9 @@ class GrammarlessEngine(Engine):
 
         # stop any running stream
         if self._running_stream():
-            self._not_running_stream.set()  # stop the generator
-            self._remote_thread.join()  # wait for the thread to finish
+            # Stop stream and wait for thread to complete
+            self._not_running_stream.set()
+            self._remote_thread.join()  # type: ignore # mypy being strange
 
         # clear the data queue
         while not self._data_queue.empty():
@@ -225,14 +234,16 @@ class GrammarlessEngine(Engine):
         )
         self._remote_thread.start()
 
-    def _reset_shared_data(self, new_data, temperature):
+    def _reset_shared_data(self, new_data, temperature: float):
         """Should be called by _generator calls to reset the shared data state."""
         if temperature == 0 and self._last_stream_start == new_data:
             raise self._report_failed_match(new_data)
         self._data = new_data
         self._last_stream_start = self._data
 
-    def get_logits(self, token_ids, forced_bytes, current_temp):
+    def get_logits(
+        self, token_ids: Sequence[int], forced_bytes: bytes, current_temp: float
+    ):
         """Computes the logits for the given token state.
 
         This overrides a method from the Local class that is used to get
@@ -349,6 +360,7 @@ class GrammarlessEngine(Engine):
             # extend our data with a chunk from the model stream
             if not self._data_queue.empty():
                 new_bytes = self._data_queue.get_nowait()
+                logger.debug(f"Got {new_bytes} from _data_queue")
                 if isinstance(new_bytes, Exception):
                     raise new_bytes
 
@@ -369,13 +381,16 @@ class GrammarlessEngine(Engine):
 
             # we wait for the running stream to put something in the queue
             else:
-                self._last_call = 10e9  # set to essentialy infinity so we don't stop the data stream while we are waiting for it
+                # Set to essentialy infinity so we don't stop the data stream while we are waiting for it
+                self._last_call = 1e11
+
                 new_bytes = self._data_queue.get()
+                logger.debug(f"Got {new_bytes} from _data_queue")
                 if isinstance(new_bytes, Exception):
                     raise new_bytes
                 self._data += new_bytes
                 # reset out call time to allow the data stream to time out if we happen to be done with it
-                self._last_call = time.time()  
+                self._last_call = time.time()
 
         # # if we don't have the next byte of data yet then we wait for it (from the streaming thread)
         # if len(self._data) == len(prompt):
@@ -413,17 +428,6 @@ class GrammarlessEngine(Engine):
         prompt_tail = prompt[:match_len]
         if len(prompt_tail) > 40:
             prompt_tail = b"..." + prompt_tail[-40:]
-
-        # show in the model output where and how we diverged from the grammar
-        try:
-            # just for display when echo is on
-            already_shown = len(self._current_prompt().encode())
-            self += (
-                self._data[already_shown:match_len].decode()
-                + f"<||_html:<span style='color: rgba(165,0,0,1);' title='{leftover}'><span style='text-decoration: underline;'>{data_after_prompt.decode()}</span></span>_||>"
-            )
-        except:
-            pass  # could not decode the data the model generated into a string...
 
         # create an exception for users to deal with (that our caller can throw)
         return ConstraintException(
