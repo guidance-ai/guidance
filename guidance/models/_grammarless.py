@@ -1,15 +1,16 @@
-import threading
-import numpy as np
-import queue
-import time
-import tiktoken
-import re
 import logging
-from ._model import Engine, Model, format_pattern, ConstraintException
-from ._tokenizer import Tokenizer
-from ..chat import ChatMLTemplate
-
+import queue
+import re
+import threading
+import time
 import warnings
+
+import numpy as np
+import tiktoken
+
+from ..chat import ChatMLTemplate
+from ._model import ConstraintException, Engine, Model, format_pattern
+from ._tokenizer import Tokenizer
 
 logger = logging.getLogger(__name__)
 
