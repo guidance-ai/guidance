@@ -66,6 +66,14 @@ def test_azure_guidance_1003(azure_guidance_model: guidance.models.Model):
     lm += "Q: 1000 + 3\nA: " + gen("text", regex="[0-9]+", max_tokens=20)
     assert lm["text"] == "1003"
 
+def test_azure_guidance_dolphins(azure_guidance_model: guidance.models.Model):
+    lm = azure_guidance_model
+    # Yes|No has an implicit forced EoS at the end, which should not be actually generated
+    lm += "Q: Are dolphins fish?\nA: " + gen("dolphins", regex="Yes|No", max_tokens=10) + \
+        "\nQ: Are sharks fish?\nA: " + gen("sharks", regex="Yes|No", max_tokens=10)
+    assert lm["dolphins"] == "No"
+    assert lm["sharks"] == "Yes"
+
 def test_azure_guidance_1003_max_tokens(azure_guidance_model: guidance.models.Model):
     lm = azure_guidance_model
     lm += "Q: 1000 + 3\nA: " + gen("text", regex="[0-9]+", max_tokens=2)
