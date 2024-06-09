@@ -4,9 +4,9 @@ from typing import Optional
 
 def lexeme(
     body_regex: str,
-    allow_others: bool = False,
+    contextual: bool = False,
 ):
-    return GenLexeme(body_regex=body_regex, allow_others=allow_others)
+    return GenLexeme(body_regex=body_regex, contextual=contextual)
 
 
 def greedy_grammar(

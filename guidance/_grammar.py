@@ -816,17 +816,17 @@ class GenGrammar(Gen):
 
 
 class GenLexeme(Gen):
-    __slots__ = ("allow_others",)
+    __slots__ = ("contextual",)
 
     def __init__(
         self,
         body_regex: str,
-        allow_others: bool = False,
+        contextual: bool = False,
         name: Union[str, None] = None,
         max_tokens=100000000,
     ) -> None:
         super().__init__(body_regex, "", name, max_tokens)
-        self.allow_others = allow_others
+        self.contextual = contextual
 
     def __repr__(self, indent="", done=None):
         return super().__repr__(indent, done, "Lex")
@@ -1232,7 +1232,7 @@ class Ag2Serializer:
             obj = {
                 "Lexeme": {
                     "rx": node.body_regex,
-                    "allow_others": node.allow_others,
+                    "contextual": node.contextual,
                 }
             }
         elif isinstance(node, GenGrammar):
