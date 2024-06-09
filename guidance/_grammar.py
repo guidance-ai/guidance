@@ -1229,6 +1229,8 @@ class Ag2Serializer:
                     }
                 }
         elif isinstance(node, GenLexeme):
+            if not self.curr_grammar["greedy_lexer"]:
+                raise ValueError("GenLexeme can only be used in greedy lexer grammars")
             obj = {
                 "Lexeme": {
                     "rx": node.body_regex,
@@ -1247,6 +1249,8 @@ class Ag2Serializer:
         elif isinstance(node, NestedGrammar):
             raise Exception("NestedGrammar not supported in AG2")
         elif isinstance(node, Gen):
+            if self.curr_grammar["greedy_lexer"]:
+                raise ValueError("Gen can only be used in lazy lexer grammars")
             obj = {
                 "Gen": {
                     "body_rx": node.body_regex,
