@@ -1239,15 +1239,15 @@ class Ag2Serializer:
             }
         elif isinstance(node, GenGrammar):
             obj = {
-                "Grammar": {
-                    "grammar": self.node(node.grammar),
+                "GenGrammar": {
+                    "grammar": self.grammar(node.grammar),
                     "stop_rx": node.stop_regex,
                     "no_initial_skip": node.no_initial_skip,
                     "temperature": node.temperature if node.temperature >= 0 else None,
                 }
             }
         elif isinstance(node, NestedGrammar):
-            raise Exception("NestedGrammar not supported in AG2")
+            raise ValueError("NestedGrammar accessed without GenGrammar")
         elif isinstance(node, Gen):
             if self.curr_grammar["greedy_lexer"]:
                 raise ValueError("Gen can only be used in lazy lexer grammars")
