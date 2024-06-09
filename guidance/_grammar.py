@@ -1,7 +1,7 @@
 import re
 import types
 
-from typing import Any, Dict, List, TYPE_CHECKING, TypeVar, Union, cast
+from typing import Any, Dict, List, TYPE_CHECKING, TypeVar, Union, cast, Optional
 
 from . import _serialization_pb2
 from . import _parser
@@ -291,7 +291,7 @@ class GrammarFunction(Function):
         return values[0]  # the first element in the root node of the grammar
 
     def ag2_serialize(self):
-        return {"grammars": [Ag2Serializer(self).run()]}
+        return {"grammars": Ag2Serializer(self).run()}
 
 
 class Terminal(GrammarFunction):
@@ -769,12 +769,14 @@ class Gen(Terminal):
     def max_tokens(self):
         return self._max_tokens
 
-    def __repr__(self, indent="", done=None):
+    def __repr__(self, indent="", done=None, lbl="Gen"):
         if done is None:
             done = set()
         s = (
             self.name.ljust(20)
             + " <- "
+            + lbl
+            + " "
             + repr(self.body_regex)
             + " + "
             + repr(self.stop_regex)
@@ -789,6 +791,78 @@ class Gen(Terminal):
         )
         done.add(self)
         return s
+
+
+class GenGrammar(Gen):
+    __slots__ = (
+        "grammar",
+        "no_initial_skip",
+    )
+
+    def __init__(
+        self,
+        grammar: "NestedGrammar",
+        stop_regex: Optional[str] = None,
+        no_initial_skip: bool = False,
+        name: Union[str, None] = None,
+        max_tokens=100000000,
+    ) -> None:
+        super().__init__("", stop_regex, name, max_tokens)
+        self.grammar = grammar
+        self.no_initial_skip = no_initial_skip
+
+    def __repr__(self, indent="", done=None):
+        return super().__repr__(indent, done, "Grm " + self.grammar.name)
+
+
+class GenLexeme(Gen):
+    __slots__ = ("allow_others",)
+
+    def __init__(
+        self,
+        body_regex: str,
+        allow_others: bool = False,
+        name: Union[str, None] = None,
+        max_tokens=100000000,
+    ) -> None:
+        super().__init__(body_regex, "", name, max_tokens)
+        self.allow_others = allow_others
+
+    def __repr__(self, indent="", done=None):
+        return super().__repr__(indent, done, "Lex")
+
+
+class NestedGrammar(GrammarFunction):
+    __slots__ = (
+        "nullable",
+        "body",
+        "name",
+        "hidden",
+        "commit_point",
+        "capture_name",
+        "max_tokens",
+        "recursive",
+        "greedy_lexer",
+        "greedy_skip_regex",
+    )
+
+    def __init__(
+        self,
+        body: GrammarFunction,
+        greedy_lexer: bool = True,
+        greedy_skip_regex: Optional[str] = None,
+    ) -> None:
+        self.body = body
+        self.greedy_lexer = greedy_lexer
+        self.greedy_skip_regex = greedy_skip_regex
+        self.name = GrammarFunction._new_name()
+        self.hidden = False
+        self.commit_point = False
+        self.capture_name = None
+        self.max_tokens = 1000000000
+
+    def __repr__(self) -> str:
+        return self.name.ljust(20) + " <- " + self.body.name
 
 
 class Select(GrammarFunction):
@@ -1104,8 +1178,24 @@ class Ag2Serializer:
             "greedy_lexer": False,
             "nodes": self.nodes,
         }
+        self.grammars = [self.curr_grammar]
         self.node_id_cache: Dict[GrammarFunction, int] = {}
         self.todo: List[GrammarFunction] = []
+        self.grammar_id_cache: Dict[NestedGrammar, int] = {}
+        self.grammar_todo: List[NestedGrammar] = []
+
+    def grammar(self, grammar: NestedGrammar):
+        if grammar in self.grammar_id_cache:
+            return self.grammar_id_cache[grammar]
+        id = len(self.grammars)
+        self.grammar_id_cache[grammar] = id
+        self.grammars.append({
+            "greedy_lexer": grammar.greedy_lexer,
+            "greedy_skip_rx": grammar.greedy_skip_regex,
+            "nodes": [],
+        })
+        self.grammar_todo.append(grammar)
+        return id
 
     def node(self, node: GrammarFunction):
         if node in self.node_id_cache:
@@ -1138,6 +1228,24 @@ class Ag2Serializer:
                         "sequence": [self.node(v) for v in node.values],
                     }
                 }
+        elif isinstance(node, GenLexeme):
+            obj = {
+                "Lexeme": {
+                    "rx": node.body_regex,
+                    "allow_others": node.allow_others,
+                }
+            }
+        elif isinstance(node, GenGrammar):
+            obj = {
+                "Grammar": {
+                    "grammar": self.node(node.grammar),
+                    "stop_rx": node.stop_regex,
+                    "no_initial_skip": node.no_initial_skip,
+                    "temperature": node.temperature if node.temperature >= 0 else None,
+                }
+            }
+        elif isinstance(node, NestedGrammar):
+            raise Exception("NestedGrammar not supported in AG2")
         elif isinstance(node, Gen):
             obj = {
                 "Gen": {
@@ -1165,10 +1273,20 @@ class Ag2Serializer:
             inner["max_tokens"] = node.max_tokens
         self.nodes[self.node(node)] = obj
 
-    def run(self):
-        id = self.node(self.top_level_node)
+    def run_grammar(self, node: GrammarFunction):
+        assert self.todo == []
+        id = self.node(node)
         assert id == 0
         while self.todo:
             node = self.todo.pop()
             self.process(node)
-        return self.curr_grammar
+
+    def run(self):
+        self.run_grammar(self.top_level_node)
+        while self.grammar_todo:
+            grammar = self.grammar_todo.pop()
+            self.curr_grammar = self.grammars[self.grammar(grammar)]
+            self.nodes = self.curr_grammar["nodes"]
+            self.node_id_cache = {}
+            self.run_grammar(grammar.body)
+        return self.grammars
