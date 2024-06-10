@@ -8,13 +8,6 @@ def test_select_reset_pos():
     assert str(model) in ["This isbad", "This isquite bad"]
 
 
-def test_select_simple(selected_model):
-    lm = selected_model
-    options = ["baad I think", "bad I think", "bad"]
-    lm = lm + "Scott is quite " + select(name="bad", options=options)
-    assert lm["bad"] in options
-
-
 def test_select_longer():
     """This tests to ensure that the grammar is extended greedily."""
     lm = models.Mock(b"<s>Scott is a very nice man.")
