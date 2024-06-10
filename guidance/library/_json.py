@@ -249,40 +249,30 @@ def _process_enum(lm, *, options: Sequence[Mapping[str, Any]]):
 
 @guidance(stateless=True)
 def _gen_json_any(lm):
-    definitions = {}
-
-    @guidance(stateless=True, dedent=False)
-    def ANY(lm):
-        return lm + select(
-            [
-                _gen_json(json_schema={"type": "null"}, definitions={}),
-                _gen_json(json_schema={"type": "boolean"}, definitions={}),
-                _gen_json(json_schema={"type": "integer"}, definitions={}),
-                _gen_json(json_schema={"type": "number"}, definitions={}),
-                _gen_json(json_schema={"type": "string"}, definitions={}),
-                # Recursive cases
-                _gen_json(
-                    json_schema={
-                        "type": "array",
-                        "items": {_REF_STRING: f"#/{_DEFS_KEYS[0]}/{_ANY_KEY}"},
-                    },
-                    definitions=definitions,
-                ),
-                _gen_json(
-                    json_schema={
-                        "type": "object",
-                        "additionalProperties": {
-                            _REF_STRING: f"#/{_DEFS_KEYS[0]}/{_ANY_KEY}"
-                        },
-                    },
-                    definitions=definitions,
-                ),
-            ]
-        )
-
-    definitions[_ANY_KEY] = ANY
-
-    return lm + ANY()
+    return lm + select(
+        [
+            _gen_json(json_schema={"type": "null"}, definitions={}),
+            _gen_json(json_schema={"type": "boolean"}, definitions={}),
+            _gen_json(json_schema={"type": "integer"}, definitions={}),
+            _gen_json(json_schema={"type": "number"}, definitions={}),
+            _gen_json(json_schema={"type": "string"}, definitions={}),
+            # Recursive cases
+            _gen_json(
+                json_schema={
+                    "type": "array",
+                    "items": True,
+                },
+                definitions={},
+            ),
+            _gen_json(
+                json_schema={
+                    "type": "object",
+                    "additionalProperties": True,
+                },
+                definitions={},
+            ),
+        ]
+    )
 
 
 @guidance(stateless=True)
