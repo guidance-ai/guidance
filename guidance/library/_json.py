@@ -80,21 +80,25 @@ def _gen_json_string(lm):
 def _gen_json_object(
     lm,
     *,
-    properties: Union[Mapping[str, Any], None],
-    additional_properties: Union[Mapping[str, Any], None],
+    properties: Mapping[str, Any],
+    additional_properties: Union[bool, Mapping[str, Any]],
     definitions: Mapping[str, Callable[[], GrammarFunction]],
 ):
+    if additional_properties is True:
+        # True means that anything goes
+        additional_properties = {}
+
     lm += "{"
     if properties:
         lm += _process_properties(properties=properties, definitions=definitions)
-    if properties and additional_properties:
+    if properties and additional_properties is not False:
         lm += optional(
             ","
             + _process_additional_properties(
                 additional_properties=additional_properties, definitions=definitions
             )
         )
-    elif additional_properties:
+    elif additional_properties is not False:
         lm += optional(
             _process_additional_properties(
                 additional_properties=additional_properties, definitions=definitions
@@ -145,19 +149,20 @@ def _process_additional_properties(
 def _gen_json_array(
     lm,
     *,
-    prefix_items_schema: Optional[Sequence[Mapping[str, Any]]],
-    item_schema: Optional[Mapping[str, Any]],
+    prefix_items_schema: Sequence[Mapping[str, Any]],
+    item_schema: Union[bool, Mapping[str, Any]],
     min_items: int,
     max_items: Optional[int],
     definitions: Mapping[str, Callable[[], GrammarFunction]],
 ):
-    if prefix_items_schema is None:
-        prefix_items_schema = []
+    if item_schema is True:
+        # True means that anything goes
+        item_schema = {}
 
-    if len(prefix_items_schema) < min_items and item_schema is None:
+    if len(prefix_items_schema) < min_items and item_schema is False:
         raise ValueError(
-            "No items schema provided, but prefixItems has too few elements "
-            f"({len(prefix_items_schema)}) to satisfy minItems ({min_items})"
+            f"PrefixItems has too few elements ({len(prefix_items_schema)}) to"
+            f" satisfy minItems ({min_items}) but no extra items were allowed"
         )
 
     if max_items is not None and max_items < min_items:
@@ -175,7 +180,7 @@ def _gen_json_array(
     for i in range(n_to_add):
         if i < len(prefix_items_schema):
             schema = prefix_items_schema[i]
-        elif item_schema is not None:
+        elif item_schema is not False:
             schema = item_schema
         else:
             assert i >= min_items
@@ -188,7 +193,7 @@ def _gen_json_array(
         else:
             optional_items.append(item)
 
-    if max_items is None and item_schema is not None:
+    if max_items is None and item_schema is not False:
         # Add an infinite tail of items
         item = _gen_json(json_schema=item_schema, definitions=definitions)
         optional_items.append(item + zero_or_more("," + item))
@@ -322,16 +327,16 @@ def _gen_json(
             return lm + _gen_json_string()
         if target_type == "array":
             return lm + _gen_json_array(
-                prefix_items_schema=json_schema.get("prefixItems"),
-                item_schema=json_schema.get("items"),
+                prefix_items_schema=json_schema.get("prefixItems", []),
+                item_schema=json_schema.get("items", True),
                 min_items=json_schema.get("minItems", 0),
                 max_items=json_schema.get("maxItems"),
                 definitions=definitions,
             )
         if target_type == "object":
             return lm + _gen_json_object(
-                properties=json_schema.get("properties"),
-                additional_properties=json_schema.get("additionalProperties"),
+                properties=json_schema.get("properties", {}),
+                additional_properties=json_schema.get("additionalProperties", True),
                 definitions=definitions,
             )
         raise ValueError(f"Unsupported type in schema: {target_type}")

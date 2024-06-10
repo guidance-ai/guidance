@@ -323,7 +323,8 @@ class TestSimpleObject:
             "type": "object",
             "properties": {
                 "a" : {"type": "integer"}
-            }
+            },
+            "additionalProperties": false
         }
     """
         schema_obj = json.loads(schema)
@@ -638,6 +639,7 @@ class TestArrayWithLengthConstraints:
     ):
         schema_obj = {
             "prefixItems": self.prefix_schema_obj,
+            "items": False,
             "minItems": min_items,
             "maxItems": max_items,
             "type": "array",
