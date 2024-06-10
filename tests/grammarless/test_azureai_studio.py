@@ -5,7 +5,7 @@ import pytest
 from guidance import assistant, gen, models, system, user
 
 
-from . import common_chat_testing
+from ..models import common_chat_testing
 from ..utils import env_or_fail
 
 # Everything in here needs credentials to work
