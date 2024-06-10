@@ -5,9 +5,9 @@
 The tests are arranged into the following directories:
 
 - `unit` tests do not depend on LLMs (but may use `model.Mock`)
-- `modelintegration` tests should run on any (local) model, supplied by the `selected_model` fixture
+- `model_integration` tests should run on any (local) model, supplied by the `selected_model` fixture
 - `modelspecific` tests are for isolating particular issues with individual LLMs
-- `grammarless` tests are for `Grammarless` models - those which depend on a remote endpoint which is not Guidance aware
+- `need_credentials` tests are for tests which need access to various credentials (mainly `Grammarless` models)
 - `notebook` tests are for notebooks
 
 The `modelspecific` tests should make use of the `selected_model` machinery, but skip themselves if the appropriate model is note supplied.
