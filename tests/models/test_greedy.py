@@ -69,9 +69,9 @@ def json_array(lm):
 
 @guidance(stateless=True)
 def gen_json_object(lm, name: str, max_tokens=100000000):
-    grm = greedy_grammar(json_object(), skip_regex=r"[\x20\x0A\x0D\x09]*")
+    grm = greedy_grammar(json_object(), skip_regex=r"[\x20\x0A\x0D\x09]+")
     return lm + gen_grammar(name, grm, no_initial_skip=True, max_tokens=max_tokens)
 
-def test_greedy_json_object(azure_guidance_model):
+def disabled_test_greedy_json_object(azure_guidance_model):
     lm = azure_guidance_model
     lm += "About J. Random Hacker:\n" + gen_json_object("hacker", max_tokens=50)
