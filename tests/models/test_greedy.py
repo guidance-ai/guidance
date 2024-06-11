@@ -72,6 +72,13 @@ def gen_json_object(lm, name: str, max_tokens=100000000):
     grm = greedy_grammar(json_object(), skip_regex=r"[\x20\x0A\x0D\x09]+")
     return lm + gen_grammar(name, grm, no_initial_skip=True, max_tokens=max_tokens)
 
-def disabled_test_greedy_json_object(azure_guidance_model):
+
+def test_greedy_json_object(azure_guidance_model):
     lm = azure_guidance_model
-    lm += "About J. Random Hacker:\n" + gen_json_object("hacker", max_tokens=50)
+    lm += "Three things about J. Random Hacker:\n"
+    lm += gen_json_object("hacker", max_tokens=150)
+    lm += "\nScore: " + gen("score", regex="[1-3]")
+    # make sure it parses as JSON
+    obj = json.loads(lm["hacker"])
+    assert isinstance(obj, dict)
+    assert lm["score"] in ["1", "2", "3"]
