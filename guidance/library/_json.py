@@ -64,7 +64,7 @@ TYPE_SPECIFIC_KEYS = {
 }
 
 
-def validate_json_node(node: Mapping[str, Any]):
+def validate_json_node_keys(node: Mapping[str, Any]):
     keys = set(node.keys())
     valid_keys = KEYS | IGNORED_KEYS | DEFS_KEYS
     if Keyword.TYPE in node:
@@ -314,7 +314,7 @@ def _gen_json(
     json_schema: Mapping[str, Any],
     definitions: Mapping[str, Callable[[], GrammarFunction]],
 ):
-    validate_json_node(json_schema)
+    validate_json_node_keys(json_schema)
 
     if Keyword.ANYOF in json_schema:
         return lm + _process_anyOf(
