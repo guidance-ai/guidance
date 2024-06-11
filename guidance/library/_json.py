@@ -1,4 +1,5 @@
 from json import dumps as json_dumps
+from enum import StrEnum
 from typing import (
     Any,
     Callable,
@@ -35,6 +36,15 @@ def _to_compact_json(target: Any) -> str:
 
 
 _DEFS_KEYS = ["$defs", "definitions"]
+
+class Keyword(StrEnum):
+    ANYOF = "anyOf"
+    ALLOF = "allOf"
+    REF = "$ref"
+    CONST = "const"
+    ENUM = "enum"
+    TYPE = "type"
+
 
 
 @guidance(stateless=True)
@@ -274,36 +284,30 @@ def _gen_json(
     json_schema: Mapping[str, Any],
     definitions: Mapping[str, Callable[[], GrammarFunction]],
 ):
-    ANYOF_STRING = "anyOf"
-    if ANYOF_STRING in json_schema:
+    if Keyword.ANYOF in json_schema:
         return lm + _process_anyOf(
-            anyof_list=json_schema[ANYOF_STRING], definitions=definitions
+            anyof_list=json_schema[Keyword.ANYOF], definitions=definitions
         )
 
-    ALLOF_STRING = "allOf"
-    if ALLOF_STRING in json_schema:
-        allof_list = json_schema[ALLOF_STRING]
+    if Keyword.ALLOF in json_schema:
+        allof_list = json_schema[Keyword.ALLOF]
         if len(allof_list) != 1:
             raise ValueError("Only support allOf with exactly one item")
         return lm + _gen_json(allof_list[0], definitions)
 
-    REF_STRING = "$ref"
-    if REF_STRING in json_schema:
+    if Keyword.REF in json_schema:
         return lm + _get_definition(
-            reference=json_schema[REF_STRING], definitions=definitions
+            reference=json_schema[Keyword.REF], definitions=definitions
         )
 
-    CONST_STRING = "const"
-    if CONST_STRING in json_schema:
-        return lm + _to_compact_json(json_schema[CONST_STRING])
+    if Keyword.CONST in json_schema:
+        return lm + _to_compact_json(json_schema[Keyword.CONST])
 
-    ENUM_STRING = "enum"
-    if ENUM_STRING in json_schema:
-        return lm + _process_enum(options=json_schema["enum"])
+    if Keyword.ENUM in json_schema:
+        return lm + _process_enum(options=json_schema[Keyword.ENUM])
 
-    TYPE_STRING = "type"
-    if TYPE_STRING in json_schema:
-        target_type = json_schema["type"]
+    if Keyword.TYPE in json_schema:
+        target_type = json_schema[Keyword.TYPE]
         if target_type == "null":
             return lm + "null"
         if target_type == "boolean":
