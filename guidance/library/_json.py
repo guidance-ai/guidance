@@ -418,7 +418,7 @@ def _build_definitions(
     def build_definition(
         json_schema: Mapping[str, Any]
     ) -> Callable[[], GrammarFunction]:
-        @guidance(stateless=True, dedent=False, cache=True)
+        @guidance(stateless=True, dedent=False)
         def closure(lm):
             return lm + _gen_json(json_schema=json_schema, definitions=definitions)
 
