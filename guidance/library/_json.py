@@ -338,12 +338,11 @@ def json(
     lm,
     name: Optional[str] = None,
     *,
-    schema: Optional[
-        Union[
-            Mapping[str, Any],
-            Type["pydantic.BaseModel"],
-            "pydantic.TypeAdapter",
-        ]
+    schema: Union[
+        None,
+        Mapping[str, Any],
+        Type["pydantic.BaseModel"],
+        "pydantic.TypeAdapter",
     ] = None,
     temperature: float = 0.0,
 ):
@@ -382,8 +381,9 @@ def json(
         If this is not None then the the results of the generation will be saved as a variable on
         the Model object (so you can access the result as ``lm["var_name"]``).
 
-    schema : Union[Mapping[str, Any], Type[pydantic.BaseModel], pydantic.TypeAdapter]
+    schema : Union[None, Mapping[str, Any], Type[pydantic.BaseModel], pydantic.TypeAdapter]
         One of:
+            - None, in which case any valid JSON will be generated
             - A JSON schema object. This is a JSON schema string which has been passed to ``json.loads()``
             - A subclass of ``pydantic.BaseModel``
             - An instance of ``pydantic.TypeAdapter``
