@@ -35,8 +35,6 @@ def _to_compact_json(target: Any) -> str:
     return json_dumps(target, separators=(",", ":"))
 
 
-_DEFS_KEYS = ["$defs", "definitions"]
-
 class Keyword(StrEnum):
     ANYOF = "anyOf"
     ALLOF = "allOf"
@@ -45,6 +43,38 @@ class Keyword(StrEnum):
     ENUM = "enum"
     TYPE = "type"
 
+
+KEYS = {member.value for member in Keyword}
+
+DEFS_KEYS = {"$defs", "definitions"}
+
+IGNORED_KEYS = {
+    "$schema",
+    "$id",
+    "$comment",
+    "title",
+    "description",
+    "default",
+    "examples",
+}
+
+TYPE_SPECIFIC_KEYS = {
+    "array": {"items", "prefixItems", "minItems", "maxItems"},
+    "object": {"properties", "additionalProperties"},
+}
+
+
+def validate_json_node(node: Mapping[str, Any]):
+    keys = set(node.keys())
+    valid_keys = KEYS | IGNORED_KEYS | DEFS_KEYS
+    if Keyword.TYPE in node:
+        valid_keys |= TYPE_SPECIFIC_KEYS.get(node[Keyword.TYPE], set())
+    invalid_keys = keys - valid_keys
+    if invalid_keys:
+        raise ValueError(
+            f"JSON schema had keys that could not be processed: {invalid_keys}"
+            f"\nSchema: {node}"
+        )
 
 
 @guidance(stateless=True)
@@ -284,6 +314,8 @@ def _gen_json(
     json_schema: Mapping[str, Any],
     definitions: Mapping[str, Callable[[], GrammarFunction]],
 ):
+    validate_json_node(json_schema)
+
     if Keyword.ANYOF in json_schema:
         return lm + _process_anyOf(
             anyof_list=json_schema[Keyword.ANYOF], definitions=definitions
@@ -402,7 +434,7 @@ def json(
         schema = pydantic_to_json_schema(schema)
 
     definitions: Mapping[str, Callable[[], GrammarFunction]] = {}
-    for dk in _DEFS_KEYS:
+    for dk in DEFS_KEYS:
         if dk in schema:
             assert len(definitions) == 0, "Found duplicate definitions"
             definitions = _build_definitions(schema[dk])
@@ -442,7 +474,7 @@ def _get_definition(
 ):
     assert definitions is not None
     target_definition = None
-    for dk in _DEFS_KEYS:
+    for dk in DEFS_KEYS:
         ref_start = f"#/{dk}/"
         if reference.startswith(ref_start):
             target_name = reference[len(ref_start) :]
