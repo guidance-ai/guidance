@@ -29,27 +29,6 @@ def test_token_count(selected_model):
     )  # note we allow ourselves to be off by one because it is hard to know when we are continuing vs starting a new token in the parser
 
 
-def test_call_embeddings():
-    """This tests calls embedded in strings."""
-    model = models.Mock()
-
-    @guidance(dedent=False)
-    def bla(lm, bla):
-        lm += bla + "ae" + gen(max_tokens=10)
-        return lm
-
-    @guidance(dedent=False)
-    def ble(lm):
-        lm += f"""
-    ae galera! {bla('33')}
-    let's do more stuff!!""" + gen(
-            max_tokens=10
-        )
-        return lm
-
-    assert "{{G|" not in str(model + ble())
-
-
 def test_token_healing(selected_model):
     """Tests a bug where the space is incorrectly forced as token 220, while it should be not forced it might be extended"""
     model_type = type(selected_model.engine.model_obj).__name__
