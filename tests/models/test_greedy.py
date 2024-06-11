@@ -82,3 +82,10 @@ def test_greedy_json_object(azure_guidance_model):
     obj = json.loads(lm["hacker"])
     assert isinstance(obj, dict)
     assert lm["score"] in ["1", "2", "3"]
+
+
+def test_greedy_single_terminal(azure_guidance_model):
+    lm = azure_guidance_model
+    lm += "A number: "
+    lm += gen_grammar("", greedy_grammar(lexeme(r"[0-9]{3}")))
+    assert re.search(r": [0-9]{3}$", str(lm))
