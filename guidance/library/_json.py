@@ -1,5 +1,5 @@
 from json import dumps as json_dumps
-from enum import StrEnum
+from enum import Enum
 from typing import (
     Any,
     Callable,
@@ -35,7 +35,7 @@ def _to_compact_json(target: Any) -> str:
     return json_dumps(target, separators=(",", ":"))
 
 
-class Keyword(StrEnum):
+class Keyword(str, Enum):
     ANYOF = "anyOf"
     ALLOF = "allOf"
     REF = "$ref"
