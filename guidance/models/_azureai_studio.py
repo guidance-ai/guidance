@@ -63,13 +63,15 @@ class AzureAIStudioChatEngine(GrammarlessEngine):
         # Copied from OpenAIChatEngine
         return hashlib.sha256(f"{prompt}".encode()).hexdigest()
 
-    def _generator(self, prompt, temperature: float):
+    def _generator(self, prompt: bytes, temperature: float):
         # Initial parts of this straight up copied from OpenAIChatEngine
 
         # The next loop (or one like it) appears in several places,
         # and quite possibly belongs in a library function or superclass
         # That said, I'm not _completely sure that there aren't subtle
         # differences between the various versions
+
+        assert isinstance(prompt, bytes)
 
         # find the role tags
         pos = 0
@@ -97,7 +99,7 @@ class AzureAIStudioChatEngine(GrammarlessEngine):
                     btext = prompt[pos : pos + end_pos]
                     pos += end_pos + len(role_end)
                     message_content = btext.decode("utf8")
-                    input_token_count += len(self.tokenizer(message_content))
+                    input_token_count += len(self.tokenizer.encode(btext))
                     messages.append({"role": role_name, "content": message_content})
                     found = True
                     break
@@ -167,7 +169,9 @@ class AzureAIStudioChatEngine(GrammarlessEngine):
             chunk = result_score["output"]
             encoded_chunk = chunk.encode("utf8")
             self.metrics.engine_input_tokens += input_token_count
-            self.metrics.engine_output_tokens += len(self.tokenizer(chunk))
+            self.metrics.engine_output_tokens += len(
+                self.tokenizer.encode(encoded_chunk)
+            )
 
         # Now back to OpenAIChatEngine, with slight modifications since
         # this isn't a streaming API
