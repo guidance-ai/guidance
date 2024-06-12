@@ -69,8 +69,13 @@ def json_array(lm):
 
 @guidance(stateless=True)
 def gen_json_object(lm, name: str, max_tokens=100000000):
-    grm = greedy_grammar(json_object(), skip_regex=r"[\x20\x0A\x0D\x09]+")
-    return lm + gen_grammar(name, grm, no_initial_skip=True, max_tokens=max_tokens)
+    grm = greedy_grammar(
+        body=json_object(),
+        skip_regex=r"[\x20\x0A\x0D\x09]+",
+        no_initial_skip=True,
+        max_tokens=max_tokens
+    )
+    return lm + grm
 
 
 def test_greedy_json_object(azure_guidance_model):
@@ -87,5 +92,5 @@ def test_greedy_json_object(azure_guidance_model):
 def test_greedy_single_terminal(azure_guidance_model):
     lm = azure_guidance_model
     lm += "A number: "
-    lm += gen_grammar("", greedy_grammar(lexeme(r"[0-9]{3}")))
+    lm += greedy_grammar(body=lexeme(r"[0-9]{3}"))
     assert re.search(r": [0-9]{3}$", str(lm))

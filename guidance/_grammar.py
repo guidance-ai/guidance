@@ -844,6 +844,7 @@ class NestedGrammar(GrammarFunction):
         "recursive",
         "greedy_lexer",
         "greedy_skip_regex",
+        "no_initial_skip",
     )
 
     def __init__(
@@ -851,15 +852,19 @@ class NestedGrammar(GrammarFunction):
         body: GrammarFunction,
         greedy_lexer: bool = True,
         greedy_skip_regex: Optional[str] = None,
+        no_initial_skip: bool = False,
+        max_tokens=100000000,
     ) -> None:
         self.body = body
         self.greedy_lexer = greedy_lexer
         self.greedy_skip_regex = greedy_skip_regex
+        self.no_initial_skip = no_initial_skip
         self.name = GrammarFunction._new_name()
         self.hidden = False
         self.commit_point = False
         self.capture_name = None
-        self.max_tokens = 1000000000
+        self.max_tokens = max_tokens
+        self.temperature = -1
 
     def __repr__(self) -> str:
         return self.name.ljust(20) + " <- " + self.body.name
@@ -1247,7 +1252,14 @@ class Ag2Serializer:
                 }
             }
         elif isinstance(node, NestedGrammar):
-            raise ValueError("NestedGrammar accessed without GenGrammar")
+            obj = {
+                "GenGrammar": {
+                    "grammar": self.grammar(node),
+                    "stop_rx": None,
+                    "no_initial_skip": node.no_initial_skip,
+                    "temperature": node.temperature if node.temperature >= 0 else None,
+                }
+            }
         elif isinstance(node, Gen):
             if self.curr_grammar["greedy_lexer"]:
                 raise ValueError("Gen can only be used in lazy lexer grammars")
