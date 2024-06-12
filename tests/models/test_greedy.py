@@ -70,6 +70,7 @@ def json_array(lm):
 @guidance(stateless=True)
 def gen_json_object(lm, name: str, max_tokens=100000000):
     grm = greedy_grammar(
+        name,
         body=json_object(),
         skip_regex=r"[\x20\x0A\x0D\x09]+",
         no_initial_skip=True,

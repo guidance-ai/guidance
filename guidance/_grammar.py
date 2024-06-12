@@ -832,39 +832,32 @@ class GenLexeme(Gen):
         return super().__repr__(indent, done, "Lex")
 
 
-class NestedGrammar(GrammarFunction):
+class NestedGrammar(Gen):
     __slots__ = (
-        "nullable",
         "body",
-        "name",
-        "hidden",
-        "commit_point",
-        "capture_name",
-        "max_tokens",
-        "recursive",
         "greedy_lexer",
         "greedy_skip_regex",
         "no_initial_skip",
     )
-
     def __init__(
         self,
         body: GrammarFunction,
         greedy_lexer: bool = True,
         greedy_skip_regex: Optional[str] = None,
         no_initial_skip: bool = False,
+        name: Union[str, None] = None,
         max_tokens=100000000,
     ) -> None:
+        super().__init__(
+            body_regex="",
+            stop_regex="",
+            name=name,
+            max_tokens=max_tokens,
+        )
         self.body = body
         self.greedy_lexer = greedy_lexer
         self.greedy_skip_regex = greedy_skip_regex
         self.no_initial_skip = no_initial_skip
-        self.name = GrammarFunction._new_name()
-        self.hidden = False
-        self.commit_point = False
-        self.capture_name = None
-        self.max_tokens = max_tokens
-        self.temperature = -1
 
     def __repr__(self) -> str:
         return self.name.ljust(20) + " <- " + self.body.name
@@ -1255,7 +1248,7 @@ class Ag2Serializer:
             obj = {
                 "GenGrammar": {
                     "grammar": self.grammar(node),
-                    "stop_rx": None,
+                    "stop_rx": node.stop_regex,
                     "no_initial_skip": node.no_initial_skip,
                     "temperature": node.temperature if node.temperature >= 0 else None,
                 }
