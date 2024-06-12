@@ -793,28 +793,6 @@ class Gen(Terminal):
         return s
 
 
-class GenGrammar(Gen):
-    __slots__ = (
-        "grammar",
-        "no_initial_skip",
-    )
-
-    def __init__(
-        self,
-        grammar: "NestedGrammar",
-        stop_regex: Optional[str] = None,
-        no_initial_skip: bool = False,
-        name: Union[str, None] = None,
-        max_tokens=100000000,
-    ) -> None:
-        super().__init__("", stop_regex, name, max_tokens)
-        self.grammar = grammar
-        self.no_initial_skip = no_initial_skip
-
-    def __repr__(self, indent="", done=None):
-        return super().__repr__(indent, done, "Grm " + self.grammar.name)
-
-
 class GenLexeme(Gen):
     __slots__ = ("contextual",)
 
@@ -1233,15 +1211,6 @@ class Ag2Serializer:
                 "Lexeme": {
                     "rx": node.body_regex,
                     "contextual": node.contextual,
-                }
-            }
-        elif isinstance(node, GenGrammar):
-            obj = {
-                "GenGrammar": {
-                    "grammar": self.grammar(node.grammar),
-                    "stop_rx": node.stop_regex,
-                    "no_initial_skip": node.no_initial_skip,
-                    "temperature": node.temperature if node.temperature >= 0 else None,
                 }
             }
         elif isinstance(node, NestedGrammar):

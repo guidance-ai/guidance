@@ -1,4 +1,4 @@
-from .._grammar import NestedGrammar, GenGrammar, GenLexeme, GrammarFunction, capture
+from .._grammar import NestedGrammar, GenLexeme, GrammarFunction, capture
 from typing import Optional
 
 
@@ -40,24 +40,6 @@ def lazy_grammar(
         body=body,
         greedy_lexer=False,
         greedy_skip_regex=None,
-        no_initial_skip=no_initial_skip,
-        max_tokens=max_tokens,
-    )
-    if name:
-        r = capture(r, name)
-    return r
-
-
-def gen_grammar(
-    name: str,
-    body: NestedGrammar,
-    stop_regex: Optional[str] = None,
-    no_initial_skip: bool = False,
-    max_tokens=100000000,
-):
-    r = GenGrammar(
-        grammar=body,
-        stop_regex=stop_regex,
         no_initial_skip=no_initial_skip,
         max_tokens=max_tokens,
     )

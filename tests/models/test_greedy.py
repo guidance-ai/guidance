@@ -12,7 +12,6 @@ from guidance import (
     one_or_more,
     lexeme,
     greedy_grammar,
-    gen_grammar,
     lazy_grammar,
 )
 
