@@ -1,7 +1,7 @@
 from ._model import Model, Instruct, Chat
 
 # local models
-from .transformers._transformers import Transformers
+from .transformers._transformers import Transformers, TransformersTokenizer
 from .llama_cpp import LlamaCpp
 from ._mock import Mock, MockChat
 

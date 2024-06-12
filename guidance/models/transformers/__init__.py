@@ -1,1 +1,1 @@
-from ._transformers import Transformers
+from ._transformers import Transformers, TransformersTokenizer
