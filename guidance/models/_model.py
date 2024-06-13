@@ -219,7 +219,6 @@ class Engine:
         self._backtrack = 0
         self._ff_tokens = []
 
-
     def next(self) -> EngineCallResponse:
         """Move the grammar state machine processing forward to the next point where
             either get_logits is required to be called or we have a partial response
@@ -313,95 +312,6 @@ class Engine:
             if response is None:
                 break
             yield response
-
-    def _tokenize_prefix(self, byte_string):
-        """This is used to speed up the tokenization of long prompts without using the parser."""
-        token_ids = []
-        token_byte_positions = []
-
-        # loop trying to decode a new token at each iteration
-        pos = 0
-        while True:
-
-            # walk down the token trie looking for a unique token match
-            trie = self._token_trie
-            valid_pos = -1
-            valid_value = -1
-            while True:
-                if pos >= len(byte_string):
-                    if len(trie) > 0:
-                        valid_pos = -1
-                    break
-
-                # check if we can keep going or are at a dead end
-                if trie.has_child(byte_string[pos : pos + 1]):
-                    trie = trie.child(byte_string[pos : pos + 1])
-                    pos += 1
-
-                    # record the last valid token down this path as we go
-                    if trie.value >= 0:
-                        valid_pos = pos
-                        valid_value = trie.value
-                else:
-                    break  # we can't go any farther
-
-            if valid_pos == -1:
-                break
-            else:
-                token_ids.append(valid_value)
-                token_byte_positions.append(valid_pos)
-                pos = valid_pos
-
-        return token_ids, token_byte_positions
-
-    def _cleanup_tokens(self, token_ids, token_byte_positions):
-
-        # compute a joint tokenization
-        joint_token_ids = self.tokenizer.recode(token_ids)
-
-        # see if we need to redo the tokenization
-        redo = False
-        if len(joint_token_ids) != len(token_ids):
-            redo = True
-        else:
-            for i, id in enumerate(joint_token_ids):
-                if token_ids[i] != id:
-                    redo = True
-                    break
-
-        if redo:
-            token_ids = joint_token_ids
-            last_pos = token_byte_positions[-1]
-            token_byte_positions = []
-            pos = 0
-            for i, id in enumerate(joint_token_ids):
-                pos += len(self.tokenizer.tokens[id])
-                token_byte_positions.append(pos)
-
-            # ugly hack to deal with sentence piece craziness of space hiding after special tokens 
-            # TODO: figure out how to make this more robust
-            if (
-                token_byte_positions[-1] == last_pos + 1
-                and self.tokenizer.tokens[token_ids[0]] == b"<s>"
-                and self.tokenizer.tokens[token_ids[1]][0:1] == b" "
-            ):
-                for i in range(1, len(token_byte_positions)):
-                    token_byte_positions[i] -= 1
-            
-            # another ugly hack for tokenizers that are not stable on encode/decode cycles
-            # currently only Phi-3, should generalize this method if we see more of these
-            if token_byte_positions[-1] != last_pos:
-                if not hasattr(self, "_disable_retokenize_check"):
-                    msg = textwrap.dedent(
-                        """Self-consistency check in _cleanup_tokens() failed.
-                        
-                        This is not a fatal issue, but if there are subsequent
-                        generation problems, please include this warning in
-                        your bug report."""
-                    )
-                    warnings.warn(msg)
-
-        return token_ids, token_byte_positions
 
     def get_logits(self, token_ids, forced_bytes, current_temp):
         """A fake method designed to be overriden by subclasses."""
