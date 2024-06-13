@@ -14,7 +14,7 @@ class Tokenizer:
 
     def __init__(
         self,
-        tokens: Union[list, np.ndarray],
+        tokens: Union[Sequence[bytes], np.ndarray],
         chat_template: Union[str, ChatTemplate, None],
         bos_token_id: Union[int, None] = None,
         eos_token_id: Union[int, None] = None,
@@ -88,14 +88,29 @@ class Tokenizer:
     def encode(self, byte_string: bytes) -> Sequence[int]:
         """Returns a list of tokens that represent the given byte string."""
         raise NotImplementedError(
-            "You need to use a Tokenize subclass that overrides the bytes_to_tokens method"
+            "You need to use a Tokenize subclass that overrides the encode method"
         )
 
     def decode(self, tokens: Sequence[int]) -> bytes:
         """Returns the bytes represented by the given list of tokens."""
-        raise NotImplementedError(
-            "You need to use a Tokenize subclass that overrides the tokens_to_bytes method"
-        )
+        return b"".join([self.tokens[t] for t in tokens])
+
+    def recode(self, tokens: Sequence[int]) -> Sequence[int]:
+        """Redoes a tokenisation.
+
+        Encoding a string into tokens does not distribute over concatenation.
+        That is, in general, `encode(A)+encode(B) != encode(A+B)` (although it
+        it may in some cases).
+        An LLM will generate token-by-token, but it is possible (even likely) that
+        when the generation is considered as a whole, a better tokenisation may
+        be possible.
+        This method takes in a sequence of tokens, and returns an 'improved' sequence.
+        """
+
+        # This is the notional behaviour
+        # It may need to be overridden in particular cases because
+        # we are dealing with LLM ecosystems in the real world
+        return self.encode(self.decode(tokens))
 
     def clean_duplicate_tokens(self, probs):
         """This moves all the probability mass from duplicate positons on to their primary index."""
