@@ -231,10 +231,6 @@ class Engine:
         """
         mask, resp = self._parser.mid_process(self._backtrack, self._ff_tokens)
         r = json.loads(resp)
-        print(r)
-        progress: List[dict] = r["progress"]
-        for p in progress:
-            print(p)
         if r["stop"]:
             return None
         self._backtrack: int = r["backtrack"]
@@ -242,35 +238,59 @@ class Engine:
         if mask is not None:
             assert self._backtrack == 0
             assert len(self._ff_tokens) == 0
-            # TODO: drop forced_bytes and current_temp from get_logits
+            # TODO: drop forced_bytes and current_temp from get_logits signature
             logits = self.get_logits(self._tokens, forced_bytes=None, current_temp=None)
             logits += np.frombuffer(mask, dtype=np.uint8)
             tok = sample_with_temperature(logits, r["temperature"])
             self._tokens.append(tok)
             self._ff_tokens = [tok]
-            print("NEW TOKEN", tok)
-            return EngineCallResponse(
-                new_bytes=self.tokenizer.decode([tok]),
-                is_generated=True,
-                new_bytes_prob=1.0,
-                capture_groups={},
-                capture_group_log_probs={},
-                new_token_count=1,
-            )
         else:
             if self._backtrack:
-                print("BACKTRACKING", self._tokens[-self._backtrack:])
                 del self._tokens[-self._backtrack:]
-            print("FAST FORWARD", self._ff_tokens)
             self._tokens += self._ff_tokens
-            return EngineCallResponse(
-                new_bytes=b"PLACEHOLDER", # can we introspect the parser?
-                is_generated=False,
-                new_bytes_prob=1.0,
-                capture_groups={},
-                capture_group_log_probs={},
-                new_token_count=-999,
-            )
+
+        new_bytes = b""
+        new_token_count = 0
+        new_bytes_prob = 0.0
+        capture_groups = {}
+        capture_group_log_probs = {}
+        num_text_entries = 0
+
+        progress: List[dict] = r["progress"]
+        for j in progress:
+            tag = j.get("object", "")
+            if tag == "capture":
+                cname: str = j["name"]
+                data = bytes.fromhex(j["hex"])
+                if cname.startswith("__LIST_APPEND:"):
+                    cname = cname[14:]
+                    if cname not in capture_groups or \
+                        not isinstance(capture_groups[cname], list):
+                        capture_groups[cname] = []
+                        capture_group_log_probs[cname] = []
+                    capture_groups[cname].append(data)
+                    capture_group_log_probs[cname].append(j["log_prob"])
+                else:
+                    capture_groups[cname] = data
+                    capture_group_log_probs[cname] = j["log_prob"]
+            elif tag == "text":
+                # it actually should only happen once per round...
+                new_bytes += bytes.fromhex(j["hex"])
+                new_token_count += j["num_tokens"]
+                new_bytes_prob += j["log_prob"]
+                num_text_entries += 1
+        if num_text_entries > 0:
+            new_bytes_prob /= num_text_entries
+
+        return EngineCallResponse(
+            new_bytes=new_bytes,
+            # TODO: get this from parser (or keep track of whether we last sampled?)
+            is_generated=True,
+            new_bytes_prob=new_bytes_prob,
+            capture_groups=capture_groups,
+            capture_group_log_probs=capture_group_log_probs,
+            new_token_count=new_token_count,
+        )
 
     def __call__(self, parser, grammar, ensure_bos_token=True) -> Iterator[EngineCallResponse]:
         """Returns a new updated parser state executed through the grammar.
