@@ -168,9 +168,7 @@ class TransformersTokenizer(Tokenizer):
                 else:
                     used_tokens -= 1
 
-        new_ids = self._orig_tokenizer(first_decode, add_special_tokens=False)[
-            "input_ids"
-        ]
+        new_ids = self.encode(first_decode.encode("utf-8"))
         if used_tokens < len(tokens):
             new_ids += tokens[used_tokens:]
 
