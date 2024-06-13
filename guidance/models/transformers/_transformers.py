@@ -36,6 +36,14 @@ class TransformersTokenizer(Tokenizer):
     ):
         if transformers_tokenizer is None:
             transformers_tokenizer = self._tokenizer(model)
+        else:
+            is_ptt = isinstance(
+                transformers_tokenizer, transformers_package.PreTrainedTokenizer
+            )
+            is_ptt_fast = isinstance(
+                transformers_tokenizer, transformers_package.PreTrainedTokenizerFast
+            )
+            assert is_ptt or is_ptt_fast
 
         self._orig_tokenizer = transformers_tokenizer
         special_tokens_map = {
