@@ -207,8 +207,8 @@ class Engine:
         ):
             prompt = self.tokenizer.bos_token + prompt
 
-        # create a parser with a grammar that includes both our context and the passed grammar
-        serialized_grammar = (prompt + grammar).ll_serialize()
+        # create a parser with a grammar
+        serialized_grammar = grammar.ll_serialize()
         self._parser = llguidance.LLInterpreter(self.ll_tokenizer, json.dumps(serialized_grammar))
  
         # tokenize prompt and feed to parser to advance to the correct position
@@ -230,13 +230,13 @@ class Engine:
         logits : the logits obtained from the LLM after the last return from next(...)
         """
         mask, resp = self._parser.mid_process(self._backtrack, self._ff_tokens)
-        r = json.load(resp)
+        r = json.loads(resp)
         print(r)
         progress: List[dict] = r["progress"]
         for p in progress:
             print(p)
         if r["stop"]:
-            1/0
+            return None
         self._backtrack: int = r["backtrack"]
         self._ff_tokens: List[int] = r["ff_tokens"]
         if mask is not None:
@@ -248,12 +248,29 @@ class Engine:
             tok = sample_with_temperature(logits, r["temperature"])
             self._tokens.append(tok)
             self._ff_tokens = [tok]
+            print("NEW TOKEN", tok)
+            return EngineCallResponse(
+                new_bytes=self.tokenizer.decode([tok]),
+                is_generated=True,
+                new_bytes_prob=1.0,
+                capture_groups={},
+                capture_group_log_probs={},
+                new_token_count=1,
+            )
         else:
             if self._backtrack:
+                print("BACKTRACKING", self._tokens[-self._backtrack:])
                 del self._tokens[-self._backtrack:]
+            print("FAST FORWARD", self._ff_tokens)
             self._tokens += self._ff_tokens
-
-        return is_done, logits_state, response_state
+            return EngineCallResponse(
+                new_bytes=b"PLACEHOLDER", # can we introspect the parser?
+                is_generated=False,
+                new_bytes_prob=1.0,
+                capture_groups={},
+                capture_group_log_probs={},
+                new_token_count=-999,
+            )
 
     def __call__(self, parser, grammar, ensure_bos_token=True):
         """Returns a new updated parser state executed through the grammar.
@@ -269,39 +286,13 @@ class Engine:
         grammar: Grammar
             This is the grammar we are extending the parser with.
         """
-
         self.start(parser, grammar, ensure_bos_token)
 
-        logits = None
         while True:
-            is_done, logits_state, response_state = self.next(logits)
-            logits = None
-
-            if response_state is not None:
-                (
-                    response_new_bytes,
-                    response_is_generated,
-                    response_new_bytes_prob,
-                    response_capture_groups,
-                    response_capture_group_log_probs,
-                    response_new_token_count,
-                ) = response_state
-
-                yield EngineCallResponse(
-                    new_bytes=response_new_bytes,
-                    is_generated=response_is_generated,
-                    new_bytes_prob=response_new_bytes_prob,
-                    capture_groups=response_capture_groups,
-                    capture_group_log_probs=response_capture_group_log_probs,
-                    new_token_count=response_new_token_count,
-                )
-
-            if logits_state is not None:
-                token_ids, forced_bytes, current_temp = logits_state
-                logits = self.get_logits(token_ids, forced_bytes, current_temp)
-
-            if is_done:
+            response = self.next()
+            if response is None:
                 break
+            yield response
 
     def _tokenize_prefix(self, byte_string):
         """This is used to speed up the tokenization of long prompts without using the parser."""
