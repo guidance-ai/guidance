@@ -28,7 +28,7 @@ class TransformersTokenizer(Tokenizer):
         model,
         transformers_tokenizer: Union[
             "transformers_package.PreTrainedTokenizer",
-            "transformers_package.PreTrainedTOkenizerFast",
+            "transformers_package.PreTrainedTokenizerFast",
             None,
         ],
         chat_template=None,
