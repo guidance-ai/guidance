@@ -11,7 +11,7 @@ import warnings
 import json
 
 from pprint import pprint
-from typing import List, Dict, TYPE_CHECKING
+from typing import Dict, Iterator, List, TYPE_CHECKING
 
 
 import numpy as np
@@ -220,7 +220,7 @@ class Engine:
         self._ff_tokens = []
 
 
-    def next(self):
+    def next(self) -> EngineCallResponse:
         """Move the grammar state machine processing forward to the next point where
             either get_logits is required to be called or we have a partial response
             to stream back.
@@ -272,7 +272,7 @@ class Engine:
                 new_token_count=-999,
             )
 
-    def __call__(self, parser, grammar, ensure_bos_token=True):
+    def __call__(self, parser, grammar, ensure_bos_token=True) -> Iterator[EngineCallResponse]:
         """Returns a new updated parser state executed through the grammar.
 
         Parameters
