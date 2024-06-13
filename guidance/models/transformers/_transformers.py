@@ -147,7 +147,7 @@ class TransformersTokenizer(Tokenizer):
 
     def _tokenizer(self, model, **kwargs) -> Union[
         "transformers_package.PreTrainedTokenizer",
-        "transformers_package.PreTrainedTOkenizerFast",
+        "transformers_package.PreTrainedTokenizerFast",
     ]:
         # intantiate the tokenizer
         if isinstance(model, str):
