@@ -290,8 +290,8 @@ class GrammarFunction(Function):
 
         return values[0]  # the first element in the root node of the grammar
 
-    def ag2_serialize(self):
-        return {"grammars": Ag2Serializer(self).run()}
+    def ll_serialize(self):
+        return {"grammars": LLSerializer(self).run()}
 
 
 class Terminal(GrammarFunction):
@@ -1167,7 +1167,7 @@ def _is_string_literal(node: GrammarFunction):
     return False
 
 
-class Ag2Serializer:
+class LLSerializer:
     def __init__(self, node: GrammarFunction) -> None:
         # avoid top-level node being a String
         if _is_string_literal(node):
