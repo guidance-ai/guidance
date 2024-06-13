@@ -167,8 +167,8 @@ class TransformersTokenizer(Tokenizer):
 
     def encode(self, byte_string: bytes) -> Sequence[int]:
         assert isinstance(byte_string, bytes)
-        tokenisation = self._orig_tokenizer(byte_string)
-        return tokenisation["input_ids"]
+        tokenization = self._orig_tokenizer(byte_string)
+        return tokenization["input_ids"]
 
     def decode(self, tokens: Sequence[int]) -> bytes:
         decoded_str = self._orig_tokenizer.decode(tokens)
