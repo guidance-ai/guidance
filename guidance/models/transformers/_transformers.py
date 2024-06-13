@@ -147,14 +147,16 @@ class TransformersTokenizer(Tokenizer):
     def encode(self, byte_string: bytes) -> Sequence[int]:
         assert isinstance(byte_string, bytes)
         # HF tokenisers take in strings apparently
-        tokenisation = self._orig_tokenizer(byte_string.decode())
+        tokenisation = self._orig_tokenizer(
+            byte_string.decode(), add_special_tokens=False
+        )
         return tokenisation["input_ids"]
 
     def decode(self, tokens: Sequence[int]) -> bytes:
         decoded_str = self._orig_tokenizer.decode(tokens)
         return decoded_str.encode()
-    
-    def recode( self, tokens: Sequence[int]) -> Sequence[int]:
+
+    def recode(self, tokens: Sequence[int]) -> Sequence[int]:
         # the encode/decode cycle might not work if we have partial unicode strings
         used_tokens = len(tokens)
         for _ in range(3):
@@ -166,9 +168,9 @@ class TransformersTokenizer(Tokenizer):
                 else:
                     used_tokens -= 1
 
-        new_ids = self._orig_tokenizer(
-            first_decode, add_special_tokens=False
-        )["input_ids"]
+        new_ids = self._orig_tokenizer(first_decode, add_special_tokens=False)[
+            "input_ids"
+        ]
         if used_tokens < len(tokens):
             new_ids += tokens[used_tokens:]
 
@@ -234,7 +236,6 @@ class TransformersEngine(Engine):
                 )
             model = transformers.AutoModelForCausalLM.from_pretrained(model, **kwargs)
         return model
-
 
     def get_logits(self, token_ids, forced_bytes, current_temp):
         """Computes the logits for the given token state.
