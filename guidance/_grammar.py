@@ -793,28 +793,6 @@ class Gen(Terminal):
         return s
 
 
-class GenGrammar(Gen):
-    __slots__ = (
-        "grammar",
-        "no_initial_skip",
-    )
-
-    def __init__(
-        self,
-        grammar: "NestedGrammar",
-        stop_regex: Optional[str] = None,
-        no_initial_skip: bool = False,
-        name: Union[str, None] = None,
-        max_tokens=100000000,
-    ) -> None:
-        super().__init__("", stop_regex, name, max_tokens)
-        self.grammar = grammar
-        self.no_initial_skip = no_initial_skip
-
-    def __repr__(self, indent="", done=None):
-        return super().__repr__(indent, done, "Grm " + self.grammar.name)
-
-
 class GenLexeme(Gen):
     __slots__ = ("contextual",)
 
@@ -832,34 +810,32 @@ class GenLexeme(Gen):
         return super().__repr__(indent, done, "Lex")
 
 
-class NestedGrammar(GrammarFunction):
+class NestedGrammar(Gen):
     __slots__ = (
-        "nullable",
         "body",
-        "name",
-        "hidden",
-        "commit_point",
-        "capture_name",
-        "max_tokens",
-        "recursive",
         "greedy_lexer",
         "greedy_skip_regex",
+        "no_initial_skip",
     )
-
     def __init__(
         self,
         body: GrammarFunction,
         greedy_lexer: bool = True,
         greedy_skip_regex: Optional[str] = None,
+        no_initial_skip: bool = False,
+        name: Union[str, None] = None,
+        max_tokens=100000000,
     ) -> None:
+        super().__init__(
+            body_regex="",
+            stop_regex="",
+            name=name,
+            max_tokens=max_tokens,
+        )
         self.body = body
         self.greedy_lexer = greedy_lexer
         self.greedy_skip_regex = greedy_skip_regex
-        self.name = GrammarFunction._new_name()
-        self.hidden = False
-        self.commit_point = False
-        self.capture_name = None
-        self.max_tokens = 1000000000
+        self.no_initial_skip = no_initial_skip
 
     def __repr__(self) -> str:
         return self.name.ljust(20) + " <- " + self.body.name
@@ -1237,17 +1213,15 @@ class LLSerializer:
                     "contextual": node.contextual,
                 }
             }
-        elif isinstance(node, GenGrammar):
+        elif isinstance(node, NestedGrammar):
             obj = {
                 "GenGrammar": {
-                    "grammar": self.grammar(node.grammar),
+                    "grammar": self.grammar(node),
                     "stop_rx": node.stop_regex,
                     "no_initial_skip": node.no_initial_skip,
                     "temperature": node.temperature if node.temperature >= 0 else None,
                 }
             }
-        elif isinstance(node, NestedGrammar):
-            raise ValueError("NestedGrammar accessed without GenGrammar")
         elif isinstance(node, Gen):
             if self.curr_grammar["greedy_lexer"]:
                 raise ValueError("Gen can only be used in lazy lexer grammars")
