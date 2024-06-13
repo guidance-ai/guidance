@@ -2,7 +2,7 @@ import os
 import re
 import textwrap
 
-from typing import Sequence, Union, TypeAlias, TypeVar
+from typing import Sequence, Union
 
 try:
     import torch
