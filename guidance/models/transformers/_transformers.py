@@ -37,9 +37,7 @@ class TransformersTokenizer(Tokenizer):
         if transformers_tokenizer is None:
             transformers_tokenizer = self._tokenizer(model)
         else:
-            is_ptt = isinstance(
-                transformers_tokenizer, transformers_package.PreTrainedTokenizer
-            )
+            is_ptt = isinstance(transformers_tokenizer, transformers_package.PreTrainedTokenizer)
             is_ptt_fast = isinstance(
                 transformers_tokenizer, transformers_package.PreTrainedTokenizerFast
             )
@@ -57,10 +55,7 @@ class TransformersTokenizer(Tokenizer):
 
             for i in range(len(transformers_tokenizer)):
                 byte_coded = bytes(
-                    [
-                        byte_decoder[c]
-                        for c in transformers_tokenizer.convert_ids_to_tokens(i)
-                    ]
+                    [byte_decoder[c] for c in transformers_tokenizer.convert_ids_to_tokens(i)]
                 )
                 byte_tokens[i] = byte_coded
 
@@ -103,14 +98,10 @@ class TransformersTokenizer(Tokenizer):
                 # if it's at the start of the reconstructed bytes
                 # Some tokenizers add this automatically as part of the call function, so
                 # we need to remove it to compare
-                if hasattr(
-                    transformers_tokenizer, "bos_token"
-                ) and reconstructed.startswith(
+                if hasattr(transformers_tokenizer, "bos_token") and reconstructed.startswith(
                     transformers_tokenizer.bos_token.encode()
                 ):
-                    reconstructed = reconstructed[
-                        len(transformers_tokenizer.bos_token) :
-                    ]
+                    reconstructed = reconstructed[len(transformers_tokenizer.bos_token) :]
             except Exception as e:
                 msg = textwrap.dedent(
                     f"""
@@ -126,10 +117,7 @@ class TransformersTokenizer(Tokenizer):
 
             for i in range(len(transformers_tokenizer)):
                 byte_coded = bytes(
-                    [
-                        byte_decoder[c]
-                        for c in transformers_tokenizer.convert_ids_to_tokens(i)
-                    ]
+                    [byte_decoder[c] for c in transformers_tokenizer.convert_ids_to_tokens(i)]
                 )
                 byte_tokens[i] = byte_coded
 
@@ -153,9 +141,7 @@ class TransformersTokenizer(Tokenizer):
         if isinstance(model, str):
             # make sure transformers is installed
             if not has_transformers:
-                raise Exception(
-                    "Please install transformers with `pip install transformers`"
-                )
+                raise Exception("Please install transformers with `pip install transformers`")
 
             try:
                 tokenizer = transformers_package.AutoTokenizer.from_pretrained(
@@ -167,10 +153,7 @@ class TransformersTokenizer(Tokenizer):
                     for x in tokenizer.get_vocab().keys():
                         for y in x:
                             all_bytes.add(y)
-                    assert (
-                        set(tokenizer.byte_decoder.keys()).intersection(all_bytes)
-                        == all_bytes
-                    )
+                    assert set(tokenizer.byte_decoder.keys()).intersection(all_bytes) == all_bytes
             except:
                 tokenizer = transformers_package.AutoTokenizer.from_pretrained(
                     model, use_fast=True, **kwargs
@@ -203,9 +186,7 @@ class TransformersTokenizer(Tokenizer):
                 else:
                     used_tokens -= 1
 
-        new_ids = self._orig_tokenizer(first_decode, add_special_tokens=False)[
-            "input_ids"
-        ]
+        new_ids = self._orig_tokenizer(first_decode, add_special_tokens=False)["input_ids"]
         if used_tokens < len(tokens):
             new_ids += tokens[used_tokens:]
 
@@ -223,9 +204,7 @@ class TransformersTokenizer(Tokenizer):
 
 
 class TransformersEngine(Engine):
-    def __init__(
-        self, model, tokenizer, compute_log_probs: bool, chat_template=None, **kwargs
-    ):
+    def __init__(self, model, tokenizer, compute_log_probs: bool, chat_template=None, **kwargs):
         # fill in default model value
         if model is None:
             model = os.environ.get("TRANSFORMERS_MODEL", None)
@@ -267,9 +246,7 @@ class TransformersEngine(Engine):
                 raise Exception(
                     "Please install transformers with `pip install transformers` in order to use guidance.models.Transformers!"
                 )
-            model = transformers_package.AutoModelForCausalLM.from_pretrained(
-                model, **kwargs
-            )
+            model = transformers_package.AutoModelForCausalLM.from_pretrained(model, **kwargs)
         return model
 
     def get_logits(self, token_ids, forced_bytes, current_temp):
@@ -280,9 +257,7 @@ class TransformersEngine(Engine):
         """
 
         # make sure we don't run off the end of the model
-        if len(token_ids) >= getattr(
-            self.model_obj.config, "max_position_embeddings", 1e10
-        ):
+        if len(token_ids) >= getattr(self.model_obj.config, "max_position_embeddings", 1e10):
             raise Exception(
                 f"Attempted to run a transformers model past its maximum context window size of {self.model_obj.config.max_position_embeddings}!"
             )
@@ -301,9 +276,7 @@ class TransformersEngine(Engine):
 
         # reset the cache length according to that number of positions
         past_key_values = self._past_key_values
-        past_length = (
-            past_key_values[0][0].size(-2) if past_key_values is not None else 0
-        )
+        past_length = past_key_values[0][0].size(-2) if past_key_values is not None else 0
         if past_length > num_cached:
             # note we recompute the last token because we don't bother to handle the special case of just computing logits
             past_length = max(0, num_cached - 1)
@@ -320,14 +293,10 @@ class TransformersEngine(Engine):
                     input_ids=torch.tensor(new_token_ids).unsqueeze(0).to(self.device),
                     past_key_values=self._past_key_values,
                     use_cache=True,
-                    position_ids=torch.arange(
-                        past_length, past_length + len(new_token_ids)
-                    )
+                    position_ids=torch.arange(past_length, past_length + len(new_token_ids))
                     .unsqueeze(0)
                     .to(self.device),
-                    attention_mask=torch.ones(1, past_length + len(new_token_ids)).to(
-                        self.device
-                    ),
+                    attention_mask=torch.ones(1, past_length + len(new_token_ids)).to(self.device),
                     return_dict=True,
                     output_attentions=False,
                     output_hidden_states=False,
