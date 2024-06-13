@@ -97,7 +97,7 @@ class TransformersTokenizer(Tokenizer):
                 for i in transformers_tokenizer(s)["input_ids"]:
                     nxt_bytes = []
                     for c in transformers_tokenizer.convert_ids_to_tokens(i):
-                        nxt_bytes += byte_decoder[c]
+                        nxt_bytes.append(byte_decoder[c])
                     reconstructed += bytes(nxt_bytes)
                 # Check if the tokenizer has a bos_token attribute, and if it does, check
                 # if it's at the start of the reconstructed bytes
