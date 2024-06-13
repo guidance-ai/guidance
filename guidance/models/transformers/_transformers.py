@@ -216,7 +216,7 @@ class TransformersTokenizer(Tokenizer):
 
 class TransformersEngine(Engine):
     def __init__(
-        self, model, tokenizer, compute_log_probs, chat_template=None, **kwargs
+        self, model, tokenizer, compute_log_probs: bool, chat_template=None, **kwargs
     ):
         # fill in default model value
         if model is None:
