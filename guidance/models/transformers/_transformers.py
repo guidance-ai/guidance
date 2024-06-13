@@ -2,7 +2,7 @@ import os
 import re
 import textwrap
 
-from typing import Sequence, Union
+from typing import Sequence, Union, TypeAlias, TypeVar
 
 try:
     import torch
@@ -27,8 +27,8 @@ class TransformersTokenizer(Tokenizer):
         self,
         model,
         transformers_tokenizer: Union[
-            transformers_package.PreTrainedTokenizer,
-            transformers_package.PreTrainedTokenizerFast,
+            "transformers_package.PreTrainedTokenizer",
+            "transformers_package.PreTrainedTOkenizerFast",
             None,
         ],
         chat_template=None,
@@ -146,8 +146,8 @@ class TransformersTokenizer(Tokenizer):
         )
 
     def _tokenizer(self, model, **kwargs) -> Union[
-        transformers_package.PreTrainedTokenizer,
-        transformers_package.PreTrainedTokenizerFast,
+        "transformers_package.PreTrainedTokenizer",
+        "transformers_package.PreTrainedTOkenizerFast",
     ]:
         # intantiate the tokenizer
         if isinstance(model, str):
@@ -244,7 +244,7 @@ class TransformersEngine(Engine):
 
         self._past_key_values = None
         self._cached_logits = None
-        self._cached_token_ids = []
+        self._cached_token_ids: list[int] = []
 
         # Set attr for malformed tokenizer hack.
         # If more models start doing this, generalize into a util function.
@@ -263,13 +263,13 @@ class TransformersEngine(Engine):
         if isinstance(model, str):
 
             # make sure transformers is installed
-            try:
-                import transformers
-            except:
+            if not has_transformers:
                 raise Exception(
                     "Please install transformers with `pip install transformers` in order to use guidance.models.Transformers!"
                 )
-            model = transformers.AutoModelForCausalLM.from_pretrained(model, **kwargs)
+            model = transformers_package.AutoModelForCausalLM.from_pretrained(
+                model, **kwargs
+            )
         return model
 
     def get_logits(self, token_ids, forced_bytes, current_temp):
