@@ -146,11 +146,11 @@ class TransformersTokenizer(Tokenizer):
 
     def encode(self, byte_string: bytes) -> Sequence[int]:
         assert isinstance(byte_string, bytes)
-        # HF tokenisers take in strings apparently
-        tokenisation = self._orig_tokenizer(
+        # HF tokenizers take in strings apparently
+        tokenization = self._orig_tokenizer(
             byte_string.decode(), add_special_tokens=False
         )
-        return tokenisation["input_ids"]
+        return tokenization["input_ids"]
 
     def decode(self, tokens: Sequence[int]) -> bytes:
         decoded_str = self._orig_tokenizer.decode(tokens)
