@@ -216,51 +216,13 @@ class Engine:
             return None
         
         if self._parser.can_consume_token:
-            logits = self.get_logits(self._parser.tokens, None, None)
+            logits = self.get_logits(self._parser._tokens, None, None)
             logits += self._parser.next_token_mask()
             tok = sample_with_temperature(logits, self._parser.next_token_temperature)
             self._parser.consume_token(tok)
 
-        new_bytes = b""
-        new_token_count = 0
-        new_bytes_prob = 0.0
-        capture_groups = {}
-        capture_group_log_probs = {}
-        num_text_entries = 0
-
-        for j in self._parser.progress:
-            tag = j.get("object", "")
-            if tag == "capture":
-                cname: str = j["name"]
-                data = bytes.fromhex(j["hex"])
-                if cname.startswith("__LIST_APPEND:"):
-                    cname = cname[14:]
-                    if cname not in capture_groups or \
-                        not isinstance(capture_groups[cname], list):
-                        capture_groups[cname] = []
-                        capture_group_log_probs[cname] = []
-                    capture_groups[cname].append(data)
-                    capture_group_log_probs[cname].append(j["log_prob"])
-                else:
-                    capture_groups[cname] = data
-                    capture_group_log_probs[cname] = j["log_prob"]
-            elif tag == "text":
-                # it actually should only happen once per round...
-                new_bytes += bytes.fromhex(j["hex"])
-                new_token_count += j["num_tokens"]
-                new_bytes_prob += j["log_prob"]
-                num_text_entries += 1
-        if num_text_entries > 0:
-            new_bytes_prob /= num_text_entries
-
         return EngineCallResponse(
-            new_bytes=new_bytes,
-            # TODO: get this from parser (or keep track of whether we last sampled?)
-            is_generated=True,
-            new_bytes_prob=new_bytes_prob,
-            capture_groups=capture_groups,
-            capture_group_log_probs=capture_group_log_probs,
-            new_token_count=new_token_count,
+            **self._parser.progress
         )
 
     def __call__(self, parser, grammar, ensure_bos_token=True) -> Iterator[EngineCallResponse]:

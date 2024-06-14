@@ -4,6 +4,7 @@ import base64
 import json
 import urllib.parse
 from ._model import Engine, Model, EngineCallResponse
+from .._parser import LLParser
 from ..chat import Phi3ChatTemplate
 from ._byte_tokenizer import ByteTokenizer
 
@@ -76,44 +77,16 @@ class AzureGuidanceEngine(Engine):
                 if "forks" not in d:
                     continue
                 for ch in d["forks"]:
-                    capture_groups = {}
-                    capture_group_log_probs = {}
-
                     if "Previous WASM Error" in ch["logs"]:
                         raise RuntimeError("Previous WASM Error.")
                     idx = ch["index"]
                     assert idx == 0, "unexpected index in response from server"
-                    new_bytes = b""
-                    new_token_count = 0
-                    new_bytes_prob = 0.0
-                    num_text_entries = 0
+                    progress = []
                     for ln in ch["logs"].split("\n"):
                         ln: str
                         if ln.startswith("JSON-OUT: "):
                             j = json.loads(ln[10:])
-                            tag = j.get("object", "")
-                            if tag == "capture":
-                                cname: str = j["name"]
-                                data = bytes.fromhex(j["hex"])
-                                if cname.startswith("__LIST_APPEND:"):
-                                    cname = cname[14:]
-                                    if cname not in capture_groups or \
-                                        not isinstance(capture_groups[cname], list):
-                                        capture_groups[cname] = []
-                                        capture_group_log_probs[cname] = []
-                                    capture_groups[cname].append(data)
-                                    capture_group_log_probs[cname].append(j["log_prob"])
-                                else:
-                                    capture_groups[cname] = data
-                                    capture_group_log_probs[cname] = j["log_prob"]
-                            elif tag == "text":
-                                # it actually should only happen once per round...
-                                new_bytes += bytes.fromhex(j["hex"])
-                                new_token_count += j["num_tokens"]
-                                new_bytes_prob += j["log_prob"]
-                                num_text_entries += 1
-                    if num_text_entries > 0:
-                        new_bytes_prob /= num_text_entries
+                            progress.append(j)
 
                     print(ch["logs"].rstrip("\n"), flush=True)
 
@@ -121,15 +94,8 @@ class AzureGuidanceEngine(Engine):
                     if err:
                         raise RuntimeError(f"Error returned by grammar server {err}.")
 
-                    is_generated = True  # TODO: get this from the server
-
                     response_data = EngineCallResponse(
-                        new_bytes,
-                        is_generated,
-                        new_bytes_prob,
-                        capture_groups,
-                        capture_group_log_probs,
-                        new_token_count,
+                        **LLParser._handle_progress(progress)
                     )
                     yield response_data
             elif decoded_line == "data: [DONE]":
