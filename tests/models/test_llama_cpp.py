@@ -160,6 +160,7 @@ class TestLlamaCppTokenizers:
         " two words ",
         "two words ",
         "’",
+        "’•¶∂ƒ˙∆£Ħ爨ൠᅘ∰፨",
     ]
 
     @pytest.mark.parametrize("target_string", ROUND_TRIP_STRINGS)
