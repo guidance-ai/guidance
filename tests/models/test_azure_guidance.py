@@ -580,11 +580,21 @@ def test_azure_guidance_string(azure_guidance_model: guidance.models.Model):
     assert bool(re.fullmatch(r'(ab)*', s)) or bool(re.fullmatch(r'(ab)*', s[:-1]))
 
 
-# def test_azure_guidance_stop_token_name(azure_guidance_model: guidance.models.Model):
-#     lm = azure_guidance_model
-#     lm += "Name: " + gen('name', regex="E[a-z]+", stop_regex=["[a-b]", "[x-z]"], save_stop_text="saved_name_stop")
-#     assert lm["saved_name_stop"] in ["a", "b", "x", "y", "z"]
-#     assert lm["name"].startswith("E")
+def test_azure_guidance_stop_token_name(azure_guidance_model: guidance.models.Model):
+    lm = azure_guidance_model
+    lm += "Name: " + gen('name', regex="E[a-z]+", stop_regex=["[a-b]", "[x-z]"], save_stop_text="saved_name_stop")
+    assert lm["saved_name_stop"] in ["a", "b", "x", "y", "z"]
+    assert lm["name"].startswith("E")
+
+def test_azure_guidance_stop_token_name2(azure_guidance_model: guidance.models.Model):
+    lm = azure_guidance_model
+    # repeat the token to get duplicated lexeme
+    lm += "Name: " + gen('name', regex="E[a-z]+", stop_regex=["[a-b]", "[x-z]"], save_stop_text="saved_name_stop") + \
+    "\nName: " + gen('name2', regex="E[a-z]+", stop_regex=["[a-b]", "[x-z]"], save_stop_text=True)
+    assert lm["saved_name_stop"] in ["a", "b", "x", "y", "z"]
+    assert lm["name"].startswith("E")
+    assert lm["name2_stop_text"] in ["a", "b", "x", "y", "z"]
+    assert lm["name2"].startswith("E")
 
 def test_azure_guidance_max_tokens(azure_guidance_model: guidance.models.Model):
     lm = azure_guidance_model

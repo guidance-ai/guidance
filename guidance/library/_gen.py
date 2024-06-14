@@ -155,7 +155,11 @@ def gen(
     if gen_mode:
         if regex is None:
             regex = ""
-        pattern = Gen(body_regex=regex, stop_regex=gen_stop)
+        if save_stop_text is True:
+            save_stop_text = str(name) + "_stop_text"
+        if not isinstance(save_stop_text, str):
+            save_stop_text = None
+        pattern = Gen(body_regex=regex, stop_regex=gen_stop, save_stop_text=save_stop_text)
         # Gen is Terminal, so token_limit() doesn't work on it
         pattern._max_tokens = max_tokens
     else:

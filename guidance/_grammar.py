@@ -741,6 +741,7 @@ class Gen(Terminal):
         "nullable",
         "body_regex",
         "stop_regex",
+        "save_stop_text",
         "name",
         "hidden",
         "commit_point",
@@ -753,6 +754,7 @@ class Gen(Terminal):
         body_regex: str,
         stop_regex: str,
         name: Union[str, None] = None,
+        save_stop_text: Optional[str] = None,
         max_tokens=100000000,
     ) -> None:
         self.nullable = False
@@ -762,6 +764,7 @@ class Gen(Terminal):
         self.hidden = False
         self.commit_point = True
         self.capture_name = None
+        self.save_stop_text = save_stop_text
         self._max_tokens = max_tokens
         self.temperature = -1
 
@@ -1229,6 +1232,7 @@ class LLSerializer:
                 "Gen": {
                     "body_rx": node.body_regex,
                     "stop_rx": node.stop_regex,
+                    "stop_capture_name": node.save_stop_text,
                     "temperature": node.temperature if node.temperature >= 0 else None,
                 }
             }
