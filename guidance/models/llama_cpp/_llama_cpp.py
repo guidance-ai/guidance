@@ -58,6 +58,11 @@ class LlamaCppTokenizer(Tokenizer):
     def __init__(self, model_obj, chat_template=None):
         self._model_obj = model_obj
 
+        self._sentinel_bytes = "\x02".encode()
+        self._sentinel_tokens = self._model_obj.tokenize(
+            self._sentinel_bytes, add_bos=False, special=True
+        )
+
         tokenizer = llama_cpp.LlamaTokenizer(model_obj)
         if not hasattr(tokenizer, "llama"):
             tokenizer.llama = tokenizer._model
@@ -67,12 +72,17 @@ class LlamaCppTokenizer(Tokenizer):
         for i in range(tokenizer.llama.n_vocab()):
             tok = tokenizer.llama.detokenize([i])  # note that detokenize returns bytes directly
             if tok == b"":
-                tok = llama_cpp.llama_token_get_text(model_obj.model, i)  # get text rep of special tokens
+                tok = llama_cpp.llama_token_get_text(
+                    model_obj.model, i
+                )  # get text rep of special tokens
             tokens.append(tok)
 
         # Chat Template logic
         if chat_template is None:
-            if hasattr(self._model_obj, "metadata") and "tokenizer.chat_template" in self._model_obj.metadata:
+            if (
+                hasattr(self._model_obj, "metadata")
+                and "tokenizer.chat_template" in self._model_obj.metadata
+            ):
                 chat_template = self._model_obj.metadata["tokenizer.chat_template"]
 
         super().__init__(
@@ -80,7 +90,11 @@ class LlamaCppTokenizer(Tokenizer):
         )
 
     def encode(self, byte_string: bytes) -> Sequence[int]:
-        return self._model_obj.tokenize(byte_string, add_bos=False, special=True)
+        raw_tokens = self._model_obj.tokenize(
+            self._sentinel_bytes + byte_string, add_bos=False, special=True
+        )
+        assert raw_tokens[: len(self._sentinel_tokens)] == self._sentinel_tokens
+        return raw_tokens[len(self._sentinel_tokens) :]
 
 
 class LlamaCppEngine(Engine):
@@ -119,9 +133,7 @@ class LlamaCppEngine(Engine):
                 logger.warn(
                     "Cannot use verbose=True in this context (probably CoLab). See https://github.com/abetlen/llama-cpp-python/issues/729"
                 )
-                kwargs["verbose"] = (
-                    True  # llama-cpp-python can't hide output in this case
-                )
+                kwargs["verbose"] = True  # llama-cpp-python can't hide output in this case
 
             with normalize_notebook_stdout_stderr():
                 self.model_obj = llama_cpp.Llama(model_path=model, logits_all=True, **kwargs)
@@ -129,21 +141,17 @@ class LlamaCppEngine(Engine):
             self.model = model.__class__.__name__
             self.model_obj = model
         else:
-            raise TypeError(
-                "model must be None, a file path string, or a llama_cpp.Llama object."
-            )
+            raise TypeError("model must be None, a file path string, or a llama_cpp.Llama object.")
 
-        self._context = _LlamaBatchContext(
-            self.model_obj.n_batch, self.model_obj.n_ctx()
-        )
+        self._context = _LlamaBatchContext(self.model_obj.n_batch, self.model_obj.n_ctx())
         self._cache_token_ids = []
 
         super().__init__(
-            LlamaCppTokenizer(self.model_obj, chat_template=chat_template), compute_log_probs=compute_log_probs
+            LlamaCppTokenizer(self.model_obj, chat_template=chat_template),
+            compute_log_probs=compute_log_probs,
         )
 
         self._n_vocab = len(self.tokenizer.tokens)
-
 
     def get_logits(self, token_ids, forced_bytes, current_temp):
         """Computes the logits for the given token state.
@@ -157,9 +165,7 @@ class LlamaCppEngine(Engine):
 
         # check what we have already cached
         cache_token_ids = self._cache_token_ids
-        num_cached = sum(
-            takewhile(operator.truth, map(operator.eq, token_ids, cache_token_ids))
-        )
+        num_cached = sum(takewhile(operator.truth, map(operator.eq, token_ids, cache_token_ids)))
         if num_cached == len(token_ids):
             if num_cached == len(cache_token_ids):
                 return self._cached_logits
@@ -228,7 +234,10 @@ class LlamaCpp(Model):
             engine = RemoteEngine(model, api_key=api_key, **llama_cpp_kwargs)
         else:
             engine = LlamaCppEngine(
-                model, compute_log_probs=compute_log_probs, chat_template=chat_template, **llama_cpp_kwargs
+                model,
+                compute_log_probs=compute_log_probs,
+                chat_template=chat_template,
+                **llama_cpp_kwargs,
             )
 
         super().__init__(engine, echo=echo)
