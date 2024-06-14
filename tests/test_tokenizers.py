@@ -57,6 +57,10 @@ class TestLlamaCppTokenizers:
             gguf="microsoft/Phi-3-mini-4k-instruct-gguf:Phi-3-mini-4k-instruct-q4.gguf",
             kwargs={"verbose": True, "n_ctx": 4096},
         ),
+        dict(
+            gguf="TheBloke/Mistral-7B-Instruct-v0.2-GGUF:mistral-7b-instruct-v0.2.Q8_0.gguf",
+            kwargs={"verbose": True},
+        ),
     ]
 
     def get_tokenizer(self, model_info: dict[str, Any]):
