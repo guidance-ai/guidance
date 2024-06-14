@@ -6,6 +6,9 @@ from typing import Any
 from guidance import models
 
 
+ROUND_TRIP_STRINGS = ["", " ", "hello", " hello", "’"]
+
+
 class TestTransformerTokenizers:
     TRANSFORMER_MODELS = [
         "gpt2",
@@ -23,7 +26,7 @@ class TestTransformerTokenizers:
         assert my_tok is not None
 
     @pytest.mark.parametrize("model_name", TRANSFORMER_MODELS)
-    @pytest.mark.parametrize("target_string", ["hello", "’"])
+    @pytest.mark.parametrize("target_string", ROUND_TRIP_STRINGS)
     def test_string_roundtrip(self, model_name: str, target_string: str):
         my_tok = models.TransformersTokenizer(model=model_name, transformers_tokenizer=None)
 
@@ -61,7 +64,7 @@ class TestLlamaCppTokenizers:
         assert my_tok is not None
 
     @pytest.mark.parametrize("model_info", LLAMACPP_MODELS)
-    @pytest.mark.parametrize("target_string", ["hello", "’"])
+    @pytest.mark.parametrize("target_string", ROUND_TRIP_STRINGS)
     def test_string_roundtrip(self, model_info: dict[str, Any], target_string: str):
         my_tok = my_tok = self.get_tokenizer(model_info)
 
