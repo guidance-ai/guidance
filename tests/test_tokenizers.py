@@ -6,7 +6,17 @@ from typing import Any
 from guidance import models
 
 
-ROUND_TRIP_STRINGS = ["", " ", "hello", " hello", "’"]
+ROUND_TRIP_STRINGS = [
+    "",
+    " ",
+    "hello",
+    " hello",
+    "two words",
+    " two words",
+    " two words ",
+    "two words ",
+    "’",
+]
 
 
 class TestTransformerTokenizers:
@@ -50,8 +60,6 @@ class TestLlamaCppTokenizers:
     ]
 
     def get_tokenizer(self, model_info: dict[str, Any]):
-        import llama_cpp
-
         repo_id, gguf_file = model_info["gguf"].split(":")
         downloaded_file = hf_hub_download(repo_id=repo_id, filename=gguf_file)
         lm = models.LlamaCpp(model=downloaded_file, **model_info["kwargs"])
