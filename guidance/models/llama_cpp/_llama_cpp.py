@@ -79,7 +79,7 @@ class LlamaCppTokenizer(Tokenizer):
             tokens, chat_template, tokenizer.llama.token_bos(), tokenizer.llama.token_eos()
         )
 
-    def encode(self, byte_string: bytes) -> list[int]:
+    def encode(self, byte_string: bytes) -> Sequence[int]:
         return self._model_obj.tokenize(byte_string, add_bos=False, special=True)
 
 

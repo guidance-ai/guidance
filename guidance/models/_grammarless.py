@@ -122,7 +122,7 @@ class GrammarlessTokenizer(Tokenizer):
 
         super().__init__(byte_tokens, chat_template, bos_token_id, eos_token_id)
 
-    def encode(self, byte_string: bytes) -> list[int]:
+    def encode(self, byte_string: bytes) -> Sequence[int]:
         """Returns a list of tokens that represent the given byte string."""
         assert isinstance(byte_string, bytes)
         return self._orig_tokenizer.encode(byte_string.decode())

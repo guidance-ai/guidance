@@ -165,7 +165,7 @@ class TransformersTokenizer(Tokenizer):
 
         return tokenizer
 
-    def encode(self, byte_string: bytes) -> list[int]:
+    def encode(self, byte_string: bytes) -> Sequence[int]:
         assert isinstance(byte_string, bytes)
         # HF tokenizers take in strings apparently
         tokenization = self._orig_tokenizer(byte_string.decode(), add_special_tokens=False)
@@ -187,7 +187,7 @@ class TransformersTokenizer(Tokenizer):
                 else:
                     used_tokens -= 1
 
-        new_ids = self.encode(first_decode.encode("utf-8"))
+        new_ids = list(self.encode(first_decode.encode("utf-8")))
         if used_tokens < len(tokens):
             new_ids += tokens[used_tokens:]
 
