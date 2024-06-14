@@ -55,6 +55,8 @@ from .._grammar import (
 from .. import _serialization_pb2
 from ..chat import load_template_class
 
+from ._tokenizer import Tokenizer
+
 if TYPE_CHECKING:
     from ..library._block import ContextBlock
 
@@ -140,7 +142,7 @@ class Engine:
     Server so a single server can serve many clients' model objects through a single Engine object.
     """
 
-    def __init__(self, tokenizer, compute_log_probs=False):
+    def __init__(self, tokenizer: Tokenizer, compute_log_probs=False):
         self.tokenizer = tokenizer
         self.compute_log_probs = compute_log_probs
 
@@ -747,7 +749,7 @@ class Engine:
     def _cleanup_tokens(self, token_ids, token_byte_positions):
 
         # compute a joint tokenization
-        joint_token_ids = self._joint_tokenize(token_ids)
+        joint_token_ids = self.tokenizer.recode(token_ids)
 
         # see if we need to redo the tokenization
         redo = False
@@ -805,10 +807,6 @@ class Engine:
             "We can't consume any more tokens, but we are not yet done! Perhaps your model's token set is incomplete? This happened after the prompt:"
             + str(prompt[-40:])
         )
-
-    def _joint_tokenize(self, token_ids):
-        """What a full joint tokenizer would give for a given byte string"""
-        return token_ids
 
 
 class Model:

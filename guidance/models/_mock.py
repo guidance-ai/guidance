@@ -1,8 +1,20 @@
+from typing import Sequence
+
 import numpy as np
 
 from ._model import Engine, Model, Chat
 from ._remote import RemoteEngine
 from ._tokenizer import Tokenizer
+
+
+class MockTokenizer(Tokenizer):
+    def __init__(self, tokens: Sequence[bytes]):
+
+        super().__init__(tokens, chat_template=None, bos_token_id=0, eos_token_id=0)
+
+    def recode(self, tokens: Sequence[int]) -> Sequence[int]:
+        # Make a no-op for now
+        return tokens
 
 
 class MockEngine(Engine):
@@ -83,18 +95,16 @@ class Mock(Model):
         if isinstance(byte_patterns, str) and byte_patterns.startswith("http"):
             engine = RemoteEngine(byte_patterns, **kwargs)
         else:
-            tokenizer = Tokenizer(
-                # our tokens are all bytes and all lowercase letter pairs
-                [b"<s>"]
-                + [
-                    bytes([i, j])
-                    for i in range(ord("a"), ord("z"))
-                    for j in range(ord("a"), ord("z"))
-                ]
-                + [bytes([i]) for i in range(256)],
-                0,
-                0,
-            )
+            # Our tokens are all bytes and all lowercase letter pairs
+            all_lc_pairs = [
+                bytes([i, j])
+                for i in range(ord("a"), ord("z"))
+                for j in range(ord("a"), ord("z"))
+            ]
+            all_bytes = [bytes([i]) for i in range(256)]
+            tokens = [b"<s>"] + all_lc_pairs + all_bytes
+
+            tokenizer = MockTokenizer(tokens)
             engine = MockEngine(tokenizer, byte_patterns, compute_log_probs, force)
 
         super().__init__(engine, echo=echo)

@@ -3,7 +3,7 @@ import queue
 import threading
 import time
 
-from typing import Sequence
+from typing import Optional, Sequence
 
 import numpy as np
 import tiktoken
@@ -116,15 +116,22 @@ class GrammarlessTokenizer(Tokenizer):
 
         # Grammarless Tokenizers MUST use the ChatMLTemplate in guidance today
         chat_template = ChatMLTemplate
+
+        self._model_interaction_thread: threading.Thread | None = None
+        self._used_bytes_len = 0
+
         super().__init__(byte_tokens, chat_template, bos_token_id, eos_token_id)
 
-    def __call__(self, byte_string):
+    def encode(self, byte_string: bytes) -> Sequence[int]:
         """Returns a list of tokens that represent the given byte string."""
-        return self._orig_tokenizer.encode(byte_string)
+        assert isinstance(byte_string, bytes)
+        return self._orig_tokenizer.encode(byte_string.decode())
 
 
 class GrammarlessEngine(Engine):
-    def __init__(self, tokenizer, max_streaming_tokens, timeout, compute_log_probs):
+    def __init__(
+        self, tokenizer, max_streaming_tokens: int, timeout, compute_log_probs: bool
+    ):
         self.max_streaming_tokens = max_streaming_tokens
         self.timeout = timeout
 
@@ -137,7 +144,7 @@ class GrammarlessEngine(Engine):
         self._last_call = 0.0
         self._num_calls_made = 0
         self._current_temp = 0.0
-        self._last_stream_start = None
+        self._last_stream_start = b""
 
         self._not_running_stream.set()
 
@@ -159,7 +166,6 @@ class GrammarlessEngine(Engine):
         super().__init__(tokenizer=tokenizer, compute_log_probs=compute_log_probs)
 
     def _generator(self, prompt: bytes, temperature: float):
-        # Not quite the implementation yet....
         raise NotImplementedError("Child classes must implement _generator()")
 
     def __call__(self, *args, **kwargs):
@@ -200,8 +206,8 @@ class GrammarlessEngine(Engine):
             b""
         )  # so we never get stuck waiting for a running stream to return something
 
-    def _start_new_stream(self, prompt, temperature: float):
-
+    def _start_new_stream(self, prompt: bytes, temperature: float) -> None:
+        assert isinstance(prompt, bytes)
         # make sure the display is up to date (since we are about to delay for a while)
         # TODO: how can we handle this better since the engine is now separate from the client?
         #       we could use a timeout for the GUI update throttling, those were just kind of slow... (but would be best)
@@ -216,7 +222,7 @@ class GrammarlessEngine(Engine):
         if self._running_stream():
             # Stop stream and wait for thread to complete
             self._not_running_stream.set()
-            self._remote_thread.join()  # type: ignore # mypy being strange
+            self._model_interaction_thread.join()  # type: ignore # mypy being strange
 
         # clear the data queue
         while not self._data_queue.empty():
@@ -229,13 +235,14 @@ class GrammarlessEngine(Engine):
         generator = self._generator(prompt, temperature)
         self._not_running_stream.clear()  # so we know we are running
         self._num_calls_made += 1
-        self._remote_thread = threading.Thread(
+        self._model_interaction_thread = threading.Thread(
             target=self._start_generator_stream, args=(generator,)
         )
-        self._remote_thread.start()
+        self._model_interaction_thread.start()
 
-    def _reset_shared_data(self, new_data, temperature: float):
+    def _reset_shared_data(self, new_data: bytes, temperature: float):
         """Should be called by _generator calls to reset the shared data state."""
+        assert isinstance(new_data, bytes)
         if temperature == 0 and self._last_stream_start == new_data:
             raise self._report_failed_match(new_data)
         self._data = new_data
@@ -257,7 +264,7 @@ class GrammarlessEngine(Engine):
             raise ValueError("token_ids must contain some tokens.")
 
         # compute the prompt bytes
-        whole_token_prompt = b"".join([self.tokenizer.tokens[i] for i in token_ids])
+        whole_token_prompt = self.tokenizer.decode(token_ids)
         prompt = whole_token_prompt + forced_bytes
         logger.debug(f"Grammarless.get_logits: {prompt=}")
 
@@ -324,7 +331,7 @@ class GrammarlessEngine(Engine):
                 logger.debug(f"Grammarless.get_logits: {leftover=}")
 
                 # record any active non-empty role ends. Ignore role ends that are spaces
-                parts = [
+                parts: Sequence[Optional[bytes]] = [
                     b"<|im_end|>",
                     self.tokenizer.eos_token,
                 ]  # note we assume we are role tags that end with <|im_end|>
@@ -340,14 +347,15 @@ class GrammarlessEngine(Engine):
                 # see if adding an end token would work here (if so we avoid recalling the server and just produce an end token)
                 found_match = False
                 for p in parts:
-                    logger.debug(f"Grammarless.get_logits: Considering part {p}")
-                    if p.startswith(leftover):
-                        self._data = self._data[:match_len] + p
-                        logger.debug(
-                            f"automatically adding an end token since it fits the forcing of the grammar"
-                        )
-                        found_match = True
-                        break
+                    logger.debug(f"Grammarless.get_logits: Considering part {str(p)}")
+                    if p is not None:
+                        if p.startswith(leftover):
+                            self._data = self._data[:match_len] + p
+                            logger.debug(
+                                f"automatically adding an end token since it fits the forcing of the grammar"
+                            )
+                            found_match = True
+                            break
                 if found_match:
                     continue  # start our loop over again
 
@@ -407,7 +415,7 @@ class GrammarlessEngine(Engine):
             logits[self.tokenizer.eos_token_id] = 0
         return logits
 
-    def _report_failed_match(self, prompt):
+    def _report_failed_match(self, prompt: bytes):
         logger.debug(f"_report_failed_match: {prompt=}")
         # check the length of the prefix match
         match_len = 0
@@ -431,7 +439,7 @@ class GrammarlessEngine(Engine):
 
         # create an exception for users to deal with (that our caller can throw)
         return ConstraintException(
-            f"The model attempted to generate {str(data_after_prompt)} after the prompt `{prompt_tail}`, but that does\n"
+            f"The model attempted to generate {str(data_after_prompt)} after the prompt `{str(prompt_tail)}`, but that does\n"
             + "not match the given grammar constraints! Since your model is a remote API that does not support full guidance\n"
             + "integration we cannot force the model to follow the grammar, only flag an error when it fails to match.\n"
             + "You can try to address this by improving the prompt, making your grammar more flexible, rerunning with\n"
