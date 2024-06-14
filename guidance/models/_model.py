@@ -11,7 +11,7 @@ import warnings
 import json
 
 from pprint import pprint
-from typing import Dict, Iterator, List, TYPE_CHECKING
+from typing import Dict, Iterator, List, Optional, TYPE_CHECKING
 
 
 import numpy as np
@@ -40,7 +40,7 @@ except ImportError:
     from .. import _cpp as cpp
 from ._guidance_engine_metrics import GuidanceEngineMetrics
 from .._utils import softmax, CaptureEvents
-from .._parser import EarleyCommitParser, Parser
+from .._parser import LLParser, Parser
 from .._grammar import (
     GrammarFunction,
     string,
@@ -192,34 +192,17 @@ class Engine:
             prompt = parser
         elif isinstance(parser, str):
             prompt = bytes(parser, encoding="utf8")
-        # elif isinstance(parser, Parser):
-        #     raise NotImplementedError(
-        #         "Still need to implement support for extending a full Parser state."
-        #     )
+        elif isinstance(parser, Parser):
+            raise NotImplementedError(
+                "Still need to implement support for extending a full Parser state."
+            )
         else:
             raise Exception("The passed parser is of an unknown type!")
 
-        # add the beginning of sequence token if needed
-        if (
-            ensure_bos_token
-            and self.tokenizer.bos_token is not None
-            and not prompt.startswith(self.tokenizer.bos_token)
-        ):
-            prompt = self.tokenizer.bos_token + prompt
+        self._parser = LLParser(grammar, self.tokenizer)
+        self._parser.start(prompt, ensure_bos_token)
 
-        # create a parser with a grammar
-        serialized_grammar = grammar.ll_serialize()
-        self._parser = llguidance.LLInterpreter(self.ll_tokenizer, json.dumps(serialized_grammar))
- 
-        # tokenize prompt and feed to parser to advance to the correct position
-        # TODO: use self._tokenize_prefix and self._cleanup_tokens?
-        tokens = self.tokenizer.encode(prompt)
-        # TODO: stop tracking state on our class and be more functional
-        self._tokens = self._parser.process_prompt(tokens)
-        self._backtrack = 0
-        self._ff_tokens = []
-
-    def next(self) -> EngineCallResponse:
+    def next(self) -> Optional[EngineCallResponse]:
         """Move the grammar state machine processing forward to the next point where
             either get_logits is required to be called or we have a partial response
             to stream back.
@@ -228,25 +211,15 @@ class Engine:
         ----------
         logits : the logits obtained from the LLM after the last return from next(...)
         """
-        mask, resp = self._parser.mid_process(self._backtrack, self._ff_tokens)
-        r = json.loads(resp)
-        if r["stop"]:
+        self._parser.advance()
+        if self._parser.done:
             return None
-        self._backtrack: int = r["backtrack"]
-        self._ff_tokens: List[int] = r["ff_tokens"]
-        if mask is not None:
-            assert self._backtrack == 0
-            assert len(self._ff_tokens) == 0
-            # TODO: drop forced_bytes and current_temp from get_logits signature
-            logits = self.get_logits(self._tokens, forced_bytes=None, current_temp=None)
-            logits += np.frombuffer(mask, dtype=np.uint8)
-            tok = sample_with_temperature(logits, r["temperature"])
-            self._tokens.append(tok)
-            self._ff_tokens = [tok]
-        else:
-            if self._backtrack:
-                del self._tokens[-self._backtrack:]
-            self._tokens += self._ff_tokens
+        
+        if self._parser.can_consume_token:
+            logits = self.get_logits(self._parser.tokens, None, None)
+            logits += self._parser.next_token_mask()
+            tok = sample_with_temperature(logits, self._parser.next_token_temperature)
+            self._parser.consume_token(tok)
 
         new_bytes = b""
         new_token_count = 0
@@ -255,8 +228,7 @@ class Engine:
         capture_group_log_probs = {}
         num_text_entries = 0
 
-        progress: List[dict] = r["progress"]
-        for j in progress:
+        for j in self._parser.progress:
             tag = j.get("object", "")
             if tag == "capture":
                 cname: str = j["name"]
