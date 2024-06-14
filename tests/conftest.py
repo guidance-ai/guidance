@@ -57,10 +57,6 @@ AVAILABLE_MODELS = {
         name="huggingface_hubllama:TheBloke/Llama-2-7B-GGUF:llama-2-7b.Q5_K_M.gguf",
         kwargs={"verbose": True, "n_gpu_layers": -1, "n_ctx": 4096},
     ),
-    "issue880": dict(
-        name="transformers:microsoft/Phi-3-vision-128k-instruct",
-        kwargs={"trust_remote_code": True},
-    )
 }
 
 
