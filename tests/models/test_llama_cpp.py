@@ -171,4 +171,4 @@ class TestLlamaCppTokenizers:
         decoded = my_tok.decode(encoded)
         final_string = decoded.decode()
 
-        assert final_string != target_string
+        assert final_string == target_string
