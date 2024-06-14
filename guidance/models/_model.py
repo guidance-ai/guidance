@@ -154,7 +154,7 @@ class Engine:
     def __init__(self, tokenizer: Tokenizer, compute_log_probs=False):
         self.tokenizer = tokenizer
         self.ll_tokenizer = llguidance.LLTokenizer(
-            tokenizer.eos_token_id, tokenizer.tokens
+            llguidance.TokenizerWrapper(tokenizer)
         )
         self.compute_log_probs = compute_log_probs
         self.metrics = GuidanceEngineMetrics()
