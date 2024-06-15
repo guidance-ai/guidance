@@ -1241,6 +1241,12 @@ class LLSerializer:
                     "literal": node.byte.decode("utf-8", errors="strict"),
                 }
             }
+        elif isinstance(node, Null):
+            obj = {
+                "String": {
+                    "literal": "",
+                }
+            }
         else:
             raise Exception("Unknown node type: " + node)
         tp = next(iter(obj))
