@@ -219,7 +219,6 @@ class TransformersEngine(Engine):
             TransformersTokenizer(model, tokenizer, chat_template),
             compute_log_probs=compute_log_probs,
         )
-        assert self._token_trie.match
 
     def _model(self, model, **kwargs):
         # intantiate the model if needed
