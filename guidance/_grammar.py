@@ -291,7 +291,7 @@ class GrammarFunction(Function):
         return values[0]  # the first element in the root node of the grammar
 
     def ll_serialize(self):
-        return {"grammars": LLSerializer(self).run()}
+        return {"grammars": LLSerializer().run(self)}
 
 
 class Terminal(GrammarFunction):
@@ -637,15 +637,11 @@ def commit_point(value, hidden=False):
     # TODO: assert that value is not empty since we don't yet support that
     if isinstance(value, str):
         value = string(value)
-    if isinstance(value, Terminal):
-        value = Join(
-            [value]
-        )  # commit points should be full nodes (otherwise we can't hide them) TODO: decide if we want to do this even for non-hidden commit points
-    value.commit_point = True
     if hidden:
-        _rec_hide(value)
-    return value
-
+        raise Exception("Hidden commit points are not supported!")
+    # check if it serializes
+    _ignore = LLSerializer().regex(value)
+    return GenCommitPoint(value)
 
 def _rec_hide(grammar):
     if not grammar.hidden:
@@ -806,11 +802,28 @@ class GenLexeme(Gen):
         name: Union[str, None] = None,
         max_tokens=100000000,
     ) -> None:
-        super().__init__(body_regex, "", name, max_tokens)
+        super().__init__(body_regex, "", name=name, max_tokens=max_tokens)
         self.contextual = contextual
 
     def __repr__(self, indent="", done=None):
         return super().__repr__(indent, done, "Lex")
+
+
+class GenCommitPoint(Gen):
+    __slots__ = ("grammar",)
+
+    def __init__(
+        self,
+        grammar: GrammarFunction,
+        name: Union[str, None] = None,
+        max_tokens=100000000,
+    ) -> None:
+        super().__init__("", "", name=name, max_tokens=max_tokens)
+        self.grammar = grammar
+
+    def __repr__(self, indent="", done=None):
+        # TODO add grammar repr
+        return super().__repr__(indent, done, "CommitPoint")
 
 
 class NestedGrammar(Gen):
@@ -820,6 +833,7 @@ class NestedGrammar(Gen):
         "greedy_skip_regex",
         "no_initial_skip",
     )
+
     def __init__(
         self,
         body: GrammarFunction,
@@ -1146,15 +1160,12 @@ def _is_string_literal(node: GrammarFunction):
 
 
 class LLSerializer:
-    def __init__(self, node: GrammarFunction) -> None:
-        # avoid top-level node being a String
-        if _is_string_literal(node):
-            node = Select([node])
-        self.top_level_node = node
+    def __init__(self) -> None:
         self.nodes: List[dict] = []
         self.curr_grammar = {
             "greedy_lexer": False,
             "nodes": self.nodes,
+            "rx_nodes": [],
         }
         self.grammars = [self.curr_grammar]
         self.node_id_cache: Dict[GrammarFunction, int] = {}
@@ -1162,16 +1173,132 @@ class LLSerializer:
         self.grammar_id_cache: Dict[NestedGrammar, int] = {}
         self.grammar_todo: List[NestedGrammar] = []
 
+        self.regex_id_cache: Dict[GrammarFunction, int] = {}
+
+    def _add_regex_json(self, json):
+        id = len(self.curr_grammar["rx_nodes"])
+        self.curr_grammar["rx_nodes"].append(json)
+        return id
+
+    def _add_regex(self, key: str, val):
+        return self._add_regex_json({key: val})
+
+    def _regex_or(self, nodes: List[GrammarFunction]):
+        if len(nodes) == 1:
+            return self.regex_id_cache[nodes[0]]
+        else:
+            return self._add_regex("Or", [self.regex_id_cache[v] for v in nodes])
+
+    def regex(self, node: GrammarFunction):
+        """
+        Serialize node as regex. Throws if impossible.
+        """
+
+        node0 = node
+        todo = [node]
+        pending = set()
+
+        def node_finished(node):
+            return node not in pending and node in self.regex_id_cache
+
+        def all_finished(nodes):
+            return all(node_finished(v) for v in nodes)
+
+        while todo:
+            node = todo.pop()
+            if node in pending:
+                raise ValueError(
+                    "GrammarFunction is recursive - cannot serialize as regex: "
+                    + node.__repr__()
+                )
+            if node in self.regex_id_cache:
+                continue
+            pending.add(node)
+            if isinstance(node, Select) and node.values:
+                with_node = []
+                without_node = []
+                for v in node.values:
+                    if (
+                        isinstance(v, Join)
+                        and len(v.values) == 2
+                        and v.values[0] is node
+                    ):
+                        with_node.append(v.values[1])
+                    else:
+                        without_node.append(v)
+                if not all_finished(with_node) or not all_finished(without_node):
+                    pending.remove(node)
+                    todo.append(node)
+                    todo.extend(with_node)
+                    todo.extend(without_node)
+                    continue
+                print(with_node, without_node)
+                if len(with_node) == 0:
+                    # non-recursive
+                    res = self._regex_or(without_node)
+                if len(without_node) == 1 and isinstance(without_node[0], Null):
+                    # zero_or_more()
+                    inner = self._regex_or(with_node)
+                    res = self._add_regex("Repeat", [inner, 0, None])
+                elif with_node == without_node:
+                    # one_or_more()
+                    inner = self._regex_or(with_node)
+                    res = self._add_regex("Repeat", [inner, 1, None])
+                else:
+                    raise ValueError(
+                        "Cannot detect structure of recursive Select as regex: "
+                        + node.__repr__()
+                    )
+            elif isinstance(node, Join):
+                if all(isinstance(v, Byte) for v in node.values):
+                    literal = [cast(Byte, v).byte[0] for v in node.values]
+                    try:
+                        literal = bytes(literal).decode("utf-8", errors="strict")
+                        res = self._add_regex("Literal", literal)
+                    except UnicodeDecodeError:
+                        res = self._add_regex("ByteLiteral", literal)
+                else:
+                    if not all_finished(node.values):
+                        pending.remove(node)
+                        todo.append(node)
+                        todo.extend(node.values)
+                        continue
+                    res = self._add_regex(
+                        "Concat", [self.regex_id_cache[v] for v in node.values]
+                    )
+            elif isinstance(node, Byte):
+                res = self._add_regex("Byte", node.byte[0])
+            elif isinstance(node, ByteRange):
+                byteset = [0, 0, 0, 0, 0, 0, 0, 0]
+                for idx in range(256):
+                    if node.match_byte(bytes([idx])):
+                        byteset[idx // 32] |= 1 << (idx % 32)
+                res = self._add_regex("ByteSet", byteset)
+            elif isinstance(node, Null):
+                res = self._add_regex_json("EmptyString")
+            elif isinstance(node, GenLexeme):
+                res = self._add_regex("Regex", node.body_regex)
+            else:
+                raise ValueError("Cannot serialize as regex: " + node.__repr__())
+            pending.remove(node)
+            self.regex_id_cache[node] = res
+
+        assert not pending
+        return self.regex_id_cache[node0]
+
     def grammar(self, grammar: NestedGrammar):
         if grammar in self.grammar_id_cache:
             return self.grammar_id_cache[grammar]
         id = len(self.grammars)
         self.grammar_id_cache[grammar] = id
-        self.grammars.append({
-            "greedy_lexer": grammar.greedy_lexer,
-            "greedy_skip_rx": grammar.greedy_skip_regex,
-            "nodes": [],
-        })
+        self.grammars.append(
+            {
+                "greedy_lexer": grammar.greedy_lexer,
+                "greedy_skip_rx": grammar.greedy_skip_regex,
+                "nodes": [],
+                "rx_nodes": [],
+            }
+        )
         self.grammar_todo.append(grammar)
         return id
 
@@ -1224,6 +1351,16 @@ class LLSerializer:
                     "temperature": node.temperature if node.temperature >= 0 else None,
                 }
             }
+        elif isinstance(node, GenCommitPoint):
+            if self.curr_grammar["greedy_lexer"]:
+                raise ValueError("GenCommitPoint can only be used in lazy lexer grammars")
+            obj = {
+                "Gen": {
+                    "body_rx": self.regex(node.grammar),
+                    "stop_rx": "",
+                    "temperature": node.temperature if node.temperature >= 0 else None,
+                }
+            }
         elif isinstance(node, Gen):
             if self.curr_grammar["greedy_lexer"]:
                 raise ValueError("Gen can only be used in lazy lexer grammars")
@@ -1232,6 +1369,16 @@ class LLSerializer:
                     "body_rx": node.body_regex,
                     "stop_rx": node.stop_regex,
                     "stop_capture_name": node.save_stop_text,
+                    "temperature": node.temperature if node.temperature >= 0 else None,
+                }
+            }
+        elif isinstance(node, GenCommitPoint):
+            if self.curr_grammar["greedy_lexer"]:
+                raise ValueError("GenCommitPoint can only be used in lazy lexer grammars")
+            obj = {
+                "Gen": {
+                    "body_rx": self.regex(node.grammar),
+                    "stop_rx": "",
                     "temperature": node.temperature if node.temperature >= 0 else None,
                 }
             }
@@ -1268,12 +1415,16 @@ class LLSerializer:
             node = self.todo.pop()
             self.process(node)
 
-    def run(self):
-        self.run_grammar(self.top_level_node)
+    def run(self, node: GrammarFunction):
+        # avoid top-level node being a String
+        if _is_string_literal(node):
+            node = Select([node])
+        self.run_grammar(node)
         while self.grammar_todo:
             grammar = self.grammar_todo.pop()
             self.curr_grammar = self.grammars[self.grammar(grammar)]
             self.nodes = self.curr_grammar["nodes"]
             self.node_id_cache = {}
+            self.regex_id_cache = {}
             self.run_grammar(grammar.body)
         return self.grammars
