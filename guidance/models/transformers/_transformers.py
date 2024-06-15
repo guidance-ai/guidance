@@ -2,7 +2,7 @@ import os
 import re
 import textwrap
 
-from typing import Sequence
+from typing import Sequence, Union
 
 try:
     import torch
@@ -144,8 +144,9 @@ class TransformersTokenizer(Tokenizer):
 
         return tokenizer
 
-    def encode(self, byte_string: bytes) -> Sequence[int]:
-        assert isinstance(byte_string, bytes)
+    def encode(self, byte_string: Union[bytes, str]) -> Sequence[int]:
+        if isinstance(byte_string, bytes):
+            byte_string = byte_string.decode("utf8")
         tokenisation = self._orig_tokenizer(byte_string)
         return tokenisation["input_ids"]
 
@@ -218,7 +219,6 @@ class TransformersEngine(Engine):
             TransformersTokenizer(model, tokenizer, chat_template),
             compute_log_probs=compute_log_probs,
         )
-        assert self._token_trie.match
 
     def _model(self, model, **kwargs):
         # intantiate the model if needed
