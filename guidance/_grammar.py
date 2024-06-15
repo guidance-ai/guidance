@@ -875,7 +875,6 @@ class Select(GrammarFunction):
     def values(self, vals):
         self._values = [string(v) if isinstance(v, (str, bytes)) else v for v in vals]
         self.nullable = any(getattr(v, "nullable", False) for v in self._values)
-        self._values = [v for v in self._values if not isinstance(v, Null)]
 
     def __repr__(self, indent="", done=None):
         if done is None:
