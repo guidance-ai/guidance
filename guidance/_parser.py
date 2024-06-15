@@ -68,6 +68,7 @@ class LLParser(Parser):
         
         mask, resp = self.ll_parser.mid_process(self._backtrack, self._ff_tokens)
         r = json.loads(resp)
+        self._progress = r["progress"]
 
         if r["stop"]:
             self.can_consume_token = False
@@ -76,7 +77,6 @@ class LLParser(Parser):
         
         self._backtrack = r["backtrack"]
         self._ff_tokens = r["ff_tokens"]
-        self._progress = r["progress"]
         self.next_token_temperature = r["temperature"]
         self._mask = mask
 

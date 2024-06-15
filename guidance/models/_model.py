@@ -211,10 +211,11 @@ class Engine:
         ----------
         logits : the logits obtained from the LLM after the last return from next(...)
         """
-        self._parser.advance()
         if self._parser.done:
             return None
-        
+
+        self._parser.advance()
+
         if self._parser.can_consume_token:
             logits = self.get_logits(self._parser._tokens, None, None)
             logits += self._parser.next_token_mask()
