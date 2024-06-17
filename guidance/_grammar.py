@@ -1082,7 +1082,7 @@ def _re_with_temperature(grammar, temperature, visited_set):
 
     # if getattr(grammar, "temperature", 100000000) > temperature:
     if (
-        isinstance(grammar, Terminal) and grammar.temperature < 0
+        isinstance(grammar, Terminal) and not isinstance(grammar, Null) and grammar.temperature < 0
     ):  # only need to set temp for terminals
         grammar.temperature = temperature
     elif getattr(grammar, "temperature", 100000000) > temperature and hasattr(
