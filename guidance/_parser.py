@@ -64,7 +64,7 @@ class LLParser(Parser):
         self.ll_tokenizer = llguidance.LLTokenizer(
             llguidance.TokenizerWrapper(tokenizer)
         )
-        self.ll_parser = llguidance.LLInterpreter(
+        self.ll_interpreter = llguidance.LLInterpreter(
             self.ll_tokenizer,
             json.dumps(grammar.ll_serialize()),
             log_level=2,
@@ -93,14 +93,14 @@ class LLParser(Parser):
         prompt_tokens = self.tokenizer.encode(prompt)
 
         return ParserState(
-            tokens=self.ll_parser.process_prompt(prompt_tokens),
+            tokens=self.ll_interpreter.process_prompt(prompt_tokens),
             ff_tokens=[],
             backtrack=0,
             done=False,
         )
 
     def _advance(self, state: ParserState) -> Tuple[Optional[GenData], ParserResponse, ParserState]:
-        mask, resp = self.ll_parser.mid_process(state.backtrack, state.ff_tokens)
+        mask, resp = self.ll_interpreter.mid_process(state.backtrack, state.ff_tokens)
         r = json.loads(resp)
 
         backtrack = r["backtrack"]
