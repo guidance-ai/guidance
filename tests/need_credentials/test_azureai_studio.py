@@ -1,7 +1,5 @@
 import pytest
 
-import pytest
-
 from guidance import assistant, gen, models, system, user
 
 
@@ -14,7 +12,8 @@ pytestmark = pytest.mark.needs_credentials
 
 # How to fill out the environment variables to
 # set up the models
-_chat_models = {"phi3": "PHI3", "mistral": "MISTRAL_CHAT", "llama3": "LLAMA3_CHAT"}
+# Temporarily remove mistral pending endpoint investigation
+_chat_models = {"phi3": "PHI3", "llama3": "LLAMA3_CHAT"}
 
 
 def _get_chat_model(model_name: str):
