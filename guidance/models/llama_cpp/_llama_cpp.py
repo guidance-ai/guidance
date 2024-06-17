@@ -72,9 +72,8 @@ class LlamaCppTokenizer(Tokenizer):
         for i in range(tokenizer.llama.n_vocab()):
             tok = tokenizer.llama.detokenize([i])  # note that detokenize returns bytes directly
             if tok == b"":
-                tok = llama_cpp.llama_token_get_text(
-                    model_obj.model, i
-                )  # get text rep of special tokens
+                # get text rep of special tokens
+                tok = llama_cpp.llama_token_get_text(model_obj.model, i)
             tokens.append(tok)
 
         # Chat Template logic
@@ -90,6 +89,7 @@ class LlamaCppTokenizer(Tokenizer):
         )
 
     def encode(self, byte_string: bytes) -> Sequence[int]:
+        # Workaround for the LlamaCpp prepending spaces on encoding
         raw_tokens = self._model_obj.tokenize(
             self._sentinel_bytes + byte_string, add_bos=False, special=True
         )

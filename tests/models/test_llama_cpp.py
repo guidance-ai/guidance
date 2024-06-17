@@ -37,9 +37,7 @@ def test_llama_cpp_recursion_error(llamacpp_model: guidance.models.Model):
     {gen('verse', max_tokens=2)}
     """
     )
-    assert len(str(lm)) > len(
-        "Tweak this proverb to apply to model instructions instead.\n\n"
-    )
+    assert len(str(lm)) > len("Tweak this proverb to apply to model instructions instead.\n\n")
 
 
 def test_llama_cpp_select2(llamacpp_model: guidance.models.Model):
@@ -67,11 +65,7 @@ def test_repeat_calls(llamacpp_model: guidance.models.Model):
 
 def test_suffix(llamacpp_model: guidance.models.Model):
     llama2 = llamacpp_model
-    lm = (
-        llama2
-        + "1. Here is a sentence "
-        + gen(name="bla", list_append=True, suffix="\n")
-    )
+    lm = llama2 + "1. Here is a sentence " + gen(name="bla", list_append=True, suffix="\n")
     assert (str(lm))[-1] == "\n"
     assert (str(lm))[-2] != "\n"
 
@@ -153,3 +147,28 @@ def test_max_tokens(llamacpp_model: guidance.models.Model):
     assert (
         str(lm)[-1] != "<"
     )  # the output should not end with "<" because that is coming from the stop sequence...
+
+
+class TestLlamaCppTokenizers:
+    ROUND_TRIP_STRINGS = [
+        "",
+        " ",
+        "hello",
+        " hello",
+        "two words",
+        " two words",
+        " two words ",
+        "two words ",
+        "’",
+        "’•¶∂ƒ˙∆£Ħ爨ൠᅘ∰፨",
+    ]
+
+    @pytest.mark.parametrize("target_string", ROUND_TRIP_STRINGS)
+    def test_string_roundtrip(self, llamacpp_model: guidance.models.Model, target_string: str):
+        my_tok = llamacpp_model.engine.tokenizer
+
+        encoded = my_tok.encode(target_string.encode())
+        decoded = my_tok.decode(encoded)
+        final_string = decoded.decode()
+
+        assert final_string == target_string
