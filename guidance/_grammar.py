@@ -182,14 +182,13 @@ class GrammarFunction(Function):
             byte_string = byte_string.encode()
         parser = _parser.ByteParser(self)
 
-        for i in range(len(byte_string)):
-            try:
-                parser.consume_bytes(byte_string[i : i + 1])
-            except _parser.ParserException:
-                if raise_exceptions:
-                    raise
-                else:
-                    return None
+        try:
+            parser.consume_bytes(byte_string)
+        except _parser.ParserException:
+            if raise_exceptions:
+                raise
+            else:
+                return None
 
         if not allow_partial and not parser.matched():
             return None
