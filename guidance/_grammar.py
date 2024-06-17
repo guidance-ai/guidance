@@ -180,11 +180,11 @@ class GrammarFunction(Function):
     ) -> Union[Match, None]:
         if isinstance(byte_string, str):
             byte_string = byte_string.encode()
-        parser = _parser.EarleyCommitParser(self)
+        parser = _parser.ByteParser(self)
 
         for i in range(len(byte_string)):
             try:
-                parser.consume_byte(byte_string[i : i + 1])
+                parser.consume_bytes(byte_string[i : i + 1])
             except _parser.ParserException:
                 if raise_exceptions:
                     raise
