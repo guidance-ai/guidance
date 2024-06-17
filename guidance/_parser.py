@@ -191,3 +191,98 @@ class LLParser(Parser):
             capture_groups=capture_groups,
             capture_group_log_probs=capture_group_log_probs,
         )
+    
+from .models._byte_tokenizer import ByteTokenizer    
+class ByteParser(Parser):
+    def __init__(
+        self,
+        grammar: GrammarFunction,
+        prompt: bytes = b"",
+        ensure_bos_token: bool = True,
+    ):
+        self.tokenizer = ByteTokenizer()
+        self.ll_parser = LLParser(grammar, self.tokenizer, prompt, ensure_bos_token)
+        self.bytes = b""
+        self.new_bytes = b""
+        self.gen_data: Optional[GenData] = None
+        self._variables = {}
+        self._variables_log_probs = {}
+
+    def matched(self) -> bool:
+        if not self.ll_parser.done:
+            # May need to do a final advance
+            self.consume_bytes(b"")
+        return self.ll_parser.done
+
+    def consume_bytes(self, bts: bytes) -> None:
+        self.gen_data, response = self.ll_parser.advance()
+        self._update_capture(response)
+        self.new_bytes += response.new_bytes
+
+        for b in bts:
+            if self.new_bytes:
+                if b != self.new_bytes[0]:
+                    raise ParserException(
+                        f"Expected byte {bytes([self.new_bytes[0]])!r} (fast_forward), got {bytes([b])!r}",
+                        current_byte=b,
+                        allowed_bytes=[self.new_bytes[0]],
+                        consumed_bytes=self.bytes,
+                    )
+                self.new_bytes = self.new_bytes[1:]
+                self.bytes += bytes([b])
+            else:
+                assert self.gen_data is not None
+                valid_next_tokens = self.gen_data.valid_next_tokens()
+                if b not in valid_next_tokens:
+                    valid_next_bytes = [bytes([t]) for t in valid_next_tokens]
+                    raise ParserException(
+                        f"Expected one of the following bytes: {valid_next_bytes!r}, got {bytes([b])!r}",
+                        current_byte=b,
+                        allowed_bytes=valid_next_bytes,
+                        consumed_bytes=self.bytes,
+                    )
+                self.ll_parser.consume_token(b)
+                self.gen_data, response = self.ll_parser.advance()
+                self._update_capture(response)
+                self.bytes += bytes([b])
+
+    def get_captures(self):
+        return self._variables, self._variables_log_probs
+    
+    def _update_capture(self, response):
+        # Stolen from model. TODO: refactor
+        for k in response.capture_groups:
+            v = response.capture_groups[k]
+
+            # see if we are in a list_append mode
+            if isinstance(v, list):
+                for i, inner_v in enumerate(v):
+                    # convert to a string if possible
+                    # TODO: will need to not just always do this once we support images etc.
+                    try:
+                        inner_v = (
+                            inner_v.decode("utf8")
+                            if isinstance(inner_v, bytes)
+                            else inner_v
+                        )
+                    except UnicodeDecodeError:
+                        pass
+
+                    if k not in self._variables or not isinstance(self._variables[k], list):
+                        self._variables[k] = []
+                        self._variables_log_probs[k] = []
+                    self._variables[k].append(inner_v)
+                    self._variables_log_probs[k].append(
+                        response.capture_group_log_probs[k][i]
+                    )
+
+            # ...or standard assignment mode
+            else:
+                # convert to a string if possible
+                # TODO: will need to not just always do this once we support images etc.
+                try:
+                    v = v.decode("utf8") if isinstance(v, bytes) else v
+                except UnicodeDecodeError:
+                    pass
+                self._variables[k] = v
+                self._variables_log_probs[k] = response.capture_group_log_probs[k]
