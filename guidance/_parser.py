@@ -234,7 +234,13 @@ class ByteParser(Parser):
             self.pos += 1
             self.consume_bytes(bts[1:])
         else:
-            assert self.gen_data is not None
+            if self.gen_data is None:
+                assert self.ll_parser.done
+                raise ParserException(
+                    f"Expected end of input, got {bytes([b])!r}",
+                    current_byte=b,
+                    consumed_bytes=self.bytes,
+                )
             valid_next_tokens = self.gen_data.valid_next_tokens()
             if b not in valid_next_tokens:
                 valid_next_bytes = [bytes([t]) for t in valid_next_tokens]
