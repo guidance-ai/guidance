@@ -38,9 +38,11 @@ class GenData:
     mask: NDArray[np.uint8]
     temperature: float
 
+    def valid_next_tokens(self) -> List[int]:
+        return np.where(self.mask)[0].tolist()
+
 class Parser:
     """An abstract base class for guidance parsers."""
-
     pass
 
 class LLParser(Parser):
