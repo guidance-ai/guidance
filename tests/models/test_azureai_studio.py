@@ -12,7 +12,8 @@ pytestmark = pytest.mark.needs_credentials
 
 # How to fill out the environment variables to
 # set up the models
-_chat_models = {"phi3": "PHI3", "mistral": "MISTRAL_CHAT", "llama3": "LLAMA3_CHAT"}
+# Temporarily remove mistral pending endpoint investigation
+_chat_models = {"phi3": "PHI3", "llama3": "LLAMA3_CHAT"}
 
 
 def _get_chat_model(model_name: str):
@@ -21,9 +22,6 @@ def _get_chat_model(model_name: str):
     azureai_studio_endpoint = env_or_fail(f"AZURE_AI_STUDIO_{env_string}_ENDPOINT")
     azureai_studio_deployment = env_or_fail(f"AZURE_AI_STUDIO_{env_string}_DEPLOYMENT")
     azureai_studio_key = env_or_fail(f"AZURE_AI_STUDIO_{env_string}_KEY")
-
-    print(f"{azureai_studio_endpoint=}")
-    print(f"{azureai_studio_deployment=}")
 
     lm = models.AzureAIStudioChat(
         azureai_studio_endpoint=azureai_studio_endpoint,
