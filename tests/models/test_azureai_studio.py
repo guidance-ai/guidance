@@ -1,4 +1,4 @@
-import pytest
+import logging
 
 import pytest
 
@@ -7,6 +7,8 @@ from guidance import assistant, gen, models, system, user
 
 from . import common_chat_testing
 from ..utils import env_or_fail
+
+logger = logging.getLogger(__name__)
 
 # Everything in here needs credentials to work
 # Mark is configured in pyproject.toml
@@ -23,6 +25,9 @@ def _get_chat_model(model_name: str):
     azureai_studio_endpoint = env_or_fail(f"AZURE_AI_STUDIO_{env_string}_ENDPOINT")
     azureai_studio_deployment = env_or_fail(f"AZURE_AI_STUDIO_{env_string}_DEPLOYMENT")
     azureai_studio_key = env_or_fail(f"AZURE_AI_STUDIO_{env_string}_KEY")
+
+    logger.info(f"{azureai_studio_endpoint=}")
+    logger.info(f"{azureai_studio_deployment=}")
 
     lm = models.AzureAIStudioChat(
         azureai_studio_endpoint=azureai_studio_endpoint,
