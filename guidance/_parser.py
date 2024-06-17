@@ -1,6 +1,8 @@
-from typing import List, Optional
+from typing import Any, Dict, List, Optional, Tuple, Union
+from dataclasses import dataclass
 import json
 import numpy as np
+from numpy.typing import NDArray
 import llguidance
 
 from ._grammar import GrammarFunction, Terminal, Join
@@ -14,11 +16,32 @@ class ParserException(Exception):
         self.consumed_bytes = kwargs.pop("consumed_bytes", None)
         super().__init__(*args, **kwargs)
 
+@dataclass
+class ParserState:
+    tokens: List[int]
+    ff_tokens: List[int]
+    backtrack: int
+    done: bool
+
+@dataclass
+class ParserResponse:
+    new_bytes: bytes
+    new_token_count: int
+    new_bytes_prob: float
+    is_generated: bool
+    capture_groups: Dict[str, Union[bytes, List[bytes]]]
+    capture_group_log_probs: Dict[str, Union[float, List[float]]]
+
+@dataclass
+class GenData:
+    tokens: List[int]
+    mask: NDArray[np.uint8]
+    temperature: float
+
 class Parser:
     """An abstract base class for guidance parsers."""
 
     pass
-
 
 class LLParser(Parser):
 
@@ -44,9 +67,20 @@ class LLParser(Parser):
             json.dumps(grammar.ll_serialize()),
             log_level=2,
         )
-        self._start(prompt=prompt, ensure_bos_token=ensure_bos_token)
+        self._state = self._start(prompt=prompt, ensure_bos_token=ensure_bos_token)
 
-    def _start(self, prompt: bytes, ensure_bos_token: bool):
+    @property
+    def done(self) -> bool:
+        return self._state.done
+    
+    def advance(self) -> Tuple[Optional[GenData], ParserResponse]:
+        gen_data, response, self._state = self._advance(self._state)
+        return gen_data, response
+    
+    def consume_token(self, tok_id: int) -> None:
+        self._state = self._consume_token(tok_id, self._state)
+
+    def _start(self, prompt: bytes, ensure_bos_token: bool) -> ParserState:
         # add the beginning of sequence token if needed
         if (
             ensure_bos_token
@@ -56,77 +90,68 @@ class LLParser(Parser):
             prompt = self.tokenizer.bos_token + prompt
         prompt_tokens = self.tokenizer.encode(prompt)
 
-        self._tokens: List[int] = self.ll_parser.process_prompt(prompt_tokens)
-        self._ff_tokens: List[int] = []
-        self._backtrack: int = 0
-        self._mask: Optional[bytes] = None
-        self._progress: List[dict] = []
-        
-        self.done: bool = False
-        self.next_token_temperature: float = -1.
-        self.can_consume_token: bool = False
+        return ParserState(
+            tokens=self.ll_parser.process_prompt(prompt_tokens),
+            ff_tokens=[],
+            backtrack=0,
+            done=False,
+        )
 
-    def advance(self):
-        if self.done:
+    def _advance(self, state: ParserState) -> Tuple[Optional[GenData], ParserResponse, ParserState]:
+        if state.done:
             raise ParserException("Attempted to advance a parser that is already done!")
-        
-        mask, resp = self.ll_parser.mid_process(self._backtrack, self._ff_tokens)
+    
+        mask, resp = self.ll_parser.mid_process(state.backtrack, state.ff_tokens)
         r = json.loads(resp)
-        self._progress = r["progress"]
 
-        if r["stop"]:
-            self.can_consume_token = False
-            self.done = True
-            return
-        
-        self._backtrack = r["backtrack"]
-        self._ff_tokens = r["ff_tokens"]
-        self.next_token_temperature = r["temperature"]
-        self._mask = mask
+        backtrack = r["backtrack"]
+        ff_tokens = r["ff_tokens"]
+        done = r["stop"]
 
+        tokens = state.tokens
         if mask is not None:
-            assert self._backtrack == 0
-            assert len(self._ff_tokens) == 0
-            self.can_consume_token = True
-        else:
-            if self._backtrack:
-                del self._tokens[-self._backtrack:]
-            self._tokens += self._ff_tokens
-            self.can_consume_token = False
-
-    def consume_token(self, tok_id: int):
-        assert self.can_consume_token
-
-        if tok_id not in self.valid_next_tokens():
-            raise ParserException(
-                "Attempted to consume a token that was not a valid next token!"
+            assert not done
+            assert backtrack == 0
+            assert len(ff_tokens) == 0
+            gen_data = GenData(
+                tokens=tokens,
+                mask=np.frombuffer(mask, dtype=np.uint8),
+                temperature=r["temperature"],
             )
-        self._tokens.append(tok_id)
-        self._ff_tokens = [tok_id]
+        else:
+            if backtrack:
+                tokens = tokens[:-backtrack]
+            tokens = tokens + ff_tokens
+            gen_data = None
 
-        self.can_consume_token = False
-    
-    def next_token_mask(self):
-        return np.frombuffer(self._mask, dtype=np.uint8)
+        response = self._handle_progress(r["progress"])
+        state = ParserState(
+            tokens=tokens,
+            ff_tokens=ff_tokens,
+            backtrack=backtrack,
+            done=done,
+        )
+        return gen_data, response, state
 
-    def valid_next_tokens(self):
-        [tok_ids] = np.nonzero(self.next_token_mask())
-        return tok_ids
-    
-    @property
-    def progress(self):
-        return self._handle_progress(self._progress)
+    def _consume_token(self, tok_id: int, state: ParserState) -> ParserState:
+        assert not state.done
+        assert state.backtrack == 0
+        assert len(state.ff_tokens) == 0
+        return ParserState(
+            tokens=state.tokens + [tok_id],
+            ff_tokens=[tok_id],
+            backtrack=0,
+            done=False,
+        )
 
     @staticmethod
-    def _handle_progress(progress: List[dict]) -> dict:
-        # TODO: schema obj
-
+    def _handle_progress(progress: List[dict]) -> ParserResponse:
         new_bytes = b""
         new_token_count = 0
         new_bytes_prob = 0.0
         is_generated = False
-        capture_groups = {}
-        capture_group_log_probs = {}
+        capture_groups: Dict[str, Any] = {}
+        capture_group_log_probs: Dict[str, Any] = {}
         num_text_entries = 0
 
         for j in progress:
@@ -156,11 +181,11 @@ class LLParser(Parser):
         if num_text_entries > 0:
             new_bytes_prob /= num_text_entries
 
-        return {
-            "new_bytes": new_bytes,
-            "new_token_count": new_token_count,
-            "new_bytes_prob": new_bytes_prob,
-            "is_generated": is_generated,
-            "capture_groups": capture_groups,
-            "capture_group_log_probs": capture_group_log_probs,
-        }
+        return ParserResponse(
+            new_bytes=new_bytes,
+            new_token_count=new_token_count,
+            new_bytes_prob=new_bytes_prob,
+            is_generated=is_generated,
+            capture_groups=capture_groups,
+            capture_group_log_probs=capture_group_log_probs,
+        )

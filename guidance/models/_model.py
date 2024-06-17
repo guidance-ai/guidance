@@ -40,7 +40,7 @@ except ImportError:
     from .. import _cpp as cpp
 from ._guidance_engine_metrics import GuidanceEngineMetrics
 from .._utils import softmax, CaptureEvents
-from .._parser import LLParser, Parser
+from .._parser import LLParser, Parser, ParserResponse, GenData
 from .._grammar import (
     GrammarFunction,
     string,
@@ -218,16 +218,21 @@ class Engine:
         if self._parser.done:
             return None
 
-        self._parser.advance()
+        gen_data, response = self._parser.advance()
 
-        if self._parser.can_consume_token:
-            logits = self.get_logits(self._parser._tokens, None, None)
-            logits += self._parser.next_token_mask()
-            tok = sample_with_temperature(logits, self._parser.next_token_temperature)
+        if gen_data is not None:
+            logits = self.get_logits(gen_data.tokens, None, None)
+            logits += gen_data.mask
+            tok = sample_with_temperature(logits, gen_data.temperature)
             self._parser.consume_token(tok)
 
         return EngineCallResponse(
-            **self._parser.progress
+            new_bytes=response.new_bytes,
+            is_generated=response.is_generated,
+            new_bytes_prob=response.new_bytes_prob,
+            capture_groups=response.capture_groups,
+            capture_group_log_probs=response.capture_group_log_probs,
+            new_token_count=response.new_token_count, 
         )
 
     def __call__(self, parser, grammar, ensure_bos_token=True) -> Iterator[EngineCallResponse]:
