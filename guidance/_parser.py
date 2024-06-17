@@ -227,7 +227,7 @@ class ByteParser(Parser):
             if b != self.bytes[self.pos]:
                 raise ParserException(
                     f"Expected byte {bytes([self.bytes[self.pos]])!r} (fast_forward), got {bytes([b])!r}",
-                    current_byte=b,
+                    current_byte=bytes([b]),
                     allowed_bytes=[self.bytes[self.pos]],
                     consumed_bytes=self.bytes[:self.pos],
                 )
@@ -238,7 +238,7 @@ class ByteParser(Parser):
                 assert self.ll_parser.done
                 raise ParserException(
                     f"Expected end of input, got {bytes([b])!r}",
-                    current_byte=b,
+                    current_byte=bytes([b]),
                     consumed_bytes=self.bytes[:self.pos],
                 )
             valid_next_tokens = self.gen_data.valid_next_tokens()
@@ -246,7 +246,7 @@ class ByteParser(Parser):
                 valid_next_bytes = [bytes([t]) for t in valid_next_tokens]
                 raise ParserException(
                     f"Expected one of the following bytes: {valid_next_bytes!r}, got {bytes([b])!r}",
-                    current_byte=b,
+                    current_byte=bytes([b]),
                     allowed_bytes=valid_next_bytes,
                     consumed_bytes=self.bytes[:self.pos],
                 )
