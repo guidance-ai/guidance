@@ -9,6 +9,7 @@ from . import common_chat_testing
 from ..utils import env_or_fail
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 # Everything in here needs credentials to work
 # Mark is configured in pyproject.toml
