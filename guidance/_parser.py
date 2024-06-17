@@ -100,9 +100,6 @@ class LLParser(Parser):
         )
 
     def _advance(self, state: ParserState) -> Tuple[Optional[GenData], ParserResponse, ParserState]:
-        if state.done:
-            raise ParserException("Attempted to advance a parser that is already done!")
-    
         mask, resp = self.ll_parser.mid_process(state.backtrack, state.ff_tokens)
         r = json.loads(resp)
 
@@ -203,48 +200,55 @@ class ByteParser(Parser):
         self.tokenizer = ByteTokenizer()
         self.ll_parser = LLParser(grammar, self.tokenizer, prompt, ensure_bos_token)
         self.bytes = b""
-        self.new_bytes = b""
         self.gen_data: Optional[GenData] = None
+        self.pos = 0
         self._variables = {}
         self._variables_log_probs = {}
 
     def matched(self) -> bool:
+        if self.pos < len(self.bytes):
+            return False
         if not self.ll_parser.done:
             # May need to do a final advance
             self.consume_bytes(b"")
         return self.ll_parser.done
 
     def consume_bytes(self, bts: bytes) -> None:
-        self.gen_data, response = self.ll_parser.advance()
-        self._update_capture(response)
-        self.new_bytes += response.new_bytes
-
-        for b in bts:
-            if self.new_bytes:
-                if b != self.new_bytes[0]:
-                    raise ParserException(
-                        f"Expected byte {bytes([self.new_bytes[0]])!r} (fast_forward), got {bytes([b])!r}",
-                        current_byte=b,
-                        allowed_bytes=[self.new_bytes[0]],
-                        consumed_bytes=self.bytes,
-                    )
-                self.new_bytes = self.new_bytes[1:]
-                self.bytes += bytes([b])
-            else:
-                assert self.gen_data is not None
-                valid_next_tokens = self.gen_data.valid_next_tokens()
-                if b not in valid_next_tokens:
-                    valid_next_bytes = [bytes([t]) for t in valid_next_tokens]
-                    raise ParserException(
-                        f"Expected one of the following bytes: {valid_next_bytes!r}, got {bytes([b])!r}",
-                        current_byte=b,
-                        allowed_bytes=valid_next_bytes,
-                        consumed_bytes=self.bytes,
-                    )
-                self.ll_parser.consume_token(b)
-                self.gen_data, response = self.ll_parser.advance()
-                self._update_capture(response)
-                self.bytes += bytes([b])
+        while self.gen_data is None and not self.ll_parser.done:
+            self.gen_data, response = self.ll_parser.advance()
+            self._update_capture(response)
+            self.bytes += response.new_bytes
+        
+        if not bts:
+            return
+        
+        b = bts[0]
+        if self.pos < len(self.bytes):
+            if b != self.bytes[self.pos]:
+                raise ParserException(
+                    f"Expected byte {bytes([self.bytes[self.pos]])!r} (fast_forward), got {bytes([b])!r}",
+                    current_byte=b,
+                    allowed_bytes=[self.bytes[self.pos]],
+                    consumed_bytes=self.bytes,
+                )
+            self.pos += 1
+            self.consume_bytes(bts[1:])
+        else:
+            assert self.gen_data is not None
+            valid_next_tokens = self.gen_data.valid_next_tokens()
+            if b not in valid_next_tokens:
+                valid_next_bytes = [bytes([t]) for t in valid_next_tokens]
+                raise ParserException(
+                    f"Expected one of the following bytes: {valid_next_bytes!r}, got {bytes([b])!r}",
+                    current_byte=b,
+                    allowed_bytes=valid_next_bytes,
+                    consumed_bytes=self.bytes,
+                )
+            self.ll_parser.consume_token(b)
+            # Reset gen_data as we are done with it
+            self.gen_data = None
+            # Reconsume byte again
+            self.consume_bytes(bts)
 
     def get_captures(self):
         return self._variables, self._variables_log_probs
