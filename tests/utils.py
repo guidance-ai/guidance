@@ -151,7 +151,7 @@ def check_match_failure(
     """
     with pytest.raises(ParserException) as pe:
         grammar.match(bad_string, raise_exceptions=True)
-    assert pe.value.consumed_bytes[:-1] == good_bytes
+    assert pe.value.consumed_bytes == good_bytes
     assert pe.value.current_byte == failure_byte
     assert pe.value.allowed_bytes == allowed_bytes
 
