@@ -199,8 +199,12 @@ class Engine:
         else:
             raise Exception("The passed parser is of an unknown type!")
 
-        self._parser = LLParser(grammar, self.tokenizer)
-        self._parser.start(prompt, ensure_bos_token)
+        self._parser = LLParser(
+            grammar=grammar,
+            tokenizer=self.tokenizer,
+            prompt=prompt,
+            ensure_bos_token=ensure_bos_token
+        )
 
     def next(self) -> Optional[EngineCallResponse]:
         """Move the grammar state machine processing forward to the next point where

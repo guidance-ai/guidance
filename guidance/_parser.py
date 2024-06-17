@@ -19,9 +19,16 @@ class Parser:
 
     pass
 
+
 class LLParser(Parser):
 
-    def __init__(self, grammar: GrammarFunction, tokenizer: Tokenizer):
+    def __init__(
+        self,
+        grammar: GrammarFunction,
+        tokenizer: Tokenizer,
+        prompt: bytes = b"",
+        ensure_bos_token: bool = True,
+    ):
         # we can't have a terminal as the root
         if isinstance(grammar, Terminal):
             grammar = Join([grammar])
@@ -37,12 +44,9 @@ class LLParser(Parser):
             json.dumps(grammar.ll_serialize()),
             log_level=2,
         )
+        self._start(prompt=prompt, ensure_bos_token=ensure_bos_token)
 
-    @property
-    def progress(self) -> dict:
-        return self._handle_progress(self._progress)
-
-    def start(self, prompt: bytes = b'', ensure_bos_token=True):
+    def _start(self, prompt: bytes, ensure_bos_token: bool):
         # add the beginning of sequence token if needed
         if (
             ensure_bos_token
@@ -109,6 +113,10 @@ class LLParser(Parser):
         [tok_ids] = np.nonzero(self.next_token_mask())
         return tok_ids
     
+    @property
+    def progress(self):
+        return self._handle_progress(self._progress)
+
     @staticmethod
     def _handle_progress(progress: List[dict]) -> dict:
         # TODO: schema obj
