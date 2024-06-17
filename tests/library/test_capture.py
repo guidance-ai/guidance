@@ -1,6 +1,7 @@
-from guidance import capture, models, one_or_more, select, guidance
+from guidance import capture, models, one_or_more, select, guidance, user
 
 from ..utils import get_model
+from ..conftest import model_with_role_tags
 
 
 def test_capture():
@@ -45,3 +46,11 @@ def test_capture_raw_function():
     assert str(lm_nocap).endswith("|the end")
     assert str(lm_cap_arg).endswith("|the end")
     assert str(lm_cap_kwarg).endswith("|the end")
+
+
+def test_capture_within_role(model_with_role_tags: guidance.models.Model):
+    lm = model_with_role_tags
+    test_text = "This is some text in a role."
+    with user():
+        lm += capture(test_text, "test")
+    assert lm["test"] == test_text
