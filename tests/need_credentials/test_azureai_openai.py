@@ -1,19 +1,11 @@
-import os
 import pathlib
 
 from urllib.parse import parse_qs, urlparse
-
-import pytest
 
 from guidance import assistant, gen, models, system, user
 
 from ..model_specific import common_chat_testing
 from ..utils import env_or_fail
-
-# Everything in here needs credentials to work
-# Mark is configured in pyproject.toml
-pytestmark = pytest.mark.needs_credentials
-
 
 def test_azureai_openai_chat_smoke(rate_limiter):
     azureai_endpoint = env_or_fail("AZUREAI_CHAT_ENDPOINT")
