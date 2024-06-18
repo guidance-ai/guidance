@@ -1,4 +1,6 @@
-from guidance import models
+import guidance
+
+from guidance import gen, models
 
 def test_call_embeddings():
     """This tests calls embedded in strings."""
