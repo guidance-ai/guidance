@@ -71,7 +71,13 @@ class LLParser(Parser):
         )
         self._state = self._start(prompt=prompt, ensure_bos_token=ensure_bos_token)
 
-    @property
+    def matched(self) -> bool:
+        return (
+            self.ll_interpreter.is_accepting()
+            and self._state.backtrack == 0
+            and len(self._state.ff_tokens) == 0
+        )
+
     def done(self) -> bool:
         return self._state.done
     
@@ -208,13 +214,10 @@ class ByteParser(Parser):
     def matched(self) -> bool:
         if self.pos < len(self.bytes):
             return False
-        if not self.ll_parser.done:
-            # May need to do a final advance
-            self.consume_bytes(b"")
-        return self.ll_parser.done
+        return self.ll_parser.matched()
 
     def consume_bytes(self, bts: bytes) -> None:
-        while self.gen_data is None and not self.ll_parser.done:
+        while self.gen_data is None and not self.ll_parser.done():
             self.gen_data, response = self.ll_parser.advance()
             self._update_capture(response)
             self.bytes += response.new_bytes
@@ -235,7 +238,7 @@ class ByteParser(Parser):
             self.consume_bytes(bts[1:])
         else:
             if self.gen_data is None:
-                assert self.ll_parser.done
+                assert self.ll_parser.done()
                 raise ParserException(
                     f"Expected end of input, got {bytes([b])!r}",
                     current_byte=bytes([b]),
