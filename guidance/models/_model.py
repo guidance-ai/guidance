@@ -221,9 +221,9 @@ class Engine:
         gen_data, response = self._parser.advance()
 
         if gen_data is not None:
-            logits = self.get_logits(gen_data.tokens, None, None)
+            logits = self.get_logits(gen_data.tokens, None, gen_data.temperature)
             logits += gen_data.mask
-            tok = sample_with_temperature(logits, gen_data.temperature)
+            tok = sample_with_temperature(logits, 1.0)
             self._parser.consume_token(tok)
 
         return EngineCallResponse(
