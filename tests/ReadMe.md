@@ -9,6 +9,7 @@ The tests are arranged into the following directories:
 - `model_specific` tests are for isolating particular issues with individual LLMs
 - `need_credentials` tests are for tests which need access to various credentials (mainly `Grammarless` models)
 - `notebook` tests are for notebooks
+- `server` are for tests of the server (technically unit tests, but these are slow)
 
 The `model_specific` tests should make use of the `selected_model` machinery, but skip themselves if the appropriate model is not supplied.
 A sample means of achieving this:
