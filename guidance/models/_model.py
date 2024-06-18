@@ -24,7 +24,11 @@ except ImportError:
     notebook_mode = False
 else:
     ipython_is_imported = True
-    notebook_mode = "IPKernelApp" in get_ipython().config
+    _ipython = get_ipython()
+    notebook_mode = (
+        _ipython is not None
+        and "IPKernelApp" in _ipython.config
+    )
 
 try:
     import torch
