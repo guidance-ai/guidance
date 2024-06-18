@@ -56,6 +56,7 @@ IGNORED_KEYS = {
     "description",
     "default",
     "examples",
+    "required", # TODO: implement and remove from ignored list
 }
 
 TYPE_SPECIFIC_KEYS = {
