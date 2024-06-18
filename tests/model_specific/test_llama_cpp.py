@@ -9,7 +9,7 @@ from ..utils import get_model
 
 @pytest.fixture(scope="module")
 def llamacpp_model(selected_model, selected_model_name):
-    if selected_model_name in ["hfllama7b", "hfllama_7b_gpu"]:
+    if selected_model_name in ["hfllama7b", "hfllama_7b_gpu", "hfllama_mistral_7b"]:
         return selected_model
     else:
         pytest.skip("Requires Llama-Cpp model")
