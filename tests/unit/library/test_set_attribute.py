@@ -1,6 +1,4 @@
-from guidance import set_attribute, models, gen, select
-
-from ..utils import get_model
+from guidance import set_attribute, models, gen
 
 
 def test_set_attribute():
@@ -8,5 +6,5 @@ def test_set_attribute():
     with set_attribute("echo", False):
         lm += "1"
         assert lm.echo == False
-        out = (lm + gen('name', max_tokens=1))['name']
+        out = (lm + gen("name", max_tokens=1))["name"]
     assert out == "2"
