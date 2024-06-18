@@ -8,12 +8,6 @@ build-backend = "setuptools.build_meta"
 
 [tool.pytest.ini_options]
 addopts = "--strict-markers"
-markers = [
-    "server: Potentially unreliable tests of the server functionality",
-    "needs_credentials: Test which needs access to credentials to work",
-    "use_gpu: Test which uses always uses GPU (model not injected via fixture)",
-    "notebooks: Test of the notebooks",
-]
 
 [tool.black]
 line-length = 99
