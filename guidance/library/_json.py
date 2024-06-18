@@ -24,6 +24,7 @@ from ..library import char_range, one_or_more, optional, zero_or_more
 
 from .._grammar import GrammarFunction, select, capture, with_temperature
 from ._pydantic import pydantic_to_json_schema
+from ._greedy import lexeme, greedy_grammar
 
 
 def _to_compact_json(target: Any) -> str:
@@ -80,34 +81,18 @@ def validate_json_node_keys(node: Mapping[str, Any]):
 
 @guidance(stateless=True)
 def _gen_json_int(lm):
-    pos_nonzero = char_range("1", "9") + zero_or_more(char_range("0", "9"))
-    return lm + optional("-") + select(["0", pos_nonzero])
+    return lm + lexeme(r"-?(?:0|[1-9][0-9]*)")
 
 
 @guidance(stateless=True)
 def _gen_json_number(lm):
-    mantissa_int = _gen_json_int()
-    mantissa_frac = "." + one_or_more(char_range("0", "9"))
-    exponent = "e" + select(["", "+", "-"]) + one_or_more(char_range("0", "9"))
+    return lm + _gen_json_int() + lexeme(r"(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?")
 
-    return lm + mantissa_int + optional(mantissa_frac) + optional(exponent)
 
 
 @guidance(stateless=True)
 def _gen_json_string(lm):
-    string_chars = select(
-        [
-            char_range("a", "z"),
-            char_range("A", "Z"),
-            char_range("0", "9"),
-            *[c for c in "-_' ,.!?/[]{}():;"],
-            "\\n",
-            "\\t",
-            "\\\\",
-        ],
-        recurse=True,
-    )
-    return lm + '"' + string_chars + '"'
+    return lm + lexeme(r'"(\\(["\\\/bfnrt]|u[a-fA-F0-9]{4})|[^"\\\x00-\x1F\x7F]+)*"')
 
 
 @guidance(stateless=True)
@@ -440,9 +425,14 @@ def json(
             assert len(definitions) == 0, "Found duplicate definitions"
             definitions = _build_definitions(schema[dk])
 
-    return lm + capture(
-        with_temperature(_gen_json(schema, definitions), temperature=temperature),
-        name=name,
+    return lm + with_temperature(
+        greedy_grammar(
+            name,
+            body=_gen_json(json_schema=schema, definitions=definitions),
+            skip_regex=r"[\x20\x0A\x0D\x09]+", # whitespace
+            no_initial_skip=True,
+        ),
+        temperature=temperature,
     )
 
 
