@@ -12,7 +12,7 @@ import numpy as np
 
 from html.parser import HTMLParser
 try:
-    from colored import Fore
+    from colored import Fore  # type: ignore[import-untyped]
 except ImportError:
     colored_is_imported = False
 else:
