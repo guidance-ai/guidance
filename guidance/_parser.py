@@ -197,6 +197,7 @@ class LLParser(Parser):
     
 from .models._byte_tokenizer import ByteTokenizer    
 class ByteParser(Parser):
+    # TODO: reconcile API with LLParser; maybe only one of them deserves to be called Parser
     def __init__(
         self,
         grammar: GrammarFunction,
@@ -217,6 +218,8 @@ class ByteParser(Parser):
         return self.ll_parser.matched()
 
     def consume_bytes(self, bts: bytes) -> None:
+        # Run underlying ll_parser and fast-forward all of our bytes
+        # until we have a "choice" (generation step) to make
         while self.gen_data is None and not self.ll_parser.done():
             self.gen_data, response = self.ll_parser.advance()
             self._update_capture(response)
@@ -226,6 +229,9 @@ class ByteParser(Parser):
             return
         
         b = bts[0]
+        # If the current position is less than the length of the bytes, then we are in fast_forward mode
+        # and we need to make sure that the byte we are consuming is the same as the byte at the current 
+        # position
         if self.pos < len(self.bytes):
             if b != self.bytes[self.pos]:
                 raise ParserException(
@@ -234,16 +240,20 @@ class ByteParser(Parser):
                     allowed_bytes=[self.bytes[self.pos]],
                     consumed_bytes=self.bytes[:self.pos],
                 )
+            # Byte was good, move to the next byte
             self.pos += 1
             self.consume_bytes(bts[1:])
         else:
+            # If we are here, then we are either in generation mode or we are done.
             if self.gen_data is None:
+                # TODO: may run into trouble here if we need to backtrack
                 assert self.ll_parser.done()
                 raise ParserException(
                     f"Expected end of input, got {bytes([b])!r}",
                     current_byte=bytes([b]),
                     consumed_bytes=self.bytes[:self.pos],
                 )
+            # We're in generation mode. Assure that the byte is one of the valid next bytes
             valid_next_tokens = self.gen_data.valid_next_tokens()
             if b not in valid_next_tokens:
                 valid_next_bytes = [bytes([t]) for t in valid_next_tokens]
@@ -253,10 +263,12 @@ class ByteParser(Parser):
                     allowed_bytes=valid_next_bytes,
                     consumed_bytes=self.bytes[:self.pos],
                 )
+            # Byte was good, have ll_parser consume it so we can advance further
             self.ll_parser.consume_token(b)
             # Reset gen_data as we are done with it
             self.gen_data = None
-            # Reconsume byte again
+
+            # Run consume_bytes to advance ll_parser and consume the next byte
             self.consume_bytes(bts)
 
     def get_captures(self):
