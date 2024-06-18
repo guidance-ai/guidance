@@ -17,11 +17,15 @@ from typing import Dict, TYPE_CHECKING
 import numpy as np
 
 try:
+    from IPython import get_ipython
     from IPython.display import clear_output, display, HTML
-
-    ipython_is_imported = True
 except ImportError:
     ipython_is_imported = False
+    notebook_mode = False
+else:
+    ipython_is_imported = True
+    notebook_mode = "IPKernelApp" in get_ipython().config
+
 try:
     import torch
 
@@ -39,7 +43,7 @@ except ImportError:
     )
     from .. import _cpp as cpp
 from ._guidance_engine_metrics import GuidanceEngineMetrics
-from .._utils import softmax, CaptureEvents
+from .._utils import softmax, CaptureEvents, ModelStateHTMLParser
 from .._parser import EarleyCommitParser, Parser
 from .._grammar import (
     GrammarFunction,
@@ -862,6 +866,8 @@ class Model:
         self._event_parent = None
         self._last_display = 0  # used to track the last display call to enable throttling
         self._last_event_stream = 0  # used to track the last event streaming call to enable throttling
+        self._state_html_parser = ModelStateHTMLParser() # used to parse the state for cli display
+        self._last_state_len = 0 # used to track the last state length for appending to cli display
 
     @property
     def active_role_end(self):
@@ -975,11 +981,18 @@ class Model:
                 else:
                     self._last_display = curr_time
 
-            if ipython_is_imported:
+            if notebook_mode:
                 clear_output(wait=True)
                 display(HTML(self._html()))
             else:
-                pprint(self._state)
+                print(
+                    self._state_html_parser.feed(
+                        self._state[self._last_state_len:]
+                    ),
+                    end='',
+                    flush=True
+                )
+                self._last_state_len = len(self._state)
 
     def reset(self, clear_variables=True):
         """This resets the state of the model object.

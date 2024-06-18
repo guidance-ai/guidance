@@ -6,8 +6,9 @@ import queue
 import sys
 import textwrap
 import types
-
+import re
 import numpy as np
+from html.parser import HTMLParser
 
 
 class _Rewrite(ast.NodeTransformer):
@@ -261,3 +262,30 @@ def softmax(array: np.ndarray, axis: int = -1) -> np.ndarray:
     array_maxs = np.amax(array, axis=axis, keepdims=True)
     exp_x_shifted = np.exp(array - array_maxs)
     return exp_x_shifted / np.sum(exp_x_shifted, axis=axis, keepdims=True)
+
+
+class ModelStateHTMLParser(HTMLParser):
+    """Parse jupyter-flavored HTML that contains colored text to color text for the command-line"""
+    def __init__(self):
+        super().__init__()
+        self.colored_text = ''
+
+    def feed(self, data):
+        self.colored_text = ''
+        # Remove html insertion tags (I suppose it is for jupyter to recognize it as html markdown)
+        data = data.replace('<||_html:', '').replace('_||>', '')
+        super().feed(data)
+        return self.colored_text
+
+    def handle_starttag(self, tag, attrs):
+        # Start ASCII coloring text green (32) when span tag opens
+        if tag == 'span':
+            self.colored_text += '\033[32m'
+
+    def handle_endtag(self, tag):
+        # ASCII reset color when tag closes
+        if tag == 'span':
+            self.colored_text += '\033[0m'
+
+    def handle_data(self, data):
+        self.colored_text += data
