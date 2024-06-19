@@ -1400,6 +1400,13 @@ class TestEmptySchemas:
     },
     "type": "object"
     }"""
+    nested_empty_schema_with_props = """{
+    "properties" : {
+        "a": {},
+        "b": {"type": "number"}
+    },
+    "type" : "object"
+    }"""
 
     @pytest.mark.parametrize(
         "target_obj",
@@ -1497,14 +1504,51 @@ class TestEmptySchemas:
     def test_nested_empty_schema_bad(
         self, bad_obj, good_bytes, failure_byte, allowed_bytes
     ):
-        schema = """{
-            "properties": {
-                "a": {}
-            },
-            "type": "object"
-        }
-        """
-        schema_obj = json.loads(schema)
+        schema_obj = json.loads(self.nested_empty_schema)
+        bad_string = _to_compact_json(bad_obj)
+        check_match_failure(
+            bad_string=bad_string,
+            good_bytes=good_bytes,
+            failure_byte=failure_byte,
+            allowed_bytes=allowed_bytes,
+            schema_obj=schema_obj,
+        )
+
+    @pytest.mark.parametrize(
+        "target_obj",
+        [
+            {"a": 1, "b": 2},
+            {"a": "2", "b": 1.998},
+            {"a": False, "b": -3.14},
+            {"a": [1, 2, 3], "b": 42},
+            {"a": {"b": 1}, "b": 0.2},
+            {"a": None, "b": 5e-4},
+            {"a": [{"b": 1}], "b": -5e2},
+            {"a": {"b": [1, 2, 3]}, "b": 1},
+            {"a": {"b": {"c": 1}}, "b": -1},
+        ],
+    )
+    @pytest.mark.parametrize("temperature", [None, 0.1, 1])
+    def test_nested_empty_schema_with_props(self, target_obj, temperature):
+        # First sanity check what we're setting up
+        schema_obj = json.loads(self.nested_empty_schema_with_props)
+        validate(instance=target_obj, schema=schema_obj)
+
+        # The actual check
+        generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
+
+    @pytest.mark.parametrize(
+        "bad_obj, good_bytes, failure_byte, allowed_bytes",
+        [
+            # Missing property -- presence of {} deeper in the schema isn't carte blanche
+            ({"b": 42}, b'{"', b"b", {Byte(b"a")}),
+        ],
+    )
+    def test_nested_empty_schema_with_props_bad(
+        self, bad_obj, good_bytes, failure_byte, allowed_bytes
+    ):
+        schema_obj = json.loads(self.nested_empty_schema_with_props)
+
         bad_string = _to_compact_json(bad_obj)
         check_match_failure(
             bad_string=bad_string,
