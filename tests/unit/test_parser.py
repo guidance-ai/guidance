@@ -84,7 +84,7 @@ def test_select_joined():
 def test_char_set():
     g = char_set("b-f")
     parser = ByteParser(g)
-    assert parser.valid_next_bytes() == {bytes[i] for i in range(ord("b"), ord("f") + 1)}
+    assert parser.valid_next_bytes() == {bytes([i]) for i in range(ord("b"), ord("f") + 1)}
     parser.consume_bytes(b"b")
 
 
@@ -113,13 +113,13 @@ def test_byte_mask_char_set2():
 def test_char_set_one_or_more():
     g = one_or_more(char_set("b-f"))
     parser = ByteParser(g)
-    assert parser.valid_next_bytes() == {bytes[i] for i in range(ord("b"), ord("f") + 1)}
+    assert parser.valid_next_bytes() == {bytes([i]) for i in range(ord("b"), ord("f") + 1)}
     parser.consume_bytes(b"b")
-    assert parser.valid_next_bytes() == {bytes[i] for i in range(ord("b"), ord("f") + 1)}
+    assert parser.valid_next_bytes() == {bytes([i]) for i in range(ord("b"), ord("f") + 1)}
     parser.consume_bytes(b"b")
-    assert parser.valid_next_bytes() == {bytes[i] for i in range(ord("b"), ord("f") + 1)}
+    assert parser.valid_next_bytes() == {bytes([i]) for i in range(ord("b"), ord("f") + 1)}
     parser.consume_bytes(b"f")
-    assert parser.valid_next_bytes() == {bytes[i] for i in range(ord("b"), ord("f") + 1)}
+    assert parser.valid_next_bytes() == {bytes([i]) for i in range(ord("b"), ord("f") + 1)}
 
 
 def test_string_utf8():
