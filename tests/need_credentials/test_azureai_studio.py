@@ -1,14 +1,10 @@
 import pytest
 
-from guidance import assistant, gen, models, system, user
+from guidance import models
 
 
-from . import common_chat_testing
+from ..model_specific import common_chat_testing
 from ..utils import env_or_fail
-
-# Everything in here needs credentials to work
-# Mark is configured in pyproject.toml
-pytestmark = pytest.mark.needs_credentials
 
 # How to fill out the environment variables to
 # set up the models
