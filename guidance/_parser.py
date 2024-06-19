@@ -219,6 +219,16 @@ class ByteParser(Parser):
             return False
         return self.ll_parser.matched()
 
+    def valid_next_bytes(self) -> Set[bytes]:
+        if self.pos < len(self.bytes):
+            return {self.bytes[self.pos:self.pos+1]}
+        if self.gen_data is None:
+            return set()
+        return {
+            bytes([t]) for t in self.gen_data.valid_next_tokens()
+            if t != self.tokenizer.eos_token_id
+        }
+
     def consume_bytes(self, bts: bytes) -> None:
         # Run underlying ll_parser and fast-forward all of our bytes
         # until we have a "choice" (generation step) to make
