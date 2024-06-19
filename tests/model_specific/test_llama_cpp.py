@@ -4,8 +4,6 @@ import pytest
 import guidance
 from guidance import gen, select
 
-from ..utils import get_model
-
 
 @pytest.fixture(scope="module")
 def llamacpp_model(selected_model, selected_model_name):

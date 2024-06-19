@@ -1,19 +1,18 @@
 import json
-from typing import Any, Union, Set, Dict
+from functools import partial
+from typing import Any, Dict, Set, Union
 
 import pytest
 from jsonschema import validate
-from functools import partial
 
 from guidance import json as gen_json
 from guidance import models
 from guidance._grammar import Byte, ByteRange
 from guidance.library._json import _to_compact_json
-from ..utils import (
-    check_run_with_temperature,
-    check_match_failure as _check_match_failure,
-    generate_and_check as _generate_and_check,
-)
+
+from ...utils import check_match_failure as _check_match_failure
+from ...utils import check_run_with_temperature
+from ...utils import generate_and_check as _generate_and_check
 
 
 def generate_and_check(
@@ -27,9 +26,7 @@ def generate_and_check(
     # Now test that the grammar can recognize and generate prepared_json
     # We partial in the grammar_callable
     if desired_temperature is not None:
-        grammar_callable = partial(
-            gen_json, schema=schema_obj, temperature=desired_temperature
-        )
+        grammar_callable = partial(gen_json, schema=schema_obj, temperature=desired_temperature)
     else:
         grammar_callable = partial(gen_json, schema=schema_obj)
 
@@ -1202,9 +1199,7 @@ class TestAdditionalProperties:
             schema_obj=schema_obj,
         )
 
-    @pytest.mark.parametrize(
-        "target_obj", [{}, {"a": 1}, {"a": "2"}, {"a": 1, "b": "2"}]
-    )
+    @pytest.mark.parametrize("target_obj", [{}, {"a": 1}, {"a": "2"}, {"a": 1, "b": "2"}])
     def test_anyOf_additional_properties(self, target_obj):
         # First sanity check what we're setting up
         schema_obj = json.loads(self.anyOf_schema)
@@ -1262,9 +1257,7 @@ class TestAdditionalProperties:
             ({"a": 1, "b": 2}, b'{"', b"a", {Byte(b"m")}),
         ],
     )
-    def test_combined_missing_properties(
-        self, bad_obj, good_bytes, failure_byte, allowed_bytes
-    ):
+    def test_combined_missing_properties(self, bad_obj, good_bytes, failure_byte, allowed_bytes):
         schema_obj = json.loads(self.combined_schema)
         bad_string = _to_compact_json(bad_obj)
         check_match_failure(
