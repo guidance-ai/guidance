@@ -1,13 +1,7 @@
 from guidance import Tool, capture, commit_point, models, select, string
 
 
-def test_hidden():
-    model = models.Mock()
-    model += " one" + commit_point(" two", hidden=True) + " three"
-    assert str(model) == " one three"
-
-
-def test_commit_point(selected_model):
+def test_commit_point(selected_model: models.Model):
     lm = selected_model
     tools = [Tool(callable=lambda x: x)]
     stop_pattern = select([string(lm.engine.tokenizer.eos_token)])

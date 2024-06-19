@@ -45,6 +45,10 @@ python -m pytest -m "not (needs_credentials or use_gpu or server)" --selected_mo
 ```
 where `<MODELNAME>` is taken from the `AVAILABLE_MODELS` dictionary defined in `conftest.py`.
 
+Alternatively, the default value for `--selected_model` can be set via the `GUIDANCE_SELECTED_MODEL` environment variable.
+This may be useful when trying to use a debugger when running `pytest`, and setting the extra command line argument in the debugger configuration is tricky.
+Just remember that the environment variable needs to be set _before_ starting PyCharm/VSCode etc.
+
 ## Adding LLMs to the test matrix
 
 Our tests run on a variety of LLMs.

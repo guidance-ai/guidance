@@ -8,15 +8,9 @@ build-backend = "setuptools.build_meta"
 
 [tool.pytest.ini_options]
 addopts = "--strict-markers"
-markers = [
-    "server: Potentially unreliable tests of the server functionality",
-    "needs_credentials: Test which needs access to credentials to work",
-    "use_gpu: Test which uses always uses GPU (model not injected via fixture)",
-    "notebooks: Test of the notebooks",
-]
 
 [tool.black]
-line-length = 88
+line-length = 99
 target_version = ['py39', 'py310', 'py311', 'py312']
 
 [tool.isort]
@@ -26,10 +20,6 @@ profile = "black"
 no_implicit_optional = false  # TODO: PEP484, set to true
 strict = false  # TODO: set to true
 exclude = ["tests"]
-
-[[tool.mypy.overrides]]
-module = "pyformlang.*"
-ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "pybind11.*"
