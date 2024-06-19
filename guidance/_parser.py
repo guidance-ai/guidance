@@ -229,6 +229,12 @@ class ByteParser(Parser):
             if t != self.tokenizer.eos_token_id
         }
 
+    def next_byte_mask(self) -> NDArray[np.uint8]:
+        mask = np.zeros(256, dtype=np.uint8)
+        for t in self.valid_next_bytes():
+            mask[t[0]] = 1
+        return mask
+
     def consume_bytes(self, bts: bytes) -> None:
         # Run underlying ll_parser and fast-forward all of our bytes
         # until we have a "choice" (generation step) to make
