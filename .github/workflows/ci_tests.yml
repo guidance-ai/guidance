@@ -79,8 +79,8 @@ jobs:
           AZURE_AI_STUDIO_LLAMA3_CHAT_KEY: ${{ secrets.AZURE_AI_STUDIO_LLAMA3_CHAT_KEY }}
         run: |
           pytest --cov=guidance --cov-report=xml --cov-report=term-missing \
-            -m "needs_credentials and (not notebooks)" \
-            ./tests/
+            -vv \
+            ./tests/need_credentials
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4
         with:
