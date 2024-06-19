@@ -88,10 +88,11 @@ class TransformersTokenizer(Tokenizer):
             s = "’•¶∂ƒ˙∆£Ħ爨ൠᅘ∰፨"
             reconstructed = b""
             try:
-
-                for i in transformers_tokenizer(s)["input_ids"]:
+                input_ids = transformers_tokenizer(s)["input_ids"]
+                for i in input_ids:
                     nxt_bytes = []
-                    for c in transformers_tokenizer.convert_ids_to_tokens(i):
+                    token_str = transformers_tokenizer.convert_ids_to_tokens(i)
+                    for c in token_str:
                         nxt_bytes.append(byte_decoder[c])
                     reconstructed += bytes(nxt_bytes)
                 # Check if the tokenizer has a bos_token attribute, and if it does, check
