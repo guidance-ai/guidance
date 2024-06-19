@@ -33,9 +33,10 @@ class TransformersTokenizer(Tokenizer):
         ],
         chat_template=None,
         ignore_bos_token=False,
+        **kwargs
     ):
         if transformers_tokenizer is None:
-            transformers_tokenizer = self._tokenizer(model)
+            transformers_tokenizer = self._tokenizer(model, **kwargs)
         else:
             is_ptt = isinstance(transformers_tokenizer, transformers_package.PreTrainedTokenizer)
             is_ptt_fast = isinstance(
@@ -233,7 +234,12 @@ class TransformersEngine(Engine):
                 self._disable_retokenize_check = True
 
         super().__init__(
-            TransformersTokenizer(model, tokenizer, chat_template),
+            TransformersTokenizer(
+                model,
+                tokenizer,
+                chat_template,
+                trust_remote_code=kwargs.get("trust_remote_code", False),
+            ),
             compute_log_probs=compute_log_probs,
         )
         assert self._token_trie.match
