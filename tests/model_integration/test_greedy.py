@@ -15,16 +15,6 @@ from guidance import (
     lazy_grammar,
 )
 
-from ..utils import get_model
-
-
-@pytest.fixture(scope="module")
-def azure_guidance_model(selected_model, selected_model_name):
-    if selected_model_name in ["azure_guidance"]:
-        return selected_model
-    else:
-        pytest.skip("Requires Azure Guidance model")
-
 
 @guidance(stateless=True)
 def json_string(lm):
@@ -78,8 +68,8 @@ def gen_json_object(lm, name: str, max_tokens=100000000):
     return lm + grm
 
 
-def test_greedy_json_object(azure_guidance_model):
-    lm = azure_guidance_model
+def test_greedy_json_object(selected_model: guidance.models.Model):
+    lm = selected_model
     lm += "Three things about J. Random Hacker:\n"
     lm += gen_json_object("hacker", max_tokens=150)
     lm += "\nScore: " + gen("score", regex="[1-3]")
@@ -89,8 +79,8 @@ def test_greedy_json_object(azure_guidance_model):
     assert lm["score"] in ["1", "2", "3"]
 
 
-def test_greedy_single_terminal(azure_guidance_model):
-    lm = azure_guidance_model
+def test_greedy_single_terminal(selected_model: guidance.models.Model):
+    lm = selected_model
     lm += "A number: "
     lm += greedy_grammar(body=lexeme(r"[0-9]{3}"))
     assert re.search(r": [0-9]{3}$", str(lm))

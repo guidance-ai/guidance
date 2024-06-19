@@ -57,8 +57,8 @@ jobs:
           python -c "import guidance"
 
 
-  unit-tests-linux-python-latest:
-    uses: ./.github/workflows/action_plain_unit_tests.yml
+  basic-tests-linux-python-latest:
+    uses: ./.github/workflows/action_plain_basic_tests.yml
     strategy:
       fail-fast: false # Don't cancel all on first failure
       matrix:
@@ -80,7 +80,7 @@ jobs:
       - linting-black
       - linting-mypy
       - bare-install
-      - unit-tests-linux-python-latest
+      - basic-tests-linux-python-latest
     name: End Stage 1
     runs-on: ubuntu-latest
     steps:
@@ -90,14 +90,14 @@ jobs:
 # Remaining CPU-based tests on Linux, plus server tests and basic GPU testing
 
 
-  unit-tests-gpu-python-latest:
+  basic-tests-gpu-python-latest:
     needs: end-stage-1
-    uses: ./.github/workflows/action_gpu_unit_tests.yml
+    uses: ./.github/workflows/action_gpu_basic_tests.yml
     with:
       os: gpu-runner
       python-version: "3.12"
 
-  unit-tests-linux-python-other:
+  basic-tests-linux-python-other:
     needs: end-stage-1
     strategy:
       fail-fast: false # Don't cancel all on first failure
@@ -111,7 +111,7 @@ jobs:
           - "hfllama_mistral_7b"
           - "transformers_phi3cpu_mini_4k_instruct"
           - "hfllama_phi3cpu_mini_4k_instruct"
-    uses: ./.github/workflows/action_plain_unit_tests.yml
+    uses: ./.github/workflows/action_plain_basic_tests.yml
     with:
       os: Large_Linux
       python-version: ${{ matrix.python-version }}
@@ -133,8 +133,8 @@ jobs:
 
   end-stage-2:
     needs:
-      - unit-tests-linux-python-other
-      - unit-tests-gpu-python-latest
+      - basic-tests-linux-python-other
+      - basic-tests-gpu-python-latest
       - server-tests
     name: End Stage 2
     runs-on: ubuntu-latest
@@ -144,7 +144,7 @@ jobs:
 # Third Stage ==============================================================
 # Windows and MacOS, plus other GPU Linux tests
   
-  unit-tests-mac-x86:
+  basic-tests-mac-x86:
     needs: end-stage-2
     strategy:
       fail-fast: false # Don't cancel all on first failure
@@ -158,13 +158,13 @@ jobs:
           - "hfllama_mistral_7b"
           # - "transformers_phi3cpu_mini_4k_instruct" Gives trouble on MacOS
           - "hfllama_phi3cpu_mini_4k_instruct"
-    uses: ./.github/workflows/action_plain_unit_tests.yml
+    uses: ./.github/workflows/action_plain_basic_tests.yml
     with:
       os: macos-12
       python-version: ${{ matrix.python-version }}
       model: ${{ matrix.model }}
 
-  unit-tests-mac-arm:
+  basic-tests-mac-arm:
     needs: end-stage-2
     strategy:
       fail-fast: false # Don't cancel all on first failure
@@ -178,13 +178,13 @@ jobs:
           # - "hfllama_mistral_7b"
           # - "transformers_phi3cpu_mini_4k_instruct" Gives trouble on MacOS
           - "hfllama_phi3cpu_mini_4k_instruct"
-    uses: ./.github/workflows/action_plain_unit_tests.yml
+    uses: ./.github/workflows/action_plain_basic_tests.yml
     with:
       os: macos-latest
       python-version: ${{ matrix.python-version }}
       model: ${{ matrix.model }}
 
-  unit-tests-win:
+  basic-tests-win:
     needs: end-stage-2
     strategy:
       fail-fast: false # Don't cancel all on first failure
@@ -198,19 +198,19 @@ jobs:
           - "hfllama_mistral_7b"
           - "transformers_phi3cpu_mini_4k_instruct"
           - "hfllama_phi3cpu_mini_4k_instruct"
-    uses: ./.github/workflows/action_plain_unit_tests.yml
+    uses: ./.github/workflows/action_plain_basic_tests.yml
     with:
       os: Large_Windows
       python-version: ${{ matrix.python-version }}
       model: ${{ matrix.model }}
 
-  unit-tests-gpu-python-others:
+  basic-tests-gpu-python-others:
     needs: end-stage-2
     strategy:
       fail-fast: false # Don't cancel all on first failure
       matrix:
         python-version: ["3.9", "3.10", "3.11"]
-    uses: ./.github/workflows/action_gpu_unit_tests.yml
+    uses: ./.github/workflows/action_gpu_basic_tests.yml
     with:
       os: gpu-runner
       python-version: ${{ matrix.python-version }}
