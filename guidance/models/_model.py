@@ -215,7 +215,7 @@ class Engine:
         ----------
         logits : the logits obtained from the LLM after the last return from next(...)
         """
-        if self._parser.done:
+        if self._parser.done():
             return None
 
         gen_data, response = self._parser.advance()
