@@ -234,9 +234,13 @@ class TransformersEngine(Engine):
                 self._disable_retokenize_check = True
 
         super().__init__(
-            TransformersTokenizer(model, tokenizer, chat_template),
+            TransformersTokenizer(
+                model,
+                tokenizer,
+                chat_template,
+                **kwargs,
+            ),
             compute_log_probs=compute_log_probs,
-            **kwargs,
         )
         assert self._token_trie.match
 
