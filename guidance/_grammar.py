@@ -1381,6 +1381,16 @@ class LLSerializer:
                     "temperature": node.temperature if node.temperature >= 0 else None,
                 }
             }
+        elif isinstance(node, ByteRange):
+            # TODO: maybe raise a warning in this case, as user should probably be using a larger
+            # GenCommitPoint?
+            obj = {
+                "Gen": {
+                    "body_rx": self.regex(node),
+                    "stop_rx": "",
+                    "temperature": node.temperature if node.temperature >= 0 else None,
+                }
+            }
         elif isinstance(node, Byte):
             obj = {
                 "String": {
