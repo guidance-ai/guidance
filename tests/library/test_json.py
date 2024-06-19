@@ -1558,25 +1558,21 @@ class TestEmptySchemas:
             schema_obj=schema_obj,
         )
 
-    def test_items_missing(self):
+    @pytest.mark.parametrize(
+        "schema_obj",
+        [
+            {"type": "array"},
+            {"type": "array", "items": {}},
+            {"type": "array", "items": True},
+        ],
+    )
+    def test_items(self, schema_obj):
         schema_obj = {"type": "array"}
         generate_and_check(
             [1, 0.4, "hello", False, None, {"a": 42}, [1, 2, 3, "four"]], schema_obj
         )
 
-    def test_items_empty(self):
-        schema_obj = {"type": "array", "items": {}}
-        generate_and_check(
-            [1, 0.4, "hello", False, None, {"a": 42}, [1, 2, 3, "four"]], schema_obj
-        )
-
-    def test_items_true(self):
-        schema_obj = {"type": "array", "items": True}
-        generate_and_check(
-            [1, 0.4, "hello", False, None, {"a": 42}, [1, 2, 3, "four"]], schema_obj
-        )
-
-    def test_items_false(self):
+    def test_no_items(self):
         schema_obj = {"type": "array", "items": False}
         check_match_failure(
             bad_string="[42]",
@@ -1586,8 +1582,15 @@ class TestEmptySchemas:
             schema_obj=schema_obj,
         )
 
-    def test_additionalProperties_missing(self):
-        schema_obj = {"type": "object"}
+    @pytest.mark.parametrize(
+        "schema_obj",
+        [
+            {"type": "object"},
+            {"type": "object", "additionalProperties": {}},
+            {"type": "object", "additionalProperties": True},
+        ],
+    )
+    def test_additionalProperties(self, schema_obj):
         generate_and_check(
             {
                 "a": 1,
@@ -1601,37 +1604,7 @@ class TestEmptySchemas:
             schema_obj,
         )
 
-    def test_additionalProperties_empty(self):
-        schema_obj = {"type": "object", "additionalProperties": {}}
-        generate_and_check(
-            {
-                "a": 1,
-                "b": 0.4,
-                "c": "hello",
-                "d": False,
-                "e": None,
-                "f": {"a": 42},
-                "g": [1, 2, 3, "four"],
-            },
-            schema_obj,
-        )
-
-    def test_additionalProperties_true(self):
-        schema_obj = {"type": "object", "additionalProperties": True}
-        generate_and_check(
-            {
-                "a": 1,
-                "b": 0.4,
-                "c": "hello",
-                "d": False,
-                "e": None,
-                "f": {"a": 42},
-                "g": [1, 2, 3, "four"],
-            },
-            schema_obj,
-        )
-
-    def test_additionalProperties_false(self):
+    def test_no_additionalProperties(self):
         schema_obj = {"type": "object", "additionalProperties": False}
         check_match_failure(
             bad_string='{"a": 42}',
