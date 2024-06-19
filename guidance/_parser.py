@@ -252,10 +252,11 @@ class ByteParser(Parser):
         # position
         if self.pos < len(self.bytes):
             if b != self.bytes[self.pos]:
+                next_byte = self.bytes[self.pos:self.pos+1]
                 raise ParserException(
-                    f"Expected byte {bytes([self.bytes[self.pos]])!r} (fast_forward), got {bytes([b])!r}",
+                    f"Expected byte {next_byte!r} (fast_forward), got {bytes([b])!r}",
                     current_byte=bytes([b]),
-                    allowed_bytes=[self.bytes[self.pos]],
+                    allowed_bytes={next_byte},
                     consumed_bytes=self.bytes[:self.pos],
                 )
             # Byte was good, move to the next byte
@@ -266,15 +267,17 @@ class ByteParser(Parser):
             if self.gen_data is None:
                 # TODO: may run into trouble here if we need to backtrack
                 assert self.ll_parser.done()
+                assert not self.valid_next_bytes()
                 raise ParserException(
                     f"Expected end of input, got {bytes([b])!r}",
                     current_byte=bytes([b]),
+                    allowed_bytes=set(),
                     consumed_bytes=self.bytes[:self.pos],
                 )
             # We're in generation mode. Assure that the byte is one of the valid next bytes
             valid_next_tokens = self.gen_data.valid_next_tokens()
             if b not in valid_next_tokens:
-                valid_next_bytes = [bytes([t]) for t in valid_next_tokens]
+                valid_next_bytes = self.valid_next_bytes()
                 raise ParserException(
                     f"Expected one of the following bytes: {valid_next_bytes!r}, got {bytes([b])!r}",
                     current_byte=bytes([b]),
