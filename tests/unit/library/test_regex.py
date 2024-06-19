@@ -4,7 +4,7 @@ from functools import partial
 from guidance import regex
 from guidance._grammar import Byte, ByteRange
 
-from ..utils import check_match_failure, generate_and_check
+from ...utils import check_match_failure, generate_and_check
 
 
 class TestCharacterClasses:

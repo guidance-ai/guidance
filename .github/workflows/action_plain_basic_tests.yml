@@ -15,7 +15,7 @@ on:
 
 
 jobs:
-  run-plain-unit-tests:
+  run-plain-basic-tests:
     runs-on: ${{ inputs.os }}
     steps:
       - uses: actions/checkout@v4
@@ -45,8 +45,7 @@ jobs:
         run: |
           pytest --cov=guidance --cov-report=xml --cov-report=term-missing \
           --selected_model ${{ inputs.model }} \
-          -m "not (needs_credentials or use_gpu or server or notebooks)" \
-          ./tests/
+          ./tests/unit ./tests/model_integration ./tests/model_specific
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4
         with:

@@ -7,10 +7,6 @@ from urllib.parse import urlparse, parse_qs
 import papermill as pm
 import pytest
 
-# Everything in here is a notebook...
-# Mark is configured in pyproject.toml
-pytestmark = pytest.mark.notebooks
-
 BASE_NB_PATH = pathlib.Path("./notebooks").absolute()
 
 
@@ -28,7 +24,6 @@ def run_notebook(notebook_path: pathlib.Path, params: Optional[Dict[str, Any]] =
 class TestTutorials:
     BASE_TUTORIAL_PATH = BASE_NB_PATH / "tutorials"
 
-    @pytest.mark.needs_credentials
     def test_chat(self, rate_limiter):
         azureai_endpoint = os.getenv("AZUREAI_CHAT_ENDPOINT", None)
 
@@ -61,7 +56,6 @@ class TestTutorials:
 class TestModels:
     BASE_MODEL_PATH = BASE_NB_PATH / "api_examples" / "models"
 
-    @pytest.mark.needs_credentials
     def test_azure_openai(self, rate_limiter):
         azureai_endpoint = os.getenv("AZUREAI_CHAT_ENDPOINT", None)
 
@@ -83,7 +77,6 @@ class TestArtOfPromptDesign:
     BASE_APD_PATH = BASE_NB_PATH / "art_of_prompt_design"
 
     @pytest.mark.skip(reason="Having trouble running")
-    @pytest.mark.use_gpu
     def test_prompt_boundaries_and_token_healing(self):
         nb_path = (
             TestArtOfPromptDesign.BASE_APD_PATH
@@ -91,7 +84,6 @@ class TestArtOfPromptDesign:
         )
         run_notebook(nb_path)
 
-    @pytest.mark.use_gpu
     def test_react(self, selected_model_name):
         if selected_model_name in ["phi2gpu"]:
             # I don't know why; it doesn't make sense, but
@@ -102,8 +94,6 @@ class TestArtOfPromptDesign:
         nb_path = TestArtOfPromptDesign.BASE_APD_PATH / "react.ipynb"
         run_notebook(nb_path)
 
-    @pytest.mark.use_gpu
-    @pytest.mark.needs_credentials
     def test_use_clear_syntax(self, rate_limiter):
         azureai_endpoint = os.getenv("AZUREAI_CHAT_ENDPOINT", None)
 

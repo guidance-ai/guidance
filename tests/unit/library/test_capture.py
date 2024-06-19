@@ -1,7 +1,5 @@
 from guidance import capture, models, one_or_more, select, guidance
 
-from ..utils import get_model
-
 
 def test_capture():
     model = models.Mock()
