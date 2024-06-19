@@ -253,7 +253,7 @@ class GrammarFunction(Function):
             elif isinstance(self, ModelVariable):
                 node.model_variable.CopyFrom(v)
             else:
-                raise Exception("Unknown node type")
+                raise Exception("Unknown node type:", type(node))
             nodes[self] = node
             if hasattr(self, "values"):
                 for value in self.values:
@@ -278,7 +278,7 @@ class GrammarFunction(Function):
             elif node.HasField("model_variable"):
                 node = ModelVariable._from_proto(node.model_variable)
             else:
-                raise Exception("Unknown node type")
+                raise Exception("Unknown node type", node)
             values.append(node)
 
         # fill in the values pointers now that we have the full list of objects
@@ -1394,7 +1394,7 @@ class LLSerializer:
                 }
             }
         else:
-            raise Exception("Unknown node type: " + node)
+            raise Exception("Unknown node type:", type(node))
         tp = next(iter(obj))
         inner: dict = obj[tp]
         if getattr(node, "capture_name", None):
