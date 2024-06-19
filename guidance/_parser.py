@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Set, Union
 from dataclasses import dataclass
 import json
 import os
@@ -212,6 +212,7 @@ class ByteParser(Parser):
         self.pos = 0
         self._variables = {}
         self._variables_log_probs = {}
+        self.consume_bytes(prompt)
 
     def matched(self) -> bool:
         if self.pos < len(self.bytes):
