@@ -1557,3 +1557,86 @@ class TestEmptySchemas:
             allowed_bytes=allowed_bytes,
             schema_obj=schema_obj,
         )
+
+    def test_items_missing(self):
+        schema_obj = {"type": "array"}
+        generate_and_check(
+            [1, 0.4, "hello", False, None, {"a": 42}, [1, 2, 3, "four"]], schema_obj
+        )
+
+    def test_items_empty(self):
+        schema_obj = {"type": "array", "items": {}}
+        generate_and_check(
+            [1, 0.4, "hello", False, None, {"a": 42}, [1, 2, 3, "four"]], schema_obj
+        )
+
+    def test_items_true(self):
+        schema_obj = {"type": "array", "items": True}
+        generate_and_check(
+            [1, 0.4, "hello", False, None, {"a": 42}, [1, 2, 3, "four"]], schema_obj
+        )
+
+    def test_items_false(self):
+        schema_obj = {"type": "array", "items": False}
+        check_match_failure(
+            bad_string="[42]",
+            good_bytes=b"[",
+            failure_byte=b"4",
+            allowed_bytes={Byte(b"]")},  # array must be empty
+            schema_obj=schema_obj,
+        )
+
+    def test_additionalProperties_missing(self):
+        schema_obj = {"type": "object"}
+        generate_and_check(
+            {
+                "a": 1,
+                "b": 0.4,
+                "c": "hello",
+                "d": False,
+                "e": None,
+                "f": {"a": 42},
+                "g": [1, 2, 3, "four"],
+            },
+            schema_obj,
+        )
+
+    def test_additionalProperties_empty(self):
+        schema_obj = {"type": "object", "additionalProperties": {}}
+        generate_and_check(
+            {
+                "a": 1,
+                "b": 0.4,
+                "c": "hello",
+                "d": False,
+                "e": None,
+                "f": {"a": 42},
+                "g": [1, 2, 3, "four"],
+            },
+            schema_obj,
+        )
+
+    def test_additionalProperties_true(self):
+        schema_obj = {"type": "object", "additionalProperties": True}
+        generate_and_check(
+            {
+                "a": 1,
+                "b": 0.4,
+                "c": "hello",
+                "d": False,
+                "e": None,
+                "f": {"a": 42},
+                "g": [1, 2, 3, "four"],
+            },
+            schema_obj,
+        )
+
+    def test_additionalProperties_false(self):
+        schema_obj = {"type": "object", "additionalProperties": False}
+        check_match_failure(
+            bad_string='{"a": 42}',
+            good_bytes=b"{",
+            failure_byte=b'"',
+            allowed_bytes={Byte(b"}")},  # object must be empty
+            schema_obj=schema_obj,
+        )
