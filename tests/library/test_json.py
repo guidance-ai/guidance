@@ -1394,12 +1394,6 @@ class TestRecursiveStructures:
 
 class TestEmptySchemas:
     empty_schema = "{}"
-    nested_empty_schema = """{
-    "properties": {
-        "a": {}
-    },
-    "type": "object"
-    }"""
     nested_empty_schema_with_props = """{
     "properties" : {
         "a": {},
@@ -1472,6 +1466,15 @@ class TestEmptySchemas:
         )
 
     @pytest.mark.parametrize(
+        "schema_obj",
+        [
+            # Empty property
+            {"type": "object", "properties": { "a": {} }},
+            # Empty reference
+            {"type": "object", "properties": {"a": {"$ref": "#/$defs/A"}}, "$defs": {"A": {}}},
+        ]
+    )
+    @pytest.mark.parametrize(
         "target_obj",
         [
             {"a": 1},
@@ -1486,14 +1489,22 @@ class TestEmptySchemas:
         ],
     )
     @pytest.mark.parametrize("temperature", [None, 0.1, 1])
-    def test_nested_empty_schema(self, target_obj, temperature):
+    def test_nested_empty_schema(self, schema_obj, target_obj, temperature):
         # First sanity check what we're setting up
-        schema_obj = json.loads(self.nested_empty_schema)
         validate(instance=target_obj, schema=schema_obj)
 
         # The actual check
         generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
 
+    @pytest.mark.parametrize(
+        "schema_obj",
+        [
+            # Empty property
+            {"type": "object", "properties": { "a": {} }},
+            # Empty reference
+            {"type": "object", "properties": {"a": {"$ref": "#/$defs/A"}}, "$defs": {"A": {}}},
+        ]
+    )
     @pytest.mark.parametrize(
         "bad_obj, good_bytes, failure_byte, allowed_bytes",
         [
@@ -1502,9 +1513,8 @@ class TestEmptySchemas:
         ],
     )
     def test_nested_empty_schema_bad(
-        self, bad_obj, good_bytes, failure_byte, allowed_bytes
+        self, schema_obj, bad_obj, good_bytes, failure_byte, allowed_bytes
     ):
-        schema_obj = json.loads(self.nested_empty_schema)
         bad_string = _to_compact_json(bad_obj)
         check_match_failure(
             bad_string=bad_string,
