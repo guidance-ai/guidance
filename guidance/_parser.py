@@ -1,6 +1,7 @@
 from typing import Any, Dict, List, Optional, Tuple, Union
 from dataclasses import dataclass
 import json
+import os
 import numpy as np
 from numpy.typing import NDArray
 import llguidance
@@ -67,7 +68,7 @@ class LLParser(Parser):
         self.ll_interpreter = llguidance.LLInterpreter(
             self.ll_tokenizer,
             json.dumps(grammar.ll_serialize()),
-            log_level=2,
+            log_level=os.environ.get("LLGUIDANCE_LOG_LEVEL", 1)
         )
         self._state = self._start(prompt=prompt, ensure_bos_token=ensure_bos_token)
 
