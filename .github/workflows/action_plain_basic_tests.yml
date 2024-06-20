@@ -39,7 +39,7 @@ jobs:
         run: |
           pip install sentencepiece
           pip uninstall -y llama-cpp-python
-          pip install "llama-cpp-python!=0.2.58"
+          pip install "llama-cpp-python!=0.2.58,!=0.2.79"
       - name: Run tests (except server)
         shell: bash
         run: |
