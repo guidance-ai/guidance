@@ -272,36 +272,33 @@ def softmax(array: np.ndarray, axis: int = -1) -> np.ndarray:
     return exp_x_shifted / np.sum(exp_x_shifted, axis=axis, keepdims=True)
 
 
-class ModelStateHTMLParser(HTMLParser):
-    """Parse jupyter-flavored HTML that contains colored text to color text for the command-line"""
+# Is it good to allow user to create their own instances of output?
+class ReadableOutput:
+    def feed(self, state_list):
+        """
+        Main function to parse model output
+
+        state_list is a list,
+        where [0] is the text chunk
+        and [1] is rgba color tuple (if text was generated) or None (if text was inserted by us)
+
+        The function must return something to print, or it will be None all the way
+        """
+        raise NotImplementedError('"feed" must be implemented!')
+
+
+class ReadableOutputCLIStream(ReadableOutput):
     def __init__(self):
+        self._cur_chunk = 0
         super().__init__()
-        self.colored_text = ''
 
-    def feed(self, data):
-        self.colored_text = ''
-        # Remove html insertion tags (I suppose it is for jupyter to recognize it as html markdown)
-        data = data.replace('<||_html:', '').replace('_||>', '')
-        super().feed(data)
-        return self.colored_text
-
-    def handle_starttag(self, tag, attrs):
-        # Start ANSI text coloring when span tag opens
-        if tag == 'span':
-            if colored_is_imported:
-                # Use bg color we would have used in jupyter as fg color (get from style attributes)
-                style = dict(attrs)['style']
-                # just capture integer rgb parts of rgba color
-                rgb = re.search(r'background-color:\s*rgba\((\d+)\.?\d*,\s*(\d+)\.?\d*,\s*(\d)+\.?\d*,\s*\d+\.?\d*\)', style).groups()
-                self.colored_text += Fore.rgb(*rgb)
-            else:
-                # Default to ANSI green (32m) if colored is not available
-                self.colored_text += '\033[32m'
-
-    def handle_endtag(self, tag):
-        # ANSI reset color when tag closes
-        if tag == 'span':
-            self.colored_text += '\033[0m'
-
-    def handle_data(self, data):
-        self.colored_text += data
+    def feed(self, state_list):
+        new_text = ""
+        for text, color in state_list[self._cur_chunk:]:
+            if color is not None:
+                new_text += '\033[38;2;{};{};{}m'.format(*[round(x) for x in color[:3]])
+            new_text += text
+            if color is not None:
+                new_text += '\033[0m'
+            self._cur_chunk += 1
+        return new_text

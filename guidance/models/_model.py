@@ -9,10 +9,7 @@ import threading
 import time
 import warnings
 
-
-from pprint import pprint
 from typing import Dict, TYPE_CHECKING
-
 
 import numpy as np
 
@@ -47,7 +44,7 @@ except ImportError:
     )
     from .. import _cpp as cpp
 from ._guidance_engine_metrics import GuidanceEngineMetrics
-from .._utils import softmax, CaptureEvents, ModelStateHTMLParser
+from .._utils import softmax, CaptureEvents, ReadableOutputCLIStream
 from .._parser import EarleyCommitParser, Parser
 from .._grammar import (
     GrammarFunction,
@@ -865,13 +862,13 @@ class Model:
         self._variables = {}  # these are the state variables stored with the model
         self._variables_log_probs = {}  # these are the state variables stored with the model
         self._cache_state = {}  # mutable caching state used to save computation
+        self._state_list = []
         self._state = ""  # the current bytes that represent the state of the model
         self._event_queue = None  # TODO: these are for streaming results in code, but that needs implemented
         self._event_parent = None
         self._last_display = 0  # used to track the last display call to enable throttling
         self._last_event_stream = 0  # used to track the last event streaming call to enable throttling
-        self._state_html_parser = ModelStateHTMLParser() # used to parse the state for cli display
-        self._last_state_len = 0 # used to track the last state length for appending to cli display
+        self._state_dict_parser = ReadableOutputCLIStream()  # used to parse the state for cli display
 
     @property
     def active_role_end(self):
@@ -989,14 +986,7 @@ class Model:
                 clear_output(wait=True)
                 display(HTML(self._html()))
             else:
-                print(
-                    self._state_html_parser.feed(
-                        self._state[self._last_state_len:]
-                    ),
-                    end='',
-                    flush=True
-                )
-                self._last_state_len = len(self._state)
+                print(self._state_dict_parser.feed(self._state_list), end='', flush=True)
 
     def reset(self, clear_variables=True):
         """This resets the state of the model object.
@@ -1012,6 +1002,7 @@ class Model:
             self._variables_log_probs = {}
         return self
 
+    # Is this used anywhere?
     def _repr_html_(self):
         if ipython_is_imported:
             clear_output(wait=True)
@@ -1344,9 +1335,18 @@ class Model:
 
                 if len(chunk.new_bytes) > 0:
                     generated_value += new_text
+
+                    # Add text to state list
+                    self._state_list.append([new_text, None])
+
                     if chunk.is_generated:
                         lm += f"<||_html:<span style='background-color: rgba({165*(1-chunk.new_bytes_prob) + 0}, {165*chunk.new_bytes_prob + 0}, 0, {0.15}); border-radius: 3px;' title='{chunk.new_bytes_prob}'>_||>"
+
+                        # If that was generated text - color it
+                        self._state_list[-1][1] = (165 * (1 - chunk.new_bytes_prob) + 0, 165 * chunk.new_bytes_prob + 0, 0, 0.15)
+
                     lm += new_text
+
                     if chunk.is_generated:
                         lm += "<||_html:</span>_||>"
 
