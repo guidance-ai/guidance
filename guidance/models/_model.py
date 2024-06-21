@@ -64,13 +64,6 @@ if TYPE_CHECKING:
 
 # define some constants we will reuse many times
 _null_grammar = string("")
-nodisp_pattern = re.compile(
-    r"&lt;\|\|_#NODISP_\|\|&gt;.*?&lt;\|\|_/NODISP_\|\|&gt;", flags=re.DOTALL
-)
-html_pattern = re.compile(r"&lt;\|\|_html:(.*?)_\|\|&gt;", flags=re.DOTALL)
-image_pattern = re.compile(r"&lt;\|_image:(.*?)\|&gt;")
-
-
 
 
 class EngineCallResponse:
