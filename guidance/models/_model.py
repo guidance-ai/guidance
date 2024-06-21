@@ -905,6 +905,7 @@ class Model:
         new_lm._variables = self._variables.copy()
         new_lm._variables_log_probs = self._variables_log_probs.copy()
         new_lm.opened_blocks = self.opened_blocks.copy()
+        new_lm._state = self._state.copy()
 
         # create a new clean event queue
         new_lm._event_queue = None  # we start with no event queue because nobody is listening to us yet
