@@ -424,7 +424,7 @@ class Null(Terminal):
     nullable = True
 
     def __init__(self):
-        self.name = None
+        self.name = "ε"
         self.hidden = False
         self.commit_point = False
         self.capture_name = None
