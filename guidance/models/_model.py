@@ -980,7 +980,7 @@ class Model:
     def _repr_html_(self):
         if ipython_is_imported:
             clear_output(wait=True)
-        return self._html()
+        return self._state._html()
 
     def _current_prompt(self) -> str:
         """The current prompt in bytes (which is the state without the context close tags)."""
