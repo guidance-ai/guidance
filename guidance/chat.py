@@ -1,37 +1,40 @@
-import warnings
-import uuid
 import inspect
+import warnings
+
+from typing import Dict, Union
+
 
 class ChatTemplate:
     """Contains template for all chat and instruct tuned models."""
 
-    def get_role_start(self, role_name, **kwargs):
+    def get_role_start(self, role_name: str, **kwargs):
         raise NotImplementedError(
             "You need to use a ChatTemplate subclass that overrides the get_role_start method"
         )
 
-    def get_role_end(self, role_name=None):
+    def get_role_end(self, role_name: Union[str, None] = None):
         raise NotImplementedError(
             "You need to use a ChatTemplate subclass that overrides the get_role_start method"
         )
-    
-class ChatTemplateCache: 
+
+
+class ChatTemplateCache:
     def __init__(self):
-        self._cache = {}
+        self._cache: Dict[str, ChatTemplate] = {}
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: str) -> ChatTemplate:
         key_compact = key.replace(" ", "")
         return self._cache[key_compact]
 
-
-    def __setitem__(self, key, value):
+    def __setitem__(self, key: str, value):
         key_compact = key.replace(" ", "")
         self._cache[key_compact] = value
 
-    def __contains__(self, key):
+    def __contains__(self, key: str):
         key_compact = key.replace(" ", "")
         return key_compact in self._cache
-    
+
+
 # Feels weird having to instantiate this, but it's a singleton for all purposes
 # TODO [HN]: Add an alias system so we can instantiate with other simple keys (e.g. "llama2" instead of the full template string)
 CHAT_TEMPLATE_CACHE = ChatTemplateCache() 
@@ -76,7 +79,7 @@ def load_template_class(chat_template=None):
     
     # By default, use the ChatML Template. Warnings to user will happen downstream only if they use chat roles.
     return ChatMLTemplate
-        
+
 
 def _template_class_from_string(template_str):
     """Utility method to try to create a chat template class from a string."""
@@ -99,7 +102,7 @@ class ChatMLTemplate(ChatTemplate):
         
     def get_role_end(self, role_name=None):
         return "<|im_end|>\n"
-    
+
 CHAT_TEMPLATE_CACHE[chatml_template] = ChatMLTemplate
 
 
@@ -156,7 +159,7 @@ class Llama3ChatTemplate(ChatTemplate):
         
     def get_role_end(self, role_name=None):
         return "<|eot_id|>"
-    
+
 CHAT_TEMPLATE_CACHE[llama3_template] = Llama3ChatTemplate
 
 # --------------------------------------------------
@@ -178,7 +181,7 @@ class Phi3ChatTemplate(ChatTemplate):
         
     def get_role_end(self, role_name=None):
         return "<|end|>"
-    
+
 CHAT_TEMPLATE_CACHE[phi3_template] = Phi3ChatTemplate
 
 
@@ -186,7 +189,7 @@ CHAT_TEMPLATE_CACHE[phi3_template] = Phi3ChatTemplate
 # @@@@ Mistral-7B-Instruct-v0.2 @@@@
 # --------------------------------------------------
 # [05/08/24] https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.2/blob/main/tokenizer_config.json#L42
-mistral_7b_instruct_template = "{{ bos_token }}{% for message in messages %}{% if (message['role'] == 'user') != (loop.index0 % 2 == 0) %}{{ raise_exception('Conversation roles must alternate user/assistant/user/assistant/...') }}{% endif %}{% if message['role'] == 'user' %}{{ '[INST] ' + message['content'] + ' [/INST]' }}{% elif message['role'] == 'assistant' %}{{ message['content'] + eos_token}}{% else %}{{ raise_exception('Only user and assistant roles are supported!') }}{% endif %}{% endfor %}"
+mistral_7b_instruct_template = "{{ bos_token }}{% for message in messages %}{% if (message['role'] == 'user') != (loop.index0 % 2 == 0) %}{{ raise_exception('Conversation roles must alternate user/assistant/user/assistant/...') }}{% endif %}{% if message['role'] == 'user' %}{{ '[INST] ' + message['content'] + ' [/INST]' }}{% elif message['role'] == 'assistant' %}{{ ' ' + message['content'] + eos_token}}{% else %}{{ raise_exception('Only user and assistant roles are supported!') }}{% endif %}{% endfor %}"
 class Mistral7BInstructChatTemplate(ChatTemplate):
     # available_roles = ["user", "assistant"]
     template_str = mistral_7b_instruct_template
@@ -206,5 +209,5 @@ class Mistral7BInstructChatTemplate(ChatTemplate):
             return "</s>"
         else:
             raise UnsupportedRoleException(role_name, self)
-        
+
 CHAT_TEMPLATE_CACHE[mistral_7b_instruct_template] = Mistral7BInstructChatTemplate
