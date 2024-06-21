@@ -11,7 +11,7 @@ on:
         type: string
 
 jobs:
-  unit-tests-on-gpu:
+  basic-tests-on-gpu:
     strategy:
       fail-fast: false # Don't cancel all on first failure
       matrix:
@@ -65,8 +65,7 @@ jobs:
         run: |
           pytest -vv --cov=guidance --cov-report=xml --cov-report=term-missing \
             --selected_model ${{ matrix.model }} \
-            -m "not (server or needs_credentials or notebooks)" \
-            ./tests/
+            ./tests/unit ./tests/model_integration ./tests/model_specific
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4
         with:

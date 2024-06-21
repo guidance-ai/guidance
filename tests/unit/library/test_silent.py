@@ -1,6 +1,4 @@
-from guidance import gen, models, silent
-
-from ..utils import get_model
+from guidance import models, silent
 
 
 def test_basic():

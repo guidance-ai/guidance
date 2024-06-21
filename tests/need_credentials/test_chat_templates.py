@@ -1,11 +1,10 @@
 import pytest
 
-from guidance.chat import load_template_class, CHAT_TEMPLATE_CACHE
+from guidance.chat import CHAT_TEMPLATE_CACHE
 import transformers
 
 from ..utils import env_or_fail
 
-@pytest.mark.needs_credentials
 @pytest.mark.parametrize(
     "model_info",
     [
