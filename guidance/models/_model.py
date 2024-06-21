@@ -38,6 +38,8 @@ except ImportError:
         "Failed to load guidance.cpp, falling back to Python mirror implementations..."
     )
     from .. import _cpp as cpp
+
+from ._model_state import ModelState, Text, Object
 from ._guidance_engine_metrics import GuidanceEngineMetrics
 from .._utils import softmax, CaptureEvents
 from .._parser import EarleyCommitParser, Parser
@@ -857,7 +859,7 @@ class Model:
         self._variables = {}  # these are the state variables stored with the model
         self._variables_log_probs = {}  # these are the state variables stored with the model
         self._cache_state = {}  # mutable caching state used to save computation
-        self._state = ""  # the current bytes that represent the state of the model
+        self._state = ModelState()  # the current bytes that represent the state of the model
         self._event_queue = None  # TODO: these are for streaming results in code, but that needs implemented
         self._event_parent = None
         self._last_display = 0  # used to track the last display call to enable throttling
@@ -880,27 +882,6 @@ class Model:
                 parts.append(role_end_str)
 
         return select(parts)
-
-    def _html(self):
-        """Generate HTML that displays the model object."""
-        display_out = self._state
-        for context in reversed(self.opened_blocks):
-            display_out += self.opened_blocks[context][1]
-        display_out = html.escape(display_out)
-        display_out = nodisp_pattern.sub("", display_out)
-        display_out = html_pattern.sub(lambda x: html.unescape(x.group(1)), display_out)
-        display_out = image_pattern.sub(
-            lambda x: '<img src="data:image/png;base64,'
-            + base64.b64encode(self[x.groups(1)[0]]).decode()
-            + '" style="max-width: 400px; vertical-align: middle; margin: 4px;">',
-            display_out,
-        )
-        display_out = (
-            "<pre style='margin: 0px; padding: 0px; vertical-align: middle; padding-left: 8px; margin-left: -8px; border-radius: 0px; border-left: 1px solid rgba(127, 127, 127, 0.2); white-space: pre-wrap; font-family: ColfaxAI, Arial; font-size: 15px; line-height: 23px;'>"
-            + display_out
-            + "</pre>"
-        )
-        return display_out
 
     def _send_to_event_queue(self, value):
         """For streaming in code.
@@ -938,7 +919,7 @@ class Model:
 
         return new_lm
 
-    def _inplace_append(self, value, force_silent=False):
+    def _inplace_append(self, obj: Object, force_silent: bool = False):
         """This is the base way to add content to the current LM object that is being constructed.
 
         All updates to the model state should eventually use this function.
@@ -951,7 +932,7 @@ class Model:
         """
 
         # update the byte state
-        self._state += str(value)  # TODO: make _state to be bytes not a string
+        self._state.append(obj)
 
         # see if we should update the display
         if not force_silent:
@@ -977,7 +958,7 @@ class Model:
 
             if ipython_is_imported:
                 clear_output(wait=True)
-                display(HTML(self._html()))
+                display(HTML(self._state._html()))
             else:
                 pprint(self._state)
 
@@ -1000,9 +981,9 @@ class Model:
             clear_output(wait=True)
         return self._html()
 
-    def _current_prompt(self):
+    def _current_prompt(self) -> str:
         """The current prompt in bytes (which is the state without the context close tags)."""
-        return format_pattern.sub("", self._state)
+        return str(self._state)
 
     def __str__(self):
         """A string representation of the current model object (that includes context closers)."""
@@ -1075,7 +1056,9 @@ class Model:
 
                 # we have no embedded objects
                 if len(parts) == 1:
-                    lm._inplace_append(value)
+                    lm._inplace_append(
+                        Text(text=value)
+                    )
                     out = lm
 
                 # if we have embedded objects we have to convert the string to a grammar tree
@@ -1119,7 +1102,8 @@ class Model:
                     )
 
         # this flushes the display
-        out._inplace_append("")
+        # TODO: directly call _update_display?
+        out._inplace_append(Text(text=""))
 
         return out
 
@@ -1328,11 +1312,19 @@ class Model:
                 if len(chunk.new_bytes) > 0:
                     generated_value += new_text
                     if chunk.is_generated:
-                        lm += f"<||_html:<span style='background-color: rgba({165*(1-chunk.new_bytes_prob) + 0}, {165*chunk.new_bytes_prob + 0}, 0, {0.15}); border-radius: 3px;' title='{chunk.new_bytes_prob}'>_||>"
-                    lm += new_text
-                    if chunk.is_generated:
-                        lm += "<||_html:</span>_||>"
-
+                        self._inplace_append(
+                            Text(
+                                text = new_text,
+                                # TODO: this will be slightly wrong if we have a delayed byte string
+                                probability = chunk.new_bytes_prob
+                            )
+                        )
+                    else:
+                        self._inplace_append(
+                            Text(
+                                text = new_text,
+                            )
+                        )
                 # last_is_generated = chunk.is_generated
 
                 if len(chunk.capture_groups) > 0:
