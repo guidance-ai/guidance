@@ -1031,7 +1031,7 @@ class Model:
                     new_blocks.append(context)
 
                     # mark this so we don't re-add when computing the opener or closer (even though we don't know the close text yet)
-                    lm.opened_blocks[context] = (0, "")
+                    lm.opened_blocks[context] = (0, None)
 
             # find what old blocks need to be removed
             old_blocks = []
@@ -1044,6 +1044,7 @@ class Model:
 
             # close any newly closed contexts
             for (pos, close_text), context in old_blocks:
+                assert close_text is not None
                 if context.name is not None:
                     # Capture
                     lm._variables[context.name] = str(lm._state[pos:])
