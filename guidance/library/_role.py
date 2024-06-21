@@ -2,11 +2,6 @@ from .._guidance import guidance
 from ._block import ContextBlock
 from ._set_attribute import set_attribute
 
-nodisp_start = "<||_#NODISP_||>"
-nodisp_end = "<||_/NODISP_||>"
-span_start = "<||_html:<span style='background-color: rgba(255, 180, 0, 0.3); border-radius: 3px;'>_||>"
-span_end = "<||_html:</span>_||>"
-
 
 class RoleBlock(ContextBlock):
     def __init__(self, role_name, opener, closer, name=None):
