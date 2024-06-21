@@ -64,7 +64,6 @@ if TYPE_CHECKING:
 
 # define some constants we will reuse many times
 _null_grammar = string("")
-format_pattern = re.compile(r"<\|\|_.*?_\|\|>", flags=re.DOTALL)
 nodisp_pattern = re.compile(
     r"&lt;\|\|_#NODISP_\|\|&gt;.*?&lt;\|\|_/NODISP_\|\|&gt;", flags=re.DOTALL
 )
@@ -877,7 +876,7 @@ class Model:
         # add any active non-empty role ends. Ignore role ends that are spaces
         parts = []
         for _, role_end_str in self.opened_blocks.values():
-            role_end_str = format_pattern.sub("", role_end_str)
+            role_end_str = role_end_str
             if len(role_end_str) > 0 and not re.fullmatch(r"\s+", role_end_str):
                 parts.append(role_end_str)
 
@@ -1156,9 +1155,8 @@ class Model:
         else:
             for context in list(reversed(self.opened_blocks)):
                 if context.name == key:
-                    return format_pattern.sub(
-                        "", self._state[self.opened_blocks[context][0] :]
-                    )
+                    pos, _ = self.opened_blocks[context]
+                    return str(self._state[pos:])
 
         raise KeyError(f"Model does not contain the variable '{key}'")
 
