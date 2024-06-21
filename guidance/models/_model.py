@@ -988,23 +988,11 @@ class Model:
 
     def __str__(self):
         """A string representation of the current model object (that includes context closers)."""
-        # Import in function to guard against circular import
-        from ..library._role import RoleBlock
-        lm = self.copy()
+        out = str(self._state)
         for context in reversed(self.opened_blocks):
             _, close_text = self.opened_blocks[context]
-            assert close_text is not None
-            if isinstance(context, RoleBlock):
-                lm._inplace_append(
-                    RoleCloser(
-                        role_name=context.role_name,
-                        text=close_text,
-                        indent=getattr(lm, "indent_roles", True)
-                    )
-                )
-            else:
-                lm += close_text
-        return str(lm._state)
+            out += close_text
+        return out
 
     def __add__(self, value):
         """Adding is the primary mechanism for extending model state.
