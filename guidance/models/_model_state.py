@@ -42,6 +42,46 @@ class Image(Object):
         return f"""<img src="data:image/png;base64,'{base64.b64encode(self.data).decode()}'" style="max-width: 400px; vertical-align: middle; margin: 4px;">"""
 
 
+@dataclass
+class RoleOpener(Object):
+    role_name: str
+    text: str
+    indent: bool
+
+    def _html(self) -> str:
+        out = ""
+        if self.indent:
+            out += f"<div style='display: flex; border-bottom: 1px solid rgba(127, 127, 127, 0.2);  justify-content: center; align-items: center;'><div style='flex: 0 0 80px; opacity: 0.5;'>{self.role_name.lower()}</div><div style='flex-grow: 1; padding: 5px; padding-top: 10px; padding-bottom: 10px; margin-top: 0px; white-space: pre-wrap; margin-bottom: 0px;'>"
+        else:
+            out += "<span style='background-color: rgba(255, 180, 0, 0.3); border-radius: 3px;'>"
+            out += self.text
+            out += "</span>"
+        return out
+
+    def __str__(self) -> str:
+        return self.text
+
+
+@dataclass()
+class RoleCloser(Object):
+    role_name: str
+    text: str
+    indent: bool
+
+    def _html(self) -> str:
+        out = ""
+        if self.indent:
+            out += "</div></div>"
+        else:
+            out += "<span style='background-color: rgba(255, 180, 0, 0.3); border-radius: 3px;'>"
+            out += self.text
+            out += "</span>"
+        return out
+
+    def __str__(self) -> str:
+        return self.text
+
+
 class ModelState:
     def __init__(self) -> None:
         self.objects: list[Object] = []

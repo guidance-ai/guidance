@@ -39,7 +39,7 @@ except ImportError:
     )
     from .. import _cpp as cpp
 
-from ._model_state import ModelState, Text, Object
+from ._model_state import ModelState, Text, Object, RoleOpener, RoleCloser
 from ._guidance_engine_metrics import GuidanceEngineMetrics
 from .._utils import softmax, CaptureEvents
 from .._parser import EarleyCommitParser, Parser
@@ -988,10 +988,23 @@ class Model:
 
     def __str__(self):
         """A string representation of the current model object (that includes context closers)."""
-        out = self._current_prompt()
+        # Import in function to guard against circular import
+        from ..library._role import RoleBlock
+        lm = self.copy()
         for context in reversed(self.opened_blocks):
-            out += format_pattern.sub("", self.opened_blocks[context][1])
-        return out
+            _, close_text = self.opened_blocks[context]
+            assert close_text is not None
+            if isinstance(context, RoleBlock):
+                lm._inplace_append(
+                    RoleCloser(
+                        role_name=context.role_name,
+                        text=close_text,
+                        indent=getattr(lm, "indent_roles", True)
+                    )
+                )
+            else:
+                lm += close_text
+        return str(lm._state)
 
     def __add__(self, value):
         """Adding is the primary mechanism for extending model state.
@@ -1001,6 +1014,8 @@ class Model:
         value : guidance grammar
             The grammar used to extend the current model.
         """
+        # Import in function to guard against circular import
+        from ..library._role import RoleBlock
 
         # create the new lm object we will return
         # (we need to do this since Model objects are immutable)
@@ -1030,17 +1045,37 @@ class Model:
             # close any newly closed contexts
             for (pos, close_text), context in old_blocks:
                 if context.name is not None:
-                    lm._variables[context.name] = format_pattern.sub(
-                        "", lm._state[pos:]
+                    # Capture
+                    lm._variables[context.name] = str(lm._state[pos:])
+                if isinstance(context, RoleBlock):
+                    lm._inplace_append(
+                        RoleCloser(
+                            role_name=context.role_name,
+                            text=close_text,
+                            indent=getattr(lm, "indent_roles", True)
+                        )
                     )
-                lm += context.closer
+                else:
+                    lm += close_text
 
             # apply any newly opened contexts (new from this object's perspective)
             for context in new_blocks:
-                lm += context.opener
+                if isinstance(context, RoleBlock):
+                    with grammar_only():
+                        tmp = lm + context.opener
+                    open_text = str(tmp._state[len(lm._state):])  # get the new state added by calling the opener
+                    lm._inplace_append(
+                        RoleOpener(
+                            role_name=context.role_name,
+                            text=open_text,
+                            indent=getattr(lm, "indent_roles", True)
+                        )
+                    )
+                else:
+                    lm += context.opener
                 with grammar_only():
                     tmp = lm + context.closer
-                close_text = tmp._state[len(lm._state):]  # get the new state added by calling the closer
+                close_text = str(tmp._state[len(lm._state):])  # get the new state added by calling the closer
                 lm.opened_blocks[context] = (len(lm._state), close_text)
 
                 # clear out names that we override
