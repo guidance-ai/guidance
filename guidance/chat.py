@@ -1,16 +1,18 @@
-import warnings
-import uuid
 import inspect
+import warnings
+
+from typing import Dict, Union
+
 
 class ChatTemplate:
     """Contains template for all chat and instruct tuned models."""
 
-    def get_role_start(self, role_name, **kwargs):
+    def get_role_start(self, role_name: str, **kwargs):
         raise NotImplementedError(
             "You need to use a ChatTemplate subclass that overrides the get_role_start method"
         )
 
-    def get_role_end(self, role_name=None):
+    def get_role_end(self, role_name: Union[str, None] = None):
         raise NotImplementedError(
             "You need to use a ChatTemplate subclass that overrides the get_role_start method"
         )
@@ -18,9 +20,9 @@ class ChatTemplate:
 
 class ChatTemplateCache:
     def __init__(self):
-        self._cache = {}
+        self._cache: Dict[str, ChatTemplate] = {}
 
-    def __getitem__(self, key: str):
+    def __getitem__(self, key: str) -> ChatTemplate:
         key_compact = key.replace(" ", "")
         return self._cache[key_compact]
 
