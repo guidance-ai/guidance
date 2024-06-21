@@ -5,7 +5,7 @@ import base64
 import html
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class Object:
     def _html(self) -> str:
         raise NotImplementedError
@@ -14,7 +14,7 @@ class Object:
         raise NotImplementedError
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class Text(Object):
     text: str
     probability: Optional[float] = None
@@ -30,7 +30,7 @@ class Text(Object):
         return escaped_text
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class Image(Object):
     id: str
     data: bytes
@@ -42,7 +42,7 @@ class Image(Object):
         return f"""<img src="data:image/png;base64,'{base64.b64encode(self.data).decode()}'" style="max-width: 400px; vertical-align: middle; margin: 4px;">"""
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class RoleOpener(Object):
     role_name: str
     text: str
@@ -62,7 +62,7 @@ class RoleOpener(Object):
         return self.text
 
 
-@dataclass()
+@dataclass(frozen=True, slots=True)
 class RoleCloser(Object):
     role_name: str
     text: str
@@ -83,6 +83,8 @@ class RoleCloser(Object):
 
 
 class ModelState:
+    __slots__ = ["objects"]
+
     def __init__(self) -> None:
         self.objects: list[Object] = []
 
