@@ -25,7 +25,9 @@ def generate_and_check(
     # Now test that the grammar can recognize and generate prepared_json
     # We partial in the grammar_callable
     if desired_temperature is not None:
-        grammar_callable = partial(gen_json, schema=schema_obj, temperature=desired_temperature)
+        grammar_callable = partial(
+            gen_json, schema=schema_obj, temperature=desired_temperature
+        )
     else:
         grammar_callable = partial(gen_json, schema=schema_obj)
 
@@ -54,8 +56,8 @@ def check_match_failure(
 
 
 # Common sets of allowed_bytes
-INTEGER_LEADING = {b"-", b"0", *{bytes([i]) for i in range(ord("1"), ord("9")+1)}}
-INTEGER_FOLLOWING = {bytes([i]) for i in range(ord("0"), ord("9")+1)}
+INTEGER_LEADING = {b"-", b"0", *{bytes([i]) for i in range(ord("1"), ord("9") + 1)}}
+INTEGER_FOLLOWING = {bytes([i]) for i in range(ord("0"), ord("9") + 1)}
 
 
 def test_null():
@@ -1233,7 +1235,9 @@ class TestAdditionalProperties:
             schema_obj=schema_obj,
         )
 
-    @pytest.mark.parametrize("target_obj", [{}, {"a": 1}, {"a": "2"}, {"a": 1, "b": "2"}])
+    @pytest.mark.parametrize(
+        "target_obj", [{}, {"a": 1}, {"a": "2"}, {"a": 1, "b": "2"}]
+    )
     def test_anyOf_additional_properties(self, target_obj):
         # First sanity check what we're setting up
         schema_obj = json.loads(self.anyOf_schema)
@@ -1291,7 +1295,9 @@ class TestAdditionalProperties:
             ({"a": 1, "b": 2}, b'{"', b"a", {b"m"}),
         ],
     )
-    def test_combined_missing_properties(self, bad_obj, good_bytes, failure_byte, allowed_bytes):
+    def test_combined_missing_properties(
+        self, bad_obj, good_bytes, failure_byte, allowed_bytes
+    ):
         schema_obj = json.loads(self.combined_schema)
         bad_string = _to_compact_json(bad_obj)
         check_match_failure(
@@ -1461,10 +1467,14 @@ class TestEmptySchemas:
         "schema_obj",
         [
             # Empty property
-            {"type": "object", "properties": { "a": {} }},
+            {"type": "object", "properties": {"a": {}}},
             # Empty reference
-            {"type": "object", "properties": {"a": {"$ref": "#/$defs/A"}}, "$defs": {"A": {}}},
-        ]
+            {
+                "type": "object",
+                "properties": {"a": {"$ref": "#/$defs/A"}},
+                "$defs": {"A": {}},
+            },
+        ],
     )
     @pytest.mark.parametrize(
         "target_obj",
@@ -1492,10 +1502,14 @@ class TestEmptySchemas:
         "schema_obj",
         [
             # Empty property
-            {"type": "object", "properties": { "a": {} }},
+            {"type": "object", "properties": {"a": {}}},
             # Empty reference
-            {"type": "object", "properties": {"a": {"$ref": "#/$defs/A"}}, "$defs": {"A": {}}},
-        ]
+            {
+                "type": "object",
+                "properties": {"a": {"$ref": "#/$defs/A"}},
+                "$defs": {"A": {}},
+            },
+        ],
     )
     @pytest.mark.parametrize(
         "bad_obj, good_bytes, failure_byte, allowed_bytes",
