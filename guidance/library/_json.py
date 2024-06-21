@@ -1,4 +1,5 @@
 from json import dumps as json_dumps
+from enum import Enum
 from typing import (
     Any,
     Callable,
@@ -34,7 +35,47 @@ def _to_compact_json(target: Any) -> str:
     return json_dumps(target, separators=(",", ":"))
 
 
-_DEFS_KEYS = ["$defs", "definitions"]
+class Keyword(str, Enum):
+    ANYOF = "anyOf"
+    ALLOF = "allOf"
+    REF = "$ref"
+    CONST = "const"
+    ENUM = "enum"
+    TYPE = "type"
+
+
+KEYS = {member.value for member in Keyword}
+
+DEFS_KEYS = {"$defs", "definitions"}
+
+IGNORED_KEYS = {
+    "$schema",
+    "$id",
+    "$comment",
+    "title",
+    "description",
+    "default",
+    "examples",
+    "required", # TODO: implement and remove from ignored list
+}
+
+TYPE_SPECIFIC_KEYS = {
+    "array": {"items", "prefixItems", "minItems", "maxItems"},
+    "object": {"properties", "additionalProperties"},
+}
+
+
+def validate_json_node_keys(node: Mapping[str, Any]):
+    keys = set(node.keys())
+    valid_keys = KEYS | IGNORED_KEYS | DEFS_KEYS
+    if Keyword.TYPE in node:
+        valid_keys |= TYPE_SPECIFIC_KEYS.get(node[Keyword.TYPE], set())
+    invalid_keys = keys - valid_keys
+    if invalid_keys:
+        raise ValueError(
+            f"JSON schema had keys that could not be processed: {invalid_keys}"
+            f"\nSchema: {node}"
+        )
 
 
 @guidance(stateless=True)
@@ -73,21 +114,25 @@ def _gen_json_string(lm):
 def _gen_json_object(
     lm,
     *,
-    properties: Union[Mapping[str, Any], None],
-    additional_properties: Union[Mapping[str, Any], None],
+    properties: Mapping[str, Any],
+    additional_properties: Union[bool, Mapping[str, Any]],
     definitions: Mapping[str, Callable[[], GrammarFunction]],
 ):
+    if additional_properties is True:
+        # True means that anything goes
+        additional_properties = {}
+
     lm += "{"
     if properties:
         lm += _process_properties(properties=properties, definitions=definitions)
-    if properties and additional_properties:
+    if properties and additional_properties is not False:
         lm += optional(
             ","
             + _process_additional_properties(
                 additional_properties=additional_properties, definitions=definitions
             )
         )
-    elif additional_properties:
+    elif additional_properties is not False:
         lm += optional(
             _process_additional_properties(
                 additional_properties=additional_properties, definitions=definitions
@@ -138,19 +183,20 @@ def _process_additional_properties(
 def _gen_json_array(
     lm,
     *,
-    prefix_items_schema: Optional[Sequence[Mapping[str, Any]]],
-    item_schema: Optional[Mapping[str, Any]],
+    prefix_items_schema: Sequence[Mapping[str, Any]],
+    item_schema: Union[bool, Mapping[str, Any]],
     min_items: int,
     max_items: Optional[int],
     definitions: Mapping[str, Callable[[], GrammarFunction]],
 ):
-    if prefix_items_schema is None:
-        prefix_items_schema = []
+    if item_schema is True:
+        # True means that anything goes
+        item_schema = {}
 
-    if len(prefix_items_schema) < min_items and item_schema is None:
+    if len(prefix_items_schema) < min_items and item_schema is False:
         raise ValueError(
-            "No items schema provided, but prefixItems has too few elements "
-            f"({len(prefix_items_schema)}) to satisfy minItems ({min_items})"
+            f"PrefixItems has too few elements ({len(prefix_items_schema)}) to"
+            f" satisfy minItems ({min_items}) but no extra items were allowed"
         )
 
     if max_items is not None and max_items < min_items:
@@ -168,7 +214,7 @@ def _gen_json_array(
     for i in range(n_to_add):
         if i < len(prefix_items_schema):
             schema = prefix_items_schema[i]
-        elif item_schema is not None:
+        elif item_schema is not False:
             schema = item_schema
         else:
             assert i >= min_items
@@ -181,7 +227,7 @@ def _gen_json_array(
         else:
             optional_items.append(item)
 
-    if max_items is None and item_schema is not None:
+    if max_items is None and item_schema is not False:
         # Add an infinite tail of items
         item = _gen_json(json_schema=item_schema, definitions=definitions)
         optional_items.append(item + zero_or_more("," + item))
@@ -236,41 +282,65 @@ def _process_enum(lm, *, options: Sequence[Mapping[str, Any]]):
 
 
 @guidance(stateless=True)
+def _gen_json_any(lm):
+    return lm + select(
+        [
+            _gen_json(json_schema={"type": "null"}, definitions={}),
+            _gen_json(json_schema={"type": "boolean"}, definitions={}),
+            _gen_json(json_schema={"type": "integer"}, definitions={}),
+            _gen_json(json_schema={"type": "number"}, definitions={}),
+            _gen_json(json_schema={"type": "string"}, definitions={}),
+            # Recursive cases
+            _gen_json(
+                json_schema={
+                    "type": "array",
+                    "items": True,
+                },
+                definitions={},
+            ),
+            _gen_json(
+                json_schema={
+                    "type": "object",
+                    "additionalProperties": True,
+                },
+                definitions={},
+            ),
+        ]
+    )
+
+
+@guidance(stateless=True)
 def _gen_json(
     lm,
     json_schema: Mapping[str, Any],
     definitions: Mapping[str, Callable[[], GrammarFunction]],
 ):
-    ANYOF_STRING = "anyOf"
-    if ANYOF_STRING in json_schema:
+    validate_json_node_keys(json_schema)
+
+    if Keyword.ANYOF in json_schema:
         return lm + _process_anyOf(
-            anyof_list=json_schema[ANYOF_STRING], definitions=definitions
+            anyof_list=json_schema[Keyword.ANYOF], definitions=definitions
         )
 
-    ALLOF_STRING = "allOf"
-    if ALLOF_STRING in json_schema:
-        allof_list = json_schema[ALLOF_STRING]
+    if Keyword.ALLOF in json_schema:
+        allof_list = json_schema[Keyword.ALLOF]
         if len(allof_list) != 1:
             raise ValueError("Only support allOf with exactly one item")
         return lm + _gen_json(allof_list[0], definitions)
 
-    REF_STRING = "$ref"
-    if REF_STRING in json_schema:
+    if Keyword.REF in json_schema:
         return lm + _get_definition(
-            reference=json_schema[REF_STRING], definitions=definitions
+            reference=json_schema[Keyword.REF], definitions=definitions
         )
 
-    CONST_STRING = "const"
-    if CONST_STRING in json_schema:
-        return lm + _to_compact_json(json_schema[CONST_STRING])
+    if Keyword.CONST in json_schema:
+        return lm + _to_compact_json(json_schema[Keyword.CONST])
 
-    ENUM_STRING = "enum"
-    if ENUM_STRING in json_schema:
-        return lm + _process_enum(options=json_schema["enum"])
+    if Keyword.ENUM in json_schema:
+        return lm + _process_enum(options=json_schema[Keyword.ENUM])
 
-    TYPE_STRING = "type"
-    if TYPE_STRING in json_schema:
-        target_type = json_schema["type"]
+    if Keyword.TYPE in json_schema:
+        target_type = json_schema[Keyword.TYPE]
         if target_type == "null":
             return lm + "null"
         if target_type == "boolean":
@@ -283,21 +353,21 @@ def _gen_json(
             return lm + _gen_json_string()
         if target_type == "array":
             return lm + _gen_json_array(
-                prefix_items_schema=json_schema.get("prefixItems"),
-                item_schema=json_schema.get("items"),
+                prefix_items_schema=json_schema.get("prefixItems", []),
+                item_schema=json_schema.get("items", True),
                 min_items=json_schema.get("minItems", 0),
                 max_items=json_schema.get("maxItems"),
                 definitions=definitions,
             )
         if target_type == "object":
             return lm + _gen_json_object(
-                properties=json_schema.get("properties"),
-                additional_properties=json_schema.get("additionalProperties"),
+                properties=json_schema.get("properties", {}),
+                additional_properties=json_schema.get("additionalProperties", True),
                 definitions=definitions,
             )
         raise ValueError(f"Unsupported type in schema: {target_type}")
 
-    raise ValueError(f"Can't process JSON node: {json_schema}")
+    return lm + _gen_json_any()
 
 
 @guidance(stateless=True)
@@ -306,10 +376,11 @@ def json(
     name: Optional[str] = None,
     *,
     schema: Union[
+        None,
         Mapping[str, Any],
         Type["pydantic.BaseModel"],
         "pydantic.TypeAdapter",
-    ],
+    ] = None,
     temperature: float = 0.0,
 ):
     """Generate valid JSON according to the supplied JSON schema or `pydantic` model.
@@ -347,8 +418,9 @@ def json(
         If this is not None then the the results of the generation will be saved as a variable on
         the Model object (so you can access the result as ``lm["var_name"]``).
 
-    schema : Union[Mapping[str, Any], Type[pydantic.BaseModel], pydantic.TypeAdapter]
+    schema : Union[None, Mapping[str, Any], Type[pydantic.BaseModel], pydantic.TypeAdapter]
         One of:
+            - None, in which case any valid JSON will be generated
             - A JSON schema object. This is a JSON schema string which has been passed to ``json.loads()``
             - A subclass of ``pydantic.BaseModel``
             - An instance of ``pydantic.TypeAdapter``
@@ -357,11 +429,13 @@ def json(
         # Raises jsonschema.exceptions.SchemaError or ValueError
         # if schema is not valid
         jsonschema.validators.Draft202012Validator.check_schema(schema)
+    elif schema is None:
+        schema = {}
     else:
         schema = pydantic_to_json_schema(schema)
 
     definitions: Mapping[str, Callable[[], GrammarFunction]] = {}
-    for dk in _DEFS_KEYS:
+    for dk in DEFS_KEYS:
         if dk in schema:
             assert len(definitions) == 0, "Found duplicate definitions"
             definitions = _build_definitions(schema[dk])
@@ -401,7 +475,7 @@ def _get_definition(
 ):
     assert definitions is not None
     target_definition = None
-    for dk in _DEFS_KEYS:
+    for dk in DEFS_KEYS:
         ref_start = f"#/{dk}/"
         if reference.startswith(ref_start):
             target_name = reference[len(ref_start) :]
