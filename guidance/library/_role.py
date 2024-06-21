@@ -1,11 +1,18 @@
 from .._guidance import guidance
-from ._block import block
+from ._block import ContextBlock
 from ._set_attribute import set_attribute
 
 nodisp_start = "<||_#NODISP_||>"
 nodisp_end = "<||_/NODISP_||>"
 span_start = "<||_html:<span style='background-color: rgba(255, 180, 0, 0.3); border-radius: 3px;'>_||>"
 span_end = "<||_html:</span>_||>"
+
+
+class RoleBlock(ContextBlock):
+    def __init__(self, role_name, opener, closer, name=None):
+        super().__init__(opener, closer, name=name)
+        self.role_name = role_name
+
 
 @guidance
 def role_opener(lm, role_name, **kwargs):
@@ -73,7 +80,8 @@ def role_closer(lm, role_name, **kwargs):
 # TODO HN: Add a docstring to better describe arbitrary role functions
 def role(role_name, text=None, **kwargs):
     if text is None:
-        return block(
+        return RoleBlock(
+            role_name=role_name,
             opener=role_opener(role_name, **kwargs),
             closer=role_closer(role_name, **kwargs),
         )
