@@ -7,7 +7,6 @@ from jsonschema import validate
 
 from guidance import json as gen_json
 from guidance import models
-from guidance._grammar import Byte, ByteRange
 from guidance.library._json import _to_compact_json
 
 from ...utils import check_match_failure as _check_match_failure
@@ -41,7 +40,7 @@ def check_match_failure(
     bad_string: str,
     good_bytes: bytes,
     failure_byte: bytes,
-    allowed_bytes: Set[Union[Byte, ByteRange]],
+    allowed_bytes: Set[bytes],
     schema_obj: Dict[str, Any],
 ):
     grammar = gen_json(schema=schema_obj)
@@ -55,8 +54,8 @@ def check_match_failure(
 
 
 # Common sets of allowed_bytes
-INTEGER_LEADING = {Byte(b"-"), Byte(b"0"), ByteRange(b"19")}
-INTEGER_FOLLOWING = {ByteRange(b"09")}
+INTEGER_LEADING = {b"-", b"0", *{bytes([i]) for i in range(ord("1"), ord("9")+1)}}
+INTEGER_FOLLOWING = {bytes([i]) for i in range(ord("0"), ord("9")+1)}
 
 
 def test_null():
@@ -156,8 +155,8 @@ class TestNumber:
     @pytest.mark.parametrize(
         ["bad_string", "good_bytes", "failure_byte", "allowed_bytes"],
         [
-            ("9999a7777", b"9999", b"a", {Byte(b"e"), Byte(b"."), *INTEGER_FOLLOWING}),
-            ("123.6, []", b"123.6", b",", {Byte(b"e"), *INTEGER_FOLLOWING}),
+            ("9999a7777", b"9999", b"a", {b"e", b".", *INTEGER_FOLLOWING}),
+            ("123.6, []", b"123.6", b",", {b"e", *INTEGER_FOLLOWING}),
             ("a321", b"", b"a", INTEGER_LEADING),
             ("[]", b"", b"[", INTEGER_LEADING),
             ('{"a":4}', b"", b"{", INTEGER_LEADING),
@@ -310,8 +309,8 @@ class TestSimpleObject:
     @pytest.mark.parametrize(
         ["bad_string", "good_bytes", "failure_byte", "allowed_bytes"],
         [
-            ("9999a7777", b"", b"9", {Byte(b"{")}),
-            ('{"a":1255.4567}', b'{"a":1255', b".", {Byte(b"}"), *INTEGER_FOLLOWING}),
+            ("9999a7777", b"", b"9", {b"{"}),
+            ('{"a":1255.4567}', b'{"a":1255', b".", {b"}", *INTEGER_FOLLOWING}),
             ('{"a":"123"}', b'{"a":', b'"', INTEGER_LEADING),
         ],
     )
@@ -400,9 +399,9 @@ class TestSimpleArray:
     @pytest.mark.parametrize(
         ["bad_string", "good_bytes", "failure_byte", "allowed_bytes"],
         [
-            ("9999a7777", b"", b"9", {Byte(b"[")}),
-            ("[321.654]", b"[321", b".", {Byte(b"]"), Byte(b","), *INTEGER_FOLLOWING}),
-            ('["123"]', b"[", b'"', {Byte(b"]"), *INTEGER_LEADING}),
+            ("9999a7777", b"", b"9", {b"["}),
+            ("[321.654]", b"[321", b".", {b"]", b",", *INTEGER_FOLLOWING}),
+            ('["123"]', b"[", b'"', {b"]", *INTEGER_LEADING}),
         ],
     )
     def test_bad_object(self, bad_string, good_bytes, failure_byte, allowed_bytes):
@@ -515,7 +514,7 @@ class TestArrayWithLengthConstraints:
                 [42, "string_not_bool", "hello", "extra"],
                 b"[42,",
                 b'"',
-                {Byte(b"t"), Byte(b"f")},
+                {b"t", b"f"},
             ),  # Second item does not match prefix schema
             (
                 0,
@@ -523,7 +522,7 @@ class TestArrayWithLengthConstraints:
                 [42, True, 100],
                 b"[42,true,",
                 b"1",
-                {Byte(b'"')},
+                {b'"'},
             ),  # Last item does not match general item schema
             (
                 3,
@@ -531,7 +530,7 @@ class TestArrayWithLengthConstraints:
                 [42, True, "valid", "extra1", "extra2", "too_many"],
                 b'[42,true,"valid","extra1","extra2"',
                 b",",
-                {Byte(b"]")},
+                {b"]"},
             ),  # Exceeds maxItems
             (
                 2,
@@ -539,7 +538,7 @@ class TestArrayWithLengthConstraints:
                 [42],
                 b"[42",
                 b"]",
-                {Byte(b","), *INTEGER_FOLLOWING},
+                {b",", *INTEGER_FOLLOWING},
             ),  # Not enough items
             (
                 1,
@@ -547,7 +546,7 @@ class TestArrayWithLengthConstraints:
                 [42, True],
                 b"[42",
                 b",",
-                {Byte(b"]"), *INTEGER_FOLLOWING},
+                {b"]", *INTEGER_FOLLOWING},
             ),  # Too many items for maxItems
             (
                 0,
@@ -555,7 +554,7 @@ class TestArrayWithLengthConstraints:
                 [42, True, "str"],
                 b"[",
                 b"4",
-                {Byte(b"]")},
+                {b"]"},
             ),  # maxItems set to 0, but array is not empty
             (
                 3,
@@ -563,7 +562,7 @@ class TestArrayWithLengthConstraints:
                 [42, True],
                 b"[42,true",
                 b"]",
-                {Byte(b",")},
+                {b","},
             ),  # Array has one fewer item than required by minItems
         ],
     )
@@ -595,7 +594,7 @@ class TestArrayWithLengthConstraints:
                 [42],
                 b"[42",
                 b"]",
-                {Byte(b","), *INTEGER_FOLLOWING},
+                {b",", *INTEGER_FOLLOWING},
             ),  # Array too short to meet minItems, despite matching prefixItems
             (
                 1,
@@ -603,7 +602,7 @@ class TestArrayWithLengthConstraints:
                 [42, "not_bool"],
                 b"[42,",
                 b'"',
-                {Byte(b"t"), Byte(b"f")},
+                {b"t", b"f"},
             ),  # Second item violates prefixItems type requirement
             (
                 0,
@@ -611,7 +610,7 @@ class TestArrayWithLengthConstraints:
                 [42, True],
                 b"[42",
                 b",",
-                {Byte(b"]"), *INTEGER_FOLLOWING},
+                {b"]", *INTEGER_FOLLOWING},
             ),  # Array exceeds maxItems with valid prefixItems types
             (
                 1,
@@ -619,7 +618,7 @@ class TestArrayWithLengthConstraints:
                 [42, True, "extra"],
                 b"[42,true",
                 b",",
-                {Byte(b"]")},
+                {b"]"},
             ),  # Item beyond prefixItems with no "items" schema
             (
                 0,
@@ -627,7 +626,7 @@ class TestArrayWithLengthConstraints:
                 [42],
                 b"[",
                 b"4",
-                {Byte(b"]")},
+                {b"]"},
             ),  # maxItems set to 0, but array is not empty
         ],
     )
@@ -659,7 +658,7 @@ class TestArrayWithLengthConstraints:
                 ["hello", "world", "extra"],
                 b'["hello","world"',
                 b",",
-                {Byte(b"]")},
+                {b"]"},
             ),  # Too many items for maxItems
             (
                 2,
@@ -667,7 +666,7 @@ class TestArrayWithLengthConstraints:
                 ["hello"],
                 b'["hello"',
                 b"]",
-                {Byte(b",")},
+                {b","},
             ),  # Not enough items
             (
                 2,
@@ -675,7 +674,7 @@ class TestArrayWithLengthConstraints:
                 ["hello", 42],
                 b'["hello",',
                 b"4",
-                {Byte(b'"')},
+                {b'"'},
             ),  # Badly typed second item
             (
                 0,
@@ -683,7 +682,7 @@ class TestArrayWithLengthConstraints:
                 ["hello"],
                 b"[",
                 b'"',
-                {Byte(b"]")},
+                {b"]"},
             ),  # maxItems set to 0, but array is not empty
         ],
     )
@@ -1074,9 +1073,9 @@ class TestEnum:
     @pytest.mark.parametrize(
         "bad_obj, good_bytes, failure_byte, allowed_bytes",
         [
-            ("1", b'"', b"1", {Byte(b"2")}),
-            (2, b"", b"2", {Byte(b'"'), Byte(b"1"), Byte(b"f")}),
-            (True, b"", b"t", {Byte(b'"'), Byte(b"1"), Byte(b"f")}),
+            ("1", b'"', b"1", {b"2"}),
+            (2, b"", b"2", {b'"', b"1", b"f"}),
+            (True, b"", b"t", {b'"', b"1", b"f"}),
         ],
     )
     def test_bad_enum(self, bad_obj, good_bytes, failure_byte, allowed_bytes):
@@ -1093,9 +1092,9 @@ class TestEnum:
     @pytest.mark.parametrize(
         "bad_obj, good_bytes, failure_byte, allowed_bytes",
         [
-            ("ab", b'"a', b"b", {Byte(b"a")}),
-            ("bc", b'"b', b"c", {Byte(b"b")}),
-            ("ca", b'"c', b"a", {Byte(b"c")}),
+            ("ab", b'"a', b"b", {b"a"}),
+            ("bc", b'"b', b"c", {b"b"}),
+            ("ca", b'"c', b"a", {b"c"}),
         ],
     )
     def test_bad_prefix_enum(self, bad_obj, good_bytes, failure_byte, allowed_bytes):
@@ -1164,7 +1163,7 @@ class TestConst:
             bad_string=bad_string,
             good_bytes=b"",
             failure_byte=b"2",
-            allowed_bytes={Byte(b"1")},
+            allowed_bytes={b"1"},
             schema_obj=schema_obj,
         )
 
@@ -1219,7 +1218,7 @@ class TestAdditionalProperties:
                 {"a": 1, "b": 1.5},
                 b'{"a":1,"b":1',
                 b".",
-                {Byte(b","), Byte(b"}"), *INTEGER_FOLLOWING},
+                {b",", b"}", *INTEGER_FOLLOWING},
             ),
         ],
     )
@@ -1246,13 +1245,13 @@ class TestAdditionalProperties:
     @pytest.mark.parametrize(
         "bad_obj, good_bytes, failure_byte, allowed_bytes",
         [
-            ({"a": 1.5}, b'{"a":1', b".", {Byte(b","), Byte(b"}"), *INTEGER_FOLLOWING}),
-            ({"a": True}, b'{"a":', b"t", {Byte(b'"'), *INTEGER_LEADING}),
+            ({"a": 1.5}, b'{"a":1', b".", {b",", b"}", *INTEGER_FOLLOWING}),
+            ({"a": True}, b'{"a":', b"t", {b'"', *INTEGER_LEADING}),
             (
                 {"a": 1, "b": False},
                 b'{"a":1,"b":',
                 b"f",
-                {Byte(b'"'), *INTEGER_LEADING},
+                {b'"', *INTEGER_LEADING},
             ),
         ],
     )
@@ -1287,9 +1286,9 @@ class TestAdditionalProperties:
     @pytest.mark.parametrize(
         "bad_obj, good_bytes, failure_byte, allowed_bytes",
         [
-            ({}, b"{", b"}", {Byte(b'"')}),
-            ({"a": 1}, b'{"', b"a", {Byte(b"m")}),
-            ({"a": 1, "b": 2}, b'{"', b"a", {Byte(b"m")}),
+            ({}, b"{", b"}", {b'"'}),
+            ({"a": 1}, b'{"', b"a", {b"m"}),
+            ({"a": 1, "b": 2}, b'{"', b"a", {b"m"}),
         ],
     )
     def test_combined_missing_properties(self, bad_obj, good_bytes, failure_byte, allowed_bytes):
@@ -1306,8 +1305,8 @@ class TestAdditionalProperties:
     @pytest.mark.parametrize(
         "bad_obj, good_bytes, failure_byte, allowed_bytes",
         [
-            ({"mystr": 1}, b'{"mystr":', b"1", {Byte(b'"')}),
-            ({"mystr": 1, "a": 2}, b'{"mystr":', b"1", {Byte(b'"')}),
+            ({"mystr": 1}, b'{"mystr":', b"1", {b'"'}),
+            ({"mystr": 1, "a": 2}, b'{"mystr":', b"1", {b'"'}),
             (
                 {"mystr": "hello", "a": False},
                 b'{"mystr":"hello","a":',
@@ -1422,25 +1421,25 @@ class TestEmptySchemas:
         "bad_string, good_bytes, failure_byte, allowed_bytes",
         [
             # {} is not carte blanche for malformed JSON
-            ("{a:1}", b"{", b"a", {Byte(b'"'), Byte(b"}")}),
+            ("{a:1}", b"{", b"a", {b'"', b"}"}),
             (
                 "[1,2} ",
                 b"[1,2",
                 b"}",
-                {Byte(b","), Byte(b"]"), Byte(b"e"), Byte(b"."), *INTEGER_FOLLOWING},
+                {b",", b"]", b"e", b".", *INTEGER_FOLLOWING},
             ),
-            ("123a", b"123", b"a", {Byte(b"e"), Byte(b"."), *INTEGER_FOLLOWING}),
+            ("123a", b"123", b"a", {b"e", b".", *INTEGER_FOLLOWING}),
             (
                 "]",
                 b"",
                 b"]",
                 {
-                    Byte(b"["),
-                    Byte(b"{"),
-                    Byte(b'"'),
-                    Byte(b"t"),
-                    Byte(b"f"),
-                    Byte(b"n"),
+                    b"[",
+                    b"{",
+                    b'"',
+                    b"t",
+                    b"f",
+                    b"n",
                     *INTEGER_LEADING,
                 },
             ),
@@ -1502,7 +1501,7 @@ class TestEmptySchemas:
         "bad_obj, good_bytes, failure_byte, allowed_bytes",
         [
             # Missing property -- presence of {} deeper in the schema isn't carte blanche
-            ({"b": 42}, b'{"', b"b", {Byte(b"a")}),
+            ({"b": 42}, b'{"', b"b", {b"a"}),
         ],
     )
     def test_nested_empty_schema_bad(
@@ -1544,7 +1543,7 @@ class TestEmptySchemas:
         "bad_obj, good_bytes, failure_byte, allowed_bytes",
         [
             # Missing property -- presence of {} deeper in the schema isn't carte blanche
-            ({"b": 42}, b'{"', b"b", {Byte(b"a")}),
+            ({"b": 42}, b'{"', b"b", {b"a"}),
         ],
     )
     def test_nested_empty_schema_with_props_bad(
@@ -1581,7 +1580,7 @@ class TestEmptySchemas:
             bad_string="[42]",
             good_bytes=b"[",
             failure_byte=b"4",
-            allowed_bytes={Byte(b"]")},  # array must be empty
+            allowed_bytes={b"]"},  # array must be empty
             schema_obj=schema_obj,
         )
 
@@ -1613,6 +1612,6 @@ class TestEmptySchemas:
             bad_string='{"a": 42}',
             good_bytes=b"{",
             failure_byte=b'"',
-            allowed_bytes={Byte(b"}")},  # object must be empty
+            allowed_bytes={b"}"},  # object must be empty
             schema_obj=schema_obj,
         )
