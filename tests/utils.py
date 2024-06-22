@@ -6,7 +6,7 @@ from huggingface_hub import hf_hub_download
 
 import guidance
 from guidance import models
-from guidance._grammar import Byte, ByteRange, GrammarFunction
+from guidance._grammar import GrammarFunction
 from guidance._parser import ParserException
 
 opanai_model_cache = {}
@@ -141,7 +141,7 @@ def check_match_failure(
     bad_string: str,
     good_bytes: bytes,
     failure_byte: bytes,
-    allowed_bytes: Set[Union[Byte, ByteRange]],
+    allowed_bytes: Set[bytes],
     grammar: GrammarFunction,
 ):
     """

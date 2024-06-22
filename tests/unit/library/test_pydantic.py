@@ -8,7 +8,6 @@ from pydantic.json_schema import to_jsonable_python as pydantic_to_jsonable_pyth
 
 from guidance import json as gen_json
 from guidance import models
-from guidance._grammar import Byte, ByteRange
 from ...utils import check_match_failure as _check_match_failure
 
 
@@ -90,7 +89,7 @@ def check_match_failure(
     bad_obj: Any,
     good_bytes: bytes,
     failure_byte: bytes,
-    allowed_bytes: Set[Union[Byte, ByteRange]],
+    allowed_bytes: Set[bytes],
     pydantic_model: Union[Type[pydantic.BaseModel], pydantic.TypeAdapter],
 ):
     bad_string = to_compact_json(bad_obj)
@@ -180,7 +179,7 @@ class TestTuple:
             bad_obj=(1, 2),
             good_bytes=b"[1",
             failure_byte=b",",
-            allowed_bytes={ByteRange(b"09"), Byte(b"]")},
+            allowed_bytes={b"]", *{bytes([i]) for i in range(ord("0"), ord("9") + 1)}},
             pydantic_model=model,
         )
 
@@ -254,9 +253,9 @@ class TestGeneric:
     @pytest.mark.parametrize(
         "my_type, my_obj, good_bytes, failure_byte, allowed_bytes",
         [
-            (bool, "True", b"", b'"', {Byte(b"t"), Byte(b"f")}),
-            (str, 42, b"", b"4", {Byte(b'"')}),
-            (int, False, b"", b"f", {Byte(b"0"), ByteRange(b"19"), Byte(b"-")}),
+            (bool, "True", b"", b'"', {b"t", b"f"}),
+            (str, 42, b"", b"4", {b'"'}),
+            (int, False, b"", b"f", {b"-", *{bytes([i]) for i in range(ord("0"), ord("9") + 1)}}),
         ],
     )
     def test_bad_generic(
