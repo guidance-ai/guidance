@@ -157,8 +157,8 @@ class TestNumber:
     @pytest.mark.parametrize(
         ["bad_string", "good_bytes", "failure_byte", "allowed_bytes"],
         [
-            ("9999a7777", b"9999", b"a", {b"e", b".", *INTEGER_FOLLOWING}),
-            ("123.6, []", b"123.6", b",", {b"e", *INTEGER_FOLLOWING}),
+            ("9999a7777", b"9999", b"a", {b"e", b"E", b".", *INTEGER_FOLLOWING}),
+            ("123.6, []", b"123.6", b",", {b"e", b"E", *INTEGER_FOLLOWING}),
             ("a321", b"", b"a", INTEGER_LEADING),
             ("[]", b"", b"[", INTEGER_LEADING),
             ('{"a":4}', b"", b"{", INTEGER_LEADING),
@@ -1432,9 +1432,9 @@ class TestEmptySchemas:
                 "[1,2} ",
                 b"[1,2",
                 b"}",
-                {b",", b"]", b"e", b".", *INTEGER_FOLLOWING},
+                {b",", b"]", b"e", b"E", b".", *INTEGER_FOLLOWING},
             ),
-            ("123a", b"123", b"a", {b"e", b".", *INTEGER_FOLLOWING}),
+            ("123a", b"123", b"a", {b"e", b"E", b".", *INTEGER_FOLLOWING}),
             (
                 "]",
                 b"",
