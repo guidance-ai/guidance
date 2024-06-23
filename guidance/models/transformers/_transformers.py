@@ -21,6 +21,15 @@ except ModuleNotFoundError:
 from .._model import Engine, Model
 from .._tokenizer import Tokenizer
 
+# Formed by comparing model and tokenizer from_pretrained methods
+_COMMON_TRANSFORMERS_KWARGS = [
+    "cache_dir",
+    "force_download",
+    "revision",
+    "subfolder",
+    "trust_remote_code",
+]
+
 
 class TransformersTokenizer(Tokenizer):
     def __init__(
@@ -233,8 +242,19 @@ class TransformersEngine(Engine):
             if self.model_obj.config.model_type in ["phi3"]:
                 self._disable_retokenize_check = True
 
+        # Automatically fill common args between Transformers
+        # model and tokenizer
+        passed_common_kwargs = {}
+        for arg_name in _COMMON_TRANSFORMERS_KWARGS:
+            if arg_name in kwargs:
+                passed_common_kwargs[arg_name] = kwargs[arg_name]
+
+        my_tokenizer = TransformersTokenizer(
+            model, tokenizer, chat_template, **passed_common_kwargs
+        )
+
         super().__init__(
-            TransformersTokenizer(model, tokenizer, chat_template),
+            my_tokenizer,
             compute_log_probs=compute_log_probs,
         )
         assert self._token_trie.match
