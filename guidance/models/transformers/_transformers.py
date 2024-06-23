@@ -22,9 +22,13 @@ from .._model import Engine, Model
 from .._tokenizer import Tokenizer
 
 # Formed by comparing model and tokenizer from_pretrained methods
+# transformers/models/auto/auto_factory.py
+# transformers/models/auto/tokenization_auto.py
 _COMMON_TRANSFORMERS_KWARGS = [
     "cache_dir",
     "force_download",
+    "proxies",
+    "resume_download",
     "revision",
     "subfolder",
     "trust_remote_code",
@@ -249,6 +253,7 @@ class TransformersEngine(Engine):
             if arg_name in kwargs:
                 passed_common_kwargs[arg_name] = kwargs[arg_name]
 
+        # Create the tokenizer
         my_tokenizer = TransformersTokenizer(
             model, tokenizer, chat_template, **passed_common_kwargs
         )
