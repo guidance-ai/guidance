@@ -126,7 +126,7 @@ jobs:
         python-version: ["3.9", "3.10", "3.11"]
     uses: ./.github/workflows/action_server_tests.yml
     with:
-      os: ubuntu-latest
+      os: windows-latest
       python-version: ${{ matrix.python-version }}
 
 
