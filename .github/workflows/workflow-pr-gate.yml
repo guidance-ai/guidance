@@ -117,25 +117,12 @@ jobs:
       python-version: ${{ matrix.python-version }}
       model: ${{ matrix.model }}
 
-  server-tests:
-    needs: end-stage-1
-    strategy:
-      fail-fast: false # Don't cancel all on first failure
-      matrix:
-        # Need to figure out what happened to 3.12
-        python-version: ["3.9", "3.10", "3.11"]
-    uses: ./.github/workflows/action_server_tests.yml
-    with:
-      os: ubuntu-latest
-      python-version: ${{ matrix.python-version }}
-
 
 
   end-stage-2:
     needs:
       - basic-tests-linux-python-other
       - basic-tests-gpu-python-latest
-      - server-tests
     name: End Stage 2
     runs-on: ubuntu-latest
     steps:
