@@ -68,7 +68,7 @@ class LLParser(Parser):
         self.ll_interpreter = llguidance.LLInterpreter(
             self.ll_tokenizer,
             json.dumps(grammar.ll_serialize()),
-            log_level=os.environ.get("LLGUIDANCE_LOG_LEVEL", 1)
+            log_level=int(os.environ.get("LLGUIDANCE_LOG_LEVEL", "1"))
         )
         self._state = self._start(prompt=prompt, ensure_bos_token=ensure_bos_token)
 
