@@ -68,3 +68,17 @@ def test_stream_add_multiple(selected_model):
     lm += ""
     *_, last_lm = lm
     assert str(last_lm) in ["item1", "item2"]
+
+
+def test_gen_list_append(selected_model):
+    """Reproduces a protobuf serialization issue when using list_append in gen"""
+    query = "Who won the last Kentucky derby and by how much?"
+    lm = selected_model + f'''\
+    Q: {query}
+    Now I will choose to either SEARCH the web or RESPOND.
+    Choice: {select(["SEARCH", "RESPOND"], name="choice")}
+    '''
+    if lm["choice"] == "SEARCH":
+        lm += "Here are 3 search queries:\n"
+        for i in range(3):
+            lm += f'''{i+1}. "{gen(stop='"', name="queries", temperature=1.0, list_append=True)}"\n'''
