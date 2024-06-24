@@ -367,6 +367,7 @@ def json(
         "pydantic.TypeAdapter",
     ] = None,
     temperature: float = 0.0,
+    max_tokens: int = 100000000,
 ):
     """Generate valid JSON according to the supplied JSON schema or `pydantic` model.
 
@@ -431,6 +432,7 @@ def json(
             body=_gen_json(json_schema=schema, definitions=definitions),
             skip_regex=r"[\x20\x0A\x0D\x09]+", # whitespace
             no_initial_skip=True,
+            max_tokens=max_tokens,
         ),
         temperature=temperature,
     )
