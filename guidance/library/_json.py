@@ -92,7 +92,7 @@ def _gen_json_number(lm):
 
 @guidance(stateless=True)
 def _gen_json_string(lm):
-    return lm + lexeme(r'"(\\(["\\\/bfnrt]|u[a-fA-F0-9]{4})|[^"\\\x00-\x1F\x7F]+)*"')
+    return lm + lexeme(r'"(\\(["\\\/bfnrt]|u[a-fA-F0-9]{4})|[^"\\\x00-\x1F\x7F]+)*"', contextual=True)
 
 
 @guidance(stateless=True)
