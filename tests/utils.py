@@ -169,7 +169,7 @@ def generate_and_check(
     grammar_callable: GrammarFunctionCallable,
     test_string: str,
     capture_key="my_capture",
-    stop_char: str = chr(7),
+    eos_token = "<s>",
 ) -> models.Mock:
     # First, validate that the grammar actually accepts the test string
     grammar = grammar_callable(name=capture_key)
@@ -186,8 +186,8 @@ def generate_and_check(
     # with our round trip check.
     # So append a 'stop' character which we don't
     # use in any of our tests
-    assert stop_char not in test_string, f"stop_char {stop_char!r} in string"
-    prepared_string = f"<s>{test_string}{stop_char}"
+    assert eos_token not in test_string, f"eos_token {eos_token!r} in string"
+    prepared_string = f"{eos_token}{test_string}{eos_token}"
     lm = models.Mock(prepared_string.encode())
 
     # Run with the mock model

@@ -11,25 +11,25 @@ def byte_range(byterange: bytes):
 
 class TestCharacterClasses:
     @pytest.mark.parametrize(
-        "pattern, string, stop_char",
+        "pattern, string",
         [
-            (r"[abc]+", "cbabbaccabc", chr(7)),
-            (r"[a-z]+", "thequickbrownfoxjumpsoverthelazydog", chr(7)),
-            (r"[0-9]+", "9876543210", chr(7)),
-            (r"[b-y]+", "by", chr(7)),  # range is left and right inclusive
-            (r"[a-f0-9]+", "abcdef0123456789", chr(7)),
-            (r"[abcA-Z]+", "abcABCXYZ", chr(7)),
-            (r"[a-z\d]+", "abc123", chr(7)),
-            (r"[^abc]+", "ABCxyz8743-!@#$%^&*()_+", "a"),
-            (r"[^\d]+", "abcXYZ-!@#$%^&*()_+", "8"),
-            (r"[^B-Z]+", "qwertyA", "B"),
-            (r"[^a-z\d]+", "ABCDEF-!@#$%^&*()_+", "a"),
-            (r"[^\n]+", "ABCxyz8743-!@#$%^&*()_+", "\n"),
+            (r"[abc]+", "cbabbaccabc"),
+            (r"[a-z]+", "thequickbrownfoxjumpsoverthelazydog"),
+            (r"[0-9]+", "9876543210"),
+            (r"[b-y]+", "by"),  # range is left and right inclusive
+            (r"[a-f0-9]+", "abcdef0123456789"),
+            (r"[abcA-Z]+", "abcABCXYZ"),
+            (r"[a-z\d]+", "abc123"),
+            (r"[^abc]+", "ABCxyz8743-!@#$%^&*()_+"),
+            (r"[^\d]+", "abcXYZ-!@#$%^&*()_+"),
+            (r"[^B-Z]+", "qwertyA"),
+            (r"[^a-z\d]+", "ABCDEF-!@#$%^&*()_+"),
+            (r"[^\n]+", "ABCxyz8743-!@#$%^&*()_+"),
         ],
     )
-    def test_good(self, pattern, string, stop_char):
+    def test_good(self, pattern, string):
         grammar_callable = partial(regex, pattern=pattern)
-        generate_and_check(grammar_callable, string, stop_char=stop_char)
+        generate_and_check(grammar_callable, string)
 
     @pytest.mark.parametrize(
         "pattern, string, good_bytes, failure_byte, allowed_bytes",
@@ -401,7 +401,7 @@ class TestDot:
     )
     def test_dot(self, pattern, string):
         grammar_callable = partial(regex, pattern=pattern)
-        generate_and_check(grammar_callable, string, stop_char="\n")
+        generate_and_check(grammar_callable, string)
 
     @pytest.mark.parametrize(
         "pattern, string, good_bytes, failure_byte, allowed_bytes",
@@ -429,25 +429,25 @@ class TestDot:
 
 class TestSpecialCharacters:
     @pytest.mark.parametrize(
-        "pattern, string, stop_char",
+        "pattern, string",
         [
-            (r"\d+", "1234567890", chr(7)),
-            (r"[^\D]+", "1234567890", chr(7)),
-            (r"\D+", "ABCxyz-!@#$%^&*()_+", "9"),
-            (r"[^\d]+", "ABCxyz-!@#$%^&*()_+", "9"),
-            (r"\w+", "abcABC123_", chr(7)),
-            (r"[^\W]+", "abcABC123_", chr(7)),
-            (r"\W+", " -!@#$%^&*()+", "9"),
-            (r"[^\w]+", "-!@#$%^&*()+", "9"),
-            (r"\s+", " \t\n\r\f\v", chr(7)),
-            (r"[^\S]+", " \t\n\r\f\v", chr(7)),
-            (r"\S+", "ABCxyz8743-!@#$%^&*()_+", " "),
-            (r"[^\s]+", "ABCxyz8743-!@#$%^&*()_+", " "),
+            (r"\d+", "1234567890"),
+            (r"[^\D]+", "1234567890"),
+            (r"\D+", "ABCxyz-!@#$%^&*()_+"),
+            (r"[^\d]+", "ABCxyz-!@#$%^&*()_+"),
+            (r"\w+", "abcABC123_"),
+            (r"[^\W]+", "abcABC123_"),
+            (r"\W+", " -!@#$%^&*()+"),
+            (r"[^\w]+", "-!@#$%^&*()+"),
+            (r"\s+", " \t\n\r\f\v"),
+            (r"[^\S]+", " \t\n\r\f\v"),
+            (r"\S+", "ABCxyz8743-!@#$%^&*()_+"),
+            (r"[^\s]+", "ABCxyz8743-!@#$%^&*()_+"),
         ],
     )
-    def test_good(self, pattern, string, stop_char):
+    def test_good(self, pattern, string):
         grammar_callable = partial(regex, pattern=pattern)
-        generate_and_check(grammar_callable, string, stop_char=stop_char)
+        generate_and_check(grammar_callable, string)
 
     @pytest.mark.parametrize(
         "pattern, string, good_bytes, failure_byte, allowed_bytes",
