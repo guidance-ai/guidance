@@ -951,7 +951,7 @@ class Model:
 
             if ipython_is_imported:
                 clear_output(wait=True)
-                display(HTML(self._state._html()))
+                display(HTML(self._html()))
             else:
                 pprint(self._state)
 
@@ -969,10 +969,18 @@ class Model:
             self._variables_log_probs = {}
         return self
 
+    def _html(self):
+        out = self._state._html()
+        for context in reversed(self.opened_blocks):
+            _, closer = self.opened_blocks[context]
+            if closer is not None:
+                out += closer._html()
+        return out
+
     def _repr_html_(self):
         if ipython_is_imported:
             clear_output(wait=True)
-        return self._state._html()
+        return self._html()
 
     def _current_prompt(self) -> str:
         """The current prompt in bytes (which is the state without the context close tags)."""
