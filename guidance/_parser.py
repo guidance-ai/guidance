@@ -90,17 +90,19 @@ class LLParser(Parser):
         self._state = self._consume_token(tok_id, self._state)
 
     def _start(self, prompt: bytes, ensure_bos_token: bool) -> ParserState:
-        # add the beginning of sequence token if needed
+        prompt_tokens = self.ll_interpreter.process_prompt(
+                self.tokenizer.encode(prompt)
+        )
         if (
             ensure_bos_token
             and self.tokenizer.bos_token is not None
-            and not prompt.startswith(self.tokenizer.bos_token)
+            and prompt_tokens[:1] != [self.tokenizer.bos_token_id]
         ):
-            prompt = self.tokenizer.bos_token + prompt
-        prompt_tokens = self.tokenizer.encode(prompt)
+            # add the beginning of sequence token if needed
+            prompt_tokens = [self.tokenizer.bos_token_id] + prompt_tokens
 
         return ParserState(
-            tokens=self.ll_interpreter.process_prompt(prompt_tokens),
+            tokens=prompt_tokens,
             ff_tokens=[],
             backtrack=0,
             done=False,
