@@ -174,37 +174,63 @@ class TestNumber:
         )
 
 
-@pytest.mark.parametrize(
-    "my_string",
-    [
-        "with_underscore",
-        "ALLCAPS",
-        "with a space",
-        "MiXeD cAsInG",
-        "with-hyphen",
-        "Mix case_underscore-hyphens",
-        "with a comma, in the string",
-        "A full stop.",
-        """How about
-            a
-            multiline string?""",
-        "A \t tab \t between \t words",
-        r"End with backslash \ ",
-        "Have a forward / slash",
-        "Include [the] odd {brace} and (parentheses)",
-        "Some more symbols: ; are useful!",
-    ],
-)
-@pytest.mark.parametrize("temperature", [None, 0.1, 1])
-def test_string_schema(my_string: str, temperature):
-    schema = """{ "type": "string" }"""
+class TestString:
+    @pytest.mark.parametrize(
+        "my_string",
+        [
+            "with_underscore",
+            "ALLCAPS",
+            "with a space",
+            "MiXeD cAsInG",
+            "with-hyphen",
+            "Mix case_underscore-hyphens",
+            "with a comma, in the string",
+            "A full stop.",
+            """How about
+                a
+                multiline string?""",
+            "A \t tab \t between \t words",
+            r"End with backslash \ ",
+            "Have a forward / slash",
+            "Include [the] odd {brace} and (parentheses)",
+            "Some more symbols: ; are useful!",
+        ],
+    )
+    @pytest.mark.parametrize("temperature", [None, 0.1, 1])
+    def test_smoke(self, my_string: str, temperature):
+        schema = """{ "type": "string" }"""
 
-    # First sanity check what we're setting up
-    schema_obj = json.loads(schema)
-    validate(instance=my_string, schema=schema_obj)
+        # First sanity check what we're setting up
+        schema_obj = json.loads(schema)
+        validate(instance=my_string, schema=schema_obj)
 
-    # The actual check
-    generate_and_check(my_string, schema_obj, desired_temperature=temperature)
+        # The actual check
+        generate_and_check(my_string, schema_obj, desired_temperature=temperature)
+
+    @pytest.mark.parametrize("my_string", ["aA", "aB", "aK", "aZ"])
+    def test_regex(self, my_string: str):
+        schema = """{ "type": "string", "pattern": "a[A-Z]"}"""
+
+        # First sanity check what we're setting up
+        schema_obj = json.loads(schema)
+        validate(instance=my_string, schema=schema_obj)
+
+        # The actual check
+        generate_and_check(my_string, schema_obj)
+
+    @pytest.mark.parametrize(
+        ["bad_string", "good_bytes", "failure_byte", "allowed_bytes"], [("aB", b"", b"a", {b'"'})]
+    )
+    def test_regex_bad(self, bad_string: str, good_bytes, failure_byte, allowed_bytes):
+        schema = """{ "type": "string", "pattern": "a[A-Z]"}"""
+        schema_obj = json.loads(schema)
+        check_match_failure(
+            bad_string=bad_string,
+            good_bytes=good_bytes,
+            failure_byte=failure_byte,
+            allowed_bytes=allowed_bytes,
+            schema_obj=schema_obj,
+        )
 
 
 class TestSimpleObject:
@@ -1446,9 +1472,7 @@ class TestEmptySchemas:
             ),
         ],
     )
-    def test_bad_empty_schema(
-        self, bad_string, good_bytes, failure_byte, allowed_bytes
-    ):
+    def test_bad_empty_schema(self, bad_string, good_bytes, failure_byte, allowed_bytes):
         schema_obj = json.loads(self.empty_schema)
         check_match_failure(
             bad_string=bad_string,
@@ -1462,10 +1486,10 @@ class TestEmptySchemas:
         "schema_obj",
         [
             # Empty property
-            {"type": "object", "properties": { "a": {} }},
+            {"type": "object", "properties": {"a": {}}},
             # Empty reference
             {"type": "object", "properties": {"a": {"$ref": "#/$defs/A"}}, "$defs": {"A": {}}},
-        ]
+        ],
     )
     @pytest.mark.parametrize(
         "target_obj",
@@ -1493,10 +1517,10 @@ class TestEmptySchemas:
         "schema_obj",
         [
             # Empty property
-            {"type": "object", "properties": { "a": {} }},
+            {"type": "object", "properties": {"a": {}}},
             # Empty reference
             {"type": "object", "properties": {"a": {"$ref": "#/$defs/A"}}, "$defs": {"A": {}}},
-        ]
+        ],
     )
     @pytest.mark.parametrize(
         "bad_obj, good_bytes, failure_byte, allowed_bytes",

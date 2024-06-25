@@ -20,7 +20,7 @@ except ImportError:
         raise
 
 from .._guidance import guidance
-from ..library import char_range, one_or_more, optional, zero_or_more
+from ..library import char_range, gen, one_or_more, optional, zero_or_more
 
 from .._grammar import GrammarFunction, select, capture, with_temperature
 from ._pydantic import pydantic_to_json_schema
@@ -42,6 +42,7 @@ class Keyword(str, Enum):
     CONST = "const"
     ENUM = "enum"
     TYPE = "type"
+    PATTERN = "pattern"
 
 
 KEYS = {member.value for member in Keyword}
@@ -56,13 +57,23 @@ IGNORED_KEYS = {
     "description",
     "default",
     "examples",
-    "required", # TODO: implement and remove from ignored list
+    "required",  # TODO: implement and remove from ignored list
 }
 
 TYPE_SPECIFIC_KEYS = {
     "array": {"items", "prefixItems", "minItems", "maxItems"},
     "object": {"properties", "additionalProperties"},
 }
+
+STRING_CHARS = [
+    char_range("a", "z"),
+    char_range("A", "Z"),
+    char_range("0", "9"),
+    *[c for c in "-_' ,.!?/[]{}():;"],
+    "\\n",
+    "\\t",
+    "\\\\",
+]
 
 
 def validate_json_node_keys(node: Mapping[str, Any]):
@@ -73,8 +84,7 @@ def validate_json_node_keys(node: Mapping[str, Any]):
     invalid_keys = keys - valid_keys
     if invalid_keys:
         raise ValueError(
-            f"JSON schema had keys that could not be processed: {invalid_keys}"
-            f"\nSchema: {node}"
+            f"JSON schema had keys that could not be processed: {invalid_keys}" f"\nSchema: {node}"
         )
 
 
@@ -94,19 +104,19 @@ def _gen_json_number(lm):
 
 
 @guidance(stateless=True)
-def _gen_json_string(lm):
-    string_chars = select(
-        [
-            char_range("a", "z"),
-            char_range("A", "Z"),
-            char_range("0", "9"),
-            *[c for c in "-_' ,.!?/[]{}():;"],
-            "\\n",
-            "\\t",
-            "\\\\",
-        ],
-        recurse=True,
-    )
+def _gen_json_string(
+    lm,
+    min_length: Union[int, None] = None,
+    max_length: Union[int, None] = None,
+    regex: Union[str, None] = None,
+):
+    if regex is not None:
+        string_chars = gen(regex=regex)
+    else:
+        string_chars = select(
+            STRING_CHARS,
+            recurse=True,
+        )
     return lm + '"' + string_chars + '"'
 
 
@@ -200,17 +210,13 @@ def _gen_json_array(
         )
 
     if max_items is not None and max_items < min_items:
-        raise ValueError(
-            f"maxItems ({max_items}) can't be less than minItems ({min_items})"
-        )
+        raise ValueError(f"maxItems ({max_items}) can't be less than minItems ({min_items})")
 
     required_items = []
     optional_items = []
 
     # If max_items is None, we can add an infinite tail of items later
-    n_to_add = (
-        max(len(prefix_items_schema), min_items) if max_items is None else max_items
-    )
+    n_to_add = max(len(prefix_items_schema), min_items) if max_items is None else max_items
     for i in range(n_to_add):
         if i < len(prefix_items_schema):
             schema = prefix_items_schema[i]
@@ -266,9 +272,7 @@ def _process_anyOf(
     anyof_list: Sequence[Mapping[str, Any]],
     definitions: Mapping[str, Callable[[], GrammarFunction]],
 ):
-    options = [
-        _gen_json(json_schema=item, definitions=definitions) for item in anyof_list
-    ]
+    options = [_gen_json(json_schema=item, definitions=definitions) for item in anyof_list]
     return lm + select(options)
 
 
@@ -318,9 +322,7 @@ def _gen_json(
     validate_json_node_keys(json_schema)
 
     if Keyword.ANYOF in json_schema:
-        return lm + _process_anyOf(
-            anyof_list=json_schema[Keyword.ANYOF], definitions=definitions
-        )
+        return lm + _process_anyOf(anyof_list=json_schema[Keyword.ANYOF], definitions=definitions)
 
     if Keyword.ALLOF in json_schema:
         allof_list = json_schema[Keyword.ALLOF]
@@ -329,9 +331,7 @@ def _gen_json(
         return lm + _gen_json(allof_list[0], definitions)
 
     if Keyword.REF in json_schema:
-        return lm + _get_definition(
-            reference=json_schema[Keyword.REF], definitions=definitions
-        )
+        return lm + _get_definition(reference=json_schema[Keyword.REF], definitions=definitions)
 
     if Keyword.CONST in json_schema:
         return lm + _to_compact_json(json_schema[Keyword.CONST])
@@ -350,7 +350,7 @@ def _gen_json(
         if target_type == "number":
             return lm + _gen_json_number()
         if target_type == "string":
-            return lm + _gen_json_string()
+            return lm + _gen_json_string(regex=json_schema.get("pattern", None))
         if target_type == "array":
             return lm + _gen_json_array(
                 prefix_items_schema=json_schema.get("prefixItems", []),
@@ -451,18 +451,14 @@ def _build_definitions(
 ) -> Mapping[str, Callable[[], GrammarFunction]]:
     definitions: Dict[str, Callable[[], GrammarFunction]] = {}
 
-    def build_definition(
-        json_schema: Mapping[str, Any]
-    ) -> Callable[[], GrammarFunction]:
+    def build_definition(json_schema: Mapping[str, Any]) -> Callable[[], GrammarFunction]:
         @guidance(stateless=True, dedent=False)
         def closure(lm):
             return lm + _gen_json(json_schema=json_schema, definitions=definitions)
 
         return closure
 
-    definitions = {
-        ref: build_definition(schema) for ref, schema in raw_definitions.items()
-    }
+    definitions = {ref: build_definition(schema) for ref, schema in raw_definitions.items()}
     return definitions
 
 
