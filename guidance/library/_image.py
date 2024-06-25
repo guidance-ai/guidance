@@ -10,7 +10,7 @@ def image(lm, src, allow_local=True):
 
     # load the image bytes
     # ...from a url
-    if isinstance(src, str) and re.match(r"$[^:/]+://", src):
+    if isinstance(src, str) and re.match(r"[^:/]+://", src):
         with urllib.request.urlopen(src) as response:
             response = typing.cast(http.client.HTTPResponse, response)
             bytes_data = response.read()
