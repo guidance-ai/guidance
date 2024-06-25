@@ -1,9 +1,10 @@
 import os
 import random
 import time
-
+import requests
 import pytest
 
+from tempfile import NamedTemporaryFile
 from guidance import models
 
 # Ensure that asserts from tests/utils.py are rewritten by pytest to show helpful messages
@@ -113,3 +114,23 @@ def rate_limiter() -> int:
     delay_secs = random.randint(10, 30)
     time.sleep(delay_secs)
     return delay_secs
+
+
+@pytest.fixture(scope="session")
+def remote_image_url():
+    return "https://picsum.photos/300/200"
+
+    
+@pytest.fixture(scope="session")
+def local_image_path(remote_image_url):
+    with NamedTemporaryFile(suffix='.jpg') as file:
+        response = requests.get(remote_image_url)
+        file.write(response.content)
+        file.flush()
+        yield file.name
+
+
+@pytest.fixture(scope="session")
+def local_image_bytes(local_image_path):
+    with open(local_image_path, "rb") as f:
+        return f.read()
