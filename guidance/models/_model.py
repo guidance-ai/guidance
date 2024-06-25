@@ -857,23 +857,6 @@ class Model:
         self._last_display = 0  # used to track the last display call to enable throttling
         self._last_event_stream = 0  # used to track the last event streaming call to enable throttling
 
-    @property
-    def active_role_end(self):
-        """The default end patterns we should use for `gen` calls.
-        TODO: move this logic into the gen call...we can do with if we allow model_variables to run functions.
-
-        These patterns are computed dynamically by the model object because they can depend on
-        what the current open roles are, which is something
-        """
-
-        # add any active non-empty role ends. Ignore role ends that are spaces
-        parts = []
-        for _, role_end_str in self.opened_blocks.values():
-            role_end_str = role_end_str
-            if len(role_end_str) > 0 and not re.fullmatch(r"\s+", role_end_str):
-                parts.append(role_end_str)
-
-        return select(parts)
 
     def _send_to_event_queue(self, value):
         """For streaming in code.
