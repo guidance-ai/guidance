@@ -232,6 +232,17 @@ class TestString:
             schema_obj=schema_obj,
         )
 
+    @pytest.mark.parametrize("my_string", ["a", "bb", "ccc"])
+    def test_min_and_maxLength(self, my_string: str):
+        schema = """{ "type": "string", "minLength": 1, "maxLength": 3}"""
+
+        # First sanity check what we're setting up
+        schema_obj = json.loads(schema)
+        validate(instance=my_string, schema=schema_obj)
+
+        # The actual check
+        generate_and_check(my_string, schema_obj)
+
 
 class TestSimpleObject:
     # These are objects without cross references

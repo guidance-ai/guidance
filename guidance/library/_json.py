@@ -23,6 +23,8 @@ from .._guidance import guidance
 from ..library import char_range, gen, one_or_more, optional, zero_or_more
 
 from .._grammar import GrammarFunction, select, capture, with_temperature
+from ._at_most_n_repeats import at_most_n_repeats
+from ._exactly_n_repeats import exactly_n_repeats
 from ._pydantic import pydantic_to_json_schema
 
 
@@ -43,6 +45,8 @@ class Keyword(str, Enum):
     ENUM = "enum"
     TYPE = "type"
     PATTERN = "pattern"
+    MIN_LENGTH = "minLength"
+    MAX_LENGTH = "maxLength"
 
 
 KEYS = {member.value for member in Keyword}
@@ -110,14 +114,20 @@ def _gen_json_string(
     max_length: Union[int, None] = None,
     regex: Union[str, None] = None,
 ):
+    lm += '"'
     if regex is not None:
-        string_chars = gen(regex=regex)
+        assert min_length is None and max_length is None
+        lm += gen(regex=regex)
+    elif min_length is not None and max_length is not None:
+        assert min_length >= 0 and max_length > min_length
+        lm += exactly_n_repeats(value=select(STRING_CHARS), n_repeats=min_length)
+        lm += at_most_n_repeats(value=select(STRING_CHARS), n_repeats=(max_length - min_length))
     else:
-        string_chars = select(
+        lm += select(
             STRING_CHARS,
             recurse=True,
         )
-    return lm + '"' + string_chars + '"'
+    return lm + '"'
 
 
 @guidance(stateless=True)
@@ -350,7 +360,11 @@ def _gen_json(
         if target_type == "number":
             return lm + _gen_json_number()
         if target_type == "string":
-            return lm + _gen_json_string(regex=json_schema.get("pattern", None))
+            return lm + _gen_json_string(
+                regex=json_schema.get(Keyword.PATTERN, None),
+                min_length=json_schema.get(Keyword.MIN_LENGTH, None),
+                max_length=json_schema.get(Keyword.MAX_LENGTH, None),
+            )
         if target_type == "array":
             return lm + _gen_json_array(
                 prefix_items_schema=json_schema.get("prefixItems", []),
