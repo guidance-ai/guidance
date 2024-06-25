@@ -243,6 +243,21 @@ class TestString:
         # The actual check
         generate_and_check(my_string, schema_obj)
 
+    @pytest.mark.parametrize(
+        ["bad_string", "good_bytes", "failure_byte", "allowed_bytes"],
+        [("bb", b"bb", b"a", {b'"'}), ("dddd", b"ddd", b"d", {b'"'})],
+    )
+    def test_min_and_maxLength_bad(self, bad_string: str, good_bytes, failure_byte, allowed_bytes):
+        schema = """{ "type": "string", "minLength": 1, "maxLength": 3}"""
+        schema_obj = json.loads(schema)
+        check_match_failure(
+            bad_string=bad_string,
+            good_bytes=good_bytes,
+            failure_byte=failure_byte,
+            allowed_bytes=allowed_bytes,
+            schema_obj=schema_obj,
+        )
+
 
 class TestSimpleObject:
     # These are objects without cross references
