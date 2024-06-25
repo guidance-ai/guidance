@@ -11,7 +11,7 @@ import warnings
 
 
 from pprint import pprint
-from typing import Dict, TYPE_CHECKING
+from typing import Dict, Optional, TYPE_CHECKING
 
 
 import numpy as np
@@ -844,7 +844,7 @@ class Model:
         self.echo = echo
         self.token_count = 0  # tracks how many tokens our byte state represents
         self.max_display_rate = 0.2  # this controls how frequently we are allowed to redraw the display (in seconds)
-        self.opened_blocks = {}  # what context blocks have been opened but not closed
+        self.opened_blocks: dict["ContextBlock", tuple[int, Optional(Object)]] = {}  # what context blocks have been opened but not closed
         # self.compute_log_probs = compute_log_probs
 
         # private attributes
@@ -982,8 +982,9 @@ class Model:
         """A string representation of the current model object (that includes context closers)."""
         out = str(self._state)
         for context in reversed(self.opened_blocks):
-            _, close_text = self.opened_blocks[context]
-            out += close_text
+            _, closer = self.opened_blocks[context]
+            if closer is not None:
+                out += str(closer)
         return out
 
     def __add__(self, value):
@@ -1023,28 +1024,22 @@ class Model:
                     del lm.opened_blocks[context]
 
             # close any newly closed contexts
-            for (pos, close_text), context in old_blocks:
-                assert close_text is not None
+            for (pos, closer), context in old_blocks:
+                assert closer is not None
                 if context.name is not None:
                     # Capture
                     lm._variables[context.name] = str(lm._state[pos:])
-                if isinstance(context, RoleBlock):
-                    lm._inplace_append(
-                        RoleCloser(
-                            role_name=context.role_name,
-                            text=close_text,
-                            indent=getattr(lm, "indent_roles", True)
-                        )
-                    )
-                else:
-                    lm += close_text
+                lm._inplace_append(closer)
 
             # apply any newly opened contexts (new from this object's perspective)
             for context in new_blocks:
                 if isinstance(context, RoleBlock):
+                    # Apply the opener (a grammar)
                     with grammar_only():
+                        # TODO: be careful about the temp lm's display? (e.g. with silent())
                         tmp = lm + context.opener
                     open_text = str(tmp._state[len(lm._state):])  # get the new state added by calling the opener
+                    # Add that new state as text in a RoleOpener
                     lm._inplace_append(
                         RoleOpener(
                             role_name=context.role_name,
@@ -1055,9 +1050,18 @@ class Model:
                 else:
                     lm += context.opener
                 with grammar_only():
+                    # TODO: be careful about the temp lm's display? (e.g. with silent())
                     tmp = lm + context.closer
                 close_text = str(tmp._state[len(lm._state):])  # get the new state added by calling the closer
-                lm.opened_blocks[context] = (len(lm._state), close_text)
+                if isinstance(context, RoleBlock):
+                    closer = RoleCloser(
+                        role_name=context.role_name,
+                        text=close_text,
+                        indent=getattr(lm, "indent_roles", True)
+                    )
+                else:
+                    closer = Text(text=close_text)
+                lm.opened_blocks[context] = (len(lm._state), closer)
 
                 # clear out names that we override
                 if context.name is not None:
