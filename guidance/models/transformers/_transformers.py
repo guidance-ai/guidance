@@ -21,6 +21,19 @@ except ModuleNotFoundError:
 from .._model import Engine, Model
 from .._tokenizer import Tokenizer
 
+# Formed by comparing model and tokenizer from_pretrained methods
+# transformers/models/auto/auto_factory.py
+# transformers/models/auto/tokenization_auto.py
+_COMMON_TRANSFORMERS_KWARGS = [
+    "cache_dir",
+    "force_download",
+    "proxies",
+    "resume_download",
+    "revision",
+    "subfolder",
+    "trust_remote_code",
+]
+
 
 class TransformersTokenizer(Tokenizer):
     def __init__(
@@ -33,9 +46,10 @@ class TransformersTokenizer(Tokenizer):
         ],
         chat_template=None,
         ignore_bos_token=False,
+        **kwargs,
     ):
         if transformers_tokenizer is None:
-            transformers_tokenizer = self._tokenizer(model)
+            transformers_tokenizer = self._tokenizer(model, **kwargs)
         else:
             is_ptt = isinstance(transformers_tokenizer, transformers_package.PreTrainedTokenizer)
             is_ptt_fast = isinstance(
@@ -232,8 +246,20 @@ class TransformersEngine(Engine):
             if self.model_obj.config.model_type in ["phi3"]:
                 self._disable_retokenize_check = True
 
+        # Automatically fill common args between Transformers
+        # model and tokenizer
+        passed_common_kwargs = {}
+        for arg_name in _COMMON_TRANSFORMERS_KWARGS:
+            if arg_name in kwargs:
+                passed_common_kwargs[arg_name] = kwargs[arg_name]
+
+        # Create the tokenizer
+        my_tokenizer = TransformersTokenizer(
+            model, tokenizer, chat_template, **passed_common_kwargs
+        )
+
         super().__init__(
-            TransformersTokenizer(model, tokenizer, chat_template),
+            my_tokenizer,
             compute_log_probs=compute_log_probs,
         )
         assert self._token_trie.match
