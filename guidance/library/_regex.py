@@ -16,7 +16,7 @@ from .._grammar import Byte, ByteRange, Join, Select, byte_range, select, captur
 from .._guidance import guidance
 from ._any_char_but import any_char_but
 from ._optional import optional
-from ._zero_or_more import zero_or_more
+from ._sequences import zero_or_more
 
 # Type aliases
 Node: TypeAlias = Tuple[constants._NamedIntConstant, Any]

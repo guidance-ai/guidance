@@ -7,8 +7,8 @@ from jsonschema import validate
 
 from guidance import json as gen_json
 from guidance import models
-from guidance._grammar import Byte, ByteRange, byte_range, Select
-from guidance.library._json import _to_compact_json, STRING_CHARS
+from guidance._grammar import Byte, ByteRange, byte_range
+from guidance.library._json import _to_compact_json
 
 from ...utils import check_match_failure as _check_match_failure
 from ...utils import check_run_with_temperature

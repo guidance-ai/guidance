@@ -20,11 +20,9 @@ except ImportError:
         raise
 
 from .._guidance import guidance
-from ..library import char_range, gen, one_or_more, optional, zero_or_more
+from ..library import char_range, gen, one_or_more, optional, zero_or_more, sequence
 
 from .._grammar import GrammarFunction, select, capture, with_temperature
-from ._at_most_n_repeats import at_most_n_repeats
-from ._exactly_n_repeats import exactly_n_repeats
 from ._pydantic import pydantic_to_json_schema
 
 
@@ -118,24 +116,8 @@ def _gen_json_string(
     if regex is not None:
         assert min_length is None and max_length is None
         lm += gen(regex=regex)
-    elif min_length is not None and max_length is not None:
-        assert min_length >= 0 and max_length > min_length
-        lm += exactly_n_repeats(value=select(STRING_CHARS), n_repeats=min_length)
-        lm += at_most_n_repeats(value=select(STRING_CHARS), n_repeats=(max_length - min_length))
-    elif min_length is not None:
-        assert min_length >= 0
-        lm += exactly_n_repeats(value=select(STRING_CHARS), n_repeats=min_length)
-        lm += optional(select(STRING_CHARS, recurse=True))
-    elif max_length is not None:
-        assert max_length >= 0
-        lm += at_most_n_repeats(value=select(STRING_CHARS), n_repeats=max_length)
     else:
-        lm += optional(
-            select(
-                STRING_CHARS,
-                recurse=True,
-            )
-        )
+        lm += sequence(select(STRING_CHARS), min_length=min_length, max_length=max_length)
     return lm + '"'
 
 
