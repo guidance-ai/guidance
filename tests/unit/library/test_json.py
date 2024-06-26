@@ -236,7 +236,9 @@ class TestString:
             schema_obj=schema_obj,
         )
 
-    @pytest.mark.parametrize("my_string", ["a", "bb", "ccc"])
+    @pytest.mark.parametrize(
+        "my_string", ["a", "bb", "ccc", "150", ",?", ".\t\n", "(){", "aA7", "\\9O"]
+    )
     def test_min_and_maxLength(self, my_string: str):
         schema = """{ "type": "string", "minLength": 1, "maxLength": 3}"""
 
