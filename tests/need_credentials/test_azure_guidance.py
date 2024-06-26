@@ -601,3 +601,19 @@ def test_azure_guidance_max_tokens(azure_guidance_model: guidance.models.Model):
     lm += "Name: " + gen('name', max_tokens=5) + " and " + gen('name2', max_tokens=5)
     assert len(lm["name"]) > 0
     assert len(lm["name2"]) > 0
+
+def test_azure_guidance_zero_temperature(azure_guidance_model: guidance.models.Model):
+    lm = azure_guidance_model
+    responses = []
+    for _ in range(10):
+        temp = lm + "Number: " + gen("number", regex=r"\d", temperature=0.0)
+        responses.append(temp["number"])
+    assert len(set(responses)) == 1
+
+def test_azure_guidance_high_temperature(azure_guidance_model: guidance.models.Model):
+    lm = azure_guidance_model
+    responses = []
+    for _ in range(10):
+        temp = lm + "Number: " + gen("number", regex=r"\d", temperature=0.9)
+        responses.append(temp["number"])
+    assert len(set(responses)) > 1
