@@ -122,10 +122,16 @@ def _gen_json_string(
         assert min_length >= 0 and max_length > min_length
         lm += exactly_n_repeats(value=select(STRING_CHARS), n_repeats=min_length)
         lm += at_most_n_repeats(value=select(STRING_CHARS), n_repeats=(max_length - min_length))
+    elif min_length is not None:
+        assert min_length >= 0
+        lm += exactly_n_repeats(value=select(STRING_CHARS), n_repeats=min_length)
+        lm += optional(select(STRING_CHARS, recurse=True))
     else:
-        lm += select(
-            STRING_CHARS,
-            recurse=True,
+        lm += optional(
+            select(
+                STRING_CHARS,
+                recurse=True,
+            )
         )
     return lm + '"'
 
