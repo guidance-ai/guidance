@@ -126,6 +126,9 @@ def _gen_json_string(
         assert min_length >= 0
         lm += exactly_n_repeats(value=select(STRING_CHARS), n_repeats=min_length)
         lm += optional(select(STRING_CHARS, recurse=True))
+    elif max_length is not None:
+        assert max_length >= 0
+        lm += at_most_n_repeats(value=select(STRING_CHARS), n_repeats=max_length)
     else:
         lm += optional(
             select(

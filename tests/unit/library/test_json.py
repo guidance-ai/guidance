@@ -342,6 +342,62 @@ class TestString:
             schema_obj=schema_obj,
         )
 
+    @pytest.mark.parametrize(
+        "my_string",
+        [
+            "a",
+            "bb",
+            "ccc",
+            "150",
+            ",?",
+            ".\t\n",
+            "(){",
+            "aA7",
+            "\\9O",
+            "",
+        ],
+    )
+    def test_maxLength(self, my_string: str):
+        schema = """{ "type": "string", "maxLength": 3}"""
+
+        # First sanity check what we're setting up
+        schema_obj = json.loads(schema)
+        validate(instance=my_string, schema=schema_obj)
+
+        # The actual check
+        generate_and_check(my_string, schema_obj)
+
+    def test_maxLength_zero(self):
+        schema = """{ "type": "string", "maxLength": 0}"""
+        my_string = ""
+
+        # First sanity check what we're setting up
+        schema_obj = json.loads(schema)
+        validate(instance=my_string, schema=schema_obj)
+
+        # The actual check
+        generate_and_check(my_string, schema_obj)
+
+    @pytest.mark.parametrize(
+        ["bad_string", "good_bytes", "failure_byte", "allowed_bytes"],
+        [
+            ('"aaa"', b'"aa', b"a", set([Byte(b'"')])),
+            ('"1111"', b'"11', b"1", set([Byte(b'"')])),
+        ],
+    )
+    def test_maxLength_bad(self, bad_string: str, good_bytes, failure_byte, allowed_bytes):
+        # Note that the strings being fed in include the double quotes required
+        # to make them JSON strings
+        schema = """{ "type": "string", "maxLength": 2}"""
+        schema_obj = json.loads(schema)
+        check_match_failure(
+            bad_string=bad_string,
+            good_bytes=good_bytes,
+            failure_byte=failure_byte,
+            allowed_bytes=allowed_bytes,
+            schema_obj=schema_obj,
+        )
+
 
 class TestSimpleObject:
     # These are objects without cross references
