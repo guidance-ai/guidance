@@ -1,7 +1,7 @@
 from typing import Union
 
+from .._grammar import Join, select
 from .._guidance import guidance
-from .._grammar import select, Join
 from ._optional import optional
 
 
