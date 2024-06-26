@@ -226,6 +226,8 @@ class TestString:
         ],
     )
     def test_regex_bad(self, bad_string: str, good_bytes, failure_byte, allowed_bytes):
+        # Note that the strings being fed in include the double quotes required
+        # to make them JSON strings
         schema = """{ "type": "string", "pattern": "a[A-Z]"}"""
         schema_obj = json.loads(schema)
         check_match_failure(
@@ -257,6 +259,8 @@ class TestString:
         ],
     )
     def test_min_and_maxLength_bad(self, bad_string: str, good_bytes, failure_byte, allowed_bytes):
+        # Note that the strings being fed in include the double quotes required
+        # to make them JSON strings
         schema = """{ "type": "string", "minLength": 1, "maxLength": 3}"""
         schema_obj = json.loads(schema)
         check_match_failure(
