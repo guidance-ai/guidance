@@ -41,7 +41,7 @@ def check_match_failure(
     bad_string: str,
     good_bytes: bytes,
     failure_byte: bytes,
-    allowed_bytes: Set[Union[Byte, ByteRange]],
+    allowed_bytes: Union[Set[Union[Byte, ByteRange]], None],
     schema_obj: Dict[str, Any],
 ):
     grammar = gen_json(schema=schema_obj)
@@ -254,7 +254,7 @@ class TestString:
     @pytest.mark.parametrize(
         ["bad_string", "good_bytes", "failure_byte", "allowed_bytes"],
         [
-            ('""', b'"', b'"', set(STRING_CHARS)),
+            ('""', b'"', b'"', None),
             ('"dddd"', b'"ddd', b"d", set([Byte(b'"')])),
         ],
     )

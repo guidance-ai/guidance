@@ -141,19 +141,22 @@ def check_match_failure(
     bad_string: str,
     good_bytes: bytes,
     failure_byte: bytes,
-    allowed_bytes: Set[Union[Byte, ByteRange]],
+    allowed_bytes: Union[Set[Union[Byte, ByteRange]], None],
     grammar: GrammarFunction,
 ):
     """
     Helper function to check that a string fails to match a grammar after consuming
     zero or more bytes. It checks that the consumed bytes are as expected, that the
     failure byte is as expected, and that the allowed bytes are as expected.
+
+    allowed_bytes is allowed to be None, since it could be really complicated
     """
     with pytest.raises(ParserException) as pe:
         grammar.match(bad_string, raise_exceptions=True)
     assert pe.value.consumed_bytes[:-1] == good_bytes
     assert pe.value.current_byte == failure_byte
-    assert pe.value.allowed_bytes == allowed_bytes
+    if allowed_bytes is not None:
+        assert pe.value.allowed_bytes == allowed_bytes
 
 
 class GrammarFunctionCallable(Protocol):
