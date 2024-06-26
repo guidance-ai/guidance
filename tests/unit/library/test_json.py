@@ -7,8 +7,8 @@ from jsonschema import validate
 
 from guidance import json as gen_json
 from guidance import models
-from guidance._grammar import Byte, ByteRange
-from guidance.library._json import _to_compact_json
+from guidance._grammar import Byte, ByteRange, byte_range, Select
+from guidance.library._json import _to_compact_json, STRING_CHARS
 
 from ...utils import check_match_failure as _check_match_failure
 from ...utils import check_run_with_temperature
@@ -219,7 +219,11 @@ class TestString:
         generate_and_check(my_string, schema_obj)
 
     @pytest.mark.parametrize(
-        ["bad_string", "good_bytes", "failure_byte", "allowed_bytes"], [("aB", b"", b"a", {b'"'})]
+        ["bad_string", "good_bytes", "failure_byte", "allowed_bytes"],
+        [
+            ('"ab"', b'"a', b"b", set([byte_range(b"A", b"Z")])),
+            ('"a1"', b'"a', b"1", set([byte_range(b"A", b"Z")])),
+        ],
     )
     def test_regex_bad(self, bad_string: str, good_bytes, failure_byte, allowed_bytes):
         schema = """{ "type": "string", "pattern": "a[A-Z]"}"""
@@ -245,7 +249,10 @@ class TestString:
 
     @pytest.mark.parametrize(
         ["bad_string", "good_bytes", "failure_byte", "allowed_bytes"],
-        [("bb", b"bb", b"a", {b'"'}), ("dddd", b"ddd", b"d", {b'"'})],
+        [
+            ('""', b'"', b'"', set(STRING_CHARS)),
+            ('"dddd"', b'"ddd', b"d", set([Byte(b'"')])),
+        ],
     )
     def test_min_and_maxLength_bad(self, bad_string: str, good_bytes, failure_byte, allowed_bytes):
         schema = """{ "type": "string", "minLength": 1, "maxLength": 3}"""
