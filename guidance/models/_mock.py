@@ -57,16 +57,10 @@ class MockEngine(Engine):
             byte_string
             for p in self.byte_patterns:
                 if p.startswith(byte_string) and len(p) > len(byte_string):
-                    for i in self._get_next_tokens(p[len(byte_string) :]):
-                        logits[i] += bias
-                    bias /= 2  # if we have multiple matches then they apply with decreasing bias
+                    next_token = self.tokenizer.encode(p[len(byte_string) :])[0]
+                    logits[next_token] += bias
 
         return logits
-
-    def _get_next_tokens(self, byte_string):
-        for i, t in enumerate(self.tokenizer.tokens):
-            if byte_string.startswith(t):
-                yield i
 
     def sample_with_temperature(self, logits: np.ndarray, mask: np.ndarray, temperature: float):
         self.called_temperatures.append(temperature)
