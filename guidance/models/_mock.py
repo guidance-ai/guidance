@@ -37,8 +37,6 @@ class MockEngine(Engine):
 
     def get_logits(self, token_ids, forced_bytes, current_temp):
         """Pretends to compute the logits for the given token state."""
-        self.called_temperatures.append(current_temp)
-
         # build the byte strings
         byte_string = b"".join(self.tokenizer.tokens[i] for i in token_ids)
 
@@ -70,6 +68,9 @@ class MockEngine(Engine):
             if byte_string.startswith(t):
                 yield i
 
+    def sample_with_temperature(self, logits: np.ndarray, mask: np.ndarray, temperature: float):
+        self.called_temperatures.append(temperature)
+        return super().sample_with_temperature(logits, mask, temperature)
 
 class Mock(Model):
     def __init__(

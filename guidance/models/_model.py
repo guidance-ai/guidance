@@ -70,17 +70,6 @@ nodisp_pattern = re.compile(
 html_pattern = re.compile(r"&lt;\|\|_html:(.*?)_\|\|&gt;", flags=re.DOTALL)
 image_pattern = re.compile(r"&lt;\|_image:(.*?)\|&gt;")
 
-
-def sample_with_temperature(logits: np.ndarray, temperature=1.0):
-    if temperature < 0.0001:
-        return int(np.argmax(logits))
-    # Get probabilities from softmax
-    probabilities = softmax(logits*temperature)
-    # Sample an index based on the probabilities
-    sampled_index = np.random.choice(len(logits), p=probabilities)
-    return sampled_index
-
-
 class EngineCallResponse:
     new_bytes: bytes
     is_generated: bool
@@ -221,9 +210,9 @@ class Engine:
         gen_data, response = self._parser.advance()
 
         if gen_data is not None:
-            logits = self.get_logits(gen_data.tokens, None, gen_data.temperature)
-            logits += gen_data.mask
-            tok = sample_with_temperature(logits, 1.0)
+            # TODO: get rid of extra args of get_logits
+            logits = self.get_logits(gen_data.tokens, None, None)
+            tok = self.sample_with_temperature(logits, gen_data.mask, gen_data.temperature)
             self._parser.consume_token(tok)
 
         return EngineCallResponse(
@@ -259,9 +248,18 @@ class Engine:
 
     def get_logits(self, token_ids, forced_bytes, current_temp):
         """A fake method designed to be overriden by subclasses."""
-
         # pretend to extend the KV cache and update the log probs
         return np.randn(len(self.tokenizer.tokens))
+
+    def sample_with_temperature(self, logits: np.ndarray, mask: np.ndarray, temperature: float):
+        logits = logits + mask
+        if temperature < 0.0001:
+            return int(np.argmax(logits))
+        # Get probabilities from softmax
+        probabilities = softmax(logits*temperature)
+        # Sample an index based on the probabilities
+        sampled_index = np.random.choice(len(logits), p=probabilities)
+        return sampled_index
 
     def _report_failed_match(self, prompt):
         """Note that this can be overridden by subclasses that have more likely reasons than a bug in the token set (like remote models)."""
