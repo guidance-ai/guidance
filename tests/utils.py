@@ -6,7 +6,7 @@ from huggingface_hub import hf_hub_download
 
 import guidance
 from guidance import models
-from guidance._grammar import Byte, ByteRange, GrammarFunction
+from guidance._grammar import Byte, ByteRange, GrammarFunction, Join
 from guidance._parser import ParserException
 
 opanai_model_cache = {}
@@ -135,6 +135,17 @@ def get_azure_guidance_model(model_name, caching=False, **kwargs):
         )
 
     return azure_guidance_model_cache[key]
+
+
+def check_match_success_with_guards(grammar, test_string: str):
+    PREFIX = "A#$!"
+    SUFFIX = "&%@Z"
+    bracketed_grammar = Join([PREFIX, grammar, SUFFIX])
+
+    bracketed_string = f"{PREFIX}{test_string}{SUFFIX}"
+
+    matched = bracketed_grammar.match(bracketed_string.encode(), raise_exceptions=True)
+    assert matched is not None
 
 
 def check_match_failure(
