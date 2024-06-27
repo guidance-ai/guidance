@@ -15,8 +15,7 @@ from typing_extensions import TypeAlias
 from .._grammar import Byte, ByteRange, Join, Select, byte_range, select, capture
 from .._guidance import guidance
 from ._any_char_but import any_char_but
-from ._optional import optional
-from ._sequences import zero_or_more
+from ._sequences import sequence
 
 # Type aliases
 Node: TypeAlias = Tuple[constants._NamedIntConstant, Any]
@@ -124,14 +123,8 @@ class RegexPatternConverter:
         if isinstance(high, constants._NamedIntConstant):
             if high != constants.MAXREPEAT:
                 raise UnsupportedRegexError(f"Unsupported high value in range: {high}")
-            if low == 0:
-                # kleene star
-                return zero_or_more(transformed_arg)
-            if low > 0:
-                return Join([transformed_arg] * low + [zero_or_more(transformed_arg)])
-        return Join(
-            [transformed_arg] * low + [optional(transformed_arg)] * (high - low)
-        )
+            return sequence(transformed_arg, min_length=low)
+        return sequence(transformed_arg, min_length=low, max_length=high)
 
     @classmethod
     def CATEGORY(cls, args: constants._NamedIntConstant):
