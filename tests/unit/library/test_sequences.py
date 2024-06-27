@@ -1,8 +1,7 @@
 import pytest
 
-from guidance._grammar import Join, select, Byte
-from guidance.library import sequence, exactly_n_repeats, at_most_n_repeats
-
+from guidance._grammar import Byte, Join, select
+from guidance.library import at_most_n_repeats, exactly_n_repeats, sequence
 
 from ...utils import check_match_failure, check_match_success_with_guards
 
