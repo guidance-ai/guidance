@@ -1195,7 +1195,7 @@ class LLSerializer:
 
         node0 = node
         todo = [node]
-        pending = set(todo)
+        pending = set()
 
         def node_finished(node: GrammarFunction):
             return node not in pending and node in self.regex_id_cache
@@ -1209,7 +1209,6 @@ class LLSerializer:
                     "GrammarFunction is recursive - cannot serialize as regex: "
                     + n.__repr__()
                 )
-            pending.add(n)
             todo.append(n)
 
         def add_todos(nodes):
@@ -1218,7 +1217,6 @@ class LLSerializer:
 
         while todo:
             node = todo.pop()
-            pending.remove(node)
 
             if node in self.regex_id_cache:
                 continue
@@ -1236,6 +1234,7 @@ class LLSerializer:
                         without_node.append(v)
                 if not all_finished(with_node) or not all_finished(without_node):
                     add_todo(node)
+                    pending.add(node)
                     add_todos(with_node)
                     add_todos(without_node)
                     continue
@@ -1267,6 +1266,7 @@ class LLSerializer:
                 else:
                     if not all_finished(node.values):
                         add_todo(node)
+                        pending.add(node)
                         add_todos(node.values)
                         continue
                     res = self._add_regex(
@@ -1286,6 +1286,8 @@ class LLSerializer:
                 res = self._add_regex("Regex", node.body_regex)
             else:
                 raise ValueError("Cannot serialize as regex: " + node.__repr__())
+            if node in pending:
+                pending.remove(node)
             self.regex_id_cache[node] = res
 
         assert not pending

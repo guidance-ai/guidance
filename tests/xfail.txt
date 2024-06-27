@@ -100,3 +100,4 @@ tests/unit/library/test_json.py::test_string_schema[0.1-Include [the] odd {brace
 tests/unit/library/test_json.py::TestAdditionalProperties::test_properties_and_additional_properties[0.1-target_obj2]
 tests/unit/library/test_json.py::test_string_schema[0.1-Have a forward / slash]
 tests/unit/library/test_json.py::TestSimpleObject::test_object_containing_list[0.1]
+tests/unit/library/test_json.py::test_string_schema[0.1-How about\n            a\n            multiline string?]
