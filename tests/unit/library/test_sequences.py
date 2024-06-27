@@ -102,6 +102,27 @@ class TestSequence:
         grammar = sequence(select(["a", "b"]))
         check_match_success_with_guards(grammar, test_string)
 
+    @pytest.mark.parametrize(
+        ["bad_string", "good_bytes", "failure_byte", "allowed_bytes"],
+        [
+            ("ba", b"b", b"a", set([Byte(b"b"), Byte(b"B")])),
+            ("a", b"", b"a", set([Byte(b"b"), Byte(b"B")])),
+        ],
+    )
+    def test_bad_repeats_unconstrained(
+        self, bad_string: str, good_bytes, failure_byte, allowed_bytes
+    ):
+        PREFIX = "AAA"
+        SUFFIX = "BBB"
+        grammar = Join([PREFIX, sequence("b"), SUFFIX])
+        check_match_failure(
+            PREFIX + bad_string + SUFFIX,
+            PREFIX.encode() + good_bytes,
+            failure_byte,
+            allowed_bytes,
+            grammar=grammar,
+        )
+
     @pytest.mark.parametrize("test_string", ["a", "aa", "aaa"])
     def test_min_length(self, test_string):
         grammar = sequence("a", min_length=1)
