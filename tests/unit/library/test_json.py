@@ -7,7 +7,7 @@ from jsonschema import validate
 
 from guidance import json as gen_json
 from guidance import models
-from guidance._grammar import Byte, ByteRange
+from guidance._grammar import Byte, ByteRange, byte_range
 from guidance.library._json import _to_compact_json
 
 from ...utils import check_match_failure as _check_match_failure
@@ -41,7 +41,7 @@ def check_match_failure(
     bad_string: str,
     good_bytes: bytes,
     failure_byte: bytes,
-    allowed_bytes: Set[Union[Byte, ByteRange]],
+    allowed_bytes: Union[Set[Union[Byte, ByteRange]], None],
     schema_obj: Dict[str, Any],
 ):
     grammar = gen_json(schema=schema_obj)
@@ -174,37 +174,240 @@ class TestNumber:
         )
 
 
-@pytest.mark.parametrize(
-    "my_string",
-    [
-        "with_underscore",
-        "ALLCAPS",
-        "with a space",
-        "MiXeD cAsInG",
-        "with-hyphen",
-        "Mix case_underscore-hyphens",
-        "with a comma, in the string",
-        "A full stop.",
-        """How about
-            a
-            multiline string?""",
-        "A \t tab \t between \t words",
-        r"End with backslash \ ",
-        "Have a forward / slash",
-        "Include [the] odd {brace} and (parentheses)",
-        "Some more symbols: ; are useful!",
-    ],
-)
-@pytest.mark.parametrize("temperature", [None, 0.1, 1])
-def test_string_schema(my_string: str, temperature):
-    schema = """{ "type": "string" }"""
+class TestString:
+    @pytest.mark.parametrize(
+        "my_string",
+        [
+            "with_underscore",
+            "ALLCAPS",
+            "with a space",
+            "MiXeD cAsInG",
+            "with-hyphen",
+            "Mix case_underscore-hyphens",
+            "with a comma, in the string",
+            "A full stop.",
+            """How about
+                a
+                multiline string?""",
+            "A \t tab \t between \t words",
+            r"End with backslash \ ",
+            "Have a forward / slash",
+            "Include [the] odd {brace} and (parentheses)",
+            "Some more symbols: ; are useful!",
+        ],
+    )
+    @pytest.mark.parametrize("temperature", [None, 0.1, 1])
+    def test_smoke(self, my_string: str, temperature):
+        schema = """{ "type": "string" }"""
 
-    # First sanity check what we're setting up
-    schema_obj = json.loads(schema)
-    validate(instance=my_string, schema=schema_obj)
+        # First sanity check what we're setting up
+        schema_obj = json.loads(schema)
+        validate(instance=my_string, schema=schema_obj)
 
-    # The actual check
-    generate_and_check(my_string, schema_obj, desired_temperature=temperature)
+        # The actual check
+        generate_and_check(my_string, schema_obj, desired_temperature=temperature)
+
+    @pytest.mark.parametrize("my_string", ["aA", "aB", "aK", "aZ"])
+    def test_regex(self, my_string: str):
+        schema = """{ "type": "string", "pattern": "a[A-Z]"}"""
+
+        # First sanity check what we're setting up
+        schema_obj = json.loads(schema)
+        validate(instance=my_string, schema=schema_obj)
+
+        # The actual check
+        generate_and_check(my_string, schema_obj)
+
+    def test_regex_no_min_max_length(self):
+        schema = """{ "type": "string", "pattern": "a[A-Z]", "minLength": 1 }"""
+        schema_obj = json.loads(schema)
+
+        lm = models.Mock("".encode())
+
+        expected = "If a pattern is specified for a JSON string, minLength and maxLength must be left unspecified."
+        with pytest.raises(ValueError) as ve:
+            lm += gen_json(schema=schema_obj)
+        assert ve.value.args[0] == expected
+
+    @pytest.mark.parametrize(
+        ["bad_string", "good_bytes", "failure_byte", "allowed_bytes"],
+        [
+            ('"ab"', b'"a', b"b", set([byte_range(b"A", b"Z")])),
+            ('"a1"', b'"a', b"1", set([byte_range(b"A", b"Z")])),
+        ],
+    )
+    def test_regex_bad(self, bad_string: str, good_bytes, failure_byte, allowed_bytes):
+        # Note that the strings being fed in include the double quotes required
+        # to make them JSON strings
+        schema = """{ "type": "string", "pattern": "a[A-Z]"}"""
+        schema_obj = json.loads(schema)
+        check_match_failure(
+            bad_string=bad_string,
+            good_bytes=good_bytes,
+            failure_byte=failure_byte,
+            allowed_bytes=allowed_bytes,
+            schema_obj=schema_obj,
+        )
+
+    @pytest.mark.parametrize(
+        "my_string", ["a", "bb", "ccc", "150", ",?", ".\t\n", "(){", "aA7", "\\9O"]
+    )
+    def test_min_and_maxLength(self, my_string: str):
+        schema = """{ "type": "string", "minLength": 1, "maxLength": 3}"""
+
+        # First sanity check what we're setting up
+        schema_obj = json.loads(schema)
+        validate(instance=my_string, schema=schema_obj)
+
+        # The actual check
+        generate_and_check(my_string, schema_obj)
+
+    @pytest.mark.parametrize(
+        ["bad_string", "good_bytes", "failure_byte", "allowed_bytes"],
+        [
+            ('""', b'"', b'"', None),
+            ('"dddd"', b'"ddd', b"d", set([Byte(b'"')])),
+        ],
+    )
+    def test_min_and_maxLength_bad(self, bad_string: str, good_bytes, failure_byte, allowed_bytes):
+        # Note that the strings being fed in include the double quotes required
+        # to make them JSON strings
+        schema = """{ "type": "string", "minLength": 1, "maxLength": 3}"""
+        schema_obj = json.loads(schema)
+        check_match_failure(
+            bad_string=bad_string,
+            good_bytes=good_bytes,
+            failure_byte=failure_byte,
+            allowed_bytes=allowed_bytes,
+            schema_obj=schema_obj,
+        )
+
+    @pytest.mark.parametrize(
+        "my_string",
+        [
+            "a",
+            "bb",
+            "ccc",
+            "150",
+            ",?",
+            ".\t\n",
+            "(){",
+            "aA7",
+            "\\9O",
+            "This is a really long string" * 10,
+        ],
+    )
+    def test_minLength(self, my_string: str):
+        schema = """{ "type": "string", "minLength": 1}"""
+
+        # First sanity check what we're setting up
+        schema_obj = json.loads(schema)
+        validate(instance=my_string, schema=schema_obj)
+
+        # The actual check
+        generate_and_check(my_string, schema_obj)
+
+    @pytest.mark.parametrize(
+        "my_string",
+        [
+            "",
+            "a",
+            "bb",
+            "ccc",
+            "150",
+            ",?",
+            ".\t\n",
+            "(){",
+            "aA7",
+            "\\9O",
+            "This is a really long string" * 10,
+        ],
+    )
+    def test_minLength_zero(self, my_string: str):
+        schema = """{ "type": "string", "minLength": 0}"""
+
+        # First sanity check what we're setting up
+        schema_obj = json.loads(schema)
+        validate(instance=my_string, schema=schema_obj)
+
+        # The actual check
+        generate_and_check(my_string, schema_obj)
+
+    @pytest.mark.parametrize(
+        ["bad_string", "good_bytes", "failure_byte", "allowed_bytes"],
+        [
+            ('""', b'"', b'"', None),
+            ('"a"', b'"a', b'"', None),
+        ],
+    )
+    def test_minLength_bad(self, bad_string: str, good_bytes, failure_byte, allowed_bytes):
+        # Note that the strings being fed in include the double quotes required
+        # to make them JSON strings
+        schema = """{ "type": "string", "minLength": 2}"""
+        schema_obj = json.loads(schema)
+        check_match_failure(
+            bad_string=bad_string,
+            good_bytes=good_bytes,
+            failure_byte=failure_byte,
+            allowed_bytes=allowed_bytes,
+            schema_obj=schema_obj,
+        )
+
+    @pytest.mark.parametrize(
+        "my_string",
+        [
+            "a",
+            "bb",
+            "ccc",
+            "150",
+            ",?",
+            ".\t\n",
+            "(){",
+            "aA7",
+            "\\9O",
+            "",
+        ],
+    )
+    def test_maxLength(self, my_string: str):
+        schema = """{ "type": "string", "maxLength": 3}"""
+
+        # First sanity check what we're setting up
+        schema_obj = json.loads(schema)
+        validate(instance=my_string, schema=schema_obj)
+
+        # The actual check
+        generate_and_check(my_string, schema_obj)
+
+    def test_maxLength_zero(self):
+        schema = """{ "type": "string", "maxLength": 0}"""
+        my_string = ""
+
+        # First sanity check what we're setting up
+        schema_obj = json.loads(schema)
+        validate(instance=my_string, schema=schema_obj)
+
+        # The actual check
+        generate_and_check(my_string, schema_obj)
+
+    @pytest.mark.parametrize(
+        ["bad_string", "good_bytes", "failure_byte", "allowed_bytes"],
+        [
+            ('"aaa"', b'"aa', b"a", set([Byte(b'"')])),
+            ('"1111"', b'"11', b"1", set([Byte(b'"')])),
+        ],
+    )
+    def test_maxLength_bad(self, bad_string: str, good_bytes, failure_byte, allowed_bytes):
+        # Note that the strings being fed in include the double quotes required
+        # to make them JSON strings
+        schema = """{ "type": "string", "maxLength": 2}"""
+        schema_obj = json.loads(schema)
+        check_match_failure(
+            bad_string=bad_string,
+            good_bytes=good_bytes,
+            failure_byte=failure_byte,
+            allowed_bytes=allowed_bytes,
+            schema_obj=schema_obj,
+        )
 
 
 class TestSimpleObject:
@@ -1446,9 +1649,7 @@ class TestEmptySchemas:
             ),
         ],
     )
-    def test_bad_empty_schema(
-        self, bad_string, good_bytes, failure_byte, allowed_bytes
-    ):
+    def test_bad_empty_schema(self, bad_string, good_bytes, failure_byte, allowed_bytes):
         schema_obj = json.loads(self.empty_schema)
         check_match_failure(
             bad_string=bad_string,
@@ -1462,10 +1663,10 @@ class TestEmptySchemas:
         "schema_obj",
         [
             # Empty property
-            {"type": "object", "properties": { "a": {} }},
+            {"type": "object", "properties": {"a": {}}},
             # Empty reference
             {"type": "object", "properties": {"a": {"$ref": "#/$defs/A"}}, "$defs": {"A": {}}},
-        ]
+        ],
     )
     @pytest.mark.parametrize(
         "target_obj",
@@ -1493,10 +1694,10 @@ class TestEmptySchemas:
         "schema_obj",
         [
             # Empty property
-            {"type": "object", "properties": { "a": {} }},
+            {"type": "object", "properties": {"a": {}}},
             # Empty reference
             {"type": "object", "properties": {"a": {"$ref": "#/$defs/A"}}, "$defs": {"A": {}}},
-        ]
+        ],
     )
     @pytest.mark.parametrize(
         "bad_obj, good_bytes, failure_byte, allowed_bytes",

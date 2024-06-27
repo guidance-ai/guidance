@@ -23,8 +23,7 @@ from ._set_attribute import set_attribute
 
 # stateless library functions
 from ._any_char import any_char
-from ._zero_or_more import zero_or_more
-from ._one_or_more import one_or_more
+from ._sequences import one_or_more, zero_or_more, at_most_n_repeats, exactly_n_repeats, sequence
 from ._char_range import char_range
 from ._char_set import char_set
 from ._prefix_tree import prefix_tree
