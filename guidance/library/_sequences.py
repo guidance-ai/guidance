@@ -36,7 +36,7 @@ def sequence(
         model += at_most_n_repeats(value=value, n_repeats=max_length)
     else:
         model += select(
-            [value],
+            [optional(value)],
             recurse=True,
         )
     return model
