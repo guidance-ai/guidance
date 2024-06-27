@@ -19,26 +19,16 @@ def at_most_n_repeats(model, value, n_repeats: int):
 
 
 @guidance(stateless=True)
-def sequence(
-    model, value, min_length: Union[int, None] = None, max_length: Union[int, None] = None
-):
-    assert min_length is None or min_length >= 0
-    assert max_length is None or max_length >= 0
+def sequence(model, value, min_length: int = 0, max_length: Union[int, None] = None):
+    assert min_length >= 0
+    assert max_length is None or max_length >= min_length
 
-    if min_length is not None and max_length is not None:
-        assert max_length >= min_length
+    if max_length is not None:
         model += exactly_n_repeats(value=value, n_repeats=min_length)
         model += at_most_n_repeats(value=value, n_repeats=(max_length - min_length))
-    elif min_length is not None:
+    else:
         model += exactly_n_repeats(value=value, n_repeats=min_length)
         model += select([optional(value)], recurse=True)
-    elif max_length is not None:
-        model += at_most_n_repeats(value=value, n_repeats=max_length)
-    else:
-        model += select(
-            [optional(value)],
-            recurse=True,
-        )
     return model
 
 
