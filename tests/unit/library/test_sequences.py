@@ -116,3 +116,14 @@ class TestSequence:
             allowed_bytes,
             grammar=grammar,
         )
+
+    @pytest.mark.parametrize("n_repeats", range(3))
+    def test_ax_length(self, n_repeats):
+        grammar = sequence("a", max_length=2)
+        test_string = "a" * n_repeats
+        assert len(test_string) == n_repeats
+        check_match_success_with_guards(grammar, test_string)
+
+    def test_max_length_zero(self):
+        grammar = sequence("a", max_length=0)
+        check_match_success_with_guards(grammar, "")
