@@ -157,7 +157,7 @@ class TestSequence:
         )
 
     @pytest.mark.parametrize("n_repeats", range(3))
-    def test_ax_length(self, n_repeats):
+    def test_max_length(self, n_repeats):
         grammar = sequence("a", max_length=2)
         test_string = "a" * n_repeats
         assert len(test_string) == n_repeats
@@ -180,6 +180,74 @@ class TestSequence:
         PREFIX = "AAA"
         SUFFIX = "BBB"
         grammar = Join([PREFIX, sequence("b", max_length=2), SUFFIX])
+        check_match_failure(
+            PREFIX + bad_string + SUFFIX,
+            PREFIX.encode() + good_bytes,
+            failure_byte,
+            allowed_bytes,
+            grammar=grammar,
+        )
+
+    @pytest.mark.parametrize("n_repeats", range(1, 4))
+    def test_min_max_length(self, n_repeats):
+        grammar = sequence("a", min_length=1, max_length=3)
+        test_string = "a" * n_repeats
+        assert len(test_string) == n_repeats
+        check_match_success_with_guards(grammar, test_string)
+
+    @pytest.mark.parametrize("n_repeats", range(0, 4))
+    def test_min_max_length_zero(self, n_repeats):
+        grammar = sequence("a", min_length=0, max_length=3)
+        test_string = "a" * n_repeats
+        assert len(test_string) == n_repeats
+        check_match_success_with_guards(grammar, test_string)
+
+    @pytest.mark.parametrize("c0", ["a", "b"])
+    @pytest.mark.parametrize("c1", ["", "a", "b"])
+    @pytest.mark.parametrize("c2", ["", "a", "b"])
+    def test_min_max_length_select(self, c0, c1, c2):
+        test_string = c0 + c1 + c2
+        grammar = sequence(select(["a", "b"]), min_length=1, max_length=3)
+        assert len(test_string) >= 1 and len(test_string) <= 3
+        check_match_success_with_guards(grammar, test_string)
+
+    @pytest.mark.parametrize("c0", ["", "a", "b"])
+    @pytest.mark.parametrize("c1", ["", "a", "b"])
+    @pytest.mark.parametrize("c2", ["", "a", "b"])
+    def test_min_max_length_select_zero(self, c0, c1, c2):
+        test_string = c0 + c1 + c2
+        grammar = sequence(select(["a", "b"]), min_length=0, max_length=3)
+        assert len(test_string) >= 0 and len(test_string) <= 3
+        check_match_success_with_guards(grammar, test_string)
+
+    def test_min_max_length_equal_zero(self):
+        # Call this out as a special case of next
+        grammar = sequence("a", min_length=0, max_length=0)
+        check_match_success_with_guards(grammar, "")
+
+    @pytest.mark.parametrize("n_repeats", range(1, 4))
+    def test_min_max_length_equal(self, n_repeats):
+        grammar = sequence("a", min_length=n_repeats, max_length=n_repeats)
+        test_string = "a" * n_repeats
+        assert len(test_string) == n_repeats
+        check_match_success_with_guards(grammar, test_string)
+
+    @pytest.mark.parametrize(
+        ["bad_string", "good_bytes", "failure_byte", "allowed_bytes"],
+        [
+            ("", b"", b"B", set([Byte(b"b")])),
+            ("bbb", b"bb", b"b", set([Byte(b"B")])),
+            ("aa", b"", b"a", set([Byte(b"b")])),
+            ("ba", b"b", b"a", set([Byte(b"b"), Byte(b"B")])),
+            ("bba", b"bb", b"a", set([Byte(b"B")])),
+        ],
+    )
+    def test_bad_repeats_min_max_length(
+        self, bad_string: str, good_bytes, failure_byte, allowed_bytes
+    ):
+        PREFIX = "AAA"
+        SUFFIX = "BBB"
+        grammar = Join([PREFIX, sequence("b", min_length=1, max_length=2), SUFFIX])
         check_match_failure(
             PREFIX + bad_string + SUFFIX,
             PREFIX.encode() + good_bytes,
