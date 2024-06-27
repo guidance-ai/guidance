@@ -51,3 +51,27 @@ class TestAtMostnRepeats:
     def test_check_repeats(self, n_repeats: int):
         grammar = at_most_n_repeats("b", 2)
         check_match_success_with_guards(grammar, "b" * n_repeats)
+
+    @pytest.mark.parametrize("test_string", ["", "a", "b", "aa", "ab", "ba", "bb"])
+    def test_with_select(self, test_string):
+        grammar = at_most_n_repeats(select(["a", "b"]), 2)
+        check_match_success_with_guards(grammar, test_string)
+
+    @pytest.mark.parametrize(
+        ["bad_string", "good_bytes", "failure_byte", "allowed_bytes"],
+        [
+            ("bbbbb", b"bbbb", b"b", set([Byte(b"B")])),
+            ("aaaa", b"", b"a", set([Byte(b"b"), Byte(b"B")])),
+        ],
+    )
+    def test_bad_repeats(self, bad_string: str, good_bytes, failure_byte, allowed_bytes):
+        PREFIX = "AAA"
+        SUFFIX = "BBB"
+        grammar = Join([PREFIX, at_most_n_repeats("b", 4), SUFFIX])
+        check_match_failure(
+            PREFIX + bad_string + SUFFIX,
+            PREFIX.encode() + good_bytes,
+            failure_byte,
+            allowed_bytes,
+            grammar=grammar,
+        )
