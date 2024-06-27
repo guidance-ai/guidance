@@ -127,3 +127,24 @@ class TestSequence:
     def test_max_length_zero(self):
         grammar = sequence("a", max_length=0)
         check_match_success_with_guards(grammar, "")
+
+    @pytest.mark.parametrize(
+        ["bad_string", "good_bytes", "failure_byte", "allowed_bytes"],
+        [
+            ("bbb", b"bb", b"b", set([Byte(b"B")])),
+            ("aa", b"", b"a", set([Byte(b"b"), Byte(b"B")])),
+        ],
+    )
+    def test_bad_repeats_max_length(
+        self, bad_string: str, good_bytes, failure_byte, allowed_bytes
+    ):
+        PREFIX = "AAA"
+        SUFFIX = "BBB"
+        grammar = Join([PREFIX, sequence("b", max_length=2), SUFFIX])
+        check_match_failure(
+            PREFIX + bad_string + SUFFIX,
+            PREFIX.encode() + good_bytes,
+            failure_byte,
+            allowed_bytes,
+            grammar=grammar,
+        )
