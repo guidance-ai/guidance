@@ -71,6 +71,21 @@ def pytest_addoption(parser):
         help=f"LLM to load when needed. Set default via environment variable {SELECTED_MODEL_ENV_VARIABLE}",
     )
 
+def pytest_collection_modifyitems(items):
+    from pathlib import Path
+    try:
+        to_xfail = open(Path(__file__).parent / "xfail.txt", "r").read().splitlines()
+    except FileNotFoundError:
+        to_xfail = []
+    try:
+        to_skip = open(Path(__file__).parent / "skip.txt", "r").read().splitlines()
+    except FileNotFoundError:
+        to_skip = []
+    for item in items:
+        if item.nodeid in to_xfail:
+            item.add_marker(pytest.mark.xfail)
+        if item.nodeid in to_skip:
+            item.add_marker(pytest.mark.skip)
 
 @pytest.fixture(scope="session")
 def selected_model_name(pytestconfig) -> str:
