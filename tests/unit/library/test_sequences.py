@@ -83,9 +83,23 @@ class TestSequence:
         matched = grammar.match("AAAaaaaaaaBBB".encode(), raise_exceptions=True)
         assert matched is not None
 
-    @pytest.mark.parametrize("test_string", ["", "a", "aaa", "aaaaaaaaaaaaaaa"])
+    @pytest.mark.parametrize(
+        "test_string",
+        [
+            "",
+            "a",
+            "b",
+            "ab",
+            "ba",
+            "aaa",
+            "aaaaaaaaaaaaaaa",
+            "bbbbbbbbbbb",
+            "abababab",
+            "aaaaabbbbbbbbb",
+        ],
+    )
     def test_unconstrained(self, test_string: str):
-        grammar = sequence("a")
+        grammar = sequence(select(["a", "b"]))
         check_match_success_with_guards(grammar, test_string)
 
     @pytest.mark.parametrize("test_string", ["a", "aa", "aaa"])
