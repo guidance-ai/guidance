@@ -75,3 +75,44 @@ class TestAtMostnRepeats:
             allowed_bytes,
             grammar=grammar,
         )
+
+
+class TestSequence:
+    def test_smoke(self):
+        grammar = Join(["AAA", sequence("a"), "BBB"])
+
+        matched = grammar.match("AAAaaaaaaaBBB".encode(), raise_exceptions=True)
+        assert matched is not None
+
+    @pytest.mark.parametrize("test_string", ["a", "a", "aaa"])
+    def test_min_length(self, test_string):
+        grammar = sequence("a", min_length=1)
+        check_match_success_with_guards(grammar, test_string)
+
+    @pytest.mark.parametrize("test_string", ["", "a", "a", "aaa"])
+    def test_min_length_zero(self, test_string):
+        grammar = sequence("a", min_length=0)
+        check_match_success_with_guards(grammar, test_string)
+
+    @pytest.mark.parametrize(
+        ["bad_string", "good_bytes", "failure_byte", "allowed_bytes"],
+        [
+            ("bbb", b"bbb", b"B", set([Byte(b"b")])),
+            ("aaaa", b"", b"a", set([Byte(b"b")])),
+            ("bbbba", b"bbbb", b"a", set([Byte(b"b"), Byte(b"B")])),
+            ("bbbbbba", b"bbbbbb", b"a", set([Byte(b"b"), Byte(b"B")])),
+        ],
+    )
+    def test_bad_repeats_min_length(
+        self, bad_string: str, good_bytes, failure_byte, allowed_bytes
+    ):
+        PREFIX = "AAA"
+        SUFFIX = "BBB"
+        grammar = Join([PREFIX, sequence("b", min_length=4), SUFFIX])
+        check_match_failure(
+            PREFIX + bad_string + SUFFIX,
+            PREFIX.encode() + good_bytes,
+            failure_byte,
+            allowed_bytes,
+            grammar=grammar,
+        )
