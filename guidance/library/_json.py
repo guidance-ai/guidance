@@ -1,5 +1,6 @@
 from json import dumps as json_dumps
 from enum import Enum
+from textwrap import dedent
 from typing import (
     Any,
     Callable,
@@ -108,13 +109,19 @@ def _gen_json_number(lm):
 @guidance(stateless=True)
 def _gen_json_string(
     lm,
-    min_length: Union[int, None] = None,
+    min_length: int = 0,
     max_length: Union[int, None] = None,
     regex: Union[str, None] = None,
 ):
     lm += '"'
     if regex is not None:
-        assert min_length is None and max_length is None
+        if min_length > 0 or max_length is not None:
+            msg = (
+                "If a pattern is specified for a JSON "
+                "string, minLength and maxLength must be "
+                "left unspecified."
+            )
+            raise ValueError(msg)
         lm += gen(regex=regex)
     else:
         lm += sequence(select(STRING_CHARS), min_length=min_length, max_length=max_length)
@@ -353,7 +360,7 @@ def _gen_json(
         if target_type == "string":
             return lm + _gen_json_string(
                 regex=json_schema.get(Keyword.PATTERN, None),
-                min_length=json_schema.get(Keyword.MIN_LENGTH, None),
+                min_length=json_schema.get(Keyword.MIN_LENGTH, 0),
                 max_length=json_schema.get(Keyword.MAX_LENGTH, None),
             )
         if target_type == "array":

@@ -218,6 +218,17 @@ class TestString:
         # The actual check
         generate_and_check(my_string, schema_obj)
 
+    def test_regex_no_min_max_length(self):
+        schema = """{ "type": "string", "pattern": "a[A-Z]", "minLength": 1 }"""
+        schema_obj = json.loads(schema)
+
+        lm = models.Mock("".encode())
+
+        expected = "If a pattern is specified for a JSON string, minLength and maxLength must be left unspecified."
+        with pytest.raises(ValueError) as ve:
+            lm += gen_json(schema=schema_obj)
+        assert ve.value.args[0] == expected
+
     @pytest.mark.parametrize(
         ["bad_string", "good_bytes", "failure_byte", "allowed_bytes"],
         [
