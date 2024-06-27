@@ -21,7 +21,7 @@ except ImportError:
         raise
 
 from .._guidance import guidance
-from ..library import char_range, gen, one_or_more, optional, zero_or_more, sequence
+from ..library import char_range, gen, one_or_more, optional, sequence
 
 from .._grammar import GrammarFunction, select, capture, with_temperature
 from ._pydantic import pydantic_to_json_schema
@@ -93,7 +93,7 @@ def validate_json_node_keys(node: Mapping[str, Any]):
 
 @guidance(stateless=True)
 def _gen_json_int(lm):
-    pos_nonzero = char_range("1", "9") + zero_or_more(char_range("0", "9"))
+    pos_nonzero = char_range("1", "9") + sequence(char_range("0", "9"))
     return lm + optional("-") + select(["0", pos_nonzero])
 
 
@@ -194,7 +194,7 @@ def _process_additional_properties(
         + ":"
         + _gen_json(json_schema=additional_properties, definitions=definitions)
     )
-    return lm + zero_or_more(item + ",") + item
+    return lm + sequence(item + ",") + item
 
 
 @guidance(stateless=True)
@@ -244,7 +244,7 @@ def _gen_json_array(
     if max_items is None and item_schema is not False:
         # Add an infinite tail of items
         item = _gen_json(json_schema=item_schema, definitions=definitions)
-        optional_items.append(item + zero_or_more("," + item))
+        optional_items.append(item + sequence("," + item))
 
     lm += "["
 
