@@ -34,7 +34,7 @@ def sequence(model, value, min_length: int = 0, max_length: Union[int, None] = N
 
 @guidance(stateless=True)
 def one_or_more(model, value):
-    return model + select([value], recurse=True)
+    return model + sequence(value, min_length=1)
 
 
 @guidance(stateless=True)
