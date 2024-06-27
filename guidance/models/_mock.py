@@ -64,7 +64,7 @@ class MockEngine(Engine):
 
     def sample_with_temperature(self, logits: np.ndarray, mask: np.ndarray, temperature: float):
         self.called_temperatures.append(temperature)
-        return super().sample_with_temperature(logits, mask, temperature)
+        return super().sample_with_temperature(logits, mask, 0.)
 
 class Mock(Model):
     def __init__(
