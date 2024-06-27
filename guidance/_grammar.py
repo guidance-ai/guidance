@@ -1195,24 +1195,33 @@ class LLSerializer:
 
         node0 = node
         todo = [node]
-        pending = set()
+        pending = set(todo)
 
-        def node_finished(node):
+        def node_finished(node: GrammarFunction):
             return node not in pending and node in self.regex_id_cache
 
         def all_finished(nodes):
             return all(node_finished(v) for v in nodes)
 
-        while todo:
-            node = todo.pop()
-            if node in pending:
+        def add_todo(n: GrammarFunction):
+            if n in pending:
                 raise ValueError(
                     "GrammarFunction is recursive - cannot serialize as regex: "
-                    + node.__repr__()
+                    + n.__repr__()
                 )
+            pending.add(n)
+            todo.append(n)
+
+        def add_todos(nodes):
+            for n in nodes:
+                add_todo(n)
+
+        while todo:
+            node = todo.pop()
+            pending.remove(node)
+
             if node in self.regex_id_cache:
                 continue
-            pending.add(node)
             if isinstance(node, Select) and node.values:
                 with_node = []
                 without_node = []
@@ -1226,10 +1235,9 @@ class LLSerializer:
                     else:
                         without_node.append(v)
                 if not all_finished(with_node) or not all_finished(without_node):
-                    pending.remove(node)
-                    todo.append(node)
-                    todo.extend(with_node)
-                    todo.extend(without_node)
+                    add_todo(node)
+                    add_todos(with_node)
+                    add_todos(without_node)
                     continue
                 print(with_node, without_node)
                 if len(with_node) == 0:
@@ -1258,9 +1266,8 @@ class LLSerializer:
                         res = self._add_regex("ByteLiteral", literal)
                 else:
                     if not all_finished(node.values):
-                        pending.remove(node)
-                        todo.append(node)
-                        todo.extend(node.values)
+                        add_todo(node)
+                        add_todos(node.values)
                         continue
                     res = self._add_regex(
                         "Concat", [self.regex_id_cache[v] for v in node.values]
@@ -1279,7 +1286,6 @@ class LLSerializer:
                 res = self._add_regex("Regex", node.body_regex)
             else:
                 raise ValueError("Cannot serialize as regex: " + node.__repr__())
-            pending.remove(node)
             self.regex_id_cache[node] = res
 
         assert not pending
