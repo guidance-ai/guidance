@@ -117,6 +117,8 @@ def check_grammar(grm: GrammarFunction, output: List[str]):
     for _ in range(200):
         mask, cmd = interp.mid_process(bt, toks)
         cmd = json.loads(cmd)
+        if log_level >= 1:
+            print(mask is not None, cmd)
         if cmd["stop"]:
             assert idx >= len(output) - 1, f"Expected more output at {idx}"
             assert not gen_tokens, "Expected more tokens to generate"
@@ -233,7 +235,20 @@ def test_ll_backtrack_stop():
 
 def test_ll_pop_tokens():
     grm = "6 * 7 = " + greedy_grammar(body=lexeme("[0-9]{1,3}")) + "\n"
-    check_grammar(grm, ['6‧ *‧ ‧7‧ =‧ ', '4‧2‧\n'])
+    check_grammar(grm, ["6‧ *‧ ‧7‧ =‧ ", "4‧2‧\n"])
+
+
+def test_ll_nullable_lexeme():
+    # make sure 'a' is not forced
+    check_grammar(gen(regex="a*"), ["", "a‧≺EOS≻"])
+    # this one doesn't work - no lexeme was scanned by EOS, so we allow more lexemes...
+    # check_grammar(gen(regex="a*"), ["", "≺EOS≻"])
+
+    # see that we can skip 5*
+    check_grammar(
+        "6 * 7 = " + gen(regex="5*") + gen(regex="[1-4][0-9]") + "\n",
+        ["6‧ *‧ ‧7‧ =‧ ", "4‧2", "\n"],
+    )
 
 
 def test_ll_fighter():
