@@ -4,7 +4,17 @@ import llguidance
 import json
 import guidance
 import pytest
-from guidance import gen, select, optional, commit_point, byte_range, one_or_more, GrammarFunction
+from guidance import (
+    gen,
+    select,
+    optional,
+    commit_point,
+    byte_range,
+    one_or_more,
+    GrammarFunction,
+    greedy_grammar,
+    lexeme,
+)
 
 log_level = 1
 
@@ -219,6 +229,11 @@ def test_ll_backtrack_stop():
         + gen(regex="E[a-z]+", stop_regex=["[a-b]", "[x-z]"])
     )
     check_grammar(grm, ["Name‧:", " Em‧ily", "1↶il‧\n‧Name‧:", " Emil‧ie‧a", "1↶"])
+
+
+def test_ll_pop_tokens():
+    grm = "6 * 7 = " + greedy_grammar(body=lexeme("[0-9]{1,3}")) + "\n"
+    check_grammar(grm, ['6‧ *‧ ‧7‧ =‧ ', '4‧2‧\n'])
 
 
 def test_ll_fighter():
