@@ -2,6 +2,7 @@ from typing import Any, List
 import tokenizers
 import llguidance
 import json
+import guidance
 from guidance import gen, select, optional, commit_point, byte_range, one_or_more
 
 log_level = 1
@@ -69,7 +70,7 @@ def tokenize_trace(s: str):
         print("Tokenizing", repr(s))
     r: List[int] = []
     for word in s.split("‧"):
-        if word == '≺EOS≻':
+        if word == "≺EOS≻":
             r.append(PhiTokenizer.instance().eos_token_id)
             continue
         tt = PhiTokenizer.ll_tokenizer().tokenize_str(word)
@@ -157,10 +158,57 @@ def test_llparser():
     grm = "Q: 7 * 8\nA: " + gen("text", regex="[0-9]+", max_tokens=5)
     check_grammar(grm, ["Q‧:‧ ‧7‧ *‧ ‧8‧\n‧A‧:‧ ", "5‧6‧≺EOS≻"])
 
-    grm = "Dolphin name: " + commit_point(
-        '"' + byte_range(b"A", b"Z") + one_or_more(byte_range(b"a", b"z")) + '"'
-    ) + ","
-    check_grammar(grm, ['D‧olph‧in‧ name‧:‧ "', 'F‧li‧pper‧"', ','])
+    grm = (
+        "Dolphin name: "
+        + commit_point('"' + byte_range(b"A", b"Z") + one_or_more(byte_range(b"a", b"z")) + '"')
+        + ","
+    )
+    check_grammar(grm, ['D‧olph‧in‧ name‧:‧ "', 'F‧li‧pper‧"', ","])
+
+
+def test_ll_fighter():
+    @guidance(stateless=True, dedent=True)
+    def character_maker2(lm, id, description, valid_weapons):
+        lm += f"""\
+        {{
+            "name": "{gen('name', stop='"')}",
+            "age": {gen('age', regex='[0-9]+', stop=',')},
+            "armor": "{select(options=['leather', 'chainmail', 'plate'], name='armor')}",
+            "weapon": "{select(options=valid_weapons, name='weapon')}",
+            "class": "{gen('class', stop='"')}",
+            "mantra": "{gen('mantra', stop='"')}",
+            "strength": {gen('strength', regex='[0-9]+', stop=',')},
+            "items": ["{gen('item', list_append=True, stop='"')}", "{gen('item', list_append=True, stop='"')}", "{gen('item', list_append=True, stop='"')}"]
+        }}"""
+        return lm
+
+    grm = character_maker2(1, "A nimble fighter", ["axe", "sword", "bow"])
+    check_grammar(
+        grm,
+        [
+            '{‧\n‧   ‧ "‧name‧":',
+            ' "‧John‧ Do‧e‧"',
+            ',‧\n‧   ‧ "‧age‧":‧ ',
+            "3‧0‧,",
+            '\n‧   ‧ "‧arm‧or‧":‧ "',
+            "chain",
+            'mail‧",‧\n‧   ‧ "‧we‧ap‧on‧":‧ "',
+            "s",
+            'word‧",‧\n‧   ‧ "‧class‧":',
+            ' "‧war‧rior‧"',
+            ',‧\n‧   ‧ "‧m‧ant‧ra‧":',
+            ' "‧I‧ am‧ the‧ storm‧,‧ I‧ am‧ the‧ light‧ning‧,‧ I‧ am‧ the‧ th‧under‧."',
+            ',‧\n‧   ‧ "‧str‧ength‧":‧ ',
+            "1‧0‧0‧,",
+            '\n‧   ‧ "‧items‧":‧ ["',
+            's‧word‧ of‧ light‧ning‧,‧ shield‧ of‧ th‧under‧,‧ hel‧met‧ of‧ storm‧."',
+            ",",
+            ' "‧s‧word‧ of‧ light‧ning‧,‧ shield‧ of‧ th‧under‧,‧ hel‧met‧ of‧ storm‧."',
+            ",",
+            ' "‧s‧word‧ of‧ light‧ning‧,‧ shield‧ of‧ th‧under‧,‧ hel‧met‧ of‧ storm‧."',
+            "]‧\n‧}",
+        ],
+    )
 
 
 if __name__ == "__main__":
