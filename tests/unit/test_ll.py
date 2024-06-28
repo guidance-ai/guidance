@@ -140,7 +140,7 @@ def test_llparser():
         grm,
         [
             "Q‧:‧ Are‧ dol‧ph‧ins‧ fish‧?‧\n‧A‧:",
-            " No",
+            " No",  # note the prefix space - moved by token healing
             "\n‧Q‧:‧ Are‧ sh‧arks‧ fish‧?‧\n‧A‧:",
             " Yes",
         ],
@@ -153,11 +153,21 @@ def test_llparser():
         + gen("number", regex="[0-9]+", max_tokens=5)
         + "V"
     )
-    check_grammar(grm, ["Power‧ frequency‧ is‧ ", "5‧0‧Hz", ";‧ voltage‧ is‧ ", "2‧2‧0‧V"])
+    check_grammar(
+        grm,
+        [
+            "Power‧ frequency‧ is‧ ",
+            "5‧0‧Hz",  # no EoS needed on 50Hz
+            ";‧ voltage‧ is‧ ",
+            "2‧2‧0‧V",
+        ],
+    )
 
     grm = "Q: 7 * 8\nA: " + gen("text", regex="[0-9]+", max_tokens=5)
+    # EoS finishes generation
     check_grammar(grm, ["Q‧:‧ ‧7‧ *‧ ‧8‧\n‧A‧:‧ ", "5‧6‧≺EOS≻"])
 
+    # commit_point() turned into regex
     grm = (
         "Dolphin name: "
         + commit_point('"' + byte_range(b"A", b"Z") + one_or_more(byte_range(b"a", b"z")) + '"')
