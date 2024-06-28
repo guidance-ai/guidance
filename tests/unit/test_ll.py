@@ -79,6 +79,19 @@ def tokenize_trace(s: str):
 
 
 def check_grammar(grm, output: List[str]):
+    """
+    Check that the grammar generates the expected output.
+
+    Output is a list of strings, each of which is a sequence of tokens.
+    Tokens in the string are separated with "‧".
+    Strings at even positions are "forced tokens", and strings at odd positions
+    are "generated tokens".
+    We check that the grammars forces the forced tokens (first of which is the
+    prompt), and that it allows in the mask the generated tokens.
+
+    These tests are "recorded" by passing "test_trace": true in the llguidance
+    request and post-processing.
+    """
     print("\nChecking grammar")
     interp = llguidance.LLInterpreter(
         PhiTokenizer.ll_tokenizer(), json.dumps(grm.ll_serialize()), log_level=log_level
