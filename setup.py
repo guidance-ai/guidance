@@ -37,6 +37,7 @@ extras_requires = {
     "openai": ["openai>=1.0"],
     "schemas": ["jsonschema"],
     "server": ["fastapi", "uvicorn"],
+    "cli": ["colored"]
 }
 
 # Create the union of all our requirements

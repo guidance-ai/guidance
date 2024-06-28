@@ -6,8 +6,17 @@ import queue
 import sys
 import textwrap
 import types
+import re
 
 import numpy as np
+
+from html.parser import HTMLParser
+try:
+    from colored import Fore  # type: ignore[import-untyped]
+except ImportError:
+    colored_is_imported = False
+else:
+    colored_is_imported = True
 
 
 class _Rewrite(ast.NodeTransformer):
@@ -261,3 +270,38 @@ def softmax(array: np.ndarray, axis: int = -1) -> np.ndarray:
     array_maxs = np.amax(array, axis=axis, keepdims=True)
     exp_x_shifted = np.exp(array - array_maxs)
     return exp_x_shifted / np.sum(exp_x_shifted, axis=axis, keepdims=True)
+
+
+class ModelStateHTMLParser(HTMLParser):
+    """Parse jupyter-flavored HTML that contains colored text to color text for the command-line"""
+    def __init__(self):
+        super().__init__()
+        self.colored_text = ''
+
+    def feed(self, data):
+        self.colored_text = ''
+        # Remove html insertion tags (I suppose it is for jupyter to recognize it as html markdown)
+        data = data.replace('<||_html:', '').replace('_||>', '')
+        super().feed(data)
+        return self.colored_text
+
+    def handle_starttag(self, tag, attrs):
+        # Start ANSI text coloring when span tag opens
+        if tag == 'span':
+            if colored_is_imported:
+                # Use bg color we would have used in jupyter as fg color (get from style attributes)
+                style = dict(attrs)['style']
+                # just capture integer rgb parts of rgba color
+                rgb = re.search(r'background-color:\s*rgba\((\d+)\.?\d*,\s*(\d+)\.?\d*,\s*(\d)+\.?\d*,\s*\d+\.?\d*\)', style).groups()
+                self.colored_text += Fore.rgb(*rgb)
+            else:
+                # Default to ANSI green (32m) if colored is not available
+                self.colored_text += '\033[32m'
+
+    def handle_endtag(self, tag):
+        # ANSI reset color when tag closes
+        if tag == 'span':
+            self.colored_text += '\033[0m'
+
+    def handle_data(self, data):
+        self.colored_text += data
