@@ -124,7 +124,13 @@ def check_grammar(grm: GrammarFunction, output: List[str]):
             toks = cmd["ff_tokens"]
             assert not gen_tokens, "Expected more tokens to generate"
             idx += 1
-            check_eq(f"step {idx}", toks, output[idx])
+            expected = output[idx]
+            if "↶" in expected:
+                r = expected.split("↶")
+                assert len(r) == 2
+                expected = r[1]
+                assert bt == int(r[0]), f"Expected backtrack {r[0]} got {bt}"
+            check_eq(f"step {idx}", toks, expected)
             idx += 1
             if idx < len(output):
                 gen_tokens = tokenize_trace(output[idx])
@@ -181,7 +187,7 @@ def test_llparser():
         # regular gen(), comma in regex
         "Dolphin name: " + gen(regex=r'"[A-Z][a-z]+",'),
         # regular gen(), quotes outside
-        'Dolphin name: "' + gen(regex=r'[A-Z][a-z]+') + '",',
+        'Dolphin name: "' + gen(regex=r"[A-Z][a-z]+") + '",',
     ],
 )
 @pytest.mark.parametrize(
@@ -193,6 +199,18 @@ def test_llparser():
 )
 def test_ll_dolphin(grm: GrammarFunction, output: List[str]):
     check_grammar(grm, output)
+
+
+def test_ll_backtrack():
+    grm = "Count to 10: 1, 2, 3, 4, 5, 6, 7, " + gen("text", stop=",") + "\nNot quite."
+    check_grammar(
+        grm,
+        [
+            "Count‧ to‧ ‧1‧0‧:‧ ‧1‧,‧ ‧2‧,‧ ‧3‧,‧ ‧4‧,‧ ‧5‧,‧ ‧6‧,‧ ‧7‧,",
+            " ‧8‧,",
+            "1↶\n‧Not‧ quite‧.",
+        ],
+    )
 
 
 def test_ll_fighter():
