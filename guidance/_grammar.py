@@ -1238,7 +1238,7 @@ class LLSerializer:
                     add_todos(with_node)
                     add_todos(without_node)
                     continue
-                print(with_node, without_node)
+                #print(with_node, without_node)
                 if len(with_node) == 0:
                     # non-recursive
                     res = self._regex_or(without_node)
