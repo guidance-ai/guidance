@@ -3,7 +3,8 @@ import tokenizers
 import llguidance
 import json
 import guidance
-from guidance import gen, select, optional, commit_point, byte_range, one_or_more
+import pytest
+from guidance import gen, select, optional, commit_point, byte_range, one_or_more, GrammarFunction
 
 log_level = 1
 
@@ -79,7 +80,7 @@ def tokenize_trace(s: str):
     return r
 
 
-def check_grammar(grm, output: List[str]):
+def check_grammar(grm: GrammarFunction, output: List[str]):
     """
     Check that the grammar generates the expected output.
 
@@ -167,13 +168,31 @@ def test_llparser():
     # EoS finishes generation
     check_grammar(grm, ["Q‧:‧ ‧7‧ *‧ ‧8‧\n‧A‧:‧ ", "5‧6‧≺EOS≻"])
 
-    # commit_point() turned into regex
-    grm = (
+
+@pytest.mark.parametrize(
+    "grm",
+    [
+        # commit_point() turned into regex:
         "Dolphin name: "
         + commit_point('"' + byte_range(b"A", b"Z") + one_or_more(byte_range(b"a", b"z")) + '"')
-        + ","
-    )
-    check_grammar(grm, ['D‧olph‧in‧ name‧:‧ "', 'F‧li‧pper‧"', ","])
+        + ",",
+        # regular gen()
+        "Dolphin name: " + gen(regex=r'"[A-Z][a-z]+"') + ",",
+        # regular gen(), comma in regex
+        "Dolphin name: " + gen(regex=r'"[A-Z][a-z]+",'),
+        # regular gen(), quotes outside
+        'Dolphin name: "' + gen(regex=r'[A-Z][a-z]+') + '",',
+    ],
+)
+@pytest.mark.parametrize(
+    "output",
+    [
+        ['D‧olph‧in‧ name‧:‧ "', 'F‧li‧pper‧"', ","],  # separate comma
+        ['D‧olph‧in‧ name‧:‧ "', 'F‧li‧pper‧",'],  # check that we allow `",` as a single token:
+    ],
+)
+def test_ll_dolphin(grm: GrammarFunction, output: List[str]):
+    check_grammar(grm, output)
 
 
 def test_ll_fighter():
