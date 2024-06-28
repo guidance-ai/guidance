@@ -201,7 +201,7 @@ def test_ll_dolphin(grm: GrammarFunction, output: List[str]):
     check_grammar(grm, output)
 
 
-def test_ll_backtrack():
+def test_ll_backtrack_stop():
     grm = "Count to 10: 1, 2, 3, 4, 5, 6, 7, " + gen("text", stop=",") + "\nNot quite."
     check_grammar(
         grm,
@@ -211,6 +211,14 @@ def test_ll_backtrack():
             "1↶\n‧Not‧ quite‧.",
         ],
     )
+
+    grm = (
+        "Name: "
+        + gen(regex="E[a-z]+", stop_regex=["[a-b]", "[x-z]"])
+        + "\nName: "
+        + gen(regex="E[a-z]+", stop_regex=["[a-b]", "[x-z]"])
+    )
+    check_grammar(grm, ["Name‧:", " Em‧ily", "1↶il‧\n‧Name‧:", " Emil‧ie‧a", "1↶"])
 
 
 def test_ll_fighter():
