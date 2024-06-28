@@ -251,6 +251,13 @@ def test_ll_nullable_lexeme():
     )
 
 
+def test_ll_max_tokens():
+    check_grammar(
+        "Name: " + gen("name", max_tokens=3) + " Height: " + gen("height", max_tokens=3),
+        ["Name‧:", " Em‧ily‧ Carter", " Height‧:", " ‧5‧'‧6"],
+    )
+
+
 def test_ll_fighter():
     @guidance(stateless=True, dedent=True)
     def character_maker2(lm, id, description, valid_weapons):

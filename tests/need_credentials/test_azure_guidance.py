@@ -193,7 +193,7 @@ def test_azure_guidance_with_temp2(azure_guidance_model: guidance.models.Model):
     assert lm1["answer"] == lm2["answer"]
 
 
-def test_azure_guidance_max_tokens(azure_guidance_model: guidance.models.Model):
+def test_azure_guidance_max_tokens_3(azure_guidance_model: guidance.models.Model):
     lm = azure_guidance_model
     lm += "Who won the last Kentucky derby and by how much?"
     lm += "\n\n<<The last Kentucky Derby was held"
@@ -596,7 +596,7 @@ def test_azure_guidance_stop_token_name2(azure_guidance_model: guidance.models.M
     assert lm["name2_stop_text"] in ["a", "b", "x", "y", "z"]
     assert lm["name2"].startswith("E")
 
-def test_azure_guidance_max_tokens(azure_guidance_model: guidance.models.Model):
+def test_azure_guidance_max_tokens_4(azure_guidance_model: guidance.models.Model):
     lm = azure_guidance_model
     lm += "Name: " + gen('name', max_tokens=5) + " and " + gen('name2', max_tokens=5)
     assert len(lm["name"]) > 0
