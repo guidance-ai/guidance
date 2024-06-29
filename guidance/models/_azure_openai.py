@@ -66,14 +66,14 @@ class AzureOpenAI(Grammarless):
 
         if api_key is None and azure_ad_token_provider is None:
             raise ValueError("Please provide either api_key or azure_ad_token_provider")
-        
+
         parsed_url = urlparse(azure_endpoint)
 
         if azure_deployment is None:
             parts = pathlib.Path(parsed_url.path).parts
             if len(parts) > 2:
                 azure_deployment = parts[3]
-                
+
         parsed_query = parse_qs(parsed_url.query)
         api_version = (
             version
@@ -103,3 +103,6 @@ class AzureOpenAI(Grammarless):
             engine_instance,
             echo=echo,
         )
+
+    def set_logit_bias(self, logit_bias):
+        self.engine.set_logit_bias(logit_bias)
