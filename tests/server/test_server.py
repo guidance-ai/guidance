@@ -15,7 +15,7 @@ from guidance.library._json import _to_compact_json
 # has to start up and get ready to
 # respond to requests. Just waiting is
 # not ideal, but is the simplest option
-PROCESS_DELAY_SECS = 40
+PROCESS_DELAY_SECS = 90
 
 
 def server_process(*, mock_string: Union[str, List[str]] = ""):
