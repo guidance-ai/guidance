@@ -256,6 +256,22 @@ def test_ll_max_tokens():
         "Name: " + gen("name", max_tokens=3) + " Height: " + gen("height", max_tokens=3),
         ["Name‧:", " Em‧ily‧ Carter", " Height‧:", " ‧5‧'‧6"],
     )
+    # here we have two gen() with the same regex (so they are the same lexeme)
+    # but different max_tokens limits
+    check_grammar(
+        "Name: " + gen("name", max_tokens=2) + " Height: " + gen("height", max_tokens=3),
+        ["Name‧:", " Em‧ily", " Height‧:", " ‧5‧'‧6"],
+    )
+    # now this is a strange case, where gen() is allowed together with the following
+    # string, and gen() runs out of tokens, so the fixed string takes over
+    # note how Emily is not repeated
+    check_grammar(
+        "Name: "
+        + gen("name", max_tokens=2)
+        + "Emily Carter is great; Height: "
+        + gen("height", max_tokens=3),
+        ["Name‧:", " Em‧ily", " Carter‧ is‧ great‧;‧ Height‧:", " ‧5‧'‧6"],
+    )
 
 
 def test_ll_fighter():
