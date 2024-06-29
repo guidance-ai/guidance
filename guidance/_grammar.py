@@ -966,10 +966,6 @@ def _re_with_temperature(grammar, temperature, visited_set):
 #     return ModelVariable(name)
 
 
-def active_role_end() -> ModelVariable:
-    return ModelVariable("active_role_end")
-
-
 def eos_token() -> ModelVariable:
     return ModelVariable("eos_token")
 
