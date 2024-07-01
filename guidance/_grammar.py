@@ -192,8 +192,11 @@ class GrammarFunction(Function):
 
         if not allow_partial and not parser.matched():
             return None
-        else:
-            return Match(*parser.get_captures(), partial=not parser.matched())  # type: ignore[misc]
+
+        if parser.matched():
+            parser.force_done()
+
+        return Match(*parser.get_captures(), partial=not parser.matched())  # type: ignore[misc]
 
     @staticmethod
     def _new_name():

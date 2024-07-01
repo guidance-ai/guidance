@@ -294,6 +294,19 @@ class ByteParser(Parser):
             # Run consume_bytes to advance ll_parser and consume the next byte
             self.consume_bytes(bts)
 
+    def force_done(self):
+        if not self.matched():
+            raise ParserException("Hit end of input before reaching a valid state")
+        if self.ll_parser.done():
+            return
+
+        self.ll_parser.consume_token(self.tokenizer.eos_token_id)
+        self.gen_data, response = self.ll_parser.advance()
+        self._update_capture(response)
+        self.bytes += response.new_bytes
+        if not self.ll_parser.done() or not self.matched():
+            raise ParserException("Hit end of input before reaching a valid state")
+
     def get_captures(self):
         return self._variables, self._variables_log_probs
     
