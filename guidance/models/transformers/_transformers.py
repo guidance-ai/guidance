@@ -345,7 +345,7 @@ class TransformersEngine(Engine):
                         output_attentions=False,
                         output_hidden_states=False,
                     )
-                except:
+                except AssertionError:
                     for i, new_token_id in enumerate(new_token_ids):
                         input_ids = torch.tensor([new_token_id]).unsqueeze(0).to(self.device)
 
