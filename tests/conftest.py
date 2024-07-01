@@ -41,6 +41,10 @@ AVAILABLE_MODELS = {
         name="huggingface_hubllama:TheBloke/Llama-2-7B-GGUF:llama-2-7b.Q5_K_M.gguf",
         kwargs={"verbose": True, "n_ctx": 4096},
     ),
+    "transformers_phi3_small_8k_instruct": dict(
+        name="transformers:microsoft/Phi-3-small-8k-instruct",
+        kwargs={"trust_remote_code": True}
+    ),
     "transformers_mistral_7b": dict(
         name="transformers:mistralai/Mistral-7B-v0.1", kwargs=dict()
     ),
