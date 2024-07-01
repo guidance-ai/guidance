@@ -86,8 +86,7 @@ def _gen_json_int(lm):
 
 @guidance(stateless=True)
 def _gen_json_number(lm):
-    return lm + _gen_json_int() + lexeme(r"(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?")
-
+    return lm + lexeme(r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?")
 
 
 @guidance(stateless=True)
