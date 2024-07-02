@@ -10,14 +10,6 @@ import re
 
 import numpy as np
 
-from html.parser import HTMLParser
-try:
-    from colored import Fore  # type: ignore[import-untyped]
-except ImportError:
-    colored_is_imported = False
-else:
-    colored_is_imported = True
-
 
 class _Rewrite(ast.NodeTransformer):
     def visit_Constant(self, node):
