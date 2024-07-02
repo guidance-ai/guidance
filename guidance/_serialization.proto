@@ -25,7 +25,7 @@ message Value {
 }
 
 message ListValue {
-  repeated Value values = 1; // Now uses "repeated" for the list
+  repeated Value values = 1;
 }
 
 message Byte {
