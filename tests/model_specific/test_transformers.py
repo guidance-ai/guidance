@@ -116,7 +116,7 @@ def test_phi3_transformers_orig():
 def test_phi3_chat_basic(phi3_model: models.Model):
     lm = phi3_model
 
-    lm += "You are a counting bot which outputs numbers and commas. Just keep counting numbers."
+    lm += "The user will show you a sequence of numbers. Just keep counting numbers."
     with user():
         lm += "1,2,3,4"
     with assistant():
