@@ -116,11 +116,11 @@ def test_phi3_transformers_orig():
 def test_phi3_chat_basic(phi3_model: models.Model):
     lm = phi3_model
 
-    lm += "You are a counting bot. Just keep counting numbers."
+    lm += "You are a counting bot which outputs numbers and commas. Just keep counting numbers."
     with user():
         lm += "1,2,3,4"
     with assistant():
-        lm += gen(name="five", max_tokens=10)
+        lm += gen(name="five", max_tokens=20)
 
     assert "5" in lm["five"]
 
