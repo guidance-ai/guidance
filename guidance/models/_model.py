@@ -116,9 +116,8 @@ class EngineCallResponse:
             elif isinstance(v, float):
                 value.float_value = v
             elif isinstance(v, list):
-                list_value = _serialization_pb2.ListValue()  # Create ListValue instance
-                list_value.values.extend([to_protobuf_value(item) for item in v])
-                value.list_value = list_value  # Assign ListValue to the field
+                for item in v:
+                    value.list_value.values.append(to_protobuf_value(item))
             else:
                 raise TypeError(f"Unsupported type: {type(v)}")
             return value
