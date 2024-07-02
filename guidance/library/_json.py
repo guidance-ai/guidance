@@ -81,16 +81,12 @@ def validate_json_node_keys(node: Mapping[str, Any]):
 
 @guidance(stateless=True)
 def _gen_json_int(lm):
-    return lm + lexeme(r"-?(?:0|[1-9][0-9]*)", contextual=True)
+    return lm + lexeme(r"-?(?:0|[1-9][0-9]*)")
 
 
 @guidance(stateless=True)
 def _gen_json_number(lm):
-    return lm + select([
-        _gen_json_int(),
-        lexeme(r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)", contextual=True),
-        lexeme(r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)", contextual=True),
-    ])
+    return lm + lexeme(r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?")
 
 
 @guidance(stateless=True)
