@@ -36,7 +36,7 @@ extras_requires = {
     "azureai": ["openai>=1.0"],
     "openai": ["openai>=1.0"],
     "schemas": ["jsonschema"],
-    "server": ["fastapi", "uvicorn"],
+    "server": ["fastapi-slim", "uvicorn"],
 }
 
 # Create the union of all our requirements
