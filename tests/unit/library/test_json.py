@@ -1583,7 +1583,6 @@ class TestEmptySchemas:
         ],
     )
     def test_items(self, schema_obj):
-        schema_obj = {"type": "array"}
         generate_and_check(
             [1, 0.4, "hello", False, None, {"a": 42}, [1, 2, 3, "four"]], schema_obj
         )
