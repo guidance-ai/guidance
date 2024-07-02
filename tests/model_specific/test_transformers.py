@@ -15,10 +15,7 @@ def phi3_model(selected_model, selected_model_name):
 
 @pytest.fixture(scope="module")
 def llama3_model(selected_model, selected_model_name):
-    if (
-        selected_model_name in ["transformers_llama3cpu_8b"]
-        and selected_model is not None
-    ):
+    if selected_model_name in ["transformers_llama3cpu_8b"] and selected_model is not None:
         return selected_model
     else:
         pytest.skip("Requires Llama3 model (needs HF_TOKEN to be set)")
@@ -27,7 +24,7 @@ def llama3_model(selected_model, selected_model_name):
 def test_gpt2():
     gpt2 = get_model("transformers:gpt2")
     lm = gpt2 + "this is a test" + gen("test", max_tokens=10)
-    
+
     assert len(str(lm)) > len("this is a test")
 
 
@@ -42,9 +39,7 @@ def test_recursion_error():
     {gen('verse', max_tokens=2)}
     """
     )
-    assert len(str(lm)) > len(
-        "Tweak this proverb to apply to model instructions instead.\n\n"
-    )
+    assert len(str(lm)) > len("Tweak this proverb to apply to model instructions instead.\n\n")
 
 
 TRANSFORMER_MODELS = {
@@ -81,6 +76,7 @@ w) 10"""
 
 # Phi-3 specific tests
 
+
 @pytest.mark.skip("Don't overload the build machines")
 def test_phi3_transformers_orig():
     import torch
@@ -116,11 +112,10 @@ def test_phi3_transformers_orig():
 def test_phi3_chat_basic(phi3_model: models.Model):
     lm = phi3_model
 
-    lm += "The user will show you a sequence of numbers. Just keep counting numbers."
     with user():
-        lm += "1,2,3,4"
+        lm += "You are a counting bot. Just keep counting numbers."
     with assistant():
-        lm += gen(name="five", max_tokens=20)
+        lm += "1,2,3,4," + gen(name="five", max_tokens=20)
 
     assert "5" in lm["five"]
 
@@ -143,7 +138,7 @@ def test_phi3_newline_chat(phi3_model: models.Model):
     with assistant():
         lm += "\n" + gen(name="five", max_tokens=1)
         lm += "\n" + gen(name="six", max_tokens=1)
-    
+
     # This test would raise an exception earlier if we didn't fix the tokenizer.
     assert True
 
@@ -155,7 +150,7 @@ def test_phi3_unstable_tokenization(phi3_model: models.Model):
     with user():
         lm += "1,2,3,4,"
     with assistant():
-        lm += "\n" # comment and uncomment this line to get the error
+        lm += "\n"  # comment and uncomment this line to get the error
         lm += gen(name="five", max_tokens=1)
         lm += "," + gen(name="six", max_tokens=1)
 
