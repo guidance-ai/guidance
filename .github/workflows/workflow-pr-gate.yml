@@ -70,6 +70,7 @@ jobs:
           - "hfllama_mistral_7b"
           - "transformers_phi3cpu_mini_4k_instruct"
           - "hfllama_phi3cpu_mini_4k_instruct"
+	  - "transformers_phi3_small_8k_instruct"
     with:
       os: Large_Linux
       python-version: "3.12"
@@ -111,6 +112,7 @@ jobs:
           - "hfllama_mistral_7b"
           - "transformers_phi3cpu_mini_4k_instruct"
           - "hfllama_phi3cpu_mini_4k_instruct"
+	  - "transformers_phi3_small_8k_instruct"
     uses: ./.github/workflows/action_plain_basic_tests.yml
     with:
       os: Large_Linux
@@ -156,6 +158,7 @@ jobs:
           - "hfllama_mistral_7b"
           # - "transformers_phi3cpu_mini_4k_instruct" Gives trouble on MacOS
           - "hfllama_phi3cpu_mini_4k_instruct"
+	  - "transformers_phi3_small_8k_instruct"
     uses: ./.github/workflows/action_plain_basic_tests.yml
     with:
       os: macos-12
@@ -175,6 +178,7 @@ jobs:
           # - "hfllama7b" Getting stuck with llama-cpp-python 0.2.77
           # - "hfllama_mistral_7b"
           # - "transformers_phi3cpu_mini_4k_instruct" Gives trouble on MacOS
+	  - "transformers_phi3_small_8k_instruct"
           - "hfllama_phi3cpu_mini_4k_instruct"
     uses: ./.github/workflows/action_plain_basic_tests.yml
     with:
@@ -195,6 +199,7 @@ jobs:
           - "hfllama7b"
           - "hfllama_mistral_7b"
           - "transformers_phi3cpu_mini_4k_instruct"
+	  - "transformers_phi3_small_8k_instruct"
           - "hfllama_phi3cpu_mini_4k_instruct"
     uses: ./.github/workflows/action_plain_basic_tests.yml
     with:
