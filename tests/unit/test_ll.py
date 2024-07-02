@@ -250,6 +250,17 @@ def test_ll_nullable_lexeme():
         ["6‧ *‧ ‧7‧ =‧ ", "4‧2", "\n"],
     )
 
+    check_grammar(
+        "Here: 2 + 2 = " + greedy_grammar(name="num", body=lexeme("[0-9]+")),
+        ["Here‧:‧ ‧2‧ +‧ ‧2‧ =‧ ", "4‧≺EOS≻"],
+    )
+
+    # make sure it stops at EOS
+    check_grammar(
+        "Here: 2 + 2 = " + greedy_grammar(name="num", body=lexeme("[0-9]+") + lexeme(r"Q?")),
+        ["Here‧:‧ ‧2‧ +‧ ‧2‧ =‧ ", "4‧≺EOS≻"],
+    )
+
 
 def test_ll_max_tokens():
     check_grammar(
