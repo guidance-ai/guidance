@@ -80,11 +80,7 @@ def compare_grammars(g1: GrammarFunction, g2: GrammarFunction) -> bool:
 )
 def test_grammar_protobuf_roundtrip(grammar: GrammarFunction):
     """Test that grammars can be round-tripped through protobuf serialization."""
-
-    # Serialize the grammar to a protobuf message
     serialized_grammar = grammar.serialize()
-
-    # Deserialize the grammar from the protobuf message
     deserialized_grammar = GrammarFunction.deserialize(serialized_grammar)
 
     # Recursively compare the grammars
