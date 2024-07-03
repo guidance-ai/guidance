@@ -1,3 +1,4 @@
+import pytest
 import guidance
 from guidance import gen, models, optional, select
 
@@ -90,3 +91,29 @@ class TestRecursion:
         grammar1()
         grammar2()
         grammar3()
+
+class TestMatch:
+    @pytest.mark.parametrize(
+        "string",
+        ["456", "456x"]
+    )
+    def test_full_match(self, string):
+        g = "123" + gen(regex=r"\d+x?", name="mycap")
+        match = g.match(f"123{string}")
+        assert match is not None
+        assert not match.partial
+        assert match.captures["mycap"] == string
+
+    @pytest.mark.parametrize(
+        "string",
+        # "456" fails -- think about supporting?
+        # (reasonable to expect either behavior)
+        ["456x"]
+    )
+    def test_partial_match(self, string):
+        g = "123" + gen(regex=r"\d+x?", name="mycap") + "789"
+        assert g.match(f"123{string}") is None
+        match = g.match(f"123{string}", allow_partial=True)
+        assert match is not None
+        assert match.partial
+        assert match.captures["mycap"] == string
