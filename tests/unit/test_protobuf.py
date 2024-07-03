@@ -1,4 +1,5 @@
 import pytest
+from itertools import chain
 
 from guidance import (
     byte_range,
@@ -26,33 +27,15 @@ def compare_grammars(g1: GrammarFunction, g2: GrammarFunction) -> bool:
         return False
 
     # Compare attributes based on type
-    if isinstance(g1, ModelVariable):
-        return (
-            g1.name == g2.name
-            and g1.hidden == g2.hidden
-            and g1.commit_point == g2.commit_point
-            and g1.capture_name == g2.capture_name
-        )
-    elif isinstance(g1, (Byte, ByteRange)):
-        return (
-            g1.name == g2.name
-            and g1.hidden == g2.hidden
-            and g1.commit_point == g2.commit_point
-            and g1.capture_name == g2.capture_name
-            and g1.temperature == g2.temperature
-            and g1.max_tokens == g2.max_tokens
-        )
+    if isinstance(g1, (Byte, ByteRange, ModelVariable)):
+        slots = chain.from_iterable(getattr(cls, '__slots__', []) for cls in type(g1).mro())
+        return all(getattr(g1, slot) == getattr(g2, slot) for slot in slots)
     elif isinstance(g1, (Join, Select)):
-        return (
-            g1.name == g2.name
-            and g1.hidden == g2.hidden
-            and g1.commit_point == g2.commit_point
-            and g1.capture_name == g2.capture_name
-            and g1.max_tokens == g2.max_tokens
+        slots = chain.from_iterable(getattr(cls, '__slots__', []) for cls in type(g1).mro())
+        return (all(getattr(g1, slot) == getattr(g2, slot) for slot in slots if 'values' not in slot)
             and len(g1.values) == len(g2.values) # Check both have same number of child nodes
             and all(compare_grammars(v1, v2) for v1, v2 in zip(g1.values, g2.values)) # Recursively compare child nodes
         )
-
     else:
         raise ValueError(f"Unsupported grammar type: {type(g1)}")
 
