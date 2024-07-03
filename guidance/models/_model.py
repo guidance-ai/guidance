@@ -22,22 +22,9 @@ try:
     ipython_is_imported = True
 except ImportError:
     ipython_is_imported = False
-try:
-    import torch
-
-    torch_is_imported = True
-except ImportError:
-    torch_is_imported = False
-
 
 logger = logging.getLogger(__name__)
-try:
-    from .. import cpp  # type: ignore[attr-defined]
-except ImportError:
-    logger.warn(
-        "Failed to load guidance.cpp, falling back to Python mirror implementations..."
-    )
-    from .. import _cpp as cpp
+
 from ._guidance_engine_metrics import GuidanceEngineMetrics
 from .._utils import softmax, CaptureEvents
 from .._parser import LLParser, Parser, ParserResponse, GenData
@@ -985,40 +972,3 @@ class ConstraintException(Exception):
         self.prompt = kwargs.pop("prompt", None)
         self.data = kwargs.pop("data", None)
         super().__init__(*args, **kwargs)
-
-
-# def _compute_probs(trie, probs, found):
-#     '''Computes the log probabilities for each internal trie node.'''
-#     if trie.value is not None:
-#         found[trie.value] = 1
-#         trie.prob += probs[trie.value]
-
-#     if len(trie) > 0:
-#         # child_probs = []
-#         for b in trie.keys():
-#             child = trie.child(b)
-#             _compute_probs(child, probs, found)
-#             trie.prob += child.prob
-#         # trie.log_prob = np.logaddexp.reduce(child_log_probs)
-
-
-def _check_dominated(node, parser, match_version, next_byte_mask):
-    curr_pos = parser.pos
-    for byte_num in next_byte_mask.nonzero()[0]:
-        next_byte = bytes((byte_num,))
-        if not node.has_child(next_byte):
-            return False  # no possible exension this direction, so we are not dominated
-        child = node.child(next_byte)
-        if child.match_version < match_version:
-            child.match_version = match_version
-            child.match = next_byte_mask[next_byte[0]]
-
-        if not child.match:
-            return False  # this child does not dominate the node, so the node is not dominated
-        elif child.value is None:  # this child might not dominate the node
-            parser.consume_byte(next_byte, log_prob=0.0)
-            child_dominate = _check_dominated(child, parser, match_version, parser.next_byte_mask())
-            parser.pos = curr_pos
-            if not child_dominate:
-                return False
-    return True
