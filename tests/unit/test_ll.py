@@ -14,9 +14,10 @@ from guidance import (
     GrammarFunction,
     greedy_grammar,
     lexeme,
+    string,
 )
 
-log_level = 1
+log_level = 10
 
 
 class PhiTokenizer:
@@ -275,6 +276,24 @@ def test_ll_nullable_lexeme():
     check_grammar(num, ["", "0‧≺EOS≻"])
     check_grammar(num, ["", "1‧.‧1‧≺EOS≻"])
     check_grammar(num, ["", "0‧.‧1‧≺EOS≻"])
+
+
+def test_ll_nice_man():
+    g = select(["a", "ab", "c"])
+    check_grammar(g, ["", "a‧b"])
+    check_grammar(g, ["", "a‧≺EOS≻"])
+    check_grammar(g + "d", ["", "a‧d"])
+    check_grammar(g + "d", ["", "a‧b", "d"])
+    check_grammar(g + optional("d"), ["", "a‧b‧d"])
+    check_grammar(g + optional("d"), ["", "a‧b‧≺EOS≻"])
+    check_grammar(g + optional("d"), ["", "a‧≺EOS≻"])
+
+    # the example below should work, but only does when string() is used to
+    # break "abq" into two lexemes
+    # g = select(["a", "abq", "c"]) + optional("bQ")
+    g = select(["a", string("a") + string("bq"), "c"]) + optional("bQ")
+    check_grammar(g, ["", "a‧b‧q‧≺EOS≻"])
+    check_grammar(g, ["", "a‧b‧Q"])
 
 
 def test_ll_max_tokens():
