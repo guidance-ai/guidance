@@ -242,7 +242,7 @@ def test_ll_nullable_lexeme():
     # make sure 'a' is not forced
     check_grammar(gen(regex="a*"), ["", "a‧≺EOS≻"])
     # this one doesn't work - no lexeme was scanned by EOS, so we allow more lexemes...
-    # check_grammar(gen(regex="a*"), ["", "≺EOS≻"])
+    check_grammar(gen(regex="a*"), ["", "≺EOS≻"])
 
     # see that we can skip 5*
     check_grammar(
