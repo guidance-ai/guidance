@@ -1,6 +1,6 @@
 import pytest
 import guidance
-from guidance import gen, models, optional, select
+from guidance import gen, models, optional, select, string
 
 
 def test_select_reset_pos():
@@ -14,6 +14,22 @@ def test_select_longer():
     lm = models.Mock(b"<s>Scott is a very nice man.")
     lm += "Scott is a very " + select(name="text", options=["nice", "nice man."])
     assert lm["text"] == "nice man."
+
+
+@pytest.mark.xfail(
+    reason="Lexer sees 'a' then 'b' and here decides to continue matching abq)"
+)
+def test_select_ambiguous_lexeme_boundary():
+    lm = models.Mock(b"<s>abQ<s>")
+    lm += select(options=["a", "abq", "c"], name="prefix") + optional("bQ")
+    assert lm["prefix"] == "a"
+
+
+def test_select_ambiguous_lexeme_boundary_manual_fix():
+    # Manual fix to the issue in test_select_ambiguous_lexeme_boundary by splitting the "abq" lexeme into two lexemes
+    lm = models.Mock(b"<s>abQ<s>")
+    lm += select(options=["a", string("a")+string("bq"), "c"], name="prefix") + optional("bQ")
+    assert lm["prefix"] == "a"
 
 
 def test_select_empty():
