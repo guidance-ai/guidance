@@ -261,6 +261,21 @@ def test_ll_nullable_lexeme():
         ["Here‧:‧ ‧2‧ +‧ ‧2‧ =‧ ", "4‧≺EOS≻"],
     )
 
+    num = greedy_grammar(
+        body=select(
+            [
+                lexeme(r"-?(?:0|[1-9][0-9]*)", contextual=True),
+                lexeme(r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)", contextual=True),
+            ]
+        )
+    )
+
+    # avoid early stop
+    check_grammar(num, ["", "1‧≺EOS≻"])
+    check_grammar(num, ["", "0‧≺EOS≻"])
+    check_grammar(num, ["", "1‧.‧1‧≺EOS≻"])
+    check_grammar(num, ["", "0‧.‧1‧≺EOS≻"])
+
 
 def test_ll_max_tokens():
     check_grammar(
