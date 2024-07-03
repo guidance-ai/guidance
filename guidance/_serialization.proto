@@ -10,9 +10,22 @@ message EngineCallResponse {
     bytes new_bytes = 1;
     bool is_generated = 2;
     float new_bytes_prob = 3;
-    map<string, string> capture_groups = 4;
-    map<string, float> capture_group_log_probs = 5;
+    map<string, Value> capture_groups = 4;
+    map<string, Value> capture_group_log_probs = 5;
     int32 new_token_count = 6;
+}
+
+message Value {
+  oneof kind {
+    string string_value = 1;
+    bytes bytes_value = 2;
+    float float_value = 3;
+    ListValue list_value = 4; 
+  }
+}
+
+message ListValue {
+  repeated Value values = 1;
 }
 
 message Byte {

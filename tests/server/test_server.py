@@ -140,3 +140,12 @@ def test_remote_gen_json(target_obj):
         print(f"Received object: {json.dumps(my_obj, indent=4)}")
         validate(my_obj, schema_obj)
         assert my_obj == target_obj
+
+
+def test_remote_list_append():
+    with ServerContext(mock_string=""):
+        lm = models.Model("http://localhost:8392", api_key="SDFSDF")
+        for _ in range(3):
+            lm += gen("my_list", list_append=True, stop="a") + "a"
+        assert isinstance(lm["my_list"], list)
+        assert len(lm["my_list"]) == 3
