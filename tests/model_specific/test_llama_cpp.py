@@ -51,8 +51,8 @@ def test_llama_cpp_select2(llamacpp_model: guidance.models.Model):
     ]
 
 
-@pytest.mark.skipif(
-    platform.system() == "Windows",
+@pytest.mark.xfail(
+    condition=platform.system() == "Windows",
     reason="llama-cpp-python >=0.2.79 appears to have made models non-deterministic on Windows",
 )
 def test_repeat_calls(llamacpp_model: guidance.models.Model):
