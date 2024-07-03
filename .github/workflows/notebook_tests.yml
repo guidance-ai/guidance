@@ -56,7 +56,7 @@ jobs:
       - name: GPU pip installs
         run: |
           pip install accelerate
-          CMAKE_ARGS="-DLLAMA_CUBLAS=on" pip install "llama-cpp-python!=0.2.58,!=0.2.75"
+          CMAKE_ARGS="-DGGML_CUDA=on" pip install "llama-cpp-python!=0.2.58,!=0.2.75"
       - name: Check GPU available
         run: |
           python -c "import torch; assert torch.cuda.is_available()"
