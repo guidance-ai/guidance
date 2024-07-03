@@ -25,3 +25,13 @@ class TestEndingLexemeAmbiguous:
         assert (m := g1.match(string)) is not None and m.captures["mycap"] == string
         g2 = g1 + "x"
         assert (m := g2.match(f"{string}x")) is not None and m.captures["mycap"] == string
+
+    @pytest.mark.parametrize(
+        "string",
+        ["1", "123", "1x", "123x"]
+    )
+    def test_nullable_final_lexeme(self, string):
+        g = greedy_grammar(body=lexeme(r"\d+")+lexeme(r"x?"), name="mycap")
+        match = g.match(string)
+        assert match is not None
+        assert match.captures["mycap"] == string
