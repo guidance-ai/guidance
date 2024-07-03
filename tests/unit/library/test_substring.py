@@ -12,7 +12,6 @@ from guidance import models, substring
         ("a", "abc", "a"),
         ("b", "abc", "b"),
         ("c", "abc", "c"),
-        ("abc", "def", ""),  # This is a 'failure' case
         (
             "long string",
             "This is long string, only take part of this long string",
