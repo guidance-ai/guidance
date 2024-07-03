@@ -1245,7 +1245,7 @@ class LLSerializer:
                 if len(with_node) == 0:
                     # non-recursive
                     res = self._regex_or(without_node)
-                if len(without_node) == 1 and isinstance(without_node[0], Null):
+                elif len(without_node) == 1 and isinstance(without_node[0], Null):
                     # zero_or_more()
                     inner = self._regex_or(with_node)
                     res = self._add_regex("Repeat", [inner, 0, None])
