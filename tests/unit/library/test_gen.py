@@ -54,7 +54,7 @@ def test_pattern_optional():
 
 
 def test_pattern_stops_when_fulfilled():
-    lm = models.Mock(b"<s>123abc")
+    lm = models.Mock(b"<s>123<s>abc")
     lm += gen(regex=r"\d+", max_tokens=10, name="test")
     assert lm["test"] == "123"
 
