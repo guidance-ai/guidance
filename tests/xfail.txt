@@ -1,6 +1,5 @@
 tests/unit/library/test_commit_point.py::test_hidden
 tests/unit/library/test_gen.py::test_pattern_stops_when_fulfilled
-tests/unit/library/test_greedy.py::TestEndingLexemeAmbiguous::test_skip_rx[123  -\\s]
 tests/unit/library/test_substring.py::test_mocked_substring[abc-def-]
 tests/model_integration/library/test_commit_point.py::test_commit_point
 tests/model_integration/library/test_gen.py::test_various_regexes[Scott is a persimmon.*\\.-Scott is a]
