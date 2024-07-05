@@ -24,6 +24,16 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - name: 'Az CLI login'
+        uses: azure/login@v1
+        with:
+            client-id: ${{ secrets.AZURE_CLIENT_ID }}
+            tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+            subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: 'Run Azure CLI commands'
+        run: |
+            az account show
+            az group list
       - name: Install Rust
         shell: bash
         run: |
@@ -62,10 +72,8 @@ jobs:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           # Configure endpoints for Azure OpenAI
           AZUREAI_CHAT_ENDPOINT: ${{ secrets.AZUREAI_CHAT_ENDPOINT }}
-          AZUREAI_CHAT_KEY: ${{ secrets.AZUREAI_CHAT_KEY }}
           AZUREAI_CHAT_MODEL: ${{ secrets.AZUREAI_CHAT_MODEL }}
           AZUREAI_COMPLETION_ENDPOINT: ${{ secrets.AZUREAI_COMPLETION_ENDPOINT }}
-          AZUREAI_COMPLETION_KEY: ${{ secrets.AZUREAI_COMPLETION_KEY }}
           AZUREAI_COMPLETION_MODEL: ${{ secrets.AZUREAI_COMPLETION_MODEL }}
           # Configure endpoints for Azure AI Studio
           AZURE_AI_STUDIO_PHI3_ENDPOINT: ${{ vars.AZURE_AI_STUDIO_PHI3_ENDPOINT }}
