@@ -1,5 +1,6 @@
 import inspect
 from json import dumps as json_dumps
+from functools import partial
 from typing import Any, Dict, Generic, List, Literal, Tuple, Type, TypeVar, Union, Set
 
 import pydantic
@@ -8,7 +9,7 @@ from pydantic.json_schema import to_jsonable_python as pydantic_to_jsonable_pyth
 
 from guidance import models, json as gen_json
 from guidance.library._json import WHITESPACE
-from ...utils import check_match_failure as _check_match_failure
+from ...utils import check_match_failure as _check_match_failure, generate_and_check as _generate_and_check
 
 
 def to_compact_json(target: Any) -> str:
@@ -65,24 +66,12 @@ def generate_and_check(
 ):
     # Sanity check what we're being asked
     target_obj = validate_obj(target_obj, pydantic_model)
+    prepared_json = to_compact_json(target_obj)
+    assert validate_string(prepared_json, pydantic_model) == target_obj
 
-    # Define grammar with capture key
-    CAPTURE_KEY = "my_capture"
-    grammar = gen_json(name=CAPTURE_KEY, schema=pydantic_model)
-
-    # Test that grammar matches string
-    json_string = to_compact_json(target_obj)
-    matches = grammar.match(json_string, raise_exceptions=True)
-    assert matches.partial == False
-
-    # Run with the mock model
-    prepared_string = f"<s>{json_string}"
-    lm = models.Mock(prepared_string.encode(), echo=False)
-    lm += grammar
-
-    # Make sure the round trip works
-    round_trip_object = validate_string(lm[CAPTURE_KEY], pydantic_model)
-    assert round_trip_object == target_obj
+    # Check that the grammar can produce the literal prepared_json string
+    grammar_callable = partial(gen_json, schema=pydantic_model)
+    _generate_and_check(grammar_callable, prepared_json)
 
 
 def check_match_failure(
