@@ -65,6 +65,7 @@ TYPE_SPECIFIC_KEYS = {
     "object": {"properties", "additionalProperties"},
 }
 
+WHITESPACE = {b" ", b"\t", b"\n", b"\r"}
 
 def validate_json_node_keys(node: Mapping[str, Any]):
     keys = set(node.keys())

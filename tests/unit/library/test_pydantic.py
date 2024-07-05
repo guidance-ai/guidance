@@ -6,8 +6,8 @@ import pydantic
 import pytest
 from pydantic.json_schema import to_jsonable_python as pydantic_to_jsonable_python
 
-from guidance import json as gen_json
-from guidance import models
+from guidance import models, json as gen_json
+from guidance.library._json import WHITESPACE
 from ...utils import check_match_failure as _check_match_failure
 
 
@@ -91,14 +91,19 @@ def check_match_failure(
     failure_byte: bytes,
     allowed_bytes: Set[bytes],
     pydantic_model: Union[Type[pydantic.BaseModel], pydantic.TypeAdapter],
+    maybe_whitespace: bool,
+    compact: bool,
 ):
     bad_string = to_compact_json(bad_obj)
-    grammar = gen_json(schema=pydantic_model)
+    grammar = gen_json(schema=pydantic_model, compact=compact)
     _check_match_failure(
         bad_string=bad_string,
         good_bytes=good_bytes,
         failure_byte=failure_byte,
-        allowed_bytes=allowed_bytes,
+        allowed_bytes=(
+            allowed_bytes.union(WHITESPACE) if (maybe_whitespace and not compact)
+            else allowed_bytes
+        ),
         grammar=grammar,
     )
 
@@ -173,7 +178,10 @@ class TestTuple:
         model = pydantic.TypeAdapter(Tuple[int, bool])
         generate_and_check((1, True), model)
 
-    def test_maxitems(self):
+    @pytest.mark.parametrize(
+        "compact", [True, False]
+    )
+    def test_maxitems(self, compact):
         model = pydantic.TypeAdapter(Tuple[int,])
         check_match_failure(
             bad_obj=(1, 2),
@@ -181,6 +189,8 @@ class TestTuple:
             failure_byte=b",",
             allowed_bytes={b"]", *{bytes([i]) for i in range(ord("0"), ord("9") + 1)}},
             pydantic_model=model,
+            maybe_whitespace=True,
+            compact=compact,
         )
 
 
@@ -251,15 +261,18 @@ class TestGeneric:
         generate_and_check(obj, model)
 
     @pytest.mark.parametrize(
-        "my_type, my_obj, good_bytes, failure_byte, allowed_bytes",
+        "compact", [True, False]
+    )
+    @pytest.mark.parametrize(
+        "my_type, my_obj, good_bytes, failure_byte, allowed_bytes, maybe_whitespace",
         [
-            (bool, "True", b"", b'"', {b"t", b"f"}),
-            (str, 42, b"", b"4", {b'"'}),
-            (int, False, b"", b"f", {b"-", *{bytes([i]) for i in range(ord("0"), ord("9") + 1)}}),
+            (bool, "True", b"", b'"', {b"t", b"f"}, True),
+            (str, 42, b"", b"4", {b'"'}, True),
+            (int, False, b"", b"f", {b"-", *{bytes([i]) for i in range(ord("0"), ord("9") + 1)}}, True),
         ],
     )
     def test_bad_generic(
-        self, my_type, my_obj, good_bytes, failure_byte, allowed_bytes
+        self, my_type, my_obj, good_bytes, failure_byte, allowed_bytes, maybe_whitespace, compact
     ):
         model = self.SimpleGeneric[my_type]
         obj = {"my_obj": my_obj}
@@ -269,4 +282,6 @@ class TestGeneric:
             failure_byte=failure_byte,
             allowed_bytes=allowed_bytes,
             pydantic_model=model,
+            maybe_whitespace=maybe_whitespace,
+            compact=compact,
         )

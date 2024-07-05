@@ -7,7 +7,7 @@ from jsonschema import validate
 
 from guidance import json as gen_json
 from guidance import models
-from guidance.library._json import _to_compact_json
+from guidance.library._json import _to_compact_json, WHITESPACE
 
 from ...utils import check_match_failure as _check_match_failure
 from ...utils import check_run_with_temperature
@@ -63,7 +63,6 @@ def check_match_failure(
 # Common sets of allowed_bytes
 INTEGER_LEADING = {b"-", b"0", *{bytes([i]) for i in range(ord("1"), ord("9") + 1)}}
 INTEGER_FOLLOWING = {bytes([i]) for i in range(ord("0"), ord("9") + 1)}
-WHITESPACE = {b" ", b"\t", b"\n", b"\r"}
 
 
 def test_null():
