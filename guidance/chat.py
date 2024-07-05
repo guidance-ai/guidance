@@ -166,7 +166,7 @@ CHAT_TEMPLATE_CACHE[llama3_template] = Llama3ChatTemplate
 # @@@@ Phi-3 @@@@
 # --------------------------------------------------
 # [05/08/24] https://huggingface.co/microsoft/Phi-3-mini-4k-instruct/blob/main/tokenizer_config.json#L119
-phi3_template = "{{ bos_token }}{% for message in messages %}{% if (message['role'] == 'user') %}{{'<|user|>' + '\n' + message['content'] + '<|end|>' + '\n' + '<|assistant|>' + '\n'}}{% elif (message['role'] == 'assistant') %}{{message['content'] + '<|end|>' + '\n'}}{% endif %}{% endfor %}"
+phi3_template = "{% for message in messages %}{% if message['role'] == 'system' %}{{'<|system|>\n' + message['content'] + '<|end|>\n'}}{% elif message['role'] == 'user' %}{{'<|user|>\n' + message['content'] + '<|end|>\n'}}{% elif message['role'] == 'assistant' %}{{'<|assistant|>\n' + message['content'] + '<|end|>\n'}}{% endif %}{% endfor %}{% if add_generation_prompt %}{{ '<|assistant|>\n' }}{% else %}{{ eos_token }}{% endif %}"
 class Phi3ChatTemplate(ChatTemplate):
     # available_roles = ["user", "assistant"]
     template_str = phi3_template
@@ -176,6 +176,8 @@ class Phi3ChatTemplate(ChatTemplate):
             return "<|user|>"
         elif role_name == "assistant":
             return "<|assistant|>"
+        elif role_name == "system":
+            return "<|system|>"
         else:
             raise UnsupportedRoleException(role_name, self)
         
