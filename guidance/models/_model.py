@@ -8,6 +8,7 @@ import textwrap
 import threading
 import time
 import warnings
+from typing import Union
 
 
 from pprint import pprint
@@ -102,12 +103,37 @@ class EngineCallResponse:
         Returns:
             engine_response_pb2.EngineCallResponse: The Protobuf equivalent of this object.
         """
+        groups = {}
+        group_log_probs = {}
+
+        def to_protobuf_value(v: Union[str, bytes, float, list]) -> _serialization_pb2.Value:
+            """Convert Python values to Protobuf Value messages."""
+            value = _serialization_pb2.Value()
+            if isinstance(v, str):
+                value.string_value = v
+            elif isinstance(v, bytes):
+                value.bytes_value = v
+            elif isinstance(v, float):
+                value.float_value = v
+            elif isinstance(v, list):
+                for item in v:
+                    value.list_value.values.append(to_protobuf_value(item))
+            else:
+                raise TypeError(f"Unsupported type: {type(v)}")
+            return value
+
+        for k, v in self.capture_groups.items():
+            groups[k] = to_protobuf_value(v)
+
+        for k, v in self.capture_group_log_probs.items():
+            group_log_probs[k] = to_protobuf_value(v)
+
         return _serialization_pb2.EngineCallResponse(
             new_bytes=self.new_bytes,
             is_generated=self.is_generated,
             new_bytes_prob=self.new_bytes_prob,
-            capture_groups=self.capture_groups,
-            capture_group_log_probs=self.capture_group_log_probs,
+            capture_groups=groups,
+            capture_group_log_probs=group_log_probs,
             new_token_count=self.new_token_count,
         )
 
@@ -123,12 +149,34 @@ class EngineCallResponse:
     def deserialize(byte_data):
         proto = _serialization_pb2.EngineCallResponse()
         proto.ParseFromString(byte_data)
+
+        def from_protobuf_value(value: _serialization_pb2.Value) -> Union[str, bytes, float, list]:
+            """Convert Protobuf Value message to Python values"""
+            if value.HasField("string_value"):
+                return value.string_value
+            elif value.HasField("bytes_value"):
+                return value.bytes_value
+            elif value.HasField("float_value"):
+                return value.float_value
+            elif value.HasField("list_value"):
+                return [from_protobuf_value(item) for item in value.list_value.values]
+            else:
+                raise ValueError("Protobuf Value message has no recognized field set")
+
+        groups = {}
+        for k, v in proto.capture_groups.items():
+            groups[k] = from_protobuf_value(v)
+
+        group_log_probs = {}
+        for k, v in proto.capture_group_log_probs.items():
+            group_log_probs[k] = from_protobuf_value(v)
+
         return EngineCallResponse(
             new_bytes=proto.new_bytes,
             is_generated=proto.is_generated,
             new_bytes_prob=proto.new_bytes_prob,
-            capture_groups=proto.capture_groups,
-            capture_group_log_probs=proto.capture_group_log_probs,
+            capture_groups=groups,
+            capture_group_log_probs=group_log_probs,
             new_token_count=proto.new_token_count,
         )
 

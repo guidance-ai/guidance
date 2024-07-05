@@ -1,3 +1,5 @@
+import platform
+
 import numpy as np
 import pytest
 
@@ -49,8 +51,11 @@ def test_llama_cpp_select2(llamacpp_model: guidance.models.Model):
     ]
 
 
+@pytest.mark.xfail(
+    condition=platform.system() == "Windows",
+    reason="llama-cpp-python >=0.2.79 appears to have made models non-deterministic on Windows",
+)
 def test_repeat_calls(llamacpp_model: guidance.models.Model):
-    # llama-cpp-python 0.2.79 appears to have made models non-deterministic on Windows
     llama2 = llamacpp_model
     a = []
     lm = llama2 + "How much is 2 + 2? " + gen(name="test", max_tokens=10)
