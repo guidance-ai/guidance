@@ -24,6 +24,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
       - name: GUID Check
         env:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -45,10 +49,6 @@ jobs:
         run: |
            curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.75.0
            echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
       - name: Show GPUs
         run: |
           nvidia-smi
