@@ -32,16 +32,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: 'Az CLI login'
-        uses: azure/login@v1
-        with:
-            client-id: ${{ secrets.AZURE_CLIENT_ID }}
-            tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-            subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      - name: 'Run Azure CLI commands'
-        run: |
-            az account show
-            az group list
       - name: Install Rust
         shell: bash
         run: |
@@ -71,6 +61,16 @@ jobs:
       - name: Check GPU available
         run: |
           python -c "import torch; assert torch.cuda.is_available()"
+      - name: 'Az CLI login'
+        uses: azure/login@v1
+        with:
+            client-id: ${{ secrets.AZURE_CLIENT_ID }}
+            tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+            subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: 'Run Azure CLI commands'
+        run: |
+            az account show
+            az group list
       - name: Test with pytest
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
