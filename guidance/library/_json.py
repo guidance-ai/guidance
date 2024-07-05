@@ -262,7 +262,7 @@ def _process_anyOf(
 
 @guidance(stateless=True)
 def _process_enum(lm, *, options: Sequence[Mapping[str, Any]]):
-    # options will come in as python objects, so we need to convert to (compact) JSON
+    # TODO: can we support a whitespace-flexible version of this?
     all_opts = []
     for opt in options:
         all_opts.append(_to_compact_json(opt))
@@ -322,6 +322,7 @@ def _gen_json(
         )
 
     if Keyword.CONST in json_schema:
+        # TODO: can we support a whitespace-flexible version of this?
         return lm + _to_compact_json(json_schema[Keyword.CONST])
 
     if Keyword.ENUM in json_schema:
@@ -369,6 +370,7 @@ def json(
         Type["pydantic.BaseModel"],
         "pydantic.TypeAdapter",
     ] = None,
+    compact: bool = False,
     temperature: float = 0.0,
     max_tokens: int = 100000000,
 ):
@@ -413,6 +415,10 @@ def json(
             - A JSON schema object. This is a JSON schema string which has been passed to ``json.loads()``
             - A subclass of ``pydantic.BaseModel``
             - An instance of ``pydantic.TypeAdapter``
+
+    compact : bool
+        If True, the generated JSON will be forced to be compact (no whitespace).
+        If False, output will be whitespace-flexible (i.e. decided by the model).
     """
     if isinstance(schema, Mapping):
         # Raises jsonschema.exceptions.SchemaError or ValueError
@@ -433,7 +439,10 @@ def json(
         greedy_grammar(
             name,
             body=_gen_json(json_schema=schema, definitions=definitions),
-            skip_regex=r"[\x20\x0A\x0D\x09]+", # whitespace
+            skip_regex=(
+                None if compact
+                else r"[\x20\x0A\x0D\x09]+"
+            ),
             no_initial_skip=True,
             max_tokens=max_tokens,
         ),
