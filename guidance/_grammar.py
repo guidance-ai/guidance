@@ -938,7 +938,7 @@ class Select(GrammarFunction):
         return out
 
 
-def string(value: Union[str, bytes]) -> Union[Null, Byte, Join]:
+def string(value: Union[str, bytes]) -> Union[Null, Join]:
     if isinstance(value, str):
         b = bytes(value, encoding="utf8")
     elif isinstance(value, bytes):
@@ -947,8 +947,6 @@ def string(value: Union[str, bytes]) -> Union[Null, Byte, Join]:
         raise Exception("Must pass bytes or str to the string() function!")
     if len(value) == 0:
         return Null()
-    elif len(b) == 1:
-        return Byte(b)
     else:
         return Join([Byte(b[i : i + 1]) for i in range(len(b))], name=str(b))
 
