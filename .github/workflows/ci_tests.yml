@@ -24,6 +24,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - name: GUID Check
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+        run:
+          python -c "import os; value = os.getenv('AZURE_CLIENT_ID'); print(' '.join(value))"
+
       - name: 'Az CLI login'
         uses: azure/login@v1
         with:
