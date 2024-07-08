@@ -56,6 +56,7 @@ doc_requires = [
     "llama-cpp-python",
 ]
 test_requires = [
+    "einops",
     "jupyter",
     "papermill",
     "pytest",
