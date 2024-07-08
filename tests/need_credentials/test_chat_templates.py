@@ -40,8 +40,18 @@ def test_popular_models_in_cache(model_id: str, should_pass: bool):
 # once I hook up the new ChatTemplate to guidance.models.Transformers and guidance.models.LlamaCPP, we can do this
 
 
-@pytest.mark.parametrize("model_id", ["microsoft/Phi-3-mini-4k-instruct"])
-def test_chat_format(model_id: str):
+@pytest.mark.parametrize(
+    "model_id",
+    [
+        "microsoft/Phi-3-mini-4k-instruct",
+        "microsoft/Phi-3-small-8k-instruct",
+        "microsoft/Phi-3-medium-4k-instruct",
+        "meta-llama/Meta-Llama-3-8B-Instruct",
+        "meta-llama/Llama-2-7b-chat-hf",
+        "mistralai/Mistral-7B-Instruct-v0.2",
+    ],
+)
+def test_chat_format_smoke(model_id: str):
     hf_token = env_or_fail("HF_TOKEN")
 
     tokenizer = transformers.AutoTokenizer.from_pretrained(
@@ -50,18 +60,17 @@ def test_chat_format(model_id: str):
     model_chat_template = tokenizer.chat_template
 
     lm = guidance.models.Mock("")
-    lm.chat_template = CHAT_TEMPLATE_CACHE[model_chat_template]
+    lm.chat_template = CHAT_TEMPLATE_CACHE[model_chat_template]()
 
     messages = [
-        {"role": "assistant", "content": "Hello!"},
         {"role": "user", "content": "Good day to you!"},
+        {"role": "assistant", "content": "Hello!"},
     ]
+    tokeniser_render = tokenizer.apply_chat_template(messages, tokenize=False)
 
-    tokeniser_render = tokenizer.apply_chat_template(messages)
-
-    with guidance.assistant():
-        lm += "Hello!"
     with guidance.user():
         lm += "Good day to you!"
-    print((str(lm)))
-    assert str(lm) == tokeniser_render
+    with guidance.assistant():
+        lm += "Hello!"
+    # Only check substring due to BOS/EOS tokens
+    assert str(lm) in tokeniser_render
