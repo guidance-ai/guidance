@@ -7,22 +7,23 @@ from ..utils import env_or_fail
 
 
 @pytest.mark.parametrize(
-    "model_info",
+    ("model_id", "should_pass"),
     [
         ("microsoft/Phi-3-mini-4k-instruct", True),  # Phi-3-Mini
         ("microsoft/Phi-3-small-8k-instruct", True),  # Phi-3-Small
+        ("microsoft/Phi-3-medium-4k-instruct", True),  # Phi-3-Medium
         ("meta-llama/Meta-Llama-3-8B-Instruct", True),  # Llama-3
         ("meta-llama/Llama-2-7b-chat-hf", True),  # Llama-2
         ("mistralai/Mistral-7B-Instruct-v0.2", True),  # Mistral-7B-Instruct-v0.2
         ("HuggingFaceH4/zephyr-7b-beta", False),  # Have a test for model not in cache
     ],
 )
-def test_popular_models_in_cache(model_info):
+def test_popular_models_in_cache(model_id: str, should_pass: bool):
     # This test simply checks to make sure the chat_templates haven't changed, and that they're still in our cache.
     # If this fails, the models have had their templates updated, and we need to fix the cache manually.
     hf_token = env_or_fail("HF_TOKEN")
 
-    model_id, should_pass = model_info
+    # model_id, should_pass = model_info
 
     tokenizer = transformers.AutoTokenizer.from_pretrained(
         model_id, token=hf_token, trust_remote_code=True
