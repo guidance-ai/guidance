@@ -74,3 +74,39 @@ def test_chat_format_smoke(model_id: str):
         lm += "Hello!"
     # Only check substring due to BOS/EOS tokens
     assert str(lm) in tokeniser_render
+
+
+@pytest.mark.parametrize(
+    "model_id",
+    [
+        "microsoft/Phi-3-mini-4k-instruct",
+        "meta-llama/Meta-Llama-3-8B-Instruct",
+        "meta-llama/Llama-2-7b-chat-hf",
+    ],
+)
+def test_chat_format_smoke_with_system(model_id: str):
+    hf_token = env_or_fail("HF_TOKEN")
+
+    tokenizer = transformers.AutoTokenizer.from_pretrained(
+        model_id, token=hf_token, trust_remote_code=True
+    )
+    model_chat_template = tokenizer.chat_template
+
+    lm = guidance.models.Mock("")
+    lm.chat_template = CHAT_TEMPLATE_CACHE[model_chat_template]()
+
+    messages = [
+        {"role": "system", "content": "You are an LLM"},
+        {"role": "user", "content": "Good day to you!"},
+        {"role": "assistant", "content": "Hello!"},
+    ]
+    tokeniser_render = tokenizer.apply_chat_template(messages, tokenize=False)
+
+    with guidance.system():
+        lm += "You are an LLM"
+    with guidance.user():
+        lm += "Good day to you!"
+    with guidance.assistant():
+        lm += "Hello!"
+    # Only check substring due to BOS/EOS tokens
+    assert str(lm) in tokeniser_render
