@@ -166,10 +166,10 @@ CHAT_TEMPLATE_CACHE[llama3_template] = Llama3ChatTemplate
 # @@@@ Phi-3 @@@@
 # --------------------------------------------------
 # [05/08/24] https://huggingface.co/microsoft/Phi-3-mini-4k-instruct/blob/main/tokenizer_config.json#L119
-phi3_template = "{% for message in messages %}{% if message['role'] == 'system' %}{{'<|system|>\n' + message['content'] + '<|end|>\n'}}{% elif message['role'] == 'user' %}{{'<|user|>\n' + message['content'] + '<|end|>\n'}}{% elif message['role'] == 'assistant' %}{{'<|assistant|>\n' + message['content'] + '<|end|>\n'}}{% endif %}{% endfor %}{% if add_generation_prompt %}{{ '<|assistant|>\n' }}{% else %}{{ eos_token }}{% endif %}"
-class Phi3ChatTemplate(ChatTemplate):
+phi3_mini_template = "{% for message in messages %}{% if message['role'] == 'system' %}{{'<|system|>\n' + message['content'] + '<|end|>\n'}}{% elif message['role'] == 'user' %}{{'<|user|>\n' + message['content'] + '<|end|>\n'}}{% elif message['role'] == 'assistant' %}{{'<|assistant|>\n' + message['content'] + '<|end|>\n'}}{% endif %}{% endfor %}{% if add_generation_prompt %}{{ '<|assistant|>\n' }}{% else %}{{ eos_token }}{% endif %}"
+class Phi3MiniChatTemplate(ChatTemplate):
     # available_roles = ["user", "assistant"]
-    template_str = phi3_template
+    template_str = phi3_mini_template
 
     def get_role_start(self, role_name):
         if role_name == "user":
@@ -184,8 +184,26 @@ class Phi3ChatTemplate(ChatTemplate):
     def get_role_end(self, role_name=None):
         return "<|end|>"
 
-CHAT_TEMPLATE_CACHE[phi3_template] = Phi3ChatTemplate
+CHAT_TEMPLATE_CACHE[phi3_mini_template] = Phi3MiniChatTemplate
 
+# https://huggingface.co/microsoft/Phi-3-small-8k-instruct/blob/main/tokenizer_config.json
+phi3_small_template = "{{ bos_token }}{% for message in messages %}{% if (message['role'] == 'user') %}{{'<|user|>' + '\n' + message['content'] + '<|end|>' + '\n' + '<|assistant|>' + '\n'}}{% elif (message['role'] == 'assistant') %}{{message['content'] + '<|end|>' + '\n'}}{% endif %}{% endfor %}"
+class Phi3SmallChatTemplate(ChatTemplate):
+    # available_roles = ["user", "assistant"]
+    template_str = phi3_small_template
+
+    def get_role_start(self, role_name):
+        if role_name == "user":
+            return "<|user|>"
+        elif role_name == "assistant":
+            return "<|assistant|>"
+        else:
+            raise UnsupportedRoleException(role_name, self)
+        
+    def get_role_end(self, role_name=None):
+        return "<|end|>"
+
+CHAT_TEMPLATE_CACHE[phi3_small_template] = Phi3SmallChatTemplate
 
 # --------------------------------------------------
 # @@@@ Mistral-7B-Instruct-v0.2 @@@@

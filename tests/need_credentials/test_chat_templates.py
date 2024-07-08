@@ -5,14 +5,16 @@ import transformers
 
 from ..utils import env_or_fail
 
+
 @pytest.mark.parametrize(
     "model_info",
     [
-        ("microsoft/Phi-3-mini-4k-instruct", True), # Phi-3
-        ("meta-llama/Meta-Llama-3-8B-Instruct", True), # Llama-3
-        ("meta-llama/Llama-2-7b-chat-hf", True), # Llama-2
-        ("mistralai/Mistral-7B-Instruct-v0.2", True), # Mistral-7B-Instruct-v0.2
-        ("HuggingFaceH4/zephyr-7b-beta", False) # Have a test for model not in cache
+        ("microsoft/Phi-3-mini-4k-instruct", True),  # Phi-3-Mini
+        ("microsoft/Phi-3-small-8k-instruct", True),  # Phi-3-Small
+        ("meta-llama/Meta-Llama-3-8B-Instruct", True),  # Llama-3
+        ("meta-llama/Llama-2-7b-chat-hf", True),  # Llama-2
+        ("mistralai/Mistral-7B-Instruct-v0.2", True),  # Mistral-7B-Instruct-v0.2
+        ("HuggingFaceH4/zephyr-7b-beta", False),  # Have a test for model not in cache
     ],
 )
 def test_popular_models_in_cache(model_info):
@@ -22,7 +24,9 @@ def test_popular_models_in_cache(model_info):
 
     model_id, should_pass = model_info
 
-    tokenizer = transformers.AutoTokenizer.from_pretrained(model_id, token=hf_token)
+    tokenizer = transformers.AutoTokenizer.from_pretrained(
+        model_id, token=hf_token, trust_remote_code=True
+    )
     model_chat_template = tokenizer.chat_template
     if should_pass:
         assert model_chat_template in CHAT_TEMPLATE_CACHE
@@ -30,9 +34,6 @@ def test_popular_models_in_cache(model_info):
         # TODO: Expand this test to verify that a warning gets thrown when a model isn't in the cache and we have to default to chatML syntax
         assert model_chat_template not in CHAT_TEMPLATE_CACHE
 
-    
 
 # TODO: Expand testing to verify that tokenizer.apply_chat_template() produces same results as our ChatTemplate subclasses
 # once I hook up the new ChatTemplate to guidance.models.Transformers and guidance.models.LlamaCPP, we can do this
-
-
