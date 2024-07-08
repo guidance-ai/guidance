@@ -1,7 +1,9 @@
 import pytest
+import transformers
+
+import guidance
 
 from guidance.chat import CHAT_TEMPLATE_CACHE
-import transformers
 
 from ..utils import env_or_fail
 
@@ -23,8 +25,6 @@ def test_popular_models_in_cache(model_id: str, should_pass: bool):
     # If this fails, the models have had their templates updated, and we need to fix the cache manually.
     hf_token = env_or_fail("HF_TOKEN")
 
-    # model_id, should_pass = model_info
-
     tokenizer = transformers.AutoTokenizer.from_pretrained(
         model_id, token=hf_token, trust_remote_code=True
     )
@@ -38,3 +38,30 @@ def test_popular_models_in_cache(model_id: str, should_pass: bool):
 
 # TODO: Expand testing to verify that tokenizer.apply_chat_template() produces same results as our ChatTemplate subclasses
 # once I hook up the new ChatTemplate to guidance.models.Transformers and guidance.models.LlamaCPP, we can do this
+
+
+@pytest.mark.parametrize("model_id", ["microsoft/Phi-3-mini-4k-instruct"])
+def test_chat_format(model_id: str):
+    hf_token = env_or_fail("HF_TOKEN")
+
+    tokenizer = transformers.AutoTokenizer.from_pretrained(
+        model_id, token=hf_token, trust_remote_code=True
+    )
+    model_chat_template = tokenizer.chat_template
+
+    lm = guidance.models.Mock("")
+    lm.chat_template = CHAT_TEMPLATE_CACHE[model_chat_template]
+
+    messages = [
+        {"role": "assistant", "content": "Hello!"},
+        {"role": "user", "content": "Good day to you!"},
+    ]
+
+    tokeniser_render = tokenizer.apply_chat_template(messages)
+
+    with guidance.assistant():
+        lm += "Hello!"
+    with guidance.user():
+        lm += "Good day to you!"
+    print((str(lm)))
+    assert str(lm) == tokeniser_render
