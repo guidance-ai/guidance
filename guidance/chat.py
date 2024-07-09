@@ -130,7 +130,7 @@ class Llama2ChatTemplate(ChatTemplate):
         if role_name == "system":
             return "[INST] <<SYS>>\n"
         elif role_name == "user":
-            return "<s>[INST]"
+            return "<s>[INST] "
         elif role_name == "assistant":
             return " "
         else:
