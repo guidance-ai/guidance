@@ -223,15 +223,12 @@ class Engine:
         """Base implementation for getting the next token from the model which calls get_logits and sample_with_temperature.
         Subclasses may override this method, e.g. if they use external APIs that do not support getting logits directly.
         """
-        # TODO: get rid of extra args of get_logits
-        logits = self.get_logits(token_ids, None, None)
+        logits = self.get_logits(token_ids)
         token = self.sample_with_temperature(logits, mask, temperature)
         return token
 
-    def get_logits(self, token_ids, forced_bytes, current_temp):
-        """A fake method designed to be overriden by subclasses."""
-        # pretend to extend the KV cache and update the log probs
-        return np.randn(len(self.tokenizer.tokens))
+    def get_logits(self, token_ids: list[int]) -> np.ndarray:
+        raise NotImplementedError
 
     def sample_with_temperature(self, logits: np.ndarray, mask: np.ndarray, temperature: float):
         logits = logits + mask

@@ -35,7 +35,7 @@ class MockEngine(Engine):
         # seed the random number generator
         self._rand_generator = np.random.default_rng(seed=42)
 
-    def get_logits(self, token_ids, forced_bytes, current_temp):
+    def get_logits(self, token_ids):
         """Pretends to compute the logits for the given token state."""
         # build the byte strings
         byte_string = b"".join(self.tokenizer.tokens[i] for i in token_ids)
