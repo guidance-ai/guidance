@@ -266,12 +266,7 @@ class GrammarlessEngine(Engine):
             raise ValueError("token_ids must contain some tokens.")
 
         # compute the prompt bytes
-        # TODO: we need to get the forced bytes from the mask -- should streamline this
-        ok_tokens = np.where(mask)[0]
-        forced_bytes = os.path.commonprefix([self.tokenizer.tokens[i] for i in ok_tokens])
-
-        whole_token_prompt = self.tokenizer.decode(token_ids)
-        prompt = whole_token_prompt + forced_bytes
+        prompt = self.tokenizer.decode(token_ids)
         logger.debug(f"Grammarless.get_logits: {prompt=}")
 
         self._last_call = time.time()
@@ -291,28 +286,11 @@ class GrammarlessEngine(Engine):
             # try and get the next token id
             elif self._data.startswith(prompt):
                 logger.debug(f"Grammarless.get_logits: Getting next token id")
-                token_id = self._get_next_token(len(prompt) - len(forced_bytes), mask)
+                token_id = self._get_next_token(len(prompt), mask)
                 logger.debug(f"Grammarless.get_logits: {token_id=}")
                 if token_id is not None:
-
-                    # if we have a non-zero sampling temperature we can't reuse bytes
-                    new_used_len = len(whole_token_prompt) + len(
-                        self.tokenizer.tokens[token_id]
-                    )
-                    logger.debug(f"Grammarless.get_logits: {new_used_len=}")
-                    if temperature > 0 and self._used_bytes_len >= new_used_len:
-                        logger.debug(f"Grammarless.get_logits: Need to restart stream")
-                        token_id = None
-                        self._start_new_stream(prompt, temperature)
-                        continue
-
-                    # ...otherwise we have found the token id we want to emit
-                    else:
-                        logger.debug(f"Grammarless.get_logits: Found token id")
-                        self._used_bytes_len = len(whole_token_prompt) + len(
-                            self.tokenizer.tokens[token_id]
-                        )
-                        break
+                    logger.debug(f"Grammarless.get_logits: Found token id")
+                    break
 
             # restart if extending our data will never lead to matching our prompt
             elif not self._data.startswith(prompt) and len(self._data) >= len(
