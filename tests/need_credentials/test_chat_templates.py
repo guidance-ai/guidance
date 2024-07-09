@@ -112,11 +112,29 @@ def test_chat_format_smoke_with_system(model_id: str):
     assert str(lm) in tokeniser_render
 
 
-
 @pytest.mark.parametrize(("model_id"), ["HuggingFaceH4/zephyr-7b-beta"])
 def test_auto_chat_template(model_id):
     hf_token = env_or_fail("HF_TOKEN")
     hf_tokenizer = transformers.AutoTokenizer.from_pretrained(
         model_id, token=hf_token, trust_remote_code=True
     )
-    auto_chat_template(hf_tokenizer)
+    my_ct = auto_chat_template(hf_tokenizer)
+
+    lm = guidance.models.Mock("")
+    lm.chat_template = my_ct
+
+    messages = [
+        {"role": "system", "content": "You are an LLM"},
+        {"role": "user", "content": "Good day to you!"},
+        {"role": "assistant", "content": "Salutations!"},
+    ]
+    tokeniser_render = hf_tokenizer.apply_chat_template(messages, tokenize=False)
+
+    with guidance.system():
+        lm += "You are an LLM"
+    with guidance.user():
+        lm += "Good day to you!"
+    with guidance.assistant():
+        lm += "Salutations!"
+    # Only check substring due to BOS/EOS tokens
+    assert str(lm) in tokeniser_render
