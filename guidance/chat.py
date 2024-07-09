@@ -1,4 +1,5 @@
 import inspect
+import re
 import warnings
 
 from typing import Dict, Union
@@ -263,3 +264,28 @@ class Mistral7BInstructChatTemplate(ChatTemplate):
 
 
 CHAT_TEMPLATE_CACHE[mistral_7b_instruct_template] = Mistral7BInstructChatTemplate
+
+
+def auto_chat_template(
+    transformers_tokenizer: Union[
+        "transformers_package.PreTrainedTokenizer",
+        "transformers_package.PreTrainedTokenizerFast",
+    ]
+):
+    messages = [
+        {"role": "system", "content": "AAAA"},
+        {"role": "user", "content": "BBBB"},
+        {"role": "assistant", "content": "CCCC"},
+    ]
+
+    system_0 = transformers_tokenizer.apply_chat_template(messages[:1], tokenize=False)
+    assistant_0 = transformers_tokenizer.apply_chat_template(messages[:2], tokenize=False)
+    user_0 = transformers_tokenizer.apply_chat_template(messages[:3], tokenize=False)
+
+    re_system = "(.*)AAAA(.*)"
+    system_result = re.search(pattern=re_system, string=system_0, flags=re.MULTILINE)
+    print(f"{system_result=}")
+    
+    raise NotImplementedError("TBD")
+
+

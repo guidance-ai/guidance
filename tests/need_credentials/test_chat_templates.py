@@ -1,6 +1,6 @@
 import pytest
 
-from guidance.chat import CHAT_TEMPLATE_CACHE
+from guidance.chat import CHAT_TEMPLATE_CACHE, auto_chat_template
 import transformers
 
 from ..utils import env_or_fail
@@ -38,3 +38,12 @@ def test_popular_models_in_cache(model_id: str, should_pass: bool):
 
 # TODO: Expand testing to verify that tokenizer.apply_chat_template() produces same results as our ChatTemplate subclasses
 # once I hook up the new ChatTemplate to guidance.models.Transformers and guidance.models.LlamaCPP, we can do this
+
+
+@pytest.mark.parametrize(("model_id"), ["HuggingFaceH4/zephyr-7b-beta"])
+def test_auto_chat_template(model_id):
+    hf_token = env_or_fail("HF_TOKEN")
+    hf_tokenizer = transformers.AutoTokenizer.from_pretrained(
+        model_id, token=hf_token, trust_remote_code=True
+    )
+    auto_chat_template(hf_tokenizer)
