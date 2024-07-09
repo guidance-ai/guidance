@@ -168,6 +168,11 @@ class GrammarlessEngine(Engine):
         # build the Engine
         super().__init__(tokenizer=tokenizer, compute_log_probs=compute_log_probs)
 
+        # build a trie for the tokens
+        self._token_trie = ByteTrie(
+            byte_strings=self.tokenizer.tokens, values=range(len(self.tokenizer.tokens))
+        )
+
     def _generator(self, prompt: bytes, temperature: float):
         raise NotImplementedError("Child classes must implement _generator()")
 
@@ -438,11 +443,7 @@ class GrammarlessEngine(Engine):
 
     def _get_next_token(self, pos, mask, allow_early_stop=False):
         data = self._data
-        # trie = self._token_trie
-        # TODO: avoid building a trie every time!
-        ok_token_ids = np.where(mask)[0]
-        ok_tokens = [self.tokenizer.tokens[i] for i in ok_token_ids]
-        trie = ByteTrie(byte_strings=ok_tokens, values=ok_token_ids)
+        trie = self._token_trie
         token_id = None
         while True:
 
@@ -455,7 +456,7 @@ class GrammarlessEngine(Engine):
 
             # try and walk down the trie
             next_byte = data[pos : pos + 1]
-            if trie.has_child(next_byte):
+            if trie.has_child(next_byte) and mask[trie.child(next_byte).value]:
                 trie = trie.child(next_byte)
                 pos += 1
                 if trie.value >= 0:
