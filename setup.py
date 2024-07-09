@@ -57,6 +57,7 @@ doc_requires = [
 ]
 test_requires = [
     "einops",
+    "triton",
     "jupyter",
     "papermill",
     "pytest",
