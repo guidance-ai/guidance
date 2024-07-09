@@ -3,6 +3,13 @@ import warnings
 
 from typing import Dict, Mapping, Sequence, Union
 
+try:
+    import transformers as transformers_package
+
+    has_transformers = True
+except ModuleNotFoundError:
+    has_transformers = False
+
 
 class ChatTemplate:
     """Contains template for all chat and instruct tuned models."""
