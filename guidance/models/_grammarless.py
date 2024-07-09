@@ -1,3 +1,4 @@
+import os
 import logging
 import queue
 import threading
@@ -11,6 +12,8 @@ import tiktoken
 from ..chat import ChatMLTemplate
 from ._model import ConstraintException, Engine, Model
 from ._tokenizer import Tokenizer
+
+from .._cpp import ByteTrie
 
 logger = logging.getLogger(__name__)
 
@@ -248,22 +251,20 @@ class GrammarlessEngine(Engine):
         self._data = new_data
         self._last_stream_start = self._data
 
-    def get_logits(
-        self, token_ids: Sequence[int], forced_bytes: bytes, current_temp: float
-    ):
-        """Computes the logits for the given token state.
-
-        This overrides a method from the Local class that is used to get
-        inference results from the model.
-        """
+    def get_next_token(
+        self, token_ids: list[int], mask: np.ndarray, temperature: float) -> int:
 
         logger.debug(
-            f"Start Grammarless.get_logits({token_ids=}, {forced_bytes=}, {current_temp=})"
+            f"Start Grammarless.get_logits({token_ids=}, {mask=}, {temperature=})"
         )
         if len(token_ids) == 0:
             raise ValueError("token_ids must contain some tokens.")
 
         # compute the prompt bytes
+        # TODO: we need to get the forced bytes from the mask -- should streamline this
+        ok_tokens = np.where(mask)[0]
+        forced_bytes = os.path.commonprefix([self.tokenizer.tokens[i] for i in ok_tokens])
+
         whole_token_prompt = self.tokenizer.decode(token_ids)
         prompt = whole_token_prompt + forced_bytes
         logger.debug(f"Grammarless.get_logits: {prompt=}")
@@ -277,15 +278,15 @@ class GrammarlessEngine(Engine):
             logger.debug(f"Grammarless.get_logits: Starting main loop")
 
             # if the generation temperature changes we have to restart
-            if self._current_temp != current_temp:
+            if self._current_temp != temperature:
                 logger.debug(f"Grammarless.get_logits: Starting new stream")
-                self._start_new_stream(prompt, current_temp)
+                self._start_new_stream(prompt, temperature)
                 continue
 
             # try and get the next token id
             elif self._data.startswith(prompt):
                 logger.debug(f"Grammarless.get_logits: Getting next token id")
-                token_id = self._get_next_token(len(prompt) - len(forced_bytes))
+                token_id = self._get_next_token(len(prompt) - len(forced_bytes), mask)
                 logger.debug(f"Grammarless.get_logits: {token_id=}")
                 if token_id is not None:
 
@@ -294,10 +295,10 @@ class GrammarlessEngine(Engine):
                         self.tokenizer.tokens[token_id]
                     )
                     logger.debug(f"Grammarless.get_logits: {new_used_len=}")
-                    if current_temp > 0 and self._used_bytes_len >= new_used_len:
+                    if temperature > 0 and self._used_bytes_len >= new_used_len:
                         logger.debug(f"Grammarless.get_logits: Need to restart stream")
                         token_id = None
-                        self._start_new_stream(prompt, current_temp)
+                        self._start_new_stream(prompt, temperature)
                         continue
 
                     # ...otherwise we have found the token id we want to emit
@@ -363,7 +364,7 @@ class GrammarlessEngine(Engine):
                     f"restarting a stream because the data we have does not match the ids. We have {str(self._data)} but the prompt is {str(prompt)}"
                 )
                 restarted = True
-                self._start_new_stream(prompt, current_temp)
+                self._start_new_stream(prompt, temperature)
 
             # extend our data with a chunk from the model stream
             if not self._data_queue.empty():
@@ -374,7 +375,7 @@ class GrammarlessEngine(Engine):
 
                 # if we are at the end of the generation then we try again allowing for early token stopping
                 if len(new_bytes) == 0:
-                    token_id = self._get_next_token(len(prompt), allow_early_stop=True)
+                    token_id = self._get_next_token(len(prompt), mask, allow_early_stop=True)
                     if token_id is not None:
                         break
                 self._data += new_bytes
@@ -385,7 +386,7 @@ class GrammarlessEngine(Engine):
                     "starting a new stream because there is no data to read and no stream running..."
                 )
                 restarted = True
-                self._start_new_stream(prompt, current_temp)
+                self._start_new_stream(prompt, temperature)
 
             # we wait for the running stream to put something in the queue
             else:
@@ -400,20 +401,7 @@ class GrammarlessEngine(Engine):
                 # reset out call time to allow the data stream to time out if we happen to be done with it
                 self._last_call = time.time()
 
-        # # if we don't have the next byte of data yet then we wait for it (from the streaming thread)
-        # if len(self._data) == len(prompt):
-        #     self._data += self._data_queue.get()
-
-        # token_id = self._get_next_token(len(prompt))
-
-        # set the logits to the next byte the model picked
-        logger.debug(f"Grammarless.get_logits: Creating logits for {token_id=}")
-        logits = np.ones(len(self.tokenizer.tokens)) * -np.inf
-        logits[token_id] = 100
-        if token_id != self.tokenizer.eos_token:
-            # we always allow the model to use EOS if that is the only way forward
-            logits[self.tokenizer.eos_token_id] = 0
-        return logits
+        return token_id
 
     def _report_failed_match(self, prompt: bytes):
         logger.debug(f"_report_failed_match: {prompt=}")
@@ -448,9 +436,13 @@ class GrammarlessEngine(Engine):
             data=data,
         )
 
-    def _get_next_token(self, pos, allow_early_stop=False):
+    def _get_next_token(self, pos, mask, allow_early_stop=False):
         data = self._data
-        trie = self._token_trie
+        # trie = self._token_trie
+        # TODO: avoid building a trie every time!
+        ok_token_ids = np.where(mask)[0]
+        ok_tokens = [self.tokenizer.tokens[i] for i in ok_token_ids]
+        trie = ByteTrie(byte_strings=ok_tokens, values=ok_token_ids)
         token_id = None
         while True:
 
@@ -469,6 +461,9 @@ class GrammarlessEngine(Engine):
                 if trie.value >= 0:
                     token_id = trie.value
             else:
+                if token_id is None:
+                    # we always allow the model to use EOS if that is the only way forward
+                    return self.tokenizer.eos_token_id
                 return token_id  # this is the longest greedy token match we can make
 
 
