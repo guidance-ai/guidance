@@ -129,9 +129,6 @@ class Engine:
 
     def __init__(self, tokenizer: Tokenizer, compute_log_probs=False):
         self.tokenizer = tokenizer
-        self.ll_tokenizer = llguidance.LLTokenizer(
-            llguidance.TokenizerWrapper(tokenizer)
-        )
         self.compute_log_probs = compute_log_probs
         self.metrics = GuidanceEngineMetrics()
 
