@@ -70,7 +70,7 @@ def test_azure_guidance_dolphins(azure_guidance_model: guidance.models.Model):
     lm = azure_guidance_model
     # Yes|No has an implicit forced EoS at the end, which should not be actually generated
     lm += "Q: Are dolphins fish?\nA: " + gen("dolphins", regex="Yes|No", max_tokens=10) + \
-        "\nQ: Are sharks fish?\nA: " + gen("sharks", regex="Yes|No", max_tokens=10)
+        "\nQ: Are salmons fish?\nA: " + gen("sharks", regex="Yes|No", max_tokens=10)
     assert lm["dolphins"] == "No"
     assert lm["sharks"] == "Yes"
 
