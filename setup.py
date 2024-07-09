@@ -25,7 +25,7 @@ install_requires = [
     "numpy",
     "ordered_set",
     "platformdirs",
-    "protobuf",
+    "protobuf==4.25.3", # google-cloud-aiplatform (vertexai) requires this version
     "pydantic",
     "requests",
     "tiktoken>=0.3",
