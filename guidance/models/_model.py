@@ -216,7 +216,7 @@ class Engine:
                 new_token_count=response.new_token_count,
             )
 
-    def get_next_token(self, token_ids: list[int], mask: np.ndarray, temperature: float):
+    def get_next_token(self, token_ids: list[int], mask: np.ndarray, temperature: float) -> int:
         """Base implementation for getting the next token from the model which calls get_logits and sample_with_temperature.
         Subclasses may override this method, e.g. if they use external APIs that do not support getting logits directly.
         """
@@ -227,7 +227,7 @@ class Engine:
     def get_logits(self, token_ids: list[int]) -> np.ndarray:
         raise NotImplementedError
 
-    def sample_with_temperature(self, logits: np.ndarray, mask: np.ndarray, temperature: float):
+    def sample_with_temperature(self, logits: np.ndarray, mask: np.ndarray, temperature: float) -> int:
         logits = logits + mask
         if temperature < 0.0001:
             return int(np.argmax(logits))
