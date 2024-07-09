@@ -203,9 +203,11 @@ class Engine:
             gen_data, response = parser.advance()
 
             if gen_data is not None:
-                # TODO: get rid of extra args of get_logits
-                logits = self.get_logits(gen_data.tokens, None, None)
-                tok = self.sample_with_temperature(logits, gen_data.mask, gen_data.temperature)
+                tok = self.get_next_token(
+                    token_ids=gen_data.tokens,
+                    mask=gen_data.mask,
+                    temperature=gen_data.temperature
+                )
                 parser.consume_token(tok)
 
             yield EngineCallResponse(
@@ -216,6 +218,15 @@ class Engine:
                 capture_group_log_probs=response.capture_group_log_probs,
                 new_token_count=response.new_token_count,
             )
+
+    def get_next_token(self, token_ids: list[int], mask: np.ndarray, temperature: float):
+        """Base implementation for getting the next token from the model which calls get_logits and sample_with_temperature.
+        Subclasses may override this method, e.g. if they use external APIs that do not support getting logits directly.
+        """
+        # TODO: get rid of extra args of get_logits
+        logits = self.get_logits(token_ids, None, None)
+        token = self.sample_with_temperature(logits, mask, temperature)
+        return token
 
     def get_logits(self, token_ids, forced_bytes, current_temp):
         """A fake method designed to be overriden by subclasses."""
