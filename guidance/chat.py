@@ -1,5 +1,4 @@
 import inspect
-import re
 import warnings
 
 from typing import Dict, Mapping, Sequence, Union
