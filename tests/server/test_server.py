@@ -15,7 +15,7 @@ from guidance.library._json import _to_compact_json
 # has to start up and get ready to
 # respond to requests. Just waiting is
 # not ideal, but is the simplest option
-PROCESS_DELAY_SECS = 40
+PROCESS_DELAY_SECS = 90
 
 
 def server_process(*, mock_string: Union[str, List[str]] = ""):
@@ -140,3 +140,12 @@ def test_remote_gen_json(target_obj):
         print(f"Received object: {json.dumps(my_obj, indent=4)}")
         validate(my_obj, schema_obj)
         assert my_obj == target_obj
+
+
+def test_remote_list_append():
+    with ServerContext(mock_string=""):
+        lm = models.Model("http://localhost:8392", api_key="SDFSDF")
+        for _ in range(3):
+            lm += gen("my_list", list_append=True, stop="a") + "a"
+        assert isinstance(lm["my_list"], list)
+        assert len(lm["my_list"]) == 3
