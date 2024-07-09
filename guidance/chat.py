@@ -2,7 +2,7 @@ import inspect
 import re
 import warnings
 
-from typing import Dict, Union
+from typing import Dict, Mapping, Sequence, Union
 
 
 class ChatTemplate:
@@ -266,6 +266,11 @@ class Mistral7BInstructChatTemplate(ChatTemplate):
 CHAT_TEMPLATE_CACHE[mistral_7b_instruct_template] = Mistral7BInstructChatTemplate
 
 
+class GeneralChatTemplate(ChatTemplate):
+    def __init__(self, role_dict: Mapping[str, Sequence[str]]):
+        self._role_dict = role_dict
+
+
 def auto_chat_template(
     transformers_tokenizer: Union[
         "transformers_package.PreTrainedTokenizer",
@@ -279,13 +284,17 @@ def auto_chat_template(
     ]
 
     system_0 = transformers_tokenizer.apply_chat_template(messages[:1], tokenize=False)
-    assistant_0 = transformers_tokenizer.apply_chat_template(messages[:2], tokenize=False)
-    user_0 = transformers_tokenizer.apply_chat_template(messages[:3], tokenize=False)
+    user_0 = transformers_tokenizer.apply_chat_template(messages[:2], tokenize=False)
+    assistant_0 = transformers_tokenizer.apply_chat_template(messages[:3], tokenize=False)
 
-    re_system = "(.*)AAAA(.*)"
-    system_result = re.search(pattern=re_system, string=system_0, flags=re.MULTILINE)
-    print(f"{system_result=}")
-    
+    system_parts = system_0.split("AAAA")
+
+    user_substr = user_0[len(system_0) :]
+    user_parts = user_substr.split("BBBB")
+    print(f"{user_parts=}")
+
+    assistant_substr = assistant_0[len(user_0) :]
+    assistant_parts = assistant_substr.split("CCCC")
+    print(f"{assistant_parts=}")
+
     raise NotImplementedError("TBD")
-
-
