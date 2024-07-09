@@ -23,7 +23,7 @@ def test_azure_guidance_fill_in_json(azure_guidance_model: guidance.models.Model
     @guidance(stateless=True, dedent=False)
     def character_maker(lm, id, description, valid_weapons):
         lm += f"""\
-        The following is a character profile for an RPG game in JSON format.
+        The following is a short character profile for an RPG game in JSON format.
         ```json
         {{
             "id": "{id}",
