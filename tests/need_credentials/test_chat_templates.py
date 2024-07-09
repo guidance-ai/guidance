@@ -83,8 +83,9 @@ def test_chat_format_smoke(model_id: str):
         "meta-llama/Meta-Llama-3-8B-Instruct",
         pytest.param(
             "meta-llama/Llama-2-7b-chat-hf",
-            marks=pytest.xfail(
-                reason="Handling of system prompt highly constrained; does not work well with context blocks"
+            marks=pytest.mark.xfail(
+                reason="Handling of system prompt highly constrained; does not work well with context blocks",
+                raises=AssertionError,
             ),
         ),
     ],
