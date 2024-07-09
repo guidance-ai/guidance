@@ -149,7 +149,7 @@ class Llama2ChatTemplate(ChatTemplate):
         elif role_name == "user":
             return " [/INST]"
         elif role_name == "assistant":
-            return "</s>"
+            return " </s>"
         else:
             raise UnsupportedRoleException(role_name, self)
 
