@@ -141,19 +141,19 @@ class Engine:
     def reset_metrics(self):
         self.metrics = GuidanceEngineMetrics()
 
-    def start(self, parser, grammar, ensure_bos_token=True):
+    def start(self, prompt, grammar, ensure_bos_token=True) -> LLParser:
         """Start processing parser state executed through the grammar.
 
         Parameters
         ----------
-        parser : str or Parser
+        prompt : str or Parser
             This is represents the current state of a guidance parser that will be extended
             using the passed grammar. If a string is given then we assume the previous parser
             state is just a fixed string prompt, if a full Parser is given then we extend that
             parser by appending the new grammar to the parser's current grammar and then
             inferencing the model. (TODO: implement full parser extension support)
         grammar: Grammar
-            This is the grammar we are extending the parser with.
+            This is the grammar we are extending the prompt with.
         """
         # def __call__(self, grammar, max_tokens=1000000, n=1, top_p=1, temperature=0.0, ensure_bos_token=True):
         # assert n == 1, "Still need to add support for n > 1!"
@@ -164,74 +164,58 @@ class Engine:
         )
 
         # right now we only support a text/bytes prompt parser state, so we extract that
-        if isinstance(parser, bytes):
-            prompt = parser
-        elif isinstance(parser, str):
-            prompt = bytes(parser, encoding="utf8")
-        elif isinstance(parser, Parser):
+        if isinstance(prompt, bytes):
+            prompt = prompt
+        elif isinstance(prompt, str):
+            prompt = bytes(prompt, encoding="utf8")
+        elif isinstance(prompt, Parser):
             raise NotImplementedError(
                 "Still need to implement support for extending a full Parser state."
             )
         else:
-            raise Exception("The passed parser is of an unknown type!")
+            raise Exception("The passed prompt is of an unknown type!")
 
-        self._parser = LLParser(
+        return LLParser(
             grammar=grammar,
             tokenizer=self.tokenizer,
             prompt=prompt,
             ensure_bos_token=ensure_bos_token
         )
 
-    def next(self) -> Optional[EngineCallResponse]:
-        """Move the grammar state machine processing forward to the next point where
-            either get_logits is required to be called or we have a partial response
-            to stream back.
+    def __call__(self, prompt, grammar, ensure_bos_token=True) -> Iterator[EngineCallResponse]:
+        """Main entry point for the inference-parser loop. Yields EngineCallResponse objects as
+        the parser advances through the grammar.
 
         Parameters
         ----------
-        logits : the logits obtained from the LLM after the last return from next(...)
-        """
-        if self._parser.done():
-            return None
-
-        gen_data, response = self._parser.advance()
-
-        if gen_data is not None:
-            # TODO: get rid of extra args of get_logits
-            logits = self.get_logits(gen_data.tokens, None, None)
-            tok = self.sample_with_temperature(logits, gen_data.mask, gen_data.temperature)
-            self._parser.consume_token(tok)
-
-        return EngineCallResponse(
-            new_bytes=response.new_bytes,
-            is_generated=response.is_generated,
-            new_bytes_prob=response.new_bytes_prob,
-            capture_groups=response.capture_groups,
-            capture_group_log_probs=response.capture_group_log_probs,
-            new_token_count=response.new_token_count, 
-        )
-
-    def __call__(self, parser, grammar, ensure_bos_token=True) -> Iterator[EngineCallResponse]:
-        """Returns a new updated parser state executed through the grammar.
-
-        Parameters
-        ----------
-        parser : str or Parser
+        prompt : str or Parser
             This is represents the current state of a guidance parser that will be extended
             using the passed grammar. If a string is given then we assume the previous parser
             state is just a fixed string prompt, if a full Parser is given then we extend that
             parser by appending the new grammar to the parser's current grammar and then
             inferencing the model. (TODO: implement full parser extension support)
         grammar: Grammar
-            This is the grammar we are extending the parser with.
+            This is the grammar we are extending the prompt with.
         """
-        self.start(parser, grammar, ensure_bos_token)
+        parser = self.start(prompt, grammar, ensure_bos_token)
 
-        while True:
-            response = self.next()
-            if response is None:
-                break
-            yield response
+        while not parser.done():
+            gen_data, response = parser.advance()
+
+            if gen_data is not None:
+                # TODO: get rid of extra args of get_logits
+                logits = self.get_logits(gen_data.tokens, None, None)
+                tok = self.sample_with_temperature(logits, gen_data.mask, gen_data.temperature)
+                parser.consume_token(tok)
+
+            yield EngineCallResponse(
+                new_bytes=response.new_bytes,
+                is_generated=response.is_generated,
+                new_bytes_prob=response.new_bytes_prob,
+                capture_groups=response.capture_groups,
+                capture_group_log_probs=response.capture_group_log_probs,
+                new_token_count=response.new_token_count,
+            )
 
     def get_logits(self, token_ids, forced_bytes, current_temp):
         """A fake method designed to be overriden by subclasses."""
