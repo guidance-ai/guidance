@@ -271,7 +271,12 @@ class GrammarlessEngine(Engine):
             raise ValueError("token_ids must contain some tokens.")
 
         # compute the prompt bytes
-        prompt = self.tokenizer.decode(token_ids)
+        # TODO: we need to get the forced bytes from the mask -- should streamline this?
+        ok_tokens = np.where(mask)[0]
+        forced_bytes = os.path.commonprefix([self.tokenizer.tokens[i] for i in ok_tokens])
+
+        whole_token_prompt = self.tokenizer.decode(token_ids)
+        prompt = whole_token_prompt + forced_bytes
         logger.debug(f"Grammarless.get_next_token: {prompt=}")
 
         self._last_call = time.time()
@@ -291,11 +296,28 @@ class GrammarlessEngine(Engine):
             # try and get the next token id
             elif self._data.startswith(prompt):
                 logger.debug(f"Grammarless.get_next_token: Getting next token id")
-                token_id = self._get_next_token(len(prompt), mask)
+                token_id = self._get_next_token(len(prompt) - len(forced_bytes))
                 logger.debug(f"Grammarless.get_next_token: {token_id=}")
                 if token_id is not None:
-                    logger.debug(f"Grammarless.get_next_token: Found token id")
-                    break
+
+                    # if we have a non-zero sampling temperature we can't reuse bytes
+                    new_used_len = len(whole_token_prompt) + len(
+                        self.tokenizer.tokens[token_id]
+                    )
+                    logger.debug(f"Grammarless.get_next_token: {new_used_len=}")
+                    if temperature > 0 and self._used_bytes_len >= new_used_len:
+                        logger.debug(f"Grammarless.get_next_token: Need to restart stream")
+                        token_id = None
+                        self._start_new_stream(prompt, temperature)
+                        continue
+
+                    # ...otherwise we have found the token id we want to emit
+                    else:
+                        logger.debug(f"Grammarless.get_next_token: Found token id")
+                        self._used_bytes_len = len(whole_token_prompt) + len(
+                            self.tokenizer.tokens[token_id]
+                        )
+                        break
 
             # restart if extending our data will never lead to matching our prompt
             elif not self._data.startswith(prompt) and len(self._data) >= len(
@@ -363,7 +385,7 @@ class GrammarlessEngine(Engine):
 
                 # if we are at the end of the generation then we try again allowing for early token stopping
                 if len(new_bytes) == 0:
-                    token_id = self._get_next_token(len(prompt), mask, allow_early_stop=True)
+                    token_id = self._get_next_token(len(prompt), allow_early_stop=True)
                     if token_id is not None:
                         break
                 self._data += new_bytes
@@ -389,7 +411,15 @@ class GrammarlessEngine(Engine):
                 # reset out call time to allow the data stream to time out if we happen to be done with it
                 self._last_call = time.time()
 
-        return token_id
+        # set the logits to the next byte the model picked
+        logger.debug(f"Grammarless.get_logits: Creating logits for {token_id=}")
+        logits = np.ones(len(self.tokenizer.tokens)) * -np.inf
+        logits[token_id] = 100
+        if token_id != self.tokenizer.eos_token:
+            # we always allow the model to use EOS if that is the only way forward
+            logits[self.tokenizer.eos_token_id] = 0
+        logits = logits + mask
+        return int(np.argmax(logits))
 
     def _report_failed_match(self, prompt: bytes):
         logger.debug(f"_report_failed_match: {prompt=}")
@@ -424,7 +454,7 @@ class GrammarlessEngine(Engine):
             data=data,
         )
 
-    def _get_next_token(self, pos, mask, allow_early_stop=False):
+    def _get_next_token(self, pos, allow_early_stop=False):
         data = self._data
         trie = self._token_trie
         token_id = None
@@ -439,15 +469,12 @@ class GrammarlessEngine(Engine):
 
             # try and walk down the trie
             next_byte = data[pos : pos + 1]
-            if trie.has_child(next_byte) and mask[trie.child(next_byte).value]:
+            if trie.has_child(next_byte):
                 trie = trie.child(next_byte)
                 pos += 1
                 if trie.value >= 0:
                     token_id = trie.value
             else:
-                if token_id is None:
-                    # we always allow the model to use EOS if that is the only way forward
-                    return self.tokenizer.eos_token_id
                 return token_id  # this is the longest greedy token match we can make
 
 
