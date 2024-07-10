@@ -13,10 +13,15 @@ from ..chat import ChatMLTemplate
 from ._model import ConstraintException, Engine, Model
 from ._tokenizer import Tokenizer
 
-from .._cpp import ByteTrie
-
 logger = logging.getLogger(__name__)
 
+try:
+    from .. import cpp  # type: ignore[attr-defined]
+except ImportError:
+    logger.warn(
+        "Failed to load guidance.cpp, falling back to Python mirror implementations..."
+    )
+    from .. import _cpp as cpp
 
 class GrammarlessTokenizer(Tokenizer):
     def __init__(self, tokenizer):
@@ -168,9 +173,9 @@ class GrammarlessEngine(Engine):
         # build the Engine
         super().__init__(tokenizer=tokenizer, compute_log_probs=compute_log_probs)
 
-        # build a trie for the tokens
-        self._token_trie = ByteTrie(
-            byte_strings=self.tokenizer.tokens, values=range(len(self.tokenizer.tokens))
+        # build a prefix tree of the tokens
+        self._token_trie = cpp.ByteTrie(
+            self.tokenizer.tokens, np.arange(len(self.tokenizer.tokens))
         )
 
     def _generator(self, prompt: bytes, temperature: float):
