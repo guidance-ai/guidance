@@ -260,14 +260,14 @@ class GrammarlessEngine(Engine):
         self, token_ids: list[int], mask: np.ndarray, temperature: float) -> int:
 
         logger.debug(
-            f"Start Grammarless.get_logits({token_ids=}, {mask=}, {temperature=})"
+            f"Start Grammarless.get_next_token({token_ids=}, {mask=}, {temperature=})"
         )
         if len(token_ids) == 0:
             raise ValueError("token_ids must contain some tokens.")
 
         # compute the prompt bytes
         prompt = self.tokenizer.decode(token_ids)
-        logger.debug(f"Grammarless.get_logits: {prompt=}")
+        logger.debug(f"Grammarless.get_next_token: {prompt=}")
 
         self._last_call = time.time()
 
@@ -275,28 +275,28 @@ class GrammarlessEngine(Engine):
         token_id = None
         restarted = False  # track if we have restarted the data stream during this call
         while True:
-            logger.debug(f"Grammarless.get_logits: Starting main loop")
+            logger.debug(f"Grammarless.get_next_token: Starting main loop")
 
             # if the generation temperature changes we have to restart
             if self._current_temp != temperature:
-                logger.debug(f"Grammarless.get_logits: Starting new stream")
+                logger.debug(f"Grammarless.get_next_token: Starting new stream")
                 self._start_new_stream(prompt, temperature)
                 continue
 
             # try and get the next token id
             elif self._data.startswith(prompt):
-                logger.debug(f"Grammarless.get_logits: Getting next token id")
+                logger.debug(f"Grammarless.get_next_token: Getting next token id")
                 token_id = self._get_next_token(len(prompt), mask)
-                logger.debug(f"Grammarless.get_logits: {token_id=}")
+                logger.debug(f"Grammarless.get_next_token: {token_id=}")
                 if token_id is not None:
-                    logger.debug(f"Grammarless.get_logits: Found token id")
+                    logger.debug(f"Grammarless.get_next_token: Found token id")
                     break
 
             # restart if extending our data will never lead to matching our prompt
             elif not self._data.startswith(prompt) and len(self._data) >= len(
                 prompt
             ):  # not prompt.startswith(self._data): # len(self._data) >= len(prompt) or
-                logger.debug(f"Grammarless.get_logits: Data will not match prompt")
+                logger.debug(f"Grammarless.get_next_token: Data will not match prompt")
                 # check if we have already restarted once and so retrying by default is not likely to be helpful
                 if restarted:
                     raise self._report_failed_match(prompt)
@@ -312,7 +312,7 @@ class GrammarlessEngine(Engine):
                 if not found_mismatch:
                     match_len = len(prompt)
                 leftover = prompt[match_len:]
-                logger.debug(f"Grammarless.get_logits: {leftover=}")
+                logger.debug(f"Grammarless.get_next_token: {leftover=}")
 
                 # record any active non-empty role ends. Ignore role ends that are spaces
                 parts: Sequence[Optional[bytes]] = [
@@ -331,7 +331,7 @@ class GrammarlessEngine(Engine):
                 # see if adding an end token would work here (if so we avoid recalling the server and just produce an end token)
                 found_match = False
                 for p in parts:
-                    logger.debug(f"Grammarless.get_logits: Considering part {str(p)}")
+                    logger.debug(f"Grammarless.get_next_token: Considering part {str(p)}")
                     if p is not None:
                         if p.startswith(leftover):
                             self._data = self._data[:match_len] + p
