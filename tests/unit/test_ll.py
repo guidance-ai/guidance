@@ -113,11 +113,9 @@ def check_grammar(grm: GrammarFunction, output: List[str]):
     prompt = interp.process_prompt(PhiTokenizer.instance().tokenize_str(""))
     check_eq("prompt", prompt, output[0])
     idx = 1
-    bt = 0
-    toks: List[int] = []
     gen_tokens = tokenize_trace(output[idx])
     for _ in range(200):
-        mask, cmd = interp.mid_process(bt, toks)
+        mask, cmd = interp.mid_process()
         cmd = json.loads(cmd)
         if log_level >= 1:
             print(mask is not None, cmd)
@@ -131,11 +129,11 @@ def check_grammar(grm: GrammarFunction, output: List[str]):
             tok = gen_tokens[0]
             del gen_tokens[0:1]
             assert mask[tok] > 0, f"Token {tok} not allowed"
-            toks = [tok]
-            bt = 0
+            bt, toks = interp.post_process(tok)
+            assert bt == 0
+            assert toks == [tok]
         else:
-            bt = cmd["backtrack"]
-            toks = cmd["ff_tokens"]
+            bt, toks = interp.post_process(None)
             assert not gen_tokens, "Expected more tokens to generate"
             idx += 1
             expected = output[idx]
