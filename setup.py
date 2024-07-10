@@ -56,8 +56,8 @@ doc_requires = [
     "llama-cpp-python",
 ]
 test_requires = [
+    "azure-identity",
     "einops",
-    "triton",
     "jupyter",
     "papermill",
     "pytest",
@@ -65,6 +65,7 @@ test_requires = [
     "torch",
     "transformers",
     "mypy==1.9.0",
+    "triton",
     "types-protobuf",
     "types-regex",
     "types-requests",
