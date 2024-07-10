@@ -294,6 +294,13 @@ def test_ll_nice_man():
     check_grammar(g, ["", "a‧b‧q‧≺EOS≻"])
     check_grammar(g, ["", "a‧b‧Q"])
 
+def test_ll_stop_quote_comma():
+    # make sure we allow ", as a single token; also "]
+    check_grammar(
+        '{ "items": ["' + gen("i1", regex=r'a+', stop='"') + '",\n   "' +
+        gen("i2", regex=r'b+', stop='"') + '"] }',
+        ['{‧ "‧items‧":‧ ["', 'a‧",', '\n‧  ‧ "', 'b‧"]', ' }'])
+
 
 def test_ll_max_tokens():
     check_grammar(
