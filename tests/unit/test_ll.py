@@ -2,6 +2,7 @@ from typing import Any, List
 import tokenizers
 import llguidance
 import json
+import textwrap
 import guidance
 import pytest
 from guidance import (
@@ -320,9 +321,9 @@ def test_ll_max_tokens():
 
 
 def test_ll_fighter():
-    @guidance(stateless=True, dedent=True)
+    @guidance(stateless=True)
     def character_maker2(lm, id, description, valid_weapons):
-        lm += f"""\
+        lm += textwrap.dedent(f"""\
         {{
             "name": "{gen('name', stop='"')}",
             "age": {gen('age', regex='[0-9]+', stop=',')},
@@ -332,7 +333,7 @@ def test_ll_fighter():
             "mantra": "{gen('mantra', stop='"')}",
             "strength": {gen('strength', regex='[0-9]+', stop=',')},
             "items": ["{gen('item', list_append=True, stop='"')}", "{gen('item', list_append=True, stop='"')}", "{gen('item', list_append=True, stop='"')}"]
-        }}"""
+        }}""")
         return lm
 
     grm = character_maker2(1, "A nimble fighter", ["axe", "sword", "bow"])
