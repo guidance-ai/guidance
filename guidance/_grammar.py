@@ -1342,8 +1342,6 @@ class LLSerializer:
                     }
                 }
         elif isinstance(node, GenLexeme):
-            if not self.curr_grammar["greedy_lexer"]:
-                raise ValueError("GenLexeme can only be used in greedy lexer grammars")
             obj = {
                 "Lexeme": {
                     "rx": node.body_regex,
@@ -1360,33 +1358,21 @@ class LLSerializer:
                 }
             }
         elif isinstance(node, GenCommitPoint):
-            if self.curr_grammar["greedy_lexer"]:
-                raise ValueError("GenCommitPoint can only be used in lazy lexer grammars")
             obj = {
                 "Gen": {
                     "body_rx": self.regex(node.grammar),
                     "stop_rx": "",
+                    "lazy": False, # TODO this should be True
                     "temperature": node.temperature if node.temperature >= 0 else None,
                 }
             }
         elif isinstance(node, Gen):
-            if self.curr_grammar["greedy_lexer"]:
-                raise ValueError("Gen can only be used in lazy lexer grammars")
             obj = {
                 "Gen": {
                     "body_rx": node.body_regex,
                     "stop_rx": node.stop_regex,
+                    "lazy": node.stop_regex != "",
                     "stop_capture_name": node.save_stop_text,
-                    "temperature": node.temperature if node.temperature >= 0 else None,
-                }
-            }
-        elif isinstance(node, GenCommitPoint):
-            if self.curr_grammar["greedy_lexer"]:
-                raise ValueError("GenCommitPoint can only be used in lazy lexer grammars")
-            obj = {
-                "Gen": {
-                    "body_rx": self.regex(node.grammar),
-                    "stop_rx": "",
                     "temperature": node.temperature if node.temperature >= 0 else None,
                 }
             }
@@ -1397,6 +1383,7 @@ class LLSerializer:
                 "Gen": {
                     "body_rx": self.regex(node),
                     "stop_rx": "",
+                    "lazy": True,
                     "temperature": node.temperature if node.temperature >= 0 else None,
                 }
             }
