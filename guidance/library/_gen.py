@@ -3,7 +3,7 @@ import logging
 from .._guidance import guidance
 from ._silent import silent
 from .._grammar import select, Gen, quote_regex
-from ._zero_or_more import zero_or_more
+from ._sequences import zero_or_more
 from .._grammar import commit_point
 from ._any_char import any_char
 from .._grammar import capture

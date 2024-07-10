@@ -123,13 +123,11 @@ jobs:
       fail-fast: false # Don't cancel all on first failure
       matrix:
         # Need to figure out what happened to 3.12
-        python-version: ["3.9", "3.10", "3.11"]
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
     uses: ./.github/workflows/action_server_tests.yml
     with:
       os: ubuntu-latest
       python-version: ${{ matrix.python-version }}
-
-
 
   end-stage-2:
     needs:
