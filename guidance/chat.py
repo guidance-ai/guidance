@@ -130,7 +130,7 @@ class Llama2ChatTemplate(ChatTemplate):
         if role_name == "system":
             return "[INST] <<SYS>>\n"
         elif role_name == "user":
-            return "<s>[INST]"
+            return "<s>[INST] "
         elif role_name == "assistant":
             return " "
         else:
@@ -138,11 +138,11 @@ class Llama2ChatTemplate(ChatTemplate):
 
     def get_role_end(self, role_name=None):
         if role_name == "system":
-            return "\n<</SYS>"
+            return "\n<</SYS>>"
         elif role_name == "user":
             return " [/INST]"
         elif role_name == "assistant":
-            return "</s>"
+            return " </s>"
         else:
             raise UnsupportedRoleException(role_name, self)
 
