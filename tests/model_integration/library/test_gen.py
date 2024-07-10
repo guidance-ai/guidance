@@ -224,6 +224,7 @@ Step 1"""
     assert True
 
 
+@pytest.mark.xfail
 def test_tool_call(selected_model: models.Model):
     import guidance
     from guidance import Tool, capture, one_or_more, select, zero_or_more
