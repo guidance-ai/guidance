@@ -250,7 +250,7 @@ class TransformersEngine(Engine):
             model = transformers_package.AutoModelForCausalLM.from_pretrained(model, **kwargs)
         return model
 
-    def get_logits(self, token_ids, forced_bytes, current_temp):
+    def get_logits(self, token_ids):
         """Computes the logits for the given token state.
 
         This overrides a method from the LocalEngine class that is used to get

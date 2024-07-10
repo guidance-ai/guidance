@@ -153,7 +153,7 @@ class LlamaCppEngine(Engine):
 
         self._n_vocab = len(self.tokenizer.tokens)
 
-    def get_logits(self, token_ids, forced_bytes, current_temp):
+    def get_logits(self, token_ids):
         """Computes the logits for the given token state.
 
         This overrides a method from the LocalEngine class that is used to get
