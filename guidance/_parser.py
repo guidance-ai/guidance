@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Tuple, Set, Union
+from typing import Any, Dict, List, Optional, Tuple, Set, Union, Generator
 from dataclasses import dataclass
 import json
 import os
@@ -16,13 +16,6 @@ class ParserException(Exception):
         self.allowed_bytes = kwargs.pop("allowed_bytes", None)
         self.consumed_bytes = kwargs.pop("consumed_bytes", None)
         super().__init__(*args, **kwargs)
-
-@dataclass
-class ParserState:
-    tokens: List[int]
-    ff_tokens: List[int]
-    backtrack: int
-    done: bool
 
 @dataclass
 class ParserResponse:
@@ -70,26 +63,23 @@ class LLParser(Parser):
             json.dumps(grammar.ll_serialize()),
             log_level=int(os.environ.get("LLGUIDANCE_LOG_LEVEL", "1"))
         )
-        self._state = self._start(prompt=prompt, ensure_bos_token=ensure_bos_token)
+        self._generator = self._parse(prompt, ensure_bos_token)
+        self._done = False
+        # prime the generator
+        assert next(self._generator) is None
 
     def matched(self) -> bool:
-        return (
-            self.ll_interpreter.is_accepting()
-            and self._state.backtrack == 0
-            and len(self._state.ff_tokens) == 0
-        )
+        return self.ll_interpreter.is_accepting()
 
     def done(self) -> bool:
-        return self._state.done
+        return self._done
     
-    def advance(self) -> Tuple[Optional[GenData], ParserResponse]:
-        gen_data, response, self._state = self._advance(self._state)
-        return gen_data, response
-    
-    def consume_token(self, tok_id: int) -> None:
-        self._state = self._consume_token(tok_id, self._state)
+    def advance(self, token: Optional[int]) -> Tuple[Optional[GenData], ParserResponse]:
+        value = self._generator.send(token)
+        assert value is not None
+        return value
 
-    def _start(self, prompt: bytes, ensure_bos_token: bool) -> ParserState:
+    def _process_prompt(self, prompt: bytes, ensure_bos_token: bool) -> list[int]:
         prompt_tokens = self.ll_interpreter.process_prompt(
                 self.tokenizer.encode(prompt)
         )
@@ -101,56 +91,46 @@ class LLParser(Parser):
             # add the beginning of sequence token if needed
             prompt_tokens = [self.tokenizer.bos_token_id] + prompt_tokens
 
-        return ParserState(
-            tokens=prompt_tokens,
-            ff_tokens=[],
-            backtrack=0,
-            done=False,
-        )
+        return prompt_tokens
 
-    def _advance(self, state: ParserState) -> Tuple[Optional[GenData], ParserResponse, ParserState]:
-        mask, resp = self.ll_interpreter.mid_process(state.backtrack, state.ff_tokens)
-        r = json.loads(resp)
+    def _parse(
+        self,
+        prompt: bytes,
+        ensure_bos_token: bool,
+    ) -> Generator[Optional[Tuple[Optional[GenData], ParserResponse]], Optional[int], None]:
+        tokens = self._process_prompt(prompt=prompt, ensure_bos_token=ensure_bos_token)
 
-        backtrack = r["backtrack"]
-        ff_tokens = r["ff_tokens"]
-        done = r["stop"]
+        # for the first call, we need to send None
+        yield None
 
-        tokens = state.tokens
-        if mask is not None:
-            assert not done
-            assert backtrack == 0
-            assert len(ff_tokens) == 0
-            gen_data = GenData(
-                tokens=tokens,
-                mask=np.frombuffer(mask, dtype=np.uint8),
-                temperature=r["temperature"],
-            )
-        else:
+        while not self._done:
+            mask, resp = self.ll_interpreter.mid_process()
+            r = json.loads(resp)
+            self._done = r["stop"]
+            response = self._handle_progress(r["progress"])
+
+            if mask is not None:
+                assert not self._done
+                gen_data = GenData(
+                    # TODO: be careful and return a copy of tokens?
+                    tokens=tokens,
+                    mask=np.frombuffer(mask, dtype=np.uint8),
+                    temperature=r["temperature"],
+                )
+                # Send caller the mask and response; wait for token
+                token = yield (gen_data, response)
+                if token is None:
+                    raise ValueError("Expected token, got None")
+            else:
+                gen_data = None
+                token = yield (gen_data, response)
+                if token is not None:
+                    raise ValueError("Expected None, got token")
+
+            backtrack, ff_tokens = self.ll_interpreter.post_process(token)
             if backtrack:
                 tokens = tokens[:-backtrack]
             tokens = tokens + ff_tokens
-            gen_data = None
-
-        response = self._handle_progress(r["progress"])
-        state = ParserState(
-            tokens=tokens,
-            ff_tokens=ff_tokens,
-            backtrack=backtrack,
-            done=done,
-        )
-        return gen_data, response, state
-
-    def _consume_token(self, tok_id: int, state: ParserState) -> ParserState:
-        assert not state.done
-        assert state.backtrack == 0
-        assert len(state.ff_tokens) == 0
-        return ParserState(
-            tokens=state.tokens + [tok_id],
-            ff_tokens=[tok_id],
-            backtrack=0,
-            done=False,
-        )
 
     @staticmethod
     def _handle_progress(progress: List[dict]) -> ParserResponse:
@@ -241,7 +221,7 @@ class ByteParser(Parser):
         # Run underlying ll_parser and fast-forward all of our bytes
         # until we have a "choice" (generation step) to make
         while self.gen_data is None and not self.ll_parser.done():
-            self.gen_data, response = self.ll_parser.advance()
+            self.gen_data, response = self.ll_parser.advance(None)
             self._update_capture(response)
             self.bytes += response.new_bytes
         
@@ -287,9 +267,9 @@ class ByteParser(Parser):
                     consumed_bytes=self.bytes[:self.pos],
                 )
             # Byte was good, have ll_parser consume it so we can advance further
-            self.ll_parser.consume_token(b)
-            # Reset gen_data as we are done with it
-            self.gen_data = None
+            self.gen_data, response = self.ll_parser.advance(b)
+            self._update_capture(response)
+            self.bytes += response.new_bytes
 
             # Run consume_bytes to advance ll_parser and consume the next byte
             self.consume_bytes(bts)
@@ -300,8 +280,7 @@ class ByteParser(Parser):
         if self.ll_parser.done():
             return
 
-        self.ll_parser.consume_token(self.tokenizer.eos_token_id)
-        self.gen_data, response = self.ll_parser.advance()
+        self.gen_data, response = self.ll_parser.advance(self.tokenizer.eos_token_id)
         self._update_capture(response)
         self.bytes += response.new_bytes
         if not self.ll_parser.done() or not self.matched():

@@ -241,16 +241,18 @@ class Engine:
         """
         parser = self.start(prompt, grammar, ensure_bos_token)
 
+        token = None
         while not parser.done():
-            gen_data, response = parser.advance()
+            gen_data, response = parser.advance(token)
 
             if gen_data is not None:
-                tok = self.get_next_token(
+                token = self.get_next_token(
                     token_ids=gen_data.tokens,
                     mask=gen_data.mask,
                     temperature=gen_data.temperature
                 )
-                parser.consume_token(tok)
+            else:
+                token = None
 
             yield EngineCallResponse(
                 new_bytes=response.new_bytes,
