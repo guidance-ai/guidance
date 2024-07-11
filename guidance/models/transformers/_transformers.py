@@ -61,7 +61,7 @@ class TransformersTokenizer(Tokenizer):
         special_tokens_map = {
             id: token for token, id in transformers_tokenizer.get_added_vocab().items()
         }
-
+    
         # build out the set of byte_string tokens
         byte_tokens = [b""] * len(transformers_tokenizer)
         if hasattr(transformers_tokenizer, "byte_decoder"):
@@ -96,10 +96,9 @@ class TransformersTokenizer(Tokenizer):
                     if isinstance(token, bytes):
                         byte_coded = token
                     elif isinstance(token, str):
-                        if any(token.startswith(prefix) for prefix in ['Ġ', '▁']):
-                            byte_coded = b' ' + token[1:].encode()
-                        elif token.startswith('Ċ'):
-                            byte_coded = b'\n' + token[1:].encode()
+                        if hasattr(transformers_tokenizer, "convert_tokens_to_string"):
+                            token_str = transformers_tokenizer.convert_tokens_to_string([token])
+                            byte_coded = token_str.encode()
                         else:
                             byte_coded = token.encode()
                     else:
@@ -155,6 +154,8 @@ class TransformersTokenizer(Tokenizer):
                 )
                 byte_tokens[i] = byte_coded
 
+            print(len(byte_tokens))
+
         # Chat Template logic
         if chat_template is None and hasattr(self._orig_tokenizer, "chat_template"):
             chat_template = self._orig_tokenizer.chat_template
@@ -196,8 +197,6 @@ class TransformersTokenizer(Tokenizer):
         assert (
             tokenizer is not None
         ), "You must give a model name when you provide a tokenizer object!"
-
-        return tokenizer
 
     def encode(self, byte_string: bytes) -> Sequence[int]:
         assert isinstance(byte_string, bytes)
