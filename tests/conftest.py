@@ -43,7 +43,7 @@ AVAILABLE_MODELS = {
     ),
     "transformers_phi3_small_8k_instruct": dict(
         name="transformers:microsoft/Phi-3-small-8k-instruct",
-        kwargs={"trust_remote_code": True}
+        kwargs={"trust_remote_code": True, "device_map": "cuda:0"}
     ),
     "transformers_mistral_7b": dict(
         name="transformers:mistralai/Mistral-7B-v0.1", kwargs=dict()

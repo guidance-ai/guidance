@@ -57,7 +57,6 @@ doc_requires = [
 ]
 test_requires = [
     "azure-identity",
-    "einops",
     "jupyter",
     "papermill",
     "pytest",
@@ -65,7 +64,6 @@ test_requires = [
     "torch",
     "transformers",
     "mypy==1.9.0",
-    "triton",
     "types-protobuf",
     "types-regex",
     "types-requests",
