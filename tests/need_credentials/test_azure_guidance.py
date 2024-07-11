@@ -91,14 +91,12 @@ def test_azure_guidance_max_tokens_2(azure_guidance_model: guidance.models.Model
     assert lm["a"] == "four," and lm["b"] == " five,"
 
 
-@pytest.mark.xfail(reason="backtracking")
 def test_azure_guidance_stop_char(azure_guidance_model: guidance.models.Model):
     lm = azure_guidance_model
     lm += "Count to 10: 1, 2, 3, 4, 5, 6, 7, " + gen("text", stop=",")
     assert lm["text"] == "8"
 
 
-@pytest.mark.xfail(reason="backtracking")
 def test_azure_guidance_stop_string(azure_guidance_model: guidance.models.Model):
     lm = azure_guidance_model
     lm += "Count to 10: 1, 2, 3, 4, 5, 6, 7, " + gen("text", stop=", 9")
@@ -205,7 +203,6 @@ def test_azure_guidance_max_tokens_3(azure_guidance_model: guidance.models.Model
     )  # the output should not end with "<" because that is coming from the stop sequence...
 
 
-@pytest.mark.xfail(reason="backtracking")
 def test_azure_guidance_stop_token(azure_guidance_model: guidance.models.Model):
     lm = azure_guidance_model
     lm += f'<color>red</color>\n<color>{gen(stop="</color>")} and test2'
@@ -583,14 +580,12 @@ def test_azure_guidance_string(azure_guidance_model: guidance.models.Model):
     assert bool(re.fullmatch(r'(ab)*', s)) or bool(re.fullmatch(r'(ab)*', s[:-1]))
 
 
-@pytest.mark.xfail(reason="backtracking")
 def test_azure_guidance_stop_token_name(azure_guidance_model: guidance.models.Model):
     lm = azure_guidance_model
     lm += "Name: " + gen('name', regex="E[a-z]+", stop_regex=["[a-b]", "[x-z]"], save_stop_text="saved_name_stop")
     assert lm["saved_name_stop"] in ["a", "b", "x", "y", "z"]
     assert lm["name"].startswith("E")
 
-@pytest.mark.xfail(reason="backtracking")
 def test_azure_guidance_stop_token_name2(azure_guidance_model: guidance.models.Model):
     lm = azure_guidance_model
     # repeat the token to get duplicated lexeme
