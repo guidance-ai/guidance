@@ -65,8 +65,6 @@ class LLParser(Parser):
         )
         self._generator = self._parse(prompt, ensure_bos_token)
         self._done = False
-        # prime the generator
-        assert next(self._generator) is None
 
     def matched(self) -> bool:
         return self.ll_interpreter.is_accepting()
@@ -99,9 +97,6 @@ class LLParser(Parser):
         ensure_bos_token: bool,
     ) -> Generator[Optional[Tuple[Optional[GenData], ParserResponse]], Optional[int], None]:
         tokens = self._process_prompt(prompt=prompt, ensure_bos_token=ensure_bos_token)
-
-        # for the first call, we need to send None
-        yield None
 
         while not self._done:
             mask, resp = self.ll_interpreter.mid_process()
