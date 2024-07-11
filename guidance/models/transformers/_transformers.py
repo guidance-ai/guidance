@@ -96,7 +96,12 @@ class TransformersTokenizer(Tokenizer):
                     if isinstance(token, bytes):
                         byte_coded = token
                     elif isinstance(token, str):
-                        byte_coded = token.encode()
+                        if any(token.startswith(prefix) for prefix in ['Ġ', '▁']):
+                            byte_coded = b' ' + token[1:].encode()
+                        elif token.startswith('Ċ'):
+                            byte_coded = b'\n' + token[1:].encode()
+                        else:
+                            byte_coded = token.encode()
                     else:
                         raise ValueError(f"Unexpected token type: {type(token)}")
                 byte_tokens[i] = byte_coded
