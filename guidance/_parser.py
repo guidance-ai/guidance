@@ -8,14 +8,82 @@ import llguidance
 
 from ._grammar import GrammarFunction, Terminal, Join
 from .models._tokenizer import Tokenizer
+from .models._byte_tokenizer import ByteTokenizer
 
+from typing import Literal, Union
+from typing_extensions import Annotated
+from pydantic import BaseModel, RootModel, Field
 
-class ParserException(Exception):
-    def __init__(self, *args, **kwargs):
-        self.current_byte = kwargs.pop("current_byte", None)
-        self.allowed_bytes = kwargs.pop("allowed_bytes", None)
-        self.consumed_bytes = kwargs.pop("consumed_bytes", None)
-        super().__init__(*args, **kwargs)
+class CaptureProgress(BaseModel):
+    object: Literal["capture"]
+    name: str
+    hex: str
+    log_prob: float
+
+class TextProgress(BaseModel):
+    object: Literal["text"]
+    hex: str
+    num_tokens: int
+    log_prob: float
+    is_generated: bool
+
+class FinalTextProgress(BaseModel):
+    object: Literal["final_text"]
+    # we don't need to handle this for now
+
+ProgressItem = Annotated[Union[CaptureProgress, TextProgress, FinalTextProgress], Field(discriminator="object")]
+
+class InterpreterProgress(RootModel):
+    root: list[ProgressItem]
+
+    def to_parser_response(self) -> "ParserResponse":
+        new_bytes = b""
+        new_token_count = 0
+        new_bytes_prob = 0.0
+        is_generated = False
+        capture_groups: Dict[str, Any] = {}
+        capture_group_log_probs: Dict[str, Any] = {}
+        num_text_entries = 0
+
+        for j in self.root:
+            if isinstance(j, CaptureProgress):
+                is_generated = True
+                cname = j.name
+                data = bytes.fromhex(j.hex)
+                if cname.startswith("__LIST_APPEND:"):
+                    cname = cname[14:]
+                    if cname not in capture_groups or \
+                        not isinstance(capture_groups[cname], list):
+                        capture_groups[cname] = []
+                        capture_group_log_probs[cname] = []
+                    capture_groups[cname].append(data)
+                    capture_group_log_probs[cname].append(j.log_prob)
+                else:
+                    capture_groups[cname] = data
+                    capture_group_log_probs[cname] = j.log_prob
+            elif isinstance(j, TextProgress):
+                # it actually should only happen once per round...
+                new_bytes += bytes.fromhex(j.hex)
+                new_token_count += j.num_tokens
+                new_bytes_prob += j.log_prob
+                is_generated |= j.is_generated
+                num_text_entries += 1
+        if num_text_entries > 0:
+            new_bytes_prob /= num_text_entries
+
+        return ParserResponse(
+            new_bytes=new_bytes,
+            new_token_count=new_token_count,
+            new_bytes_prob=new_bytes_prob,
+            is_generated=is_generated,
+            capture_groups=capture_groups,
+            capture_group_log_probs=capture_group_log_probs,
+        )
+
+class InterpreterResponse(BaseModel):
+    progress: InterpreterProgress
+    stop: bool
+    temperature: Optional[float]
 
 @dataclass
 class ParserResponse:
@@ -98,17 +166,18 @@ class LLParser(Parser):
 
         while not self._done:
             mask, resp = self.ll_interpreter.mid_process()
-            r = json.loads(resp)
-            self._done = r["stop"]
-            response = self._handle_progress(r["progress"])
+            r = InterpreterResponse.model_validate_json(resp)
+            self._done = r.stop
+            response = r.progress.to_parser_response()
 
             if mask is not None:
                 assert not self._done
+                assert r.temperature is not None
                 gen_data = GenData(
                     # TODO: be careful and return a copy of tokens?
                     tokens=tokens,
                     mask=np.frombuffer(mask, dtype=np.uint8),
-                    temperature=r["temperature"],
+                    temperature=r.temperature,
                 )
                 # Send caller the mask and response; wait for token
                 token = yield (gen_data, response)
@@ -125,53 +194,15 @@ class LLParser(Parser):
                 tokens = tokens[:-backtrack]
             tokens = tokens + ff_tokens
 
-    @staticmethod
-    def _handle_progress(progress: List[dict]) -> ParserResponse:
-        new_bytes = b""
-        new_token_count = 0
-        new_bytes_prob = 0.0
-        is_generated = False
-        capture_groups: Dict[str, Any] = {}
-        capture_group_log_probs: Dict[str, Any] = {}
-        num_text_entries = 0
 
-        for j in progress:
-            tag = j.get("object", "")
-            if tag == "capture":
-                is_generated = True
-                cname: str = j["name"]
-                data = bytes.fromhex(j["hex"])
-                if cname.startswith("__LIST_APPEND:"):
-                    cname = cname[14:]
-                    if cname not in capture_groups or \
-                        not isinstance(capture_groups[cname], list):
-                        capture_groups[cname] = []
-                        capture_group_log_probs[cname] = []
-                    capture_groups[cname].append(data)
-                    capture_group_log_probs[cname].append(j["log_prob"])
-                else:
-                    capture_groups[cname] = data
-                    capture_group_log_probs[cname] = j["log_prob"]
-            elif tag == "text":
-                # it actually should only happen once per round...
-                new_bytes += bytes.fromhex(j["hex"])
-                new_token_count += j["num_tokens"]
-                new_bytes_prob += j["log_prob"]
-                is_generated |= j["is_generated"]
-                num_text_entries += 1
-        if num_text_entries > 0:
-            new_bytes_prob /= num_text_entries
+class ParserException(Exception):
+    def __init__(self, *args, **kwargs):
+        self.current_byte = kwargs.pop("current_byte", None)
+        self.allowed_bytes = kwargs.pop("allowed_bytes", None)
+        self.consumed_bytes = kwargs.pop("consumed_bytes", None)
+        super().__init__(*args, **kwargs)
 
-        return ParserResponse(
-            new_bytes=new_bytes,
-            new_token_count=new_token_count,
-            new_bytes_prob=new_bytes_prob,
-            is_generated=is_generated,
-            capture_groups=capture_groups,
-            capture_group_log_probs=capture_group_log_probs,
-        )
-    
-from .models._byte_tokenizer import ByteTokenizer    
+
 class ByteParser(Parser):
     # TODO: reconcile API with LLParser; maybe only one of them deserves to be called Parser
     def __init__(

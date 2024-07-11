@@ -4,7 +4,7 @@ import base64
 import json
 import urllib.parse
 from ._model import Engine, Model, EngineCallResponse
-from .._parser import LLParser
+from .._parser import InterpreterProgress
 from ..chat import Phi3MiniChatTemplate
 from ._byte_tokenizer import ByteTokenizer
 
@@ -89,6 +89,7 @@ class AzureGuidanceEngine(Engine):
                             progress.append(j)
                         elif ln.startswith("Warning: "):
                             print(ln, flush=True)
+                    progress = InterpreterProgress.model_validate(progress)
 
                     # print(ch["logs"].rstrip("\n"), flush=True)
 
@@ -96,14 +97,14 @@ class AzureGuidanceEngine(Engine):
                     if err:
                         raise RuntimeError(f"Error returned by grammar server {err}.")
 
-                    data = LLParser._handle_progress(progress)
+                    parser_response = progress.to_parser_response()
                     yield EngineCallResponse(
-                        new_bytes=data.new_bytes,
-                        is_generated=data.is_generated,
-                        new_bytes_prob=data.new_bytes_prob,
-                        capture_groups=data.capture_groups,
-                        capture_group_log_probs=data.capture_group_log_probs,
-                        new_token_count=data.new_token_count,
+                        new_bytes=parser_response.new_bytes,
+                        is_generated=parser_response.is_generated,
+                        new_bytes_prob=parser_response.new_bytes_prob,
+                        capture_groups=parser_response.capture_groups,
+                        capture_group_log_probs=parser_response.capture_group_log_probs,
+                        new_token_count=parser_response.new_token_count,
                     )
             elif decoded_line == "data: [DONE]":
                 pass

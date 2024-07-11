@@ -10,7 +10,7 @@ import time
 import warnings
 
 from pprint import pprint
-from typing import Dict, Iterator, List, Optional, Union, TYPE_CHECKING
+from typing import Any, Dict, Iterator, List, Optional, Union, TYPE_CHECKING
 
 
 import numpy as np
@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 from ._guidance_engine_metrics import GuidanceEngineMetrics
 from .._utils import softmax, CaptureEvents
-from .._parser import LLParser, Parser, ParserResponse, GenData
+from .._parser import LLParser, Parser
 from .._grammar import (
     GrammarFunction,
     string,
