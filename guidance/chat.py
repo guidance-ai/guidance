@@ -130,7 +130,7 @@ class Llama2ChatTemplate(ChatTemplate):
         if role_name == "system":
             return "[INST] <<SYS>>\n"
         elif role_name == "user":
-            return "<s>[INST]"
+            return "<s>[INST] "
         elif role_name == "assistant":
             return " "
         else:
@@ -138,11 +138,11 @@ class Llama2ChatTemplate(ChatTemplate):
 
     def get_role_end(self, role_name=None):
         if role_name == "system":
-            return "\n<</SYS>"
+            return "\n<</SYS>>"
         elif role_name == "user":
             return " [/INST]"
         elif role_name == "assistant":
-            return "</s>"
+            return " </s>"
         else:
             raise UnsupportedRoleException(role_name, self)
 
@@ -190,16 +190,16 @@ class Phi3MiniChatTemplate(ChatTemplate):
 
     def get_role_start(self, role_name):
         if role_name == "user":
-            return "<|user|>"
+            return "<|user|>\n"
         elif role_name == "assistant":
-            return "<|assistant|>"
+            return "<|assistant|>\n"
         elif role_name == "system":
-            return "<|system|>"
+            return "<|system|>\n"
         else:
             raise UnsupportedRoleException(role_name, self)
 
     def get_role_end(self, role_name=None):
-        return "<|end|>"
+        return "<|end|>\n"
 
 
 CHAT_TEMPLATE_CACHE[phi3_mini_template] = Phi3MiniChatTemplate
@@ -219,14 +219,14 @@ class Phi3SmallMediumChatTemplate(ChatTemplate):
 
     def get_role_start(self, role_name):
         if role_name == "user":
-            return "<|user|>"
+            return "<|user|>\n"
         elif role_name == "assistant":
-            return "<|assistant|>"
+            return "<|assistant|>\n"
         else:
             raise UnsupportedRoleException(role_name, self)
 
     def get_role_end(self, role_name=None):
-        return "<|end|>"
+        return "<|end|>\n"
 
 
 CHAT_TEMPLATE_CACHE[phi3_small_template] = Phi3SmallMediumChatTemplate
