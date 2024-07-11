@@ -73,9 +73,7 @@ class LLParser(Parser):
         return self._done
     
     def advance(self, token: Optional[int]) -> Tuple[Optional[GenData], ParserResponse]:
-        value = self._generator.send(token)
-        assert value is not None
-        return value
+        return self._generator.send(token)
 
     def _process_prompt(self, prompt: bytes, ensure_bos_token: bool) -> list[int]:
         prompt_tokens = self.ll_interpreter.process_prompt(
@@ -95,7 +93,7 @@ class LLParser(Parser):
         self,
         prompt: bytes,
         ensure_bos_token: bool,
-    ) -> Generator[Optional[Tuple[Optional[GenData], ParserResponse]], Optional[int], None]:
+    ) -> Generator[Tuple[Optional[GenData], ParserResponse], Optional[int], None]:
         tokens = self._process_prompt(prompt=prompt, ensure_bos_token=ensure_bos_token)
 
         while not self._done:
