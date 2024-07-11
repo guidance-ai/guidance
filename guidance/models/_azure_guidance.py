@@ -87,8 +87,10 @@ class AzureGuidanceEngine(Engine):
                         if ln.startswith("JSON-OUT: "):
                             j = json.loads(ln[10:])
                             progress.append(j)
+                        elif ln.startswith("Warning: "):
+                            print(ln, flush=True)
 
-                    print(ch["logs"].rstrip("\n"), flush=True)
+                    # print(ch["logs"].rstrip("\n"), flush=True)
 
                     err = ch.get("error", "")
                     if err:
