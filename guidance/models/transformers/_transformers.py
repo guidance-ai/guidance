@@ -154,8 +154,6 @@ class TransformersTokenizer(Tokenizer):
                 )
                 byte_tokens[i] = byte_coded
 
-            print(len(byte_tokens))
-
         # Chat Template logic
         if chat_template is None and hasattr(self._orig_tokenizer, "chat_template"):
             chat_template = self._orig_tokenizer.chat_template
@@ -197,6 +195,8 @@ class TransformersTokenizer(Tokenizer):
         assert (
             tokenizer is not None
         ), "You must give a model name when you provide a tokenizer object!"
+
+        return tokenizer
 
     def encode(self, byte_string: bytes) -> Sequence[int]:
         assert isinstance(byte_string, bytes)
