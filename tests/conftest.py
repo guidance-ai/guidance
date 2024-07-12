@@ -1,10 +1,13 @@
 import os
+import pathlib
 import random
+import tempfile
 import time
-import requests
-import pytest
+import uuid
 
-from tempfile import NamedTemporaryFile
+import pytest
+import requests
+
 from guidance import models
 
 # Ensure that asserts from tests/utils.py are rewritten by pytest to show helpful messages
@@ -12,14 +15,11 @@ pytest.register_assert_rewrite("tests.utils")
 
 from .utils import get_model
 
-
 SELECTED_MODEL_ENV_VARIABLE = "GUIDANCE_SELECTED_MODEL"
 
 AVAILABLE_MODELS = {
     "gpt2cpu": dict(name="transformers:gpt2", kwargs=dict()),
-    "phi2cpu": dict(
-        name="transformers:microsoft/phi-2", kwargs={"trust_remote_code": True}
-    ),
+    "phi2cpu": dict(name="transformers:microsoft/phi-2", kwargs={"trust_remote_code": True}),
     "azure_guidance": dict(
         name="azure_guidance:",
         kwargs={},
@@ -42,9 +42,7 @@ AVAILABLE_MODELS = {
         name="huggingface_hubllama:TheBloke/Llama-2-7B-GGUF:llama-2-7b.Q5_K_M.gguf",
         kwargs={"verbose": True, "n_ctx": 4096},
     ),
-    "transformers_mistral_7b": dict(
-        name="transformers:mistralai/Mistral-7B-v0.1", kwargs=dict()
-    ),
+    "transformers_mistral_7b": dict(name="transformers:mistralai/Mistral-7B-v0.1", kwargs=dict()),
     "hfllama_mistral_7b": dict(
         name="huggingface_hubllama:TheBloke/Mistral-7B-Instruct-v0.2-GGUF:mistral-7b-instruct-v0.2.Q8_0.gguf",
         kwargs={"verbose": True},
@@ -120,14 +118,17 @@ def rate_limiter() -> int:
 def remote_image_url():
     return "https://picsum.photos/300/200"
 
-    
+
 @pytest.fixture(scope="session")
 def local_image_path(remote_image_url):
-    with NamedTemporaryFile(suffix='.jpg') as file:
-        response = requests.get(remote_image_url)
-        file.write(response.content)
-        file.flush()
-        yield file.name
+    with tempfile.TemporaryDirectory() as temp_dir:
+        td = pathlib.Path(temp_dir)
+        filename = f"{str(uuid.uuid4())}.jpg"
+        with open(td / filename, "wb") as file:
+            response = requests.get(remote_image_url)
+            file.write(response.content)
+        assert (td / filename).exists()
+        yield td / filename
 
 
 @pytest.fixture(scope="session")
