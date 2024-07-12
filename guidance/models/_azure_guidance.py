@@ -1,9 +1,8 @@
 import requests
 import os
-import base64
 import json
 import urllib.parse
-from ._model import Engine, Model, EngineCallResponse
+from ._model import Engine, Model
 from .._schema import LLProgress
 from ..chat import Phi3MiniChatTemplate
 from ._byte_tokenizer import ByteTokenizer

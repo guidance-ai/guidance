@@ -1,4 +1,4 @@
-from typing import Optional, Tuple, Set, Union, Generator
+from typing import Optional, Tuple, Set, Generator
 from dataclasses import dataclass
 import json
 import os
