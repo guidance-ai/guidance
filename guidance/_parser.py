@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Tuple, Set, Union, Generator
+from typing import Optional, Tuple, Set, Union, Generator
 from dataclasses import dataclass
 import json
 import os
@@ -6,101 +6,18 @@ import numpy as np
 from numpy.typing import NDArray
 import llguidance
 
+from ._schema import LLInterpreterResponse, EngineCallResponse
 from ._grammar import GrammarFunction, Terminal, Join
 from .models._tokenizer import Tokenizer
 from .models._byte_tokenizer import ByteTokenizer
 
-from typing import Literal, Union
-from typing_extensions import Annotated
-from pydantic import BaseModel, RootModel, Field
-
-class CaptureProgress(BaseModel):
-    object: Literal["capture"]
-    name: str
-    hex: str
-    log_prob: float
-
-class TextProgress(BaseModel):
-    object: Literal["text"]
-    hex: str
-    num_tokens: int
-    log_prob: float
-    is_generated: bool
-
-class FinalTextProgress(BaseModel):
-    object: Literal["final_text"]
-    # we don't need to handle this for now
-
-ProgressItem = Annotated[Union[CaptureProgress, TextProgress, FinalTextProgress], Field(discriminator="object")]
-
-class InterpreterProgress(RootModel):
-    root: list[ProgressItem]
-
-    def to_parser_response(self) -> "ParserResponse":
-        new_bytes = b""
-        new_token_count = 0
-        new_bytes_prob = 0.0
-        is_generated = False
-        capture_groups: Dict[str, Any] = {}
-        capture_group_log_probs: Dict[str, Any] = {}
-        num_text_entries = 0
-
-        for j in self.root:
-            if isinstance(j, CaptureProgress):
-                is_generated = True
-                cname = j.name
-                data = bytes.fromhex(j.hex)
-                if cname.startswith("__LIST_APPEND:"):
-                    cname = cname[14:]
-                    if cname not in capture_groups or \
-                        not isinstance(capture_groups[cname], list):
-                        capture_groups[cname] = []
-                        capture_group_log_probs[cname] = []
-                    capture_groups[cname].append(data)
-                    capture_group_log_probs[cname].append(j.log_prob)
-                else:
-                    capture_groups[cname] = data
-                    capture_group_log_probs[cname] = j.log_prob
-            elif isinstance(j, TextProgress):
-                # it actually should only happen once per round...
-                new_bytes += bytes.fromhex(j.hex)
-                new_token_count += j.num_tokens
-                new_bytes_prob += j.log_prob
-                is_generated |= j.is_generated
-                num_text_entries += 1
-        if num_text_entries > 0:
-            new_bytes_prob /= num_text_entries
-
-        return ParserResponse(
-            new_bytes=new_bytes,
-            new_token_count=new_token_count,
-            new_bytes_prob=new_bytes_prob,
-            is_generated=is_generated,
-            capture_groups=capture_groups,
-            capture_group_log_probs=capture_group_log_probs,
-        )
-
-class InterpreterResponse(BaseModel):
-    progress: InterpreterProgress
-    stop: bool
-    temperature: Optional[float]
-
-@dataclass
-class ParserResponse:
-    new_bytes: bytes
-    new_token_count: int
-    new_bytes_prob: float
-    is_generated: bool
-    capture_groups: Dict[str, Union[bytes, List[bytes]]]
-    capture_group_log_probs: Dict[str, Union[float, List[float]]]
-
 @dataclass
 class GenData:
-    tokens: List[int]
+    tokens: list[int]
     mask: NDArray[np.uint8]
     temperature: float
 
-    def valid_next_tokens(self) -> List[int]:
+    def valid_next_tokens(self) -> list[int]:
         return np.where(self.mask)[0].tolist()
 
 class Parser:
@@ -140,7 +57,8 @@ class LLParser(Parser):
     def done(self) -> bool:
         return self._done
     
-    def advance(self, token: Optional[int]) -> Tuple[Optional[GenData], ParserResponse]:
+    def advance(self, token: Optional[int]) -> Tuple[Optional[GenData], EngineCallResponse]:
+        # TODO: return something lower level than EngineCallResponse?
         return self._generator.send(token)
 
     def _process_prompt(self, prompt: bytes, ensure_bos_token: bool) -> list[int]:
@@ -161,14 +79,14 @@ class LLParser(Parser):
         self,
         prompt: bytes,
         ensure_bos_token: bool,
-    ) -> Generator[Tuple[Optional[GenData], ParserResponse], Optional[int], None]:
+    ) -> Generator[Tuple[Optional[GenData], EngineCallResponse], Optional[int], None]:
         tokens = self._process_prompt(prompt=prompt, ensure_bos_token=ensure_bos_token)
 
         while not self._done:
             mask, resp = self.ll_interpreter.mid_process()
-            r = InterpreterResponse.model_validate_json(resp)
+            r = LLInterpreterResponse.model_validate_json(resp)
             self._done = r.stop
-            response = r.progress.to_parser_response()
+            response = r.progress.to_engine_call_response()
 
             if mask is not None:
                 assert not self._done
@@ -318,7 +236,7 @@ class ByteParser(Parser):
     def get_captures(self):
         return self._variables, self._variables_log_probs
     
-    def _update_capture(self, response):
+    def _update_capture(self, response: EngineCallResponse):
         # Stolen from model. TODO: refactor
         for k in response.capture_groups:
             v = response.capture_groups[k]
