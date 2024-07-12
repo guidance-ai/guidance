@@ -4,7 +4,7 @@ import base64
 import json
 import urllib.parse
 from ._model import Engine, Model, EngineCallResponse
-from ..chat import Phi3ChatTemplate
+from ..chat import Phi3MiniChatTemplate
 from ._byte_tokenizer import ByteTokenizer
 
 
@@ -30,7 +30,7 @@ class AzureGuidanceEngine(Engine):
 
         if chat_template is None:
             # TODO [PK]: obtain this from the server
-            chat_template=Phi3ChatTemplate
+            chat_template=Phi3MiniChatTemplate
 
         tokenizer = ByteTokenizer(chat_template)
 

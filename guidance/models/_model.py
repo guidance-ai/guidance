@@ -8,6 +8,7 @@ import textwrap
 import threading
 import time
 import warnings
+from typing import Union
 
 
 from pprint import pprint
@@ -55,6 +56,8 @@ from .._grammar import (
 from .. import _serialization_pb2
 from ..chat import load_template_class
 
+from ._tokenizer import Tokenizer
+
 if TYPE_CHECKING:
     from ..library._block import ContextBlock
 
@@ -68,66 +71,6 @@ html_pattern = re.compile(r"&lt;\|\|_html:(.*?)_\|\|&gt;", flags=re.DOTALL)
 image_pattern = re.compile(r"&lt;\|_image:(.*?)\|&gt;")
 
 
-class Tokenizer:
-    """This is the standardized tokenizer interface used by guidance models.
-
-    This class should be subclassed by specific implementations and then used as the
-    tokenizer in the corresponding Engine subclass.
-    """
-    # TODO: We should probably have encode and decode methods on here...
-    def __init__(self, tokens, chat_template, bos_token_id=None, eos_token_id=None):
-
-        # a numpy array of token byte strings indexed by their token id
-        if isinstance(tokens, list):
-            self.tokens = np.array(
-                tokens, dtype="object"
-            )  # note that we need np.bytes_ to zero bytes are not treated as null terminations
-
-        # a numpy array of token byte strings indexed by their token id
-        elif isinstance(tokens, np.ndarray):
-            self.tokens = tokens
-
-        else:
-            raise Exception("Unknown tokenizer was passed!")
-
-        assert isinstance(
-            self.tokens[0], bytes
-        ), "The tokens need to be provided as bytes!"
-
-
-        # This method supports None, a huggingface style jinja2_template_str, or a ChatTemplate subclass
-        # Defaults to ChatML if nothing is found
-        self.chat_template = load_template_class(chat_template)
-
-        self.bos_token_id = bos_token_id
-        self.bos_token = (
-            None if self.bos_token_id is None else self.tokens[self.bos_token_id]
-        )
-        self.eos_token_id = eos_token_id if eos_token_id is not None else bos_token_id
-        self.eos_token = (
-            None if self.eos_token_id is None else self.tokens[self.eos_token_id]
-        )
-
-        # track which tokens are duplicates
-        self.duplicate_tokens = []
-        found = {}
-        for i, t in enumerate(self.tokens):
-            if t in found:
-                self.duplicate_tokens.append((i, found[t]))
-            else:
-                found[t] = i
-
-    def __call__(self, byte_string):
-        """Returns a list of tokens that represent the given byte string."""
-        raise NotImplementedError(
-            "You need to use a Tokenize subclass that overrides the __call__ method"
-        )
-
-    def clean_duplicate_tokens(self, probs):
-        """This moves all the probability mass from duplicate positons on to their primary index."""
-        for i, j in self.duplicate_tokens:
-            probs[j] += probs[i]
-            probs[i] = 0
 
 
 class EngineCallResponse:
@@ -160,12 +103,37 @@ class EngineCallResponse:
         Returns:
             engine_response_pb2.EngineCallResponse: The Protobuf equivalent of this object.
         """
+        groups = {}
+        group_log_probs = {}
+
+        def to_protobuf_value(v: Union[str, bytes, float, list]) -> _serialization_pb2.Value:
+            """Convert Python values to Protobuf Value messages."""
+            value = _serialization_pb2.Value()
+            if isinstance(v, str):
+                value.string_value = v
+            elif isinstance(v, bytes):
+                value.bytes_value = v
+            elif isinstance(v, float):
+                value.float_value = v
+            elif isinstance(v, list):
+                for item in v:
+                    value.list_value.values.append(to_protobuf_value(item))
+            else:
+                raise TypeError(f"Unsupported type: {type(v)}")
+            return value
+
+        for k, v in self.capture_groups.items():
+            groups[k] = to_protobuf_value(v)
+
+        for k, v in self.capture_group_log_probs.items():
+            group_log_probs[k] = to_protobuf_value(v)
+
         return _serialization_pb2.EngineCallResponse(
             new_bytes=self.new_bytes,
             is_generated=self.is_generated,
             new_bytes_prob=self.new_bytes_prob,
-            capture_groups=self.capture_groups,
-            capture_group_log_probs=self.capture_group_log_probs,
+            capture_groups=groups,
+            capture_group_log_probs=group_log_probs,
             new_token_count=self.new_token_count,
         )
 
@@ -181,12 +149,34 @@ class EngineCallResponse:
     def deserialize(byte_data):
         proto = _serialization_pb2.EngineCallResponse()
         proto.ParseFromString(byte_data)
+
+        def from_protobuf_value(value: _serialization_pb2.Value) -> Union[str, bytes, float, list]:
+            """Convert Protobuf Value message to Python values"""
+            if value.HasField("string_value"):
+                return value.string_value
+            elif value.HasField("bytes_value"):
+                return value.bytes_value
+            elif value.HasField("float_value"):
+                return value.float_value
+            elif value.HasField("list_value"):
+                return [from_protobuf_value(item) for item in value.list_value.values]
+            else:
+                raise ValueError("Protobuf Value message has no recognized field set")
+
+        groups = {}
+        for k, v in proto.capture_groups.items():
+            groups[k] = from_protobuf_value(v)
+
+        group_log_probs = {}
+        for k, v in proto.capture_group_log_probs.items():
+            group_log_probs[k] = from_protobuf_value(v)
+
         return EngineCallResponse(
             new_bytes=proto.new_bytes,
             is_generated=proto.is_generated,
             new_bytes_prob=proto.new_bytes_prob,
-            capture_groups=proto.capture_groups,
-            capture_group_log_probs=proto.capture_group_log_probs,
+            capture_groups=groups,
+            capture_group_log_probs=group_log_probs,
             new_token_count=proto.new_token_count,
         )
 
@@ -200,7 +190,7 @@ class Engine:
     Server so a single server can serve many clients' model objects through a single Engine object.
     """
 
-    def __init__(self, tokenizer, compute_log_probs=False):
+    def __init__(self, tokenizer: Tokenizer, compute_log_probs=False):
         self.tokenizer = tokenizer
         self.compute_log_probs = compute_log_probs
 
@@ -807,7 +797,7 @@ class Engine:
     def _cleanup_tokens(self, token_ids, token_byte_positions):
 
         # compute a joint tokenization
-        joint_token_ids = self._joint_tokenize(token_ids)
+        joint_token_ids = self.tokenizer.recode(token_ids)
 
         # see if we need to redo the tokenization
         redo = False
@@ -865,10 +855,6 @@ class Engine:
             "We can't consume any more tokens, but we are not yet done! Perhaps your model's token set is incomplete? This happened after the prompt:"
             + str(prompt[-40:])
         )
-
-    def _joint_tokenize(self, token_ids):
-        """What a full joint tokenizer would give for a given byte string"""
-        return token_ids
 
 
 class Model:
@@ -1583,7 +1569,10 @@ def throttle_refresh():
 
 
 class ConstraintException(Exception):
-    pass
+    def __init__(self, *args, **kwargs):
+        self.prompt = kwargs.pop("prompt", None)
+        self.data = kwargs.pop("data", None)
+        super().__init__(*args, **kwargs)
 
 
 # def _compute_probs(trie, probs, found):

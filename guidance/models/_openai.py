@@ -1,14 +1,8 @@
-import os
 import typing
 
-import diskcache as dc
-import hashlib
-import platformdirs
 import tiktoken
 
-
-from ._model import Chat, Instruct
-from ._grammarless import GrammarlessEngine, Grammarless, GrammarlessTokenizer
+from ._grammarless import Grammarless, GrammarlessEngine
 
 try:
     import openai
@@ -53,7 +47,7 @@ class OpenAIEngine(GrammarlessEngine):
 
         super().__init__(tokenizer, max_streaming_tokens, timeout, compute_log_probs)
 
-    def _generator_completion(self, prompt, temperature):
+    def _generator_completion(self, prompt: bytes, temperature: float):
         # Only runs on legacy openAI models that use old completion endpoints.
         self._reset_shared_data(prompt, temperature)  # update our shared data state
 
@@ -68,7 +62,7 @@ class OpenAIEngine(GrammarlessEngine):
                 temperature=temperature,
                 stream=True,
             )
-            self.metrics.engine_input_tokens += len(self.tokenizer(prompt_decoded))
+            self.metrics.engine_input_tokens += len(self.tokenizer.encode(prompt))
         except Exception as e:
             # TODO: add retry logic, but keep token counts straight
             raise e
@@ -78,10 +72,12 @@ class OpenAIEngine(GrammarlessEngine):
                 chunk = part.choices[0].text or ""
             else:
                 chunk = ""
-            self.metrics.engine_output_tokens += len(self.tokenizer(chunk))
+            self.metrics.engine_output_tokens += len(
+                self.tokenizer.encode(chunk.encode())
+            )
             yield chunk.encode("utf8")
 
-    def _generator_chat(self, prompt, temperature):
+    def _generator_chat(self, prompt: bytes, temperature: float):
         # find the role tags
         pos = 0
         role_end = b"<|im_end|>\n"
@@ -108,8 +104,8 @@ class OpenAIEngine(GrammarlessEngine):
                         break
                     btext = prompt[pos : pos + end_pos]
                     pos += end_pos + len(role_end)
-                    message_content = btext.decode("utf8")
-                    input_token_count += len(self.tokenizer(message_content))
+                    message_content: str = btext.decode("utf8")
+                    input_token_count += len(self.tokenizer.encode(btext))
                     messages.append({"role": role_name, "content": message_content})
                     found = True
                     break
@@ -148,14 +144,17 @@ class OpenAIEngine(GrammarlessEngine):
                 else:
                     chunk = ""
                 encoded_chunk = chunk.encode("utf8")
-                self.metrics.engine_output_tokens += len(self.tokenizer(chunk))
+                self.metrics.engine_output_tokens += len(
+                    self.tokenizer.encode(encoded_chunk)
+                )
                 yield encoded_chunk
 
         except Exception as e:
             # TODO: add retry logic, keeping mind of token counts
             raise e
 
-    def _generator(self, prompt, temperature):
+    def _generator(self, prompt: bytes, temperature: float):
+        assert isinstance(prompt, bytes)
         if self.model_name in self._completion_models:
             return self._generator_completion(prompt, temperature)
         else:
