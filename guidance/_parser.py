@@ -181,8 +181,13 @@ class LLParser(Parser):
                 )
                 # Send caller the mask and response; wait for token
                 token = yield (gen_data, response)
+                # TODO: better exception handling (ParserException?)
                 if token is None:
                     raise ValueError("Expected token, got None")
+                if not mask[token]:
+                    # Note: we could punt this probem to ll_interpreter.post_process,
+                    # but it's a bit clearer to handle it here
+                    raise ValueError("Invalid token")
             else:
                 gen_data = None
                 token = yield (gen_data, response)
