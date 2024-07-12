@@ -88,7 +88,8 @@ class TransformersTokenizer(Tokenizer):
 
         elif hasattr(transformers_tokenizer, "get_vocab"):
             vocab = transformers_tokenizer.get_vocab()
-            fallback_decoder = None
+            byte_encoder = self._bytes_to_unicode()
+            byte_decoder = {v: k for k, v in byte_encoder.items()}
             
             for i in range(len(transformers_tokenizer)):
                 if i in special_tokens_map:
@@ -104,16 +105,7 @@ class TransformersTokenizer(Tokenizer):
                             if roundtrip_id == i:
                                 byte_coded = token_str.encode()
                             else:
-                                # TODO replace this with something more sensible
-                                if not fallback_decoder:
-                                    fallback_decoder = transformers_package.AutoTokenizer.from_pretrained(
-                                        "gpt2", use_fast=False
-                                    ).byte_decoder
-                                    
-                                byte_coded = bytes(
-                                    [fallback_decoder[c]
-                                     for c in transformers_tokenizer.convert_ids_to_tokens(i)]
-                                )
+                                byte_coded = bytes([byte_decoder[c] for c in token])
                         else:
                             byte_coded = token.encode()
                     else:
@@ -180,6 +172,20 @@ class TransformersTokenizer(Tokenizer):
             None if ignore_bos_token else transformers_tokenizer.bos_token_id,
             transformers_tokenizer.eos_token_id,
         )
+
+    def _bytes_to_unicode(self):
+        bs = list(range(ord("!"), ord("~") + 1)) + \
+            list(range(ord("¡"), ord("¬") + 1)) + \
+            list(range(ord("®"), ord("ÿ") + 1))
+        cs = bs[:]
+        n = 0
+        for b in range(256):
+            if b not in bs:
+                bs.append(b)
+                cs.append(256 + n)
+                n += 1
+        cs = [chr(n) for n in cs]
+        return dict(zip(bs, cs))
 
     def _tokenizer(self, model, **kwargs) -> Union[
         "transformers_package.PreTrainedTokenizer",
