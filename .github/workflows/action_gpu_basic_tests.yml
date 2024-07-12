@@ -58,7 +58,7 @@ jobs:
         run: |
           pip install accelerate einops triton
           echo "-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-"
-          pip install packaging setuptools wheel
+          pip install bitsandbytes packaging setuptools wheel
           pip install flash-attn --no-build-isolation
           echo "-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-"
           pip uninstall -y llama-cpp-python
