@@ -56,7 +56,10 @@ jobs:
           pip install sentencepiece
       - name: GPU pip installs
         run: |
-          pip install accelerate einops flash-attn packaging triton
+          pip install accelerate einops packaging triton
+          echo "-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-"
+          pip install flash-attn 
+          echo "-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-"
           pip uninstall -y llama-cpp-python
           CMAKE_ARGS="-DGGML_CUDA=on" pip install "llama-cpp-python!=0.2.58,!=0.2.75"
       - name: Check GPU available
