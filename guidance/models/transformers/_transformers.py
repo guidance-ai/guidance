@@ -88,6 +88,8 @@ class TransformersTokenizer(Tokenizer):
 
         elif hasattr(transformers_tokenizer, "get_vocab"):
             vocab = transformers_tokenizer.get_vocab()
+            fallback_decoder = None
+            
             for i in range(len(transformers_tokenizer)):
                 if i in special_tokens_map:
                     byte_coded = special_tokens_map[i].encode()
@@ -98,7 +100,20 @@ class TransformersTokenizer(Tokenizer):
                     elif isinstance(token, str):
                         if hasattr(transformers_tokenizer, "convert_tokens_to_string"):
                             token_str = transformers_tokenizer.convert_tokens_to_string([token])
-                            byte_coded = token_str.encode()
+                            roundtrip_id = transformers_tokenizer.encode(token_str)[0]
+                            if roundtrip_id == i:
+                                byte_coded = token_str.encode()
+                            else:
+                                # TODO replace this with something more sensible
+                                if not fallback_decoder:
+                                    fallback_decoder = transformers_package.AutoTokenizer.from_pretrained(
+                                        "gpt2", use_fast=False
+                                    ).byte_decoder
+                                    
+                                byte_coded = bytes(
+                                    [fallback_decoder[c]
+                                     for c in transformers_tokenizer.convert_ids_to_tokens(i)]
+                                )
                         else:
                             byte_coded = token.encode()
                     else:
