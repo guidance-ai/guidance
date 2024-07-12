@@ -16,9 +16,7 @@ SELECTED_MODEL_ENV_VARIABLE = "GUIDANCE_SELECTED_MODEL"
 
 AVAILABLE_MODELS = {
     "gpt2cpu": dict(name="transformers:gpt2", kwargs=dict()),
-    "phi2cpu": dict(
-        name="transformers:microsoft/phi-2", kwargs={"trust_remote_code": True}
-    ),
+    "phi2cpu": dict(name="transformers:microsoft/phi-2", kwargs={"trust_remote_code": True}),
     "azure_guidance": dict(
         name="azure_guidance:",
         kwargs={},
@@ -41,9 +39,7 @@ AVAILABLE_MODELS = {
         name="huggingface_hubllama:TheBloke/Llama-2-7B-GGUF:llama-2-7b.Q5_K_M.gguf",
         kwargs={"verbose": True, "n_ctx": 4096},
     ),
-    "transformers_mistral_7b": dict(
-        name="transformers:mistralai/Mistral-7B-v0.1", kwargs=dict()
-    ),
+    "transformers_mistral_7b": dict(name="transformers:mistralai/Mistral-7B-v0.1", kwargs=dict()),
     "hfllama_mistral_7b": dict(
         name="huggingface_hubllama:TheBloke/Mistral-7B-Instruct-v0.2-GGUF:mistral-7b-instruct-v0.2.Q8_0.gguf",
         kwargs={"verbose": True},
@@ -103,7 +99,12 @@ def selected_model(selected_model_info: str) -> models.Model:
 
 @pytest.fixture(scope="module")
 def model_with_role_tags(selected_model, selected_model_name):
-    if selected_model_name in ["transformers_phi3cpu_mini_4k_instruct", "transformers_llama3cpu_8b", "hfllama_phi3cpu_mini_4k_instruct", "hfllama_mistral_7b"]:
+    if selected_model_name in [
+        "transformers_phi3cpu_mini_4k_instruct",
+        "transformers_llama3cpu_8b",
+        "hfllama_phi3cpu_mini_4k_instruct",
+        "hfllama_mistral_7b",
+    ]:
         return selected_model
     else:
         pytest.skip("Requires a model that supports role tags!")
