@@ -1,15 +1,17 @@
-from typing import Optional, Tuple, Set, Generator
-from dataclasses import dataclass
 import json
 import os
+from dataclasses import dataclass
+from typing import Generator, Optional, Set, Tuple
+
+import llguidance
 import numpy as np
 from numpy.typing import NDArray
-import llguidance
 
-from ._schema import LLInterpreterResponse, EngineCallResponse
-from ._grammar import GrammarFunction, Terminal, Join
-from .models._tokenizer import Tokenizer
+from ._grammar import GrammarFunction, Join, Terminal
+from ._schema import EngineCallResponse, LLInterpreterResponse
 from .models._byte_tokenizer import ByteTokenizer
+from .models._tokenizer import Tokenizer
+
 
 @dataclass
 class GenData:
@@ -20,9 +22,12 @@ class GenData:
     def valid_next_tokens(self) -> list[int]:
         return np.where(self.mask)[0].tolist()
 
+
 class Parser:
     """An abstract base class for guidance parsers."""
+
     pass
+
 
 class LLParser(Parser):
 
@@ -46,7 +51,7 @@ class LLParser(Parser):
         self.ll_interpreter = llguidance.LLInterpreter(
             self.ll_tokenizer,
             json.dumps(grammar.ll_serialize()),
-            log_level=int(os.environ.get("LLGUIDANCE_LOG_LEVEL", "1"))
+            log_level=int(os.environ.get("LLGUIDANCE_LOG_LEVEL", "1")),
         )
         self._generator = self._parse(prompt, ensure_bos_token)
         self._done = False
@@ -56,14 +61,16 @@ class LLParser(Parser):
 
     def done(self) -> bool:
         return self._done
-    
-    def advance(self, token: Optional[int]) -> Tuple[Optional[GenData], EngineCallResponse]:
+
+    def advance(
+        self, token: Optional[int]
+    ) -> Tuple[Optional[GenData], EngineCallResponse]:
         # TODO: return something lower level than EngineCallResponse?
         return self._generator.send(token)
 
     def _process_prompt(self, prompt: bytes, ensure_bos_token: bool) -> list[int]:
         prompt_tokens = self.ll_interpreter.process_prompt(
-                self.tokenizer.encode(prompt)
+            self.tokenizer.encode(prompt)
         )
         if (
             ensure_bos_token
@@ -150,11 +157,12 @@ class ByteParser(Parser):
 
     def valid_next_bytes(self) -> Set[bytes]:
         if self.pos < len(self.bytes):
-            return {self.bytes[self.pos:self.pos+1]}
+            return {self.bytes[self.pos : self.pos + 1]}
         if self.gen_data is None:
             return set()
         return {
-            bytes([t]) for t in self.gen_data.valid_next_tokens()
+            bytes([t])
+            for t in self.gen_data.valid_next_tokens()
             if t != self.tokenizer.eos_token_id
         }
 
@@ -171,22 +179,22 @@ class ByteParser(Parser):
             self.gen_data, response = self.ll_parser.advance(None)
             self._update_capture(response)
             self.bytes += response.new_bytes
-        
+
         if not bts:
             return
-        
+
         b = bts[0]
         # If the current position is less than the length of the bytes, then we are in fast_forward mode
-        # and we need to make sure that the byte we are consuming is the same as the byte at the current 
+        # and we need to make sure that the byte we are consuming is the same as the byte at the current
         # position
         if self.pos < len(self.bytes):
             if b != self.bytes[self.pos]:
-                next_byte = self.bytes[self.pos:self.pos+1]
+                next_byte = self.bytes[self.pos : self.pos + 1]
                 raise ParserException(
                     f"Expected byte {next_byte!r} (fast_forward), got {bytes([b])!r}",
                     current_byte=bytes([b]),
                     allowed_bytes={next_byte},
-                    consumed_bytes=self.bytes[:self.pos],
+                    consumed_bytes=self.bytes[: self.pos],
                 )
             # Byte was good, move to the next byte
             self.pos += 1
@@ -201,7 +209,7 @@ class ByteParser(Parser):
                     f"Expected end of input, got {bytes([b])!r}",
                     current_byte=bytes([b]),
                     allowed_bytes=set(),
-                    consumed_bytes=self.bytes[:self.pos],
+                    consumed_bytes=self.bytes[: self.pos],
                 )
             # We're in generation mode. Assure that the byte is one of the valid next bytes
             valid_next_tokens = self.gen_data.valid_next_tokens()
@@ -211,7 +219,7 @@ class ByteParser(Parser):
                     f"Expected one of the following bytes: {valid_next_bytes!r}, got {bytes([b])!r}",
                     current_byte=bytes([b]),
                     allowed_bytes=valid_next_bytes,
-                    consumed_bytes=self.bytes[:self.pos],
+                    consumed_bytes=self.bytes[: self.pos],
                 )
             # Byte was good, have ll_parser consume it so we can advance further
             self.gen_data, response = self.ll_parser.advance(b)
@@ -235,7 +243,7 @@ class ByteParser(Parser):
 
     def get_captures(self):
         return self._variables, self._variables_log_probs
-    
+
     def _update_capture(self, response: EngineCallResponse):
         # Stolen from model. TODO: refactor
         for k in response.capture_groups:
@@ -255,7 +263,9 @@ class ByteParser(Parser):
                     except UnicodeDecodeError:
                         pass
 
-                    if k not in self._variables or not isinstance(self._variables[k], list):
+                    if k not in self._variables or not isinstance(
+                        self._variables[k], list
+                    ):
                         self._variables[k] = []
                         self._variables_log_probs[k] = []
                     self._variables[k].append(inner_v)
