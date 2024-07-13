@@ -44,7 +44,8 @@ AVAILABLE_MODELS = {
     ),
     "transformers_phi3_small_8k_instruct": dict(
         name="transformers:microsoft/Phi-3-small-8k-instruct",
-        kwargs={"trust_remote_code": True, "load_in_8bit": True, "device_map": "cuda:0"}
+        kwargs={"trust_remote_code": True, "load_in_8bit": True, "device_map": "cuda:0",
+                "use_flash_attention_2": False, "use_flash_attention": True}
     ),
     "transformers_mistral_7b": dict(name="transformers:mistralai/Mistral-7B-v0.1", kwargs=dict()),
     "hfllama_mistral_7b": dict(
