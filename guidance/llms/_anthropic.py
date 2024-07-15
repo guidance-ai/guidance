@@ -360,8 +360,8 @@ class Anthropic(LLM):
         kwargs['messages'] = [s1 for s1 in messages if s1['role'] != 'system']
 
         # Remove unused arguments
-        del kwargs['prompt']
-        del kwargs['stop_sequences']  # TODO fix error
+        unused_arguments = ['prompt', 'stop_sequences']
+        kwargs = {k: v for k, v in kwargs if k not in unused_arguments}
 
         # Call LLM API
         out = await client.messages.create(**kwargs)
