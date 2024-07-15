@@ -18,7 +18,7 @@ jobs:
         model:
           - "gpt2gpu"
           - "phi2gpu"
-          - "transformers_phi3_small_8k_instruct"
+          # - "transformers_phi3_small_8k_instruct" Does not run on tesla t4
           # - "hfllama_7b_gpu" Keeps causing intermittent segfaults
     runs-on: ${{ inputs.os }}
 
@@ -56,11 +56,7 @@ jobs:
           pip install sentencepiece
       - name: GPU pip installs
         run: |
-          pip install accelerate einops triton
-          echo "-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-"
-          pip install bitsandbytes packaging setuptools wheel
-          pip install flash-attn --no-build-isolation
-          echo "-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-"
+          pip install accelerate 
           pip uninstall -y llama-cpp-python
           CMAKE_ARGS="-DGGML_CUDA=on" pip install "llama-cpp-python!=0.2.58,!=0.2.75"
       - name: Check GPU available
