@@ -59,7 +59,7 @@ jobs:
           pip install accelerate einops triton
           echo "-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-"
           pip install bitsandbytes packaging setuptools wheel
-          pip install flash-attn==1.0.9 --no-build-isolation
+          pip install flash-attn --no-build-isolation
           echo "-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-"
           pip uninstall -y llama-cpp-python
           CMAKE_ARGS="-DGGML_CUDA=on" pip install "llama-cpp-python!=0.2.58,!=0.2.75"
