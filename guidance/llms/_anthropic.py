@@ -361,7 +361,7 @@ class Anthropic(LLM):
 
         # Remove unused arguments
         unused_arguments = ['prompt', 'stop_sequences']
-        kwargs = {k: v for k, v in kwargs if k not in unused_arguments}
+        kwargs = {k: v for k, v in kwargs.items() if k not in unused_arguments}
 
         # Call LLM API
         out = await client.messages.create(**kwargs)
