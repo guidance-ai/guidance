@@ -72,7 +72,7 @@ def test_return_mock_string():
     my_string = "My roundtrip"
     with ServerContext(mock_string=my_string):
         m = models.Model("http://localhost:8392", api_key="SDFSDF")
-        m2 = m + gen(max_tokens=10, name="captured")
+        m2 = m + gen(max_tokens=20, name="captured")
         assert m2["captured"].startswith(my_string)
 
 
