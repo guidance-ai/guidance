@@ -37,10 +37,6 @@ from .._grammar import (
     unreplace_model_variables,
     select,
 )
-
-from .. import _serialization_pb2
-from ..chat import load_template_class
-
 from ._tokenizer import Tokenizer
 
 if TYPE_CHECKING:

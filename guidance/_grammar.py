@@ -3,7 +3,6 @@ import types
 
 from typing import Any, TYPE_CHECKING, TypeVar, Union, cast, Optional
 
-from . import _serialization_pb2
 from . import _parser
 
 _T = TypeVar("_T")
@@ -49,13 +48,6 @@ class Function:
 
         # return a string representation of this call so it can be combined with other strings/calls
         return tag_start + str_id + tag_end
-
-    def serialize(self):
-        raise NotImplementedError()
-
-    @classmethod
-    def deserialize(cls, serialized_grammar):
-        raise NotImplementedError()
 
 
 class RawFunction(Function):
@@ -225,73 +217,6 @@ class GrammarFunction(Function):
         lines.append("root ::= " + root_name)
         return "\n".join(lines)
 
-    def serialize(self):
-        g = _serialization_pb2.Grammar()
-        index_map = {}
-        nodes = {}
-        self._rec_create_index_map(index_map)  # gives all the nodes an index
-        self._rec_serialize(index_map, nodes)  # nodes is filled in (as is index_map)
-        g.nodes.extend(list(nodes.values()))
-        return g.SerializeToString()
-
-    def _rec_create_index_map(self, index_map):
-        if self not in index_map:
-            index_map[self] = len(index_map)
-            if hasattr(self, "values"):
-                for value in self.values:
-                    value._rec_create_index_map(index_map)
-
-    def _rec_serialize(self, index_map, nodes):
-        if self not in nodes:
-            v = self._to_proto(index_map)
-            node = _serialization_pb2.GrammarFunction()
-            if isinstance(self, Byte):
-                node.byte.CopyFrom(v)
-            elif isinstance(self, ByteRange):
-                node.byte_range.CopyFrom(v)
-            elif isinstance(self, Select):
-                node.select.CopyFrom(v)
-            elif isinstance(self, Join):
-                node.join.CopyFrom(v)
-            elif isinstance(self, ModelVariable):
-                node.model_variable.CopyFrom(v)
-            else:
-                raise Exception("Unknown node type:", type(node))
-            nodes[self] = node
-            if hasattr(self, "values"):
-                for value in self.values:
-                    value._rec_serialize(index_map, nodes)
-
-    @classmethod
-    def deserialize(cls, serialized_grammar):
-        g = _serialization_pb2.Grammar()
-        g.ParseFromString(serialized_grammar)
-
-        # create the list of objects
-        values = []
-        for node in g.nodes:
-            if node.HasField("byte"):
-                node = Byte._from_proto(node.byte)
-            elif node.HasField("byte_range"):
-                node = ByteRange._from_proto(node.byte_range)
-            elif node.HasField("select"):
-                node = Select._from_proto(node.select)
-            elif node.HasField("join"):
-                node = Join._from_proto(node.join)
-            elif node.HasField("model_variable"):
-                node = ModelVariable._from_proto(node.model_variable)
-            else:
-                raise Exception("Unknown node type", node)
-            values.append(node)
-
-        # fill in the values pointers now that we have the full list of objects
-        for v in values:
-            if hasattr(v, "values"):
-                for i, index in enumerate(v.values):
-                    v.values[i] = values[index]
-
-        return values[0]  # the first element in the root node of the grammar
-
     def ll_serialize(self):
         return {"grammars": LLSerializer().run(self)}
 
@@ -340,24 +265,6 @@ class Byte(Terminal):
     def nullable(self):
         return False
 
-    def _to_proto(self, index_map):
-        data = _serialization_pb2.Byte()
-        data.byte = self.byte
-        data.hidden = self.hidden
-        data.commit_point = self.commit_point
-        data.capture_name = "" if self.capture_name is None else self.capture_name
-        data.temperature = self.temperature
-        return data
-
-    @staticmethod
-    def _from_proto(data):
-        out = Byte(data.byte)
-        out.hidden = data.hidden
-        out.commit_point = data.commit_point
-        out.capture_name = None if data.capture_name == "" else data.capture_name
-        out.temperature = data.temperature
-        return out
-
 
 class ByteRange(Terminal):
     __slots__ = ("byte_range", "hidden", "commit_point", "capture_name", "temperature")
@@ -401,24 +308,6 @@ class ByteRange(Terminal):
 
     def __len__(self):
         return 1
-
-    def _to_proto(self, index_map):
-        data = _serialization_pb2.ByteRange()
-        data.byte_range = self.byte_range
-        data.hidden = self.hidden
-        data.commit_point = self.commit_point
-        data.capture_name = "" if self.capture_name is None else self.capture_name
-        data.temperature = self.temperature
-        return data
-
-    @staticmethod
-    def _from_proto(data):
-        out = ByteRange(data.byte_range)
-        out.hidden = data.hidden
-        out.commit_point = data.commit_point
-        out.capture_name = None if data.capture_name == "" else data.capture_name
-        out.temperature = data.temperature
-        return out
 
 
 class Null(Terminal):
@@ -464,22 +353,6 @@ class ModelVariable(GrammarFunction):
         self.commit_point = False
         self.capture_name = None
         self.nullable = False
-
-    def _to_proto(self, index_map):
-        data = _serialization_pb2.ModelVariable()
-        data.hidden = self.hidden
-        data.name = self.name
-        data.commit_point = self.commit_point
-        data.capture_name = "" if self.capture_name is None else self.capture_name
-        return data
-
-    @staticmethod
-    def _from_proto(data):
-        out = ModelVariable(data.name)
-        out.hidden = data.hidden
-        out.commit_point = data.commit_point
-        out.capture_name = None if data.capture_name == "" else data.capture_name
-        return out
 
 
 def replace_grammar_node(grammar, target, replacement):
@@ -703,31 +576,6 @@ class Join(GrammarFunction):
                 s += v.__repr__(indent, done)
         return s
 
-    def _to_proto(self, index_map):
-        data = _serialization_pb2.Join()
-        data.nullable = self.nullable
-        for v in self.values:
-            data.values.append(index_map[v])
-        data.name = self.name
-        data.hidden = self.hidden
-        data.commit_point = self.commit_point
-        data.capture_name = "" if self.capture_name is None else self.capture_name
-        data.max_tokens = self.max_tokens
-        return data
-
-    @staticmethod
-    def _from_proto(data):
-        out = Join(
-            data.values,  # we put ints in that will be replaced later by the deserialize method
-            name=data.name,
-            max_tokens=data.max_tokens,
-        )
-        out.nullable = data.nullable
-        out.hidden = data.hidden
-        out.commit_point = data.commit_point
-        out.capture_name = None if data.capture_name == "" else data.capture_name
-        return out
-
 
 def quote_regex(value: str) -> str:
     assert isinstance(value, str)
@@ -908,34 +756,6 @@ class Select(GrammarFunction):
             if v not in done and (isinstance(v, Join) or isinstance(v, Select)):
                 s += v.__repr__(indent, done)
         return s
-
-    def _to_proto(self, index_map):
-        data = _serialization_pb2.Select()
-        data.nullable = self.nullable
-        for v in self.values:
-            data.values.append(index_map[v])
-        data.name = self.name
-        data.hidden = self.hidden
-        data.commit_point = self.commit_point
-        data.capture_name = "" if self.capture_name is None else self.capture_name
-        data.max_tokens = self.max_tokens
-        data.recursive = self.recursive
-
-        return data
-
-    @staticmethod
-    def _from_proto(data):
-        out = Select(
-            data.values,  # we put ints in that will be replaced later by the deserialize method
-            name=data.name,
-            max_tokens=data.max_tokens,
-        )
-        out.nullable = data.nullable
-        out.hidden = data.hidden
-        out.commit_point = data.commit_point
-        out.capture_name = None if data.capture_name == "" else data.capture_name
-        out.recursive = data.recursive
-        return out
 
 
 def string(value: Union[str, bytes]) -> Union[Null, Join]:
