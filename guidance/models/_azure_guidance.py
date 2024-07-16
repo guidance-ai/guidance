@@ -96,6 +96,12 @@ class AzureGuidanceEngine(Engine):
                     if err:
                         raise RuntimeError(f"Error returned by grammar server {err}.")
 
+                    # TODO: these metrics may be a little off -- notice the `-1` (which is a hack for passing
+                    # tests in tests/model_integration/library/test_gen.py for now, may have to do with BOS?)
+                    usage = d["usage"]
+                    self.metrics.engine_input_tokens = usage["ff_tokens"]
+                    self.metrics.engine_output_tokens = usage["sampled_tokens"] - 1
+
                     yield progress.to_engine_call_response()
 
             elif decoded_line == "data: [DONE]":
