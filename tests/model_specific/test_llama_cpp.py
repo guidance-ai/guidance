@@ -7,14 +7,6 @@ import guidance
 from guidance import gen, select
 
 
-@pytest.fixture(scope="module")
-def llamacpp_model(selected_model, selected_model_name):
-    if selected_model_name in ["hfllama7b", "hfllama_7b_gpu"]:
-        return selected_model
-    else:
-        pytest.skip("Requires Llama-Cpp model")
-
-
 def test_llama_cpp_gen(llamacpp_model: guidance.models.Model):
     lm = llamacpp_model
     lm = lm + "this is a test" + gen("test", max_tokens=10)

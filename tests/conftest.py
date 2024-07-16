@@ -100,6 +100,19 @@ def selected_model(selected_model_info: str) -> models.Model:
     return model
 
 
+@pytest.fixture(scope="module")
+def llamacpp_model(selected_model, selected_model_name):
+    if selected_model_name in [
+        "hfllama7b",
+        "hfllama_7b_gpu",
+        "hfllama_phi3cpu_mini_4k_instruct",
+        "hfllama_mistral_7b",
+    ]:
+        return selected_model
+    else:
+        pytest.skip("Requires Llama-Cpp model")
+
+
 @pytest.fixture(scope="function")
 def rate_limiter() -> int:
     """Limit test execution rate
