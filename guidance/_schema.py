@@ -1,6 +1,6 @@
 from typing import Any, Literal, Optional, Union
 
-from pydantic import BaseModel, Field, RootModel
+from pydantic import BaseModel, Field, RootModel, model_validator
 from typing_extensions import Annotated
 
 
@@ -18,6 +18,16 @@ class LLProgressCapture(BaseModel):
     name: str
     hex: str
     log_prob: float
+    list_append: bool = False
+
+    @model_validator(mode="before")
+    def strip_list_append_prefix(cls, values):
+        name = values["name"]
+        if name.startswith("__LIST_APPEND:"):
+            values["name"] = name[14:]
+            # Override whatever was set
+            values["list_append"] = True
+        return values
 
 
 class LLProgressText(BaseModel):
@@ -56,8 +66,7 @@ class LLProgress(RootModel):
                 is_generated = True
                 cname = j.name
                 data = bytes.fromhex(j.hex)
-                if cname.startswith("__LIST_APPEND:"):
-                    cname = cname[14:]
+                if j.list_append:
                     if cname not in capture_groups or not isinstance(
                         capture_groups[cname], list
                     ):
