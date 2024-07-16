@@ -54,5 +54,5 @@ class RemoteEngine(Engine):
         # Process and yield the response data
         # chunk_size=None means it'll stream the content
         for chunk in response.iter_content(chunk_size=None):
-            response_data = EngineCallResponse.deserialize(chunk)
+            response_data = EngineCallResponse.model_validate_json(chunk)
             yield response_data
