@@ -1,7 +1,7 @@
 import json
 import os
 from dataclasses import dataclass
-from typing import Generator, Optional, Set, Tuple
+from typing import Any, Generator, Optional, Tuple
 
 import llguidance
 import numpy as np
@@ -139,8 +139,8 @@ class ByteParser:
         self.bytes = b""
         self.gen_data: Optional[GenData] = None
         self.pos = 0
-        self._variables = {}
-        self._variables_log_probs = {}
+        self._variables: dict[str, Any] = {}
+        self._variables_log_probs: dict[str, Any] = {}
         self.consume_bytes(prompt)
 
     def matched(self) -> bool:
@@ -148,7 +148,7 @@ class ByteParser:
             return False
         return self.ll_parser.matched()
 
-    def valid_next_bytes(self) -> Set[bytes]:
+    def valid_next_bytes(self) -> set[bytes]:
         if self.pos < len(self.bytes):
             return {self.bytes[self.pos : self.pos + 1]}
         if self.gen_data is None:
@@ -232,13 +232,13 @@ class ByteParser:
         self._update_capture(response)
         self.bytes += response.new_bytes
         if not self.ll_parser.done() or not self.matched():
-            raise ParserException("Hit end of input before reaching a valid state")
+            raise ByteParserException("Hit end of input before reaching a valid state")
 
     def get_captures(self):
         return self._variables, self._variables_log_probs
 
     def _update_capture(self, response: EngineCallResponse):
-        # Stolen from model. TODO: refactor
+        # Stolen from model. TODO: refactor to share code
         for k in response.capture_groups:
             v = response.capture_groups[k]
 
