@@ -1,13 +1,17 @@
 import pytest
-
-from typing import Any
-
 import tiktoken
-
-from huggingface_hub import hf_hub_download
 
 from guidance import models
 
+# These are not _strictly_ unit tests, since they
+# refer to specific tokenisers. However, tokenisers
+# are small, so if the tokeniser can be loaded
+# separately from the model (as is the case for
+# transformers and tiktoken), then this is a good
+# place to have them live.
+
+# There is a separate file for the llamacpp models
+# since the tokenisers cannot be loaded separately
 
 ROUND_TRIP_STRINGS = [
     "",
