@@ -1,15 +1,33 @@
 from typing import Sequence
 
 import numpy as np
+import logging
 
 from ._model import Engine, Model, Chat
 from ._remote import RemoteEngine
 from ._tokenizer import Tokenizer
 from ._byte_tokenizer import ByteTokenizer
 
+logger = logging.getLogger(__name__)
+
+# TODO: this import pattern is neded for both Grammarless and Mock, but not the Model base class.
+#   we should refactor this to prevent the need for this import pattern
+try:
+    from .. import cpp  # type: ignore[attr-defined]
+except ImportError:
+    logger.warn(
+        "Failed to load guidance.cpp, falling back to Python mirror implementations..."
+    )
+    from .. import _cpp as cpp
+
+
 class MockEngine(Engine):
     def __init__(self, tokenizer, byte_patterns, compute_log_probs, force):
         super().__init__(tokenizer, compute_log_probs=compute_log_probs)
+
+        self._token_trie = cpp.ByteTrie(
+            self.tokenizer.tokens, np.arange(len(self.tokenizer.tokens))
+        )
 
         self._valid_mask = np.zeros(len(tokenizer.tokens))
         for i, t in enumerate(tokenizer.tokens):
@@ -35,6 +53,10 @@ class MockEngine(Engine):
         # seed the random number generator
         self._rand_generator = np.random.default_rng(seed=42)
 
+    def get_next_token(self, token_ids: list[int], mask: np.ndarray, temperature: float) -> int:
+        self.called_temperatures.append(temperature)
+        return super().get_next_token(token_ids, mask, 0.)
+
     def get_logits(self, token_ids):
         """Pretends to compute the logits for the given token state."""
         # build the byte strings
@@ -57,14 +79,27 @@ class MockEngine(Engine):
             byte_string
             for p in self.byte_patterns:
                 if p.startswith(byte_string) and len(p) > len(byte_string):
-                    next_token = self.tokenizer.encode(p[len(byte_string) :])[0]
-                    logits[next_token] += bias
+                    i = self._get_next_token(p[len(byte_string) :])
+                    logits[i] += bias
 
         return logits
 
-    def sample_with_temperature(self, logits: np.ndarray, mask: np.ndarray, temperature: float):
-        self.called_temperatures.append(temperature)
-        return super().sample_with_temperature(logits, mask, 0.)
+    def _get_next_token(self, byte_string) -> int:
+        """Tokenize the prefix of a byte string and return the token id."""
+        trie = self._token_trie
+        pos = 0
+        token_id = None
+        while (next_byte := byte_string[pos: pos + 1]):
+            if trie.has_child(next_byte):
+                trie = trie.child(next_byte)
+                pos += 1
+                if trie.value >= 0:
+                    token_id = trie.value
+            else:
+                break
+        if token_id is None:
+            raise ValueError(f"Could not tokenize byte string: {byte_string!r}")
+        return token_id
 
 class Mock(Model):
     def __init__(
