@@ -8,4 +8,5 @@ TOKENIZER_ROUND_TRIP_STRINGS = [
     " two words ",
     "two words ",
     "’",
+    "’•¶∂ƒ˙∆£Ħ爨ൠᅘ∰፨",
 ]
