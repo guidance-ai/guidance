@@ -1,7 +1,12 @@
 from typing import Any, Literal, Optional, Union
 
-from pydantic import BaseModel, Field, RootModel, model_validator
+from pydantic import BaseModel, Field, NonNegativeInt, RootModel, model_validator
 from typing_extensions import Annotated
+
+
+class GuidanceEngineMetrics(BaseModel):
+    engine_input_tokens: NonNegativeInt = 0
+    engine_output_tokens: NonNegativeInt = 0
 
 
 class EngineCallResponse(BaseModel):
@@ -10,7 +15,7 @@ class EngineCallResponse(BaseModel):
     new_bytes_prob: float
     capture_groups: dict
     capture_group_log_probs: dict
-    new_token_count: int
+    new_token_count: NonNegativeInt
 
 
 class LLProgressCapture(BaseModel):
@@ -33,7 +38,7 @@ class LLProgressCapture(BaseModel):
 class LLProgressText(BaseModel):
     object: Literal["text"]
     hex: str
-    num_tokens: int
+    num_tokens: NonNegativeInt
     log_prob: float
     is_generated: bool
 

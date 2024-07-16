@@ -24,8 +24,7 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-from .._schema import EngineCallResponse
-from ._guidance_engine_metrics import GuidanceEngineMetrics
+from .._schema import EngineCallResponse, GuidanceEngineMetrics
 from .._utils import softmax, CaptureEvents
 from .._parser import LLParser
 from .._grammar import (
