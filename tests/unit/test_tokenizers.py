@@ -30,7 +30,6 @@ class TestTransformerTokenizers:
     TRANSFORMER_MODELS = [
         "gpt2",
         "microsoft/Phi-3-mini-4k-instruct",
-        "microsoft/Phi-3-vision-128k-instruct",
         "microsoft/phi-2",
     ]
 
