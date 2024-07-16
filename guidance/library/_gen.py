@@ -175,7 +175,7 @@ def gen(
                 [stop_pattern]
                 + [
                     capture(
-                        x.call_grammar, #commit_point(x.call_grammar, hidden=hide_tool_call),
+                        commit_point(x.call_grammar, hidden=hide_tool_call),
                         name=f"tool{i}",
                     )
                     for i, x in enumerate(tools)
