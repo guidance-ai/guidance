@@ -3,12 +3,9 @@ import logging
 from .._guidance import guidance
 from ._silent import silent
 from .._grammar import select, Gen, quote_regex
-from ._sequences import zero_or_more
 from .._grammar import commit_point
-from ._any_char import any_char
 from .._grammar import capture
-from ._regex import regex as regex_grammar
-from .._grammar import token_limit, eos_token, active_role_end, with_temperature
+from .._grammar import token_limit, with_temperature
 from ._tool import Tool
 from ._block import block
 
@@ -122,9 +119,8 @@ def gen(
     #     elif lm.suffix.startswith("'") and str(lm).endswith("'"):
     #         stop = "'"
 
+    # Empty stop condition is implicitly the EOS token
     gen_stop = ""
-
-    # fall back to stopping at the EOS token
     if stop is not False:
         if stop is None:
             stop = []
@@ -141,8 +137,6 @@ def gen(
             gen_stop = stop_regex[0]
         else:
             gen_stop = "|".join("(" + s + ")" for s in stop_regex)
-
-        stop_regex = [regex_grammar(x) for x in stop_regex]
 
     # This needs to be here for streaming
     # if name is not None and not list_append:
