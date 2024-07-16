@@ -23,13 +23,7 @@ class GenData:
         return np.where(self.mask)[0].tolist()
 
 
-class Parser:
-    """An abstract base class for guidance parsers."""
-
-    pass
-
-
-class LLParser(Parser):
+class LLParser:
 
     def __init__(
         self,
@@ -125,7 +119,7 @@ class LLParser(Parser):
             tokens = tokens + ff_tokens
 
 
-class ParserException(Exception):
+class ByteParserException(Exception):
     def __init__(self, *args, **kwargs):
         self.current_byte = kwargs.pop("current_byte", None)
         self.allowed_bytes = kwargs.pop("allowed_bytes", None)
@@ -133,8 +127,7 @@ class ParserException(Exception):
         super().__init__(*args, **kwargs)
 
 
-class ByteParser(Parser):
-    # TODO: reconcile API with LLParser; maybe only one of them deserves to be called Parser
+class ByteParser:
     def __init__(
         self,
         grammar: GrammarFunction,
@@ -190,7 +183,7 @@ class ByteParser(Parser):
         if self.pos < len(self.bytes):
             if b != self.bytes[self.pos]:
                 next_byte = self.bytes[self.pos : self.pos + 1]
-                raise ParserException(
+                raise ByteParserException(
                     f"Expected byte {next_byte!r} (fast_forward), got {bytes([b])!r}",
                     current_byte=bytes([b]),
                     allowed_bytes={next_byte},
@@ -205,7 +198,7 @@ class ByteParser(Parser):
                 # TODO: may run into trouble here if we need to backtrack
                 assert self.ll_parser.done()
                 assert not self.valid_next_bytes()
-                raise ParserException(
+                raise ByteParserException(
                     f"Expected end of input, got {bytes([b])!r}",
                     current_byte=bytes([b]),
                     allowed_bytes=set(),
@@ -215,7 +208,7 @@ class ByteParser(Parser):
             valid_next_tokens = self.gen_data.valid_next_tokens()
             if b not in valid_next_tokens:
                 valid_next_bytes = self.valid_next_bytes()
-                raise ParserException(
+                raise ByteParserException(
                     f"Expected one of the following bytes: {valid_next_bytes!r}, got {bytes([b])!r}",
                     current_byte=bytes([b]),
                     allowed_bytes=valid_next_bytes,
@@ -231,7 +224,7 @@ class ByteParser(Parser):
 
     def force_done(self):
         if not self.matched():
-            raise ParserException("Hit end of input before reaching a valid state")
+            raise ByteParserException("Hit end of input before reaching a valid state")
         if self.ll_parser.done():
             return
 

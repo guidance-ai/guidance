@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 from .._schema import EngineCallResponse
 from ._guidance_engine_metrics import GuidanceEngineMetrics
 from .._utils import softmax, CaptureEvents
-from .._parser import LLParser, Parser
+from .._parser import LLParser
 from .._grammar import (
     GrammarFunction,
     string,
@@ -104,7 +104,7 @@ class Engine:
             prompt = prompt
         elif isinstance(prompt, str):
             prompt = bytes(prompt, encoding="utf8")
-        elif isinstance(prompt, Parser):
+        elif isinstance(prompt, LLParser):
             raise NotImplementedError(
                 "Still need to implement support for extending a full Parser state."
             )

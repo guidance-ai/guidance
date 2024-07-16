@@ -7,7 +7,7 @@ from huggingface_hub import hf_hub_download
 import guidance
 from guidance import models
 from guidance._grammar import GrammarFunction, Join
-from guidance._parser import ParserException
+from guidance._parser import ByteParserException
 
 opanai_model_cache = {}
 
@@ -162,7 +162,7 @@ def check_match_failure(
 
     allowed_bytes is allowed to be None, since it could be really complicated
     """
-    with pytest.raises(ParserException) as pe:
+    with pytest.raises(ByteParserException) as pe:
         grammar.match(bad_string, raise_exceptions=True)
     assert pe.value.consumed_bytes == good_bytes
     assert pe.value.current_byte == failure_byte

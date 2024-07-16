@@ -184,7 +184,7 @@ class GrammarFunction(Function):
 
         try:
             parser.consume_bytes(byte_string)
-        except _parser.ParserException:
+        except _parser.ByteParserException:
             if raise_exceptions:
                 raise
             else:
