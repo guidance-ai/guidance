@@ -5,15 +5,15 @@ from guidance import models
 
 from tests.constants import TOKENIZER_ROUND_TRIP_STRINGS
 
-# These are not _strictly_ unit tests, since they
-# refer to specific tokenisers. However, tokenisers
-# are small, so if the tokeniser can be loaded
-# separately from the model (as is the case for
-# transformers and tiktoken), then this is a good
-# place to have them live.
+# These are not _strictly_ unit tests, since they refer
+# to specific tokenisers. However, tokenisers are small,
+# so if the tokeniser can be loaded separately from the
+# model (as is the case for transformers and tiktoken),
+# then this is a good place to have them live.
 
-# There is a separate file for the llamacpp models
-# since the tokenisers cannot be loaded separately
+# The LlamaCpp tokenisers have tests in test_llamacpp.py
+# since those tokenisers cannot be loaded separately from
+# their models.
 
 
 class TestTransformerTokenizers:
