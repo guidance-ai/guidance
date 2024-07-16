@@ -7,6 +7,9 @@ import guidance
 from guidance import gen, select
 
 
+from tests.constants import TOKENIZER_ROUND_TRIP_STRINGS
+
+
 def test_llama_cpp_gen(llamacpp_model: guidance.models.Model):
     lm = llamacpp_model
     lm = lm + "this is a test" + gen("test", max_tokens=10)
@@ -146,21 +149,12 @@ def test_max_tokens(llamacpp_model: guidance.models.Model):
 
 
 class TestLlamaCppTokenizers:
-    ROUND_TRIP_STRINGS = [
-        "",
-        " ",
-        "hello",
-        " hello",
-        "two words",
-        " two words",
-        " two words ",
-        "two words ",
-        "’",
-        "’•¶∂ƒ˙∆£Ħ爨ൠᅘ∰፨",
-    ]
+    def test_smoke(self, llamacpp_model: guidance.models.LlamaCpp):
+        my_tok = llamacpp_model.engine.tokenizer
+        assert my_tok is not None
 
-    @pytest.mark.parametrize("target_string", ROUND_TRIP_STRINGS)
-    def test_string_roundtrip(self, llamacpp_model: guidance.models.Model, target_string: str):
+    @pytest.mark.parametrize("target_string", TOKENIZER_ROUND_TRIP_STRINGS)
+    def test_string_roundtrip(self, llamacpp_model: guidance.models.LlamaCpp, target_string: str):
         my_tok = llamacpp_model.engine.tokenizer
 
         encoded = my_tok.encode(target_string.encode())
