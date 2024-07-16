@@ -352,7 +352,7 @@ class Program:
                 raise e
         yield self
 
-    def _update_display(self, last=False):
+    def _update_display(self, last: bool = False, clear_output: bool = True) -> None:
         """Updates the display with the current marked text after debouncing.
 
         Parameters
@@ -406,9 +406,10 @@ class Program:
             # ...otherwise dump the client to the front end
             else:
                 log.debug(f"Updating display dump to front end")
-                from IPython.display import clear_output
-                if self._displayed:
-                    clear_output(wait=True) # TODO: should use wait=True but that doesn't work in VSCode until after the April 2023 release
+                if clear_output:
+                    from IPython.display import clear_output
+                    if self._displayed:
+                        clear_output(wait=True) # TODO: should use wait=True but that doesn't work in VSCode until after the April 2023 release
 
                 self._display_html(out)
         
@@ -424,7 +425,7 @@ class Program:
         # dump the html to the front end
         html = f"""<div id="guidance-stop-button-{self._id}" style="cursor: pointer; margin: 0px; display: none; float: right; padding: 3px; border-radius: 4px 4px 4px 4px; border: 0px solid rgba(127, 127, 127, 1); padding-left: 10px; padding-right: 10px; font-size: 13px; background-color: rgba(127, 127, 127, 0.25);">Stop program</div><div id="guidance-content-{self._id}">{html}</div>
 <script type="text/javascript">{js_data}; window._guidanceDisplay("{self._id}");</script>"""
-        display({"text/html": html}, display_id=self._id, raw=True, clear=True, include=["text/html"])
+        display({"text/html": html}, display_id=self._id, raw=True, include=["text/html"])
         self._displayed = True
 
     async def execute(self):
@@ -442,6 +443,7 @@ class Program:
             await asyncio.sleep(0)
         
         # run the program and capture the output
+        clear_display_output = True
         try:
             if self.llm is None:
                 await self._executor.run(None)
@@ -454,13 +456,14 @@ class Program:
         # in the main coroutine
         except Exception as exception:
             self._exception = exception
+            clear_display_output = False
 
         finally:
             # delete the executor and so mark the program as not executing
             self._executor = None
 
             # update the display with the final output
-            self.update_display(last=True)
+            self.update_display(last=True, clear_output=clear_display_output)
             await self.update_display.done()
 
             # fire an event noting that execution is complete (this will release any await calls waiting on the program)
@@ -758,6 +761,7 @@ class DisplayThrottler():
         self.display_function = display_function
         self.throttle_limit = throttle_limit
         self._done = False
+        self._clear_output = True
         self.last_time = 0
     
     async def run(self):
@@ -769,7 +773,7 @@ class DisplayThrottler():
             log.info("in DisplayThrottler run loop -- now: {}, last_time: {}, throttle_limit: {}".format(now, self.last_time, self.throttle_limit))
             if self._done or now - self.last_time >= self.throttle_limit:
                 try:
-                    self.display_function(last=self._done)
+                    self.display_function(last=self._done, clear_output=self._clear_output)
                 except Exception as e:
                     self._done = True
                     raise e
@@ -782,9 +786,13 @@ class DisplayThrottler():
             else:
                 await asyncio.sleep(self.throttle_limit - (now - self.last_time))
 
-    def __call__(self, last=False):
+    def __call__(self, last=False, clear_output=True):
         if last:
             self._done = True
+        if clear_output:
+            self._clear_output = True
+        else:
+            self._clear_output = False
         self._data_event.set()
 
     async def done(self):
