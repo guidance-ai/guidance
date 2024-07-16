@@ -65,14 +65,8 @@ class Server:
             if x_api_key not in self.valid_api_keys:
                 raise HTTPException(status_code=401, detail="Invalid API key")
 
-            # data = await request.json()
-            # parser = data.get("parser")
-            grammar = GrammarFunction.deserialize(
-                base64.b64decode(guidance_request.grammar)
-            )
-
             return StreamingResponse(
-                self.engine(guidance_request.parser, grammar),
+                self.engine(guidance_request.parser, guidance_request.grammar),
                 media_type="application/json",
             )
 

@@ -94,10 +94,11 @@ class Engine:
         # def __call__(self, grammar, max_tokens=1000000, n=1, top_p=1, temperature=0.0, ensure_bos_token=True):
         # assert n == 1, "Still need to add support for n > 1!"
 
+        # TODO: re-enable this? llguidance currently doesn't support model variables
         # note we only support a fixed set of engine variables for the sake of security
-        self._replacements = replace_model_variables(
-            grammar, self, allowed_vars=["eos_token", "bos_token"]
-        )
+        # self._replacements = replace_model_variables(
+        #     grammar, self, allowed_vars=["eos_token", "bos_token"]
+        # )
 
         # right now we only support a text/bytes prompt parser state, so we extract that
         if isinstance(prompt, bytes):

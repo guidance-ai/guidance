@@ -1,6 +1,6 @@
 import requests
 import os
-import base64
+import json
 
 from ._model import Engine, EngineCallResponse
 from ..chat import ChatMLTemplate
@@ -33,7 +33,7 @@ class RemoteEngine(Engine):
         # Prepare the request data
         data = {
             "parser": parser,
-            "grammar": base64.b64encode(grammar.serialize()).decode("utf-8"),
+            "grammar": json.dumps(grammar.ll_serialize()),
         }
 
         headers = {"x-api-key": self.api_key, "Content-Type": "application/json"}

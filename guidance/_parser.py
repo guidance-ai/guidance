@@ -27,16 +27,21 @@ class LLParser:
 
     def __init__(
         self,
-        grammar: GrammarFunction,
+        grammar: Union[GrammarFunction, str],
         tokenizer: Tokenizer,
         prompt: bytes = b"",
         ensure_bos_token: bool = True,
     ):
-        # we can't have a terminal as the root
-        if isinstance(grammar, Terminal):
-            grammar = Join([grammar])
+        if isinstance(grammar, GrammarFunction):
+            # we can't have a terminal as the root
+            if isinstance(grammar, Terminal):
+                grammar = Join([grammar])
+            self.grammar = grammar
+            serialized_grammar = json.dumps(grammar.ll_serialize())
+        else:
+            self.grammar = None # can't deserialize
+            serialized_grammar = grammar
 
-        self.grammar = grammar
         self.tokenizer = tokenizer
 
         self.ll_tokenizer = llguidance.LLTokenizer(
@@ -44,7 +49,7 @@ class LLParser:
         )
         self.ll_interpreter = llguidance.LLInterpreter(
             self.ll_tokenizer,
-            json.dumps(grammar.ll_serialize()),
+            serialized_grammar,
             log_level=int(os.environ.get("LLGUIDANCE_LOG_LEVEL", "1")),
         )
         self._generator = self._parse(prompt, ensure_bos_token)
