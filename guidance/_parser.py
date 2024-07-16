@@ -36,14 +36,11 @@ class LLParser:
             # we can't have a terminal as the root
             if isinstance(grammar, Terminal):
                 grammar = Join([grammar])
-            self.grammar = grammar
             serialized_grammar = json.dumps(grammar.ll_serialize())
         else:
-            self.grammar = None # can't deserialize
             serialized_grammar = grammar
 
         self.tokenizer = tokenizer
-
         self.ll_tokenizer = llguidance.LLTokenizer(
             llguidance.TokenizerWrapper(tokenizer)
         )
