@@ -1,9 +1,9 @@
 import json
 import os
 from dataclasses import dataclass
-from typing import Any, Generator, Optional, Tuple
+from typing import Any, Generator, Optional, Tuple, Union
 
-import llguidance
+import llguidance  # type: ignore[import-untyped]
 import numpy as np
 from numpy.typing import NDArray
 

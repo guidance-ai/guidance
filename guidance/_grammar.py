@@ -1,7 +1,7 @@
 import re
 import types
 
-from typing import Any, Dict, List, TYPE_CHECKING, TypeVar, Union, cast, Optional
+from typing import Any, TYPE_CHECKING, TypeVar, Union, cast, Optional
 
 from . import _serialization_pb2
 from . import _parser
@@ -11,7 +11,7 @@ _T = TypeVar("_T")
 # to support the embedding of guidance functions inside Python f-strings we use tags with these delimiters
 tag_start = "{{G|"  # start of a call tag
 tag_end = "|G}}"  # end of a call tag
-_call_pool: Dict[str, "Function"] = {}  # the functions associated with the call tags
+_call_pool: dict[str, "Function"] = {}  # the functions associated with the call tags
 _tag_pattern = re.compile(
     re.escape(tag_start) + r"([^\|]+)" + re.escape(tag_end)
 )  # the pattern for matching call tags
@@ -856,7 +856,7 @@ class NestedGrammar(Gen):
         self.greedy_skip_regex = greedy_skip_regex
         self.no_initial_skip = no_initial_skip
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str: # type: ignore[override]
         return self.name.ljust(20) + " <- " + self.body.name
 
 
@@ -952,7 +952,7 @@ def string(value: Union[str, bytes]) -> Union[Null, Join]:
 
 
 def select(
-    options: List[_T], name=None, list_append=False, recurse=False, skip_checks=False
+    options: list[_T], name=None, list_append=False, recurse=False, skip_checks=False
 ) -> Union[Select, _T]:
     """Choose between a set of options.
 
@@ -971,7 +971,7 @@ def select(
         If this is not None then the the results of the generation will be saved as a variable on
         the Model object (so you can access the result as `lm["var_name"]`).
 
-    options : List
+    options : list
         The set of available choices for the next generation
 
     list_append : bool
@@ -1161,19 +1161,19 @@ def _is_string_literal(node: GrammarFunction):
 
 class LLSerializer:
     def __init__(self) -> None:
-        self.nodes: List[dict] = []
+        self.nodes: list[dict] = []
         self.curr_grammar = {
             "greedy_lexer": False,
             "nodes": self.nodes,
             "rx_nodes": [],
         }
         self.grammars = [self.curr_grammar]
-        self.node_id_cache: Dict[GrammarFunction, int] = {}
-        self.todo: List[GrammarFunction] = []
-        self.grammar_id_cache: Dict[NestedGrammar, int] = {}
-        self.grammar_todo: List[NestedGrammar] = []
+        self.node_id_cache: dict[GrammarFunction, int] = {}
+        self.todo: list[GrammarFunction] = []
+        self.grammar_id_cache: dict[NestedGrammar, int] = {}
+        self.grammar_todo: list[NestedGrammar] = []
 
-        self.regex_id_cache: Dict[GrammarFunction, int] = {}
+        self.regex_id_cache: dict[GrammarFunction, int] = {}
 
     def _add_regex_json(self, json):
         id = len(self.curr_grammar["rx_nodes"])
@@ -1183,7 +1183,7 @@ class LLSerializer:
     def _add_regex(self, key: str, val):
         return self._add_regex_json({key: val})
 
-    def _regex_or(self, nodes: List[GrammarFunction]):
+    def _regex_or(self, nodes: list[GrammarFunction]):
         if len(nodes) == 1:
             return self.regex_id_cache[nodes[0]]
         else:
@@ -1196,7 +1196,7 @@ class LLSerializer:
 
         node0 = node
         todo = [node]
-        pending = set()
+        pending: set[GrammarFunction] = set()
 
         def node_finished(node: GrammarFunction):
             return node not in pending and node in self.regex_id_cache
@@ -1260,8 +1260,8 @@ class LLSerializer:
                 if all(isinstance(v, Byte) for v in node.values):
                     literal = [cast(Byte, v).byte[0] for v in node.values]
                     try:
-                        literal = bytes(literal).decode("utf-8", errors="strict")
-                        res = self._add_regex("Literal", literal)
+                        literal_ = bytes(literal).decode("utf-8", errors="strict")
+                        res = self._add_regex("Literal", literal_)
                     except UnicodeDecodeError:
                         res = self._add_regex("ByteLiteral", literal)
                 else:
@@ -1320,7 +1320,7 @@ class LLSerializer:
         return id
 
     def process(self, node: GrammarFunction):
-        obj = {}
+        obj: dict[str, Any] = {}
         if isinstance(node, Select):
             obj = {
                 "Select": {
@@ -1403,13 +1403,13 @@ class LLSerializer:
             raise Exception("Unknown node type:", type(node))
         tp = next(iter(obj))
         inner: dict = obj[tp]
-        if getattr(node, "capture_name", None):
-            inner["capture_name"] = node.capture_name
+        if (capture_name:=getattr(node, "capture_name")):
+            inner["capture_name"] = capture_name
         # Names on nodes are mostly useless
         # if getattr(node, "name", None):
         #     inner["name"] = node.name
-        if getattr(node, "max_tokens", None) and node.max_tokens < 1000000:
-            inner["max_tokens"] = node.max_tokens
+        if (max_tokens:=getattr(node, "max_tokens")) and max_tokens < 1000000:
+            inner["max_tokens"] = max_tokens
         self.nodes[self.node(node)] = obj
 
     def run_grammar(self, node: GrammarFunction):
@@ -1428,7 +1428,7 @@ class LLSerializer:
         while self.grammar_todo:
             grammar = self.grammar_todo.pop()
             self.curr_grammar = self.grammars[self.grammar(grammar)]
-            self.nodes = self.curr_grammar["nodes"]
+            self.nodes = cast(list[dict], self.curr_grammar["nodes"])
             self.node_id_cache = {}
             self.regex_id_cache = {}
             self.run_grammar(grammar.body)
