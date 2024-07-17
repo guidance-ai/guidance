@@ -1,4 +1,6 @@
 import platform
+import sys
+import warnings
 
 import numpy as np
 import pytest
@@ -46,20 +48,42 @@ def test_llama_cpp_select2(llamacpp_model: guidance.models.Model):
     ]
 
 
-@pytest.mark.xfail(
-    condition=platform.system() == "Linux",
-    reason="llama-cpp-python erratically deterministic",
-)
-def test_repeat_calls(llamacpp_model: guidance.models.Model):
-    llama2 = llamacpp_model
-    a = []
-    lm = llama2 + "How much is 2 + 2? " + gen(name="test", max_tokens=10)
-    a.append(lm["test"])
-    lm = llama2 + "How much is 2 + 2? " + gen(name="test", max_tokens=10, regex=r"\d+")
-    a.append(lm["test"])
-    lm = llama2 + "How much is 2 + 2? " + gen(name="test", max_tokens=10)
-    a.append(lm["test"])
-    assert a[-1] == a[0]
+def test_repeat_calls(llamacpp_model: guidance.models.Model, selected_model_name: str):
+    # This specific test is misbehaving in very specific cases, so have some
+    # ugly code for conditional XFAIL
+    print(f"{platform.machine()=}")
+    print(f"{platform.system()=}")
+    print(f"{sys.version_info=}")
+
+    fail_combinations = [("hfllama7b", "3.12", "Windows", "AMD64")]
+    expect_failure = False
+    python_maj_min = f"{sys.version_info[0]}.{sys.version_info[1]}"
+    for f_c in fail_combinations:
+        if (
+            (selected_model_name == f_c[0])
+            and (python_maj_min == f_c[1])
+            and (platform.system() == f_c[2])
+            and (platform.machine() == f_c[3])
+        ):
+            expect_failure = True
+
+    try:
+        llama2 = llamacpp_model
+        a = []
+        lm = llama2 + "How much is 2 + 2? " + gen(name="test", max_tokens=10)
+        a.append(lm["test"])
+        lm = llama2 + "How much is 2 + 2? " + gen(name="test", max_tokens=10, regex=r"\d+")
+        a.append(lm["test"])
+        lm = llama2 + "How much is 2 + 2? " + gen(name="test", max_tokens=10)
+        a.append(lm["test"])
+        assert a[-1] == a[0]
+
+        assert not expect_failure, "Unexpected pass"
+    except AssertionError:
+        if expect_failure:
+            warnings.warn("Got expected failure")
+        else:
+            raise
 
 
 def test_suffix(llamacpp_model: guidance.models.Model):
