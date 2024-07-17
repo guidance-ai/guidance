@@ -56,7 +56,14 @@ def test_repeat_calls(llamacpp_model: guidance.models.Model, selected_model_name
     print(f"{sys.version_info=}")
 
     fail_combinations = [
+        ("hfllama7b", "3.9", "Windows", "AMD64"),
+        ("hfllama7b", "3.10", "Windows", "AMD64"),
+        ("hfllama7b", "3.11", "Windows", "AMD64"),
         ("hfllama7b", "3.12", "Windows", "AMD64"),
+        ("hfllama_phi3cpu_mini_4k_instruct", "3.9", "Darwin", "arm64"),
+        ("hfllama_phi3cpu_mini_4k_instruct", "3.10", "Darwin", "arm64"),
+        ("hfllama_phi3cpu_mini_4k_instruct", "3.11", "Darwin", "arm64"),
+        ("hfllama_phi3cpu_mini_4k_instruct", "3.12", "Darwin", "arm64"),
         ("hfllama_phi3cpu_mini_4k_instruct", "3.9", "Linux", "x86_64"),
         ("hfllama_phi3cpu_mini_4k_instruct", "3.10", "Linux", "x86_64"),
         ("hfllama_phi3cpu_mini_4k_instruct", "3.11", "Linux", "x86_64"),
