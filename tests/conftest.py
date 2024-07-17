@@ -49,7 +49,7 @@ AVAILABLE_MODELS = {
     "transformers_mistral_7b": dict(name="transformers:mistralai/Mistral-7B-v0.1", kwargs=dict()),
     "hfllama_mistral_7b": dict(
         name="huggingface_hubllama:TheBloke/Mistral-7B-Instruct-v0.2-GGUF:mistral-7b-instruct-v0.2.Q8_0.gguf",
-        kwargs={"verbose": True},
+        kwargs={"verbose": True, "n_ctx": 2048},
     ),
     "gpt2gpu": dict(name="transformers:gpt2", kwargs={"device_map": "cuda:0"}),
     "phi2gpu": dict(
@@ -102,6 +102,19 @@ def selected_model(selected_model_info: str) -> models.Model:
     """
     model = get_model(selected_model_info["name"], **(selected_model_info["kwargs"]))
     return model
+
+
+@pytest.fixture(scope="module")
+def llamacpp_model(selected_model, selected_model_name):
+    if selected_model_name in [
+        "hfllama7b",
+        "hfllama_7b_gpu",
+        "hfllama_phi3cpu_mini_4k_instruct",
+        "hfllama_mistral_7b",
+    ]:
+        return selected_model
+    else:
+        pytest.skip("Requires Llama-Cpp model")
 
 
 @pytest.fixture(scope="function")

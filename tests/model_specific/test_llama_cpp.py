@@ -1,4 +1,6 @@
 import platform
+import sys
+import warnings
 
 import numpy as np
 import pytest
@@ -7,12 +9,7 @@ import guidance
 from guidance import gen, select
 
 
-@pytest.fixture(scope="module")
-def llamacpp_model(selected_model, selected_model_name):
-    if selected_model_name in ["hfllama7b", "hfllama_7b_gpu"]:
-        return selected_model
-    else:
-        pytest.skip("Requires Llama-Cpp model")
+from tests.constants import TOKENIZER_ROUND_TRIP_STRINGS
 
 
 def test_llama_cpp_gen(llamacpp_model: guidance.models.Model):
@@ -51,20 +48,55 @@ def test_llama_cpp_select2(llamacpp_model: guidance.models.Model):
     ]
 
 
-@pytest.mark.xfail(
-    condition=platform.system() == "Windows",
-    reason="llama-cpp-python >=0.2.79 appears to have made models non-deterministic on Windows",
-)
-def test_repeat_calls(llamacpp_model: guidance.models.Model):
-    llama2 = llamacpp_model
-    a = []
-    lm = llama2 + "How much is 2 + 2? " + gen(name="test", max_tokens=10)
-    a.append(lm["test"])
-    lm = llama2 + "How much is 2 + 2? " + gen(name="test", max_tokens=10, regex=r"\d+")
-    a.append(lm["test"])
-    lm = llama2 + "How much is 2 + 2? " + gen(name="test", max_tokens=10)
-    a.append(lm["test"])
-    assert a[-1] == a[0]
+def test_repeat_calls(llamacpp_model: guidance.models.Model, selected_model_name: str):
+    # This specific test is misbehaving in very specific cases, so have some
+    # ugly code for conditional XFAIL
+    print(f"{platform.machine()=}")
+    print(f"{platform.system()=}")
+    print(f"{sys.version_info=}")
+
+    fail_combinations = [
+        ("hfllama7b", "3.9", "Windows", "AMD64"),
+        ("hfllama7b", "3.10", "Windows", "AMD64"),
+        ("hfllama7b", "3.11", "Windows", "AMD64"),
+        ("hfllama7b", "3.12", "Windows", "AMD64"),
+        ("hfllama_phi3cpu_mini_4k_instruct", "3.9", "Darwin", "arm64"),
+        ("hfllama_phi3cpu_mini_4k_instruct", "3.10", "Darwin", "arm64"),
+        ("hfllama_phi3cpu_mini_4k_instruct", "3.11", "Darwin", "arm64"),
+        ("hfllama_phi3cpu_mini_4k_instruct", "3.12", "Darwin", "arm64"),
+        ("hfllama_phi3cpu_mini_4k_instruct", "3.9", "Linux", "x86_64"),
+        ("hfllama_phi3cpu_mini_4k_instruct", "3.10", "Linux", "x86_64"),
+        ("hfllama_phi3cpu_mini_4k_instruct", "3.11", "Linux", "x86_64"),
+        ("hfllama_phi3cpu_mini_4k_instruct", "3.12", "Linux", "x86_64"),
+    ]
+    expect_failure = False
+    python_maj_min = f"{sys.version_info[0]}.{sys.version_info[1]}"
+    for f_c in fail_combinations:
+        if (
+            (selected_model_name == f_c[0])
+            and (python_maj_min == f_c[1])
+            and (platform.system() == f_c[2])
+            and (platform.machine() == f_c[3])
+        ):
+            expect_failure = True
+
+    try:
+        llama2 = llamacpp_model
+        a = []
+        lm = llama2 + "How much is 2 + 2? " + gen(name="test", max_tokens=10)
+        a.append(lm["test"])
+        lm = llama2 + "How much is 2 + 2? " + gen(name="test", max_tokens=10, regex=r"\d+")
+        a.append(lm["test"])
+        lm = llama2 + "How much is 2 + 2? " + gen(name="test", max_tokens=10)
+        a.append(lm["test"])
+        assert a[-1] == a[0]
+
+        assert not expect_failure, "Unexpected pass"
+    except AssertionError:
+        if expect_failure:
+            warnings.warn("Got expected failure")
+        else:
+            raise
 
 
 def test_suffix(llamacpp_model: guidance.models.Model):
@@ -154,21 +186,12 @@ def test_max_tokens(llamacpp_model: guidance.models.Model):
 
 
 class TestLlamaCppTokenizers:
-    ROUND_TRIP_STRINGS = [
-        "",
-        " ",
-        "hello",
-        " hello",
-        "two words",
-        " two words",
-        " two words ",
-        "two words ",
-        "’",
-        "’•¶∂ƒ˙∆£Ħ爨ൠᅘ∰፨",
-    ]
+    def test_smoke(self, llamacpp_model: guidance.models.LlamaCpp):
+        my_tok = llamacpp_model.engine.tokenizer
+        assert my_tok is not None
 
-    @pytest.mark.parametrize("target_string", ROUND_TRIP_STRINGS)
-    def test_string_roundtrip(self, llamacpp_model: guidance.models.Model, target_string: str):
+    @pytest.mark.parametrize("target_string", TOKENIZER_ROUND_TRIP_STRINGS)
+    def test_string_roundtrip(self, llamacpp_model: guidance.models.LlamaCpp, target_string: str):
         my_tok = llamacpp_model.engine.tokenizer
 
         encoded = my_tok.encode(target_string.encode())
