@@ -23,6 +23,20 @@ class GenData:
         return np.where(self.mask)[0].tolist()
 
 
+class LLParserException(Exception):
+    pass
+
+
+class InvalidTokenException(LLParserException):
+    def __init__(self, token: int, valid_tokens: list[int], prompt_tokens: list[int]):
+        self.token = token
+        self.valid_tokens = valid_tokens
+        self.prompt_tokens = prompt_tokens
+        super().__init__(
+            f"Invalid token {token}, expected one of {valid_tokens} after {prompt_tokens}"
+        )
+
+
 class LLParser:
 
     def __init__(
@@ -104,16 +118,16 @@ class LLParser:
                 token = yield (gen_data, response)
                 # TODO: better exception handling (ParserException?)
                 if token is None:
-                    raise ValueError("Expected token, got None")
+                    raise LLParserException("Expected token, got None")
                 if not mask[token]:
                     # Note: we could punt this probem to ll_interpreter.post_process,
                     # but it's a bit clearer to handle it here
-                    raise ValueError("Invalid token")
+                    raise InvalidTokenException(token, gen_data.valid_next_tokens(), tokens)
             else:
                 gen_data = None
                 token = yield (gen_data, response)
                 if token is not None:
-                    raise ValueError("Expected None, got token")
+                    raise LLParserException(f"Expected None, got token {token}")
 
             backtrack, ff_tokens = self.ll_interpreter.post_process(token)
             if backtrack:
