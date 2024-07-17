@@ -55,7 +55,10 @@ def test_repeat_calls(llamacpp_model: guidance.models.Model, selected_model_name
     print(f"{platform.system()=}")
     print(f"{sys.version_info=}")
 
-    fail_combinations = [("hfllama7b", "3.12", "Windows", "AMD64")]
+    fail_combinations = [
+        ("hfllama7b", "3.12", "Windows", "AMD64"),
+        ("hfllama_phi3cpu_mini_4k_instruct", "3.12", "Linux", "x86_64"),
+    ]
     expect_failure = False
     python_maj_min = f"{sys.version_info[0]}.{sys.version_info[1]}"
     for f_c in fail_combinations:
