@@ -5,7 +5,7 @@ from guidance import gen, select, models, assistant, system, user
 from ..utils import get_model
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="session")
 def phi3_model(selected_model, selected_model_name):
     if selected_model_name in ["transformers_phi3cpu_mini_4k_instruct"]:
         return selected_model
@@ -13,7 +13,7 @@ def phi3_model(selected_model, selected_model_name):
         pytest.skip("Requires Phi3 model")
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="session")
 def llama3_model(selected_model, selected_model_name):
     if selected_model_name in ["transformers_llama3cpu_8b"] and selected_model is not None:
         return selected_model
