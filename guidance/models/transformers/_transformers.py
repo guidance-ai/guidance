@@ -61,7 +61,7 @@ class TransformersTokenizer(Tokenizer):
         special_tokens_map = {
             id: token for token, id in transformers_tokenizer.get_added_vocab().items()
         }
-    
+
         # build out the set of byte_string tokens
         byte_tokens = [b""] * len(transformers_tokenizer)
         if hasattr(transformers_tokenizer, "byte_decoder"):
@@ -90,7 +90,7 @@ class TransformersTokenizer(Tokenizer):
             vocab = transformers_tokenizer.get_vocab()
             byte_encoder = self._bytes_to_unicode()
             byte_decoder = {v: k for k, v in byte_encoder.items()}
-            
+
             for i in range(len(transformers_tokenizer)):
                 if i in special_tokens_map:
                     byte_coded = special_tokens_map[i].encode()
@@ -174,9 +174,11 @@ class TransformersTokenizer(Tokenizer):
         )
 
     def _bytes_to_unicode(self):
-        bs = list(range(ord("!"), ord("~") + 1)) + \
-            list(range(ord("¡"), ord("¬") + 1)) + \
-            list(range(ord("®"), ord("ÿ") + 1))
+        bs = (
+            list(range(ord("!"), ord("~") + 1))
+            + list(range(ord("¡"), ord("¬") + 1))
+            + list(range(ord("®"), ord("ÿ") + 1))
+        )
         cs = bs[:]
         n = 0
         for b in range(256):
@@ -365,7 +367,9 @@ class TransformersEngine(Engine):
                         position_ids=torch.arange(past_length, past_length + len(new_token_ids))
                         .unsqueeze(0)
                         .to(self.device),
-                        attention_mask=torch.ones(1, past_length + len(new_token_ids)).to(self.device),
+                        attention_mask=torch.ones(1, past_length + len(new_token_ids)).to(
+                            self.device
+                        ),
                         return_dict=True,
                         output_attentions=False,
                         output_hidden_states=False,
@@ -378,7 +382,9 @@ class TransformersEngine(Engine):
                             input_ids=input_ids,
                             past_key_values=self._past_key_values,
                             use_cache=True,
-                            position_ids=torch.arange(past_length, past_length + 1).unsqueeze(0).to(self.device),
+                            position_ids=torch.arange(past_length, past_length + 1)
+                            .unsqueeze(0)
+                            .to(self.device),
                             attention_mask=torch.ones(1, past_length + 1).to(self.device),
                             return_dict=True,
                             output_attentions=False,
@@ -387,7 +393,6 @@ class TransformersEngine(Engine):
 
                         self._past_key_values = model_out.past_key_values
                         past_length += 1
-
 
             # save the results
             self._past_key_values = model_out.past_key_values
