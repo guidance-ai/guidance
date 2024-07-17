@@ -144,14 +144,7 @@ class Engine:
             else:
                 token = None
 
-            yield EngineCallResponse(
-                new_bytes=response.new_bytes,
-                is_generated=response.is_generated,
-                new_bytes_prob=response.new_bytes_prob,
-                capture_groups=response.capture_groups,
-                capture_group_log_probs=response.capture_group_log_probs,
-                new_token_count=response.new_token_count,
-            )
+            yield response
 
     def get_next_token(self, token_ids: list[int], mask: np.ndarray, temperature: float) -> int:
         """Base implementation for getting the next token from the model which calls get_logits and sample_with_temperature.
