@@ -75,8 +75,11 @@ class LLParser:
     def advance(
         self, token: Optional[int]
     ) -> Tuple[Optional[GenData], EngineCallResponse]:
-        # TODO: return something lower level than EngineCallResponse?
-        return self._generator.send(token)
+        try:
+            return self._generator.send(token)
+        except StopIteration as e:
+            self._done = True
+            return None, e.value
 
     def _process_prompt(self, prompt: bytes, ensure_bos_token: bool) -> list[int]:
         prompt_tokens = self.ll_interpreter.process_prompt(
@@ -96,17 +99,17 @@ class LLParser:
         self,
         prompt: bytes,
         ensure_bos_token: bool,
-    ) -> Generator[Tuple[Optional[GenData], EngineCallResponse], Optional[int], None]:
+    ) -> Generator[Tuple[Optional[GenData], EngineCallResponse], Optional[int], EngineCallResponse]:
         tokens = self._process_prompt(prompt=prompt, ensure_bos_token=ensure_bos_token)
 
-        while not self._done:
+        while True:
             mask, resp = self.ll_interpreter.mid_process()
             r = LLInterpreterResponse.model_validate_json(resp)
-            self._done = r.stop
             response = r.progress.to_engine_call_response()
+            if r.stop:
+                break
 
             if mask is not None:
-                assert not self._done
                 assert r.temperature is not None
                 gen_data = GenData(
                     # TODO: be careful and return a copy of tokens?
@@ -133,6 +136,8 @@ class LLParser:
             if backtrack:
                 tokens = tokens[:-backtrack]
             tokens = tokens + ff_tokens
+
+        return response
 
 
 class ByteParserException(Exception):
