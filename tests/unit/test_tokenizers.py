@@ -3,7 +3,7 @@ import tiktoken
 
 from guidance import models
 
-from tests.constants import TOKENIZER_ROUND_TRIP_STRINGS
+from tests.tokenizer_common import TOKENIZER_ROUND_TRIP_STRINGS, BaseTestTransformerTokenizers
 
 # These are not _strictly_ unit tests, since they refer
 # to specific tokenisers. However, tokenisers are small,
@@ -15,14 +15,16 @@ from tests.constants import TOKENIZER_ROUND_TRIP_STRINGS
 # since those tokenisers cannot be loaded separately from
 # their models.
 
+# The transformer tests have an authenticated version under
+# need_credentials
 
-class TestTransformerTokenizers:
+
+class TestUnauthenticatedTransformerTokenizers(BaseTestTransformerTokenizers):
     TRANSFORMER_MODELS = [
         "gpt2",
         "microsoft/phi-2",
         "microsoft/Phi-3-small-8k-instruct",
         "microsoft/Phi-3-mini-4k-instruct",
-        "meta-llama/Meta-Llama-3-8B-Instruct",
     ]
 
     @pytest.mark.parametrize(
@@ -30,23 +32,12 @@ class TestTransformerTokenizers:
         TRANSFORMER_MODELS,
     )
     def test_smoke(self, model_name: str):
-        my_tok = models.TransformersTokenizer(
-            model=model_name, transformers_tokenizer=None, trust_remote_code=True
-        )
-        assert my_tok is not None
+        self.base_smoke(model_name)
 
     @pytest.mark.parametrize("model_name", TRANSFORMER_MODELS)
     @pytest.mark.parametrize("target_string", TOKENIZER_ROUND_TRIP_STRINGS)
     def test_string_roundtrip(self, model_name: str, target_string: str):
-        my_tok = models.TransformersTokenizer(
-            model=model_name, transformers_tokenizer=None, trust_remote_code=True
-        )
-
-        encoded = my_tok.encode(target_string.encode())
-        decoded = my_tok.decode(encoded)
-        final_string = decoded.decode()
-
-        assert final_string == target_string
+        self.base_string_roundtrip(model_name, target_string)
 
 
 class TestTiktoken:
