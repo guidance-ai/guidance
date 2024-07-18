@@ -18,7 +18,7 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  remote-endpoints:
 
     runs-on: gpu-runner
     strategy:
