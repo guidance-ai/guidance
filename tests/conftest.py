@@ -31,7 +31,7 @@ AVAILABLE_MODELS = {
     "transformers_llama3cpu_8b": dict(
         # Note that this model requires an appropriate
         # HF_TOKEN environment variable
-        name="meta-llama/Meta-Llama-3-8B-Instruct",
+        name="transformers:meta-llama/Meta-Llama-3-8B-Instruct",
         kwargs={"trust_remote_code": True},
     ),
     "hfllama_phi3cpu_mini_4k_instruct": dict(
@@ -101,6 +101,7 @@ def selected_model(selected_model_info: str) -> models.Model:
     line argument to pytest.
     """
     model = get_model(selected_model_info["name"], **(selected_model_info["kwargs"]))
+    assert model is not None
     return model
 
 
