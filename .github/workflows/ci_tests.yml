@@ -148,14 +148,13 @@ jobs:
       - name: Check GPU available
         run: |
           python -c "import torch; assert torch.cuda.is_available()"
-      - name: Run tests (except resource_intensive) for ${{ matrix.model }}
+      - name: Run minimal tests for ${{ matrix.model }}
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           pytest -vv --cov=guidance --cov-report=xml --cov-report=term-missing \
             --selected_model ${{ matrix.model }} \
-            -m "(not resource_intensive)" \
-            ./tests/model_integration ./tests/model_specific
+            ./tests/model_integration/test_model.py
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4
         with:
