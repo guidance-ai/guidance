@@ -106,7 +106,7 @@ jobs:
         python-version: ["3.9", "3.10", "3.11", "3.12"]
         model:
           - transformers_llama3cpu_8b
-          - transformers_llama3gpu_8b
+          # - transformers_llama3gpu_8b Not enough GPU RAM
 
     steps:
       - uses: actions/checkout@v4
