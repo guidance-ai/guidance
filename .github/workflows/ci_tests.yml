@@ -106,7 +106,7 @@ jobs:
         python-version: ["3.9", "3.10", "3.11", "3.12"]
         model:
           - transformers_llama3cpu_8b
-          # - transformers_llama3gpu_8b Not enough GPU RAM
+          - transformers_llama3gpu_8b
 
     steps:
       - uses: actions/checkout@v4
@@ -148,12 +148,13 @@ jobs:
       - name: Check GPU available
         run: |
           python -c "import torch; assert torch.cuda.is_available()"
-      - name: Run tests (except server) for ${{ matrix.model }}
+      - name: Run tests (except resource_intensive) for ${{ matrix.model }}
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           pytest -vv --cov=guidance --cov-report=xml --cov-report=term-missing \
             --selected_model ${{ matrix.model }} \
+            -m "(not resource_intensive)" \
             ./tests/model_integration ./tests/model_specific
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4

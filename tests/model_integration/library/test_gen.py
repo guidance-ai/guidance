@@ -167,6 +167,7 @@ def test_various_regexes(selected_model: models.Model, prompt: str, pattern: str
     assert re.match(pattern, lm2["test"], re.DOTALL) is not None
 
 
+@pytest.mark.resource_intensive
 def test_long_prompt(selected_model: models.Model, selected_model_name: str):
     if selected_model_name in [
         "hfllama7b",

@@ -8,6 +8,9 @@ build-backend = "setuptools.build_meta"
 
 [tool.pytest.ini_options]
 addopts = "--strict-markers"
+markers = [
+    "resource_intensive: Tests which readily exceed resources such as memory"
+]
 
 [tool.black]
 line-length = 99
