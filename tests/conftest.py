@@ -8,6 +8,7 @@ import uuid
 import pytest
 import requests
 import torch
+import transformers
 
 from guidance import models
 
@@ -40,6 +41,21 @@ AVAILABLE_MODELS = {
         # HF_TOKEN environment variable
         name="transformers:meta-llama/Meta-Llama-3-8B-Instruct",
         kwargs={"trust_remote_code": True, "torch_dtype": torch.bfloat16, "device_map": "cuda:0"},
+    ),
+    "transformers_gemma2cpu_9b": dict(
+        # Note that this model requires an appropriate
+        # HF_TOKEN environment variable
+        name="transformers:google/gemma-2-9b-it",
+        kwargs={},
+    ),
+    "transformers_gemma2gpu_9b": dict(
+        # Note that this model requires an appropriate
+        # HF_TOKEN environment variable
+        name="transformers:google/gemma-2-9b-it",
+        kwargs={
+            "device_map": "cuda:0",
+            "quantization_config": transformers.BitsAndBytesConfig(load_in_4bit=True),
+        },
     ),
     "hfllama_phi3cpu_mini_4k_instruct": dict(
         name="huggingface_hubllama:microsoft/Phi-3-mini-4k-instruct-gguf:Phi-3-mini-4k-instruct-q4.gguf",

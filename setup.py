@@ -57,6 +57,7 @@ doc_requires = [
 ]
 test_requires = [
     "azure-identity",
+    "bitsandbytes",
     "jupyter",
     "papermill",
     "pytest",
