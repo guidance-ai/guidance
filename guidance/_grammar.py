@@ -1036,8 +1036,25 @@ class LLSerializer:
             for n in nodes:
                 add_todo(n)
 
+        def check_unserializable_attrs(node: GrammarFunction):
+            if not isinstance(node, Terminal):
+                for v in getattr(node, "values", []):
+                    # Only check one level deeper as we'll soon be processing the children
+                    if isinstance(v, Terminal):
+                        check_unserializable_attrs(v)
+
+            if getattr(node, "capture_name", None) is not None:
+                raise ValueError(
+                    f"Regex serialization does not support captures. Node: {node.__repr__()}"
+                )
+            if getattr(node, "temperature", -1) >= 0:
+                raise ValueError(
+                    f"Regex serialization does not support temperature. Node: {node.__repr__()}"
+                )
+
         while todo:
             node = todo.pop()
+            check_unserializable_attrs(node)
 
             if node in self.regex_id_cache:
                 continue
