@@ -9,7 +9,7 @@ import guidance
 from guidance import gen, select
 
 
-from tests.constants import TOKENIZER_ROUND_TRIP_STRINGS
+from tests.tokenizer_common import TOKENIZER_ROUND_TRIP_STRINGS
 
 
 def test_llama_cpp_gen(llamacpp_model: guidance.models.Model):

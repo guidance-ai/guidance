@@ -7,6 +7,7 @@ import uuid
 
 import pytest
 import requests
+import torch
 
 from guidance import models
 
@@ -31,8 +32,14 @@ AVAILABLE_MODELS = {
     "transformers_llama3cpu_8b": dict(
         # Note that this model requires an appropriate
         # HF_TOKEN environment variable
-        name="meta-llama/Meta-Llama-3-8B-Instruct",
-        kwargs={"trust_remote_code": True},
+        name="transformers:meta-llama/Meta-Llama-3-8B-Instruct",
+        kwargs={"trust_remote_code": True, "torch_dtype": torch.bfloat16},
+    ),
+    "transformers_llama3gpu_8b": dict(
+        # Note that this model requires an appropriate
+        # HF_TOKEN environment variable
+        name="transformers:meta-llama/Meta-Llama-3-8B-Instruct",
+        kwargs={"trust_remote_code": True, "torch_dtype": torch.bfloat16, "device_map": "cuda:0"},
     ),
     "hfllama_phi3cpu_mini_4k_instruct": dict(
         name="huggingface_hubllama:microsoft/Phi-3-mini-4k-instruct-gguf:Phi-3-mini-4k-instruct-q4.gguf",
@@ -44,7 +51,7 @@ AVAILABLE_MODELS = {
     ),
     "transformers_phi3_small_8k_instruct": dict(
         name="transformers:microsoft/Phi-3-small-8k-instruct",
-        kwargs={"trust_remote_code": True, "load_in_8bit": True, "device_map": "cuda:0"}
+        kwargs={"trust_remote_code": True, "load_in_8bit": True, "device_map": "cuda:0"},
     ),
     "transformers_mistral_7b": dict(name="transformers:mistralai/Mistral-7B-v0.1", kwargs=dict()),
     "hfllama_mistral_7b": dict(
@@ -101,6 +108,7 @@ def selected_model(selected_model_info: str) -> models.Model:
     line argument to pytest.
     """
     model = get_model(selected_model_info["name"], **(selected_model_info["kwargs"]))
+    assert model is not None
     return model
 
 

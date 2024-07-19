@@ -35,6 +35,8 @@ def get_model(model_name, caching=False, **kwargs):
         return get_llama_hugging_face_model(
             repo_id=name_parts[1], filename=name_parts[2], **kwargs
         )
+    else:
+        raise ValueError(f"Could not parse '{model_name}'")
 
 
 def get_openai_model(model_name, caching=False, **kwargs):
