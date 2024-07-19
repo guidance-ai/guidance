@@ -282,3 +282,8 @@ def will_gen(lm, stop=None, stop_regex=None, ignore_spaces=False, max_tokens=30)
 @guidance
 def call_tool(lm, tool):
     return lm + tool.call_grammar + tool.tool_call()
+
+
+@guidance(stateless=True)
+def regex(lm, pattern, *, name=None):
+    return lm + gen(regex=pattern, name=name)
