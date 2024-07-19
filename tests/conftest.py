@@ -7,7 +7,6 @@ import uuid
 
 import pytest
 import requests
-import torch
 import transformers
 
 from guidance import models
