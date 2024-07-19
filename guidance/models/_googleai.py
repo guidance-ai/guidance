@@ -5,7 +5,7 @@ import tiktoken
 import os
 
 try:
-    import google.generativeai as genai  # type: ignore[import-missing, import-untyped]
+    import google.generativeai as genai
 
     has_genai = True
 except ImportError:
