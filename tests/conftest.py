@@ -42,6 +42,12 @@ AVAILABLE_MODELS = {
         name="transformers:meta-llama/Meta-Llama-3-8B-Instruct",
         kwargs={"trust_remote_code": True, "torch_dtype": torch.bfloat16, "device_map": "cuda:0"},
     ),
+    "hfllama_gemma2cpu_9b": dict(
+        # Note that this model requires an appropriate
+        # HF_TOKEN environment variable
+        name="huggingface_hubllama:bartowski/gemma-2-9b-it-GGUF:gemma-2-9b-it-IQ2_XS.gguf",
+        kwargs={"verbose": True, "n_ctx": 4096},
+    ),
     "transformers_gemma2cpu_9b": dict(
         # Note that this model requires an appropriate
         # HF_TOKEN environment variable
@@ -133,6 +139,7 @@ def llamacpp_model(selected_model, selected_model_name):
     if selected_model_name in [
         "hfllama7b",
         "hfllama_7b_gpu",
+        "hfllama_gemma2cpu_9b",
         "hfllama_phi3cpu_mini_4k_instruct",
         "hfllama_mistral_7b",
     ]:
