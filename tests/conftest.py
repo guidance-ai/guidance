@@ -52,7 +52,8 @@ AVAILABLE_MODELS = {
         # Note that this model requires an appropriate
         # HF_TOKEN environment variable
         name="transformers:google/gemma-2-9b-it",
-        kwargs={},
+        kwargs={
+            "quantization_config": transformers.BitsAndBytesConfig(load_in_8bit=True),},
     ),
     "transformers_gemma2gpu_9b": dict(
         # Note that this model requires an appropriate
