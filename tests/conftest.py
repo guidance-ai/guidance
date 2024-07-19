@@ -34,13 +34,15 @@ AVAILABLE_MODELS = {
         # Note that this model requires an appropriate
         # HF_TOKEN environment variable
         name="transformers:meta-llama/Meta-Llama-3-8B-Instruct",
-        kwargs={"trust_remote_code": True, "torch_dtype": torch.bfloat16},
+        kwargs={
+            "trust_remote_code": True,
+        },
     ),
     "transformers_llama3gpu_8b": dict(
         # Note that this model requires an appropriate
         # HF_TOKEN environment variable
         name="transformers:meta-llama/Meta-Llama-3-8B-Instruct",
-        kwargs={"trust_remote_code": True, "torch_dtype": torch.bfloat16, "device_map": "cuda:0"},
+        kwargs={"trust_remote_code": True, "device_map": "cuda:0"},
     ),
     "hfllama_gemma2cpu_9b": dict(
         # Note that this model requires an appropriate
@@ -53,7 +55,8 @@ AVAILABLE_MODELS = {
         # HF_TOKEN environment variable
         name="transformers:google/gemma-2-9b-it",
         kwargs={
-            "quantization_config": transformers.BitsAndBytesConfig(load_in_8bit=True),},
+            "quantization_config": transformers.BitsAndBytesConfig(load_in_8bit=True),
+        },
     ),
     "transformers_gemma2gpu_9b": dict(
         # Note that this model requires an appropriate
