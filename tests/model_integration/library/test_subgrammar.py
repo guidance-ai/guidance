@@ -10,9 +10,8 @@ from guidance import (
     select,
     optional,
     one_or_more,
-    lexeme,
-    subgrammar,
 )
+from guidance.library._subgrammar import subgrammar, lexeme
 
 
 @guidance(stateless=True)

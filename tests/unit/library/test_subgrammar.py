@@ -1,5 +1,5 @@
 import pytest
-from guidance import subgrammar, lexeme
+from guidance.library._subgrammar import subgrammar, lexeme
 
 class TestEndingLexemeAmbiguous:
     @pytest.mark.parametrize(

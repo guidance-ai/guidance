@@ -13,10 +13,9 @@ from guidance import (
     byte_range,
     one_or_more,
     GrammarFunction,
-    subgrammar,
-    lexeme,
     string,
 )
+from guidance.library._subgrammar import subgrammar, lexeme
 
 log_level = 10
 
