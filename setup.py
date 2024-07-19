@@ -28,7 +28,7 @@ install_requires = [
     "pydantic",
     "requests",
     "tiktoken>=0.3",
-    "llguidance @ git+https://github.com/mmoskal/llguidance.git",
+    "llguidance",
 ]
 
 # Our basic list of 'extras'
