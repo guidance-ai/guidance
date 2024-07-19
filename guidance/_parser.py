@@ -112,14 +112,12 @@ class LLParser:
             if mask is not None:
                 assert r.temperature is not None
                 gen_data = GenData(
-                    # TODO: be careful and return a copy of tokens?
                     tokens=tokens,
                     mask=np.frombuffer(mask, dtype=np.uint8),
                     temperature=r.temperature,
                 )
                 # Send caller the mask and response; wait for token
                 token = yield (gen_data, response)
-                # TODO: better exception handling (ParserException?)
                 if token is None:
                     raise LLParserException("Expected token, got None")
                 if not mask[token]:
@@ -136,6 +134,11 @@ class LLParser:
             if backtrack:
                 tokens = tokens[:-backtrack]
             tokens = tokens + ff_tokens
+
+        stop_reason = self.ll_interpreter.stop_reason()
+        if stop_reason not in {"NoExtension", "EndOfSentence"}:
+            # TODO: extend exception handling
+            raise LLParserException(f"Unexpected stop reason: {stop_reason}")
 
         return response
 
