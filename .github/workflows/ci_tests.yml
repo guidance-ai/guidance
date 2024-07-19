@@ -105,6 +105,8 @@ jobs:
       matrix:
         python-version: ["3.9", "3.10", "3.11", "3.12"]
         model:
+          - transformers_gemma2cpu_9b
+          - transformers_gemma2gpu_9b
           - transformers_llama3cpu_8b
           # - transformers_llama3gpu_8b Does not reliably work on GPU build machines
 
