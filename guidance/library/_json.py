@@ -24,7 +24,7 @@ from ..library import char_range, gen, one_or_more, optional, sequence
 
 from .._grammar import GrammarFunction, select, capture, with_temperature
 from ._pydantic import pydantic_to_json_schema
-from ._greedy import lexeme, greedy_grammar
+from ._subgrammar import lexeme, subgrammar
 
 
 def _to_compact_json(target: Any) -> str:
@@ -461,7 +461,7 @@ def json(
             definitions = _build_definitions(schema[dk])
 
     return lm + with_temperature(
-        greedy_grammar(
+        subgrammar(
             name,
             body=_gen_json(json_schema=schema, definitions=definitions),
             skip_regex=(

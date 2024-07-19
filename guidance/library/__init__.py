@@ -33,6 +33,6 @@ from ._optional import optional
 from ._tool import Tool
 from ._any_char_but import any_char_but
 
-from ._greedy import greedy_grammar, lazy_grammar, lexeme
+from ._subgrammar import subgrammar, lexeme
 
 from ._json import json

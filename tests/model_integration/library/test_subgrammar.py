@@ -11,8 +11,7 @@ from guidance import (
     optional,
     one_or_more,
     lexeme,
-    greedy_grammar,
-    lazy_grammar,
+    subgrammar,
 )
 
 
@@ -58,7 +57,7 @@ def json_array(lm):
 
 @guidance(stateless=True)
 def gen_json_object(lm, name: str, max_tokens=100000000):
-    grm = greedy_grammar(
+    grm = subgrammar(
         name,
         body=json_object(),
         skip_regex=r"[\x20\x0A\x0D\x09]+",
@@ -82,5 +81,5 @@ def test_greedy_json_object(selected_model: guidance.models.Model):
 def test_greedy_single_terminal(selected_model: guidance.models.Model):
     lm = selected_model
     lm += "A number: "
-    lm += greedy_grammar(body=lexeme(r"[0-9]{3}"))
+    lm += subgrammar(body=lexeme(r"[0-9]{3}"))
     assert re.search(r": [0-9]{3}$", str(lm))

@@ -13,7 +13,7 @@ from guidance import (
     byte_range,
     one_or_more,
     GrammarFunction,
-    greedy_grammar,
+    subgrammar,
     lexeme,
     string,
 )
@@ -234,7 +234,7 @@ def test_ll_backtrack_stop():
 
 
 def test_ll_pop_tokens():
-    grm = "6 * 7 = " + greedy_grammar(body=lexeme("[0-9]{1,3}")) + "\n"
+    grm = "6 * 7 = " + subgrammar(body=lexeme("[0-9]{1,3}")) + "\n"
     check_grammar(grm, ["6‧ *‧ ‧7‧ =‧ ", "4‧2‧\n"])
 
 
@@ -251,17 +251,17 @@ def test_ll_nullable_lexeme():
     )
 
     check_grammar(
-        "Here: 2 + 2 = " + greedy_grammar(name="num", body=lexeme("[0-9]+")),
+        "Here: 2 + 2 = " + subgrammar(name="num", body=lexeme("[0-9]+")),
         ["Here‧:‧ ‧2‧ +‧ ‧2‧ =‧ ", "4‧≺EOS≻"],
     )
 
     # make sure it stops at EOS
     check_grammar(
-        "Here: 2 + 2 = " + greedy_grammar(name="num", body=lexeme("[0-9]+") + lexeme(r"Q?")),
+        "Here: 2 + 2 = " + subgrammar(name="num", body=lexeme("[0-9]+") + lexeme(r"Q?")),
         ["Here‧:‧ ‧2‧ +‧ ‧2‧ =‧ ", "4‧≺EOS≻"],
     )
 
-    num = greedy_grammar(
+    num = subgrammar(
         body=select(
             [
                 lexeme(r"-?(?:0|[1-9][0-9]*)", contextual=True),

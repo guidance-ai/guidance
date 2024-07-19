@@ -676,19 +676,17 @@ class GenCommitPoint(Gen):
         return super().__repr__(indent, done, "CommitPoint")
 
 
-class NestedGrammar(Gen):
+class Subgrammar(Gen):
     __slots__ = (
         "body",
-        "greedy_lexer",
-        "greedy_skip_regex",
+        "skip_regex",
         "no_initial_skip",
     )
 
     def __init__(
         self,
         body: GrammarFunction,
-        greedy_lexer: bool = True,
-        greedy_skip_regex: Optional[str] = None,
+        skip_regex: Optional[str] = None,
         no_initial_skip: bool = False,
         name: Union[str, None] = None,
         max_tokens=100000000,
@@ -700,8 +698,7 @@ class NestedGrammar(Gen):
             max_tokens=max_tokens,
         )
         self.body = body
-        self.greedy_lexer = greedy_lexer
-        self.greedy_skip_regex = greedy_skip_regex
+        self.skip_regex = skip_regex
         self.no_initial_skip = no_initial_skip
 
     def __repr__(self) -> str: # type: ignore[override]
@@ -983,15 +980,14 @@ class LLSerializer:
     def __init__(self) -> None:
         self.nodes: list[dict] = []
         self.curr_grammar = {
-            "greedy_lexer": False,
             "nodes": self.nodes,
             "rx_nodes": [],
         }
         self.grammars = [self.curr_grammar]
         self.node_id_cache: dict[GrammarFunction, int] = {}
         self.todo: list[GrammarFunction] = []
-        self.grammar_id_cache: dict[NestedGrammar, int] = {}
-        self.grammar_todo: list[NestedGrammar] = []
+        self.grammar_id_cache: dict[Subgrammar, int] = {}
+        self.grammar_todo: list[Subgrammar] = []
 
         self.regex_id_cache: dict[GrammarFunction, int] = {}
 
@@ -1131,15 +1127,14 @@ class LLSerializer:
         assert not pending
         return self.regex_id_cache[node0]
 
-    def grammar(self, grammar: NestedGrammar):
+    def grammar(self, grammar: Subgrammar):
         if grammar in self.grammar_id_cache:
             return self.grammar_id_cache[grammar]
         id = len(self.grammars)
         self.grammar_id_cache[grammar] = id
         self.grammars.append(
             {
-                "greedy_lexer": grammar.greedy_lexer,
-                "greedy_skip_rx": grammar.greedy_skip_regex,
+                "greedy_skip_rx": grammar.skip_regex,
                 "nodes": [],
                 "rx_nodes": [],
             }
@@ -1185,7 +1180,7 @@ class LLSerializer:
                     "contextual": node.contextual,
                 }
             }
-        elif isinstance(node, NestedGrammar):
+        elif isinstance(node, Subgrammar):
             obj = {
                 "GenGrammar": {
                     "grammar": self.grammar(node),
