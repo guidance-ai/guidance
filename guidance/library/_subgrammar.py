@@ -1,4 +1,4 @@
-from .._grammar import Subgrammar, GenLexeme, GrammarFunction, capture
+from .._grammar import Subgrammar, Lexeme, GrammarFunction, capture
 from typing import Optional
 
 
@@ -6,7 +6,7 @@ def lexeme(
     body_regex: str,
     contextual: bool = False,
 ):
-    return GenLexeme(body_regex=body_regex, contextual=contextual)
+    return Lexeme(body_regex=body_regex, contextual=contextual)
 
 
 def subgrammar(

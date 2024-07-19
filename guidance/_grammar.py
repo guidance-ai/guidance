@@ -642,7 +642,7 @@ class Gen(Terminal):
         return s
 
 
-class GenLexeme(Gen):
+class Lexeme(Gen):
     __slots__ = ("contextual",)
 
     def __init__(
@@ -1116,7 +1116,7 @@ class LLSerializer:
                 res = self._add_regex("ByteSet", byteset)
             elif isinstance(node, Null):
                 res = self._add_regex_json("EmptyString")
-            elif isinstance(node, GenLexeme):
+            elif isinstance(node, Lexeme):
                 res = self._add_regex("Regex", node.body_regex)
             else:
                 raise ValueError("Cannot serialize as regex: " + node.__repr__())
@@ -1173,7 +1173,7 @@ class LLSerializer:
                         "sequence": [self.node(v) for v in node.values],
                     }
                 }
-        elif isinstance(node, GenLexeme):
+        elif isinstance(node, Lexeme):
             obj = {
                 "Lexeme": {
                     "rx": node.body_regex,
