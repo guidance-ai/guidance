@@ -6,17 +6,35 @@ from guidance.library._gen import regex
 
 from ...utils import check_match_failure, generate_and_check
 
+
 def byte_range(byterange: bytes):
     start, end = byterange
     return {bytes([i]) for i in range(start, end + 1)}
 
 
-ASCII_START_BYTES = byte_range(b'\x00\x7f')
-UNICODE_SPECIAL_START_BYTES = byte_range(b'\xc2\xf4')
-UNICODE_START_BYTES = byte_range(b'\x00\x7f') | byte_range(b'\xc2\xf4')
-UNICODE_DIGIT_START_BYTES = byte_range(b'09') |  {b'\xd9', b'\xdb', b'\xdf', b'\xe0', b'\xe1', b'\xea', b'\xef', b'\xf0'}
-UNICODE_WORD_START_BYTES = {char.encode()[:1] for codepoint in range(0x110000) if unicodedata.category(char := chr(codepoint))[:1] in {'L', 'M', 'N'}} | {b"_"}
-UNICODE_NON_WORD_START_BYTES = {char.encode('utf-8', 'surrogatepass')[:1] for codepoint in range(0x110000) if unicodedata.category(char := chr(codepoint))[:1] not in {'L', 'M', 'N'}} - {b"_"}
+ASCII_START_BYTES = byte_range(b"\x00\x7f")
+UNICODE_SPECIAL_START_BYTES = byte_range(b"\xc2\xf4")
+UNICODE_START_BYTES = byte_range(b"\x00\x7f") | byte_range(b"\xc2\xf4")
+UNICODE_DIGIT_START_BYTES = byte_range(b"09") | {
+    b"\xd9",
+    b"\xdb",
+    b"\xdf",
+    b"\xe0",
+    b"\xe1",
+    b"\xea",
+    b"\xef",
+    b"\xf0",
+}
+UNICODE_WORD_START_BYTES = {
+    char.encode()[:1]
+    for codepoint in range(0x110000)
+    if unicodedata.category(char := chr(codepoint))[:1] in {"L", "M", "N"}
+} | {b"_"}
+UNICODE_NON_WORD_START_BYTES = {
+    char.encode("utf-8", "surrogatepass")[:1]
+    for codepoint in range(0x110000)
+    if unicodedata.category(char := chr(codepoint))[:1] not in {"L", "M", "N"}
+} - {b"_"}
 
 
 class TestCharacterClasses:
@@ -105,7 +123,7 @@ class TestCharacterClasses:
                 "ABCxyz8743-!@#$%^&*()_+a",
                 b"ABCxyz8743-!@#$%^&*()_+",
                 b"a",
-                UNICODE_START_BYTES - {b"a", b"b", b"c"}
+                UNICODE_START_BYTES - {b"a", b"b", b"c"},
             ),
             (
                 r"[^\d]+",
@@ -271,9 +289,7 @@ class TestQuantifiers:
             ),  # More than the maximum 'a's before 'b'
         ],
     )
-    def test_quantifiers_failure(
-        self, pattern, string, good_bytes, failure_byte, allowed_bytes
-    ):
+    def test_quantifiers_failure(self, pattern, string, good_bytes, failure_byte, allowed_bytes):
         check_match_failure(
             bad_string=string,
             good_bytes=good_bytes,
@@ -390,9 +406,7 @@ class TestAlternations:
             ),  # 't' should be forced
         ],
     )
-    def test_alternations_failures(
-        self, pattern, string, good_bytes, failure_byte, allowed_bytes
-    ):
+    def test_alternations_failures(self, pattern, string, good_bytes, failure_byte, allowed_bytes):
         check_match_failure(
             bad_string=string,
             good_bytes=good_bytes,
@@ -425,9 +439,7 @@ class TestDot:
             ),
         ],
     )
-    def test_dot_failures(
-        self, pattern, string, good_bytes, failure_byte, allowed_bytes
-    ):
+    def test_dot_failures(self, pattern, string, good_bytes, failure_byte, allowed_bytes):
         check_match_failure(
             bad_string=string,
             good_bytes=good_bytes,
@@ -476,35 +488,29 @@ class TestSpecialCharacters:
                 b"1",
                 UNICODE_START_BYTES - byte_range(b"09"),
             ),
-            (
-                r"\w+",
-                "abcABC123_@",
-                b"abcABC123_",
-                b"@",
-                UNICODE_WORD_START_BYTES
-            ),
-            (
-                r"\W+",
-                " -!@#$%^&*()+a",
-                b" -!@#$%^&*()+",
-                b"a",
-                UNICODE_NON_WORD_START_BYTES
-            ),
+            (r"\w+", "abcABC123_@", b"abcABC123_", b"@", UNICODE_WORD_START_BYTES),
+            (r"\W+", " -!@#$%^&*()+a", b" -!@#$%^&*()+", b"a", UNICODE_NON_WORD_START_BYTES),
             (
                 r"\s+",
                 " \t\n\r\f\v8",
                 b" \t\n\r\f\v",
                 b"8",
                 {b" ", b"\t", b"\n", b"\r", b"\f", b"\v"}
-                | {b"\xc2", b"\xe1", b"\xe2", b"\xe3"}, # include unicode whitespace starts
+                | {b"\xc2", b"\xe1", b"\xe2", b"\xe3"},  # include unicode whitespace starts
             ),
             (
                 r"\S+",
                 "abcABC123_ ",
                 b"abcABC123_",
                 b" ",
-                UNICODE_START_BYTES - {
-                    b" ", b"\t", b"\n", b"\r", b"\f", b"\v",
+                UNICODE_START_BYTES
+                - {
+                    b" ",
+                    b"\t",
+                    b"\n",
+                    b"\r",
+                    b"\f",
+                    b"\v",
                 },
             ),
         ],
