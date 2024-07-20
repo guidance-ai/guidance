@@ -1,13 +1,23 @@
 import pytest
 from functools import partial
+import unicodedata
 
-from guidance import regex
+from guidance.library._gen import regex
 
 from ...utils import check_match_failure, generate_and_check
 
 def byte_range(byterange: bytes):
     start, end = byterange
     return {bytes([i]) for i in range(start, end + 1)}
+
+
+ASCII_START_BYTES = byte_range(b'\x00\x7f')
+UNICODE_SPECIAL_START_BYTES = byte_range(b'\xc2\xf4')
+UNICODE_START_BYTES = byte_range(b'\x00\x7f') | byte_range(b'\xc2\xf4')
+UNICODE_DIGIT_START_BYTES = byte_range(b'09') |  {b'\xd9', b'\xdb', b'\xdf', b'\xe0', b'\xe1', b'\xea', b'\xef', b'\xf0'}
+UNICODE_WORD_START_BYTES = {char.encode()[:1] for codepoint in range(0x110000) if unicodedata.category(char := chr(codepoint))[:1] in {'L', 'M', 'N'}} | {b"_"}
+UNICODE_NON_WORD_START_BYTES = {char.encode('utf-8', 'surrogatepass')[:1] for codepoint in range(0x110000) if unicodedata.category(char := chr(codepoint))[:1] not in {'L', 'M', 'N'}} - {b"_"}
+
 
 class TestCharacterClasses:
     @pytest.mark.parametrize(
@@ -88,42 +98,42 @@ class TestCharacterClasses:
                 "abc123@",
                 b"abc123",
                 b"@",
-                {*byte_range(b"az"), *byte_range(b"09")},
+                byte_range(b"az") | UNICODE_DIGIT_START_BYTES,
             ),
             (
                 r"[^abc]+",
                 "ABCxyz8743-!@#$%^&*()_+a",
                 b"ABCxyz8743-!@#$%^&*()_+",
                 b"a",
-                {*byte_range(b"\x00`"), *byte_range(b"d\x7f")},
+                UNICODE_START_BYTES - {b"a", b"b", b"c"}
             ),
             (
                 r"[^\d]+",
                 "abcXYZ-!@#$%^&*()_+6",
                 b"abcXYZ-!@#$%^&*()_+",
                 b"6",
-                {*byte_range(b"\x00/"), *byte_range(b":\x7f")},
+                UNICODE_START_BYTES - byte_range(b"09"),
             ),
             (
                 r"[^B-Z]+",
                 "qwertyAB",
                 b"qwertyA",
                 b"B",
-                {*byte_range(b"\x00A"), *byte_range(b"[\x7f")},
+                UNICODE_START_BYTES - byte_range(b"BZ"),
             ),
             (
                 r"[^a-z\d]+",
                 "ABCDEF-!@#$%^&*()_+x",
                 b"ABCDEF-!@#$%^&*()_+",
                 b"x",
-                {*byte_range(b"\x00/"), *byte_range(b":`"), *byte_range(b"{\x7f")},
+                UNICODE_START_BYTES - (byte_range(b"az") | byte_range(b"09")),
             ),
             (
                 r"[^\n]+",
                 "ABCxyz8743-!@#$%^&*()_+\n",
                 b"ABCxyz8743-!@#$%^&*()_+",
                 b"\n",
-                {*byte_range(b"\x00\t"), *byte_range(b"\x0b\x7f")},
+                UNICODE_START_BYTES - {b"\n"},
             ),
         ],
     )
@@ -411,7 +421,7 @@ class TestDot:
                 "ABCxyz8743-!@#$%^&*()_+\n",
                 b"ABCxyz8743-!@#$%^&*()_+",
                 b"\n",
-                {*byte_range(b"\x00\t"), *byte_range(b"\x0b\x7f")},
+                UNICODE_START_BYTES - {b"\n"},
             ),
         ],
     )
@@ -457,50 +467,45 @@ class TestSpecialCharacters:
                 "0123456789x",
                 b"0123456789",
                 b"x",
-                byte_range(b"09"),
+                UNICODE_DIGIT_START_BYTES,
             ),
             (
                 r"\D+",
                 "ABCxyz-!@#$%^&*()_+1",
                 b"ABCxyz-!@#$%^&*()_+",
                 b"1",
-                {*byte_range(b"\x00/"), *byte_range(b":\x7f")},
+                UNICODE_START_BYTES - byte_range(b"09"),
             ),
             (
                 r"\w+",
                 "abcABC123_@",
                 b"abcABC123_",
                 b"@",
-                {*byte_range(b"az"), *byte_range(b"AZ"), *byte_range(b"09"), b"_"},
+                UNICODE_WORD_START_BYTES
             ),
             (
                 r"\W+",
                 " -!@#$%^&*()+a",
                 b" -!@#$%^&*()+",
                 b"a",
-                {
-                    *byte_range(b"\x00/"),
-                    *byte_range(b":@"),
-                    *byte_range(b"[^"),
-                    b"`",
-                    *byte_range(b"{\x7f"),
-                },
+                UNICODE_NON_WORD_START_BYTES
             ),
             (
                 r"\s+",
                 " \t\n\r\f\v8",
                 b" \t\n\r\f\v",
                 b"8",
-                {
-                    b" ", b"\t", b"\n", b"\r", b"\f", b"\v",
-                },
+                {b" ", b"\t", b"\n", b"\r", b"\f", b"\v"}
+                | {b"\xc2", b"\xe1", b"\xe2", b"\xe3"}, # include unicode whitespace starts
             ),
             (
                 r"\S+",
                 "abcABC123_ ",
                 b"abcABC123_",
                 b" ",
-                {*byte_range(b"\x00\x08"), *byte_range(b"\x0e\x1f"), *byte_range(b"!\x7f")},
+                UNICODE_START_BYTES - {
+                    b" ", b"\t", b"\n", b"\r", b"\f", b"\v",
+                },
             ),
         ],
     )
