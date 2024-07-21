@@ -6,17 +6,14 @@ from ._model import Engine, Model
 from .._schema import LLProgress
 from ..chat import Phi3MiniChatTemplate
 from ._byte_tokenizer import ByteTokenizer
+from typing import Dict, Tuple
 
 
 class AzureGuidanceEngine(Engine):
     """This connects to a remote guidance server on Azure and runs all computation using the remote engine."""
 
     def __init__(self, server_url, max_streaming_tokens=1000, chat_template=None):
-        if (
-            server_url is None
-            or isinstance(server_url, str)
-            and len(server_url.strip()) == 0
-        ):
+        if server_url is None or isinstance(server_url, str) and len(server_url.strip()) == 0:
             server_url = os.getenv("AZURE_GUIDANCE_URL", "")
         elif not isinstance(server_url, str):
             raise ValueError("server_url must contain a URL string.")
@@ -26,15 +23,13 @@ class AzureGuidanceEngine(Engine):
             and not server_url.startswith("http://localhost:")
             and not server_url.startswith("http://127.0.0.1:")
         ):
-            raise ValueError(
-                "AzureGuidance requires a remote model URL that starts with https://"
-            )
-        self.server_url = server_url
+            raise ValueError("AzureGuidance requires a remote model URL that starts with https://")
+        self.conn_str = server_url
         self.max_streaming_tokens = max_streaming_tokens
 
         if chat_template is None:
             # TODO [PK]: obtain this from the server
-            chat_template=Phi3MiniChatTemplate
+            chat_template = Phi3MiniChatTemplate
 
         tokenizer = ByteTokenizer(chat_template)
 
@@ -51,10 +46,12 @@ class AzureGuidanceEngine(Engine):
             "controller_arg": serialized,
             "prompt": parser,
             "max_tokens": self.max_streaming_tokens,
-            "temperature": 0.0, # this is just default temperature
+            "temperature": 0.0,  # this is just default temperature
         }
 
-        resp = req("post", "run", json=data, stream=True, base_url=self.server_url)
+        url, headers, info = _mk_url("run", conn_str=self.conn_str)
+        resp = requests.request("post", url, headers=headers, json=data, stream=True)
+
         if resp.status_code != 200:
             text = resp.text
             try:
@@ -64,7 +61,8 @@ class AzureGuidanceEngine(Engine):
             except:
                 pass
             raise RuntimeError(
-                f"Bad response to Guidance request {resp.status_code} {resp.reason}: {text}."
+                f"Bad response to Guidance request\nRequest: {info}\n"
+                + f"Response: {resp.status_code} {resp.reason}\n{text}"
             )
 
         for line in resp.iter_lines():
@@ -111,6 +109,7 @@ class AzureGuidanceEngine(Engine):
 
 
 class AzureGuidance(Model):
+
     def __init__(
         self,
         model=None,
@@ -124,33 +123,26 @@ class AzureGuidance(Model):
         super().__init__(engine, echo=echo)
 
 
-def _parse_base_url(base_url: str):
-    p = urllib.parse.urlparse(base_url)
-    key = ""
+def _mk_url(path: str, conn_str: str):
+    p = urllib.parse.urlparse(conn_str)
+    headers = {}
+    info = "no auth header"
     if p.fragment:
         f = urllib.parse.parse_qs(p.fragment)
-        key = f.get("key", [""])[0]
-    r = urllib.parse.urlunparse(p._replace(fragment="", query=""))
-    if not r.endswith("/"):
-        r += "/"
-    return r, key
-
-
-def _headers(arg_base_url: str) -> dict:
-    _, key = _parse_base_url(arg_base_url)
-    if key:
-        return {"api-key": key}
+        if key := f.get("key", [""])[0]:
+            headers = {"api-key": key}
+            info = f"api-key: {key[0:2]}...{key[-2:]}"
+        elif key := f.get("auth", [""])[0]:
+            headers = {"authorization": "Bearer " + key}
+            info = f"authorization: Bearer {key[0:2]}...{key[-2:]}"
+    url = urllib.parse.urlunparse(p._replace(fragment="", query=""))
+    if url.endswith("/"):
+        url = url[:-1]
+    if url.endswith("/run"):
+        url = url[:-4] + "/" + path
+    elif url.endswith("/guidance") and path == "run":
+        url = url
     else:
-        return {}
-
-
-def _mk_url(path: str, arg_base_url: str) -> str:
-    pref, _ = _parse_base_url(arg_base_url)
-    return pref + path
-
-
-def req(tp: str, path: str, base_url: str, **kwargs):
-    url = _mk_url(path, arg_base_url=base_url)
-    headers = _headers(arg_base_url=base_url)
-    resp = requests.request(tp, url, headers=headers, **kwargs)
-    return resp
+        url = url + "/" + path
+    info = f"{url} ({info})"
+    return url, headers, info
