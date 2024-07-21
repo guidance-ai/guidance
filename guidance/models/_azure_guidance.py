@@ -6,13 +6,19 @@ from ._model import Engine, Model
 from .._schema import LLProgress
 from ..chat import Phi3MiniChatTemplate
 from ._byte_tokenizer import ByteTokenizer
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Optional
 
 
 class AzureGuidanceEngine(Engine):
     """This connects to a remote guidance server on Azure and runs all computation using the remote engine."""
 
-    def __init__(self, server_url, max_streaming_tokens=1000, chat_template=None):
+    def __init__(
+        self,
+        server_url,
+        max_streaming_tokens=1000,
+        chat_template=None,
+        log_level=1,
+    ):
         if server_url is None or isinstance(server_url, str) and len(server_url.strip()) == 0:
             server_url = os.getenv("AZURE_GUIDANCE_URL", "")
         elif not isinstance(server_url, str):
@@ -26,6 +32,7 @@ class AzureGuidanceEngine(Engine):
             raise ValueError("AzureGuidance requires a remote model URL that starts with https://")
         self.conn_str = server_url
         self.max_streaming_tokens = max_streaming_tokens
+        self.log_level = log_level
 
         if chat_template is None:
             # TODO [PK]: obtain this from the server
@@ -85,10 +92,12 @@ class AzureGuidanceEngine(Engine):
                             j = json.loads(ln[10:])
                             progress.append(j)
                         elif ln.startswith("Warning: "):
-                            print(ln, flush=True)
+                            if self.log_level >= 1:
+                                print(ln, flush=True)
                     progress = LLProgress.model_validate(progress)
 
-                    # print(ch["logs"].rstrip("\n"), flush=True)
+                    if self.log_level >= 2:
+                        print(ch["logs"].rstrip("\n"), flush=True)
 
                     err = ch.get("error", "")
                     if err:
@@ -116,10 +125,12 @@ class AzureGuidance(Model):
         echo=True,
         max_streaming_tokens=1000,
         chat_template=None,
+        log_level: Optional[int] = None,
     ):
         """Build a new remote grammar processing Azure model object that represents a model in a given state."""
-
-        engine = AzureGuidanceEngine(model, max_streaming_tokens, chat_template)
+        if log_level is None:
+            log_level = int(os.environ.get("LLGUIDANCE_LOG_LEVEL", "1"))
+        engine = AzureGuidanceEngine(model, max_streaming_tokens, chat_template, log_level)
         super().__init__(engine, echo=echo)
 
 
