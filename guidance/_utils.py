@@ -9,64 +9,12 @@ import types
 
 import numpy as np
 
-import logging
-
-logging.basicConfig(level=logging.DEBUG)
-
-
-# class _Rewrite(ast.NodeTransformer):
-#     def visit_Constant(self, node):
-#         if isinstance(node.value, str) and node.lineno < node.end_lineno:
-#             self.start_counts[node.lineno - 1] += 1
-#             start_line = self.source_lines[node.lineno - 1]
-#             start_string = start_line[node.col_offset :]
-
-#             # check for literal multiline strings
-#             if (
-#                 start_string.startswith("f'''")
-#                 or start_string.startswith("'''")
-#                 or start_string.startswith('f"""')
-#                 or start_string.startswith('"""')
-#             ):
-
-#                 # track our indentation level
-#                 if self.indentation[node.lineno - 1] is None:
-#                     indent = start_line[: len(start_line) - len(start_line.lstrip())]
-#                     for i in range(node.lineno - 1, node.end_lineno):
-#                         self.indentation[i] = indent
-#                 indent = self.indentation[node.lineno - 1]
-
-#                 # strip indentation when it is consistent
-#                 lines = node.value.split("\n")
-#                 fail = False
-#                 new_lines = []
-#                 for i, line in enumerate(lines):
-#                     if (
-#                         i == 0
-#                         and (
-#                             self.start_counts[node.lineno - 1] > 1
-#                             or not start_line.endswith("\\")
-#                         )
-#                     ) or line == "":
-#                         new_lines.append(line)
-#                     elif line.startswith(indent):
-#                         new_lines.append(line[len(indent) :])
-#                     # elif (i == 0 and line.endswith("\\")) or line == "":
-#                     #     new_lines.append(line)
-#                     else:
-#                         fail = True
-#                         break
-#                 if not fail:
-#                     node.value = "\n".join(new_lines)
-
-#         return node
 class _Rewrite(ast.NodeTransformer):
     def __init__(self, source_lines):
         self.source_lines = source_lines
         self.indentation = [None for _ in source_lines]
 
     def visit_JoinedStr(self, node):
-        logging.debug(f"Processing JoinedStr node: {ast.dump(node, indent=4)}")
         for value in node.values:
             if isinstance(value, ast.Constant) and isinstance(value.value, str):
                 self._dedent_constant(value, node.lineno)
@@ -74,12 +22,10 @@ class _Rewrite(ast.NodeTransformer):
 
     def visit_Constant(self, node):
         if isinstance(node.value, str) and "\n" in node.value:
-            logging.debug(f"Processing Constant node: {ast.dump(node, indent=4)}")
             self._dedent_constant(node, node.lineno)
         return node
 
     def _dedent_constant(self, node, lineno):
-        logging.debug(f"Original value: {repr(node.value)}")
         start_lineno = lineno - 1
         start_line = self.source_lines[start_lineno]
         indent = len(start_line) - len(start_line.lstrip())
@@ -92,7 +38,6 @@ class _Rewrite(ast.NodeTransformer):
                 else:
                     new_lines.append(line)
             node.value = "\n".join(new_lines)
-            logging.debug(f"Modified value: {repr(node.value)}")
 
 class normalize_notebook_stdout_stderr:
     """Remaps stdout and stderr back to their normal selves from what ipykernel did to them.
@@ -126,59 +71,6 @@ class normalize_notebook_stdout_stderr:
             sys.stderr._original_stdstream_copy = self.restore_stderr
 
 
-# def strip_multiline_string_indents(f):
-
-#     source = textwrap.dedent(inspect.getsource(f))
-#     blanks = (
-#         "\n" * f.__code__.co_firstlineno
-#     )  # padd the source so the lines in the file line up for the debugger
-#     source = blanks + "\n".join(
-#         source.splitlines()[1:]
-#     )  # remove the decorator first line.
-
-#     # define the external closure variables so f.__closure__ will match our recompiled version
-#     if len(f.__code__.co_freevars) > 0:
-#         raise Exception(
-#             "You currently must use @guidance(dedent=False) for closure functions (function nested within other functions that reference the outer functions variables)!"
-#         )
-#         lines = source.split("\n")
-#         lines[0] = "def __outer__closure_wrap():"
-#         lines[1] = (
-#             "    "
-#             + ",".join(f.__code__.co_freevars)
-#             + " = "
-#             + ",".join("None" for _ in f.__code__.co_freevars)
-#         )
-#         source = "    \n".join(
-#             lines
-#         )  # TODO: this does not quite work because new_code_obj is now the __outer__closure_wrap() function...could be fixed with work...
-
-#     old_code_obj = f.__code__
-#     old_ast = ast.parse(source)
-#     r = _Rewrite()
-#     r.source_lines = source.split("\n")
-#     r.indentation = [None for l in r.source_lines]
-#     r.start_counts = [0 for l in r.source_lines]
-#     # r._avoid_backslashes = True
-#     new_ast = r.visit(old_ast)
-#     new_code_obj = compile(new_ast, old_code_obj.co_filename, "exec")
-
-#     # find the code block
-#     for i in range(len(new_code_obj.co_consts)):
-#         if str(type(new_code_obj.co_consts[i])) == "<class 'code'>":
-#             break
-
-#     # create a new function based on the modified code
-#     new_f = types.FunctionType(
-#         new_code_obj.co_consts[i],
-#         f.__globals__,
-#         name=f.__name__,
-#         argdefs=f.__defaults__,
-#         closure=f.__closure__,
-#     )
-#     new_f.__kwdefaults__ = f.__kwdefaults__
-#     return new_f
-
 def strip_multiline_string_indents(f):
     source = textwrap.dedent(inspect.getsource(f))
     blanks = "\n" * f.__code__.co_firstlineno  # pad the source so the lines in the file line up for the debugger
@@ -189,6 +81,17 @@ def strip_multiline_string_indents(f):
         raise Exception(
             "You currently must use @guidance(dedent=False) for closure functions (function nested within other functions that reference the outer functions variables)!"
         )
+#       lines = source.split("\n")
+#       lines[0] = "def __outer__closure_wrap():"
+#       lines[1] = (
+#           "    "
+#           + ",".join(f.__code__.co_freevars)
+#           + " = "
+#           + ",".join("None" for _ in f.__code__.co_freevars)
+#       )
+#       source = "    \n".join(
+#           lines
+#       )  # TODO: this does not quite work because new_code_obj is now the __outer__closure_wrap() function...could be fixed with work...
 
     old_code_obj = f.__code__
     old_ast = ast.parse(source)
