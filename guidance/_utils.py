@@ -67,27 +67,32 @@ class _Rewrite(ast.NodeTransformer):
 
     def visit_JoinedStr(self, node):
         logging.debug(f"Processing JoinedStr node: {ast.dump(node, indent=4)}")
-        new_values = []
         for value in node.values:
             if isinstance(value, ast.Constant) and isinstance(value.value, str):
-                logging.debug(f"Original value: {repr(value.value)}")
-                start_lineno = node.lineno - 1
-                start_line = self.source_lines[start_lineno]
-                indent = len(start_line) - len(start_line.lstrip())
-
-                if indent > 0:
-                    new_lines = []
-                    for line in value.value.split("\n"):
-                        if line.startswith(" " * indent):
-                            new_lines.append(line[indent:])
-                        else:
-                            new_lines.append(line)
-                    value.value = "\n".join(new_lines)
-                    logging.debug(f"Modified value: {repr(value.value)}")
-            new_values.append(value)
-        node.values = new_values
+                self._dedent_constant(value, node.lineno)
         return node
 
+    def visit_Constant(self, node):
+        if isinstance(node.value, str) and "\n" in node.value:
+            logging.debug(f"Processing Constant node: {ast.dump(node, indent=4)}")
+            self._dedent_constant(node, node.lineno)
+        return node
+
+    def _dedent_constant(self, node, lineno):
+        logging.debug(f"Original value: {repr(node.value)}")
+        start_lineno = lineno - 1
+        start_line = self.source_lines[start_lineno]
+        indent = len(start_line) - len(start_line.lstrip())
+
+        if indent > 0:
+            new_lines = []
+            for line in node.value.split("\n"):
+                if line.startswith(" " * indent):
+                    new_lines.append(line[indent:])
+                else:
+                    new_lines.append(line)
+            node.value = "\n".join(new_lines)
+            logging.debug(f"Modified value: {repr(node.value)}")
 
 class normalize_notebook_stdout_stderr:
     """Remaps stdout and stderr back to their normal selves from what ipykernel did to them.
