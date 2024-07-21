@@ -119,6 +119,25 @@ def test_inconsistent_indentation():
     result = lm + inconsistent_indentation()
     assert str(result) == '{\n"name": "harsha",\n  "age": "314",\n"weapon": "sword"\n}'
 
+def test_closure_function():
+    """Test function with closures referring to outer variables."""
+    @guidance(stateless=True, dedent=True)
+    def outer_function(lm):
+        outer_var = "outer_value"
+        
+        def inner_function():
+            inner_var = f"""\
+            Inner function variable:
+                outer_var: {outer_var}
+                """
+            return inner_var
+        lm += inner_function()
+        return lm
+
+    lm = guidance.models.Mock()
+    result = lm + outer_function()
+    assert result == "Inner function variable:\nouter_var: outer_value\n"
+
 # NOTE [HN]: This currently doesn't work, but I need to learn how nested f-strings work better in the AST.
 # Might be something like special casing ast.FormattedValue in the handler? Leaving for future debugging.
 # def test_nested_fstrings():
