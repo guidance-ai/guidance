@@ -1,5 +1,5 @@
 import jinja2
-import llama_cpp
+import pytest
 
 import guidance
 
@@ -8,7 +8,13 @@ from guidance.chat import CHAT_TEMPLATE_CACHE
 
 def test_chat_format_smoke(llamacpp_model: guidance.models.LlamaCpp):
     # Retrieve the template string
-    model_chat_template = llamacpp_model.engine.model_obj.metadata["tokenizer.chat_template"]
+    if (
+        hasattr(llamacpp_model.engine.model_obj, "metadata")
+        and "tokenizer.chat_template" in llamacpp_model.engine.model_obj.metadata
+    ):
+        model_chat_template = llamacpp_model.engine.model_obj.metadata["tokenizer.chat_template"]
+    else:
+        pytest.skip("Chat template not available from LlamaCpp object")
 
     lm = guidance.models.Mock("")
     lm.chat_template = CHAT_TEMPLATE_CACHE[model_chat_template]()
