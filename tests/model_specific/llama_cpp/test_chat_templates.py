@@ -6,7 +6,7 @@ import guidance
 from guidance.chat import CHAT_TEMPLATE_CACHE
 
 
-def test_chat_format_smoke(llamacpp_model: guidance.models.LlamaCpp):
+def test_chat_format_smoke(llamacpp_model: guidance.models.LlamaCpp, selected_model_name):
     # Retrieve the template string
     if (
         hasattr(llamacpp_model.engine.model_obj, "metadata")
@@ -42,5 +42,11 @@ def test_chat_format_smoke(llamacpp_model: guidance.models.LlamaCpp):
     with guidance.assistant():
         lm += "Hello!"
     # Only check substring due to BOS/EOS tokens
-    # Remove spaces because those are being troublesome as well
-    assert str(lm).replace(" ", "") in jinja2_render.replace(" ", "")
+    if selected_model_name == "hfllama_mistral_7b":
+        # The templates extracted via Transformers and GGUF are somewhat
+        # different for Mistral. This is showing up in slightly
+        # different spacing (our template is putting in a few extra spaces)
+        # so at least make sure the 'tags' are correct
+        assert str(lm).replace(" ", "") in jinja2_render.replace(" ", "")
+    else:
+        assert str(lm) in jinja2_render
