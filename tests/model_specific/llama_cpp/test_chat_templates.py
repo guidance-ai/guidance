@@ -8,7 +8,7 @@ from guidance.chat import CHAT_TEMPLATE_CACHE
 
 def test_chat_format_smoke(llamacpp_model: guidance.models.LlamaCpp):
     # Retrieve the template string
-    model_chat_template = llamacpp_model.engine.tokenizer.chat_template
+    model_chat_template = llamacpp_model.engine.model_obj.metadata["tokenizer.chat_template"]
 
     lm = guidance.models.Mock("")
     lm.chat_template = CHAT_TEMPLATE_CACHE[model_chat_template]()
@@ -18,8 +18,14 @@ def test_chat_format_smoke(llamacpp_model: guidance.models.LlamaCpp):
         {"role": "assistant", "content": "Hello!"},
     ]
 
-    jinja2_template = jinja2.Environment.from_string(model_chat_template)
-    jinja2_render = jinja2_template.render(messages)
+    # Note that llama-cpp-python does provide a llama_chat_apply_template function
+    # but details about its use are thin on the ground and according to
+    # https://github.com/ggerganov/llama.cpp/wiki/Templates-supported-by-llama_chat_apply_template
+    # it does its own thing internally
+    jinja2_template = jinja2.Environment(loader=jinja2.BaseLoader()).from_string(
+        model_chat_template
+    )
+    jinja2_render = jinja2_template.render(messages=messages, eos_token=llamacpp_model.engine.tokenizer.eos_token.decode())
 
     with guidance.user():
         lm += "Good day to you!"
