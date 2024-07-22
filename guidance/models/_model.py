@@ -162,7 +162,7 @@ class Engine:
         if temperature < 0.0001:
             return int(np.argmax(logits))
         # Get probabilities from softmax
-        probabilities = softmax(logits*temperature)
+        probabilities = softmax(logits/temperature)
         # Sample an index based on the probabilities
         sampled_index = np.random.choice(len(logits), p=probabilities)
         return sampled_index
