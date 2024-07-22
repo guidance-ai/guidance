@@ -121,6 +121,7 @@ CHAT_TEMPLATE_CACHE[chatml_template] = ChatMLTemplate
 # [05/08/24] https://huggingface.co/meta-llama/Llama-2-7b-chat-hf/blob/main/tokenizer_config.json#L12
 llama2_template = "{% if messages[0]['role'] == 'system' %}{% set loop_messages = messages[1:] %}{% set system_message = messages[0]['content'] %}{% else %}{% set loop_messages = messages %}{% set system_message = false %}{% endif %}{% for message in loop_messages %}{% if (message['role'] == 'user') != (loop.index0 % 2 == 0) %}{{ raise_exception('Conversation roles must alternate user/assistant/user/assistant/...') }}{% endif %}{% if loop.index0 == 0 and system_message != false %}{% set content = '<<SYS>>\\n' + system_message + '\\n<</SYS>>\\n\\n' + message['content'] %}{% else %}{% set content = message['content'] %}{% endif %}{% if message['role'] == 'user' %}{{ bos_token + '[INST] ' + content.strip() + ' [/INST]' }}{% elif message['role'] == 'assistant' %}{{ ' '  + content.strip() + ' ' + eos_token }}{% endif %}{% endfor %}"
 
+
 class Llama2ChatTemplate(ChatTemplate):
     # available_roles = ["system", "user", "assistant"]
     template_str = llama2_template
@@ -182,6 +183,7 @@ CHAT_TEMPLATE_CACHE[llama3_template] = Llama3ChatTemplate
 # [05/08/24] https://huggingface.co/microsoft/Phi-3-mini-4k-instruct/blob/main/tokenizer_config.json#L119
 phi3_mini_template = "{% for message in messages %}{% if message['role'] == 'system' %}{{'<|system|>\n' + message['content'] + '<|end|>\n'}}{% elif message['role'] == 'user' %}{{'<|user|>\n' + message['content'] + '<|end|>\n'}}{% elif message['role'] == 'assistant' %}{{'<|assistant|>\n' + message['content'] + '<|end|>\n'}}{% endif %}{% endfor %}{% if add_generation_prompt %}{{ '<|assistant|>\n' }}{% else %}{{ eos_token }}{% endif %}"
 phi3_mini_llamacpp_template = "{{ bos_token }}{% for message in messages %}{% if (message['role'] == 'user') %}{{'<|user|>' + '\n' + message['content'] + '<|end|>' + '\n' + '<|assistant|>' + '\n'}}{% elif (message['role'] == 'assistant') %}{{message['content'] + '<|end|>' + '\n'}}{% endif %}{% endfor %}"
+
 
 class Phi3MiniChatTemplate(ChatTemplate):
     # available_roles = ["user", "assistant"]
@@ -265,3 +267,35 @@ class Mistral7BInstructChatTemplate(ChatTemplate):
 
 CHAT_TEMPLATE_CACHE[mistral_7b_instruct_template] = Mistral7BInstructChatTemplate
 CHAT_TEMPLATE_CACHE[mistral_7b_instruct_llamacpp_template] = Mistral7BInstructChatTemplate
+
+# --------------------------------------------------
+# @@@@ Gemma-2-9b-it @@@@
+# --------------------------------------------------
+# From https://huggingface.co/google/gemma-2-9b-it/blob/main/tokenizer_config.json#L1747
+gemma2_9b_it_template = "{{ bos_token }}{% if messages[0]['role'] == 'system' %}{{ raise_exception('System role not supported') }}{% endif %}{% for message in messages %}{% if (message['role'] == 'user') != (loop.index0 % 2 == 0) %}{{ raise_exception('Conversation roles must alternate user/assistant/user/assistant/...') }}{% endif %}{% if (message['role'] == 'assistant') %}{% set role = 'model' %}{% else %}{% set role = message['role'] %}{% endif %}{{ '<start_of_turn>' + role + '\n' + message['content'] | trim + '<end_of_turn>\n' }}{% endfor %}{% if add_generation_prompt %}{{'<start_of_turn>model\n'}}{% endif %}"
+
+
+class Gemma29BInstructChatTemplate(ChatTemplate):
+    # available_roles = ["user", "assistant"]
+    template_str = gemma2_9b_it_template
+
+    def get_role_start(self, role_name):
+        if role_name == "user":
+            return "<start_of_turn>user\n"
+        elif role_name == "assistant":
+            return "<start_of_turn>model\n"
+        elif role_name == "system":
+            raise ValueError("System Role not supported")
+        else:
+            raise UnsupportedRoleException(role_name, self)
+
+    def get_role_end(self, role_name=None):
+        if role_name == "user":
+            return "<end_of_turn>\n"
+        elif role_name == "assistant":
+            return "<end_of_turn>\n"
+        else:
+            raise UnsupportedRoleException(role_name, self)
+
+
+CHAT_TEMPLATE_CACHE[gemma2_9b_it_template] = Gemma29BInstructChatTemplate
