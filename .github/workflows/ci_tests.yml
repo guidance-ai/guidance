@@ -158,7 +158,8 @@ jobs:
         run: |
           pytest -vv --cov=guidance --cov-report=xml --cov-report=term-missing \
             --selected_model ${{ matrix.model }} \
-            ./tests/model_integration/test_model.py
+            ./tests/model_integration/test_model.py \
+            ./tests/model_specific/
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4
         with:
