@@ -211,7 +211,7 @@ class TransformersTokenizer(Tokenizer):
                         for y in x:
                             all_bytes.add(y)
                     assert set(tokenizer.byte_decoder.keys()).intersection(all_bytes) == all_bytes
-            except:
+            except AssertionError:
                 tokenizer = transformers_package.AutoTokenizer.from_pretrained(
                     model, use_fast=True, **kwargs
                 )  # fall back to the fast tokenizer
