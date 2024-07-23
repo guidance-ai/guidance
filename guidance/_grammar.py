@@ -494,7 +494,7 @@ def commit_point(value, hidden=False):
         raise Exception("Hidden commit points are not supported!")
     # check if it serializes
     _ignore = LLSerializer().regex(value)
-    return GenCommitPoint(value)
+    return RegularGrammar(value)
 
 
 class Placeholder(GrammarFunction):
@@ -611,7 +611,7 @@ class Lexeme(Gen):
         return super().__repr__(indent, done, "Lex")
 
 
-class GenCommitPoint(Gen):
+class RegularGrammar(Gen):
     __slots__ = ("grammar",)
 
     def __init__(
@@ -625,7 +625,7 @@ class GenCommitPoint(Gen):
 
     def __repr__(self, indent="", done=None):
         # TODO add grammar repr
-        return super().__repr__(indent, done, "CommitPoint")
+        return super().__repr__(indent, done, "RegularGrammar")
 
 
 class Subgrammar(Gen):
@@ -1133,7 +1133,7 @@ class LLSerializer:
                     "temperature": node.temperature if node.temperature >= 0 else None,
                 }
             }
-        elif isinstance(node, GenCommitPoint):
+        elif isinstance(node, RegularGrammar):
             obj = {
                 "Gen": {
                     "body_rx": self.regex(node.grammar),
