@@ -1,6 +1,6 @@
 from .._guidance import guidance
 from ._any_char import any_char
-from .._grammar import select, capture, string, commit_point
+from .._grammar import select, capture, string
 from ._sequences import zero_or_more, one_or_more
 from ._any_char_but import any_char_but
 from ._any_char import any_char

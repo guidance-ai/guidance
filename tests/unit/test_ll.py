@@ -9,12 +9,12 @@ from guidance import (
     gen,
     select,
     optional,
-    commit_point,
     byte_range,
     one_or_more,
     GrammarFunction,
     string,
 )
+from guidance._grammar import as_regular_grammar
 from guidance.library._subgrammar import subgrammar, lexeme
 
 log_level = 10
@@ -189,9 +189,9 @@ def test_llparser():
 @pytest.mark.parametrize(
     "grm",
     [
-        # commit_point() turned into regex:
+        # grammar turned into regex:
         "Dolphin name: "
-        + commit_point('"' + byte_range(b"A", b"Z") + one_or_more(byte_range(b"a", b"z")) + '"')
+        + as_regular_grammar('"' + byte_range(b"A", b"Z") + one_or_more(byte_range(b"a", b"z")) + '"')
         + ",",
         # regular gen()
         "Dolphin name: " + gen(regex=r'"[A-Z][a-z]+"') + ",",

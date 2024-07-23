@@ -487,11 +487,13 @@ def commit_point(value, hidden=False):
     Not that commit point nodes can be optionally hidden (in fact they are the only
     nodes that can be hidden since they are by definition not impacted by multiple possible
     inconsistent parses.)"""
+    raise NotImplementedError("commit_point is not implemented (may remove in the future)")
+
+
+def as_regular_grammar(value):
     # TODO: assert that value is not empty since we don't yet support that
     if isinstance(value, str):
         value = string(value)
-    if hidden:
-        raise Exception("Hidden commit points are not supported!")
     # check if it serializes
     _ignore = LLSerializer().regex(value)
     return RegularGrammar(value)
