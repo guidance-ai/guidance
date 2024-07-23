@@ -1,6 +1,13 @@
 import torch
 import transformers
 
+# This file contains the configurations of the models used in our test runs
+
+# The naming convention for the keys is "<loader>_<model>_<host>" where:
+# - 'loader' is 'transformers' or 'hfllama' (for LlamaCpp models accessed via HF)
+# - 'model' contains relevant information about the model itself
+# - 'host' is 'cpu' or 'gpu' as appropriate
+
 _GEMMA_2 = {
     "hfllama_gemma2_9b_cpu": dict(
         # Note that this model requires an appropriate
@@ -100,6 +107,7 @@ AVAILABLE_MODELS = {
     ),
 }
 
+# Add in all the other models
 AVAILABLE_MODELS.update(_GEMMA_2)
 AVAILABLE_MODELS.update(_GPT_2)
 AVAILABLE_MODELS.update(_LLAMA_2)
