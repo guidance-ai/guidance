@@ -1,17 +1,14 @@
 from typing import Sequence
-
 import numpy as np
 import logging
 
 from ._model import Engine, Model, Chat
 from ._remote import RemoteEngine
 from ._tokenizer import Tokenizer
-from ._byte_tokenizer import ByteTokenizer
 
 logger = logging.getLogger(__name__)
 
-# TODO: this import pattern is neded for both Grammarless and Mock, but not the Model base class.
-#   we should refactor this to prevent the need for this import pattern
+# TODO: this import pattern happens in a few places, should be cleaned up
 try:
     from .. import cpp  # type: ignore[attr-defined]
 except ImportError:
@@ -20,14 +17,44 @@ except ImportError:
     )
     from .. import _cpp as cpp
 
+class MockTokenizer(Tokenizer):
+    def __init__(self, tokens: Sequence[bytes]):
+        super().__init__(tokens, chat_template=None, bos_token_id=0, eos_token_id=0)
+        self.byte_trie = cpp.ByteTrie(self.tokens, np.arange(len(self.tokens)))
+
+    def encode(self, byte_string: bytes) -> Sequence[int]:
+        """Simple greedy tokenizer
+        TODO: could be a method on ByteTrie if we want to reuse it
+        """
+        pos = 0
+        tokens = []
+        while pos < len(byte_string):
+            current_node = self.byte_trie
+            last_match = None
+            match_pos = pos
+
+            while match_pos < len(byte_string) and current_node.has_child(byte_string[match_pos : match_pos + 1]):
+                current_node = current_node.child(byte_string[match_pos : match_pos + 1])
+                if current_node.value >= 0:
+                    last_match = (current_node.value, match_pos + 1)
+                match_pos += 1
+
+            if last_match is not None:
+                tokens.append(last_match[0])
+                pos = last_match[1]
+            else:
+                raise ValueError(f"Could not find a match for byte {byte_string[pos]} at position {pos}")
+
+        return tokens
+
+    def recode(self, tokens: Sequence[int]) -> Sequence[int]:
+        # Make a no-op for now
+        return tokens
+
 
 class MockEngine(Engine):
     def __init__(self, tokenizer, byte_patterns, compute_log_probs, force):
         super().__init__(tokenizer, compute_log_probs=compute_log_probs)
-
-        self._token_trie = cpp.ByteTrie(
-            self.tokenizer.tokens, np.arange(len(self.tokenizer.tokens))
-        )
 
         self._valid_mask = np.zeros(len(tokenizer.tokens))
         for i, t in enumerate(tokenizer.tokens):
@@ -55,9 +82,9 @@ class MockEngine(Engine):
 
     def get_next_token(self, token_ids: list[int], mask: np.ndarray, temperature: float) -> int:
         self.called_temperatures.append(temperature)
-        return super().get_next_token(token_ids, mask, 0.)
+        return super().get_next_token(token_ids, mask, temperature)
 
-    def get_logits(self, token_ids):
+    def get_logits(self, token_ids: list[int]) -> np.ndarray:
         """Pretends to compute the logits for the given token state."""
         # build the byte strings
         byte_string = b"".join(self.tokenizer.tokens[i] for i in token_ids)
@@ -79,27 +106,26 @@ class MockEngine(Engine):
             byte_string
             for p in self.byte_patterns:
                 if p.startswith(byte_string) and len(p) > len(byte_string):
-                    i = self._get_next_token(p[len(byte_string) :])
-                    logits[i] += bias
+                    for i in self._get_next_tokens(p[len(byte_string) :]):
+                        logits[i] += bias
+                    bias /= 2  # if we have multiple matches then they apply with decreasing bias
 
         return logits
 
-    def _get_next_token(self, byte_string) -> int:
-        """Tokenize the prefix of a byte string and return the token id."""
-        trie = self._token_trie
-        pos = 0
-        token_id = None
-        while (next_byte := byte_string[pos: pos + 1]):
-            if trie.has_child(next_byte):
-                trie = trie.child(next_byte)
-                pos += 1
-                if trie.value >= 0:
-                    token_id = trie.value
-            else:
-                break
-        if token_id is None:
-            raise ValueError(f"Could not tokenize byte string: {byte_string!r}")
-        return token_id
+    def _get_next_tokens(self, byte_string):
+        special_tokens = [
+            (self.tokenizer.bos_token_id, self.tokenizer.bos_token),
+            (self.tokenizer.eos_token_id, self.tokenizer.eos_token)
+        ]
+        for i, t in special_tokens:
+            # if the byte string starts with a special token then make sure we don't yield any other tokens
+            if byte_string.startswith(t):
+                yield i
+                return
+        for i, t in enumerate(self.tokenizer.tokens):
+            if byte_string.startswith(t):
+                yield i
+
 
 class Mock(Model):
     def __init__(
@@ -115,7 +141,16 @@ class Mock(Model):
         if isinstance(byte_patterns, str) and byte_patterns.startswith("http"):
             engine = RemoteEngine(byte_patterns, **kwargs)
         else:
-            tokenizer = ByteTokenizer()
+            # Our tokens are all bytes and all lowercase letter pairs
+            all_lc_pairs = [
+                bytes([i, j])
+                for i in range(ord("a"), ord("z"))
+                for j in range(ord("a"), ord("z"))
+            ]
+            all_bytes = [bytes([i]) for i in range(256)]
+            tokens = [b"<s>"] + all_lc_pairs + all_bytes
+
+            tokenizer = MockTokenizer(tokens)
             engine = MockEngine(tokenizer, byte_patterns, compute_log_probs, force)
 
         super().__init__(engine, echo=echo)
