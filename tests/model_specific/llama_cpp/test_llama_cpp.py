@@ -185,6 +185,11 @@ def test_max_tokens(llamacpp_model: guidance.models.Model):
     )  # the output should not end with "<" because that is coming from the stop sequence...
 
 
+def test_llama_with_multitokenchars(llamacpp_model: guidance.models.Model):
+    lm = llamacpp_model
+    lm += "歪" + select(["打正着", "门邪道"])
+
+
 class TestLlamaCppTokenizers:
     def test_smoke(self, llamacpp_model: guidance.models.LlamaCpp):
         my_tok = llamacpp_model.engine.tokenizer
