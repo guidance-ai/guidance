@@ -136,11 +136,23 @@ class Engine:
             gen_data, response = parser.advance(token)
 
             if gen_data is not None:
-                token = self.get_next_token(
-                    token_ids=gen_data.tokens,
-                    mask=gen_data.mask,
-                    temperature=gen_data.temperature
-                )
+                if parser.matched() and self.tokenizer.eos_token_id is not None:
+                    # Whenever we are in an accepting state, we will allow the model to generate whatever it wants
+                    # but we will treat any "illegal" tokens as EOS, allowing the model to finish gracefully.
+                    assert gen_data.mask[self.tokenizer.eos_token_id]
+                    token = self.get_next_token(
+                        token_ids=gen_data.tokens,
+                        mask=np.ones_like(gen_data.mask),
+                        temperature=gen_data.temperature
+                    )
+                    if not gen_data.mask[token]:
+                        token = self.tokenizer.eos_token_id
+                else:
+                    token = self.get_next_token(
+                        token_ids=gen_data.tokens,
+                        mask=gen_data.mask,
+                        temperature=gen_data.temperature
+                    )
             else:
                 token = None
 
@@ -151,16 +163,8 @@ class Engine:
         Subclasses may override this method, e.g. if they use external APIs that do not support getting logits directly.
         """
         logits = self.get_logits(token_ids)
-        if self.tokenizer.eos_token_id is not None and mask[self.tokenizer.eos_token_id]:
-            # if the EOS token is allowed, we will treat any "illegal" tokens as EOS
-            # note: we may only want to reconsider only doing this if the grammar is in an accepting
-            #       state rather than ANYWHERE an EOS is allowed (e.g. at the end of a regex)
-            # TODO: should this move up to __call__ to discourage overriding this behavior?
-            token = self.sample_with_temperature(logits, np.ones_like(mask), temperature)
-            if not mask[token]:
-                token = self.tokenizer.eos_token_id
-            return token
-        return self.sample_with_temperature(logits, mask, temperature)
+        token = self.sample_with_temperature(logits, mask, temperature)
+        return token
 
     def get_logits(self, token_ids: list[int]) -> np.ndarray:
         raise NotImplementedError
