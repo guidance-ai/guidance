@@ -172,8 +172,8 @@ def test_long_prompt(selected_model: models.Model, selected_model_name: str):
     if selected_model_name in [
         "hfllama_llama2_7b_cpu",
         "hfllama_llama2_7b_gpu",
-        "hfllama_mistral_7b",
-        "transformers_mistral_7b",
+        "hfllama_mistral_7b_cpu",
+        "transformers_mistral_7b_cpu",
     ]:
         pytest.xfail("Insufficient context window in model")
     lm = selected_model

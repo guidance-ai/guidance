@@ -20,7 +20,7 @@ SELECTED_MODEL_ENV_VARIABLE = "GUIDANCE_SELECTED_MODEL"
 
 
 def pytest_addoption(parser):
-    default_model = os.getenv(SELECTED_MODEL_ENV_VARIABLE, "transformers_gpt2cpu")
+    default_model = os.getenv(SELECTED_MODEL_ENV_VARIABLE, "transformers_gpt2_cpu")
     parser.addoption(
         "--selected_model",
         action="store",
@@ -66,9 +66,9 @@ def llamacpp_model(selected_model, selected_model_name):
     if selected_model_name in [
         "hfllama_llama2_7b_cpu",
         "hfllama_llama2_7b_gpu",
-        "hfllama_gemma2cpu_9b",
+        "hfllama_gemma2_9b_cpu",
         "hfllama_phi3_mini_4k_instruct_cpu",
-        "hfllama_mistral_7b",
+        "hfllama_mistral_7b_cpu",
     ]:
         return selected_model
     else:
