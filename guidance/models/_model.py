@@ -151,8 +151,16 @@ class Engine:
         Subclasses may override this method, e.g. if they use external APIs that do not support getting logits directly.
         """
         logits = self.get_logits(token_ids)
-        token = self.sample_with_temperature(logits, mask, temperature)
-        return token
+        if self.tokenizer.eos_token_id is not None and mask[self.tokenizer.eos_token_id]:
+            # if the EOS token is allowed, we will treat any "illegal" tokens as EOS
+            # note: we may only want to reconsider only doing this if the grammar is in an accepting
+            #       state rather than ANYWHERE an EOS is allowed (e.g. at the end of a regex)
+            # TODO: should this move up to __call__ to discourage overriding this behavior?
+            token = self.sample_with_temperature(logits, np.ones_like(mask), temperature)
+            if not mask[token]:
+                token = self.tokenizer.eos_token_id
+            return token
+        return self.sample_with_temperature(logits, mask, temperature)
 
     def get_logits(self, token_ids: list[int]) -> np.ndarray:
         raise NotImplementedError
