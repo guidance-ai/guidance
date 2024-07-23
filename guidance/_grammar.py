@@ -498,7 +498,8 @@ def commit_point(value, hidden=False):
 
 
 class Placeholder(GrammarFunction):
-    pass
+    def __init__(self):
+        pass
 
 
 class Join(GrammarFunction):
