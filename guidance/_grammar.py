@@ -259,10 +259,6 @@ class Byte(Terminal):
     def match_byte(self, byte):
         return byte == self.byte
 
-    @property
-    def nullable(self):
-        return False
-
 
 class ByteRange(Terminal):
     __slots__ = ("byte_range", "capture_name", "temperature")
@@ -285,9 +281,6 @@ class ByteRange(Terminal):
     def name(self, value):
         pass  # we ignore name changes
 
-    @property
-    def nullable(self):
-        return False
 
     def __hash__(self):
         return self.byte_range[0] + 256 * self.byte_range[1]
@@ -308,8 +301,6 @@ class ByteRange(Terminal):
 
 class Null(Terminal):
     __slots__ = ("name", "capture_name")
-
-    nullable = True
 
     def __init__(self):
         self.name = "ε"
@@ -344,7 +335,6 @@ class ModelVariable(GrammarFunction):
     def __init__(self, name):
         self.name = name
         self.capture_name = None
-        self.nullable = False
 
 
 def replace_grammar_node(grammar, target, replacement):
@@ -508,15 +498,11 @@ def commit_point(value, hidden=False):
 
 
 class Placeholder(GrammarFunction):
-    __slots__ = tuple("nullable")
-
-    def __init__(self):
-        self.nullable = False
+    pass
 
 
 class Join(GrammarFunction):
     __slots__ = (
-        "nullable",
         "values",
         "name",
         "capture_name",
@@ -529,7 +515,6 @@ class Join(GrammarFunction):
         values = [
             string(v) if isinstance(v, (str, bytes)) else v for v in values
         ]  # wrap raw strings
-        self.nullable = all(getattr(v, "nullable", False) for v in values)
         self.values = [v for v in values if not isinstance(v, Null)]
         self.name = name if name is not None else GrammarFunction._new_name()
         self.capture_name = None
@@ -559,7 +544,6 @@ def quote_regex(value: str) -> str:
 
 class Gen(Terminal):
     __slots__ = (
-        "nullable",
         "body_regex",
         "stop_regex",
         "save_stop_text",
@@ -576,7 +560,6 @@ class Gen(Terminal):
         save_stop_text: Optional[str] = None,
         max_tokens=100000000,
     ) -> None:
-        self.nullable = False
         self.body_regex = body_regex
         self.stop_regex = stop_regex
         self.name = name if name is not None else GrammarFunction._new_name()
@@ -676,7 +659,6 @@ class Subgrammar(Gen):
 
 class Select(GrammarFunction):
     __slots__ = (
-        "nullable",
         "_values",
         "name",
         "capture_name",
@@ -700,7 +682,6 @@ class Select(GrammarFunction):
     @values.setter
     def values(self, vals):
         self._values = [string(v) if isinstance(v, (str, bytes)) else v for v in vals]
-        self.nullable = any(getattr(v, "nullable", False) for v in self._values)
 
     def __repr__(self, indent="", done=None):
         if done is None:
