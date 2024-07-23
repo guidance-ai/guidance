@@ -22,6 +22,7 @@ def test_fstring_custom(selected_model):
 
 
 def test_with_multitokenchars(selected_model: guidance.models.Model):
+    # Taken from https://github.com/guidance-ai/guidance/issues/934
     lm = selected_model
     lm += "歪" + select(["打正着", "门邪道"])
     assert lm is not None
