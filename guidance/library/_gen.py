@@ -95,6 +95,11 @@ def gen(
             call from the model's context if you plan to change it's format after the call is made.
     """
     # TODO: expand the tools doc string
+    if hide_tool_call:
+        raise NotImplementedError("hide_tool_call is not implemented")
+    if tools is not None:
+        raise NotImplementedError("tools not yet implemented")
+
     assert (
         n == 1
     ), "We still need to add support for n>1! Consider putting your gen call in a loop for now."
@@ -165,38 +170,38 @@ def gen(
     # define the stop pattern
     stop_pattern = ""
 
-    # single generation
-    start_pos = len(str(lm))
-    if tools is not None:
-        with block(tagged_name):
-            tools = [Tool(callable=x) if not isinstance(x, Tool) else x for x in tools]
-            init_token_count = lm.token_count
-            gen_grammar = pattern + select(
-                [stop_pattern]
-                + [
-                    capture(
-                        commit_point(x.call_grammar, hidden=hide_tool_call),
-                        name=f"tool{i}",
-                    )
-                    for i, x in enumerate(tools)
-                ]
-            )
-            while lm.token_count <= max_tokens + init_token_count:
-                lm = lm._run_stateless(
-                    gen_grammar, temperature=temperature
-                )  # TODO: we should not be using this internal method
-                tool_called = False
-                for i in range(len(tools)):
-                    tool_i = f"tool{i}"
-                    if tool_i in lm:
-                        tool_called = True
-                        lm += tools[i].tool_call()
-                        lm = lm.remove(tool_i)
-                if not tool_called:
-                    lm += suffix
-                    break
-    elif n == 1:
-        lm += with_temperature(pattern + stop_pattern + suffix, temperature)
+    # # single generation
+    # start_pos = len(str(lm))
+    # if tools is not None:
+    #     with block(tagged_name):
+    #         tools = [Tool(callable=x) if not isinstance(x, Tool) else x for x in tools]
+    #         init_token_count = lm.token_count
+    #         gen_grammar = pattern + select(
+    #             [stop_pattern]
+    #             + [
+    #                 capture(
+    #                     commit_point(x.call_grammar, hidden=hide_tool_call),
+    #                     name=f"tool{i}",
+    #                 )
+    #                 for i, x in enumerate(tools)
+    #             ]
+    #         )
+    #         while lm.token_count <= max_tokens + init_token_count:
+    #             lm = lm._run_stateless(
+    #                 gen_grammar, temperature=temperature
+    #             )  # TODO: we should not be using this internal method
+    #             tool_called = False
+    #             for i in range(len(tools)):
+    #                 tool_i = f"tool{i}"
+    #                 if tool_i in lm:
+    #                     tool_called = True
+    #                     lm += tools[i].tool_call()
+    #                     lm = lm.remove(tool_i)
+    #             if not tool_called:
+    #                 lm += suffix
+    #                 break
+    # elif n == 1:
+    lm += with_temperature(pattern + stop_pattern + suffix, temperature)
 
     logger.debug(f"finish gen")
     return lm
