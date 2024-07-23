@@ -136,7 +136,7 @@ class Engine:
             gen_data, response = parser.advance(token)
 
             if gen_data is not None:
-                if parser.matched() and self.tokenizer.eos_token_id is not None:
+                if parser.is_accepting() and self.tokenizer.eos_token_id is not None:
                     # Whenever we are in an accepting state, we will allow the model to generate whatever it wants
                     # but we will treat any "illegal" tokens as EOS, allowing the model to finish gracefully.
                     assert gen_data.mask[self.tokenizer.eos_token_id]

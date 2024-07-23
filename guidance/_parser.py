@@ -66,7 +66,7 @@ class TokenParser:
         self._generator = self._parse(prompt, ensure_bos_token)
         self._done = False
 
-    def matched(self) -> bool:
+    def is_accepting(self) -> bool:
         return self.ll_interpreter.is_accepting()
 
     def done(self) -> bool:
@@ -170,7 +170,7 @@ class ByteParser:
     def matched(self) -> bool:
         if self.pos < len(self.bytes):
             return False
-        return self.token_parser.matched()
+        return self.token_parser.is_accepting()
 
     def valid_next_bytes(self) -> set[bytes]:
         if self.pos < len(self.bytes):
