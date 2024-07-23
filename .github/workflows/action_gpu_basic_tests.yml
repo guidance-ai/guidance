@@ -19,7 +19,7 @@ jobs:
           - "transformers_gpt2_gpu"
           - "transformers_phi2_gpu"
           # - "transformers_phi3_small_8k_instruct_gpu" Does not run on tesla t4
-          # - "hfllama_llama2_7b_gpu" Keeps causing intermittent segfaults
+          # - "llamacpp_llama2_7b_gpu" Keeps causing intermittent segfaults
     runs-on: ${{ inputs.os }}
 
     steps:

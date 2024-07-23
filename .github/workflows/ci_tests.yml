@@ -105,7 +105,7 @@ jobs:
       matrix:
         python-version: ["3.9", "3.10", "3.11", "3.12"]
         model:
-          - hfllama_gemma2_9b_cpu
+          - llamacpp_gemma2_9b_cpu
           - transformers_gemma2_9b_cpu
           - transformers_gemma2_9b_gpu
           - transformers_llama3_8b_cpu

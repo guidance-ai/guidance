@@ -64,11 +64,11 @@ def selected_model(selected_model_info: str) -> models.Model:
 @pytest.fixture(scope="module")
 def llamacpp_model(selected_model, selected_model_name):
     if selected_model_name in [
-        "hfllama_llama2_7b_cpu",
-        "hfllama_llama2_7b_gpu",
-        "hfllama_gemma2_9b_cpu",
-        "hfllama_phi3_mini_4k_instruct_cpu",
-        "hfllama_mistral_7b_cpu",
+        "llamacpp_llama2_7b_cpu",
+        "llamacpp_llama2_7b_gpu",
+        "llamacpp_gemma2_9b_cpu",
+        "llamacpp_phi3_mini_4k_instruct_cpu",
+        "llamacpp_mistral_7b_cpu",
     ]:
         return selected_model
     else:

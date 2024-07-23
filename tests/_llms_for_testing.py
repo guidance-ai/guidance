@@ -4,12 +4,12 @@ import transformers
 # This file contains the configurations of the models used in our test runs
 
 # The naming convention for the keys is "<loader>_<model>_<host>" where:
-# - 'loader' is 'transformers' or 'hfllama' (for LlamaCpp models accessed via HF)
+# - 'loader' is 'transformers' or 'llamacpp'
 # - 'model' contains relevant information about the model itself
 # - 'host' is 'cpu' or 'gpu' as appropriate
 
 _GEMMA_2 = {
-    "hfllama_gemma2_9b_cpu": dict(
+    "llamacpp_gemma2_9b_cpu": dict(
         # Note that this model requires an appropriate
         # HF_TOKEN environment variable
         name="huggingface_hubllama:bartowski/gemma-2-9b-it-GGUF:gemma-2-9b-it-IQ2_XS.gguf",
@@ -40,11 +40,11 @@ _GPT_2 = {
 }
 
 _LLAMA_2 = {
-    "hfllama_llama2_7b_cpu": dict(
+    "llamacpp_llama2_7b_cpu": dict(
         name="huggingface_hubllama:TheBloke/Llama-2-7B-GGUF:llama-2-7b.Q5_K_M.gguf",
         kwargs={"verbose": True, "n_ctx": 4096},
     ),
-    "hfllama_llama2_7b_gpu": dict(
+    "llamacpp_llama2_7b_gpu": dict(
         name="huggingface_hubllama:TheBloke/Llama-2-7B-GGUF:llama-2-7b.Q5_K_M.gguf",
         kwargs={"verbose": True, "n_gpu_layers": -1, "n_ctx": 4096},
     ),
@@ -69,7 +69,7 @@ _MISTRAL = {
     "transformers_mistral_7b_cpu": dict(
         name="transformers:mistralai/Mistral-7B-v0.1", kwargs=dict()
     ),
-    "hfllama_mistral_7b_cpu": dict(
+    "llamacpp_mistral_7b_cpu": dict(
         name="huggingface_hubllama:TheBloke/Mistral-7B-Instruct-v0.2-GGUF:mistral-7b-instruct-v0.2.Q8_0.gguf",
         kwargs={"verbose": True, "n_ctx": 2048},
     ),
@@ -90,7 +90,7 @@ _PHI_3 = {
         name="transformers:microsoft/Phi-3-mini-4k-instruct",
         kwargs={"trust_remote_code": True},
     ),
-    "hfllama_phi3_mini_4k_instruct_cpu": dict(
+    "llamacpp_phi3_mini_4k_instruct_cpu": dict(
         name="huggingface_hubllama:microsoft/Phi-3-mini-4k-instruct-gguf:Phi-3-mini-4k-instruct-q4.gguf",
         kwargs={"verbose": True, "n_ctx": 4096},
     ),
