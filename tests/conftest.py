@@ -67,7 +67,7 @@ def llamacpp_model(selected_model, selected_model_name):
         "hfllama_llama2_7b_cpu",
         "hfllama_llama2_7b_gpu",
         "hfllama_gemma2cpu_9b",
-        "hfllama_phi3cpu_mini_4k_instruct",
+        "hfllama_phi3_mini_4k_instruct_cpu",
         "hfllama_mistral_7b",
     ]:
         return selected_model

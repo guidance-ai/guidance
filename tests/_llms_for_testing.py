@@ -28,14 +28,25 @@ _LLAMA_2 = {
     ),
 }
 
+_PHI_3 = {
+    "transformers_phi3_mini_4k_instruct_cpu": dict(
+        name="transformers:microsoft/Phi-3-mini-4k-instruct",
+        kwargs={"trust_remote_code": True},
+    ),
+    "hfllama_phi3_mini_4k_instruct_cpu": dict(
+        name="huggingface_hubllama:microsoft/Phi-3-mini-4k-instruct-gguf:Phi-3-mini-4k-instruct-q4.gguf",
+        kwargs={"verbose": True, "n_ctx": 4096},
+    ),
+    "transformers_phi3_small_8k_instruct_gpu": dict(
+        name="transformers:microsoft/Phi-3-small-8k-instruct",
+        kwargs={"trust_remote_code": True, "load_in_8bit": True, "device_map": "cuda:0"},
+    ),
+}
+
 AVAILABLE_MODELS = {
     "azure_guidance": dict(
         name="azure_guidance:",
         kwargs={},
-    ),
-    "transformers_phi3cpu_mini_4k_instruct": dict(
-        name="transformers:microsoft/Phi-3-mini-4k-instruct",
-        kwargs={"trust_remote_code": True},
     ),
     "transformers_llama3cpu_8b": dict(
         # Note that this model requires an appropriate
@@ -72,14 +83,6 @@ AVAILABLE_MODELS = {
             "quantization_config": transformers.BitsAndBytesConfig(load_in_4bit=True),
         },
     ),
-    "hfllama_phi3cpu_mini_4k_instruct": dict(
-        name="huggingface_hubllama:microsoft/Phi-3-mini-4k-instruct-gguf:Phi-3-mini-4k-instruct-q4.gguf",
-        kwargs={"verbose": True, "n_ctx": 4096},
-    ),
-    "transformers_phi3_small_8k_instruct": dict(
-        name="transformers:microsoft/Phi-3-small-8k-instruct",
-        kwargs={"trust_remote_code": True, "load_in_8bit": True, "device_map": "cuda:0"},
-    ),
     "transformers_mistral_7b": dict(name="transformers:mistralai/Mistral-7B-v0.1", kwargs=dict()),
     "hfllama_mistral_7b": dict(
         name="huggingface_hubllama:TheBloke/Mistral-7B-Instruct-v0.2-GGUF:mistral-7b-instruct-v0.2.Q8_0.gguf",
@@ -90,3 +93,4 @@ AVAILABLE_MODELS = {
 AVAILABLE_MODELS.update(_GPT_2)
 AVAILABLE_MODELS.update(_PHI_2)
 AVAILABLE_MODELS.update(_LLAMA_2)
+AVAILABLE_MODELS.update(_PHI_3)
