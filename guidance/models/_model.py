@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 from .._schema import EngineCallResponse, GuidanceEngineMetrics
 from .._utils import softmax, CaptureEvents
-from .._parser import LLParser
+from .._parser import TokenParser
 from .._grammar import (
     GrammarFunction,
     string,
@@ -72,7 +72,7 @@ class Engine:
     def reset_metrics(self):
         self.metrics = GuidanceEngineMetrics()
 
-    def start(self, prompt, grammar, ensure_bos_token=True) -> LLParser:
+    def start(self, prompt, grammar, ensure_bos_token=True) -> TokenParser:
         """Start processing parser state executed through the grammar.
 
         Parameters
@@ -100,14 +100,14 @@ class Engine:
             prompt = prompt
         elif isinstance(prompt, str):
             prompt = bytes(prompt, encoding="utf8")
-        elif isinstance(prompt, LLParser):
+        elif isinstance(prompt, TokenParser):
             raise NotImplementedError(
                 "Still need to implement support for extending a full Parser state."
             )
         else:
             raise Exception("The passed prompt is of an unknown type!")
 
-        return LLParser(
+        return TokenParser(
             grammar=grammar,
             tokenizer=self.tokenizer,
             prompt=prompt,

@@ -23,11 +23,11 @@ class GenData:
         return np.where(self.mask)[0].tolist()
 
 
-class LLParserException(Exception):
+class TokenParserException(Exception):
     pass
 
 
-class InvalidTokenException(LLParserException):
+class InvalidTokenException(TokenParserException):
     def __init__(self, token: int, valid_tokens: list[int], prompt_tokens: list[int]):
         self.token = token
         self.valid_tokens = valid_tokens
@@ -37,7 +37,7 @@ class InvalidTokenException(LLParserException):
         )
 
 
-class LLParser:
+class TokenParser:
 
     def __init__(
         self,
@@ -119,7 +119,7 @@ class LLParser:
                 # Send caller the mask and response; wait for token
                 token = yield (gen_data, response)
                 if token is None:
-                    raise LLParserException("Expected token, got None")
+                    raise TokenParserException("Expected token, got None")
                 if not mask[token]:
                     # Note: we could punt this probem to ll_interpreter.post_process,
                     # but it's a bit clearer to handle it here
@@ -128,7 +128,7 @@ class LLParser:
                 gen_data = None
                 token = yield (gen_data, response)
                 if token is not None:
-                    raise LLParserException(f"Expected None, got token {token}")
+                    raise TokenParserException(f"Expected None, got token {token}")
 
             backtrack, ff_tokens = self.ll_interpreter.post_process(token)
             if backtrack:
@@ -138,7 +138,7 @@ class LLParser:
         stop_reason = self.ll_interpreter.stop_reason()
         if stop_reason not in {"NoExtension", "EndOfSentence"}:
             # TODO: extend exception handling
-            raise LLParserException(f"Unexpected stop reason: {stop_reason}")
+            raise TokenParserException(f"Unexpected stop reason: {stop_reason}")
 
         return response
 
@@ -159,7 +159,7 @@ class ByteParser:
         ensure_bos_token: bool = True,
     ):
         self.tokenizer = ByteTokenizer()
-        self.ll_parser = LLParser(grammar, self.tokenizer, prompt, ensure_bos_token)
+        self.token_parser = TokenParser(grammar, self.tokenizer, prompt, ensure_bos_token)
         self.bytes = b""
         self.gen_data: Optional[GenData] = None
         self.pos = 0
@@ -170,7 +170,7 @@ class ByteParser:
     def matched(self) -> bool:
         if self.pos < len(self.bytes):
             return False
-        return self.ll_parser.matched()
+        return self.token_parser.matched()
 
     def valid_next_bytes(self) -> set[bytes]:
         if self.pos < len(self.bytes):
@@ -192,8 +192,8 @@ class ByteParser:
     def consume_bytes(self, bts: bytes) -> None:
         # Run underlying ll_parser and fast-forward all of our bytes
         # until we have a "choice" (generation step) to make
-        while self.gen_data is None and not self.ll_parser.done():
-            self.gen_data, response = self.ll_parser.advance(None)
+        while self.gen_data is None and not self.token_parser.done():
+            self.gen_data, response = self.token_parser.advance(None)
             self._update_capture(response)
             self.bytes += response.new_bytes
 
@@ -220,7 +220,7 @@ class ByteParser:
             # If we are here, then we are either in generation mode or we are done.
             if self.gen_data is None:
                 # TODO: may run into trouble here if we need to backtrack
-                assert self.ll_parser.done()
+                assert self.token_parser.done()
                 assert not self.valid_next_bytes()
                 raise ByteParserException(
                     f"Expected end of input, got {bytes([b])!r}",
@@ -239,7 +239,7 @@ class ByteParser:
                     consumed_bytes=self.bytes[: self.pos],
                 )
             # Byte was good, have ll_parser consume it so we can advance further
-            self.gen_data, response = self.ll_parser.advance(b)
+            self.gen_data, response = self.token_parser.advance(b)
             self._update_capture(response)
             self.bytes += response.new_bytes
 
@@ -249,13 +249,13 @@ class ByteParser:
     def force_done(self):
         if not self.matched():
             raise ByteParserException("Hit end of input before reaching a valid state")
-        if self.ll_parser.done():
+        if self.token_parser.done():
             return
 
-        self.gen_data, response = self.ll_parser.advance(self.tokenizer.eos_token_id)
+        self.gen_data, response = self.token_parser.advance(self.tokenizer.eos_token_id)
         self._update_capture(response)
         self.bytes += response.new_bytes
-        if not self.ll_parser.done() or not self.matched():
+        if not self.token_parser.done() or not self.matched():
             raise ByteParserException("Hit end of input before reaching a valid state")
 
     def get_captures(self):
