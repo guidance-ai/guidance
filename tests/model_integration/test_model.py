@@ -21,6 +21,12 @@ def test_fstring_custom(selected_model):
     assert str(lm) in ["this is a test another item1", "this is a test another item2"]
 
 
+def test_with_multitokenchars(selected_model: guidance.models.Model):
+    lm = selected_model
+    lm += "歪" + select(["打正着", "门邪道"])
+    assert lm is not None
+
+
 def test_token_count(selected_model):
     lm = selected_model
     lm2 = lm + " 1 1 1 1 1" + gen(max_tokens=9) + gen(max_tokens=9)
