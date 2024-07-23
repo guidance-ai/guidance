@@ -63,10 +63,10 @@ jobs:
       fail-fast: false # Don't cancel all on first failure
       matrix:
         model:
-          - "gpt2cpu"
-          - "phi2cpu"
+          - "transformers_gpt2cpu"
+          - "transformers_phi2cpu"
           # - "transformers_mistral_7b" See Issue 713
-          - "hfllama7b"
+          - "hfllama_llama2_7b_cpu"
           - "hfllama_mistral_7b"
           - "transformers_phi3cpu_mini_4k_instruct"
           - "hfllama_phi3cpu_mini_4k_instruct"
@@ -104,10 +104,10 @@ jobs:
       matrix:
         python-version: ["3.9", "3.10", "3.11"]
         model:
-          - "gpt2cpu"
-          - "phi2cpu"
+          - "transformers_gpt2cpu"
+          - "transformers_phi2cpu"
           # - "transformers_mistral_7b" See Issue 713
-          - "hfllama7b"
+          - "hfllama_llama2_7b_cpu"
           - "hfllama_mistral_7b"
           - "transformers_phi3cpu_mini_4k_instruct"
           - "hfllama_phi3cpu_mini_4k_instruct"
@@ -149,10 +149,10 @@ jobs:
       matrix:
         python-version: ["3.9", "3.10", "3.11", "3.12"]
         model:
-          - "gpt2cpu"
-          - "phi2cpu"
+          - "transformers_gpt2cpu"
+          - "transformers_phi2cpu"
           # - "transformers_mistral_7b" See Issue 713
-          - "hfllama7b"
+          - "hfllama_llama2_7b_cpu"
           - "hfllama_mistral_7b"
           # - "transformers_phi3cpu_mini_4k_instruct" Gives trouble on MacOS
           - "hfllama_phi3cpu_mini_4k_instruct"
@@ -169,10 +169,10 @@ jobs:
       matrix:
         python-version: ["3.9", "3.10", "3.11", "3.12"]
         model:
-          - "gpt2cpu"
-          # - "phi2cpu" Seems to get stuck
+          - "transformers_gpt2cpu"
+          # - "transformers_phi2cpu" Seems to get stuck
           # - "transformers_mistral_7b" See Issue 713
-          # - "hfllama7b" Getting stuck with llama-cpp-python 0.2.77
+          # - "hfllama_llama2_7b_cpu" Getting stuck with llama-cpp-python 0.2.77
           # - "hfllama_mistral_7b"
           # - "transformers_phi3cpu_mini_4k_instruct" Gives trouble on MacOS
           - "hfllama_phi3cpu_mini_4k_instruct"
@@ -189,10 +189,10 @@ jobs:
       matrix:
         python-version: ["3.9", "3.10", "3.11", "3.12"]
         model:
-          - "gpt2cpu"
-          - "phi2cpu"
+          - "transformers_gpt2cpu"
+          - "transformers_phi2cpu"
           # - "transformers_mistral_7b" See Issue 713
-          - "hfllama7b"
+          - "hfllama_llama2_7b_cpu"
           - "hfllama_mistral_7b"
           - "transformers_phi3cpu_mini_4k_instruct"
           - "hfllama_phi3cpu_mini_4k_instruct"

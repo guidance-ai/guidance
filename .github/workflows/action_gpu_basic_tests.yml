@@ -16,10 +16,10 @@ jobs:
       fail-fast: false # Don't cancel all on first failure
       matrix:
         model:
-          - "gpt2gpu"
-          - "phi2gpu"
+          - "transformers_gpt2gpu"
+          - "transformers_phi2gpu"
           # - "transformers_phi3_small_8k_instruct" Does not run on tesla t4
-          # - "hfllama_7b_gpu" Keeps causing intermittent segfaults
+          # - "hfllama_llama2_7b_gpu" Keeps causing intermittent segfaults
     runs-on: ${{ inputs.os }}
 
     steps:

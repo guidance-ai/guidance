@@ -170,8 +170,8 @@ def test_various_regexes(selected_model: models.Model, prompt: str, pattern: str
 @pytest.mark.resource_intensive
 def test_long_prompt(selected_model: models.Model, selected_model_name: str):
     if selected_model_name in [
-        "hfllama7b",
-        "hfllama_7b_gpu",
+        "hfllama_llama2_7b_cpu",
+        "hfllama_llama2_7b_gpu",
         "hfllama_mistral_7b",
         "transformers_mistral_7b",
     ]:
