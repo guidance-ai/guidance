@@ -231,13 +231,12 @@ class Terminal(GrammarFunction):
 
 
 class Byte(Terminal):
-    __slots__ = ("byte", "hidden", "capture_name", "temperature")
+    __slots__ = ("byte", "capture_name", "temperature")
 
     def __init__(self, byte):
         assert isinstance(byte, bytes)
         assert len(byte) == 1
         self.byte = byte
-        self.hidden = False
         self.capture_name = None
         self.temperature = -1
 
@@ -266,13 +265,12 @@ class Byte(Terminal):
 
 
 class ByteRange(Terminal):
-    __slots__ = ("byte_range", "hidden", "capture_name", "temperature")
+    __slots__ = ("byte_range", "capture_name", "temperature")
 
     def __init__(self, byte_range):
         assert isinstance(byte_range, bytes)
         assert len(byte_range) == 2
         self.byte_range = byte_range
-        self.hidden = False
         self.capture_name = None
         self.temperature = -1  # -1 means not set
 
@@ -309,13 +307,12 @@ class ByteRange(Terminal):
 
 
 class Null(Terminal):
-    __slots__ = ("name", "hidden", "capture_name")
+    __slots__ = ("name", "capture_name")
 
     nullable = True
 
     def __init__(self):
         self.name = "ε"
-        self.hidden = False
         self.capture_name = None
 
     def __add__(self, other):
@@ -342,11 +339,10 @@ class ModelVariable(GrammarFunction):
     will get replaced with.
     """
 
-    __slots__ = ("name", "hidden", "capture_name")
+    __slots__ = ("name", "capture_name")
 
     def __init__(self, name):
         self.name = name
-        self.hidden = False
         self.capture_name = None
         self.nullable = False
 
@@ -510,13 +506,6 @@ def commit_point(value, hidden=False):
     _ignore = LLSerializer().regex(value)
     return GenCommitPoint(value)
 
-def _rec_hide(grammar):
-    if not grammar.hidden:
-        grammar.hidden = True
-        if hasattr(grammar, "values"):
-            for g in grammar.values:
-                _rec_hide(g)
-
 
 class Placeholder(GrammarFunction):
     __slots__ = tuple("nullable")
@@ -530,7 +519,6 @@ class Join(GrammarFunction):
         "nullable",
         "values",
         "name",
-        "hidden",
         "capture_name",
         "max_tokens",
     )
@@ -544,7 +532,6 @@ class Join(GrammarFunction):
         self.nullable = all(getattr(v, "nullable", False) for v in values)
         self.values = [v for v in values if not isinstance(v, Null)]
         self.name = name if name is not None else GrammarFunction._new_name()
-        self.hidden = False
         self.capture_name = None
         self.max_tokens = max_tokens
 
@@ -554,7 +541,6 @@ class Join(GrammarFunction):
         s = self.name.ljust(20) + " <- " + " ".join([v.name for v in self.values])
         s += (
             "        "
-            + ("hidden " if self.hidden else "")
             + (f"capture_name={self.capture_name} " if self.capture_name else "")
             + (f"max_tokens={self.max_tokens}" if self.max_tokens < 100000 else "")
             + "\n"
@@ -578,7 +564,6 @@ class Gen(Terminal):
         "stop_regex",
         "save_stop_text",
         "name",
-        "hidden",
         "capture_name",
         "_max_tokens",
     )
@@ -595,7 +580,6 @@ class Gen(Terminal):
         self.body_regex = body_regex
         self.stop_regex = stop_regex
         self.name = name if name is not None else GrammarFunction._new_name()
-        self.hidden = False
         self.capture_name = None
         self.save_stop_text = save_stop_text
         self._max_tokens = max_tokens
@@ -619,7 +603,6 @@ class Gen(Terminal):
         )
         s += (
             "        "
-            + ("hidden " if self.hidden else "")
             + (f"capture_name={self.capture_name} " if self.capture_name else "")
             + (f"max_tokens={self.max_tokens}" if self.max_tokens < 100000 else "")
             + "\n"
@@ -696,7 +679,6 @@ class Select(GrammarFunction):
         "nullable",
         "_values",
         "name",
-        "hidden",
         "capture_name",
         "max_tokens",
         "recursive",
@@ -707,7 +689,6 @@ class Select(GrammarFunction):
     ) -> None:
         self.values = values
         self.name = name if name is not None else GrammarFunction._new_name()
-        self.hidden = False
         self.capture_name = capture_name
         self.max_tokens = max_tokens
         self.recursive = recursive
@@ -727,7 +708,6 @@ class Select(GrammarFunction):
         s = self.name.ljust(20) + " <- " + " | ".join([v.name for v in self.values])
         s += (
             "        "
-            + ("hidden " if self.hidden else "")
             + (f"max_tokens={self.max_tokens}" if self.max_tokens < 100000 else "")
             + "\n"
         )
