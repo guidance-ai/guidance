@@ -143,7 +143,7 @@ def gen(
     #     lm[name] = ""
 
     if regex is None:
-        regex = ""
+        regex = r"(?s:.*)"
     if save_stop_text is True:
         save_stop_text = str(name) + "_stop_text"
     if not isinstance(save_stop_text, str):

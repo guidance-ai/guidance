@@ -137,3 +137,9 @@ def test_one_char_stop_and_regex():
     model = models.Mock(b"<s>this is\na test")
     model += gen(regex=".*", stop="\n", max_tokens=20)
     assert str(model) == "this is"
+
+
+def test_multiline():
+    model = models.Mock(b"<s>this\nis\na\ntest<s>")
+    model += gen(max_tokens=20)
+    assert str(model) == "this\nis\na\ntest"
