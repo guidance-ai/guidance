@@ -63,7 +63,7 @@ test_requires = [
     "pytest",
     "pytest-cov",
     "torch",
-    "transformers",
+    "transformers!=4.43.0,!=4.43.1", # Exclusion due to trouble with GPT2 on MacOS ARM
     "mypy==1.9.0",
     "types-protobuf",
     "types-regex",
