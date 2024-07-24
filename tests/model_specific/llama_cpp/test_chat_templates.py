@@ -42,7 +42,7 @@ def test_chat_format_smoke(llamacpp_model: guidance.models.LlamaCpp, selected_mo
     with guidance.assistant():
         lm += "Hello!"
     # Only check substring due to BOS/EOS tokens
-    if selected_model_name == "hfllama_mistral_7b":
+    if selected_model_name == "llamacpp_mistral_7b_cpu":
         # The templates extracted via Transformers and GGUF are somewhat
         # different for Mistral. This is showing up in slightly
         # different spacing (our template is putting in a few extra spaces)
