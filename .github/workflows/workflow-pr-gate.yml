@@ -63,14 +63,14 @@ jobs:
       fail-fast: false # Don't cancel all on first failure
       matrix:
         model:
-          - "gpt2cpu"
-          - "phi2cpu"
-          # - "transformers_mistral_7b" See Issue 713
-          - "hfllama7b"
-          - "hfllama_mistral_7b"
-          - "transformers_phi3cpu_mini_4k_instruct"
-          - "hfllama_phi3cpu_mini_4k_instruct"
-          - "hfllama_llama3cpu_9b"
+          - "transformers_gpt2_cpu"
+          - "transformers_phi2_cpu"
+          # - "transformers_mistral_7b_cpu" See Issue 713
+          - "llamacpp_llama2_7b_cpu"
+          - "llamacpp_llama3_9b_cpu"
+          - "llamacpp_mistral_7b_cpu"
+          - "transformers_phi3_mini_4k_instruct_cpu"
+          - "llamacpp_phi3_mini_4k_instruct_cpu"
     with:
       os: Large_Linux
       python-version: "3.12"
@@ -105,14 +105,14 @@ jobs:
       matrix:
         python-version: ["3.9", "3.10", "3.11"]
         model:
-          - "gpt2cpu"
-          - "phi2cpu"
-          # - "transformers_mistral_7b" See Issue 713
-          - "hfllama7b"
-          - "hfllama_mistral_7b"
-          - "transformers_phi3cpu_mini_4k_instruct"
-          - "hfllama_phi3cpu_mini_4k_instruct"
-          - "hfllama_llama3cpu_9b"
+          - "transformers_gpt2_cpu"
+          - "transformers_phi2_cpu"
+          # - "transformers_mistral_7b_cpu" See Issue 713
+          - "llamacpp_llama2_7b_cpu"
+          - "llamacpp_llama3_9b_cpu"
+          - "llamacpp_mistral_7b_cpu"
+          - "transformers_phi3_mini_4k_instruct_cpu"
+          - "llamacpp_phi3_mini_4k_instruct_cpu"
     uses: ./.github/workflows/action_plain_basic_tests.yml
     with:
       os: Large_Linux
@@ -151,14 +151,14 @@ jobs:
       matrix:
         python-version: ["3.9", "3.10", "3.11", "3.12"]
         model:
-          - "gpt2cpu"
-          - "phi2cpu"
-          # - "transformers_mistral_7b" See Issue 713
-          - "hfllama7b"
-          - "hfllama_mistral_7b"
-          # - "transformers_phi3cpu_mini_4k_instruct" Gives trouble on MacOS
-          - "hfllama_phi3cpu_mini_4k_instruct"
-          - "hfllama_llama3cpu_9b"
+          - "transformers_gpt2_cpu"
+          - "transformers_phi2_cpu"
+          # - "transformers_mistral_7b_cpu" See Issue 713
+          - "llamacpp_llama2_7b_cpu"
+          - "llamacpp_llama3_9b_cpu"
+          - "llamacpp_mistral_7b_cpu"
+          # - "transformers_phi3_mini_4k_instruct_cpu" Gives trouble on MacOS
+          - "llamacpp_phi3_mini_4k_instruct_cpu"
     uses: ./.github/workflows/action_plain_basic_tests.yml
     with:
       os: macos-12
@@ -172,13 +172,13 @@ jobs:
       matrix:
         python-version: ["3.9", "3.10", "3.11", "3.12"]
         model:
-          - "gpt2cpu"
-          # - "phi2cpu" Seems to get stuck
-          # - "transformers_mistral_7b" See Issue 713
-          # - "hfllama7b" Getting stuck with llama-cpp-python 0.2.77
-          # - "hfllama_mistral_7b"
-          # - "transformers_phi3cpu_mini_4k_instruct" Gives trouble on MacOS
-          - "hfllama_phi3cpu_mini_4k_instruct"
+          - "transformers_gpt2_cpu"
+          # - "transformers_phi2_cpu" Seems to get stuck
+          # - "transformers_mistral_7b_cpu" See Issue 713
+          # - "llamacpp_llama2_7b_cpu" Getting stuck with llama-cpp-python 0.2.77
+          # - "llamacpp_mistral_7b_cpu"
+          # - "transformers_phi3_mini_4k_instruct_cpu" Gives trouble on MacOS
+          - "llamacpp_phi3_mini_4k_instruct_cpu"
     uses: ./.github/workflows/action_plain_basic_tests.yml
     with:
       os: macos-latest
@@ -192,14 +192,14 @@ jobs:
       matrix:
         python-version: ["3.9", "3.10", "3.11", "3.12"]
         model:
-          - "gpt2cpu"
-          - "phi2cpu"
-          # - "transformers_mistral_7b" See Issue 713
-          - "hfllama7b"
-          - "hfllama_mistral_7b"
-          - "transformers_phi3cpu_mini_4k_instruct"
-          - "hfllama_phi3cpu_mini_4k_instruct"
-          - "hfllama_llama3cpu_9b"
+          - "transformers_gpt2_cpu"
+          - "transformers_phi2_cpu"
+          # - "transformers_mistral_7b_cpu" See Issue 713
+          - "llamacpp_llama2_7b_cpu"
+          - "llamacpp_llama3_9b_cpu"
+          - "llamacpp_mistral_7b_cpu"
+          - "transformers_phi3_mini_4k_instruct_cpu"
+          - "llamacpp_phi3_mini_4k_instruct_cpu"
     uses: ./.github/workflows/action_plain_basic_tests.yml
     with:
       os: Large_Windows
