@@ -182,6 +182,7 @@ CHAT_TEMPLATE_CACHE[llama3_template] = Llama3ChatTemplate
 # --------------------------------------------------
 # [05/08/24] https://huggingface.co/microsoft/Phi-3-mini-4k-instruct/blob/main/tokenizer_config.json#L119
 phi3_mini_template = "{% for message in messages %}{% if message['role'] == 'system' %}{{'<|system|>\n' + message['content'] + '<|end|>\n'}}{% elif message['role'] == 'user' %}{{'<|user|>\n' + message['content'] + '<|end|>\n'}}{% elif message['role'] == 'assistant' %}{{'<|assistant|>\n' + message['content'] + '<|end|>\n'}}{% endif %}{% endfor %}{% if add_generation_prompt %}{{ '<|assistant|>\n' }}{% else %}{{ eos_token }}{% endif %}"
+phi3_mini_llamacpp_template = "{{ bos_token }}{% for message in messages %}{% if (message['role'] == 'user') %}{{'<|user|>' + '\n' + message['content'] + '<|end|>' + '\n' + '<|assistant|>' + '\n'}}{% elif (message['role'] == 'assistant') %}{{message['content'] + '<|end|>' + '\n'}}{% endif %}{% endfor %}"
 
 
 class Phi3MiniChatTemplate(ChatTemplate):
@@ -203,6 +204,7 @@ class Phi3MiniChatTemplate(ChatTemplate):
 
 
 CHAT_TEMPLATE_CACHE[phi3_mini_template] = Phi3MiniChatTemplate
+CHAT_TEMPLATE_CACHE[phi3_mini_llamacpp_template] = Phi3MiniChatTemplate
 
 # https://huggingface.co/microsoft/Phi-3-small-8k-instruct/blob/main/tokenizer_config.json
 phi3_small_template = "{{ bos_token }}{% for message in messages %}{{'<|' + message['role'] + '|>' + '\n' + message['content'] + '<|end|>\n' }}{% endfor %}{% if add_generation_prompt %}{{ '<|assistant|>\n' }}{% else %}{{ eos_token }}{% endif %}"
@@ -237,6 +239,7 @@ CHAT_TEMPLATE_CACHE[phi3_medium_template] = Phi3SmallMediumChatTemplate
 # --------------------------------------------------
 # [05/08/24] https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.2/blob/main/tokenizer_config.json#L42
 mistral_7b_instruct_template = "{%- if messages[0]['role'] == 'system' %}\n    {%- set system_message = messages[0]['content'] %}\n    {%- set loop_messages = messages[1:] %}\n{%- else %}\n    {%- set loop_messages = messages %}\n{%- endif %}\n\n{{- bos_token }}\n{%- for message in loop_messages %}\n    {%- if (message['role'] == 'user') != (loop.index0 % 2 == 0) %}\n        {{- raise_exception('After the optional system message, conversation roles must alternate user/assistant/user/assistant/...') }}\n    {%- endif %}\n    {%- if message['role'] == 'user' %}\n        {%- if loop.first and system_message is defined %}\n            {{- ' [INST] ' + system_message + '\\n\\n' + message['content'] + ' [/INST]' }}\n        {%- else %}\n            {{- ' [INST] ' + message['content'] + ' [/INST]' }}\n        {%- endif %}\n    {%- elif message['role'] == 'assistant' %}\n        {{- ' ' + message['content'] + eos_token}}\n    {%- else %}\n        {{- raise_exception('Only user and assistant roles are supported, with the exception of an initial optional system message!') }}\n    {%- endif %}\n{%- endfor %}\n"
+mistral_7b_instruct_llamacpp_template = "{{ bos_token }}{% for message in messages %}{% if (message['role'] == 'user') != (loop.index0 % 2 == 0) %}{{ raise_exception('Conversation roles must alternate user/assistant/user/assistant/...') }}{% endif %}{% if message['role'] == 'user' %}{{ '[INST] ' + message['content'] + ' [/INST]' }}{% elif message['role'] == 'assistant' %}{{ message['content'] + eos_token}}{% else %}{{ raise_exception('Only user and assistant roles are supported!') }}{% endif %}{% endfor %}"
 
 
 class Mistral7BInstructChatTemplate(ChatTemplate):
@@ -263,3 +266,36 @@ class Mistral7BInstructChatTemplate(ChatTemplate):
 
 
 CHAT_TEMPLATE_CACHE[mistral_7b_instruct_template] = Mistral7BInstructChatTemplate
+CHAT_TEMPLATE_CACHE[mistral_7b_instruct_llamacpp_template] = Mistral7BInstructChatTemplate
+
+# --------------------------------------------------
+# @@@@ Gemma-2-9b-it @@@@
+# --------------------------------------------------
+# From https://huggingface.co/google/gemma-2-9b-it/blob/main/tokenizer_config.json#L1747
+gemma2_9b_it_template = "{{ bos_token }}{% if messages[0]['role'] == 'system' %}{{ raise_exception('System role not supported') }}{% endif %}{% for message in messages %}{% if (message['role'] == 'user') != (loop.index0 % 2 == 0) %}{{ raise_exception('Conversation roles must alternate user/assistant/user/assistant/...') }}{% endif %}{% if (message['role'] == 'assistant') %}{% set role = 'model' %}{% else %}{% set role = message['role'] %}{% endif %}{{ '<start_of_turn>' + role + '\n' + message['content'] | trim + '<end_of_turn>\n' }}{% endfor %}{% if add_generation_prompt %}{{'<start_of_turn>model\n'}}{% endif %}"
+
+
+class Gemma29BInstructChatTemplate(ChatTemplate):
+    # available_roles = ["user", "assistant"]
+    template_str = gemma2_9b_it_template
+
+    def get_role_start(self, role_name):
+        if role_name == "user":
+            return "<start_of_turn>user\n"
+        elif role_name == "assistant":
+            return "<start_of_turn>model\n"
+        elif role_name == "system":
+            raise ValueError("System Role not supported")
+        else:
+            raise UnsupportedRoleException(role_name, self)
+
+    def get_role_end(self, role_name=None):
+        if role_name == "user":
+            return "<end_of_turn>\n"
+        elif role_name == "assistant":
+            return "<end_of_turn>\n"
+        else:
+            raise UnsupportedRoleException(role_name, self)
+
+
+CHAT_TEMPLATE_CACHE[gemma2_9b_it_template] = Gemma29BInstructChatTemplate

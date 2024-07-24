@@ -17,6 +17,7 @@ from ..utils import env_or_fail
         ("meta-llama/Meta-Llama-3-8B-Instruct", True),  # Llama-3
         ("meta-llama/Llama-2-7b-chat-hf", True),  # Llama-2
         ("mistralai/Mistral-7B-Instruct-v0.2", True),  # Mistral-7B-Instruct-v0.2
+        ("google/gemma-2-9b-it", True),  # Gemma2
         ("HuggingFaceH4/zephyr-7b-beta", False),  # Have a test for model not in cache
     ],
 )
@@ -49,6 +50,7 @@ def test_popular_models_in_cache(model_id: str, should_pass: bool):
         "meta-llama/Meta-Llama-3-8B-Instruct",
         "meta-llama/Llama-2-7b-chat-hf",
         "mistralai/Mistral-7B-Instruct-v0.2",
+        "google/gemma-2-9b-it",
     ],
 )
 def test_chat_format_smoke(model_id: str):

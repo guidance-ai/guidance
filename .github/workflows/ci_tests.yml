@@ -105,11 +105,11 @@ jobs:
       matrix:
         python-version: ["3.9", "3.10", "3.11", "3.12"]
         model:
-          - hfllama_gemma2cpu_9b
-          - transformers_gemma2cpu_9b
-          - transformers_gemma2gpu_9b
-          - transformers_llama3cpu_8b
-          # - transformers_llama3gpu_8b Does not reliably work on GPU build machines
+          - llamacpp_gemma2_9b_cpu
+          - transformers_gemma2_9b_cpu
+          - transformers_gemma2_9b_gpu
+          - transformers_llama3_8b_cpu
+          # - transformers_llama3_8b_gpu Does not reliably work on GPU build machines
 
     steps:
       - uses: actions/checkout@v4
@@ -158,7 +158,8 @@ jobs:
         run: |
           pytest -vv --cov=guidance --cov-report=xml --cov-report=term-missing \
             --selected_model ${{ matrix.model }} \
-            ./tests/model_integration/test_model.py
+            ./tests/model_integration/test_model.py \
+            ./tests/model_specific/
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4
         with:
