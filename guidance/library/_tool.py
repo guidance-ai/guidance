@@ -1,6 +1,7 @@
 from .._guidance import guidance
 from ._any_char import any_char
 from .._grammar import select, capture, string
+from ._subgrammar import subgrammar, lexeme
 from ._sequences import zero_or_more, one_or_more
 from ._any_char_but import any_char_but
 from ._any_char import any_char
@@ -21,26 +22,26 @@ class Tool:
             )
         if second_option:
             call_grammar, tool_call = fn_to_grammar_call(callable)
+            self.name = callable.__name__
+        else:
+            self.name = call_grammar.__name__
+
         self.call_grammar = call_grammar
         self.tool_call = tool_call
 
 
-def valid_chars():
-    return any_char_but(["=", ")"])
-
-
 def positional_arg():
-    return one_or_more(valid_chars())
+    return lexeme(r"[^=)]+")
 
 
 def kwarg():
-    return one_or_more(valid_chars()) + "=" + one_or_more(valid_chars())
+    return positional_arg() + "=" + positional_arg()
 
 
 def basic_func_grammar(name):
     obj = string(name + "(")
     obj += capture(
-        select([zero_or_more(positional_arg()), ""]) + select([zero_or_more(kwarg()), ""]),
+        positional_arg(),
         name="tool_args",
     )
     obj += string(")")
@@ -64,8 +65,7 @@ def fn_to_grammar_call(callable):
     call_grammar = basic_func_grammar(name)
 
     @guidance(dedent=False)
-    def basic_tool_call(lm):
-        args = lm["tool_args"]
+    def basic_tool_call(lm, args: str):
         args = args.split(",")
         positional = [x.strip() for x in args if "=" not in x]
         kwargs = dict([tuple(x.strip().split("=")) for x in args if "=" in x])

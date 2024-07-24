@@ -1,13 +1,9 @@
 import regex as regex_module
 import logging
 from .._guidance import guidance
+from .._grammar import select, Gen, quote_regex, string, capture, token_limit, with_temperature
 from ._silent import silent
-from .._grammar import select, Gen, quote_regex
-from .._grammar import commit_point
-from .._grammar import capture
-from .._grammar import token_limit, with_temperature
 from ._tool import Tool
-from ._block import block
 
 logger = logging.getLogger(__name__)
 
@@ -95,10 +91,8 @@ def gen(
             call from the model's context if you plan to change it's format after the call is made.
     """
     # TODO: expand the tools doc string
-    if hide_tool_call:
-        raise NotImplementedError("hide_tool_call is not implemented")
-    if tools is not None:
-        raise NotImplementedError("tools not yet implemented")
+    if [tools, regex].count(None) == 0:
+            raise ValueError("Cannot use regex with tools")
 
     assert (
         n == 1
@@ -107,22 +101,8 @@ def gen(
 
     logger.debug(f'start gen(name="{name}")')
 
-    # set stream if we are interactive
-    # if stream_tokens is None and not lm.is_silent() and n == 1:
-    #     stream_tokens = True
-
-    # use the suffix as the stop string if not otherwise specified
-    # TODO: still need to make suffix work with grammars
-    # eos_token = lm.eos_token.decode('utf8')
     if stop is None and stop_regex is None and suffix != "":
         stop = suffix
-    # if stop is None and stop_regex is None and getattr(lm, "suffix", False):
-    #     if lm.suffix.startswith("\n"):
-    #         stop = "\n"
-    #     elif lm.suffix.startswith('"') and str(lm).endswith('"'):
-    #         stop = '"'
-    #     elif lm.suffix.startswith("'") and str(lm).endswith("'"):
-    #         stop = "'"
 
     # Empty stop condition is implicitly the EOS token
     gen_stop = ""
@@ -143,20 +123,49 @@ def gen(
         else:
             gen_stop = "|".join("(" + s + ")" for s in stop_regex)
 
-    # This needs to be here for streaming
-    # if name is not None and not list_append:
-    #     lm[name] = ""
-
     if regex is None:
         regex = r"(?s:.*)"
     if save_stop_text is True:
         save_stop_text = str(name) + "_stop_text"
     if not isinstance(save_stop_text, str):
         save_stop_text = None
-    pattern = Gen(body_regex=regex, stop_regex=gen_stop, save_stop_text=save_stop_text)
-    # Gen is Terminal, so token_limit() doesn't work on it
-    pattern._max_tokens = max_tokens
 
+    if tools is not None:
+        tools = [Tool(callable=x) if not isinstance(x, Tool) else x for x in tools]
+        options = []#Gen(body_regex=regex, stop_regex=gen_stop, save_stop_text=save_stop_text, max_tokens=max_tokens)]
+        for i, tool in enumerate(tools):
+            # Only support limited calling syntax, `tool(...` since we need a regex to stop the tool call
+            # Note: the actual tool call will still be a full grammar but the start of the tool call must be regex...
+            # TODO: support full context free grammar for initiating tool calls
+            options.append(
+                capture(
+                    Gen(body_regex=regex, stop_regex=rf"{tool.name}\(", max_tokens=max_tokens),
+                    name=f"tool{i}"
+                )
+            )
+        grm = select(options)
+        initial_token_count = lm.token_count
+        while lm.token_count <= max_tokens + initial_token_count:
+            lm += grm
+            tool_called = False
+            for i in range(len(tools)):
+                tool_i = f"tool{i}"
+                if tool_i in lm:
+                    tool_called = True
+                    if hide_tool_call:
+                        temp_lm = lm + tools[i].call_grammar
+                        tool_args = temp_lm["tool_args"]
+                    else:
+                        lm += tools[i].call_grammar
+                        tool_args = lm["tool_args"]
+                    lm += tools[i].tool_call(tool_args)
+            breakpoint()
+            if not tool_called:
+                lm += suffix
+                break
+        return lm
+                
+    pattern = Gen(body_regex=regex, stop_regex=gen_stop, save_stop_text=save_stop_text, max_tokens=max_tokens)
 
     tagged_name = "__LIST_APPEND:" + name if list_append and name is not None else name
 
@@ -166,42 +175,7 @@ def gen(
 
     # limit the number of tokens
     pattern = token_limit(pattern, max_tokens)
-
-    # define the stop pattern
-    stop_pattern = ""
-
-    # # single generation
-    # start_pos = len(str(lm))
-    # if tools is not None:
-    #     with block(tagged_name):
-    #         tools = [Tool(callable=x) if not isinstance(x, Tool) else x for x in tools]
-    #         init_token_count = lm.token_count
-    #         gen_grammar = pattern + select(
-    #             [stop_pattern]
-    #             + [
-    #                 capture(
-    #                     commit_point(x.call_grammar, hidden=hide_tool_call),
-    #                     name=f"tool{i}",
-    #                 )
-    #                 for i, x in enumerate(tools)
-    #             ]
-    #         )
-    #         while lm.token_count <= max_tokens + init_token_count:
-    #             lm = lm._run_stateless(
-    #                 gen_grammar, temperature=temperature
-    #             )  # TODO: we should not be using this internal method
-    #             tool_called = False
-    #             for i in range(len(tools)):
-    #                 tool_i = f"tool{i}"
-    #                 if tool_i in lm:
-    #                     tool_called = True
-    #                     lm += tools[i].tool_call()
-    #                     lm = lm.remove(tool_i)
-    #             if not tool_called:
-    #                 lm += suffix
-    #                 break
-    # elif n == 1:
-    lm += with_temperature(pattern + stop_pattern + suffix, temperature)
+    lm += with_temperature(pattern + suffix, temperature)
 
     logger.debug(f"finish gen")
     return lm
@@ -286,7 +260,10 @@ def will_gen(lm, stop=None, stop_regex=None, ignore_spaces=False, max_tokens=30)
 
 @guidance
 def call_tool(lm, tool):
-    return lm + tool.call_grammar + tool.tool_call()
+    lm += tool.call_grammar
+    lm += tool.tool_call(
+        lm["tool_args"]
+    )
 
 
 @guidance(stateless=True)
