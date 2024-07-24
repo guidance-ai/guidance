@@ -26,10 +26,9 @@ class AzureGuidanceEngine(Engine):
 
         if (
             not server_url.startswith("https://")
-            and not server_url.startswith("http://localhost:")
-            and not server_url.startswith("http://127.0.0.1:")
+            and not server_url.startswith("http://")
         ):
-            raise ValueError("AzureGuidance requires a remote model URL that starts with https://")
+            raise ValueError("AzureGuidance requires a remote model URL that starts with https:// or http://")
         self.conn_str = server_url
         self.max_streaming_tokens = max_streaming_tokens
         self.log_level = log_level
