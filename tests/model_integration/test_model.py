@@ -25,7 +25,7 @@ def test_with_multitokenchars(selected_model: guidance.models.Model):
     # Taken from https://github.com/guidance-ai/guidance/issues/934
     lm = selected_model
     lm += "歪" + select(["打正着", "门邪道"])
-    assert lm is not None
+    assert str(lm) == "歪打正着" or str(lm) == "歪门邪道"
 
 
 def test_token_count(selected_model):
@@ -43,9 +43,7 @@ def test_token_healing(selected_model):
     if model_type != "GPT2LMHeadModel":
         pytest.skip("Test for GPT2 bug only")
     gpt2 = selected_model
-    lm = gpt2 + (
-        "This is a story of 10 or 5 or " + zero_or_more(byte_range(b"0", b"9"))
-    )
+    lm = gpt2 + ("This is a story of 10 or 5 or " + zero_or_more(byte_range(b"0", b"9")))
     assert len(lm) > len("This is a story of 10 or 5 or ")
 
 
