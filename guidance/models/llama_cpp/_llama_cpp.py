@@ -107,7 +107,7 @@ class LlamaCppTokenizer(Tokenizer):
             except UnicodeDecodeError:
                 pass
         if not got_bytes_to_encode:
-            raise ValueError(f"Failed to shorten {byte_string} to valid unicode")
+            raise ValueError(f"Failed to shorten {byte_string!r} to valid unicode")
         # Workaround for the LlamaCpp prepending spaces on encoding
         raw_tokens = self._model_obj.tokenize(
             self._sentinel_bytes + bytes_to_encode, add_bos=False, special=True
