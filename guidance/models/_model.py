@@ -1,5 +1,7 @@
 import base64
 import copy
+from dataclasses import dataclass
+from enum import Enum
 import html
 import logging
 import queue
@@ -50,6 +52,19 @@ nodisp_pattern = re.compile(
 )
 html_pattern = re.compile(r"&lt;\|\|_html:(.*?)_\|\|&gt;", flags=re.DOTALL)
 image_pattern = re.compile(r"&lt;\|_image:(.*?)\|&gt;")
+
+
+class Modality(Enum):
+    TEXT = 1
+    IMAGE = 2
+    AUDIO = 3
+    VIDEO = 4
+
+
+@dataclass
+class PromptPart:
+    modality: Modality
+    content: Union[str, bytes]
 
 
 class Engine:
@@ -129,6 +144,12 @@ class Engine:
         grammar: Grammar
             This is the grammar we are extending the prompt with.
         """
+        # TODO:
+        # 1. Turn prompt into a list of dicts with string prompts and multimodal data
+        # 2. Calculate the tokens of each string section independently
+        # 3. Concatenate the string tokens together and make sure the parser just sees string tokens
+        # 4. When passing tokens to get_next_token, we'll pass each list of tokens for each string section, 
+        # then the multimodal data, then the next string section, and so on
         parser = self.start(prompt, grammar, ensure_bos_token)
 
         token = None
@@ -153,6 +174,12 @@ class Engine:
                         mask=gen_data.mask,
                         temperature=gen_data.temperature
                     )
+                # Todo: account for lists of lists of tokens, and multimodal data
+                token = self.get_next_token(
+                    token_ids=gen_data.tokens,
+                    mask=gen_data.mask,
+                    temperature=gen_data.temperature
+                )
             else:
                 token = None
 
@@ -186,7 +213,6 @@ class Engine:
             "We can't consume any more tokens, but we are not yet done! Perhaps your model's token set is incomplete? This happened after the prompt:"
             + str(prompt[-40:])
         )
-
 
 class Model:
     """The base guidance model object, which represents a model in a given state.
@@ -603,6 +629,36 @@ class Model:
         else:
             copy = self
         return copy
+    
+    def _append_multimodal(self, data, modality: Modality):
+        """
+        Appends multimodal data to the model's state.
+        """
+        copy = self.copy()
+        copy.set(str(id(data)), data)
+        copy._inplace_append(f"<|{modality.name}:{str(id(data))}|>")
+        return copy
+
+    def append_image(self, image):
+        """
+        Appends image bytes to the model's state.
+        """
+        return self._append_multimodal(image, Modality.IMAGE)
+
+
+    def append_audio_bytes(self, audio):
+        """
+        Appends audio bytes to the model's state.
+        """
+        return self._append_multimodal(audio, Modality.AUDIO)
+
+
+    def append_video_bytes(self, video):
+        """
+        Appends video bytes to the model's state.
+        """
+        return self._append_multimodal(video, Modality.VIDEO)
+
 
     def log_prob(self, key, default=None):
         """Return the log prob of a variable, or a default value if the variable is not present.

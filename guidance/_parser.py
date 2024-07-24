@@ -32,6 +32,7 @@ class TokenParser:
         self,
         grammar: Union[GrammarFunction, str],
         tokenizer: Tokenizer,
+        # TODO: prompt bytes should be a list of bytes, each representing a string part of the prompt before some multimodal part
         prompt: bytes = b"",
         ensure_bos_token: bool = True,
     ):
@@ -71,6 +72,7 @@ class TokenParser:
             return None, e.value
 
     def _process_prompt(self, prompt: bytes, ensure_bos_token: bool) -> list[int]:
+        # TODO: Process prompt parts and yield of a list of lists of tokens
         prompt_tokens = self.ll_interpreter.process_prompt(
             self.tokenizer.encode(prompt)
         )
@@ -89,6 +91,7 @@ class TokenParser:
         prompt: bytes,
         ensure_bos_token: bool,
     ) -> Generator[Tuple[Optional[GenData], EngineCallResponse], Optional[int], EngineCallResponse]:
+        # TODO: Change tokens so it is a list of lists of tokens
         tokens = self._process_prompt(prompt=prompt, ensure_bos_token=ensure_bos_token)
 
         while True:
@@ -100,6 +103,7 @@ class TokenParser:
 
             if mask is not None:
                 assert r.temperature is not None
+                # TODO: Change this so it yeilds a list of tokens and multimodal parts
                 gen_data = GenData(
                     tokens=tokens,
                     mask=mask,
