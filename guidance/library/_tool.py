@@ -1,10 +1,10 @@
+import ast
+from typing import cast
+
 from .._guidance import guidance
-from ._any_char import any_char
-from .._grammar import select, capture, string
+from .._grammar import capture, select
+from ._sequences import zero_or_more, optional
 from ._subgrammar import subgrammar, lexeme
-from ._sequences import zero_or_more, one_or_more
-from ._any_char_but import any_char_but
-from ._any_char import any_char
 
 
 class Tool:
@@ -30,22 +30,38 @@ class Tool:
         self.tool_call = tool_call
 
 
-def positional_arg():
-    return lexeme(r"[^=)]+")
 
+number = lexeme(r"\d+(\.\d+)?")
+string = lexeme(r"\"[^\"]*\"")
+boolean = lexeme(r"True|False")
+none = lexeme(r"None")
+identifier = lexeme(r"[a-zA-Z_][a-zA-Z0-9_]*")
 
-def kwarg():
-    return positional_arg() + "=" + positional_arg()
+# temp
+old_capture = capture
+capture = lambda x, name: x
 
+arg = select([number, string, boolean, none])
+args = capture(arg + zero_or_more("," + arg), name="tool_args")
+
+kwarg = identifier + "=" + arg
+kwargs = capture(kwarg + zero_or_more("," + kwarg), name="tool_kwargs")
+
+capture = old_capture
+
+argskwargs = select(
+    [
+        args,
+        kwargs,
+        args + "," + kwargs,
+    ]
+)
 
 def basic_func_grammar(name):
-    obj = string(name + "(")
-    obj += capture(
-        positional_arg(),
-        name="tool_args",
-    )
-    obj += string(")")
-    return obj
+    obj = name + "("
+    obj += subgrammar(body=optional(argskwargs), skip_regex=r" *")
+    obj += ")"
+    return capture(obj, name="tool_call")
 
 
 def fn_to_grammar_call(callable):
@@ -65,11 +81,14 @@ def fn_to_grammar_call(callable):
     call_grammar = basic_func_grammar(name)
 
     @guidance(dedent=False)
-    def basic_tool_call(lm, args: str):
-        args = args.split(",")
-        positional = [x.strip() for x in args if "=" not in x]
-        kwargs = dict([tuple(x.strip().split("=")) for x in args if "=" in x])
-        lm += callable(*positional, **kwargs)
+    def basic_tool_call(lm, call_str: str):
+        call_node = cast(ast.Call, ast.parse(call_str).body[0].value) # type: ignore[attr-defined]
+        args = ast.literal_eval(ast.Tuple(call_node.args))
+        if len(call_node.keywords) == 0:
+            kwds = {}
+        else:
+            kwds = ast.literal_eval(ast.Dict(*zip(*[(ast.Constant(kw.arg), kw.value) for kw in call_node.keywords])))
+        lm += callable(*args, **kwds)
         return lm
 
     return call_grammar, basic_tool_call

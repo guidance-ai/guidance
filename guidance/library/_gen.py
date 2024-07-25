@@ -154,12 +154,11 @@ def gen(
                     tool_called = True
                     if hide_tool_call:
                         temp_lm = lm + tools[i].call_grammar
-                        tool_args = temp_lm["tool_args"]
+                        tool_args = temp_lm["tool_call"]
                     else:
                         lm += tools[i].call_grammar
-                        tool_args = lm["tool_args"]
+                        tool_args = lm["tool_call"]
                     lm += tools[i].tool_call(tool_args)
-            breakpoint()
             if not tool_called:
                 lm += suffix
                 break
@@ -262,7 +261,7 @@ def will_gen(lm, stop=None, stop_regex=None, ignore_spaces=False, max_tokens=30)
 def call_tool(lm, tool):
     lm += tool.call_grammar
     lm += tool.tool_call(
-        lm["tool_args"]
+        lm["tool_call"]
     )
 
 
