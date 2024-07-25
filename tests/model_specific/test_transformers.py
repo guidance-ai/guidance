@@ -7,7 +7,7 @@ from ..utils import get_model
 
 @pytest.fixture(scope="module")
 def phi3_model(selected_model, selected_model_name):
-    if selected_model_name in ["transformers_phi3cpu_mini_4k_instruct"]:
+    if selected_model_name in ["transformers_phi3_mini_4k_instruct_cpu"]:
         return selected_model
     else:
         pytest.skip("Requires Phi3 model")
@@ -15,7 +15,7 @@ def phi3_model(selected_model, selected_model_name):
 
 @pytest.fixture(scope="module")
 def llama3_model(selected_model, selected_model_name):
-    if selected_model_name in ["transformers_llama3cpu_8b"] and selected_model is not None:
+    if selected_model_name in ["transformers_llama3_8b_cpu"] and selected_model is not None:
         return selected_model
     else:
         pytest.skip("Requires Llama3 model (needs HF_TOKEN to be set)")
