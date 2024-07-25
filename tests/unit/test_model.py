@@ -1,5 +1,4 @@
 import guidance
-
 from guidance import gen, models
 
 def test_call_embeddings():
