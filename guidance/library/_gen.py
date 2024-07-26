@@ -131,6 +131,8 @@ def gen(
     if not isinstance(save_stop_text, str):
         save_stop_text = None
 
+    tagged_name = "__LIST_APPEND:" + name if list_append and name is not None else name
+
     if tools is not None:
         tools = [Tool(callable=x) if not isinstance(x, Tool) else x for x in tools]
         options = []#Gen(body_regex=regex, stop_regex=gen_stop, save_stop_text=save_stop_text, max_tokens=max_tokens)]
@@ -149,36 +151,32 @@ def gen(
             )
         grm = select(options)
         initial_token_count = lm.token_count
-        while lm.token_count <= max_tokens + initial_token_count:
-            lm += grm
-            tool_called = False
-            for i in range(len(tools)):
-                tool_i = f"tool{i}"
-                if tool_i in lm:
-                    tool_called = True
-                    if hide_tool_call:
-                        temp_lm = lm + tools[i].call_grammar
-                        with block("tool_call"):
-                            temp_lm += tools[i].tool_call()
-                        lm += temp_lm["tool_call"]
-                    else:
-                        lm += tools[i].call_grammar + tools[i].tool_call()
-                lm.remove(tool_i)
-            if not tool_called:
-                lm += suffix
-                break
+        with block(tagged_name):
+            while lm.token_count <= max_tokens + initial_token_count:
+                lm += grm
+                tool_called = False
+                for i in range(len(tools)):
+                    tool_i = f"tool{i}"
+                    if tool_i in lm:
+                        tool_called = True
+                        if hide_tool_call:
+                            temp_lm = lm + tools[i].call_grammar
+                            with block("tool_call"):
+                                temp_lm += tools[i].tool_call()
+                            lm += temp_lm["tool_call"]
+                        else:
+                            lm += tools[i].call_grammar + tools[i].tool_call()
+                    lm.remove(tool_i)
+                if not tool_called:
+                    lm += suffix
+                    break
         return lm
-                
-    pattern = Gen(body_regex=regex, stop_regex=gen_stop, save_stop_text=save_stop_text, max_tokens=max_tokens)
 
-    tagged_name = "__LIST_APPEND:" + name if list_append and name is not None else name
+    pattern = Gen(body_regex=regex, stop_regex=gen_stop, save_stop_text=save_stop_text, name=tagged_name, max_tokens=max_tokens)
 
     # define any capture group for non-tool calls
     if name is not None and tools is None:
         pattern = capture(pattern, name=tagged_name)
-
-    # limit the number of tokens
-    pattern = token_limit(pattern, max_tokens)
     lm += with_temperature(pattern + suffix, temperature)
 
     logger.debug(f"finish gen")
