@@ -151,7 +151,7 @@ def gen(
                     name=f"tool{i}"
                 )
             )
-        grm = select(options)
+        grm = with_temperature(select(options), temperature)
         initial_token_count = lm.token_count
         with block(tagged_name):
             while lm.token_count <= max_tokens + initial_token_count:
