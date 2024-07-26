@@ -152,12 +152,12 @@ def test_tool_call():
     @guidance(dedent=False)
     def square(lm, x):
         called_args.append(x)
-        return lm + str(x * x)
+        return lm + str(int(x)**2)
 
     model = models.Mock(b"<s>Three squared is square(3)")
     model += gen(tools=[square], max_tokens=30)
     assert str(model) == "Three squared is square(3)9"
-    assert called_args == [3]
+    assert called_args == ["3"]
 
 
 def test_tool_call_hidden():
@@ -166,9 +166,9 @@ def test_tool_call_hidden():
     @guidance(dedent=False)
     def square(lm, x):
         called_args.append(x)
-        return lm + str(x * x)
+        return lm + str(int(x)**2)
 
     model = models.Mock(b"<s>Three squared is square(3)")
     model += gen(tools=[square], hide_tool_call=True, max_tokens=30)
     assert str(model) == "Three squared is 9"
-    assert called_args == [3]
+    assert called_args == ["3"]

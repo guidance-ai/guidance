@@ -1,11 +1,8 @@
-import ast
-from typing import cast
-
 from .._guidance import guidance
-from .._grammar import capture, select
-from ._sequences import zero_or_more, optional
-from ._subgrammar import subgrammar, lexeme
-
+from .._grammar import select
+from ._optional import optional
+from ._sequences import zero_or_more
+from ._subgrammar import lexeme, subgrammar
 
 class Tool:
     def __init__(self, call_grammar=None, tool_call=None, callable=None):
@@ -22,44 +19,28 @@ class Tool:
             )
         if second_option:
             call_grammar, tool_call = fn_to_grammar_call(callable)
-            self.name = callable.__name__
-        else:
-            self.name = tool_call.__name__
-
         self.call_grammar = call_grammar
         self.tool_call = tool_call
 
 
-
-number = lexeme(r"\d+(\.\d+)?")
-string = lexeme(r"\"[^\"]*\"")
-boolean = lexeme(r"True|False")
-none = lexeme(r"None")
-identifier = lexeme(r"[a-zA-Z_][a-zA-Z0-9_]*")
-
-# temp
-old_capture = capture
-capture = lambda x, name: x
-
-arg = select([number, string, boolean, none])
-args = capture(arg + zero_or_more("," + arg), name="tool_args")
-
-kwarg = identifier + "=" + arg
-kwargs = capture(kwarg + zero_or_more("," + kwarg), name="tool_kwargs")
-
-capture = old_capture
-
-argskwargs = select(
-    [
-        args,
-        kwargs,
-        args + "," + kwargs,
-    ]
-)
+arg = lexeme(r"[^,=)]+")
+kwarg = arg + "=" + arg
+args = arg + zero_or_more("," + arg)
+kwargs = kwarg + zero_or_more("," + kwarg)
 
 def basic_func_grammar(name):
     obj = name + "("
-    obj += subgrammar(name="tool_args", body=optional(argskwargs), skip_regex=r" *")
+    obj += subgrammar(
+        name="tool_args",
+        body=optional(
+            select([
+                args,
+                kwargs,
+                args + "," + kwargs,
+            ])
+        ),
+        skip_regex=r" *"
+    )
     obj += ")"
     return obj
 
@@ -83,14 +64,10 @@ def fn_to_grammar_call(callable):
     @guidance(dedent=False)
     def basic_tool_call(lm):
         args = lm["tool_args"]
-        call_str = f"{name}({args})"
-        call_node = cast(ast.Call, ast.parse(call_str).body[0].value) # type: ignore[attr-defined]
-        args = ast.literal_eval(ast.Tuple(call_node.args))
-        if len(call_node.keywords) == 0:
-            kwds = {}
-        else:
-            kwds = ast.literal_eval(ast.Dict(*zip(*[(ast.Constant(kw.arg), kw.value) for kw in call_node.keywords])))
-        lm += callable(*args, **kwds)
+        args = args.split(",")
+        positional = [x.strip() for x in args if "=" not in x]
+        kwargs = dict([tuple(x.strip().split("=")) for x in args if "=" in x])
+        lm += callable(*positional, **kwargs)
         return lm
 
     return call_grammar, basic_tool_call
