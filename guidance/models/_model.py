@@ -51,14 +51,16 @@ nodisp_pattern = re.compile(
     r"&lt;\|\|_#NODISP_\|\|&gt;.*?&lt;\|\|_/NODISP_\|\|&gt;", flags=re.DOTALL
 )
 html_pattern = re.compile(r"&lt;\|\|_html:(.*?)_\|\|&gt;", flags=re.DOTALL)
-image_pattern = re.compile(r"&lt;\|_image:(.*?)\|&gt;")
-
 
 class Modality(Enum):
     TEXT = 1
     IMAGE = 2
     AUDIO = 3
     VIDEO = 4
+
+modality_pattern = re.compile(
+    r"&lt;\|_(" + "|".join(modality.name for modality in Modality) + r"):(.*?)\|&gt;"
+)
 
 
 @dataclass
@@ -87,7 +89,7 @@ class Engine:
     def reset_metrics(self):
         self.metrics = GuidanceEngineMetrics()
 
-    def start(self, prompt, grammar, ensure_bos_token=True) -> TokenParser:
+    def start(self, prompt: List[PromptPart], grammar, ensure_bos_token=True) -> TokenParser:
         """Start processing parser state executed through the grammar.
 
         Parameters
@@ -111,25 +113,32 @@ class Engine:
         # )
 
         # right now we only support a text/bytes prompt parser state, so we extract that
-        if isinstance(prompt, bytes):
-            prompt = prompt
-        elif isinstance(prompt, str):
-            prompt = bytes(prompt, encoding="utf8")
-        elif isinstance(prompt, TokenParser):
-            raise NotImplementedError(
-                "Still need to implement support for extending a full Parser state."
-            )
-        else:
-            raise Exception("The passed prompt is of an unknown type!")
+        prompt_text_parts = []
+        for part in prompt:
+            if part.modality != Modality.TEXT:
+                continue
+            if isinstance(prompt, bytes):
+                prompt_text_parts.append(prompt)
+            elif isinstance(prompt, str):
+                prompt_text_parts.append(bytes(prompt, encoding="utf8"))
+            elif isinstance(prompt, TokenParser):
+                raise NotImplementedError(
+                    "Still need to implement support for extending a full Parser state."
+                )
+            else:
+                raise Exception("The passed prompt is of an unknown type!")
+        
+        if prompt_text_parts == []:
+            prompt_text_parts = [b""]
 
         return TokenParser(
             grammar=grammar,
             tokenizer=self.tokenizer,
-            prompt=prompt,
+            prompt=prompt_text_parts,
             ensure_bos_token=ensure_bos_token
         )
 
-    def __call__(self, prompt, grammar, ensure_bos_token=True) -> Iterator[EngineCallResponse]:
+    def __call__(self, prompt: List[PromptPart], grammar, ensure_bos_token=True) -> Iterator[EngineCallResponse]:
         """Main entry point for the inference-parser loop. Yields EngineCallResponse objects as
         the parser advances through the grammar.
 
@@ -185,15 +194,15 @@ class Engine:
 
             yield response
 
-    def get_next_token(self, token_ids: list[int], mask: Optional[bytes], temperature: float) -> int:
+    def get_next_token(self, prompt: list[PromptPart], token_ids: list[int], mask: Optional[bytes], temperature: float) -> int:
         """Base implementation for getting the next token from the model which calls get_logits and sample_with_temperature.
         Subclasses may override this method, e.g. if they use external APIs that do not support getting logits directly.
         """
-        logits = self.get_logits(token_ids)
+        logits = self.get_logits(prompt, token_ids)
         token = self.sample_with_temperature(logits, mask, temperature)
         return token
 
-    def get_logits(self, token_ids: list[int]) -> np.ndarray:
+    def get_logits(self, prompt: list[PromptPart], token_ids: list[list[int]]) -> np.ndarray:
         raise NotImplementedError
 
     def sample_with_temperature(self, logits: np.ndarray, mask: Optional[bytes], temperature: float) -> int:
@@ -408,6 +417,38 @@ class Model:
     def _current_prompt(self):
         """The current prompt in bytes (which is the state without the context close tags)."""
         return format_pattern.sub("", self._state)
+
+    def _current_prompt_parts(self) -> List[PromptPart]:
+        """
+        The current prompt parsed into a list of dictionaries which contain
+        the modality and the content for each part
+        """
+        results = []
+        last_pos = 0
+
+        prompt = self._current_prompt()
+        for match in modality_pattern.finditer(prompt):
+            start, end = match.span()
+            
+            # Add any text before the current match as TEXT modality
+            if start > last_pos:
+                text_content = prompt[last_pos:start]
+                results.append(PromptPart(modality=Modality.TEXT, content=text_content))
+            
+            # Add the current match
+            modality = Modality[match.group(1)]
+            content_key = match.group(2)
+            content = self.get(content_key)
+            if content is None:
+                raise KeyError(f"Model does not contain the multimodal data with id '{content_key}'")
+            results.append(PromptPart(modality=modality, content=content))
+            last_pos = end
+
+        # Add any remaining text after the last match
+        if last_pos < len(prompt):
+            results.append(PromptPart(modality=Modality.TEXT, content=prompt[last_pos:]))
+        
+        return results
 
     def __str__(self):
         """A string representation of the current model object (that includes context closers)."""
@@ -636,7 +677,7 @@ class Model:
         """
         copy = self.copy()
         copy.set(str(id(data)), data)
-        copy._inplace_append(f"<|{modality.name}:{str(id(data))}|>")
+        copy._inplace_append(f"<|_{modality.name}:{str(id(data))}|>")
         return copy
 
     def append_image(self, image):
@@ -732,7 +773,7 @@ class Model:
         replacements = replace_model_variables(stateless_function, self)
 
         # start the generation stream
-        gen_obj = self.engine(self._current_prompt(), stateless_function)
+        gen_obj = self.engine(self._current_prompt_parts(), stateless_function)
 
         # we will return a new extended version of ourselves, which we track as `lm`
         lm = self
