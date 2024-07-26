@@ -154,9 +154,9 @@ def test_tool_call():
         called_args.append(x)
         return lm + str(x * x)
 
-    model = models.Mock(b"<s>square(3)")
-    model += gen(tools=[square], max_tokens=10)
-    assert str(model) == "square(3)9"
+    model = models.Mock(b"<s>Three squared is square(3)")
+    model += gen(tools=[square], max_tokens=30)
+    assert str(model) == "Three squared is square(3)9"
     assert called_args == [3]
 
 
@@ -168,7 +168,7 @@ def test_tool_call_hidden():
         called_args.append(x)
         return lm + str(x * x)
 
-    model = models.Mock(b"<s>square(3)")
-    model += gen(tools=[square], hide_tool_call=True, max_tokens=10)
-    assert str(model) == "9"
+    model = models.Mock(b"<s>Three squared is square(3)")
+    model += gen(tools=[square], hide_tool_call=True, max_tokens=30)
+    assert str(model) == "Three squared is 9"
     assert called_args == [3]
