@@ -1,3 +1,4 @@
+import guidance
 from guidance import gen, models
 
 
@@ -143,3 +144,31 @@ def test_multiline():
     model = models.Mock(b"<s>this\nis\na\ntest<s>")
     model += gen(max_tokens=20)
     assert str(model) == "this\nis\na\ntest"
+
+
+def test_tool_call():
+    called_args = []
+
+    @guidance(dedent=False)
+    def square(lm, x):
+        called_args.append(x)
+        return lm + str(x * x)
+
+    model = models.Mock(b"<s>square(3)")
+    model += gen(tools=[square], max_tokens=10)
+    assert str(model) == "square(3)9"
+    assert called_args == [3]
+
+
+def test_tool_call_hidden():
+    called_args = []
+
+    @guidance(dedent=False)
+    def square(lm, x):
+        called_args.append(x)
+        return lm + str(x * x)
+
+    model = models.Mock(b"<s>square(3)")
+    model += gen(tools=[square], hide_tool_call=True, max_tokens=10)
+    assert str(model) == "9"
+    assert called_args == [3]

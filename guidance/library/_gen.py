@@ -1,7 +1,8 @@
 import regex as regex_module
 import logging
 from .._guidance import guidance
-from .._grammar import select, Gen, quote_regex, string, capture, token_limit, with_temperature
+from .._grammar import select, Gen, quote_regex, capture, token_limit, with_temperature
+from ._block import block
 from ._silent import silent
 from ._tool import Tool
 
@@ -156,7 +157,9 @@ def gen(
                 if tool_i in lm:
                     tool_called = True
                     if hide_tool_call:
-                        temp_lm = lm + tools[i].call_grammar + capture(tools[i].tool_call(), name="tool_call")
+                        temp_lm = lm + tools[i].call_grammar
+                        with block("tool_call"):
+                            temp_lm += tools[i].tool_call()
                         lm += temp_lm["tool_call"]
                     else:
                         lm += tools[i].call_grammar + tools[i].tool_call()
