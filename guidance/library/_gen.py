@@ -134,12 +134,15 @@ def gen(
         tools = [Tool(callable=x) if not isinstance(x, Tool) else x for x in tools]
         options = []#Gen(body_regex=regex, stop_regex=gen_stop, save_stop_text=save_stop_text, max_tokens=max_tokens)]
         for i, tool in enumerate(tools):
-            # Only support limited calling syntax, `tool(...` since we need a regex to stop the tool call
-            # Note: the actual tool call will still be a full grammar but the start of the tool call must be regex...
-            # TODO: support full context free grammar for initiating tool calls
+            # Infer a regex that will match the start of a tool call
+            tool_call_prefix = tool.call_grammar.forced_prefix()
+            if len(tool_call_prefix) < 4:
+                # TODO: alternatively check that the prefix contains the name (case insensitive) of the tool?
+                # anything shorter is probably far too ambiguous
+                raise ValueError(f"Could not infer unambiguous tool call prefix for tool {tool.name}")
             options.append(
                 capture(
-                    Gen(body_regex=regex, stop_regex=rf"{tool.name}\(", max_tokens=max_tokens),
+                    Gen(body_regex=regex, stop_regex=quote_regex(tool_call_prefix), max_tokens=max_tokens),
                     name=f"tool{i}"
                 )
             )

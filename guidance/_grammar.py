@@ -190,6 +190,10 @@ class GrammarFunction(Function):
 
         return Match(*parser.get_captures(), partial=not parser.matched())  # type: ignore[misc]
 
+    def forced_prefix(self) -> str:
+        parser = _parser.ByteParser(self)
+        return parser.bytes.decode("utf-8", errors="ignore")
+
     @staticmethod
     def _new_name():
         num_used = GrammarFunction.num_used_names
