@@ -135,7 +135,9 @@ def gen(
 
     if tools is not None:
         tools = [Tool(callable=x) if not isinstance(x, Tool) else x for x in tools]
-        options = []#Gen(body_regex=regex, stop_regex=gen_stop, save_stop_text=save_stop_text, max_tokens=max_tokens)]
+        options = [
+            Gen(body_regex=regex, stop_regex=gen_stop, save_stop_text=save_stop_text, max_tokens=max_tokens)
+        ]
         for i, tool in enumerate(tools):
             # Infer a regex that will match the start of a tool call
             tool_call_prefix = tool.call_grammar.forced_prefix()
