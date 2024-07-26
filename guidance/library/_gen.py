@@ -153,12 +153,11 @@ def gen(
                 if tool_i in lm:
                     tool_called = True
                     if hide_tool_call:
-                        temp_lm = lm + tools[i].call_grammar
-                        tool_args = temp_lm["tool_call"]
+                        temp_lm = lm + tools[i].call_grammar + capture(tools[i].tool_call(), name="tool_call")
+                        lm += temp_lm["tool_call"]
                     else:
-                        lm += tools[i].call_grammar
-                        tool_args = lm["tool_call"]
-                    lm += tools[i].tool_call(tool_args)
+                        lm += tools[i].call_grammar + tools[i].tool_call()
+                lm.remove(tool_i)
             if not tool_called:
                 lm += suffix
                 break
@@ -260,9 +259,8 @@ def will_gen(lm, stop=None, stop_regex=None, ignore_spaces=False, max_tokens=30)
 @guidance
 def call_tool(lm, tool):
     lm += tool.call_grammar
-    lm += tool.tool_call(
-        lm["tool_call"]
-    )
+    lm += tool.tool_call()
+    return lm
 
 
 @guidance(stateless=True)

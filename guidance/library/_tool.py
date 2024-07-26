@@ -24,7 +24,7 @@ class Tool:
             call_grammar, tool_call = fn_to_grammar_call(callable)
             self.name = callable.__name__
         else:
-            self.name = call_grammar.__name__
+            self.name = tool_call.__name__
 
         self.call_grammar = call_grammar
         self.tool_call = tool_call
@@ -59,9 +59,9 @@ argskwargs = select(
 
 def basic_func_grammar(name):
     obj = name + "("
-    obj += subgrammar(body=optional(argskwargs), skip_regex=r" *")
+    obj += subgrammar(name="tool_args", body=optional(argskwargs), skip_regex=r" *")
     obj += ")"
-    return capture(obj, name="tool_call")
+    return obj
 
 
 def fn_to_grammar_call(callable):
@@ -81,7 +81,9 @@ def fn_to_grammar_call(callable):
     call_grammar = basic_func_grammar(name)
 
     @guidance(dedent=False)
-    def basic_tool_call(lm, call_str: str):
+    def basic_tool_call(lm):
+        args = lm["tool_args"]
+        call_str = f"{name}({args})"
         call_node = cast(ast.Call, ast.parse(call_str).body[0].value) # type: ignore[attr-defined]
         args = ast.literal_eval(ast.Tuple(call_node.args))
         if len(call_node.keywords) == 0:
