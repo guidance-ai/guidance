@@ -113,9 +113,9 @@ class TransformersTokenizer(Tokenizer):
                 byte_tokens[i] = byte_coded
 
         else:
-            byte_decoder = transformers_package.AutoTokenizer.from_pretrained(
-                "gpt2", use_fast=False
-            ).byte_decoder  # fall back to gpt2 mapping
+            # fall back to gpt2 mapping
+            byte_encoder = self._bytes_to_unicode()
+            byte_decoder = {v: k for k, v in byte_encoder.items()}
 
             # some special tokens may not have their whitespace encoded...
             byte_decoder[" "] = 32
