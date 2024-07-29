@@ -212,12 +212,8 @@ class GrammarlessEngine(Engine):
                 dqueue.get()
             dqueue.put(e)
 
-        if self._running_stream():
-            dqueue.put(self.tokenizer.eos_token)
         self._not_running_stream.set()
-        dqueue.put(
-            b""
-        )  # so we never get stuck waiting for a running stream to return something
+        dqueue.put(b"")  # so we never get stuck waiting for a running stream to return something
 
     def _start_new_stream(self, prompt: bytes, temperature: float) -> None:
         assert isinstance(prompt, bytes)
@@ -394,6 +390,10 @@ class GrammarlessEngine(Engine):
 
             # but if there is nothing and we are not running then we start a stream
             elif self._not_running_stream.is_set():
+                if (self.tokenizer.eos_token_id is not None) and (
+                    mask is None or mask[self.tokenizer.eos_token_id] != 0
+                ):
+                    return self.tokenizer.eos_token_id
                 logger.debug(
                     "starting a new stream because there is no data to read and no stream running..."
                 )
