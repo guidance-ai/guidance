@@ -411,15 +411,7 @@ class GrammarlessEngine(Engine):
                 # reset out call time to allow the data stream to time out if we happen to be done with it
                 self._last_call = time.time()
 
-        # set the logits to the next byte the model picked
-        logger.debug(f"Grammarless.get_logits: Creating logits for {token_id=}")
-        logits = np.ones(len(self.tokenizer.tokens)) * -np.inf
-        logits[token_id] = 100
-        if token_id != self.tokenizer.eos_token:
-            # we always allow the model to use EOS if that is the only way forward
-            logits[self.tokenizer.eos_token_id] = 0
-        logits = logits + mask
-        return int(np.argmax(logits))
+        return token_id
 
     def _report_failed_match(self, prompt: bytes):
         logger.debug(f"_report_failed_match: {prompt=}")
