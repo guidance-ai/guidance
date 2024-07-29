@@ -262,7 +262,7 @@ class GrammarlessEngine(Engine):
         self._last_stream_start = self._data
 
     def get_next_token(
-        self, token_ids: list[int], mask: np.ndarray, temperature: float) -> int:
+        self, token_ids: list[int], mask: Optional[bytes], temperature: float) -> int:
 
         logger.debug(
             f"Start Grammarless.get_next_token({token_ids=}, {mask=}, {temperature=})"
@@ -272,8 +272,10 @@ class GrammarlessEngine(Engine):
 
         # compute the prompt bytes
         # TODO: we need to get the forced bytes from the mask -- should streamline this?
-        ok_tokens = np.where(mask)[0]
-        forced_bytes = os.path.commonprefix([self.tokenizer.tokens[i] for i in ok_tokens])
+        if mask is not None:
+            forced_bytes = os.path.commonprefix([self.tokenizer.tokens[i] for i, b in enumerate(mask) if b != 0])
+        else:
+            forced_bytes = b""
 
         whole_token_prompt = self.tokenizer.decode(token_ids)
         prompt = whole_token_prompt + forced_bytes

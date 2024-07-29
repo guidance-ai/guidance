@@ -1,4 +1,4 @@
-from typing import Sequence
+from typing import Sequence, Optional
 import numpy as np
 import logging
 
@@ -80,7 +80,7 @@ class MockEngine(Engine):
         # seed the random number generator
         self._rand_generator = np.random.default_rng(seed=42)
 
-    def get_next_token(self, token_ids: list[int], mask: np.ndarray, temperature: float) -> int:
+    def get_next_token(self, token_ids: list[int], mask: Optional[bytes], temperature: float) -> int:
         self.called_temperatures.append(temperature)
         return super().get_next_token(token_ids, mask, temperature)
 
