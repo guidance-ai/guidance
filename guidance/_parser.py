@@ -1,6 +1,5 @@
 import json
 import os
-from dataclasses import dataclass
 from typing import Any, Generator, Optional, Tuple, Union
 
 import llguidance  # type: ignore[import-untyped]
@@ -8,19 +7,9 @@ import numpy as np
 from numpy.typing import NDArray
 
 from ._grammar import GrammarFunction, Join, Terminal
-from ._schema import EngineCallResponse, LLInterpreterResponse
+from ._schema import GenData, EngineCallResponse, LLInterpreterResponse
 from .models._byte_tokenizer import ByteTokenizer
 from .models._tokenizer import Tokenizer
-
-
-@dataclass
-class GenData:
-    tokens: list[int]
-    mask: NDArray[np.uint8]
-    temperature: float
-
-    def valid_next_tokens(self) -> list[int]:
-        return np.where(self.mask)[0].tolist()
 
 
 class TokenParserException(Exception):
@@ -113,7 +102,7 @@ class TokenParser:
                 assert r.temperature is not None
                 gen_data = GenData(
                     tokens=tokens,
-                    mask=np.frombuffer(mask, dtype=np.uint8),
+                    mask=mask,
                     temperature=r.temperature,
                 )
                 # Send caller the mask and response; wait for token
@@ -123,7 +112,7 @@ class TokenParser:
                 if not mask[token]:
                     # Note: we could punt this probem to ll_interpreter.post_process,
                     # but it's a bit clearer to handle it here
-                    raise InvalidTokenException(token, gen_data.valid_next_tokens(), tokens)
+                    raise InvalidTokenException(token, gen_data.valid_next_tokens, tokens)
             else:
                 gen_data = None
                 token = yield (gen_data, response)
@@ -179,7 +168,7 @@ class ByteParser:
             return set()
         return {
             bytes([t])
-            for t in self.gen_data.valid_next_tokens()
+            for t in self.gen_data.valid_next_tokens
             if t != self.tokenizer.eos_token_id
         }
 
@@ -229,8 +218,7 @@ class ByteParser:
                     consumed_bytes=self.bytes[: self.pos],
                 )
             # We're in generation mode. Assure that the byte is one of the valid next bytes
-            valid_next_tokens = self.gen_data.valid_next_tokens()
-            if b not in valid_next_tokens:
+            if b not in self.gen_data.valid_next_tokens:
                 valid_next_bytes = self.valid_next_bytes()
                 raise ByteParserException(
                     f"Expected one of the following bytes: {valid_next_bytes!r}, got {bytes([b])!r}",

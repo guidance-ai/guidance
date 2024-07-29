@@ -142,7 +142,7 @@ class Engine:
                     assert gen_data.mask[self.tokenizer.eos_token_id]
                     token = self.get_next_token(
                         token_ids=gen_data.tokens,
-                        mask=np.ones_like(gen_data.mask),
+                        mask=None,
                         temperature=gen_data.temperature
                     )
                     if not gen_data.mask[token]:
@@ -158,7 +158,7 @@ class Engine:
 
             yield response
 
-    def get_next_token(self, token_ids: list[int], mask: np.ndarray, temperature: float) -> int:
+    def get_next_token(self, token_ids: list[int], mask: Optional[bytes], temperature: float) -> int:
         """Base implementation for getting the next token from the model which calls get_logits and sample_with_temperature.
         Subclasses may override this method, e.g. if they use external APIs that do not support getting logits directly.
         """
@@ -169,8 +169,9 @@ class Engine:
     def get_logits(self, token_ids: list[int]) -> np.ndarray:
         raise NotImplementedError
 
-    def sample_with_temperature(self, logits: np.ndarray, mask: np.ndarray, temperature: float) -> int:
-        logits = logits + mask
+    def sample_with_temperature(self, logits: np.ndarray, mask: Optional[bytes], temperature: float) -> int:
+        if mask is not None:
+            logits += np.frombuffer(mask, dtype=np.uint8)
         if temperature < 0.0001:
             return int(np.argmax(logits))
         # Get probabilities from softmax

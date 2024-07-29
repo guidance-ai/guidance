@@ -1,7 +1,8 @@
 from typing import Any, Literal, Optional, Union
 
-from pydantic import BaseModel, Field, NonNegativeInt, RootModel, model_validator
+from pydantic import BaseModel, Field, NonNegativeInt, RootModel, model_validator, computed_field
 from typing_extensions import Annotated
+from functools import cached_property
 
 
 class GuidanceEngineMetrics(BaseModel):
@@ -16,6 +17,17 @@ class EngineCallResponse(BaseModel):
     capture_groups: dict
     capture_group_log_probs: dict
     new_token_count: NonNegativeInt
+
+
+class GenData(BaseModel):
+    tokens: list[int]
+    mask: bytes
+    temperature: float
+
+    @computed_field  # type: ignore[misc]
+    @cached_property
+    def valid_next_tokens(self) -> list[int]:
+        return [i for i, b in enumerate(self.mask) if b != 0]
 
 
 class LLProgressCapture(BaseModel):
