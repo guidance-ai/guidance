@@ -23,6 +23,18 @@ def phi3_model(selected_model, selected_model_name):
         pytest.skip("Requires Phi3 model")
 ```
 
+## Selecting a model
+
+To select a particular model when running the tests, use the `--selected_model` command line option.
+For example:
+
+```bash
+python -m pytest --selected_model transformers_gemma2_9b_cpu ./tests/model_integration/
+```
+
+The allowed values for `--selected_model` are in the [`_llms_for_testing.py`](./_llms_for_testing.py) file, and are concatenated into the `AVAILABLE_MODELS` dictionary.
+Alternatively, the `GUIDANCE_SELECTED_MODEL` environment variable can be used to override the default value for `--selected_model` (which can be useful when using a debugger).
+
 ### A Note on Credentials
 
 As noted above the `need_credentials` tests are mainly for `Grammarless` models - those for remote endpoints which do not support Guidance grammars (there are a few exceptions, which is why the directory isn't simply named `grammarless`).
