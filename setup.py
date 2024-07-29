@@ -53,7 +53,7 @@ doc_requires = [
     "sphinx",
     "ipykernel",
     "huggingface_hub",
-    "llama-cpp-python!=0.2.84",
+    "llama-cpp-python",
 ]
 test_requires = [
     "azure-identity",
