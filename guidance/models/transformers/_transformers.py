@@ -71,9 +71,15 @@ class TransformersTokenizer(Tokenizer):
             transformers_tokenizer.eos_token_id,
         )
 
-    def _byte_tokens_from_byte_decoder(self, transformers_tokenizer) -> list[bytes]:
+    def _byte_tokens_from_byte_decoder(
+        self,
+        transformers_tokenizer: Union[
+            "transformers_package.PreTrainedTokenizer",
+            "transformers_package.PreTrainedTokenizerFast",
+        ],
+    ) -> list[bytes]:
         byte_tokens = [b""] * len(transformers_tokenizer)
-        byte_decoder = transformers_tokenizer.byte_decoder
+        byte_decoder: dict[str, int] = transformers_tokenizer.byte_decoder
         for i in range(len(transformers_tokenizer)):
             byte_coded = bytes(
                 [byte_decoder[c] for c in transformers_tokenizer.convert_ids_to_tokens(i)]
@@ -81,7 +87,13 @@ class TransformersTokenizer(Tokenizer):
             byte_tokens[i] = byte_coded
         return byte_tokens
 
-    def _byte_tokens_from_sp_model(self, transformers_tokenizer) -> list[bytes]:
+    def _byte_tokens_from_sp_model(
+        self,
+        transformers_tokenizer: Union[
+            "transformers_package.PreTrainedTokenizer",
+            "transformers_package.PreTrainedTokenizerFast",
+        ],
+    ) -> list[bytes]:
         byte_tokens = [b""] * len(transformers_tokenizer)
         special_tokens_map = {
             id: token for token, id in transformers_tokenizer.get_added_vocab().items()
@@ -99,7 +111,13 @@ class TransformersTokenizer(Tokenizer):
             byte_tokens[i] = byte_coded.replace(space_prefix, b" ")
         return byte_tokens
 
-    def _byte_tokens_from_vocab(self, transformers_tokenizer) -> list[bytes]:
+    def _byte_tokens_from_vocab(
+        self,
+        transformers_tokenizer: Union[
+            "transformers_package.PreTrainedTokenizer",
+            "transformers_package.PreTrainedTokenizerFast",
+        ],
+    ) -> list[bytes]:
         vocab = transformers_tokenizer.get_vocab()
         byte_tokens = [b""] * len(transformers_tokenizer)
         special_tokens_map = {
@@ -130,9 +148,15 @@ class TransformersTokenizer(Tokenizer):
             byte_tokens[i] = byte_coded
         return byte_tokens
 
-    def _byte_tokens_fallback(self, transformers_tokenizer) -> list[bytes]:
+    def _byte_tokens_fallback(
+        self,
+        transformers_tokenizer: Union[
+            "transformers_package.PreTrainedTokenizer",
+            "transformers_package.PreTrainedTokenizerFast",
+        ],
+    ) -> list[bytes]:
         byte_tokens = [b""] * len(transformers_tokenizer)
-        byte_decoder = transformers_package.AutoTokenizer.from_pretrained(
+        byte_decoder: dict[str, int] = transformers_package.AutoTokenizer.from_pretrained(
             "gpt2", use_fast=False
         ).byte_decoder  # fall back to gpt2 mapping
 
@@ -182,7 +206,13 @@ class TransformersTokenizer(Tokenizer):
             byte_tokens[i] = byte_coded
         return byte_tokens
 
-    def _byte_tokens(self, transformers_tokenizer) -> list[bytes]:
+    def _byte_tokens(
+        self,
+        transformers_tokenizer: Union[
+            "transformers_package.PreTrainedTokenizer",
+            "transformers_package.PreTrainedTokenizerFast",
+        ],
+    ) -> list[bytes]:
 
         if hasattr(transformers_tokenizer, "byte_decoder"):
             return self._byte_tokens_from_byte_decoder(transformers_tokenizer)
