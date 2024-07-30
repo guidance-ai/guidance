@@ -118,7 +118,6 @@ class TransformersTokenizer(Tokenizer):
             "transformers_package.PreTrainedTokenizerFast",
         ],
     ) -> list[bytes]:
-        vocab = transformers_tokenizer.get_vocab()
         byte_tokens = [b""] * len(transformers_tokenizer)
         special_tokens_map = {
             id: token for token, id in transformers_tokenizer.get_added_vocab().items()
@@ -136,7 +135,10 @@ class TransformersTokenizer(Tokenizer):
                 elif isinstance(token, str):
                     if hasattr(transformers_tokenizer, "convert_tokens_to_string"):
                         token_str = transformers_tokenizer.convert_tokens_to_string([token])
-                        roundtrip_id = transformers_tokenizer.encode(token_str)[0]
+                        encoded_str = transformers_tokenizer.encode(token_str)
+                        if len(encoded_str) != 1:
+                            raise ValueError(f"Round-trip encoding of tokens [{token}] failed! Got {encoded_str}")
+                        roundtrip_id = encoded_str[0]
                         if roundtrip_id == i:
                             byte_coded = token_str.encode()
                         else:
