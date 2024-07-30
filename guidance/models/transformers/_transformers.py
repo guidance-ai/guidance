@@ -38,7 +38,7 @@ _COMMON_TRANSFORMERS_KWARGS = [
 class TransformersTokenizer(Tokenizer):
     def __init__(
         self,
-        model,
+        model: Union[str, "transformers_package.PreTrainedModel"],
         transformers_tokenizer: Union[
             "transformers_package.PreTrainedTokenizer",
             "transformers_package.PreTrainedTokenizerFast",
@@ -49,7 +49,12 @@ class TransformersTokenizer(Tokenizer):
         **kwargs,
     ):
         if transformers_tokenizer is None:
-            transformers_tokenizer = self._tokenizer(model, **kwargs)
+            if isinstance(model, str):
+                transformers_tokenizer = self._tokenizer(model, **kwargs)
+            else:
+                raise ValueError(
+                    "A model object was passed in, but no tokenizer was provided. Please provide a tokenizer."
+                )
         else:
             is_ptt = isinstance(transformers_tokenizer, transformers_package.PreTrainedTokenizer)
             is_ptt_fast = isinstance(
@@ -259,28 +264,22 @@ class TransformersTokenizer(Tokenizer):
                 all_bytes.add(y)
         return set(byte_decoder.keys()) >= all_bytes
 
-    def _tokenizer(self, model, **kwargs) -> Union[
+    def _tokenizer(self, model: str, **kwargs) -> Union[
         "transformers_package.PreTrainedTokenizer",
         "transformers_package.PreTrainedTokenizerFast",
     ]:
-        # intantiate the tokenizer
-        if isinstance(model, str):
-            # make sure transformers is installed
-            if not has_transformers:
-                raise Exception("Please install transformers with `pip install transformers`")
+        # make sure transformers is installed
+        if not has_transformers:
+            raise Exception("Please install transformers with `pip install transformers`")
 
-            try:
-                tokenizer = transformers_package.AutoTokenizer.from_pretrained(
-                    model, use_fast=False, **kwargs
-                )
-            except:
-                tokenizer = transformers_package.AutoTokenizer.from_pretrained(
-                    model, use_fast=True, **kwargs
-                )  # fall back to the fast tokenizer
-
-        assert (
-            tokenizer is not None
-        ), "You must give a model name when you provide a tokenizer object!"
+        try:
+            tokenizer = transformers_package.AutoTokenizer.from_pretrained(
+                model, use_fast=False, **kwargs
+            )
+        except:
+            tokenizer = transformers_package.AutoTokenizer.from_pretrained(
+                model, use_fast=True, **kwargs
+            )  # fall back to the fast tokenizer
 
         return tokenizer
 
