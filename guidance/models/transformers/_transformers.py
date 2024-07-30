@@ -56,8 +56,22 @@ class TransformersTokenizer(Tokenizer):
                 transformers_tokenizer, transformers_package.PreTrainedTokenizerFast
             )
             assert is_ptt or is_ptt_fast
-
         self._orig_tokenizer = transformers_tokenizer
+        byte_tokens = self._byte_tokens(transformers_tokenizer)
+
+        # Chat Template logic
+        if chat_template is None and hasattr(self._orig_tokenizer, "chat_template"):
+            chat_template = self._orig_tokenizer.chat_template
+
+        # the superclass does most of the work once we have the tokens
+        super().__init__(
+            byte_tokens,
+            chat_template,
+            None if ignore_bos_token else transformers_tokenizer.bos_token_id,
+            transformers_tokenizer.eos_token_id,
+        )
+
+    def _byte_tokens(self, transformers_tokenizer) -> list[bytes]:
         special_tokens_map = {
             id: token for token, id in transformers_tokenizer.get_added_vocab().items()
         }
@@ -162,17 +176,7 @@ class TransformersTokenizer(Tokenizer):
                 )
                 byte_tokens[i] = byte_coded
 
-        # Chat Template logic
-        if chat_template is None and hasattr(self._orig_tokenizer, "chat_template"):
-            chat_template = self._orig_tokenizer.chat_template
-
-        # the superclass does most of the work once we have the tokens
-        super().__init__(
-            byte_tokens,
-            chat_template,
-            None if ignore_bos_token else transformers_tokenizer.bos_token_id,
-            transformers_tokenizer.eos_token_id,
-        )
+        return byte_tokens
 
     def _bytes_to_unicode(self):
         bs = (
