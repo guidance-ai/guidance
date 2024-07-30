@@ -228,8 +228,10 @@ class TransformersTokenizer(Tokenizer):
         if hasattr(transformers_tokenizer, "sp_model"):
             return self._byte_tokens_from_sp_model(transformers_tokenizer)
 
-        if hasattr(transformers_tokenizer, "get_vocab"):
+        try:
             return self._byte_tokens_from_vocab(transformers_tokenizer)
+        except ValueError:
+            pass
 
         return self._byte_tokens_fallback(transformers_tokenizer)
 
