@@ -1,6 +1,7 @@
 import os
 import re
 import textwrap
+import warnings
 
 from typing import Sequence, Union
 
@@ -88,13 +89,14 @@ class TransformersTokenizer(Tokenizer):
             tokenizer = transformers_package.AutoTokenizer.from_pretrained(
                 model, use_fast=False, **kwargs
             )
-        # except ImportError:
-        #     # HuggingFace needs us to install something (sentencepiece, protobuf, etc. for some non-fast tokenizers)
-        #     # TODO: decide whether to warn and fallback to fast tokenizer or to raise (should at least warn...)
-        #     raise
-        except:
+        except ImportError as e:
+            # HuggingFace needs us to install something (sentencepiece, protobuf, etc. for some non-fast tokenizers)
+            raise RuntimeError(
+                f"Could not load tokenizer for model {model}. Please install the necessary dependencies for the tokenizer (see traceback for info)."
+            ) from e
+        except Exception as e:
             # Fall back for other exceptions
-            # TODO: (maybe warn?)
+            warnings.warn(f"Falling back to fast tokenizer. Could not load tokenizer for model {model} due to exception {e.__class__.__name__}: {e}")
             tokenizer = transformers_package.AutoTokenizer.from_pretrained(
                 model, use_fast=True, **kwargs
             )  # fall back to the fast tokenizer
