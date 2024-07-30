@@ -88,7 +88,13 @@ class TransformersTokenizer(Tokenizer):
             tokenizer = transformers_package.AutoTokenizer.from_pretrained(
                 model, use_fast=False, **kwargs
             )
+        # except ImportError:
+        #     # HuggingFace needs us to install something (sentencepiece, protobuf, etc. for some non-fast tokenizers)
+        #     # TODO: decide whether to warn and fallback to fast tokenizer or to raise (should at least warn...)
+        #     raise
         except:
+            # Fall back for other exceptions
+            # TODO: (maybe warn?)
             tokenizer = transformers_package.AutoTokenizer.from_pretrained(
                 model, use_fast=True, **kwargs
             )  # fall back to the fast tokenizer
