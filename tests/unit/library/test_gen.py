@@ -191,10 +191,9 @@ def test_tool_call_multi():
         called_args['cube'].append(x)
         return lm + str(int(x)**3)
 
-    model = models.Mock([
-        b"<s>Three squared is square(3)",
+    model = models.Mock(
         b"<s>Three squared is square(3)9, which cubed is cube(9)729. Good job me.<s>",
-    ])
+    )
     model += gen(tools=[square, cube], hide_tool_call=False, max_tokens=50)
     assert str(model) == "Three squared is square(3)9, which cubed is cube(9)729. Good job me."
     assert called_args["square"] == ["3"]
