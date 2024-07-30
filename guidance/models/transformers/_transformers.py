@@ -76,6 +76,52 @@ class TransformersTokenizer(Tokenizer):
             transformers_tokenizer.eos_token_id,
         )
 
+    def _tokenizer(self, model: str, **kwargs) -> Union[
+        "transformers_package.PreTrainedTokenizer",
+        "transformers_package.PreTrainedTokenizerFast",
+    ]:
+        # make sure transformers is installed
+        if not has_transformers:
+            raise Exception("Please install transformers with `pip install transformers`")
+
+        try:
+            tokenizer = transformers_package.AutoTokenizer.from_pretrained(
+                model, use_fast=False, **kwargs
+            )
+        except:
+            tokenizer = transformers_package.AutoTokenizer.from_pretrained(
+                model, use_fast=True, **kwargs
+            )  # fall back to the fast tokenizer
+
+        return tokenizer
+
+    def _byte_tokens(
+        self,
+        transformers_tokenizer: Union[
+            "transformers_package.PreTrainedTokenizer",
+            "transformers_package.PreTrainedTokenizerFast",
+        ],
+    ) -> list[bytes]:
+
+        if (
+            hasattr(transformers_tokenizer, "byte_decoder")
+            and self._byte_decoder_has_all_bytes(
+                transformers_tokenizer.byte_decoder,
+                transformers_tokenizer.get_vocab()
+            )
+        ):
+            return self._byte_tokens_from_byte_decoder(transformers_tokenizer)
+
+        if hasattr(transformers_tokenizer, "sp_model"):
+            return self._byte_tokens_from_sp_model(transformers_tokenizer)
+
+        try:
+            return self._byte_tokens_from_vocab(transformers_tokenizer)
+        except ValueError:
+            pass
+
+        return self._byte_tokens_fallback(transformers_tokenizer)
+
     def _byte_tokens_from_byte_decoder(
         self,
         transformers_tokenizer: Union[
@@ -213,32 +259,13 @@ class TransformersTokenizer(Tokenizer):
             byte_tokens[i] = byte_coded
         return byte_tokens
 
-    def _byte_tokens(
-        self,
-        transformers_tokenizer: Union[
-            "transformers_package.PreTrainedTokenizer",
-            "transformers_package.PreTrainedTokenizerFast",
-        ],
-    ) -> list[bytes]:
-
-        if (
-            hasattr(transformers_tokenizer, "byte_decoder")
-            and self._byte_decoder_has_all_bytes(
-                transformers_tokenizer.byte_decoder,
-                transformers_tokenizer.get_vocab()
-            )
-        ):
-            return self._byte_tokens_from_byte_decoder(transformers_tokenizer)
-
-        if hasattr(transformers_tokenizer, "sp_model"):
-            return self._byte_tokens_from_sp_model(transformers_tokenizer)
-
-        try:
-            return self._byte_tokens_from_vocab(transformers_tokenizer)
-        except ValueError:
-            pass
-
-        return self._byte_tokens_fallback(transformers_tokenizer)
+    def _byte_decoder_has_all_bytes(self, byte_decoder: dict[str, int], vocab: dict[str, int]) -> bool:
+        # This is here because some tokenizers are bad and don't have all the bytes (I'm looking at you, microsoft/phi2)
+        all_bytes = set()
+        for x in vocab.keys():
+            for y in x:
+                all_bytes.add(y)
+        return set(byte_decoder.keys()) >= all_bytes
 
     def _bytes_to_unicode(self):
         bs = (
@@ -255,33 +282,6 @@ class TransformersTokenizer(Tokenizer):
                 n += 1
         cs = [chr(n) for n in cs]
         return dict(zip(bs, cs))
-
-    def _byte_decoder_has_all_bytes(self, byte_decoder: dict[str, int], vocab: dict[str, int]) -> bool:
-        # This is here because some tokenizers are bad and don't have all the bytes (I'm looking at you, microsoft/phi2)
-        all_bytes = set()
-        for x in vocab.keys():
-            for y in x:
-                all_bytes.add(y)
-        return set(byte_decoder.keys()) >= all_bytes
-
-    def _tokenizer(self, model: str, **kwargs) -> Union[
-        "transformers_package.PreTrainedTokenizer",
-        "transformers_package.PreTrainedTokenizerFast",
-    ]:
-        # make sure transformers is installed
-        if not has_transformers:
-            raise Exception("Please install transformers with `pip install transformers`")
-
-        try:
-            tokenizer = transformers_package.AutoTokenizer.from_pretrained(
-                model, use_fast=False, **kwargs
-            )
-        except:
-            tokenizer = transformers_package.AutoTokenizer.from_pretrained(
-                model, use_fast=True, **kwargs
-            )  # fall back to the fast tokenizer
-
-        return tokenizer
 
     def encode(self, byte_string: bytes) -> Sequence[int]:
         assert isinstance(byte_string, bytes)
