@@ -214,7 +214,13 @@ class TransformersTokenizer(Tokenizer):
         ],
     ) -> list[bytes]:
 
-        if hasattr(transformers_tokenizer, "byte_decoder"):
+        if (
+            hasattr(transformers_tokenizer, "byte_decoder")
+            and self._byte_decoder_has_all_bytes(
+                transformers_tokenizer.byte_decoder,
+                transformers_tokenizer.get_vocab()
+            )
+        ):
             return self._byte_tokens_from_byte_decoder(transformers_tokenizer)
 
         if hasattr(transformers_tokenizer, "sp_model"):
@@ -241,6 +247,14 @@ class TransformersTokenizer(Tokenizer):
         cs = [chr(n) for n in cs]
         return dict(zip(bs, cs))
 
+    def _byte_decoder_has_all_bytes(self, byte_decoder: dict[str, int], vocab: dict[str, int]) -> bool:
+        # This is here because some tokenizers are bad and don't have all the bytes (I'm looking at you, microsoft/phi2)
+        all_bytes = set()
+        for x in vocab.keys():
+            for y in x:
+                all_bytes.add(y)
+        return set(byte_decoder.keys()) >= all_bytes
+
     def _tokenizer(self, model, **kwargs) -> Union[
         "transformers_package.PreTrainedTokenizer",
         "transformers_package.PreTrainedTokenizerFast",
@@ -255,13 +269,6 @@ class TransformersTokenizer(Tokenizer):
                 tokenizer = transformers_package.AutoTokenizer.from_pretrained(
                     model, use_fast=False, **kwargs
                 )
-                # This is here because some tokenizers are bad and don't have all the bytes (I'm looking at you, microsoft/phi2)
-                if hasattr(tokenizer, "byte_decoder"):
-                    all_bytes = set()
-                    for x in tokenizer.get_vocab().keys():
-                        for y in x:
-                            all_bytes.add(y)
-                    assert set(tokenizer.byte_decoder.keys()).intersection(all_bytes) == all_bytes
             except:
                 tokenizer = transformers_package.AutoTokenizer.from_pretrained(
                     model, use_fast=True, **kwargs
