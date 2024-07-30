@@ -71,112 +71,129 @@ class TransformersTokenizer(Tokenizer):
             transformers_tokenizer.eos_token_id,
         )
 
-    def _byte_tokens(self, transformers_tokenizer) -> list[bytes]:
+    def _byte_tokens_from_byte_decoder(self, transformers_tokenizer) -> list[bytes]:
+        byte_tokens = [b""] * len(transformers_tokenizer)
+        byte_decoder = transformers_tokenizer.byte_decoder
+        for i in range(len(transformers_tokenizer)):
+            byte_coded = bytes(
+                [byte_decoder[c] for c in transformers_tokenizer.convert_ids_to_tokens(i)]
+            )
+            byte_tokens[i] = byte_coded
+        return byte_tokens
+
+    def _byte_tokens_from_sp_model(self, transformers_tokenizer) -> list[bytes]:
+        byte_tokens = [b""] * len(transformers_tokenizer)
         special_tokens_map = {
             id: token for token, id in transformers_tokenizer.get_added_vocab().items()
         }
-
-        # build out the set of byte_string tokens
-        byte_tokens = [b""] * len(transformers_tokenizer)
-        if hasattr(transformers_tokenizer, "byte_decoder"):
-            byte_decoder = transformers_tokenizer.byte_decoder
-
-            for i in range(len(transformers_tokenizer)):
-                byte_coded = bytes(
-                    [byte_decoder[c] for c in transformers_tokenizer.convert_ids_to_tokens(i)]
+        space_prefix = "▁".encode()
+        for i in range(len(transformers_tokenizer)):
+            if i in special_tokens_map:
+                byte_coded = special_tokens_map[i].encode()
+            else:
+                byte_coded = re.sub(
+                    rb"<0x(..)>",
+                    lambda x: bytes.fromhex(x[1].decode()),
+                    transformers_tokenizer.sp_model.id_to_piece(i).encode(),
                 )
-                byte_tokens[i] = byte_coded
-
-        elif hasattr(transformers_tokenizer, "sp_model"):
-            space_prefix = "▁".encode()
-            for i in range(len(transformers_tokenizer)):
-                if i in special_tokens_map:
-                    byte_coded = special_tokens_map[i].encode()
-                else:
-                    byte_coded = re.sub(
-                        rb"<0x(..)>",
-                        lambda x: bytes.fromhex(x[1].decode()),
-                        transformers_tokenizer.sp_model.id_to_piece(i).encode(),
-                    )
-                byte_tokens[i] = byte_coded.replace(space_prefix, b" ")
-
-        elif hasattr(transformers_tokenizer, "get_vocab"):
-            vocab = transformers_tokenizer.get_vocab()
-            byte_encoder = self._bytes_to_unicode()
-            byte_decoder = {v: k for k, v in byte_encoder.items()}
-
-            for i in range(len(transformers_tokenizer)):
-                if i in special_tokens_map:
-                    byte_coded = special_tokens_map[i].encode()
-                else:
-                    token = transformers_tokenizer.convert_ids_to_tokens(i)
-                    if isinstance(token, bytes):
-                        byte_coded = token
-                    elif isinstance(token, str):
-                        if hasattr(transformers_tokenizer, "convert_tokens_to_string"):
-                            token_str = transformers_tokenizer.convert_tokens_to_string([token])
-                            roundtrip_id = transformers_tokenizer.encode(token_str)[0]
-                            if roundtrip_id == i:
-                                byte_coded = token_str.encode()
-                            else:
-                                byte_coded = bytes([byte_decoder[c] for c in token])
-                        else:
-                            byte_coded = token.encode()
-                    else:
-                        raise ValueError(f"Unexpected token type: {type(token)}")
-                byte_tokens[i] = byte_coded
-
-        else:
-            byte_decoder = transformers_package.AutoTokenizer.from_pretrained(
-                "gpt2", use_fast=False
-            ).byte_decoder  # fall back to gpt2 mapping
-
-            # some special tokens may not have their whitespace encoded...
-            byte_decoder[" "] = 32
-            byte_decoder["\n"] = 10
-            byte_decoder["\r"] = 13
-            byte_decoder["\t"] = 9
-            byte_decoder["▁"] = 32
-
-            # run a quick spot check to verify we can rebuild complex multi-token unicode symbols
-            s = "’•¶∂ƒ˙∆£Ħ爨ൠᅘ∰፨"
-            reconstructed = b""
-            try:
-                input_ids = transformers_tokenizer(s)["input_ids"]
-                for i in input_ids:
-                    nxt_bytes = []
-                    token_str = transformers_tokenizer.convert_ids_to_tokens(i)
-                    for c in token_str:
-                        nxt_bytes.append(byte_decoder[c])
-                    reconstructed += bytes(nxt_bytes)
-                # Check if the tokenizer has a bos_token attribute, and if it does, check
-                # if it's at the start of the reconstructed bytes
-                # Some tokenizers add this automatically as part of the call function, so
-                # we need to remove it to compare
-                if hasattr(transformers_tokenizer, "bos_token") and reconstructed.startswith(
-                    transformers_tokenizer.bos_token.encode()
-                ):
-                    reconstructed = reconstructed[len(transformers_tokenizer.bos_token) :]
-            except Exception as e:
-                msg = textwrap.dedent(
-                    f"""
-                    The tokenizer being used is unable to convert a special character in {s}.
-                    For models with sentencepiece based tokenizers (e.g. llama, phi-3-mini),
-                    installing sentencepiece often fixes this issue (pip install sentencepiece).
-                    """
-                )
-                raise ValueError(msg) from e
-            assert (
-                reconstructed.decode() == s
-            ), "The passed tokenizer does not have a byte_decoder property and using a standard gpt2 byte_decoder fails!"
-
-            for i in range(len(transformers_tokenizer)):
-                byte_coded = bytes(
-                    [byte_decoder[c] for c in transformers_tokenizer.convert_ids_to_tokens(i)]
-                )
-                byte_tokens[i] = byte_coded
-
+            byte_tokens[i] = byte_coded.replace(space_prefix, b" ")
         return byte_tokens
+
+    def _byte_tokens_from_vocab(self, transformers_tokenizer) -> list[bytes]:
+        vocab = transformers_tokenizer.get_vocab()
+        byte_tokens = [b""] * len(transformers_tokenizer)
+        special_tokens_map = {
+            id: token for token, id in transformers_tokenizer.get_added_vocab().items()
+        }
+        byte_encoder = self._bytes_to_unicode()
+        byte_decoder = {v: k for k, v in byte_encoder.items()}
+
+        for i in range(len(transformers_tokenizer)):
+            if i in special_tokens_map:
+                byte_coded = special_tokens_map[i].encode()
+            else:
+                token = transformers_tokenizer.convert_ids_to_tokens(i)
+                if isinstance(token, bytes):
+                    byte_coded = token
+                elif isinstance(token, str):
+                    if hasattr(transformers_tokenizer, "convert_tokens_to_string"):
+                        token_str = transformers_tokenizer.convert_tokens_to_string([token])
+                        roundtrip_id = transformers_tokenizer.encode(token_str)[0]
+                        if roundtrip_id == i:
+                            byte_coded = token_str.encode()
+                        else:
+                            byte_coded = bytes([byte_decoder[c] for c in token])
+                    else:
+                        byte_coded = token.encode()
+                else:
+                    raise ValueError(f"Unexpected token type: {type(token)}")
+            byte_tokens[i] = byte_coded
+        return byte_tokens
+
+    def _byte_tokens_fallback(self, transformers_tokenizer) -> list[bytes]:
+        byte_tokens = [b""] * len(transformers_tokenizer)
+        byte_decoder = transformers_package.AutoTokenizer.from_pretrained(
+            "gpt2", use_fast=False
+        ).byte_decoder  # fall back to gpt2 mapping
+
+        # some special tokens may not have their whitespace encoded...
+        byte_decoder[" "] = 32
+        byte_decoder["\n"] = 10
+        byte_decoder["\r"] = 13
+        byte_decoder["\t"] = 9
+        byte_decoder["▁"] = 32
+
+        # run a quick spot check to verify we can rebuild complex multi-token unicode symbols
+        s = "’•¶∂ƒ˙∆£Ħ爨ൠᅘ∰፨"
+        reconstructed = b""
+        try:
+            input_ids = transformers_tokenizer(s)["input_ids"]
+            for i in input_ids:
+                nxt_bytes = []
+                token_str = transformers_tokenizer.convert_ids_to_tokens(i)
+                for c in token_str:
+                    nxt_bytes.append(byte_decoder[c])
+                reconstructed += bytes(nxt_bytes)
+            # Check if the tokenizer has a bos_token attribute, and if it does, check
+            # if it's at the start of the reconstructed bytes
+            # Some tokenizers add this automatically as part of the call function, so
+            # we need to remove it to compare
+            if hasattr(transformers_tokenizer, "bos_token") and reconstructed.startswith(
+                transformers_tokenizer.bos_token.encode()
+            ):
+                reconstructed = reconstructed[len(transformers_tokenizer.bos_token) :]
+        except Exception as e:
+            msg = textwrap.dedent(
+                f"""
+                The tokenizer being used is unable to convert a special character in {s}.
+                For models with sentencepiece based tokenizers (e.g. llama, phi-3-mini),
+                installing sentencepiece often fixes this issue (pip install sentencepiece).
+                """
+            )
+            raise ValueError(msg) from e
+        assert (
+            reconstructed.decode() == s
+        ), "The passed tokenizer does not have a byte_decoder property and using a standard gpt2 byte_decoder fails!"
+
+        for i in range(len(transformers_tokenizer)):
+            byte_coded = bytes(
+                [byte_decoder[c] for c in transformers_tokenizer.convert_ids_to_tokens(i)]
+            )
+            byte_tokens[i] = byte_coded
+        return byte_tokens
+
+    def _byte_tokens(self, transformers_tokenizer) -> list[bytes]:
+
+        if hasattr(transformers_tokenizer, "byte_decoder"):
+            return self._byte_tokens_from_byte_decoder(transformers_tokenizer)
+
+        if hasattr(transformers_tokenizer, "sp_model"):
+            return self._byte_tokens_from_sp_model(transformers_tokenizer)
+
+        if hasattr(transformers_tokenizer, "get_vocab"):
+            return self._byte_tokens_from_vocab(transformers_tokenizer)
+
+        return self._byte_tokens_fallback(transformers_tokenizer)
 
     def _bytes_to_unicode(self):
         bs = (
