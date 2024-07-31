@@ -143,6 +143,9 @@ jobs:
       - name: Other dependencies
         run: |
           pip install sentencepiece
+          echo "=============================="
+          pip uninstall -y transformers
+          pip install "transformers!=4.43.0,!=4.43.1,!=4.43.2,!=4.43.3" # Issue 965
       - name: GPU pip installs
         run: |
           pip install accelerate
