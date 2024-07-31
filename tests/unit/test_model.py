@@ -20,3 +20,19 @@ def test_call_embeddings():
         return lm
 
     assert "{{G|" not in str(model + ble())
+
+
+def test_model_set():
+    model = models.Mock()
+    model = model.set("num", "4")
+    assert "num" in model
+    assert model["num"] == "4"
+    assert model.log_prob("num") is not None
+
+    model = model.set("list_num", ['1', '2'])
+    assert "list_num" in model
+    assert model["list_num"] == ['1', '2']
+    assert model.log_prob("list_num") is not None
+
+    model += gen("list_num", list_append=True)
+    assert len(model['list_num']) > 2
