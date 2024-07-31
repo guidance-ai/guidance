@@ -34,5 +34,5 @@ def test_model_set():
     assert model["list_num"] == ['1', '2']
     assert model.log_prob("list_num") is not None
 
-    model += gen("list_num", list_append=True)
-    assert len(model['list_num']) > 2
+    model += gen("list_num", max_tokens=10, list_append=True)
+    assert len(model['list_num']) == 3
