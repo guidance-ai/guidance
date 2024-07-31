@@ -170,7 +170,9 @@ class Engine:
                     # Whenever we are in an accepting state, we will allow the model to generate whatever it wants
                     # but we will treat any "illegal" tokens as EOS, allowing the model to finish gracefully.
                     assert gen_data.mask[self.tokenizer.eos_token_id]
+                    # Todo: account for lists of lists of tokens, and multimodal data
                     token = self.get_next_token(
+                        prompt,
                         token_ids=gen_data.tokens,
                         mask=None,
                         temperature=gen_data.temperature
@@ -178,17 +180,13 @@ class Engine:
                     if not gen_data.mask[token]:
                         token = self.tokenizer.eos_token_id
                 else:
+                    # Todo: account for lists of lists of tokens, and multimodal data
                     token = self.get_next_token(
+                        prompt,
                         token_ids=gen_data.tokens,
                         mask=gen_data.mask,
                         temperature=gen_data.temperature
                     )
-                # Todo: account for lists of lists of tokens, and multimodal data
-                token = self.get_next_token(
-                    token_ids=gen_data.tokens,
-                    mask=gen_data.mask,
-                    temperature=gen_data.temperature
-                )
             else:
                 token = None
 

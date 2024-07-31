@@ -153,7 +153,7 @@ class OpenAIEngine(GrammarlessEngine):
             # TODO: add retry logic, keeping mind of token counts
             raise e
 
-    def _generator(self, prompt: bytes, temperature: float):
+    def _generator(self, prompt: bytes, temperature: float) -> typing.Iterator[bytes]:
         assert isinstance(prompt, bytes)
         if self.model_name in self._completion_models:
             return self._generator_completion(prompt, temperature)

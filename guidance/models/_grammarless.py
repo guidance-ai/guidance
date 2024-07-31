@@ -59,7 +59,7 @@ class GrammarlessEngine(Engine):
         # build the Engine
         super().__init__(tokenizer=tokenizer, compute_log_probs=compute_log_probs)
 
-    def _generator(self, prompt: bytes, temperature: float):
+    def _generator(self, prompt: bytes, temperature: float) -> Iterator[bytes]:
         raise NotImplementedError("Child classes must implement _generator()")
 
     def __call__(self, prompt: List[PromptPart], grammar, ensure_bos_token=True) -> Iterator[EngineCallResponse]:
@@ -228,14 +228,6 @@ class GrammarlessEngine(Engine):
                     self.tokenizer.eos_token,
                 ]  # note we assume we are role tags that end with <|im_end|>
 
-                # for _,role_end_str in self.opened_blocks.values():
-                #     role_end_str = format_pattern.sub("", role_end_str)
-                #     if len(role_end_str) > 0 and not re.fullmatch(r'\s+', role_end_str):
-                #         parts.append(role_end_str.encode("utf8"))
-
-                # # record the eos token
-                # parts.append(self.eos_token)
-
                 # see if adding an end token would work here (if so we avoid recalling the server and just produce an end token)
                 found_match = False
                 for p in parts:
@@ -294,7 +286,7 @@ class GrammarlessEngine(Engine):
                     raise new_bytes
                 self._data += new_bytes
                 # reset out call time to allow the data stream to time out if we happen to be done with it
-                self._last_call = time.time()
+                self._last_call_time = time.time()
 
         return token_id
 
