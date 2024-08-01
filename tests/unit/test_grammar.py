@@ -2,6 +2,12 @@ import guidance
 from guidance import gen, models, optional, select
 
 
+def test_readable_output():
+    model = models.Mock()
+    model += "Not colored " + select(options=["colored", "coloblue", "cologreen"])
+    assert str(model) in ["Not colored colored", "Not colored coloblue", "Not colored cologreen"]
+
+
 def test_select_reset_pos():
     model = models.Mock()
     model += "This is" + select(options=["bad", "quite bad"])

@@ -6,6 +6,7 @@ import queue
 import sys
 import textwrap
 import types
+import re
 
 import numpy as np
 
@@ -232,3 +233,35 @@ def softmax(array: np.ndarray, axis: int = -1) -> np.ndarray:
     array_maxs = np.amax(array, axis=axis, keepdims=True)
     exp_x_shifted = np.exp(array - array_maxs)
     return exp_x_shifted / np.sum(exp_x_shifted, axis=axis, keepdims=True)
+
+
+# Is it good to allow user to create their own instances of output?
+class ReadableOutput:
+    def feed(self, state_list):
+        """
+        Main function to parse model output
+
+        state_list is a list,
+        where [0] is the text chunk
+        and [1] is rgba color tuple (if text was generated) or None (if text was inserted by us)
+
+        The function must return something to print, or it will be None all the way
+        """
+        raise NotImplementedError('"feed" must be implemented!')
+
+
+class ReadableOutputCLIStream(ReadableOutput):
+    def __init__(self):
+        self._cur_chunk = 0
+        super().__init__()
+
+    def feed(self, state_list):
+        new_text = ""
+        for text, color in state_list[self._cur_chunk:]:
+            if color is not None:
+                new_text += '\033[38;2;{};{};{}m'.format(*[round(x) for x in color[:3]])
+            new_text += text
+            if color is not None:
+                new_text += '\033[0m'
+            self._cur_chunk += 1
+        return new_text
