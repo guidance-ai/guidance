@@ -55,8 +55,9 @@ html_pattern = re.compile(r"&lt;\|\|_html:(.*?)_\|\|&gt;", flags=re.DOTALL)
 class Modality(Enum):
     TEXT = 1
     IMAGE = 2
-    AUDIO = 3
-    VIDEO = 4
+    IMAGE_URL = 3
+    AUDIO = 4
+    VIDEO = 5
 
 modality_pattern = re.compile(
     r"&lt;\|_(" + "|".join(modality.name for modality in Modality) + r"):(.*?)\|&gt;"
@@ -66,7 +67,7 @@ modality_pattern = re.compile(
 @dataclass
 class PromptPart:
     modality: Modality
-    content: Union[str, bytes]
+    content: bytes
 
 
 class Engine:
@@ -431,7 +432,7 @@ class Model:
             # Add any text before the current match as TEXT modality
             if start > last_pos:
                 text_content = prompt[last_pos:start]
-                results.append(PromptPart(modality=Modality.TEXT, content=text_content))
+                results.append(PromptPart(modality=Modality.TEXT, content=text_content.encode("utf8")))
             
             # Add the current match
             modality = Modality[match.group(1)]
@@ -444,7 +445,7 @@ class Model:
 
         # Add any remaining text after the last match
         if last_pos < len(prompt):
-            results.append(PromptPart(modality=Modality.TEXT, content=prompt[last_pos:]))
+            results.append(PromptPart(modality=Modality.TEXT, content=prompt[last_pos:].encode("utf8")))
         
         return results
 

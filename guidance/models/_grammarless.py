@@ -59,11 +59,14 @@ class GrammarlessEngine(Engine):
         # build the Engine
         super().__init__(tokenizer=tokenizer, compute_log_probs=compute_log_probs)
 
-    def _generator(self, prompt: bytes, temperature: float) -> Iterator[bytes]:
+    def _generator(self, prompt: list[PromptPart], temperature: float) -> Iterator[bytes]:
         raise NotImplementedError("Child classes must implement _generator()")
 
     def __call__(self, prompt: List[PromptPart], grammar, ensure_bos_token=True) -> Iterator[EngineCallResponse]:
         self._num_calls_made = 0  # reset the number of calls count so we only limit the number of calls within a single grammar execution
+        temperature = grammar.temperature if grammar.temperature is not None else 0.0
+        for chunk in self._generator(prompt, temperature):
+
         response = EngineCallResponse()
         yield response
 
