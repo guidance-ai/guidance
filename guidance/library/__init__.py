@@ -1,5 +1,5 @@
 # import functions that can be called directly
-from ._gen import gen, call_tool, will_gen
+from ._gen import gen, call_tool, will_gen, regex
 from ._image import image
 from ._capture import capture
 
@@ -28,9 +28,7 @@ from ._char_range import char_range
 from ._char_set import char_set
 from ._prefix_tree import prefix_tree
 from ._substring import substring
-from ._regex import regex
 from ._optional import optional
 from ._tool import Tool
 from ._any_char_but import any_char_but
-
 from ._json import json

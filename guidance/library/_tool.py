@@ -1,10 +1,8 @@
 from .._guidance import guidance
-from ._any_char import any_char
-from .._grammar import select, capture, string, commit_point
-from ._sequences import zero_or_more, one_or_more
-from ._any_char_but import any_char_but
-from ._any_char import any_char
-
+from .._grammar import select
+from ._optional import optional
+from ._sequences import zero_or_more
+from ._subgrammar import lexeme, subgrammar
 
 class Tool:
     def __init__(self, call_grammar=None, tool_call=None, callable=None):
@@ -25,25 +23,25 @@ class Tool:
         self.tool_call = tool_call
 
 
-def valid_chars():
-    return any_char_but(["=", ")"])
-
-
-def positional_arg():
-    return one_or_more(valid_chars())
-
-
-def kwarg():
-    return one_or_more(valid_chars()) + "=" + one_or_more(valid_chars())
-
+arg = lexeme(r"[^,=)]+")
+kwarg = arg + "=" + arg
+args = arg + zero_or_more("," + arg)
+kwargs = kwarg + zero_or_more("," + kwarg)
 
 def basic_func_grammar(name):
-    obj = string(name + "(")
-    obj += capture(
-        select([zero_or_more(positional_arg()), ""]) + select([zero_or_more(kwarg()), ""]),
+    obj = name + "("
+    obj += subgrammar(
         name="tool_args",
+        body=optional(
+            select([
+                args,
+                kwargs,
+                args + "," + kwargs,
+            ])
+        ),
+        skip_regex=r" *"
     )
-    obj += string(")")
+    obj += ")"
     return obj
 
 

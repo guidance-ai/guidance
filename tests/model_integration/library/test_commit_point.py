@@ -1,6 +1,7 @@
+import pytest
 from guidance import Tool, capture, commit_point, models, select, string
 
-
+@pytest.mark.xfail(reason="Commit points are not supported")
 def test_commit_point(selected_model: models.Model):
     lm = selected_model
     tools = [Tool(callable=lambda x: x)]

@@ -222,11 +222,12 @@ class TransformersTokenizer(Tokenizer):
 
         return tokenizer
 
-    def encode(self, byte_string: bytes) -> Sequence[int]:
-        assert isinstance(byte_string, bytes)
-        # HF tokenizers take in strings apparently
-        tokenization = self._orig_tokenizer(byte_string.decode(), add_special_tokens=False)
-        return tokenization["input_ids"]
+    def encode(self, byte_string: Union[bytes, str]) -> Sequence[int]:
+        if isinstance(byte_string, bytes):
+            # HF tokenizers take in strings
+            byte_string = byte_string.decode("utf8")
+        tokenisation = self._orig_tokenizer(byte_string, add_special_tokens=False)
+        return tokenisation["input_ids"]
 
     def decode(self, tokens: Sequence[int]) -> bytes:
         decoded_str = self._orig_tokenizer.decode(tokens)
@@ -305,7 +306,6 @@ class TransformersEngine(Engine):
             my_tokenizer,
             compute_log_probs=compute_log_probs,
         )
-        assert self._token_trie.match
 
     def _model(self, model, **kwargs):
         # intantiate the model if needed
@@ -319,7 +319,7 @@ class TransformersEngine(Engine):
             model = transformers_package.AutoModelForCausalLM.from_pretrained(model, **kwargs)
         return model
 
-    def get_logits(self, token_ids, forced_bytes, current_temp):
+    def get_logits(self, token_ids):
         """Computes the logits for the given token state.
 
         This overrides a method from the LocalEngine class that is used to get

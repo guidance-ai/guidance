@@ -33,11 +33,7 @@ module = "vertexai.*"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = "google.generativeai.*"
-ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = "google.ai.generativelanguage.*"
+module = "google.*"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

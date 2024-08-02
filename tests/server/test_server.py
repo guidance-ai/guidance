@@ -21,10 +21,10 @@ PROCESS_DELAY_SECS = 90
 def server_process(*, mock_string: Union[str, List[str]] = ""):
     byte_patterns = []
     if isinstance(mock_string, str):
-        byte_patterns = [f"<s>{mock_string}".encode()]
+        byte_patterns = [f"<s>{mock_string}<s>".encode()]
     else:
         for s in mock_string:
-            byte_patterns.append(f"<s>{s}".encode())
+            byte_patterns.append(f"<s>{s}<s>".encode())
     lm = models.Mock(byte_patterns=byte_patterns)
 
     temp_lm = lm + gen()
@@ -72,7 +72,7 @@ def test_return_mock_string():
     my_string = "My roundtrip"
     with ServerContext(mock_string=my_string):
         m = models.Model("http://localhost:8392", api_key="SDFSDF")
-        m2 = m + gen(max_tokens=10, name="captured")
+        m2 = m + gen(max_tokens=20, name="captured")
         assert m2["captured"].startswith(my_string)
 
 
