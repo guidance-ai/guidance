@@ -44,12 +44,12 @@ def test_azure_guidance_fill_in_json(azure_guidance_model: guidance.models.Model
     json.loads(json_text)  # check for valid JSON
 
 
-def test_azure_guidance_basic(azure_guidance_model: guidance.models.Model):
+def test_azure_guidance_basic_1(azure_guidance_model: guidance.models.Model):
     lm = azure_guidance_model
     lm += "Write a number: " + gen("text", max_tokens=3)
     assert len(lm["text"]) >= 3
 
-def test_azure_guidance_56(azure_guidance_model: guidance.models.Model):
+def test_azure_guidance_56_eos(azure_guidance_model: guidance.models.Model):
     lm = azure_guidance_model
     # make sure we recognize EOS token correctly
     lm += "Q: 7 * 8\nA: " + gen("text", regex="[0-9]+", max_tokens=20)
@@ -61,7 +61,7 @@ def test_azure_guidance_56_newline(azure_guidance_model: guidance.models.Model):
     lm += "Q: 7 * 8\nA: " + gen("text", regex="[0-9]+", max_tokens=20) + "\n"
     assert lm["text"] == "56"
 
-def test_azure_guidance_1003(azure_guidance_model: guidance.models.Model):
+def test_azure_guidance_1003_eos(azure_guidance_model: guidance.models.Model):
     lm = azure_guidance_model
     lm += "Q: 1000 + 3\nA: " + gen("text", regex="[0-9]+", max_tokens=20)
     assert lm["text"] == "1003"
@@ -105,7 +105,7 @@ def test_azure_guidance_stop_string(azure_guidance_model: guidance.models.Model)
 
 
 
-def test_azure_guidance_gen(azure_guidance_model: guidance.models.Model):
+def test_azure_guidance_gen_base(azure_guidance_model: guidance.models.Model):
     lm = azure_guidance_model
     lm = lm + "this is a test" + gen("test", max_tokens=10)
     assert len(str(lm)) > len("this is a test")
@@ -178,7 +178,7 @@ def test_azure_guidance_suffix(azure_guidance_model: guidance.models.Model):
 #     assert str(lm) == "How much is 2 + 2? ("
 
 
-def test_azure_guidance_with_temp(azure_guidance_model: guidance.models.Model):
+def test_azure_guidance_with_temp1(azure_guidance_model: guidance.models.Model):
     lm = azure_guidance_model
     lm += "Here is a cute 5-line poem about cats and dogs:\n"
     for i in range(5):
@@ -203,7 +203,7 @@ def test_azure_guidance_max_tokens_3(azure_guidance_model: guidance.models.Model
     )  # the output should not end with "<" because that is coming from the stop sequence...
 
 
-def test_azure_guidance_stop_token(azure_guidance_model: guidance.models.Model):
+def test_azure_guidance_stop_token_0(azure_guidance_model: guidance.models.Model):
     lm = azure_guidance_model
     lm += f'<color>red</color>\n<color>{gen(stop="</color>")} and test2'
     r = str(lm)
@@ -219,13 +219,13 @@ def test_azure_guidance_basic_2(azure_guidance_model: guidance.models.Model):
     lm += "5,6,7" + f"""{gen(max_tokens=1, suffix=nl)}aaaaaa"""
     assert str(lm)[-6:] == "aaaaaa"
 
-def test_azure_guidance_fstring(azure_guidance_model: guidance.models.Model):
+def test_azure_guidance_fstring_simple(azure_guidance_model: guidance.models.Model):
     lm = azure_guidance_model
     lm += f'this is a test {select(["item1", "item2"])}'
     assert str(lm) in ["this is a test item1", "this is a test item2"]
 
 
-def test_azure_guidance_fstring_custom(azure_guidance_model: guidance.models.Model):
+def test_azure_guidance_fstring_custom_statefull(azure_guidance_model: guidance.models.Model):
     lm = azure_guidance_model
 
     @guidance
@@ -275,7 +275,7 @@ def test_azure_guidance_call_embeddings(azure_guidance_model: guidance.models.Mo
     assert "{{G|" not in str(model + ble())
 
 
-def test_azure_guidance_stream(azure_guidance_model: guidance.models.Model):
+def test_azure_guidance_stream_0(azure_guidance_model: guidance.models.Model):
     lm = azure_guidance_model
     lm = lm + select(["item1", "item2"])
     assert str(lm) in ["item1", "item2"]
@@ -301,7 +301,7 @@ def test_azure_guidance_stream_add_multiple(azure_guidance_model: guidance.model
     assert str(lm) in ["item1", "item2"]
 
 
-def test_azure_guidance(azure_guidance_model: guidance.models.Model):
+def test_azure_guidance_1_plus_1(azure_guidance_model: guidance.models.Model):
     lm = azure_guidance_model
     with user():
         lm += "What is 1 + 1?"
@@ -311,7 +311,7 @@ def test_azure_guidance(azure_guidance_model: guidance.models.Model):
     assert len(lm["text"]) > 0
 
 
-def test_azure_guidance_select(azure_guidance_model: guidance.models.Model):
+def test_azure_guidance_select1(azure_guidance_model: guidance.models.Model):
     lm = azure_guidance_model
     with user():
         lm += "Pick a number: "
