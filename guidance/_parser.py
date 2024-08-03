@@ -11,6 +11,7 @@ from ._grammar import GrammarFunction, Join, Terminal
 from ._schema import GenData, EngineCallResponse, LLInterpreterResponse
 from .models._byte_tokenizer import ByteTokenizer
 from .models._tokenizer import Tokenizer
+from .models._model import modality_pattern
 
 
 class TokenParserException(Exception):
@@ -33,7 +34,7 @@ class TokenParser:
         self,
         grammar: Union[GrammarFunction, str],
         tokenizer: Tokenizer,
-        prompt: list[bytes] = [b""],
+        prompt: bytes = b"",
         ensure_bos_token: bool = True,
     ):
         if isinstance(grammar, GrammarFunction):
@@ -71,15 +72,17 @@ class TokenParser:
             self._done = True
             return None, e.value
 
-    def _process_prompt(self, prompt: list[bytes], ensure_bos_token: bool) -> list[list[int]]:
+    def _process_prompt(self, prompt: bytes, ensure_bos_token: bool) -> list[list[int]]:
         # TODO: Process prompt parts and yield of a list of lists of tokens
+        text = prompt.decode("utf8")
+        text_parts = modality_pattern.split(text)
         prompt_tokens = []
-        for i, part in enumerate(prompt):
+        for i, part in enumerate(text_parts):
             if i < len(prompt) - 1:
-                prompt_tokens.append(self.ll_tokenizer.tokenize_bytes(part))
+                prompt_tokens.append(self.ll_tokenizer.tokenize_str(part))
             else:
                 prompt_tokens.append(self.ll_interpreter.process_prompt(
-                    self.ll_tokenizer.tokenize_bytes(part)
+                    self.ll_tokenizer.tokenize_str(part)
                 ))
         if ensure_bos_token and self.tokenizer.bos_token is not None:
             # add the beginning of sequence token if needed
@@ -92,7 +95,7 @@ class TokenParser:
 
     def _parse(
         self,
-        prompt: list[bytes],
+        prompt: bytes,
         ensure_bos_token: bool,
     ) -> Generator[Tuple[Optional[GenData], EngineCallResponse], Optional[int], EngineCallResponse]:
         token_parts = self._process_prompt(prompt=prompt, ensure_bos_token=ensure_bos_token)
@@ -109,7 +112,7 @@ class TokenParser:
             if mask is not None:
                 assert r.temperature is not None
                 gen_data = GenData(
-                    tokens=tokens, # TODO: Change to token_parts
+                    tokens=token_parts, # TODO: Change to token_parts
                     mask=mask,
                     temperature=r.temperature,
                 )

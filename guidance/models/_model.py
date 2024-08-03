@@ -55,9 +55,11 @@ html_pattern = re.compile(r"&lt;\|\|_html:(.*?)_\|\|&gt;", flags=re.DOTALL)
 class Modality(Enum):
     TEXT = 1
     IMAGE = 2
-    IMAGE_URL = 3
-    AUDIO = 4
-    VIDEO = 5
+    AUDIO = 3
+    VIDEO = 4
+    IMAGE_URL = 5
+    AUDIO_URL = 6
+    VIDEO_URL = 7
 
 modality_pattern = re.compile(
     r"&lt;\|_(" + "|".join(modality.name for modality in Modality) + r"):(.*?)\|&gt;"
@@ -90,7 +92,7 @@ class Engine:
     def reset_metrics(self):
         self.metrics = GuidanceEngineMetrics()
 
-    def start(self, prompt: List[PromptPart], grammar, ensure_bos_token=True) -> TokenParser:
+    def start(self, prompt, grammar, ensure_bos_token=True) -> TokenParser:
         """Start processing parser state executed through the grammar.
 
         Parameters
@@ -114,32 +116,25 @@ class Engine:
         # )
 
         # right now we only support a text/bytes prompt parser state, so we extract that
-        prompt_text_parts = []
-        for part in prompt:
-            if part.modality != Modality.TEXT:
-                continue
-            if isinstance(prompt, bytes):
-                prompt_text_parts.append(prompt)
-            elif isinstance(prompt, str):
-                prompt_text_parts.append(bytes(prompt, encoding="utf8"))
-            elif isinstance(prompt, TokenParser):
-                raise NotImplementedError(
-                    "Still need to implement support for extending a full Parser state."
-                )
-            else:
-                raise Exception("The passed prompt is of an unknown type!")
-        
-        if prompt_text_parts == []:
-            prompt_text_parts = [b""]
+        if isinstance(prompt, bytes):
+            prompt = prompt
+        elif isinstance(prompt, str):
+            prompt = bytes(prompt, encoding="utf8")
+        elif isinstance(prompt, TokenParser):
+            raise NotImplementedError(
+                "Still need to implement support for extending a full Parser state."
+            )
+        else:
+            raise Exception("The passed prompt is of an unknown type!")
 
         return TokenParser(
             grammar=grammar,
             tokenizer=self.tokenizer,
-            prompt=prompt_text_parts,
+            prompt=prompt,
             ensure_bos_token=ensure_bos_token
         )
 
-    def __call__(self, prompt: List[PromptPart], grammar, ensure_bos_token=True) -> Iterator[EngineCallResponse]:
+    def __call__(self, prompt, grammar, media: dict, ensure_bos_token=True) -> Iterator[EngineCallResponse]:
         """Main entry point for the inference-parser loop. Yields EngineCallResponse objects as
         the parser advances through the grammar.
 
@@ -153,6 +148,8 @@ class Engine:
             inferencing the model. (TODO: implement full parser extension support)
         grammar: Grammar
             This is the grammar we are extending the prompt with.
+        media: dict
+            A dictionary mapping placeholder IDs in the prompt to the multimodal data.
         """
         # TODO:
         # 1. Turn prompt into a list of dicts with string prompts and multimodal data
@@ -176,6 +173,7 @@ class Engine:
                         prompt,
                         token_ids=gen_data.tokens,
                         mask=None,
+                        media=media,
                         temperature=gen_data.temperature
                     )
                     if not gen_data.mask[token]:
@@ -186,6 +184,7 @@ class Engine:
                         prompt,
                         token_ids=gen_data.tokens,
                         mask=gen_data.mask,
+                        media=media,
                         temperature=gen_data.temperature
                     )
             else:
@@ -193,15 +192,15 @@ class Engine:
 
             yield response
 
-    def get_next_token(self, prompt: list[PromptPart], token_ids: list[int], mask: Optional[bytes], temperature: float) -> int:
+    def get_next_token(self, prompt: bytes, token_ids: list[list[int]], mask: Optional[bytes], media: dict, temperature: float) -> int:
         """Base implementation for getting the next token from the model which calls get_logits and sample_with_temperature.
         Subclasses may override this method, e.g. if they use external APIs that do not support getting logits directly.
         """
-        logits = self.get_logits(prompt, token_ids)
+        logits = self.get_logits(prompt, token_ids, media)
         token = self.sample_with_temperature(logits, mask, temperature)
         return token
 
-    def get_logits(self, prompt: list[PromptPart], token_ids: list[list[int]]) -> np.ndarray:
+    def get_logits(self, prompt: bytes, token_ids: list[list[int]], media: dict) -> np.ndarray:
         raise NotImplementedError
 
     def sample_with_temperature(self, logits: np.ndarray, mask: Optional[bytes], temperature: float) -> int:
@@ -448,6 +447,25 @@ class Model:
             results.append(PromptPart(modality=Modality.TEXT, content=prompt[last_pos:].encode("utf8")))
         
         return results
+
+
+    def _create_media_dict(self) -> dict:
+        """
+        Find multimodal placeholders in the prompt string and create a dictionary
+        containing the multimodal data.
+        """
+        media_dict = {}
+
+        prompt = self._current_prompt()
+        for match in modality_pattern.finditer(prompt):
+            # Add the current match
+            content_key = match.group(2)
+            content = self.get(content_key)
+            if content is None:
+                raise KeyError(f"Model does not contain the multimodal data with id '{content_key}'")
+            media_dict[content_key] = content
+
+        return media_dict
 
     def __str__(self):
         """A string representation of the current model object (that includes context closers)."""
@@ -771,8 +789,11 @@ class Model:
         # replace ModelVariables with their actual values (note we save what we replaced so we can restore it later)
         replacements = replace_model_variables(stateless_function, self)
 
+        # get the multimodal data
+        media = self._create_media_dict()
+
         # start the generation stream
-        gen_obj = self.engine(self._current_prompt_parts(), stateless_function)
+        gen_obj = self.engine(self._current_prompt(), media, stateless_function)
 
         # we will return a new extended version of ourselves, which we track as `lm`
         lm = self

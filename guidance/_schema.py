@@ -20,7 +20,7 @@ class EngineCallResponse(BaseModel):
 
 
 class GenData(BaseModel):
-    tokens: list[int]
+    tokens: list[list[int]]
     mask: bytes
     temperature: float
 
