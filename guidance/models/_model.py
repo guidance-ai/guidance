@@ -72,6 +72,38 @@ class PromptPart:
     content: bytes
 
 
+def create_prompt_parts(prompt: str, media: dict) -> List[PromptPart]:
+    """
+    Returns the model's prompt parsed into a list of dictionaries which contain
+    the modality and the content for each part
+    """
+    results = []
+    last_pos = 0
+
+    for match in modality_pattern.finditer(prompt):
+        start, end = match.span()
+        
+        # Add any text before the current match as TEXT modality
+        if start > last_pos:
+            text_content = prompt[last_pos:start]
+            results.append(PromptPart(modality=Modality.TEXT, content=text_content.encode("utf8")))
+        
+        # Add the current match
+        modality = Modality[match.group(1)]
+        content_key = match.group(2)
+        content = media.get(content_key)
+        if content is None:
+            raise KeyError(f"Model does not contain the multimodal data with id '{content_key}'")
+        results.append(PromptPart(modality=modality, content=content))
+        last_pos = end
+
+    # Add any remaining text after the last match
+    if last_pos < len(prompt):
+        results.append(PromptPart(modality=Modality.TEXT, content=prompt[last_pos:].encode("utf8")))
+    
+    return results
+
+
 class Engine:
     """The engine owns the inference computation and is used/created by the Model class.
 
@@ -151,12 +183,6 @@ class Engine:
         media: dict
             A dictionary mapping placeholder IDs in the prompt to the multimodal data.
         """
-        # TODO:
-        # 1. Turn prompt into a list of dicts with string prompts and multimodal data
-        # 2. Calculate the tokens of each string section independently
-        # 3. Concatenate the string tokens together and make sure the parser just sees string tokens
-        # 4. When passing tokens to get_next_token, we'll pass each list of tokens for each string section, 
-        # then the multimodal data, then the next string section, and so on
         parser = self.start(prompt, grammar, ensure_bos_token)
 
         token = None
@@ -192,7 +218,7 @@ class Engine:
 
             yield response
 
-    def get_next_token(self, prompt: bytes, token_ids: list[list[int]], mask: Optional[bytes], media: dict, temperature: float) -> int:
+    def get_next_token(self, prompt: bytes, token_ids: list[int], mask: Optional[bytes], media: dict, temperature: float) -> int:
         """Base implementation for getting the next token from the model which calls get_logits and sample_with_temperature.
         Subclasses may override this method, e.g. if they use external APIs that do not support getting logits directly.
         """
@@ -200,7 +226,7 @@ class Engine:
         token = self.sample_with_temperature(logits, mask, temperature)
         return token
 
-    def get_logits(self, prompt: bytes, token_ids: list[list[int]], media: dict) -> np.ndarray:
+    def get_logits(self, prompt: bytes, token_ids: list[int], media: dict) -> np.ndarray:
         raise NotImplementedError
 
     def sample_with_temperature(self, logits: np.ndarray, mask: Optional[bytes], temperature: float) -> int:
@@ -415,38 +441,6 @@ class Model:
     def _current_prompt(self):
         """The current prompt in bytes (which is the state without the context close tags)."""
         return format_pattern.sub("", self._state)
-
-    def _current_prompt_parts(self) -> List[PromptPart]:
-        """
-        The current prompt parsed into a list of dictionaries which contain
-        the modality and the content for each part
-        """
-        results = []
-        last_pos = 0
-
-        prompt = self._current_prompt()
-        for match in modality_pattern.finditer(prompt):
-            start, end = match.span()
-            
-            # Add any text before the current match as TEXT modality
-            if start > last_pos:
-                text_content = prompt[last_pos:start]
-                results.append(PromptPart(modality=Modality.TEXT, content=text_content.encode("utf8")))
-            
-            # Add the current match
-            modality = Modality[match.group(1)]
-            content_key = match.group(2)
-            content = self.get(content_key)
-            if content is None:
-                raise KeyError(f"Model does not contain the multimodal data with id '{content_key}'")
-            results.append(PromptPart(modality=modality, content=content))
-            last_pos = end
-
-        # Add any remaining text after the last match
-        if last_pos < len(prompt):
-            results.append(PromptPart(modality=Modality.TEXT, content=prompt[last_pos:].encode("utf8")))
-        
-        return results
 
 
     def _create_media_dict(self) -> dict:

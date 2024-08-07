@@ -1,4 +1,3 @@
-import itertools
 import json
 import os
 from typing import Any, Generator, Optional, Tuple, Union
@@ -11,7 +10,6 @@ from ._grammar import GrammarFunction, Join, Terminal
 from ._schema import GenData, EngineCallResponse, LLInterpreterResponse
 from .models._byte_tokenizer import ByteTokenizer
 from .models._tokenizer import Tokenizer
-from .models._model import modality_pattern
 
 
 class TokenParserException(Exception):
@@ -72,24 +70,17 @@ class TokenParser:
             self._done = True
             return None, e.value
 
-    def _process_prompt(self, prompt: bytes, ensure_bos_token: bool) -> list[list[int]]:
-        # TODO: Process prompt parts and yield of a list of lists of tokens
-        text = prompt.decode("utf8")
-        text_parts = modality_pattern.split(text)
-        prompt_tokens = []
-        for i, part in enumerate(text_parts):
-            if i < len(prompt) - 1:
-                prompt_tokens.append(self.ll_tokenizer.tokenize_str(part))
-            else:
-                prompt_tokens.append(self.ll_interpreter.process_prompt(
-                    self.ll_tokenizer.tokenize_str(part)
-                ))
-        if ensure_bos_token and self.tokenizer.bos_token is not None:
+    def _process_prompt(self, prompt: bytes, ensure_bos_token: bool) -> list[int]:
+        prompt_tokens = self.ll_interpreter.process_prompt(
+            self.tokenizer.encode(prompt)
+        )
+        if (
+            ensure_bos_token
+            and self.tokenizer.bos_token is not None
+            and prompt_tokens[:1] != [self.tokenizer.bos_token_id]
+        ):
             # add the beginning of sequence token if needed
-            if len(prompt_tokens) == 0:
-                prompt_tokens.append([self.tokenizer.bos_token_id])
-            elif (prompt_tokens[0][:1] != [self.tokenizer.bos_token_id]):
-                prompt_tokens[0] = [self.tokenizer.bos_token_id] + prompt_tokens[0]
+            prompt_tokens = [self.tokenizer.bos_token_id] + prompt_tokens
 
         return prompt_tokens
 
@@ -98,9 +89,7 @@ class TokenParser:
         prompt: bytes,
         ensure_bos_token: bool,
     ) -> Generator[Tuple[Optional[GenData], EngineCallResponse], Optional[int], EngineCallResponse]:
-        token_parts = self._process_prompt(prompt=prompt, ensure_bos_token=ensure_bos_token)
-        flatten_tokens = lambda x: list(itertools.chain.from_iterable(x))
-        inference_tokens = token_parts[-1]
+        tokens = self._process_prompt(prompt=prompt, ensure_bos_token=ensure_bos_token)
 
         while True:
             mask, resp = self.ll_interpreter.mid_process()
@@ -112,7 +101,7 @@ class TokenParser:
             if mask is not None:
                 assert r.temperature is not None
                 gen_data = GenData(
-                    tokens=token_parts, # TODO: Change to token_parts
+                    tokens=tokens,
                     mask=mask,
                     temperature=r.temperature,
                 )
@@ -123,7 +112,7 @@ class TokenParser:
                 if not mask[token]:
                     # Note: we could punt this probem to ll_interpreter.post_process,
                     # but it's a bit clearer to handle it here
-                    raise InvalidTokenException(token, gen_data.valid_next_tokens, flatten_tokens(token_parts))
+                    raise InvalidTokenException(token, gen_data.valid_next_tokens, tokens)
             else:
                 gen_data = None
                 token = yield (gen_data, response)
@@ -132,9 +121,8 @@ class TokenParser:
 
             backtrack, ff_tokens = self.ll_interpreter.post_process(token)
             if backtrack:
-                inference_tokens = inference_tokens[:-backtrack]
-            inference_tokens = inference_tokens + ff_tokens
-            token_parts[-1] = inference_tokens
+                tokens = tokens[:-backtrack]
+            tokens = tokens + ff_tokens
 
         stop_reason = self.ll_interpreter.stop_reason()
         if stop_reason not in {"NoExtension", "EndOfSentence"}:
