@@ -89,11 +89,8 @@ class TransformersTokenizer(Tokenizer):
             tokenizer = transformers_package.AutoTokenizer.from_pretrained(
                 model, use_fast=False, **kwargs
             )
-        except ImportError as e:
-            # HuggingFace needs us to install something (sentencepiece, protobuf, etc. for some non-fast tokenizers)
-            raise RuntimeError(
-                f"Could not load tokenizer for model {model}. Please install the necessary dependencies for the tokenizer (see traceback for info)."
-            ) from e
+        except ImportError:
+            raise
         except Exception as e:
             # Fall back for other exceptions
             warnings.warn(f"Falling back to fast tokenizer. Could not load tokenizer for model {model} due to exception {e.__class__.__name__}: {e}")
