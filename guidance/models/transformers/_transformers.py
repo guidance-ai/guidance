@@ -83,7 +83,7 @@ class TransformersTokenizer(Tokenizer):
     ]:
         # make sure transformers is installed
         if not has_transformers:
-            raise Exception("Please install transformers with `pip install transformers`")
+            raise ImportError("Please install transformers with `pip install transformers`")
 
         try:
             tokenizer = transformers_package.AutoTokenizer.from_pretrained(
