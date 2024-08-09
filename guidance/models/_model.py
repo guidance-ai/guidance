@@ -124,7 +124,7 @@ class Engine:
     def reset_metrics(self):
         self.metrics = GuidanceEngineMetrics()
 
-    def start(self, prompt, grammar, ensure_bos_token=True) -> TokenParser:
+    def start(self, prompt, grammar, media: dict, ensure_bos_token=True) -> TokenParser:
         """Start processing parser state executed through the grammar.
 
         Parameters
@@ -183,7 +183,7 @@ class Engine:
         media: dict
             A dictionary mapping placeholder IDs in the prompt to the multimodal data.
         """
-        parser = self.start(prompt, grammar, ensure_bos_token)
+        parser = self.start(prompt, grammar, media, ensure_bos_token)
 
         token = None
         while not parser.done():
