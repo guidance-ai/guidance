@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Any, Generator, Optional, Tuple, Union
+from typing import Any, Generator, Optional, Sequence, Tuple, Union
 
 import llguidance  # type: ignore[import-untyped]
 import numpy as np
@@ -97,18 +97,27 @@ class TokenParser:
         return response
 
 
-def process_prompt(prompt: bytes, tokenizer: Tokenizer, ll_interpreter: llguidance.LLInterpreter, bos_token_id: Optional[int]=None) -> list[int]:
-    prompt_tokens = ll_interpreter.process_prompt(
-        tokenizer.encode(prompt)
-    )
+def process_prompt(prompt_tokens: Sequence[int], ll_interpreter: llguidance.LLInterpreter, bos_token_id: Optional[int]=None) -> list[int]:
+    # Allows ll_interpreter to make adjustments to prompt tokens, such as token healing
+    processed_tokens = ll_interpreter.process_prompt(prompt_tokens)
     if (
         bos_token_id is not None
         and prompt_tokens[:1] != [bos_token_id]
     ):
         # add the beginning of sequence token if needed
-        prompt_tokens = [bos_token_id] + prompt_tokens
+        processed_tokens = [bos_token_id] + processed_tokens
 
-    return prompt_tokens
+    return processed_tokens
+
+
+def process_grammar(grammar: Union[GrammarFunction, str]) -> str:
+    if isinstance(grammar, GrammarFunction):
+        # we can't have a terminal as the root
+        if isinstance(grammar, Terminal):
+            grammar = Join([grammar])
+        return json.dumps(grammar.ll_serialize())
+    else:
+        return grammar
 
 
 def create_token_parser(
@@ -117,14 +126,7 @@ def create_token_parser(
     prompt: bytes = b"",
     ensure_bos_token: bool = True,
 ) -> TokenParser:
-    if isinstance(grammar, GrammarFunction):
-        # we can't have a terminal as the root
-        if isinstance(grammar, Terminal):
-            grammar = Join([grammar])
-        serialized_grammar = json.dumps(grammar.ll_serialize())
-    else:
-        serialized_grammar = grammar
-
+    serialized_grammar = process_grammar(grammar)
     ll_tokenizer = llguidance.LLTokenizer(
         llguidance.TokenizerWrapper(tokenizer)
     )
@@ -133,12 +135,13 @@ def create_token_parser(
         serialized_grammar,
         log_level=int(os.environ.get("LLGUIDANCE_LOG_LEVEL", "1")),
     )
-    if ensure_bos_token and tokenizer.bos_token is None:
+    if ensure_bos_token and tokenizer.bos_token_id is not None:
         bos_token_id = tokenizer.bos_token_id
     else:
         bos_token_id = None
-    prompt_tokens = process_prompt(prompt, tokenizer, ll_interpreter, bos_token_id)
-    return TokenParser(ll_interpreter, prompt_tokens)
+    prompt_tokens = tokenizer.encode(prompt)
+    processed_tokens = process_prompt(prompt_tokens, ll_interpreter, bos_token_id)
+    return TokenParser(ll_interpreter, processed_tokens)
 
 
 class ByteParserException(Exception):
