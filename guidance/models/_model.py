@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 from .._schema import EngineCallResponse, GuidanceEngineMetrics
 from .._utils import softmax, CaptureEvents
-from .._parser import TokenParser
+from .._parser import TokenParser, create_token_parser
 from .._grammar import (
     GrammarFunction,
     string,
@@ -159,7 +159,7 @@ class Engine:
         else:
             raise Exception("The passed prompt is of an unknown type!")
 
-        return TokenParser(
+        return create_token_parser(
             grammar=grammar,
             tokenizer=self.tokenizer,
             prompt=prompt,
