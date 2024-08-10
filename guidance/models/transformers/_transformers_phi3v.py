@@ -231,7 +231,7 @@ class TransformersPhi3VisionEngine(Engine):
         return -1
 
 
-class TransformersPhi3VisionModel(Model):
+class TransformersPhi3Vision(Model):
     def __init__(
         self,
         model=None,

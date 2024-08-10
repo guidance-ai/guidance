@@ -4,7 +4,6 @@ import json
 from guidance import models, gen, select, image
 from guidance._grammar import string
 
-# Placeholder model name - replace with the actual ID of your Phi 3 Vision model
 PHI_3_VISION_MODEL = "microsoft/phi-3-vision-128k-instruct"
 
 
@@ -12,7 +11,7 @@ PHI_3_VISION_MODEL = "microsoft/phi-3-vision-128k-instruct"
 def phi3_vision_model():
     """Load the TransformersPhi3Model with the specified model ID."""
     try:
-        model = models.TransformersPhi3Model(
+        model = models.TransformersPhi3Vision(
             model=PHI_3_VISION_MODEL, trust_remote_code=True
         )
         return model
@@ -20,7 +19,7 @@ def phi3_vision_model():
         pytest.skip("transformers package is not installed.")
 
 
-def test_image_loading(phi3_vision_model: models.TransformersPhi3Model):
+def test_image_loading(phi3_vision_model: models.TransformersPhi3Vision):
     """Test basic image loading and placeholder replacement in the prompt."""
     image_url = "https://picsum.photos/200/300"
     lm = (
@@ -32,7 +31,7 @@ def test_image_loading(phi3_vision_model: models.TransformersPhi3Model):
 
 
 def test_basic_generation_with_image(
-    phi3_vision_model: models.TransformersPhi3Model,
+    phi3_vision_model: models.TransformersPhi3Vision,
 ):
     """Test unconstrained generation with an image."""
     image_url = "https://picsum.photos/200/300"
@@ -43,7 +42,7 @@ def test_basic_generation_with_image(
     assert len(lm["description"]) > 0
 
 
-def test_select_with_image(phi3_vision_model: models.TransformersPhi3Model):
+def test_select_with_image(phi3_vision_model: models.TransformersPhi3Vision):
     """Test constraint enforcement with select and an image."""
     image_url = "https://picsum.photos/200/300"
     lm = (
@@ -55,7 +54,7 @@ def test_select_with_image(phi3_vision_model: models.TransformersPhi3Model):
     assert lm["answer"] in ["cat", "dog"]
 
 
-def test_llguidance_interaction(phi3_vision_model: models.TransformersPhi3Model):
+def test_llguidance_interaction(phi3_vision_model: models.TransformersPhi3Vision):
     """Test that llguidance correctly enforces a simple grammar with an image."""
     image_url = "https://picsum.photos/200/300"
     lm = phi3_vision_model + "The color of the image is: " + image(image_url)
@@ -69,7 +68,7 @@ def test_llguidance_interaction(phi3_vision_model: models.TransformersPhi3Model)
     assert str(lm).endswith(("red", "green", "blue"))
 
 
-def test_multiple_images(phi3_vision_model: models.TransformersPhi3Model):
+def test_multiple_images(phi3_vision_model: models.TransformersPhi3Vision):
     """Test cache invalidation with multiple images."""
     image_url_1 = "https://picsum.photos/200/300"
     image_url_2 = "https://picsum.photos/300/200"
@@ -87,7 +86,7 @@ def test_multiple_images(phi3_vision_model: models.TransformersPhi3Model):
     assert len(lm["description"]) > 0
 
 
-def test_empty_image_token(phi3_vision_model: models.TransformersPhi3Model):
+def test_empty_image_token(phi3_vision_model: models.TransformersPhi3Vision):
     """Test handling of an image token without corresponding image data."""
     with pytest.raises(KeyError) as exc_info:
         lm = phi3_vision_model + "This is a test with a missing image: " + image("https://picsum.photos/200/300", id="missing_image")
@@ -96,7 +95,7 @@ def test_empty_image_token(phi3_vision_model: models.TransformersPhi3Model):
     assert "Model does not contain the multimodal data with id" in str(exc_info.value)
 
 
-def test_invalid_image_url(phi3_vision_model: models.TransformersPhi3Model):
+def test_invalid_image_url(phi3_vision_model: models.TransformersPhi3Vision):
     """Test handling of an invalid image URL."""
     with pytest.raises(Exception) as exc_info:
         lm = (
@@ -108,7 +107,7 @@ def test_invalid_image_url(phi3_vision_model: models.TransformersPhi3Model):
     # ... (Add assertions to check for expected error handling)
     assert "Unable to load image bytes" in str(exc_info.value)
 
-def test_complex_grammar(phi3_vision_model: models.TransformersPhi3Model):
+def test_complex_grammar(phi3_vision_model: models.TransformersPhi3Vision):
     """Test constraint enforcement with a more complex grammar."""
     image_url = "https://picsum.photos/200/300"
     lm = phi3_vision_model + "Describe this image: " + image(image_url)
@@ -129,7 +128,7 @@ def test_complex_grammar(phi3_vision_model: models.TransformersPhi3Model):
     assert str(lm).endswith(" in the image.")
 
 
-def test_token_alignment(phi3_vision_model: models.TransformersPhi3Model):
+def test_token_alignment(phi3_vision_model: models.TransformersPhi3Vision):
     """Test that token alignment is maintained correctly."""
     image_url_1 = "https://picsum.photos/200/300"
     image_url_2 = "https://picsum.photos/300/200"
@@ -154,7 +153,7 @@ def test_token_alignment(phi3_vision_model: models.TransformersPhi3Model):
     # relative to the image tokens.
 
 
-def test_token_count_accuracy(phi3_vision_model: models.TransformersPhi3Model):
+def test_token_count_accuracy(phi3_vision_model: models.TransformersPhi3Vision):
     """Test the accuracy of the token count."""
     image_url = "https://picsum.photos/200/300"
     lm = phi3_vision_model + "Describe this image: " + image(image_url)
@@ -164,7 +163,7 @@ def test_token_count_accuracy(phi3_vision_model: models.TransformersPhi3Model):
     # You'll need to calculate the expected number of tokens based on the prompt, image size, and generated text.
 
 
-def test_streaming_behavior(phi3_vision_model: models.TransformersPhi3Model):
+def test_streaming_behavior(phi3_vision_model: models.TransformersPhi3Vision):
     """Test the streaming functionality with images."""
     image_url = "https://picsum.photos/200/300"
     lm = phi3_vision_model + "Describe this image: " + image(image_url)
