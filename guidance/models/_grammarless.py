@@ -4,16 +4,13 @@ import queue
 import threading
 import time
 
-from typing import Iterator, List, Optional, Sequence
+from typing import Optional, Sequence
 
 import numpy as np
 import tiktoken
 
-from guidance._schema import EngineCallResponse
-from guidance.models._byte_tokenizer import ByteTokenizer
-
 from ..chat import ChatMLTemplate
-from ._model import ConstraintException, Engine, Modality, Model, PromptPart
+from ._model import ConstraintException, Engine, Model
 from ._tokenizer import Tokenizer
 
 logger = logging.getLogger(__name__)
@@ -26,6 +23,118 @@ except ImportError:
     )
     from .. import _cpp as cpp
 
+class GrammarlessTokenizer(Tokenizer):
+    def __init__(self, tokenizer):
+
+        # Grammarless models don't always have public tokenizations, so when not provided we pretend they tokenize like gpt2...
+        if tokenizer is None:
+            tokenizer = tiktoken.get_encoding("gpt2")
+
+        # tiktoken tokenizer was given
+        if hasattr(tokenizer, "decode_tokens_bytes"):
+            special_map = {v: k for k, v in tokenizer._special_tokens.items()}
+            first_special = tokenizer.n_vocab
+            for k in special_map:
+                if k < first_special:
+                    first_special = k
+
+            # consume one-by-one until we have passed all the special tokens AND gotten a valid token
+            i = tokenizer.n_vocab - 1
+            byte_tokens = []
+            n_ist_count = 0
+            while True:
+                try:
+                    bval = tokenizer.decode_single_token_bytes(i)
+                    found = True
+                except KeyError:
+                    n_ist_count += 1
+                    bval = special_map.get(i, b"<|invalid_special_token|>")
+                    found = False
+                byte_tokens.append(bval)
+
+                if i < first_special and found:
+                    break
+                i -= 1
+            logger.debug(f"Found {n_ist_count} invalid special tokens")
+
+            # do the rest of the tokens as a batch
+            byte_tokens = tokenizer.decode_tokens_bytes(np.arange(i + 1)) + byte_tokens
+
+            if hasattr(tokenizer, "bos_token_id"):
+                bos_token_id = tokenizer.bos_token_id
+            else:
+                bos_token_id = None
+            if hasattr(tokenizer, "eos_token_id"):
+                eos_token_id = tokenizer.eos_token_id
+            else:
+                eos_token_id = tokenizer._special_tokens["<|endoftext|>"]
+
+        # a transformer tokenizer was given that has a byte_decoder
+        elif hasattr(tokenizer, "byte_decoder"):
+            byte_tokens = []
+            for i in range(tokenizer.vocab_size):
+                byte_coded = bytes(
+                    [
+                        tokenizer.byte_decoder[c]
+                        for c in tokenizer.convert_ids_to_tokens(i)
+                    ]
+                )
+                byte_tokens.append(byte_coded)
+            bos_token_id = tokenizer.bos_token_id
+            eos_token_id = tokenizer.eos_token_id
+
+        # a transformer tokenizer was given with byte_decoder
+        elif hasattr(tokenizer, "convert_ids_to_tokens"):
+            byte_tokens = [
+                bytes(
+                    tokenizer.convert_tokens_to_string(
+                        ["a", tokenizer.convert_ids_to_tokens(i)]
+                    )[1:],
+                    encoding="utf8",
+                )
+                for i in range(tokenizer.vocab_size)
+            ]
+            bos_token_id = tokenizer.bos_token_id
+            eos_token_id = tokenizer.eos_token_id
+
+        # a HuggingFace tokenizers tokenizer was given with id_to_token
+        elif hasattr(tokenizer, "id_to_token"):
+            a_token_ids = tokenizer.encode("a").ids
+            if len(a_token_ids) == 3:
+                bos_token_id = a_token_ids[0]
+                a_id = a_token_ids[1]
+                eos_token_id = a_token_ids[2]
+            else:
+                raise Exception(
+                    "This tokenizer does not seem to have a BOS and EOS, support for this need to be implemented still."
+                )
+
+            byte_tokens = [
+                bytes(tokenizer.decode([a_id, i])[1:], encoding="utf8")
+                for i in range(tokenizer.get_vocab_size())
+            ]
+            for i, b in enumerate(byte_tokens):
+                if b == b"":
+                    byte_tokens[i] = bytes(tokenizer.id_to_token(i), encoding="utf8")
+
+        else:
+            raise Exception("The tokenizer given was not of a recognized type!")
+
+        self._orig_tokenizer = tokenizer
+
+        # Grammarless Tokenizers MUST use the ChatMLTemplate in guidance today
+        chat_template = ChatMLTemplate
+
+        self._model_interaction_thread: threading.Thread | None = None
+        self._used_bytes_len = 0
+
+        super().__init__(byte_tokens, chat_template, bos_token_id, eos_token_id)
+
+    def encode(self, byte_string: bytes) -> Sequence[int]:
+        """Returns a list of tokens that represent the given byte string."""
+        assert isinstance(byte_string, bytes)
+        return self._orig_tokenizer.encode(byte_string.decode())
+
 
 class GrammarlessEngine(Engine):
     def __init__(
@@ -36,15 +145,13 @@ class GrammarlessEngine(Engine):
 
         # this is where the streaming thread puts results
         self._data_queue: queue.Queue = queue.Queue()
-        # TODO: use tokens here, not bytes. We don't need to re-tokenize, but we do need
-        # to know how the model tokenized the response in order to send the EngineCallResponse.
         self._data = b""  # these are the bytes we are ready to use in the main thread
 
         # this is phrased negatively so we can wait for the stop event
         self._not_running_stream: threading.Event = threading.Event()
-        self._last_call_time = 0.0
-        self._num_calls_made = 0 # Might be able to get rid of this except for when retrying due to API failure
-        self._current_temp = 0.0 # Probably don't need this
+        self._last_call = 0.0
+        self._num_calls_made = 0
+        self._current_temp = 0.0
         self._last_stream_start = b""
 
         self._not_running_stream.set()
@@ -52,23 +159,31 @@ class GrammarlessEngine(Engine):
         self.max_repeated_calls = 10
         self.timeout = timeout
 
-        # # Fall back to ByteTokenizer if no tokenizer is provided
-        # if not isinstance(tokenizer, Tokenizer):
-        #     tokenizer = ByteTokenizer()
+        # If tokenizer is not already an instance of Tokenizer, then instantiate it as a GrammarlessTokenizer
+        if not isinstance(tokenizer, Tokenizer):
+            tokenizer = GrammarlessTokenizer(tokenizer)
 
+        # GrammarlessEngines must use the ChatML tokenizer
+        # TODO: Consider different enforcement of this
+        if tokenizer.chat_template is not ChatMLTemplate:
+            raise Exception(
+                "The tokenizer provided to the engine follows a non-ChatML format in its chat_template. \
+                    Using a transformers, tiktoken, or guidance.GrammarlessTokenizer directly will solve this issue."
+            )
         # build the Engine
         super().__init__(tokenizer=tokenizer, compute_log_probs=compute_log_probs)
 
-    def _generator(self, prompt: list[PromptPart], temperature: float) -> Iterator[bytes]:
+        # build a prefix tree of the tokens
+        self._token_trie = cpp.ByteTrie(
+            self.tokenizer.tokens, np.arange(len(self.tokenizer.tokens))
+        )
+
+    def _generator(self, prompt: bytes, temperature: float):
         raise NotImplementedError("Child classes must implement _generator()")
 
-    def __call__(self, prompt: List[PromptPart], grammar, ensure_bos_token=True) -> Iterator[EngineCallResponse]:
+    def __call__(self, *args, **kwargs):
         self._num_calls_made = 0  # reset the number of calls count so we only limit the number of calls within a single grammar execution
-        temperature = grammar.temperature if grammar.temperature is not None else 0.0
-        for chunk in self._generator(prompt, temperature):
-
-        response = EngineCallResponse()
-        yield response
+        return super().__call__(*args, **kwargs)
 
     def _running_stream(self):
         return not self._not_running_stream.is_set()  # wrap double negation (which)
@@ -85,7 +200,7 @@ class GrammarlessEngine(Engine):
                 if (
                     self._not_running_stream.is_set()
                     or not first_iteration
-                    and time.time() - self._last_call_time > self.timeout
+                    and time.time() - self._last_call > self.timeout
                 ):
                     break
                 first_iteration = False
@@ -125,7 +240,7 @@ class GrammarlessEngine(Engine):
         # start the new stream
         self._used_bytes_len = 0
         self._current_temp = temperature
-        self._last_call_time = time.time()
+        self._last_call = time.time()
         generator = self._generator(prompt, temperature)
         self._not_running_stream.clear()  # so we know we are running
         self._num_calls_made += 1
@@ -143,7 +258,7 @@ class GrammarlessEngine(Engine):
         self._last_stream_start = self._data
 
     def get_next_token(
-        self, prompt: list[PromptPart], token_ids: list[list[int]], mask: Optional[bytes], temperature: float) -> int:
+        self, token_ids: list[int], mask: Optional[bytes], temperature: float) -> int:
 
         logger.debug(
             f"Start Grammarless.get_next_token({token_ids=}, {mask=}, {temperature=})"
@@ -158,11 +273,11 @@ class GrammarlessEngine(Engine):
         else:
             forced_bytes = b""
 
-        # whole_token_prompt = self.tokenizer.decode(token_ids)
-        prompt.append(PromptPart(modality=Modality.TEXT, content=forced_bytes))
+        whole_token_prompt = self.tokenizer.decode(token_ids)
+        prompt = whole_token_prompt + forced_bytes
         logger.debug(f"Grammarless.get_next_token: {prompt=}")
 
-        self._last_call_time = time.time()
+        self._last_call = time.time()
 
         # keep looping until we have at least one more byte past our prompt
         token_id = None
@@ -179,7 +294,6 @@ class GrammarlessEngine(Engine):
             # try and get the next token id
             elif self._data.startswith(prompt):
                 logger.debug(f"Grammarless.get_next_token: Getting next token id")
-                # This used to walk the token byte trie
                 token_id = self._get_next_token(len(prompt) - len(forced_bytes))
                 logger.debug(f"Grammarless.get_next_token: {token_id=}")
                 if token_id is not None:
@@ -231,6 +345,14 @@ class GrammarlessEngine(Engine):
                     self.tokenizer.eos_token,
                 ]  # note we assume we are role tags that end with <|im_end|>
 
+                # for _,role_end_str in self.opened_blocks.values():
+                #     role_end_str = format_pattern.sub("", role_end_str)
+                #     if len(role_end_str) > 0 and not re.fullmatch(r'\s+', role_end_str):
+                #         parts.append(role_end_str.encode("utf8"))
+
+                # # record the eos token
+                # parts.append(self.eos_token)
+
                 # see if adding an end token would work here (if so we avoid recalling the server and just produce an end token)
                 found_match = False
                 for p in parts:
@@ -281,7 +403,7 @@ class GrammarlessEngine(Engine):
             # we wait for the running stream to put something in the queue
             else:
                 # Set to essentialy infinity so we don't stop the data stream while we are waiting for it
-                self._last_call_time = 1e11
+                self._last_call = 1e11
 
                 new_bytes = self._data_queue.get()
                 logger.debug(f"Got {new_bytes} from _data_queue")
@@ -289,13 +411,69 @@ class GrammarlessEngine(Engine):
                     raise new_bytes
                 self._data += new_bytes
                 # reset out call time to allow the data stream to time out if we happen to be done with it
-                self._last_call_time = time.time()
+                self._last_call = time.time()
 
         return token_id
 
+    def _report_failed_match(self, prompt: bytes):
+        logger.debug(f"_report_failed_match: {prompt=}")
+        # check the length of the prefix match
+        match_len = 0
+        found_mismatch = False
+        data = self._data
+        for match_len, v in enumerate(prompt):
+            if v != data[match_len]:
+                found_mismatch = True
+                break
+        if not found_mismatch:
+            match_len = len(prompt)
+        leftover = prompt[match_len:]
+
+        # compute the mismatch parts
+        data_after_prompt = self._data[match_len:]
+        if len(data_after_prompt) > 40:
+            data_after_prompt = data_after_prompt[:40] + b"..."
+        prompt_tail = prompt[:match_len]
+        if len(prompt_tail) > 40:
+            prompt_tail = b"..." + prompt_tail[-40:]
+
+        # create an exception for users to deal with (that our caller can throw)
+        return ConstraintException(
+            f"The model attempted to generate {str(data_after_prompt)} after the prompt `{str(prompt_tail)}`, but that does\n"
+            + "not match the given grammar constraints! Since your model is a remote API that does not support full guidance\n"
+            + "integration we cannot force the model to follow the grammar, only flag an error when it fails to match.\n"
+            + "You can try to address this by improving the prompt, making your grammar more flexible, rerunning with\n"
+            + "a non-zero temperature, or using a model that supports full guidance grammar constraints.",
+            prompt=prompt,
+            data=data,
+        )
+
+    def _get_next_token(self, pos, allow_early_stop=False):
+        data = self._data
+        trie = self._token_trie
+        token_id = None
+        while True:
+
+            # see if we have run out of data
+            if pos >= len(data):
+                if allow_early_stop:
+                    return token_id
+                else:
+                    return None
+
+            # try and walk down the trie
+            next_byte = data[pos : pos + 1]
+            if trie.has_child(next_byte):
+                trie = trie.child(next_byte)
+                pos += 1
+                if trie.value >= 0:
+                    token_id = trie.value
+            else:
+                return token_id  # this is the longest greedy token match we can make
+
 
 class Grammarless(Model):
-    """The base class for all models that do not support Guidance grammars."""
+    """The base class for all remote models (hosted behind a remote API)."""
 
     pass
 
