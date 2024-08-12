@@ -111,14 +111,11 @@ class TransformersTokenizer(Tokenizer):
         ],
     ) -> list[bytes]:
 
-        if (
-            hasattr(transformers_tokenizer, "byte_decoder")
-            and self._byte_decoder_has_all_bytes(
-                transformers_tokenizer.byte_decoder,
-                transformers_tokenizer.get_vocab()
-            )
-        ):
+        if hasattr(transformers_tokenizer, "byte_decoder"):
             try:
+                self._check_byte_decoder_has_all_bytes(
+                    transformers_tokenizer.byte_decoder, transformers_tokenizer.vocab
+                )
                 self._check_byte_decoder_complex_round_trip(transformers_tokenizer.byte_decoder, transformers_tokenizer)
             except ByteDecoderError:
                 pass
@@ -235,13 +232,19 @@ class TransformersTokenizer(Tokenizer):
 
         return byte_decoder
 
-    def _byte_decoder_has_all_bytes(self, byte_decoder: dict[str, int], vocab: dict[str, int]) -> bool:
+    def _check_byte_decoder_has_all_bytes(self,
+        byte_decoder: dict[str, int],
+        vocab: dict[str, int]
+    ) -> None:
         # This is here because some tokenizers are bad and don't have all the bytes (I'm looking at you, microsoft/phi2)
         all_bytes = set()
         for x in vocab.keys():
             for y in x:
                 all_bytes.add(y)
-        return set(byte_decoder.keys()) >= all_bytes
+        if not set(byte_decoder.keys()) >= all_bytes:
+            raise ByteDecoderError(
+                f"Byte decoder is missing bytes: {all_bytes - set(byte_decoder.keys())}"
+            )
 
     def _check_byte_decoder_complex_round_trip(
         self,
@@ -250,7 +253,7 @@ class TransformersTokenizer(Tokenizer):
             "transformers_package.PreTrainedTokenizer",
             "transformers_package.PreTrainedTokenizerFast",
         ],
-    ):
+    ) -> None:
         # run a quick spot check to verify we can rebuild complex multi-token unicode symbols
         s = "’•¶∂ƒ˙∆£Ħ爨ൠᅘ∰፨"
         reconstructed = b""
