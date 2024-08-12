@@ -35,6 +35,9 @@ _COMMON_TRANSFORMERS_KWARGS = [
     "trust_remote_code",
 ]
 
+class ByteDecoderError(Exception):
+    pass
+
 
 class TransformersTokenizer(Tokenizer):
     def __init__(
@@ -115,7 +118,12 @@ class TransformersTokenizer(Tokenizer):
                 transformers_tokenizer.get_vocab()
             )
         ):
-            return self._byte_tokens_from_byte_decoder(transformers_tokenizer.byte_decoder, transformers_tokenizer)
+            try:
+                self.check_byte_decoder(transformers_tokenizer.byte_decoder, transformers_tokenizer)
+            except ByteDecoderError:
+                pass
+            else:
+                return self._byte_tokens_from_byte_decoder(transformers_tokenizer.byte_decoder, transformers_tokenizer)
 
         if hasattr(transformers_tokenizer, "sp_model"):
             return self._byte_tokens_from_sp_model(transformers_tokenizer)
@@ -126,6 +134,12 @@ class TransformersTokenizer(Tokenizer):
             pass
 
         fallback_byte_decoder = self._fallback_byte_decoder()
+        try:
+            self.check_byte_decoder(fallback_byte_decoder, transformers_tokenizer)
+        except ByteDecoderError as e:
+            raise ValueError(
+                "Could not build byte tokens from the tokenizer, and falling back to a standard gpt2 byte_decoder failed"
+            ) from e
         return self._byte_tokens_from_byte_decoder(fallback_byte_decoder, transformers_tokenizer)
 
     def _byte_tokens_from_byte_decoder(
@@ -207,25 +221,7 @@ class TransformersTokenizer(Tokenizer):
             byte_tokens[i] = byte_coded
         return byte_tokens
 
-    def _byte_tokens_fallback(
-        self,
-        transformers_tokenizer: Union[
-            "transformers_package.PreTrainedTokenizer",
-            "transformers_package.PreTrainedTokenizerFast",
-        ],
-    ) -> list[bytes]:
-        byte_tokens = [b""] * len(transformers_tokenizer)
-        byte_decoder: dict[str, int] = transformers_package.AutoTokenizer.from_pretrained(
-            "gpt2", use_fast=False
-        ).byte_decoder  # fall back to gpt2 mapping
-
-        # some special tokens may not have their whitespace encoded...
-        byte_decoder[" "] = 32
-        byte_decoder["\n"] = 10
-        byte_decoder["\r"] = 13
-        byte_decoder["\t"] = 9
-        byte_decoder["▁"] = 32
-
+    def check_byte_decoder(self, byte_decoder, transformers_tokenizer):
         # run a quick spot check to verify we can rebuild complex multi-token unicode symbols
         s = "’•¶∂ƒ˙∆£Ħ爨ൠᅘ∰፨"
         reconstructed = b""
@@ -245,6 +241,7 @@ class TransformersTokenizer(Tokenizer):
                 transformers_tokenizer.bos_token.encode()
             ):
                 reconstructed = reconstructed[len(transformers_tokenizer.bos_token) :]
+        # TODO: can we narrow this exception?
         except Exception as e:
             msg = textwrap.dedent(
                 f"""
@@ -253,17 +250,11 @@ class TransformersTokenizer(Tokenizer):
                 installing sentencepiece often fixes this issue (pip install sentencepiece).
                 """
             )
-            raise ValueError(msg) from e
-        assert (
-            reconstructed.decode() == s
-        ), "The passed tokenizer does not have a byte_decoder property and using a standard gpt2 byte_decoder fails!"
-
-        for i in range(len(transformers_tokenizer)):
-            byte_coded = bytes(
-                [byte_decoder[c] for c in transformers_tokenizer.convert_ids_to_tokens(i)]
+            raise ByteDecoderError(msg) from e
+        if reconstructed.decode() != s:
+            raise ByteDecoderError(
+                f"Failed to reconstruct the string {s} from the tokenizer's byte_decoder: {reconstructed.decode()!r} != {s!r}"
             )
-            byte_tokens[i] = byte_coded
-        return byte_tokens
 
     def _fallback_byte_decoder(self):
         byte_decoder = transformers_package.AutoTokenizer.from_pretrained(
