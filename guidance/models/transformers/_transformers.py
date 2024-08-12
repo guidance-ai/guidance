@@ -221,7 +221,14 @@ class TransformersTokenizer(Tokenizer):
             byte_tokens[i] = byte_coded
         return byte_tokens
 
-    def check_byte_decoder(self, byte_decoder, transformers_tokenizer):
+    def check_byte_decoder(
+        self,
+        byte_decoder: dict[str, int],
+        transformers_tokenizer: Union[
+            "transformers_package.PreTrainedTokenizer",
+            "transformers_package.PreTrainedTokenizerFast",
+        ],
+    ):
         # run a quick spot check to verify we can rebuild complex multi-token unicode symbols
         s = "’•¶∂ƒ˙∆£Ħ爨ൠᅘ∰፨"
         reconstructed = b""
@@ -256,7 +263,7 @@ class TransformersTokenizer(Tokenizer):
                 f"Failed to reconstruct the string {s} from the tokenizer's byte_decoder: {reconstructed.decode()!r} != {s!r}"
             )
 
-    def _fallback_byte_decoder(self):
+    def _fallback_byte_decoder(self) -> dict[str, int]:
         byte_decoder = transformers_package.AutoTokenizer.from_pretrained(
             "gpt2", use_fast=False
         ).byte_decoder # fall back to gpt2 mapping
