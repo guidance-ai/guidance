@@ -119,7 +119,7 @@ class TransformersTokenizer(Tokenizer):
             )
         ):
             try:
-                self.check_byte_decoder(transformers_tokenizer.byte_decoder, transformers_tokenizer)
+                self._check_byte_decoder_complex_round_trip(transformers_tokenizer.byte_decoder, transformers_tokenizer)
             except ByteDecoderError:
                 pass
             else:
@@ -135,7 +135,7 @@ class TransformersTokenizer(Tokenizer):
 
         fallback_byte_decoder = self._fallback_byte_decoder()
         try:
-            self.check_byte_decoder(fallback_byte_decoder, transformers_tokenizer)
+            self._check_byte_decoder_complex_round_trip(fallback_byte_decoder, transformers_tokenizer)
         except ByteDecoderError as e:
             raise ValueError(
                 "Could not build byte tokens from the tokenizer, and falling back to a standard gpt2 byte_decoder failed"
@@ -221,7 +221,7 @@ class TransformersTokenizer(Tokenizer):
             byte_tokens[i] = byte_coded
         return byte_tokens
 
-    def check_byte_decoder(
+    def _check_byte_decoder_complex_round_trip(
         self,
         byte_decoder: dict[str, int],
         transformers_tokenizer: Union[
