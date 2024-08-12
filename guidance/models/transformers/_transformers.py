@@ -129,7 +129,7 @@ class TransformersTokenizer(Tokenizer):
             return self._byte_tokens_from_sp_model(transformers_tokenizer)
 
         try:
-            return self._byte_tokens_from_vocab(transformers_tokenizer)
+            return self._byte_tokens_by_encoding_token_strings(transformers_tokenizer)
         except ValueError:
             pass
 
@@ -182,7 +182,7 @@ class TransformersTokenizer(Tokenizer):
             byte_tokens[i] = byte_coded.replace(space_prefix, b" ")
         return byte_tokens
 
-    def _byte_tokens_from_vocab(
+    def _byte_tokens_by_encoding_token_strings(
         self,
         transformers_tokenizer: Union[
             "transformers_package.PreTrainedTokenizer",
