@@ -221,6 +221,28 @@ class TransformersTokenizer(Tokenizer):
             byte_tokens[i] = byte_coded
         return byte_tokens
 
+    def _fallback_byte_decoder(self) -> dict[str, int]:
+        byte_decoder = transformers_package.AutoTokenizer.from_pretrained(
+            "gpt2", use_fast=False
+        ).byte_decoder # fall back to gpt2 mapping
+
+        # some special tokens may not have their whitespace encoded...
+        byte_decoder[" "] = 32
+        byte_decoder["\n"] = 10
+        byte_decoder["\r"] = 13
+        byte_decoder["\t"] = 9
+        byte_decoder["▁"] = 32
+
+        return byte_decoder
+
+    def _byte_decoder_has_all_bytes(self, byte_decoder: dict[str, int], vocab: dict[str, int]) -> bool:
+        # This is here because some tokenizers are bad and don't have all the bytes (I'm looking at you, microsoft/phi2)
+        all_bytes = set()
+        for x in vocab.keys():
+            for y in x:
+                all_bytes.add(y)
+        return set(byte_decoder.keys()) >= all_bytes
+
     def _check_byte_decoder_complex_round_trip(
         self,
         byte_decoder: dict[str, int],
@@ -262,29 +284,6 @@ class TransformersTokenizer(Tokenizer):
             raise ByteDecoderError(
                 f"Failed to reconstruct the string {s} from the tokenizer's byte_decoder: {reconstructed.decode()!r} != {s!r}"
             )
-
-    def _fallback_byte_decoder(self) -> dict[str, int]:
-        byte_decoder = transformers_package.AutoTokenizer.from_pretrained(
-            "gpt2", use_fast=False
-        ).byte_decoder # fall back to gpt2 mapping
-
-        # some special tokens may not have their whitespace encoded...
-        byte_decoder[" "] = 32
-        byte_decoder["\n"] = 10
-        byte_decoder["\r"] = 13
-        byte_decoder["\t"] = 9
-        byte_decoder["▁"] = 32
-
-        return byte_decoder
-
-
-    def _byte_decoder_has_all_bytes(self, byte_decoder: dict[str, int], vocab: dict[str, int]) -> bool:
-        # This is here because some tokenizers are bad and don't have all the bytes (I'm looking at you, microsoft/phi2)
-        all_bytes = set()
-        for x in vocab.keys():
-            for y in x:
-                all_bytes.add(y)
-        return set(byte_decoder.keys()) >= all_bytes
 
     def _bytes_to_unicode(self):
         bs = (
