@@ -113,10 +113,9 @@ class TransformersTokenizer(Tokenizer):
 
         if hasattr(transformers_tokenizer, "byte_decoder"):
             try:
-                self._check_byte_decoder_has_all_bytes(
+                self._check_byte_decoder(
                     transformers_tokenizer.byte_decoder, transformers_tokenizer.vocab
                 )
-                self._check_byte_decoder_complex_round_trip(transformers_tokenizer.byte_decoder, transformers_tokenizer)
             except ByteDecoderError:
                 pass
             else:
@@ -132,7 +131,9 @@ class TransformersTokenizer(Tokenizer):
 
         fallback_byte_decoder = self._fallback_byte_decoder()
         try:
-            self._check_byte_decoder_complex_round_trip(fallback_byte_decoder, transformers_tokenizer)
+            self._check_byte_decoder(
+                transformers_tokenizer.byte_decoder, transformers_tokenizer.vocab
+            )
         except ByteDecoderError as e:
             raise ValueError(
                 "Could not build byte tokens from the tokenizer, and falling back to a standard gpt2 byte_decoder failed"
@@ -232,21 +233,7 @@ class TransformersTokenizer(Tokenizer):
 
         return byte_decoder
 
-    def _check_byte_decoder_has_all_bytes(self,
-        byte_decoder: dict[str, int],
-        vocab: dict[str, int]
-    ) -> None:
-        # This is here because some tokenizers are bad and don't have all the bytes (I'm looking at you, microsoft/phi2)
-        all_bytes = set()
-        for x in vocab.keys():
-            for y in x:
-                all_bytes.add(y)
-        if not set(byte_decoder.keys()) >= all_bytes:
-            raise ByteDecoderError(
-                f"Byte decoder is missing bytes: {all_bytes - set(byte_decoder.keys())}"
-            )
-
-    def _check_byte_decoder_complex_round_trip(
+    def _check_byte_decoder(
         self,
         byte_decoder: dict[str, int],
         transformers_tokenizer: Union[
@@ -254,39 +241,55 @@ class TransformersTokenizer(Tokenizer):
             "transformers_package.PreTrainedTokenizerFast",
         ],
     ) -> None:
-        # run a quick spot check to verify we can rebuild complex multi-token unicode symbols
-        s = "’•¶∂ƒ˙∆£Ħ爨ൠᅘ∰፨"
-        reconstructed = b""
-        try:
-            input_ids = transformers_tokenizer(s)["input_ids"]
-            for i in input_ids:
-                nxt_bytes = []
-                token_str = transformers_tokenizer.convert_ids_to_tokens(i)
-                for c in token_str:
-                    nxt_bytes.append(byte_decoder[c])
-                reconstructed += bytes(nxt_bytes)
-            # Check if the tokenizer has a bos_token attribute, and if it does, check
-            # if it's at the start of the reconstructed bytes
-            # Some tokenizers add this automatically as part of the call function, so
-            # we need to remove it to compare
-            if hasattr(transformers_tokenizer, "bos_token") and reconstructed.startswith(
-                transformers_tokenizer.bos_token.encode()
-            ):
-                reconstructed = reconstructed[len(transformers_tokenizer.bos_token) :]
-        # TODO: can we narrow this exception?
-        except Exception as e:
-            msg = textwrap.dedent(
-                f"""
-                The tokenizer being used is unable to convert a special character in {s}.
-                For models with sentencepiece based tokenizers (e.g. llama, phi-3-mini),
-                installing sentencepiece often fixes this issue (pip install sentencepiece).
-                """
-            )
-            raise ByteDecoderError(msg) from e
-        if reconstructed.decode() != s:
-            raise ByteDecoderError(
-                f"Failed to reconstruct the string {s} from the tokenizer's byte_decoder: {reconstructed.decode()!r} != {s!r}"
-            )
+
+        def check_byte_decoder_has_all_bytes() -> None:
+            # This is here because some tokenizers are bad and don't have all the bytes (I'm looking at you, microsoft/phi2)
+            all_bytes = set()
+            for x in transformers_tokenizer.vocab.keys():
+                for y in x:
+                    all_bytes.add(y)
+            if not set(byte_decoder.keys()) >= all_bytes:
+                raise ByteDecoderError(
+                    f"Byte decoder is missing bytes: {all_bytes - set(byte_decoder.keys())}"
+                )
+
+        def check_byte_decoder_complex_round_trip() -> None:
+            # run a quick spot check to verify we can rebuild complex multi-token unicode symbols
+            s = "’•¶∂ƒ˙∆£Ħ爨ൠᅘ∰፨"
+            reconstructed = b""
+            try:
+                input_ids = transformers_tokenizer(s)["input_ids"]
+                for i in input_ids:
+                    nxt_bytes = []
+                    token_str = transformers_tokenizer.convert_ids_to_tokens(i)
+                    for c in token_str:
+                        nxt_bytes.append(byte_decoder[c])
+                    reconstructed += bytes(nxt_bytes)
+                # Check if the tokenizer has a bos_token attribute, and if it does, check
+                # if it's at the start of the reconstructed bytes
+                # Some tokenizers add this automatically as part of the call function, so
+                # we need to remove it to compare
+                if hasattr(transformers_tokenizer, "bos_token") and reconstructed.startswith(
+                    transformers_tokenizer.bos_token.encode()
+                ):
+                    reconstructed = reconstructed[len(transformers_tokenizer.bos_token) :]
+            # TODO: can we narrow this exception?
+            except Exception as e:
+                msg = textwrap.dedent(
+                    f"""
+                    The tokenizer being used is unable to convert a special character in {s}.
+                    For models with sentencepiece based tokenizers (e.g. llama, phi-3-mini),
+                    installing sentencepiece often fixes this issue (pip install sentencepiece).
+                    """
+                )
+                raise ByteDecoderError(msg) from e
+            if reconstructed.decode() != s:
+                raise ByteDecoderError(
+                    f"Failed to reconstruct the string {s} from the tokenizer's byte_decoder: {reconstructed.decode()!r} != {s!r}"
+                )
+
+        check_byte_decoder_has_all_bytes()
+        check_byte_decoder_complex_round_trip()
 
     def _bytes_to_unicode(self):
         bs = (
