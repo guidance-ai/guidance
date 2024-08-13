@@ -114,7 +114,7 @@ class TransformersTokenizer(Tokenizer):
         if hasattr(transformers_tokenizer, "byte_decoder"):
             try:
                 self._check_byte_decoder(
-                    transformers_tokenizer.byte_decoder, transformers_tokenizer.vocab
+                    transformers_tokenizer.byte_decoder, transformers_tokenizer
                 )
             except ByteDecoderError:
                 pass
@@ -132,7 +132,7 @@ class TransformersTokenizer(Tokenizer):
         fallback_byte_decoder = self._fallback_byte_decoder()
         try:
             self._check_byte_decoder(
-                transformers_tokenizer.byte_decoder, transformers_tokenizer.vocab
+                transformers_tokenizer.byte_decoder, transformers_tokenizer
             )
         except ByteDecoderError as e:
             raise ValueError(
@@ -245,7 +245,7 @@ class TransformersTokenizer(Tokenizer):
         def check_byte_decoder_has_all_bytes() -> None:
             # This is here because some tokenizers are bad and don't have all the bytes (I'm looking at you, microsoft/phi2)
             all_bytes = set()
-            for x in transformers_tokenizer.vocab.keys():
+            for x in transformers_tokenizer.get_vocab().keys():
                 for y in x:
                     all_bytes.add(y)
             if not set(byte_decoder.keys()) >= all_bytes:
