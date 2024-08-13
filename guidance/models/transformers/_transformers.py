@@ -132,7 +132,7 @@ class TransformersTokenizer(Tokenizer):
         fallback_byte_decoder = self._fallback_byte_decoder()
         try:
             self._check_byte_decoder(
-                transformers_tokenizer.byte_decoder, transformers_tokenizer
+                fallback_byte_decoder, transformers_tokenizer
             )
         except ByteDecoderError as e:
             raise ValueError(
