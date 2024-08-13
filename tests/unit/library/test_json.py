@@ -1253,6 +1253,37 @@ class TestAllOf:
             lm += gen_json(name=CAPTURE_KEY, schema=schema_obj)
         assert ve.value.args[0] == "Only support allOf with exactly one item"
 
+class TestOneOf:
+    @pytest.mark.parametrize("target_obj", [123, 42])
+    def test_oneOf_simple(self, target_obj):
+        schema = """{
+            "oneOf" : [{ "type": "integer" }]
+        }
+        """
+        # First sanity check what we're setting up
+        schema_obj = json.loads(schema)
+        validate(instance=target_obj, schema=schema_obj)
+
+        # The actual check
+        generate_and_check(target_obj, schema_obj)
+
+
+    @pytest.mark.parametrize("target_obj", [123, True])
+    def test_oneOf_compound(self, target_obj):
+        schema = """{
+        "oneOf" : [{ "type": "integer" }, { "type": "boolean" }]
+        }
+        """
+        # First sanity check what we're setting up
+        schema_obj = json.loads(schema)
+        validate(instance=target_obj, schema=schema_obj)
+
+        # The actual check; we expect a warning here because oneOf is not fully supported
+        with pytest.warns() as record:
+            generate_and_check(target_obj, schema_obj)
+        assert len(record) == 1
+        assert record[0].message.args[0].startswith("oneOf not fully supported")
+
 
 class TestEnum:
     simple_schema = """{
