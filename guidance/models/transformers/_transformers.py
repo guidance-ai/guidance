@@ -87,30 +87,43 @@ class TransformersTokenizer(Tokenizer):
                 byte_tokens[i] = byte_coded.replace(space_prefix, b" ")
 
         elif hasattr(transformers_tokenizer, "get_vocab"):
+            space_prefix = "▁".encode()
             vocab = transformers_tokenizer.get_vocab()
-            byte_encoder = self._bytes_to_unicode()
-            byte_decoder = {v: k for k, v in byte_encoder.items()}
+            for token, tok_id in vocab.items():
+                byte_coded = token.encode()
+                byte_tokens[tok_id] = byte_coded
+                if kwargs.get("sp_whitespace", False):
+                    byte_tokens[tok_id] = byte_coded.replace(space_prefix, b" ")
+            # token_id_to_str = {v: k for k, v in vocab.items()}
+            # byte_encoder = self._bytes_to_unicode()
+            # byte_decoder = {v: k for k, v in byte_encoder.items()}
 
-            for i in range(len(transformers_tokenizer)):
-                if i in special_tokens_map:
-                    byte_coded = special_tokens_map[i].encode()
-                else:
-                    token = transformers_tokenizer.convert_ids_to_tokens(i)
-                    if isinstance(token, bytes):
-                        byte_coded = token
-                    elif isinstance(token, str):
-                        if hasattr(transformers_tokenizer, "convert_tokens_to_string"):
-                            token_str = transformers_tokenizer.convert_tokens_to_string([token])
-                            roundtrip_id = transformers_tokenizer.encode(token_str)[0]
-                            if roundtrip_id == i:
-                                byte_coded = token_str.encode()
-                            else:
-                                byte_coded = bytes([byte_decoder[c] for c in token])
-                        else:
-                            byte_coded = token.encode()
-                    else:
-                        raise ValueError(f"Unexpected token type: {type(token)}")
-                byte_tokens[i] = byte_coded
+            # for i in range(len(transformers_tokenizer)):
+            #     if i in special_tokens_map:
+            #         byte_coded = special_tokens_map[i].encode()
+            #     else:
+            #         token = transformers_tokenizer.convert_ids_to_tokens(i)
+            #         if isinstance(token, bytes):
+            #             byte_coded = token
+            #         elif isinstance(token, str):
+            #             if hasattr(transformers_tokenizer, "convert_tokens_to_string"):
+            #                 token_str = transformers_tokenizer.convert_tokens_to_string([token])
+            #                 roundtrip_id = transformers_tokenizer.encode(token_str)[0]
+            #                 if roundtrip_id == i:
+            #                     byte_coded = token_str.encode()
+            #                 else:
+            #                     try:
+            #                         byte_coded = bytes([byte_decoder[c] for c in token])
+            #                     except Exception as e:
+            #                         print(f"Failed to encode token: {token}")
+            #                         # import pdb
+            #                         # pdb.set_trace()
+            #                         pass
+            #             else:
+            #                 byte_coded = token.encode()
+            #         else:
+            #             raise ValueError(f"Unexpected token type: {type(token)}")
+            #     byte_tokens[i] = byte_coded
 
         else:
             byte_decoder = transformers_package.AutoTokenizer.from_pretrained(

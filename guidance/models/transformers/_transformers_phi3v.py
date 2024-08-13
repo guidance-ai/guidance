@@ -40,7 +40,7 @@ class TransformersPhi3VisionEngine(Engine):
         # Processor handles tokenization and image processing
         self.processor = AutoProcessor.from_pretrained(self.model_name, trust_remote_code=True)
         super().__init__(self.processor.tokenizer, compute_log_probs)
-        self.tokenizer = TransformersTokenizer(model, self.processor.tokenizer)
+        self.tokenizer = TransformersTokenizer(model, self.processor.tokenizer, sp_whitespace=True)
 
         # Cache for past key values
         self._past_key_values = None

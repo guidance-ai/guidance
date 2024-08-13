@@ -13,9 +13,10 @@ def phi3_vision_model():
     try:
         model_kwargs = {
             # "_attn_implementation": "eager", # Uncomment this line if flash attention is not working
+            "trust_remote_code": True,
         }
         model = models.TransformersPhi3Vision(
-            model=PHI_3_VISION_MODEL, trust_remote_code=True, **model_kwargs
+            model=PHI_3_VISION_MODEL, **model_kwargs
         )
         return model
     except ImportError as e:
