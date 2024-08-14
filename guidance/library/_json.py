@@ -56,6 +56,7 @@ DEFS_KEYS = {"$defs", "definitions"}
 IGNORED_KEYS = {
     "$schema",
     "$id",
+    "id",
     "$comment",
     "title",
     "description",
