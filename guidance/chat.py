@@ -214,6 +214,9 @@ phi3_small_template = "{{ bos_token }}{% for message in messages %}{{'<|' + mess
 phi3_medium_template = "{% for message in messages %}{% if (message['role'] == 'user') %}{{'<|user|>' + '\n' + message['content'] + '<|end|>' + '\n' + '<|assistant|>' + '\n'}}{% elif (message['role'] == 'assistant') %}{{message['content'] + '<|end|>' + '\n'}}{% endif %}{% endfor %}"
 
 
+# https://huggingface.co/microsoft/Phi-3-vision-128k-instruct/blob/main/tokenizer_config.json#L397
+phi3_vision_template = "{% for message in messages %}{{'<|' + message['role'] + '|>' + '\n' + message['content'] + '<|end|>\n' }}{% endfor %}{% if add_generation_prompt and messages[-1]['role'] != 'assistant' %}{{- '<|assistant|>\n' -}}{% endif %}"
+
 # Although the templates are different, the roles are the same between medium and small (for now)
 class Phi3SmallMediumChatTemplate(ChatTemplate):
     # available_roles = ["user", "assistant"]
@@ -233,6 +236,8 @@ class Phi3SmallMediumChatTemplate(ChatTemplate):
 
 CHAT_TEMPLATE_CACHE[phi3_small_template] = Phi3SmallMediumChatTemplate
 CHAT_TEMPLATE_CACHE[phi3_medium_template] = Phi3SmallMediumChatTemplate
+CHAT_TEMPLATE_CACHE[phi3_vision_template] = Phi3SmallMediumChatTemplate
+
 
 # --------------------------------------------------
 # @@@@ Mistral-7B-Instruct-v0.2 @@@@
