@@ -323,6 +323,9 @@ class Engine:
                     logits = torch.tensor(logits)
                     torch.div(logits, current_temp, out=logits)
                     probs_torch = torch.nn.functional.softmax(logits, dim=-1)
+                    if any(probs_torch < 0) or not all(torch.isfinite(probs_torch)):
+                        bad_indices = np.where(probs_torch < 0) or np.where(~torch.isfinite(probs_torch))
+                        raise ValueError(f"Invalid probabilities in torch softmax at indices {bad_indices}: {probs_torch[bad_indices]}; logits: {logits[bad_indices]}")
                     sampling_order = torch.multinomial(probs_torch, len(probs_torch)).cpu().numpy()
                 else:
                     # this numpy version allows us to drop our dependence on pytorch...but it is way slower
