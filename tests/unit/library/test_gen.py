@@ -1,3 +1,4 @@
+import pytest
 from collections import defaultdict
 import guidance
 from guidance import gen, models
@@ -113,6 +114,14 @@ def test_list_append():
     assert isinstance(lm["my_list"], list)
     assert len(lm["my_list"]) == 3
 
+@pytest.mark.xfail(
+    reason="llguidance currently emits an additional empty capture group when no explicit stop is provided"
+)
+def test_list_append_no_explicit_stop():
+    model = models.Mock("<s>bbbbbbb<s>")
+    model += gen("list", list_append=True)
+    assert model["list"][-1] == "bbbbbbb"
+    assert len(model["list"]) == 1
 
 def test_list_append_in_grammar():
     """This tests is list append works within the same grammar."""
