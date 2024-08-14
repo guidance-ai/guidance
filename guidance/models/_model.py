@@ -29,7 +29,11 @@ try:
     torch_is_imported = True
 except ImportError:
     torch_is_imported = False
-
+try:
+    import marimo
+    marimo_is_imported = True
+except ImportError:
+    marimo_is_imported = False
 
 logger = logging.getLogger(__name__)
 try:
@@ -1026,6 +1030,8 @@ class Model:
             if ipython_is_imported:
                 clear_output(wait=True)
                 display(HTML(self._html()))
+            elif marimo_is_imported:
+                marimo.output.replace(marimo.Html(self._html()))
             else:
                 pprint(self._state)
 
