@@ -43,6 +43,7 @@ class Keyword(str, Enum):
     ENUM = "enum"
     TYPE = "type"
     PATTERN = "pattern"
+    FORMAT = "format"
     MIN_LENGTH = "minLength"
     MAX_LENGTH = "maxLength"
 
@@ -76,6 +77,45 @@ STRING_CHARS = [
     "\\t",
     "\\\\",
 ]
+
+FORMAT_PATTERNS: dict[str, Optional[str]] = {
+    # https://json-schema.org/understanding-json-schema/reference/string#built-in-formats
+    # Dates and times
+    "date-time": r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})',
+    "time": r'\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?',
+    "date": r'\d{4}-\d{2}-\d{2}',
+    "duration": r'P(\d+Y)?(\d+M)?(\d+D)?(T(\d+H)?(\d+M)?(\d+S)?)?',
+    # Email addresses
+    "email": r'[^\s@]+@[^\s@]+\.[^\s@]+',
+    "idn-email": r'[^\s@]+@[^\s@]+\.[^\s@]+',  # TODO: adjust for IDN email regex
+    # Hostnames
+    "hostname": r'[a-zA-Z0-9-]{1,63}(\.[a-zA-Z0-9-]{1,63})+',
+    "idn-hostname": r'[a-zA-Z0-9-]{1,63}(\.[a-zA-Z0-9-]{1,63})+',  # TODO: adjust for IDN hostname regex
+    "ipv4": r'(\d{1,3}\.){3}\d{1,3}',
+    "ipv6": r'[a-fA-F0-9:]+',
+    # Resource identifiers
+    "uuid": r'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}',
+    "uri": None,
+    "uri-reference": None,
+    "iri": None,
+    "iri-reference": None,
+    # URI template
+    "uri-template": None,
+    # JSON pointers
+    "json-pointer": None,
+    "relative-json-pointer": None,
+    # Regular expressions
+    "regex": None, # Might need a full CFG?
+}
+
+def _get_format_pattern(format: str) -> str:
+    try:
+        pattern = FORMAT_PATTERNS[format]
+    except KeyError:
+        raise ValueError(f"Format {format!r} is not supported")
+    if pattern is None:
+        raise NotImplementedError(f"Format {format!r} is not yet supported")
+    return pattern
 
 
 def validate_json_node_keys(node: Mapping[str, Any]):
@@ -111,16 +151,20 @@ def _gen_json_string(
     min_length: int = 0,
     max_length: Union[int, None] = None,
     regex: Union[str, None] = None,
+    format: Union[str, None] = None,
 ):
     lm += '"'
-    if regex is not None:
+    if regex is not None or format is not None:
         if min_length > 0 or max_length is not None:
             msg = (
-                "If a pattern is specified for a JSON "
-                "string, minLength and maxLength must be "
-                "left unspecified."
+                "If a pattern or format is specified for a JSON string,"
+                " minLength and maxLength must be left unspecified."
             )
             raise ValueError(msg)
+        if format is not None:
+            if regex is not None:
+                raise ValueError("Cannot specify both a regex and a format for a JSON string")
+            regex = _get_format_pattern(format)
         lm += gen(regex=regex)
     else:
         lm += sequence(select(STRING_CHARS), min_length=min_length, max_length=max_length)
@@ -359,6 +403,7 @@ def _gen_json(
         if target_type == "string":
             return lm + _gen_json_string(
                 regex=json_schema.get(Keyword.PATTERN, None),
+                format=json_schema.get(Keyword.FORMAT, None),
                 min_length=json_schema.get(Keyword.MIN_LENGTH, 0),
                 max_length=json_schema.get(Keyword.MAX_LENGTH, None),
             )
