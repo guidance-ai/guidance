@@ -63,6 +63,7 @@ IGNORED_KEYS = {
     "default",
     "examples",
     "required",  # TODO: implement and remove from ignored list
+    "discriminator", # TODO: alternatively we could implement this in a stateful way
 }
 
 TYPE_SPECIFIC_KEYS = {
