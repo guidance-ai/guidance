@@ -51,6 +51,8 @@ nodisp_pattern = re.compile(
     r"&lt;\|\|_#NODISP_\|\|&gt;.*?&lt;\|\|_/NODISP_\|\|&gt;", flags=re.DOTALL
 )
 html_pattern = re.compile(r"&lt;\|\|_html:(.*?)_\|\|&gt;", flags=re.DOTALL)
+image_pattern = re.compile(r"&lt;\|_IMAGE:(.*?)\|&gt;")
+
 
 class Modality(Enum):
     TEXT = 1

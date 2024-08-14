@@ -6,6 +6,7 @@ from guidance._grammar import string
 
 PHI_3_VISION_MODEL = "microsoft/Phi-3-vision-128k-instruct"
 
+# TODO - tests with regular guidance grammars, no images
 
 @pytest.fixture(scope="module")
 def phi3_vision_model():
