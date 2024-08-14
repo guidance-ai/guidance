@@ -65,7 +65,7 @@ test_requires = [
     "pytest-cov",
     "sentencepiece",
     "torch",
-    "transformers!=4.43.0,!=4.43.1,!=4.43.2,!=4.43.3", # Exclusion due to trouble with GPT2 on MacOS ARM
+    "transformers",
     "mypy==1.9.0",
     "types-regex",
     "types-requests",

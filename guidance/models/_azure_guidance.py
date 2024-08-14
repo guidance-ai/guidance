@@ -56,6 +56,10 @@ class AzureGuidanceEngine(Engine):
         }
 
         url, headers, info = _mk_url("run", conn_str=self.conn_str)
+        if self.log_level >= 4:
+            print(f"POST {info}", flush=True)
+        if self.log_level >= 5:
+            print(f"  {json.dumps(data, indent=None)}", flush=True)
         resp = requests.request("post", url, headers=headers, json=data, stream=True)
 
         if resp.status_code != 200:
@@ -90,7 +94,10 @@ class AzureGuidanceEngine(Engine):
                         if ln.startswith("JSON-OUT: "):
                             j = json.loads(ln[10:])
                             progress.append(j)
-                        elif ln.startswith("Warning: "):
+                        # don't print warnings if log_level >= 0, since we're 
+                        # going to print them anyway below together with the
+                        # rest of the logs
+                        elif ln.startswith("Warning: ") and self.log_level < 2:
                             if self.log_level >= 1:
                                 print(ln, flush=True)
                     progress = LLProgress.model_validate(progress)
