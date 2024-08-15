@@ -43,7 +43,7 @@ To change that default, run
 ```bash
 python -m pytest -m "not (needs_credentials or use_gpu or server)" --selected_model <MODELNAME> ./tests/
 ```
-where `<MODELNAME>` is taken from the `AVAILABLE_MODELS` dictionary defined in `conftest.py`.
+where `<MODELNAME>` is taken from the `AVAILABLE_MODELS` dictionary defined in `_llms_for_testing.py`.
 
 Alternatively, the default value for `--selected_model` can be set via the `GUIDANCE_SELECTED_MODEL` environment variable.
 This may be useful when trying to use a debugger when running `pytest`, and setting the extra command line argument in the debugger configuration is tricky.

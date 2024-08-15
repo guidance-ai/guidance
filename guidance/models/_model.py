@@ -1254,6 +1254,7 @@ class Model:
         """
         copy = self.copy()
         copy._variables[key] = value
+        copy._variables_log_probs[key] = 0.0
         return copy
 
     def remove(self, key):
@@ -1403,7 +1404,9 @@ class Model:
 
                                 if k not in lm or not isinstance(lm._variables[k], list):
                                     lm._variables[k] = []
+                                if k not in lm._variables_log_probs or not isinstance(lm._variables_log_probs[k], list):
                                     lm._variables_log_probs[k] = []
+                                    
                                 lm._variables[k].append(inner_v)
                                 lm._variables_log_probs[k].append(
                                     chunk.capture_group_log_probs[k][i]
