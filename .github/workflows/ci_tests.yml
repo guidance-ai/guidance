@@ -132,7 +132,7 @@ jobs:
       - name: Ensure NVIDIA SDK available
         run: |
           sudo apt-get -y install cuda-toolkit
-          echo "/usr/local/cuda-12.5/bin" >> $GITHUB_PATH
+          echo "/usr/local/cuda-12.6/bin" >> $GITHUB_PATH
       - name: Install dependencies
         shell: bash
         run: |
