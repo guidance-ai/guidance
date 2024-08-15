@@ -150,6 +150,9 @@ jobs:
         run: |
           pip install accelerate
           pip uninstall -y llama-cpp-python
+          echo "======================"
+          nvcc --version
+          echo "======================"
           CMAKE_ARGS="-DGGML_CUDA=on --trace" pip install --verbose "llama-cpp-python!=0.2.58,!=0.2.75"
       - name: Check GPU available
         run: |
