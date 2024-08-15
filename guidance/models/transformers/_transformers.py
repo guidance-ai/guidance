@@ -38,6 +38,8 @@ _COMMON_TRANSFORMERS_KWARGS = [
 class ByteDecoderError(Exception):
     pass
 
+class ByteTokensError(Exception):
+    pass
 
 class TransformersTokenizer(Tokenizer):
     def __init__(
@@ -54,7 +56,7 @@ class TransformersTokenizer(Tokenizer):
     ):
         if transformers_tokenizer is None:
             if isinstance(model, str):
-                transformers_tokenizer = self._tokenizer(model, **kwargs)
+                transformers_tokenizer, byte_tokens = self._tokenizer(model, **kwargs)
             else:
                 raise ValueError(
                     "A model object was passed in, but no tokenizer was provided. Please provide a tokenizer."
@@ -65,8 +67,9 @@ class TransformersTokenizer(Tokenizer):
                 transformers_tokenizer, transformers_package.PreTrainedTokenizerFast
             )
             assert is_ptt or is_ptt_fast
+            byte_tokens = self._byte_tokens(transformers_tokenizer)
+
         self._orig_tokenizer = transformers_tokenizer
-        byte_tokens = self._byte_tokens(transformers_tokenizer)
 
         # Chat Template logic
         if chat_template is None and hasattr(self._orig_tokenizer, "chat_template"):
@@ -80,9 +83,12 @@ class TransformersTokenizer(Tokenizer):
             transformers_tokenizer.eos_token_id,
         )
 
-    def _tokenizer(self, model: str, **kwargs) -> Union[
-        "transformers_package.PreTrainedTokenizer",
-        "transformers_package.PreTrainedTokenizerFast",
+    def _tokenizer(self, model: str, **kwargs) -> tuple[
+        Union[
+            "transformers_package.PreTrainedTokenizer",
+            "transformers_package.PreTrainedTokenizerFast",
+        ],
+        list[bytes],
     ]:
         # make sure transformers is installed
         if not has_transformers:
@@ -92,16 +98,27 @@ class TransformersTokenizer(Tokenizer):
             tokenizer = transformers_package.AutoTokenizer.from_pretrained(
                 model, use_fast=False, **kwargs
             )
+            byte_tokens = self._byte_tokens(tokenizer)
         except ImportError:
+            # Raise on ImportError because it's likely a missing dependency that the user can install
             raise
+        except ByteTokensError as e:
+            # Give a specific warning for ByteTokensError and fall back to fast tokenizer
+            warnings.warn(f"Falling back to fast tokenizer. Could not build byte tokens for model {model!r} due to exception {e.__class__.__name__}: {e}")
         except Exception as e:
             # Fall back for other exceptions
-            warnings.warn(f"Falling back to fast tokenizer. Could not load tokenizer for model {model} due to exception {e.__class__.__name__}: {e}")
-            tokenizer = transformers_package.AutoTokenizer.from_pretrained(
-                model, use_fast=True, **kwargs
-            )  # fall back to the fast tokenizer
+            warnings.warn(f"Falling back to fast tokenizer. Could not load tokenizer for model {model!r} due to exception {e.__class__.__name__}: {e}")
+        else:
+            return tokenizer, byte_tokens
 
-        return tokenizer
+        tokenizer = transformers_package.AutoTokenizer.from_pretrained(
+            model, use_fast=True, **kwargs
+        )
+        try:
+            byte_tokens = self._byte_tokens(tokenizer)
+        except ByteTokensError as e:
+            raise ValueError(f"Fallback to fast tokenizer failed for model {model!r}") from e
+        return tokenizer, byte_tokens
 
     def _byte_tokens(
         self,
@@ -135,7 +152,8 @@ class TransformersTokenizer(Tokenizer):
                 fallback_byte_decoder, transformers_tokenizer
             )
         except ByteDecoderError as e:
-            raise ValueError(
+            # Should be the only exception that is raised in _byte_tokens
+            raise ByteTokensError(
                 "Could not build byte tokens from the tokenizer, and falling back to a standard gpt2 byte_decoder failed"
             ) from e
         return self._byte_tokens_from_byte_decoder(fallback_byte_decoder, transformers_tokenizer)
