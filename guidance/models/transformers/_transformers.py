@@ -133,7 +133,10 @@ class TransformersTokenizer(Tokenizer):
                 self._check_byte_decoder(
                     transformers_tokenizer.byte_decoder, transformers_tokenizer
                 )
-            except ByteDecoderError:
+            except ByteDecoderError as e:
+                warnings.warn(
+                    f"Tokenizer has a byte_decoder, but it can't be used to construct byte_tokens: {e}"
+                )
                 pass
             else:
                 return self._byte_tokens_from_byte_decoder(transformers_tokenizer.byte_decoder, transformers_tokenizer)
@@ -143,7 +146,10 @@ class TransformersTokenizer(Tokenizer):
 
         try:
             return self._byte_tokens_by_encoding_token_strings(transformers_tokenizer)
-        except ValueError:
+        except ValueError as e:
+            warnings.warn(
+                f"Could not build_byte tokens from the tokenizer by encoding token strings: {e}"
+            )
             pass
 
         fallback_byte_decoder = self._fallback_byte_decoder()
