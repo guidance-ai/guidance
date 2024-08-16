@@ -48,8 +48,8 @@ jobs:
         shell: bash
         run: |
           pytest --cov=guidance --cov-report=xml --cov-report=term-missing \
-          --selected_model ${{ inputs.model }} \
-          ./tests/unit ./tests/model_integration ./tests/model_specific
+            --selected_model ${{ inputs.model }} \
+            ./tests/unit ./tests/model_integration ./tests/model_specific
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4
         with:
