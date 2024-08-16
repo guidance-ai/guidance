@@ -51,7 +51,7 @@ def test_azureai_openai_chat_alt_args(rate_limiter):
     parsed_url = urlparse(azureai_endpoint)
     parsed_query = parse_qs(parsed_url.query)
     azureai_deployment = pathlib.Path(parsed_url.path).parts[3]
-    version = parsed_query["api-version"]
+    version = parsed_query["api-version"][0]
     min_azureai_endpoint = f"{parsed_url.scheme}://{parsed_url.netloc}"
 
     token_provider = get_bearer_token_provider(
