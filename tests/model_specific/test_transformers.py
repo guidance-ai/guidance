@@ -58,7 +58,7 @@ def test_transformer_smoke_gen(model_name, model_kwargs):
     assert len(lm["answer"]) > 0, f"Output: {lm['answer']}"
 
     # Make sure not too much was produced
-    assert len(lm.engine.tokenizer.encode(lm["answer"])) <= MAX_TOKENS, f"Output: {lm['answer']}"
+    assert len(lm.engine.tokenizer.encode(lm["answer"]).encode()) <= MAX_TOKENS, f"Output: {lm['answer']}"
 
 
 @pytest.mark.parametrize(["model_name", "model_kwargs"], TRANSFORMER_MODELS.items())
