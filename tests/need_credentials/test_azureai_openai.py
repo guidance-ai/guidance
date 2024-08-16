@@ -17,6 +17,9 @@ def azureai_chat_model(rate_limiter):
     azureai_endpoint = env_or_fail("AZUREAI_CHAT_ENDPOINT")
     model = env_or_fail("AZUREAI_CHAT_MODEL")
 
+    print(f"{azureai_endpoint=}____")
+    print(f"{model=}____")
+
     token_provider = get_bearer_token_provider(
         DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
     )
