@@ -17,22 +17,15 @@ def azureai_chat_model(rate_limiter):
     azureai_endpoint = env_or_fail("AZUREAI_CHAT_ENDPOINT")
     model = env_or_fail("AZUREAI_CHAT_MODEL")
 
-    parsed_url = urlparse(azureai_endpoint)
-    parsed_query = parse_qs(parsed_url.query)
-    azureai_deployment = pathlib.Path(parsed_url.path).parts[3]
-    version = parsed_query["api-version"]
-    min_azureai_endpoint = f"{parsed_url.scheme}://{parsed_url.netloc}"
+    print(f"{azureai_endpoint=}")
+    print(f"{model=}")
 
     token_provider = get_bearer_token_provider(
         DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
     )
 
     lm = models.AzureOpenAI(
-        model=model,
-        azure_endpoint=min_azureai_endpoint,
-        version=version,
-        azure_ad_token_provider=token_provider,
-        azure_deployment=azureai_deployment,
+        model=model, azure_endpoint=azureai_endpoint, azure_ad_token_provider=token_provider
     )
     assert isinstance(lm, models.AzureOpenAI)
 
