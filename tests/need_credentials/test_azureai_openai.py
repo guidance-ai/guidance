@@ -21,6 +21,9 @@ def azureai_chat_model(rate_limiter):
         DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
     )
 
+    print(f"azureai_endpoint {' '.join(azureai_endpoint)}")
+    print(f"model {' '.join(model)}")
+
     lm = models.AzureOpenAI(
         model=model, azure_endpoint=azureai_endpoint, azure_ad_token_provider=token_provider
     )
