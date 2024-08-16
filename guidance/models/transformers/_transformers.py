@@ -331,7 +331,7 @@ class TransformersTokenizer(Tokenizer):
         cs = [chr(n) for n in cs]
         return dict(zip(bs, cs))
 
-    def encode(self, byte_string: bytes) -> Sequence[int]:
+    def encode(self, byte_string: bytes) -> list[int]:
         assert isinstance(byte_string, bytes)
         # HF tokenizers take in strings apparently
         tokenization = self._orig_tokenizer(byte_string.decode(), add_special_tokens=False)
@@ -341,7 +341,7 @@ class TransformersTokenizer(Tokenizer):
         decoded_str = self._orig_tokenizer.decode(tokens)
         return decoded_str.encode()
 
-    def recode(self, tokens: Sequence[int]) -> Sequence[int]:
+    def recode(self, tokens: Sequence[int]) -> list[int]:
         # the encode/decode cycle might not work if we have partial unicode strings
         used_tokens = len(tokens)
         for _ in range(3):

@@ -22,7 +22,7 @@ class MockTokenizer(Tokenizer):
         super().__init__(tokens, chat_template=None, bos_token_id=0, eos_token_id=0)
         self.byte_trie = cpp.ByteTrie(self.tokens, np.arange(len(self.tokens)))
 
-    def encode(self, byte_string: bytes) -> Sequence[int]:
+    def encode(self, byte_string: bytes) -> list[int]:
         """Simple greedy tokenizer
         TODO: could be a method on ByteTrie if we want to reuse it
         """
@@ -47,9 +47,9 @@ class MockTokenizer(Tokenizer):
 
         return tokens
 
-    def recode(self, tokens: Sequence[int]) -> Sequence[int]:
+    def recode(self, tokens: Sequence[int]) -> list[int]:
         # Make a no-op for now
-        return tokens
+        return list(tokens)
 
 
 class MockEngine(Engine):
