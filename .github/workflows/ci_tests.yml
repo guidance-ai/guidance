@@ -40,9 +40,6 @@ jobs:
       - name: Show GPUs
         run: |
           nvidia-smi
-      - name: DNS Sanity check
-        run: |
-          nslookup guidance-models-for-build.openai.azure.com
       - name: Update Ubuntu
         run: |
           sudo apt-get update
