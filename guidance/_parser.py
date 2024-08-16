@@ -82,7 +82,8 @@ class TokenParser:
             # add the beginning of sequence token if needed
             prompt_tokens = [self.tokenizer.bos_token_id] + prompt_tokens
 
-        return prompt_tokens
+        return self.tokenizer.recode(prompt_tokens)
+
 
     def _parse(
         self,
