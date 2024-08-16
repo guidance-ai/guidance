@@ -75,10 +75,10 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           # Configure endpoints for Azure OpenAI
-          AZUREAI_CHAT_ENDPOINT: ${{ secrets.AZUREAI_CHAT_ENDPOINT }}
-          AZUREAI_CHAT_MODEL: ${{ secrets.AZUREAI_CHAT_MODEL }}
-          AZUREAI_COMPLETION_ENDPOINT: ${{ secrets.AZUREAI_COMPLETION_ENDPOINT }}
-          AZUREAI_COMPLETION_MODEL: ${{ secrets.AZUREAI_COMPLETION_MODEL }}
+          AZUREAI_CHAT_ENDPOINT: ${{ vars.AZUREAI_CHAT_ENDPOINT }}
+          AZUREAI_CHAT_MODEL: ${{ vars.AZUREAI_CHAT_MODEL }}
+          AZUREAI_COMPLETION_ENDPOINT: ${{ vars.AZUREAI_COMPLETION_ENDPOINT }}
+          AZUREAI_COMPLETION_MODEL: ${{ vars.AZUREAI_COMPLETION_MODEL }}
           # Configure endpoints for Azure AI Studio
           AZURE_AI_STUDIO_PHI3_ENDPOINT: ${{ vars.AZURE_AI_STUDIO_PHI3_ENDPOINT }}
           AZURE_AI_STUDIO_PHI3_DEPLOYMENT: ${{ vars.AZURE_AI_STUDIO_PHI3_DEPLOYMENT }}
