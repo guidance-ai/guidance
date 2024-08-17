@@ -94,4 +94,6 @@ def test_associativity(selected_model):
     ):
         expected_prompt_tokens = [engine.tokenizer.bos_token_id] + expected_prompt_tokens
         expected_prompt_tokens = engine.tokenizer.recode(expected_prompt_tokens)
-    assert prompt_tokens_1 == expected_prompt_tokens
+    # token healing may cause the prompt seen by the model to be shorter
+    assert len(expected_prompt_tokens) >= len(prompt_tokens_1)
+    assert prompt_tokens_1 == expected_prompt_tokens[:len(prompt_tokens_1)]
