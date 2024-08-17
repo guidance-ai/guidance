@@ -1,4 +1,5 @@
 import pytest
+from unittest.mock import patch
 
 import guidance
 from guidance import byte_range, gen, models, select, zero_or_more
@@ -67,3 +68,29 @@ def test_stream_add_multiple(selected_model):
     lm += ""
     *_, last_lm = lm
     assert str(last_lm) in ["item1", "item2"]
+
+
+def test_associativity(selected_model):
+    prompt = "pi = "
+    grammar = gen("number", regex=r"\d")
+    engine = selected_model.engine
+
+    with patch.object(engine, "get_next_token", side_effect=engine.get_next_token) as get_next_token_1:
+        _ = selected_model + (prompt + grammar)
+    prompt_tokens_1 = get_next_token_1.call_args.kwargs["token_ids"]
+
+    with patch.object(engine, "get_next_token", side_effect=engine.get_next_token) as get_next_token_2:
+        _ = (selected_model + prompt) + grammar
+    prompt_tokens_2 = get_next_token_2.call_args.kwargs["token_ids"]
+
+    # Main assertion: the prompt tokens should be the same
+    assert prompt_tokens_1 == prompt_tokens_2
+
+    # Further assert that the tokenization matches the expected tokenization
+    expected_prompt_tokens = engine.tokenizer.encode(prompt.encode())
+    if (
+        engine.tokenizer.bos_token is not None
+        and expected_prompt_tokens[:1] != [engine.tokenizer.bos_token_id]
+    ):
+        expected_prompt_tokens = [engine.tokenizer.bos_token_id] + expected_prompt_tokens
+    assert prompt_tokens_1 == expected_prompt_tokens
