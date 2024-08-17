@@ -93,4 +93,5 @@ def test_associativity(selected_model):
         and expected_prompt_tokens[:1] != [engine.tokenizer.bos_token_id]
     ):
         expected_prompt_tokens = [engine.tokenizer.bos_token_id] + expected_prompt_tokens
+        expected_prompt_tokens = engine.tokenizer.recode(expected_prompt_tokens)
     assert prompt_tokens_1 == expected_prompt_tokens
