@@ -8,7 +8,7 @@ from .._grammar import commit_point
 from ._any_char import any_char
 from .._grammar import capture
 from ._regex import regex as regex_grammar
-from .._grammar import token_limit, eos_token, active_role_end, with_temperature
+from .._grammar import token_limit, eos_token, with_temperature
 from ._tool import Tool
 from ._block import block
 
@@ -129,7 +129,7 @@ def gen(
         if isinstance(stop, str):
             stop = [stop]
         if regex is None:
-            stop = stop + [select([eos_token(), active_role_end()])]
+            stop = stop + [eos_token()]
 
         if stop_regex is None:
             stop_regex = []
