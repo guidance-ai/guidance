@@ -293,7 +293,7 @@ class TransformersTokenizer(Tokenizer):
                 # if it's at the start of the reconstructed bytes
                 # Some tokenizers add this automatically as part of the call function, so
                 # we need to remove it to compare
-                if hasattr(transformers_tokenizer, "bos_token") and reconstructed.startswith(
+                if hasattr(transformers_tokenizer, "bos_token") and transformers_tokenizer.bos_token and reconstructed.startswith(
                     transformers_tokenizer.bos_token.encode()
                 ):
                     reconstructed = reconstructed[len(transformers_tokenizer.bos_token) :]
