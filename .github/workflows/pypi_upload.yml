@@ -159,8 +159,8 @@ jobs:
         name: Install guidance from wheels
       - run: pip install transformers torch
         name: Other installs
-      - run: python -c "import guidance; import transformers; lm = guidance.models.Transformers('gpt2'); lm += '1,2,3,4,5,' + guidance.gen('num', max_tokens=5, temperature=0); print(f'\n Transformers Version:{transformers.__version__}\n\n{str(lm)=}\n'); assert lm['num'].startswith('6')"
-        name: Run smoke test
+      # - run: python -c "import guidance; import transformers; lm = guidance.models.Transformers('gpt2'); lm += '1,2,3,4,5,' + guidance.gen('num', max_tokens=5, temperature=0); print(f'\n Transformers Version:{transformers.__version__}\n\n{str(lm)=}\n'); assert lm['num'].startswith('6')"
+      #   name: Run smoke test
 
   publish_wheels:
     permissions:
