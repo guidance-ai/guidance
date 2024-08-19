@@ -16,6 +16,10 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       include: ${{ steps.set-matrix.outputs.include }}
+
+    env:
+      CIBW_SKIP: pp*
+      
     steps:
       - uses: actions/checkout@v4
       - name: Install cibuildwheel
