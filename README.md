@@ -21,6 +21,12 @@ Guidance is available through PyPI, to use a specific model see [loading models]
 pip install guidance
 ```
 
+_Note: To use Guidance on Phi models in Azure AI, or to use the new accelerated Rust-based parser, please install the release-candidate v0.2.0 guidance package_:
+```bash
+pip install guidance --pre
+```
+For a detailed walkthrough of running guidance on phi models, check the [AzureAI specific loading instructions.](#azure-ai)
+
 <!-- <a href="https://www.youtube.com/watch?v=9oXjP5IIMzQ"  aria-label="Watch demo"><img alt="Watch demo" src="docs/figures/watch_demo_button.png" width="120"></a> <a href="#get-started" aria-label="Get started"><img alt="Watch demo" src="docs/figures/get_started_button.png" width="120"></a> -->
 
 ## Features
@@ -663,6 +669,43 @@ from guidance import models
 lm = models.Transformers(model_name_or_path)
 ```
 
+### Azure AI
+AzureAI is experimenting with a serverside guidance integration, first available on the Phi-3.5-mini model. To use Guidance with AzureAI, you need to run the pre-release candidate of the guidance library (v0.2.0rc1).
+
+```bash
+pip install guidance --pre
+```
+
+First, deploy a Phi-3.5-mini model using AzureAI Models-as-a-service (https://azure.microsoft.com/en-us/products/phi-3). Then, in your guidance code, instantiate the `AzureGuidance` class:
+
+```python
+from guidance.models import AzureGuidance
+lm = AzureGuidance("https://PHI_DEPLOYMENT_URL/guidance#auth=AUTH_TOKEN") # note the URL structure using the new /guidance endpoint
+```
+
+Pull the PHI_DEPLOYMENT_URL and AUTH_TOKEN from the Azure deployment. You can now attach _any_ stateless guidance function to the `AzureGuidance` lm, and have it run in a single API call -- for example, the JSON function from above. This will benefit from all guidance features -- steering the model, acceleration, etc. Note that this is an experimental pre-release so please report any bugs you may find!
+
+```python
+@guidance
+def character_maker(lm, id, description, valid_weapons):
+    lm += f"""\
+    The following is a character profile for an RPG game in JSON format.
+    ```json
+    {{
+        "id": "{id}",
+        "description": "{description}",
+        "name": "{gen('name', stop='"')}",
+        "age": {gen('age', regex='[0-9]+', stop=',')},
+        "armor": "{select(options=['leather', 'chainmail', 'plate'], name='armor')}",
+        "weapon": "{select(options=valid_weapons, name='weapon')}",
+        "class": "{gen('class', stop='"')}",
+        "mantra": "{gen('mantra', stop='"')}",
+        "strength": {gen('strength', regex='[0-9]+', stop=',')},
+        "items": ["{gen('item', list_append=True, stop='"')}", "{gen('item', list_append=True, stop='"')}", "{gen('item', list_append=True, stop='"')}"]
+    }}```"""
+    return lm
+character_lm = lm + character_maker(1, 'A nimble fighter', ['axe', 'sword', 'bow']) # Runs on Azure
+```
 ### Vertex AI
 Remote endpoints that don't have explicit guidance integration are run "optimistically". This means that all the text that can be forced is given to the model as a prompt (or chat context) and then the model is run in streaming mode without hard constrants (since the remote API doesn't support them). If the model ever violates the contraints then the model stream is stopped and we optionally try it again at that point. This means that all the API-supported control work as expected, and more complex controls/parsing that is not supported by the API work if the model stays consistent with the program.
 ```python
