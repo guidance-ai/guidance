@@ -1,7 +1,7 @@
 import base64
 import os
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Iterator
 
 try:
     import pydantic
@@ -14,7 +14,7 @@ except ImportError:
         raise
 
 from .models._model import Model, Engine
-from ._grammar import GrammarFunction
+from ._schema import EngineCallResponse
 
 
 class GuidanceRequest(pydantic.BaseModel):
@@ -65,14 +65,16 @@ class Server:
             if x_api_key not in self.valid_api_keys:
                 raise HTTPException(status_code=401, detail="Invalid API key")
 
-            # data = await request.json()
-            # parser = data.get("parser")
-            grammar = GrammarFunction.deserialize(
-                base64.b64decode(guidance_request.grammar)
+            engine_responses: Iterator[EngineCallResponse] = self.engine(
+                guidance_request.parser, guidance_request.grammar
+            )
+            # Note the use of a generator comprehension here -- this will be evaluated lazily
+            json_stream: Iterator[str] = (
+                response.model_dump_json() for response in engine_responses
             )
 
             return StreamingResponse(
-                self.engine(guidance_request.parser, grammar),
+                json_stream,
                 media_type="application/json",
             )
 

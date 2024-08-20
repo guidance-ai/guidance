@@ -88,7 +88,7 @@ class LlamaCppTokenizer(Tokenizer):
             tokens, chat_template, tokenizer.llama.token_bos(), tokenizer.llama.token_eos()
         )
 
-    def encode(self, byte_string: bytes) -> Sequence[int]:
+    def encode(self, byte_string: bytes) -> list[int]:
         # Workaround for the LlamaCpp prepending spaces on encoding
         raw_tokens = self._model_obj.tokenize(
             self._sentinel_bytes + byte_string, add_bos=False, special=True
@@ -153,7 +153,7 @@ class LlamaCppEngine(Engine):
 
         self._n_vocab = len(self.tokenizer.tokens)
 
-    def get_logits(self, token_ids, forced_bytes, current_temp):
+    def get_logits(self, token_ids):
         """Computes the logits for the given token state.
 
         This overrides a method from the LocalEngine class that is used to get

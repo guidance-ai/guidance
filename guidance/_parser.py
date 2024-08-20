@@ -1,10 +1,139 @@
-from sys import stderr
+import json
+import os
+from typing import Any, Generator, Optional, Tuple, Union
+
+import llguidance  # type: ignore[import-untyped]
 import numpy as np
-from ordered_set import OrderedSet
-from ._grammar import Join, Select, Terminal, Null, Byte, ByteRange
+from numpy.typing import NDArray
+
+from ._grammar import GrammarFunction, Join, Terminal
+from ._schema import GenData, EngineCallResponse, LLInterpreterResponse
+from .models._byte_tokenizer import ByteTokenizer
+from .models._tokenizer import Tokenizer
 
 
-class ParserException(Exception):
+class TokenParserException(Exception):
+    pass
+
+
+class InvalidTokenException(TokenParserException):
+    def __init__(self, token: int, valid_tokens: list[int], prompt_tokens: list[int]):
+        self.token = token
+        self.valid_tokens = valid_tokens
+        self.prompt_tokens = prompt_tokens
+        super().__init__(
+            f"Invalid token {token}, expected one of {valid_tokens} after {prompt_tokens}"
+        )
+
+
+class TokenParser:
+
+    def __init__(
+        self,
+        grammar: Union[GrammarFunction, str],
+        tokenizer: Tokenizer,
+        prompt: bytes = b"",
+        ensure_bos_token: bool = True,
+    ):
+        if isinstance(grammar, GrammarFunction):
+            # we can't have a terminal as the root
+            if isinstance(grammar, Terminal):
+                grammar = Join([grammar])
+            serialized_grammar = json.dumps(grammar.ll_serialize())
+        else:
+            serialized_grammar = grammar
+
+        self.tokenizer = tokenizer
+        self.ll_tokenizer = llguidance.LLTokenizer(
+            llguidance.TokenizerWrapper(tokenizer)
+        )
+        self.ll_interpreter = llguidance.LLInterpreter(
+            self.ll_tokenizer,
+            serialized_grammar,
+            log_level=int(os.environ.get("LLGUIDANCE_LOG_LEVEL", "1")),
+        )
+        self._generator = self._parse(prompt, ensure_bos_token)
+        self._done = False
+
+    def is_accepting(self) -> bool:
+        return self.ll_interpreter.is_accepting()
+
+    def done(self) -> bool:
+        return self._done
+
+    def advance(
+        self, token: Optional[int]
+    ) -> Tuple[Optional[GenData], EngineCallResponse]:
+        try:
+            return self._generator.send(token)
+        except StopIteration as e:
+            self._done = True
+            return None, e.value
+
+    def _process_prompt(self, prompt: bytes, ensure_bos_token: bool) -> list[int]:
+        prompt_tokens = self.ll_interpreter.process_prompt(
+            self.tokenizer.encode(prompt)
+        )
+        if (
+            ensure_bos_token
+            and self.tokenizer.bos_token is not None
+            and prompt_tokens[:1] != [self.tokenizer.bos_token_id]
+        ):
+            # add the beginning of sequence token if needed
+            prompt_tokens = [self.tokenizer.bos_token_id] + prompt_tokens
+
+        return self.tokenizer.recode(prompt_tokens)
+
+
+    def _parse(
+        self,
+        prompt: bytes,
+        ensure_bos_token: bool,
+    ) -> Generator[Tuple[Optional[GenData], EngineCallResponse], Optional[int], EngineCallResponse]:
+        tokens = self._process_prompt(prompt=prompt, ensure_bos_token=ensure_bos_token)
+
+        while True:
+            mask, resp = self.ll_interpreter.mid_process()
+            r = LLInterpreterResponse.model_validate_json(resp)
+            response = r.progress.to_engine_call_response()
+            if r.stop:
+                break
+
+            if mask is not None:
+                assert r.temperature is not None
+                gen_data = GenData(
+                    tokens=tokens,
+                    mask=mask,
+                    temperature=r.temperature,
+                )
+                # Send caller the mask and response; wait for token
+                token = yield (gen_data, response)
+                if token is None:
+                    raise TokenParserException("Expected token, got None")
+                if not mask[token]:
+                    # Note: we could punt this probem to ll_interpreter.post_process,
+                    # but it's a bit clearer to handle it here
+                    raise InvalidTokenException(token, gen_data.valid_next_tokens, tokens)
+            else:
+                gen_data = None
+                token = yield (gen_data, response)
+                if token is not None:
+                    raise TokenParserException(f"Expected None, got token {token}")
+
+            backtrack, ff_tokens = self.ll_interpreter.post_process(token)
+            if backtrack:
+                tokens = tokens[:-backtrack]
+            tokens = tokens + ff_tokens
+
+        stop_reason = self.ll_interpreter.stop_reason()
+        if stop_reason not in {"NoExtension", "EndOfSentence"}:
+            # TODO: extend exception handling
+            raise TokenParserException(f"Unexpected stop reason: {stop_reason}")
+
+        return response
+
+
+class ByteParserException(Exception):
     def __init__(self, *args, **kwargs):
         self.current_byte = kwargs.pop("current_byte", None)
         self.allowed_bytes = kwargs.pop("allowed_bytes", None)
@@ -12,655 +141,151 @@ class ParserException(Exception):
         super().__init__(*args, **kwargs)
 
 
-class EarleyItem:
-    __slots__ = (
-        "node",
-        "values",
-        "start",
-        "pos",
-        "log_prob",
-        "children",
-        "hidden_start",
-    )
-
-    def __init__(self, node, values, pos, start, log_prob, hidden_start):
-        self.node = node
-        self.values = values
-        self.start = start
-        self.pos = pos
-        self.log_prob = log_prob
-        self.children = None
-        self.hidden_start = hidden_start
-
-    def __eq__(self, other):
-        return (
-            isinstance(other, EarleyItem)
-            and self.start == other.start
-            and self.pos == other.pos
-            and self.node == other.node
-            and self.values == other.values
-            and self.log_prob == other.log_prob
-        )
-
-    def __hash__(self):
-        return hash((self.node, self.values, self.start, self.pos))
-
-    def __repr__(self):
-        if isinstance(self.node, Join):
-            s = f"{self.node.name:20} -> "
-            rs = ""
-            for i, v in enumerate(self.values):
-                if self.pos == i:
-                    rs += "•"
-                rs += v.name + " "
-            if self.pos == len(self.values):
-                rs += "•"
-        elif isinstance(self.node, Select):
-            s = f"{self.node.name:20} -> "
-            rs = ""
-            if self.pos == 0:
-                rs += "•"
-            rs += self.values[0].name
-            if self.pos == 1:
-                rs += "•"
-        else:
-            assert False
-        return s + f"{rs:40} ({self.start}) {'nullable' if self.node.nullable else ''}"
-
-
-class Parser:
-    """An abstract base class for guidance parsers."""
-
-    pass
-
-
-class EarleyCommitParser(Parser):
-    def __init__(self, grammar):
-
-        # we can't have a terminal as the root
-        if isinstance(grammar, Terminal):
-            grammar = Join([grammar])
-
-        self.grammar = grammar
+class ByteParser:
+    def __init__(
+        self,
+        grammar: GrammarFunction,
+        prompt: bytes = b"",
+        ensure_bos_token: bool = True,
+    ):
+        self.tokenizer = ByteTokenizer()
+        self.token_parser = TokenParser(grammar, self.tokenizer, prompt, ensure_bos_token)
         self.bytes = b""
-        self.state_sets = [OrderedSet()]  # the list of Earley items for each byte
-        self.token_counts = []  # used to track how many tokens have been used
-        self.state_set_pos = 0
-        self.shadow_pos = 0
-        self._add_node(self.grammar, 0, 0.0, 1000000000)
-        self._inner_loop(self.state_set_pos)
+        self.gen_data: Optional[GenData] = None
+        self.pos = 0
+        self._variables: dict[str, Any] = {}
+        self._variables_log_probs: dict[str, Any] = {}
+        self.consume_bytes(prompt)
 
-    @property
-    def pos(self):
-        return self.shadow_pos
-
-    @pos.setter
-    def pos(self, new_pos):
-
-        # do nothing if we aren't moving
-        if new_pos == self.state_set_pos:
-            return
-        elif new_pos > self.state_set_pos:
-            raise ParserException(
-                "Can't move the parser position forward! (only backward)"
-            )
-
-        # check if we are just moving the shadow position
-        if new_pos >= self.shadow_pos:
-            self.shadow_pos = new_pos
-            return
-
-        # actually reset our position if we need to
-        self.state_sets = self.state_sets[: new_pos + 1] + [OrderedSet()]
-        self.token_counts = self.token_counts[: new_pos + 2]
-        self.bytes = self.bytes[:new_pos]
-        self.state_set_pos = new_pos
-        self.shadow_pos = new_pos
-        self._inner_loop(self.state_set_pos)
-
-    def _add_item(self, state_set_pos, new_item):
-        state_set = self.state_sets[state_set_pos]
-        if new_item not in state_set:
-            state_set.append(new_item)
-        else:
-            existing_item = state_set.items[state_set.map[new_item]]
-            existing_item.hidden_start = min(
-                existing_item.hidden_start, new_item.hidden_start
-            )
-
-    def _add_node(self, grammar, state_set_pos, log_prob, hidden_start):
-        if isinstance(grammar, Terminal):
-            new_item = EarleyItem(
-                grammar, tuple(), 0, state_set_pos, log_prob, hidden_start
-            )
-            self._add_item(state_set_pos, new_item)
-
-        elif isinstance(grammar, Join):
-            new_item = EarleyItem(
-                grammar, tuple(grammar.values), 0, state_set_pos, log_prob, hidden_start
-            )
-            self._add_item(state_set_pos, new_item)
-
-        elif isinstance(grammar, Select):
-            for value in grammar.values:
-                new_item = EarleyItem(
-                    grammar, (value,), 0, state_set_pos, log_prob, hidden_start
-                )
-                self._add_item(state_set_pos, new_item)
-
-    def _inner_loop(self, state_set_pos, start_pos=0):
-        curr_state_set = self.state_sets[state_set_pos]
-        if len(self.state_sets) == state_set_pos + 1:
-            self.state_sets.append(OrderedSet())
-            self.token_counts.append(
-                self.token_counts[-1] if len(self.token_counts) > 0 else 0
-            )
-        next_state_set = self.state_sets[state_set_pos + 1]
-        pos = start_pos
-        while len(curr_state_set) > pos:
-            item = curr_state_set[pos]
-
-            # completion
-            if item.pos == len(item.values):
-
-                # if we complete an item that is a "commit point" then we eliminate all other possible
-                # parses so that we are "committed" to using this item
-                # we do this by removing any unprocessed items in the current state set and clearing the next state set
-                if item.node.commit_point:
-                    while len(curr_state_set) > pos:
-
-                        # if we find another valid commit point that starts earlier we use that instead
-                        # this causes us to pick the longest matching valid commit point
-                        end_item = curr_state_set[-1]
-                        if (
-                            end_item.node.commit_point
-                            and end_item.pos == len(end_item.values)
-                            and end_item.start < item.start
-                        ):
-                            item = end_item
-
-                        curr_state_set.pop()
-                    curr_state_set.append(
-                        item
-                    )  # we append the current item again (we do this since we may have swapped it out above)
-                    next_state_set.clear()
-
-                # advance all the parents that our completion impacts
-                token_span = (
-                    self.token_counts[state_set_pos] - self.token_counts[item.start]
-                )
-                start_state_set = self.state_sets[item.start]
-                for start_item in start_state_set:
-                    if (
-                        start_item.pos < len(start_item.values)
-                        and start_item.values[start_item.pos] == item.node
-                    ):
-
-                        # if item.node.max_tokens <= token_span and any(start_item.node == v and len(v.values) > 1 for v in item.node.values):
-                        #     continue # skip advancing parents that are also children (recursion) once we are past the token limit
-
-                        curr_state_set.append(
-                            EarleyItem(
-                                start_item.node,
-                                start_item.values,
-                                start_item.pos + 1,
-                                start_item.start,
-                                start_item.log_prob
-                                + item.log_prob,  # increment the log prob by the child value,
-                                start_item.hidden_start,
-                            )
-                        )
-
-            # don't advance past our max token limit
-            elif (
-                item.node.max_tokens
-                > self.token_counts[state_set_pos] - self.token_counts[item.start]
-            ):
-
-                # scan (note we only scan forward when we have more max token headroom left)
-                next_item_node = item.values[item.pos]
-                hidden_start = item.hidden_start
-                if next_item_node.hidden:
-                    hidden_start = min(state_set_pos, hidden_start)
-                if isinstance(
-                    next_item_node, Terminal
-                ):  # and item.node.max_tokens > self.token_counts[state_set_pos] - self.token_counts[item.start]:
-                    next_state_set.append(
-                        EarleyItem(
-                            item.node,
-                            item.values,
-                            item.pos + 1,
-                            item.start,
-                            item.log_prob,
-                            hidden_start,
-                        )
-                    )  # the log prob will get incremented when consume_bytes is called
-
-                # prediction
-                else:
-                    self._add_node(
-                        next_item_node, state_set_pos, 0.0, hidden_start
-                    )  # the log probs will get incremented by children later
-
-                # handle nullable items by advancing them automatically (since we know we can)
-                if next_item_node.nullable:
-                    new_item = EarleyItem(
-                        item.node,
-                        item.values,
-                        item.pos + 1,
-                        item.start,
-                        item.log_prob,
-                        item.hidden_start,
-                    )
-                    if new_item not in self.state_sets[state_set_pos]:
-                        self.state_sets[state_set_pos].append(new_item)
-            pos += 1
-
-    def earliest_hidden_start(self, state_pos=None):
-        """The earliest that a hidden node might match.
-
-        This is useful because it tells us which bytes may end being hidden.
-        """
-        if state_pos is None:
-            state_pos = self.state_set_pos
-        earliest_pos = 10000000000
-        for item in self.state_sets[state_pos]:
-            earliest_pos = min(earliest_pos, item.hidden_start)
-        return earliest_pos
-
-    def matched(self):
-        """Checks if the parser has completely matched the grammar."""
-        if self.shadow_pos != self.state_set_pos:
+    def matched(self) -> bool:
+        if self.pos < len(self.bytes):
             return False
-        for item in self.state_sets[self.state_set_pos]:
-            if item.node == self.grammar and item.pos == len(item.values):
-                return True
-        return False
+        return self.token_parser.is_accepting()
 
-    def shadow_rewind(self, new_pos):
-        if new_pos == self.state_set_pos:
-            return
-        self.shadow_pos = new_pos
+    def valid_next_bytes(self) -> set[bytes]:
+        if self.pos < len(self.bytes):
+            return {self.bytes[self.pos : self.pos + 1]}
+        if self.gen_data is None:
+            return set()
+        return {
+            bytes([t])
+            for t in self.gen_data.valid_next_tokens
+            if t != self.tokenizer.eos_token_id
+        }
 
-    def commit_and_collapse_item(self, item):
-        """This collapses the item into zero width and rewinds the parser position accordingly.
-
-        Note we assume the item is in the current state set.
-        """
-
-        # trim off the state sets that matches this item
-        self.state_sets = self.state_sets[: item.start + 1]
-        self.token_counts = self.token_counts[: item.start + 1]
-        self.bytes = self.bytes[: item.start]
-        self.state_set_pos = item.start
-        self.shadow_pos = item.start
-
-        # add this state to its start point (making it a zero length match with no values)
-        self.state_sets[item.start].append(
-            EarleyItem(
-                item.node, tuple(), 0, item.start, item.log_prob, item.hidden_start
-            )
-        )
-
-        # expand from this state
-        self._inner_loop(item.start, len(self.state_sets[item.start]) - 1)
-
-    def mark_new_token(self):
-        # TODO: we allow ourselves to go one past our max token limit when we hit a one-byte token
-        #       because we don't know if we are continuing or extending a new token when we parse
-        #       the first byte of the token. We could fix this by rerunning the inner_loop after each
-        #       token, but we skip that for now since max_tokens is not a hard garuntee anyway when you
-        #       have patterns.
-
-        self.token_counts[-1] += 1
-
-    def consume_byte(self, byte, log_prob=0.0):
-        """Advances the parser by the given byte."""
-
-        # see if we need to advance our shadow position...
-        if self.shadow_pos < self.state_set_pos:
-            assert (
-                byte == self.bytes[self.shadow_pos : self.shadow_pos + 1]
-            ), "Attempted to consume a byte by advancing shadow_pos but the byte didn't match!"
-            self.shadow_pos += 1
-            return
-
-        # ...if not, we extend our bytes
-        self.bytes += byte
-
-        # filter out all the extensions that don't match this byte
-        new_next_state_set = []
-        found_valid = False
-        found_invalid = False
-        hidden_start = 10000000000
-        for item in self.state_sets[self.state_set_pos + 1]:
-            token_span = self.token_counts[-1] - self.token_counts[item.start]
-            if item.node.max_tokens <= token_span:
-                found_invalid = True
-                continue
-            elif item.pos > 0 and isinstance(item.values[item.pos - 1], Terminal):
-                last_inner_node = item.values[item.pos - 1]
-                if not last_inner_node.match_byte(byte):
-                    found_invalid = True
-                    continue
-                else:
-                    found_valid = True
-                    if last_inner_node.commit_point:
-                        item.log_prob += log_prob
-                        new_next_state_set = [item]
-                        hidden_start = min(hidden_start, item.hidden_start)
-                        found_invalid = True  # we make everything else invalid, so that means we found something invalid
-                        break
-            item.log_prob += log_prob  # update the probability of the item by the probability of choosing this byte
-            new_next_state_set.append(item)
-            hidden_start = min(hidden_start, item.hidden_start)
-        if not found_valid:
-            raise ParserException(
-                "Attempted to consume a byte that the grammar does not accept!",
-                current_byte=byte,
-                allowed_bytes=self.valid_next_bytes(),
-                consumed_bytes=self.bytes,
-            )
-        if found_invalid:  # only update if we changed the set
-            self.state_sets[self.state_set_pos + 1] = OrderedSet(new_next_state_set)
-
-        # advance the parser one position
-        self.state_set_pos += 1
-        self.shadow_pos += 1
-        self._inner_loop(self.state_set_pos)
-
-        # look for a commit point node
-        commit_point = None
-        for item in self.state_sets[self.state_set_pos]:
-            if (
-                item.node.commit_point
-                and item.pos == len(item.values)
-                or (item.pos > 0 and item.values[item.pos - 1].commit_point)
-            ):
-                commit_point = item
-                break  # TODO: consider how we might need to prioritize multiple commit point nodes (an uncommon scenario I think)
-        # hidden_start,
-        return commit_point
-
-    def valid_next_bytes(self):
-        """A list of Byte and ByteRange objects representing the next valid bytes."""
-        valid_items = set()
-        next_state_set = self.state_sets[self.state_set_pos + 1]
-        for item in next_state_set:
-            token_span = self.token_counts[-1] - self.token_counts[item.start]
-            if item.node.max_tokens <= token_span:
-                continue
-            elif item.pos > 0 and isinstance(item.values[item.pos - 1], Terminal):
-                v = item.values[item.pos - 1]
-                if v not in valid_items:
-                    valid_items.add(v)
-        return valid_items
-
-    def next_byte_temperature(self):
-        """The maximum temperature over all the next bytes, or -1 if no temperature is set."""
-        max_temp = -1
-        next_state_set = self.state_sets[self.state_set_pos + 1]
-        for item in next_state_set:
-            if item.pos > 0 and isinstance(item.values[item.pos - 1], Terminal):
-                v = item.values[item.pos - 1]
-                max_temp = max(max_temp, v.temperature)
-        return max_temp
-
-    def next_byte_mask(self):
-        """A mask version of the `valid_next_bytes` method."""
-
-        mask = np.zeros(256, dtype=bool)
-
-        # if we are shadow rewound then we just force those bytes again
-        if self.shadow_pos < self.state_set_pos:
-            mask[self.bytes[self.shadow_pos]] = True
-
-        # otherwise we compute the valid bytes from the grammar
-        else:
-            valid_items = self.valid_next_bytes()
-            for item in valid_items:
-                if isinstance(item, Byte):
-                    mask[item.byte[0]] = True
-                elif isinstance(item, ByteRange):
-                    mask[item.byte_range[0] : item.byte_range[1] + 1] = True
-                else:
-                    raise ParserException(
-                        "Unknown Terminal Type: " + str(type(item)),
-                    )
+    def next_byte_mask(self) -> NDArray[np.uint8]:
+        mask = np.zeros(256, dtype=np.uint8)
+        for t in self.valid_next_bytes():
+            mask[t[0]] = 1
         return mask
 
-    def __repr__(self, state_sets=None) -> str:
-        s = ""
-        if state_sets is None:
-            _state_sets = self.state_sets
+    def consume_bytes(self, bts: bytes) -> None:
+        # Run underlying ll_parser and fast-forward all of our bytes
+        # until we have a "choice" (generation step) to make
+        while self.gen_data is None and not self.token_parser.done():
+            self.gen_data, response = self.token_parser.advance(None)
+            self._update_capture(response)
+            self.bytes += response.new_bytes
+
+        if not bts:
+            return
+
+        b = bts[0]
+        # If the current position is less than the length of the bytes, then we are in fast_forward mode
+        # and we need to make sure that the byte we are consuming is the same as the byte at the current
+        # position
+        if self.pos < len(self.bytes):
+            if b != self.bytes[self.pos]:
+                next_byte = self.bytes[self.pos : self.pos + 1]
+                raise ByteParserException(
+                    f"Expected byte {next_byte!r} (fast_forward), got {bytes([b])!r}",
+                    current_byte=bytes([b]),
+                    allowed_bytes={next_byte},
+                    consumed_bytes=self.bytes[: self.pos],
+                )
+            # Byte was good, move to the next byte
+            self.pos += 1
+            self.consume_bytes(bts[1:])
         else:
-            _state_sets = state_sets
-        for i, states in enumerate(_state_sets):
-            s += f"\n=== {i} ==="
-            if self.state_set_pos == i:
-                s += " (state_set_pos)"
-            s += "\n"
-            for state in states:
-                if isinstance(state.node, Join):
-                    s += f"{state.node.name:20} -> "
-                    rs = ""
-                    for i, v in enumerate(state.values):
-                        if state.pos == i:
-                            rs += "•"
-                        rs += v.name + " "
-                    if state.pos == len(state.values):
-                        rs += "•"
-                elif isinstance(state.node, Select):
-                    s += f"{state.node.name:20} -> "
-                    rs = ""
-                    if state.pos == 0:
-                        rs += "•"
-                    if len(state.values) == 0:
-                        rs += "NO_VALUES!"
-                    else:
-                        rs += state.values[0].name
-                        if state.pos == 1:
-                            rs += "•"
-                else:
-                    assert False
-                s += f"{rs:40} ({state.start}) {'nullable' if state.node.nullable else ''}\n"  # type: ignore[attr-defined]
-        return s
+            # If we are here, then we are either in generation mode or we are done.
+            if self.gen_data is None:
+                # TODO: may run into trouble here if we need to backtrack
+                assert self.token_parser.done()
+                assert not self.valid_next_bytes()
+                raise ByteParserException(
+                    f"Expected end of input, got {bytes([b])!r}",
+                    current_byte=bytes([b]),
+                    allowed_bytes=set(),
+                    consumed_bytes=self.bytes[: self.pos],
+                )
+            # We're in generation mode. Assure that the byte is one of the valid next bytes
+            if b not in self.gen_data.valid_next_tokens:
+                valid_next_bytes = self.valid_next_bytes()
+                raise ByteParserException(
+                    f"Expected one of the following bytes: {valid_next_bytes!r}, got {bytes([b])!r}",
+                    current_byte=bytes([b]),
+                    allowed_bytes=valid_next_bytes,
+                    consumed_bytes=self.bytes[: self.pos],
+                )
+            # Byte was good, have ll_parser consume it so we can advance further
+            self.gen_data, response = self.token_parser.advance(b)
+            self._update_capture(response)
+            self.bytes += response.new_bytes
 
-    def _reversed_state_sets(self):
-        new_state_sets = [OrderedSet([]) for _ in range(len(self.state_sets))]
-        for i, states in enumerate(self.state_sets):
-            for state in states:
-                # if state.node.name == "__call___c":
-                #     pass
-                new_state_sets[state.start].append(
-                    EarleyItem(
-                        state.node,
-                        state.values,
-                        state.pos,
-                        i,
-                        state.log_prob,
-                        state.hidden_start,
+            # Run consume_bytes to advance ll_parser and consume the next byte
+            self.consume_bytes(bts)
+
+    def force_done(self):
+        if not self.matched():
+            raise ByteParserException("Hit end of input before reaching a valid state")
+        if self.token_parser.done():
+            return
+
+        self.gen_data, response = self.token_parser.advance(self.tokenizer.eos_token_id)
+        self._update_capture(response)
+        self.bytes += response.new_bytes
+        if not self.token_parser.done() or not self.matched():
+            raise ByteParserException("Hit end of input before reaching a valid state")
+
+    def get_captures(self):
+        return self._variables, self._variables_log_probs
+
+    def _update_capture(self, response: EngineCallResponse):
+        # Stolen from model. TODO: refactor to share code
+        for k in response.capture_groups:
+            v = response.capture_groups[k]
+
+            # see if we are in a list_append mode
+            if isinstance(v, list):
+                for i, inner_v in enumerate(v):
+                    # convert to a string if possible
+                    # TODO: will need to not just always do this once we support images etc.
+                    try:
+                        inner_v = (
+                            inner_v.decode("utf8")
+                            if isinstance(inner_v, bytes)
+                            else inner_v
+                        )
+                    except UnicodeDecodeError:
+                        pass
+
+                    if k not in self._variables or not isinstance(
+                        self._variables[k], list
+                    ):
+                        self._variables[k] = []
+                        self._variables_log_probs[k] = []
+                    self._variables[k].append(inner_v)
+                    self._variables_log_probs[k].append(
+                        response.capture_group_log_probs[k][i]
                     )
-                )
 
-        return new_state_sets
-
-    def parse_tree(self):
-        reversed_state_sets = self._reversed_state_sets()
-        root_item = None
-
-        # find the matching root state
-        for item in reversed_state_sets[0]:
-            if (
-                item.node == self.grammar
-                and item.start == len(self.bytes)
-                and item.pos == len(item.values)
-            ):  # note that ".start" mean end because items are reversed
-                root_item = item
-        if root_item is None:
-            return None
-        self._compute_parse_tree(0, root_item, reversed_state_sets)
-        return root_item
-
-    def get_captures(self, data=None, log_prob_data=None):
-        root_node = self.parse_tree()
-        if data is None:
-            data = {}
-        if log_prob_data is None:
-            log_prob_data = {}
-        if root_node is not None:
-            # parse complete, so we can get the captures
-            self._record_captures_from_root(root_node, data, log_prob_data)
-            return data, log_prob_data
-        # compute on partially parsed tree
-        self._record_captures_partial(data, log_prob_data)
-        return data, log_prob_data
-
-    def _record_captures_partial(self, data, log_prob_data):
-        byte_data = self.bytes
-
-        for item in self.state_sets[self.state_set_pos]:
-            cname = item.node.capture_name
-            if cname is None:
-                continue
-            captured_value = byte_data[item.start : self.earliest_hidden_start()]
-            if captured_value.endswith(b"<"):
-                print(
-                    "WARNING: Captured value ends with '<' which is a special character in the parser!",
-                    file=stderr,
-                )
-            data[cname] = captured_value
-            log_prob_data[cname] = item.log_prob
-
-    def _record_captures_from_root(self, initial_item, data, log_prob_data):
-        byte_data = self.bytes
-        stack = [(initial_item, 0)]
-        used_names = (
-            set()
-        )  # track which capture names have been used so self-recursive children don't overwrite their parents
-
-        while stack:
-            item, byte_pos = stack.pop()
-            # terminal nodes
-            if isinstance(item, Terminal):
-
-                # if we are at a capture group node then we save the matched terminal byte
-                if item.capture_name is not None:
-                    data[item.capture_name] = item.byte
-                    log_prob_data[item.capture_name] = 0
-
-            # internal nodes
+            # ...or standard assignment mode
             else:
-                start_byte_pos = byte_pos
-
-                # recurse for all our non-null children
-                for child in item.children:
-                    if child is not None:
-                        stack.append((child, byte_pos))
-                        # _record_captures(child, data, log_prob_data, byte_data, byte_pos)
-                        if isinstance(child, Terminal):
-                            byte_pos += len(child)
-                        else:
-                            byte_pos = (
-                                child.start
-                            )  # note that "start" means "end" since this is a reversed state set
-
-                # if we are at a capture group node then we save the matched bytes range
-                # note that we record this after calling our children so that we save the outermost version of self-recursive calls
-                cname = item.node.capture_name
-                if (
-                    cname is not None
-                    and cname not in used_names
-                    and not item.node.hidden
-                ):
-
-                    # see if we are doing a list append
-                    if cname.startswith("__LIST_APPEND:"):
-                        cname = cname[14:]  # trim off the list append tag
-                        if cname not in data or not isinstance(data[cname], list):
-                            data[cname] = []
-                            log_prob_data[cname] = []
-                        data[cname].append(byte_data[start_byte_pos : item.start])
-                        log_prob_data[cname].append(item.log_prob)
-
-                    # or just a regular assignment
-                    else:
-                        data[cname] = byte_data[
-                            start_byte_pos : item.start
-                        ]  # note that "start" means "end" since this is a reversed state set
-                        log_prob_data[cname] = item.log_prob
-
-                    used_names.add(cname)
-
-    def _compute_parse_tree(self, initial_pos, initial_item, reversed_state_sets):
-        stack = [(initial_pos, initial_item)]
-
-        while stack:
-            pos, item = stack.pop()
-
-            # compute the children for this item
-            assert self._compute_children(pos, item, reversed_state_sets)
-
-            # recurse on the children
-            for child in item.children:
-                if child is None:
-                    pass  # this child was nullable and was chosen to be null (empty)
-                elif isinstance(child, Terminal):
-                    pos += len(child)
-                else:
-                    stack.append((pos, child))
-                    pos = (
-                        child.start
-                    )  # note that ".start" mean end because items are reversed
-
-    def _compute_children(self, state_set_pos, item, reversed_state_sets, values_pos=0):
-
-        # ensure we have a children array
-        if item.children is None:
-            item.children = [None for _ in range(len(item.values))]
-
-        # consume as many terminal children as possible
-        while True:
-
-            # if we are at the end of the values then there no more children and we see if we consumed all the right bytes
-            if values_pos == len(item.values):
-                return (
-                    state_set_pos == item.start
-                )  # note that ".start" mean end because items are reversed
-
-            # get the child we are trying to match (meaning we are looking for completed early items for this node)
-            value = item.values[values_pos]
-
-            # if we have a terminal node we can jump forward that many bytes
-            if isinstance(value, Terminal):
-                item.children[values_pos] = value
-                values_pos += 1
-                state_set_pos += len(value)
-            else:
-                break
-
-        # otherwise we need to try all possible next matching items in the current state set
-        # so we loop over every item in the current state set looking for a completed match
-        for inner_item in reversed_state_sets[state_set_pos]:
-            if inner_item.node == value and inner_item.pos == len(inner_item.values):
-
-                # see if we can get a complete parse following this inner item
-                if self._compute_children(
-                    inner_item.start, item, reversed_state_sets, values_pos + 1
-                ):
-                    item.children[values_pos] = inner_item
-                    return True
-
-        # if we didn't find a child set and this is nullable we can skip this child (since it may not exist if nulled)
-        # we skip it by adding a fake EarlyItem with zero length (this makes zero length named captures still work)
-        if value.nullable:
-            if self._compute_children(
-                state_set_pos, item, reversed_state_sets, values_pos + 1
-            ):
-                # this child has zero length since it was nullable
-                item.children[values_pos] = EarleyItem(
-                    value, tuple(), 0, state_set_pos, 0, state_set_pos
-                )
-                return True
-
-        return False
+                # convert to a string if possible
+                # TODO: will need to not just always do this once we support images etc.
+                try:
+                    v = v.decode("utf8") if isinstance(v, bytes) else v
+                except UnicodeDecodeError:
+                    pass
+                self._variables[k] = v
+                self._variables_log_probs[k] = response.capture_group_log_probs[k]

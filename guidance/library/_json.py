@@ -24,6 +24,7 @@ from ..library import char_range, gen, one_or_more, optional, sequence
 
 from .._grammar import GrammarFunction, select, capture, with_temperature
 from ._pydantic import pydantic_to_json_schema
+from ._subgrammar import lexeme, subgrammar
 
 
 def _to_compact_json(target: Any) -> str:
@@ -68,6 +69,7 @@ TYPE_SPECIFIC_KEYS = {
     "object": {"properties", "additionalProperties"},
 }
 
+WHITESPACE = {b" ", b"\t", b"\n", b"\r"}
 STRING_CHARS = [
     char_range("a", "z"),
     char_range("A", "Z"),
@@ -132,17 +134,16 @@ def validate_json_node_keys(node: Mapping[str, Any]):
 
 @guidance(stateless=True)
 def _gen_json_int(lm):
-    pos_nonzero = char_range("1", "9") + sequence(char_range("0", "9"))
-    return lm + optional("-") + select(["0", pos_nonzero])
+    return lm + lexeme(r"-?(?:0|[1-9][0-9]*)", contextual=True)
 
 
 @guidance(stateless=True)
 def _gen_json_number(lm):
-    mantissa_int = _gen_json_int()
-    mantissa_frac = "." + one_or_more(char_range("0", "9"))
-    exponent = "e" + select(["", "+", "-"]) + one_or_more(char_range("0", "9"))
-
-    return lm + mantissa_int + optional(mantissa_frac) + optional(exponent)
+    return lm + select([
+        _gen_json_int(),
+        lexeme(r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)", contextual=True),
+        lexeme(r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)", contextual=True),
+    ])
 
 
 @guidance(stateless=True)
@@ -153,7 +154,6 @@ def _gen_json_string(
     regex: Union[str, None] = None,
     format: Union[str, None] = None,
 ):
-    lm += '"'
     if regex is not None or format is not None:
         if min_length > 0 or max_length is not None:
             msg = (
@@ -165,10 +165,12 @@ def _gen_json_string(
             if regex is not None:
                 raise ValueError("Cannot specify both a regex and a format for a JSON string")
             regex = _get_format_pattern(format)
-        lm += gen(regex=regex)
     else:
-        lm += sequence(select(STRING_CHARS), min_length=min_length, max_length=max_length)
-    return lm + '"'
+        char_expr = r'(\\([\"\\\/bfnrt]|u[a-fA-F0-9]{4})|[^\"\\\x00-\x1F\x7F])'
+        range_expr = f"{{{min_length},{max_length}}}" if max_length is not None else f"{{{min_length},}}"
+        regex = f'{char_expr}{range_expr}'
+    str_pattern = f'"{regex}"'
+    return lm + lexeme(str_pattern, contextual=True)
 
 
 @guidance(stateless=True)
@@ -329,7 +331,7 @@ def _process_anyOf(
 
 @guidance(stateless=True)
 def _process_enum(lm, *, options: Sequence[Mapping[str, Any]]):
-    # options will come in as python objects, so we need to convert to (compact) JSON
+    # TODO: can we support a whitespace-flexible version of this?
     all_opts = []
     for opt in options:
         all_opts.append(_to_compact_json(opt))
@@ -385,6 +387,7 @@ def _gen_json(
         return lm + _get_definition(reference=json_schema[Keyword.REF], definitions=definitions)
 
     if Keyword.CONST in json_schema:
+        # TODO: can we support a whitespace-flexible version of this?
         return lm + _to_compact_json(json_schema[Keyword.CONST])
 
     if Keyword.ENUM in json_schema:
@@ -437,7 +440,9 @@ def json(
         Type["pydantic.BaseModel"],
         "pydantic.TypeAdapter",
     ] = None,
+    compact: bool = False,
     temperature: float = 0.0,
+    max_tokens: int = 100000000,
 ):
     """Generate valid JSON according to the supplied JSON schema or `pydantic` model.
 
@@ -480,6 +485,10 @@ def json(
             - A JSON schema object. This is a JSON schema string which has been passed to ``json.loads()``
             - A subclass of ``pydantic.BaseModel``
             - An instance of ``pydantic.TypeAdapter``
+
+    compact : bool
+        If True, the generated JSON will be forced to be compact (no whitespace).
+        If False, output will be whitespace-flexible (i.e. decided by the model).
     """
     if isinstance(schema, Mapping):
         # Raises jsonschema.exceptions.SchemaError or ValueError
@@ -496,9 +505,18 @@ def json(
             assert len(definitions) == 0, "Found duplicate definitions"
             definitions = _build_definitions(schema[dk])
 
-    return lm + capture(
-        with_temperature(_gen_json(schema, definitions), temperature=temperature),
-        name=name,
+    return lm + with_temperature(
+        subgrammar(
+            name,
+            body=_gen_json(json_schema=schema, definitions=definitions),
+            skip_regex=(
+                None if compact
+                else r"[\x20\x0A\x0D\x09]+"
+            ),
+            no_initial_skip=True,
+            max_tokens=max_tokens,
+        ),
+        temperature=temperature,
     )
 
 
@@ -508,7 +526,7 @@ def _build_definitions(
     definitions: Dict[str, Callable[[], GrammarFunction]] = {}
 
     def build_definition(json_schema: Mapping[str, Any]) -> Callable[[], GrammarFunction]:
-        @guidance(stateless=True, dedent=False)
+        @guidance(stateless=True, dedent=False, cache=True)
         def closure(lm):
             return lm + _gen_json(json_schema=json_schema, definitions=definitions)
 
