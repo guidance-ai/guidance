@@ -1,12 +1,11 @@
 from json import dumps as json_dumps
 from enum import Enum
+from frozendict import frozendict, deepfreeze
 from typing import (
     Any,
     Callable,
-    Dict,
     Mapping,
     Optional,
-    Sequence,
     Union,
     Type,
     TYPE_CHECKING,
@@ -92,12 +91,12 @@ def validate_json_node_keys(node: Mapping[str, Any]):
         )
 
 
-@guidance(stateless=True)
+@guidance(stateless=True, cache=True)
 def _gen_json_int(lm):
     return lm + lexeme(r"-?(?:0|[1-9][0-9]*)", contextual=True)
 
 
-@guidance(stateless=True)
+@guidance(stateless=True, cache=True)
 def _gen_json_number(lm):
     return lm + select([
         _gen_json_int(),
@@ -106,7 +105,7 @@ def _gen_json_number(lm):
     ])
 
 
-@guidance(stateless=True)
+@guidance(stateless=True, cache=True)
 def _gen_json_string(
     lm,
     min_length: int = 0,
@@ -129,17 +128,17 @@ def _gen_json_string(
     return lm + lexeme(string_expr, contextual=True)
 
 
-@guidance(stateless=True)
+@guidance(stateless=True, cache=True)
 def _gen_json_object(
     lm,
     *,
-    properties: Mapping[str, Any],
-    additional_properties: Union[bool, Mapping[str, Any]],
-    definitions: Mapping[str, Callable[[], GrammarFunction]],
+    properties: frozendict[str, Any],
+    additional_properties: Union[bool, frozendict[str, Any]],
+    definitions: frozendict[str, Callable[[], GrammarFunction]],
 ):
     if additional_properties is True:
         # True means that anything goes
-        additional_properties = {}
+        additional_properties = frozendict()
 
     lm += "{"
     if properties:
@@ -161,12 +160,12 @@ def _gen_json_object(
     return lm
 
 
-@guidance(stateless=True)
+@guidance(stateless=True, cache=True)
 def _process_properties(
     lm,
     *,
-    properties: Mapping[str, Any],
-    definitions: Mapping[str, Callable[[], GrammarFunction]],
+    properties: frozendict[str, Any],
+    definitions: frozendict[str, Callable[[], GrammarFunction]],
 ):
     properties_added = 0
     for name, property_schema in properties.items():
@@ -183,12 +182,12 @@ def _process_properties(
     return lm
 
 
-@guidance(stateless=True)
+@guidance(stateless=True, cache=True)
 def _process_additional_properties(
     lm,
     *,
-    additional_properties: Mapping[str, Any],
-    definitions: Mapping[str, Callable[[], GrammarFunction]],
+    additional_properties: frozendict[str, Any],
+    definitions: frozendict[str, Callable[[], GrammarFunction]],
 ):
     item = (
         _gen_json_string()
@@ -198,19 +197,19 @@ def _process_additional_properties(
     return lm + sequence(item + ",") + item
 
 
-@guidance(stateless=True)
+@guidance(stateless=True, cache=True)
 def _gen_json_array(
     lm,
     *,
-    prefix_items_schema: Sequence[Mapping[str, Any]],
-    item_schema: Union[bool, Mapping[str, Any]],
+    prefix_items_schema: tuple[frozendict[str, Any]],
+    item_schema: Union[bool, frozendict[str, Any]],
     min_items: int,
     max_items: Optional[int],
-    definitions: Mapping[str, Callable[[], GrammarFunction]],
+    definitions: frozendict[str, Callable[[], GrammarFunction]],
 ):
     if item_schema is True:
         # True means that anything goes
-        item_schema = {}
+        item_schema = frozendict()
 
     if len(prefix_items_schema) < min_items and item_schema is False:
         raise ValueError(
@@ -274,19 +273,19 @@ def _gen_json_array(
     return lm
 
 
-@guidance(stateless=True)
+@guidance(stateless=True, cache=True)
 def _process_anyOf(
     lm,
     *,
-    anyof_list: Sequence[Mapping[str, Any]],
-    definitions: Mapping[str, Callable[[], GrammarFunction]],
+    anyof_list: tuple[frozendict[str, Any]],
+    definitions: frozendict[str, Callable[[], GrammarFunction]],
 ):
     options = [_gen_json(json_schema=item, definitions=definitions) for item in anyof_list]
     return lm + select(options)
 
 
-@guidance(stateless=True)
-def _process_enum(lm, *, options: Sequence[Mapping[str, Any]]):
+@guidance(stateless=True, cache=True)
+def _process_enum(lm, *, options: tuple[frozendict[str, Any]]):
     # TODO: can we support a whitespace-flexible version of this?
     all_opts = []
     for opt in options:
@@ -294,39 +293,39 @@ def _process_enum(lm, *, options: Sequence[Mapping[str, Any]]):
     return lm + select(options=all_opts)
 
 
-@guidance(stateless=True)
+@guidance(stateless=True, cache=True)
 def _gen_json_any(lm):
     return lm + select(
         [
-            _gen_json(json_schema={"type": "null"}, definitions={}),
-            _gen_json(json_schema={"type": "boolean"}, definitions={}),
-            _gen_json(json_schema={"type": "integer"}, definitions={}),
-            _gen_json(json_schema={"type": "number"}, definitions={}),
-            _gen_json(json_schema={"type": "string"}, definitions={}),
+            _gen_json(json_schema=frozendict({"type": "null"}), definitions=frozendict()),
+            _gen_json(json_schema=frozendict({"type": "boolean"}), definitions=frozendict()),
+            _gen_json(json_schema=frozendict({"type": "integer"}), definitions=frozendict()),
+            _gen_json(json_schema=frozendict({"type": "number"}), definitions=frozendict()),
+            _gen_json(json_schema=frozendict({"type": "string"}), definitions=frozendict()),
             # Recursive cases
             _gen_json(
-                json_schema={
+                json_schema=frozendict({
                     "type": "array",
                     "items": True,
-                },
-                definitions={},
+                }),
+                definitions=frozendict(),
             ),
             _gen_json(
-                json_schema={
+                json_schema=frozendict({
                     "type": "object",
                     "additionalProperties": True,
-                },
-                definitions={},
+                }),
+                definitions=frozendict(),
             ),
         ]
     )
 
 
-@guidance(stateless=True)
+@guidance(stateless=True, cache=True)
 def _gen_json(
     lm,
-    json_schema: Mapping[str, Any],
-    definitions: Mapping[str, Callable[[], GrammarFunction]],
+    json_schema: frozendict[str, Any],
+    definitions: frozendict[str, Callable[[], GrammarFunction]],
 ):
     validate_json_node_keys(json_schema)
 
@@ -367,7 +366,7 @@ def _gen_json(
             )
         if target_type == "array":
             return lm + _gen_json_array(
-                prefix_items_schema=json_schema.get("prefixItems", []),
+                prefix_items_schema=json_schema.get("prefixItems", ()),
                 item_schema=json_schema.get("items", True),
                 min_items=json_schema.get("minItems", 0),
                 max_items=json_schema.get("maxItems"),
@@ -375,7 +374,7 @@ def _gen_json(
             )
         if target_type == "object":
             return lm + _gen_json_object(
-                properties=json_schema.get("properties", {}),
+                properties=json_schema.get("properties", frozendict()),
                 additional_properties=json_schema.get("additionalProperties", True),
                 definitions=definitions,
             )
@@ -454,16 +453,19 @@ def json(
     else:
         schema = pydantic_to_json_schema(schema)
 
-    definitions: Mapping[str, Callable[[], GrammarFunction]] = {}
+    # Freeze the schema to make it immutable and hashable
+    frozen_schema: frozendict = deepfreeze(schema)
+
+    definitions: frozendict[str, Callable[[], GrammarFunction]] = frozendict()
     for dk in DEFS_KEYS:
-        if dk in schema:
+        if dk in frozen_schema:
             assert len(definitions) == 0, "Found duplicate definitions"
-            definitions = _build_definitions(schema[dk])
+            definitions = _build_definitions(frozen_schema[dk])
 
     return lm + with_temperature(
         subgrammar(
             name,
-            body=_gen_json(json_schema=schema, definitions=definitions),
+            body=_gen_json(json_schema=frozen_schema, definitions=definitions),
             skip_regex=(
                 None if compact
                 else r"[\x20\x0A\x0D\x09]+"
@@ -477,8 +479,8 @@ def json(
 
 def _build_definitions(
     raw_definitions: Mapping[str, Any]
-) -> Mapping[str, Callable[[], GrammarFunction]]:
-    definitions: Dict[str, Callable[[], GrammarFunction]] = {}
+) -> frozendict[str, Callable[[], GrammarFunction]]:
+    definitions: frozendict[str, Callable[[], GrammarFunction]]
 
     def build_definition(json_schema: Mapping[str, Any]) -> Callable[[], GrammarFunction]:
         @guidance(stateless=True, dedent=False, cache=True)
@@ -487,17 +489,14 @@ def _build_definitions(
 
         return closure
 
-    definitions = {ref: build_definition(schema) for ref, schema in raw_definitions.items()}
+    definitions = frozendict({ref: build_definition(schema) for ref, schema in raw_definitions.items()})
     return definitions
 
 
-@guidance(stateless=True)
 def _get_definition(
-    lm,
-    *,
     reference: str,
-    definitions: Mapping[str, Callable[[], GrammarFunction]],
-):
+    definitions: frozendict[str, Callable[[], GrammarFunction]],
+) -> GrammarFunction:
     assert definitions is not None
     target_definition = None
     for dk in DEFS_KEYS:
@@ -507,4 +506,4 @@ def _get_definition(
             target_definition = definitions[target_name]
 
     assert target_definition is not None
-    return lm + target_definition()
+    return target_definition()
