@@ -308,10 +308,12 @@ class TestDiscriminatedUnion:
         generate_and_check(obj, self.Model)
 
     def test_bad(self):
-            check_match_failure(
+        check_match_failure(
             bad_obj={"pet": {"pet_type": "dog"}, "n": 42},
             good_bytes=b'{"pet":{"pet_type":"dog"',
             failure_byte=b"}",
-            allowed_bytes={Byte(b",")}, # expect a comma to continue the object with "barks"
+            allowed_bytes={b","}, # expect a comma to continue the object with "barks"
             pydantic_model=self.Model,
+            maybe_whitespace=False,
+            compact=True
         )
