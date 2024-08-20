@@ -21,9 +21,9 @@ class TestExactlynRepeats:
     @pytest.mark.parametrize(
         ["bad_string", "good_bytes", "failure_byte", "allowed_bytes"],
         [
-            ("bbb", b"bbb", b"B", set([Byte(b"b")])),
-            ("bbbbb", b"bbbb", b"b", set([Byte(b"B")])),
-            ("aaaa", b"", b"a", set([Byte(b"b")])),
+            ("bbb", b"bbb", b"B", {b"b"}),
+            ("bbbbb", b"bbbb", b"b", {b"B"}),
+            ("aaaa", b"", b"a", {b"b"}),
         ],
     )
     def test_bad_repeats(self, bad_string: str, good_bytes, failure_byte, allowed_bytes):
@@ -59,8 +59,8 @@ class TestAtMostnRepeats:
     @pytest.mark.parametrize(
         ["bad_string", "good_bytes", "failure_byte", "allowed_bytes"],
         [
-            ("bbbbb", b"bbbb", b"b", set([Byte(b"B")])),
-            ("aaaa", b"", b"a", set([Byte(b"b"), Byte(b"B")])),
+            ("bbbbb", b"bbbb", b"b", {b"B"}),
+            ("aaaa", b"", b"a", {b"b", b"B"}),
         ],
     )
     def test_bad_repeats(self, bad_string: str, good_bytes, failure_byte, allowed_bytes):
@@ -105,8 +105,8 @@ class TestSequence:
     @pytest.mark.parametrize(
         ["bad_string", "good_bytes", "failure_byte", "allowed_bytes"],
         [
-            ("ba", b"b", b"a", set([Byte(b"b"), Byte(b"B")])),
-            ("a", b"", b"a", set([Byte(b"b"), Byte(b"B")])),
+            ("ba", b"b", b"a", {b"b", b"B"}),
+            ("a", b"", b"a", {b"b", b"B"}),
         ],
     )
     def test_bad_repeats_unconstrained(
@@ -136,10 +136,10 @@ class TestSequence:
     @pytest.mark.parametrize(
         ["bad_string", "good_bytes", "failure_byte", "allowed_bytes"],
         [
-            ("bbb", b"bbb", b"B", set([Byte(b"b")])),
-            ("aaaa", b"", b"a", set([Byte(b"b")])),
-            ("bbbba", b"bbbb", b"a", set([Byte(b"b"), Byte(b"B")])),
-            ("bbbbbba", b"bbbbbb", b"a", set([Byte(b"b"), Byte(b"B")])),
+            ("bbb", b"bbb", b"B", {b"b"}),
+            ("aaaa", b"", b"a", {b"b"}),
+            ("bbbba", b"bbbb", b"a", {b"b", b"B"}),
+            ("bbbbbba", b"bbbbbb", b"a", {b"b", b"B"}),
         ],
     )
     def test_bad_repeats_min_length(
@@ -170,8 +170,8 @@ class TestSequence:
     @pytest.mark.parametrize(
         ["bad_string", "good_bytes", "failure_byte", "allowed_bytes"],
         [
-            ("bbb", b"bb", b"b", set([Byte(b"B")])),
-            ("aa", b"", b"a", set([Byte(b"b"), Byte(b"B")])),
+            ("bbb", b"bb", b"b", {b"B"}),
+            ("aa", b"", b"a", {b"b", b"B"}),
         ],
     )
     def test_bad_repeats_max_length(
@@ -235,11 +235,11 @@ class TestSequence:
     @pytest.mark.parametrize(
         ["bad_string", "good_bytes", "failure_byte", "allowed_bytes"],
         [
-            ("", b"", b"B", set([Byte(b"b")])),
-            ("bbb", b"bb", b"b", set([Byte(b"B")])),
-            ("aa", b"", b"a", set([Byte(b"b")])),
-            ("ba", b"b", b"a", set([Byte(b"b"), Byte(b"B")])),
-            ("bba", b"bb", b"a", set([Byte(b"B")])),
+            ("", b"", b"B", {b"b"}),
+            ("bbb", b"bb", b"b", {b"B"}),
+            ("aa", b"", b"a", {b"b"}),
+            ("ba", b"b", b"a", {b"b", b"B"}),
+            ("bba", b"bb", b"a", {b"B"}),
         ],
     )
     def test_bad_repeats_min_max_length(

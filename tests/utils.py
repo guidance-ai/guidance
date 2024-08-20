@@ -1,13 +1,13 @@
 import os
-from typing import Any, Set, Union, Protocol
+from typing import Set, Optional, Protocol
 
 import pytest
 from huggingface_hub import hf_hub_download
 
 import guidance
 from guidance import models
-from guidance._grammar import Byte, ByteRange, GrammarFunction, Join
-from guidance._parser import ParserException
+from guidance._grammar import GrammarFunction, Join
+from guidance._parser import ByteParserException
 
 opanai_model_cache = {}
 
@@ -154,7 +154,7 @@ def check_match_failure(
     bad_string: str,
     good_bytes: bytes,
     failure_byte: bytes,
-    allowed_bytes: Union[Set[Union[Byte, ByteRange]], None],
+    allowed_bytes: Optional[Set[bytes]],
     grammar: GrammarFunction,
 ):
     """
@@ -164,13 +164,12 @@ def check_match_failure(
 
     allowed_bytes is allowed to be None, since it could be really complicated
     """
-    with pytest.raises(ParserException) as pe:
+    with pytest.raises(ByteParserException) as pe:
         grammar.match(bad_string, raise_exceptions=True)
-    assert pe.value.consumed_bytes[:-1] == good_bytes
+    assert pe.value.consumed_bytes == good_bytes
     assert pe.value.current_byte == failure_byte
     if allowed_bytes is not None:
         assert pe.value.allowed_bytes == allowed_bytes
-
 
 class GrammarFunctionCallable(Protocol):
     """
@@ -185,12 +184,13 @@ def generate_and_check(
     grammar_callable: GrammarFunctionCallable,
     test_string: str,
     capture_key="my_capture",
-    stop_char: str = chr(7),
+    eos_token = "<s>",
 ) -> models.Mock:
     # First, validate that the grammar actually accepts the test string
     grammar = grammar_callable(name=capture_key)
     match = grammar.match(test_string)
-    assert match.captures[capture_key].decode() == test_string
+    assert match is not None
+    assert match.captures[capture_key] == test_string
 
     # The next part is to prevent intermittent test failures
     # when the temperature is non-zero
@@ -201,8 +201,8 @@ def generate_and_check(
     # with our round trip check.
     # So append a 'stop' character which we don't
     # use in any of our tests
-    assert stop_char not in test_string, f"stop_char {stop_char!r} in string"
-    prepared_string = f"<s>{test_string}{stop_char}"
+    assert eos_token not in test_string, f"eos_token {eos_token!r} in string"
+    prepared_string = f"{eos_token}{test_string}{eos_token}"
     lm = models.Mock(prepared_string.encode())
 
     # Run with the mock model

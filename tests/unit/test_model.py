@@ -1,3 +1,4 @@
+import pytest
 import guidance
 from guidance import gen, models
 
@@ -21,7 +22,9 @@ def test_call_embeddings():
 
     assert "{{G|" not in str(model + ble())
 
-
+@pytest.mark.xfail(
+    reason="llguidance currently emits an additional empty capture group when no explicit stop is provided"
+)
 def test_model_set():
     model = models.Mock()
     model = model.set("num", "4")

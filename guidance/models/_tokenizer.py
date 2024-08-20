@@ -85,7 +85,7 @@ class Tokenizer:
     def __call__(self, byte_string: bytes):
         return self.encode(byte_string)
 
-    def encode(self, byte_string: bytes) -> Sequence[int]:
+    def encode(self, byte_string: bytes) -> list[int]:
         """Returns a list of tokens that represent the given byte string."""
         raise NotImplementedError(
             "You need to use a Tokenize subclass that overrides the encode method"
@@ -95,7 +95,7 @@ class Tokenizer:
         """Returns the bytes represented by the given list of tokens."""
         return b"".join([self.tokens[t] for t in tokens])
 
-    def recode(self, tokens: Sequence[int]) -> Sequence[int]:
+    def recode(self, tokens: Sequence[int]) -> list[int]:
         """Redoes a tokenisation.
 
         Encoding a string into tokens does not distribute over concatenation.
