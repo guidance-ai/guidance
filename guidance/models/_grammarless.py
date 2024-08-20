@@ -1,3 +1,4 @@
+import os
 import logging
 import queue
 import threading
@@ -14,6 +15,13 @@ from ._tokenizer import Tokenizer
 
 logger = logging.getLogger(__name__)
 
+try:
+    from .. import cpp  # type: ignore[attr-defined]
+except ImportError:
+    logger.warn(
+        "Failed to load guidance.cpp, falling back to Python mirror implementations..."
+    )
+    from .. import _cpp as cpp
 
 class GrammarlessTokenizer(Tokenizer):
     def __init__(self, tokenizer):
@@ -122,7 +130,7 @@ class GrammarlessTokenizer(Tokenizer):
 
         super().__init__(byte_tokens, chat_template, bos_token_id, eos_token_id)
 
-    def encode(self, byte_string: bytes) -> Sequence[int]:
+    def encode(self, byte_string: bytes) -> list[int]:
         """Returns a list of tokens that represent the given byte string."""
         assert isinstance(byte_string, bytes)
         return self._orig_tokenizer.encode(byte_string.decode())
@@ -165,6 +173,11 @@ class GrammarlessEngine(Engine):
         # build the Engine
         super().__init__(tokenizer=tokenizer, compute_log_probs=compute_log_probs)
 
+        # build a prefix tree of the tokens
+        self._token_trie = cpp.ByteTrie(
+            self.tokenizer.tokens, np.arange(len(self.tokenizer.tokens))
+        )
+
     def _generator(self, prompt: bytes, temperature: float):
         raise NotImplementedError("Child classes must implement _generator()")
 
@@ -199,12 +212,8 @@ class GrammarlessEngine(Engine):
                 dqueue.get()
             dqueue.put(e)
 
-        if self._running_stream():
-            dqueue.put(self.tokenizer.eos_token)
         self._not_running_stream.set()
-        dqueue.put(
-            b""
-        )  # so we never get stuck waiting for a running stream to return something
+        dqueue.put(b"")  # so we never get stuck waiting for a running stream to return something
 
     def _start_new_stream(self, prompt: bytes, temperature: float) -> None:
         assert isinstance(prompt, bytes)
@@ -248,25 +257,25 @@ class GrammarlessEngine(Engine):
         self._data = new_data
         self._last_stream_start = self._data
 
-    def get_logits(
-        self, token_ids: Sequence[int], forced_bytes: bytes, current_temp: float
-    ):
-        """Computes the logits for the given token state.
-
-        This overrides a method from the Local class that is used to get
-        inference results from the model.
-        """
+    def get_next_token(
+        self, token_ids: list[int], mask: Optional[bytes], temperature: float) -> int:
 
         logger.debug(
-            f"Start Grammarless.get_logits({token_ids=}, {forced_bytes=}, {current_temp=})"
+            f"Start Grammarless.get_next_token({token_ids=}, {mask=}, {temperature=})"
         )
         if len(token_ids) == 0:
             raise ValueError("token_ids must contain some tokens.")
 
         # compute the prompt bytes
+        # TODO: we need to get the forced bytes from the mask -- should streamline this?
+        if mask is not None:
+            forced_bytes = os.path.commonprefix([self.tokenizer.tokens[i] for i, b in enumerate(mask) if b != 0])
+        else:
+            forced_bytes = b""
+
         whole_token_prompt = self.tokenizer.decode(token_ids)
         prompt = whole_token_prompt + forced_bytes
-        logger.debug(f"Grammarless.get_logits: {prompt=}")
+        logger.debug(f"Grammarless.get_next_token: {prompt=}")
 
         self._last_call = time.time()
 
@@ -274,35 +283,35 @@ class GrammarlessEngine(Engine):
         token_id = None
         restarted = False  # track if we have restarted the data stream during this call
         while True:
-            logger.debug(f"Grammarless.get_logits: Starting main loop")
+            logger.debug(f"Grammarless.get_next_token: Starting main loop")
 
             # if the generation temperature changes we have to restart
-            if self._current_temp != current_temp:
-                logger.debug(f"Grammarless.get_logits: Starting new stream")
-                self._start_new_stream(prompt, current_temp)
+            if self._current_temp != temperature:
+                logger.debug(f"Grammarless.get_next_token: Starting new stream")
+                self._start_new_stream(prompt, temperature)
                 continue
 
             # try and get the next token id
             elif self._data.startswith(prompt):
-                logger.debug(f"Grammarless.get_logits: Getting next token id")
+                logger.debug(f"Grammarless.get_next_token: Getting next token id")
                 token_id = self._get_next_token(len(prompt) - len(forced_bytes))
-                logger.debug(f"Grammarless.get_logits: {token_id=}")
+                logger.debug(f"Grammarless.get_next_token: {token_id=}")
                 if token_id is not None:
 
                     # if we have a non-zero sampling temperature we can't reuse bytes
                     new_used_len = len(whole_token_prompt) + len(
                         self.tokenizer.tokens[token_id]
                     )
-                    logger.debug(f"Grammarless.get_logits: {new_used_len=}")
-                    if current_temp > 0 and self._used_bytes_len >= new_used_len:
-                        logger.debug(f"Grammarless.get_logits: Need to restart stream")
+                    logger.debug(f"Grammarless.get_next_token: {new_used_len=}")
+                    if temperature > 0 and self._used_bytes_len >= new_used_len:
+                        logger.debug(f"Grammarless.get_next_token: Need to restart stream")
                         token_id = None
-                        self._start_new_stream(prompt, current_temp)
+                        self._start_new_stream(prompt, temperature)
                         continue
 
                     # ...otherwise we have found the token id we want to emit
                     else:
-                        logger.debug(f"Grammarless.get_logits: Found token id")
+                        logger.debug(f"Grammarless.get_next_token: Found token id")
                         self._used_bytes_len = len(whole_token_prompt) + len(
                             self.tokenizer.tokens[token_id]
                         )
@@ -312,7 +321,7 @@ class GrammarlessEngine(Engine):
             elif not self._data.startswith(prompt) and len(self._data) >= len(
                 prompt
             ):  # not prompt.startswith(self._data): # len(self._data) >= len(prompt) or
-                logger.debug(f"Grammarless.get_logits: Data will not match prompt")
+                logger.debug(f"Grammarless.get_next_token: Data will not match prompt")
                 # check if we have already restarted once and so retrying by default is not likely to be helpful
                 if restarted:
                     raise self._report_failed_match(prompt)
@@ -328,7 +337,7 @@ class GrammarlessEngine(Engine):
                 if not found_mismatch:
                     match_len = len(prompt)
                 leftover = prompt[match_len:]
-                logger.debug(f"Grammarless.get_logits: {leftover=}")
+                logger.debug(f"Grammarless.get_next_token: {leftover=}")
 
                 # record any active non-empty role ends. Ignore role ends that are spaces
                 parts: Sequence[Optional[bytes]] = [
@@ -347,7 +356,7 @@ class GrammarlessEngine(Engine):
                 # see if adding an end token would work here (if so we avoid recalling the server and just produce an end token)
                 found_match = False
                 for p in parts:
-                    logger.debug(f"Grammarless.get_logits: Considering part {str(p)}")
+                    logger.debug(f"Grammarless.get_next_token: Considering part {str(p)}")
                     if p is not None:
                         if p.startswith(leftover):
                             self._data = self._data[:match_len] + p
@@ -363,7 +372,7 @@ class GrammarlessEngine(Engine):
                     f"restarting a stream because the data we have does not match the ids. We have {str(self._data)} but the prompt is {str(prompt)}"
                 )
                 restarted = True
-                self._start_new_stream(prompt, current_temp)
+                self._start_new_stream(prompt, temperature)
 
             # extend our data with a chunk from the model stream
             if not self._data_queue.empty():
@@ -381,11 +390,15 @@ class GrammarlessEngine(Engine):
 
             # but if there is nothing and we are not running then we start a stream
             elif self._not_running_stream.is_set():
+                if (self.tokenizer.eos_token_id is not None) and (
+                    mask is None or mask[self.tokenizer.eos_token_id] != 0
+                ):
+                    return self.tokenizer.eos_token_id
                 logger.debug(
                     "starting a new stream because there is no data to read and no stream running..."
                 )
                 restarted = True
-                self._start_new_stream(prompt, current_temp)
+                self._start_new_stream(prompt, temperature)
 
             # we wait for the running stream to put something in the queue
             else:
@@ -400,20 +413,7 @@ class GrammarlessEngine(Engine):
                 # reset out call time to allow the data stream to time out if we happen to be done with it
                 self._last_call = time.time()
 
-        # # if we don't have the next byte of data yet then we wait for it (from the streaming thread)
-        # if len(self._data) == len(prompt):
-        #     self._data += self._data_queue.get()
-
-        # token_id = self._get_next_token(len(prompt))
-
-        # set the logits to the next byte the model picked
-        logger.debug(f"Grammarless.get_logits: Creating logits for {token_id=}")
-        logits = np.ones(len(self.tokenizer.tokens)) * -np.inf
-        logits[token_id] = 100
-        if token_id != self.tokenizer.eos_token:
-            # we always allow the model to use EOS if that is the only way forward
-            logits[self.tokenizer.eos_token_id] = 0
-        return logits
+        return token_id
 
     def _report_failed_match(self, prompt: bytes):
         logger.debug(f"_report_failed_match: {prompt=}")

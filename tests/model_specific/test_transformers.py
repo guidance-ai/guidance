@@ -50,14 +50,15 @@ TRANSFORMER_MODELS = {
 
 @pytest.mark.parametrize(["model_name", "model_kwargs"], TRANSFORMER_MODELS.items())
 def test_transformer_smoke_gen(model_name, model_kwargs):
+    MAX_TOKENS = 2
     my_model = get_model(f"transformers:{model_name}", **model_kwargs)
 
     prompt = "How many sides has a triangle?"
-    lm = my_model + prompt + gen(name="answer", max_tokens=2)
+    lm = my_model + prompt + gen(name="answer", max_tokens=MAX_TOKENS)
     assert len(lm["answer"]) > 0, f"Output: {lm['answer']}"
 
-    # Inexact, but at least make sure not too much was produced
-    assert len(lm["answer"]) < 8, f"Output: {lm['answer']}"
+    # Make sure not too much was produced
+    assert len(lm.engine.tokenizer.encode(lm["answer"].encode())) <= MAX_TOKENS, f"Output: {lm['answer']}"
 
 
 @pytest.mark.parametrize(["model_name", "model_kwargs"], TRANSFORMER_MODELS.items())

@@ -1,20 +1,55 @@
-from typing import Sequence
-
+from typing import Sequence, Optional
 import numpy as np
+import logging
 
 from ._model import Engine, Model, Chat
 from ._remote import RemoteEngine
 from ._tokenizer import Tokenizer
 
+logger = logging.getLogger(__name__)
+
+# TODO: this import pattern happens in a few places, should be cleaned up
+try:
+    from .. import cpp  # type: ignore[attr-defined]
+except ImportError:
+    logger.warn(
+        "Failed to load guidance.cpp, falling back to Python mirror implementations..."
+    )
+    from .. import _cpp as cpp
 
 class MockTokenizer(Tokenizer):
     def __init__(self, tokens: Sequence[bytes]):
-
         super().__init__(tokens, chat_template=None, bos_token_id=0, eos_token_id=0)
+        self.byte_trie = cpp.ByteTrie(self.tokens, np.arange(len(self.tokens)))
 
-    def recode(self, tokens: Sequence[int]) -> Sequence[int]:
-        # Make a no-op for now
+    def encode(self, byte_string: bytes) -> list[int]:
+        """Simple greedy tokenizer
+        TODO: could be a method on ByteTrie if we want to reuse it
+        """
+        pos = 0
+        tokens = []
+        while pos < len(byte_string):
+            current_node = self.byte_trie
+            last_match = None
+            match_pos = pos
+
+            while match_pos < len(byte_string) and current_node.has_child(byte_string[match_pos : match_pos + 1]):
+                current_node = current_node.child(byte_string[match_pos : match_pos + 1])
+                if current_node.value >= 0:
+                    last_match = (current_node.value, match_pos + 1)
+                match_pos += 1
+
+            if last_match is not None:
+                tokens.append(last_match[0])
+                pos = last_match[1]
+            else:
+                raise ValueError(f"Could not find a match for byte {byte_string[pos]} at position {pos}")
+
         return tokens
+
+    def recode(self, tokens: Sequence[int]) -> list[int]:
+        # Make a no-op for now
+        return list(tokens)
 
 
 class MockEngine(Engine):
@@ -45,10 +80,12 @@ class MockEngine(Engine):
         # seed the random number generator
         self._rand_generator = np.random.default_rng(seed=42)
 
-    def get_logits(self, token_ids, forced_bytes, current_temp):
-        """Pretends to compute the logits for the given token state."""
-        self.called_temperatures.append(current_temp)
+    def get_next_token(self, token_ids: list[int], mask: Optional[bytes], temperature: float) -> int:
+        self.called_temperatures.append(temperature)
+        return super().get_next_token(token_ids, mask, temperature)
 
+    def get_logits(self, token_ids: list[int]) -> np.ndarray:
+        """Pretends to compute the logits for the given token state."""
         # build the byte strings
         byte_string = b"".join(self.tokenizer.tokens[i] for i in token_ids)
 
@@ -76,6 +113,15 @@ class MockEngine(Engine):
         return logits
 
     def _get_next_tokens(self, byte_string):
+        special_tokens = [
+            (self.tokenizer.bos_token_id, self.tokenizer.bos_token),
+            (self.tokenizer.eos_token_id, self.tokenizer.eos_token)
+        ]
+        for i, t in special_tokens:
+            # if the byte string starts with a special token then make sure we don't yield any other tokens
+            if byte_string.startswith(t):
+                yield i
+                return
         for i, t in enumerate(self.tokenizer.tokens):
             if byte_string.startswith(t):
                 yield i

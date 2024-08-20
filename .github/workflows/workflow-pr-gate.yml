@@ -169,7 +169,7 @@ jobs:
       matrix:
         python-version: ["3.9", "3.10", "3.11", "3.12"]
         model:
-          - "transformers_gpt2_cpu"
+          # - "transformers_gpt2_cpu" See #965
           # - "transformers_phi2_cpu" Seems to get stuck
           # - "transformers_mistral_7b_cpu" See Issue 713
           # - "llamacpp_llama2_7b_cpu" Getting stuck with llama-cpp-python 0.2.77

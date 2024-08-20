@@ -1,15 +1,15 @@
 import inspect
 from json import dumps as json_dumps
+from functools import partial
 from typing import Any, Dict, Generic, List, Literal, Tuple, Type, TypeVar, Union, Set
 
 import pydantic
 import pytest
 from pydantic.json_schema import to_jsonable_python as pydantic_to_jsonable_python
 
-from guidance import json as gen_json
-from guidance import models
-from guidance._grammar import Byte, ByteRange
-from ...utils import check_match_failure as _check_match_failure
+from guidance import models, json as gen_json
+from guidance.library._json import WHITESPACE
+from ...utils import check_match_failure as _check_match_failure, generate_and_check as _generate_and_check
 
 
 def to_compact_json(target: Any) -> str:
@@ -66,40 +66,33 @@ def generate_and_check(
 ):
     # Sanity check what we're being asked
     target_obj = validate_obj(target_obj, pydantic_model)
+    prepared_json = to_compact_json(target_obj)
+    assert validate_string(prepared_json, pydantic_model) == target_obj
 
-    # Define grammar with capture key
-    CAPTURE_KEY = "my_capture"
-    grammar = gen_json(name=CAPTURE_KEY, schema=pydantic_model)
-
-    # Test that grammar matches string
-    json_string = to_compact_json(target_obj)
-    matches = grammar.match(json_string, raise_exceptions=True)
-    assert matches.partial == False
-
-    # Run with the mock model
-    prepared_string = f"<s>{json_string}"
-    lm = models.Mock(prepared_string.encode(), echo=False)
-    lm += grammar
-
-    # Make sure the round trip works
-    round_trip_object = validate_string(lm[CAPTURE_KEY], pydantic_model)
-    assert round_trip_object == target_obj
+    # Check that the grammar can produce the literal prepared_json string
+    grammar_callable = partial(gen_json, schema=pydantic_model)
+    _generate_and_check(grammar_callable, prepared_json)
 
 
 def check_match_failure(
     bad_obj: Any,
     good_bytes: bytes,
     failure_byte: bytes,
-    allowed_bytes: Set[Union[Byte, ByteRange]],
+    allowed_bytes: Set[bytes],
     pydantic_model: Union[Type[pydantic.BaseModel], pydantic.TypeAdapter],
+    maybe_whitespace: bool,
+    compact: bool,
 ):
     bad_string = to_compact_json(bad_obj)
-    grammar = gen_json(schema=pydantic_model)
+    grammar = gen_json(schema=pydantic_model, compact=compact)
     _check_match_failure(
         bad_string=bad_string,
         good_bytes=good_bytes,
         failure_byte=failure_byte,
-        allowed_bytes=allowed_bytes,
+        allowed_bytes=(
+            allowed_bytes.union(WHITESPACE) if (maybe_whitespace and not compact)
+            else allowed_bytes
+        ),
         grammar=grammar,
     )
 
@@ -174,14 +167,19 @@ class TestTuple:
         model = pydantic.TypeAdapter(Tuple[int, bool])
         generate_and_check((1, True), model)
 
-    def test_maxitems(self):
+    @pytest.mark.parametrize(
+        "compact", [True, False]
+    )
+    def test_maxitems(self, compact):
         model = pydantic.TypeAdapter(Tuple[int,])
         check_match_failure(
             bad_obj=(1, 2),
             good_bytes=b"[1",
             failure_byte=b",",
-            allowed_bytes={ByteRange(b"09"), Byte(b"]")},
+            allowed_bytes={b"]", *{bytes([i]) for i in range(ord("0"), ord("9") + 1)}},
             pydantic_model=model,
+            maybe_whitespace=True,
+            compact=compact,
         )
 
 
@@ -252,15 +250,18 @@ class TestGeneric:
         generate_and_check(obj, model)
 
     @pytest.mark.parametrize(
-        "my_type, my_obj, good_bytes, failure_byte, allowed_bytes",
+        "compact", [True, False]
+    )
+    @pytest.mark.parametrize(
+        "my_type, my_obj, good_bytes, failure_byte, allowed_bytes, maybe_whitespace",
         [
-            (bool, "True", b"", b'"', {Byte(b"t"), Byte(b"f")}),
-            (str, 42, b"", b"4", {Byte(b'"')}),
-            (int, False, b"", b"f", {Byte(b"0"), ByteRange(b"19"), Byte(b"-")}),
+            (bool, "True", b"", b'"', {b"t", b"f"}, True),
+            (str, 42, b"", b"4", {b'"'}, True),
+            (int, False, b"", b"f", {b"-", *{bytes([i]) for i in range(ord("0"), ord("9") + 1)}}, True),
         ],
     )
     def test_bad_generic(
-        self, my_type, my_obj, good_bytes, failure_byte, allowed_bytes
+        self, my_type, my_obj, good_bytes, failure_byte, allowed_bytes, maybe_whitespace, compact
     ):
         model = self.SimpleGeneric[my_type]
         obj = {"my_obj": my_obj}
@@ -270,6 +271,8 @@ class TestGeneric:
             failure_byte=failure_byte,
             allowed_bytes=allowed_bytes,
             pydantic_model=model,
+            maybe_whitespace=maybe_whitespace,
+            compact=compact,
         )
 
 class TestDiscriminatedUnion:

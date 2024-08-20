@@ -1,6 +1,6 @@
 import pathlib
 
-from typing import Type
+from typing import Union
 from urllib.parse import parse_qs, urlparse
 
 import tiktoken
@@ -32,15 +32,15 @@ class AzureOpenAI(Grammarless):
         self,
         model: str,
         azure_endpoint: str,
-        azure_deployment: str = None,
+        azure_deployment: Union[str, None] = None,
         azure_ad_token_provider=None,
-        api_key: str = None,
+        api_key: Union[str, None] = None,
         tokenizer=None,
-        echo=True,
-        version: str = None,
-        max_streaming_tokens=1000,
-        timeout=0.5,
-        compute_log_probs=False,
+        echo: bool = True,
+        version: Union[str, None] = None,
+        max_streaming_tokens: int = 1000,
+        timeout: float = 0.5,
+        compute_log_probs: bool = False,
         **kwargs,
     ):
         """Build a new AzureOpenAI model object that represents a model in a given state.
@@ -66,19 +66,17 @@ class AzureOpenAI(Grammarless):
 
         if api_key is None and azure_ad_token_provider is None:
             raise ValueError("Please provide either api_key or azure_ad_token_provider")
-        
+
         parsed_url = urlparse(azure_endpoint)
 
         if azure_deployment is None:
             parts = pathlib.Path(parsed_url.path).parts
             if len(parts) > 2:
                 azure_deployment = parts[3]
-                
+
         parsed_query = parse_qs(parsed_url.query)
         api_version = (
-            version
-            if "api-version" not in parsed_query
-            else parsed_query["api-version"]
+            version if "api-version" not in parsed_query else parsed_query["api-version"][0]
         )
 
         if tokenizer is None:
@@ -90,7 +88,7 @@ class AzureOpenAI(Grammarless):
             timeout=timeout,
             compute_log_probs=compute_log_probs,
             model=model,
-            azure_endpoint=azure_endpoint,
+            azure_endpoint=f"{parsed_url.scheme}://{parsed_url.netloc}",
             api_key=api_key,
             azure_ad_token_provider=azure_ad_token_provider,
             api_version=api_version,
