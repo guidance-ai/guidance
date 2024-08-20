@@ -1,6 +1,7 @@
 from json import dumps as json_dumps
 from enum import Enum
 from frozendict import frozendict, deepfreeze
+from functools import cache
 from typing import (
     Any,
     Callable,
@@ -476,13 +477,13 @@ def json(
         temperature=temperature,
     )
 
-
+@cache
 def _build_definitions(
-    raw_definitions: Mapping[str, Any]
+    raw_definitions: frozendict[str, Any]
 ) -> frozendict[str, Callable[[], GrammarFunction]]:
     definitions: frozendict[str, Callable[[], GrammarFunction]]
 
-    def build_definition(json_schema: Mapping[str, Any]) -> Callable[[], GrammarFunction]:
+    def build_definition(json_schema: frozendict[str, Any]) -> Callable[[], GrammarFunction]:
         @guidance(stateless=True, dedent=False, cache=True)
         def closure(lm):
             return lm + _gen_json(json_schema=json_schema, definitions=definitions)
