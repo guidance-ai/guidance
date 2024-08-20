@@ -1,5 +1,6 @@
+import pytest
 import guidance
-from guidance import gen, models
+from guidance import gen
 
 def test_dedent_basic():
     """Test that dedent functionality in f-strings works across Python versions."""
@@ -134,3 +135,15 @@ def test_inconsistent_indentation():
 #     lm = guidance.models.Mock()
 #     result = lm + outer_function()
 #     assert result == "Inner function variable:\nouter_var: outer_value\n"
+
+def test_exception_on_repeat_calls():
+    @guidance(stateless=True, dedent=False)
+    def raises(lm):
+        assert False
+    with pytest.raises(AssertionError):
+        raises()
+    with pytest.raises(AssertionError):
+        # Test against failure to reset the grammar function;
+        # improper handling may not raise and may instead return
+        # a Placeholder grammar node
+        raises()
