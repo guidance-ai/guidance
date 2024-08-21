@@ -1,3 +1,6 @@
+import pytest
+from collections import defaultdict
+import guidance
 from guidance import gen, models
 
 
@@ -111,6 +114,14 @@ def test_list_append():
     assert isinstance(lm["my_list"], list)
     assert len(lm["my_list"]) == 3
 
+@pytest.mark.xfail(
+    reason="llguidance currently emits an additional empty capture group when no explicit stop is provided"
+)
+def test_list_append_no_explicit_stop():
+    model = models.Mock("<s>bbbbbbb<s>")
+    model += gen("list", list_append=True)
+    assert model["list"][-1] == "bbbbbbb"
+    assert len(model["list"]) == 1
 
 def test_list_append_in_grammar():
     """This tests is list append works within the same grammar."""
@@ -137,3 +148,86 @@ def test_one_char_stop_and_regex():
     model = models.Mock(b"<s>this is\na test")
     model += gen(regex=".*", stop="\n", max_tokens=20)
     assert str(model) == "this is"
+
+
+def test_multiline():
+    model = models.Mock(b"<s>this\nis\na\ntest<s>")
+    model += gen(max_tokens=20)
+    assert str(model) == "this\nis\na\ntest"
+
+
+def test_tool_call():
+    called_args = []
+
+    @guidance(dedent=False)
+    def square(lm, x):
+        called_args.append(x)
+        return lm + str(int(x)**2)
+
+    model = models.Mock(b"<s>Three squared is square(3)9<s>")
+    model += gen(tools=[square], max_tokens=30)
+    assert str(model) == "Three squared is square(3)9"
+    assert called_args == ["3"]
+
+
+def test_tool_call_hidden():
+    called_args = []
+
+    @guidance(dedent=False)
+    def square(lm, x):
+        called_args.append(x)
+        return lm + str(int(x)**2)
+
+    model = models.Mock([
+        b"<s>Three squared is square(3)",
+        b"<s>Three squared is 9<s>"
+    ])
+    model += gen(tools=[square], hide_tool_call=True, max_tokens=30)
+    assert str(model) == "Three squared is 9"
+    assert called_args == ["3"]
+
+
+def test_tool_call_multi():
+    called_args = defaultdict(list)
+
+    @guidance(dedent=False)
+    def square(lm, x):
+        called_args['square'].append(x)
+        return lm + str(int(x)**2)
+
+    @guidance(dedent=False)
+    def cube(lm, x):
+        called_args['cube'].append(x)
+        return lm + str(int(x)**3)
+
+    model = models.Mock(
+        b"<s>Three squared is square(3)9, which cubed is cube(9)729. Good job me.<s>",
+    )
+    model += gen(tools=[square, cube], hide_tool_call=False, max_tokens=50)
+    assert str(model) == "Three squared is square(3)9, which cubed is cube(9)729. Good job me."
+    assert called_args["square"] == ["3"]
+    assert called_args["cube"] == ["9"]
+
+
+def test_tool_call_multi_hidden():
+    called_args = defaultdict(list)
+
+    @guidance(dedent=False)
+    def square(lm, x):
+        called_args['square'].append(x)
+        return lm + str(int(x)**2)
+
+    @guidance(dedent=False)
+    def cube(lm, x):
+        called_args['cube'].append(x)
+        return lm + str(int(x)**3)
+
+    model = models.Mock([
+        b"<s>Three squared is square(3)",
+        b"<s>Three squared is 9, which cubed is cube(9)",
+        b"<s>Three squared is 9, which cubed is 729. Good job me.<s>"
+    ])
+    model += gen(tools=[square, cube], hide_tool_call=True, max_tokens=50)
+    assert str(model) == "Three squared is 9, which cubed is 729. Good job me."
+    assert called_args["square"] == ["3"]
+    assert called_args["cube"] == ["9"]

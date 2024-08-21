@@ -156,8 +156,8 @@ def test_non_token_force(selected_model: models.Model):
     "pattern",
     [
         "(Scott is a person|Scott is a persimmon)",
-        r"Scott is a persimmon.*\.",
-        r"\d\.*\d+",
+        r"Scott is a persimmon.{0,20}\.",
+        r"[0-9]\.{0,20}[0-9]+",
     ],
 )
 def test_various_regexes(selected_model: models.Model, prompt: str, pattern: str):

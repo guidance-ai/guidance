@@ -4,6 +4,14 @@ from ._grammarless import Grammarless, GrammarlessEngine
 import tiktoken
 import os
 
+try:
+    import google.generativeai as genai
+
+    has_genai = True
+except ImportError:
+    has_genai = False
+
+
 _image_token_pattern = re.compile(r"<\|_image:(.*)\|>")
 
 
@@ -18,9 +26,7 @@ class GoogleAIEngine(GrammarlessEngine):
         compute_log_probs,
         **kwargs,
     ):
-        try:
-            import google.generativeai as genai
-        except ModuleNotFoundError:
+        if not has_genai:
             raise Exception(
                 "Please install the Google AI Studio(makersuite.google.com) package using `pip install google-generativeai google-ai-generativelanguage` in order to use guidance.models.GoogleAI!"
             )

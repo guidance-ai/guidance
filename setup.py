@@ -25,10 +25,10 @@ install_requires = [
     "numpy",
     "ordered_set",
     "platformdirs",
-    "protobuf",
     "pydantic",
     "requests",
     "tiktoken>=0.3",
+    "llguidance",
 ]
 
 # Our basic list of 'extras'
@@ -60,12 +60,13 @@ test_requires = [
     "bitsandbytes",
     "jupyter",
     "papermill",
+    "protobuf",
     "pytest",
     "pytest-cov",
+    "sentencepiece",
     "torch",
     "transformers",
     "mypy==1.9.0",
-    "types-protobuf",
     "types-regex",
     "types-requests",
     "types-jsonschema",
