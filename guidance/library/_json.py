@@ -640,7 +640,7 @@ def json(
     json_top_level_grammar = c.builder.finalize()
     assert len(json_top_level_grammar["grammars"]) == 1
 
-    json_grammar = ReferencingGrammarFunction(name=name)
+    json_grammar = ReferencingGrammarFunction(name=None, capture_name=name)
     json_grammar.nodes = json_top_level_grammar["grammars"][0]["nodes"]
 
     return lm + with_temperature(

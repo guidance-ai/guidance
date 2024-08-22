@@ -918,8 +918,14 @@ def _is_string_literal(node: GrammarFunction):
 
 
 class ReferencingGrammarFunction(GrammarFunction):
-    def __init__(self, name: Union[str, None]):
+    __slots__ = (
+        "name",
+        "capture_name",
+    )
+
+    def __init__(self, name: Union[str, None], capture_name: Union[str, None] = None):
         self.name = name if name is not None else GrammarFunction._new_name()
+        self.capture_name = capture_name
         self.nodes: List[llg.NodeJSON] = []
 
 
@@ -1092,13 +1098,23 @@ class LLSerializer:
 
     def process_referencing_node(self, node: ReferencingGrammarFunction):
         offset = len(self.nodes)
-        for obj in enumerate(node.nodes):
+
+        for _ in range(len(node.nodes) - 1):
+            self.nodes.append({})
+        for i, obj in enumerate(node.nodes):
             print(f"{obj=}")
-            id = len(self.nodes)
             updated_obj = copy.deepcopy(obj)
             if "Join" in updated_obj:
-                updated_obj["Join"]["sequence"] = [i + offset for i in updated_obj["Join"]["sequence"]]
-            self.nodes.append(updated_obj)
+                updated_obj["Join"]["sequence"] = [
+                    j + offset - 1 for j in updated_obj["Join"]["sequence"]
+                ]
+            elif "Select" in updated_obj:
+                raise NotImplementedError("Select!")
+
+            self.nodes[offset + i - 1] = updated_obj
+
+        if capture_name := getattr(node, "capture_name"):
+            self.nodes[offset - 1]["capture_name"] = capture_name
 
     def process(self, node: GrammarFunction):
         if isinstance(node, ReferencingGrammarFunction):
