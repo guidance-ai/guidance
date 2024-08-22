@@ -427,8 +427,9 @@ class Compiler:
 
     @cached_property
     def json_number(self) -> GrammarNode:
-        # TODO: guidance had a select() including json_int() here
-        return self.builder.lexeme(r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?", contextual=True)
+        return self.builder.lexeme(
+            r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?", contextual=True
+        )
 
     @cached_property
     def json_simple_string(self) -> GrammarNode:
@@ -647,17 +648,14 @@ def json(
         subgrammar(
             name,
             body=json_grammar,
-            skip_regex=(
-                None if compact
-                else r"[\x20\x0A\x0D\x09]+"
-            ),
+            skip_regex=(None if compact else r"[\x20\x0A\x0D\x09]+"),
             no_initial_skip=True,
             max_tokens=max_tokens,
         ),
         temperature=temperature,
     )
 
-    #return lm + with_temperature(
+    # return lm + with_temperature(
     #    json_grammar,
     #    temperature=temperature,
-    #)
+    # )
