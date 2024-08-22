@@ -1097,26 +1097,27 @@ class LLSerializer:
         return id
 
     def process_referencing_node(self, node: ReferencingGrammarFunction):
-        offset = len(self.nodes)
+        offset = len(self.nodes) - 1
 
         for _ in range(len(node.nodes) - 1):
             self.nodes.append({})
         for i, obj in enumerate(node.nodes):
-            print(f"{obj=}")
             updated_obj = copy.deepcopy(obj)
             if "Join" in updated_obj:
+                updated_obj = cast(llg.NodeJoinJSON, updated_obj)
                 updated_obj["Join"]["sequence"] = [
-                    j + offset - 1 for j in updated_obj["Join"]["sequence"]
+                    j + offset for j in updated_obj["Join"]["sequence"]
                 ]
             elif "Select" in updated_obj:
+                updated_obj = cast(llg.NodeSelectJSON, updated_obj)
                 updated_obj["Select"]["among"] = [
-                    j + offset - 1 for j in updated_obj["Select"]["among"]
+                    j + offset for j in updated_obj["Select"]["among"]
                 ]
 
-            self.nodes[offset + i - 1] = updated_obj
+            self.nodes[offset + i] = cast(dict, updated_obj)
 
         if capture_name := getattr(node, "capture_name"):
-            self.nodes[offset - 1]["capture_name"] = capture_name
+            self.nodes[offset]["capture_name"] = capture_name
 
     def process(self, node: GrammarFunction):
         if isinstance(node, ReferencingGrammarFunction):
