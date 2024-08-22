@@ -1,3 +1,4 @@
+import copy
 import re
 import types
 
@@ -1089,7 +1090,21 @@ class LLSerializer:
         self.todo.append(node)
         return id
 
+    def process_referencing_node(self, node: ReferencingGrammarFunction):
+        offset = len(self.nodes)
+        for obj in enumerate(node.nodes):
+            print(f"{obj=}")
+            id = len(self.nodes)
+            updated_obj = copy.deepcopy(obj)
+            if "Join" in updated_obj:
+                updated_obj["Join"]["sequence"] = [i + offset for i in updated_obj["Join"]["sequence"]]
+            self.nodes.append(updated_obj)
+
     def process(self, node: GrammarFunction):
+        if isinstance(node, ReferencingGrammarFunction):
+            self.process_referencing_node(node)
+            return
+
         obj: dict[str, Any] = {}
         if isinstance(node, Select):
             obj = {
