@@ -1,7 +1,6 @@
 import re
 import types
-
-from typing import Any, TYPE_CHECKING, TypeVar, Union, cast, Optional
+from typing import TYPE_CHECKING, Any, List, Optional, TypeVar, Union, cast
 
 from . import _parser
 
@@ -926,6 +925,9 @@ def _is_string_literal(node: GrammarFunction):
         return all(_is_string_literal(v) for v in node.values)
     return False
 
+
+class ReferencingGrammarFunction(GrammarFunction):
+  grammars: List["ReferableGrammar"]
 
 class LLSerializer:
     def __init__(self) -> None:
