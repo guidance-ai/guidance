@@ -23,25 +23,35 @@ except ImportError:
     if TYPE_CHECKING:
         raise
 
+from ..llg import GrammarWithLexer, TopLevelGrammar, NodeJSON, NodeLexeme
+
 from .._guidance import guidance
 
-from .._grammar import GrammarFunction, with_temperature, ReferencingGrammarFunction, ReferableJoin, ReferableLexeme, ReferableLiteral, ReferableSelect
+from .._grammar import (
+    GrammarFunction,
+    with_temperature,
+    ReferencingGrammarFunction,
+    ReferableJoin,
+    ReferableLexeme,
+    ReferableLiteral,
+    ReferableSelect,
+)
 from ._pydantic import pydantic_to_json_schema
 from ._subgrammar import lexeme, subgrammar
 
 
-GrammarNode = Tuple[int, llg.GrammarWithLexer]
+GrammarNode = Tuple[int, GrammarWithLexer]
 Grammar = Union[str, GrammarNode]
 
 
 class GrammarBuilder:
 
     def __init__(self) -> None:
-        self.top_grammar: llg.TopLevelGrammar = {
+        self.top_grammar: TopLevelGrammar = {
             "grammars": [],
             "max_tokens": None,
         }
-        self._placeholder: llg.NodeJSON = {"String": {"literal": "placeholder"}}
+        self._placeholder: NodeJSON = {"String": {"literal": "placeholder"}}
         self._strings: Dict[str, GrammarNode] = {}
 
     def string(self, s: str) -> GrammarNode:
@@ -62,7 +72,7 @@ class GrammarBuilder:
         json_allowed_escapes: Optional[str] = None,
     ) -> GrammarNode:
         r = (len(self.nodes), self.curr_grammar)
-        props: llg.NodeLexeme = {
+        props: NodeLexeme = {
             "rx": rx,
             "contextual": contextual,
             "max_tokens": max_tokens,
@@ -116,13 +126,11 @@ class GrammarBuilder:
         self, placeholder: GrammarNode, node: GrammarNode, direct: bool = False
     ) -> None:
         self._child_nodes([placeholder[0:2], node])  # validate
-        assert (
-            self.nodes[placeholder[0]] is self._placeholder
-        ), "placeholder already set"
+        assert self.nodes[placeholder[0]] is self._placeholder, "placeholder already set"
         if direct:
             self.nodes[placeholder[0]] = self.nodes[node[0]]
         else:
-            body: llg.NodeJSON = {"Join": {"sequence": [node[0]]}}
+            body: NodeJSON = {"Join": {"sequence": [node[0]]}}
             self.nodes[placeholder[0]] = body
 
     def set_start_node(self, node: GrammarNode) -> None:
@@ -137,7 +145,7 @@ class GrammarBuilder:
         allow_invalid_utf8: bool = False,
     ) -> "GrammarBuilder":
         # TODO blow caches
-        self.curr_grammar: llg.GrammarWithLexer = {
+        self.curr_grammar: GrammarWithLexer = {
             "nodes": [],
             "greedy_skip_rx": skip,
             "contextual": contextual,
@@ -146,13 +154,13 @@ class GrammarBuilder:
             "no_forcing": no_forcing,
             "allow_invalid_utf8": allow_invalid_utf8,
         }
-        self.nodes: List[llg.NodeJSON] = self.curr_grammar["nodes"]
+        self.nodes: List[NodeJSON] = self.curr_grammar["nodes"]
         self.top_grammar["grammars"].append(self.curr_grammar)
         top, _ = self.placeholder()
         assert top == 0
         return self
 
-    def finalize(self) -> llg.TopLevelGrammar:
+    def finalize(self) -> TopLevelGrammar:
         for g in self.top_grammar["grammars"]:
             for n in g["nodes"]:
                 assert n is not self._placeholder, "unresolved placeholder"
@@ -166,7 +174,6 @@ def _to_compact_json(target: Any) -> str:
     # output, we don't need to worry about pretty printing
     # and whitespace
     return json_dumps(target, separators=(",", ":"))
-
 
 
 @dataclass
@@ -244,9 +251,7 @@ def validate_json_node_keys(node: Mapping[str, Any]) -> None:
     invalid_keys = keys - valid_keys
     if invalid_keys:
         # don't include schema in exception message as it may be large
-        raise ValueError(
-            f"JSON schema had keys that could not be processed: {invalid_keys}"
-        )
+        raise ValueError(f"JSON schema had keys that could not be processed: {invalid_keys}")
 
 
 class Compiler:
@@ -288,8 +293,7 @@ class Compiler:
 
     def _build_definitions(self, raw_definitions: Mapping[str, Any]) -> None:
         self.definitions = {
-            ref: (schema, self.builder.placeholder())
-            for ref, schema in raw_definitions.items()
+            ref: (schema, self.builder.placeholder()) for ref, schema in raw_definitions.items()
         }
 
     def _get_definition(
@@ -415,15 +419,11 @@ class Compiler:
         self,
         additional_properties: Mapping[str, Any],
     ) -> GrammarNode:
-        item = self.join(
-            self.json_simple_string, ":", self._gen_json(additional_properties)
-        )
+        item = self.join(self.json_simple_string, ":", self._gen_json(additional_properties))
         return self.builder.optional(self._sequence(item))
 
     def _sequence(self, item: GrammarNode) -> GrammarNode:
-        return self.builder.join(
-            [self.builder.zero_or_more(self.join(item, ",")), item]
-        )
+        return self.builder.join([self.builder.zero_or_more(self.join(item, ",")), item])
 
     @cached_property
     def json_int(self) -> GrammarNode:
@@ -432,9 +432,7 @@ class Compiler:
     @cached_property
     def json_number(self) -> GrammarNode:
         # TODO: guidance had a select() including json_int() here
-        return self.builder.lexeme(
-            r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)"
-        )
+        return self.builder.lexeme(r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)")
 
     @cached_property
     def json_simple_string(self) -> GrammarNode:
@@ -462,9 +460,7 @@ class Compiler:
             return self.builder.lexeme(regex, json_string=True)
 
         max_length_str = f"{max_length}" if max_length is not None else ""
-        return self.builder.lexeme(
-            '"' + CHAR_REGEX + f"{{{min_length},{max_length_str}}}" + '"'
-        )
+        return self.builder.lexeme('"' + CHAR_REGEX + f"{{{min_length},{max_length_str}}}" + '"')
 
     def _gen_json_array(
         self,
@@ -484,21 +480,15 @@ class Compiler:
             )
 
         if max_items is not None and max_items < min_items:
-            raise ValueError(
-                f"maxItems ({max_items}) can't be less than minItems ({min_items})"
-            )
+            raise ValueError(f"maxItems ({max_items}) can't be less than minItems ({min_items})")
 
         required_items: List[GrammarNode] = []
         optional_items: List[GrammarNode] = []
 
         # If max_items is None, we can add an infinite tail of items later
-        n_to_add = (
-            max(len(prefix_items_schema), min_items) if max_items is None else max_items
-        )
+        n_to_add = max(len(prefix_items_schema), min_items) if max_items is None else max_items
 
-        item_schema_compiled = (
-            None if item_schema is False else self._gen_json(item_schema)
-        )
+        item_schema_compiled = None if item_schema is False else self._gen_json(item_schema)
         for i in range(n_to_add):
             if i < len(prefix_items_schema):
                 item = self._gen_json(prefix_items_schema[i])
@@ -578,7 +568,6 @@ class Compiler:
         return self._gen_json_any_cache
 
 
-
 @guidance(stateless=True)
 def json(
     lm,
@@ -652,45 +641,21 @@ def json(
     options = CompileOptions(compact=compact)
     c = Compiler(options)
     c.run(schema)
-    json_grammar = c.builder.finalize()
+    json_top_level_grammar = c.builder.finalize()
+    assert len(json_top_level_grammar["grammars"]) == 1
 
+    json_grammar = ReferencingGrammarFunction(name=name)
+    for src_node in json_top_level_grammar["grammars"][0]["nodes"]:
+        print(f"{src_node=}")
+        if "String" in src_node:
+            nxt = ReferableLiteral(value=src_node["String"]["literal"])
+        elif "Join" in src_node:
+            nxt = ReferableJoin(items=src_node["Join"]["sequence"])
+        else:
+            raise ValueError(f"Unrecognised src_node: {src_node=}")
+        json_grammar.grammars.append(nxt)
 
     return lm + with_temperature(
         json_grammar,
         temperature=temperature,
     )
-
-
-def _build_definitions(
-    raw_definitions: Mapping[str, Any]
-) -> Mapping[str, Callable[[], GrammarFunction]]:
-    definitions: Dict[str, Callable[[], GrammarFunction]] = {}
-
-    def build_definition(json_schema: Mapping[str, Any]) -> Callable[[], GrammarFunction]:
-        @guidance(stateless=True, dedent=False, cache=True)
-        def closure(lm):
-            return lm + _gen_json(json_schema=json_schema, definitions=definitions)
-
-        return closure
-
-    definitions = {ref: build_definition(schema) for ref, schema in raw_definitions.items()}
-    return definitions
-
-
-@guidance(stateless=True)
-def _get_definition(
-    lm,
-    *,
-    reference: str,
-    definitions: Mapping[str, Callable[[], GrammarFunction]],
-):
-    assert definitions is not None
-    target_definition = None
-    for dk in DEFS_KEYS:
-        ref_start = f"#/{dk}/"
-        if reference.startswith(ref_start):
-            target_name = reference[len(ref_start) :]
-            target_definition = definitions[target_name]
-
-    assert target_definition is not None
-    return lm + target_definition()

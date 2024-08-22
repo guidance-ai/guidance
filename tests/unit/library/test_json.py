@@ -8,12 +8,14 @@ from jsonschema import validate
 from guidance import json as gen_json
 from guidance import models
 
-from guidance.library._json import _to_compact_json, WHITESPACE
+from guidance.library._json import _to_compact_json
 
 from ...utils import check_match_failure as _check_match_failure
 from ...utils import check_run_with_temperature
 from ...utils import generate_and_check as _generate_and_check
 
+
+WHITESPACE = {b" ", b"\t", b"\n", b"\r"}
 
 def generate_and_check(
     target_obj: Any, schema_obj, desired_temperature: Optional[float] = None
