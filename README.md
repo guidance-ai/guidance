@@ -16,10 +16,16 @@
 
 
 ## Install
-Guidance is available through PyPI, to use a specific model see [loading models](#loading-models).
+Guidance is available through PyPI and supports a variety of backends (Transformers, llama.cpp, OpenAI, etc.). To use a specific model see [loading models](#loading-models).
 ```bash
 pip install guidance
 ```
+
+_Note: To use Guidance on Phi models in Azure AI, or to use the new accelerated Rust-based parser, please install the release-candidate v0.2.0 guidance package_:
+```bash
+pip install guidance --pre
+```
+For a detailed walkthrough of using Guidance on hosted Phi models, check the [Azure AI specific loading instructions.](#azure-ai) and the [Phi-3 + Guidance cookbook](https://github.com/microsoft/Phi-3CookBook/blob/main/code/01.Introduce/guidance.ipynb).
 
 <!-- <a href="https://www.youtube.com/watch?v=9oXjP5IIMzQ"  aria-label="Watch demo"><img alt="Watch demo" src="docs/figures/watch_demo_button.png" width="120"></a> <a href="#get-started" aria-label="Get started"><img alt="Watch demo" src="docs/figures/get_started_button.png" width="120"></a> -->
 
@@ -661,6 +667,50 @@ Install transformers:
 ```python
 from guidance import models
 lm = models.Transformers(model_name_or_path)
+```
+
+### Azure AI
+Azure AI is experimenting with a serverside Guidance integration, first available on the Phi-3.5-mini model. To use Guidance with AzureAI, you need to run the pre-release candidate of the `guidance` library (v0.2.0rc1).
+
+```bash
+pip install guidance --pre
+```
+
+For a detailed getting-started guide and more code examples, see the [Phi-3 + Guidance Cookbook]([Phi-3 + Guidance cookbook](https://github.com/microsoft/Phi-3CookBook/blob/main/code/01.Introduce/guidance.ipynb).)
+
+First, deploy a Phi-3.5-mini model using AzureAI Models-as-a-service (https://ai.azure.com/explore/models/Phi-3.5-mini-instruct/version/2/registry/azureml). Then, in your Guidance code, instantiate the `AzureGuidance` class:
+
+```python
+from guidance.models import AzureGuidance
+import os
+
+phi3_url = os.getenv("AZURE_PHI3_URL") # Get the URL and API KEY from your AzureAI deployment dashboard
+phi3_api_key = os.getenv("AZURE_PHI3_KEY")
+lm = AzureGuidance(f"{phi3_url}/guidance#auth={phi3_api_key}") # note the URL structure using the new /guidance endpoint
+```
+
+Pull the deployment URL and Key from the Azure deployment to instantiate the class. You can now attach _any_ stateless guidance function to the `AzureGuidance` lm, and have it execute in a single API call. Stateless guidance functions executing in the cloud benefit from many key guidance features the same way local models do, including token healing, guidance acceleration, and fine-grained model control. Considerable effort and resources went into preparing this experimental pre-release, so please let us know if you encounter any bugs or have helpful feedback!
+
+```python
+@guidance(stateless=True) # Note the stateless=True flag in the decorator -- this enables maximal efficiency on the guidance program execution
+def character_maker(lm, id, description, valid_weapons):
+    lm += f"""\
+    The following is a character profile for an RPG game in JSON format.
+    ```json
+    {{
+        "id": "{id}",
+        "description": "{description}",
+        "name": "{gen('name', stop='"')}",
+        "age": {gen('age', regex='[0-9]+', stop=',')},
+        "armor": "{select(options=['leather', 'chainmail', 'plate'], name='armor')}",
+        "weapon": "{select(options=valid_weapons, name='weapon')}",
+        "class": "{gen('class', stop='"')}",
+        "mantra": "{gen('mantra', stop='"')}",
+        "strength": {gen('strength', regex='[0-9]+', stop=',')},
+        "items": ["{gen('item', list_append=True, stop='"')}", "{gen('item', list_append=True, stop='"')}", "{gen('item', list_append=True, stop='"')}"]
+    }}```"""
+    return lm
+character_lm = lm + character_maker(1, 'A nimble fighter', ['axe', 'sword', 'bow']) # Runs on Azure and streams results back
 ```
 
 ### Vertex AI
