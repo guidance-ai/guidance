@@ -670,23 +670,27 @@ lm = models.Transformers(model_name_or_path)
 ```
 
 ### Azure AI
-AzureAI is experimenting with a serverside guidance integration, first available on the Phi-3.5-mini model. To use Guidance with AzureAI, you need to run the pre-release candidate of the guidance library (v0.2.0rc1).
+Azure AI is experimenting with a serverside Guidance integration, first available on the Phi-3.5-mini model. To use Guidance with AzureAI, you need to run the pre-release candidate of the `guidance` library (v0.2.0rc1).
 
 ```bash
 pip install guidance --pre
 ```
 
-First, deploy a Phi-3.5-mini model using AzureAI Models-as-a-service (https://azure.microsoft.com/en-us/products/phi-3). Then, in your guidance code, instantiate the `AzureGuidance` class:
+First, deploy a Phi-3.5-mini model using AzureAI Models-as-a-service (https://ai.azure.com/explore/models/Phi-3.5-mini-instruct/version/2/registry/azureml). Then, in your Guidance code, instantiate the `AzureGuidance` class:
 
 ```python
 from guidance.models import AzureGuidance
-lm = AzureGuidance("https://PHI_DEPLOYMENT_URL/guidance#auth=AUTH_TOKEN") # note the URL structure using the new /guidance endpoint
+import os
+
+phi3_url = os.getenv("AZURE_PHI3_URL") # Get the URL and API KEY from your AzureAI deployment dashboard
+phi3_api_key = os.getenv("AZURE_PHI3_KEY")
+lm = AzureGuidance(f"{phi3_url}/guidance#auth={phi3_api_key}") # note the URL structure using the new /guidance endpoint
 ```
 
-Pull the PHI_DEPLOYMENT_URL and AUTH_TOKEN from the Azure deployment. You can now attach _any_ stateless guidance function to the `AzureGuidance` lm, and have it run in a single API call -- for example, the JSON function from above. This will benefit from all guidance features -- steering the model, acceleration, etc. Note that this is an experimental pre-release so please report any bugs you may find!
+Pull the deployment URL and Key from the Azure deployment to instantiate the class. You can now attach _any_ stateless guidance function to the `AzureGuidance` lm, and have it execute in a single API call. Stateless guidance functions executing in the cloud benefit from many key guidance features the same way local models do, including token healing, guidance acceleration, and fine-grained model control. Considerable effort and resources went into preparing this experimental pre-release, so please let us know if you encounter any bugs or have helpful feedback!
 
 ```python
-@guidance
+@guidance(stateless=True) # Note the stateless=True flag in the decorator -- this enables maximal efficiency on the guidance program execution
 def character_maker(lm, id, description, valid_weapons):
     lm += f"""\
     The following is a character profile for an RPG game in JSON format.
@@ -704,8 +708,9 @@ def character_maker(lm, id, description, valid_weapons):
         "items": ["{gen('item', list_append=True, stop='"')}", "{gen('item', list_append=True, stop='"')}", "{gen('item', list_append=True, stop='"')}"]
     }}```"""
     return lm
-character_lm = lm + character_maker(1, 'A nimble fighter', ['axe', 'sword', 'bow']) # Runs on Azure
+character_lm = lm + character_maker(1, 'A nimble fighter', ['axe', 'sword', 'bow']) # Runs on Azure and streams results back
 ```
+
 ### Vertex AI
 Remote endpoints that don't have explicit guidance integration are run "optimistically". This means that all the text that can be forced is given to the model as a prompt (or chat context) and then the model is run in streaming mode without hard constrants (since the remote API doesn't support them). If the model ever violates the contraints then the model stream is stopped and we optionally try it again at that point. This means that all the API-supported control work as expected, and more complex controls/parsing that is not supported by the API work if the model stays consistent with the program.
 ```python
