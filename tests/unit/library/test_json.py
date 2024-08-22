@@ -8,7 +8,7 @@ from jsonschema import validate
 from guidance import json as gen_json
 from guidance import models
 
-from guidance.library._json import _to_compact_json, WHITESPACE
+from guidance.library._json import _to_compact_json, WHITESPACE, IGNORED_KEYS
 
 from ...utils import check_match_failure as _check_match_failure
 from ...utils import check_run_with_temperature
@@ -1981,3 +1981,13 @@ class TestEmptySchemas:
             maybe_whitespace=True,
             compact=compact,
         )
+
+def test_ignored_keys_allowed_as_properties():
+    schema_obj = {
+        "type": "object",
+        "properties": {
+            key: {"type": "string"} for key in IGNORED_KEYS
+        }
+    }
+    target_obj = {key: "value" for key in IGNORED_KEYS}
+    generate_and_check(target_obj, schema_obj)
