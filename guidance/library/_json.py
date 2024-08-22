@@ -640,10 +640,24 @@ def json(
     json_top_level_grammar = c.builder.finalize()
     assert len(json_top_level_grammar["grammars"]) == 1
 
-    json_grammar = ReferencingGrammarFunction(name=None, capture_name=name)
+    json_grammar = ReferencingGrammarFunction(name=None)
     json_grammar.nodes = json_top_level_grammar["grammars"][0]["nodes"]
 
     return lm + with_temperature(
-        json_grammar,
+        subgrammar(
+            name,
+            body=json_grammar,
+            skip_regex=(
+                None if compact
+                else r"[\x20\x0A\x0D\x09]+"
+            ),
+            no_initial_skip=True,
+            max_tokens=max_tokens,
+        ),
         temperature=temperature,
     )
+
+    #return lm + with_temperature(
+    #    json_grammar,
+    #    temperature=temperature,
+    #)
