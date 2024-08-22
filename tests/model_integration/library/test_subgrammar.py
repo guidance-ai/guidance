@@ -68,8 +68,8 @@ def gen_json_object(lm, name: str, max_tokens=100000000):
 
 def test_greedy_json_object(selected_model: guidance.models.Model):
     lm = selected_model
-    lm += "Very short info about John Doe:\n"
-    lm += gen_json_object("hacker", max_tokens=350)
+    lm += "John Doe's name, age, and birthday:\n"
+    lm += gen_json_object("hacker", max_tokens=1000)
     lm += "\nScore: " + gen("score", regex="[1-3]")
     # make sure it parses as JSON
     obj = json.loads(lm["hacker"])

@@ -51,6 +51,10 @@ class MockTokenizer(Tokenizer):
         # Make a no-op for now
         return tokens
 
+    def recode(self, tokens: Sequence[int]) -> list[int]:
+        # Make a no-op for now
+        return list(tokens)
+
 
 class MockEngine(Engine):
     def __init__(self, tokenizer, byte_patterns, compute_log_probs, force):
