@@ -423,7 +423,7 @@ class Compiler:
 
     @cached_property
     def json_int(self) -> GrammarNode:
-        return self.builder.lexeme(r"-?(?:0|[1-9][0-9]*)")
+        return self.builder.lexeme(r"-?(?:0|[1-9][0-9]*)", contextual=True)
 
     @cached_property
     def json_number(self) -> GrammarNode:
