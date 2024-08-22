@@ -25,7 +25,7 @@ except ImportError:
 
 from .._guidance import guidance
 
-from .._grammar import GrammarFunction, with_temperature
+from .._grammar import GrammarFunction, with_temperature, ReferencingGrammarFunction, ReferableJoin, ReferableLexeme, ReferableLiteral, ReferableSelect
 from ._pydantic import pydantic_to_json_schema
 from ._subgrammar import lexeme, subgrammar
 
