@@ -16,7 +16,7 @@
 
 
 ## Install
-Guidance is available through PyPI, to use a specific model see [loading models](#loading-models).
+Guidance is available through PyPI and supports a variety of backends (Transformers, llama.cpp, OpenAI, etc.). To use a specific model see [loading models](#loading-models).
 ```bash
 pip install guidance
 ```
@@ -25,7 +25,7 @@ _Note: To use Guidance on Phi models in Azure AI, or to use the new accelerated 
 ```bash
 pip install guidance --pre
 ```
-For a detailed walkthrough of running guidance on phi models, check the [AzureAI specific loading instructions.](#azure-ai)
+For a detailed walkthrough of using Guidance on hosted Phi models, check the [Azure AI specific loading instructions.](#azure-ai) and the [Phi-3 + Guidance cookbook](https://github.com/microsoft/Phi-3CookBook/blob/main/code/01.Introduce/guidance.ipynb).
 
 <!-- <a href="https://www.youtube.com/watch?v=9oXjP5IIMzQ"  aria-label="Watch demo"><img alt="Watch demo" src="docs/figures/watch_demo_button.png" width="120"></a> <a href="#get-started" aria-label="Get started"><img alt="Watch demo" src="docs/figures/get_started_button.png" width="120"></a> -->
 
@@ -675,6 +675,8 @@ Azure AI is experimenting with a serverside Guidance integration, first availabl
 ```bash
 pip install guidance --pre
 ```
+
+For a detailed getting-started guide and more code examples, see the [Phi-3 + Guidance Cookbook]([Phi-3 + Guidance cookbook](https://github.com/microsoft/Phi-3CookBook/blob/main/code/01.Introduce/guidance.ipynb).)
 
 First, deploy a Phi-3.5-mini model using AzureAI Models-as-a-service (https://ai.azure.com/explore/models/Phi-3.5-mini-instruct/version/2/registry/azureml). Then, in your Guidance code, instantiate the `AzureGuidance` class:
 
