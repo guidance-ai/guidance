@@ -64,46 +64,8 @@ class Modality(Enum):
     VIDEO_URL = 7
 
 modality_pattern = re.compile(
-    r"&lt;\|_(" + "|".join(modality.name for modality in Modality) + r"):(.*?)\|&gt;"
+    r"<\|_(" + "|".join(modality.name for modality in Modality) + r"):(.*?)\|>"
 )
-
-
-@dataclass
-class PromptPart:
-    modality: Modality
-    content: bytes
-
-
-def create_prompt_parts(prompt: str, media: dict) -> List[PromptPart]:
-    """
-    Returns the model's prompt parsed into a list of dictionaries which contain
-    the modality and the content for each part
-    """
-    results = []
-    last_pos = 0
-
-    for match in modality_pattern.finditer(prompt):
-        start, end = match.span()
-        
-        # Add any text before the current match as TEXT modality
-        if start > last_pos:
-            text_content = prompt[last_pos:start]
-            results.append(PromptPart(modality=Modality.TEXT, content=text_content.encode("utf8")))
-        
-        # Add the current match
-        modality = Modality[match.group(1)]
-        content_key = match.group(2)
-        content = media.get(content_key)
-        if content is None:
-            raise KeyError(f"Model does not contain the multimodal data with id '{content_key}'")
-        results.append(PromptPart(modality=modality, content=content))
-        last_pos = end
-
-    # Add any remaining text after the last match
-    if last_pos < len(prompt):
-        results.append(PromptPart(modality=Modality.TEXT, content=prompt[last_pos:].encode("utf8")))
-    
-    return results
 
 
 class Engine:
@@ -220,7 +182,7 @@ class Engine:
 
             yield response
 
-    def get_next_token(self, prompt: bytes, token_ids: list[int], mask: Optional[bytes], media: dict, temperature: float) -> int:
+    def get_next_token(self, prompt: bytes, token_ids: list[int], mask: Optional[bytes], temperature: float, media: Optional[dict]=None) -> int:
         """Base implementation for getting the next token from the model which calls get_logits and sample_with_temperature.
         Subclasses may override this method, e.g. if they use external APIs that do not support getting logits directly.
         """
@@ -228,7 +190,7 @@ class Engine:
         token = self.sample_with_temperature(logits, mask, temperature)
         return token
 
-    def get_logits(self, prompt: bytes, token_ids: list[int], media: dict) -> np.ndarray:
+    def get_logits(self, prompt: bytes, token_ids: list[int], media: Optional[dict]=None) -> np.ndarray:
         raise NotImplementedError
 
     def sample_with_temperature(self, logits: np.ndarray, mask: Optional[bytes], temperature: float) -> int:
@@ -689,8 +651,8 @@ class Model:
         """
         Appends multimodal data to the model's state.
         """
-        copy = self.copy()
-        copy.set(str(id(data)), data)
+        # TODO - verify if set() creates a copy so we can avoid double copying
+        copy = self.set(str(id(data)), data)
         copy._inplace_append(f"<|_{modality.name}:{str(id(data))}|>")
         return copy
 
@@ -790,7 +752,7 @@ class Model:
         media = self._create_media_dict()
 
         # start the generation stream
-        gen_obj = self.engine(self._current_prompt(), media, stateless_function)
+        gen_obj = self.engine(self._current_prompt(), stateless_function, media)
 
         # we will return a new extended version of ourselves, which we track as `lm`
         lm = self

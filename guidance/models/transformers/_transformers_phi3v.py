@@ -1,4 +1,5 @@
 import logging
+import io
 import json
 import re
 import os
@@ -12,15 +13,20 @@ from transformers import AutoModelForCausalLM, AutoProcessor
 from guidance._parser import TokenParser, process_grammar, process_prompt
 from guidance._schema import EngineCallResponse, GuidanceEngineMetrics
 from guidance.models._model import (
-    ConstraintException,
     Engine,
-    Modality,
     Model,
-    PromptPart,
+    modality_pattern,
+    Modality
 )
 # from guidance.models.transformers._transformers import TransformersTokenizer
 from guidance.chat import ChatMLTemplate
 from guidance.models.transformers._transformers import TransformersTokenizer
+
+try:
+    from PIL import Image
+    has_pillow = True
+except ModuleNotFoundError:
+    has_pillow = False
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +38,8 @@ class TransformersPhi3VisionEngine(Engine):
         compute_log_probs=False,
         **kwargs,
     ):
+        if not has_pillow:
+            raise Exception("Please install pillow with `pip install pillow` to use Phi 3 Vision")
         self.model_name = model
         # Initialize the underlying Phi 3 Vision model
         self.model_obj = AutoModelForCausalLM.from_pretrained(model, **kwargs)
@@ -47,7 +55,7 @@ class TransformersPhi3VisionEngine(Engine):
         self._cached_token_ids: list[int] = []
 
         # Track last image token position for cache invalidation
-        self._last_image_token_position = -1
+        # self._last_image_token_position = -1
 
 
     def start(self, prompt, grammar, media: dict, ensure_bos_token=True) -> TokenParser:
@@ -64,20 +72,33 @@ class TransformersPhi3VisionEngine(Engine):
 
         # Map Guidance placeholders to Phi 3 Vision format
         # and make list of images for processing
-        image_counter = 1
         images = []
         processed_prompt = prompt
-        for image_id in re.findall(r"<\|image:([^\|]+)\|>", prompt):
+        matches = {}
+        for match in modality_pattern.finditer(prompt):
+            match_str = match.group(0)
+            modality_type = match.group(1)
+            if modality_type != Modality.IMAGE.name:
+                logger.debug("Skipping non-image modality: %s", match_str)
+                continue
+            media_id = match.group(2)
+            if match_str not in matches:
+                matches[match_str] = media_id 
+
+        image_counter = 1
+        for match in matches.keys():
             processed_prompt = processed_prompt.replace(
-                f"<|image:{image_id}|>", f"<|image_{image_counter}|>"
+                match, f"<|image_{image_counter}|>"
             )
-            images.append(media[image_id])
+            media_key = matches[match]
+            images.append(Image.open(io.BytesIO(media[media_key])))
             image_counter += 1
         logger.debug("Transformed prompt: %s -> ", prompt, processed_prompt)
 
+        # TODO - save these for inputs for later?
         model_inputs = self.processor(
             text=processed_prompt,
-            images=images,
+            images=images if len(images) > 0 else None,
             return_tensors="pt",
         ).to(self.device)
         tokens = model_inputs["input_ids"][0].tolist()
@@ -102,40 +123,38 @@ class TransformersPhi3VisionEngine(Engine):
         return TokenParser(ll_interpreter, prompt_tokens)
 
 
-    def get_next_token(
-        self,
-        tokens: list[int],
-        mask: Optional[bytes],
-        temperature: float,
-        tokenization_output,
-    ) -> Tuple[int, Optional[float]]:
-        """Get the next token from the model."""
-        logger.debug(
-            f"Start TransformersPhi3Engine.get_next_token({tokens=}, {mask=}, {temperature=})"
-        )
+    # def get_next_token(
+    #     self,
+    #     prompt: bytes,
+    #     tokens: list[int],
+    #     mask: Optional[bytes],
+    #     temperature: float,
+    #     media: Optional[dict]=None,
+    # ) -> Tuple[int, Optional[float]]:
+    #     """Get the next token from the model."""
+    #     logger.debug(
+    #         f"Start TransformersPhi3Engine.get_next_token({tokens=}, {mask=}, {temperature=})"
+    #     )
 
-        # Invalidate cache if a new image token is encountered
-        current_image_token_position = self._find_last_image_token_position(tokens)
-        if current_image_token_position != self._last_image_token_position:
-            self._past_key_values = None
-            self._cached_token_ids = []
-            self._last_image_token_position = current_image_token_position
+    #     # Invalidate cache if a new image token is encountered
+    #     # current_image_token_position = self._find_last_image_token_position(tokens)
+    #     # if current_image_token_position != self._last_image_token_position:
+    #     #     self._past_key_values = None
+    #     #     self._cached_token_ids = []
+    #     #     self._last_image_token_position = current_image_token_position
 
-        # Filter out negative image tokens (might need adjustment based on llguidance's handling)
-        filtered_tokens = [t for t in tokens if t >= 0]
+    #     # Get logits and log probabilities from the Phi 3 Vision model
+    #     logits, logprobs = self.get_logits(prompt, tokens, media)
 
-        # Get logits and log probabilities from the Phi 3 Vision model
-        logits, logprobs = self.get_logits(filtered_tokens, tokenization_output)
+    #     # Apply temperature and mask for sampling
+    #     token_id = self.sample_with_temperature(logits, mask, temperature)
 
-        # Apply temperature and mask for sampling
-        token_id = self.sample_with_temperature(logits, mask, temperature)
+    #     # If log probabilities are requested, retrieve the log prob of the sampled token
+    #     token_logprob = logprobs[token_id] if self.compute_log_probs else None
 
-        # If log probabilities are requested, retrieve the log prob of the sampled token
-        token_logprob = logprobs[token_id] if self.compute_log_probs else None
+    #     return token_id, token_logprob
 
-        return token_id, token_logprob
-
-    def get_logits(self, token_ids, media):
+    def get_logits(self, prompt: bytes, token_ids: list[int], media: Optional[dict]=None):
         """Computes the logits for the given token state.
 
         This overrides a method from the LocalEngine class that is used to get
@@ -149,44 +168,46 @@ class TransformersPhi3VisionEngine(Engine):
             )
 
         # get the number of cache positions we are using
-        cache_token_ids = self._cached_token_ids
-        num_cached = 0
-        for id in cache_token_ids:
-            if (
-                num_cached >= len(cache_token_ids)
-                or num_cached >= len(token_ids)
-                or token_ids[num_cached] != id
-            ):
-                break
-            num_cached += 1
+        # cache_token_ids = self._cached_token_ids
+        # num_cached = 0
+        # for id in cache_token_ids:
+        #     if (
+        #         num_cached >= len(cache_token_ids)
+        #         or num_cached >= len(token_ids)
+        #         or token_ids[num_cached] != id
+        #     ):
+        #         break
+        #     num_cached += 1
 
         # reset the cache length according to that number of positions
-        past_key_values = self._past_key_values
-        past_length = past_key_values[0][0].size(-2) if past_key_values is not None else 0
-        if past_length > num_cached:
-            # note we recompute the last token because we don't bother to handle the special case of just computing logits
-            past_length = max(0, num_cached - 1)
-            self._past_key_values = tuple(
-                tuple(p[..., :past_length, :] for p in v) for v in past_key_values
-            )
-        cache_token_ids[past_length:] = []
+        # past_key_values = self._past_key_values
+        # past_length = past_key_values[0][0].size(-2) if past_key_values is not None else 0
+        # if past_length > num_cached:
+        #     # note we recompute the last token because we don't bother to handle the special case of just computing logits
+        #     past_length = max(0, num_cached - 1)
+        #     self._past_key_values = tuple(
+        #         tuple(p[..., :past_length, :] for p in v) for v in past_key_values
+        #     )
+        # cache_token_ids[past_length:] = []
 
         # call the model
-        new_token_ids = token_ids[past_length:]
+        # new_token_ids = token_ids[past_length:]
+        new_token_ids = token_ids
+        past_length = 0 # TODO - Delete this line, was temporary
         if len(new_token_ids) > 0:
             with torch.no_grad():
                 # Not all models support batched tokens for some reason
                 try:
                     model_out = self.model_obj(
                         input_ids=torch.tensor(new_token_ids).unsqueeze(0).to(self.device),
-                        past_key_values=self._past_key_values,
-                        use_cache=True,
-                        position_ids=torch.arange(past_length, past_length + len(new_token_ids))
-                        .unsqueeze(0)
-                        .to(self.device),
-                        attention_mask=torch.ones(1, past_length + len(new_token_ids)).to(
-                            self.device
-                        ),
+                        # past_key_values=self._past_key_values,
+                        # use_cache=True,
+                        # position_ids=torch.arange(past_length, past_length + len(new_token_ids))
+                        # .unsqueeze(0)
+                        # .to(self.device),
+                        # attention_mask=torch.ones(1, past_length + len(new_token_ids)).to(
+                        #     self.device
+                        # ),
                         return_dict=True,
                         output_attentions=False,
                         output_hidden_states=False,
@@ -197,12 +218,12 @@ class TransformersPhi3VisionEngine(Engine):
 
                         model_out = self.model_obj(
                             input_ids=input_ids,
-                            past_key_values=self._past_key_values,
-                            use_cache=True,
-                            position_ids=torch.arange(past_length, past_length + 1)
-                            .unsqueeze(0)
-                            .to(self.device),
-                            attention_mask=torch.ones(1, past_length + 1).to(self.device),
+                            # past_key_values=self._past_key_values,
+                            # use_cache=True,
+                            # position_ids=torch.arange(past_length, past_length + 1)
+                            # .unsqueeze(0)
+                            # .to(self.device),
+                            # attention_mask=torch.ones(1, past_length + 1).to(self.device),
                             return_dict=True,
                             output_attentions=False,
                             output_hidden_states=False,
@@ -212,9 +233,9 @@ class TransformersPhi3VisionEngine(Engine):
                         past_length += 1
 
             # save the results
-            self._past_key_values = model_out.past_key_values
-            cache_token_ids.extend(new_token_ids)
-            # Need to add special truncating logic here for weird models that have a different output size than tokenizer vocab
+            # self._past_key_values = model_out.past_key_values
+            # cache_token_ids.extend(new_token_ids)
+            # # Need to add special truncating logic here for weird models that have a different output size than tokenizer vocab
             self._cached_logits = (
                 model_out.logits[0, -1, : len(self.tokenizer.tokens)].cpu().numpy()
             )
@@ -223,12 +244,12 @@ class TransformersPhi3VisionEngine(Engine):
 
         return self._cached_logits
 
-    def _find_last_image_token_position(self, tokens: list[int]) -> int:
-        """Find the position of the last negative token (image placeholder)."""
-        for i, token in enumerate(reversed(tokens)):
-            if token < 0:
-                return len(tokens) - i - 1
-        return -1
+    # def _find_last_image_token_position(self, tokens: list[int]) -> int:
+    #     """Find the position of the last negative token (image placeholder)."""
+    #     for i, token in enumerate(reversed(tokens)):
+    #         if token < 0:
+    #             return len(tokens) - i - 1
+    #     return -1
 
 
 class TransformersPhi3Vision(Model):
