@@ -31,10 +31,6 @@ from .._grammar import (
     GrammarFunction,
     with_temperature,
     ReferencingGrammarFunction,
-    ReferableJoin,
-    ReferableLexeme,
-    ReferableLiteral,
-    ReferableSelect,
 )
 from ._pydantic import pydantic_to_json_schema
 from ._subgrammar import lexeme, subgrammar
@@ -645,15 +641,7 @@ def json(
     assert len(json_top_level_grammar["grammars"]) == 1
 
     json_grammar = ReferencingGrammarFunction(name=name)
-    for src_node in json_top_level_grammar["grammars"][0]["nodes"]:
-        print(f"{src_node=}")
-        if "String" in src_node:
-            nxt = ReferableLiteral(value=src_node["String"]["literal"])
-        elif "Join" in src_node:
-            nxt = ReferableJoin(items=src_node["Join"]["sequence"])
-        else:
-            raise ValueError(f"Unrecognised src_node: {src_node=}")
-        json_grammar.grammars.append(nxt)
+    json_grammar.grammars = json_top_level_grammar["grammars"][0]["nodes"]
 
     return lm + with_temperature(
         json_grammar,

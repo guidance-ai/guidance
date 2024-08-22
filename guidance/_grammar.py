@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, List, Optional, TypeVar, Union, cast
 
 from . import _parser
+from . import llg
 
 _T = TypeVar("_T")
 
@@ -915,33 +916,10 @@ def _is_string_literal(node: GrammarFunction):
     return False
 
 
-@dataclass
-class ReferableGrammar:
-    pass
-
-
-@dataclass
-class ReferableLiteral(ReferableGrammar):
-    value: str
-
-
-@dataclass
-class ReferableLexeme(ReferableGrammar):
-    regex: str
-
-
-@dataclass
-class ReferableSelect(ReferableGrammar):
-    options: List[int]
-
-
-@dataclass
-class ReferableJoin(ReferableGrammar):
-    items: List[int]
-
-
 class ReferencingGrammarFunction(GrammarFunction):
-    grammars: List[ReferableGrammar]
+    def __init__(self, name: Union[str, None]):
+        self.name = name if name is not None else GrammarFunction._new_name()
+        self.nodes: List[llg.NodeJSON] = []
 
 
 class LLSerializer:
