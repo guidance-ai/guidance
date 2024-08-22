@@ -178,15 +178,6 @@ class CompileOptions:
     validate: bool = True
 
 
-def _to_compact_json(target: Any) -> str:
-    # See 'Compact Encoding':
-    # https://docs.python.org/3/library/json.html
-    # Since this is ultimately about the generated
-    # output, we don't need to worry about pretty printing
-    # and whitespace
-    return json_dumps(target, separators=(",", ":"))
-
-
 class Keyword(str, Enum):
     ANYOF = "anyOf"
     ONEOF = "oneOf"
@@ -357,7 +348,7 @@ class Compiler:
             if target_type == "object":
                 return self._gen_json_object(
                     properties=json_schema.get("properties", {}),
-                    additional_properties=json_schema.get("additionalProperties", False),
+                    additional_properties=json_schema.get("additionalProperties", True),
                 )
             raise ValueError(f"Unsupported type in schema: {target_type}")
 
@@ -386,9 +377,18 @@ class Compiler:
         lm: List[Grammar] = ["{"]
         if properties:
             lm += self._process_properties(properties=properties)
-            if additional_properties is not False:
-                lm.append(",")
-        if additional_properties is not False:
+
+        # Note in the following that self._process_additional_properties
+        # already makes its output a Join (which is also optional)
+        if properties and additional_properties is not False:
+            lm.append(
+                self.builder.optional(
+                    self.builder.join(
+                        [",", self._process_additional_properties(additional_properties)]
+                    )
+                )
+            )
+        elif additional_properties is not False:
             lm.append(self._process_additional_properties(additional_properties))
         lm.append("}")
         return self.join(*lm)
