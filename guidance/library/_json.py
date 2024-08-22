@@ -428,7 +428,7 @@ class Compiler:
     @cached_property
     def json_number(self) -> GrammarNode:
         # TODO: guidance had a select() including json_int() here
-        return self.builder.lexeme(r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)")
+        return self.builder.lexeme(r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?", contextual=True)
 
     @cached_property
     def json_simple_string(self) -> GrammarNode:
