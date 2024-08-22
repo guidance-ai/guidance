@@ -1109,7 +1109,9 @@ class LLSerializer:
                     j + offset - 1 for j in updated_obj["Join"]["sequence"]
                 ]
             elif "Select" in updated_obj:
-                raise NotImplementedError("Select!")
+                updated_obj["Select"]["among"] = [
+                    j + offset - 1 for j in updated_obj["Select"]["among"]
+                ]
 
             self.nodes[offset + i - 1] = updated_obj
 
