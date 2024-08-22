@@ -357,7 +357,7 @@ class Compiler:
             if target_type == "object":
                 return self._gen_json_object(
                     properties=json_schema.get("properties", {}),
-                    additional_properties=json_schema.get("additionalProperties", True),
+                    additional_properties=json_schema.get("additionalProperties", False),
                 )
             raise ValueError(f"Unsupported type in schema: {target_type}")
 
