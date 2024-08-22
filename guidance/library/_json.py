@@ -64,8 +64,15 @@ IGNORED_KEYS = {
     "default",
     "examples",
     "required",  # TODO: implement and remove from ignored list
-    "discriminator", # TODO: alternatively we could implement this in a stateful way
 }
+
+# discriminator is part of OpenAPI 3.1, not JSON Schema itself
+# https://json-schema.org/blog/posts/validating-openapi-and-json-schema
+# TODO: While ignoring this key shouldn't lead to invalid outputs, forcing
+# the model to choose the value of the marked field before other fields
+# are generated (statefully or statelessly) would reduce grammar ambiguity
+# and possibly improve quality.
+IGNORED_KEYS.add("discriminator")
 
 TYPE_SPECIFIC_KEYS = {
     "array": {"items", "prefixItems", "minItems", "maxItems"},
