@@ -183,10 +183,10 @@ jobs:
         python-version: ["3.9", "3.10", "3.11", "3.12"]
         model:
           - "azure_guidance"
-      runs-on: Large_Linux
-      steps:
-        - uses: actions/checkout@v4
-        - name: Set up Python ${{ matrix.python-version }}
-          uses: actions/setup-python@v5
-          with:
-            python-version: ${{ matrix.python-version }}
+    runs-on: Large_Linux
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
