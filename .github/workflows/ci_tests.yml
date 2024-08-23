@@ -159,9 +159,6 @@ jobs:
           python -c "import torch; assert torch.cuda.is_available()"
       # Note that we run a minimal set of tests here
       - name: Run minimal tests for ${{ matrix.model }}
-        env:
-          AZUREAI_GUIDANCE_ENABLED_URL: ${{ vars.AZUREAI_GUIDANCE_ENABLED_URL }}
-          AZUREAI_GUIDANCE_ENABLED_URL_KEY: ${{ secrets.AZUREAI_GUIDANCE_ENABLED_URL_KEY }}
         run: |
           pytest -vv --cov=guidance --cov-report=xml --cov-report=term-missing \
             --selected_model ${{ matrix.model }} \
@@ -197,6 +194,9 @@ jobs:
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
       - name: Run tests (except server)
         shell: bash
+        env:
+          AZUREAI_GUIDANCE_ENABLED_URL: ${{ vars.AZUREAI_GUIDANCE_ENABLED_URL }}
+          AZUREAI_GUIDANCE_ENABLED_URL_KEY: ${{ secrets.AZUREAI_GUIDANCE_ENABLED_URL_KEY }}
         run: |
           pytest --cov=guidance --cov-report=xml --cov-report=term-missing \
             --selected_model ${{ matrix.model }} \
