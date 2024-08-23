@@ -173,3 +173,22 @@ jobs:
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+
+
+
+  basic-tests-linux-python:
+    env:
+      AZUREAI_GUIDANCE_ENABLED_URL: ${{ vars.AZUREAI_GUIDANCE_ENABLED_URL }}
+      AZUREAI_GUIDANCE_ENABLED_URL_KEY: ${{ secrets.AZUREAI_GUIDANCE_ENABLED_URL_KEY }}
+    needs: end-stage-1
+    strategy:
+      fail-fast: false # Don't cancel all on first failure
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        model:
+          - "azure_guidance"
+    uses: ./.github/workflows/action_plain_basic_tests.yml
+    with:
+      os: Large_Linux
+      python-version: ${{ matrix.python-version }}
+      model: ${{ matrix.model }}
