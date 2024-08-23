@@ -177,6 +177,9 @@ jobs:
 
 
   basic-tests-linux-python:
+    env:
+      AZUREAI_GUIDANCE_ENABLED_URL: ${{ vars.AZUREAI_GUIDANCE_ENABLED_URL }}
+      AZUREAI_GUIDANCE_ENABLED_URL_KEY: ${{ secrets.AZUREAI_GUIDANCE_ENABLED_URL_KEY }}
     strategy:
       fail-fast: false # Don't cancel all on first failure
       matrix:
@@ -188,6 +191,3 @@ jobs:
       os: Large_Linux
       python-version: ${{ matrix.python-version }}
       model: ${{ matrix.model }}
-    env:
-      AZUREAI_GUIDANCE_ENABLED_URL: ${{ vars.AZUREAI_GUIDANCE_ENABLED_URL }}
-      AZUREAI_GUIDANCE_ENABLED_URL_KEY: ${{ secrets.AZUREAI_GUIDANCE_ENABLED_URL_KEY }}
