@@ -12,14 +12,6 @@ on:
       model:
         required: true
         type: string
-      AZUREAI_GUIDANCE_ENABLED_URL:
-        required: true
-        type: string
-        default: NOT_A_VALUE
-      AZUREAI_GUIDANCE_ENABLED_URL_KEY:
-        required: true
-        type: string
-        default: NOT_A_KEY
 
 
 jobs:
@@ -54,9 +46,6 @@ jobs:
           pip install "transformers!=4.43.0,!=4.43.1,!=4.43.2,!=4.43.3" # Issue 965
       - name: Run tests (except server)
         shell: bash
-        env:
-          AZUREAI_GUIDANCE_ENABLED_URL: ${{ inputs.AZUREAI_GUIDANCE_ENABLED_URL }}
-          AZUREAI_GUIDANCE_ENABLED_URL_KEY: ${{ inputs.AZUREAI_GUIDANCE_ENABLED_URL_KEY }}
         run: |
           pytest --cov=guidance --cov-report=xml --cov-report=term-missing \
             --selected_model ${{ inputs.model }} \
