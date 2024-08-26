@@ -113,15 +113,11 @@ azure_guidance_defaults = {}
 
 def get_azure_guidance_model(model_name, caching=False, **kwargs):
     """Get Azure Guidance LLM with model reuse."""
-
-    if (
-        model_name is None
-        or isinstance(model_name, str)
-        and len(model_name.strip()) == 0
-    ):
-        model_name = os.getenv("AZURE_GUIDANCE_URL", "")
-        if len(model_name.strip()) == 0:
-            pytest.skip("No Azure Guidance model found.")
+    # Base URL should look like:
+    #https://<MODEL_INFO>.models.ai.azure.com/guidance#auth=
+    base_url = env_or_fail("AZUREAI_GUIDANCE_ENABLED_URL")
+    api_key = env_or_fail("AZUREAI_GUIDANCE_ENABLED_URL_KEY")
+    model_name = base_url + api_key
 
     kwargs = kwargs.copy()
     for key, val in azure_guidance_defaults.items():
