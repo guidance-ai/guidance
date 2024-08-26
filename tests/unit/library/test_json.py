@@ -3,6 +3,7 @@ from functools import partial
 from typing import Any, Dict, Set, Union, Optional
 
 import pytest
+import requests
 from jsonschema import validate
 
 from guidance import json as gen_json
@@ -14,6 +15,25 @@ from ...utils import check_match_failure as _check_match_failure
 from ...utils import check_run_with_temperature
 from ...utils import generate_and_check as _generate_and_check
 
+
+FHIR_SCHEMA_URL = "https://build.fhir.org/fhir.schema.json"
+FHIR_SAMPLE_DATA_URL = "https://www.hl7.org/fhir/observation-example-sample-data.json"
+
+
+@pytest.fixture(scope="session")
+def fhir_schema():
+    response = requests.get(FHIR_SCHEMA_URL)
+    response.raise_for_status()
+    schema_obj = response.json()
+    return schema_obj
+
+
+@pytest.fixture(scope="session")
+def fhir_data():
+    response = requests.get(FHIR_SAMPLE_DATA_URL)
+    response.raise_for_status()
+    fhir_obj = response.json()
+    return fhir_obj
 
 WHITESPACE = {b" ", b"\t", b"\n", b"\r"}
 
@@ -1952,3 +1972,34 @@ class TestEmptySchemas:
             maybe_whitespace=True,
             compact=compact,
         )
+
+
+class TestBigSchema:
+    def test_big_schema(self, fhir_schema, fhir_data):
+        # We don't (currently) support a top-level 'id' in the JSON schema
+        del fhir_schema["id"]
+
+        # Do some other recursive rewrites
+        rewritten_schema = self._rewrite_schema(fhir_schema)
+
+        generate_and_check(fhir_data, rewritten_schema)
+
+    def _rewrite_schema(self, target_schema):
+        # Eliminates unsupported (by Guidance) keys from a schema
+        if isinstance(target_schema, dict):
+            result = dict()
+            for k, v in target_schema.items():
+                if k == "oneOf":
+                    result["anyOf"] = self._rewrite_schema(v)
+                elif k == "discriminator":
+                    pass
+                else:
+                    if isinstance(v, dict):
+                        result[k] = self._rewrite_schema(v)
+                    else:
+                        result[k] = v
+            assert "discriminator" not in result, json.dumps(result, indent=4)
+        else:
+            return target_schema
+
+        return result
