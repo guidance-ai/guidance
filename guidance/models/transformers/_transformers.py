@@ -67,7 +67,7 @@ class TransformersTokenizer(Tokenizer):
                 transformers_tokenizer, transformers_package.PreTrainedTokenizerFast
             )
             assert is_ptt or is_ptt_fast
-            byte_tokens = self._byte_tokens(transformers_tokenizer)
+            byte_tokens = self._byte_tokens(transformers_tokenizer, **kwargs)
 
         self._orig_tokenizer = transformers_tokenizer
 
@@ -98,7 +98,7 @@ class TransformersTokenizer(Tokenizer):
             tokenizer = transformers_package.AutoTokenizer.from_pretrained(
                 model, use_fast=False, **kwargs
             )
-            byte_tokens = self._byte_tokens(tokenizer)
+            byte_tokens = self._byte_tokens(tokenizer, **kwargs)
         except ImportError:
             # Raise on ImportError because it's likely a missing dependency that the user can install
             raise
@@ -126,6 +126,7 @@ class TransformersTokenizer(Tokenizer):
             "transformers_package.PreTrainedTokenizer",
             "transformers_package.PreTrainedTokenizerFast",
         ],
+        **kwargs,
     ) -> list[bytes]:
 
         if hasattr(transformers_tokenizer, "byte_decoder"):
@@ -143,6 +144,9 @@ class TransformersTokenizer(Tokenizer):
 
         if hasattr(transformers_tokenizer, "sp_model"):
             return self._byte_tokens_from_sp_model(transformers_tokenizer)
+
+        if kwargs.get("sp_whitespace", False):
+            return self._byte_tokens_from_sp_whitespace(transformers_tokenizer)
 
         try:
             return self._byte_tokens_by_encoding_token_strings(transformers_tokenizer)
@@ -185,7 +189,7 @@ class TransformersTokenizer(Tokenizer):
         transformers_tokenizer: Union[
             "transformers_package.PreTrainedTokenizer",
             "transformers_package.PreTrainedTokenizerFast",
-        ],
+        ]
     ) -> list[bytes]:
         byte_tokens = [b""] * len(transformers_tokenizer)
         special_tokens_map = {
@@ -202,6 +206,24 @@ class TransformersTokenizer(Tokenizer):
                     transformers_tokenizer.sp_model.id_to_piece(i).encode(),
                 )
             byte_tokens[i] = byte_coded.replace(space_prefix, b" ")
+        return byte_tokens
+
+    def _byte_tokens_from_sp_whitespace(
+        self,
+        transformers_tokenizer: Union[
+            "transformers_package.PreTrainedTokenizer",
+            "transformers_package.PreTrainedTokenizerFast",
+        ]
+    ) -> list[bytes]:
+        byte_tokens = [b""] * len(transformers_tokenizer)
+        if hasattr(transformers_tokenizer, "get_vocab"):
+            space_prefix = "▁".encode()
+            vocab = transformers_tokenizer.get_vocab()
+            for token, tok_id in vocab.items():
+                byte_coded = token.encode()
+                byte_tokens[tok_id] = byte_coded.replace(space_prefix, b" ")
+        else:
+            raise ValueError("Tokenizer does not have a get_vocab method")
         return byte_tokens
 
     def _byte_tokens_by_encoding_token_strings(
