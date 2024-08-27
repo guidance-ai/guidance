@@ -1,11 +1,8 @@
 import re
 import types
-
-from typing import Any, TYPE_CHECKING, TypeVar, Union, cast, Optional
+from typing import TYPE_CHECKING, Any, Optional, Sequence, TypeVar, Union, cast, Set
 
 from . import _parser
-
-_T = TypeVar("_T")
 
 # to support the embedding of guidance functions inside Python f-strings we use tags with these delimiters
 tag_start = "{{G|"  # start of a call tag
@@ -125,7 +122,11 @@ class Match:
 
 
 class GrammarFunction(Function):
+    __slots__ = "capture_name"
     num_used_names = 0
+
+    def __init__(self, capture_name: Union[str, None] = None):
+        self.capture_name = capture_name
 
     def __add__(self, value):
 
@@ -214,9 +215,9 @@ class GrammarFunction(Function):
         return name
 
     def gbnf_string(self):
-        used_names = set()
+        used_names: set[str] = set()
         names = {}
-        lines = []
+        lines: list[str] = []
         root_name = self._rec_gbnf_string(lines, used_names, names)
         lines.append("root ::= " + root_name)
         return "\n".join(lines)
@@ -225,7 +226,16 @@ class GrammarFunction(Function):
         return {"grammars": LLSerializer().run(self)}
 
 
+ComposableGrammar = Union[GrammarFunction, str, bytes]
+
+
 class Terminal(GrammarFunction):
+    __slots__ = "temperature"
+
+    def __init__(self, *, temperature: float, capture_name: Union[str, None]):
+        super().__init__(capture_name=capture_name)
+        self.temperature = temperature
+
     def match_byte(self, byte):
         pass  # abstract
 
@@ -237,15 +247,14 @@ class Terminal(GrammarFunction):
 class Byte(Terminal):
     __slots__ = ("byte", "capture_name", "temperature")
 
-    def __init__(self, byte):
+    def __init__(self, byte: bytes):
+        super().__init__(temperature=-1, capture_name=None)
         assert isinstance(byte, bytes)
         assert len(byte) == 1
         self.byte = byte
-        self.capture_name = None
-        self.temperature = -1
 
     @property
-    def name(self):
+    def name(self) -> str:
         return str(self.byte)
 
     def __hash__(self):
@@ -260,31 +269,29 @@ class Byte(Terminal):
     def __len__(self):
         return 1
 
-    def match_byte(self, byte):
+    def match_byte(self, byte: bytes) -> bool:
         return byte == self.byte
 
 
 class ByteRange(Terminal):
-    __slots__ = ("byte_range", "capture_name", "temperature")
+    __slots__ = ("byte_range", "capture_name")
 
-    def __init__(self, byte_range):
+    def __init__(self, byte_range: bytes):
+        super().__init__(temperature=-1, capture_name=None)
         assert isinstance(byte_range, bytes)
         assert len(byte_range) == 2
         self.byte_range = byte_range
-        self.capture_name = None
-        self.temperature = -1  # -1 means not set
 
-    def match_byte(self, byte):
+    def match_byte(self, byte: bytes) -> bool:
         return self.byte_range[0] <= byte[0] <= self.byte_range[1]
 
     @property
-    def name(self):
+    def name(self) -> str:
         return str(self.byte_range)
 
     @name.setter
     def name(self, value):
         pass  # we ignore name changes
-
 
     def __hash__(self):
         return self.byte_range[0] + 256 * self.byte_range[1]
@@ -304,11 +311,11 @@ class ByteRange(Terminal):
 
 
 class Null(Terminal):
-    __slots__ = ("name", "capture_name")
+    __slots__ = "name"
 
     def __init__(self):
+        super().__init__(temperature=-1, capture_name=None)
         self.name = "ε"
-        self.capture_name = None
 
     def __add__(self, other):
         # see if we have a string with calls or a simple string
@@ -322,9 +329,8 @@ class Null(Terminal):
             return other
 
     def __radd__(self, other):
-        return self.__add__(
-            other
-        )  # left vs right makes no difference since we are null
+        # left vs right makes no difference since we are null
+        return self.__add__(other)
 
 
 class ModelVariable(GrammarFunction):
@@ -337,8 +343,8 @@ class ModelVariable(GrammarFunction):
     __slots__ = ("name", "capture_name")
 
     def __init__(self, name):
+        super().__init__(capture_name=None)
         self.name = name
-        self.capture_name = None
 
 
 def replace_grammar_node(grammar, target, replacement):
@@ -366,32 +372,10 @@ def replace_grammar_node(grammar, target, replacement):
                 stack.append(value)
 
 
-# def replace_grammar_node(grammar, target, replacement, visited_set={}):
-
-#     # see if we have already visited this node
-#     if grammar in visited_set:
-#         return
-#     else:
-#         visited_set[grammar] = True
-
-#     # we are done if this is a terminal
-#     if isinstance(grammar, (Terminal, ModelVariable)):
-#         return
-
-#     # replace all matching sub-nodes
-#     for i,value in enumerate(grammar.values):
-#         if value == target:
-#             grammar.values[i] = replacement
-#         else:
-#             replace_grammar_node(value, target, replacement, visited_set)
-
-
 def replace_model_variables(grammar, model, allowed_vars=None):
     """Replace all the ModelVariable nodes with their values in an iterative manner."""
     visited_set = set()
-    stack = [
-        (grammar, None, None)
-    ]  # Stack stores tuples of (node, parent_node, child_index)
+    stack = [(grammar, None, None)]  # Stack stores tuples of (node, parent_node, child_index)
     replacements = []
 
     while stack:
@@ -415,50 +399,19 @@ def replace_model_variables(grammar, model, allowed_vars=None):
                     # note we skip over attrs we don't have since we may be run twice, once on the model and once for the engine
                     if hasattr(model, value.name):
                         obj = model
-                    elif hasattr(model, "tokenizer") and hasattr(
-                        model.tokenizer, value.name
-                    ):
+                    elif hasattr(model, "tokenizer") and hasattr(model.tokenizer, value.name):
                         obj = model.tokenizer
                     else:
                         obj = None
                     if obj is not None:
                         replacement_value = _wrap_as_grammar(getattr(obj, value.name))
-                        replacements.append(
-                            (current, i, value)
-                        )  # Record the replacement
+                        replacements.append((current, i, value))  # Record the replacement
                         current.values[i] = replacement_value  # Perform the replacement
                 else:
                     # If not ModelVariable, push onto the stack to process later
                     stack.append((value, current, i))
 
     return replacements
-
-
-# def replace_model_variables(grammar, model, visited_set={}):
-#     '''Replace all the ModelVariable nodes with their values.'''
-
-#     # see if we have already visited this node
-#     if grammar in visited_set:
-#         return []
-#     else:
-#         visited_set[grammar] = True
-
-#     # we are done if this is a terminal
-#     if isinstance(grammar, Terminal):
-#         return []
-
-#     # replace all matching sub-nodes
-#     replacements = []
-#     for i,value in enumerate(grammar.values):
-#         if isinstance(value, ModelVariable):
-#             g = _wrap_as_grammar(getattr(model, value.name))
-#             if value.commit_point:
-#                 g = commit_point(g, hidden=value.hidden)
-#             replacements.append((grammar, i, value))
-#             grammar.values[i] = g
-#         else:
-#             replacements.extend(replace_model_variables(value, model, visited_set))
-#     return replacements
 
 
 def unreplace_model_variables(replacements):
@@ -494,15 +447,6 @@ def commit_point(value, hidden=False):
     raise NotImplementedError("commit_point is not implemented (may remove in the future)")
 
 
-def as_regular_grammar(value):
-    # TODO: assert that value is not empty since we don't yet support that
-    if isinstance(value, str):
-        value = string(value)
-    # check if it serializes
-    _ignore = LLSerializer().regex(value)
-    return RegularGrammar(value)
-
-
 class Placeholder(GrammarFunction):
     def __init__(self):
         pass
@@ -517,7 +461,10 @@ class Join(GrammarFunction):
     )
 
     def __init__(
-        self, values, name: Union[str, None] = None, max_tokens=100000000
+        self,
+        values: Sequence[ComposableGrammar],
+        name: Union[str, None] = None,
+        max_tokens=100000000,
     ) -> None:
         values = [
             string(v) if isinstance(v, (str, bytes)) else v for v in values
@@ -555,7 +502,6 @@ class Gen(Terminal):
         "stop_regex",
         "save_stop_text",
         "name",
-        "capture_name",
         "_max_tokens",
     )
 
@@ -567,16 +513,15 @@ class Gen(Terminal):
         save_stop_text: Optional[str] = None,
         max_tokens=100000000,
     ) -> None:
+        super().__init__(temperature=-1, capture_name=None)
         self.body_regex = body_regex
         self.stop_regex = stop_regex
         self.name = name if name is not None else GrammarFunction._new_name()
-        self.capture_name = None
         self.save_stop_text = save_stop_text
         self._max_tokens = max_tokens
-        self.temperature = -1
 
     @property
-    def max_tokens(self):
+    def max_tokens(self) -> int:
         return self._max_tokens
 
     def __repr__(self, indent="", done=None, lbl="Gen"):
@@ -660,7 +605,7 @@ class Subgrammar(Gen):
         self.skip_regex = skip_regex
         self.no_initial_skip = no_initial_skip
 
-    def __repr__(self) -> str: # type: ignore[override]
+    def __repr__(self) -> str:  # type: ignore[override]
         return self.name.ljust(20) + " <- " + self.body.name
 
 
@@ -668,14 +613,19 @@ class Select(GrammarFunction):
     __slots__ = (
         "_values",
         "name",
-        "capture_name",
         "max_tokens",
         "recursive",
     )
 
     def __init__(
-        self, values, capture_name=None, name=None, max_tokens=10000000, recursive=False
+        self,
+        values: Sequence[ComposableGrammar],
+        capture_name: Union[str, None] = None,
+        name: Union[str, None] = None,
+        max_tokens: int = 10000000,
+        recursive: bool = False,
     ) -> None:
+        super().__init__(capture_name=capture_name)
         self.values = values
         self.name = name if name is not None else GrammarFunction._new_name()
         self.capture_name = capture_name
@@ -683,11 +633,11 @@ class Select(GrammarFunction):
         self.recursive = recursive
 
     @property
-    def values(self):
+    def values(self) -> Sequence[ComposableGrammar]:
         return self._values
 
     @values.setter
-    def values(self, vals):
+    def values(self, vals: Sequence[ComposableGrammar]):
         self._values = [string(v) if isinstance(v, (str, bytes)) else v for v in vals]
 
     def __repr__(self, indent="", done=None):
@@ -720,8 +670,12 @@ def string(value: Union[str, bytes]) -> Union[Null, Join]:
 
 
 def select(
-    options: list[_T], name=None, list_append=False, recurse=False, skip_checks=False
-) -> Union[Select, _T]:
+    options: list[ComposableGrammar],
+    name: Union[str, None] = None,
+    list_append: bool = False,
+    recurse: bool = False,
+    skip_checks: bool = False,
+) -> Union[Select, ComposableGrammar]:
     """Choose between a set of options.
 
     This function constrains the next generation from the LLM to be one of the
@@ -770,7 +724,10 @@ def select(
 
     # set up list append var saving if requested
     if list_append:
-        name = "__LIST_APPEND:" + name
+        if name is not None:
+            name = "__LIST_APPEND:" + name
+        else:
+            raise ValueError("list_append requires a name")
 
     if recurse:
         node = Select([], capture_name=name, recursive=True)
@@ -788,18 +745,11 @@ def select(
             return Select(options, capture_name=name, recursive=False)
 
 
-def byte_range(low, high) -> ByteRange:
+def byte_range(low: bytes, high: bytes) -> ByteRange:
     return ByteRange(low + high)
 
 
-# def ignore_placeholders(value):
-#     if not isinstance(value, Join): # don't double wrap
-#         value = Join([value]) # this ensures we capture what we want, and not something surprisingly self_recursive
-#     value.ignore_placeholders = True
-#     return value
-
-
-def capture(value, name):
+def capture(value: GrammarFunction, name: str) -> GrammarFunction:
     # if log_probs:
     #     name += ":__LOG_PROBS"
     if not (isinstance(value, Join) and len(value.values) == 1):  # don't double wrap
@@ -831,7 +781,7 @@ def _rec_token_limit(grammar, max_tokens: int):
                 _rec_token_limit(g, max_tokens)
 
 
-def with_temperature(value, temperature):
+def with_temperature(value, temperature: float):
     """This sets the sampling temperature to be used for the given portion of the grammar.
 
     Note that if the grammar passed to us already has some portions with a temperature
@@ -841,7 +791,7 @@ def with_temperature(value, temperature):
     return value
 
 
-def _re_with_temperature(grammar, temperature, visited_set):
+def _re_with_temperature(grammar, temperature: float, visited_set):
 
     # don't go down the same path twice
     if grammar in visited_set:
@@ -853,9 +803,7 @@ def _re_with_temperature(grammar, temperature, visited_set):
         isinstance(grammar, Terminal) and not isinstance(grammar, Null) and grammar.temperature < 0
     ):  # only need to set temp for terminals
         grammar.temperature = temperature
-    elif getattr(grammar, "temperature", 100000000) > temperature and hasattr(
-        grammar, "values"
-    ):
+    elif getattr(grammar, "temperature", 100000000) > temperature and hasattr(grammar, "values"):
         for g in grammar.values:
             _re_with_temperature(g, temperature, visited_set)
 
@@ -879,13 +827,7 @@ def bos_token() -> ModelVariable:
 _null_grammar = string("")
 
 
-# def char_range(low, high):
-#     low_bytes = bytes(low, encoding="utf8")
-#     high_bytes = bytes(high, encoding="utf8")
-#     if len(low_bytes) > 1 or len(high_bytes) > 1:
-#         raise Exception("We don't yet support multi-byte character ranges!")
-#     return ByteRange(low_bytes + high_bytes)
-def str_to_grammar(value: str):
+def str_to_grammar(value: str) -> Function:
     is_id = False
     parts = re.split(_tag_pattern, value)
 
@@ -919,12 +861,21 @@ def str_to_grammar(value: str):
     return partial_grammar
 
 
-def _is_string_literal(node: GrammarFunction):
+def _is_string_literal(node: GrammarFunction) -> bool:
     if isinstance(node, Byte):
         return True
     if isinstance(node, Join):
         return all(_is_string_literal(v) for v in node.values)
     return False
+
+
+def as_regular_grammar(value) -> RegularGrammar:
+    # TODO: assert that value is not empty since we don't yet support that
+    if isinstance(value, str):
+        value = string(value)
+    # check if it serializes
+    _ignore = LLSerializer().regex(value)
+    return RegularGrammar(value)
 
 
 class LLSerializer:
@@ -974,8 +925,7 @@ class LLSerializer:
         def add_todo(n: GrammarFunction):
             if n in pending:
                 raise ValueError(
-                    "GrammarFunction is recursive - cannot serialize as regex: "
-                    + n.__repr__()
+                    "GrammarFunction is recursive - cannot serialize as regex: " + n.__repr__()
                 )
             todo.append(n)
 
@@ -1009,11 +959,7 @@ class LLSerializer:
                 with_node = []
                 without_node = []
                 for v in node.values:
-                    if (
-                        isinstance(v, Join)
-                        and len(v.values) == 2
-                        and v.values[0] is node
-                    ):
+                    if isinstance(v, Join) and len(v.values) == 2 and v.values[0] is node:
                         with_node.append(v.values[1])
                     else:
                         without_node.append(v)
@@ -1023,7 +969,7 @@ class LLSerializer:
                     add_todos(with_node)
                     add_todos(without_node)
                     continue
-                #print(with_node, without_node)
+                # print(with_node, without_node)
                 if len(with_node) == 0:
                     # non-recursive
                     res = self._regex_or(without_node)
@@ -1037,8 +983,7 @@ class LLSerializer:
                     res = self._add_regex("Repeat", [inner, 1, None])
                 else:
                     raise ValueError(
-                        "Cannot detect structure of recursive Select as regex: "
-                        + node.__repr__()
+                        "Cannot detect structure of recursive Select as regex: " + node.__repr__()
                     )
             elif isinstance(node, Join):
                 if all(isinstance(v, Byte) for v in node.values):
@@ -1054,9 +999,7 @@ class LLSerializer:
                         pending.add(node)
                         add_todos(node.values)
                         continue
-                    res = self._add_regex(
-                        "Concat", [self.regex_id_cache[v] for v in node.values]
-                    )
+                    res = self._add_regex("Concat", [self.regex_id_cache[v] for v in node.values])
             elif isinstance(node, Byte):
                 res = self._add_regex("Byte", node.byte[0])
             elif isinstance(node, ByteRange):
@@ -1078,7 +1021,7 @@ class LLSerializer:
         assert not pending
         return self.regex_id_cache[node0]
 
-    def grammar(self, grammar: Subgrammar):
+    def grammar(self, grammar: Subgrammar) -> int:
         if grammar in self.grammar_id_cache:
             return self.grammar_id_cache[grammar]
         id = len(self.grammars)
@@ -1093,7 +1036,7 @@ class LLSerializer:
         self.grammar_todo.append(grammar)
         return id
 
-    def node(self, node: GrammarFunction):
+    def node(self, node: GrammarFunction) -> int:
         if node in self.node_id_cache:
             return self.node_id_cache[node]
         id = len(self.nodes)
@@ -1145,7 +1088,7 @@ class LLSerializer:
                 "Gen": {
                     "body_rx": self.regex(node.grammar),
                     "stop_rx": "",
-                    "lazy": False, # TODO this should be True
+                    "lazy": False,  # TODO this should be True
                     "temperature": node.temperature if node.temperature >= 0 else None,
                 }
             }
@@ -1186,12 +1129,12 @@ class LLSerializer:
             raise Exception("Unknown node type:", type(node))
         tp = next(iter(obj))
         inner: dict = obj[tp]
-        if (capture_name:=getattr(node, "capture_name")):
+        if capture_name := getattr(node, "capture_name"):
             inner["capture_name"] = capture_name
         # Names on nodes are mostly useless
         # if getattr(node, "name", None):
         #     inner["name"] = node.name
-        if (max_tokens:=getattr(node, "max_tokens")) and max_tokens < 1000000:
+        if (max_tokens := getattr(node, "max_tokens")) and max_tokens < 1000000:
             inner["max_tokens"] = max_tokens
         self.nodes[self.node(node)] = obj
 
