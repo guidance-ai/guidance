@@ -1,6 +1,13 @@
 import re
 import types
-from typing import TYPE_CHECKING, Any, Optional, Sequence, TypeVar, Union, cast, Set
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Optional,
+    Sequence,
+    Union,
+    cast,
+)
 
 from . import _parser
 
@@ -245,7 +252,7 @@ class Terminal(GrammarFunction):
 
 
 class Byte(Terminal):
-    __slots__ = ("byte", "capture_name", "temperature")
+    __slots__ = ("byte", "temperature")
 
     def __init__(self, byte: bytes):
         super().__init__(temperature=-1, capture_name=None)
@@ -274,7 +281,7 @@ class Byte(Terminal):
 
 
 class ByteRange(Terminal):
-    __slots__ = ("byte_range", "capture_name")
+    __slots__ = "byte_range"
 
     def __init__(self, byte_range: bytes):
         super().__init__(temperature=-1, capture_name=None)
@@ -340,7 +347,7 @@ class ModelVariable(GrammarFunction):
     will get replaced with.
     """
 
-    __slots__ = ("name", "capture_name")
+    __slots__ = "name"
 
     def __init__(self, name):
         super().__init__(capture_name=None)
@@ -449,14 +456,13 @@ def commit_point(value, hidden=False):
 
 class Placeholder(GrammarFunction):
     def __init__(self):
-        pass
+        super().__init__(capture_name=None)
 
 
 class Join(GrammarFunction):
     __slots__ = (
         "values",
         "name",
-        "capture_name",
         "max_tokens",
     )
 
@@ -466,12 +472,12 @@ class Join(GrammarFunction):
         name: Union[str, None] = None,
         max_tokens=100000000,
     ) -> None:
+        super().__init__(capture_name=None)
         values = [
             string(v) if isinstance(v, (str, bytes)) else v for v in values
         ]  # wrap raw strings
         self.values = [v for v in values if not isinstance(v, Null)]
         self.name = name if name is not None else GrammarFunction._new_name()
-        self.capture_name = None
         self.max_tokens = max_tokens
 
     def __repr__(self, indent="", done=None):
@@ -626,9 +632,8 @@ class Select(GrammarFunction):
         recursive: bool = False,
     ) -> None:
         super().__init__(capture_name=capture_name)
-        self.values = values
+        self.values: list[ComposableGrammar] = values
         self.name = name if name is not None else GrammarFunction._new_name()
-        self.capture_name = capture_name
         self.max_tokens = max_tokens
         self.recursive = recursive
 
@@ -670,7 +675,7 @@ def string(value: Union[str, bytes]) -> Union[Null, Join]:
 
 
 def select(
-    options: list[ComposableGrammar],
+    options: Sequence[ComposableGrammar],
     name: Union[str, None] = None,
     list_append: bool = False,
     recurse: bool = False,
@@ -711,8 +716,9 @@ def select(
     """
     # TODO: allow for returning the probabilites of the selected item
     # TODO: also the full probabilites distribution over all items. We can implement this using the prob of the selected item by repeating the call, removing the selected item each time
+    options_list = list(options)
     if not skip_checks:
-        for i, value in enumerate(options):
+        for i, value in enumerate(options_list):
             assert not isinstance(
                 value, RawFunction
             ), "You cannot select between stateful functions in the current guidance implementation!"
@@ -720,7 +726,7 @@ def select(
                 value, types.FunctionType
             ), "Did you pass a function without calling it to select? You need to pass the results of a called guidance function to select."
             if isinstance(value, int) or isinstance(value, float):
-                options[i] = str(value)  # type: ignore[assignment]
+                options_list[i] = str(value)  # type: ignore[assignment]
 
     # set up list append var saving if requested
     if list_append:
@@ -734,15 +740,15 @@ def select(
         if "" in options:
             # if we have an empty option, 'node + v' also covers the case of 'v' itself
             # thus, we don't have to add 'options' (except for the empty string)
-            node.values = [node + v for v in options if v != ""] + [""]
+            node.values = [node + v for v in options_list if v != ""] + [""]
         else:
-            node.values = [node + v for v in options if v != ""] + options
+            node.values = [node + v for v in options_list if v != ""] + options_list
         return node
     else:
-        if len(options) == 1 and name is None:
-            return options[0]
+        if len(options_list) == 1 and name is None:
+            return options_list[0]
         else:
-            return Select(options, capture_name=name, recursive=False)
+            return Select(options_list, capture_name=name, recursive=False)
 
 
 def byte_range(low: bytes, high: bytes) -> ByteRange:
@@ -861,7 +867,7 @@ def str_to_grammar(value: str) -> Function:
     return partial_grammar
 
 
-def _is_string_literal(node: GrammarFunction) -> bool:
+def _is_string_literal(node: ComposableGrammar) -> bool:
     if isinstance(node, Byte):
         return True
     if isinstance(node, Join):
@@ -886,12 +892,12 @@ class LLSerializer:
             "rx_nodes": [],
         }
         self.grammars = [self.curr_grammar]
-        self.node_id_cache: dict[GrammarFunction, int] = {}
-        self.todo: list[GrammarFunction] = []
+        self.node_id_cache: dict[ComposableGrammar, int] = {}
+        self.todo: list[ComposableGrammar] = []
         self.grammar_id_cache: dict[Subgrammar, int] = {}
         self.grammar_todo: list[Subgrammar] = []
 
-        self.regex_id_cache: dict[GrammarFunction, int] = {}
+        self.regex_id_cache: dict[ComposableGrammar, int] = {}
 
     def _add_regex_json(self, json):
         id = len(self.curr_grammar["rx_nodes"])
@@ -901,28 +907,28 @@ class LLSerializer:
     def _add_regex(self, key: str, val):
         return self._add_regex_json({key: val})
 
-    def _regex_or(self, nodes: list[GrammarFunction]):
+    def _regex_or(self, nodes: list[ComposableGrammar]):
         if len(nodes) == 1:
             return self.regex_id_cache[nodes[0]]
         else:
             return self._add_regex("Or", [self.regex_id_cache[v] for v in nodes])
 
-    def regex(self, node: GrammarFunction):
+    def regex(self, node: ComposableGrammar):
         """
         Serialize node as regex. Throws if impossible.
         """
 
         node0 = node
         todo = [node]
-        pending: set[GrammarFunction] = set()
+        pending: set[ComposableGrammar] = set()
 
-        def node_finished(node: GrammarFunction):
+        def node_finished(node: ComposableGrammar):
             return node not in pending and node in self.regex_id_cache
 
         def all_finished(nodes):
             return all(node_finished(v) for v in nodes)
 
-        def add_todo(n: GrammarFunction):
+        def add_todo(n: ComposableGrammar):
             if n in pending:
                 raise ValueError(
                     "GrammarFunction is recursive - cannot serialize as regex: " + n.__repr__()
@@ -933,7 +939,7 @@ class LLSerializer:
             for n in nodes:
                 add_todo(n)
 
-        def check_unserializable_attrs(node: GrammarFunction):
+        def check_unserializable_attrs(node: ComposableGrammar):
             if not isinstance(node, Terminal):
                 for v in getattr(node, "values", []):
                     # Only check one level deeper as we'll soon be processing the children
@@ -1036,7 +1042,7 @@ class LLSerializer:
         self.grammar_todo.append(grammar)
         return id
 
-    def node(self, node: GrammarFunction) -> int:
+    def node(self, node: ComposableGrammar) -> int:
         if node in self.node_id_cache:
             return self.node_id_cache[node]
         id = len(self.nodes)
@@ -1045,7 +1051,7 @@ class LLSerializer:
         self.todo.append(node)
         return id
 
-    def process(self, node: GrammarFunction):
+    def process(self, node: ComposableGrammar):
         obj: dict[str, Any] = {}
         if isinstance(node, Select):
             obj = {
@@ -1138,7 +1144,7 @@ class LLSerializer:
             inner["max_tokens"] = max_tokens
         self.nodes[self.node(node)] = obj
 
-    def run_grammar(self, node: GrammarFunction):
+    def run_grammar(self, node: ComposableGrammar):
         assert self.todo == []
         id = self.node(node)
         assert id == 0
@@ -1146,7 +1152,7 @@ class LLSerializer:
             node = self.todo.pop()
             self.process(node)
 
-    def run(self, node: GrammarFunction):
+    def run(self, node: ComposableGrammar):
         # avoid top-level node being a String
         if _is_string_literal(node):
             node = Select([node])
