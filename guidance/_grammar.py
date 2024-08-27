@@ -303,7 +303,7 @@ class ByteRange(Terminal):
     def __hash__(self):
         return self.byte_range[0] + 256 * self.byte_range[1]
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         return (
             isinstance(other, ByteRange)
             and self.byte_range[0] == other.byte_range[0]
@@ -313,7 +313,7 @@ class ByteRange(Terminal):
     def __repr__(self) -> str:
         return str(self.byte_range)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return 1
 
 
@@ -473,10 +473,11 @@ class Join(GrammarFunction):
         max_tokens=100000000,
     ) -> None:
         super().__init__(capture_name=None)
-        values = [
-            string(v) if isinstance(v, (str, bytes)) else v for v in values
-        ]  # wrap raw strings
-        self.values = [v for v in values if not isinstance(v, Null)]
+        # wrap raw strings
+        converted_values = [string(v) if isinstance(v, (str, bytes)) else v for v in values]
+        self.values: list[GrammarFunction] = [
+            v for v in converted_values if not isinstance(v, Null)
+        ]
         self.name = name if name is not None else GrammarFunction._new_name()
         self.max_tokens = max_tokens
 
@@ -625,24 +626,24 @@ class Select(GrammarFunction):
 
     def __init__(
         self,
-        values: Sequence[ComposableGrammar],
+        values: Sequence[GrammarFunction],
         capture_name: Union[str, None] = None,
         name: Union[str, None] = None,
         max_tokens: int = 10000000,
         recursive: bool = False,
     ) -> None:
         super().__init__(capture_name=capture_name)
-        self.values: list[ComposableGrammar] = values
+        self.values: list[GrammarFunction] = values
         self.name = name if name is not None else GrammarFunction._new_name()
         self.max_tokens = max_tokens
         self.recursive = recursive
 
     @property
-    def values(self) -> Sequence[ComposableGrammar]:
+    def values(self) -> Sequence[GrammarFunction]:
         return self._values
 
     @values.setter
-    def values(self, vals: Sequence[ComposableGrammar]):
+    def values(self, vals: Sequence[GrammarFunction]):
         self._values = [string(v) if isinstance(v, (str, bytes)) else v for v in vals]
 
     def __repr__(self, indent="", done=None):
@@ -680,7 +681,7 @@ def select(
     list_append: bool = False,
     recurse: bool = False,
     skip_checks: bool = False,
-) -> Union[Select, ComposableGrammar]:
+) -> Union[Select, GrammarFunction]:
     """Choose between a set of options.
 
     This function constrains the next generation from the LLM to be one of the
@@ -716,17 +717,23 @@ def select(
     """
     # TODO: allow for returning the probabilites of the selected item
     # TODO: also the full probabilites distribution over all items. We can implement this using the prob of the selected item by repeating the call, removing the selected item each time
-    options_list = list(options)
     if not skip_checks:
-        for i, value in enumerate(options_list):
+        for i, value in enumerate(options):
             assert not isinstance(
                 value, RawFunction
             ), "You cannot select between stateful functions in the current guidance implementation!"
             assert not isinstance(
                 value, types.FunctionType
             ), "Did you pass a function without calling it to select? You need to pass the results of a called guidance function to select."
-            if isinstance(value, int) or isinstance(value, float):
-                options_list[i] = str(value)  # type: ignore[assignment]
+    options_converted: list[GrammarFunction] = []
+    for opt in options:
+        if isinstance(opt, (int, float)):
+            nxt: GrammarFunction = string(str(opt))
+        elif isinstance(opt, (str, bytes)):
+            nxt = string(opt)
+        else:
+            nxt = opt
+        options_converted.append(nxt)
 
     # set up list append var saving if requested
     if list_append:
@@ -740,15 +747,17 @@ def select(
         if "" in options:
             # if we have an empty option, 'node + v' also covers the case of 'v' itself
             # thus, we don't have to add 'options' (except for the empty string)
-            node.values = [node + v for v in options_list if v != ""] + [""]
+            node.values = [node + v for v in options_converted if not (isinstance(v, Null))] + [""]
         else:
-            node.values = [node + v for v in options_list if v != ""] + options_list
+            node.values = [
+                node + v for v in options_converted if not (isinstance(v, Null)) if v != ""
+            ] + options_converted
         return node
     else:
-        if len(options_list) == 1 and name is None:
-            return options_list[0]
+        if len(options_converted) == 1 and name is None:
+            return options_converted[0]
         else:
-            return Select(options_list, capture_name=name, recursive=False)
+            return Select(options_converted, capture_name=name, recursive=False)
 
 
 def byte_range(low: bytes, high: bytes) -> ByteRange:
