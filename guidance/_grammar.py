@@ -1,13 +1,6 @@
 import re
 import types
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Optional,
-    Sequence,
-    Union,
-    cast,
-)
+from typing import TYPE_CHECKING, Any, Optional, Sequence, Union, cast
 
 from . import _parser
 
@@ -681,7 +674,7 @@ def select(
     list_append: bool = False,
     recurse: bool = False,
     skip_checks: bool = False,
-) -> Union[Select, GrammarFunction]:
+) -> GrammarFunction:
     """Choose between a set of options.
 
     This function constrains the next generation from the LLM to be one of the
@@ -901,12 +894,12 @@ class LLSerializer:
             "rx_nodes": [],
         }
         self.grammars = [self.curr_grammar]
-        self.node_id_cache: dict[ComposableGrammar, int] = {}
-        self.todo: list[ComposableGrammar] = []
+        self.node_id_cache: dict[GrammarFunction, int] = {}
+        self.todo: list[GrammarFunction] = []
         self.grammar_id_cache: dict[Subgrammar, int] = {}
         self.grammar_todo: list[Subgrammar] = []
 
-        self.regex_id_cache: dict[ComposableGrammar, int] = {}
+        self.regex_id_cache: dict[GrammarFunction, int] = {}
 
     def _add_regex_json(self, json):
         id = len(self.curr_grammar["rx_nodes"])
@@ -916,28 +909,28 @@ class LLSerializer:
     def _add_regex(self, key: str, val):
         return self._add_regex_json({key: val})
 
-    def _regex_or(self, nodes: list[ComposableGrammar]):
+    def _regex_or(self, nodes: list[GrammarFunction]):
         if len(nodes) == 1:
             return self.regex_id_cache[nodes[0]]
         else:
             return self._add_regex("Or", [self.regex_id_cache[v] for v in nodes])
 
-    def regex(self, node: ComposableGrammar):
+    def regex(self, node: GrammarFunction):
         """
         Serialize node as regex. Throws if impossible.
         """
 
         node0 = node
         todo = [node]
-        pending: set[ComposableGrammar] = set()
+        pending: set[GrammarFunction] = set()
 
-        def node_finished(node: ComposableGrammar):
+        def node_finished(node: GrammarFunction):
             return node not in pending and node in self.regex_id_cache
 
         def all_finished(nodes):
             return all(node_finished(v) for v in nodes)
 
-        def add_todo(n: ComposableGrammar):
+        def add_todo(n: GrammarFunction):
             if n in pending:
                 raise ValueError(
                     "GrammarFunction is recursive - cannot serialize as regex: " + n.__repr__()
@@ -948,7 +941,7 @@ class LLSerializer:
             for n in nodes:
                 add_todo(n)
 
-        def check_unserializable_attrs(node: ComposableGrammar):
+        def check_unserializable_attrs(node: GrammarFunction):
             if not isinstance(node, Terminal):
                 for v in getattr(node, "values", []):
                     # Only check one level deeper as we'll soon be processing the children
@@ -1051,7 +1044,7 @@ class LLSerializer:
         self.grammar_todo.append(grammar)
         return id
 
-    def node(self, node: ComposableGrammar) -> int:
+    def node(self, node: GrammarFunction) -> int:
         if node in self.node_id_cache:
             return self.node_id_cache[node]
         id = len(self.nodes)
@@ -1060,7 +1053,7 @@ class LLSerializer:
         self.todo.append(node)
         return id
 
-    def process(self, node: ComposableGrammar):
+    def process(self, node: GrammarFunction):
         obj: dict[str, Any] = {}
         if isinstance(node, Select):
             obj = {
@@ -1153,7 +1146,7 @@ class LLSerializer:
             inner["max_tokens"] = max_tokens
         self.nodes[self.node(node)] = obj
 
-    def run_grammar(self, node: ComposableGrammar):
+    def run_grammar(self, node: GrammarFunction):
         assert self.todo == []
         id = self.node(node)
         assert id == 0
@@ -1164,8 +1157,10 @@ class LLSerializer:
     def run(self, node: ComposableGrammar):
         # avoid top-level node being a String
         if _is_string_literal(node):
-            node = Select([node])
-        self.run_grammar(node)
+            root_node = select(options=[node])
+        else:
+            root_node = cast(GrammarFunction, node)
+        self.run_grammar(root_node)
         while self.grammar_todo:
             grammar = self.grammar_todo.pop()
             self.curr_grammar = self.grammars[self.grammar(grammar)]
