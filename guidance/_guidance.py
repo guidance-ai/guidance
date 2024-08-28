@@ -53,15 +53,20 @@ def _decorator(f, *, stateless, cache, dedent, model):
                     if no_args:
                         f._self_call_placeholder_ = Placeholder()
 
-                    # call the function to get the grammar node
-                    node = f(_null_grammar, *args, **kwargs)
-                    if not isinstance(node, (Terminal, str)):
-                        node.name = f.__name__
-
-                    # replace all the placeholders with our generated node
-                    if no_args:
-                        replace_grammar_node(node, f._self_call_placeholder_, node)
-                        del f._self_call_placeholder_
+                    try:
+                        # call the function to get the grammar node
+                        node = f(_null_grammar, *args, **kwargs)
+                    except:
+                        raise
+                    else:
+                        if not isinstance(node, (Terminal, str)):
+                            node.name = f.__name__
+                        # replace all the placeholders with our generated node
+                        if no_args:
+                            replace_grammar_node(node, f._self_call_placeholder_, node)
+                    finally:
+                        if no_args:
+                            del f._self_call_placeholder_
 
                     return node
 
