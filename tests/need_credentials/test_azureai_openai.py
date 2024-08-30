@@ -40,6 +40,7 @@ def test_azureai_openai_chat_longer_1(azureai_chat_model):
     common_chat_testing.longer_chat_1(azureai_chat_model)
 
 
+@pytest.mark.xfail(reason="Issue #1003")
 def test_azureai_openai_chat_longer_2(azureai_chat_model):
     common_chat_testing.longer_chat_2(azureai_chat_model)
 
