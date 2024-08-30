@@ -40,7 +40,7 @@ class TestTutorials:
             params=dict(call_delay_secs=rate_limiter, requested_log_level=logging.DEBUG),
         )
 
-    @pytest.xfail(reason="Issue #1004")
+    @pytest.mark.xfail(reason="Issue #1004")
     def test_regex_constraints(self):
         nb_path = TestTutorials.BASE_TUTORIAL_PATH / "regex_constraints.ipynb"
         run_notebook(nb_path)
@@ -86,7 +86,7 @@ class TestArtOfPromptDesign:
         nb_path = TestArtOfPromptDesign.BASE_APD_PATH / "react.ipynb"
         run_notebook(nb_path)
 
-    @pytest.xfail(reason="Issue #1004")
+    @pytest.mark.xfail(reason="Issue #1004")
     def test_use_clear_syntax(self, rate_limiter):
         azureai_endpoint = os.getenv("AZUREAI_CHAT_ENDPOINT", None)
 
