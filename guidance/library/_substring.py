@@ -135,7 +135,12 @@ def substring(lm, target_string: str, name: Optional[str] = None):
             )
             state_stack.pop()
 
-    return lm + capture(as_regular_grammar(node_cache[0]), name=name)
+    reg_gram = as_regular_grammar(node_cache[0])
+
+    if name is not None:
+        return lm + capture(reg_gram, name=name)
+    else:
+        return lm + reg_gram
 
 
 # @guidance(stateless=True, dedent=False)
