@@ -274,3 +274,46 @@ class TestGeneric:
             maybe_whitespace=maybe_whitespace,
             compact=compact,
         )
+
+class TestDiscriminatedUnion:
+    """
+    https://docs.pydantic.dev/latest/concepts/unions/#discriminated-unions-with-str-discriminators
+    """
+
+    class Cat(pydantic.BaseModel):
+        pet_type: Literal['cat']
+        meows: int
+
+
+    class Dog(pydantic.BaseModel):
+        pet_type: Literal['dog']
+        barks: float
+
+
+    class Lizard(pydantic.BaseModel):
+        pet_type: Literal['reptile', 'lizard']
+        scales: bool
+
+
+    class Model(pydantic.BaseModel):
+        pet: Union[
+            'TestDiscriminatedUnion.Cat',
+            'TestDiscriminatedUnion.Dog',
+            'TestDiscriminatedUnion.Lizard',
+        ] = pydantic.Field(..., discriminator='pet_type')
+        n: int
+
+    def test_good(self):
+        obj = {"pet": {"pet_type": "dog", "barks": 3.14}, "n": 42}
+        generate_and_check(obj, self.Model)
+
+    def test_bad(self):
+        check_match_failure(
+            bad_obj={"pet": {"pet_type": "dog"}, "n": 42},
+            good_bytes=b'{"pet":{"pet_type":"dog"',
+            failure_byte=b"}",
+            allowed_bytes={b","}, # expect a comma to continue the object with "barks"
+            pydantic_model=self.Model,
+            maybe_whitespace=False,
+            compact=True
+        )
