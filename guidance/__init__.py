@@ -10,7 +10,6 @@ from ._grammar import (
     RawFunction,
     GrammarFunction,
     Terminal,
-    replace_grammar_node,
     string,
 )
 from ._utils import strip_multiline_string_indents
