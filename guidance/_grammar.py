@@ -243,6 +243,27 @@ class Terminal(GrammarFunction):
     def max_tokens(self):
         return 1000000000000
 
+class Box(Terminal):
+    __slots__ = "_value"
+
+    def __init__(self):
+        super().__init__(temperature=-1, capture_name=None)
+        self._resolved = False
+        self._value = None
+
+    @property
+    def value(self):
+        if self._resolved:
+            return self._value
+        else:
+            raise ValueError("Box is not yet resolved")
+
+    @value.setter
+    def value(self, value):
+        if self._resolved:
+            raise ValueError("Can't set value of resolved Box")
+        self._value = value
+        self._resolved = True
 
 class Byte(Terminal):
     __slots__ = ("byte", "temperature")
@@ -445,11 +466,6 @@ def commit_point(value, hidden=False):
     nodes that can be hidden since they are by definition not impacted by multiple possible
     inconsistent parses.)"""
     raise NotImplementedError("commit_point is not implemented (may remove in the future)")
-
-
-class Placeholder(GrammarFunction):
-    def __init__(self):
-        super().__init__(capture_name=None)
 
 
 class Join(GrammarFunction):
@@ -1131,6 +1147,14 @@ class LLSerializer:
             obj = {
                 "String": {
                     "literal": "",
+                }
+            }
+        elif isinstance(node, Box):
+            if node.value is None:
+                raise Exception("Box must have a value")
+            obj = {
+                "Join": {
+                    "sequence": [self.node(node.value)],
                 }
             }
         else:

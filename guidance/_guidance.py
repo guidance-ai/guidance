@@ -2,7 +2,7 @@ import functools
 import inspect
 
 from . import models
-from ._grammar import Placeholder, RawFunction, Terminal, replace_grammar_node, string
+from ._grammar import RawFunction, Terminal, string, Box
 from ._utils import strip_multiline_string_indents
 
 
@@ -48,10 +48,10 @@ def _decorator(f, *, stateless, cache, dedent, model):
                 # otherwise we call the function to generate the grammar
                 else:
 
-                    # set a placeholder for recursive calls (only if we don't have arguments that might make caching a bad idea)
+                    # set a Box as placeholder for recursive calls (only if we don't have arguments that might make caching a bad idea)
                     no_args = len(args) + len(kwargs) == 0
                     if no_args:
-                        f._self_call_placeholder_ = Placeholder()
+                        f._self_call_placeholder_ = Box()
 
                     try:
                         # call the function to get the grammar node
@@ -61,9 +61,9 @@ def _decorator(f, *, stateless, cache, dedent, model):
                     else:
                         if not isinstance(node, (Terminal, str)):
                             node.name = f.__name__
-                        # replace all the placeholders with our generated node
+                        # fill the box with our generated node
                         if no_args:
-                            replace_grammar_node(node, f._self_call_placeholder_, node)
+                            f._self_call_placeholder_.value = node
                     finally:
                         if no_args:
                             del f._self_call_placeholder_

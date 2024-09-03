@@ -7,7 +7,6 @@ from . import models
 from ._guidance import _decorator, guidance
 
 from ._grammar import (
-    Placeholder,
     RawFunction,
     GrammarFunction,
     Terminal,
