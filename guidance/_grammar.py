@@ -368,31 +368,6 @@ class ModelVariable(GrammarFunction):
         self.name = name
 
 
-def replace_grammar_node(grammar, target, replacement):
-    # Use a stack to keep track of the nodes to be visited
-    stack = [grammar]
-    visited_set = set()  # use set for O(1) lookups
-
-    while stack:
-        current = stack.pop()
-
-        # Check if we have already visited this node
-        if current in visited_set:
-            continue
-        visited_set.add(current)
-
-        # We are done with this node if it's a terminal
-        if isinstance(current, (Terminal, ModelVariable, Placeholder)):
-            continue
-
-        # Iterate through the node's values and replace target with replacement
-        for i, value in enumerate(current.values):
-            if value == target:
-                current.values[i] = replacement
-            else:
-                stack.append(value)
-
-
 def replace_model_variables(grammar, model, allowed_vars=None):
     """Replace all the ModelVariable nodes with their values in an iterative manner."""
     visited_set = set()
