@@ -244,6 +244,7 @@ class Terminal(GrammarFunction):
         return 1000000000000
 
 class Box(Terminal):
+    """Container to hold a value that is resolved at a later time. This is useful for recursive definitions."""
     __slots__ = "_value"
 
     def __init__(self):
