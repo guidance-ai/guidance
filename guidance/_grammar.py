@@ -1,7 +1,7 @@
 import copy
 import re
 import types
-from typing import TYPE_CHECKING, Any, Optional, Sequence, Union, cast
+from typing import TYPE_CHECKING, Any, List, Optional, Sequence, Union, cast
 
 from . import _parser
 from . import llg
@@ -889,7 +889,8 @@ class ReferencingGrammarFunction(GrammarFunction):
         self.name = name if name is not None else GrammarFunction._new_name()
         self.capture_name = capture_name
         self.nodes: List[llg.NodeJSON] = []
-        
+
+
 def as_regular_grammar(value) -> RegularGrammar:
     # TODO: assert that value is not empty since we don't yet support that
     if isinstance(value, str):
