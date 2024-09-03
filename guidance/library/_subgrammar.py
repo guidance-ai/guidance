@@ -16,8 +16,8 @@ def subgrammar(
     skip_regex: Optional[str] = None,
     no_initial_skip: bool = False,
     max_tokens=100000000,
-):
-    r = Subgrammar(
+) -> GrammarFunction:
+    r: GrammarFunction = Subgrammar(
         body=body,
         skip_regex=skip_regex,
         no_initial_skip=no_initial_skip,
