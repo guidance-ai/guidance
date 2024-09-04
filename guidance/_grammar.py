@@ -247,20 +247,20 @@ class DeferredReference(Terminal):
     """Container to hold a value that is resolved at a later time. This is useful for recursive definitions."""
     __slots__ = "_value"
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(temperature=-1, capture_name=None)
         self._resolved = False
-        self._value = None
+        self._value: Optional[GrammarFunction] = None
 
     @property
-    def value(self):
+    def value(self) -> GrammarFunction:
         if self._resolved:
-            return self._value
+            return cast(GrammarFunction, self._value)
         else:
             raise ValueError("DeferredReference does not have a value yet")
 
     @value.setter
-    def value(self, value):
+    def value(self, value: GrammarFunction) -> None:
         if self._resolved:
             raise ValueError("DeferredReference value already set")
         self._value = value
