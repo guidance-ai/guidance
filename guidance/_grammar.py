@@ -243,7 +243,7 @@ class Terminal(GrammarFunction):
     def max_tokens(self):
         return 1000000000000
 
-class Box(Terminal):
+class DeferredReference(Terminal):
     """Container to hold a value that is resolved at a later time. This is useful for recursive definitions."""
     __slots__ = "_value"
 
@@ -257,12 +257,12 @@ class Box(Terminal):
         if self._resolved:
             return self._value
         else:
-            raise ValueError("Box is not yet resolved")
+            raise ValueError("DeferredReference does not have a value yet")
 
     @value.setter
     def value(self, value):
         if self._resolved:
-            raise ValueError("Can't set value of resolved Box")
+            raise ValueError("DeferredReference value already set")
         self._value = value
         self._resolved = True
 
@@ -1125,9 +1125,9 @@ class LLSerializer:
                     "literal": "",
                 }
             }
-        elif isinstance(node, Box):
+        elif isinstance(node, DeferredReference):
             if node.value is None:
-                raise Exception("Box must have a value")
+                raise ValueError("Cannot serialize DeferredReference with unset value")
             obj = {
                 "Join": {
                     "sequence": [self.node(node.value)],

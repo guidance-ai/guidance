@@ -2,7 +2,7 @@ import functools
 import inspect
 
 from . import models
-from ._grammar import RawFunction, Terminal, string, Box
+from ._grammar import RawFunction, Terminal, string, DeferredReference
 from ._utils import strip_multiline_string_indents
 
 
@@ -51,7 +51,7 @@ def _decorator(f, *, stateless, cache, dedent, model):
                     # set a Box as placeholder for recursive calls (only if we don't have arguments that might make caching a bad idea)
                     no_args = len(args) + len(kwargs) == 0
                     if no_args:
-                        f._self_call_placeholder_ = Box()
+                        f._self_call_placeholder_ = DeferredReference()
 
                     try:
                         # call the function to get the grammar node
