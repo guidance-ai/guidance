@@ -11,6 +11,7 @@ from typing import (
     Type,
     TYPE_CHECKING,
 )
+import warnings
 
 try:
     import jsonschema
@@ -39,6 +40,7 @@ def _to_compact_json(target: Any) -> str:
 class Keyword(str, Enum):
     ANYOF = "anyOf"
     ALLOF = "allOf"
+    ONEOF = "oneOf"
     REF = "$ref"
     CONST = "const"
     ENUM = "enum"
@@ -56,6 +58,7 @@ DEFS_KEYS = {"$defs", "definitions"}
 IGNORED_KEYS = {
     "$schema",
     "$id",
+    "id",
     "$comment",
     "title",
     "description",
@@ -63,6 +66,14 @@ IGNORED_KEYS = {
     "examples",
     "required",  # TODO: implement and remove from ignored list
 }
+
+# discriminator is part of OpenAPI 3.1, not JSON Schema itself
+# https://json-schema.org/blog/posts/validating-openapi-and-json-schema
+# TODO: While ignoring this key shouldn't lead to invalid outputs, forcing
+# the model to choose the value of the marked field before other fields
+# are generated (statefully or statelessly) would reduce grammar ambiguity
+# and possibly improve quality.
+IGNORED_KEYS.add("discriminator")
 
 TYPE_SPECIFIC_KEYS = {
     "array": {"items", "prefixItems", "minItems", "maxItems"},
@@ -382,6 +393,13 @@ def _gen_json(
         if len(allof_list) != 1:
             raise ValueError("Only support allOf with exactly one item")
         return lm + _gen_json(allof_list[0], definitions)
+
+    if Keyword.ONEOF in json_schema:
+        oneof_list = json_schema[Keyword.ONEOF]
+        if len(oneof_list) == 1:
+            return lm + _gen_json(oneof_list[0], definitions)
+        warnings.warn("oneOf not fully supported, falling back to anyOf. This may cause validation errors in some cases.")
+        return lm + _process_anyOf(anyof_list=oneof_list, definitions=definitions)
 
     if Keyword.REF in json_schema:
         return lm + _get_definition(reference=json_schema[Keyword.REF], definitions=definitions)

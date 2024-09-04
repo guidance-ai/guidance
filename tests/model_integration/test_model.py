@@ -70,7 +70,11 @@ def test_stream_add_multiple(selected_model):
     assert str(last_lm) in ["item1", "item2"]
 
 
-def test_associativity(selected_model):
+def test_associativity(selected_model: models.Model):
+    REMOTE_MODELS = [models.AzureGuidance]
+    for rm in REMOTE_MODELS:
+        if isinstance(selected_model, rm):
+            pytest.skip("Method get_next_token not available for remote models")
     prompt = "pi = "
     grammar = gen("number", regex=r"\d")
     engine = selected_model.engine
