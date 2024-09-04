@@ -124,7 +124,10 @@ def _gen_json_string(
     max_length: Union[int, None] = None,
     regex: Union[str, None] = None,
 ):
-    if regex is not None:
+    if regex is None:
+        range_expr = f"{{{min_length},{max_length}}}" if max_length is not None else f"{{{min_length},}}"
+        regex = f"(?s:.{range_expr})"
+    else:
         if min_length > 0 or max_length is not None:
             msg = (
                 "If a pattern is specified for a JSON "
@@ -132,12 +135,7 @@ def _gen_json_string(
                 "left unspecified."
             )
             raise ValueError(msg)
-        return '"' + gen(regex=regex) + '"'
-
-    char_expr = r'(\\([\"\\\/bfnrt]|u[a-fA-F0-9]{4})|[^\"\\\x00-\x1F\x7F])'
-    range_expr = f"{{{min_length},{max_length}}}" if max_length is not None else f"{{{min_length},}}"
-    string_expr = f'"{char_expr}{range_expr}"'
-    return lm + lexeme(string_expr, contextual=True)
+    return lm + lexeme(regex, contextual=True, json_string=True)
 
 
 @guidance(stateless=True)
