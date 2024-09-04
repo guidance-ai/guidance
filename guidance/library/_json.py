@@ -3,8 +3,8 @@ from enum import Enum
 from functools import cached_property
 from json import dumps as json_dumps
 from typing import (
+    TYPE_CHECKING,
     Any,
-    Callable,
     Dict,
     List,
     Mapping,
@@ -12,7 +12,6 @@ from typing import (
     Sequence,
     Tuple,
     Type,
-    TYPE_CHECKING,
     Union,
 )
 
@@ -23,18 +22,13 @@ except ImportError:
     if TYPE_CHECKING:
         raise
 
-from ..llg import GrammarWithLexer, TopLevelGrammar, NodeJSON, NodeLexeme
-
+from .._grammar import ReferencingGrammarFunction, with_temperature
 from .._guidance import guidance
-
-from .._grammar import (
-    GrammarFunction,
-    with_temperature,
-    ReferencingGrammarFunction,
-)
+from ..llg import GrammarWithLexer, NodeJSON, NodeLexeme, TopLevelGrammar
 from ._pydantic import pydantic_to_json_schema
-from ._subgrammar import lexeme, subgrammar
+from ._subgrammar import subgrammar
 
+WHITESPACE = {b" ", b"\t", b"\n", b"\r"}
 
 GrammarNode = Tuple[int, GrammarWithLexer]
 Grammar = Union[str, GrammarNode]
