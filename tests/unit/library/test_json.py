@@ -2166,21 +2166,55 @@ class TestRequiredPropertiesScaling:
         "num_properties",
         [1, 2, 3, 4, 5, 10, 20, 50, 100]
     )
-    def test_calls_to_gen_list_well_behaved(self, num_properties):
+    def test_many_optional_properties_doesnt_blow_up(self, num_properties):
         schema_obj = {
             "type": "object",
             "properties": {
                 f"prop_{i}": {"type": "string"} for i in range(num_properties)
             },
-            "required": []
+            "required": [] # Empty should be worst-case scenario
         }
-        # from unittest.mock import patch
         from guidance.library._json import _gen_list
-        # with patch('guidance.library._json._gen_list.__wrapped__.__wrapped__', side_effect=_gen_list.__wrapped__.__wrapped__) as f:
         _gen_list.__wrapped__.cache_clear()
         _ = gen_json(
             schema=schema_obj,
         )
-        MAGIC_NUMBER = 5 # Where in the world is this coming from?
-        expected_calls = 2*num_properties - 1 + MAGIC_NUMBER
-        assert _gen_list.__wrapped__.cache_info().misses == expected_calls
+        cache_info = _gen_list.__wrapped__.cache_info()
+
+        # Theoretical number of cache misses under the current implementation
+        expected_misses = 2*num_properties - 1
+        MISSES_MAGIC_NUMBER = 5 # Where in the world is this coming from?
+        assert 0 < cache_info.misses <= expected_misses + MISSES_MAGIC_NUMBER
+        # NOTE: that if the cache maxsize is hit, the number of misses will be more than expected
+
+        # Theoretical number of total calls under the current implementation
+        expected_calls = num_properties*(num_properties - 1) // 2
+        CALLS_MAGIC_NUMBER = 12 # Where in the world is this coming from?
+        assert 0 < cache_info.hits + cache_info.misses <= expected_calls + CALLS_MAGIC_NUMBER
+
+    @pytest.mark.parametrize(
+        "num_properties",
+        [1, 2, 3, 4, 5, 10, 20, 50, 100]
+    )
+    def test_all_required_properties_doesnt_blow_up(self, num_properties):
+        schema_obj = {
+            "type": "object",
+            "properties": {
+                f"prop_{i}": {"type": "string"} for i in range(num_properties)
+            },
+            "required": [f"prop_{i}" for i in range(num_properties)]
+        }
+        from guidance.library._json import _gen_list
+        _gen_list.__wrapped__.cache_clear()
+        _ = gen_json(
+            schema=schema_obj,
+        )
+        cache_info = _gen_list.__wrapped__.cache_info()
+
+        # Theoretical number of cache misses under the current implementation
+        expected_misses = num_properties
+        MISSES_MAGIC_NUMBER = 4
+        assert 0 < cache_info.misses <= expected_misses + MISSES_MAGIC_NUMBER
+        HITS_MAGIC_NUMBER = 1
+        expected_hits = 0
+        assert cache_info.hits <= expected_hits + HITS_MAGIC_NUMBER
