@@ -2160,3 +2160,27 @@ class TestRequiredProperties:
     def test_none_required(self, target_obj, extra_items):
         schema_obj = {**self.schema_obj, "required": self.NONE_REQUIRED}
         generate_and_check({**target_obj, **extra_items}, schema_obj)
+
+class TestRequiredPropertiesScaling:
+    @pytest.mark.parametrize(
+        "num_properties",
+        [1, 2, 3, 4, 5, 10, 20, 50, 100]
+    )
+    def test_calls_to_gen_list_well_behaved(self, num_properties):
+        schema_obj = {
+            "type": "object",
+            "properties": {
+                f"prop_{i}": {"type": "string"} for i in range(num_properties)
+            },
+            "required": []
+        }
+        # from unittest.mock import patch
+        from guidance.library._json import _gen_list
+        # with patch('guidance.library._json._gen_list.__wrapped__.__wrapped__', side_effect=_gen_list.__wrapped__.__wrapped__) as f:
+        _gen_list.__wrapped__.cache_clear()
+        _ = gen_json(
+            schema=schema_obj,
+        )
+        MAGIC_NUMBER = 5 # Where in the world is this coming from?
+        expected_calls = 2*num_properties - 1 + MAGIC_NUMBER
+        assert _gen_list.__wrapped__.cache_info().misses == expected_calls
