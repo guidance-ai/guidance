@@ -1545,7 +1545,8 @@ class TestAdditionalProperties:
         },
     "additionalProperties": {
             "type": "integer"
-        }
+        },
+    "required": ["mystr"]
     }
     """
 
@@ -1767,6 +1768,7 @@ class TestEmptySchemas:
         "a": {},
         "b": {"type": "number"}
     },
+    "required" : ["a", "b"],
     "type" : "object"
     }"""
 

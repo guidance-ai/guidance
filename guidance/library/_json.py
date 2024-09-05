@@ -144,6 +144,7 @@ def _gen_json_object(
     *,
     properties: Mapping[str, Any],
     additional_properties: Union[bool, Mapping[str, Any]],
+    required: Sequence[str],
     definitions: Mapping[str, Callable[[], GrammarFunction]],
 ):
     if additional_properties is True:
@@ -152,7 +153,7 @@ def _gen_json_object(
 
     lm += "{"
     if properties:
-        lm += _process_properties(properties=properties, definitions=definitions)
+        lm += _process_properties(properties=properties, required=required, definitions=definitions)
     if properties and additional_properties is not False:
         lm += optional(
             ","
@@ -175,22 +176,39 @@ def _process_properties(
     lm,
     *,
     properties: Mapping[str, Any],
+    required: Sequence[str],
     definitions: Mapping[str, Callable[[], GrammarFunction]],
 ):
-    properties_added = 0
-    for name, property_schema in properties.items():
-        lm += '"' + name + '"'
+    if any(k not in properties for k in required):
+        raise ValueError(f"Required properties not in properties: {set(required) - set(properties)}")
 
-        lm += ":"
-        lm += _gen_json(
-            json_schema=property_schema,
-            definitions=definitions,
-        )
-        properties_added += 1
-        if properties_added < len(properties):
-            lm += ","
-    return lm
+    return lm + _gen_list(
+        elements = tuple(f'"{name}":' + _gen_json(json_schema=schema, definitions=definitions) for name, schema in properties.items()),
+        required = tuple(name in required for name in properties),
+    ) 
 
+@guidance(stateless=True, cache=True)
+def _gen_list(lm, *, elements: tuple[GrammarFunction, ...], required: tuple[bool, ...], prefixed: bool = False):
+    if not elements:
+        return lm
+
+    e, elements = elements[0], elements[1:]
+    r, required = required[0], required[1:]
+
+    if r:
+        if prefixed:
+            return lm + (',' + e + _gen_list(elements=elements, required=required, prefixed=True))
+        return lm + (e + _gen_list(elements=elements, required=required, prefixed=True))
+
+    if prefixed:
+        return lm + select([
+            _gen_list(elements=elements, required=required, prefixed=True),
+            ',' + e + _gen_list(elements=elements, required=required, prefixed=True)
+        ])
+    return lm + select([
+        _gen_list(elements=elements, required=required, prefixed=False),
+        e + _gen_list(elements=elements, required=required, prefixed=True)
+    ])
 
 @guidance(stateless=True)
 def _process_additional_properties(
@@ -393,6 +411,7 @@ def _gen_json(
             return lm + _gen_json_object(
                 properties=json_schema.get("properties", {}),
                 additional_properties=json_schema.get("additionalProperties", True),
+                required=json_schema.get("required", set()),
                 definitions=definitions,
             )
         raise ValueError(f"Unsupported type in schema: {target_type}")
