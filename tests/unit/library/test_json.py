@@ -40,23 +40,27 @@ def generate_and_check(
 
 
 def check_match_failure(
+    *,
     bad_string: str,
-    good_bytes: bytes,
-    failure_byte: bytes,
-    allowed_bytes: Optional[Set[bytes]],
+    good_bytes: Optional[bytes] = None,
+    failure_byte: Optional[bytes] = None,
+    allowed_bytes: Optional[Set[bytes]] = None,
     schema_obj: Dict[str, Any],
-    maybe_whitespace: bool,
-    compact: bool,
+    maybe_whitespace: Optional[bool] = None,
+    compact: bool = True,
 ):
+    if (allowed_bytes is not None) and (maybe_whitespace is None):
+        raise ValueError("If allowed_bytes is provided, maybe_whitespace must also be provided")
+    if allowed_bytes is not None and maybe_whitespace and not compact:
+        allowed_bytes = allowed_bytes.union(WHITESPACE)
+
     grammar = gen_json(schema=schema_obj, compact=compact)
+
     _check_match_failure(
         bad_string=bad_string,
         good_bytes=good_bytes,
         failure_byte=failure_byte,
-        allowed_bytes=(
-            allowed_bytes.union(WHITESPACE) if (maybe_whitespace and not compact and allowed_bytes is not None)
-            else allowed_bytes
-        ),
+        allowed_bytes=allowed_bytes,
         grammar=grammar,
     )
 
