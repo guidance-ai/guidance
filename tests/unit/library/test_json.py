@@ -269,6 +269,42 @@ class TestString:
         )
 
     @pytest.mark.parametrize(
+        "string", ["aA\u001f", '"""']
+    )
+    def test_regex_properly_escaped_good(self, string):
+        schema_obj = {"type": "string", "pattern": r".{3}"}
+        # First sanity check what we're setting up
+        validate(instance=string, schema=schema_obj)
+        # The actual check
+        generate_and_check(string, schema_obj)
+
+    @pytest.mark.parametrize(
+        ["bad_string", "good_bytes", "failure_byte", "allowed_bytes"],
+        [
+            (
+                '"\\u001f\\u001f\u001f',
+                b'"\\u001f\\u001f', # able to match the first two stringified bytes
+                '\u001f'.encode(), # fails on a literal \x1f byte
+                None # hard to write a set of allowed bytes here
+            ),
+        ],
+    )
+    def test_regex_properly_escaped_bad(self, bad_string: str, good_bytes, failure_byte, allowed_bytes):
+        # Note that the strings being fed in include the double quotes required
+        # to make them JSON strings
+        schema_obj = {"type": "string", "pattern": r".{3}"}
+        check_match_failure(
+            bad_string=bad_string,
+            good_bytes=good_bytes,
+            failure_byte=failure_byte,
+            allowed_bytes=allowed_bytes,
+            schema_obj=schema_obj,
+            maybe_whitespace=False,
+            compact=True,
+        )
+
+
+    @pytest.mark.parametrize(
         "my_string", ["a", "bb", "ccc", "150", ",?", ".\t\n", "(){", "aA7", "\\9O"]
     )
     def test_min_and_maxLength(self, my_string: str):
