@@ -2046,3 +2046,117 @@ def test_ignored_keys_allowed_as_properties():
     }
     target_obj = {key: "value" for key in IGNORED_KEYS}
     generate_and_check(target_obj, schema_obj)
+
+class TestRequiredProperties:
+    schema_obj = {
+        "type": "object",
+        "properties": {
+            "a": {"type": "string"},
+            "b": {"type": "number"},
+            "c": {"type": "boolean"},
+        },
+        "additionalProperties": True
+    }
+    ALL_REQUIRED = ["a", "b", "c"]
+    SOME_REQUIRED_SUBSETS = [[], ["a"], ["b"], ["c"], ["a", "b"], ["a", "c"], ["b", "c"], ["a", "b", "c"]]
+    NONE_REQUIRED: list[str] = []
+
+    @pytest.mark.parametrize(
+        "extra_items",
+        [
+            {},
+            {"d": "hello"},
+            {"d": 42, "e": True},
+        ]
+    )
+    def test_all_required_good(self, extra_items):
+        schema_obj = {**self.schema_obj, "required": self.ALL_REQUIRED}
+        target_obj = {"a": "hello", "b": 42, "c": True, **extra_items}
+        generate_and_check(target_obj, schema_obj)
+
+    @pytest.mark.parametrize(
+        "bad_obj",
+        [
+            # Missing one
+            ({"a": "hello", "b": 42}),
+            ({"a": "hello", "c": True}),
+            ({"b": 42, "c": True}),
+            # Missing two
+            ({"a": "hello"}),
+            ({"b": 42}),
+            ({"c": True}),
+            # Missing all
+            ({}),
+        ]
+    )
+    def test_all_required_bad(self, bad_obj):
+        schema_obj = {**self.schema_obj, "required": self.ALL_REQUIRED}
+        check_match_failure(
+            bad_string=_to_compact_json(bad_obj),
+            schema_obj=schema_obj,
+            compact=True
+        )
+
+    @pytest.mark.parametrize(
+        "extra_items",
+        [
+            {},
+            {"d": "hello"},
+            {"d": 42, "e": True},
+        ]
+    )
+    @pytest.mark.parametrize(
+        "required",
+        SOME_REQUIRED_SUBSETS,
+    )
+    def test_some_required_good(self, required, extra_items):
+        base_obj = {"a": "hello", "b": 42, "c": True}
+        schema_obj = {**self.schema_obj, "required": required}
+
+        for subset in self.SOME_REQUIRED_SUBSETS:
+            if set(required).issubset(subset):
+                target_obj = {**{key: base_obj[key] for key in subset}, **extra_items}
+                generate_and_check(target_obj, schema_obj)
+
+    @pytest.mark.parametrize(
+        "required",
+        SOME_REQUIRED_SUBSETS,
+    )
+    def test_some_required_bad(self, required):
+        base_obj = {"a": "hello", "b": 42, "c": True}
+        schema_obj = {**self.schema_obj, "required": required}
+
+        for subset in self.SOME_REQUIRED_SUBSETS:
+            if not set(required).issubset(subset):
+                bad_obj = {key: base_obj[key] for key in subset}
+                check_match_failure(
+                    bad_string=_to_compact_json(bad_obj),
+                    schema_obj=schema_obj,
+                    compact=True
+                )
+
+    # No equivalent "bad" tests for none required, as the schema is satisfied by an empty object
+    @pytest.mark.parametrize(
+        "extra_items",
+        [
+            {},
+            {"d": "hello"},
+            {"d": 42, "e": True},
+        ]
+    )
+    @pytest.mark.parametrize(
+        "target_obj",
+        [
+            {},
+            {"a": "hello"},
+            {"b": 42},
+            {"c": True},
+            {"a": "hello", "b": 42},
+            {"a": "hello", "c": True},
+            {"b": 42, "c": True},
+            {"a": "hello", "b": 42, "c": True},
+        ]
+    )
+    def test_none_required(self, target_obj, extra_items):
+        schema_obj = {**self.schema_obj, "required": self.NONE_REQUIRED}
+        generate_and_check({**target_obj, **extra_items}, schema_obj)
