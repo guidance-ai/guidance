@@ -181,10 +181,8 @@ def _gen_list(lm, *, elements: tuple[GrammarFunction, ...], required: tuple[bool
         return lm + (e + _gen_list(elements=elements, required=required, prefixed=True))
 
     if prefixed:
-        return lm + select([
-            _gen_list(elements=elements, required=required, prefixed=True),
-            ',' + e + _gen_list(elements=elements, required=required, prefixed=True)
-        ])
+        # If we know we have preceeding elements, we can safely just add an optional(',' + e)
+        return lm + (optional(',' + e) + _gen_list(elements=elements, required=required, prefixed=True))
     return lm + select([
         _gen_list(elements=elements, required=required, prefixed=False),
         e + _gen_list(elements=elements, required=required, prefixed=True)
