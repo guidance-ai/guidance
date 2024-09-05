@@ -478,7 +478,8 @@ class TestSimpleObject:
             "type": "object",
             "properties": {
                 "a" : {"type": "integer"}
-            }
+            },
+            "required": ["a"]
         }
     """
         target_obj = dict(a=1)
@@ -502,7 +503,8 @@ class TestSimpleObject:
                 "f" : {"type": "integer"},
                 "g" : {"type": "integer"},
                 "h" : {"type": "integer"}
-            }
+            },
+            "required": ["a", "b", "c", "d", "e", "f", "g", "h"]
         }
     """
         target_obj = dict(a=1, b=2, c=3, d=4, e=5, f=6, g=7, h=8)
@@ -533,7 +535,8 @@ class TestSimpleObject:
                         }
                     }
                 }
-            }
+            },
+            "required": ["name", "info"]
         }
     """
         target_obj = dict(name="my product", info=dict(a=1, b=2))
@@ -588,6 +591,7 @@ class TestSimpleObject:
             "properties": {
                 "a" : {"type": "integer"}
             },
+            "required": ["a"],
             "additionalProperties": false
         }
     """
@@ -1175,6 +1179,7 @@ class TestWithReferences:
                         "type": "string"
                     }
                 },
+                "required": ["name"],
                 "type": "object"
             }
         },
@@ -1186,6 +1191,7 @@ class TestWithReferences:
                 "$ref": "#/$defs/A"
             }
         },
+        "required": ["A1", "A2"],
         "type": "object"
         }"""
 
@@ -1240,6 +1246,7 @@ class TestAnyOf:
             "type": "string"
             }
         },
+        "required": ["my_str"],
         "title": "A",
         "type": "object"
         },
@@ -1251,6 +1258,7 @@ class TestAnyOf:
             "type": "integer"
             }
         },
+        "required": ["my_int"],
         "title": "B",
         "type": "object"
         }
@@ -1268,6 +1276,7 @@ class TestAnyOf:
         "title": "My Val"
         }
     },
+    "required": ["my_val"],
     "title": "C",
     "type": "object"
     }
@@ -1323,7 +1332,8 @@ class TestAllOf:
                         }
                     ]
                 }
-            }
+            },
+            "required": ["my_cat"]
         }
         """
 
@@ -1495,7 +1505,7 @@ class TestConst:
 
     def test_nested_constant(self):
         # First sanity check what we're setting up
-        schema_obj = {"type": "object", "properties": {"a": {"const": 1}}}
+        schema_obj = {"type": "object", "properties": {"a": {"const": 1}}, "required": ["a"]}
         target_obj = {"a": 1}
         validate(instance=target_obj, schema=schema_obj)
 
@@ -1735,6 +1745,7 @@ class TestRecursiveStructures:
                     ]
                 }
             },
+            "required": ["my_str", "next"],
             "type": "object"
         }
     },
@@ -1750,7 +1761,8 @@ class TestRecursiveStructures:
                 }
             ]
         }
-    }
+    },
+    "required": ["my_list"]
 }
         """
         # First sanity check what we're setting up
@@ -1846,9 +1858,9 @@ class TestEmptySchemas:
         "schema_obj",
         [
             # Empty property
-            {"type": "object", "properties": {"a": {}}},
+            {"type": "object", "properties": {"a": {}}, "required": ["a"]},
             # Empty reference
-            {"type": "object", "properties": {"a": {"$ref": "#/$defs/A"}}, "$defs": {"A": {}}},
+            {"type": "object", "properties": {"a": {"$ref": "#/$defs/A"}}, "$defs": {"A": {}}, "required": ["a"]},
         ],
     )
     @pytest.mark.parametrize(
@@ -2025,7 +2037,8 @@ def test_ignored_keys_allowed_as_properties():
         "type": "object",
         "properties": {
             key: {"type": "string"} for key in IGNORED_KEYS
-        }
+        },
+        "required": list(IGNORED_KEYS),
     }
     target_obj = {key: "value" for key in IGNORED_KEYS}
     generate_and_check(target_obj, schema_obj)
