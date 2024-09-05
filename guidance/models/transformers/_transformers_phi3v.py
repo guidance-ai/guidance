@@ -192,7 +192,8 @@ class TransformersPhi3VisionEngine(Engine):
 
         # call the model
         # new_token_ids = token_ids[past_length:]
-        new_token_ids = token_ids
+        # HACK - replace token 6 with -1 again before calling the model
+        new_token_ids = [t if t != 6 else -1 for t in token_ids]
         past_length = 0 # TODO - Delete this line, was temporary
         if len(new_token_ids) > 0:
             with torch.no_grad():

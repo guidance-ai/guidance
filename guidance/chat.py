@@ -233,10 +233,23 @@ class Phi3SmallMediumChatTemplate(ChatTemplate):
     def get_role_end(self, role_name=None):
         return "<|end|>\n"
 
+class Phi3VisionChatTemplate(ChatTemplate):
+    template_str = phi3_vision_template
+
+    def get_role_start(self, role_name):
+        if role_name == "user":
+            return "<|user|>\n"
+        elif role_name == "assistant":
+            return "<|assistant|>\n"
+        else:
+            raise UnsupportedRoleException(role_name, self)
+
+    def get_role_end(self, role_name=None):
+        return "<|end|>\n"
 
 CHAT_TEMPLATE_CACHE[phi3_small_template] = Phi3SmallMediumChatTemplate
 CHAT_TEMPLATE_CACHE[phi3_medium_template] = Phi3SmallMediumChatTemplate
-CHAT_TEMPLATE_CACHE[phi3_vision_template] = Phi3SmallMediumChatTemplate
+CHAT_TEMPLATE_CACHE[phi3_vision_template] = Phi3VisionChatTemplate
 
 
 # --------------------------------------------------
