@@ -1877,9 +1877,9 @@ class TestEmptySchemas:
         "schema_obj",
         [
             # Empty property
-            {"type": "object", "properties": {"a": {}}},
+            {"type": "object", "properties": {"a": {}}, "required": ["a"]},
             # Empty reference
-            {"type": "object", "properties": {"a": {"$ref": "#/$defs/A"}}, "$defs": {"A": {}}},
+            {"type": "object", "properties": {"a": {"$ref": "#/$defs/A"}}, "$defs": {"A": {}}, "required": ["a"]},
         ],
     )
     @pytest.mark.parametrize(

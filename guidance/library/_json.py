@@ -147,45 +147,25 @@ def _gen_json_object(
     required: Sequence[str],
     definitions: Mapping[str, Callable[[], GrammarFunction]],
 ):
-    if additional_properties is True:
-        # True means that anything goes
-        additional_properties = {}
-
-    lm += "{"
-    if properties:
-        lm += _process_properties(properties=properties, required=required, definitions=definitions)
-    if properties and additional_properties is not False:
-        lm += optional(
-            ","
-            + _process_additional_properties(
-                additional_properties=additional_properties, definitions=definitions
-            )
-        )
-    elif additional_properties is not False:
-        lm += optional(
-            _process_additional_properties(
-                additional_properties=additional_properties, definitions=definitions
-            )
-        )
-    lm += "}"
-    return lm
-
-
-@guidance(stateless=True)
-def _process_properties(
-    lm,
-    *,
-    properties: Mapping[str, Any],
-    required: Sequence[str],
-    definitions: Mapping[str, Callable[[], GrammarFunction]],
-):
     if any(k not in properties for k in required):
         raise ValueError(f"Required properties not in properties: {set(required) - set(properties)}")
 
-    return lm + _gen_list(
-        elements = tuple(f'"{name}":' + _gen_json(json_schema=schema, definitions=definitions) for name, schema in properties.items()),
-        required = tuple(name in required for name in properties),
-    ) 
+    grammars = tuple(f'"{name}":' + _gen_json(json_schema=schema, definitions=definitions) for name, schema in properties.items())
+    required_items = tuple(name in required for name in properties)
+
+    if additional_properties is not False:
+        if additional_properties is True:
+            # True means that anything goes
+            additional_properties = {}
+        additional_item_grammar =  _gen_json_string() + ':' + _gen_json(json_schema=additional_properties, definitions=definitions)
+        additional_items_grammar = sequence(additional_item_grammar + ',') + additional_item_grammar
+        grammars += (additional_items_grammar,)
+        required_items += (False,)
+
+    return lm + "{" + _gen_list(
+        elements = grammars,
+        required = required_items,
+    ) + "}"
 
 @guidance(stateless=True, cache=True)
 def _gen_list(lm, *, elements: tuple[GrammarFunction, ...], required: tuple[bool, ...], prefixed: bool = False):
@@ -209,20 +189,6 @@ def _gen_list(lm, *, elements: tuple[GrammarFunction, ...], required: tuple[bool
         _gen_list(elements=elements, required=required, prefixed=False),
         e + _gen_list(elements=elements, required=required, prefixed=True)
     ])
-
-@guidance(stateless=True)
-def _process_additional_properties(
-    lm,
-    *,
-    additional_properties: Mapping[str, Any],
-    definitions: Mapping[str, Callable[[], GrammarFunction]],
-):
-    item = (
-        _gen_json_string()
-        + ":"
-        + _gen_json(json_schema=additional_properties, definitions=definitions)
-    )
-    return lm + sequence(item + ",") + item
 
 
 @guidance(stateless=True)
