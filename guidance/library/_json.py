@@ -175,14 +175,19 @@ def _gen_list(lm, *, elements: tuple[GrammarFunction, ...], required: tuple[bool
     e, elements = elements[0], elements[1:]
     r, required = required[0], required[1:]
 
-    if r:
-        if prefixed:
-            return lm + (',' + e + _gen_list(elements=elements, required=required, prefixed=True))
-        return lm + (e + _gen_list(elements=elements, required=required, prefixed=True))
-
     if prefixed:
+        if r:
+            # If we know we have preceeding elements, we can safely just add a (',' + e)
+            return lm + (',' + e + _gen_list(elements=elements, required=required, prefixed=True))
         # If we know we have preceeding elements, we can safely just add an optional(',' + e)
         return lm + (optional(',' + e) + _gen_list(elements=elements, required=required, prefixed=True))
+    if r:
+        # No preceding elements, and our element is required, so we just add the element
+        return lm + (e + _gen_list(elements=elements, required=required, prefixed=True))
+
+    # No preceding elements, and our element is optional, so we add a select between the two options.
+    # The first option is the recursive call with no preceding elements, the second is the recursive call
+    # with the current element as a prefix.
     return lm + select([
         _gen_list(elements=elements, required=required, prefixed=False),
         e + _gen_list(elements=elements, required=required, prefixed=True)
