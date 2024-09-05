@@ -539,17 +539,20 @@ class Gen(Terminal):
 
 
 class Lexeme(Gen):
-    __slots__ = ("contextual",)
+    __slots__ = ("contextual", "json_string")
 
     def __init__(
         self,
+        *,
         body_regex: str,
         contextual: bool = False,
+        json_string: bool = False,
         name: Union[str, None] = None,
         max_tokens=100000000,
     ) -> None:
         super().__init__(body_regex, "", name=name, max_tokens=max_tokens)
         self.contextual = contextual
+        self.json_string = json_string
 
     def __repr__(self, indent="", done=None):
         return super().__repr__(indent, done, "Lex")
@@ -1011,6 +1014,8 @@ class LLSerializer:
             elif isinstance(node, Null):
                 res = self._add_regex_json("EmptyString")
             elif isinstance(node, Lexeme):
+                if node.json_string:
+                    raise ValueError("Cannot serialize lexeme with `json_string=True` as regex: " + node.__repr__())
                 res = self._add_regex("Regex", node.body_regex)
             else:
                 raise ValueError("Cannot serialize as regex: " + node.__repr__())
@@ -1072,6 +1077,7 @@ class LLSerializer:
                 "Lexeme": {
                     "rx": node.body_regex,
                     "contextual": node.contextual,
+                    "json_string": node.json_string,
                 }
             }
         elif isinstance(node, Subgrammar):
