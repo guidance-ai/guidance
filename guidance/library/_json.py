@@ -47,8 +47,8 @@ class JSONType(str, Enum):
 
 class Keyword(str, Enum):
     ANYOF = "anyOf"
-    ALLOF = "allOf"
-    ONEOF = "oneOf"
+    ALLOF = "allOf" # Note: Partial support. Only supports exactly one item.
+    ONEOF = "oneOf" # Note: Partial support. This is converted to anyOf.
     REF = "$ref"
     CONST = "const"
     ENUM = "enum"
