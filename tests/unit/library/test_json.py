@@ -1395,6 +1395,10 @@ class TestOneOf:
         validate(instance=target_obj, schema=schema_obj)
 
         # The actual check; we expect a warning here because oneOf is not fully supported
+        from guidance.library._json import _process_oneOf, _gen_json
+        # Reset the caches to ensure we get the warning
+        _gen_json.__wrapped__.cache_clear()
+        _process_oneOf.__wrapped__.cache_clear()
         with pytest.warns() as record:
             generate_and_check(target_obj, schema_obj)
         assert len(record) == 1
