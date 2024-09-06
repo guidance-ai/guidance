@@ -144,67 +144,54 @@ def _gen_json_object(
     *,
     properties: frozendict[str, Any],
     additional_properties: Union[bool, frozendict[str, Any]],
+    required: frozenset[str],
     definitions: frozendict[str, Callable[[], GrammarFunction]],
 ):
-    if additional_properties is True:
-        # True means that anything goes
-        additional_properties = frozendict()
+    if any(k not in properties for k in required):
+        raise ValueError(f"Required properties not in properties: {required - set(properties)}")
 
-    lm += "{"
-    if properties:
-        lm += _process_properties(properties=properties, definitions=definitions)
-    if properties and additional_properties is not False:
-        lm += optional(
-            ","
-            + _process_additional_properties(
-                additional_properties=additional_properties, definitions=definitions
-            )
-        )
-    elif additional_properties is not False:
-        lm += optional(
-            _process_additional_properties(
-                additional_properties=additional_properties, definitions=definitions
-            )
-        )
-    lm += "}"
-    return lm
+    grammars = tuple(f'"{name}":' + _gen_json(json_schema=schema, definitions=definitions) for name, schema in properties.items())
+    required_items = tuple(name in required for name in properties)
 
+    if additional_properties is not False:
+        if additional_properties is True:
+            # True means that anything goes
+            additional_properties = frozendict()
+        additional_item_grammar =  _gen_json_string() + ':' + _gen_json(json_schema=additional_properties, definitions=definitions)
+        additional_items_grammar = sequence(additional_item_grammar + ',') + additional_item_grammar
+        grammars += (additional_items_grammar,)
+        required_items += (False,)
+
+    return lm + "{" + _gen_list(
+        elements = grammars,
+        required = required_items,
+    ) + "}"
 
 @guidance(stateless=True, cache=True)
-def _process_properties(
-    lm,
-    *,
-    properties: frozendict[str, Any],
-    definitions: frozendict[str, Callable[[], GrammarFunction]],
-):
-    properties_added = 0
-    for name, property_schema in properties.items():
-        lm += '"' + name + '"'
+def _gen_list(lm, *, elements: tuple[GrammarFunction, ...], required: tuple[bool, ...], prefixed: bool = False):
+    if not elements:
+        return lm
 
-        lm += ":"
-        lm += _gen_json(
-            json_schema=property_schema,
-            definitions=definitions,
-        )
-        properties_added += 1
-        if properties_added < len(properties):
-            lm += ","
-    return lm
+    elem, elements = elements[0], elements[1:]
+    is_required, required = required[0], required[1:]
 
+    if prefixed:
+        if is_required:
+            # If we know we have preceeding elements, we can safely just add a (',' + e)
+            return lm + (',' + elem + _gen_list(elements=elements, required=required, prefixed=True))
+        # If we know we have preceeding elements, we can safely just add an optional(',' + e)
+        return lm + (optional(',' + elem) + _gen_list(elements=elements, required=required, prefixed=True))
+    if is_required:
+        # No preceding elements, and our element is required, so we just add the element
+        return lm + (elem + _gen_list(elements=elements, required=required, prefixed=True))
 
-@guidance(stateless=True, cache=True)
-def _process_additional_properties(
-    lm,
-    *,
-    additional_properties: frozendict[str, Any],
-    definitions: frozendict[str, Callable[[], GrammarFunction]],
-):
-    item = (
-        _gen_json_string()
-        + ":"
-        + _gen_json(json_schema=additional_properties, definitions=definitions)
-    )
-    return lm + sequence(item + ",") + item
+    # No preceding elements, and our element is optional, so we add a select between the two options.
+    # The first option is the recursive call with no preceding elements, the second is the recursive call
+    # with the current element as a prefix.
+    return lm + select([
+        _gen_list(elements=elements, required=required, prefixed=False),
+        elem + _gen_list(elements=elements, required=required, prefixed=True)
+    ])
 
 
 @guidance(stateless=True, cache=True)
@@ -393,6 +380,7 @@ def _gen_json(
             return lm + _gen_json_object(
                 properties=json_schema.get("properties", frozendict()),
                 additional_properties=json_schema.get("additionalProperties", True),
+                required=json_schema.get("required", frozenset()),
                 definitions=definitions,
             )
         raise ValueError(f"Unsupported type in schema: {target_type}")

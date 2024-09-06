@@ -7,11 +7,9 @@ from . import models
 from ._guidance import _decorator, guidance
 
 from ._grammar import (
-    Placeholder,
     RawFunction,
     GrammarFunction,
     Terminal,
-    replace_grammar_node,
     string,
 )
 from ._utils import strip_multiline_string_indents
