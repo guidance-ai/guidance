@@ -280,6 +280,37 @@ def _process_anyOf(
     options = [_gen_json(json_schema=item, definitions=definitions) for item in anyof_list]
     return lm + select(options)
 
+@guidance(stateless=True, cache=True)
+def _process_allOf(
+    lm,
+    *,
+    allof_list: tuple[frozendict[str, Any], ...],
+    definitions: frozendict[str, Callable[[], GrammarFunction]],
+):
+    if len(allof_list) != 1:
+        raise ValueError("Only support allOf with exactly one item")
+    return lm + _gen_json(allof_list[0], definitions=definitions)
+
+@guidance(stateless=True, cache=True)
+def _process_oneOf(
+    lm,
+    *,
+    oneof_list: tuple[frozendict[str, Any], ...],
+    definitions: frozendict[str, Callable[[], GrammarFunction]]
+):
+    if len(oneof_list) == 1:
+        return lm + _gen_json(oneof_list[0], definitions)
+    warnings.warn("oneOf not fully supported, falling back to anyOf. This may cause validation errors in some cases.")
+    return lm + _process_anyOf(anyof_list=oneof_list, definitions=definitions)
+
+@guidance(stateless=True, cache=True)
+def _process_const(
+    lm,
+    *,
+    value: Any,
+):
+    # TODO: can we support a whitespace-flexible version of this?
+    return lm + _to_compact_json(value)
 
 @guidance(stateless=True, cache=True)
 def _process_enum(lm, *, options: tuple[frozendict[str, Any], ...]):
@@ -330,24 +361,16 @@ def _gen_json(
         return lm + _process_anyOf(anyof_list=json_schema[Keyword.ANYOF], definitions=definitions)
 
     if Keyword.ALLOF in json_schema:
-        allof_list = json_schema[Keyword.ALLOF]
-        if len(allof_list) != 1:
-            raise ValueError("Only support allOf with exactly one item")
-        return lm + _gen_json(allof_list[0], definitions)
+        return lm + _process_allOf(allof_list=json_schema[Keyword.ALLOF], definitions=definitions)
 
     if Keyword.ONEOF in json_schema:
-        oneof_list = json_schema[Keyword.ONEOF]
-        if len(oneof_list) == 1:
-            return lm + _gen_json(oneof_list[0], definitions)
-        warnings.warn("oneOf not fully supported, falling back to anyOf. This may cause validation errors in some cases.")
-        return lm + _process_anyOf(anyof_list=oneof_list, definitions=definitions)
+        return lm + _process_oneOf(oneof_list=json_schema[Keyword.ONEOF], definitions=definitions)
 
     if Keyword.REF in json_schema:
         return lm + _get_definition(reference=json_schema[Keyword.REF], definitions=definitions)
 
     if Keyword.CONST in json_schema:
-        # TODO: can we support a whitespace-flexible version of this?
-        return lm + _to_compact_json(json_schema[Keyword.CONST])
+        return lm + _process_const(value=json_schema[Keyword.CONST])
 
     if Keyword.ENUM in json_schema:
         return lm + _process_enum(options=json_schema[Keyword.ENUM])
