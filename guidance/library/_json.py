@@ -36,21 +36,45 @@ def _to_compact_json(target: Any) -> str:
     # and whitespace
     return json_dumps(target, separators=(",", ":"))
 
+class JSONType(str, Enum):
+    NULL = "null"
+    BOOLEAN = "boolean"
+    INTEGER = "integer"
+    NUMBER = "number"
+    STRING = "string"
+    ARRAY = "array"
+    OBJECT = "object"
 
 class Keyword(str, Enum):
     ANYOF = "anyOf"
-    ALLOF = "allOf"
-    ONEOF = "oneOf"
+    ALLOF = "allOf" # Note: Partial support. Only supports exactly one item.
+    ONEOF = "oneOf" # Note: Partial support. This is converted to anyOf.
     REF = "$ref"
     CONST = "const"
     ENUM = "enum"
     TYPE = "type"
+
+class StringKeywords(str, Enum):
     PATTERN = "pattern"
     MIN_LENGTH = "minLength"
     MAX_LENGTH = "maxLength"
 
+class ArrayKeywords(str, Enum):
+    PREFIX_ITEMS = "prefixItems"
+    ITEMS = "items"
+    MIN_ITEMS = "minItems"
+    MAX_ITEMS = "maxItems"
 
-KEYS = {member.value for member in Keyword}
+class ObjectKeywords(str, Enum):
+    PROPERTIES = "properties"
+    ADDITIONAL_PROPERTIES = "additionalProperties"
+    REQUIRED = "required"
+
+TYPE_SPECIFIC_KEYWORDS = {
+    JSONType.STRING: StringKeywords,
+    JSONType.ARRAY: ArrayKeywords,
+    JSONType.OBJECT: ObjectKeywords,
+}
 
 DEFS_KEYS = {"$defs", "definitions"}
 
@@ -63,7 +87,6 @@ IGNORED_KEYS = {
     "description",
     "default",
     "examples",
-    "required",  # TODO: implement and remove from ignored list
 }
 
 # discriminator is part of OpenAPI 3.1, not JSON Schema itself
@@ -74,28 +97,13 @@ IGNORED_KEYS = {
 # and possibly improve quality.
 IGNORED_KEYS.add("discriminator")
 
-TYPE_SPECIFIC_KEYS = {
-    "array": {"items", "prefixItems", "minItems", "maxItems"},
-    "object": {"properties", "additionalProperties"},
-}
-
 WHITESPACE = {b" ", b"\t", b"\n", b"\r"}
-STRING_CHARS = [
-    char_range("a", "z"),
-    char_range("A", "Z"),
-    char_range("0", "9"),
-    *[c for c in "-_' ,.!?/[]{}():;"],
-    "\\n",
-    "\\t",
-    "\\\\",
-]
-
 
 def validate_json_node_keys(node: Mapping[str, Any]):
     keys = set(node.keys())
-    valid_keys = KEYS | IGNORED_KEYS | DEFS_KEYS
-    if Keyword.TYPE in node:
-        valid_keys |= TYPE_SPECIFIC_KEYS.get(node[Keyword.TYPE], set())
+    valid_keys = set(Keyword) | IGNORED_KEYS | DEFS_KEYS
+    if Keyword.TYPE in node and (tp:=node[Keyword.TYPE]) in TYPE_SPECIFIC_KEYWORDS:
+        valid_keys |= set(TYPE_SPECIFIC_KEYWORDS[tp])
     invalid_keys = keys - valid_keys
     if invalid_keys:
         raise ValueError(
@@ -354,33 +362,33 @@ def _gen_json(
 
     if Keyword.TYPE in json_schema:
         target_type = json_schema[Keyword.TYPE]
-        if target_type == "null":
+        if target_type == JSONType.NULL:
             return lm + "null"
-        if target_type == "boolean":
+        if target_type == JSONType.BOOLEAN:
             return lm + select(["true", "false"])
-        if target_type == "integer":
+        if target_type == JSONType.INTEGER:
             return lm + _gen_json_int()
-        if target_type == "number":
+        if target_type == JSONType.NUMBER:
             return lm + _gen_json_number()
-        if target_type == "string":
+        if target_type == JSONType.STRING:
             return lm + _gen_json_string(
-                regex=json_schema.get(Keyword.PATTERN, None),
-                min_length=json_schema.get(Keyword.MIN_LENGTH, 0),
-                max_length=json_schema.get(Keyword.MAX_LENGTH, None),
+                regex=json_schema.get(StringKeywords.PATTERN, None),
+                min_length=json_schema.get(StringKeywords.MIN_LENGTH, 0),
+                max_length=json_schema.get(StringKeywords.MAX_LENGTH, None),
             )
-        if target_type == "array":
+        if target_type == JSONType.ARRAY:
             return lm + _gen_json_array(
-                prefix_items_schema=json_schema.get("prefixItems", []),
-                item_schema=json_schema.get("items", True),
-                min_items=json_schema.get("minItems", 0),
-                max_items=json_schema.get("maxItems"),
+                prefix_items_schema=json_schema.get(ArrayKeywords.PREFIX_ITEMS, []),
+                item_schema=json_schema.get(ArrayKeywords.ITEMS, True),
+                min_items=json_schema.get(ArrayKeywords.MIN_ITEMS, 0),
+                max_items=json_schema.get(ArrayKeywords.MAX_ITEMS, None),
                 definitions=definitions,
             )
-        if target_type == "object":
+        if target_type == JSONType.OBJECT:
             return lm + _gen_json_object(
-                properties=json_schema.get("properties", {}),
-                additional_properties=json_schema.get("additionalProperties", True),
-                required=json_schema.get("required", set()),
+                properties=json_schema.get(ObjectKeywords.PROPERTIES, {}),
+                additional_properties=json_schema.get(ObjectKeywords.ADDITIONAL_PROPERTIES, True),
+                required=json_schema.get(ObjectKeywords.REQUIRED, set()),
                 definitions=definitions,
             )
         raise ValueError(f"Unsupported type in schema: {target_type}")
