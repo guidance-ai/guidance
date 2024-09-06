@@ -98,16 +98,6 @@ IGNORED_KEYS = {
 IGNORED_KEYS.add("discriminator")
 
 WHITESPACE = {b" ", b"\t", b"\n", b"\r"}
-STRING_CHARS = [
-    char_range("a", "z"),
-    char_range("A", "Z"),
-    char_range("0", "9"),
-    *[c for c in "-_' ,.!?/[]{}():;"],
-    "\\n",
-    "\\t",
-    "\\\\",
-]
-
 
 def validate_json_node_keys(node: Mapping[str, Any]):
     keys = set(node.keys())
