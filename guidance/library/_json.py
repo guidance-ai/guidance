@@ -198,7 +198,7 @@ def _gen_list(lm, *, elements: tuple[GrammarFunction, ...], required: tuple[bool
 def _gen_json_array(
     lm,
     *,
-    prefix_items_schema: tuple[frozendict[str, Any]],
+    prefix_items_schema: tuple[frozendict[str, Any], ...],
     item_schema: Union[bool, frozendict[str, Any]],
     min_items: int,
     max_items: Optional[int],
@@ -274,7 +274,7 @@ def _gen_json_array(
 def _process_anyOf(
     lm,
     *,
-    anyof_list: tuple[frozendict[str, Any]],
+    anyof_list: tuple[frozendict[str, Any], ...],
     definitions: frozendict[str, Callable[[], GrammarFunction]],
 ):
     options = [_gen_json(json_schema=item, definitions=definitions) for item in anyof_list]
@@ -282,7 +282,7 @@ def _process_anyOf(
 
 
 @guidance(stateless=True, cache=True)
-def _process_enum(lm, *, options: tuple[frozendict[str, Any]]):
+def _process_enum(lm, *, options: tuple[frozendict[str, Any], ...]):
     # TODO: can we support a whitespace-flexible version of this?
     all_opts = []
     for opt in options:
