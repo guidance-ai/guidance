@@ -147,7 +147,7 @@ lm += one_line_thing(lm['thing'], 'cats')
 <img width="386" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/60071680-8bbb-4fa5-a298-613d4fd55fa7"><br>
 
 ### A library of pre-built components
-Common syntax elements are avilable out of the box, below is an example of `substring` for others (like `json`) checkout the [docs](https://guidance.readthedocs.io/en/latest/api.html#functions).
+Common syntax elements are available out of the box, below is an example of `substring` for others (like `json`) checkout the [docs](https://guidance.readthedocs.io/en/latest/api.html#functions).
 ```python
 from guidance import substring
 
@@ -300,7 +300,7 @@ def expression(lm):
     ])
 ```
 
-The `@guidance(stateless=True)` decorator makes it such that a function (e.g. `expression`) lives as a stateless grammar that does not get 'executed' until we call call `lm + expression()` or `lm += expression()`. For example, here is an example of _unconstrained_ generation:
+The `@guidance(stateless=True)` decorator makes it such that a function (e.g. `expression`) lives as a stateless grammar that does not get 'executed' until we call `lm + expression()` or `lm += expression()`. For example, here is an example of _unconstrained_ generation:
 ```python
 # Without constraints
 lm = llama2 + 'Problem: Luke has a hundred and six balls. He then loses thirty six.\n'
