@@ -31,10 +31,10 @@ class TestExactlynRepeats:
         SUFFIX = "BBB"
         grammar = Join([PREFIX, exactly_n_repeats("b", 4), SUFFIX])
         check_match_failure(
-            PREFIX + bad_string + SUFFIX,
-            PREFIX.encode() + good_bytes,
-            failure_byte,
-            allowed_bytes,
+            bad_string=PREFIX + bad_string + SUFFIX,
+            good_bytes=PREFIX.encode() + good_bytes,
+            failure_byte=failure_byte,
+            allowed_bytes=allowed_bytes,
             grammar=grammar,
         )
 
@@ -68,10 +68,10 @@ class TestAtMostnRepeats:
         SUFFIX = "BBB"
         grammar = Join([PREFIX, at_most_n_repeats("b", 4), SUFFIX])
         check_match_failure(
-            PREFIX + bad_string + SUFFIX,
-            PREFIX.encode() + good_bytes,
-            failure_byte,
-            allowed_bytes,
+            bad_string=PREFIX + bad_string + SUFFIX,
+            good_bytes=PREFIX.encode() + good_bytes,
+            failure_byte=failure_byte,
+            allowed_bytes=allowed_bytes,
             grammar=grammar,
         )
 
@@ -116,10 +116,10 @@ class TestSequence:
         SUFFIX = "BBB"
         grammar = Join([PREFIX, sequence("b"), SUFFIX])
         check_match_failure(
-            PREFIX + bad_string + SUFFIX,
-            PREFIX.encode() + good_bytes,
-            failure_byte,
-            allowed_bytes,
+            bad_string=PREFIX + bad_string + SUFFIX,
+            good_bytes=PREFIX.encode() + good_bytes,
+            failure_byte=failure_byte,
+            allowed_bytes=allowed_bytes,
             grammar=grammar,
         )
 
@@ -149,10 +149,10 @@ class TestSequence:
         SUFFIX = "BBB"
         grammar = Join([PREFIX, sequence("b", min_length=4), SUFFIX])
         check_match_failure(
-            PREFIX + bad_string + SUFFIX,
-            PREFIX.encode() + good_bytes,
-            failure_byte,
-            allowed_bytes,
+            bad_string=PREFIX + bad_string + SUFFIX,
+            good_bytes=PREFIX.encode() + good_bytes,
+            failure_byte=failure_byte,
+            allowed_bytes=allowed_bytes,
             grammar=grammar,
         )
 
@@ -181,10 +181,10 @@ class TestSequence:
         SUFFIX = "BBB"
         grammar = Join([PREFIX, sequence("b", max_length=2), SUFFIX])
         check_match_failure(
-            PREFIX + bad_string + SUFFIX,
-            PREFIX.encode() + good_bytes,
-            failure_byte,
-            allowed_bytes,
+            bad_string=PREFIX + bad_string + SUFFIX,
+            good_bytes=PREFIX.encode() + good_bytes,
+            failure_byte=failure_byte,
+            allowed_bytes=allowed_bytes,
             grammar=grammar,
         )
 
@@ -249,9 +249,9 @@ class TestSequence:
         SUFFIX = "BBB"
         grammar = Join([PREFIX, sequence("b", min_length=1, max_length=2), SUFFIX])
         check_match_failure(
-            PREFIX + bad_string + SUFFIX,
-            PREFIX.encode() + good_bytes,
-            failure_byte,
-            allowed_bytes,
+            bad_string=PREFIX + bad_string + SUFFIX,
+            good_bytes=PREFIX.encode() + good_bytes,
+            failure_byte=failure_byte,
+            allowed_bytes=allowed_bytes,
             grammar=grammar,
         )

@@ -8,7 +8,7 @@ from jsonschema import validate
 from guidance import json as gen_json
 from guidance import models
 
-from guidance.library._json import _to_compact_json, WHITESPACE
+from guidance.library._json import _to_compact_json, WHITESPACE, IGNORED_KEYS
 
 from ...utils import check_match_failure as _check_match_failure
 from ...utils import check_run_with_temperature
@@ -40,23 +40,27 @@ def generate_and_check(
 
 
 def check_match_failure(
+    *,
     bad_string: str,
-    good_bytes: bytes,
-    failure_byte: bytes,
-    allowed_bytes: Optional[Set[bytes]],
+    good_bytes: Optional[bytes] = None,
+    failure_byte: Optional[bytes] = None,
+    allowed_bytes: Optional[Set[bytes]] = None,
     schema_obj: Dict[str, Any],
-    maybe_whitespace: bool,
-    compact: bool,
+    maybe_whitespace: Optional[bool] = None,
+    compact: bool = True,
 ):
+    if (allowed_bytes is not None) and (maybe_whitespace is None):
+        raise ValueError("If allowed_bytes is provided, maybe_whitespace must also be provided")
+    if allowed_bytes is not None and maybe_whitespace and not compact:
+        allowed_bytes = allowed_bytes.union(WHITESPACE)
+
     grammar = gen_json(schema=schema_obj, compact=compact)
+
     _check_match_failure(
         bad_string=bad_string,
         good_bytes=good_bytes,
         failure_byte=failure_byte,
-        allowed_bytes=(
-            allowed_bytes.union(WHITESPACE) if (maybe_whitespace and not compact and allowed_bytes is not None)
-            else allowed_bytes
-        ),
+        allowed_bytes=allowed_bytes,
         grammar=grammar,
     )
 
@@ -269,6 +273,42 @@ class TestString:
         )
 
     @pytest.mark.parametrize(
+        "string", ["aA\u001f", '"""']
+    )
+    def test_regex_properly_escaped_good(self, string):
+        schema_obj = {"type": "string", "pattern": r".{3}"}
+        # First sanity check what we're setting up
+        validate(instance=string, schema=schema_obj)
+        # The actual check
+        generate_and_check(string, schema_obj)
+
+    @pytest.mark.parametrize(
+        ["bad_string", "good_bytes", "failure_byte", "allowed_bytes"],
+        [
+            (
+                '"\\u001f\\u001f\u001f',
+                b'"\\u001f\\u001f', # able to match the first two stringified bytes
+                '\u001f'.encode(), # fails on a literal \x1f byte
+                None # hard to write a set of allowed bytes here
+            ),
+        ],
+    )
+    def test_regex_properly_escaped_bad(self, bad_string: str, good_bytes, failure_byte, allowed_bytes):
+        # Note that the strings being fed in include the double quotes required
+        # to make them JSON strings
+        schema_obj = {"type": "string", "pattern": r".{3}"}
+        check_match_failure(
+            bad_string=bad_string,
+            good_bytes=good_bytes,
+            failure_byte=failure_byte,
+            allowed_bytes=allowed_bytes,
+            schema_obj=schema_obj,
+            maybe_whitespace=False,
+            compact=True,
+        )
+
+
+    @pytest.mark.parametrize(
         "my_string", ["a", "bb", "ccc", "150", ",?", ".\t\n", "(){", "aA7", "\\9O"]
     )
     def test_min_and_maxLength(self, my_string: str):
@@ -442,7 +482,8 @@ class TestSimpleObject:
             "type": "object",
             "properties": {
                 "a" : {"type": "integer"}
-            }
+            },
+            "required": ["a"]
         }
     """
         target_obj = dict(a=1)
@@ -466,7 +507,8 @@ class TestSimpleObject:
                 "f" : {"type": "integer"},
                 "g" : {"type": "integer"},
                 "h" : {"type": "integer"}
-            }
+            },
+            "required": ["a", "b", "c", "d", "e", "f", "g", "h"]
         }
     """
         target_obj = dict(a=1, b=2, c=3, d=4, e=5, f=6, g=7, h=8)
@@ -497,7 +539,8 @@ class TestSimpleObject:
                         }
                     }
                 }
-            }
+            },
+            "required": ["name", "info"]
         }
     """
         target_obj = dict(name="my product", info=dict(a=1, b=2))
@@ -552,6 +595,7 @@ class TestSimpleObject:
             "properties": {
                 "a" : {"type": "integer"}
             },
+            "required": ["a"],
             "additionalProperties": false
         }
     """
@@ -1139,6 +1183,7 @@ class TestWithReferences:
                         "type": "string"
                     }
                 },
+                "required": ["name"],
                 "type": "object"
             }
         },
@@ -1150,6 +1195,7 @@ class TestWithReferences:
                 "$ref": "#/$defs/A"
             }
         },
+        "required": ["A1", "A2"],
         "type": "object"
         }"""
 
@@ -1204,6 +1250,7 @@ class TestAnyOf:
             "type": "string"
             }
         },
+        "required": ["my_str"],
         "title": "A",
         "type": "object"
         },
@@ -1215,6 +1262,7 @@ class TestAnyOf:
             "type": "integer"
             }
         },
+        "required": ["my_int"],
         "title": "B",
         "type": "object"
         }
@@ -1232,6 +1280,7 @@ class TestAnyOf:
         "title": "My Val"
         }
     },
+    "required": ["my_val"],
     "title": "C",
     "type": "object"
     }
@@ -1287,7 +1336,8 @@ class TestAllOf:
                         }
                     ]
                 }
-            }
+            },
+            "required": ["my_cat"]
         }
         """
 
@@ -1318,6 +1368,37 @@ class TestAllOf:
         with pytest.raises(ValueError) as ve:
             lm += gen_json(name=CAPTURE_KEY, schema=schema_obj)
         assert ve.value.args[0] == "Only support allOf with exactly one item"
+
+class TestOneOf:
+    @pytest.mark.parametrize("target_obj", [123, 42])
+    def test_oneOf_simple(self, target_obj):
+        schema = """{
+            "oneOf" : [{ "type": "integer" }]
+        }
+        """
+        # First sanity check what we're setting up
+        schema_obj = json.loads(schema)
+        validate(instance=target_obj, schema=schema_obj)
+
+        # The actual check
+        generate_and_check(target_obj, schema_obj)
+
+
+    @pytest.mark.parametrize("target_obj", [123, True])
+    def test_oneOf_compound(self, target_obj):
+        schema = """{
+        "oneOf" : [{ "type": "integer" }, { "type": "boolean" }]
+        }
+        """
+        # First sanity check what we're setting up
+        schema_obj = json.loads(schema)
+        validate(instance=target_obj, schema=schema_obj)
+
+        # The actual check; we expect a warning here because oneOf is not fully supported
+        with pytest.warns() as record:
+            generate_and_check(target_obj, schema_obj)
+        assert len(record) == 1
+        assert record[0].message.args[0].startswith("oneOf not fully supported")
 
 
 class TestEnum:
@@ -1428,7 +1509,7 @@ class TestConst:
 
     def test_nested_constant(self):
         # First sanity check what we're setting up
-        schema_obj = {"type": "object", "properties": {"a": {"const": 1}}}
+        schema_obj = {"type": "object", "properties": {"a": {"const": 1}}, "required": ["a"]}
         target_obj = {"a": 1}
         validate(instance=target_obj, schema=schema_obj)
 
@@ -1478,7 +1559,8 @@ class TestAdditionalProperties:
         },
     "additionalProperties": {
             "type": "integer"
-        }
+        },
+    "required": ["mystr"]
     }
     """
 
@@ -1667,6 +1749,7 @@ class TestRecursiveStructures:
                     ]
                 }
             },
+            "required": ["my_str", "next"],
             "type": "object"
         }
     },
@@ -1682,7 +1765,8 @@ class TestRecursiveStructures:
                 }
             ]
         }
-    }
+    },
+    "required": ["my_list"]
 }
         """
         # First sanity check what we're setting up
@@ -1700,6 +1784,7 @@ class TestEmptySchemas:
         "a": {},
         "b": {"type": "number"}
     },
+    "required" : ["a", "b"],
     "type" : "object"
     }"""
 
@@ -1777,9 +1862,9 @@ class TestEmptySchemas:
         "schema_obj",
         [
             # Empty property
-            {"type": "object", "properties": {"a": {}}},
+            {"type": "object", "properties": {"a": {}}, "required": ["a"]},
             # Empty reference
-            {"type": "object", "properties": {"a": {"$ref": "#/$defs/A"}}, "$defs": {"A": {}}},
+            {"type": "object", "properties": {"a": {"$ref": "#/$defs/A"}}, "$defs": {"A": {}}, "required": ["a"]},
         ],
     )
     @pytest.mark.parametrize(
@@ -1808,9 +1893,9 @@ class TestEmptySchemas:
         "schema_obj",
         [
             # Empty property
-            {"type": "object", "properties": {"a": {}}},
+            {"type": "object", "properties": {"a": {}}, "required": ["a"]},
             # Empty reference
-            {"type": "object", "properties": {"a": {"$ref": "#/$defs/A"}}, "$defs": {"A": {}}},
+            {"type": "object", "properties": {"a": {"$ref": "#/$defs/A"}}, "$defs": {"A": {}}, "required": ["a"]},
         ],
     )
     @pytest.mark.parametrize(
@@ -1950,3 +2035,186 @@ class TestEmptySchemas:
             maybe_whitespace=True,
             compact=compact,
         )
+
+def test_ignored_keys_allowed_as_properties():
+    schema_obj = {
+        "type": "object",
+        "properties": {
+            key: {"type": "string"} for key in IGNORED_KEYS
+        },
+        "required": list(IGNORED_KEYS),
+    }
+    target_obj = {key: "value" for key in IGNORED_KEYS}
+    generate_and_check(target_obj, schema_obj)
+
+class TestRequiredProperties:
+    schema_obj = {
+        "type": "object",
+        "properties": {
+            "a": {"type": "string"},
+            "b": {"type": "number"},
+            "c": {"type": "boolean"},
+        },
+        "additionalProperties": True
+    }
+    ALL_REQUIRED = ["a", "b", "c"]
+    SOME_REQUIRED_SUBSETS = [[], ["a"], ["b"], ["c"], ["a", "b"], ["a", "c"], ["b", "c"], ["a", "b", "c"]]
+    NONE_REQUIRED: list[str] = []
+
+    @pytest.mark.parametrize(
+        "extra_items",
+        [
+            {},
+            {"d": "hello"},
+            {"d": 42, "e": True},
+        ]
+    )
+    def test_all_required_good(self, extra_items):
+        schema_obj = {**self.schema_obj, "required": self.ALL_REQUIRED}
+        target_obj = {"a": "hello", "b": 42, "c": True, **extra_items}
+        generate_and_check(target_obj, schema_obj)
+
+    @pytest.mark.parametrize(
+        "bad_obj",
+        [
+            # Missing one
+            ({"a": "hello", "b": 42}),
+            ({"a": "hello", "c": True}),
+            ({"b": 42, "c": True}),
+            # Missing two
+            ({"a": "hello"}),
+            ({"b": 42}),
+            ({"c": True}),
+            # Missing all
+            ({}),
+        ]
+    )
+    def test_all_required_bad(self, bad_obj):
+        schema_obj = {**self.schema_obj, "required": self.ALL_REQUIRED}
+        check_match_failure(
+            bad_string=_to_compact_json(bad_obj),
+            schema_obj=schema_obj,
+            compact=True
+        )
+
+    @pytest.mark.parametrize(
+        "extra_items",
+        [
+            {},
+            {"d": "hello"},
+            {"d": 42, "e": True},
+        ]
+    )
+    @pytest.mark.parametrize(
+        "required",
+        SOME_REQUIRED_SUBSETS,
+    )
+    def test_some_required_good(self, required, extra_items):
+        base_obj = {"a": "hello", "b": 42, "c": True}
+        schema_obj = {**self.schema_obj, "required": required}
+
+        for subset in self.SOME_REQUIRED_SUBSETS:
+            if set(required).issubset(subset):
+                target_obj = {**{key: base_obj[key] for key in subset}, **extra_items}
+                generate_and_check(target_obj, schema_obj)
+
+    @pytest.mark.parametrize(
+        "required",
+        SOME_REQUIRED_SUBSETS,
+    )
+    def test_some_required_bad(self, required):
+        base_obj = {"a": "hello", "b": 42, "c": True}
+        schema_obj = {**self.schema_obj, "required": required}
+
+        for subset in self.SOME_REQUIRED_SUBSETS:
+            if not set(required).issubset(subset):
+                bad_obj = {key: base_obj[key] for key in subset}
+                check_match_failure(
+                    bad_string=_to_compact_json(bad_obj),
+                    schema_obj=schema_obj,
+                    compact=True
+                )
+
+    # No equivalent "bad" tests for none required, as the schema is satisfied by an empty object
+    @pytest.mark.parametrize(
+        "extra_items",
+        [
+            {},
+            {"d": "hello"},
+            {"d": 42, "e": True},
+        ]
+    )
+    @pytest.mark.parametrize(
+        "target_obj",
+        [
+            {},
+            {"a": "hello"},
+            {"b": 42},
+            {"c": True},
+            {"a": "hello", "b": 42},
+            {"a": "hello", "c": True},
+            {"b": 42, "c": True},
+            {"a": "hello", "b": 42, "c": True},
+        ]
+    )
+    def test_none_required(self, target_obj, extra_items):
+        schema_obj = {**self.schema_obj, "required": self.NONE_REQUIRED}
+        generate_and_check({**target_obj, **extra_items}, schema_obj)
+
+class TestRequiredPropertiesScaling:
+    @pytest.mark.parametrize(
+        "num_properties",
+        [1, 2, 3, 4, 5, 10, 20, 50, 100]
+    )
+    def test_many_optional_properties_doesnt_blow_up(self, num_properties):
+        schema_obj = {
+            "type": "object",
+            "properties": {
+                f"prop_{i}": {"type": "string"} for i in range(num_properties)
+            },
+            "required": [] # Empty should be worst-case scenario
+        }
+        from guidance.library._json import _gen_list
+        _gen_list.__wrapped__.cache_clear()
+        _ = gen_json(
+            schema=schema_obj,
+        )
+        cache_info = _gen_list.__wrapped__.cache_info()
+
+        # Theoretical number of cache misses under the current implementation
+        expected_misses = 2*num_properties - 1
+        MISSES_MAGIC_NUMBER = 5 # Where in the world is this coming from?
+        assert 0 < cache_info.misses <= expected_misses + MISSES_MAGIC_NUMBER
+        # NOTE: that if the cache maxsize is hit, the number of misses will be more than expected
+
+        # Theoretical number of total calls under the current implementation
+        expected_calls = num_properties*(num_properties - 1) // 2
+        CALLS_MAGIC_NUMBER = 12 # Where in the world is this coming from?
+        assert 0 < cache_info.hits + cache_info.misses <= expected_calls + CALLS_MAGIC_NUMBER
+
+    @pytest.mark.parametrize(
+        "num_properties",
+        [1, 2, 3, 4, 5, 10, 20, 50, 100]
+    )
+    def test_all_required_properties_doesnt_blow_up(self, num_properties):
+        schema_obj = {
+            "type": "object",
+            "properties": {
+                f"prop_{i}": {"type": "string"} for i in range(num_properties)
+            },
+            "required": [f"prop_{i}" for i in range(num_properties)]
+        }
+        from guidance.library._json import _gen_list
+        _gen_list.__wrapped__.cache_clear()
+        _ = gen_json(
+            schema=schema_obj,
+        )
+        cache_info = _gen_list.__wrapped__.cache_info()
+
+        # Theoretical number of cache misses under the current implementation
+        expected_misses = num_properties
+        MISSES_MAGIC_NUMBER = 4
+        assert 0 < cache_info.misses <= expected_misses + MISSES_MAGIC_NUMBER
+        HITS_MAGIC_NUMBER = 1
+        expected_hits = 0
+        assert cache_info.hits <= expected_hits + HITS_MAGIC_NUMBER

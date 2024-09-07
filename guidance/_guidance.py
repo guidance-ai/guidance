@@ -2,7 +2,7 @@ import functools
 import inspect
 
 from . import models
-from ._grammar import Placeholder, RawFunction, Terminal, replace_grammar_node, string
+from ._grammar import RawFunction, Terminal, string, DeferredReference
 from ._utils import strip_multiline_string_indents
 
 
@@ -40,28 +40,33 @@ def _decorator(f, *, stateless, cache, dedent, model):
                 callable(stateless) and stateless(*args, **kwargs)
             ):
 
-                # if we have a placeholder set then we must be in a recursive definition and so we return the placeholder
-                placeholder = getattr(f, "_self_call_placeholder_", None)
-                if placeholder is not None:
-                    return placeholder
+                # if we have a (deferred) reference set, then we must be in a recursive definition and so we return the reference
+                reference = getattr(f, "_self_call_reference_", None)
+                if reference is not None:
+                    return reference
 
                 # otherwise we call the function to generate the grammar
                 else:
 
-                    # set a placeholder for recursive calls (only if we don't have arguments that might make caching a bad idea)
+                    # set a DeferredReference for recursive calls (only if we don't have arguments that might make caching a bad idea)
                     no_args = len(args) + len(kwargs) == 0
                     if no_args:
-                        f._self_call_placeholder_ = Placeholder()
+                        f._self_call_reference_ = DeferredReference()
 
-                    # call the function to get the grammar node
-                    node = f(_null_grammar, *args, **kwargs)
-                    if not isinstance(node, (Terminal, str)):
-                        node.name = f.__name__
-
-                    # replace all the placeholders with our generated node
-                    if no_args:
-                        replace_grammar_node(node, f._self_call_placeholder_, node)
-                        del f._self_call_placeholder_
+                    try:
+                        # call the function to get the grammar node
+                        node = f(_null_grammar, *args, **kwargs)
+                    except:
+                        raise
+                    else:
+                        if not isinstance(node, (Terminal, str)):
+                            node.name = f.__name__
+                        # set the reference value with our generated node
+                        if no_args:
+                            f._self_call_reference_.value = node
+                    finally:
+                        if no_args:
+                            del f._self_call_reference_
 
                     return node
 

@@ -28,7 +28,7 @@ install_requires = [
     "pydantic",
     "requests",
     "tiktoken>=0.3",
-    "llguidance",
+    "llguidance>=0.1.7",
 ]
 
 # Our basic list of 'extras'
