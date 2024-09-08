@@ -125,6 +125,7 @@ def create_token_parser(
     tokenizer: Tokenizer,
     prompt: bytes = b"",
     ensure_bos_token: bool = True,
+    trace: bool = False
 ) -> TokenParser:
     serialized_grammar = process_grammar(grammar)
     ll_tokenizer = llguidance.LLTokenizer(
@@ -133,7 +134,7 @@ def create_token_parser(
     ll_interpreter = llguidance.LLInterpreter(
         ll_tokenizer,
         serialized_grammar,
-        log_level=int(os.environ.get("LLGUIDANCE_LOG_LEVEL", "1")),
+        log_level=2 if trace else int(os.environ.get("LLGUIDANCE_LOG_LEVEL", "1")),
     )
     if ensure_bos_token and tokenizer.bos_token_id is not None:
         bos_token_id = tokenizer.bos_token_id
