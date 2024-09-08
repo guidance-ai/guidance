@@ -243,6 +243,28 @@ class Terminal(GrammarFunction):
     def max_tokens(self):
         return 1000000000000
 
+class DeferredReference(Terminal):
+    """Container to hold a value that is resolved at a later time. This is useful for recursive definitions."""
+    __slots__ = "_value"
+
+    def __init__(self) -> None:
+        super().__init__(temperature=-1, capture_name=None)
+        self._resolved = False
+        self._value: Optional[GrammarFunction] = None
+
+    @property
+    def value(self) -> GrammarFunction:
+        if self._resolved:
+            return cast(GrammarFunction, self._value)
+        else:
+            raise ValueError("DeferredReference does not have a value yet")
+
+    @value.setter
+    def value(self, value: GrammarFunction) -> None:
+        if self._resolved:
+            raise ValueError("DeferredReference value already set")
+        self._value = value
+        self._resolved = True
 
 class Byte(Terminal):
     __slots__ = ("byte", "temperature")
@@ -347,31 +369,6 @@ class ModelVariable(GrammarFunction):
         self.name = name
 
 
-def replace_grammar_node(grammar, target, replacement):
-    # Use a stack to keep track of the nodes to be visited
-    stack = [grammar]
-    visited_set = set()  # use set for O(1) lookups
-
-    while stack:
-        current = stack.pop()
-
-        # Check if we have already visited this node
-        if current in visited_set:
-            continue
-        visited_set.add(current)
-
-        # We are done with this node if it's a terminal
-        if isinstance(current, (Terminal, ModelVariable, Placeholder)):
-            continue
-
-        # Iterate through the node's values and replace target with replacement
-        for i, value in enumerate(current.values):
-            if value == target:
-                current.values[i] = replacement
-            else:
-                stack.append(value)
-
-
 def replace_model_variables(grammar, model, allowed_vars=None):
     """Replace all the ModelVariable nodes with their values in an iterative manner."""
     visited_set = set()
@@ -445,11 +442,6 @@ def commit_point(value, hidden=False):
     nodes that can be hidden since they are by definition not impacted by multiple possible
     inconsistent parses.)"""
     raise NotImplementedError("commit_point is not implemented (may remove in the future)")
-
-
-class Placeholder(GrammarFunction):
-    def __init__(self):
-        super().__init__(capture_name=None)
 
 
 class Join(GrammarFunction):
@@ -547,17 +539,20 @@ class Gen(Terminal):
 
 
 class Lexeme(Gen):
-    __slots__ = ("contextual",)
+    __slots__ = ("contextual", "json_string")
 
     def __init__(
         self,
+        *,
         body_regex: str,
         contextual: bool = False,
+        json_string: bool = False,
         name: Union[str, None] = None,
         max_tokens=100000000,
     ) -> None:
         super().__init__(body_regex, "", name=name, max_tokens=max_tokens)
         self.contextual = contextual
+        self.json_string = json_string
 
     def __repr__(self, indent="", done=None):
         return super().__repr__(indent, done, "Lex")
@@ -1019,6 +1014,8 @@ class LLSerializer:
             elif isinstance(node, Null):
                 res = self._add_regex_json("EmptyString")
             elif isinstance(node, Lexeme):
+                if node.json_string:
+                    raise ValueError("Cannot serialize lexeme with `json_string=True` as regex: " + node.__repr__())
                 res = self._add_regex("Regex", node.body_regex)
             else:
                 raise ValueError("Cannot serialize as regex: " + node.__repr__())
@@ -1080,6 +1077,7 @@ class LLSerializer:
                 "Lexeme": {
                     "rx": node.body_regex,
                     "contextual": node.contextual,
+                    "json_string": node.json_string,
                 }
             }
         elif isinstance(node, Subgrammar):
@@ -1131,6 +1129,14 @@ class LLSerializer:
             obj = {
                 "String": {
                     "literal": "",
+                }
+            }
+        elif isinstance(node, DeferredReference):
+            if node.value is None:
+                raise ValueError("Cannot serialize DeferredReference with unset value")
+            obj = {
+                "Join": {
+                    "sequence": [self.node(node.value)],
                 }
             }
         else:

@@ -36,22 +36,46 @@ def _to_compact_json(target: Any) -> str:
     # and whitespace
     return json_dumps(target, separators=(",", ":"))
 
+class JSONType(str, Enum):
+    NULL = "null"
+    BOOLEAN = "boolean"
+    INTEGER = "integer"
+    NUMBER = "number"
+    STRING = "string"
+    ARRAY = "array"
+    OBJECT = "object"
 
 class Keyword(str, Enum):
     ANYOF = "anyOf"
-    ALLOF = "allOf"
-    ONEOF = "oneOf"
+    ALLOF = "allOf" # Note: Partial support. Only supports exactly one item.
+    ONEOF = "oneOf" # Note: Partial support. This is converted to anyOf.
     REF = "$ref"
     CONST = "const"
     ENUM = "enum"
     TYPE = "type"
+
+class StringKeywords(str, Enum):
     PATTERN = "pattern"
     FORMAT = "format"
     MIN_LENGTH = "minLength"
     MAX_LENGTH = "maxLength"
 
+class ArrayKeywords(str, Enum):
+    PREFIX_ITEMS = "prefixItems"
+    ITEMS = "items"
+    MIN_ITEMS = "minItems"
+    MAX_ITEMS = "maxItems"
 
-KEYS = {member.value for member in Keyword}
+class ObjectKeywords(str, Enum):
+    PROPERTIES = "properties"
+    ADDITIONAL_PROPERTIES = "additionalProperties"
+    REQUIRED = "required"
+
+TYPE_SPECIFIC_KEYWORDS = {
+    JSONType.STRING: StringKeywords,
+    JSONType.ARRAY: ArrayKeywords,
+    JSONType.OBJECT: ObjectKeywords,
+}
 
 DEFS_KEYS = {"$defs", "definitions"}
 
@@ -64,7 +88,6 @@ IGNORED_KEYS = {
     "description",
     "default",
     "examples",
-    "required",  # TODO: implement and remove from ignored list
 }
 
 # discriminator is part of OpenAPI 3.1, not JSON Schema itself
@@ -75,21 +98,7 @@ IGNORED_KEYS = {
 # and possibly improve quality.
 IGNORED_KEYS.add("discriminator")
 
-TYPE_SPECIFIC_KEYS = {
-    "array": {"items", "prefixItems", "minItems", "maxItems"},
-    "object": {"properties", "additionalProperties"},
-}
-
 WHITESPACE = {b" ", b"\t", b"\n", b"\r"}
-STRING_CHARS = [
-    char_range("a", "z"),
-    char_range("A", "Z"),
-    char_range("0", "9"),
-    *[c for c in "-_' ,.!?/[]{}():;"],
-    "\\n",
-    "\\t",
-    "\\\\",
-]
 
 FORMAT_PATTERNS: dict[str, Optional[str]] = {
     # https://json-schema.org/understanding-json-schema/reference/string#built-in-formats
@@ -133,9 +142,9 @@ def _get_format_pattern(format: str) -> str:
 
 def validate_json_node_keys(node: Mapping[str, Any]):
     keys = set(node.keys())
-    valid_keys = KEYS | IGNORED_KEYS | DEFS_KEYS
-    if Keyword.TYPE in node:
-        valid_keys |= TYPE_SPECIFIC_KEYS.get(node[Keyword.TYPE], set())
+    valid_keys = set(Keyword) | IGNORED_KEYS | DEFS_KEYS
+    if Keyword.TYPE in node and (tp:=node[Keyword.TYPE]) in TYPE_SPECIFIC_KEYWORDS:
+        valid_keys |= set(TYPE_SPECIFIC_KEYWORDS[tp])
     invalid_keys = keys - valid_keys
     if invalid_keys:
         raise ValueError(
@@ -177,11 +186,10 @@ def _gen_json_string(
                 raise ValueError("Cannot specify both a regex and a format for a JSON string")
             regex = _get_format_pattern(format)
     else:
-        char_expr = r'(\\([\"\\\/bfnrt]|u[a-fA-F0-9]{4})|[^\"\\\x00-\x1F\x7F])'
         range_expr = f"{{{min_length},{max_length}}}" if max_length is not None else f"{{{min_length},}}"
-        regex = f'{char_expr}{range_expr}'
-    str_pattern = f'"{regex}"'
-    return lm + lexeme(str_pattern, contextual=True)
+        regex = f"(?s:.{range_expr})"
+
+    return lm + lexeme(regex, contextual=True, json_string=True)
 
 
 @guidance(stateless=True)
@@ -190,67 +198,54 @@ def _gen_json_object(
     *,
     properties: Mapping[str, Any],
     additional_properties: Union[bool, Mapping[str, Any]],
+    required: Sequence[str],
     definitions: Mapping[str, Callable[[], GrammarFunction]],
 ):
-    if additional_properties is True:
-        # True means that anything goes
-        additional_properties = {}
+    if any(k not in properties for k in required):
+        raise ValueError(f"Required properties not in properties: {set(required) - set(properties)}")
 
-    lm += "{"
-    if properties:
-        lm += _process_properties(properties=properties, definitions=definitions)
-    if properties and additional_properties is not False:
-        lm += optional(
-            ","
-            + _process_additional_properties(
-                additional_properties=additional_properties, definitions=definitions
-            )
-        )
-    elif additional_properties is not False:
-        lm += optional(
-            _process_additional_properties(
-                additional_properties=additional_properties, definitions=definitions
-            )
-        )
-    lm += "}"
-    return lm
+    grammars = tuple(f'"{name}":' + _gen_json(json_schema=schema, definitions=definitions) for name, schema in properties.items())
+    required_items = tuple(name in required for name in properties)
 
+    if additional_properties is not False:
+        if additional_properties is True:
+            # True means that anything goes
+            additional_properties = {}
+        additional_item_grammar =  _gen_json_string() + ':' + _gen_json(json_schema=additional_properties, definitions=definitions)
+        additional_items_grammar = sequence(additional_item_grammar + ',') + additional_item_grammar
+        grammars += (additional_items_grammar,)
+        required_items += (False,)
 
-@guidance(stateless=True)
-def _process_properties(
-    lm,
-    *,
-    properties: Mapping[str, Any],
-    definitions: Mapping[str, Callable[[], GrammarFunction]],
-):
-    properties_added = 0
-    for name, property_schema in properties.items():
-        lm += '"' + name + '"'
+    return lm + "{" + _gen_list(
+        elements = grammars,
+        required = required_items,
+    ) + "}"
 
-        lm += ":"
-        lm += _gen_json(
-            json_schema=property_schema,
-            definitions=definitions,
-        )
-        properties_added += 1
-        if properties_added < len(properties):
-            lm += ","
-    return lm
+@guidance(stateless=True, cache=True)
+def _gen_list(lm, *, elements: tuple[GrammarFunction, ...], required: tuple[bool, ...], prefixed: bool = False):
+    if not elements:
+        return lm
 
+    elem, elements = elements[0], elements[1:]
+    is_required, required = required[0], required[1:]
 
-@guidance(stateless=True)
-def _process_additional_properties(
-    lm,
-    *,
-    additional_properties: Mapping[str, Any],
-    definitions: Mapping[str, Callable[[], GrammarFunction]],
-):
-    item = (
-        _gen_json_string()
-        + ":"
-        + _gen_json(json_schema=additional_properties, definitions=definitions)
-    )
-    return lm + sequence(item + ",") + item
+    if prefixed:
+        if is_required:
+            # If we know we have preceeding elements, we can safely just add a (',' + e)
+            return lm + (',' + elem + _gen_list(elements=elements, required=required, prefixed=True))
+        # If we know we have preceeding elements, we can safely just add an optional(',' + e)
+        return lm + (optional(',' + elem) + _gen_list(elements=elements, required=required, prefixed=True))
+    if is_required:
+        # No preceding elements, and our element is required, so we just add the element
+        return lm + (elem + _gen_list(elements=elements, required=required, prefixed=True))
+
+    # No preceding elements, and our element is optional, so we add a select between the two options.
+    # The first option is the recursive call with no preceding elements, the second is the recursive call
+    # with the current element as a prefix.
+    return lm + select([
+        _gen_list(elements=elements, required=required, prefixed=False),
+        elem + _gen_list(elements=elements, required=required, prefixed=True)
+    ])
 
 
 @guidance(stateless=True)
@@ -413,33 +408,34 @@ def _gen_json(
 
     if Keyword.TYPE in json_schema:
         target_type = json_schema[Keyword.TYPE]
-        if target_type == "null":
+        if target_type == JSONType.NULL:
             return lm + "null"
-        if target_type == "boolean":
+        if target_type == JSONType.BOOLEAN:
             return lm + select(["true", "false"])
-        if target_type == "integer":
+        if target_type == JSONType.INTEGER:
             return lm + _gen_json_int()
-        if target_type == "number":
+        if target_type == JSONType.NUMBER:
             return lm + _gen_json_number()
-        if target_type == "string":
+        if target_type == JSONType.STRING:
             return lm + _gen_json_string(
-                regex=json_schema.get(Keyword.PATTERN, None),
-                format=json_schema.get(Keyword.FORMAT, None),
-                min_length=json_schema.get(Keyword.MIN_LENGTH, 0),
-                max_length=json_schema.get(Keyword.MAX_LENGTH, None),
+                regex=json_schema.get(StringKeywords.PATTERN, None),
+                format=json_schema.get(StringKeywords.FORMAT, None),
+                min_length=json_schema.get(StringKeywords.MIN_LENGTH, 0),
+                max_length=json_schema.get(StringKeywords.MAX_LENGTH, None),
             )
-        if target_type == "array":
+        if target_type == JSONType.ARRAY:
             return lm + _gen_json_array(
-                prefix_items_schema=json_schema.get("prefixItems", []),
-                item_schema=json_schema.get("items", True),
-                min_items=json_schema.get("minItems", 0),
-                max_items=json_schema.get("maxItems"),
+                prefix_items_schema=json_schema.get(ArrayKeywords.PREFIX_ITEMS, []),
+                item_schema=json_schema.get(ArrayKeywords.ITEMS, True),
+                min_items=json_schema.get(ArrayKeywords.MIN_ITEMS, 0),
+                max_items=json_schema.get(ArrayKeywords.MAX_ITEMS, None),
                 definitions=definitions,
             )
-        if target_type == "object":
+        if target_type == JSONType.OBJECT:
             return lm + _gen_json_object(
-                properties=json_schema.get("properties", {}),
-                additional_properties=json_schema.get("additionalProperties", True),
+                properties=json_schema.get(ObjectKeywords.PROPERTIES, {}),
+                additional_properties=json_schema.get(ObjectKeywords.ADDITIONAL_PROPERTIES, True),
+                required=json_schema.get(ObjectKeywords.REQUIRED, set()),
                 definitions=definitions,
             )
         raise ValueError(f"Unsupported type in schema: {target_type}")
