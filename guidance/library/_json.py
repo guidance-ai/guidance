@@ -174,18 +174,18 @@ def _gen_json_string(
     regex: Union[str, None] = None,
     format: Union[str, None] = None,
 ):
-    if regex is not None or format is not None:
-        if min_length > 0 or max_length is not None:
-            msg = (
-                "If a pattern or format is specified for a JSON string,"
-                " minLength and maxLength must be left unspecified."
-            )
-            raise ValueError(msg)
-        if format is not None:
-            if regex is not None:
-                raise ValueError("Cannot specify both a regex and a format for a JSON string")
-            regex = _get_format_pattern(format)
-    else:
+    if (regex is not None or format is not None) and (min_length > 0 or max_length is not None):
+        raise ValueError(
+            "If a pattern or format is specified for a JSON string, minLength and maxLength must be left unspecified."
+        )
+
+    if regex is not None and format is not None:
+        raise ValueError("Cannot specify both a regex and a format for a JSON string")
+
+    if format is not None:
+        regex = _get_format_pattern(format)
+
+    elif regex is None:
         range_expr = f"{{{min_length},{max_length}}}" if max_length is not None else f"{{{min_length},}}"
         regex = f"(?s:.{range_expr})"
 
