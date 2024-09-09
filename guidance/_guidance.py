@@ -1,12 +1,13 @@
 import functools
 import inspect
 from typing import (
+    Any,
     Callable,
     Concatenate,
     Literal,
-    Optional,
     ParamSpec,
-    Type,
+    TypeAlias,
+    TypeVar,
     Union,
     overload,
 )
@@ -16,17 +17,22 @@ from ._utils import strip_multiline_string_indents
 from .models import Model
 
 P = ParamSpec("P")
-
+M: TypeAlias = Any # sort of Union[Model, GrammarFunction]?
+R = TypeVar("R", bound = Union[RawFunction, GrammarFunction])
+GuidanceWrappable = Callable[Concatenate[M, P], M]
+GuidanceFunction = Callable[P, R]
+StatefulGuidanceFunction = GuidanceFunction[P, RawFunction]
+StatelessGuidanceFunction = GuidanceFunction[P, GrammarFunction]
 
 @overload
 def guidance(
-    f: Callable[Concatenate[Model, P], Model],
+    f: GuidanceWrappable[P],
     *,
     stateless: Literal[False] = False,
     cache=...,
     dedent=...,
     model=...,
-) -> Callable[P, RawFunction]:
+) -> StatefulGuidanceFunction[P]:
     """
     Case when guidance decorator is called with a passed function,
     with or without explicitly passing `stateless=False`
@@ -41,7 +47,7 @@ def guidance(
     cache=...,
     dedent=...,
     model=...,
-) -> Callable[[Callable[Concatenate[Model, P], Model]], Callable[P, RawFunction]]:
+) -> Callable[[GuidanceWrappable[P]], StatefulGuidanceFunction[P]]:
     """
     Case where guidance decorator is called without passing a function,
     with or without explicitly passing `stateless=False`
@@ -50,13 +56,13 @@ def guidance(
 
 @overload
 def guidance(
-    f: Callable[Concatenate[Model, P], Model],
+    f: GuidanceWrappable[P],
     *,
     stateless: Literal[True],
     cache=...,
     dedent=...,
     model=...,
-) -> Callable[P, GrammarFunction]:
+) -> StatelessGuidanceFunction[P]:
     """
     Case when guidance decorator is called with a passed function,
     explicitly passing `stateless=True`
@@ -71,7 +77,7 @@ def guidance(
     cache=...,
     dedent=...,
     model=...,
-) -> Callable[[Callable[Concatenate[Model, P], Model]], Callable[P, GrammarFunction]]:
+) -> Callable[[GuidanceWrappable[P]], StatelessGuidanceFunction[P]]:
     """
     Case when guidance decorator is called without passing a function,
     explicitly passing `stateless=True`
@@ -80,13 +86,13 @@ def guidance(
 
 @overload
 def guidance(
-    f: Callable[Concatenate[Model, P], Model],
+    f: GuidanceWrappable[P],
     *,
     stateless: Callable[..., bool],
     cache=...,
     dedent=...,
     model=...,
-) -> Callable[P, Union[RawFunction, GrammarFunction]]:
+) -> GuidanceFunction[P, R]:
     """
     Case when guidance decorator is called with a passed function,
     where `stateless` is passed as a Callable that returns a bool.
@@ -104,10 +110,7 @@ def guidance(
     cache=...,
     dedent=...,
     model=...,
-) -> Callable[
-    [Callable[Concatenate[Model, P], Model]],
-    Callable[P, Union[RawFunction, GrammarFunction]],
-]:
+) -> Callable[[GuidanceWrappable[P]], GuidanceFunction[P, R]]:
     """
     Case when guidance decorator is called without passing a function,
     where `stateless` is passed as a Callable that returns a bool.
@@ -118,19 +121,13 @@ def guidance(
 
 
 def guidance(
-    f: Optional[Callable[Concatenate[Model, P], Model]] = None,
+    f = None,
     *,
-    stateless: Union[bool, Callable[..., bool]] = False,
-    cache: bool = False,
-    dedent: bool = True,
-    model: Type[Model] = Model,
-) -> Union[
-    Callable[P, Union[RawFunction, GrammarFunction]],
-    Callable[
-        [Callable[Concatenate[Model, P], Model]],
-        Callable[P, Union[RawFunction, GrammarFunction]],
-    ],
-]:
+    stateless = False,
+    cache = False,
+    dedent = True,
+    model = Model,
+):
     return _decorator(f, stateless=stateless, cache=cache, dedent=dedent, model=model)
 
 
