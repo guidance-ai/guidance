@@ -28,7 +28,7 @@ from .._grammar import GrammarFunction, select, capture, with_temperature
 from ._pydantic import pydantic_to_json_schema
 from ._subgrammar import lexeme, subgrammar
 
-JSONSchema: TypeAlias = Union[bool, Mapping[str, Any]]
+JSONSchema = Union[bool, Mapping[str, Any]]
 
 def _to_compact_json(target: Any) -> str:
     # See 'Compact Encoding':
