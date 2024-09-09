@@ -9,7 +9,6 @@ from typing import (
     Sequence,
     Union,
     Type,
-    TypeAlias,
     TYPE_CHECKING,
 )
 import warnings
