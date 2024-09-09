@@ -80,7 +80,7 @@ def guidance(
     cache: bool = ...,
     dedent: bool = ...,
     model: type[Model] = ...,
-) -> GuidanceFunction[P, R]:
+) -> GuidanceFunction[P, Union[RawFunction, GrammarFunction]]:
     ...
 
 
@@ -92,7 +92,7 @@ def guidance(
     cache: bool = ...,
     dedent: bool = ...,
     model: type[Model] = ...,
-) -> Callable[[GuidanceWrappable[P]], GuidanceFunction[P, R]]:
+) -> Callable[[GuidanceWrappable[P]], GuidanceFunction[P, Union[RawFunction, GrammarFunction]]]:
     ...
 
 
