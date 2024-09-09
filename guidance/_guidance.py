@@ -1,3 +1,4 @@
+import sys
 import functools
 import inspect
 from typing import (
@@ -5,12 +6,14 @@ from typing import (
     Callable,
     Concatenate,
     Literal,
-    ParamSpec,
-    TypeAlias,
     TypeVar,
     Union,
     overload,
 )
+if sys.version_info >= (3, 10):
+    from typing import ParamSpec, TypeAlias
+else:
+    from typing_extensions import ParamSpec, TypeAlias
 
 from ._grammar import DeferredReference, GrammarFunction, RawFunction, Terminal, string
 from ._utils import strip_multiline_string_indents
