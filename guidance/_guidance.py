@@ -29,9 +29,9 @@ def guidance(
     f: GuidanceWrappable[P],
     *,
     stateless: Literal[False] = False,
-    cache=...,
-    dedent=...,
-    model=...,
+    cache: bool = ...,
+    dedent: bool = ...,
+    model: type[Model] = ...,
 ) -> StatefulGuidanceFunction[P]:
     """
     Case when guidance decorator is called with a passed function,
@@ -44,9 +44,9 @@ def guidance(
     f: None = None,
     *,
     stateless: Literal[False] = False,
-    cache=...,
-    dedent=...,
-    model=...,
+    cache: bool = ...,
+    dedent: bool = ...,
+    model: type[Model] = ...,
 ) -> Callable[[GuidanceWrappable[P]], StatefulGuidanceFunction[P]]:
     """
     Case where guidance decorator is called without passing a function,
@@ -59,9 +59,9 @@ def guidance(
     f: GuidanceWrappable[P],
     *,
     stateless: Literal[True],
-    cache=...,
-    dedent=...,
-    model=...,
+    cache: bool = ...,
+    dedent: bool = ...,
+    model: type[Model] = ...,
 ) -> StatelessGuidanceFunction[P]:
     """
     Case when guidance decorator is called with a passed function,
@@ -74,9 +74,9 @@ def guidance(
     f: None = None,
     *,
     stateless: Literal[True],
-    cache=...,
-    dedent=...,
-    model=...,
+    cache: bool = ...,
+    dedent: bool = ...,
+    model: type[Model] = ...,
 ) -> Callable[[GuidanceWrappable[P]], StatelessGuidanceFunction[P]]:
     """
     Case when guidance decorator is called without passing a function,
@@ -89,9 +89,9 @@ def guidance(
     f: GuidanceWrappable[P],
     *,
     stateless: Callable[..., bool],
-    cache=...,
-    dedent=...,
-    model=...,
+    cache: bool = ...,
+    dedent: bool = ...,
+    model: type[Model] = ...,
 ) -> GuidanceFunction[P, R]:
     """
     Case when guidance decorator is called with a passed function,
@@ -107,9 +107,9 @@ def guidance(
     f: None = None,
     *,
     stateless: Callable[..., bool],
-    cache=...,
-    dedent=...,
-    model=...,
+    cache: bool = ...,
+    dedent: bool = ...,
+    model: type[Model] = ...,
 ) -> Callable[[GuidanceWrappable[P]], GuidanceFunction[P, R]]:
     """
     Case when guidance decorator is called without passing a function,
