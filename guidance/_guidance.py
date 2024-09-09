@@ -11,7 +11,7 @@ from typing import (
     overload,
 )
 
-from ._grammar import DeferredReference, GrammarFunction, RawFunction, Terminal, string,
+from ._grammar import DeferredReference, GrammarFunction, RawFunction, Terminal, string
 from ._utils import strip_multiline_string_indents
 from .models import Model
 
