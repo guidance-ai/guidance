@@ -4,16 +4,15 @@ import inspect
 from typing import (
     Any,
     Callable,
-    Concatenate,
     Literal,
     TypeVar,
     Union,
     overload,
 )
 if sys.version_info >= (3, 10):
-    from typing import ParamSpec, TypeAlias
+    from typing import ParamSpec, TypeAlias, Concatenate
 else:
-    from typing_extensions import ParamSpec, TypeAlias
+    from typing_extensions import ParamSpec, TypeAlias, Concatenate
 
 from ._grammar import DeferredReference, GrammarFunction, RawFunction, Terminal, string
 from ._utils import strip_multiline_string_indents
