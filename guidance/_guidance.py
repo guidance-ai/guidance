@@ -33,10 +33,7 @@ def guidance(
     dedent: bool = ...,
     model: type[Model] = ...,
 ) -> StatefulGuidanceFunction[P]:
-    """
-    Case when guidance decorator is called with a passed function,
-    with or without explicitly passing `stateless=False`
-    """
+    ...
 
 
 @overload
@@ -48,10 +45,7 @@ def guidance(
     dedent: bool = ...,
     model: type[Model] = ...,
 ) -> Callable[[GuidanceWrappable[P]], StatefulGuidanceFunction[P]]:
-    """
-    Case where guidance decorator is called without passing a function,
-    with or without explicitly passing `stateless=False`
-    """
+    ...
 
 
 @overload
@@ -63,10 +57,7 @@ def guidance(
     dedent: bool = ...,
     model: type[Model] = ...,
 ) -> StatelessGuidanceFunction[P]:
-    """
-    Case when guidance decorator is called with a passed function,
-    explicitly passing `stateless=True`
-    """
+    ...
 
 
 @overload
@@ -78,10 +69,7 @@ def guidance(
     dedent: bool = ...,
     model: type[Model] = ...,
 ) -> Callable[[GuidanceWrappable[P]], StatelessGuidanceFunction[P]]:
-    """
-    Case when guidance decorator is called without passing a function,
-    explicitly passing `stateless=True`
-    """
+    ...
 
 
 @overload
@@ -93,13 +81,7 @@ def guidance(
     dedent: bool = ...,
     model: type[Model] = ...,
 ) -> GuidanceFunction[P, R]:
-    """
-    Case when guidance decorator is called with a passed function,
-    where `stateless` is passed as a Callable that returns a bool.
-
-    The return type of the wrapped function, either RawFunction or GrammarFunction,
-    cannot be statically determined in this case.
-    """
+    ...
 
 
 @overload
@@ -111,13 +93,7 @@ def guidance(
     dedent: bool = ...,
     model: type[Model] = ...,
 ) -> Callable[[GuidanceWrappable[P]], GuidanceFunction[P, R]]:
-    """
-    Case when guidance decorator is called without passing a function,
-    where `stateless` is passed as a Callable that returns a bool.
-
-    The return type of the wrapped function, either RawFunction or GrammarFunction,
-    cannot be statically determined in this case.
-    """
+    ...
 
 
 def guidance(
@@ -128,6 +104,7 @@ def guidance(
     dedent = True,
     model = Model,
 ):
+    """Decorator used to define guidance grammars"""
     return _decorator(f, stateless=stateless, cache=cache, dedent=dedent, model=model)
 
 
