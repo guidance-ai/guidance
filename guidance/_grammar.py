@@ -177,6 +177,8 @@ class GrammarFunction(Function):
 
         try:
             parser.consume_bytes(byte_string)
+            if not allow_partial:
+                parser.force_done()
         except _parser.ByteParserException:
             if raise_exceptions:
                 raise

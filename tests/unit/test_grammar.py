@@ -1,6 +1,7 @@
 import pytest
 import guidance
 from guidance import gen, models, optional, select, string
+from guidance._parser import ByteParserException
 
 
 def test_select_reset_pos():
@@ -133,3 +134,11 @@ class TestMatch:
         assert match is not None
         assert match.partial
         assert match.captures["mycap"] == string
+
+    def test_raises_on_incomplete_input(self):
+        g = "123" + gen(regex=r"\d+x?", name="mycap")
+        # Ok since we allow partial
+        assert g.match(b"123", raise_exceptions=True, allow_partial=True) is not None
+        # Shold raise since we don't allow partial
+        with pytest.raises(ByteParserException):
+            g.match(b"123", raise_exceptions=True)
