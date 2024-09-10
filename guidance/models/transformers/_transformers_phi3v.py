@@ -1,9 +1,7 @@
 import logging
 import io
-import json
-import re
 import os
-from typing import Any, Dict, Iterator, List, Optional, Tuple
+from typing import Optional
 
 import numpy as np
 import torch
@@ -11,15 +9,12 @@ import llguidance
 from transformers import AutoModelForCausalLM, AutoProcessor
 
 from guidance._parser import TokenParser, process_grammar, process_prompt
-from guidance._schema import EngineCallResponse, GuidanceEngineMetrics
 from guidance.models._model import (
     Engine,
     Model,
     modality_pattern,
     Modality
 )
-# from guidance.models.transformers._transformers import TransformersTokenizer
-from guidance.chat import ChatMLTemplate
 from guidance.models.transformers._transformers import TransformersTokenizer
 
 try:
@@ -53,9 +48,6 @@ class TransformersPhi3VisionEngine(Engine):
         # Cache for past key values
         self._past_key_values = None
         self._cached_token_ids: list[int] = []
-
-        # Track last image token position for cache invalidation
-        # self._last_image_token_position = -1
 
 
     def start(self, prompt, grammar, media: dict, ensure_bos_token=True) -> TokenParser:
@@ -153,53 +145,49 @@ class TransformersPhi3VisionEngine(Engine):
             )
 
         # get the number of cache positions we are using
-        # cache_token_ids = self._cached_token_ids
-        # num_cached = 0
-        # for id in cache_token_ids:
-        #     if (
-        #         num_cached >= len(cache_token_ids)
-        #         or num_cached >= len(token_ids)
-        #         or token_ids[num_cached] != id
-        #     ):
-        #         break
-        #     num_cached += 1
+        cache_token_ids = self._cached_token_ids
+        num_cached = 0
+        for id in cache_token_ids:
+            if (
+                num_cached >= len(cache_token_ids)
+                or num_cached >= len(token_ids)
+                or token_ids[num_cached] != id
+            ):
+                break
+            num_cached += 1
 
         # reset the cache length according to that number of positions
-        # past_key_values = self._past_key_values
-        # past_length = past_key_values[0][0].size(-2) if past_key_values is not None else 0
-        # if past_length > num_cached:
-        #     # note we recompute the last token because we don't bother to handle the special case of just computing logits
-        #     past_length = max(0, num_cached - 1)
-        #     self._past_key_values = tuple(
-        #         tuple(p[..., :past_length, :] for p in v) for v in past_key_values
-        #     )
-        # cache_token_ids[past_length:] = []
+        past_key_values = self._past_key_values
+        past_length = past_key_values[0][0].size(-2) if past_key_values is not None else 0
+        if past_length > num_cached:
+            # note we recompute the last token because we don't bother to handle the special case of just computing logits
+            past_length = max(0, num_cached - 1)
+            self._past_key_values = tuple(
+                tuple(p[..., :past_length, :] for p in v) for v in past_key_values
+            )
+        cache_token_ids[past_length:] = []
 
         # call the model
-        # new_token_ids = token_ids[past_length:]
-
-        if len(token_ids) > 0:
-            self.model_inputs["input_ids"] = torch.tensor(token_ids).unsqueeze(0).to(self.device)
-            self.model_inputs["attention_mask"]=torch.ones(1, len(token_ids)).to(self.device)
-            # pixel_values = prep_input(self.model_inputs["pixel_values"]) if "pixel_values" in self.model_inputs else None
-            # image_sizes = prep_input(self.model_inputs["image_sizes"]) if "image_sizes" in self.model_inputs else None
+        new_token_ids = token_ids[past_length:]
+        if len(new_token_ids) > 0:
+            self.model_inputs["input_ids"] = torch.tensor(new_token_ids).unsqueeze(0).to(self.device)
+            self.model_inputs["attention_mask"]=torch.ones(1, past_length + len(new_token_ids)).to(self.device)
+            position_ids=torch.arange(past_length, past_length + len(new_token_ids)).unsqueeze(0).to(self.device)
             with torch.no_grad():
                 model_out = self.model_obj(
                     **self.model_inputs,
-                    # input_ids=input_ids,
-                    # pixel_values=pixel_values,
-                    # image_sizes=image_sizes,
-                    # past_key_values=self._past_key_values,
-                    # use_cache=True,
+                    position_ids=position_ids,
+                    past_key_values=self._past_key_values,
+                    use_cache=True,
                     return_dict=True,
                     output_attentions=False,
                     output_hidden_states=False,
                 )
 
             # save the results
-            # self._past_key_values = model_out.past_key_values
-            # cache_token_ids.extend(new_token_ids)
-            # # Need to add special truncating logic here for weird models that have a different output size than tokenizer vocab
+            self._past_key_values = model_out.past_key_values
+            cache_token_ids.extend(new_token_ids)
+            # Need to add special truncating logic here for weird models that have a different output size than tokenizer vocab
             self._cached_logits = (
                 model_out.logits[0, -1, : len(self.tokenizer.tokens)].cpu().numpy()
             )
@@ -207,13 +195,6 @@ class TransformersPhi3VisionEngine(Engine):
             self.metrics.engine_output_tokens += 1
 
         return self._cached_logits
-
-    # def _find_last_image_token_position(self, tokens: list[int]) -> int:
-    #     """Find the position of the last negative token (image placeholder)."""
-    #     for i, token in enumerate(reversed(tokens)):
-    #         if token < 0:
-    #             return len(tokens) - i - 1
-    #     return -1
 
 
 class TransformersPhi3Vision(Model):
