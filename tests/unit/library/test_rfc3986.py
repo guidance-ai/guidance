@@ -3,6 +3,7 @@ import pytest
 from guidance.library._rfc3986 import uri, ipv6address
 from ...utils import generate_and_check, check_match_failure
 
+
 class TestURI:
     @pytest.mark.parametrize(
         "target_obj",
@@ -14,8 +15,8 @@ class TestURI:
             "news:comp.infosystems.www.servers.unix",
             "tel:+1-816-555-1212",
             "telnet://192.0.2.16:80/",
-            "urn:oasis:names:specification:docbook:dtd:xml:4.1.2"
-        ]
+            "urn:oasis:names:specification:docbook:dtd:xml:4.1.2",
+        ],
     )
     def test_uri(self, target_obj):
         generate_and_check(
@@ -46,15 +47,16 @@ class TestURI:
             "http://example.com/%zz",  # Invalid percent-encoding (invalid hex digits).
             "ftp://example.com/file%gg",  # Invalid percent-encoding (invalid hex digits).
             "ftp://user:password@example.com::21",  # Multiple port numbers specified.
-            "http://example.com/\"path\"",  # Quotes are not allowed in URI paths.
+            'http://example.com/"path"',  # Quotes are not allowed in URI paths.
             "mailto:user@ex ample.com",  # Space is not allowed in the domain.
-        ]
+        ],
     )
     def test_bad_uri(self, bad_obj):
         check_match_failure(
             bad_string=bad_obj,
             grammar=uri(),
         )
+
 
 class TestIPv6:
     @pytest.mark.parametrize(
@@ -80,7 +82,7 @@ class TestIPv6:
             "2001:0db8:0000:0042:abcd:8a2e:0370:7334",  # Leading zeros included.
             "ff02::2",  # Multicast address for all routers.
             "2001:0db8:85a3:0000:0000:8a2e:0370:1234",  # Similar to the first, different last segment.
-        ]
+        ],
     )
     def test_good_ipv6(self, good_obj):
         generate_and_check(
@@ -110,7 +112,7 @@ class TestIPv6:
             "2001-db8-85a3-0000-0000-8a2e-0370-7334",  # Hyphens used instead of colons.
             "2001:db8:85a3:0:0:8a2e:370:7334:7334",  # Too many segments (9).
             "2001:db8:85a3:0:0:8a2e:370:7334:xyz",  # Invalid character 'xyz'.
-        ]
+        ],
     )
     def test_bad_ipv6(self, bad_obj):
         check_match_failure(

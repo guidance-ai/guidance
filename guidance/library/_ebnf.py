@@ -85,7 +85,9 @@ class EBNF:
         inner.__name__ = nonterminal.name
         return guidance(inner, stateless=True, dedent=False, cache=True)
 
-    def build(self, name: Optional[str] = None, *, start: Optional[Union[Sequence[str], str]] = None) -> GrammarFunction:
+    def build(
+        self, name: Optional[str] = None, *, start: Optional[Union[Sequence[str], str]] = None
+    ) -> GrammarFunction:
         # Trigger recursive build of grammar using start nonterminal
         if start is None:
             start = self.start

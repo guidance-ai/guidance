@@ -2,6 +2,7 @@ from .._guidance import guidance
 from ._ebnf import EBNF
 from functools import lru_cache
 
+
 @lru_cache(maxsize=1)
 def rfc3986() -> EBNF:
     # https://datatracker.ietf.org/doc/html/rfc3986#appendix-A
@@ -93,18 +94,22 @@ def rfc3986() -> EBNF:
     """
     return EBNF.from_grammar_string(gbnf)
 
+
 @guidance(stateless=True, cache=True)
 def uri(lm, name=None):
-    return lm + rfc3986().build(name=name, start='uri')
+    return lm + rfc3986().build(name=name, start="uri")
+
 
 @guidance(stateless=True, cache=True)
 def uri_reference(lm, name=None):
-    return lm + rfc3986().build(name=name, start='uri_reference')
+    return lm + rfc3986().build(name=name, start="uri_reference")
+
 
 @guidance(stateless=True, cache=True)
 def ipv4address(lm, name=None):
-    return lm + rfc3986().build(name=name, start='ipv4address')
+    return lm + rfc3986().build(name=name, start="ipv4address")
+
 
 @guidance(stateless=True, cache=True)
 def ipv6address(lm, name=None):
-    return lm + rfc3986().build(name=name, start='ipv6address')
+    return lm + rfc3986().build(name=name, start="ipv6address")
