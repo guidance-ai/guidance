@@ -2244,7 +2244,7 @@ class TestBooleanSchema:
         "schema_obj",
         [
             False,
-            {"type": "object", "properties": {"a": False}},
+            {"type": "object", "properties": {"a": False}, "required": ["a"]},
         ]
     )
     def test_false_schema(self, schema_obj):
