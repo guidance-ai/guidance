@@ -10,6 +10,7 @@ from typing import (
     Union,
     Type,
     TYPE_CHECKING,
+    cast,
 )
 import warnings
 
@@ -27,6 +28,8 @@ from .._grammar import GrammarFunction, select, capture, with_temperature
 from ._pydantic import pydantic_to_json_schema
 from ._subgrammar import lexeme, subgrammar
 
+JSONSchema = Union[bool, Mapping[str, Any]]
+FrozenJSONSchema = Union[bool, frozendict[str, Any]]
 
 def _to_compact_json(target: Any) -> str:
     # See 'Compact Encoding':
@@ -150,8 +153,8 @@ def _gen_json_string(
 def _gen_json_object(
     lm,
     *,
-    properties: frozendict[str, Any],
-    additional_properties: Union[bool, frozendict[str, Any]],
+    properties: frozendict[str, FrozenJSONSchema],
+    additional_properties: FrozenJSONSchema,
     required: frozenset[str],
     definitions: frozendict[str, Callable[[], GrammarFunction]],
 ):
@@ -206,16 +209,12 @@ def _gen_list(lm, *, elements: tuple[GrammarFunction, ...], required: tuple[bool
 def _gen_json_array(
     lm,
     *,
-    prefix_items_schema: tuple[frozendict[str, Any], ...],
-    item_schema: Union[bool, frozendict[str, Any]],
+    prefix_items_schema: tuple[FrozenJSONSchema, ...],
+    item_schema: FrozenJSONSchema,
     min_items: int,
     max_items: Optional[int],
     definitions: frozendict[str, Callable[[], GrammarFunction]],
 ):
-    if item_schema is True:
-        # True means that anything goes
-        item_schema = frozendict()
-
     if len(prefix_items_schema) < min_items and item_schema is False:
         raise ValueError(
             f"PrefixItems has too few elements ({len(prefix_items_schema)}) to"
@@ -282,7 +281,7 @@ def _gen_json_array(
 def _process_anyOf(
     lm,
     *,
-    anyof_list: tuple[frozendict[str, Any], ...],
+    anyof_list: tuple[FrozenJSONSchema, ...],
     definitions: frozendict[str, Callable[[], GrammarFunction]],
 ):
     options = [_gen_json(json_schema=item, definitions=definitions) for item in anyof_list]
@@ -292,7 +291,7 @@ def _process_anyOf(
 def _process_allOf(
     lm,
     *,
-    allof_list: tuple[frozendict[str, Any], ...],
+    allof_list: tuple[FrozenJSONSchema, ...],
     definitions: frozendict[str, Callable[[], GrammarFunction]],
 ):
     if len(allof_list) != 1:
@@ -303,7 +302,7 @@ def _process_allOf(
 def _process_oneOf(
     lm,
     *,
-    oneof_list: tuple[frozendict[str, Any], ...],
+    oneof_list: tuple[FrozenJSONSchema, ...],
     definitions: frozendict[str, Callable[[], GrammarFunction]]
 ):
     if len(oneof_list) == 1:
@@ -321,7 +320,7 @@ def _process_const(
     return lm + _to_compact_json(value)
 
 @guidance(stateless=True, cache=True)
-def _process_enum(lm, *, options: tuple[frozendict[str, Any], ...]):
+def _process_enum(lm, *, options: tuple[Any, ...]):
     # TODO: can we support a whitespace-flexible version of this?
     all_opts = []
     for opt in options:
@@ -360,9 +359,14 @@ def _gen_json_any(lm):
 @guidance(stateless=True, cache=True)
 def _gen_json(
     lm,
-    json_schema: frozendict[str, Any],
+    json_schema: FrozenJSONSchema,
     definitions: frozendict[str, Callable[[], GrammarFunction]],
 ):
+    if json_schema is True:
+        json_schema = frozendict()
+    elif json_schema is False:
+        raise ValueError("No valid JSON can be generated from a schema of `False`")
+
     validate_json_node_keys(json_schema)
 
     if Keyword.ANYOF in json_schema:
@@ -426,7 +430,7 @@ def json(
     *,
     schema: Union[
         None,
-        Mapping[str, Any],
+        JSONSchema,
         Type["pydantic.BaseModel"],
         "pydantic.TypeAdapter",
     ] = None,
@@ -480,23 +484,30 @@ def json(
         If True, the generated JSON will be forced to be compact (no whitespace).
         If False, output will be whitespace-flexible (i.e. decided by the model).
     """
-    if isinstance(schema, Mapping):
+    if schema is None:
+        # Default schema is empty, "anything goes" schema
+        # TODO: consider default being `{"type": "object"}`
+        schema = {}
+    elif isinstance(schema, (Mapping, bool)):
         # Raises jsonschema.exceptions.SchemaError or ValueError
         # if schema is not valid
         jsonschema.validators.Draft202012Validator.check_schema(schema)
-    elif schema is None:
-        schema = {}
-    else:
+    elif isinstance(schema, pydantic.TypeAdapter) or (isinstance(schema, type) and issubclass(schema, pydantic.BaseModel)):
         schema = pydantic_to_json_schema(schema)
-
-    # Freeze the schema to make it immutable and hashable
-    frozen_schema: frozendict = deepfreeze(schema)
+    else:
+        raise TypeError(f"Unsupported schema type: {type(schema)}")
 
     definitions: frozendict[str, Callable[[], GrammarFunction]] = frozendict()
-    for dk in DEFS_KEYS:
-        if dk in frozen_schema:
-            assert len(definitions) == 0, "Found duplicate definitions"
-            definitions = _build_definitions(frozen_schema[dk])
+    frozen_schema: FrozenJSONSchema
+    if isinstance(schema, Mapping):
+        # Freeze the schema to make it immutable and hashable
+        frozen_schema = cast(frozendict, deepfreeze(schema))
+        for dk in DEFS_KEYS:
+            if dk in frozen_schema:
+                assert len(definitions) == 0, "Found duplicate definitions"
+                definitions = _build_definitions(frozen_schema[dk])
+    else:
+        frozen_schema = cast(bool, schema)
 
     return lm + with_temperature(
         subgrammar(
@@ -514,11 +525,11 @@ def json(
 
 @cache
 def _build_definitions(
-    raw_definitions: frozendict[str, Any]
+    raw_definitions: frozendict[str, FrozenJSONSchema]
 ) -> frozendict[str, Callable[[], GrammarFunction]]:
     definitions: frozendict[str, Callable[[], GrammarFunction]]
 
-    def build_definition(json_schema: frozendict[str, Any]) -> Callable[[], GrammarFunction]:
+    def build_definition(json_schema: FrozenJSONSchema) -> Callable[[], GrammarFunction]:
         @guidance(stateless=True, dedent=False, cache=True)
         def closure(lm):
             return lm + _gen_json(json_schema=json_schema, definitions=definitions)
