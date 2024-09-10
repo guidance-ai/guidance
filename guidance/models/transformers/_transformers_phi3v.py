@@ -47,8 +47,8 @@ class TransformersPhi3VisionEngine(Engine):
 
         # Processor handles tokenization and image processing
         self.processor = AutoProcessor.from_pretrained(self.model_name, trust_remote_code=True)
-        super().__init__(self.processor.tokenizer, compute_log_probs)
         self.tokenizer = TransformersTokenizer(model, self.processor.tokenizer, sp_whitespace=True)
+        super().__init__(self.tokenizer, compute_log_probs)
 
         # Cache for past key values
         self._past_key_values = None
@@ -95,7 +95,6 @@ class TransformersPhi3VisionEngine(Engine):
             image_counter += 1
         logger.debug("Transformed prompt: %s -> ", prompt, processed_prompt)
 
-        # TODO - save these for inputs for later?
         model_inputs = self.processor(
             text=processed_prompt,
             images=images if len(images) > 0 else None,
@@ -122,13 +121,15 @@ class TransformersPhi3VisionEngine(Engine):
             bos_token_id = None
 
         # Find the last multimodal (negative) token in the sequence, if any
+        # Note: Phi 3 vision uses a convention of negative tokens for multimodal inputs
+        # Do not assume other models will use this convention
         last_multimodal_index = -1
         for i, token in enumerate(reversed(tokens)):
             if token < 0:
                 last_multimodal_index = len(tokens) - i - 1
                 break
 
-        # We'll process tokens starting from the last multimodal token
+        # Process tokens and grammar state machine beginning from the last multimodal token
         if last_multimodal_index != -1:
             processed_tokens = process_prompt(tokens[last_multimodal_index+1:], ll_interpreter, bos_token_id)
             prompt_tokens = tokens[:last_multimodal_index+1] + processed_tokens
@@ -176,12 +177,9 @@ class TransformersPhi3VisionEngine(Engine):
 
         # call the model
         # new_token_ids = token_ids[past_length:]
-        def prep_input(input_tensor):
-            return torch.tensor(input_tensor).unsqueeze(0).to(self.device)
 
         if len(token_ids) > 0:
-            input_ids = prep_input(token_ids)
-            self.model_inputs["input_ids"] = input_ids
+            self.model_inputs["input_ids"] = torch.tensor(token_ids).unsqueeze(0).to(self.device)
             self.model_inputs["attention_mask"]=torch.ones(1, len(token_ids)).to(self.device)
             # pixel_values = prep_input(self.model_inputs["pixel_values"]) if "pixel_values" in self.model_inputs else None
             # image_sizes = prep_input(self.model_inputs["image_sizes"]) if "image_sizes" in self.model_inputs else None

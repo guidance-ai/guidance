@@ -35,6 +35,18 @@ _COMMON_TRANSFORMERS_KWARGS = [
     "trust_remote_code",
 ]
 
+def load_transformers_model(model, **kwargs):
+    # intantiate the model if needed
+    if isinstance(model, str):
+
+        # make sure transformers is installed
+        if not has_transformers:
+            raise Exception(
+                "Please install transformers with `pip install transformers` in order to use guidance.models.Transformers!"
+            )
+        model = transformers_package.AutoModelForCausalLM.from_pretrained(model, **kwargs)
+    return model
+
 class ByteDecoderError(Exception):
     pass
 
@@ -404,7 +416,7 @@ class TransformersEngine(Engine):
             except:
                 pass
 
-        self.model_obj = self._model(model, **kwargs)
+        self.model_obj = load_transformers_model(model, **kwargs)
 
         if not isinstance(model, str):
             self.model = model.__class__.__name__
@@ -436,18 +448,6 @@ class TransformersEngine(Engine):
             my_tokenizer,
             compute_log_probs=compute_log_probs,
         )
-
-    def _model(self, model, **kwargs):
-        # intantiate the model if needed
-        if isinstance(model, str):
-
-            # make sure transformers is installed
-            if not has_transformers:
-                raise Exception(
-                    "Please install transformers with `pip install transformers` in order to use guidance.models.Transformers!"
-                )
-            model = transformers_package.AutoModelForCausalLM.from_pretrained(model, **kwargs)
-        return model
 
     def get_logits(self, prompt: bytes, token_ids: list[int], media: Optional[dict] = None):
         """Computes the logits for the given token state.
@@ -559,3 +559,4 @@ class Transformers(Model):
             ),
             echo=echo,
         )
+
