@@ -1,6 +1,6 @@
 import pytest
 
-from guidance.library._rfc3986 import uri
+from guidance.library._rfc3986 import uri, ipv6address
 from ...utils import generate_and_check, check_match_failure
 
 class TestURI:
@@ -19,7 +19,7 @@ class TestURI:
     )
     def test_uri(self, target_obj):
         generate_and_check(
-            grammar_callable=lambda name: uri(name=name),
+            grammar_callable=uri,
             test_string=target_obj,
         )
 
@@ -54,4 +54,66 @@ class TestURI:
         check_match_failure(
             bad_string=bad_obj,
             grammar=uri(),
+        )
+
+class TestIPv6:
+    @pytest.mark.parametrize(
+        "good_obj",
+        [
+            "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+            "2001:db8:85a3:0:0:8a2e:370:7334",  # Leading zeros omitted.
+            "2001:db8:85a3::8a2e:370:7334",  # Use of "::" to compress consecutive zeros.
+            "::1",  # Loopback address.
+            "fe80::1ff:fe23:4567:890a",  # Link-local address.
+            "2001:db8::",  # Compressed IPv6 address with all zeros after "db8".
+            "::",  # Unspecified address (all zeros).
+            "2001:0db8:0000:0042:0000:8a2e:0370:7334",  # Full format with leading zeros.
+            "2001:db8::42:8a2e:370:7334",  # Mixed zeros compressed in the middle.
+            "ff02::1",  # Multicast address for all nodes.
+            "2001:db8:0:0:0:0:2:1",  # Partially compressed address.
+            "2001:db8::2:1",  # More compression of zeros.
+            "2001:0db8:1234::1",  # Partially compressed address with a specific host.
+            "2001:db8:0:1:1:1:1:1",  # A valid IPv6 address with a mix of segments.
+            "fe80::200:5aee:feaa:20a2",  # Another link-local address.
+            "2001:db8:abcd:0012::0",  # Compressed address with multiple zeros.
+            "2001:db8::abcd:12",  # Compress zeros at the end.
+            "2001:0db8:0000:0042:abcd:8a2e:0370:7334",  # Leading zeros included.
+            "ff02::2",  # Multicast address for all routers.
+            "2001:0db8:85a3:0000:0000:8a2e:0370:1234",  # Similar to the first, different last segment.
+        ]
+    )
+    def test_good_ipv6(self, good_obj):
+        generate_and_check(
+            grammar_callable=ipv6address,
+            test_string=good_obj,
+        )
+
+    @pytest.mark.parametrize(
+        "bad_obj",
+        [
+            "2001:db8:85a3:0:0:8a2e:370g:7334",  # Invalid hex character 'g'.
+            "2001::85a3::7334",  # Multiple "::" compression in one address is not allowed.
+            "2001:db8:85a3:0000:0000:8a2e:0370",  # Too few segments (only 7).
+            "2001:db8:85a3:0000:0000:8a2e:0370:7334:1234",  # Too many segments (9).
+            "2001:db8:85a3:0000:0000:8a2e:0370:7334::",  # "::" used at the end of a complete address.
+            "12001:db8:85a3:0000:0000:8a2e:0370:7334",  # Invalid segment length (5 hex digits in the first part).
+            "2001:db8:85a3:0:0:8a2e:370::7334",  # "::" in the middle but results in too many segments.
+            "2001:db8:85a3:0000:0000:8a2e:0370:zzzz",  # Invalid hex character 'z'.
+            "2001:db8:85a3:0000:0000:8a2e:0370:",  # Trailing colon with incomplete segment.
+            "2001:db8:85a3:0000:0000:8a2e:0370:7334/64",  # CIDR notation not allowed in pure IPv6 address.
+            "2001:db8:85a3:0000:0000:8a2e:03707334",  # Missing colon between segments.
+            ":2001:db8:85a3:0000:0000:8a2e:0370:7334",  # Leading colon without "::".
+            "2001:db8:85a3:0000:0000:0370:7334",  # Too few segments (missing 8th segment).
+            "fe80::200:5aee:feaa:20a21",  # Invalid segment length (5 hex digits).
+            "2001:db8:1234:5678:9abc:defg:1234:5678",  # Invalid hex character 'g'.
+            "2001:db8:85a3:0000:0000:8a2e:03707334:",  # Trailing colon.
+            "2001-db8-85a3-0000-0000-8a2e-0370-7334",  # Hyphens used instead of colons.
+            "2001:db8:85a3:0:0:8a2e:370:7334:7334",  # Too many segments (9).
+            "2001:db8:85a3:0:0:8a2e:370:7334:xyz",  # Invalid character 'xyz'.
+        ]
+    )
+    def test_bad_ipv6(self, bad_obj):
+        check_match_failure(
+            bad_string=bad_obj,
+            grammar=ipv6address(),
         )
