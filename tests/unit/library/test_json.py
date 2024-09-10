@@ -2222,6 +2222,41 @@ class TestRequiredPropertiesScaling:
         expected_hits = 0
         assert cache_info.hits <= expected_hits + HITS_MAGIC_NUMBER
 
+
+class TestBooleanSchema:
+    @pytest.mark.parametrize(
+        "target_obj",
+        [
+            123,
+            "hello",
+            [1, 2, 3],
+            {"a": 1},
+            None,
+            [{"a": 1}],
+            {"a": [1, 2, 3]},
+            {"a": {"b": 1}},
+            False,
+            True
+        ],
+    )
+    def test_true_schema(self, target_obj):
+        # should be the same as an empty schema
+        schema_obj = True
+        generate_and_check(target_obj, schema_obj)
+
+    @pytest.mark.parametrize(
+        "schema_obj",
+        [
+            False,
+            {"type": "object", "properties": {"a": False}, "required": ["a"]},
+        ]
+    )
+    def test_false_schema(self, schema_obj):
+        with pytest.raises(ValueError) as ve:
+            gen_json(schema=schema_obj)
+        assert ve.value.args[0] == "No valid JSON can be generated from a schema of `False`"
+
+
 class TestStringFormat:
     @pytest.mark.parametrize(
         "target_obj",
