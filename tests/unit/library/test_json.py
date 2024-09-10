@@ -2221,3 +2221,42 @@ class TestRequiredPropertiesScaling:
         HITS_MAGIC_NUMBER = 1
         expected_hits = 0
         assert cache_info.hits <= expected_hits + HITS_MAGIC_NUMBER
+
+class TestStringFormat:
+    @pytest.mark.parametrize(
+        "target_obj",
+        [
+            "ftp://ftp.is.co.za/rfc/rfc1808.txt",
+            "http://www.ietf.org/rfc/rfc2396.txt",
+            "ldap://[2001:db8::7]/c=GB?objectClass?one",
+            "mailto:John.Doe@example.com",
+            "news:comp.infosystems.www.servers.unix",
+            "tel:+1-816-555-1212",
+            "telnet://192.0.2.16:80/",
+            "urn:oasis:names:specification:docbook:dtd:xml:4.1.2"
+        ]
+    )
+    def test_uri(self, target_obj):
+        schema_obj = {"type": "string", "format": "uri"}
+        generate_and_check(target_obj, schema_obj)
+
+    @pytest.mark.parametrize(
+        "bad_obj",
+        [
+            "http:///example.com",  # Three slashes after the scheme (invalid).
+            "http://.example.com",  # Leading dot in the domain (invalid domain name).
+            "http://example..com",  # Double dot in the domain (invalid domain name).
+            "http://example.com:-80",  # Negative port number (port numbers can't be negative).
+            "http://[2001:db8:::7]",  # Too many colons in IPv6 address (invalid IPv6 syntax).
+            "http://example.com/ space",  # Space in the path (spaces must be percent-encoded).
+            "http://example.com/?q==test",  # Double equals sign in query (malformed query string).
+            "ftp://user@:21"  # Missing hostname after user info (incomplete authority part).
+        ]
+    )
+    def test_bad_uri(self, bad_obj):
+        schema_obj = {"type": "string", "format": "uri"}
+        check_match_failure(
+            bad_string=_to_compact_json(bad_obj),
+            schema_obj=schema_obj,
+            compact=True
+        )
