@@ -3,12 +3,11 @@ from typing import Callable, Union, Optional, Sequence
 
 from lark import Lark
 from lark.grammar import NonTerminal, Rule, Terminal
-from lark.load_grammar import FromPackageLoader
 
 from .._grammar import GrammarFunction, Join
 from .._guidance import guidance
 from ._subgrammar import subgrammar, lexeme
-from . import capture, select
+from . import select
 
 
 class EBNF:
@@ -86,14 +85,14 @@ class EBNF:
         inner.__name__ = nonterminal.name
         return guidance(inner, stateless=True, dedent=False, cache=True)
 
-    def build(self, name=None) -> GrammarFunction:
+    def build(self, name: Optional[str] = None, *, start: Optional[Union[Sequence[str], str]] = None) -> GrammarFunction:
         # Trigger recursive build of grammar using start nonterminal
-        body = select([self.build_term(NonTerminal(s)) for s in self.start])
+        if start is None:
+            start = self.start
+        elif isinstance(start, str):
+            start = [start]
+        body = select([self.build_term(NonTerminal(s)) for s in start])
         ignore_rx = "|".join(
             self.terminal_regexes[Terminal(name)] for name in self.parser.ignore_tokens
         )
         return subgrammar(name=name, body=body, skip_regex=ignore_rx)
-
-
-def ebnf():
-    pass
