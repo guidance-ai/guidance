@@ -22,6 +22,7 @@ here = os.path.abspath(os.path.dirname(__file__))
 
 install_requires = [
     "diskcache",
+    "lark",
     "numpy",
     "ordered_set",
     "platformdirs",
