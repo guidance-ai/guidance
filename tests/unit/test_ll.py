@@ -129,22 +129,40 @@ def check_grammar(grm: GrammarFunction, output: List[str]):
             del gen_tokens[0:1]
             assert mask[tok] > 0, f"Token {tok} not allowed"
             bt, toks = interp.post_process(tok)
-            assert bt == 0
-            assert toks == [tok]
+            if not toks or toks[0] != tok:
+                if output[idx + 1].startswith("1↶"):
+                    # fast-forward with fake backtrack
+                    assert bt == 0 or not toks
+                    bt = 1
+                    # go to forced byte checking
+                else:
+                    raise ValueError(f"Expected token {tok} got {toks[0]}")
+            elif len(toks) > 1:
+                # we got fast-forwarded to the next entry,
+                # delete the generated tokens and leave the rest for forced
+                # bytes checking below
+                del toks[0:1]
+                # go to forced byte checking
+            else:
+                assert bt == 0
+                assert len(toks) == 1
+                continue # normal path
         else:
             bt, toks = interp.post_process(None)
-            assert not gen_tokens, "Expected more tokens to generate"
-            idx += 1
-            expected = output[idx]
-            if "↶" in expected:
-                r = expected.split("↶")
-                assert len(r) == 2
-                expected = r[1]
-                assert bt == int(r[0]), f"Expected backtrack {r[0]} got {bt}"
-            check_eq(f"step {idx}", toks, expected)
-            idx += 1
-            if idx < len(output):
-                gen_tokens = tokenize_trace(output[idx])
+
+        # forced byte checking
+        assert not gen_tokens, "Expected more tokens to generate"
+        idx += 1
+        expected = output[idx]
+        if "↶" in expected:
+            r = expected.split("↶")
+            assert len(r) == 2
+            expected = r[1]
+            assert bt == int(r[0]), f"Expected backtrack {r[0]} got {bt}"
+        check_eq(f"step {idx}", toks, expected)
+        idx += 1
+        if idx < len(output):
+            gen_tokens = tokenize_trace(output[idx])
 
 
 def test_llparser():
