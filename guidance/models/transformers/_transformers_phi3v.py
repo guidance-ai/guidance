@@ -101,10 +101,11 @@ class TransformersPhi3VisionEngine(Engine):
             images=images if len(images) > 0 else None,
             return_tensors="pt",
         ).to(self.device)
+
+        # We will reuse everything except input_ids (attention_mask, pixel_values, image_sizes)
+        self.model_inputs = model_inputs
+
         tokens = model_inputs["input_ids"][0].tolist()
-        # HACK - Filter out negative image placeholder tokens, replacing with token ID 6
-        # ID 6 is a no-op?
-        tokens = [t if t >= 0 else 6 for t in tokens]
 
         serialized_grammar = process_grammar(grammar)
         ll_tokenizer = llguidance.LLTokenizer(
@@ -119,40 +120,23 @@ class TransformersPhi3VisionEngine(Engine):
             bos_token_id = self.tokenizer.bos_token_id
         else:
             bos_token_id = None
-        prompt_tokens = process_prompt(tokens, ll_interpreter, bos_token_id)
+
+        # Find the last multimodal (negative) token in the sequence, if any
+        last_multimodal_index = -1
+        for i, token in enumerate(reversed(tokens)):
+            if token < 0:
+                last_multimodal_index = len(tokens) - i - 1
+                break
+
+        # We'll process tokens starting from the last multimodal token
+        if last_multimodal_index != -1:
+            processed_tokens = process_prompt(tokens[last_multimodal_index+1:], ll_interpreter, bos_token_id)
+            prompt_tokens = tokens[:last_multimodal_index+1] + processed_tokens
+        else:
+            prompt_tokens = process_prompt(tokens, ll_interpreter, bos_token_id)
+
         return TokenParser(ll_interpreter, prompt_tokens)
 
-
-    # def get_next_token(
-    #     self,
-    #     prompt: bytes,
-    #     tokens: list[int],
-    #     mask: Optional[bytes],
-    #     temperature: float,
-    #     media: Optional[dict]=None,
-    # ) -> Tuple[int, Optional[float]]:
-    #     """Get the next token from the model."""
-    #     logger.debug(
-    #         f"Start TransformersPhi3Engine.get_next_token({tokens=}, {mask=}, {temperature=})"
-    #     )
-
-    #     # Invalidate cache if a new image token is encountered
-    #     # current_image_token_position = self._find_last_image_token_position(tokens)
-    #     # if current_image_token_position != self._last_image_token_position:
-    #     #     self._past_key_values = None
-    #     #     self._cached_token_ids = []
-    #     #     self._last_image_token_position = current_image_token_position
-
-    #     # Get logits and log probabilities from the Phi 3 Vision model
-    #     logits, logprobs = self.get_logits(prompt, tokens, media)
-
-    #     # Apply temperature and mask for sampling
-    #     token_id = self.sample_with_temperature(logits, mask, temperature)
-
-    #     # If log probabilities are requested, retrieve the log prob of the sampled token
-    #     token_logprob = logprobs[token_id] if self.compute_log_probs else None
-
-    #     return token_id, token_logprob
 
     def get_logits(self, prompt: bytes, token_ids: list[int], media: Optional[dict]=None):
         """Computes the logits for the given token state.
@@ -192,46 +176,27 @@ class TransformersPhi3VisionEngine(Engine):
 
         # call the model
         # new_token_ids = token_ids[past_length:]
-        # HACK - replace token 6 with -1 again before calling the model
-        new_token_ids = [t if t != 6 else -1 for t in token_ids]
-        past_length = 0 # TODO - Delete this line, was temporary
-        if len(new_token_ids) > 0:
+        def prep_input(input_tensor):
+            return torch.tensor(input_tensor).unsqueeze(0).to(self.device)
+
+        if len(token_ids) > 0:
+            input_ids = prep_input(token_ids)
+            self.model_inputs["input_ids"] = input_ids
+            self.model_inputs["attention_mask"]=torch.ones(1, len(token_ids)).to(self.device)
+            # pixel_values = prep_input(self.model_inputs["pixel_values"]) if "pixel_values" in self.model_inputs else None
+            # image_sizes = prep_input(self.model_inputs["image_sizes"]) if "image_sizes" in self.model_inputs else None
             with torch.no_grad():
-                # Not all models support batched tokens for some reason
-                try:
-                    model_out = self.model_obj(
-                        input_ids=torch.tensor(new_token_ids).unsqueeze(0).to(self.device),
-                        # past_key_values=self._past_key_values,
-                        # use_cache=True,
-                        # position_ids=torch.arange(past_length, past_length + len(new_token_ids))
-                        # .unsqueeze(0)
-                        # .to(self.device),
-                        # attention_mask=torch.ones(1, past_length + len(new_token_ids)).to(
-                        #     self.device
-                        # ),
-                        return_dict=True,
-                        output_attentions=False,
-                        output_hidden_states=False,
-                    )
-                except AssertionError:
-                    for i, new_token_id in enumerate(new_token_ids):
-                        input_ids = torch.tensor([new_token_id]).unsqueeze(0).to(self.device)
-
-                        model_out = self.model_obj(
-                            input_ids=input_ids,
-                            # past_key_values=self._past_key_values,
-                            # use_cache=True,
-                            # position_ids=torch.arange(past_length, past_length + 1)
-                            # .unsqueeze(0)
-                            # .to(self.device),
-                            # attention_mask=torch.ones(1, past_length + 1).to(self.device),
-                            return_dict=True,
-                            output_attentions=False,
-                            output_hidden_states=False,
-                        )
-
-                        self._past_key_values = model_out.past_key_values
-                        past_length += 1
+                model_out = self.model_obj(
+                    **self.model_inputs,
+                    # input_ids=input_ids,
+                    # pixel_values=pixel_values,
+                    # image_sizes=image_sizes,
+                    # past_key_values=self._past_key_values,
+                    # use_cache=True,
+                    return_dict=True,
+                    output_attentions=False,
+                    output_hidden_states=False,
+                )
 
             # save the results
             # self._past_key_values = model_out.past_key_values
@@ -240,7 +205,7 @@ class TransformersPhi3VisionEngine(Engine):
             self._cached_logits = (
                 model_out.logits[0, -1, : len(self.tokenizer.tokens)].cpu().numpy()
             )
-            self.metrics.engine_input_tokens += len(new_token_ids)
+            self.metrics.engine_input_tokens += len(token_ids)
             self.metrics.engine_output_tokens += 1
 
         return self._cached_logits
