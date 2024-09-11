@@ -22,7 +22,7 @@ class MockTokenizer(Tokenizer):
         super().__init__(tokens, chat_template=None, bos_token_id=0, eos_token_id=0)
         self.byte_trie = cpp.ByteTrie(self.tokens, np.arange(len(self.tokens)))
 
-    def encode(self, byte_string: bytes) -> Sequence[int]:
+    def encode(self, byte_string: bytes) -> list[int]:
         """Simple greedy tokenizer
         TODO: could be a method on ByteTrie if we want to reuse it
         """
@@ -45,10 +45,6 @@ class MockTokenizer(Tokenizer):
             else:
                 raise ValueError(f"Could not find a match for byte {byte_string[pos]} at position {pos}")
 
-        return tokens
-
-    def recode(self, tokens: Sequence[int]) -> Sequence[int]:
-        # Make a no-op for now
         return tokens
 
     def recode(self, tokens: Sequence[int]) -> list[int]:
@@ -84,9 +80,9 @@ class MockEngine(Engine):
         # seed the random number generator
         self._rand_generator = np.random.default_rng(seed=42)
 
-    def get_next_token(self, token_ids: list[int], mask: Optional[bytes], temperature: float, media: Optional[dict]=None) -> int:
+    def get_next_token(self, prompt: bytes, token_ids: list[int], mask: Optional[bytes], temperature: float, media: Optional[dict]=None) -> int:
         self.called_temperatures.append(temperature)
-        return super().get_next_token(token_ids, mask, temperature, media)
+        return super().get_next_token(prompt, token_ids, mask, temperature, media)
 
     def get_logits(self, token_ids: list[int]) -> np.ndarray:
         """Pretends to compute the logits for the given token state."""
