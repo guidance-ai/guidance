@@ -1,12 +1,20 @@
 import functools
 import inspect
 
-from . import models
-from ._grammar import RawFunction, Terminal, string, DeferredReference
+from ._grammar import DeferredReference, RawFunction, Terminal, string
 from ._utils import strip_multiline_string_indents
+from .models import Model
 
 
-def guidance(f=None, *, stateless=False, cache=None, dedent=True, model=models.Model):
+def guidance(
+    f = None,
+    *,
+    stateless = False,
+    cache = False,
+    dedent = True,
+    model = Model,
+):
+    """Decorator used to define guidance grammars"""
     return _decorator(f, stateless=stateless, cache=cache, dedent=dedent, model=model)
 
 

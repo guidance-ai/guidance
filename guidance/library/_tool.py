@@ -23,12 +23,12 @@ class Tool:
         self.tool_call = tool_call
 
 
-arg = lexeme(r"[^,=)]+")
-kwarg = arg + "=" + arg
-args = arg + zero_or_more("," + arg)
-kwargs = kwarg + zero_or_more("," + kwarg)
-
 def basic_func_grammar(name):
+    arg = lexeme(r"[^,=)]+")
+    kwarg = arg + "=" + arg
+    args = arg + zero_or_more("," + arg)
+    kwargs = kwarg + zero_or_more("," + kwarg)
+
     obj = name + "("
     obj += subgrammar(
         name="tool_args",

@@ -261,7 +261,7 @@ def _gen_json_array(
         # must be present before the next one may be added, meaning we have nested optionals:
         # (first optional(,second optional(,third (optional(,...)))))
         first, *rest = optional_items
-        tail = ""
+        tail: Union[str, GrammarFunction] = ""
         for item in reversed(rest):
             tail = optional("," + item + tail)
         tail = first + tail
