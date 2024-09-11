@@ -104,17 +104,17 @@ WHITESPACE = {b" ", b"\t", b"\n", b"\r"}
 FORMAT_PATTERNS: dict[str, Optional[str]] = {
     # https://json-schema.org/understanding-json-schema/reference/string#built-in-formats
     # Dates and times
-    "date-time": r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})',
-    "time": r'\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?',
-    "date": r'\d{4}-\d{2}-\d{2}',
-    "duration": r'P(\d+Y)?(\d+M)?(\d+D)?(T(\d+H)?(\d+M)?(\d+S)?)?',
+    "date-time": r'[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?(?:Z|[+-][0-9]{2}:[0-9]{2})',
+    "time": r'[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?(?:Z|[+-][0-9]{2}:[0-9]{2})?',
+    "date": r'[0-9]{4}-[0-9]{2}-[0-9]{2}',
+    "duration": r'P([0-9]+Y)?([0-9]+M)?([0-9]+D)?(T([0-9]+H)?([0-9]+M)?([0-9]+S)?)?',
     # Email addresses
     "email": r'[^\s@]+@[^\s@]+\.[^\s@]+',
     "idn-email": r'[^\s@]+@[^\s@]+\.[^\s@]+',  # TODO: adjust for IDN email regex
     # Hostnames
     "hostname": r'[a-zA-Z0-9-]{1,63}(\.[a-zA-Z0-9-]{1,63})+',
     "idn-hostname": r'[a-zA-Z0-9-]{1,63}(\.[a-zA-Z0-9-]{1,63})+',  # TODO: adjust for IDN hostname regex
-    "ipv4": r'(\d{1,3}\.){3}\d{1,3}',
+    "ipv4": r'([0-9]{1,3}\.){3}[0-9]{1,3}',
     "ipv6": r'[a-fA-F0-9:]+',
     # Resource identifiers
     "uuid": r'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}',
