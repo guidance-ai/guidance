@@ -127,40 +127,40 @@ FORMAT_PATTERNS: dict[str, Optional[str]] = {
             r'(?P<dur_date>'                     # Named group for date duration
                 r'(?:'                           # Non-capturing group for date components
                     r'(?P<dur_year>'             # Named group for years
-                        r'\d+Y'                  # One or more digits followed by 'Y'
+                        r'[0-9]+Y'                  # One or more digits followed by 'Y'
                         r'(?:'                   # Optional month
-                            r'\d+M'              # One or more digits followed by 'M'
-                            r'(?:\d+D)?'         # Optional days
+                            r'[0-9]+M'              # One or more digits followed by 'M'
+                            r'(?:[0-9]+D)?'         # Optional days
                         r')?'
                     r')'
                     r'|'                         # OR
                     r'(?P<dur_month>'            # Named group for months
-                        r'\d+M'                  # One or more digits followed by 'M'
-                        r'(?:\d+D)?'             # Optional days
+                        r'[0-9]+M'                  # One or more digits followed by 'M'
+                        r'(?:[0-9]+D)?'             # Optional days
                     r')'
                     r'|'                         # OR
                     r'(?P<dur_day>'              # Named group for days
-                        r'\d+D'                  # One or more digits followed by 'D'
+                        r'[0-9]+D'                  # One or more digits followed by 'D'
                     r')'
                 r')'
                 r'(?:'                           # Optional time
                     r'T'                         # Time starts with 'T'
                     r'(?:'                       # Non-capturing group for time components
                         r'(?P<dur_hour>'         # Named group for hours
-                            r'\d+H'              # One or more digits followed by 'H'
+                            r'[0-9]+H'              # One or more digits followed by 'H'
                             r'(?:'               # Optional minutes
-                                r'\d+M'          # One or more digits followed by 'M'
-                                r'(?:\d+S)?'     # Optional seconds
+                                r'[0-9]+M'          # One or more digits followed by 'M'
+                                r'(?:[0-9]+S)?'     # Optional seconds
                             r')?'
                         r')'
                         r'|'                     # OR
                         r'(?P<dur_minute>'       # Named group for minutes
-                            r'\d+M'              # One or more digits followed by 'M'
-                            r'(?:\d+S)?'         # Optional seconds
+                            r'[0-9]+M'              # One or more digits followed by 'M'
+                            r'(?:[0-9]+S)?'         # Optional seconds
                         r')'
                         r'|'                     # OR
                         r'(?P<dur_second>'       # Named group for seconds
-                            r'\d+S'              # One or more digits followed by 'S'
+                            r'[0-9]+S'              # One or more digits followed by 'S'
                         r')'
                     r')'
                 r')?'
@@ -170,26 +170,26 @@ FORMAT_PATTERNS: dict[str, Optional[str]] = {
                 r'T'                             # Time starts with 'T'
                 r'(?:'                           # Non-capturing group for time components
                     r'(?P<dur_hour2>'             # Named group for hours
-                        r'\d+H'                  # One or more digits followed by 'H'
+                        r'[0-9]+H'                  # One or more digits followed by 'H'
                         r'(?:'                   # Optional minutes
-                            r'\d+M'              # One or more digits followed by 'M'
-                            r'(?:\d+S)?'         # Optional seconds
+                            r'[0-9]+M'              # One or more digits followed by 'M'
+                            r'(?:[0-9]+S)?'         # Optional seconds
                         r')?'
                     r')'
                     r'|'                         # OR
                     r'(?P<dur_minute2>'           # Named group for minutes
-                        r'\d+M'                  # One or more digits followed by 'M'
-                        r'(?:\d+S)?'             # Optional seconds
+                        r'[0-9]+M'                  # One or more digits followed by 'M'
+                        r'(?:[0-9]+S)?'             # Optional seconds
                     r')'
                     r'|'                         # OR
                     r'(?P<dur_second2>'           # Named group for seconds
-                        r'\d+S'                  # One or more digits followed by 'S'
+                        r'[0-9]+S'                  # One or more digits followed by 'S'
                     r')'
                 r')'
             r')'
             r'|'                                 # OR
             r'(?P<dur_week>'                     # Named group for weeks
-                r'\d+W'                          # One or more digits followed by 'W'
+                r'[0-9]+W'                          # One or more digits followed by 'W'
             r')'
         r')'
     ),
