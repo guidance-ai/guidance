@@ -100,6 +100,7 @@ IGNORED_KEYS = {
 IGNORED_KEYS.add("discriminator")
 
 WHITESPACE = {b" ", b"\t", b"\n", b"\r"}
+VALID_KEYS = set(Keyword) | IGNORED_KEYS | DEFS_KEYS | set(StringKeywords) | set(ArrayKeywords) | set(ObjectKeywords)
 
 FORMAT_PATTERNS: dict[str, Optional[str]] = {
     # https://json-schema.org/understanding-json-schema/reference/string#built-in-formats
@@ -143,10 +144,7 @@ def _get_format_pattern(format: str) -> str:
 
 def validate_json_node_keys(node: Mapping[str, Any]):
     keys = set(node.keys())
-    valid_keys = set(Keyword) | IGNORED_KEYS | DEFS_KEYS
-    if Keyword.TYPE in node and (tp:=node[Keyword.TYPE]) in TYPE_SPECIFIC_KEYWORDS:
-        valid_keys |= set(TYPE_SPECIFIC_KEYWORDS[tp])
-    invalid_keys = keys - valid_keys
+    invalid_keys = keys - VALID_KEYS
     if invalid_keys:
         raise ValueError(
             f"JSON schema had keys that could not be processed: {invalid_keys}" f"\nSchema: {node}"
