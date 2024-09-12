@@ -213,7 +213,9 @@ FORMAT_PATTERNS: dict[str, Optional[str]] = {
     "json-pointer": None,
     "relative-json-pointer": None,
     # Regular expressions
-    "regex": None, # Might need a full CFG?
+    "regex": None, # Might need a full CFG?,
+    # Unknown
+    "unknown": r"(?s:.*)",
 }
 
 def _get_format_pattern(format: str) -> str:
