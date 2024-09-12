@@ -9,7 +9,7 @@ log = logging.getLogger(__name__)
 
 def load_alt_model(model_name):
     from guidance import llms
-    if model_name.startswith("gpt-"):
+    if model_name.startswith("gpt-") or model_name.startswith("o1-"):
         return llms.OpenAI(model_name, caching=False)
     elif model_name.startswith("claude-"):
         return llms.Anthropic(model_name, caching=False)
