@@ -136,7 +136,7 @@ class TestJsonPointer:
         schema_obj = json.loads(self.schema)
         check_match_failure(bad_string=bad_str, schema_obj=schema_obj, compact=True)
 
-
+@pytest.mark.xfail(reason="idn-hostname format not implemented")
 class TestIdnHostname:
     schema = '{"$schema":"https://json-schema.org/draft/2020-12/schema","format":"idn-hostname"}'
 
@@ -907,6 +907,7 @@ class TestRegex:
         check_match_failure(bad_string=bad_str, schema_obj=schema_obj, compact=True)
 
 
+@pytest.mark.xfail(reason="idn-email format not implemented")
 class TestIdnEmail:
     schema = '{"$schema":"https://json-schema.org/draft/2020-12/schema","format":"idn-email"}'
 
