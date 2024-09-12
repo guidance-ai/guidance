@@ -857,7 +857,7 @@ class TestDateTime:
     @pytest.mark.parametrize(
         "bad_str",
         [
-            pytest.param('"1998-12-31T23:59:61Z"', marks=pytest.mark.xfail(reason="leap seconds are hard")),  # an invalid date-time past leap second, UTC
+            '"1998-12-31T23:59:61Z"',  # an invalid date-time past leap second, UTC
             pytest.param('"1998-12-31T23:58:60Z"', marks=pytest.mark.xfail(reason="leap seconds are hard")),  # an invalid date-time with leap second on a wrong minute, UTC
             pytest.param('"1998-12-31T22:59:60Z"', marks=pytest.mark.xfail(reason="leap seconds are hard")),  # an invalid date-time with leap second on a wrong hour, UTC
             pytest.param('"1990-02-31T15:59:59.123-08:00"', marks=pytest.mark.xfail(reason="valid days not yet tied to month")),  # an invalid day in date-time string
