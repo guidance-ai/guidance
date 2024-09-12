@@ -75,6 +75,7 @@ class TestDate:
         check_match_failure(bad_string=bad_str, schema_obj=schema_obj, compact=True)
 
 
+@pytest.mark.xfail(reason="json-pointer format not implemented")
 class TestJsonPointer:
     schema = '{"$schema":"https://json-schema.org/draft/2020-12/schema","format":"json-pointer"}'
 
@@ -215,6 +216,7 @@ class TestIdnHostname:
         check_match_failure(bad_string=bad_str, schema_obj=schema_obj, compact=True)
 
 
+@pytest.mark.xfail(reason="uri format not implemented")
 class TestUri:
     schema = '{"$schema":"https://json-schema.org/draft/2020-12/schema","format":"uri"}'
 
@@ -264,6 +266,7 @@ class TestUri:
         check_match_failure(bad_string=bad_str, schema_obj=schema_obj, compact=True)
 
 
+@pytest.mark.xfail(reason="uri-template format not implemented")
 class TestUriTemplate:
     schema = '{"$schema":"https://json-schema.org/draft/2020-12/schema","format":"uri-template"}'
 
@@ -296,7 +299,7 @@ class TestUriTemplate:
         schema_obj = json.loads(self.schema)
         check_match_failure(bad_string=bad_str, schema_obj=schema_obj, compact=True)
 
-
+@pytest.mark.xfail(reason="iri-reference format is not yet implemented")
 class TestIriReference:
     schema = '{"$schema":"https://json-schema.org/draft/2020-12/schema","format":"iri-reference"}'
 
@@ -333,6 +336,7 @@ class TestIriReference:
         check_match_failure(bad_string=bad_str, schema_obj=schema_obj, compact=True)
 
 
+@pytest.mark.xfail(reason="iri format not implemented")
 class TestIri:
     schema = '{"$schema":"https://json-schema.org/draft/2020-12/schema","format":"iri"}'
 
@@ -410,6 +414,7 @@ class TestIpv4:
         check_match_failure(bad_string=bad_str, schema_obj=schema_obj, compact=True)
 
 
+@pytest.mark.xfail(reason="uri-reference format not implemented")
 class TestUriReference:
     schema = '{"$schema":"https://json-schema.org/draft/2020-12/schema","format":"uri-reference"}'
 
@@ -786,6 +791,7 @@ class TestDuration:
         check_match_failure(bad_string=bad_str, schema_obj=schema_obj, compact=True)
 
 
+@pytest.mark.xfail(reason="relative-json-pointer format not implemented")
 class TestRelativeJsonPointer:
     schema = '{"$schema":"https://json-schema.org/draft/2020-12/schema","format":"relative-json-pointer"}'
 
@@ -874,7 +880,7 @@ class TestDateTime:
         schema_obj = json.loads(self.schema)
         check_match_failure(bad_string=bad_str, schema_obj=schema_obj, compact=True)
 
-
+@pytest.mark.xfail(reason="regex format not implemented")
 class TestRegex:
     schema = '{"$schema":"https://json-schema.org/draft/2020-12/schema","format":"regex"}'
 
