@@ -121,7 +121,78 @@ FORMAT_PATTERNS: dict[str, Optional[str]] = {
         r'(?P<time_zone>[zZ]|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])'
     ),
     "date": r'[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])',
-    "duration": r'P([0-9]+Y)?([0-9]+M)?([0-9]+D)?(T([0-9]+H)?([0-9]+M)?([0-9]+S)?)?',
+    "duration": (
+        r'P'                                     # Start with 'P'
+        r'(?:'                                   # Non-capturing group for main alternatives
+            r'(?P<dur_date>'                     # Named group for date duration
+                r'(?:'                           # Non-capturing group for date components
+                    r'(?P<dur_year>'             # Named group for years
+                        r'\d+Y'                  # One or more digits followed by 'Y'
+                        r'(?:'                   # Optional month
+                            r'\d+M'              # One or more digits followed by 'M'
+                            r'(?:\d+D)?'         # Optional days
+                        r')?'
+                    r')'
+                    r'|'                         # OR
+                    r'(?P<dur_month>'            # Named group for months
+                        r'\d+M'                  # One or more digits followed by 'M'
+                        r'(?:\d+D)?'             # Optional days
+                    r')'
+                    r'|'                         # OR
+                    r'(?P<dur_day>'              # Named group for days
+                        r'\d+D'                  # One or more digits followed by 'D'
+                    r')'
+                r')'
+                r'(?:'                           # Optional time
+                    r'T'                         # Time starts with 'T'
+                    r'(?:'                       # Non-capturing group for time components
+                        r'(?P<dur_hour>'         # Named group for hours
+                            r'\d+H'              # One or more digits followed by 'H'
+                            r'(?:'               # Optional minutes
+                                r'\d+M'          # One or more digits followed by 'M'
+                                r'(?:\d+S)?'     # Optional seconds
+                            r')?'
+                        r')'
+                        r'|'                     # OR
+                        r'(?P<dur_minute>'       # Named group for minutes
+                            r'\d+M'              # One or more digits followed by 'M'
+                            r'(?:\d+S)?'         # Optional seconds
+                        r')'
+                        r'|'                     # OR
+                        r'(?P<dur_second>'       # Named group for seconds
+                            r'\d+S'              # One or more digits followed by 'S'
+                        r')'
+                    r')'
+                r')?'
+            r')'
+            r'|'                                 # OR
+            r'(?P<dur_time>'                     # Named group for time-only duration
+                r'T'                             # Time starts with 'T'
+                r'(?:'                           # Non-capturing group for time components
+                    r'(?P<dur_hour2>'             # Named group for hours
+                        r'\d+H'                  # One or more digits followed by 'H'
+                        r'(?:'                   # Optional minutes
+                            r'\d+M'              # One or more digits followed by 'M'
+                            r'(?:\d+S)?'         # Optional seconds
+                        r')?'
+                    r')'
+                    r'|'                         # OR
+                    r'(?P<dur_minute2>'           # Named group for minutes
+                        r'\d+M'                  # One or more digits followed by 'M'
+                        r'(?:\d+S)?'             # Optional seconds
+                    r')'
+                    r'|'                         # OR
+                    r'(?P<dur_second2>'           # Named group for seconds
+                        r'\d+S'                  # One or more digits followed by 'S'
+                    r')'
+                r')'
+            r')'
+            r'|'                                 # OR
+            r'(?P<dur_week>'                     # Named group for weeks
+                r'\d+W'                          # One or more digits followed by 'W'
+            r')'
+        r')'
+    ),
     # Email addresses
     "email": r'[^\s@]+@[^\s@]+\.[^\s@]+',
     "idn-email": r'[^\s@]+@[^\s@]+\.[^\s@]+',  # TODO: adjust for IDN email regex
