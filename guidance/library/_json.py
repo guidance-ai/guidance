@@ -194,7 +194,25 @@ FORMAT_PATTERNS: dict[str, Optional[str]] = {
         r')'
     ),
     # Email addresses
-    "email": r'[^\s@]+@[^\s@]+\.[^\s@]+',
+    "email": (
+        r'(?P<local_part>'
+            r'(?P<dot_string>'
+                r'[^\s@\.]+'
+                r'(\.[^\s@\.]+)*'
+            r')'
+        r')'
+        r'@'
+        r'(?P<domain>'
+            r'(?P<sub_domain>'
+                r'[a-zA-Z0-9]'
+                r'([a-zA-Z0-9-]*[a-zA-Z0-9])?'
+            r')'
+            r'(\.(?P<sub_domain2>'
+                r'[a-zA-Z0-9]'
+                r'([a-zA-Z0-9-]*[a-zA-Z0-9])?'
+            r'))*'
+        r')'
+    ),
     "idn-email": r'[^\s@]+@[^\s@]+\.[^\s@]+',  # TODO: adjust for IDN email regex
     # Hostnames
     "hostname": r"[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*",
