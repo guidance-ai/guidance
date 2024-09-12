@@ -202,7 +202,18 @@ FORMAT_PATTERNS: dict[str, Optional[str]] = {
     "ipv4": r'((([0-9])|(([1-9])[0-9]|(25[0-5]|(2[0-4]|(1)[0-9])[0-9])))\.){3}(([0-9])|(([1-9])[0-9]|(25[0-5]|(2[0-4]|(1)[0-9])[0-9]))){1,3}',
     "ipv6": r'[a-fA-F0-9:]+',
     # Resource identifiers
-    "uuid": r'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}',
+    "uuid": (
+        r'(?P<time_low>[0-9a-fA-F]{8})'      # 4 hex octets for time-low
+        r'-'                                 # Literal hyphen
+        r'(?P<time_mid>[0-9a-fA-F]{4})'      # 2 hex octets for time-mid
+        r'-'                                 # Literal hyphen
+        r'(?P<time_high_and_version>[0-9a-fA-F]{4})'  # 2 hex octets for time-high-and-version
+        r'-'                                 # Literal hyphen
+        r'(?P<clock_seq_and_reserved>[0-9a-fA-F]{2})' # 1 hex octet for clock-seq-and-reserved
+        r'(?P<clock_seq_low>[0-9a-fA-F]{2})' # 1 hex octet for clock-seq-low
+        r'-'                                 # Literal hyphen
+        r'(?P<node>[0-9a-fA-F]{12})'         # 6 hex octets for node
+    ),
     "uri": None,
     "uri-reference": None,
     "iri": None,
