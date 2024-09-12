@@ -602,11 +602,6 @@ class TestUnknown:
         target_obj = json.loads(target_str)
         generate_and_check(target_obj, schema_obj)
 
-    @pytest.mark.parametrize("bad_str", [])
-    def test_bad(self, bad_str):
-        schema_obj = json.loads(self.schema)
-        check_match_failure(bad_string=bad_str, schema_obj=schema_obj, compact=True)
-
 
 class TestHostname:
     schema = '{"$schema":"https://json-schema.org/draft/2020-12/schema","format":"hostname"}'
