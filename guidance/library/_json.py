@@ -197,8 +197,8 @@ FORMAT_PATTERNS: dict[str, Optional[str]] = {
     "email": r'[^\s@]+@[^\s@]+\.[^\s@]+',
     "idn-email": r'[^\s@]+@[^\s@]+\.[^\s@]+',  # TODO: adjust for IDN email regex
     # Hostnames
-    "hostname": r'[a-zA-Z0-9-]{1,63}(\.[a-zA-Z0-9-]{1,63})+',
-    "idn-hostname": r'[a-zA-Z0-9-]{1,63}(\.[a-zA-Z0-9-]{1,63})+',  # TODO: adjust for IDN hostname regex
+    "hostname": r"[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*",
+    "idn-hostname": r"[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*",  # TODO: adjust for IDN hostname regex
     "ipv4": r'((([0-9])|(([1-9])[0-9]|(25[0-5]|(2[0-4]|(1)[0-9])[0-9])))\.){3}(([0-9])|(([1-9])[0-9]|(25[0-5]|(2[0-4]|(1)[0-9])[0-9]))){1,3}',
     "ipv6": r'[a-fA-F0-9:]+',
     # Resource identifiers
