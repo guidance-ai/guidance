@@ -106,9 +106,9 @@ VALID_KEYS = set(Keyword) | IGNORED_KEYS | DEFS_KEYS | set(StringKeywords) | set
 FORMAT_PATTERNS: dict[str, Optional[str]] = {
     # https://json-schema.org/understanding-json-schema/reference/string#built-in-formats
     # Dates and times
-    "date-time": r'[0-9]{4}-(?:0[1-9]|1[0-2])-[0-9]{2}[tT][0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?(?:[zZ]|[+-][0-9]{2}:[0-9]{2})',
+    "date-time": r'[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])[tT][0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?(?:[zZ]|[+-][0-9]{2}:[0-9]{2})',
     "time": r'[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?(?:Z|[+-][0-9]{2}:[0-9]{2})?',
-    "date": r'[0-9]{4}-(?:0[1-9]|1[0-2])-[0-9]{2}',
+    "date": r'[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])',
     "duration": r'P([0-9]+Y)?([0-9]+M)?([0-9]+D)?(T([0-9]+H)?([0-9]+M)?([0-9]+S)?)?',
     # Email addresses
     "email": r'[^\s@]+@[^\s@]+\.[^\s@]+',
