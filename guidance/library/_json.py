@@ -10,6 +10,7 @@ from typing import (
     Union,
     Type,
     TYPE_CHECKING,
+    cast,
 )
 import warnings
 
@@ -378,6 +379,9 @@ def _gen_json(
     elif json_schema is False:
         raise ValueError("No valid JSON can be generated from a schema of `False`")
 
+    if json_schema == {}:
+        return lm + _gen_json_any()
+
     validate_json_node_keys(json_schema)
 
     if Keyword.ANYOF in json_schema:
@@ -407,40 +411,50 @@ def _gen_json(
         return lm + _process_enum(options=json_schema[Keyword.ENUM])
 
     if Keyword.TYPE in json_schema:
-        target_type = json_schema[Keyword.TYPE]
+        target_types = cast(Union[str, Sequence[str]], json_schema[Keyword.TYPE])
+        if isinstance(target_types, str):
+            target_types = [target_types]
+    else:
+        target_types = list(JSONType)
+
+    options: list[Union[str, GrammarFunction]] = []
+    option: Union[str, GrammarFunction]
+    for target_type in target_types:
         if target_type == JSONType.NULL:
-            return lm + "null"
-        if target_type == JSONType.BOOLEAN:
-            return lm + select(["true", "false"])
-        if target_type == JSONType.INTEGER:
-            return lm + _gen_json_int()
-        if target_type == JSONType.NUMBER:
-            return lm + _gen_json_number()
-        if target_type == JSONType.STRING:
-            return lm + _gen_json_string(
+            option = "null"
+        elif target_type == JSONType.BOOLEAN:
+            option = select(["true", "false"])
+        elif target_type == JSONType.INTEGER:
+            option = _gen_json_int()
+        elif target_type == JSONType.NUMBER:
+            option = _gen_json_number()
+        elif target_type == JSONType.STRING:
+            option = _gen_json_string(
                 regex=json_schema.get(StringKeywords.PATTERN, None),
                 format=json_schema.get(StringKeywords.FORMAT, None),
                 min_length=json_schema.get(StringKeywords.MIN_LENGTH, 0),
                 max_length=json_schema.get(StringKeywords.MAX_LENGTH, None),
             )
-        if target_type == JSONType.ARRAY:
-            return lm + _gen_json_array(
+        elif target_type == JSONType.ARRAY:
+            option = _gen_json_array(
                 prefix_items_schema=json_schema.get(ArrayKeywords.PREFIX_ITEMS, []),
                 item_schema=json_schema.get(ArrayKeywords.ITEMS, True),
                 min_items=json_schema.get(ArrayKeywords.MIN_ITEMS, 0),
                 max_items=json_schema.get(ArrayKeywords.MAX_ITEMS, None),
                 definitions=definitions,
             )
-        if target_type == JSONType.OBJECT:
-            return lm + _gen_json_object(
+        elif target_type == JSONType.OBJECT:
+            option = _gen_json_object(
                 properties=json_schema.get(ObjectKeywords.PROPERTIES, {}),
                 additional_properties=json_schema.get(ObjectKeywords.ADDITIONAL_PROPERTIES, True),
                 required=json_schema.get(ObjectKeywords.REQUIRED, set()),
                 definitions=definitions,
             )
-        raise ValueError(f"Unsupported type in schema: {target_type}")
+        else:
+            raise ValueError(f"Unsupported type in schema: {target_type}")
+        options.append(option)
 
-    return lm + _gen_json_any()
+    return lm + select(options)
 
 
 @guidance(stateless=True)
