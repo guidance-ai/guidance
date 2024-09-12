@@ -4,6 +4,8 @@ import re
 import typing
 import urllib
 
+from guidance.models._model import Modality
+
 from .._guidance import guidance
 
 
@@ -29,5 +31,5 @@ def image(lm, src: typing.Union[str, pathlib.Path, bytes], allow_local: bool = T
     else:
         raise Exception(f"Unable to load image bytes from {src}!")
 
-    lm = lm.append_image(bytes_data)
+    lm = lm.append_multimodal(bytes_data, Modality.IMAGE)
     return lm

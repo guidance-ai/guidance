@@ -88,7 +88,7 @@ class Engine:
     def reset_metrics(self):
         self.metrics = GuidanceEngineMetrics()
 
-    def start(self, prompt, grammar, media: dict, ensure_bos_token=True) -> TokenParser:
+    def start(self, prompt, grammar, media: Optional[dict]=None, ensure_bos_token=True) -> TokenParser:
         """Start processing parser state executed through the grammar.
 
         Parameters
@@ -130,7 +130,7 @@ class Engine:
             ensure_bos_token=ensure_bos_token
         )
 
-    def __call__(self, prompt, grammar, media: dict, ensure_bos_token=True) -> Iterator[EngineCallResponse]:
+    def __call__(self, prompt, grammar, media: Optional[dict]=None, ensure_bos_token=True) -> Iterator[EngineCallResponse]:
         """Main entry point for the inference-parser loop. Yields EngineCallResponse objects as
         the parser advances through the grammar.
 
@@ -145,7 +145,7 @@ class Engine:
         grammar: Grammar
             This is the grammar we are extending the prompt with.
         media: dict
-            A dictionary mapping placeholder IDs in the prompt to the multimodal data.
+            An optional dictionary mapping placeholder IDs in the prompt to multimodal data bytes.
         """
         parser = self.start(prompt, grammar, media, ensure_bos_token)
 
@@ -158,7 +158,6 @@ class Engine:
                     # Whenever we are in an accepting state, we will allow the model to generate whatever it wants
                     # but we will treat any "illegal" tokens as EOS, allowing the model to finish gracefully.
                     assert gen_data.mask[self.tokenizer.eos_token_id]
-                    # Todo: account for lists of lists of tokens, and multimodal data
                     token = self.get_next_token(
                         prompt,
                         token_ids=gen_data.tokens,
@@ -169,7 +168,6 @@ class Engine:
                     if not gen_data.mask[token]:
                         token = self.tokenizer.eos_token_id
                 else:
-                    # Todo: account for lists of lists of tokens, and multimodal data
                     token = self.get_next_token(
                         prompt,
                         token_ids=gen_data.tokens,
@@ -647,35 +645,13 @@ class Model:
             copy = self
         return copy
     
-    def _append_multimodal(self, data, modality: Modality):
+    def append_multimodal(self, data, modality: Modality):
         """
         Appends multimodal data to the model's state.
         """
-        # TODO - verify if set() creates a copy so we can avoid double copying
         copy = self.set(str(id(data)), data)
         copy._inplace_append(f"<|_{modality.name}:{str(id(data))}|>")
         return copy
-
-    def append_image(self, image):
-        """
-        Appends image bytes to the model's state.
-        """
-        return self._append_multimodal(image, Modality.IMAGE)
-
-
-    def append_audio_bytes(self, audio):
-        """
-        Appends audio bytes to the model's state.
-        """
-        return self._append_multimodal(audio, Modality.AUDIO)
-
-
-    def append_video_bytes(self, video):
-        """
-        Appends video bytes to the model's state.
-        """
-        return self._append_multimodal(video, Modality.VIDEO)
-
 
     def log_prob(self, key, default=None):
         """Return the log prob of a variable, or a default value if the variable is not present.

@@ -3,8 +3,11 @@ import io
 import os
 from typing import Optional
 
-import numpy as np
-import torch
+try:
+    import torch
+except ModuleNotFoundError:
+    pass
+
 import llguidance
 from transformers import AutoModelForCausalLM, AutoProcessor
 
