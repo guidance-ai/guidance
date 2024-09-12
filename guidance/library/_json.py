@@ -218,10 +218,8 @@ FORMAT_PATTERNS: dict[str, Optional[str]] = {
             r'\[(?P<ipv4>((([0-9])|(([1-9])[0-9]|(25[0-5]|(2[0-4]|(1)[0-9])[0-9])))\.){3}(([0-9])|(([1-9])[0-9]|(25[0-5]|(2[0-4]|(1)[0-9])[0-9]))))\]'
         r')'
     ),
-    "idn-email": r'[^\s@]+@[^\s@]+\.[^\s@]+',  # TODO: adjust for IDN email regex
     # Hostnames
     "hostname": r"[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*",
-    "idn-hostname": r"[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*",  # TODO: adjust for IDN hostname regex
     "ipv4": r'((([0-9])|(([1-9])[0-9]|(25[0-5]|(2[0-4]|(1)[0-9])[0-9])))\.){3}(([0-9])|(([1-9])[0-9]|(25[0-5]|(2[0-4]|(1)[0-9])[0-9])))',
     "ipv6": r'[a-fA-F0-9:]+',
     # Resource identifiers
@@ -251,6 +249,10 @@ FORMAT_PATTERNS: dict[str, Optional[str]] = {
     # Unknown
     "unknown": r"(?s:.*)",
 }
+
+# For now, just use the same patterns (idn is superset)
+FORMAT_PATTERNS['idn-email'] = FORMAT_PATTERNS['email']
+FORMAT_PATTERNS['idn-hostname'] = FORMAT_PATTERNS['hostname']
 
 def _get_format_pattern(format: str) -> str:
     try:
