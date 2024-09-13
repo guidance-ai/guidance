@@ -245,7 +245,10 @@ class TestString:
 
         lm = models.Mock("".encode())
 
-        expected = "If a pattern is specified for a JSON string, minLength and maxLength must be left unspecified."
+        expected = (
+            "If a pattern or format is specified for a JSON string,"
+            " minLength and maxLength must be left unspecified."
+        )
         with pytest.raises(ValueError) as ve:
             lm += gen_json(schema=schema_obj)
         assert ve.value.args[0] == expected
@@ -2218,6 +2221,7 @@ class TestRequiredPropertiesScaling:
         HITS_MAGIC_NUMBER = 1
         expected_hits = 0
         assert cache_info.hits <= expected_hits + HITS_MAGIC_NUMBER
+
 
 class TestBooleanSchema:
     @pytest.mark.parametrize(
