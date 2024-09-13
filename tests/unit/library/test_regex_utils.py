@@ -1,13 +1,23 @@
 import pytest
 import re
 import math
+from typing import Optional
+
 from guidance.library._regex_utils import rx_int_range, rx_float_range, float_to_str
 
 
-def do_test_int_range(rx: str, left: int, right: int) -> None:
-    for n in range(left - 1000, right + 1000):
+def do_test_int_range(rx: str, left: Optional[int], right: Optional[int]) -> None:
+    if left is None:
+        test_left = -1000
+    else:
+        test_left = left - 1000
+    if right is None:
+        test_right = 1000
+    else:
+        test_right = right + 1000
+    for n in range(test_left, test_right):
         m = re.fullmatch(rx, str(n)) is not None
-        f = left <= n <= right
+        f = (left is None or left <= n) and (right is None or n <= right)
         assert m == f
         n += 1
 
@@ -30,9 +40,24 @@ def do_test_int_range(rx: str, left: int, right: int) -> None:
         (-3, 3),
         (-3, 0),
         (-72, 13),
+        (None, 0),
+        (None, 7),
+        (None, 23),
+        (None, 725),
+        (None, -1),
+        (None, -17),
+        (None, -283),
+        (0, None),
+        (2, None),
+        (33, None),
+        (234, None),
+        (-1, None),
+        (-87, None),
+        (-329, None),
+        (None, None),
     ],
 )
-def test_int_range(left: int, right: int) -> None:
+def test_int_range(left: Optional[int], right: Optional[int]) -> None:
     rx = rx_int_range(left, right)
     do_test_int_range(rx, left, right)
 

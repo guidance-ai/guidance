@@ -1,4 +1,5 @@
 import math
+from typing import Optional, cast
 
 
 def mk_or(parts: list[str]) -> str:
@@ -11,7 +12,22 @@ def num_digits(n: int) -> int:
     return len(str(n))
 
 
-def rx_int_range(left: int, right: int) -> str:
+def rx_int_range(left: Optional[int] = None, right: Optional[int] = None) -> str:
+    if left is None and right is None:
+        return "0|-?([1-9][0-9]*)"
+    if right is None:
+        left = cast(int, left)
+        if left < 0:
+            return mk_or([rx_int_range(left, -1), rx_int_range(0, None)])
+        return mk_or(
+            [rx_int_range(left, int("9" * num_digits(left))), f"[1-9][0-9]{{{num_digits(left)},}}"]
+        )
+    if left is None:
+        right = cast(int, right)
+        if right >= 0:
+            return mk_or([rx_int_range(0, right), rx_int_range(None, -1)])
+        return "-" + rx_int_range(-right, None)
+
     assert left <= right
     if left < 0:
         if right < 0:
