@@ -715,6 +715,7 @@ class TestEmail:
             '"joe.bloggs@[127.0.0.1]"',  # an IPv4-address-literal after the @ is valid
             pytest.param('"joe.bloggs@[IPv6:::1]"', marks=pytest.mark.xfail(reason="IPv6 is hard")),  # an IPv6-address-literal after the @ is valid
             '"te.s.t@example.com"',  # two separated dots inside local part are valid
+            '"riedgar+guidance@example.com"',  # plus sign in local part is valid
         ],
     )
     def test_good(self, target_str):
