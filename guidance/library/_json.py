@@ -322,10 +322,23 @@ def validate_json_node_keys(node: Mapping[str, Any]):
 
 @guidance(stateless=True)
 def _gen_json_int(lm, minimum: Union[float, int, None] = None, maximum: Union[float, int, None] = None, exclusiveMinimum: bool = False, exclusiveMaximum: bool = False):
-    if minimum is not None and exclusiveMinimum:
-        minimum += 1
-    if maximum is not None and exclusiveMaximum:
-        maximum -= 1
+    if minimum is not None:
+        if exclusiveMinimum:
+            if minimum != int(minimum):
+                minimum = int(math.ceil(minimum))
+            else:
+                minimum += 1
+        else:
+            minimum = int(math.ceil(minimum))
+
+    if maximum is not None:
+        if exclusiveMaximum:
+            if maximum != int(maximum):
+                maximum = int(math.floor(maximum))
+            else:
+                maximum -= 1
+        else:
+            maximum = int(math.floor(maximum))
 
     if isinstance(minimum, float):
         minimum = int(math.ceil(minimum))
