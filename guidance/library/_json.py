@@ -1,5 +1,6 @@
 from json import dumps as json_dumps
 from enum import Enum
+import math
 from typing import (
     Any,
     Callable,
@@ -23,6 +24,7 @@ except ImportError:
 
 from .._guidance import guidance
 from ..library import char_range, gen, one_or_more, optional, sequence
+from ..library._regex_utils import rx_int_range, rx_float_range
 
 from .._grammar import GrammarFunction, select, capture, with_temperature
 from ._pydantic import pydantic_to_json_schema
@@ -56,6 +58,12 @@ class Keyword(str, Enum):
     ENUM = "enum"
     TYPE = "type"
 
+class NumberKeywords(str, Enum):
+    MINIMUM = "minimum"
+    MAXIMUM = "maximum"
+    EXCLUSIVE_MINIMUM = "exclusiveMinimum"
+    EXCLUSIVE_MAXIMUM = "exclusiveMaximum"
+
 class StringKeywords(str, Enum):
     PATTERN = "pattern"
     FORMAT = "format"
@@ -74,6 +82,8 @@ class ObjectKeywords(str, Enum):
     REQUIRED = "required"
 
 TYPE_SPECIFIC_KEYWORDS = {
+    JSONType.INTEGER: NumberKeywords,
+    JSONType.NUMBER: NumberKeywords,
     JSONType.STRING: StringKeywords,
     JSONType.ARRAY: ArrayKeywords,
     JSONType.OBJECT: ObjectKeywords,
@@ -101,7 +111,7 @@ IGNORED_KEYS = {
 IGNORED_KEYS.add("discriminator")
 
 WHITESPACE = {b" ", b"\t", b"\n", b"\r"}
-VALID_KEYS = set(Keyword) | IGNORED_KEYS | DEFS_KEYS | set(StringKeywords) | set(ArrayKeywords) | set(ObjectKeywords)
+VALID_KEYS = set(Keyword) | IGNORED_KEYS | DEFS_KEYS | set(NumberKeywords) | set(StringKeywords) | set(ArrayKeywords) | set(ObjectKeywords)
 
 FORMAT_PATTERNS: dict[str, Optional[str]] = {
     # https://json-schema.org/understanding-json-schema/reference/string#built-in-formats
@@ -311,12 +321,32 @@ def validate_json_node_keys(node: Mapping[str, Any]):
 
 
 @guidance(stateless=True)
-def _gen_json_int(lm):
+def _gen_json_int(lm, minimum: Union[float, int, None] = None, maximum: Union[float, int, None] = None, exclusiveMinimum: bool = False, exclusiveMaximum: bool = False):
+    if minimum is not None and exclusiveMinimum:
+        minimum += 1
+    if maximum is not None and exclusiveMaximum:
+        maximum -= 1
+
+    if isinstance(minimum, float):
+        minimum = int(math.ceil(minimum))
+    if isinstance(maximum, float):
+        maximum = int(math.floor(maximum))
+
+    if minimum is not None or maximum is not None:
+        return lm + lexeme(rx_int_range(minimum, maximum), contextual=True)
+
     return lm + lexeme(r"-?(?:0|[1-9][0-9]*)", contextual=True)
 
 
 @guidance(stateless=True)
-def _gen_json_number(lm):
+def _gen_json_number(lm, minimum: Optional[float], maximum: Optional[float], exclusiveMinimum: bool, exclusiveMaximum: bool):
+    if exclusiveMaximum or exclusiveMinimum:
+        raise NotImplementedError("Exclusive minimum and maximum not supported for JSON number")
+    if [minimum, maximum].count(None) == 1:
+        raise NotImplementedError("Only support both minimum and maximum being specified or neither for JSON number")
+    if minimum is not None and maximum is not None:
+        return lm + lexeme(rx_float_range(minimum, maximum), contextual=True)
+
     return lm + select([
         _gen_json_int(),
         lexeme(r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)", contextual=True),
@@ -582,10 +612,40 @@ def _gen_json(
             option = "null"
         elif target_type == JSONType.BOOLEAN:
             option = select(["true", "false"])
-        elif target_type == JSONType.INTEGER:
-            option = _gen_json_int()
-        elif target_type == JSONType.NUMBER:
-            option = _gen_json_number()
+        elif target_type in {JSONType.INTEGER, JSONType.NUMBER}:
+            minimum = cast(Union[int, float, None], json_schema.get(NumberKeywords.MINIMUM, None))
+            maximum = cast(Union[float, int, None], json_schema.get(NumberKeywords.MAXIMUM, None))
+            exclusive_minimum = cast(Union[float, int, bool], json_schema.get(NumberKeywords.EXCLUSIVE_MINIMUM, False))
+            exclusive_maximum = cast(Union[float, int, bool], json_schema.get(NumberKeywords.EXCLUSIVE_MAXIMUM, False))
+
+            if minimum is not None and not isinstance(exclusive_minimum, bool):
+                raise ValueError("exclusiveMinimum must be a boolean if minimum is specified")
+            if maximum is not None and not isinstance(exclusive_maximum, bool):
+                raise ValueError("exclusiveMaximum must be a boolean if maximum is specified")
+
+            if isinstance(exclusive_minimum, (int, float)):
+                minimum = cast(Union[float, int], exclusive_minimum)
+                exclusive_minimum = True
+            exclusive_minimum = cast(bool, exclusive_minimum)
+
+            if isinstance(exclusive_maximum, (int, float)):
+                maximum = cast(Union[float, int], exclusive_maximum)
+                exclusive_maximum = True
+            exclusive_maximum = cast(bool, exclusive_maximum)
+
+            if target_type == JSONType.INTEGER:
+                option = _gen_json_int(
+                    minimum=minimum,
+                    maximum=maximum,
+                    exclusiveMinimum=exclusive_minimum,
+                    exclusiveMaximum=exclusive_maximum,
+                )
+            option = _gen_json_number(
+                minimum=minimum,
+                maximum=maximum,
+                exclusiveMinimum=exclusive_minimum,
+                exclusiveMaximum=exclusive_maximum,
+            )
         elif target_type == JSONType.STRING:
             option = _gen_json_string(
                 regex=json_schema.get(StringKeywords.PATTERN, None),
