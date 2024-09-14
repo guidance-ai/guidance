@@ -340,11 +340,6 @@ def _gen_json_int(lm, minimum: Union[float, int, None] = None, maximum: Union[fl
         else:
             maximum = int(math.floor(maximum))
 
-    if isinstance(minimum, float):
-        minimum = int(math.ceil(minimum))
-    if isinstance(maximum, float):
-        maximum = int(math.floor(maximum))
-
     if minimum is not None or maximum is not None:
         return lm + lexeme(rx_int_range(minimum, maximum), contextual=True)
 
