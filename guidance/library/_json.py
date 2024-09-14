@@ -646,12 +646,13 @@ def _gen_json(
                     exclusiveMinimum=exclusive_minimum,
                     exclusiveMaximum=exclusive_maximum,
                 )
-            option = _gen_json_number(
-                minimum=minimum,
-                maximum=maximum,
-                exclusiveMinimum=exclusive_minimum,
-                exclusiveMaximum=exclusive_maximum,
-            )
+            else:
+                option = _gen_json_number(
+                    minimum=minimum,
+                    maximum=maximum,
+                    exclusiveMinimum=exclusive_minimum,
+                    exclusiveMaximum=exclusive_maximum,
+                )
         elif target_type == JSONType.STRING:
             option = _gen_json_string(
                 regex=json_schema.get(StringKeywords.PATTERN, None),
