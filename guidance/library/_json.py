@@ -622,7 +622,7 @@ def _gen_json(
             option = select(["true", "false"])
         elif target_type in {JSONType.INTEGER, JSONType.NUMBER}:
             minimum = cast(Union[int, float, None], json_schema.get(NumberKeywords.MINIMUM, None))
-            maximum = cast(Union[float, int, None], json_schema.get(NumberKeywords.MAXIMUM, None))
+            maximum = cast(Union[int, float, None], json_schema.get(NumberKeywords.MAXIMUM, None))
             exclusive_minimum = cast(Union[float, int, bool], json_schema.get(NumberKeywords.EXCLUSIVE_MINIMUM, False))
             exclusive_maximum = cast(Union[float, int, bool], json_schema.get(NumberKeywords.EXCLUSIVE_MAXIMUM, False))
 
@@ -631,15 +631,13 @@ def _gen_json(
             if maximum is not None and not isinstance(exclusive_maximum, bool):
                 raise ValueError("exclusiveMaximum must be a boolean if maximum is specified")
 
-            if isinstance(exclusive_minimum, (int, float)):
-                minimum = cast(Union[float, int], exclusive_minimum)
+            if not isinstance(exclusive_minimum, bool):
+                minimum = exclusive_minimum
                 exclusive_minimum = True
-            exclusive_minimum = cast(bool, exclusive_minimum)
 
-            if isinstance(exclusive_maximum, (int, float)):
-                maximum = cast(Union[float, int], exclusive_maximum)
+            if not isinstance(exclusive_maximum, bool):
+                maximum = exclusive_maximum
                 exclusive_maximum = True
-            exclusive_maximum = cast(bool, exclusive_maximum)
 
             if target_type == JSONType.INTEGER:
                 option = _gen_json_int(
