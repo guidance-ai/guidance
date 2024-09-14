@@ -629,9 +629,18 @@ def _gen_json(
             exclusive_maximum = cast(Union[float, int, bool], json_schema.get(NumberKeywords.EXCLUSIVE_MAXIMUM, False))
 
             if minimum is not None and not isinstance(exclusive_minimum, bool):
-                raise ValueError("exclusiveMinimum must be a boolean if minimum is specified")
+                if exclusive_minimum >= minimum:
+                    minimum = exclusive_minimum
+                    exclusive_minimum = True
+                else:
+                    exclusive_minimum = False
+
             if maximum is not None and not isinstance(exclusive_maximum, bool):
-                raise ValueError("exclusiveMaximum must be a boolean if maximum is specified")
+                if exclusive_maximum <= maximum:
+                    maximum = exclusive_maximum
+                    exclusive_maximum = True
+                else:
+                    exclusive_maximum = False
 
             if not isinstance(exclusive_minimum, bool):
                 minimum = exclusive_minimum
