@@ -3,7 +3,7 @@ from functools import partial
 from typing import Any, Dict, Set, Union, Optional
 
 import pytest
-from jsonschema import validate
+from jsonschema import validate, ValidationError
 
 from guidance import json as gen_json
 from guidance import models
@@ -134,6 +134,50 @@ class TestInteger:
             maybe_whitespace=maybe_whitespace,
             compact=compact,
         )
+
+class TestIntegerWithRange:
+    @pytest.mark.parametrize(
+        "schema",
+        [
+            { "type": "integer", "minimum": 0, "maximum": 100 },
+            { "type": "integer", "minimum": -.9, "maximum": 100.8 },
+        ]
+    )
+    def test_nonexclusive_range(self, schema):
+        for value in range(0, 101):
+            validate(instance=value, schema=schema)
+            generate_and_check(value, schema)
+        for value in [*range(-5, 0), *range(101, 105)]:
+            with pytest.raises(ValidationError):
+                validate(instance=value, schema=schema)
+            check_match_failure(
+                bad_string=_to_compact_json(value),
+                schema_obj=schema,
+                compact=True
+            )
+
+    @pytest.mark.parametrize(
+        "schema",
+        [
+            { "type": "integer", "minimum": 0, "maximum": 100, "exclusiveMinimum": True}, 
+            { "type": "integer", "minimum": 0, "maximum": 100, "exclusiveMinimum": True},
+            { "type": "integer", "minimum": .1, "maximum": 100.8},
+            { "type": "integer", "minimum": .1, "maximum": 100.8, "exclusiveMinimum": True},
+            { "type": "integer", "maximum": 100.8, "exclusiveMinimum": .1},
+        ]
+    )
+    def test_left_exclusive_range(self, schema):
+        for value in range(1, 101):
+            validate(instance=value, schema=schema)
+            generate_and_check(value, schema)
+        for value in [*range(-5, 1), *range(101, 105)]:
+            with pytest.raises(ValidationError):
+                validate(instance=value, schema=schema)
+            check_match_failure(
+                bad_string=_to_compact_json(value),
+                schema_obj=schema,
+                compact=True
+            )
 
 
 class TestNumber:
