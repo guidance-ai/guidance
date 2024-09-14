@@ -625,6 +625,8 @@ def _gen_json(
         elif target_type in {JSONType.INTEGER, JSONType.NUMBER}:
             minimum = cast(Union[int, float, None], json_schema.get(NumberKeywords.MINIMUM, None))
             maximum = cast(Union[int, float, None], json_schema.get(NumberKeywords.MAXIMUM, None))
+            # Note: letting these be bools is really only consistent with the JSON schema spec Draft 4, but it's
+            # no big deal to support it here.
             exclusive_minimum = cast(Union[float, int, bool], json_schema.get(NumberKeywords.EXCLUSIVE_MINIMUM, False))
             exclusive_maximum = cast(Union[float, int, bool], json_schema.get(NumberKeywords.EXCLUSIVE_MAXIMUM, False))
 

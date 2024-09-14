@@ -3,7 +3,7 @@ from functools import partial
 from typing import Any, Dict, Set, Union, Optional
 
 import pytest
-from jsonschema import validate, ValidationError
+from jsonschema import validate, ValidationError, Draft4Validator, Draft202012Validator
 
 from guidance import json as gen_json
 from guidance import models
@@ -167,12 +167,17 @@ class TestIntegerWithRange:
         ]
     )
     def test_left_exclusive_range(self, schema):
+        if isinstance(schema.get("exclusiveMinimum"), bool):
+            validator = Draft4Validator
+        else:
+            validator = Draft202012Validator
+
         for value in range(1, 101):
-            validate(instance=value, schema=schema)
+            validate(instance=value, schema=schema, cls=validator)
             generate_and_check(value, schema)
         for value in [*range(-5, 1), *range(101, 105)]:
             with pytest.raises(ValidationError):
-                validate(instance=value, schema=schema)
+                validate(instance=value, schema=schema, cls=validator)
             check_match_failure(
                 bad_string=_to_compact_json(value),
                 schema_obj=schema,
