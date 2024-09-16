@@ -625,46 +625,36 @@ def _gen_json(
         elif target_type in {JSONType.INTEGER, JSONType.NUMBER}:
             minimum = cast(Union[int, float, None], json_schema.get(NumberKeywords.MINIMUM, None))
             maximum = cast(Union[int, float, None], json_schema.get(NumberKeywords.MAXIMUM, None))
-            # Note: letting these be bools is really only consistent with the JSON schema spec Draft 4, but it's
-            # no big deal to support it here.
-            exclusive_minimum = cast(Union[float, int, bool], json_schema.get(NumberKeywords.EXCLUSIVE_MINIMUM, False))
-            exclusive_maximum = cast(Union[float, int, bool], json_schema.get(NumberKeywords.EXCLUSIVE_MAXIMUM, False))
+            # Older schemas (Draft4) may have exclusiveMinimum and exclusiveMaximum as booleans, but Draft202012+ should have them as numbers
+            exclusive_minimum = cast(Union[int, float, None], json_schema.get(NumberKeywords.EXCLUSIVE_MINIMUM, None))
+            exclusive_maximum = cast(Union[int, float, None], json_schema.get(NumberKeywords.EXCLUSIVE_MAXIMUM, None))
+            # Internally, we'll use Draft4 style booleans
+            exclusive_minimum_flag: bool = False
+            exclusive_maximum_flag: bool = False
 
-            if minimum is not None and not isinstance(exclusive_minimum, bool):
-                if exclusive_minimum >= minimum:
+            if exclusive_minimum is not None:
+                if minimum is None or exclusive_minimum >= minimum:
                     minimum = exclusive_minimum
-                    exclusive_minimum = True
-                else:
-                    exclusive_minimum = False
+                    exclusive_minimum_flag = True
 
-            if maximum is not None and not isinstance(exclusive_maximum, bool):
-                if exclusive_maximum <= maximum:
+            if exclusive_maximum is not None:
+                if maximum is None or exclusive_maximum <= maximum:
                     maximum = exclusive_maximum
-                    exclusive_maximum = True
-                else:
-                    exclusive_maximum = False
-
-            if not isinstance(exclusive_minimum, bool):
-                minimum = exclusive_minimum
-                exclusive_minimum = True
-
-            if not isinstance(exclusive_maximum, bool):
-                maximum = exclusive_maximum
-                exclusive_maximum = True
+                    exclusive_maximum_flag = True
 
             if target_type == JSONType.INTEGER:
                 option = _gen_json_int(
                     minimum=minimum,
                     maximum=maximum,
-                    exclusiveMinimum=exclusive_minimum,
-                    exclusiveMaximum=exclusive_maximum,
+                    exclusiveMinimum=exclusive_minimum_flag,
+                    exclusiveMaximum=exclusive_maximum_flag,
                 )
             else:
                 option = _gen_json_number(
                     minimum=minimum,
                     maximum=maximum,
-                    exclusiveMinimum=exclusive_minimum,
-                    exclusiveMaximum=exclusive_maximum,
+                    exclusiveMinimum=exclusive_minimum_flag,
+                    exclusiveMaximum=exclusive_maximum_flag,
                 )
         elif target_type == JSONType.STRING:
             option = _gen_json_string(

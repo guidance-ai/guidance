@@ -159,25 +159,20 @@ class TestIntegerWithRange:
     @pytest.mark.parametrize(
         "schema",
         [
-            { "type": "integer", "minimum": 0, "maximum": 100, "exclusiveMinimum": True}, 
-            { "type": "integer", "minimum": 0, "maximum": 100, "exclusiveMinimum": True},
+            # The following should all valiate on the integer range [1, 100]
+            { "type": "integer", "exclusiveMinimum": 0, "maximum": 100},
             { "type": "integer", "minimum": .1, "maximum": 100.8},
-            { "type": "integer", "minimum": .1, "maximum": 100.8, "exclusiveMinimum": True},
-            { "type": "integer", "maximum": 100.8, "exclusiveMinimum": .1},
+            { "type": "integer", "exclusiveMinimum": .1, "maximum": 100.8},
+            { "type": "integer", "minimum": 0, "exclusiveMinimum": .1, "maximum": 100.8},
         ]
     )
     def test_left_exclusive_range(self, schema):
-        if isinstance(schema.get("exclusiveMinimum"), bool):
-            validator = Draft4Validator
-        else:
-            validator = Draft202012Validator
-
         for value in range(1, 101):
-            validate(instance=value, schema=schema, cls=validator)
+            validate(instance=value, schema=schema)
             generate_and_check(value, schema)
         for value in [*range(-5, 1), *range(101, 105)]:
             with pytest.raises(ValidationError):
-                validate(instance=value, schema=schema, cls=validator)
+                validate(instance=value, schema=schema)
             check_match_failure(
                 bad_string=_to_compact_json(value),
                 schema_obj=schema,
