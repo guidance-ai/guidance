@@ -641,7 +641,7 @@ class TestObjectWithMissingRequired:
         schema = {"type": "object", "properties": {"a": {"type": "integer"}}, "required": ["b", "c"], "additionalProperties": False}
         with pytest.raises(ValueError) as ve:
             _ = gen_json(schema=schema)
-        assert ve.value.args[0] == "Required properties not in properties but additionalProperties is False. Missing required properties: {'b', 'c'}"
+        assert ve.value.args[0] == "Required properties not in properties but additionalProperties is False. Missing required properties: ['b', 'c']"
 
 
 class TestSimpleArray:
