@@ -365,7 +365,7 @@ def _gen_json_object(
     if any(k not in properties for k in required) and additional_properties is False:
         raise ValueError(
             f"Required properties not in properties but additionalProperties is False."
-            f" Missing required properties: {set(required) - set(properties)}"
+            f" Missing required properties: {list(r for r in required if r not in properties)}"
         )
     items = list(chain(
         # First iterate over the properties in order
