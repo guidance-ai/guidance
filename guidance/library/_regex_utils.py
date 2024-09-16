@@ -2,6 +2,8 @@ import math
 from typing import Optional, cast
 
 
+# assumes parts are in parentheses
+# ensures that the resulting regex is in parentheses
 def mk_or(parts: list[str]) -> str:
     if len(parts) == 1:
         return parts[0]
@@ -20,7 +22,10 @@ def rx_int_range(left: Optional[int] = None, right: Optional[int] = None) -> str
         if left < 0:
             return mk_or([rx_int_range(left, -1), rx_int_range(0, None)])
         return mk_or(
-            [rx_int_range(left, int("9" * num_digits(left))), f"[1-9][0-9]{{{num_digits(left)},}}"]
+            [
+                rx_int_range(left, int("9" * num_digits(left))),
+                f"[1-9][0-9]{{{num_digits(left)},}}",
+            ]
         )
     if left is None:
         right = cast(int, right)
@@ -74,47 +79,64 @@ def rx_int_range(left: Optional[int] = None, right: Optional[int] = None) -> str
             return mk_or(parts)
         else:
             break_point = 10 ** num_digits(left) - 1
-            return mk_or([rx_int_range(left, break_point), rx_int_range(break_point + 1, right)])
+            return mk_or(
+                [rx_int_range(left, break_point), rx_int_range(break_point + 1, right)]
+            )
 
 
-def lexi_x_to_9(x: str) -> str:
-    if x == "":
-        return "[0-9]*"
-    if len(x) == 1:
-        return f"[{x}-9][0-9]*"
+def lexi_x_to_9(x: str, incl: bool) -> str:
+    if incl:
+        if x == "":
+            return "[0-9]*"
+        if len(x) == 1:
+            return f"[{x}-9][0-9]*"
+    else:
+        if x == "":
+            return "[0-9]*[1-9]"
     x0 = int(x[0])
-    parts = [x[0] + lexi_x_to_9(x[1:])]
+    parts = [x[0] + lexi_x_to_9(x[1:], incl)]
     if x0 < 9:
         parts.append(f"[{x0 + 1}-9][0-9]*")
     return mk_or(parts)
 
 
-def lexi_0_to_x(x: str) -> str:
+def lexi_0_to_x(x: str, incl: bool) -> str:
     if x == "":
+        assert incl
         return ""  # don't allow trailing zeros
+
     x0 = int(x[0])
-    parts = [x[0] + lexi_0_to_x(x[1:])]
+
+    if not incl and len(x) == 1:
+        # there should be rstrip(0) of input
+        assert x0 > 0
+        return f"[0-{x0 - 1}][0-9]*"
+
+    parts = [x[0] + lexi_0_to_x(x[1:], incl)]
     if x0 > 0:
         parts.append(f"[0-{x0 - 1}][0-9]*")
     return mk_or(parts)
 
 
-def lexi_range(ld: str, rd: str) -> str:
+def lexi_range(ld: str, rd: str, ld_incl: bool, rd_incl: bool) -> str:
     assert len(ld) == len(rd)
     if ld == rd:
+        assert ld_incl and rd_incl
         return ld
     l0 = int(ld[0])
     r0 = int(rd[0])
     # common prefix: 137-144 => 1(37-44)
     if r0 == l0:
-        return ld[0] + lexi_range(ld[1:], rd[1:])
+        return ld[0] + lexi_range(ld[1:], rd[1:], ld_incl, rd_incl)
     assert l0 < r0
     # 23470-82142 => 2(347-999)|[3-7][0-9]*|8(0000-2142)
-    parts = [ld[0] + lexi_x_to_9(ld[1:].rstrip("0"))]
+    parts = [ld[0] + lexi_x_to_9(ld[1:].rstrip("0"), ld_incl)]
     # is the [3-7][0-9]* part empty?
     if l0 + 1 < r0:
         parts.append(f"[{l0 + 1}-{r0 - 1}][0-9]*")
-    parts.append(rd[0] + lexi_0_to_x(rd[1:].rstrip("0")))
+    rd2 = rd[1:].rstrip("0")
+    if rd2 or rd_incl:
+        parts.append(rd[0] + lexi_0_to_x(rd2, rd_incl))
     return mk_or(parts)
 
 
@@ -123,21 +145,58 @@ def float_to_str(f: float) -> str:
     return s.rstrip("0").rstrip(".")
 
 
-def rx_float_range(left: float, right: float) -> str:
+def rx_float_range(
+    left: float, right: float, left_inclusive: bool = True, right_inclusive: bool = True
+) -> str:
     assert left <= right
+
+    if left == right:
+        if left_inclusive and right_inclusive:
+            return f"({float_to_str(left)})"
+        else:
+            raise ValueError("Empty range")
+
     if left < 0:
         if right < 0:
-            return "(-" + rx_float_range(-right, -left) + ")"
+            return (
+                "(-"
+                + rx_float_range(-right, -left, right_inclusive, left_inclusive)
+                + ")"
+            )
         else:
-            return "(-" + rx_float_range(0.0, -left) + "|" + rx_float_range(0.0, right) + ")"
+            # right >= 0
+            parts = []
+
+            # Negative part
+            neg_part = rx_float_range(
+                0.0,
+                -left,
+                False,  # we don't allow -0
+                left_inclusive,
+            )
+            parts.append("(-" + neg_part + ")")
+
+            # Positive part
+            if right > 0 or right_inclusive:
+                pos_part = rx_float_range(
+                    0.0,
+                    right,
+                    True,  # always include 0
+                    right_inclusive,
+                )
+                parts.append(pos_part)
+
+            return mk_or(parts)
     else:
         l = float_to_str(left)
         r = float_to_str(right)
-        if left == right:
-            return f"({l})"
 
-        if "e" in l or "e" in r:
-            raise ValueError("Scientific notation not supported")
+        # guard against floating point errors
+        assert l != r
+
+        # float_to_str() should never return scientific notation
+        assert "e" not in l and "e" not in r
+
         if not math.isfinite(left) or not math.isfinite(right):
             raise ValueError("Infinite numbers not supported")
 
@@ -153,7 +212,7 @@ def rx_float_range(left: float, right: float) -> str:
                 ld += "0"
             while len(rd) < len(ld):
                 rd += "0"
-            suff = "\\." + lexi_range(ld, rd)
+            suff = "\\." + lexi_range(ld, rd, left_inclusive, right_inclusive)
             if int(ld) == 0:
                 return f"({left_rec}({suff})?)"
             else:
@@ -162,8 +221,8 @@ def rx_float_range(left: float, right: float) -> str:
         parts = []
 
         # 7.321-22.123 -> 7.(321-999)|8-21(.[0-9]+)?|22.(000-123)
-        if ld:
-            parts.append(f"({left_rec}\\.{lexi_x_to_9(ld)})")
+        if ld or not left_inclusive:
+            parts.append(f"({left_rec}\\.{lexi_x_to_9(ld, left_inclusive)})")
             left_rec += 1
 
         if right_rec - 1 >= left_rec:
@@ -171,8 +230,8 @@ def rx_float_range(left: float, right: float) -> str:
             parts.append(f"({inner}(\\.[0-9]+)?)")
 
         if rd:
-            parts.append(f"({right_rec}(\\.{lexi_0_to_x(rd)})?)")
-        else:
+            parts.append(f"({right_rec}(\\.{lexi_0_to_x(rd, right_inclusive)})?)")
+        elif right_inclusive:
             parts.append(f"{right_rec}")
 
         return mk_or(parts)
