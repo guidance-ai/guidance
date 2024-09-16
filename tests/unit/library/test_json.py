@@ -3,7 +3,7 @@ from functools import partial
 from typing import Any, Dict, Set, Union, Optional
 
 import pytest
-from jsonschema import validate, ValidationError, Draft4Validator, Draft202012Validator
+from jsonschema import validate, ValidationError
 
 from guidance import json as gen_json
 from guidance import models
@@ -16,7 +16,7 @@ from ...utils import generate_and_check as _generate_and_check
 
 
 def generate_and_check(
-    target_obj: Any, schema_obj, desired_temperature: Optional[float] = None
+    target_obj: Any, schema_obj, desired_temperature: Optional[float] = None,
 ):
     # Sanity check what we're being asked
     validate(instance=target_obj, schema=schema_obj)
