@@ -383,6 +383,12 @@ def _gen_json_string(
     if format is not None:
         regex = _get_format_pattern(format)
 
+    elif regex is not None:
+        # Sanitize the regex, removing unnecessary anchors that may cause problems later
+        # NOTE/TODO: this could potentially be pushed further down into the lexeme function,
+        # but it's not immediately clear whether anchors in other contexts are superfluous.
+        regex = regex.lstrip("^").rstrip("$")
+
     elif regex is None:
         range_expr = f"{{{min_length},{max_length}}}" if max_length is not None else f"{{{min_length},}}"
         regex = f"(?s:.{range_expr})"
