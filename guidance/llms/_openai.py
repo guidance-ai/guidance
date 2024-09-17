@@ -713,7 +713,6 @@ class OpenAISession(LLMSession):
                     if logit_bias is not None:
                         call_args["logit_bias"] = {str(k): v for k,v in logit_bias.items()} # convert keys to strings since that's the open ai api's format
                     out = await self.llm.caller(**call_args)
-                    print(out)
 
                     # "o1-":
                     # Response will be empty if couldn't complete the request within the 'max_completion_tokens'
@@ -724,7 +723,6 @@ class OpenAISession(LLMSession):
                             raise Exception(f"Model 'o1-' returned empty response because couldn't "
                                             f"complete the request within 'max_completion_tokens': "
                                             f"{call_args['max_completion_tokens']}")
-                        print(out['choices'][0])
 
                 except (openai.RateLimitError,
                         openai.APIConnectionError,
@@ -827,7 +825,7 @@ class MSALOpenAI(OpenAI):
                 raise ValueError(
                     "Fail to create device flow. Err: %s" % json.dumps(flow, indent=4))
 
-            print(flow["message"])
+            # print(flow["message"])
 
             result = self._app.acquire_token_by_device_flow(flow)
 
