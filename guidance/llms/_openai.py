@@ -626,7 +626,8 @@ def extract_function_defs(prompt):
 
 # Define a deque to store the timestamps of the calls
 class OpenAISession(LLMSession):
-    async def __call__(self, prompt, stop=None, stop_regex=None, temperature=None, n=1, max_tokens=1000, logprobs=None,
+    async def __call__(self, prompt, stop=None, stop_regex=None, temperature=None, n=1,
+                       max_tokens=1000, max_completion_tokens=1000, logprobs=None,
                        top_p=1.0, echo=False, logit_bias=None, token_healing=None, pattern=None, stream=None,
                        cache_seed=0, caching=None, **completion_kwargs):
         """ Generate a completion of the given prompt.
@@ -699,7 +700,7 @@ class OpenAISession(LLMSession):
                     #  - 'stream' does not support true with this model. Only the default (false) value is supported.
                     if call_args['model'].startswith('o1-'):
                         call_args.update({
-                            "max_completion_tokens": completion_kwargs.get('max_completion_tokens', max_tokens),
+                            "max_completion_tokens": max_completion_tokens,
                             "stream": False
                         })
                         del call_args['max_tokens']
