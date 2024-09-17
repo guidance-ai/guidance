@@ -36,7 +36,7 @@ setup(
         "pyparsing>=3.0.0",
         "pygtrie",
         "platformdirs",
-        "tiktoken>=0.3",
+        "tiktoken>=0.7",
         "nest_asyncio",
         "msal",
         "requests",

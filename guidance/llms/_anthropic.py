@@ -435,7 +435,7 @@ class AnthropicSession(LLMSession):
             # tools = extract_tools_defs(prompt)
 
             fail_count = 0
-            err = None
+            error_msg = None
             while True:
                 try_again = False
                 try:
@@ -462,6 +462,7 @@ class AnthropicSession(LLMSession):
                         #anthropic.APIError,
                         anthropic.APITimeoutError) as err:
                     await asyncio.sleep(3)
+                    error_msg = err.message
                     try_again = True
                     fail_count += 1
 
@@ -471,7 +472,7 @@ class AnthropicSession(LLMSession):
                 if fail_count > self.llm.max_retries:
                     raise Exception(
                         f"Too many (more than {self.llm.max_retries}) Anthropic API errors in a row! \n"
-                        f"Last error message: {err}")
+                        f"Last error message: {error_msg}")
 
             if stream:
                 return self.llm.stream_then_save(out, key, stop_regex, n)

@@ -23,7 +23,9 @@ def test_chat_model_pattern():
         'gpt-3.5-turbo-instruct',
         'gpt-3.5-turbo-16k-0613',
         'o1-preview',
-        'o1-preview-2024-09-12'
+        'o1-preview-2024-09-12',
+        'o1-mini',
+        'o1-mini-2024-09-12'
     ]
 
     chat_model_pattern = guidance.llms.OpenAI.chat_model_pattern

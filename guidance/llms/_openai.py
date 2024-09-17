@@ -125,7 +125,7 @@ def add_text_to_chat_mode(chat_mode):
 
 class OpenAI(LLM):
     llm_name: str = "openai"
-    chat_model_pattern: str = r'^(gpt-3\.5-turbo|gpt-4|gpt-4-vision|gpt-4-turbo|gpt-4o|gpt-4o-mini|o1-preview)(-\d+k)?(-\d{4})?(-vision)?(-instruct)?(-\d{2})?(-\d{2})?(-preview)?$'
+    chat_model_pattern: str = r'^(gpt-3\.5-turbo|gpt-4|gpt-4-vision|gpt-4-turbo|gpt-4o|gpt-4o-mini|o1-preview|o1-mini)(-\d+k)?(-\d{4})?(-vision)?(-instruct)?(-\d{2})?(-\d{2})?(-preview)?$'
 
     def __init__(self, model=None, caching=True, max_retries=5, max_calls_per_min=60,
                  api_key=None, api_type="open_ai", api_base=None, api_version=None, deployment_id=None,
@@ -184,6 +184,13 @@ class OpenAI(LLM):
             api_base = os.environ.get("OPENAI_API_BASE", None) or os.environ.get("OPENAI_ENDPOINT", None) # ENDPOINT is deprecated
 
         import tiktoken
+
+        # TODO: Remove.
+        # Currently (17/09/2024) tiktoken doesn't support openai "o1" models.
+        # https://github.com/openai/tiktoken/issues/337
+        from tiktoken.model import MODEL_PREFIX_TO_ENCODING, MODEL_TO_ENCODING
+        MODEL_PREFIX_TO_ENCODING.update({"o1-": "o200k_base"})
+
         if encoding_name is None:
             encoding_name = tiktoken.encoding_for_model(model).name
         self._tokenizer = tiktoken.get_encoding(encoding_name)
@@ -418,6 +425,20 @@ class OpenAI(LLM):
             'stop': kwargs.get("stop", None),
             "echo": kwargs.get("echo", False)
         }
+
+        # "o1-":
+        #  - 'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead.
+        #  - 'temperature' does not support 0 with this model. Only the default (1) value is supported.
+        #  - 'stop' is not supported with this model.
+        #  - 'stream' does not support true with this model. Only the default (false) value is supported.
+        if data['model'].startswith('o1-'):
+            data.update({
+                "max_completion_tokens": kwargs.get("max_completion_tokens", kwargs.get("max_tokens", None)),
+                "stream": False
+            })
+            del data['max_tokens']
+            del data['stop']
+
         if self.chat_mode:
             data['messages'] = prompt_to_messages(data['prompt'])
             del data['prompt']
@@ -651,7 +672,7 @@ class OpenAISession(LLMSession):
             functions = extract_function_defs(prompt)
 
             fail_count = 0
-            err = None
+            error_msg = None
             while True:
                 try_again = False
                 try:
@@ -670,6 +691,20 @@ class OpenAISession(LLMSession):
                         "stream": stream,
                         **completion_kwargs
                     }
+
+                    # "o1-":
+                    #  - 'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead.
+                    #  - 'temperature' does not support 0 with this model. Only the default (1) value is supported.
+                    #  - 'stop' is not supported with this model.
+                    #  - 'stream' does not support true with this model. Only the default (false) value is supported.
+                    if call_args['model'].startswith('o1-'):
+                        call_args.update({
+                            "max_completion_tokens": completion_kwargs.get('max_completion_tokens', max_tokens),
+                            "stream": False
+                        })
+                        del call_args['max_tokens']
+                        del call_args['stop']
+
                     if functions is None:
                         if "function_call" in call_args:
                             del call_args["function_call"]
@@ -678,6 +713,18 @@ class OpenAISession(LLMSession):
                     if logit_bias is not None:
                         call_args["logit_bias"] = {str(k): v for k,v in logit_bias.items()} # convert keys to strings since that's the open ai api's format
                     out = await self.llm.caller(**call_args)
+                    print(out)
+
+                    # "o1-":
+                    # Response will be empty if couldn't complete the request within the 'max_completion_tokens'
+                    # For now, we'll raise an error if this happens
+                    if call_args['model'].startswith('o1-'):
+                        if out['choices'][0].get('finish_reason', None) == 'length' \
+                                and out['choices'][0].get('message', {}).get('content', None) == '':
+                            raise Exception(f"Model 'o1-' returned empty response because couldn't "
+                                            f"complete the request within 'max_completion_tokens': "
+                                            f"{call_args['max_completion_tokens']}")
+                        print(out['choices'][0])
 
                 except (openai.RateLimitError,
                         openai.APIConnectionError,
@@ -685,16 +732,17 @@ class OpenAISession(LLMSession):
                         openai.APIError,
                         openai.APITimeoutError) as err:
                     await asyncio.sleep(3)
+                    error_msg = err.message
                     try_again = True
                     fail_count += 1
-                
+
                 if not try_again:
                     break
 
                 if fail_count > self.llm.max_retries:
                     raise Exception(
-                        f"Too many (more than {self.llm.max_retries}) Anthropic API errors in a row! \n"
-                        f"Last error message: {err}")
+                        f"Too many (more than {self.llm.max_retries}) OpenAI API errors in a row! \n"
+                        f"Last error message: {error_msg}")
 
             if stream:
                 return self.llm.stream_then_save(out, key, stop_regex, n)
