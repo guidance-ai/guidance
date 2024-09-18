@@ -38,7 +38,86 @@ def _to_compact_json(target: Any) -> str:
     # and whitespace
     return json_dumps(target, separators=(",", ":"))
 
-DRAFT202012_RESERVED_KEYWORDS = {'description', 'propertyNames', 'maxItems', 'then', 'minLength', 'minItems', 'oneOf', 'default', 'anyOf', 'maxContains', '$dynamicAnchor', 'else', 'readOnly', 'definitions', 'unevaluatedProperties', '$anchor', '$schema', 'minProperties', 'patternProperties', 'dependentRequired', 'items', 'maxLength', 'contentSchema', '$defs', 'minimum', '$comment', 'dependencies', 'allOf', 'examples', 'if', 'contentEncoding', 'const', 'dependentSchemas', 'prefixItems', '$ref', '$id', 'required', 'contentMediaType', 'type', '$recursiveAnchor', 'format', '$recursiveRef', 'maxProperties', 'uniqueItems', 'maximum', 'not', 'deprecated', 'multipleOf', '$dynamicRef', '$vocabulary', 'contains', 'additionalProperties', 'properties', 'enum', 'unevaluatedItems', 'writeOnly', 'minContains', 'exclusiveMaximum', 'exclusiveMinimum', 'title', 'pattern'}
+DRAFT202012_RESERVED_KEYWORDS = {
+    # Anchors and References
+    '$anchor',
+    '$dynamicAnchor',
+    '$dynamicRef',
+    '$id',
+    '$recursiveAnchor',
+    '$recursiveRef',
+    '$ref',
+    '$schema',
+    '$vocabulary',
+
+    # Schema Structure and Combining Schemas
+    '$defs',
+    'definitions',
+    'dependencies',
+    'dependentRequired',
+    'dependentSchemas',
+    'allOf',
+    'anyOf',
+    'oneOf',
+    'not',
+    'if',
+    'then',
+    'else',
+
+    # Validation Keywords for Any Instance Type
+    'const',
+    'enum',
+    'type',
+
+    # Validation Keywords for Numeric Instances
+    'multipleOf',
+    'maximum',
+    'exclusiveMaximum',
+    'minimum',
+    'exclusiveMinimum',
+
+    # Validation Keywords for Strings
+    'maxLength',
+    'minLength',
+    'pattern',
+    'format',
+
+    # Validation Keywords for Arrays
+    'items',
+    'prefixItems',
+    'maxItems',
+    'minItems',
+    'uniqueItems',
+    'contains',
+    'maxContains',
+    'minContains',
+
+    # Validation Keywords for Objects
+    'properties',
+    'patternProperties',
+    'additionalProperties',
+    'propertyNames',
+    'required',
+    'maxProperties',
+    'minProperties',
+    'unevaluatedProperties',
+    'unevaluatedItems',
+
+    # Metadata Keywords
+    '$comment',
+    'description',
+    'title',
+    'default',
+    'deprecated',
+    'readOnly',
+    'writeOnly',
+    'examples',
+
+    # Content Validation
+    'contentEncoding',
+    'contentMediaType',
+    'contentSchema',
+}
 
 class JSONType(str, Enum):
     NULL = "null"
