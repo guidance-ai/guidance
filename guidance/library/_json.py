@@ -1,6 +1,5 @@
 from json import dumps as json_dumps
 from enum import Enum
-from itertools import chain
 from typing import (
     Any,
     Callable,
@@ -367,13 +366,13 @@ def _gen_json_object(
             f"Required properties not in properties but additionalProperties is False."
             f" Missing required properties: {list(r for r in required if r not in properties)}"
         )
-    items = list(chain(
+    items = [
         # First iterate over the properties in order
-        properties.items(),
+        *properties.items(),
         # If there are any keys in required that weren't specified by properties, add them in order at the end,
         # where we will validate against the additional_properties schema
-        ((key, additional_properties) for key in required if key not in properties),
-    ))
+        *((key, additional_properties) for key in required if key not in properties),
+    ]
     grammars = tuple(f'"{name}":' + _gen_json(json_schema=schema, definitions=definitions) for name, schema in items)
     required_items = tuple(name in required for name, _ in items)
 
