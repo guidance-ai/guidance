@@ -38,6 +38,8 @@ def _to_compact_json(target: Any) -> str:
     # and whitespace
     return json_dumps(target, separators=(",", ":"))
 
+DRAFT202012_RESERVED_KEYWORDS = {'description', 'propertyNames', 'maxItems', 'then', 'minLength', 'minItems', 'oneOf', 'default', 'anyOf', 'maxContains', '$dynamicAnchor', 'else', 'readOnly', 'definitions', 'unevaluatedProperties', '$anchor', '$schema', 'minProperties', 'patternProperties', 'dependentRequired', 'items', 'maxLength', 'contentSchema', '$defs', 'minimum', '$comment', 'dependencies', 'allOf', 'examples', 'if', 'contentEncoding', 'const', 'dependentSchemas', 'prefixItems', '$ref', '$id', 'required', 'contentMediaType', 'type', '$recursiveAnchor', 'format', '$recursiveRef', 'maxProperties', 'uniqueItems', 'maximum', 'not', 'deprecated', 'multipleOf', '$dynamicRef', '$vocabulary', 'contains', 'additionalProperties', 'properties', 'enum', 'unevaluatedItems', 'writeOnly', 'minContains', 'exclusiveMaximum', 'exclusiveMinimum', 'title', 'pattern'}
+
 class JSONType(str, Enum):
     NULL = "null"
     BOOLEAN = "boolean"
@@ -303,7 +305,8 @@ def _get_format_pattern(format: str) -> str:
 
 def validate_json_node_keys(node: Mapping[str, Any]):
     keys = set(node.keys())
-    invalid_keys = keys - VALID_KEYS
+    # Any key that is a valid JSON schema keyword but not one that we have explicit support for is "invalid"
+    invalid_keys = (keys - VALID_KEYS).intersection(DRAFT202012_RESERVED_KEYWORDS)
     if invalid_keys:
         raise ValueError(
             f"JSON schema had keys that could not be processed: {invalid_keys}" f"\nSchema: {node}"
