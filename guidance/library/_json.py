@@ -38,6 +38,87 @@ def _to_compact_json(target: Any) -> str:
     # and whitespace
     return json_dumps(target, separators=(",", ":"))
 
+DRAFT202012_RESERVED_KEYWORDS = {
+    # Anchors and References
+    '$anchor',
+    '$dynamicAnchor',
+    '$dynamicRef',
+    '$id',
+    '$recursiveAnchor',
+    '$recursiveRef',
+    '$ref',
+    '$schema',
+    '$vocabulary',
+
+    # Schema Structure and Combining Schemas
+    '$defs',
+    'allOf',
+    'anyOf',
+    'definitions',
+    'dependencies',
+    'dependentRequired',
+    'dependentSchemas',
+    'else',
+    'if',
+    'not',
+    'oneOf',
+    'then',
+
+    # Validation Keywords for Any Instance Type
+    'const',
+    'enum',
+    'type',
+
+    # Validation Keywords for Numeric Instances
+    'exclusiveMaximum',
+    'exclusiveMinimum',
+    'maximum',
+    'minimum',
+    'multipleOf',
+
+    # Validation Keywords for Strings
+    'format',
+    'maxLength',
+    'minLength',
+    'pattern',
+
+    # Validation Keywords for Arrays
+    'contains',
+    'items',
+    'maxContains',
+    'maxItems',
+    'minContains',
+    'minItems',
+    'prefixItems',
+    'uniqueItems',
+
+    # Validation Keywords for Objects
+    'additionalProperties',
+    'maxProperties',
+    'minProperties',
+    'patternProperties',
+    'properties',
+    'propertyNames',
+    'required',
+    'unevaluatedItems',
+    'unevaluatedProperties',
+
+    # Metadata Keywords
+    '$comment',
+    'default',
+    'deprecated',
+    'description',
+    'examples',
+    'readOnly',
+    'title',
+    'writeOnly',
+
+    # Content Validation
+    'contentEncoding',
+    'contentMediaType',
+    'contentSchema',
+}
+
 class JSONType(str, Enum):
     NULL = "null"
     BOOLEAN = "boolean"
@@ -303,7 +384,8 @@ def _get_format_pattern(format: str) -> str:
 
 def validate_json_node_keys(node: Mapping[str, Any]):
     keys = set(node.keys())
-    invalid_keys = keys - VALID_KEYS
+    # Any key that is a valid JSON schema keyword but not one that we have explicit support for is "invalid"
+    invalid_keys = (keys - VALID_KEYS).intersection(DRAFT202012_RESERVED_KEYWORDS)
     if invalid_keys:
         raise ValueError(
             f"JSON schema had keys that could not be processed: {invalid_keys}" f"\nSchema: {node}"
@@ -342,6 +424,12 @@ def _gen_json_string(
 
     if format is not None:
         regex = _get_format_pattern(format)
+
+    elif regex is not None:
+        # Sanitize the regex, removing unnecessary anchors that may cause problems later
+        # NOTE/TODO: this could potentially be pushed further down into the lexeme function,
+        # but it's not immediately clear whether anchors in other contexts are superfluous.
+        regex = regex.lstrip("^").rstrip("$")
 
     elif regex is None:
         range_expr = f"{{{min_length},{max_length}}}" if max_length is not None else f"{{{min_length},}}"
