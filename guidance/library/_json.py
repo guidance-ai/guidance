@@ -52,17 +52,17 @@ DRAFT202012_RESERVED_KEYWORDS = {
 
     # Schema Structure and Combining Schemas
     '$defs',
+    'allOf',
+    'anyOf',
     'definitions',
     'dependencies',
     'dependentRequired',
     'dependentSchemas',
-    'allOf',
-    'anyOf',
-    'oneOf',
-    'not',
-    'if',
-    'then',
     'else',
+    'if',
+    'not',
+    'oneOf',
+    'then',
 
     # Validation Keywords for Any Instance Type
     'const',
@@ -70,48 +70,48 @@ DRAFT202012_RESERVED_KEYWORDS = {
     'type',
 
     # Validation Keywords for Numeric Instances
-    'multipleOf',
-    'maximum',
     'exclusiveMaximum',
-    'minimum',
     'exclusiveMinimum',
+    'maximum',
+    'minimum',
+    'multipleOf',
 
     # Validation Keywords for Strings
+    'format',
     'maxLength',
     'minLength',
     'pattern',
-    'format',
 
     # Validation Keywords for Arrays
-    'items',
-    'prefixItems',
-    'maxItems',
-    'minItems',
-    'uniqueItems',
     'contains',
+    'items',
     'maxContains',
+    'maxItems',
     'minContains',
+    'minItems',
+    'prefixItems',
+    'uniqueItems',
 
     # Validation Keywords for Objects
-    'properties',
-    'patternProperties',
     'additionalProperties',
-    'propertyNames',
-    'required',
     'maxProperties',
     'minProperties',
-    'unevaluatedProperties',
+    'patternProperties',
+    'properties',
+    'propertyNames',
+    'required',
     'unevaluatedItems',
+    'unevaluatedProperties',
 
     # Metadata Keywords
     '$comment',
-    'description',
-    'title',
     'default',
     'deprecated',
-    'readOnly',
-    'writeOnly',
+    'description',
     'examples',
+    'readOnly',
+    'title',
+    'writeOnly',
 
     # Content Validation
     'contentEncoding',
