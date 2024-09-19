@@ -349,22 +349,14 @@ def _gen_json_number(lm, minimum: Optional[float] = None, maximum: Optional[floa
     if [minimum, maximum].count(None) == 1:
         raise NotImplementedError("Only support both minimum and maximum being specified or neither for JSON number")
 
-    if minimum is not None and maximum is not None:
-        return lm + lexeme(
-            rx_float_range(
-                minimum, maximum,
-                left_inclusive = not exclusiveMinimum,
-                right_inclusive = not exclusiveMaximum
-            ),
-            contextual=True
-        )
-
-    return lm + select([
-        _gen_json_int(),
-        lexeme(r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)", contextual=True),
-        lexeme(r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)", contextual=True),
-    ])
-
+    return lm + lexeme(
+        rx_float_range(
+            minimum, maximum,
+            left_inclusive = not exclusiveMinimum,
+            right_inclusive = not exclusiveMaximum
+        ),
+        contextual=True
+    )
 
 @guidance(stateless=True)
 def _gen_json_string(

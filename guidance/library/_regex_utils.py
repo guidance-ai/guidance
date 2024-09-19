@@ -146,8 +146,13 @@ def float_to_str(f: float) -> str:
 
 
 def rx_float_range(
-    left: float, right: float, left_inclusive: bool = True, right_inclusive: bool = True
+    left: Optional[float], right: Optional[float], left_inclusive: bool = True, right_inclusive: bool = True
 ) -> str:
+    if left is None and right is None:
+        return r"-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?"
+    if left is None or right is None:
+        raise NotImplementedError(f"Half-open intervals not supported: left={left}, right={right}")
+
     assert left <= right
 
     if left == right:
