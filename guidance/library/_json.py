@@ -342,11 +342,7 @@ def _gen_json_int(lm, minimum: Union[float, int, None] = None, maximum: Union[fl
             maximum = math.floor(maximum)
         maximum = int(maximum)
 
-    if minimum is not None or maximum is not None:
-        return lm + lexeme(rx_int_range(minimum, maximum), contextual=True)
-
-    return lm + lexeme(r"-?(?:0|[1-9][0-9]*)", contextual=True)
-
+    return lm + lexeme(rx_int_range(minimum, maximum), contextual=True)
 
 @guidance(stateless=True)
 def _gen_json_number(lm, minimum: Optional[float] = None, maximum: Optional[float] = None, exclusiveMinimum: bool = False, exclusiveMaximum: bool = False):
