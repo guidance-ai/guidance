@@ -109,6 +109,15 @@ def test_int_range(left: Optional[int], right: Optional[int]) -> None:
         (103.74, None),
         (100, None),
         (None, None),
+        (-103.4, -103.4),
+        (-27, -27),
+        (-1.5, -1.5),
+        (-1, -1),
+        (0, 0),
+        (1, 1),
+        (1.5, 1.5),
+        (27, 27),
+        (103.4, 103.4),
     ],
 )
 def test_float_range(
@@ -118,17 +127,22 @@ def test_float_range(
     r = "]" if right_inclusive else ")"
     print(f"Testing range {l}{left}-{right}{r}")
 
-    rx = rx_float_range(left, right, left_inclusive, right_inclusive)
-    do_test_float_range(rx, (left or 0), (right or 0), left_inclusive, right_inclusive, left is None, right is None)
+    if (left is not None) and (left == right) and not (left_inclusive and right_inclusive):
+        with pytest.raises(ValueError):
+            rx_float_range(left, right, left_inclusive, right_inclusive)
+    else:
+        rx = rx_float_range(left, right, left_inclusive, right_inclusive)
+        do_test_float_range(rx, (left or 0), (right or 0), left_inclusive, right_inclusive, left is None, right is None)
 
 def do_test_float_range(rx, left: float, right: float, left_inclusive: bool = True, right_inclusive: bool = True, left_none: bool = False, right_none: bool = False):
     left_int = math.ceil(left)
     right_int = math.floor(right)
-    if not left_inclusive and left_int == left:
-        left_int += 1
-    if not right_inclusive and right_int == right:
-        right_int -= 1
-    do_test_int_range(rx, left_int, right_int, left_none, right_none)
+    if left_int < right_int:
+        if not left_inclusive and left_int == left:
+            left_int += 1
+        if not right_inclusive and right_int == right:
+            right_int -= 1
+        do_test_int_range(rx, left_int, right_int, left_none, right_none)
     eps = 0.000001
     eps2 = 0.01
     test_cases = [left, right, 0, int(left), int(right)]
