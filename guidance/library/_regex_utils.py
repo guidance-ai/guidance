@@ -16,7 +16,7 @@ def num_digits(n: int) -> int:
 
 def rx_int_range(left: Optional[int] = None, right: Optional[int] = None) -> str:
     if left is None and right is None:
-        return "0|-?([1-9][0-9]*)"
+        return "-?(0|[1-9][0-9]*)"
     if right is None:
         left = cast(int, left)
         if left < 0:
