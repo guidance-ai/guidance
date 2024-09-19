@@ -45,6 +45,11 @@ def do_test_int_range(rx: str, left: int, right: int, left_none: bool = False, r
         (-87, None),
         (-329, None),
         (None, None),
+        (-13, -13),
+        (-1, -1),
+        (0, 0),
+        (1, 1),
+        (13, 13),
     ],
 )
 def test_int_range(left: Optional[int], right: Optional[int]) -> None:
