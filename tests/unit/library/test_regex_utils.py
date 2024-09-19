@@ -6,10 +6,10 @@ from typing import Optional
 from guidance.library._regex_utils import rx_int_range, rx_float_range, float_to_str
 
 
-def do_test_int_range(rx: str, left: int, right: int) -> None:
+def do_test_int_range(rx: str, left: int, right: int, left_none: bool = False, right_none: bool = False) -> None:
     for n in range(left - 1000, right + 1000):
         m = re.fullmatch(rx, str(n)) is not None
-        f = (left is None or left <= n) and (right is None or n <= right)
+        f = (left_none or left <= n) and (right_none or n <= right)
         assert m == f
 
 @pytest.mark.parametrize(
@@ -53,6 +53,8 @@ def test_int_range(left: Optional[int], right: Optional[int]) -> None:
         rx,
         (left or 0),
         (right or 0),
+        left_none=(left is None),
+        right_none=(right is None),
     )
 
 
