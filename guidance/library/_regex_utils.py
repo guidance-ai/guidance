@@ -150,8 +150,31 @@ def rx_float_range(
 ) -> str:
     if left is None and right is None:
         return r"-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?"
-    if left is None or right is None:
-        raise NotImplementedError(f"Half-open intervals not supported: left={left}, right={right}")
+    if right is None:
+        left = cast(float, left)
+        if left < 0:
+            return mk_or([
+                # {left, 0) ∪ [0, ∞)
+                rx_float_range(left, 0., left_inclusive=left_inclusive, right_inclusive=False),
+                rx_float_range(0., None, left_inclusive=True)
+            ])
+        left_int_part = int(left)
+        return mk_or(
+            [
+                # {3.14, 10) ∪ [10, ∞)
+                rx_float_range(left, float("1" + "0"* num_digits(left_int_part)), left_inclusive=left_inclusive, right_inclusive=False),
+                fr"[1-9][0-9]{{{num_digits(left_int_part)},}}(\.[0-9]+)?"
+            ]
+        )
+    if left is None:
+        right = cast(float, right)
+        if right >= 0:
+            # (-∞, 0) ∪ [0, right}
+            return mk_or([
+                rx_float_range(None, 0, right_inclusive=False),
+                rx_float_range(0, right, left_inclusive=True, right_inclusive=right_inclusive)
+            ])
+        return "-" + rx_float_range(-right, None, left_inclusive=right_inclusive)
 
     assert left <= right
 
