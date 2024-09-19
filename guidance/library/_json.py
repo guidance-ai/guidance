@@ -40,6 +40,87 @@ def _to_compact_json(target: Any) -> str:
     # and whitespace
     return json_dumps(target, separators=(",", ":"))
 
+DRAFT202012_RESERVED_KEYWORDS = {
+    # Anchors and References
+    '$anchor',
+    '$dynamicAnchor',
+    '$dynamicRef',
+    '$id',
+    '$recursiveAnchor',
+    '$recursiveRef',
+    '$ref',
+    '$schema',
+    '$vocabulary',
+
+    # Schema Structure and Combining Schemas
+    '$defs',
+    'allOf',
+    'anyOf',
+    'definitions',
+    'dependencies',
+    'dependentRequired',
+    'dependentSchemas',
+    'else',
+    'if',
+    'not',
+    'oneOf',
+    'then',
+
+    # Validation Keywords for Any Instance Type
+    'const',
+    'enum',
+    'type',
+
+    # Validation Keywords for Numeric Instances
+    'exclusiveMaximum',
+    'exclusiveMinimum',
+    'maximum',
+    'minimum',
+    'multipleOf',
+
+    # Validation Keywords for Strings
+    'format',
+    'maxLength',
+    'minLength',
+    'pattern',
+
+    # Validation Keywords for Arrays
+    'contains',
+    'items',
+    'maxContains',
+    'maxItems',
+    'minContains',
+    'minItems',
+    'prefixItems',
+    'uniqueItems',
+
+    # Validation Keywords for Objects
+    'additionalProperties',
+    'maxProperties',
+    'minProperties',
+    'patternProperties',
+    'properties',
+    'propertyNames',
+    'required',
+    'unevaluatedItems',
+    'unevaluatedProperties',
+
+    # Metadata Keywords
+    '$comment',
+    'default',
+    'deprecated',
+    'description',
+    'examples',
+    'readOnly',
+    'title',
+    'writeOnly',
+
+    # Content Validation
+    'contentEncoding',
+    'contentMediaType',
+    'contentSchema',
+}
+
 class JSONType(str, Enum):
     NULL = "null"
     BOOLEAN = "boolean"
@@ -313,7 +394,8 @@ def _get_format_pattern(format: str) -> str:
 
 def validate_json_node_keys(node: Mapping[str, Any]):
     keys = set(node.keys())
-    invalid_keys = keys - VALID_KEYS
+    # Any key that is a valid JSON schema keyword but not one that we have explicit support for is "invalid"
+    invalid_keys = (keys - VALID_KEYS).intersection(DRAFT202012_RESERVED_KEYWORDS)
     if invalid_keys:
         raise ValueError(
             f"JSON schema had keys that could not be processed: {invalid_keys}" f"\nSchema: {node}"
@@ -396,16 +478,24 @@ def _gen_json_object(
     required: Sequence[str],
     definitions: Mapping[str, Callable[[], GrammarFunction]],
 ):
-    if any(k not in properties for k in required):
-        raise ValueError(f"Required properties not in properties: {set(required) - set(properties)}")
-
-    grammars = tuple(f'"{name}":' + _gen_json(json_schema=schema, definitions=definitions) for name, schema in properties.items())
-    required_items = tuple(name in required for name in properties)
+    # "required" keys will be validated against "properties" if they're present, otherwise against "additionalProperties".
+    # If "additionalProperties" is False, then required keys must be in "properties".
+    if any(k not in properties for k in required) and additional_properties is False:
+        raise ValueError(
+            f"Required properties not in properties but additionalProperties is False."
+            f" Missing required properties: {list(r for r in required if r not in properties)}"
+        )
+    items = [
+        # First iterate over the properties in order
+        *properties.items(),
+        # If there are any keys in required that weren't specified by properties, add them in order at the end,
+        # where we will validate against the additional_properties schema
+        *((key, additional_properties) for key in required if key not in properties),
+    ]
+    grammars = tuple(f'"{name}":' + _gen_json(json_schema=schema, definitions=definitions) for name, schema in items)
+    required_items = tuple(name in required for name, _ in items)
 
     if additional_properties is not False:
-        if additional_properties is True:
-            # True means that anything goes
-            additional_properties = {}
         additional_item_grammar =  _gen_json_string() + ':' + _gen_json(json_schema=additional_properties, definitions=definitions)
         additional_items_grammar = sequence(additional_item_grammar + ',') + additional_item_grammar
         grammars += (additional_items_grammar,)
