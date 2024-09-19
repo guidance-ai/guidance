@@ -614,6 +614,36 @@ class TestSimpleObject:
         )
 
 
+class TestObjectWithMissingRequired:
+    def test_required_is_required(self):
+        schema = {"type": "object", "properties": {"a": {"type": "integer"}}, "required": ["b"]}
+        generate_and_check({"b": 1}, schema)
+        generate_and_check({"a": 1, "b": "xyz"}, schema)
+        check_match_failure(
+            bad_string=_to_compact_json(
+                {"a": 1}
+            ),
+            schema_obj=schema,
+        )
+
+    def test_validated_against_additionalProperties(self):
+        schema = {"type": "object", "properties": {"a": {"type": "integer"}}, "required": ["b"], "additionalProperties": {"type": "integer"}}
+        generate_and_check({"b": 1}, schema)
+        generate_and_check({"a": 1, "b": 42}, schema)
+        check_match_failure(
+            bad_string=_to_compact_json(
+                {"a": 1, "b": "string"}
+            ),
+            schema_obj=schema,
+        )
+
+    def test_false_additionalProperties_fails(self):
+        schema = {"type": "object", "properties": {"a": {"type": "integer"}}, "required": ["b", "c"], "additionalProperties": False}
+        with pytest.raises(ValueError) as ve:
+            _ = gen_json(schema=schema)
+        assert ve.value.args[0] == "Required properties not in properties but additionalProperties is False. Missing required properties: ['b', 'c']"
+
+
 class TestSimpleArray:
     # These are array without references
     @pytest.mark.parametrize("target_obj", [[], [0], [34, 56], [1, 2, 3], [9, 8, 7, 6]])
