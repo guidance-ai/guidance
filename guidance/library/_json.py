@@ -346,9 +346,6 @@ def _gen_json_int(lm, minimum: Union[float, int, None] = None, maximum: Union[fl
 
 @guidance(stateless=True)
 def _gen_json_number(lm, minimum: Optional[float] = None, maximum: Optional[float] = None, exclusiveMinimum: bool = False, exclusiveMaximum: bool = False):
-    if [minimum, maximum].count(None) == 1:
-        raise NotImplementedError("Only support both minimum and maximum being specified or neither for JSON number")
-
     return lm + lexeme(
         rx_float_range(
             minimum, maximum,
