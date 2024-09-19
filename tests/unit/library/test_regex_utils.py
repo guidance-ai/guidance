@@ -85,32 +85,58 @@ def test_int_range(left: Optional[int], right: Optional[int]) -> None:
         (-17.23, -1.33),
         (-1.23, -1.221),
         (-10.2, 45293.9),
+        (None, 0),
+        (None, 1),
+        (None, 1.5),
+        (None, 1.55),
+        (None, -17.23),
+        (None, -1.33),
+        (None, -1.23),
+        (None, 103.74),
+        (None, 100),
+        (0, None),
+        (1, None),
+        (1.5, None),
+        (1.55, None),
+        (-17.23, None),
+        (-1.33, None),
+        (-1.23, None),
+        (103.74, None),
+        (100, None),
     ],
 )
 def test_float_range(
-    left: float, right: float, left_inclusive: bool, right_inclusive: bool
+    left: Optional[float], right: Optional[float], left_inclusive: bool, right_inclusive: bool
 ) -> None:
     l = "[" if left_inclusive else "("
     r = "]" if right_inclusive else ")"
     print(f"Testing range {l}{left}-{right}{r}")
 
     rx = rx_float_range(left, right, left_inclusive, right_inclusive)
+    do_test_float_range(rx, (left or 0), (right or 0), left_inclusive, right_inclusive, left is None, right is None)
+
+def do_test_float_range(rx, left: float, right: float, left_inclusive: bool = True, right_inclusive: bool = True, left_none: bool = False, right_none: bool = False):
     left_int = math.ceil(left)
     right_int = math.floor(right)
     if not left_inclusive and left_int == left:
         left_int += 1
     if not right_inclusive and right_int == right:
         right_int -= 1
-    do_test_int_range(rx, left_int, right_int)
+    do_test_int_range(rx, left_int, right_int, left_none, right_none)
     eps = 0.000001
     eps2 = 0.01
-    for x in [left, right, 0, int(left), int(right)]:
+    test_cases = [left, right, 0, int(left), int(right)]
+    if left_none:
+        test_cases.append(left - 1000)
+    if right_none:
+        test_cases.append(right + 1000)
+    for x in test_cases:
         for off in [0, -eps, eps, -eps2, eps2, 1, -1]:
             n = x + off
             ns = float_to_str(n)
             m = re.fullmatch(rx, ns) is not None
-            lcond = left < n or (left == n and left_inclusive)
-            rcond = right > n or (right == n and right_inclusive)
+            lcond = left_none or left < n or (left == n and left_inclusive)
+            rcond = right_none or right > n or (right == n and right_inclusive)
             f = lcond and rcond
             if m != f:
                 print(f"Failed float for {ns} match={m} expected={f}")
