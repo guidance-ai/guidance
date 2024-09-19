@@ -103,6 +103,7 @@ def test_int_range(left: Optional[int], right: Optional[int]) -> None:
         (-1.23, None),
         (103.74, None),
         (100, None),
+        (None, None),
     ],
 )
 def test_float_range(
