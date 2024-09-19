@@ -267,6 +267,6 @@ def rx_float_range(
         if rd:
             parts.append(f"({right_rec}(\\.{lexi_0_to_x(rd, right_inclusive)})?)")
         elif right_inclusive:
-            parts.append(f"{right_rec}")
+            parts.append(f"{right_rec}(\\.0+)?")
 
         return mk_or(parts)
