@@ -135,50 +135,6 @@ class TestInteger:
             compact=compact,
         )
 
-class TestIntegerWithRange:
-    @pytest.mark.parametrize(
-        "schema",
-        [
-            { "type": "integer", "minimum": 0, "maximum": 100 },
-            { "type": "integer", "minimum": -.9, "maximum": 100.8 },
-        ]
-    )
-    def test_nonexclusive_range(self, schema):
-        for value in range(0, 101):
-            validate(instance=value, schema=schema)
-            generate_and_check(value, schema)
-        for value in [*range(-5, 0), *range(101, 105)]:
-            with pytest.raises(ValidationError):
-                validate(instance=value, schema=schema)
-            check_match_failure(
-                bad_string=_to_compact_json(value),
-                schema_obj=schema,
-                compact=True
-            )
-
-    @pytest.mark.parametrize(
-        "schema",
-        [
-            # The following should all valiate on the integer range [1, 100]
-            { "type": "integer", "exclusiveMinimum": 0, "maximum": 100},
-            { "type": "integer", "minimum": .1, "maximum": 100.8},
-            { "type": "integer", "exclusiveMinimum": .1, "maximum": 100.8},
-            { "type": "integer", "minimum": 0, "exclusiveMinimum": .1, "maximum": 100.8},
-        ]
-    )
-    def test_left_exclusive_range(self, schema):
-        for value in range(1, 101):
-            validate(instance=value, schema=schema)
-            generate_and_check(value, schema)
-        for value in [*range(-5, 1), *range(101, 105)]:
-            with pytest.raises(ValidationError):
-                validate(instance=value, schema=schema)
-            check_match_failure(
-                bad_string=_to_compact_json(value),
-                schema_obj=schema,
-                compact=True
-            )
-
 
 class TestNumber:
     schema = """{"type": "number" }"""
@@ -237,6 +193,79 @@ class TestNumber:
             maybe_whitespace=maybe_whitespace,
             compact=compact,
         )
+
+class TestBoundedNumeric:
+    @pytest.mark.parametrize(
+        "instance, schema, should_pass",
+        [
+            # --- Integer type tests ---
+            (5, {"type": "integer", "minimum": 5}, True),
+            (5.0, {"type": "integer", "minimum": 5}, True),
+            (5.1, {"type": "integer", "minimum": 5}, False),
+            (4, {"type": "integer", "minimum": 5}, False),
+            (6, {"type": "integer", "exclusiveMinimum": 5}, True),
+            (5, {"type": "integer", "exclusiveMinimum": 5}, False),
+            (5, {"type": "integer", "maximum": 5}, True),
+            (6, {"type": "integer", "maximum": 5}, False),
+            (4, {"type": "integer", "exclusiveMaximum": 5}, True),
+            (5, {"type": "integer", "exclusiveMaximum": 5}, False),
+            (5, {"type": "integer", "minimum": 5, "maximum": 10}, True),
+            (4, {"type": "integer", "minimum": 5, "maximum": 10}, False),
+            (10, {"type": "integer", "exclusiveMinimum": 5, "exclusiveMaximum": 10}, False),
+            (5, {"type": "integer", "exclusiveMinimum": 5, "exclusiveMaximum": 10}, False),
+            (7, {"type": "integer", "exclusiveMinimum": 5, "exclusiveMaximum": 10}, True),
+            # --- Number type tests ---
+            (5, {"type": "number", "minimum": 5.0}, True),
+            (5.0, {"type": "number", "minimum": 5.0}, True),
+            (4.9, {"type": "number", "minimum": 5.0}, False),
+            (5.1, {"type": "number", "exclusiveMinimum": 5.0}, True),
+            (5, {"type": "number", "exclusiveMinimum": 5.0}, False),
+            (5.0, {"type": "number", "exclusiveMinimum": 5.0}, False),
+            (5, {"type": "number", "maximum": 5.0}, True),
+            (5.0, {"type": "number", "maximum": 5.0}, True),
+            (5.1, {"type": "number", "maximum": 5.0}, False),
+            (4.9, {"type": "number", "exclusiveMaximum": 5.0}, True),
+            (5, {"type": "number", "exclusiveMaximum": 5.0}, False),
+            (5.0, {"type": "number", "exclusiveMaximum": 5.0}, False),
+            (7.5, {"type": "number", "minimum": 5.0, "maximum": 10.0}, True),
+            (4.9, {"type": "number", "minimum": 5.0, "maximum": 10.0}, False),
+            (5.1, {"type": "number", "exclusiveMinimum": 5.0, "exclusiveMaximum": 10.0}, True),
+            (5.0, {"type": "number", "exclusiveMinimum": 5.0, "exclusiveMaximum": 10.0}, False),
+            (9.9, {"type": "number", "exclusiveMinimum": 5.0, "exclusiveMaximum": 10.0}, True),
+            # --- Edge cases ---
+            (0, {"type": "integer", "minimum": 0}, True),
+            (-1, {"type": "integer", "minimum": 0}, False),
+            (-5, {"type": "number", "maximum": 0}, True),
+            (0, {"type": "number", "maximum": 0}, True),
+            (5, {"type": "integer", "minimum": 5.5}, False),
+            (6, {"type": "integer", "minimum": 5.5}, True),
+            (5, {"type": "integer", "exclusiveMinimum": 5.5}, False),
+            (6, {"type": "integer", "exclusiveMinimum": 5.5}, True),
+            (5, {"type": "integer", "maximum": 5.5}, True),
+            (6, {"type": "integer", "maximum": 5.5}, False),
+            (5, {"type": "integer", "exclusiveMaximum": 5.5}, True),
+            (6, {"type": "integer", "exclusiveMaximum": 5.5}, False),
+            # --- Large numbers ---
+            (1e10, {"type": "number", "minimum": 1e10}, True),
+            (1e9, {"type": "number", "minimum": 1e10}, False),
+            # --- Decimal precision ---
+            (0.1, {"type": "number", "minimum": 0.1, "maximum": 0.3}, True),
+            (0.0999, {"type": "number", "minimum": 0.1, "maximum": 0.3}, False),
+            (0.3001, {"type": "number", "minimum": 0.1, "maximum": 0.3}, False),
+        ]
+    )
+    def test_numeric_validation(self, instance, schema, should_pass):
+        # Sanity check
+        if should_pass:
+            validate(instance, schema=schema)
+            generate_and_check(instance, schema)
+        else:
+            with pytest.raises(ValidationError):
+                validate(instance, schema=schema)
+            check_match_failure(
+                bad_string=_to_compact_json(instance),
+                schema_obj=schema
+            )
 
 
 class TestString:
