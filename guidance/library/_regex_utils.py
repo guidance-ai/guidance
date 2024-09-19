@@ -168,13 +168,20 @@ def rx_float_range(
         )
     if left is None:
         right = cast(float, right)
-        if right >= 0:
-            # (-∞, 0) ∪ [0, right}
+        if right == 0:
+            # {0} ∪ (-∞, 0)
+            r = "-" + rx_float_range(0, None, left_inclusive=False)
+            if right_inclusive:
+                return mk_or([r, "0"])
+            return r
+        if right > 0:
+            # (-∞, 0) ∪ [0, right)
             return mk_or([
-                rx_float_range(None, 0, right_inclusive=False),
+                "-" + rx_float_range(0, None, left_inclusive=False),
                 rx_float_range(0, right, left_inclusive=True, right_inclusive=right_inclusive)
             ])
         return "-" + rx_float_range(-right, None, left_inclusive=right_inclusive)
+
 
     assert left <= right
 
