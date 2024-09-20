@@ -30,14 +30,6 @@ from ._subgrammar import lexeme, subgrammar
 
 JSONSchema = Union[bool, Mapping[str, Any]]
 
-def _to_compact_json(target: Any) -> str:
-    # See 'Compact Encoding':
-    # https://docs.python.org/3/library/json.html
-    # Since this is ultimately about the generated
-    # output, we don't need to worry about pretty printing
-    # and whitespace
-    return json_dumps(target, separators=(",", ":"))
-
 DRAFT202012_RESERVED_KEYWORDS = {
     # Anchors and References
     '$anchor',
@@ -182,6 +174,7 @@ IGNORED_KEYS = {
 IGNORED_KEYS.add("discriminator")
 
 WHITESPACE = {b" ", b"\t", b"\n", b"\r"}
+ITEM_SEPARATOR, KEY_SEPARATOR = ", ", ": "
 VALID_KEYS = set(Keyword) | IGNORED_KEYS | DEFS_KEYS | set(StringKeywords) | set(ArrayKeywords) | set(ObjectKeywords)
 
 FORMAT_PATTERNS: dict[str, Optional[str]] = {
@@ -461,12 +454,12 @@ def _gen_json_object(
         # where we will validate against the additional_properties schema
         *((key, additional_properties) for key in required if key not in properties),
     ]
-    grammars = tuple(f'"{name}":' + _gen_json(json_schema=schema, definitions=definitions) for name, schema in items)
+    grammars = tuple(f'"{name}"{KEY_SEPARATOR}' + _gen_json(json_schema=schema, definitions=definitions) for name, schema in items)
     required_items = tuple(name in required for name, _ in items)
 
     if additional_properties is not False:
-        additional_item_grammar =  _gen_json_string() + ':' + _gen_json(json_schema=additional_properties, definitions=definitions)
-        additional_items_grammar = sequence(additional_item_grammar + ',') + additional_item_grammar
+        additional_item_grammar =  _gen_json_string() + KEY_SEPARATOR + _gen_json(json_schema=additional_properties, definitions=definitions)
+        additional_items_grammar = sequence(additional_item_grammar + ITEM_SEPARATOR) + additional_item_grammar
         grammars += (additional_items_grammar,)
         required_items += (False,)
 
@@ -486,9 +479,9 @@ def _gen_list(lm, *, elements: tuple[GrammarFunction, ...], required: tuple[bool
     if prefixed:
         if is_required:
             # If we know we have preceeding elements, we can safely just add a (',' + e)
-            return lm + (',' + elem + _gen_list(elements=elements, required=required, prefixed=True))
+            return lm + (ITEM_SEPARATOR + elem + _gen_list(elements=elements, required=required, prefixed=True))
         # If we know we have preceeding elements, we can safely just add an optional(',' + e)
-        return lm + (optional(',' + elem) + _gen_list(elements=elements, required=required, prefixed=True))
+        return lm + (optional(ITEM_SEPARATOR + elem) + _gen_list(elements=elements, required=required, prefixed=True))
     if is_required:
         # No preceding elements, and our element is required, so we just add the element
         return lm + (elem + _gen_list(elements=elements, required=required, prefixed=True))
@@ -545,7 +538,7 @@ def _gen_json_array(
     if max_items is None and item_schema is not False:
         # Add an infinite tail of items
         item = _gen_json(json_schema=item_schema, definitions=definitions)
-        optional_items.append(item + sequence("," + item))
+        optional_items.append(item + sequence(ITEM_SEPARATOR + item))
 
     lm += "["
 
@@ -553,7 +546,7 @@ def _gen_json_array(
         first, *rest = required_items
         lm += first
         for item in rest:
-            lm += "," + item
+            lm += ITEM_SEPARATOR + item
 
     if optional_items:
         # This is a bit subtle and would not be required if not for prefixItems -- the previous
@@ -562,11 +555,11 @@ def _gen_json_array(
         first, *rest = optional_items
         tail: Union[str, GrammarFunction] = ""
         for item in reversed(rest):
-            tail = optional("," + item + tail)
+            tail = optional(ITEM_SEPARATOR + item + tail)
         tail = first + tail
 
         if required_items:
-            lm += optional("," + tail)
+            lm += optional(ITEM_SEPARATOR + tail)
         else:
             lm += optional(tail)
 
@@ -590,7 +583,7 @@ def _process_enum(lm, *, options: Sequence[Mapping[str, Any]]):
     # TODO: can we support a whitespace-flexible version of this?
     all_opts = []
     for opt in options:
-        all_opts.append(_to_compact_json(opt))
+        all_opts.append(json_dumps(opt, separators=(ITEM_SEPARATOR, KEY_SEPARATOR)))
     return lm + select(options=all_opts)
 
 
@@ -659,7 +652,7 @@ def _gen_json(
 
     if Keyword.CONST in json_schema:
         # TODO: can we support a whitespace-flexible version of this?
-        return lm + _to_compact_json(json_schema[Keyword.CONST])
+        return lm + json_dumps(json_schema[Keyword.CONST], separators=(ITEM_SEPARATOR, KEY_SEPARATOR))
 
     if Keyword.ENUM in json_schema:
         return lm + _process_enum(options=json_schema[Keyword.ENUM])
