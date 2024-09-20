@@ -15,6 +15,8 @@ from typing import Any, Dict, Iterator, List, Optional, Union, TYPE_CHECKING
 
 import numpy as np
 
+from ..state import StateHandler, Nop, LiteralInput, EmbeddedInput, GuidanceInput, TextOutput
+
 try:
     from IPython.display import clear_output, display, HTML
 
@@ -65,6 +67,7 @@ class Engine:
         self.tokenizer = tokenizer
         self.compute_log_probs = compute_log_probs
         self.metrics = GuidanceEngineMetrics()
+        self._state_handler = StateHandler()
 
     def get_chat_template(self): # TODO [HN]: Add more logic here...should we instantiate class here? do we even need to?
         return self.tokenizer.chat_template() # Instantiate the class before returning to client for now
@@ -187,6 +190,10 @@ class Engine:
             + str(prompt[-40:])
         )
 
+    @property
+    def state_handler(self):
+        return self._state_handler
+
 
 class Model:
     """The base guidance model object, which represents a model in a given state.
@@ -202,8 +209,9 @@ class Model:
     open_blocks: Dict["ContextBlock", None] = {}  # track what context blocks are open
     _grammar_only = 0  # a flag that tracks when we are forced to be executing only compiled grammars (like when we are inside a select)
     _throttle_refresh = 0  # a flag that tracks when we can throttle our display since we know future display calls are going to happen
+    _id_counter = 0 # counter for model ids
 
-    def __init__(self, engine, echo=True, **kwargs):
+    def __init__(self, engine, echo=True, parent_id=None, **kwargs):
         """Build a new model object that represents a model in a given state.
 
         Note that this constructor is not meant to be used directly, since there
@@ -214,6 +222,8 @@ class Model:
             The inference engine to use for this model.
         echo : bool
             If true the final result of creating this model state will be displayed (as HTML in a notebook).
+        parent_id : int
+            Parent model's identifier.
         """
         if isinstance(engine, str) and engine.startswith("http"):
             from ._remote import RemoteEngine
@@ -237,10 +247,21 @@ class Model:
         self._variables_log_probs = {}  # these are the state variables stored with the model
         self._cache_state = {}  # mutable caching state used to save computation
         self._state = ""  # the current bytes that represent the state of the model
+        self._state_handler = engine.state_handler  # builds state for models
         self._event_queue = None  # TODO: these are for streaming results in code, but that needs implemented
         self._event_parent = None
         self._last_display = 0  # used to track the last display call to enable throttling
         self._last_event_stream = 0  # used to track the last event streaming call to enable throttling
+
+        self._id = self.__class__.gen_id()  # model id needed for tracking state
+        self._parent_id = parent_id
+        self._state_handler.add_node(self._id, self._parent_id, Nop())
+
+    @classmethod
+    def gen_id(cls):
+        _id = cls._id_counter
+        cls._id_counter += 1
+        return _id
 
     @property
     def active_role_end(self):
@@ -313,7 +334,11 @@ class Model:
 
         elif self._event_parent is not None:
             # otherwise if the current event que has an event parent then that is also our parent
-            new_lm._event_parent = self._event_parent  
+            new_lm._event_parent = self._event_parent
+
+        new_lm._state_handler = self._state_handler
+        new_lm._id = self.__class__.gen_id()
+        new_lm._parent_id = self._id
 
         return new_lm
 
@@ -454,11 +479,15 @@ class Model:
 
                 # we have no embedded objects
                 if len(parts) == 1:
+                    self._state_handler.add_node(lm._id, lm._parent_id, LiteralInput(value))
+
                     lm._inplace_append(value)
                     out = lm
-
+                    self._state_handler.add_node(out._id, out._parent_id, TextOutput(value))
                 # if we have embedded objects we have to convert the string to a grammar tree
                 else:
+                    self._state_handler.add_node(lm._id, lm._parent_id, EmbeddedInput(value))
+
                     partial_grammar = _null_grammar
                     lm.suffix = ""
                     for i, part in enumerate(parts):
@@ -475,6 +504,7 @@ class Model:
                         elif part != "":
                             partial_grammar += string(part)
                         is_id = not is_id
+
                     out = lm + partial_grammar
 
             # if we find a null value we do nothing
@@ -483,10 +513,12 @@ class Model:
 
             # run stateless functions (grammar nodes)
             elif isinstance(value, GrammarFunction):
+                self._state_handler.add_node(lm._id, lm._parent_id, GuidanceInput(value))
                 out = lm._run_stateless(value)
 
             # run stateful functions
             else:
+                self._state_handler.add_node(lm._id, lm._parent_id, GuidanceInput(value))
                 out = value(lm)
                 if out is None:
                     raise Exception(
@@ -496,9 +528,6 @@ class Model:
                     raise Exception(
                         f"A guidance function did not return a model object! Did you try to add a function to a model without calling the function? For example `model + guidance_function()` is correct, while `model + guidance_function` will cause this error."
                     )
-
-        # this flushes the display
-        out._inplace_append("")
 
         return out
 
@@ -708,10 +737,19 @@ class Model:
                 if len(chunk.new_bytes) > 0:
                     generated_value += new_text
                     if chunk.is_generated:
-                        lm += f"<||_html:<span style='background-color: rgba({165*(1-chunk.new_bytes_prob) + 0}, {165*chunk.new_bytes_prob + 0}, 0, {0.15}); border-radius: 3px;' title='{chunk.new_bytes_prob}'>_||>"
-                    lm += new_text
+                        # TODO(viz)
+                        # lm += f"<||_html:<span style='background-color: rgba({165*(1-chunk.new_bytes_prob) + 0}, {165*chunk.new_bytes_prob + 0}, 0, {0.15}); border-radius: 3px;' title='{chunk.new_bytes_prob}'>_||>"
+                        pass
+
+                    # TODO(nopdive): Remove old code on confirmation
+                    # lm += new_text
+                    lm._inplace_append(new_text)
+                    self._state_handler.add_node(lm._id, lm._parent_id, TextOutput(new_text))
+
                     if chunk.is_generated:
-                        lm += "<||_html:</span>_||>"
+                        # TODO(viz)
+                        # lm += "<||_html:</span>_||>"
+                        pass
 
                 # last_is_generated = chunk.is_generated
 

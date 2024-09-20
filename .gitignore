@@ -2,6 +2,7 @@ notebooks/local_scratch
 __pycache__/
 .vscode
 .vs
+.idea/
 /build
 /dist
 *.egg-info

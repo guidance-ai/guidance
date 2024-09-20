@@ -98,7 +98,7 @@ def test_inconsistent_indentation():
 
 # NOTE [HN]: The following two tests currently don't work, but they're fairly special/rare cases.
 # Some implementation thoughts for the future:
-# Nested f-strings: try creating a custom handler for ast.FormattedValue in the handler?
+# Nested f-strings: try creating a custom handler for state.FormattedValue in the handler?
 # closure functions: storing and rebinding vars referenced in func globals when recompiling?
 # def test_nested_fstrings():
 #     """Test nested f-strings."""
