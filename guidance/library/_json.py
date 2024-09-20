@@ -715,9 +715,9 @@ def json(
         Type["pydantic.BaseModel"],
         "pydantic.TypeAdapter",
     ] = None,
-    compact: bool = False,
     temperature: float = 0.0,
     max_tokens: int = 100000000,
+    **kwargs,
 ):
     """Generate valid JSON according to the supplied JSON schema or `pydantic` model.
 
@@ -760,11 +760,12 @@ def json(
             - A JSON schema object. This is a JSON schema string which has been passed to ``json.loads()``
             - A subclass of ``pydantic.BaseModel``
             - An instance of ``pydantic.TypeAdapter``
-
-    compact : bool
-        If True, the generated JSON will be forced to be compact (no whitespace).
-        If False, output will be whitespace-flexible (i.e. decided by the model).
     """
+    if "compact" in kwargs:
+        warnings.warn("The 'compact' argument is deprecated and has no effect. It will be removed in a future release.", category=warnings.DeprecationWarning)
+        kwargs.pop("compact")
+    if kwargs:
+        raise TypeError(f"Unexpected keyword arguments: {kwargs.keys()}")
     if schema is None:
         # Default schema is empty, "anything goes" schema
         # TODO: consider default being `{"type": "object"}`
@@ -789,10 +790,8 @@ def json(
         subgrammar(
             name,
             body=_gen_json(json_schema=schema, definitions=definitions),
-            skip_regex=(
-                None if compact
-                else r"[\x20\x0A\x0D\x09]+"
-            ),
+            # Uncomment for whitespace flexibility; in this case we need to strip whitespace from ITEM_SEPARATOR and KEY_SEPARATOR
+            # skip_regex=r"[\x20\x0A\x0D\x09]+"
             no_initial_skip=True,
             max_tokens=max_tokens,
         ),
