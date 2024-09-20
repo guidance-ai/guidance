@@ -4,11 +4,12 @@ from typing import Any, Dict, Set, Union, Optional
 
 import pytest
 from jsonschema import validate
+from json import dumps as json_dumps
 
 from guidance import json as gen_json
 from guidance import models
 
-from guidance.library._json import _to_compact_json, WHITESPACE, IGNORED_KEYS
+from guidance.library._json import WHITESPACE, IGNORED_KEYS
 
 from ...utils import check_match_failure as _check_match_failure
 from ...utils import check_run_with_temperature
@@ -20,7 +21,7 @@ def generate_and_check(
 ):
     # Sanity check what we're being asked
     validate(instance=target_obj, schema=schema_obj)
-    prepared_json = _to_compact_json(target_obj)
+    prepared_json = json_dumps(target_obj)
     assert json.loads(prepared_json) == target_obj
 
     # Now test that the grammar can recognize and generate prepared_json
@@ -51,8 +52,6 @@ def check_match_failure(
 ):
     if (allowed_bytes is not None) and (maybe_whitespace is None):
         raise ValueError("If allowed_bytes is provided, maybe_whitespace must also be provided")
-    if allowed_bytes is not None and maybe_whitespace and not compact:
-        allowed_bytes = allowed_bytes.union(WHITESPACE)
 
     grammar = gen_json(schema=schema_obj, compact=compact)
 
@@ -120,7 +119,7 @@ class TestInteger:
             ("a321", b"", b"a", INTEGER_LEADING, False),
             ("123789.456", b"123789", b".", INTEGER_FOLLOWING, True),
             ("[]", b"", b"[", INTEGER_LEADING, False),
-            ('{"a":4}', b"", b"{", INTEGER_LEADING, False),
+            ('{"a": 4}', b"", b"{", INTEGER_LEADING, False),
         ],
     )
     def test_bad_integer(self, bad_string, good_bytes, failure_byte, allowed_bytes, maybe_whitespace, compact):
@@ -179,7 +178,7 @@ class TestNumber:
             ("123.6, []", b"123.6", b",", {b"e", b"E", *INTEGER_FOLLOWING}, True),
             ("a321", b"", b"a", INTEGER_LEADING, False),
             ("[]", b"", b"[", INTEGER_LEADING, False),
-            ('{"a":4}', b"", b"{", INTEGER_LEADING, False),
+            ('{"a": 4}', b"", b"{", INTEGER_LEADING, False),
         ],
     )
     def test_bad_number(self, bad_string, good_bytes, failure_byte, allowed_bytes, maybe_whitespace, compact):
@@ -588,8 +587,8 @@ class TestSimpleObject:
         ["bad_string", "good_bytes", "failure_byte", "allowed_bytes", "maybe_whitespace"],
         [
             ("9999a7777", b"", b"9", {b"{"}, False),
-            ('{"a":1255.4567}', b'{"a":1255', b".", {b"}", *INTEGER_FOLLOWING}, True),
-            ('{"a":"123"}', b'{"a":', b'"', INTEGER_LEADING, True),
+            ('{"a": 1255.4567}', b'{"a": 1255', b".", {b"}", *INTEGER_FOLLOWING}, True),
+            ('{"a": "123"}', b'{"a": ', b'"', INTEGER_LEADING, True),
         ],
     )
     def test_bad_object(self, bad_string, good_bytes, failure_byte, allowed_bytes, maybe_whitespace, compact):
@@ -620,7 +619,7 @@ class TestObjectWithMissingRequired:
         generate_and_check({"b": 1}, schema)
         generate_and_check({"a": 1, "b": "xyz"}, schema)
         check_match_failure(
-            bad_string=_to_compact_json(
+            bad_string=json_dumps(
                 {"a": 1}
             ),
             schema_obj=schema,
@@ -631,7 +630,7 @@ class TestObjectWithMissingRequired:
         generate_and_check({"b": 1}, schema)
         generate_and_check({"a": 1, "b": 42}, schema)
         check_match_failure(
-            bad_string=_to_compact_json(
+            bad_string=json_dumps(
                 {"a": 1, "b": "string"}
             ),
             schema_obj=schema,
@@ -831,7 +830,7 @@ class TestArrayWithLengthConstraints:
                 1,
                 4,
                 [42, "string_not_bool", "hello", "extra"],
-                b"[42,",
+                b"[42, ",
                 b'"',
                 {b"t", b"f"},
                 True,
@@ -840,7 +839,7 @@ class TestArrayWithLengthConstraints:
                 0,
                 3,
                 [42, True, 100],
-                b"[42,true,",
+                b"[42, true, ",
                 b"1",
                 {b'"'},
                 True,
@@ -849,7 +848,7 @@ class TestArrayWithLengthConstraints:
                 3,
                 5,
                 [42, True, "valid", "extra1", "extra2", "too_many"],
-                b'[42,true,"valid","extra1","extra2"',
+                b'[42, true, "valid", "extra1", "extra2"',
                 b",",
                 {b"]"},
                 True,
@@ -885,7 +884,7 @@ class TestArrayWithLengthConstraints:
                 3,
                 5,
                 [42, True],
-                b"[42,true",
+                b"[42, true",
                 b"]",
                 {b","},
                 True,
@@ -902,7 +901,7 @@ class TestArrayWithLengthConstraints:
             "maxItems": max_items,
             "type": "array",
         }
-        bad_string = _to_compact_json(bad_obj)
+        bad_string = json_dumps(bad_obj)
         check_match_failure(
             bad_string=bad_string,
             good_bytes=good_bytes,
@@ -932,7 +931,7 @@ class TestArrayWithLengthConstraints:
                 1,
                 2,
                 [42, "not_bool"],
-                b"[42,",
+                b"[42, ",
                 b'"',
                 {b"t", b"f"},
                 True,
@@ -950,7 +949,7 @@ class TestArrayWithLengthConstraints:
                 1,
                 5,
                 [42, True, "extra"],
-                b"[42,true",
+                b"[42, true",
                 b",",
                 {b"]"},
                 True,
@@ -976,7 +975,7 @@ class TestArrayWithLengthConstraints:
             "maxItems": max_items,
             "type": "array",
         }
-        bad_string = _to_compact_json(bad_obj)
+        bad_string = json_dumps(bad_obj)
         check_match_failure(
             bad_string=bad_string,
             good_bytes=good_bytes,
@@ -997,7 +996,7 @@ class TestArrayWithLengthConstraints:
                 1,
                 2,
                 ["hello", "world", "extra"],
-                b'["hello","world"',
+                b'["hello", "world"',
                 b",",
                 {b"]"},
                 True,
@@ -1015,7 +1014,7 @@ class TestArrayWithLengthConstraints:
                 2,
                 3,
                 ["hello", 42],
-                b'["hello",',
+                b'["hello", ',
                 b"4",
                 {b'"'},
                 True,
@@ -1040,7 +1039,7 @@ class TestArrayWithLengthConstraints:
             "maxItems": max_items,
             "type": "array",
         }
-        bad_string = _to_compact_json(bad_obj)
+        bad_string = json_dumps(bad_obj)
         check_match_failure(
             bad_string=bad_string,
             good_bytes=good_bytes,
@@ -1393,7 +1392,7 @@ class TestAllOf:
         TARGET_VALUE = 20
         validate(instance=TARGET_VALUE, schema=schema_obj)
 
-        prepared_string = f"<s>{_to_compact_json(TARGET_VALUE)}"
+        prepared_string = f"<s>{json_dumps(TARGET_VALUE)}"
         lm = models.Mock(prepared_string.encode())
 
         # Run with the mock model
@@ -1467,7 +1466,7 @@ class TestEnum:
     )
     def test_bad_enum(self, bad_obj, good_bytes, failure_byte, allowed_bytes, maybe_whitespace, compact):
         schema_obj = json.loads(self.simple_schema)
-        bad_string = _to_compact_json(bad_obj)
+        bad_string = json_dumps(bad_obj)
         check_match_failure(
             bad_string=bad_string,
             good_bytes=good_bytes,
@@ -1491,7 +1490,7 @@ class TestEnum:
     )
     def test_bad_prefix_enum(self, bad_obj, good_bytes, failure_byte, allowed_bytes, maybe_whitespace, compact):
         schema_obj = json.loads(self.prefix_schema)
-        bad_string = _to_compact_json(bad_obj)
+        bad_string = json_dumps(bad_obj)
         check_match_failure(
             bad_string=bad_string,
             good_bytes=good_bytes,
@@ -1551,7 +1550,7 @@ class TestConst:
 
     def test_constant_precedence(self):
         schema_obj = {"type": "integer", "const": 1}
-        bad_string = _to_compact_json(2)
+        bad_string = json_dumps(2)
 
         check_match_failure(
             bad_string=bad_string,
@@ -1613,10 +1612,10 @@ class TestAdditionalProperties:
     @pytest.mark.parametrize(
         "bad_obj, good_bytes, failure_byte, allowed_bytes, maybe_whitespace",
         [
-            ({"a": "1"}, b'{"a":', b'"', INTEGER_LEADING, True),
+            ({"a": "1"}, b'{"a": ', b'"', INTEGER_LEADING, True),
             (
                 {"a": 1, "b": 1.5},
-                b'{"a":1,"b":1',
+                b'{"a": 1, "b": 1',
                 b".",
                 {b",", b"}", *INTEGER_FOLLOWING},
                 True,
@@ -1625,7 +1624,7 @@ class TestAdditionalProperties:
     )
     def test_simple_bad_type(self, bad_obj, good_bytes, failure_byte, allowed_bytes, maybe_whitespace, compact):
         schema_obj = json.loads(self.simple_schema)
-        bad_string = _to_compact_json(bad_obj)
+        bad_string = json_dumps(bad_obj)
         check_match_failure(
             bad_string=bad_string,
             good_bytes=good_bytes,
@@ -1653,11 +1652,11 @@ class TestAdditionalProperties:
     @pytest.mark.parametrize(
         "bad_obj, good_bytes, failure_byte, allowed_bytes, maybe_whitespace",
         [
-            ({"a": 1.5}, b'{"a":1', b".", {b",", b"}", *INTEGER_FOLLOWING}, True),
-            ({"a": True}, b'{"a":', b"t", {b'"', *INTEGER_LEADING}, True),
+            ({"a": 1.5}, b'{"a": 1', b".", {b",", b"}", *INTEGER_FOLLOWING}, True),
+            ({"a": True}, b'{"a": ', b"t", {b'"', *INTEGER_LEADING}, True),
             (
                 {"a": 1, "b": False},
-                b'{"a":1,"b":',
+                b'{"a": 1, "b": ',
                 b"f",
                 {b'"', *INTEGER_LEADING},
                 True,
@@ -1666,7 +1665,7 @@ class TestAdditionalProperties:
     )
     def test_anyOf_bad_type(self, bad_obj, good_bytes, failure_byte, allowed_bytes, maybe_whitespace, compact):
         schema_obj = json.loads(self.anyOf_schema)
-        bad_string = _to_compact_json(bad_obj)
+        bad_string = json_dumps(bad_obj)
         check_match_failure(
             bad_string=bad_string,
             good_bytes=good_bytes,
@@ -1709,7 +1708,7 @@ class TestAdditionalProperties:
         self, bad_obj, good_bytes, failure_byte, allowed_bytes, maybe_whitespace, compact
     ):
         schema_obj = json.loads(self.combined_schema)
-        bad_string = _to_compact_json(bad_obj)
+        bad_string = json_dumps(bad_obj)
         check_match_failure(
             bad_string=bad_string,
             good_bytes=good_bytes,
@@ -1726,11 +1725,11 @@ class TestAdditionalProperties:
     @pytest.mark.parametrize(
         "bad_obj, good_bytes, failure_byte, allowed_bytes, maybe_whitespace",
         [
-            ({"mystr": 1}, b'{"mystr":', b"1", {b'"'}, True),
-            ({"mystr": 1, "a": 2}, b'{"mystr":', b"1", {b'"'}, True),
+            ({"mystr": 1}, b'{"mystr": ', b"1", {b'"'}, True),
+            ({"mystr": 1, "a": 2}, b'{"mystr": ', b"1", {b'"'}, True),
             (
                 {"mystr": "hello", "a": False},
-                b'{"mystr":"hello","a":',
+                b'{"mystr": "hello", "a": ',
                 b"f",
                 INTEGER_LEADING,
                 True,
@@ -1739,7 +1738,7 @@ class TestAdditionalProperties:
     )
     def test_combined_bad_type(self, bad_obj, good_bytes, failure_byte, allowed_bytes, maybe_whitespace, compact):
         schema_obj = json.loads(self.combined_schema)
-        bad_string = _to_compact_json(bad_obj)
+        bad_string = json_dumps(bad_obj)
         check_match_failure(
             bad_string=bad_string,
             good_bytes=good_bytes,
@@ -1853,8 +1852,8 @@ class TestEmptySchemas:
             # {} is not carte blanche for malformed JSON
             ("{a:1}", b"{", b"a", {b'"', b"}"}, True),
             (
-                "[1,2} ",
-                b"[1,2",
+                "[1, 2} ",
+                b"[1, 2",
                 b"}",
                 {b",", b"]", b"e", b"E", b".", *INTEGER_FOLLOWING},
                 True,
@@ -1944,7 +1943,7 @@ class TestEmptySchemas:
     def test_nested_empty_schema_bad(
         self, schema_obj, bad_obj, good_bytes, failure_byte, allowed_bytes, maybe_whitespace, compact
     ):
-        bad_string = _to_compact_json(bad_obj)
+        bad_string = json_dumps(bad_obj)
         check_match_failure(
             bad_string=bad_string,
             good_bytes=good_bytes,
@@ -1993,7 +1992,7 @@ class TestEmptySchemas:
     ):
         schema_obj = json.loads(self.nested_empty_schema_with_props)
 
-        bad_string = _to_compact_json(bad_obj)
+        bad_string = json_dumps(bad_obj)
         check_match_failure(
             bad_string=bad_string,
             good_bytes=good_bytes,
@@ -2125,7 +2124,7 @@ class TestRequiredProperties:
     def test_all_required_bad(self, bad_obj):
         schema_obj = {**self.schema_obj, "required": self.ALL_REQUIRED}
         check_match_failure(
-            bad_string=_to_compact_json(bad_obj),
+            bad_string=json_dumps(bad_obj),
             schema_obj=schema_obj,
             compact=True
         )
@@ -2163,7 +2162,7 @@ class TestRequiredProperties:
             if not set(required).issubset(subset):
                 bad_obj = {key: base_obj[key] for key in subset}
                 check_match_failure(
-                    bad_string=_to_compact_json(bad_obj),
+                    bad_string=json_dumps(bad_obj),
                     schema_obj=schema_obj,
                     compact=True
                 )
