@@ -26,7 +26,11 @@ def guidance(
     if dedent is True or dedent == "python":
         f = strip_multiline_string_indents(f)
 
-    return _decorator(f, stateless=stateless, cache=cache, model=model)
+    # we cache if requested
+    if cache:
+        f = functools.cache(f)
+
+    return _decorator(f, stateless=stateless, model=model)
 
 def guidance_method(
     f = None,
@@ -39,14 +43,18 @@ def guidance_method(
     # if we are not yet being used as a decorator, then save the args
     if f is None:
         return functools.partial(
-            GuidanceMethod, stateless=stateless, cache=cache, model=model
+            GuidanceMethod, stateless=stateless, model=model
         )
 
     # this strips out indentation in multiline strings that aligns with the current python indentation
     if dedent is True or dedent == "python":
         f = strip_multiline_string_indents(f)
 
-    return GuidanceMethod(f, stateless=stateless, cache=cache, model=model)
+    # we cache if requested
+    if cache:
+        f = functools.cache(f)
+
+    return GuidanceMethod(f, stateless=stateless, model=model)
 
 class GuidanceMethod:
     def __init__(
@@ -54,12 +62,10 @@ class GuidanceMethod:
         f,
         *,
         stateless = False,
-        cache = False,
         model = Model,
     ):
         self.f = f
         self.stateless = stateless
-        self.cache = cache
         self.model = model
         self._owner = None
 
@@ -78,7 +84,6 @@ class GuidanceMethod:
             # in order to handle the `self` argument properly
             self.f.__get__(instance, owner),
             stateless=self.stateless,
-            cache=self.cache,
             model=self.model,
         )
 
@@ -86,11 +91,7 @@ class GuidanceMethod:
 _null_grammar = string("")
 
 
-def _decorator(f, *, stateless, cache, model):
-    # we cache if requested
-    if cache:
-        f = functools.cache(f)
-
+def _decorator(f, *, stateless, model):
     @functools.wraps(f)
     def wrapped(*args, **kwargs):
 
