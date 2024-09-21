@@ -19,10 +19,14 @@ def guidance(
 
     if f is None:
         return functools.partial(
-            _decorator, stateless=stateless, cache=cache, dedent=dedent, model=model
+            _decorator, stateless=stateless, cache=cache, model=model
         )
 
-    return _decorator(f, stateless=stateless, cache=cache, dedent=dedent, model=model)
+    # this strips out indentation in multiline strings that aligns with the current python indentation
+    if dedent is True or dedent == "python":
+        f = strip_multiline_string_indents(f)
+
+    return _decorator(f, stateless=stateless, cache=cache, model=model)
 
 def guidance_method(
     f = None,
@@ -35,9 +39,14 @@ def guidance_method(
     # if we are not yet being used as a decorator, then save the args
     if f is None:
         return functools.partial(
-            GuidanceMethod, stateless=stateless, cache=cache, dedent=dedent, model=model
+            GuidanceMethod, stateless=stateless, cache=cache, model=model
         )
-    return GuidanceMethod(f, stateless=stateless, cache=cache, dedent=dedent, model=model)
+
+    # this strips out indentation in multiline strings that aligns with the current python indentation
+    if dedent is True or dedent == "python":
+        f = strip_multiline_string_indents(f)
+
+    return GuidanceMethod(f, stateless=stateless, cache=cache, model=model)
 
 class GuidanceMethod:
     def __init__(
@@ -46,7 +55,6 @@ class GuidanceMethod:
         *,
         stateless = False,
         cache = False,
-        dedent = True,
         model = Model,
     ):
         self.f = f
@@ -71,8 +79,6 @@ class GuidanceMethod:
             self.f.__get__(instance, owner),
             stateless=self.stateless,
             cache=self.cache,
-            # Source code rewriting does scary things
-            dedent=False,
             model=self.model,
         )
 
@@ -80,11 +86,7 @@ class GuidanceMethod:
 _null_grammar = string("")
 
 
-def _decorator(f, *, stateless, cache, dedent, model):
-    # this strips out indentation in multiline strings that aligns with the current python indentation
-    if dedent is True or dedent == "python":
-        f = strip_multiline_string_indents(f)
-
+def _decorator(f, *, stateless, cache, model):
     # we cache if requested
     if cache:
         f = functools.cache(f)
