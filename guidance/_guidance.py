@@ -17,6 +17,58 @@ def guidance(
     """Decorator used to define guidance grammars"""
     return _decorator(f, stateless=stateless, cache=cache, dedent=dedent, model=model)
 
+def guidance_method(
+    f = None,
+    *,
+    stateless = False,
+    cache = False,
+    dedent = True,
+    model = Model,
+):
+    # if we are not yet being used as a decorator, then save the args
+    if f is None:
+        return functools.partial(
+            GuidanceMethod, stateless=stateless, cache=cache, dedent=dedent, model=model
+        )
+    return GuidanceMethod(f, stateless=stateless, cache=cache, dedent=dedent, model=model)
+
+class GuidanceMethod:
+    def __init__(
+        self,
+        f,
+        *,
+        stateless = False,
+        cache = False,
+        dedent = True,
+        model = Model,
+    ):
+        self.f = f
+        self.stateless = stateless
+        self.cache = cache
+        self.model = model
+        self._owner = None
+
+    def __call__(self, *args, **kwargs):
+        if self._owner is None:
+            raise TypeError(f"GuidanceMethod must decorate a method, not a function. Got: {self.f!r}")
+        raise TypeError(f"GuidanceMethod must be bound to an instance. Did you mean to instantiate a {self._owner.__name__!r} object?")
+
+    def __get__(self, instance, owner=None, /):
+        if instance is None:
+            self._owner = owner
+            return self
+
+        return _decorator(
+            # Bind the function to the instance before passing it to the decorator
+            # in order to handle the `self` argument properly
+            self.f.__get__(instance, owner),
+            stateless=self.stateless,
+            cache=self.cache,
+            # Source code rewriting does scary things
+            dedent=False,
+            model=self.model,
+        )
+
 
 _null_grammar = string("")
 
