@@ -230,7 +230,7 @@ class TestGuidanceMethodCache:
             str(lm + grammar1)
             == "You are a helpful AI. Do what the user asks:\nComputer, tell me a joke.\nThank you."
         )
-        # Note that the delimiter is still the same as the first call since the hash didn't change
+        # Note that the delimiter actually changes because the instance changed and we're not calling the cached method
         assert (
             str(lm + grammar2)
             == "You are a helpful AI. Do what the user asks:\tComputer, tell me a joke.\tThank you."
