@@ -113,6 +113,10 @@ def strip_multiline_string_indents(f):
         closure=f.__closure__,
     )
     new_f.__kwdefaults__ = f.__kwdefaults__
+    new_f.__qualname__ = f.__qualname__
+    new_f.__annotations__ = f.__annotations__
+    new_f.__doc__ = f.__doc__
+    new_f.__module__ = f.__module__
     return new_f
 
 class CaptureEvents:
