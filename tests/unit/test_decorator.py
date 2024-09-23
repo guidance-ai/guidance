@@ -342,3 +342,19 @@ class TestGuidanceMethodDedent:
         lm = guidance.models.Mock()
         result = lm + grammar
         assert str(result) == '{\n"name": "harsha",\n  "age": "314",\n"weapon": "sword"\n}'
+
+class TestGuidanceRecursion:
+    class MyClass:
+        @guidance(stateless=True, dedent=False)
+        def recursive(self, lm):
+            return lm + guidance.select(["a", self.recursive()])
+
+    def test_method_recursion(self):
+        assert self.MyClass().recursive() is not None
+
+    def test_function_recursion(self):
+        @guidance(stateless=True, dedent=False)
+        def recursive(lm):
+            return lm + guidance.select(["a", recursive()])
+
+        assert recursive() is not None
