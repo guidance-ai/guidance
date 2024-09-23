@@ -154,7 +154,7 @@ class TestGuidanceMethod:
         def __init__(self, x):
             self.x = x
         
-        @guidance.guidance_method(stateless=True, cache=True, dedent=False)
+        @guidance(stateless=True, cache=True, dedent=False)
         def method(self, lm):
             lm += str(self.x)
             return lm
@@ -163,7 +163,7 @@ class TestGuidanceMethod:
         def __init__(self, x):
             self.x = x
         
-        @guidance.guidance_method(stateless=True, cache=True, dedent=False)
+        @guidance(stateless=True, cache=True, dedent=False)
         def method(self, lm):
             lm += str(self.x)
             return lm

@@ -30,33 +30,10 @@ def guidance(
     if cache:
         f = functools.cache(f)
 
-    return _decorator(f, stateless=stateless, model=model)
+    return GuidanceDecorator(f, stateless=stateless, model=model)
 
-def guidance_method(
-    f = None,
-    *,
-    stateless = False,
-    cache = False,
-    dedent = True,
-    model = Model,
-):
-    # if we are not yet being used as a decorator, then save the args
-    if f is None:
-        return functools.partial(
-            guidance_method, stateless=stateless, cache=cache, dedent=dedent, model=model,
-        )
 
-    # this strips out indentation in multiline strings that aligns with the current python indentation
-    if dedent is True or dedent == "python":
-        f = strip_multiline_string_indents(f)
-
-    # we cache if requested
-    if cache:
-        f = functools.cache(f)
-
-    return GuidanceMethod(f, stateless=stateless, model=model)
-
-class GuidanceMethod:
+class GuidanceDecorator:
     def __init__(
         self,
         f,
@@ -71,7 +48,9 @@ class GuidanceMethod:
 
     def __call__(self, *args, **kwargs):
         if self._owner is None:
-            raise TypeError(f"GuidanceMethod must decorate a method, not a function. Got: {self.f!r}")
+            # Function case
+            decorated = _decorator(self.f, stateless=self.stateless, model=self.model)
+            return decorated(*args, **kwargs)
         raise TypeError(f"GuidanceMethod must be bound to an instance. Did you mean to instantiate a {self._owner.__name__!r} object?")
 
     def __get__(self, instance, owner=None, /):
