@@ -2091,12 +2091,12 @@ class TestRequiredPropertiesScaling:
             },
             "required": [] # Empty should be worst-case scenario
         }
-        from guidance.library._json import _gen_list
-        _gen_list.__wrapped__.cache_clear()
+        from guidance.library._json import GenJson
+        GenJson._join.__wrapped__.cache_clear()
         _ = gen_json(
             schema=schema_obj,
         )
-        cache_info = _gen_list.__wrapped__.cache_info()
+        cache_info = GenJson._join.__wrapped__.cache_info()
 
         # Theoretical number of cache misses under the current implementation
         expected_misses = 2*num_properties - 1
@@ -2121,12 +2121,12 @@ class TestRequiredPropertiesScaling:
             },
             "required": [f"prop_{i}" for i in range(num_properties)]
         }
-        from guidance.library._json import _gen_list
-        _gen_list.__wrapped__.cache_clear()
+        from guidance.library._json import GenJson
+        GenJson._join.__wrapped__.cache_clear()
         _ = gen_json(
             schema=schema_obj,
         )
-        cache_info = _gen_list.__wrapped__.cache_info()
+        cache_info = GenJson._join.__wrapped__.cache_info()
 
         # Theoretical number of cache misses under the current implementation
         expected_misses = num_properties
