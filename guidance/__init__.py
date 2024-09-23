@@ -4,7 +4,7 @@ import sys
 import types
 
 from . import models
-from ._guidance import guidance
+from ._guidance import guidance, guidance_method
 
 from ._grammar import (
     RawFunction,
