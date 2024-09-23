@@ -147,3 +147,46 @@ def test_exception_on_repeat_calls():
         # improper handling may not raise and may instead return
         # a Placeholder grammar node
         raises()
+
+
+class TestGuidanceMethod:
+    class MyClassWithoutHash:
+        def __init__(self, x):
+            self.x = x
+        
+        @guidance.guidance_method(stateless=True, cache=True, dedent=False)
+        def method(self, lm):
+            lm += str(self.x)
+            return lm
+
+    class MyClassWithHash:
+        def __init__(self, x):
+            self.x = x
+        
+        @guidance.guidance_method(stateless=True, cache=True, dedent=False)
+        def method(self, lm):
+            lm += str(self.x)
+            return lm
+        
+        def __hash__(self):
+            return hash(self.x)
+
+    def test_guidance_method_caches(self):
+        obj1 = self.MyClassWithoutHash(1)
+
+        lm = guidance.models.Mock()
+        result = lm + obj1.method()
+        assert str(result) == "1"
+        obj1.x = 2
+        result = lm + obj1.method()
+        assert str(result) == "1"
+
+    def test_guidance_method_caches_with_hash(self):
+        obj1 = self.MyClassWithHash(1)
+
+        lm = guidance.models.Mock()
+        result = lm + obj1.method()
+        assert str(result) == "1"
+        obj1.x = 2
+        result = lm + obj1.method()
+        assert str(result) == "2"
