@@ -391,17 +391,31 @@ class GenJson:
         self.schema = schema
         if separators is not None:
             self.item_separator, self.key_separator = separators
+        if isinstance(schema, Mapping):
+            self.definitions = self._build_definitions(self.schema.get("$defs", self.schema.get("definitions", {})))
+        else:
+            self.definitions = {}
+
+    def _build_definitions(
+        self,
+        raw_definitions: Mapping[str, JSONSchema],
+    ) -> Mapping[str, Callable[[], GrammarFunction]]:
+        definitions: Dict[str, Callable[[], GrammarFunction]] = {}
+
+        def build_definition(json_schema: JSONSchema) -> Callable[[], GrammarFunction]:
+            @guidance(stateless=True, dedent=False, cache=True)
+            def closure(lm):
+                return lm + self.json(json_schema=json_schema, definitions=definitions)
+
+            return closure
+
+        definitions = {ref: build_definition(schema) for ref, schema in raw_definitions.items()}
+        return definitions
 
 
     @guidance(stateless=True)
     def root(self, lm):
-        definitions: Mapping[str, Callable[[], GrammarFunction]] = {}
-        if isinstance(self.schema, Mapping):
-            for dk in DEFS_KEYS:
-                if dk in self.schema:
-                    assert len(definitions) == 0, "Found duplicate definitions"
-                    definitions = self._build_definitions(self.schema[dk])
-        return lm + self.json(json_schema=self.schema, definitions={})
+        return lm + self.json(json_schema=self.schema)
 
 
     @classmethod
@@ -463,7 +477,6 @@ class GenJson:
         properties: Mapping[str, JSONSchema],
         additional_properties: JSONSchema,
         required: Sequence[str],
-        definitions: Mapping[str, Callable[[], GrammarFunction]],
     ):
         # "required" keys will be validated against "properties" if they're present, otherwise against "additionalProperties".
         # If "additionalProperties" is False, then required keys must be in "properties".
@@ -479,11 +492,11 @@ class GenJson:
             # where we will validate against the additional_properties schema
             *((key, additional_properties) for key in required if key not in properties),
         ]
-        grammars = tuple(f'"{name}"{self.key_separator}' + self.json(json_schema=schema, definitions=definitions) for name, schema in items)
+        grammars = tuple(f'"{name}"{self.key_separator}' + self.json(json_schema=schema) for name, schema in items)
         required_items = tuple(name in required for name, _ in items)
 
         if additional_properties is not False:
-            additional_item_grammar =  self.string() + self.key_separator + self.json(json_schema=additional_properties, definitions=definitions)
+            additional_item_grammar =  self.string() + self.key_separator + self.json(json_schema=additional_properties)
             additional_items_grammar = sequence(additional_item_grammar + self.item_separator) + additional_item_grammar
             grammars += (additional_items_grammar,)
             required_items += (False,)
@@ -530,7 +543,6 @@ class GenJson:
         item_schema: JSONSchema,
         min_items: int,
         max_items: Optional[int],
-        definitions: Mapping[str, Callable[[], GrammarFunction]],
     ):
         if len(prefix_items_schema) < min_items and item_schema is False:
             raise ValueError(
@@ -555,7 +567,7 @@ class GenJson:
                 assert i >= min_items
                 break
 
-            item = self.json(json_schema=schema, definitions=definitions)
+            item = self.json(json_schema=schema)
 
             if i < min_items:
                 required_items.append(item)
@@ -564,7 +576,7 @@ class GenJson:
 
         if max_items is None and item_schema is not False:
             # Add an infinite tail of items
-            item = self.json(json_schema=item_schema, definitions=definitions)
+            item = self.json(json_schema=item_schema)
             optional_items.append(item + sequence(self.item_separator + item))
 
         lm += "["
@@ -600,9 +612,8 @@ class GenJson:
         lm,
         *,
         anyof_list: Sequence[JSONSchema],
-        definitions: Mapping[str, Callable[[], GrammarFunction]],
     ):
-        options = [self.json(json_schema=item, definitions=definitions) for item in anyof_list]
+        options = [self.json(json_schema=item) for item in anyof_list]
         return lm + select(options)
 
 
@@ -626,62 +637,41 @@ class GenJson:
     def any(self, lm):
         return lm + select(
             [
-                self.json(json_schema={"type": "null"}, definitions={}),
-                self.json(json_schema={"type": "boolean"}, definitions={}),
-                self.json(json_schema={"type": "integer"}, definitions={}),
-                self.json(json_schema={"type": "number"}, definitions={}),
-                self.json(json_schema={"type": "string"}, definitions={}),
+                self.json(json_schema={"type": "null"}),
+                self.json(json_schema={"type": "boolean"}),
+                self.json(json_schema={"type": "integer"}),
+                self.json(json_schema={"type": "number"}),
+                self.json(json_schema={"type": "string"}),
                 # Recursive cases
                 self.json(
                     json_schema={
                         "type": "array",
                         "items": True,
                     },
-                    definitions={},
                 ),
                 self.json(
                     json_schema={
                         "type": "object",
                         "additionalProperties": True,
                     },
-                    definitions={},
                 ),
             ]
         )
 
 
-    def _build_definitions(
-        self,
-        raw_definitions: Mapping[str, JSONSchema],
-    ) -> Mapping[str, Callable[[], GrammarFunction]]:
-        definitions: Dict[str, Callable[[], GrammarFunction]] = {}
-
-        def build_definition(json_schema: JSONSchema) -> Callable[[], GrammarFunction]:
-            @guidance(stateless=True, dedent=False, cache=True)
-            def closure(lm):
-                return lm + self.json(json_schema=json_schema, definitions=definitions)
-
-            return closure
-
-        definitions = {ref: build_definition(schema) for ref, schema in raw_definitions.items()}
-        return definitions
-
-
-    @guidance(stateless=True)
+    @guidance(stateless=True, cache=True)
     def ref(
         self,
         lm,
         *,
         reference: str,
-        definitions: Mapping[str, Callable[[], GrammarFunction]],
     ):
-        assert definitions is not None
         target_definition = None
         for dk in DEFS_KEYS:
             ref_start = f"#/{dk}/"
             if reference.startswith(ref_start):
                 target_name = reference[len(ref_start) :]
-                target_definition = definitions[target_name]
+                target_definition = self.definitions[target_name]
 
         assert target_definition is not None
         return lm + target_definition()
@@ -693,7 +683,6 @@ class GenJson:
         lm,
         *,
         json_schema: JSONSchema,
-        definitions: Mapping[str, Callable[[], GrammarFunction]],
     ):
         if json_schema is True:
             json_schema = {}
@@ -706,23 +695,23 @@ class GenJson:
         validate_json_node_keys(json_schema)
 
         if Keyword.ANYOF in json_schema:
-            return lm + self.anyOf(anyof_list=json_schema[Keyword.ANYOF], definitions=definitions)
+            return lm + self.anyOf(anyof_list=json_schema[Keyword.ANYOF])
 
         if Keyword.ALLOF in json_schema:
             allof_list = json_schema[Keyword.ALLOF]
             if len(allof_list) != 1:
                 raise ValueError("Only support allOf with exactly one item")
-            return lm + self.json(allof_list[0], definitions)
+            return lm + self.json(allof_list[0])
 
         if Keyword.ONEOF in json_schema:
             oneof_list = json_schema[Keyword.ONEOF]
             if len(oneof_list) == 1:
-                return lm + self.json(oneof_list[0], definitions)
+                return lm + self.json(oneof_list[0])
             warnings.warn("oneOf not fully supported, falling back to anyOf. This may cause validation errors in some cases.")
-            return lm + self.anyOf(anyof_list=oneof_list, definitions=definitions)
+            return lm + self.anyOf(anyof_list=oneof_list)
 
         if Keyword.REF in json_schema:
-            return lm + self.ref(reference=json_schema[Keyword.REF], definitions=definitions)
+            return lm + self.ref(reference=json_schema[Keyword.REF])
 
         if Keyword.CONST in json_schema:
             # TODO: can we support a whitespace-flexible version of this?
@@ -762,14 +751,12 @@ class GenJson:
                     item_schema=json_schema.get(ArrayKeywords.ITEMS, True),
                     min_items=json_schema.get(ArrayKeywords.MIN_ITEMS, 0),
                     max_items=json_schema.get(ArrayKeywords.MAX_ITEMS, None),
-                    definitions=definitions,
                 )
             elif target_type == JSONType.OBJECT:
                 option = self.object(
                     properties=json_schema.get(ObjectKeywords.PROPERTIES, {}),
                     additional_properties=json_schema.get(ObjectKeywords.ADDITIONAL_PROPERTIES, True),
                     required=json_schema.get(ObjectKeywords.REQUIRED, set()),
-                    definitions=definitions,
                 )
             else:
                 raise ValueError(f"Unsupported type in schema: {target_type}")
