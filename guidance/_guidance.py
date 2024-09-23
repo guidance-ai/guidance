@@ -41,6 +41,8 @@ class GuidanceFunction:
         stateless = False,
         model = Model,
     ):
+        # Update self with the wrapped function's metadata
+        functools.wraps(f)(self)
         self.f = f
         self.stateless = stateless
         self.model = model
@@ -85,7 +87,6 @@ _null_grammar = string("")
 
 def _decorator(f, *, stateless, model):
     reference = None
-    @functools.wraps(f)
     def wrapped(*args, **kwargs):
         nonlocal reference
 
