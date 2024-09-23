@@ -405,7 +405,7 @@ class GenJson:
         def build_definition(json_schema: JSONSchema) -> Callable[[], GrammarFunction]:
             @guidance(stateless=True, dedent=False, cache=True)
             def closure(lm):
-                return lm + self.json(json_schema=json_schema, definitions=definitions)
+                return lm + self.json(json_schema=json_schema)
 
             return closure
 
@@ -701,12 +701,12 @@ class GenJson:
             allof_list = json_schema[Keyword.ALLOF]
             if len(allof_list) != 1:
                 raise ValueError("Only support allOf with exactly one item")
-            return lm + self.json(allof_list[0])
+            return lm + self.json(json_schema=allof_list[0])
 
         if Keyword.ONEOF in json_schema:
             oneof_list = json_schema[Keyword.ONEOF]
             if len(oneof_list) == 1:
-                return lm + self.json(oneof_list[0])
+                return lm + self.json(json_schema=oneof_list[0])
             warnings.warn("oneOf not fully supported, falling back to anyOf. This may cause validation errors in some cases.")
             return lm + self.anyOf(anyof_list=oneof_list)
 
