@@ -19,7 +19,7 @@ def guidance(
 
     if f is None:
         return functools.partial(
-            _decorator, stateless=stateless, model=model
+            guidance, stateless=stateless, cache=cache, dedent=dedent, model=model,
         )
 
     # this strips out indentation in multiline strings that aligns with the current python indentation
@@ -43,7 +43,7 @@ def guidance_method(
     # if we are not yet being used as a decorator, then save the args
     if f is None:
         return functools.partial(
-            GuidanceMethod, stateless=stateless, model=model
+            guidance_method, stateless=stateless, cache=cache, dedent=dedent, model=model,
         )
 
     # this strips out indentation in multiline strings that aligns with the current python indentation
