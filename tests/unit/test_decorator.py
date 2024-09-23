@@ -235,3 +235,110 @@ class TestGuidanceMethodCache:
             str(lm + grammar2)
             == "You are a helpful AI. Do what the user asks:\tComputer, tell me a joke.\tThank you."
         )
+
+
+class TestGuidanceMethodDedent:
+    def test_dedent_basic(self):
+        class MyClass:
+            @guidance(stateless=True, dedent=True)
+            def dedent_method(self, lm):
+                lm += f"""\
+                {{
+                    "name": "{1+1}",
+                    "age": "{gen('name', stop='"', max_tokens=1)}",
+                }}"""
+                return lm
+
+        obj = MyClass()
+        grammar = obj.dedent_method()
+        lm = guidance.models.Mock()
+        result = lm + grammar
+        assert str(result).startswith("{")
+
+    def test_basic_multiline_fstring(self):
+        class MyClass:
+            @guidance(stateless=True, dedent=True)
+            def dedent_method(self, lm):
+                lm += f"""\
+                {{
+                    "name": "{'har' + 'sha'}",
+                    "age": "{314}",
+                }}"""
+                return lm
+
+        obj = MyClass()
+        grammar = obj.dedent_method()
+        lm = guidance.models.Mock()
+        result = lm + grammar
+        assert str(result) == '{\n    "name": "harsha",\n    "age": "314",\n}'
+
+    def test_mixed_content(self):
+        class MyClass:
+            @guidance(stateless=True, dedent=True)
+            def dedent_method(self, lm):
+                s = "Regular string\n"
+                s += f"""\
+                {{
+                    "name": "{'har' + 'sha'}",
+                    "age": "{314}",
+                }}"""
+                lm += s
+                return lm
+
+        obj = MyClass()
+        grammar = obj.dedent_method()
+        lm = guidance.models.Mock()
+        result = lm + grammar
+        assert str(result) == 'Regular string\n{\n    "name": "harsha",\n    "age": "314",\n}'
+
+    def test_non_fstring_multiline(self):
+        class MyClass:
+            @guidance(stateless=True, dedent=True)
+            def dedent_method(self, lm):
+                s = """\
+                Line 1
+                Line 2
+                Line 3
+                """
+                lm += s
+                return lm
+
+        obj = MyClass()
+        grammar = obj.dedent_method()
+        lm = guidance.models.Mock()
+        result = lm + grammar
+        assert str(result) == "Line 1\nLine 2\nLine 3\n"
+
+    def test_empty_strings(self):
+        class MyClass:
+            @guidance(stateless=True, dedent=True)
+            def dedent_method(self, lm):
+                s = f"""\
+                {""}"""
+                lm += s
+                return lm
+
+        obj = MyClass()
+        grammar = obj.dedent_method()
+        lm = guidance.models.Mock()
+        result = lm + grammar
+        assert str(result) == ""
+
+    def test_inconsistent_indentation(self):
+        class MyClass:
+            @guidance(stateless=True, dedent=True)
+            def dedent_method(self, lm):
+                s = f"""\
+                {{
+                "name": "{'har' + 'sha'}",
+                  "age": "{314}",
+                "weapon": "{'sword'}"
+                }}"""
+                lm += s
+                return lm
+
+        obj = MyClass()
+        grammar = obj.dedent_method()
+        lm = guidance.models.Mock()
+        result = lm + grammar
+        assert str(result) == '{\n"name": "harsha",\n  "age": "314",\n"weapon": "sword"\n}'
