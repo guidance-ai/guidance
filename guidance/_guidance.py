@@ -30,10 +30,10 @@ def guidance(
     if cache:
         f = functools.cache(f)
 
-    return GuidanceDecorator(f, stateless=stateless, model=model)
+    return GuidanceFunction(f, stateless=stateless, model=model)
 
 
-class GuidanceDecorator:
+class GuidanceFunction:
     def __init__(
         self,
         f,
@@ -44,27 +44,37 @@ class GuidanceDecorator:
         self.f = f
         self.stateless = stateless
         self.model = model
-        self._owner = None
 
     def __call__(self, *args, **kwargs):
-        if self._owner is None:
-            # Function case
-            decorated = _decorator(self.f, stateless=self.stateless, model=self.model)
-            return decorated(*args, **kwargs)
-        raise TypeError(f"GuidanceMethod must be bound to an instance. Did you mean to instantiate a {self._owner.__name__!r} object?")
+        decorated = _decorator(self.f, stateless=self.stateless, model=self.model)
+        return decorated(*args, **kwargs)
 
     def __get__(self, instance, owner=None, /):
         if instance is None:
-            self._owner = owner
             return self
 
-        return _decorator(
-            # Bind the function to the instance before passing it to the decorator
-            # in order to handle the `self` argument properly
-            self.f.__get__(instance, owner),
+        return GuidanceMethod(
+            self.f,
             stateless=self.stateless,
             model=self.model,
+            instance=instance,
+            owner=owner,
         )
+
+
+class GuidanceMethod(GuidanceFunction):
+    def __init__(self, f, *, stateless=False, model=Model, instance, owner):
+        super().__init__(
+            f.__get__(instance, owner),
+            stateless=stateless,
+            model=model
+        )
+        # Save the instance and owner for introspection
+        self._instance = instance
+        self._owner = owner
+
+    def __get__(self, instance, owner=None, /):
+        raise AttributeError("GuidanceMethod is already bound to an instance")
 
 
 _null_grammar = string("")
