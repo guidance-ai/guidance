@@ -149,44 +149,89 @@ def test_exception_on_repeat_calls():
         raises()
 
 
-class TestGuidanceMethod:
-    class MyClassWithoutHash:
-        def __init__(self, x):
-            self.x = x
-        
-        @guidance(stateless=True, cache=True, dedent=False)
-        def method(self, lm):
-            lm += str(self.x)
-            return lm
+class TestGuidanceMethodCache:
+    class MyClass:
+        def __init__(self, prefix: str, suffix: str):
+            self.prefix = prefix
+            self.suffix = suffix
+            self.delimiter = "\n"
 
-    class MyClassWithHash:
-        def __init__(self, x):
-            self.x = x
-        
-        @guidance(stateless=True, cache=True, dedent=False)
-        def method(self, lm):
-            lm += str(self.x)
-            return lm
-        
         def __hash__(self):
-            return hash(self.x)
+            # Intentionally leave out self.delimiter so we can mess with it later
+            return hash((self.prefix, self.suffix))
 
-    def test_guidance_method_caches(self):
-        obj1 = self.MyClassWithoutHash(1)
+        @guidance(stateless=True, cache=True)
+        def cached_method(self, lm, middle: str):
+            return lm + self.delimiter.join([self.prefix, middle, self.suffix])
 
+        @guidance(stateless=True, cache=False)
+        def uncached_method(self, lm, middle: str):
+            return lm + self.delimiter.join([self.prefix, middle, self.suffix])
+
+    def test_guidance_method_cache(self):
+        obj = self.MyClass("You are a helpful AI. Do what the user asks:", "Thank you.")
+        grammar1 = obj.cached_method("Computer, tell me a joke.")
+        grammar2 = obj.cached_method("Computer, tell me a joke.")
+        assert grammar1 is grammar2
+
+    def test_miss_cache_when_instance_hash_changes(self):
+        obj = self.MyClass("You are a helpful AI. Do what the user asks:", "Thank you.")
+        grammar1 = obj.cached_method("Computer, tell me a joke.")
+        obj.suffix = "Thanks!"
+        grammar2 = obj.cached_method("Computer, tell me a joke.")
+        assert grammar1 is not grammar2
         lm = guidance.models.Mock()
-        result = lm + obj1.method()
-        assert str(result) == "1"
-        obj1.x = 2
-        result = lm + obj1.method()
-        assert str(result) == "1"
+        assert (
+            str(lm + grammar1)
+            == "You are a helpful AI. Do what the user asks:\nComputer, tell me a joke.\nThank you."
+        )
+        assert (
+            str(lm + grammar2)
+            == "You are a helpful AI. Do what the user asks:\nComputer, tell me a joke.\nThanks!"
+        )
 
-    def test_guidance_method_caches_with_hash(self):
-        obj1 = self.MyClassWithHash(1)
-
+    def test_hit_cache_when_instance_hash_does_not_change(self):
+        """
+        Note: this is a bit of a "gotcha" when using `cache=True` since users may expect changing the instance's attributes
+        will change the grammar. They _must_ implement __hash__ to ensure that the grammar is recalculated when the hash changes.
+        """
+        obj = self.MyClass("You are a helpful AI. Do what the user asks:", "Thank you.")
+        grammar1 = obj.cached_method("Computer, tell me a joke.")
+        obj.delimiter = "\t"
+        grammar2 = obj.cached_method("Computer, tell me a joke.")
+        assert grammar1 is grammar2
         lm = guidance.models.Mock()
-        result = lm + obj1.method()
-        assert str(result) == "1"
-        obj1.x = 2
-        result = lm + obj1.method()
-        assert str(result) == "2"
+        assert (
+            str(lm + grammar1)
+            == "You are a helpful AI. Do what the user asks:\nComputer, tell me a joke.\nThank you."
+        )
+        # Note that the delimiter is still the same as the first call since the hash didn't change
+        assert (
+            str(lm + grammar2)
+            == "You are a helpful AI. Do what the user asks:\nComputer, tell me a joke.\nThank you."
+        )
+
+    def test_guidance_method_no_cache(self):
+        obj = self.MyClass("You are a helpful AI. Do what the user asks:", "Thank you.")
+        grammar1 = obj.uncached_method("Computer, tell me a joke.")
+        grammar2 = obj.uncached_method("Computer, tell me a joke.")
+        assert grammar1 is not grammar2
+        lm = guidance.models.Mock()
+        assert str(lm + grammar1) == str(lm + grammar2)
+
+    def test_guidance_method_no_cache_changes_when_instance_changes(self):
+        obj = self.MyClass("You are a helpful AI. Do what the user asks:", "Thank you.")
+        grammar1 = obj.uncached_method("Computer, tell me a joke.")
+        obj.delimiter = "\t"
+        grammar2 = obj.uncached_method("Computer, tell me a joke.")
+        assert grammar1 is not grammar2
+        lm = guidance.models.Mock()
+        assert (
+            str(lm + grammar1)
+            == "You are a helpful AI. Do what the user asks:\nComputer, tell me a joke.\nThank you."
+        )
+        # Note that the delimiter is still the same as the first call since the hash didn't change
+        assert (
+            str(lm + grammar2)
+            == "You are a helpful AI. Do what the user asks:\tComputer, tell me a joke.\tThank you."
+        )
