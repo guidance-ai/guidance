@@ -44,10 +44,13 @@ class GuidanceFunction:
         self.f = f
         self.stateless = stateless
         self.model = model
+        self._wrapper = None
 
     def __call__(self, *args, **kwargs):
-        decorated = _decorator(self.f, stateless=self.stateless, model=self.model)
-        return decorated(*args, **kwargs)
+        # "Cache" the wrapped function
+        if self._wrapper is None:
+            self._wrapper = _decorator(self.f, stateless=self.stateless, model=self.model)
+        return self._wrapper(*args, **kwargs)
 
     def __get__(self, instance, owner=None, /):
         if instance is None:
