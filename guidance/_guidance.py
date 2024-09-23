@@ -92,8 +92,10 @@ _null_grammar = string("")
 
 
 def _decorator(f, *, stateless, model):
+    reference = None
     @functools.wraps(f)
     def wrapped(*args, **kwargs):
+        nonlocal reference
 
         # make a stateless grammar if we can
         if stateless is True or (
@@ -101,7 +103,6 @@ def _decorator(f, *, stateless, model):
         ):
 
             # if we have a (deferred) reference set, then we must be in a recursive definition and so we return the reference
-            reference = getattr(f, "_self_call_reference_", None)
             if reference is not None:
                 return reference
 
@@ -111,7 +112,7 @@ def _decorator(f, *, stateless, model):
                 # set a DeferredReference for recursive calls (only if we don't have arguments that might make caching a bad idea)
                 no_args = len(args) + len(kwargs) == 0
                 if no_args:
-                    f._self_call_reference_ = DeferredReference()
+                    reference = DeferredReference()
 
                 try:
                     # call the function to get the grammar node
@@ -123,10 +124,10 @@ def _decorator(f, *, stateless, model):
                         node.name = f.__name__
                     # set the reference value with our generated node
                     if no_args:
-                        f._self_call_reference_.value = node
+                        reference.value = node
                 finally:
                     if no_args:
-                        del f._self_call_reference_
+                        reference = None
 
                 return node
 
