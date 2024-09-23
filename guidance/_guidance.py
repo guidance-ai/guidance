@@ -19,7 +19,7 @@ def guidance(
 
     if f is None:
         return functools.partial(
-            _decorator, stateless=stateless, cache=cache, model=model
+            _decorator, stateless=stateless, model=model
         )
 
     # this strips out indentation in multiline strings that aligns with the current python indentation
