@@ -72,6 +72,9 @@ class GuidanceFunction:
             owner=owner,
         )
 
+    def __repr__(self):
+        return f"<GuidanceFunction {self.__module__}.{self.__qualname__}{self.__signature__}>"
+
 
 class GuidanceMethod(GuidanceFunction):
     def __init__(self, f, *, stateless=False, model=Model, instance, owner):
@@ -86,6 +89,9 @@ class GuidanceMethod(GuidanceFunction):
 
     def __get__(self, instance, owner=None, /):
         raise AttributeError("GuidanceMethod is already bound to an instance")
+
+    def __repr__(self):
+        return f"<bound GuidanceMethod {self.__qualname__} of {self._instance!r}>"
 
 
 _null_grammar = string("")
