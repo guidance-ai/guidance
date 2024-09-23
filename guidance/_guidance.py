@@ -42,7 +42,13 @@ class GuidanceFunction:
         model = Model,
     ):
         # Update self with the wrapped function's metadata
-        functools.wraps(f)(self)
+        functools.update_wrapper(self, f)
+        # Remove the first argument from the wrapped function
+        signature = inspect.signature(f)
+        params = list(signature.parameters.values())
+        params.pop(0)
+        self.__signature__ = signature.replace(parameters=params)
+
         self.f = f
         self.stateless = stateless
         self.model = model
@@ -127,12 +133,6 @@ def _decorator(f, *, stateless, model):
         # otherwise must be stateful (which means we can't be inside a select() call)
         else:
             return RawFunction(f, args, kwargs)
-
-    # Remove the first argument from the wrapped function
-    signature = inspect.signature(f)
-    params = list(signature.parameters.values())
-    params.pop(0)
-    wrapped.__signature__ = signature.replace(parameters=params)
 
     # attach this as a method of the model class (if given)
     # if model is not None:
