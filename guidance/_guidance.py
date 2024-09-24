@@ -75,7 +75,6 @@ class GuidanceFunction:
                 stateless=self.stateless,
                 model=self.model,
                 instance=instance,
-                owner=owner,
             )
             self._methods[instance] = method
 
@@ -86,7 +85,7 @@ class GuidanceFunction:
 
 
 class GuidanceMethod(GuidanceFunction):
-    def __init__(self, f, *, stateless=False, model=Model, instance, owner):
+    def __init__(self, f, *, stateless=False, model=Model, instance):
         super().__init__(
             make_weak_bound_method(f, instance),
             stateless=stateless,
@@ -94,7 +93,6 @@ class GuidanceMethod(GuidanceFunction):
         )
         # Save the instance and owner for introspection
         self._instance = weakref.ref(instance)
-        self._owner = weakref.ref(owner)
 
     def __get__(self, instance, owner=None, /):
         raise AttributeError("GuidanceMethod is already bound to an instance")
