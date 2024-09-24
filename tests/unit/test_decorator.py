@@ -1,4 +1,7 @@
 import pytest
+import weakref
+import gc
+
 import guidance
 from guidance import gen
 
@@ -358,3 +361,39 @@ class TestGuidanceRecursion:
             return lm + guidance.select(["a", recursive()])
 
         assert recursive() is not None
+
+class TestMethodGarbageCollection:
+    class MyClass:
+        @guidance(cache=True)
+        def cached_method(self, lm):
+            return lm
+
+        @guidance(cache=False)
+        def uncached_method(self, lm):
+            return lm
+
+    def test_garbage_collection_cached_method(self):
+        obj = self.MyClass()
+        # Create a weak reference to the object
+        obj_ref = weakref.ref(obj)
+        # Call the cached method
+        _ = obj.cached_method()
+        # Delete the hard ref to the obj
+        del obj
+        # Run garbage collection
+        gc.collect()
+        # Check if the object was garbage collected
+        assert obj_ref() is None
+
+    def test_garbage_collection_uncached_method(self):
+        obj = self.MyClass()
+        # Create a weak reference to the object
+        obj_ref = weakref.ref(obj)
+        # Call the uncached method
+        _ = obj.uncached_method()
+        # Delete the hard ref to the obj
+        del obj
+        # Run garbage collection
+        gc.collect()
+        # Check if the object was garbage collected
+        assert obj_ref() is None
