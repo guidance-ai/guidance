@@ -90,20 +90,29 @@ class GuidanceFunction:
 
 class GuidanceMethod(GuidanceFunction):
     def __init__(self, f, *, stateless=False, model=Model, instance, owner):
+        bound_f = f.__get__(instance, owner)
+        _weak_bound_f = weakref.WeakMethod(bound_f)
+        # Copy metadata from bound function (has signature without self arg)
+        @functools.wraps(bound_f)
+        def weak_bound_f(*args, **kwargs):
+            return _weak_bound_f()(*args, **kwargs)
+        # Replace the bound __wrapped__ function with the original function (which doesn't have hard references to the instance)
+        weak_bound_f.__wrapped__ = f
+
         super().__init__(
-            f.__get__(instance, owner),
+            weak_bound_f,
             stateless=stateless,
             model=model,
         )
         # Save the instance and owner for introspection
-        self._instance = instance
-        self._owner = owner
+        self._instance = weakref.ref(instance)
+        self._owner = weakref.ref(owner)
 
     def __get__(self, instance, owner=None, /):
         raise AttributeError("GuidanceMethod is already bound to an instance")
 
     def __repr__(self):
-        return f"<bound GuidanceMethod {self.__qualname__} of {self._instance!r}>"
+        return f"<bound GuidanceMethod {self.__qualname__} of {self._instance()!r}>"
 
 
 _null_grammar = string("")
