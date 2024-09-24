@@ -90,23 +90,25 @@ class GuidanceFunction:
 
 class GuidanceMethod(GuidanceFunction):
     def __init__(self, f, *, stateless=False, model=Model, instance, owner):
-        bound_f = f.__get__(instance, owner)
-        _weak_bound_f = weakref.WeakMethod(bound_f)
-        # Copy metadata from bound function (has signature without self arg)
-        @functools.wraps(bound_f)
-        def weak_bound_f(*args, **kwargs):
-            return _weak_bound_f()(*args, **kwargs)
-        # Replace the bound __wrapped__ function with the original function (which doesn't have hard references to the instance)
-        weak_bound_f.__wrapped__ = f
-
         super().__init__(
-            weak_bound_f,
+            f,
             stateless=stateless,
             model=model,
         )
         # Save the instance and owner for introspection
         self._instance = weakref.ref(instance)
         self._owner = weakref.ref(owner)
+
+    def __call__(self, *args, **kwargs):
+        # "Cache" the wrapped function (needed for recursive calls)
+        if self._wrapper is None:
+            def weak_bound_f(*args, **kwargs):
+                if self._instance() is None:
+                    raise ReferenceError("Weak reference to instance is dead")
+                bound_f = self.f.__get__(self._instance(), self._owner())
+                return bound_f(*args, **kwargs)
+            self._wrapper = _decorator(weak_bound_f, stateless=self.stateless, model=self.model)
+        return self._wrapper(*args, **kwargs)
 
     def __get__(self, instance, owner=None, /):
         raise AttributeError("GuidanceMethod is already bound to an instance")
