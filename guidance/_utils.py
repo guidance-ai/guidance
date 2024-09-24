@@ -132,7 +132,14 @@ def make_weak_bound_method(f, instance):
         bound_f = types.MethodType(f, instance)
         return bound_f(*args, **kwargs)
 
+    # remove the first argument from the wrapped function since it is now bound
+    weak_bound_f.__signature__ = signature_pop(inspect.signature(f), 0)
     return weak_bound_f
+
+def signature_pop(signature, index):
+    params = list(signature.parameters.values())
+    params.pop(index)
+    return signature.replace(parameters=params)
 
 class CaptureEvents:
     """Creates a scope where all the events are captured in a queue.

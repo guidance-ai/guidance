@@ -5,7 +5,7 @@ from typing import Any
 import weakref
 
 from ._grammar import DeferredReference, RawFunction, Terminal, string
-from ._utils import strip_multiline_string_indents, make_weak_bound_method
+from ._utils import strip_multiline_string_indents, make_weak_bound_method, signature_pop
 from .models import Model
 
 
@@ -46,11 +46,8 @@ class GuidanceFunction:
     ):
         # Update self with the wrapped function's metadata
         functools.update_wrapper(self, f)
-        # Remove the first argument from the wrapped function
-        signature = inspect.signature(f)
-        params = list(signature.parameters.values())
-        params.pop(0)
-        self.__signature__ = signature.replace(parameters=params)
+        # Remove the first argument from the wrapped function since we're going to drop the `lm` argument
+        self.__signature__ = signature_pop(inspect.signature(f), 0)
 
         self.f = f
         self.stateless = stateless
