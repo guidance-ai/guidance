@@ -1,6 +1,8 @@
 import functools
 import inspect
 import threading
+from typing import Any
+import weakref
 
 from ._grammar import DeferredReference, RawFunction, Terminal, string
 from ._utils import strip_multiline_string_indents
@@ -55,6 +57,7 @@ class GuidanceFunction:
         self.stateless = stateless
         self.model = model
         self._wrapper = None
+        self._methods: weakref.WeakKeyDictionary[Any, GuidanceMethod] = weakref.WeakKeyDictionary()
 
     def __call__(self, *args, **kwargs):
         # "Cache" the wrapped function (needed for recursive calls)
@@ -62,19 +65,25 @@ class GuidanceFunction:
             self._wrapper = _decorator(self.f, stateless=self.stateless, model=self.model)
         return self._wrapper(*args, **kwargs)
 
-    # Cache the bound method (needed for recursive calls)
-    @functools.cache
     def __get__(self, instance, owner=None, /):
+        """
+        Return a GuidanceMethod bound to the instance. GuidanceMethods are cached in a WeakKeyDictionary on a per-instance basis.
+        """
         if instance is None:
             return self
 
-        return GuidanceMethod(
-            self.f,
-            stateless=self.stateless,
-            model=self.model,
-            instance=instance,
-            owner=owner,
-        )
+        # On cache miss, create a new GuidanceMethod
+        if instance not in self._methods:
+            method = GuidanceMethod(
+                self.f,
+                stateless=self.stateless,
+                model=self.model,
+                instance=instance,
+                owner=owner,
+            )
+            self._methods[instance] = method
+
+        return self._methods[instance]
 
     def __repr__(self):
         return f"<GuidanceFunction {self.__module__}.{self.__qualname__}{self.__signature__}>"
