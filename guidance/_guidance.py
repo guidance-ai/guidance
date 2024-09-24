@@ -29,7 +29,11 @@ def guidance(
     if dedent is True or dedent == "python":
         f = strip_multiline_string_indents(f)
 
-    return GuidanceFunction(f, stateless=stateless, cache=cache, model=model)
+    # we cache the function itself if requested
+    if cache:
+        f = functools.cache(f)
+
+    return GuidanceFunction(f, stateless=stateless, model=model)
 
 
 class GuidanceFunction:
@@ -38,13 +42,8 @@ class GuidanceFunction:
         f,
         *,
         stateless = False,
-        cache = False,
         model = Model,
     ):
-        # we cache the function itself if requested
-        if cache:
-            f = functools.cache(f)
-
         # Update self with the wrapped function's metadata
         functools.update_wrapper(self, f)
         # Remove the first argument from the wrapped function
@@ -90,11 +89,10 @@ class GuidanceFunction:
 
 
 class GuidanceMethod(GuidanceFunction):
-    def __init__(self, f, *, stateless=False, cache=False, model=Model, instance, owner):
+    def __init__(self, f, *, stateless=False, model=Model, instance, owner):
         super().__init__(
             f.__get__(instance, owner),
             stateless=stateless,
-            cache=cache,
             model=model,
         )
         # Save the instance and owner for introspection
