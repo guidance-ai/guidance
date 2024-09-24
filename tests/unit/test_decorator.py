@@ -1,6 +1,7 @@
 import pytest
 import weakref
 import gc
+import inspect
 
 import guidance
 from guidance import gen
@@ -400,17 +401,20 @@ class TestMethodGarbageCollection:
 
 
 class TestSignature:
-    @guidance(stateless=True)
-    def func(lm, a, b=1, *, c, d=2):
-        return lm
-
-    class MyClass:
-        @guidance(stateless=True)
-        def method(self, lm, a, b=1, *, c, d=2):
-            return lm
-
     def test_function_signature(self):
-        assert list(self.func.__signature__.parameters.keys()) == ["a", "b", "c", "d"]
+        def func(a, b=1, *, c, d=2):
+            pass
+        @guidance(stateless=True)
+        def guidance_func(lm, a, b=1, *, c, d=2):
+            return lm
+        assert inspect.signature(guidance_func) == inspect.signature(func)
 
     def test_method_signature(self):
-        assert list(self.MyClass().method.__signature__.parameters.keys()) == ["a", "b", "c", "d"]
+        class MyClass:
+            def method(self, a, b=1, *, c, d=2):
+                pass
+            @guidance(stateless=True)
+            def guidance_method(self, lm, a, b=1, *, c, d=2):
+                pass
+        obj = MyClass()
+        assert inspect.signature(obj.guidance_method) == inspect.signature(obj.method)
