@@ -6,6 +6,8 @@ import queue
 import sys
 import textwrap
 import types
+import weakref
+import functools
 
 import numpy as np
 
@@ -118,6 +120,19 @@ def strip_multiline_string_indents(f):
     new_f.__doc__ = f.__doc__
     new_f.__module__ = f.__module__
     return new_f
+
+def make_weak_bound_method(f, instance):
+    weak_instance = weakref.ref(instance)
+
+    @functools.wraps(f) # ish
+    def weak_bound_f(*args, **kwargs):
+        instance = weak_instance()
+        if instance is None:
+            raise ReferenceError("Weak reference to instance is dead")
+        bound_f = types.MethodType(f, instance)
+        return bound_f(*args, **kwargs)
+
+    return weak_bound_f
 
 class CaptureEvents:
     """Creates a scope where all the events are captured in a queue.

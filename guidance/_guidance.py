@@ -5,7 +5,7 @@ from typing import Any
 import weakref
 
 from ._grammar import DeferredReference, RawFunction, Terminal, string
-from ._utils import strip_multiline_string_indents
+from ._utils import strip_multiline_string_indents, make_weak_bound_method
 from .models import Model
 
 
@@ -91,24 +91,13 @@ class GuidanceFunction:
 class GuidanceMethod(GuidanceFunction):
     def __init__(self, f, *, stateless=False, model=Model, instance, owner):
         super().__init__(
-            f,
+            make_weak_bound_method(f, instance),
             stateless=stateless,
             model=model,
         )
         # Save the instance and owner for introspection
         self._instance = weakref.ref(instance)
         self._owner = weakref.ref(owner)
-
-    def __call__(self, *args, **kwargs):
-        # "Cache" the wrapped function (needed for recursive calls)
-        if self._wrapper is None:
-            def weak_bound_f(*args, **kwargs):
-                if self._instance() is None:
-                    raise ReferenceError("Weak reference to instance is dead")
-                bound_f = self.f.__get__(self._instance(), self._owner())
-                return bound_f(*args, **kwargs)
-            self._wrapper = _decorator(weak_bound_f, stateless=self.stateless, model=self.model)
-        return self._wrapper(*args, **kwargs)
 
     def __get__(self, instance, owner=None, /):
         raise AttributeError("GuidanceMethod is already bound to an instance")
