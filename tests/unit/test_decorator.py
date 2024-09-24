@@ -397,3 +397,20 @@ class TestMethodGarbageCollection:
         gc.collect()
         # Check if the object was garbage collected
         assert obj_ref() is None
+
+
+class TestSignature:
+    @guidance(stateless=True)
+    def func(lm, a, b=1, *, c, d=2):
+        return lm
+
+    class MyClass:
+        @guidance(stateless=True)
+        def method(self, lm, a, b=1, *, c, d=2):
+            return lm
+
+    def test_function_signature(self):
+        assert list(self.func.__signature__.parameters.keys()) == ["a", "b", "c", "d"]
+
+    def test_method_signature(self):
+        assert list(self.MyClass().method.__signature__.parameters.keys()) == ["a", "b", "c", "d"]
