@@ -1,5 +1,6 @@
 import functools
 import inspect
+import threading
 
 from ._grammar import DeferredReference, RawFunction, Terminal, string
 from ._utils import strip_multiline_string_indents
@@ -100,9 +101,11 @@ _null_grammar = string("")
 
 
 def _decorator(f, *, stateless, model):
-    reference = None
+    # Use thread local to store the reference to the grammar node for recursive calls
+    # Otherwise, shared state between threads may otherwise trick us into thinking we are in a recursive call
+    thread_local = threading.local()
+
     def wrapped(*args, **kwargs):
-        nonlocal reference
 
         # make a stateless grammar if we can
         if stateless is True or (
@@ -110,6 +113,7 @@ def _decorator(f, *, stateless, model):
         ):
 
             # if we have a (deferred) reference set, then we must be in a recursive definition and so we return the reference
+            reference = getattr(thread_local, "_self_call_reference_", None)
             if reference is not None:
                 return reference
 
@@ -119,7 +123,7 @@ def _decorator(f, *, stateless, model):
                 # set a DeferredReference for recursive calls (only if we don't have arguments that might make caching a bad idea)
                 no_args = len(args) + len(kwargs) == 0
                 if no_args:
-                    reference = DeferredReference()
+                    thread_local._self_call_reference_ = DeferredReference()
 
                 try:
                     # call the function to get the grammar node
@@ -131,10 +135,10 @@ def _decorator(f, *, stateless, model):
                         node.name = f.__name__
                     # set the reference value with our generated node
                     if no_args:
-                        reference.value = node
+                        thread_local._self_call_reference_.value = node
                 finally:
                     if no_args:
-                        reference = None
+                        del thread_local._self_call_reference_
 
                 return node
 
