@@ -85,6 +85,9 @@ class GuidanceFunction:
                 instance=instance,
             )
             self._methods[key] = method
+            # Ensure the method is removed from the cache when the instance is deleted
+            weakref.finalize(instance, self._methods.pop, key)
+
         return self._methods[key]
 
     def __repr__(self):

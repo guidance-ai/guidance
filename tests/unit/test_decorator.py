@@ -452,6 +452,23 @@ class TestMethodGarbageCollection:
         assert obj_ref() is None
 
 
+    def test_deleting_instance_lets_method_be_garbage_collected(self):
+        obj = self.MyClass()
+        # Create a weak reference to the object
+        obj_ref = weakref.ref(obj)
+        # Create a weak reference to the cached method
+        meth_ref = weakref.ref(obj.cached_method)
+        # Quick sanity check (real methods need weakref.WeakMethod, but we're a bit different)
+        gc.collect()
+        assert meth_ref() is not None
+        # Delete the hard ref to the obj
+        del obj
+        # Run garbage collection
+        gc.collect()
+        # Check if the object was garbage collected
+        assert meth_ref() is None
+
+
 class TestSignature:
     def test_function_signature(self):
         def func(a, b=1, *, c, d=2):
