@@ -70,8 +70,8 @@ class GuidanceFunction:
 class GuidanceMethod:
     impl_cache = {}
     def __init__(self, impl, instance):
-        # Make object that looks like a method. Note we keep a hard reference to the instance
-        # to keep it (and therefore our cached impl) alive as long as we are alive
+        # Make object that looks like a method (__self__ and __func__) in order to be able to better support weak referencing via weakref.WeakMethod
+        # Note we keep a hard reference to the instance to keep it (and therefore our cached impl) alive as long as we are alive
         self.__self__ = instance
         self.__func__ = impl
 
