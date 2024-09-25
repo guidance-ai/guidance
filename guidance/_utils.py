@@ -122,14 +122,14 @@ def strip_multiline_string_indents(f):
     return new_f
 
 def make_weak_bound_method(f, instance):
-    weak_method = weakref.WeakMethod(
-        types.MethodType(f, instance)
-    )
+    instance_ref = weakref.ref(instance)
+    instance_repr = repr(instance)
     @functools.wraps(f) # ish
     def weak_bound_f(*args, **kwargs):
-        method = weak_method()
-        if method is None:
-            raise ReferenceError(f"Weak reference to method is dead: {f}")
+        instance = instance_ref()
+        if instance is None:
+            raise ReferenceError(f"Lost reference to {instance_repr} and cannot bind {f} to it.")
+        method = types.MethodType(f, instance)
         return method(*args, **kwargs)
 
     # remove the first argument from the wrapped function since it is now bound
