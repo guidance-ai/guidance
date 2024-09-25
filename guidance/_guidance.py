@@ -99,7 +99,7 @@ class GuidanceMethod(GuidanceFunction):
             cache=cache,
             model=model,
         )
-        # Save the instance and owner for introspection
+        # Save the instance for introspection
         self._instance = weakref.ref(instance)
 
     def __get__(self, instance, owner=None, /):
