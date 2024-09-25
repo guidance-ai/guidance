@@ -57,6 +57,7 @@ class GuidanceFunction:
         self.model = model
         self._wrapper = None
         self._methods: weakref.WeakKeyDictionary[Any, GuidanceMethod] = weakref.WeakKeyDictionary()
+        self._method_hashes: weakref.WeakKeyDictionary[Any, int] = weakref.WeakKeyDictionary()
 
     def __call__(self, *args, **kwargs):
         # "Cache" the wrapped function (needed for recursive calls)
@@ -71,8 +72,8 @@ class GuidanceFunction:
         if instance is None:
             return self
 
-        # On cache miss, create a new GuidanceMethod
-        if instance not in self._methods:
+        # On cache miss, create a new GuidanceMethod. Make sure that changing the hash of the instance invalidates the cache.
+        if instance not in self._methods or hash(instance) != self._method_hashes.get(instance):
             method = GuidanceMethod(
                 # Don't cache twice (in particular, we need to cache a weak_bound_method version downstairs)
                 self.f if not self.cache else self.f.__wrapped__,
@@ -82,6 +83,7 @@ class GuidanceFunction:
                 instance=instance,
             )
             self._methods[instance] = method
+            self._method_hashes[instance] = hash(instance)
 
         return self._methods[instance]
 
