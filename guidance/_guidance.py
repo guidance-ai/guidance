@@ -41,28 +41,20 @@ class GuidanceFunction:
         cache = False,
         model = Model,
     ):
-        # we cache the function itself if requested
-        # do this before updating the wrapper so we can maintain the __wrapped__ chain
-        if cache:
-            f = functools.cache(f)
-
-        # Update self with the wrapped function's metadata
-        functools.update_wrapper(self, f)
-        # Remove the first argument from the wrapped function since we're going to drop the `lm` argument
-        self.__signature__ = signature_pop(inspect.signature(f), 0)
-
         self.f = f
         self.stateless = stateless
         self.cache = cache
         self.model = model
-        self._wrapper = None
+        self._impl = _decorator(f, stateless=stateless, cache=cache, model=model)
         self._methods: dict[Any, GuidanceMethod] = {}
 
+        # Update self with the wrapped function's metadata
+        functools.update_wrapper(self, self._impl)
+        # Pretend to be one level of wrapping higher than we are
+        self.__wrapped__ = self._impl.__wrapped__
+
     def __call__(self, *args, **kwargs):
-        # "Cache" the wrapped function (needed for recursive calls)
-        if self._wrapper is None:
-            self._wrapper = _decorator(self.f, stateless=self.stateless, model=self.model)
-        return self._wrapper(*args, **kwargs)
+        return self._impl(*args, **kwargs)
 
     def __get__(self, instance, owner=None, /):
         """
@@ -75,38 +67,31 @@ class GuidanceFunction:
         key = (hash(instance), id(instance))
 
         # On cache miss, create a new GuidanceMethod.
-        if key not in self._methods:
-            method = GuidanceMethod(
-                # Don't cache twice (in particular, we need to cache a weak_bound_method version downstairs)
-                self.f if not self.cache else self.f.__wrapped__,
-                stateless=self.stateless,
-                cache=self.cache,
-                model=self.model,
-                instance=instance,
-            )
-            self._methods[key] = method
+        try:
+            impl = self._methods[key]
+        except KeyError:
+            weak_method = make_weak_bound_method(self.f, instance)
+            impl = _decorator(weak_method, stateless=self.stateless, cache=self.cache, model=self.model)
+            self._methods[key] = impl
             # Ensure the method is removed from the cache when the instance is deleted
-            weakref.finalize(instance, self._methods.pop, key)
-
-        return self._methods[key]
+            # weakref.finalize(instance, self._methods.pop, key)
+        return GuidanceMethod(impl, instance)
 
     def __repr__(self):
         return f"<GuidanceFunction {self.__module__}.{self.__qualname__}{self.__signature__}>"
 
+class GuidanceMethod:
+    def __init__(self, impl, instance):
+        self.__self__ = instance
+        self.__func__ = impl
 
-class GuidanceMethod(GuidanceFunction):
-    def __init__(self, f, *, stateless=False, cache=False, model=Model, instance):
-        super().__init__(
-            make_weak_bound_method(f, instance),
-            stateless=stateless,
-            cache=cache,
-            model=model,
-        )
-        # Save the instance for introspection
-        self._instance = weakref.ref(instance)
+        # Update self with the wrapped function's metadata
+        functools.update_wrapper(self, impl)
+        # Pretend to be one level of wrapping higher than we are
+        self.__wrapped__ = impl.__wrapped__
 
-    def __get__(self, instance, owner=None, /):
-        raise AttributeError("GuidanceMethod is already bound to an instance")
+    def __call__(self, *args, **kwargs):
+        return self.__func__(*args, **kwargs)
 
     def __repr__(self):
         return f"<bound GuidanceMethod {self.__qualname__} of {self._instance()!r}>"
@@ -115,11 +100,17 @@ class GuidanceMethod(GuidanceFunction):
 _null_grammar = string("")
 
 
-def _decorator(f, *, stateless, model):
+def _decorator(f, *, stateless, cache, model):
+    # we cache the function itself if requested
+    # do this before updating the wrapper so we can maintain the __wrapped__ chain
+    if cache:
+        f = functools.cache(f)
+
     # Use thread local to store the reference to the grammar node for recursive calls
     # Otherwise, shared state between threads may otherwise trick us into thinking we are in a recursive call
     thread_local = threading.local()
 
+    @functools.wraps(f)
     def wrapped(*args, **kwargs):
 
         # make a stateless grammar if we can
@@ -160,6 +151,9 @@ def _decorator(f, *, stateless, model):
         # otherwise must be stateful (which means we can't be inside a select() call)
         else:
             return RawFunction(f, args, kwargs)
+ 
+    # Remove the first argument from the wrapped function since we're going to drop the `lm` argument
+    wrapped.__signature__ = signature_pop(inspect.signature(f), 0)
 
     # attach this as a method of the model class (if given)
     # if model is not None:

@@ -427,7 +427,7 @@ class TestMethodGarbageCollection:
         # Create a weak reference to the object
         obj_ref = weakref.ref(obj)
         # Create a weak reference to the cached method
-        meth_ref = weakref.ref(obj.cached_method)
+        meth_ref = weakref.WeakMethod(obj.cached_method)
         # Quick sanity check (real methods need weakref.WeakMethod, but we're a bit different)
         gc.collect()
         assert meth_ref() is not None
@@ -443,10 +443,8 @@ class TestMethodGarbageCollection:
         # Reference to method but not instance
         method = self.MyClass().cached_method
         gc.collect()
-        try:
-            method()
-        except ReferenceError:
-            pytest.xfail(reason="This test is expected to fail due to the way weakrefs are handled in Python.")
+        # Will raise a ReferenceError if the method is broken
+        method()
 
 
 class TestSignature:
