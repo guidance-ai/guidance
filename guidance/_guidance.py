@@ -56,7 +56,7 @@ class GuidanceFunction:
         self.cache = cache
         self.model = model
         self._wrapper = None
-        self._methods: weakref.WeakKeyDictionary[Any, GuidanceMethod] = weakref.WeakKeyDictionary()
+        self._methods: dict[Any, GuidanceMethod] = {}
 
     def __call__(self, *args, **kwargs):
         # "Cache" the wrapped function (needed for recursive calls)
@@ -71,8 +71,11 @@ class GuidanceFunction:
         if instance is None:
             return self
 
-        # On cache miss, create a new GuidanceMethod. Make sure that changing the hash of the instance invalidates the cache.
-        if instance not in self._methods:
+        # Cache needs to be sensitive to both the instance's identity and its hash
+        key = (hash(instance), id(instance))
+
+        # On cache miss, create a new GuidanceMethod.
+        if key not in self._methods:
             method = GuidanceMethod(
                 # Don't cache twice (in particular, we need to cache a weak_bound_method version downstairs)
                 self.f if not self.cache else self.f.__wrapped__,
@@ -81,11 +84,8 @@ class GuidanceFunction:
                 model=self.model,
                 instance=instance,
             )
-            self._methods[instance] = method
-            # Why do I need this? Am I the only reference to the instance??
-            return method
-
-        return self._methods[instance]
+            self._methods[key] = method
+        return self._methods[key]
 
     def __repr__(self):
         return f"<GuidanceFunction {self.__module__}.{self.__qualname__}{self.__signature__}>"
