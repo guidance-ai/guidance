@@ -29,11 +29,7 @@ def guidance(
     if dedent is True or dedent == "python":
         f = strip_multiline_string_indents(f)
 
-    # we cache the function itself if requested
-    if cache:
-        f = functools.cache(f)
-
-    return GuidanceFunction(f, stateless=stateless, model=model)
+    return GuidanceFunction(f, stateless=stateless, cache=cache, model=model)
 
 
 class GuidanceFunction:
@@ -42,8 +38,14 @@ class GuidanceFunction:
         f,
         *,
         stateless = False,
+        cache = False,
         model = Model,
     ):
+        # we cache the function itself if requested
+        # do this before updating the wrapper so we can maintain the __wrapped__ chain
+        if cache:
+            f = functools.cache(f)
+
         # Update self with the wrapped function's metadata
         functools.update_wrapper(self, f)
         # Remove the first argument from the wrapped function since we're going to drop the `lm` argument
@@ -51,6 +53,7 @@ class GuidanceFunction:
 
         self.f = f
         self.stateless = stateless
+        self.cache = cache
         self.model = model
         self._wrapper = None
         self._methods: weakref.WeakKeyDictionary[Any, GuidanceMethod] = weakref.WeakKeyDictionary()
@@ -71,8 +74,10 @@ class GuidanceFunction:
         # On cache miss, create a new GuidanceMethod
         if instance not in self._methods:
             method = GuidanceMethod(
-                self.f,
+                # Don't cache twice (in particular, we need to cache a weak_bound_method version downstairs)
+                self.f if not self.cache else self.f.__wrapped__,
                 stateless=self.stateless,
+                cache=self.cache,
                 model=self.model,
                 instance=instance,
             )
@@ -85,10 +90,11 @@ class GuidanceFunction:
 
 
 class GuidanceMethod(GuidanceFunction):
-    def __init__(self, f, *, stateless=False, model=Model, instance):
+    def __init__(self, f, *, stateless=False, cache=False, model=Model, instance):
         super().__init__(
             make_weak_bound_method(f, instance),
             stateless=stateless,
+            cache=cache,
             model=model,
         )
         # Save the instance and owner for introspection
