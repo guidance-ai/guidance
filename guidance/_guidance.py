@@ -84,6 +84,8 @@ class GuidanceFunction:
             )
             self._methods[instance] = method
             self._method_hashes[instance] = hash(instance)
+            # Why do I need this? Am I the only reference to the instance??
+            return method
 
         return self._methods[instance]
 
