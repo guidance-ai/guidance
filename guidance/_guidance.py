@@ -92,7 +92,7 @@ class GuidanceMethod:
             impl = _decorator(weak_method, stateless=guidance_function.stateless, cache=guidance_function.cache, model=guidance_function.model)
             cls.impl_cache[key] = impl
             # Clean up the cache when the instance is deleted
-            weakref.finalize(weak_method, cls.impl_cache.pop, key)
+            weakref.finalize(instance, cls.impl_cache.pop, key)
         return cls(impl, instance)
 
     def __call__(self, *args, **kwargs):
