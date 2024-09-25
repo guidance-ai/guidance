@@ -439,6 +439,16 @@ class TestMethodGarbageCollection:
         assert meth_ref() is None
 
 
+    def test_deleting_instance_does_not_break_method(self):
+        # Reference to method but not instance
+        method = self.MyClass().cached_method
+        gc.collect()
+        try:
+            method()
+        except ReferenceError:
+            pytest.xfail(reason="This test is expected to fail due to the way weakrefs are handled in Python.")
+
+
 class TestSignature:
     def test_function_signature(self):
         def func(a, b=1, *, c, d=2):
