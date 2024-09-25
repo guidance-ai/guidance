@@ -82,6 +82,7 @@ class GuidanceMethod:
 
     @classmethod
     def from_guidance_function(cls, guidance_function: GuidanceFunction, instance: Any) -> "GuidanceMethod":
+        # Use instance hash in addition to identity to make sure we miss the cache if the instance is meaningfully mutated
         key = (guidance_function.f, hash(instance), id(instance))
         try:
             impl = cls.impl_cache[key]
