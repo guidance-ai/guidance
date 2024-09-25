@@ -386,11 +386,11 @@ class TestMethodGarbageCollection:
         def __hash__(self):
             return hash(self.thing)
 
-        @guidance(cache=True)
+        @guidance(stateless=True, cache=True)
         def cached_method(self, lm, *args):
             return lm + self.thing
 
-        @guidance(cache=False)
+        @guidance(stateless=True, cache=False)
         def uncached_method(self, lm, *args):
             return lm + self.thing
 
@@ -407,36 +407,6 @@ class TestMethodGarbageCollection:
         # Check if the object was garbage collected
         assert obj_ref() is None
 
-    def test_garbage_collection_cached_method_2(self):
-        # Not sure why I couldn't trigger the issue in the other tests...
-        class MyClass:
-            def __init__(self, prefix: str, suffix: str):
-                self.prefix = prefix
-                self.suffix = suffix
-                self.delimiter = "\n"
-
-            # def __hash__(self):
-            #     # Intentionally leave out self.delimiter so we can mess with it later
-            #     return hash((self.prefix, self.suffix))
-
-            @guidance(stateless=True, cache=True)
-            def cached_method(self, lm, middle: str):
-                return lm + self.delimiter.join([self.prefix, middle, self.suffix])
-        obj = MyClass("You are a helpful AI. Do what the user asks:", "Thank you.")
-
-        # Create a weak reference to the object
-        obj_ref = weakref.ref(obj)
-
-        # Call the cached method
-        grammar1 = obj.cached_method("Computer, tell me a joke.")
-        obj.suffix = "Thanks!"
-        grammar2 = obj.cached_method("Computer, tell me a joke.")
-        # Delete the hard ref to the obj
-        del obj
-        # Run garbage collection
-        gc.collect()
-        # Check if the object was garbage collected
-        assert obj_ref() is None
 
     def test_garbage_collection_uncached_method(self):
         obj = self.MyClass()
