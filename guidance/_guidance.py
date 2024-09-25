@@ -98,7 +98,7 @@ class GuidanceMethod:
         return self.__func__(*args, **kwargs)
 
     def __repr__(self):
-        return f"<bound GuidanceMethod {self.__qualname__} of {self._instance()!r}>"
+        return f"<bound GuidanceMethod {self.__qualname__} of {self.__self__!r}>"
 
 
 _null_grammar = string("")
