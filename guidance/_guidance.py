@@ -62,26 +62,16 @@ class GuidanceFunction:
         """
         if instance is None:
             return self
-
-        # Cache needs to be sensitive to both the instance's identity and its hash
-        key = (hash(instance), id(instance))
-
-        # On cache miss, create a new GuidanceMethod.
-        try:
-            impl = self._methods[key]
-        except KeyError:
-            weak_method = make_weak_bound_method(self.f, instance)
-            impl = _decorator(weak_method, stateless=self.stateless, cache=self.cache, model=self.model)
-            self._methods[key] = impl
-            # Ensure the method is removed from the cache when the instance is deleted
-            # weakref.finalize(instance, self._methods.pop, key)
-        return GuidanceMethod(impl, instance)
+        return GuidanceMethod.from_guidance_function(self, instance)
 
     def __repr__(self):
         return f"<GuidanceFunction {self.__module__}.{self.__qualname__}{self.__signature__}>"
 
 class GuidanceMethod:
+    impl_cache = {}
     def __init__(self, impl, instance):
+        # Make object that looks like a method. Note we keep a hard reference to the instance
+        # to keep it (and therefore our cached impl) alive as long as we are alive
         self.__self__ = instance
         self.__func__ = impl
 
@@ -89,6 +79,20 @@ class GuidanceMethod:
         functools.update_wrapper(self, impl)
         # Pretend to be one level of wrapping higher than we are
         self.__wrapped__ = impl.__wrapped__
+
+    @classmethod
+    def from_guidance_function(cls, guidance_function: GuidanceFunction, instance: Any) -> "GuidanceMethod":
+        key = (guidance_function.f, hash(instance), id(instance))
+        try:
+            impl = cls.impl_cache[key]
+        except KeyError:
+            # Make a weak bound method to prevent the instance from being kept alive by the cache
+            weak_method = make_weak_bound_method(guidance_function.f, instance)
+            impl = _decorator(weak_method, stateless=guidance_function.stateless, cache=guidance_function.cache, model=guidance_function.model)
+            cls.impl_cache[key] = impl
+            # Clean up the cache when the instance is deleted
+            weakref.finalize(weak_method, cls.impl_cache.pop, key)
+        return cls(impl, instance)
 
     def __call__(self, *args, **kwargs):
         return self.__func__(*args, **kwargs)
