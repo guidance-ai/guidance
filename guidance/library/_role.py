@@ -7,66 +7,66 @@ nodisp_end = "<||_/NODISP_||>"
 span_start = "<||_html:<span style='background-color: rgba(255, 180, 0, 0.3); border-radius: 3px;'>_||>"
 span_end = "<||_html:</span>_||>"
 
+# TODO(nopdive): Render needs to be moved out
 @guidance
 def role_opener(lm, role_name, **kwargs):
-    indent = getattr(lm, "indent_roles", True)
+    # indent = getattr(lm, "indent_roles", True)
 
 
     # Block start container (centers elements)
-    if indent:
-        lm += f"<||_html:<div style='display: flex; border-bottom: 1px solid rgba(127, 127, 127, 0.2);  justify-content: center; align-items: center;'><div style='flex: 0 0 80px; opacity: 0.5;'>{role_name.lower()}</div><div style='flex-grow: 1; padding: 5px; padding-top: 10px; padding-bottom: 10px; margin-top: 0px; white-space: pre-wrap; margin-bottom: 0px;'>_||>"
+    # if indent:
+    #     lm += f"<||_html:<div style='display: flex; border-bottom: 1px solid rgba(127, 127, 127, 0.2);  justify-content: center; align-items: center;'><div style='flex: 0 0 80px; opacity: 0.5;'>{role_name.lower()}</div><div style='flex-grow: 1; padding: 5px; padding-top: 10px; padding-bottom: 10px; margin-top: 0px; white-space: pre-wrap; margin-bottom: 0px;'>_||>"
 
     # Start of either debug or HTML no disp block
-    if indent:
-        lm += nodisp_start
-    else:
-        lm += span_start
+    # if indent:
+    #     lm += nodisp_start
+    # else:
+    #     lm += span_start
     
     # TODO [HN]: Temporary change while I instrument chat_template in transformers only.
     # Eventually have all models use chat_template.
-    if hasattr(lm, "get_role_start"):
-        lm += lm.get_role_start(role_name, **kwargs)
-    elif hasattr(lm, "chat_template"):
-        lm += lm.chat_template.get_role_start(role_name)
-    else:
-        raise Exception(
-            f"You need to use a chat model in order the use role blocks like `with {role_name}():`! Perhaps you meant to use the {type(lm).__name__}Chat class?"
-        )
+    lm = lm._add_role_opener(role_name, **kwargs)
+
+    # if hasattr(lm, "get_role_start"):
+    #     lm += lm.get_role_start(role_name, **kwargs)
+    # elif hasattr(lm, "chat_template"):
+    #     lm += lm.chat_template.get_role_start(role_name)
+    # else:
+    #     raise Exception(
+    #         f"You need to use a chat model in order the use role blocks like `with {role_name}():`! Perhaps you meant to use the {type(lm).__name__}Chat class?"
+    #     )
 
     # End of either debug or HTML no disp block
-    if indent:
-        lm += nodisp_end
-    else:
-        lm += span_end
+    # if indent:
+    #     lm += nodisp_end
+    # else:
+    #     lm += span_end
 
     return lm
 
 
 @guidance
 def role_closer(lm, role_name, **kwargs):
-    indent = getattr(lm, "indent_roles", True)
-    # Start of either debug or HTML no disp block
-    if indent:
-        lm += nodisp_start
-    else:
-        lm += span_start
+    # indent = getattr(lm, "indent_roles", True)
+    # # Start of either debug or HTML no disp block
+    # if indent:
+    #     lm += nodisp_start
+    # else:
+    #     lm += span_start
 
     # TODO [HN]: Temporary change while I instrument chat_template in transformers only.
     # Eventually have all models use chat_template.
-    if hasattr(lm, "get_role_end"):
-        lm += lm.get_role_end(role_name)
-    elif hasattr(lm, "chat_template"):
-        lm += lm.chat_template.get_role_end(role_name)
+    lm = lm._add_role_closer(role_name, **kwargs)
 
-    # End of either debug or HTML no disp block
-    if indent:
-        lm += nodisp_end
-    else:
-        lm += span_end
+    # # End of either debug or HTML no disp block
+    # if indent:
+    #     lm += nodisp_end
+    # else:
+    #     lm += span_end
 
-    # End of top container
-    if indent:
-        lm += "<||_html:</div></div>_||>"
+    # # End of top container
+    # if indent:
+    #     lm += "<||_html:</div></div>_||>"
 
     return lm
 
@@ -74,6 +74,7 @@ def role_closer(lm, role_name, **kwargs):
 def role(role_name, text=None, **kwargs):
     if text is None:
         return block(
+            name=role_name,
             opener=role_opener(role_name, **kwargs),
             closer=role_closer(role_name, **kwargs),
         )

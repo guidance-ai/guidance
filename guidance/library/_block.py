@@ -12,6 +12,7 @@ class ContextBlock:
 
     def __exit__(self, exc_type, exc_value, traceback):
         del models.Model.open_blocks[self]
+        models.Model.close_blocks[self] = None
 
 
 def block(name=None, opener="", closer=""):

@@ -13,11 +13,25 @@ class StateHandler:
     def __init__(self) -> None:
         self._model_node_map: Dict[int, StateNode] = {}
         self._node_model_map: Dict[StateNode, int] = {}
+    
+    def _remove_node(self, model_id: int) -> None:
+        node = self._model_node_map.get(model_id, None)
+        for child in node.children:
+            child.parent = None
+        if node.parent is not None:
+            node.parent.remove_child(node)
 
-    def add_node(self, model_id: int, parent_id: int, node: "StateNode") -> None:
+        del self._model_node_map[model_id]
+        del self._node_model_map[node]
+
+    def update_node(self, model_id: int, parent_id: int, node: "StateNode") -> None:
+        # Replace node if required
+        existing_node = self._model_node_map.get(model_id, None)
+        if existing_node is not None:
+            self._remove_node(model_id)
+
         self._model_node_map[model_id] = node
         self._node_model_map[node] = model_id
-
         parent_node = self._model_node_map.get(parent_id, None)
         if parent_node is not None:
             parent_node.add_child(node)
@@ -45,12 +59,28 @@ class StateNode:
     def parent(self):
         return self._parent
 
+    @parent.setter
+    def parent(self, value):
+        self._parent = value
+
     @classmethod
     def gen_id(cls):
         global _id_counter
         _id = _id_counter
         _id_counter += 1
         return _id
+
+    def __repr__(self):
+        return self.__str__()
+
+
+def visualize_text(state_builder: StateHandler, node: StateNode) -> None:
+    def visit(node: StateNode, buffer=[]):
+        if node.parent is not None:
+            visit(node._parent)
+        if isinstance(node, TextOutput):
+            print(node._value, end='')
+    visit(node)
 
 
 def visualize(state_builder: StateHandler, node: StateNode) -> None:
@@ -84,27 +114,31 @@ class OutputNode(StateNode):
         super().__init__()
 
 
-class TrackingNode(StateNode):
-    def __init__(self) -> None:
-        super().__init__()
-
-
-class Nop(TrackingNode):
+class Tracker(StateNode):
     def __init__(self):
         super().__init__()
 
     def __str__(self):
-        return f"{self._id}:Nop"
+        return f"{self._id}:Tracker"
 
 
-class GuidanceInput(StateNode):
+class StatelessGuidanceInput(InputNode):
     def __init__(self, value: Any):
         self._value = value
         super().__init__()
 
     def __str__(self):
-        return f"{self._id}:{self.__class__.__name__}:{self._value.__class__.__name__}:{self._value}"
+        return f"{self._id}:{self.__class__.__name__}:{self._value}"
 
+
+class StatefulGuidanceInput(InputNode):
+    def __init__(self, value: Any):
+        self._value = value
+        super().__init__()
+
+    def __str__(self):
+        return f"{self._id}:{self.__class__.__name__}:{self._value}"
+    
 
 class LiteralInput(InputNode):
     def __init__(self, value: str):
@@ -112,7 +146,7 @@ class LiteralInput(InputNode):
         super().__init__()
 
     def __str__(self):
-        return f"{self._id}:{self.__class__.__name__}:{self._value}"
+        return f"{self._id}:{self.__class__.__name__}:{repr(self._value)}"
 
 
 class TextOutput(OutputNode):
@@ -121,7 +155,7 @@ class TextOutput(OutputNode):
         super().__init__()
 
     def __str__(self):
-        return f"{self._id}:{self.__class__.__name__}:{self._value}"
+        return f"{self._id}:{self.__class__.__name__}:{repr(self._value)}"
 
 
 class EmbeddedInput(InputNode):
@@ -130,19 +164,23 @@ class EmbeddedInput(InputNode):
         super().__init__()
 
     def __str__(self):
-        return f"{self._id}:{self.__class__.__name__}:{self._value}"
+        return f"{self._id}:{self.__class__.__name__}:{repr(self._value)}"
 
 
-# class Env:
-#     def __init__(self, parent: Optional["Env"] = None) -> None:
-#         self._symbol_table = {}
-#         self._parent = parent
-#
-#     def __getitem__(self, item: Any) -> Any:
-#         current_env = self
-#         while current_env._parent is not None:
-#             if item in current_env._symbol_table:
-#                 return current_env[item]
-#         raise KeyError(item)
+class RoleOpenerInput(InputNode):
+    def __init__(self, value: str):
+        self._value = value
+        super().__init__()
 
+    def __str__(self):
+        return f"{self._id}:{self.__class__.__name__}:{repr(self._value)}"
+
+
+class RoleCloserInput(InputNode):
+    def __init__(self, value: str):
+        self._value = value
+        super().__init__()
+
+    def __str__(self):
+        return f"{self._id}:{self.__class__.__name__}:{repr(self._value)}"
 

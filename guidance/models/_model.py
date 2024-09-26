@@ -15,7 +15,7 @@ from typing import Any, Dict, Iterator, List, Optional, Union, TYPE_CHECKING
 
 import numpy as np
 
-from ..state import StateHandler, Nop, LiteralInput, EmbeddedInput, GuidanceInput, TextOutput
+from ..state import RoleCloserInput, RoleOpenerInput, StateHandler, Tracker, LiteralInput, EmbeddedInput, StatefulGuidanceInput, StatelessGuidanceInput, TextOutput
 
 try:
     from IPython.display import clear_output, display, HTML
@@ -195,6 +195,7 @@ class Engine:
         return self._state_handler
 
 
+_id_counter = 0  # Counter for identifiers, this has to be outside the model to handle child classes properly.
 class Model:
     """The base guidance model object, which represents a model in a given state.
 
@@ -207,9 +208,10 @@ class Model:
     """
 
     open_blocks: Dict["ContextBlock", None] = {}  # track what context blocks are open
+    close_blocks: Dict["ContextBlock", None] = {}  # track what context block is about to close
+    
     _grammar_only = 0  # a flag that tracks when we are forced to be executing only compiled grammars (like when we are inside a select)
     _throttle_refresh = 0  # a flag that tracks when we can throttle our display since we know future display calls are going to happen
-    _id_counter = 0 # counter for model ids
 
     def __init__(self, engine, echo=True, parent_id=None, **kwargs):
         """Build a new model object that represents a model in a given state.
@@ -240,6 +242,7 @@ class Model:
         self.token_count = 0  # tracks how many tokens our byte state represents
         self.max_display_rate = 0.2  # this controls how frequently we are allowed to redraw the display (in seconds)
         self.opened_blocks = {}  # what context blocks have been opened but not closed
+        self.closed_blocks = {}  # what context blocks have been closed after open
         # self.compute_log_probs = compute_log_probs
 
         # private attributes
@@ -255,12 +258,14 @@ class Model:
 
         self._id = self.__class__.gen_id()  # model id needed for tracking state
         self._parent_id = parent_id
-        self._state_handler.add_node(self._id, self._parent_id, Nop())
+        self._state_handler.update_node(self._id, self._parent_id, Tracker())
 
     @classmethod
     def gen_id(cls):
-        _id = cls._id_counter
-        cls._id_counter += 1
+        global _id_counter
+
+        _id = _id_counter
+        _id_counter += 1
         return _id
 
     @property
@@ -324,6 +329,7 @@ class Model:
         new_lm._variables = self._variables.copy()
         new_lm._variables_log_probs = self._variables_log_probs.copy()
         new_lm.opened_blocks = self.opened_blocks.copy()
+        new_lm.closed_blocks = self.closed_blocks.copy()
 
         # create a new clean event queue
         new_lm._event_queue = None  # we start with no event queue because nobody is listening to us yet
@@ -339,6 +345,7 @@ class Model:
         new_lm._state_handler = self._state_handler
         new_lm._id = self.__class__.gen_id()
         new_lm._parent_id = self._id
+        self._state_handler.update_node(new_lm._id, new_lm._parent_id, Tracker())
 
         return new_lm
 
@@ -398,6 +405,40 @@ class Model:
             self._variables = {}
             self._variables_log_probs = {}
         return self
+    
+    # NOTE(nopdive): Intentionally private, consider this friend scoped. Users should never be interacting with this method directly.
+    def _add_role_opener(self, role_name, **kwargs):
+        lm = self
+        # self._state_handler.add_node(lm._id, lm._parent_id, RoleOpener(role_name))
+
+        # TODO [HN]: Temporary change while I instrument chat_template in transformers only.
+        # Eventually have all models use chat_template.
+        if hasattr(lm, "get_role_start"):
+            lm += lm.get_role_start(role_name, **kwargs)
+        elif hasattr(lm, "chat_template"):
+            lm += lm.chat_template.get_role_start(role_name)
+        else:
+            raise Exception(
+                f"You need to use a chat model in order the use role blocks like `with {role_name}():`! Perhaps you meant to use the {type(lm).__name__}Chat class?"
+            )
+
+        return lm
+
+    # NOTE(nopdive): Intentionally private, consider this friend scoped. Users should never be interacting with this method directly.
+    def _add_role_closer(self, role_name, **kwargs):
+        lm = self
+
+        # TODO [HN]: Temporary change while I instrument chat_template in transformers only.
+        # Eventually have all models use chat_template.
+        if hasattr(lm, "get_role_end"):
+            lm += lm.get_role_end(role_name, **kwargs)
+        elif hasattr(lm, "chat_template"):
+            lm += lm.chat_template.get_role_end(role_name)
+        else:
+            raise Exception(
+                f"You need to use a chat model in order the use role blocks like `with {role_name}():`! Perhaps you meant to use the {type(lm).__name__}Chat class?"
+            )
+        return lm
 
     def _repr_html_(self):
         if ipython_is_imported:
@@ -432,13 +473,20 @@ class Model:
         with throttle_refresh():
 
             # find what new blocks need to be applied
-            new_blocks = []
+            enter_blocks = []
             for context in Model.open_blocks:
                 if context not in lm.opened_blocks:
-                    new_blocks.append(context)
+                    enter_blocks.append(context)
 
                     # mark this so we don't re-add when computing the opener or closer (even though we don't know the close text yet)
                     lm.opened_blocks[context] = (0, "")
+            
+            exit_blocks = []
+            for context in Model.close_blocks:
+                if context not in lm.closed_blocks:
+                    exit_blocks.append(context)
+                    lm.closed_blocks[context] = (0, "")
+
 
             # find what old blocks need to be removed
             old_blocks = []
@@ -449,17 +497,26 @@ class Model:
                     # delete this so we don't re-close when computing the opener or closer
                     del lm.opened_blocks[context]
 
-            # close any newly closed contexts
+            # # close any newly closed contexts
             for (pos, close_text), context in old_blocks:
                 if context.name is not None:
                     lm._variables[context.name] = format_pattern.sub(
                         "", lm._state[pos:]
                     )
-                lm += context.closer
+                # self._state_handler.add_node(lm._id, lm._parent_id, RoleCloser(context.name))
+
+                # TODO(nopdive): Consider removing this
+                # lm = lm + context.closer
+            
+            for context in exit_blocks:
+                self._state_handler.update_node(lm._id, lm._parent_id, RoleCloserInput(context.name))
+                lm = lm + context.closer
 
             # apply any newly opened contexts (new from this object's perspective)
-            for context in new_blocks:
-                lm += context.opener
+            for context in enter_blocks:
+                self._state_handler.update_node(lm._id, lm._parent_id, RoleOpenerInput(context.name))
+                lm = lm + context.opener
+
                 with grammar_only():
                     tmp = lm + context.closer
                 close_text = tmp._state[len(lm._state):]  # get the new state added by calling the closer
@@ -479,14 +536,14 @@ class Model:
 
                 # we have no embedded objects
                 if len(parts) == 1:
-                    self._state_handler.add_node(lm._id, lm._parent_id, LiteralInput(value))
+                    self._state_handler.update_node(lm._id, lm._parent_id, LiteralInput(value))
 
-                    lm._inplace_append(value)
-                    out = lm
-                    self._state_handler.add_node(out._id, out._parent_id, TextOutput(value))
+                    out = lm.copy()
+                    out._inplace_append(value)
+                    self._state_handler.update_node(out._id, out._parent_id, TextOutput(value))
                 # if we have embedded objects we have to convert the string to a grammar tree
                 else:
-                    self._state_handler.add_node(lm._id, lm._parent_id, EmbeddedInput(value))
+                    self._state_handler.update_node(lm._id, lm._parent_id, EmbeddedInput(value))
 
                     partial_grammar = _null_grammar
                     lm.suffix = ""
@@ -513,12 +570,12 @@ class Model:
 
             # run stateless functions (grammar nodes)
             elif isinstance(value, GrammarFunction):
-                self._state_handler.add_node(lm._id, lm._parent_id, GuidanceInput(value))
+                self._state_handler.update_node(lm._id, lm._parent_id, StatelessGuidanceInput(value))
                 out = lm._run_stateless(value)
 
             # run stateful functions
             else:
-                self._state_handler.add_node(lm._id, lm._parent_id, GuidanceInput(value))
+                self._state_handler.update_node(lm._id, lm._parent_id, StatefulGuidanceInput(value))
                 out = value(lm)
                 if out is None:
                     raise Exception(
@@ -742,9 +799,9 @@ class Model:
                         pass
 
                     # TODO(nopdive): Remove old code on confirmation
-                    # lm += new_text
-                    lm._inplace_append(new_text)
-                    self._state_handler.add_node(lm._id, lm._parent_id, TextOutput(new_text))
+                    lm += new_text
+                    # lm._inplace_append(new_text)
+                    # self._state_handler.add_node(lm._id, lm._parent_id, TextOutput(new_text))
 
                     if chunk.is_generated:
                         # TODO(viz)
