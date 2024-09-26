@@ -50,7 +50,7 @@ class GuidanceFunction:
 
         # Update self with the wrapped function's metadata
         functools.update_wrapper(self, self._impl)
-        # Pretend to be one level of wrapping higher than we are
+        # Pretend to be one level of wrapping lower than we are
         self.__wrapped__ = self._impl.__wrapped__
 
     def __call__(self, *args, **kwargs):
@@ -77,7 +77,7 @@ class GuidanceMethod:
 
         # Update self with the wrapped function's metadata
         functools.update_wrapper(self, impl)
-        # Pretend to be one level of wrapping higher than we are
+        # Pretend to be one level of wrapping lower than we are
         self.__wrapped__ = impl.__wrapped__
 
     @classmethod
