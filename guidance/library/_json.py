@@ -420,7 +420,7 @@ class GenJson:
 
     @classmethod
     @guidance(stateless=True)
-    def int(cls, lm):
+    def integer(cls, lm):
         return lm + lexeme(r"-?(?:0|[1-9][0-9]*)", contextual=True)
 
 
@@ -428,7 +428,7 @@ class GenJson:
     @guidance(stateless=True)
     def number(cls, lm):
         return lm + select([
-            cls.int(),
+            cls.integer(),
             lexeme(r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)", contextual=True),
             lexeme(r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)", contextual=True),
         ])
@@ -735,7 +735,7 @@ class GenJson:
             elif target_type == JSONType.BOOLEAN:
                 option = select(["true", "false"])
             elif target_type == JSONType.INTEGER:
-                option = self.int()
+                option = self.integer()
             elif target_type == JSONType.NUMBER:
                 option = self.number()
             elif target_type == JSONType.STRING:
