@@ -53,16 +53,14 @@ class TransformersPhi3VisionEngine(Engine):
         self._cached_token_ids: list[int] = []
 
 
-    def start(self, prompt, grammar, media: dict, ensure_bos_token=True) -> TokenParser:
+    def start(self, prompt: bytes, grammar, media: dict, ensure_bos_token=True) -> TokenParser:
         if isinstance(prompt, bytes):
             prompt = prompt.decode("utf-8")
-        elif isinstance(prompt, str):
-            prompt = prompt
         elif isinstance(prompt, TokenParser):
             raise NotImplementedError(
                 "Still need to implement support for extending a full Parser state."
             )
-        else:
+        elif not isinstance(prompt, str):
             raise Exception("The passed prompt is of an unknown type!")
 
         # Map Guidance placeholders to Phi 3 Vision format
