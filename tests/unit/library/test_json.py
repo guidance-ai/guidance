@@ -245,7 +245,10 @@ class TestString:
 
         lm = models.Mock("".encode())
 
-        expected = "If a pattern is specified for a JSON string, minLength and maxLength must be left unspecified."
+        expected = (
+            "If a pattern or format is specified for a JSON string,"
+            " minLength and maxLength must be left unspecified."
+        )
         with pytest.raises(ValueError) as ve:
             lm += gen_json(schema=schema_obj)
         assert ve.value.args[0] == expected
@@ -609,6 +612,36 @@ class TestSimpleObject:
             maybe_whitespace=maybe_whitespace,
             compact=compact,
         )
+
+
+class TestObjectWithMissingRequired:
+    def test_required_is_required(self):
+        schema = {"type": "object", "properties": {"a": {"type": "integer"}}, "required": ["b"]}
+        generate_and_check({"b": 1}, schema)
+        generate_and_check({"a": 1, "b": "xyz"}, schema)
+        check_match_failure(
+            bad_string=_to_compact_json(
+                {"a": 1}
+            ),
+            schema_obj=schema,
+        )
+
+    def test_validated_against_additionalProperties(self):
+        schema = {"type": "object", "properties": {"a": {"type": "integer"}}, "required": ["b"], "additionalProperties": {"type": "integer"}}
+        generate_and_check({"b": 1}, schema)
+        generate_and_check({"a": 1, "b": 42}, schema)
+        check_match_failure(
+            bad_string=_to_compact_json(
+                {"a": 1, "b": "string"}
+            ),
+            schema_obj=schema,
+        )
+
+    def test_false_additionalProperties_fails(self):
+        schema = {"type": "object", "properties": {"a": {"type": "integer"}}, "required": ["b", "c"], "additionalProperties": False}
+        with pytest.raises(ValueError) as ve:
+            _ = gen_json(schema=schema)
+        assert ve.value.args[0] == "Required properties not in properties but additionalProperties is False. Missing required properties: ['b', 'c']"
 
 
 class TestSimpleArray:
@@ -2218,3 +2251,37 @@ class TestRequiredPropertiesScaling:
         HITS_MAGIC_NUMBER = 1
         expected_hits = 0
         assert cache_info.hits <= expected_hits + HITS_MAGIC_NUMBER
+
+
+class TestBooleanSchema:
+    @pytest.mark.parametrize(
+        "target_obj",
+        [
+            123,
+            "hello",
+            [1, 2, 3],
+            {"a": 1},
+            None,
+            [{"a": 1}],
+            {"a": [1, 2, 3]},
+            {"a": {"b": 1}},
+            False,
+            True
+        ],
+    )
+    def test_true_schema(self, target_obj):
+        # should be the same as an empty schema
+        schema_obj = True
+        generate_and_check(target_obj, schema_obj)
+
+    @pytest.mark.parametrize(
+        "schema_obj",
+        [
+            False,
+            {"type": "object", "properties": {"a": False}, "required": ["a"]},
+        ]
+    )
+    def test_false_schema(self, schema_obj):
+        with pytest.raises(ValueError) as ve:
+            gen_json(schema=schema_obj)
+        assert ve.value.args[0] == "No valid JSON can be generated from a schema of `False`"
