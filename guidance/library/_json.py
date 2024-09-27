@@ -27,6 +27,7 @@ from ..library import char_range, gen, one_or_more, optional, sequence
 from .._grammar import GrammarFunction, select, capture, with_temperature
 from ._pydantic import pydantic_to_json_schema
 from ._subgrammar import lexeme, subgrammar
+from ..library import _rfc3986
 
 JSONSchema = Union[bool, Mapping[str, Any]]
 
@@ -357,7 +358,7 @@ FORMAT_PATTERNS: dict[str, Optional[str]] = {
         r'-'                                 # Literal hyphen
         r'(?P<node>[0-9a-fA-F]{12})'         # 6 hex octets for node
     ),
-    "uri": None,
+    "uri": '"' + _rfc3986.uri() + '"',
     "uri-reference": None,
     "iri": None,
     "iri-reference": None,
@@ -379,6 +380,8 @@ def _get_format_pattern(format: str) -> str:
         raise ValueError(f"Format {format!r} is not supported")
     if pattern is None:
         raise NotImplementedError(f"Format {format!r} is not yet supported")
+    if isinstance(pattern, str):
+        return lexeme(pattern, contextual=True, json_string=True)
     return pattern
 
 
@@ -423,7 +426,7 @@ def _gen_json_string(
         raise ValueError("Cannot specify both a regex and a format for a JSON string")
 
     if format is not None:
-        regex = _get_format_pattern(format)
+        return _get_format_pattern(format)
 
     elif regex is not None:
         # Sanitize the regex, removing unnecessary anchors that may cause problems later

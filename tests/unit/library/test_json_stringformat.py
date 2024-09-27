@@ -216,7 +216,6 @@ class TestIdnHostname:
         check_match_failure(bad_string=bad_str, schema_obj=schema_obj, compact=True)
 
 
-@pytest.mark.xfail(reason="uri format not implemented")
 class TestUri:
     schema = '{"$schema":"https://json-schema.org/draft/2020-12/schema","format":"uri"}'
 
