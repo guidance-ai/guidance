@@ -15,7 +15,8 @@ from typing import Any, Dict, Iterator, List, Optional, Union, TYPE_CHECKING
 
 import numpy as np
 
-from ..state import RoleCloserInput, RoleOpenerInput, ModelTraceHandler, LiteralInput, EmbeddedInput, StatefulGuidanceInput, StatelessGuidanceInput, TextOutput
+from ..trace import RoleCloserInput, RoleOpenerInput, TraceHandler, LiteralInput, EmbeddedInput, \
+    StatefulGuidanceInput, StatelessGuidanceInput, TextOutput, CaptureOutput
 
 try:
     from IPython.display import clear_output, display, HTML
@@ -67,8 +68,7 @@ class Engine:
         self.tokenizer = tokenizer
         self.compute_log_probs = compute_log_probs
         self.metrics = GuidanceEngineMetrics()
-
-        self.trace_handler = ModelTraceHandler()
+        self.trace_handler = TraceHandler()
 
     def get_chat_template(self): # TODO [HN]: Add more logic here...should we instantiate class here? do we even need to?
         return self.tokenizer.chat_template() # Instantiate the class before returning to client for now
@@ -106,7 +106,7 @@ class Engine:
             prompt = bytes(prompt, encoding="utf8")
         elif isinstance(prompt, TokenParser):
             raise NotImplementedError(
-                "Still need to implement support for extending a full Parser state."
+                "Still need to implement support for extending a full Parser trace."
             )
         else:
             raise Exception("The passed prompt is of an unknown type!")
@@ -487,27 +487,29 @@ class Model:
         # close any newly closed contexts
         for (pos, close_text), context in old_blocks:
             if context.name is not None:
-                lm._variables[context.name] = format_pattern.sub(
-                    "", lm._state[pos:]
+                v = format_pattern.sub("", lm._state[pos:])
+                lm._variables[context.name] = v
+                self._trace_handler.update_node(
+                    lm._id, lm._parent_id, CaptureOutput(name=context.name, value=v)
                 )
             # TODO(nopdive): Consider removing this
             # lm = lm + context.closer
 
         # apply any newly closed contexts (new from this object's perspective)
         for context in exit_blocks:
-            self._trace_handler.update_node(lm._id, lm._parent_id, RoleCloserInput(context.name))
-            lm = lm + context.closer
+            self._trace_handler.update_node(lm._id, lm._parent_id, RoleCloserInput(name=context.name))
+            lm += context.closer
             lm = lm.copy()
 
         # apply any newly opened contexts (new from this object's perspective)
         for context in enter_blocks:
-            self._trace_handler.update_node(lm._id, lm._parent_id, RoleOpenerInput(context.name))
-            lm = lm + context.opener
+            self._trace_handler.update_node(lm._id, lm._parent_id, RoleOpenerInput(name=context.name))
+            lm += context.opener
             lm = lm.copy()
 
             with grammar_only():
                 tmp = lm + context.closer
-            close_text = tmp._state[len(lm._state):]  # get the new state added by calling the closer
+            close_text = tmp._state[len(lm._state):]  # get the new trace added by calling the closer
             lm.opened_blocks[context] = (len(lm._state), close_text)
 
             # clear out names that we override
@@ -517,22 +519,30 @@ class Model:
                     if context.name in lm._variables_log_probs:
                         del lm._variables_log_probs[context.name]
 
-        # wrap raw string values
-        if isinstance(value, str):
+        if isinstance(value, TextOutput):
+            lm._inplace_append(value.value)
+            out = lm
+            self._trace_handler.update_node(out._id, out._parent_id, value)
+        elif isinstance(value, CaptureOutput):
+            self._trace_handler.update_node(lm._id, lm._parent_id, value)
+            out = lm
+        elif isinstance(value, str):
+            # wrap raw string values
+
             is_id = False
             parts = re.split(_tag_pattern, value)
 
             # we have no embedded objects
             if len(parts) == 1:
-                self._trace_handler.update_node(lm._id, lm._parent_id, LiteralInput(value))
+                self._trace_handler.update_node(lm._id, lm._parent_id, LiteralInput(value=value))
 
                 lm._inplace_append(value)
                 out = lm
 
-                self._trace_handler.update_node(out._id, out._parent_id, TextOutput(value))
+                self._trace_handler.update_node(out._id, out._parent_id, TextOutput(value=value))
             # if we have embedded objects we have to convert the string to a grammar tree
             else:
-                self._trace_handler.update_node(lm._id, lm._parent_id, EmbeddedInput(value))
+                self._trace_handler.update_node(lm._id, lm._parent_id, EmbeddedInput(value=value))
 
                 partial_grammar = _null_grammar
                 lm.suffix = ""
@@ -559,12 +569,12 @@ class Model:
 
         # run stateless functions (grammar nodes)
         elif isinstance(value, GrammarFunction):
-            self._trace_handler.update_node(lm._id, lm._parent_id, StatelessGuidanceInput(value))
+            self._trace_handler.update_node(lm._id, lm._parent_id, StatelessGuidanceInput(value=value))
             out = lm._run_stateless(value)
 
         # run stateful functions
         else:
-            self._trace_handler.update_node(lm._id, lm._parent_id, StatefulGuidanceInput(value))
+            self._trace_handler.update_node(lm._id, lm._parent_id, StatefulGuidanceInput(value=value))
             out = value(lm)
             if out is None:
                 raise Exception(
@@ -787,7 +797,12 @@ class Model:
                         # lm += f"<||_html:<span style='background-color: rgba({165*(1-chunk.new_bytes_prob) + 0}, {165*chunk.new_bytes_prob + 0}, 0, {0.15}); border-radius: 3px;' title='{chunk.new_bytes_prob}'>_||>"
                         pass
 
-                    lm += new_text
+                    lm += TextOutput(
+                        value=new_text,
+                        is_generated=chunk.is_generated,
+                        token_count=chunk.new_token_count,
+                        prob=chunk.new_bytes_prob,
+                    )
 
                     if chunk.is_generated:
                         # TODO(viz)
@@ -816,12 +831,19 @@ class Model:
 
                                 if k not in lm or not isinstance(lm._variables[k], list):
                                     lm._variables[k] = []
+                                    lm += CaptureOutput(name=k)
                                 if k not in lm._variables_log_probs or not isinstance(lm._variables_log_probs[k], list):
                                     lm._variables_log_probs[k] = []
-                                    
+
                                 lm._variables[k].append(inner_v)
                                 lm._variables_log_probs[k].append(
                                     chunk.capture_group_log_probs[k][i]
+                                )
+                                lm += CaptureOutput(
+                                    name=k,
+                                    value=inner_v,
+                                    is_append=True,
+                                    log_probs=lm._variables_log_probs[k][i],
                                 )
 
                         # ...or standard assignment mode
@@ -832,8 +854,14 @@ class Model:
                                 v = v.decode("utf8") if isinstance(v, bytes) else v
                             except UnicodeDecodeError:
                                 pass
+
                             lm._variables[k] = v
                             lm._variables_log_probs[k] = chunk.capture_group_log_probs[k]
+                            lm += CaptureOutput(
+                                name=k,
+                                value=v,
+                                log_probs=chunk.capture_group_log_probs[k],
+                            )
 
             # if len(chunk.capture_groups) > 0:
             #     for k in chunk.capture_groups:
