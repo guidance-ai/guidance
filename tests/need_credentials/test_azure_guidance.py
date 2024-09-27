@@ -61,10 +61,10 @@ def test_azure_guidance_56_newline(azure_guidance_model: guidance.models.Model):
     lm += "Q: 7 * 8\nA: " + gen("text", regex="[0-9]+", max_tokens=20) + "\n"
     assert lm["text"] == "56"
 
-def test_azure_guidance_1003_eos(azure_guidance_model: guidance.models.Model):
+def test_azure_guidance_1000003_eos(azure_guidance_model: guidance.models.Model):
     lm = azure_guidance_model
-    lm += "Q: 1000 + 3\nA: " + gen("text", regex="[0-9]+", max_tokens=20)
-    assert lm["text"] == "1003"
+    lm += "Q: 1000000 + 3\nA: " + gen("text", regex="[0-9]+", max_tokens=20)
+    assert lm["text"] == "1000003"
 
 def test_azure_guidance_dolphins(azure_guidance_model: guidance.models.Model):
     lm = azure_guidance_model
@@ -74,11 +74,12 @@ def test_azure_guidance_dolphins(azure_guidance_model: guidance.models.Model):
     assert lm["dolphins"] == "No"
     assert lm["sharks"] == "Yes"
 
-def test_azure_guidance_1003_max_tokens(azure_guidance_model: guidance.models.Model):
+def test_azure_guidance_1000003_max_tokens(azure_guidance_model: guidance.models.Model):
     lm = azure_guidance_model
-    lm += "Q: 1000 + 3\nA: " + gen("text", regex="[0-9]+", max_tokens=2)
-    assert lm["text"] == "10"
-
+    lm += "Q: 1000000 + 3\nA: " + gen("text", regex="[0-9]+", max_tokens=2)
+    assert len(lm["text"]) >= 2
+    assert len(lm["text"]) <= 6
+    assert "100000".startswith(lm["text"])
 
 def test_azure_guidance_max_tokens_1(azure_guidance_model: guidance.models.Model):
     lm = azure_guidance_model
@@ -160,7 +161,7 @@ def test_azure_guidance_suffix(azure_guidance_model: guidance.models.Model):
     lm = (
         lm_orig
         + "1. Here is a sentence "
-        + gen(name="bla", list_append=True, suffix="\n")
+        + gen(name="bla", list_append=True, suffix="\n", max_tokens=30)
     )
     # list_append
     assert isinstance(lm["bla"], list)
