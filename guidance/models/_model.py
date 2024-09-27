@@ -15,7 +15,7 @@ from typing import Any, Dict, Iterator, List, Optional, Union, TYPE_CHECKING
 
 import numpy as np
 
-from ..state import RoleCloserInput, RoleOpenerInput, StateHandler, LiteralInput, EmbeddedInput, StatefulGuidanceInput, StatelessGuidanceInput, TextOutput
+from ..state import RoleCloserInput, RoleOpenerInput, ModelTraceHandler, LiteralInput, EmbeddedInput, StatefulGuidanceInput, StatelessGuidanceInput, TextOutput
 
 try:
     from IPython.display import clear_output, display, HTML
@@ -68,7 +68,7 @@ class Engine:
         self.compute_log_probs = compute_log_probs
         self.metrics = GuidanceEngineMetrics()
 
-        self.state_handler = StateHandler()
+        self.trace_handler = ModelTraceHandler()
 
     def get_chat_template(self): # TODO [HN]: Add more logic here...should we instantiate class here? do we even need to?
         return self.tokenizer.chat_template() # Instantiate the class before returning to client for now
@@ -208,7 +208,6 @@ class Model:
     close_blocks: Dict["ContextBlock", None] = {}  # track what context block is about to close
     
     _grammar_only = 0  # a flag that tracks when we are forced to be executing only compiled grammars (like when we are inside a select)
-    _throttle_refresh = 0  # a flag that tracks when we can throttle our display since we know future display calls are going to happen
 
     def __init__(self, engine, echo=True, parent_id=None, **kwargs):
         """Build a new model object that represents a model in a given state.
@@ -247,7 +246,7 @@ class Model:
         self._variables_log_probs = {}  # these are the state variables stored with the model
         self._cache_state = {}  # mutable caching state used to save computation
         self._state = ""  # the current bytes that represent the state of the model
-        self._state_handler = engine.state_handler  # builds state for models
+        self._trace_handler = engine.trace_handler  # builds state for models
         self._event_queue = None  # TODO: these are for streaming results in code, but that needs implemented
         self._event_parent = None
         self._last_display = 0  # used to track the last display call to enable throttling
@@ -255,7 +254,7 @@ class Model:
 
         self._id = self.__class__.gen_id()  # model id needed for tracking state
         self._parent_id = parent_id
-        self._state_handler.update_node(self._id, self._parent_id, None)
+        self._trace_handler.update_node(self._id, self._parent_id, None)
 
     @classmethod
     def gen_id(cls):
@@ -339,10 +338,10 @@ class Model:
             # otherwise if the current event que has an event parent then that is also our parent
             new_lm._event_parent = self._event_parent
 
-        new_lm._state_handler = self._state_handler
+        new_lm._trace_handler = self._trace_handler
         new_lm._id = self.__class__.gen_id()
         new_lm._parent_id = self._id
-        self._state_handler.update_node(new_lm._id, new_lm._parent_id, None)
+        self._trace_handler.update_node(new_lm._id, new_lm._parent_id, None)
 
         return new_lm
 
@@ -354,40 +353,33 @@ class Model:
 
         Parameters
         ----------
-        value : bytes
+        value : bytes | str
             The bytes we should append to our current state.
         """
 
         # update the byte state
-        self._state += str(value)  # TODO: make _state to be bytes not a string
+        v = value
+        if not isinstance(v, str):
+            v = str(value)
+        self._state += v
 
         # see if we should update the display
         if not force_silent:
             self._update_display()
 
         # this is for programmatic streaming among other things
-        if Model._throttle_refresh > 0:
-            curr_time = time.time()
-            if curr_time - self._last_event_stream >= self.max_display_rate:
-                self._last_event_stream = curr_time
-                self._send_to_event_queue(self)
-        else:
-            self._send_to_event_queue(self)
+        self._send_to_event_queue(self)
+
 
     def _update_display(self, throttle=True):
+        # TODO(nopdive): Remove throttle keyword as no longer in use.
         if self.echo:
-            if Model._throttle_refresh > 0:
-                curr_time = time.time()
-                if throttle and curr_time - self._last_display < self.max_display_rate:
-                    return  # we are throttling the update
-                else:
-                    self._last_display = curr_time
-
             if ipython_is_imported:
                 clear_output(wait=True)
                 display(HTML(self._html()))
             else:
                 pprint(self._state)
+
 
     def reset(self, clear_variables=True):
         """This resets the state of the model object.
@@ -397,16 +389,17 @@ class Model:
         clear_variables : bool
             If we should clear all the model object's variables in addition to reseting the byte state.
         """
+        # TODO(nopdive): This violates the immutability assumption on model class for users. Remove on confirmation.
+
         self._state = self._state[:0]
         if clear_variables:
             self._variables = {}
             self._variables_log_probs = {}
         return self
-    
+
     # NOTE(nopdive): Intentionally private, consider this friend scoped. Users should never be interacting with this method directly.
     def _add_role_opener(self, role_name, **kwargs):
         lm = self
-        # self._state_handler.add_node(lm._id, lm._parent_id, RoleOpener(role_name))
 
         # TODO [HN]: Temporary change while I instrument chat_template in transformers only.
         # Eventually have all models use chat_template.
@@ -466,124 +459,121 @@ class Model:
         # (we need to do this since Model objects are immutable)
         lm = self.copy()
 
-        # inside this context we are free to drop display calls that come too close together
-        with throttle_refresh():
+        # find what new blocks need to be applied
+        enter_blocks = []
+        for context in Model.open_blocks:
+            if context not in lm.opened_blocks:
+                enter_blocks.append(context)
 
-            # find what new blocks need to be applied
-            enter_blocks = []
-            for context in Model.open_blocks:
-                if context not in lm.opened_blocks:
-                    enter_blocks.append(context)
+                # mark this so we don't re-add when computing the opener or closer (even though we don't know the close text yet)
+                lm.opened_blocks[context] = (0, "")
 
-                    # mark this so we don't re-add when computing the opener or closer (even though we don't know the close text yet)
-                    lm.opened_blocks[context] = (0, "")
-            
-            exit_blocks = []
-            for context in Model.close_blocks:
-                if context not in lm.closed_blocks:
-                    exit_blocks.append(context)
-                    lm.closed_blocks[context] = (0, "")
+        exit_blocks = []
+        for context in Model.close_blocks:
+            if context not in lm.closed_blocks:
+                exit_blocks.append(context)
+                lm.closed_blocks[context] = (0, "")
 
 
-            # find what old blocks need to be removed
-            old_blocks = []
-            for context in list(reversed(lm.opened_blocks)):
-                if context not in Model.open_blocks and context in lm.opened_blocks:
-                    old_blocks.append((lm.opened_blocks[context], context))
+        # find what old blocks need to be removed
+        old_blocks = []
+        for context in list(reversed(lm.opened_blocks)):
+            if context not in Model.open_blocks and context in lm.opened_blocks:
+                old_blocks.append((lm.opened_blocks[context], context))
 
-                    # delete this so we don't re-close when computing the opener or closer
-                    del lm.opened_blocks[context]
+                # delete this so we don't re-close when computing the opener or closer
+                del lm.opened_blocks[context]
 
-            # close any newly closed contexts
-            for (pos, close_text), context in old_blocks:
-                if context.name is not None:
-                    lm._variables[context.name] = format_pattern.sub(
-                        "", lm._state[pos:]
-                    )
-                # TODO(nopdive): Consider removing this
-                # lm = lm + context.closer
+        # close any newly closed contexts
+        for (pos, close_text), context in old_blocks:
+            if context.name is not None:
+                lm._variables[context.name] = format_pattern.sub(
+                    "", lm._state[pos:]
+                )
+            # TODO(nopdive): Consider removing this
+            # lm = lm + context.closer
 
-            # apply any newly closed contexts (new from this object's perspective)
-            for context in exit_blocks:
-                self._state_handler.update_node(lm._id, lm._parent_id, RoleCloserInput(context.name))
-                lm = lm + context.closer
-                lm = lm.copy()
+        # apply any newly closed contexts (new from this object's perspective)
+        for context in exit_blocks:
+            self._trace_handler.update_node(lm._id, lm._parent_id, RoleCloserInput(context.name))
+            lm = lm + context.closer
+            lm = lm.copy()
 
-            # apply any newly opened contexts (new from this object's perspective)
-            for context in enter_blocks:
-                self._state_handler.update_node(lm._id, lm._parent_id, RoleOpenerInput(context.name))
-                lm = lm + context.opener
-                lm = lm.copy()
+        # apply any newly opened contexts (new from this object's perspective)
+        for context in enter_blocks:
+            self._trace_handler.update_node(lm._id, lm._parent_id, RoleOpenerInput(context.name))
+            lm = lm + context.opener
+            lm = lm.copy()
 
-                with grammar_only():
-                    tmp = lm + context.closer
-                close_text = tmp._state[len(lm._state):]  # get the new state added by calling the closer
-                lm.opened_blocks[context] = (len(lm._state), close_text)
+            with grammar_only():
+                tmp = lm + context.closer
+            close_text = tmp._state[len(lm._state):]  # get the new state added by calling the closer
+            lm.opened_blocks[context] = (len(lm._state), close_text)
 
-                # clear out names that we override
-                if context.name is not None:
-                    if context.name in lm._variables:
-                        del lm._variables[context.name]
-                        if context.name in lm._variables_log_probs:
-                            del lm._variables_log_probs[context.name]
+            # clear out names that we override
+            if context.name is not None:
+                if context.name in lm._variables:
+                    del lm._variables[context.name]
+                    if context.name in lm._variables_log_probs:
+                        del lm._variables_log_probs[context.name]
 
-            # wrap raw string values
-            if isinstance(value, str):
-                is_id = False
-                parts = re.split(_tag_pattern, value)
+        # wrap raw string values
+        if isinstance(value, str):
+            is_id = False
+            parts = re.split(_tag_pattern, value)
 
-                # we have no embedded objects
-                if len(parts) == 1:
-                    self._state_handler.update_node(lm._id, lm._parent_id, LiteralInput(value))
+            # we have no embedded objects
+            if len(parts) == 1:
+                self._trace_handler.update_node(lm._id, lm._parent_id, LiteralInput(value))
 
-                    lm._inplace_append(value)
-                    out = lm
-
-                    self._state_handler.update_node(out._id, out._parent_id, TextOutput(value))
-                # if we have embedded objects we have to convert the string to a grammar tree
-                else:
-                    self._state_handler.update_node(lm._id, lm._parent_id, EmbeddedInput(value))
-
-                    partial_grammar = _null_grammar
-                    lm.suffix = ""
-                    for i, part in enumerate(parts):
-                        if i < len(parts) - 1:
-                            lm.suffix = parts[i + 1]
-                        if is_id:
-                            call = _call_pool[part]
-                            if isinstance(call, GrammarFunction):
-                                partial_grammar += _call_pool[part]
-                            else:
-                                lm += partial_grammar
-                                lm = _call_pool[part](lm)
-                                partial_grammar = _null_grammar
-                        elif part != "":
-                            partial_grammar += string(part)
-                        is_id = not is_id
-
-                    out = lm + partial_grammar
-
-            # if we find a null value we do nothing
-            elif isinstance(value, Null):
+                lm._inplace_append(value)
                 out = lm
 
-            # run stateless functions (grammar nodes)
-            elif isinstance(value, GrammarFunction):
-                self._state_handler.update_node(lm._id, lm._parent_id, StatelessGuidanceInput(value))
-                out = lm._run_stateless(value)
-
-            # run stateful functions
+                self._trace_handler.update_node(out._id, out._parent_id, TextOutput(value))
+            # if we have embedded objects we have to convert the string to a grammar tree
             else:
-                self._state_handler.update_node(lm._id, lm._parent_id, StatefulGuidanceInput(value))
-                out = value(lm)
-                if out is None:
-                    raise Exception(
-                        f"A guidance function returned `None`, not a model object! Did you forget to return the new lm at the end of your function?"
-                    )
-                if not isinstance(out, Model):
-                    raise Exception(
-                        f"A guidance function did not return a model object! Did you try to add a function to a model without calling the function? For example `model + guidance_function()` is correct, while `model + guidance_function` will cause this error."
-                    )
+                self._trace_handler.update_node(lm._id, lm._parent_id, EmbeddedInput(value))
+
+                partial_grammar = _null_grammar
+                lm.suffix = ""
+                for i, part in enumerate(parts):
+                    if i < len(parts) - 1:
+                        lm.suffix = parts[i + 1]
+                    if is_id:
+                        call = _call_pool[part]
+                        if isinstance(call, GrammarFunction):
+                            partial_grammar += _call_pool[part]
+                        else:
+                            lm += partial_grammar
+                            lm = _call_pool[part](lm)
+                            partial_grammar = _null_grammar
+                    elif part != "":
+                        partial_grammar += string(part)
+                    is_id = not is_id
+
+                out = lm + partial_grammar
+
+        # if we find a null value we do nothing
+        elif isinstance(value, Null):
+            out = lm
+
+        # run stateless functions (grammar nodes)
+        elif isinstance(value, GrammarFunction):
+            self._trace_handler.update_node(lm._id, lm._parent_id, StatelessGuidanceInput(value))
+            out = lm._run_stateless(value)
+
+        # run stateful functions
+        else:
+            self._trace_handler.update_node(lm._id, lm._parent_id, StatefulGuidanceInput(value))
+            out = value(lm)
+            if out is None:
+                raise Exception(
+                    f"A guidance function returned `None`, not a model object! Did you forget to return the new lm at the end of your function?"
+                )
+            if not isinstance(out, Model):
+                raise Exception(
+                    f"A guidance function did not return a model object! Did you try to add a function to a model without calling the function? For example `model + guidance_function()` is correct, while `model + guidance_function` will cause this error."
+                )
 
         return out
 
@@ -797,10 +787,7 @@ class Model:
                         # lm += f"<||_html:<span style='background-color: rgba({165*(1-chunk.new_bytes_prob) + 0}, {165*chunk.new_bytes_prob + 0}, 0, {0.15}); border-radius: 3px;' title='{chunk.new_bytes_prob}'>_||>"
                         pass
 
-                    # TODO(nopdive): Remove old code on confirmation
                     lm += new_text
-                    # lm._inplace_append(new_text)
-                    # self._state_handler.add_node(lm._id, lm._parent_id, TextOutput(new_text))
 
                     if chunk.is_generated:
                         # TODO(viz)
@@ -981,19 +968,6 @@ class GrammarOnly:
 def grammar_only():
     """Returns a context manager that ensures only grammars are executed (not full python functions)."""
     return GrammarOnly()
-
-
-class ThrottleRefresh:
-    def __enter__(self):
-        Model._throttle_refresh += 1
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        Model._throttle_refresh -= 1
-
-
-def throttle_refresh():
-    """Returns a context manager that allows the print statement to drop display calls above the throttle rate."""
-    return ThrottleRefresh()
 
 
 class ConstraintException(Exception):
