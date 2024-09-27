@@ -15,7 +15,7 @@ from typing import Any, Dict, Iterator, List, Optional, Union, TYPE_CHECKING
 
 import numpy as np
 
-from ..state import RoleCloserInput, RoleOpenerInput, StateHandler, Tracker, LiteralInput, EmbeddedInput, StatefulGuidanceInput, StatelessGuidanceInput, TextOutput
+from ..state import RoleCloserInput, RoleOpenerInput, StateHandler, LiteralInput, EmbeddedInput, StatefulGuidanceInput, StatelessGuidanceInput, TextOutput
 
 try:
     from IPython.display import clear_output, display, HTML
@@ -67,7 +67,8 @@ class Engine:
         self.tokenizer = tokenizer
         self.compute_log_probs = compute_log_probs
         self.metrics = GuidanceEngineMetrics()
-        self._state_handler = StateHandler()
+
+        self.state_handler = StateHandler()
 
     def get_chat_template(self): # TODO [HN]: Add more logic here...should we instantiate class here? do we even need to?
         return self.tokenizer.chat_template() # Instantiate the class before returning to client for now
@@ -190,10 +191,6 @@ class Engine:
             + str(prompt[-40:])
         )
 
-    @property
-    def state_handler(self):
-        return self._state_handler
-
 
 _id_counter = 0  # Counter for identifiers, this has to be outside the model to handle child classes properly.
 class Model:
@@ -258,7 +255,7 @@ class Model:
 
         self._id = self.__class__.gen_id()  # model id needed for tracking state
         self._parent_id = parent_id
-        self._state_handler.update_node(self._id, self._parent_id, Tracker())
+        self._state_handler.update_node(self._id, self._parent_id, None)
 
     @classmethod
     def gen_id(cls):
@@ -345,7 +342,7 @@ class Model:
         new_lm._state_handler = self._state_handler
         new_lm._id = self.__class__.gen_id()
         new_lm._parent_id = self._id
-        self._state_handler.update_node(new_lm._id, new_lm._parent_id, Tracker())
+        self._state_handler.update_node(new_lm._id, new_lm._parent_id, None)
 
         return new_lm
 
@@ -497,25 +494,26 @@ class Model:
                     # delete this so we don't re-close when computing the opener or closer
                     del lm.opened_blocks[context]
 
-            # # close any newly closed contexts
+            # close any newly closed contexts
             for (pos, close_text), context in old_blocks:
                 if context.name is not None:
                     lm._variables[context.name] = format_pattern.sub(
                         "", lm._state[pos:]
                     )
-                # self._state_handler.add_node(lm._id, lm._parent_id, RoleCloser(context.name))
-
                 # TODO(nopdive): Consider removing this
                 # lm = lm + context.closer
-            
+
+            # apply any newly closed contexts (new from this object's perspective)
             for context in exit_blocks:
                 self._state_handler.update_node(lm._id, lm._parent_id, RoleCloserInput(context.name))
                 lm = lm + context.closer
+                lm = lm.copy()
 
             # apply any newly opened contexts (new from this object's perspective)
             for context in enter_blocks:
                 self._state_handler.update_node(lm._id, lm._parent_id, RoleOpenerInput(context.name))
                 lm = lm + context.opener
+                lm = lm.copy()
 
                 with grammar_only():
                     tmp = lm + context.closer
@@ -538,8 +536,9 @@ class Model:
                 if len(parts) == 1:
                     self._state_handler.update_node(lm._id, lm._parent_id, LiteralInput(value))
 
-                    out = lm.copy()
-                    out._inplace_append(value)
+                    lm._inplace_append(value)
+                    out = lm
+
                     self._state_handler.update_node(out._id, out._parent_id, TextOutput(value))
                 # if we have embedded objects we have to convert the string to a grammar tree
                 else:

@@ -5,7 +5,9 @@ Once benchmark figures are out, we'll figure out what to optimize.
 """
 # TODO(nopdive): Deal with weak referencing for GC
 
-from typing import Dict, Any
+from dataclasses import dataclass, field
+from itertools import count
+from typing import Dict, Any, Optional
 import weakref
 
 
@@ -13,88 +15,76 @@ class StateHandler:
     def __init__(self) -> None:
         self._model_node_map: Dict[int, StateNode] = {}
         self._node_model_map: Dict[StateNode, int] = {}
-    
-    def _remove_node(self, model_id: int) -> None:
+
+    def update_node(self, model_id: int, parent_id: int, node_attr: "NodeAttr" = None) -> None:
         node = self._model_node_map.get(model_id, None)
-        for child in node.children:
-            child.parent = None
-        if node.parent is not None:
-            node.parent.remove_child(node)
+        if node is None:
+            node = StateNode()
 
-        del self._model_node_map[model_id]
-        del self._node_model_map[node]
+            self._model_node_map[model_id] = node
+            self._node_model_map[node] = model_id
 
-    def update_node(self, model_id: int, parent_id: int, node: "StateNode") -> None:
-        # Replace node if required
-        existing_node = self._model_node_map.get(model_id, None)
-        if existing_node is not None:
-            self._remove_node(model_id)
+            parent_node = self._model_node_map.get(parent_id, None)
+            if parent_node is not None:
+                parent_node.add_child(node)
 
-        self._model_node_map[model_id] = node
-        self._node_model_map[node] = model_id
-        parent_node = self._model_node_map.get(parent_id, None)
-        if parent_node is not None:
-            parent_node.add_child(node)
+        if node_attr is not None:
+            if isinstance(node_attr, InputAttr):
+                assert node.input is None
+                node.input = node_attr
+            elif isinstance(node_attr, OutputAttr):
+                assert node.output is None
+                node.output = node_attr
+            else:
+                raise ValueError(f"Unexpected node attr: {node_attr}")
 
-_id_counter = 0
+
+@dataclass
 class StateNode:
-    def __init__(self) -> None:
-        self._id = self.__class__.gen_id()
-        self._parent = None
-        self._children = []
+    identifier: int = field(default_factory=count().__next__)
+    parent: Optional["StateNode"] = None
+    children: list["StateNode"] = field(default_factory=list)
+    input: Optional["InputAttr"] = None
+    output: Optional["OutputAttr"] = None
 
     def add_child(self, child: "StateNode") -> None:
-        child._parent = self
-        self._children.append(child)
+        child.parent = self
+        self.children.append(child)
 
     def remove_child(self, child: "StateNode") -> None:
-        child._parent = None
-        self._children.remove(child)
-
-    @property
-    def children(self):
-        return self._children
-
-    @property
-    def parent(self):
-        return self._parent
-
-    @parent.setter
-    def parent(self, value):
-        self._parent = value
-
-    @classmethod
-    def gen_id(cls):
-        global _id_counter
-        _id = _id_counter
-        _id_counter += 1
-        return _id
+        child.parent = None
+        self.children.remove(child)
 
     def __repr__(self):
-        return self.__str__()
+        return f"{self.identifier}:{'' if self.input is None else repr(self.input)}:{'' if self.output is None else repr(self.output)}"
+
+    def __hash__(self):
+        return hash(self.identifier)
 
 
 def visualize_text(state_builder: StateHandler, node: StateNode) -> None:
-    def visit(node: StateNode, buffer=[]):
-        if node.parent is not None:
-            visit(node._parent)
-        if isinstance(node, TextOutput):
-            print(node._value, end='')
+    def visit(visitor: StateNode):
+        if visitor.parent is not None:
+            visit(visitor.parent)
+
+        if visitor.output is not None and isinstance(visitor.output, OutputAttr):
+            print(visitor.output._value, end='')
+
     visit(node)
 
 
 def visualize(state_builder: StateHandler, node: StateNode) -> None:
     from anytree import Node, RenderTree
 
-    def visit(node: StateNode, viz_parent=None):
+    def visit(visitor: StateNode, viz_parent=None):
         nonlocal state_builder
 
         if viz_parent is None:
-            viz_node = Node(f"{state_builder._node_model_map[node]}:{node}")
+            viz_node = Node(f"{state_builder._node_model_map[visitor]}:{repr(visitor)}")
         else:
-            viz_node = Node(f"{state_builder._node_model_map[node]}:{node}", parent=viz_parent)
+            viz_node = Node(f"{state_builder._node_model_map[visitor]}:{repr(visitor)}", parent=viz_parent)
 
-        for child in node.children:
+        for child in visitor.children:
             visit(child, viz_node)
         return viz_node
     viz_root = visit(node)
@@ -104,83 +94,99 @@ def visualize(state_builder: StateHandler, node: StateNode) -> None:
         print(tree_str)
 
 
-class InputNode(StateNode):
+class NodeAttr:
+    pass
+
+
+class InputAttr(NodeAttr):
     def __init__(self) -> None:
         super().__init__()
 
 
-class OutputNode(StateNode):
+class OutputAttr(NodeAttr):
     def __init__(self) -> None:
         super().__init__()
 
 
-class Tracker(StateNode):
-    def __init__(self):
-        super().__init__()
-
-    def __str__(self):
-        return f"{self._id}:Tracker"
-
-
-class StatelessGuidanceInput(InputNode):
+class StatelessGuidanceInput(InputAttr):
     def __init__(self, value: Any):
         self._value = value
         super().__init__()
 
+    def __repr__(self):
+        return f"{self.__class__.__name__}:{self._value}"
+
     def __str__(self):
-        return f"{self._id}:{self.__class__.__name__}:{self._value}"
+        return str(self._value)
 
 
-class StatefulGuidanceInput(InputNode):
+class StatefulGuidanceInput(InputAttr):
     def __init__(self, value: Any):
         self._value = value
         super().__init__()
 
-    def __str__(self):
-        return f"{self._id}:{self.__class__.__name__}:{self._value}"
-    
+    def __repr__(self):
+        return f"{self.__class__.__name__}:{self._value}"
 
-class LiteralInput(InputNode):
+    def __str__(self):
+        return str(self._value)
+
+
+class LiteralInput(InputAttr):
     def __init__(self, value: str):
         self._value = value
         super().__init__()
 
+    def __repr__(self):
+        return f"{self.__class__.__name__}:{repr(self._value)}"
+
     def __str__(self):
-        return f"{self._id}:{self.__class__.__name__}:{repr(self._value)}"
+        return self._value
 
 
-class TextOutput(OutputNode):
+class TextOutput(OutputAttr):
     def __init__(self, value: str):
         self._value = value
         super().__init__()
 
+    def __repr__(self):
+        return f"{self.__class__.__name__}:{repr(self._value)}"
+
     def __str__(self):
-        return f"{self._id}:{self.__class__.__name__}:{repr(self._value)}"
+        return self._value
 
 
-class EmbeddedInput(InputNode):
+class EmbeddedInput(InputAttr):
     def __init__(self, value: str):
         self._value = value
         super().__init__()
 
+    def __repr__(self):
+        return f"{self.__class__.__name__}:{repr(self._value)}"
+
     def __str__(self):
-        return f"{self._id}:{self.__class__.__name__}:{repr(self._value)}"
+        return self._value
 
-
-class RoleOpenerInput(InputNode):
+class RoleOpenerInput(InputAttr):
     def __init__(self, value: str):
         self._value = value
         super().__init__()
 
+    def __repr__(self):
+        return f"{self.__class__.__name__}:{repr(self._value)}"
+
     def __str__(self):
-        return f"{self._id}:{self.__class__.__name__}:{repr(self._value)}"
+        return self._value
 
 
-class RoleCloserInput(InputNode):
+class RoleCloserInput(InputAttr):
     def __init__(self, value: str):
         self._value = value
         super().__init__()
 
+    def __repr__(self):
+        return f"{self.__class__.__name__}:{repr(self._value)}"
+
     def __str__(self):
-        return f"{self._id}:{self.__class__.__name__}:{repr(self._value)}"
+        return self._value
 

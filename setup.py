@@ -70,6 +70,7 @@ test_requires = [
     "types-regex",
     "types-requests",
     "types-jsonschema",
+    "anytree",
 ]
 bench_requires = [
     "pandas",
