@@ -4,13 +4,10 @@ import html
 import logging
 import queue
 import re
-import textwrap
 import threading
-import time
-import warnings
 
 from pprint import pprint
-from typing import Any, Dict, Iterator, List, Optional, Union, TYPE_CHECKING
+from typing import Dict, Iterator, Optional, TYPE_CHECKING
 
 
 import numpy as np
@@ -492,8 +489,6 @@ class Model:
                 self._trace_handler.update_node(
                     lm._id, lm._parent_id, CaptureOutput(name=context.name, value=v)
                 )
-            # TODO(nopdive): Consider removing this
-            # lm = lm + context.closer
 
         # apply any newly closed contexts (new from this object's perspective)
         for context in exit_blocks:
