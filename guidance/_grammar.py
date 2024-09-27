@@ -14,7 +14,7 @@ _tag_pattern = re.compile(
 
 
 class StatefulException(Exception):
-    """This is raised when we try and use the trace of a grammar object like it was a live model.
+    """This is raised when we try and use the state of a grammar object like it was a live model.
 
     Note that eventually it would be nice to support stateful parser/grammar constructs directly, but
     such "parser combinators" cannot be run effciently in Python. So we use a traditional parser and
@@ -163,7 +163,7 @@ class GrammarFunction(Function):
             return value.__add__(self)
 
     def __getitem__(self, value):
-        raise StatefulException("GrammarFunctions can't access trace!")
+        raise StatefulException("GrammarFunctions can't access state!")
 
     def match(
         self,
@@ -414,7 +414,7 @@ def replace_model_variables(grammar, model, allowed_vars=None):
 
 
 def unreplace_model_variables(replacements):
-    """This restores a grammar back to its original trace, ready for another execution."""
+    """This restores a grammar back to its original state, ready for another execution."""
     for grammar, i, orig_value in replacements:
         grammar.values[i] = orig_value
 
