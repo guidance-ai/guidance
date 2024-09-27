@@ -13,6 +13,7 @@ from guidance import (
     one_or_more,
     GrammarFunction,
     string,
+    capture,
 )
 from guidance._grammar import as_regular_grammar
 from guidance.library._subgrammar import subgrammar, lexeme
@@ -146,7 +147,7 @@ def check_grammar(grm: GrammarFunction, output: List[str]):
             else:
                 assert bt == 0
                 assert len(toks) == 1
-                continue # normal path
+                continue  # normal path
         else:
             bt, toks = interp.post_process(None)
 
@@ -209,7 +210,9 @@ def test_llparser():
     [
         # grammar turned into regex:
         "Dolphin name: "
-        + as_regular_grammar('"' + byte_range(b"A", b"Z") + one_or_more(byte_range(b"a", b"z")) + '"')
+        + as_regular_grammar(
+            '"' + byte_range(b"A", b"Z") + one_or_more(byte_range(b"a", b"z")) + '"'
+        )
         + ",",
         # regular gen()
         "Dolphin name: " + gen(regex=r'"[A-Z][a-z]+"') + ",",
@@ -326,6 +329,14 @@ def test_ll_stop_quote_comma():
     check_grammar(grm, ['{‧ "‧items‧":‧ ["', 'a‧"', ',‧\n‧  ‧ "', 'b‧"', "]‧ }"])
 
 
+def test_ll_nullable_bug():
+    e = string("")
+    a = select([e, "a"])
+    s = capture(a + a + a + a, "S")
+    grm = select([s, "foo"])
+    check_grammar(grm, ["", "a‧≺EOS≻"])
+
+
 def test_ll_max_tokens():
     check_grammar(
         "Name: " + gen("name", max_tokens=3) + " Height: " + gen("height", max_tokens=3),
@@ -352,6 +363,7 @@ def test_ll_max_tokens():
 def test_ll_fighter():
     @guidance(stateless=True)
     def character_maker2(lm, id, description, valid_weapons):
+        # fmt: off
         lm += textwrap.dedent(f"""\
         {{
             "name": "{gen('name', stop='"')}",
@@ -363,6 +375,7 @@ def test_ll_fighter():
             "strength": {gen('strength', regex='[0-9]+', stop=',')},
             "items": ["{gen('item', list_append=True, stop='"')}", "{gen('item', list_append=True, stop='"')}", "{gen('item', list_append=True, stop='"')}"]
         }}""")
+        # fmt: on
         return lm
 
     grm = character_maker2(1, "A nimble fighter", ["axe", "sword", "bow"])

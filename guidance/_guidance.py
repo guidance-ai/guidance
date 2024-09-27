@@ -1,5 +1,6 @@
 import functools
 import inspect
+import threading
 
 from ._grammar import DeferredReference, RawFunction, Terminal, string
 from ._utils import strip_multiline_string_indents
@@ -40,6 +41,10 @@ def _decorator(f, *, stateless, cache, dedent, model):
         if cache:
             f = functools.cache(f)
 
+        # Use thread local to store the reference to the grammar node for recursive calls
+        # Otherwise, shared state between threads may otherwise trick us into thinking we are in a recursive call
+        thread_local = threading.local()
+
         @functools.wraps(f)
         def wrapped(*args, **kwargs):
 
@@ -49,7 +54,7 @@ def _decorator(f, *, stateless, cache, dedent, model):
             ):
 
                 # if we have a (deferred) reference set, then we must be in a recursive definition and so we return the reference
-                reference = getattr(f, "_self_call_reference_", None)
+                reference = getattr(thread_local, "_self_call_reference_", None)
                 if reference is not None:
                     return reference
 
@@ -59,7 +64,7 @@ def _decorator(f, *, stateless, cache, dedent, model):
                     # set a DeferredReference for recursive calls (only if we don't have arguments that might make caching a bad idea)
                     no_args = len(args) + len(kwargs) == 0
                     if no_args:
-                        f._self_call_reference_ = DeferredReference()
+                        thread_local._self_call_reference_ = DeferredReference()
 
                     try:
                         # call the function to get the grammar node
@@ -71,10 +76,10 @@ def _decorator(f, *, stateless, cache, dedent, model):
                             node.name = f.__name__
                         # set the reference value with our generated node
                         if no_args:
-                            f._self_call_reference_.value = node
+                            thread_local._self_call_reference_.value = node
                     finally:
                         if no_args:
-                            del f._self_call_reference_
+                            del thread_local._self_call_reference_
 
                     return node
 
