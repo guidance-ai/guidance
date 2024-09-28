@@ -6,14 +6,14 @@ import queue
 import re
 import threading
 
-from pprint import pprint
 from typing import Dict, Iterator, Optional, TYPE_CHECKING
 
 
 import numpy as np
 
-from ..trace import RoleCloserInput, RoleOpenerInput, TraceHandler, LiteralInput, EmbeddedInput, \
-    StatefulGuidanceInput, StatelessGuidanceInput, TextOutput, CaptureOutput
+from ..trace import NodeAttr, StatelessGuidanceInput, StatefulGuidanceInput, LiteralInput, EmbeddedInput, \
+    RoleOpenerInput, RoleCloserInput, TextOutput, CaptureOutput, TraceHandler
+from ..visual import TraceMessage, AutoRenderer, trace_node_to_str
 
 try:
     from IPython.display import clear_output, display, HTML
@@ -65,7 +65,9 @@ class Engine:
         self.tokenizer = tokenizer
         self.compute_log_probs = compute_log_probs
         self.metrics = GuidanceEngineMetrics()
+
         self.trace_handler = TraceHandler()
+        self.renderer = AutoRenderer(self.trace_handler)
 
     def get_chat_template(self): # TODO [HN]: Add more logic here...should we instantiate class here? do we even need to?
         return self.tokenizer.chat_template() # Instantiate the class before returning to client for now
@@ -231,6 +233,7 @@ class Model:
 
         self.engine = engine
         self.chat_template = engine.get_chat_template() # TODO [HN]: Should this be a method or attr?
+        # NOTE(nopdive): `echo` seems to be better on the engine, when is there an opportunity to turn echo off midway?
         self.echo = echo
         self.token_count = 0  # tracks how many tokens our byte state represents
         self.max_display_rate = 0.2  # this controls how frequently we are allowed to redraw the display (in seconds)
@@ -244,6 +247,10 @@ class Model:
         self._cache_state = {}  # mutable caching state used to save computation
         self._state = ""  # the current bytes that represent the state of the model
         self._trace_handler = engine.trace_handler  # builds state for models
+        if self.echo:
+            self._renderer = engine.renderer  # renderer for display
+        else:
+            self._renderer = None  # no renderer if echo is false
         self._event_queue = None  # TODO: these are for streaming results in code, but that needs implemented
         self._event_parent = None
         self._last_display = 0  # used to track the last display call to enable throttling
@@ -251,7 +258,7 @@ class Model:
 
         self._id = self.__class__.gen_id()  # model id needed for tracking state
         self._parent_id = parent_id
-        self._trace_handler.update_node(self._id, self._parent_id, None)
+        self._update_trace_node(self._id, self._parent_id, None)
 
     @classmethod
     def gen_id(cls):
@@ -335,10 +342,9 @@ class Model:
             # otherwise if the current event que has an event parent then that is also our parent
             new_lm._event_parent = self._event_parent
 
-        new_lm._trace_handler = self._trace_handler
         new_lm._id = self.__class__.gen_id()
         new_lm._parent_id = self._id
-        self._trace_handler.update_node(new_lm._id, new_lm._parent_id, None)
+        self._update_trace_node(new_lm._id, new_lm._parent_id, None)
 
         return new_lm
 
@@ -360,22 +366,8 @@ class Model:
             v = str(value)
         self._state += v
 
-        # see if we should update the display
-        if not force_silent:
-            self._update_display()
-
         # this is for programmatic streaming among other things
         self._send_to_event_queue(self)
-
-
-    def _update_display(self, throttle=True):
-        # TODO(nopdive): Remove throttle keyword as no longer in use.
-        if self.echo:
-            if ipython_is_imported:
-                clear_output(wait=True)
-                display(HTML(self._html()))
-            else:
-                pprint(self._state)
 
 
     def reset(self, clear_variables=True):
@@ -436,12 +428,28 @@ class Model:
         """The current prompt in bytes (which is the state without the context close tags)."""
         return format_pattern.sub("", self._state)
 
+    def _update_trace_node(self, identifier: int, parent_id: Optional[int], node_attr: Optional[NodeAttr]):
+        """Updates trace node that corresponds to this model."""
+
+        trace_node = self._trace_handler.update_node(identifier, parent_id, node_attr)
+        if self._renderer is not None:
+            self._renderer.update(
+                TraceMessage(
+                    trace_id=identifier,
+                    parent_trace_id=parent_id,
+                    trace_node=trace_node,
+                    node_attr=node_attr,
+                )
+            )
+
     def __str__(self):
         """A string representation of the current model object (that includes context closers)."""
-        out = self._current_prompt()
-        for context in reversed(self.opened_blocks):
-            out += format_pattern.sub("", self.opened_blocks[context][1])
-        return out
+        # out = self._current_prompt()
+        # for context in reversed(self.opened_blocks):
+        #     out += format_pattern.sub("", self.opened_blocks[context][1])
+        # return out
+        return trace_node_to_str(self._trace_handler.id_node_map[self._id])
+
 
     def __add__(self, value):
         """Adding is the primary mechanism for extending model state.
@@ -486,19 +494,19 @@ class Model:
             if context.name is not None:
                 v = format_pattern.sub("", lm._state[pos:])
                 lm._variables[context.name] = v
-                self._trace_handler.update_node(
-                    lm._id, lm._parent_id, CaptureOutput(name=context.name, value=v)
-                )
+                self._update_trace_node(lm._id, lm._parent_id, CaptureOutput(name=context.name, value=v))
 
         # apply any newly closed contexts (new from this object's perspective)
         for context in exit_blocks:
-            self._trace_handler.update_node(lm._id, lm._parent_id, RoleCloserInput(name=context.name))
+            self._update_trace_node(lm._id, lm._parent_id, RoleCloserInput(name=context.name))
+
             lm += context.closer
             lm = lm.copy()
 
         # apply any newly opened contexts (new from this object's perspective)
         for context in enter_blocks:
-            self._trace_handler.update_node(lm._id, lm._parent_id, RoleOpenerInput(name=context.name))
+            self._update_trace_node(lm._id, lm._parent_id, RoleOpenerInput(name=context.name))
+
             lm += context.opener
             lm = lm.copy()
 
@@ -517,9 +525,9 @@ class Model:
         if isinstance(value, TextOutput):
             lm._inplace_append(value.value)
             out = lm
-            self._trace_handler.update_node(out._id, out._parent_id, value)
+            self._update_trace_node(out._id, out._parent_id, value)
         elif isinstance(value, CaptureOutput):
-            self._trace_handler.update_node(lm._id, lm._parent_id, value)
+            self._update_trace_node(lm._id, lm._parent_id, value)
             out = lm
         elif isinstance(value, str):
             # wrap raw string values
@@ -529,15 +537,16 @@ class Model:
 
             # we have no embedded objects
             if len(parts) == 1:
-                self._trace_handler.update_node(lm._id, lm._parent_id, LiteralInput(value=value))
+                self._update_trace_node(lm._id, lm._parent_id, LiteralInput(value=value))
 
                 lm._inplace_append(value)
                 out = lm
 
-                self._trace_handler.update_node(out._id, out._parent_id, TextOutput(value=value))
+                self._update_trace_node(out._id, out._parent_id, TextOutput(value=value))
+
             # if we have embedded objects we have to convert the string to a grammar tree
             else:
-                self._trace_handler.update_node(lm._id, lm._parent_id, EmbeddedInput(value=value))
+                self._update_trace_node(lm._id, lm._parent_id, EmbeddedInput(value=value))
 
                 partial_grammar = _null_grammar
                 lm.suffix = ""
@@ -564,12 +573,12 @@ class Model:
 
         # run stateless functions (grammar nodes)
         elif isinstance(value, GrammarFunction):
-            self._trace_handler.update_node(lm._id, lm._parent_id, StatelessGuidanceInput(value=value))
+            self._update_trace_node(lm._id, lm._parent_id, StatelessGuidanceInput(value=value))
             out = lm._run_stateless(value)
 
         # run stateful functions
         else:
-            self._trace_handler.update_node(lm._id, lm._parent_id, StatefulGuidanceInput(value=value))
+            self._update_trace_node(lm._id, lm._parent_id, StatefulGuidanceInput(value=value))
             out = value(lm)
             if out is None:
                 raise Exception(
