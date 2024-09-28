@@ -1,19 +1,17 @@
-import base64
 import copy
-import html
 import logging
 import queue
 import re
 import threading
 
-from typing import Dict, Iterator, Optional, TYPE_CHECKING
+from typing import Iterator, Optional, TYPE_CHECKING
 
 
 import numpy as np
 
 from ..trace import NodeAttr, StatelessGuidanceInput, StatefulGuidanceInput, LiteralInput, EmbeddedInput, \
     RoleOpenerInput, RoleCloserInput, TextOutput, CaptureOutput, TraceHandler
-from ..visual import TraceMessage, AutoRenderer, trace_node_to_str
+from ..visual import TraceMessage, AutoRenderer, trace_node_to_str, trace_node_to_html
 
 try:
     from IPython.display import clear_output, display, HTML
@@ -203,9 +201,8 @@ class Model:
     .. automethod:: __add__
     """
 
-    open_blocks: Dict["ContextBlock", None] = {}  # track what context blocks are open
-    close_blocks: Dict["ContextBlock", None] = {}  # track what context block is about to close
-    
+    global_active_blocks: list["ContextBlock"] = []  # track what context blocks are globally active
+
     _grammar_only = 0  # a flag that tracks when we are forced to be executing only compiled grammars (like when we are inside a select)
 
     def __init__(self, engine, echo=True, parent_id=None, **kwargs):
@@ -238,7 +235,6 @@ class Model:
         self.token_count = 0  # tracks how many tokens our byte state represents
         self.max_display_rate = 0.2  # this controls how frequently we are allowed to redraw the display (in seconds)
         self.opened_blocks = {}  # what context blocks have been opened but not closed
-        self.closed_blocks = {}  # what context blocks have been closed after open
         # self.compute_log_probs = compute_log_probs
 
         # private attributes
@@ -288,24 +284,11 @@ class Model:
 
     def _html(self):
         """Generate HTML that displays the model object."""
-        display_out = self._state
-        for context in reversed(self.opened_blocks):
-            display_out += self.opened_blocks[context][1]
-        display_out = html.escape(display_out)
-        display_out = nodisp_pattern.sub("", display_out)
-        display_out = html_pattern.sub(lambda x: html.unescape(x.group(1)), display_out)
-        display_out = image_pattern.sub(
-            lambda x: '<img src="data:image/png;base64,'
-            + base64.b64encode(self[x.groups(1)[0]]).decode()
-            + '" style="max-width: 400px; vertical-align: middle; margin: 4px;">',
-            display_out,
+
+        return trace_node_to_html(
+            self._trace_handler.id_node_map[self._id],
+            hasattr(self, "indent_roles")
         )
-        display_out = (
-            "<pre style='margin: 0px; padding: 0px; vertical-align: middle; padding-left: 8px; margin-left: -8px; border-radius: 0px; border-left: 1px solid rgba(127, 127, 127, 0.2); white-space: pre-wrap; font-family: ColfaxAI, Arial; font-size: 15px; line-height: 23px;'>"
-            + display_out
-            + "</pre>"
-        )
-        return display_out
 
     def _send_to_event_queue(self, value):
         """For streaming in code.
@@ -329,7 +312,6 @@ class Model:
         new_lm._variables = self._variables.copy()
         new_lm._variables_log_probs = self._variables_log_probs.copy()
         new_lm.opened_blocks = self.opened_blocks.copy()
-        new_lm.closed_blocks = self.closed_blocks.copy()
 
         # create a new clean event queue
         new_lm._event_queue = None  # we start with no event queue because nobody is listening to us yet
@@ -386,38 +368,32 @@ class Model:
             self._variables_log_probs = {}
         return self
 
-    # NOTE(nopdive): Intentionally private, consider this friend scoped. Users should never be interacting with this method directly.
-    def _add_role_opener(self, role_name, **kwargs):
-        lm = self
 
+    def role_opener(self, role_name, **kwargs):
         # TODO [HN]: Temporary change while I instrument chat_template in transformers only.
         # Eventually have all models use chat_template.
-        if hasattr(lm, "get_role_start"):
-            lm += lm.get_role_start(role_name, **kwargs)
-        elif hasattr(lm, "chat_template"):
-            lm += lm.chat_template.get_role_start(role_name)
+        if hasattr(self, "get_role_start"):
+            return self.get_role_start(role_name, **kwargs)
+        elif hasattr(self, "chat_template"):
+            return self.chat_template.get_role_start(role_name)
         else:
             raise Exception(
                 f"You need to use a chat model in order the use role blocks like `with {role_name}():`! Perhaps you meant to use the {type(lm).__name__}Chat class?"
             )
 
-        return lm
 
-    # NOTE(nopdive): Intentionally private, consider this friend scoped. Users should never be interacting with this method directly.
-    def _add_role_closer(self, role_name, **kwargs):
-        lm = self
-
+    def role_closer(self, role_name, **kwargs):
         # TODO [HN]: Temporary change while I instrument chat_template in transformers only.
         # Eventually have all models use chat_template.
-        if hasattr(lm, "get_role_end"):
-            lm += lm.get_role_end(role_name, **kwargs)
-        elif hasattr(lm, "chat_template"):
-            lm += lm.chat_template.get_role_end(role_name)
+        if hasattr(self, "get_role_end"):
+            return self.get_role_end(role_name, **kwargs)
+        elif hasattr(self, "chat_template"):
+            return self.chat_template.get_role_end(role_name)
         else:
             raise Exception(
                 f"You need to use a chat model in order the use role blocks like `with {role_name}():`! Perhaps you meant to use the {type(lm).__name__}Chat class?"
             )
-        return lm
+
 
     def _repr_html_(self):
         if ipython_is_imported:
@@ -426,7 +402,7 @@ class Model:
 
     def _current_prompt(self):
         """The current prompt in bytes (which is the state without the context close tags)."""
-        return format_pattern.sub("", self._state)
+        return trace_node_to_str(self._trace_handler.id_node_map[self._id])
 
     def _update_trace_node(self, identifier: int, parent_id: Optional[int], node_attr: Optional[NodeAttr]):
         """Updates trace node that corresponds to this model."""
@@ -442,12 +418,11 @@ class Model:
                 )
             )
 
+
     def __str__(self):
         """A string representation of the current model object (that includes context closers)."""
-        # out = self._current_prompt()
-        # for context in reversed(self.opened_blocks):
-        #     out += format_pattern.sub("", self.opened_blocks[context][1])
-        # return out
+
+        # TODO(nopdive): Ensure context closers or no?
         return trace_node_to_str(self._trace_handler.id_node_map[self._id])
 
 
@@ -464,58 +439,49 @@ class Model:
         # (we need to do this since Model objects are immutable)
         lm = self.copy()
 
-        # find what new blocks need to be applied
+        # find blocks that are now active, but haven't been opened by lm yet
         enter_blocks = []
-        for context in Model.open_blocks:
+        for context in Model.global_active_blocks:
             if context not in lm.opened_blocks:
                 enter_blocks.append(context)
-
-                # mark this so we don't re-add when computing the opener or closer (even though we don't know the close text yet)
                 lm.opened_blocks[context] = (0, "")
 
+        # find opened blocks by lm, but are no longer active
         exit_blocks = []
-        for context in Model.close_blocks:
-            if context not in lm.closed_blocks:
+        for context in list(reversed(lm.opened_blocks.keys())):
+            if context not in Model.global_active_blocks:
                 exit_blocks.append(context)
-                lm.closed_blocks[context] = (0, "")
 
+        # finish any exiting blocks
+        for context in exit_blocks:
+            pos, close_text = lm.opened_blocks[context]
+            del lm.opened_blocks[context]
 
-        # find what old blocks need to be removed
-        old_blocks = []
-        for context in list(reversed(lm.opened_blocks)):
-            if context not in Model.open_blocks and context in lm.opened_blocks:
-                old_blocks.append((lm.opened_blocks[context], context))
-
-                # delete this so we don't re-close when computing the opener or closer
-                del lm.opened_blocks[context]
-
-        # close any newly closed contexts
-        for (pos, close_text), context in old_blocks:
+            # handle variables
             if context.name is not None:
+                # TODO(nopdive): Replace with trace traversal.
                 v = format_pattern.sub("", lm._state[pos:])
                 lm._variables[context.name] = v
                 self._update_trace_node(lm._id, lm._parent_id, CaptureOutput(name=context.name, value=v))
 
-        # apply any newly closed contexts (new from this object's perspective)
-        for context in exit_blocks:
+            # add closer
             self._update_trace_node(lm._id, lm._parent_id, RoleCloserInput(name=context.name))
-
             lm += context.closer
             lm = lm.copy()
 
-        # apply any newly opened contexts (new from this object's perspective)
+        # start any entering blocks
         for context in enter_blocks:
+            # add opener
             self._update_trace_node(lm._id, lm._parent_id, RoleOpenerInput(name=context.name))
-
             lm += context.opener
             lm = lm.copy()
 
-            with grammar_only():
-                tmp = lm + context.closer
-            close_text = tmp._state[len(lm._state):]  # get the new trace added by calling the closer
+            # store closer for state extraction later
+            close_text = self.role_closer(context.name)
             lm.opened_blocks[context] = (len(lm._state), close_text)
 
-            # clear out names that we override
+            # handle variables
+            # NOTE(nopdive): No stack for variables, this process removes shadowed variables?
             if context.name is not None:
                 if context.name in lm._variables:
                     del lm._variables[context.name]
@@ -796,10 +762,6 @@ class Model:
 
                 if len(chunk.new_bytes) > 0:
                     generated_value += new_text
-                    if chunk.is_generated:
-                        # TODO(viz)
-                        # lm += f"<||_html:<span style='background-color: rgba({165*(1-chunk.new_bytes_prob) + 0}, {165*chunk.new_bytes_prob + 0}, 0, {0.15}); border-radius: 3px;' title='{chunk.new_bytes_prob}'>_||>"
-                        pass
 
                     lm += TextOutput(
                         value=new_text,
@@ -808,13 +770,7 @@ class Model:
                         prob=chunk.new_bytes_prob,
                     )
 
-                    if chunk.is_generated:
-                        # TODO(viz)
-                        # lm += "<||_html:</span>_||>"
-                        pass
-
                 # last_is_generated = chunk.is_generated
-
                 if len(chunk.capture_groups) > 0:
                     for k in chunk.capture_groups:
                         v = chunk.capture_groups[k]

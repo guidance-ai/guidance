@@ -7,5 +7,5 @@ The most critical class is the trace handler. See its documentation for trace de
 """
 
 from ._trace import NodeAttr, InputAttr, OutputAttr, StatefulGuidanceInput, StatelessGuidanceInput
-from ._trace import LiteralInput, EmbeddedInput, RoleCloserInput, RoleOpenerInput
-from ._trace import TextOutput, CaptureOutput, TraceNode, TraceHandler
+from ._trace import LiteralInput, EmbeddedInput, ImageInput, RoleCloserInput, RoleOpenerInput
+from ._trace import TextOutput, ImageOutput, CaptureOutput, TraceNode, TraceHandler

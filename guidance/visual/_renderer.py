@@ -1,9 +1,10 @@
-import html
 import logging
 from typing import Optional
 from pydantic import BaseModel
-from ..trace import RoleOpenerInput, RoleCloserInput, TextOutput, TraceHandler
+
+from ..trace import TraceHandler
 from ..visual import Message, TraceMessage, ResetDisplayMessage
+from ._trace import trace_node_to_html
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +52,7 @@ class UpdateController:
             last_trace_message = next(x for x in reversed(self._messages) if isinstance(x, TraceMessage))
             last_trace_node = last_trace_message.trace_node
 
-            if trace_node != last_trace_node and last_trace_node not in trace_node.ancestors():
+            if trace_node not in last_trace_node.path():
                 logger.debug(f"NEED_RESET:divergence:{last_trace_node}:{trace_node}")
                 need_reset = True
 
@@ -108,28 +109,15 @@ class JupyterHtmlRenderer(Renderer):
     def update(self, message: Message) -> None:
         render_update = self._update_controller.update(message)
 
-        formatted = []
+        last_trace_node = None
         for out_message in render_update.messages:
-            if isinstance(out_message, ResetDisplayMessage):
-                self._formatted.clear()
-                formatted.clear()
-            elif isinstance(out_message, TraceMessage):
-                if isinstance(out_message.node_attr, TextOutput):
-                    x = out_message.node_attr
-                    fmt = f"<span style='background-color: rgba({165 * (1 - x.prob)}, {165 * x.prob}, 0, 0.15); border-radius: 3px;'>{html.escape(x.value)}</span>"
-                    formatted.append(fmt)
-                elif isinstance(out_message.node_attr, RoleOpenerInput):
-                    # TODO(nopdive): Implement HTML for role opener
-                    pass
-                elif isinstance(out_message.node_attr, RoleCloserInput):
-                    # TODO(nopdive): Implement HTML for role closer. Looks like there's a bug somewhere on order of trace nodes (text-output for closer is after role-closer-input).
-                    pass
-        self._formatted.extend(formatted)
+            if isinstance(out_message, TraceMessage):
+                last_trace_node = out_message.trace_node
 
-        # For Jupyter HTML rendering, there are no partial updates.
-        if len(self._formatted) > 0:
+
+        if last_trace_node is not None:
             clear_output(wait=True)
-            display(HTML("".join(self._formatted)))
+            display(HTML(trace_node_to_html(last_trace_node, prettify_roles=False)))
 
 
 class AutoRenderer(Renderer):

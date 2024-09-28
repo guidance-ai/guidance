@@ -1,9 +1,11 @@
 # TODO(nopdive): Deal with weak referencing for GC. Take care of cyclical dependencies from parent & children fields.
 # TODO(nopdive): Benchmark (expected heap fragmentation issue). Likely need memory pooling (via rust/ctypes/Cython).
+# TODO(nopdive): Integrate images when PR for multimodal is in.
 # NOTE(nopdive): Should we be explicit on capture variables? Right now they are within guidance grammars.
 
 from itertools import count
 from typing import Any, Optional, Generator, Dict
+
 from pydantic import BaseModel, Field
 from .._utils import pydantic_no_default_repr, pydantic_no_default_str
 
@@ -49,6 +51,12 @@ class LiteralInput(InputAttr):
     value: str
 
 
+# NOTE(nopdive): Placeholder, needs to be filled once multimodal PR is in.
+class ImageInput(InputAttr):
+    """Image input."""
+    value: bytes
+
+
 class EmbeddedInput(InputAttr):
     """Text string with embedded guidance input."""
     value: str
@@ -79,6 +87,12 @@ class TextOutput(OutputAttr):
 
     def __str__(self):
         return self.value
+
+
+# NOTE(nopdive): Placeholder, needs to be filled once multimodal PR is in.
+class ImageOutput(OutputAttr):
+    """Image as bytes."""
+    value: bytes
 
 
 class CaptureOutput(OutputAttr):
@@ -131,6 +145,48 @@ class TraceNode(BaseModel):
         while node.parent is not None:
             yield node.parent
             node = node.parent
+
+
+    def path(self) -> Generator["TraceNode", None, None]:
+        """ Yields path of from root to self inclusively.
+
+        Yields:
+            Trace nodes from root to self.
+        """
+        yield from reversed(list(self.ancestors()))
+        yield self
+
+    def root(self) -> "TraceNode":
+        """ Returns root by traversing parents of self.
+
+        Returns:
+            Root of tree self is part of.
+        """
+        if self.parent is None:
+            root = self
+        else:
+            *_, root = self.ancestors()
+        return root
+
+    def traverse(self, bfs: bool = True):
+        """ Traverse the trace nodes starting with self.
+
+        Args:
+            bfs: Use breadth-first-search, otherwise depth-first-search.
+
+        Yields:
+            Trace nodes in traversal order.
+        """
+        queue = [self]
+        while queue:
+            node = queue.pop(0)
+            yield node
+
+            if bfs:
+                queue.extend(node.children)
+            else:
+                # NOTE(nopdive): Analogous to extend but at front of list.
+                queue[0:0] = node.children
 
     def __repr__(self):
         return f"{self.identifier}:{self.input!r}:{self.output!r}"
@@ -186,3 +242,20 @@ class TraceHandler(BaseModel):
                 raise ValueError(f"Unexpected node attr: {node_attr}")
 
         return node
+
+    def root(self) -> TraceNode:
+        """ Returns root node of trace handler.
+
+        Raises:
+            Exception: If root cannot be found.
+
+        Returns: Root trace node.
+        """
+        root = None
+        for _, node in self.id_node_map.items():
+            if node.parent is None:
+                root = node
+                break
+        if root is None:
+            raise Exception("No root in trace handler.")
+        return root

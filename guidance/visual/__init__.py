@@ -3,4 +3,4 @@
 
 from ._message import Message, TraceMessage, ResetDisplayMessage
 from ._renderer import AutoRenderer, JupyterHtmlRenderer
-from ._trace import trace_node_to_str, trace_node_to_tree
+from ._trace import trace_node_to_str, display_trace_tree, trace_node_to_html

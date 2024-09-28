@@ -8,11 +8,10 @@ class ContextBlock:
         self.name = name
 
     def __enter__(self):
-        models.Model.open_blocks[self] = None
+        models.Model.global_active_blocks.append(self)
 
     def __exit__(self, exc_type, exc_value, traceback):
-        del models.Model.open_blocks[self]
-        models.Model.close_blocks[self] = None
+        models.Model.global_active_blocks.remove(self)
 
 
 def block(name=None, opener="", closer=""):
