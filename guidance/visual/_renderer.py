@@ -49,7 +49,9 @@ class UpdateController:
             need_new_display = True
         else:
             # If we diverge from the model path, truncate and reset
-            last_trace_message = next(x for x in reversed(self._messages) if isinstance(x, TraceMessage))
+            last_trace_message = next(
+                x for x in reversed(self._messages) if isinstance(x, TraceMessage)
+            )
             last_trace_node = last_trace_message.trace_node
 
             if trace_node not in last_trace_node.path():
@@ -72,9 +74,12 @@ class UpdateController:
         # If we are in a new Jupyter cell or execution, reset
         if ipython_imported:
             ipy = get_ipython()
-            cell_msg_id = ipy.get_parent()['msg_id']
+            cell_msg_id = ipy.get_parent()["msg_id"]
             cell_exec_count = ipy.execution_count
-            if cell_msg_id != self._prev_cell_msg_id or cell_exec_count != self._prev_cell_exec_count:
+            if (
+                cell_msg_id != self._prev_cell_msg_id
+                or cell_exec_count != self._prev_cell_exec_count
+            ):
                 need_reset = True
                 need_new_display = True
                 logger.debug(f"NEED_RESET:jupyter:{cell_msg_id}|{cell_exec_count}")
@@ -98,7 +103,7 @@ class Renderer:
     """Renders guidance model to a visual medium."""
 
     def update(self, message: Message) -> None:
-        raise NotImplementedError('Update not implemented.')
+        raise NotImplementedError("Update not implemented.")
 
 
 class JupyterHtmlRenderer(Renderer):
@@ -113,7 +118,6 @@ class JupyterHtmlRenderer(Renderer):
         for out_message in render_update.messages:
             if isinstance(out_message, TraceMessage):
                 last_trace_node = out_message.trace_node
-
 
         if last_trace_node is not None:
             clear_output(wait=True)

@@ -1,7 +1,14 @@
 import base64
 from typing import Optional, Dict
 
-from ..trace import TextOutput, TraceNode, TraceHandler, RoleOpenerInput, RoleCloserInput, ImageOutput
+from ..trace import (
+    TextOutput,
+    TraceNode,
+    TraceHandler,
+    RoleOpenerInput,
+    RoleCloserInput,
+    ImageOutput,
+)
 import html
 
 span_start = "<span style='background-color: rgba(255, 180, 0, 0.3); border-radius: 3px;'>"
@@ -9,7 +16,7 @@ span_end = "</span>"
 
 
 def trace_node_to_html(node: TraceNode, prettify_roles=False) -> str:
-    """ Represents trace path as html string.
+    """Represents trace path as html string.
 
     Args:
         node: Trace node that designates the end of a trace path for HTML output.
@@ -59,14 +66,14 @@ def trace_node_to_html(node: TraceNode, prettify_roles=False) -> str:
 
     buffer.insert(
         0,
-        "<pre style='margin: 0px; padding: 0px; vertical-align: middle; padding-left: 8px; margin-left: -8px; border-radius: 0px; border-left: 1px solid rgba(127, 127, 127, 0.2); white-space: pre-wrap; font-family: ColfaxAI, Arial; font-size: 15px; line-height: 23px;'>"
+        "<pre style='margin: 0px; padding: 0px; vertical-align: middle; padding-left: 8px; margin-left: -8px; border-radius: 0px; border-left: 1px solid rgba(127, 127, 127, 0.2); white-space: pre-wrap; font-family: ColfaxAI, Arial; font-size: 15px; line-height: 23px;'>",
     )
     buffer.append("</pre>")
     return "".join(buffer)
 
 
 def trace_node_to_str(node: TraceNode) -> str:
-    """ Visualize output attributes of a trace node up to the root.
+    """Visualize output attributes of a trace node up to the root.
 
     Users should not be accessing this function. For debugging purposes.
 
@@ -79,11 +86,11 @@ def trace_node_to_str(node: TraceNode) -> str:
     for node in node.path():
         if isinstance(node.output, TextOutput):
             buffer.append(str(node.output))
-    return ''.join(buffer)
+    return "".join(buffer)
 
 
 def display_trace_tree(trace_handler: TraceHandler) -> None:
-    """ Visualize tree of a trace node going down to all its leaves.
+    """Visualize tree of a trace node going down to all its leaves.
 
     Users should not normally be accessing this function. For debugging purposes.
 
@@ -96,13 +103,10 @@ def display_trace_tree(trace_handler: TraceHandler) -> None:
     trace_viz_map: Dict[TraceNode, Node] = {}
     for node in root.traverse(bfs=False):
         viz_parent = trace_viz_map.get(node.parent, None)
-        viz_node = Node(
-            f"{trace_handler.node_id_map[node]}:{node!r}",
-            parent=viz_parent
-        )
+        viz_node = Node(f"{trace_handler.node_id_map[node]}:{node!r}", parent=viz_parent)
         trace_viz_map[node] = viz_node
     viz_root = trace_viz_map[root]
 
     for pre, fill, node in RenderTree(viz_root):
-        tree_str = u"%s%s" % (pre, node.name)
+        tree_str = "%s%s" % (pre, node.name)
         print(tree_str)

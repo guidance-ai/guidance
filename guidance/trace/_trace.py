@@ -22,16 +22,19 @@ class NodeAttr(BaseModel):
 
 class InputAttr(NodeAttr):
     """Input for a guidance program (i.e. literal or guidance grammar)."""
+
     pass
 
 
 class OutputAttr(NodeAttr):
     """Output for a guidance program (i.e. text output)."""
+
     pass
 
 
 class StatelessGuidanceInput(InputAttr):
     """Stateless guidance input (light wrapper)."""
+
     value: Any
 
     def __repr__(self):
@@ -40,6 +43,7 @@ class StatelessGuidanceInput(InputAttr):
 
 class StatefulGuidanceInput(InputAttr):
     """Stateful guidance input (light wrapper)."""
+
     value: Any
 
     def __repr__(self):
@@ -48,17 +52,20 @@ class StatefulGuidanceInput(InputAttr):
 
 class LiteralInput(InputAttr):
     """Text string as a literal."""
+
     value: str
 
 
 # NOTE(nopdive): Placeholder, needs to be filled once multimodal PR is in.
 class ImageInput(InputAttr):
     """Image input."""
+
     value: bytes
 
 
 class EmbeddedInput(InputAttr):
     """Text string with embedded guidance input."""
+
     value: str
 
 
@@ -67,6 +74,7 @@ class RoleOpenerInput(InputAttr):
 
     This usually occurs as a role context and __enter__ is called.
     """
+
     name: str
 
 
@@ -75,11 +83,13 @@ class RoleCloserInput(InputAttr):
 
     This usually occurs as a role context and __exit__ is called.
     """
+
     name: str
 
 
 class TextOutput(OutputAttr):
     """Text string."""
+
     value: str
     is_generated: bool = False
     token_count: int = 0
@@ -92,6 +102,7 @@ class TextOutput(OutputAttr):
 # NOTE(nopdive): Placeholder, needs to be filled once multimodal PR is in.
 class ImageOutput(OutputAttr):
     """Image as bytes."""
+
     value: bytes
 
 
@@ -100,6 +111,7 @@ class CaptureOutput(OutputAttr):
 
     If `value` is set to None, this means it's a reset (needed for append capture group outputs).
     """
+
     name: str
     value: Optional[str] = None
     is_append: bool = False
@@ -111,6 +123,7 @@ class CaptureOutput(OutputAttr):
 
 class TraceNode(BaseModel):
     """Trace node which associates inputs and outputs of a guidance program."""
+
     identifier: int = Field(default_factory=count().__next__)
     parent: Optional["TraceNode"] = None
     children: list["TraceNode"] = []
@@ -118,7 +131,7 @@ class TraceNode(BaseModel):
     output: Optional[OutputAttr] = None
 
     def add_child(self, child: "TraceNode") -> None:
-        """ Add a child node to the trace node.
+        """Add a child node to the trace node.
 
         Args:
             child: The child node to add.
@@ -127,7 +140,7 @@ class TraceNode(BaseModel):
         self.children.append(child)
 
     def remove_child(self, child: "TraceNode") -> None:
-        """ Remove a child node from the trace node.
+        """Remove a child node from the trace node.
 
         Args:
             child: The child node to remove.
@@ -136,7 +149,7 @@ class TraceNode(BaseModel):
         self.children.remove(child)
 
     def ancestors(self) -> Generator["TraceNode", None, None]:
-        """ Yields ancestor trace nodes ending with root.
+        """Yields ancestor trace nodes ending with root.
 
         Yields:
             Ancestor trace nodes.
@@ -146,9 +159,8 @@ class TraceNode(BaseModel):
             yield node.parent
             node = node.parent
 
-
     def path(self) -> Generator["TraceNode", None, None]:
-        """ Yields path of from root to self inclusively.
+        """Yields path of from root to self inclusively.
 
         Yields:
             Trace nodes from root to self.
@@ -157,7 +169,7 @@ class TraceNode(BaseModel):
         yield self
 
     def root(self) -> "TraceNode":
-        """ Returns root by traversing parents of self.
+        """Returns root by traversing parents of self.
 
         Returns:
             Root of tree self is part of.
@@ -169,7 +181,7 @@ class TraceNode(BaseModel):
         return root
 
     def traverse(self, bfs: bool = True):
-        """ Traverse the trace nodes starting with self.
+        """Traverse the trace nodes starting with self.
 
         Args:
             bfs: Use breadth-first-search, otherwise depth-first-search.
@@ -205,11 +217,14 @@ class TraceHandler(BaseModel):
     The requirement for holding all live traces ensures downstream consumers such as UI providers
     can do near-real-time partial updates.
     """
+
     id_node_map: Dict[int, TraceNode] = {}
     node_id_map: Dict[TraceNode, int] = {}
 
-    def update_node(self, identifier: int, parent_id: Optional[int], node_attr: Optional[NodeAttr] = None) -> TraceNode:
-        """ Update the trace node with the given identifier.
+    def update_node(
+        self, identifier: int, parent_id: Optional[int], node_attr: Optional[NodeAttr] = None
+    ) -> TraceNode:
+        """Update the trace node with the given identifier.
 
         If the trace node does not exist, it will be created.
         Both parent id and node attributes can be updated only once until further notice.
@@ -244,7 +259,7 @@ class TraceHandler(BaseModel):
         return node
 
     def root(self) -> TraceNode:
-        """ Returns root node of trace handler.
+        """Returns root node of trace handler.
 
         Raises:
             Exception: If root cannot be found.

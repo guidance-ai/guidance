@@ -1,4 +1,5 @@
 """User interface and other visual UX considerations."""
+
 # TODO(nopdive): implement stdout renderer
 
 from ._message import Message, TraceMessage, ResetDisplayMessage
