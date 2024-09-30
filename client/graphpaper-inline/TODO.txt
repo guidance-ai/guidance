@@ -1,0 +1,2 @@
+- Remove CDN font links (googlefonts)
+- Connect non-generated tokens, images etc.

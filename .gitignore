@@ -9,7 +9,6 @@ __pycache__/
 *.diskcache
 .ipynb_checkpoints
 node_modules
-/client
 .eggs/
 .env
 .DS_Store
