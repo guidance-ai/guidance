@@ -1,0 +1,44 @@
+name: Build
+
+on:
+  push:
+    branches: main
+  pull_request:
+    branches: "*"
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.7", "3.10"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - uses: jupyterlab/maintainer-tools/.github/actions/base-setup@v1
+
+      - name: Install dependencies
+        run: |
+          python -m pip install -U codecov
+          npm install -g codecov
+      - name: Test the extension
+        run: |
+          python -m pip install --upgrade -v -e ".[test, examples, docs]"
+          python -m pytest
+          yarn run test
+
+      - name: Linting
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        run: |
+          yarn run lint:check
+
+      - name: Check docs can be build + links
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        working-directory: docs
+        run: |
+          sudo apt install -y pandoc
+          make html
+          python -m pytest --check-links
