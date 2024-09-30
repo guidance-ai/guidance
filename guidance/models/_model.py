@@ -413,7 +413,6 @@ class Model:
                 TraceMessage(
                     trace_id=identifier,
                     parent_trace_id=parent_id,
-                    trace_node=trace_node,
                     node_attr=node_attr,
                 )
             )

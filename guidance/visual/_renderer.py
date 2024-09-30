@@ -42,11 +42,10 @@ class UpdateController:
     def update(self, message: Message) -> RenderUpdate:
         if not isinstance(message, TraceMessage):
             return RenderUpdate()
+        logger.debug(f"MSG:raw:{message}")
+        logger.debug(f"MSG:json:{message.model_dump_json(serialize_as_any=True)}")
 
-        # if type(message.node_attr) not in [TextOutput, RoleOpenerInput, RoleCloserInput]:
-        #     return RenderUpdate()
-
-        trace_node = message.trace_node
+        trace_node = self._trace_handler[message.trace_id]
         need_reset = False
         need_new_display = False
 
@@ -60,7 +59,7 @@ class UpdateController:
             last_trace_message = next(
                 x for x in reversed(self._messages) if isinstance(x, TraceMessage)
             )
-            last_trace_node = last_trace_message.trace_node
+            last_trace_node = self._trace_handler[last_trace_message.trace_id]
 
             if trace_node not in last_trace_node.path():
                 logger.debug(f"NEED_RESET:divergence:{last_trace_node}:{trace_node}")
@@ -71,7 +70,7 @@ class UpdateController:
                 ancestors = set(trace_node.ancestors())
                 for idx, prev_message in enumerate(self._messages):
                     if isinstance(prev_message, TraceMessage):
-                        if prev_message.trace_node in ancestors:
+                        if self._trace_handler[prev_message.trace_id] in ancestors:
                             ancestor_idx = idx
                 if ancestor_idx == -1:
                     logger.debug(f"PARENT_NOT_FOUND:{trace_node}")
@@ -118,16 +117,16 @@ class LegacyHtmlRenderer(Renderer):
     """Original HTML renderer for guidance."""
 
     def __init__(self, trace_handler: TraceHandler) -> None:
-        pass
+        self._trace_handler = trace_handler
 
     def update(self, message: Message) -> None:
         if not isinstance(message, TraceMessage):
             return
 
-        last_trace_node = message.trace_node
-        if last_trace_node is not None:
+        trace_node = self._trace_handler[message.trace_id]
+        if trace_node is not None:
             clear_output(wait=True)
-            display(HTML(trace_node_to_html(last_trace_node, prettify_roles=False)))
+            display(HTML(trace_node_to_html(trace_node, prettify_roles=False)))
 
 
 def _create_stitch_widget():
@@ -165,7 +164,6 @@ class JupyterWidgetRenderer(Renderer):
 
         for out_message in display_update.messages:
             message_json = out_message.model_dump_json(indent=2)
-            logger.debug(f"OUT_MSG: {message_json}")
             self._jupyter_widget.kernelmsg = message_json
 
 

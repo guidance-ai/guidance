@@ -12,6 +12,11 @@ from .._utils import pydantic_no_default_repr, pydantic_no_default_str
 
 class NodeAttr(BaseModel):
     """Attributes of a trace node."""
+    class_name: str = ""
+
+    def __init__(self, **kwargs):
+        kwargs["class_name"] = self.__class__.__name__
+        super().__init__(**kwargs)
 
     def __repr__(self):
         return pydantic_no_default_repr(self)
@@ -35,7 +40,8 @@ class OutputAttr(NodeAttr):
 class StatelessGuidanceInput(InputAttr):
     """Stateless guidance input (light wrapper)."""
 
-    value: Any
+    # NOTE(nopdive): Open to debate what we should serialize here, excluding for now.
+    value: Any = Field(exclude=True)
 
     def __repr__(self):
         return f"{self.__class__.__name__}({self.value})"
@@ -44,7 +50,8 @@ class StatelessGuidanceInput(InputAttr):
 class StatefulGuidanceInput(InputAttr):
     """Stateful guidance input (light wrapper)."""
 
-    value: Any
+    # NOTE(nopdive): Open to debate what we should serialize here, excluding for now.
+    value: Any = Field(exclude=True)
 
     def __repr__(self):
         return f"{self.__class__.__name__}({self.value})"
@@ -220,6 +227,9 @@ class TraceHandler(BaseModel):
 
     id_node_map: Dict[int, TraceNode] = {}
     node_id_map: Dict[TraceNode, int] = {}
+
+    def __getitem__(self, item):
+        return self.id_node_map[item]
 
     def update_node(
         self, identifier: int, parent_id: Optional[int], node_attr: Optional[NodeAttr] = None
