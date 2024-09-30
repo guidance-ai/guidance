@@ -1,26 +1,34 @@
 import { writable } from 'svelte/store';
 
+export interface NodeAttr {
+    class_name: string
+}
+
+export interface TextOutput extends NodeAttr {
+    value: string,
+    is_generated: boolean,
+    token_count: number,
+    prob: number,
+}
+
+export interface GuidanceMessage {
+    class_name: string
+}
+
+export interface TraceMessage extends GuidanceMessage {
+    trace_id: number,
+    parent_trace_id?: number,
+    node_attr?: NodeAttr,
+}
+
+export interface ResetDisplayMessage extends GuidanceMessage {
+    class_name: 'ResetDisplayMessage'
+}
+
 export interface StitchMessage {
     type: "resize" | "clientmsg" | "kernelmsg",
     content: any
 }
 
-export interface DisplayResetMessage {
-    message_type: 'DisplayResetMessage'
-}
-
-export interface ModelUpdateMessage {
-    message_type: 'ModelUpdateMessage',
-    model_id: number,
-    parent_model_id: number,
-    content_type: string,
-    content: string,
-    prob: number,
-    token_count: number,
-    is_generated: number,
-    is_special: number,
-    role: string
-}
-
-export const kernelmsg = writable<StitchMessage>(undefined);
-export const clientmsg = writable<StitchMessage>(undefined);
+export const kernelmsg = writable<StitchMessage | undefined>(undefined);
+export const clientmsg = writable<StitchMessage | undefined>(undefined);

@@ -2,6 +2,6 @@
 
 # TODO(nopdive): implement stdout renderer
 
-from ._message import Message, TraceMessage, ResetDisplayMessage
+from ._message import GuidanceMessage, TraceMessage, ResetDisplayMessage
 from ._renderer import AutoRenderer, LegacyHtmlRenderer
 from ._trace import trace_node_to_str, display_trace_tree, trace_node_to_html

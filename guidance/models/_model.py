@@ -407,7 +407,7 @@ class Model:
     def _update_trace_node(self, identifier: int, parent_id: Optional[int], node_attr: Optional[NodeAttr]):
         """Updates trace node that corresponds to this model."""
 
-        trace_node = self._trace_handler.update_node(identifier, parent_id, node_attr)
+        self._trace_handler.update_node(identifier, parent_id, node_attr)
         if self._renderer is not None:
             self._renderer.update(
                 TraceMessage(

@@ -3,17 +3,18 @@
     import Minibar from './Minibar.svelte';
     import TokenGrid from './TokenGrid.svelte';
     import ResizeListener from './ResizeListener.svelte';
-    import { kernelmsg, type StitchMessage } from './stitch';
+    import { kernelmsg, type TextOutput, type TraceMessage } from './stitch';
     import StitchHandler from './StitchHandler.svelte';
 
     let msg: any;
-    let tokens: string[] = [];
+    let tokens: Array<TextOutput> = [];
 	$: if ($kernelmsg !== undefined) {
 		msg = JSON.parse($kernelmsg.content);
+		console.log(msg);
 
-		if (msg.message_type === "ModelUpdateMessage") {
-			tokens.push(msg);
-		} else if (msg.message_type === "ModelResetMessage") {
+		if (msg.class_name === "TraceMessage" && msg.node_attr?.class_name === "TextOutput") {
+			tokens.push(msg.node_attr);
+		} else if (msg.class_name === "ResetDisplayMessage") {
 			tokens = [];
 		}
 		tokens = tokens;
@@ -67,20 +68,6 @@
 			'desc': 'How expected the emitted sequence of tokens is relative to the language model.',
 		},
 	]
-	const ctxTokenCandidates = [
-		{
-			'id': 15042,
-			'token': 'liquor ',
-		},
-		{
-			'id': 59108,
-			'token': 'jugs',
-		},
-		{
-			'id': 89734,
-			'token': ' valued',
-		},
-	];
 	const padding = {
 		'left': 0,
 		'right': 0,
@@ -101,12 +88,12 @@
 	<nav class="sticky top-0 z-50 opacity-90 w-full flex bg-gray-800 text-gray-100 justify-between">
 		<div class="pl-2 flex">
 			{#each metrics as metric, i}
-			<div class={`${i == 2 ? "bg-gray-900" : ""} flex flex-col items-center py-1 px-4 hover:bg-gray-600 hover:cursor-pointer`}>
-				<div class={`uppercase tracking-wider text-xs ${i == 2 ? "text-gray-100" : "text-gray-400"}`}>{metric.name}</div>
+			<div class={`${i === 2 ? "bg-gray-900" : ""} flex flex-col items-center py-1 px-4 hover:bg-gray-600 hover:cursor-pointer`}>
+				<div class={`uppercase tracking-wider text-xs ${i === 2 ? "text-gray-100" : "text-gray-400"}`}>{metric.name}</div>
 				{#if metric.value.constructor === Array}
-				<Minibar values={metric.value} svgClass={"w-12 h-6"} rectClass={`${i == 2 ? "fill-gray-100" : "fill-gray-100"}`} padding={padding}/>
+				<Minibar values={metric.value} svgClass={"w-12 h-6"} rectClass={`${i === 2 ? "fill-gray-100" : "fill-gray-100"}`} padding={padding}/>
 				{:else}
-				<div class={`text-lg ${i == 2 ? "text-gray-100" : "text-gray-100"}`}>{metric.value}<span class="text-xs pl-1">{metric.units}</span></div>
+				<div class={`text-lg ${i === 2 ? "text-gray-100" : "text-gray-100"}`}>{metric.value}<span class="text-xs pl-1">{metric.units}</span></div>
 				{/if}
 			</div>
 			{/each}

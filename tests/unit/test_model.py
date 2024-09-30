@@ -22,18 +22,6 @@ def test_call_embeddings():
 
     assert "{{G|" not in str(model + ble())
 
-def test_state_handler():
-    from guidance.state import visualize, visualize_text
-    m0 = models.Mock()
-    with system():
-        m1 = m0 + "You are responsible for autocompleting a sentence."
-    with user():
-        m2 = m1 + "Roses are red and " + gen(name="suffix", regex='[A-Za-z]{2,5}', max_tokens=5)
-    # print(visualize_text(m0._state_handler, m0._state_handler._model_node_map[0]))
-    print(visualize(m0._trace_handler, m0._trace_handler._model_node_map[0]))
-
-    assert m2['suffix'] is not None
-
 
 @pytest.mark.xfail(
     reason="llguidance currently emits an additional empty capture group when no explicit stop is provided"

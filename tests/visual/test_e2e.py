@@ -3,6 +3,20 @@
 # TODO(nopdive): Refactor into appropriate unit / integration / E2E. Hook into rest of test system.
 import pytest
 
+
+def test_state_handler():
+    from guidance import system, user, gen, models
+    m0 = models.Mock()
+
+    with system():
+        m1 = m0 + "You are responsible for autocompleting a sentence."
+    with user():
+        m2 = m1 + "Roses are red and " + gen(name="suffix", regex='[A-Za-z]{2,5}', max_tokens=5)
+
+    assert m2['suffix'] is not None
+
+
+
 @pytest.mark.skip("Testing for visual module. May be removed later.")
 def test_tooling():
     from typing import Optional

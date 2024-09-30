@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from ..trace import NodeAttr
 
 
-class Message(BaseModel):
+class GuidanceMessage(BaseModel):
     class_name: str = ""
 
     def __init__(self, **kwargs):
@@ -11,11 +11,11 @@ class Message(BaseModel):
         super().__init__(**kwargs)
 
 
-class TraceMessage(Message):
+class TraceMessage(GuidanceMessage):
     trace_id: int
     parent_trace_id: Optional[int]
     node_attr: Optional[NodeAttr]
 
 
-class ResetDisplayMessage(Message):
+class ResetDisplayMessage(GuidanceMessage):
     pass

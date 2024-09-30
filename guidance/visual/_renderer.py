@@ -3,7 +3,7 @@ from typing import Optional
 from pydantic import BaseModel
 
 from ..trace import TraceHandler
-from ..visual import Message, TraceMessage, ResetDisplayMessage
+from ..visual import GuidanceMessage, TraceMessage, ResetDisplayMessage
 from ._trace import trace_node_to_html
 
 logger = logging.getLogger(__name__)
@@ -33,17 +33,16 @@ class RenderUpdate(BaseModel):
 class UpdateController:
     def __init__(self, trace_handler: TraceHandler):
         self._trace_handler = trace_handler
-        self._messages: list[Message] = []
+        self._messages: list[GuidanceMessage] = []
 
         self._prev_trace_id: Optional[int] = None
         self._prev_cell_msg_id: Optional[int] = None
         self._prev_cell_exec_count: Optional[int] = None
 
-    def update(self, message: Message) -> RenderUpdate:
+    def update(self, message: GuidanceMessage) -> RenderUpdate:
         if not isinstance(message, TraceMessage):
             return RenderUpdate()
         logger.debug(f"MSG:raw:{message}")
-        logger.debug(f"MSG:json:{message.model_dump_json(serialize_as_any=True)}")
 
         trace_node = self._trace_handler[message.trace_id]
         need_reset = False
@@ -56,13 +55,12 @@ class UpdateController:
             need_new_display = True
         else:
             # If we diverge from the model path, truncate and reset
-            last_trace_message = next(
-                x for x in reversed(self._messages) if isinstance(x, TraceMessage)
-            )
+            *_, last_trace_message = (x for x in reversed(self._messages) if isinstance(x, TraceMessage))
             last_trace_node = self._trace_handler[last_trace_message.trace_id]
 
-            if trace_node not in last_trace_node.path():
-                logger.debug(f"NEED_RESET:divergence:{last_trace_node}:{trace_node}")
+            if last_trace_node not in trace_node.path():
+                logger.debug(f"NEED_RESET:divergence:curr:{trace_node}")
+                logger.debug(f"NEED_RESET:divergence:prev:{last_trace_node}")
                 need_reset = True
 
                 # Truncate path that is no longer used by current trace node
@@ -79,7 +77,7 @@ class UpdateController:
                     self._messages = self._messages[:ancestor_idx]
 
         # If we are in a new Jupyter cell or execution, reset
-        if ipython_imported:
+        if ipython_imported and get_ipython() is not None:
             ipy = get_ipython()
             cell_msg_id = ipy.get_parent()["msg_id"]
             cell_exec_count = ipy.execution_count
@@ -109,7 +107,7 @@ class UpdateController:
 class Renderer:
     """Renders guidance model to a visual medium."""
 
-    def update(self, message: Message) -> None:
+    def update(self, message: GuidanceMessage) -> None:
         raise NotImplementedError("Update not implemented.")
 
 
@@ -119,7 +117,7 @@ class LegacyHtmlRenderer(Renderer):
     def __init__(self, trace_handler: TraceHandler) -> None:
         self._trace_handler = trace_handler
 
-    def update(self, message: Message) -> None:
+    def update(self, message: GuidanceMessage) -> None:
         if not isinstance(message, TraceMessage):
             return
 
@@ -153,7 +151,7 @@ class JupyterWidgetRenderer(Renderer):
         self._jupyter_widget = None
         self._update_controller = UpdateController(trace_handler)
 
-    def update(self, message: Message) -> None:
+    def update(self, message: GuidanceMessage) -> None:
         display_update = self._update_controller.update(message)
 
         if display_update.need_new_display:
@@ -163,7 +161,7 @@ class JupyterWidgetRenderer(Renderer):
             display(self._jupyter_widget)
 
         for out_message in display_update.messages:
-            message_json = out_message.model_dump_json(indent=2)
+            message_json = out_message.model_dump_json(indent=2, serialize_as_any=True)
             self._jupyter_widget.kernelmsg = message_json
 
 
@@ -174,6 +172,6 @@ class AutoRenderer(Renderer):
         else:
             self._renderer = LegacyHtmlRenderer(trace_handler=trace_handler)
 
-    def update(self, message: Message) -> None:
+    def update(self, message: GuidanceMessage) -> None:
         if self._renderer is not None:
             self._renderer.update(message)
