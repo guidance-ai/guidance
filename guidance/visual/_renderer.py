@@ -17,6 +17,14 @@ except ImportError:
     ipython_imported = False
 
 
+try:
+    import stitch
+
+    stitch_installed = True
+except ImportError:
+    stitch_installed = False
+
+
 class RenderUpdate(BaseModel):
     messages: list = []
     need_new_display: bool = False
@@ -100,36 +108,17 @@ class UpdateController:
 
 
 class Renderer:
-    """ Renders guidance model to a visual medium."""
+    """Renders guidance model to a visual medium."""
 
     def update(self, message: Message) -> None:
         raise NotImplementedError("Update not implemented.")
 
 
-class HtmlRenderer(Renderer):
-    """ HTML renderer for guidance."""
-    def __init__(self, trace_handler: TraceHandler) -> None:
-        self._update_controller = UpdateController(trace_handler)
-        self._formatted = []
-
-    def update(self, message: Message) -> None:
-        render_update = self._update_controller.update(message)
-
-        last_trace_node = None
-        for out_message in render_update.messages:
-            if isinstance(out_message, TraceMessage):
-                last_trace_node = out_message.trace_node
-
-        if last_trace_node is not None:
-            clear_output(wait=True)
-            display(HTML(trace_node_to_html(last_trace_node, prettify_roles=False)))
-
-
 class LegacyHtmlRenderer(Renderer):
-    """ Original HTML renderer for guidance."""
+    """Original HTML renderer for guidance."""
+
     def __init__(self, trace_handler: TraceHandler) -> None:
-        self._update_controller = UpdateController(trace_handler)
-        self._formatted = []
+        pass
 
     def update(self, message: Message) -> None:
         if not isinstance(message, TraceMessage):
@@ -140,17 +129,50 @@ class LegacyHtmlRenderer(Renderer):
             clear_output(wait=True)
             display(HTML(trace_node_to_html(last_trace_node, prettify_roles=False)))
 
+
+def _create_stitch_widget():
+    from stitch import StitchWidget
+    import pkg_resources
+
+    if _create_stitch_widget.src_doc_template is None:
+        with open(
+            pkg_resources.resource_filename("guidance", "resources/graphpaper-inline.html"), "r"
+        ) as f:
+            _create_stitch_widget.src_doc_template = f.read()
+    w = StitchWidget()
+    w.initial_width = "100%"
+    w.initial_height = "auto"
+    w.srcdoc = _create_stitch_widget.src_doc_template
+    return w
+
+
+_create_stitch_widget.src_doc_template = None
+
+
+class JupyterWidgetRenderer(Renderer):
+    def __init__(self, trace_handler: TraceHandler) -> None:
+        self._jupyter_widget = None
+        self._update_controller = UpdateController(trace_handler)
+
+    def update(self, message: Message) -> None:
+        display_update = self._update_controller.update(message)
+
+        if display_update.need_new_display:
+            logger.debug(f"NEED_NEW_DISPLAY:new widget")
+            self._jupyter_widget = _create_stitch_widget()
+            clear_output(wait=True)
+            display(self._jupyter_widget)
+
+        for out_message in display_update.messages:
+            message_json = out_message.model_dump_json(indent=2)
+            logger.debug(f"OUT_MSG: {message_json}")
+            self._jupyter_widget.kernelmsg = message_json
+
+
 class AutoRenderer(Renderer):
     def __init__(self, trace_handler: TraceHandler):
-        try:
-            import stitch
-            stitch_installed = True
-        except ImportError:
-            stitch_installed = False
-
         if stitch_installed:
-            # TODO(nopdive): Hook up stitch jupyter renderer
-            self._renderer = LegacyHtmlRenderer(trace_handler=trace_handler)
+            self._renderer = JupyterWidgetRenderer(trace_handler=trace_handler)
         else:
             self._renderer = LegacyHtmlRenderer(trace_handler=trace_handler)
 
