@@ -19,8 +19,8 @@
   },
   "license": "BSD-3-Clause",
   "author": {
-    "name": "nopdive",
-    "email": "nopdive@gmail.com"
+    "name": "Guidance Contributors",
+    "email": "maintainers@guidance-ai.org"
   },
   "main": "lib/index.js",
   "types": "./lib/index.d.ts",

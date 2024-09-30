@@ -1,4 +1,4 @@
-// Copyright (c) nopdive
+// Copyright (c) Guidance Contributors
 // Distributed under the terms of the Modified BSD License.
 
 import { Application, IPlugin } from '@lumino/application';

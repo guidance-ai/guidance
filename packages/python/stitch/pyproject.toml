@@ -13,7 +13,7 @@ readme = "README.md"
 license = { file = "LICENSE.txt" }
 requires-python = ">=3.9"
 authors = [
-    { name = "nopdive", email = "nopdive@gmail.com" },
+    { name = "Guidance Maintainers", email = "maintainers@guidance-ai.org" },
 ]
 keywords = [
     "IPython",
@@ -58,7 +58,7 @@ test = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/guidance-ai/stitch"
+Homepage = "https://github.com/guidance-ai/guidance"
 
 [tool.hatch.metadata]
 allow-direct-references = true

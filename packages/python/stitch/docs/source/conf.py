@@ -59,8 +59,8 @@ master_doc = 'index'
 
 # General information about the project.
 project = 'stitch'
-copyright = '2024, nopdive'
-author = 'nopdive'
+copyright = '2024, Guidance Contributors'
+author = 'Guidance Contributors'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -148,7 +148,7 @@ latex_elements = {
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
     (master_doc, 'stitch.tex', 'stitch Documentation',
-     'nopdive', 'manual'),
+     'Guidance Contributors', 'manual'),
 ]
 
 
