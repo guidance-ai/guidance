@@ -100,13 +100,14 @@ class UpdateController:
 
 
 class Renderer:
-    """Renders guidance model to a visual medium."""
+    """ Renders guidance model to a visual medium."""
 
     def update(self, message: Message) -> None:
         raise NotImplementedError("Update not implemented.")
 
 
-class JupyterHtmlRenderer(Renderer):
+class HtmlRenderer(Renderer):
+    """ HTML renderer for guidance."""
     def __init__(self, trace_handler: TraceHandler) -> None:
         self._update_controller = UpdateController(trace_handler)
         self._formatted = []
@@ -124,10 +125,34 @@ class JupyterHtmlRenderer(Renderer):
             display(HTML(trace_node_to_html(last_trace_node, prettify_roles=False)))
 
 
+class LegacyHtmlRenderer(Renderer):
+    """ Original HTML renderer for guidance."""
+    def __init__(self, trace_handler: TraceHandler) -> None:
+        self._update_controller = UpdateController(trace_handler)
+        self._formatted = []
+
+    def update(self, message: Message) -> None:
+        if not isinstance(message, TraceMessage):
+            return
+
+        last_trace_node = message.trace_node
+        if last_trace_node is not None:
+            clear_output(wait=True)
+            display(HTML(trace_node_to_html(last_trace_node, prettify_roles=False)))
+
 class AutoRenderer(Renderer):
     def __init__(self, trace_handler: TraceHandler):
-        # TODO(nopdive): Add autodetect logic.
-        self._renderer = JupyterHtmlRenderer(trace_handler=trace_handler)
+        try:
+            import stitch
+            stitch_installed = True
+        except ImportError:
+            stitch_installed = False
+
+        if stitch_installed:
+            # TODO(nopdive): Hook up stitch jupyter renderer
+            self._renderer = LegacyHtmlRenderer(trace_handler=trace_handler)
+        else:
+            self._renderer = LegacyHtmlRenderer(trace_handler=trace_handler)
 
     def update(self, message: Message) -> None:
         if self._renderer is not None:

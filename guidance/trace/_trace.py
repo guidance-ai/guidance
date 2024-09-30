@@ -75,7 +75,7 @@ class RoleOpenerInput(InputAttr):
     This usually occurs as a role context and __enter__ is called.
     """
 
-    name: str
+    name: Optional[str]
 
 
 class RoleCloserInput(InputAttr):
@@ -84,7 +84,7 @@ class RoleCloserInput(InputAttr):
     This usually occurs as a role context and __exit__ is called.
     """
 
-    name: str
+    name: Optional[str]
 
 
 class TextOutput(OutputAttr):

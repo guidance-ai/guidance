@@ -1,7 +1,7 @@
 <script lang="ts">
     import './main.css';
     import Minibar from './Minibar.svelte';
-    import Tokengrid from './Tokengrid.svelte';
+    import TokenGrid from './TokenGrid.svelte';
     import ResizeListener from './ResizeListener.svelte';
     import { kernelmsg, type StitchMessage } from './stitch';
     import StitchHandler from './StitchHandler.svelte';
@@ -114,7 +114,7 @@
 	</nav>
 	<!-- Content pane -->
 	<section class="w-full">
-		<Tokengrid tokens={tokens}/>
+		<TokenGrid tokens={tokens}/>
 	</section>
 
 	<!-- Context pane (optional) -->
