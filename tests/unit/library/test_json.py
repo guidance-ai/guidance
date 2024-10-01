@@ -200,23 +200,41 @@ class TestBoundedNumeric:
         [
             # --- Integer type tests ---
             (5, {"type": "integer", "minimum": 5}, True),
+            (-5, {"type": "integer", "minimum": -5}, True),
             pytest.param(
                 *(5.0, {"type": "integer", "minimum": 5}, True),
                 marks=pytest.mark.xfail(reason="JSON technically allows trailing zeroes, but we currently don't")
             ),
+            pytest.param(
+                *(-5.0, {"type": "integer", "minimum": -5}, True),
+                marks=pytest.mark.xfail(reason="JSON technically allows trailing zeroes, but we currently don't")
+            ),
             (5.1, {"type": "integer", "minimum": 5}, False),
+            (-5.1, {"type": "integer", "minimum": -5}, False),
             (4, {"type": "integer", "minimum": 5}, False),
+            (-6, {"type": "integer", "minimum": -5}, False),
             (6, {"type": "integer", "exclusiveMinimum": 5}, True),
+            (-4, {"type": "integer", "exclusiveMinimum": -5}, True),
             (5, {"type": "integer", "exclusiveMinimum": 5}, False),
+            (-5, {"type": "integer", "exclusiveMinimum": -5}, False),
             (5, {"type": "integer", "maximum": 5}, True),
+            (-5, {"type": "integer", "maximum": -5}, True),
             (6, {"type": "integer", "maximum": 5}, False),
+            (-4, {"type": "integer", "maximum": -5}, False),
             (4, {"type": "integer", "exclusiveMaximum": 5}, True),
+            (-6, {"type": "integer", "exclusiveMaximum": -5}, True),
             (5, {"type": "integer", "exclusiveMaximum": 5}, False),
+            (-5, {"type": "integer", "exclusiveMaximum": -5}, False),
             (5, {"type": "integer", "minimum": 5, "maximum": 10}, True),
+            (-10, {"type": "integer", "minimum": -10, "maximum": -5}, True),
             (4, {"type": "integer", "minimum": 5, "maximum": 10}, False),
+            (-11, {"type": "integer", "minimum": -10, "maximum": -5}, False),
             (10, {"type": "integer", "exclusiveMinimum": 5, "exclusiveMaximum": 10}, False),
+            (-5, {"type": "integer", "exclusiveMinimum": -10, "exclusiveMaximum": -5}, False),
             (5, {"type": "integer", "exclusiveMinimum": 5, "exclusiveMaximum": 10}, False),
+            (-10, {"type": "integer", "exclusiveMinimum": -10, "exclusiveMaximum": -5}, False),
             (7, {"type": "integer", "exclusiveMinimum": 5, "exclusiveMaximum": 10}, True),
+            (-7, {"type": "integer", "exclusiveMinimum": -10, "exclusiveMaximum": -5}, True),
             # --- Number type tests ---
             (5, {"type": "number", "minimum": 5.0}, True),
             (5.0, {"type": "number", "minimum": 5.0}, True),
