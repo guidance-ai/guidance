@@ -303,9 +303,14 @@ class TestBoundedNumeric:
             (1e11, {"type": "number", "maximum": 1e10}, False),
             (-1e9, {"type": "number", "maximum": -1e10}, False),
             # --- Decimal precision ---
-            (0.1, {"type": "number", "minimum": 0.1, "maximum": 0.3}, True),
+            (0.1001, {"type": "number", "minimum": 0.1, "maximum": 0.3}, True),
+            (-0.1001, {"type": "number", "minimum": -0.3, "maximum": -0.1}, True),
+            (0.2999, {"type": "number", "minimum": 0.1, "maximum": 0.3}, True),
+            (-0.2999, {"type": "number", "minimum": -0.3, "maximum": -0.1}, True),
             (0.0999, {"type": "number", "minimum": 0.1, "maximum": 0.3}, False),
+            (-0.0999, {"type": "number", "minimum": -.3, "maximum": -0.1}, False),
             (0.3001, {"type": "number", "minimum": 0.1, "maximum": 0.3}, False),
+            (-0.3001, {"type": "number", "minimum": -0.3, "maximum": -0.1}, False),
         ]
     )
     def test_numeric_validation(self, instance, schema, should_pass):
