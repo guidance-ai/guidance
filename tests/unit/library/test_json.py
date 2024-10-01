@@ -295,7 +295,13 @@ class TestBoundedNumeric:
             (-5, {"type": "integer", "exclusiveMaximum": -5.5}, False),
             # --- Large numbers ---
             (1e10, {"type": "number", "minimum": 1e10}, True),
+            (-1e10, {"type": "number", "minimum": -1e10}, True),
             (1e9, {"type": "number", "minimum": 1e10}, False),
+            (-1e11, {"type": "number", "minimum": -1e10}, False),
+            (1e10, {"type": "number", "maximum": 1e10}, True),
+            (-1e10, {"type": "number", "maximum": -1e10}, True),
+            (1e11, {"type": "number", "maximum": 1e10}, False),
+            (-1e9, {"type": "number", "maximum": -1e10}, False),
             # --- Decimal precision ---
             (0.1, {"type": "number", "minimum": 0.1, "maximum": 0.3}, True),
             (0.0999, {"type": "number", "minimum": 0.1, "maximum": 0.3}, False),
