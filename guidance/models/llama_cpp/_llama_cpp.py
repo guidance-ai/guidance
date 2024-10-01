@@ -12,6 +12,7 @@ from pathlib import Path
 import numpy as np
 
 from .._model import Engine, Model, Chat
+from .._local import LocalEngine, LocalModel
 from .._remote import RemoteEngine
 from .._tokenizer import Tokenizer
 from ..._utils import normalize_notebook_stdout_stderr
@@ -97,7 +98,7 @@ class LlamaCppTokenizer(Tokenizer):
         return raw_tokens[len(self._sentinel_tokens) :]
 
 
-class LlamaCppEngine(Engine):
+class LlamaCppEngine(LocalEngine):
     """The core class that runs inference using llama.cpp."""
 
     def __init__(self, model, compute_log_probs, chat_template=None, enable_backtrack=True, enable_ff_tokens=True, **kwargs):
@@ -220,7 +221,7 @@ class LlamaCppEngine(Engine):
         return logits
 
 
-class LlamaCpp(Model):
+class LlamaCpp(LocalModel):
     def __init__(
         self,
         model=None,
