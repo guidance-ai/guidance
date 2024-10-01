@@ -1,5 +1,6 @@
 from json import dumps as json_dumps
 from enum import Enum
+import math
 from typing import (
     Any,
     Callable,
@@ -23,6 +24,7 @@ except ImportError:
 
 from .._guidance import guidance
 from ..library import char_range, gen, one_or_more, optional, sequence
+from ..library._regex_utils import rx_int_range, rx_float_range
 
 from .._grammar import GrammarFunction, select, capture, with_temperature
 from ._pydantic import pydantic_to_json_schema
@@ -137,6 +139,12 @@ class Keyword(str, Enum):
     ENUM = "enum"
     TYPE = "type"
 
+class NumberKeywords(str, Enum):
+    MINIMUM = "minimum"
+    MAXIMUM = "maximum"
+    EXCLUSIVE_MINIMUM = "exclusiveMinimum"
+    EXCLUSIVE_MAXIMUM = "exclusiveMaximum"
+
 class StringKeywords(str, Enum):
     PATTERN = "pattern"
     FORMAT = "format"
@@ -155,6 +163,8 @@ class ObjectKeywords(str, Enum):
     REQUIRED = "required"
 
 TYPE_SPECIFIC_KEYWORDS = {
+    JSONType.INTEGER: NumberKeywords,
+    JSONType.NUMBER: NumberKeywords,
     JSONType.STRING: StringKeywords,
     JSONType.ARRAY: ArrayKeywords,
     JSONType.OBJECT: ObjectKeywords,
@@ -182,7 +192,7 @@ IGNORED_KEYS = {
 IGNORED_KEYS.add("discriminator")
 
 WHITESPACE = {b" ", b"\t", b"\n", b"\r"}
-VALID_KEYS = set(Keyword) | IGNORED_KEYS | DEFS_KEYS | set(StringKeywords) | set(ArrayKeywords) | set(ObjectKeywords)
+VALID_KEYS = set(Keyword) | IGNORED_KEYS | DEFS_KEYS | set(NumberKeywords) | set(StringKeywords) | set(ArrayKeywords) | set(ObjectKeywords)
 
 FORMAT_PATTERNS: dict[str, Optional[str]] = {
     # https://json-schema.org/understanding-json-schema/reference/string#built-in-formats
@@ -393,18 +403,39 @@ def validate_json_node_keys(node: Mapping[str, Any]):
 
 
 @guidance(stateless=True)
-def _gen_json_int(lm):
-    return lm + lexeme(r"-?(?:0|[1-9][0-9]*)", contextual=True)
+def _gen_json_int(lm, minimum: Union[float, int, None] = None, maximum: Union[float, int, None] = None, exclusiveMinimum: bool = False, exclusiveMaximum: bool = False):
+    if minimum is not None:
+        if exclusiveMinimum:
+            if minimum != int(minimum):
+                minimum = math.ceil(minimum)
+            else:
+                minimum += 1
+        else:
+            minimum = math.ceil(minimum)
+        minimum = int(minimum)
 
+    if maximum is not None:
+        if exclusiveMaximum:
+            if maximum != int(maximum):
+                maximum = math.floor(maximum)
+            else:
+                maximum -= 1
+        else:
+            maximum = math.floor(maximum)
+        maximum = int(maximum)
+
+    return lm + lexeme(rx_int_range(minimum, maximum), contextual=True)
 
 @guidance(stateless=True)
-def _gen_json_number(lm):
-    return lm + select([
-        _gen_json_int(),
-        lexeme(r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)", contextual=True),
-        lexeme(r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)", contextual=True),
-    ])
-
+def _gen_json_number(lm, minimum: Optional[float] = None, maximum: Optional[float] = None, exclusiveMinimum: bool = False, exclusiveMaximum: bool = False):
+    return lm + lexeme(
+        rx_float_range(
+            minimum, maximum,
+            left_inclusive = not exclusiveMinimum,
+            right_inclusive = not exclusiveMaximum
+        ),
+        contextual=True
+    )
 
 @guidance(stateless=True)
 def _gen_json_string(
@@ -678,10 +709,40 @@ def _gen_json(
             option = "null"
         elif target_type == JSONType.BOOLEAN:
             option = select(["true", "false"])
-        elif target_type == JSONType.INTEGER:
-            option = _gen_json_int()
-        elif target_type == JSONType.NUMBER:
-            option = _gen_json_number()
+        elif target_type in {JSONType.INTEGER, JSONType.NUMBER}:
+            minimum = cast(Union[int, float, None], json_schema.get(NumberKeywords.MINIMUM, None))
+            maximum = cast(Union[int, float, None], json_schema.get(NumberKeywords.MAXIMUM, None))
+            # Older schemas (Draft4) may have exclusiveMinimum and exclusiveMaximum as booleans, but Draft202012+ should have them as numbers
+            exclusive_minimum = cast(Union[int, float, None], json_schema.get(NumberKeywords.EXCLUSIVE_MINIMUM, None))
+            exclusive_maximum = cast(Union[int, float, None], json_schema.get(NumberKeywords.EXCLUSIVE_MAXIMUM, None))
+            # Internally, we'll use Draft4 style booleans
+            exclusive_minimum_flag: bool = False
+            exclusive_maximum_flag: bool = False
+
+            if exclusive_minimum is not None:
+                if minimum is None or exclusive_minimum >= minimum:
+                    minimum = exclusive_minimum
+                    exclusive_minimum_flag = True
+
+            if exclusive_maximum is not None:
+                if maximum is None or exclusive_maximum <= maximum:
+                    maximum = exclusive_maximum
+                    exclusive_maximum_flag = True
+
+            if target_type == JSONType.INTEGER:
+                option = _gen_json_int(
+                    minimum=minimum,
+                    maximum=maximum,
+                    exclusiveMinimum=exclusive_minimum_flag,
+                    exclusiveMaximum=exclusive_maximum_flag,
+                )
+            else:
+                option = _gen_json_number(
+                    minimum=minimum,
+                    maximum=maximum,
+                    exclusiveMinimum=exclusive_minimum_flag,
+                    exclusiveMaximum=exclusive_maximum_flag,
+                )
         elif target_type == JSONType.STRING:
             option = _gen_json_string(
                 regex=json_schema.get(StringKeywords.PATTERN, None),
