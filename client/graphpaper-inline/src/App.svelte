@@ -3,21 +3,22 @@
     import Minibar from './Minibar.svelte';
     import TokenGrid from './TokenGrid.svelte';
     import ResizeListener from './ResizeListener.svelte';
-    import { kernelmsg, type TextOutput, type TraceMessage } from './stitch';
+	import {kernelmsg, clientmsg, type TextOutput, type HeartbeatMessage, type StitchMessage} from './stitch';
     import StitchHandler from './StitchHandler.svelte';
+	import {onMount} from "svelte";
 
     let msg: any;
     let tokens: Array<TextOutput> = [];
 	$: if ($kernelmsg !== undefined) {
-		msg = JSON.parse($kernelmsg.content);
-		console.log(msg);
-
-		if (msg.class_name === "TraceMessage" && msg.node_attr?.class_name === "TextOutput") {
-			tokens.push(msg.node_attr);
-		} else if (msg.class_name === "ResetDisplayMessage") {
-			tokens = [];
+		if ($kernelmsg.content !== '') {
+			msg = JSON.parse($kernelmsg.content);
+			if (msg.class_name === "TraceMessage" && msg.node_attr?.class_name === "TextOutput") {
+				tokens.push(msg.node_attr);
+			} else if (msg.class_name === "ResetDisplayMessage") {
+				tokens = [];
+			}
+			tokens = tokens;
 		}
-		tokens = tokens;
 	}
 
 	// let text = "Pack my box with five dozen liquor jugs valued at $12.95, according to sources.";
@@ -74,6 +75,14 @@
 		'top': 4,
 		'bottom': 0,
 	}
+
+	onMount(() => {
+		const msg: StitchMessage = {
+			type: "clientmsg",
+			content: JSON.stringify({ 'class_name': 'HeartbeatMessage' })
+		}
+		clientmsg.set(msg);
+	})
 </script>
 
 <svelte:head>

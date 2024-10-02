@@ -19,3 +19,7 @@ class TraceMessage(GuidanceMessage):
 
 class ResetDisplayMessage(GuidanceMessage):
     pass
+
+
+class HeartbeatMessage(GuidanceMessage):
+    pass

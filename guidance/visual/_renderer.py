@@ -1,6 +1,7 @@
 import logging
 from typing import Optional
 from pydantic import BaseModel
+import json
 
 from ..trace import TraceHandler
 from ..visual import GuidanceMessage, TraceMessage, ResetDisplayMessage
@@ -42,7 +43,7 @@ class UpdateController:
     def update(self, message: GuidanceMessage) -> RenderUpdate:
         if not isinstance(message, TraceMessage):
             return RenderUpdate()
-        logger.debug(f"MSG:raw:{message}")
+        # logger.debug(f"MSG:raw:{message}")
 
         trace_node = self._trace_handler[message.trace_id]
         need_reset = False
@@ -140,6 +141,7 @@ def _create_stitch_widget():
     w.initial_width = "100%"
     w.initial_height = "auto"
     w.srcdoc = _create_stitch_widget.src_doc_template
+
     return w
 
 
@@ -150,6 +152,8 @@ class JupyterWidgetRenderer(Renderer):
     def __init__(self, trace_handler: TraceHandler) -> None:
         self._jupyter_widget = None
         self._update_controller = UpdateController(trace_handler)
+        self._message_buffer = []
+        self._client_ready = False
 
     def update(self, message: GuidanceMessage) -> None:
         display_update = self._update_controller.update(message)
@@ -157,12 +161,37 @@ class JupyterWidgetRenderer(Renderer):
         if display_update.need_new_display:
             logger.debug(f"NEED_NEW_DISPLAY:new widget")
             self._jupyter_widget = _create_stitch_widget()
+            self._jupyter_widget.observe(self._client_ready_cb, names='clientmsg')
+
             clear_output(wait=True)
             display(self._jupyter_widget)
 
         for out_message in display_update.messages:
             message_json = out_message.model_dump_json(indent=2, serialize_as_any=True)
-            self._jupyter_widget.kernelmsg = message_json
+            self._message_buffer.append(message_json)
+        self._send_messages_to_client()
+
+    def _client_ready_cb(self, change: dict) -> None:
+        new_val = change['new']
+        logger.debug(f"CLIENT_MSG:{new_val}")
+        try:
+            msg = json.loads(new_val)
+            if msg.get('class_name', None) == 'HeartbeatMessage':
+                logger.debug("CLIENT_READY")
+                self._client_ready = True
+                self._send_messages_to_client()
+                self._jupyter_widget.unobserve(self._client_ready_cb, names='clientmsg')
+        except Exception as e:
+            logger.error(f"Failed to parse client ready message:{new_val}:{repr(e)}")
+
+    def _send_messages_to_client(self) -> None:
+        if not self._client_ready:
+            return
+
+        while len(self._message_buffer) != 0:
+            message = self._message_buffer.pop(0)
+            self._jupyter_widget.kernelmsg = message
+
 
 
 class AutoRenderer(Renderer):

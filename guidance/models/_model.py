@@ -933,7 +933,6 @@ class Chat(Model):
         """
         return "<|im_end|>"
 
-
 class Instruct(Model):
     """The base class for all instruction-tuned models."""
 
