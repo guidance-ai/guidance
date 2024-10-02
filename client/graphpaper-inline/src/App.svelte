@@ -3,7 +3,7 @@
     import Minibar from './Minibar.svelte';
     import TokenGrid from './TokenGrid.svelte';
     import ResizeListener from './ResizeListener.svelte';
-	import {kernelmsg, clientmsg, type TextOutput, type HeartbeatMessage, type StitchMessage} from './stitch';
+	import {kernelmsg, clientmsg, type TextOutput, type StitchMessage} from './stitch';
     import StitchHandler from './StitchHandler.svelte';
 	import {onMount} from "svelte";
 

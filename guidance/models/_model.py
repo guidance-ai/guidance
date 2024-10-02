@@ -11,7 +11,7 @@ import numpy as np
 
 from ..trace import NodeAttr, StatelessGuidanceInput, StatefulGuidanceInput, LiteralInput, EmbeddedInput, \
     RoleOpenerInput, RoleCloserInput, TextOutput, CaptureOutput, TraceHandler
-from ..visual import TraceMessage, AutoRenderer, trace_node_to_str, trace_node_to_html
+from ..visual import TraceMessage, AutoRenderer, trace_node_to_str, trace_node_to_html, GuidanceMessage
 
 try:
     from IPython.display import clear_output, display, HTML
@@ -66,6 +66,16 @@ class Engine:
 
         self.trace_handler = TraceHandler()
         self.renderer = AutoRenderer(self.trace_handler)
+        self.renderer.subscribe(self._msg_recv)
+
+    def _msg_recv(self, message: GuidanceMessage) -> None:
+        # NOTE(nopdive): Print nor log is accessible as func is called from ipywidget callback. Look at jupyter console for exceptions.
+        #                Later we should switch to asyncio in a separate thread and not call this within
+        #                an ipywidget callback.
+
+        # print(message)
+        # logger.debug(f"ENGINE:{message}")
+        pass
 
     def get_chat_template(self): # TODO [HN]: Add more logic here...should we instantiate class here? do we even need to?
         return self.tokenizer.chat_template() # Instantiate the class before returning to client for now

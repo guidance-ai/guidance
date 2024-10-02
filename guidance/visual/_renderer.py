@@ -1,13 +1,13 @@
 import logging
-from typing import Optional
+import weakref
+from typing import Optional, Callable
 from pydantic import BaseModel
+from pydantic_core import from_json
 import json
 
 from ..trace import TraceHandler
 from ..visual import GuidanceMessage, TraceMessage, ResetDisplayMessage
 from ._trace import trace_node_to_html
-
-logger = logging.getLogger(__name__)
 
 try:
     from IPython.display import clear_output, display, HTML
@@ -17,13 +17,14 @@ try:
 except ImportError:
     ipython_imported = False
 
-
 try:
     import stitch
 
     stitch_installed = True
 except ImportError:
     stitch_installed = False
+
+logger = logging.getLogger(__name__)
 
 
 class RenderUpdate(BaseModel):
@@ -43,7 +44,6 @@ class UpdateController:
     def update(self, message: GuidanceMessage) -> RenderUpdate:
         if not isinstance(message, TraceMessage):
             return RenderUpdate()
-        # logger.debug(f"MSG:raw:{message}")
 
         trace_node = self._trace_handler[message.trace_id]
         need_reset = False
@@ -108,6 +108,16 @@ class UpdateController:
 class Renderer:
     """Renders guidance model to a visual medium."""
 
+    def __init__(self):
+        self._observers = []
+
+    def notify(self, message: GuidanceMessage):
+        for observer in self._observers:
+            observer(message)
+
+    def subscribe(self, callback: Callable[[GuidanceMessage], None]) -> None:
+        self._observers.append(weakref.proxy(callback, self._observers.remove))
+
     def update(self, message: GuidanceMessage) -> None:
         raise NotImplementedError("Update not implemented.")
 
@@ -117,6 +127,7 @@ class LegacyHtmlRenderer(Renderer):
 
     def __init__(self, trace_handler: TraceHandler) -> None:
         self._trace_handler = trace_handler
+        super().__init__()
 
     def update(self, message: GuidanceMessage) -> None:
         if not isinstance(message, TraceMessage):
@@ -155,15 +166,17 @@ class JupyterWidgetRenderer(Renderer):
         self._message_buffer = []
         self._client_ready = False
 
+        super().__init__()
+
     def update(self, message: GuidanceMessage) -> None:
         display_update = self._update_controller.update(message)
 
         if display_update.need_new_display:
             logger.debug(f"NEED_NEW_DISPLAY:new widget")
             self._jupyter_widget = _create_stitch_widget()
-            self._jupyter_widget.observe(self._client_ready_cb, names='clientmsg')
+            self._jupyter_widget.observe(self._client_msg_cb, names='clientmsg')
 
-            clear_output(wait=True)
+            # clear_output(wait=True)
             display(self._jupyter_widget)
 
         for out_message in display_update.messages:
@@ -171,18 +184,20 @@ class JupyterWidgetRenderer(Renderer):
             self._message_buffer.append(message_json)
         self._send_messages_to_client()
 
-    def _client_ready_cb(self, change: dict) -> None:
+    def _client_msg_cb(self, change: dict) -> None:
+        # NOTE(nopdive): Widget callbacks do not print to stdout/stderr nor module log.
+
         new_val = change['new']
-        logger.debug(f"CLIENT_MSG:{new_val}")
         try:
-            msg = json.loads(new_val)
-            if msg.get('class_name', None) == 'HeartbeatMessage':
+            msg_di = json.loads(new_val)
+            if msg_di.get('class_name', None) == 'HeartbeatMessage':
                 logger.debug("CLIENT_READY")
                 self._client_ready = True
                 self._send_messages_to_client()
-                self._jupyter_widget.unobserve(self._client_ready_cb, names='clientmsg')
+            msg = from_json(new_val)
+            self.notify(msg)
         except Exception as e:
-            logger.error(f"Failed to parse client ready message:{new_val}:{repr(e)}")
+            self._jupyter_widget.log.error(f"Failed to process client message:{new_val}:{repr(e)}")
 
     def _send_messages_to_client(self) -> None:
         if not self._client_ready:
@@ -193,14 +208,19 @@ class JupyterWidgetRenderer(Renderer):
             self._jupyter_widget.kernelmsg = message
 
 
-
 class AutoRenderer(Renderer):
     def __init__(self, trace_handler: TraceHandler):
         if stitch_installed:
             self._renderer = JupyterWidgetRenderer(trace_handler=trace_handler)
         else:
             self._renderer = LegacyHtmlRenderer(trace_handler=trace_handler)
+        super().__init__()
+
+    def notify(self, message: GuidanceMessage):
+        self._renderer.notify(message)
+
+    def subscribe(self, callback: Callable[[GuidanceMessage], None]) -> None:
+        self._renderer.subscribe(callback)
 
     def update(self, message: GuidanceMessage) -> None:
-        if self._renderer is not None:
-            self._renderer.update(message)
+        self._renderer.update(message)
