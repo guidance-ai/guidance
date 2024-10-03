@@ -135,23 +135,6 @@ class Renderer:
         raise NotImplementedError("Update not implemented.")
 
 
-class LegacyHtmlRenderer(Renderer):
-    """Original HTML renderer for guidance."""
-
-    def __init__(self, trace_handler: TraceHandler) -> None:
-        self._trace_handler = trace_handler
-        super().__init__()
-
-    def update(self, message: GuidanceMessage) -> None:
-        if not isinstance(message, TraceMessage):
-            return
-
-        trace_node = self._trace_handler[message.trace_id]
-        if trace_node is not None:
-            clear_output(wait=True)
-            display(HTML(trace_node_to_html(trace_node, prettify_roles=False)))
-
-
 def _create_stitch_widget():
     from stitch import StitchWidget
     import pkg_resources
@@ -176,7 +159,7 @@ from ._async import run_async_task, ThreadSafeAsyncCondVar, async_loop
 
 
 class JupyterWidgetRenderer(Renderer):
-    def __init__(self, trace_handler: TraceHandler) -> None:
+    def __init__(self, trace_handler: TraceHandler, wait_for_client=True) -> None:
         self._update_controller = UpdateController(trace_handler)
         self._jupyter_widget = None
         self._jupyter_change_detector = JupyterChangeDetector()
@@ -187,6 +170,7 @@ class JupyterWidgetRenderer(Renderer):
         self._send_queue = Queue(loop=self._loop)
         self._recv_queue = Queue(loop=self._loop)
 
+        self._wait_for_client = wait_for_client
         self._client_ready = ThreadSafeAsyncCondVar(async_loop())
         self._cell_executed = ThreadSafeAsyncCondVar(async_loop())
 
@@ -258,7 +242,8 @@ class JupyterWidgetRenderer(Renderer):
     async def _handle_send_messages(self):
         logger.debug("SEND:init")
         # Wait until ready
-        await self._client_ready.wait()
+        if self._wait_for_client:
+            await self._client_ready.wait()
         logger.debug("SEND:ready")
 
         while True:
@@ -268,6 +253,28 @@ class JupyterWidgetRenderer(Renderer):
             # logger.debug(f"SEND:json:{message_json}")
             self._jupyter_widget.kernelmsg = message_json
             self._send_queue.task_done()
+
+
+class LegacyHtmlRenderer(JupyterWidgetRenderer):
+    """Original HTML renderer for guidance."""
+
+    def __init__(self, trace_handler: TraceHandler) -> None:
+        self._trace_handler = trace_handler
+        super().__init__(trace_handler, wait_for_client=False)
+
+    def update(self, message: GuidanceMessage) -> None:
+        # Handle Jupyter cell completion
+        self._handle_jupyter_cell_completion()
+
+        if not isinstance(message, TraceMessage):
+            return
+
+        trace_node = self._trace_handler[message.trace_id]
+        self._last_trace_id = message.trace_id
+        if trace_node is not None:
+            clear_output(wait=True)
+            display(HTML(trace_node_to_html(trace_node, prettify_roles=False)))
+
 
 class AutoRenderer(Renderer):
     def __init__(self, trace_handler: TraceHandler):
