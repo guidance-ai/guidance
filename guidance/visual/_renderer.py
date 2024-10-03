@@ -4,6 +4,7 @@ from typing import Optional, Callable
 from pydantic import BaseModel
 from pydantic_core import from_json
 import json
+from asyncio import Queue
 
 from ..trace import TraceHandler
 from ..visual import GuidanceMessage, TraceMessage, ResetDisplayMessage
@@ -116,7 +117,7 @@ class Renderer:
             observer(message)
 
     def subscribe(self, callback: Callable[[GuidanceMessage], None]) -> None:
-        self._observers.append(weakref.proxy(callback, self._observers.remove))
+        self._observers.append(callback)
 
     def update(self, message: GuidanceMessage) -> None:
         raise NotImplementedError("Update not implemented.")
@@ -159,12 +160,21 @@ def _create_stitch_widget():
 _create_stitch_widget.src_doc_template = None
 
 
+from ._async import run_async_task, ThreadSafeAsyncCondVar, async_loop
+
+
 class JupyterWidgetRenderer(Renderer):
     def __init__(self, trace_handler: TraceHandler) -> None:
         self._jupyter_widget = None
         self._update_controller = UpdateController(trace_handler)
-        self._message_buffer = []
-        self._client_ready = False
+
+        self._loop = async_loop()
+        self._send_queue = Queue(loop=self._loop)
+        self._recv_queue = Queue(loop=self._loop)
+        self._client_ready = ThreadSafeAsyncCondVar(async_loop())
+
+        run_async_task(self.handle_recv_messages())
+        run_async_task(self.handle_send_messages())
 
         super().__init__()
 
@@ -180,9 +190,7 @@ class JupyterWidgetRenderer(Renderer):
             display(self._jupyter_widget)
 
         for out_message in display_update.messages:
-            message_json = out_message.model_dump_json(indent=2, serialize_as_any=True)
-            self._message_buffer.append(message_json)
-        self._send_messages_to_client()
+            self._loop.call_soon_threadsafe(self._send_queue.put_nowait, out_message)
 
     def _client_msg_cb(self, change: dict) -> None:
         # NOTE(nopdive): Widget callbacks do not print to stdout/stderr nor module log.
@@ -191,22 +199,34 @@ class JupyterWidgetRenderer(Renderer):
         try:
             msg_di = json.loads(new_val)
             if msg_di.get('class_name', None) == 'HeartbeatMessage':
-                logger.debug("CLIENT_READY")
-                self._client_ready = True
-                self._send_messages_to_client()
-            msg = from_json(new_val)
-            self.notify(msg)
+                self._client_ready.notify()
+            self._loop.call_soon_threadsafe(self._recv_queue.put_nowait, new_val)
         except Exception as e:
             self._jupyter_widget.log.error(f"Failed to process client message:{new_val}:{repr(e)}")
 
-    def _send_messages_to_client(self) -> None:
-        if not self._client_ready:
-            return
+    async def handle_recv_messages(self):
+        logger.debug("RECV:init")
+        while True:
+            value = await self._recv_queue.get()
+            logger.debug(f"RECV:raw:{value}")
+            message = from_json(value)
+            logger.debug(f"RECV:msg:{message}")
+            self.notify(message)
+            self._recv_queue.task_done()
 
-        while len(self._message_buffer) != 0:
-            message = self._message_buffer.pop(0)
-            self._jupyter_widget.kernelmsg = message
+    async def handle_send_messages(self):
+        logger.debug("SEND:init")
+        # Wait until ready
+        await self._client_ready.wait()
+        logger.debug("SEND:ready")
 
+        while True:
+            message = await self._send_queue.get()
+            # logger.debug(f"SEND:msg:{message}")
+            message_json = message.model_dump_json(indent=2, serialize_as_any=True)
+            # logger.debug(f"SEND:json:{message_json}")
+            self._jupyter_widget.kernelmsg = message_json
+            self._send_queue.task_done()
 
 class AutoRenderer(Renderer):
     def __init__(self, trace_handler: TraceHandler):

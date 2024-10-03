@@ -69,13 +69,8 @@ class Engine:
         self.renderer.subscribe(self._msg_recv)
 
     def _msg_recv(self, message: GuidanceMessage) -> None:
-        # NOTE(nopdive): Print nor log is accessible as func is called from ipywidget callback. Look at jupyter console for exceptions.
-        #                Later we should switch to asyncio in a separate thread and not call this within
-        #                an ipywidget callback.
-
-        # print(message)
-        # logger.debug(f"ENGINE:{message}")
-        pass
+        # NOTE(nopdive): This is likely running on a secondary thread.
+        logger.debug(f"ENGINE:{message}")
 
     def get_chat_template(self): # TODO [HN]: Add more logic here...should we instantiate class here? do we even need to?
         return self.tokenizer.chat_template() # Instantiate the class before returning to client for now
