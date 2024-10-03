@@ -25,8 +25,8 @@ export interface ResetDisplayMessage extends GuidanceMessage {
     class_name: 'ResetDisplayMessage'
 }
 
-export interface HeartbeatMessage extends GuidanceMessage {
-    class_name: 'HeartbeatMessage'
+export interface ClientReadyMessage extends GuidanceMessage {
+    class_name: 'ClientReadyMessage'
 }
 
 export interface StitchMessage {

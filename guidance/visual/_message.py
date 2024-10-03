@@ -17,9 +17,13 @@ class TraceMessage(GuidanceMessage):
     node_attr: Optional[NodeAttr]
 
 
+class JupyterCellExecutionCompleted(GuidanceMessage):
+    last_trace_id: Optional[int]
+
+
 class ResetDisplayMessage(GuidanceMessage):
     pass
 
 
-class HeartbeatMessage(GuidanceMessage):
+class ClientReadyMessage(GuidanceMessage):
     pass

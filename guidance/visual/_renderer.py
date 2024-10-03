@@ -1,13 +1,12 @@
 import logging
-import weakref
 from typing import Optional, Callable
 from pydantic import BaseModel
 from pydantic_core import from_json
-import json
 from asyncio import Queue
 
+from ._message import JupyterCellExecutionCompleted
 from ..trace import TraceHandler
-from ..visual import GuidanceMessage, TraceMessage, ResetDisplayMessage
+from ..visual import GuidanceMessage, TraceMessage, ResetDisplayMessage, ClientReadyMessage
 from ._trace import trace_node_to_html
 
 try:
@@ -33,14 +32,36 @@ class RenderUpdate(BaseModel):
     need_new_display: bool = False
 
 
+class JupyterChangeDetector:
+    def __init__(self):
+        self._prev_cell_msg_id: Optional[int] = None
+        self._prev_cell_exec_count: Optional[int] = None
+
+    def has_changed(self) -> bool:
+        if ipython_imported and get_ipython() is not None:
+            ipy = get_ipython()
+            cell_msg_id = ipy.get_parent()["msg_id"]
+            cell_exec_count = ipy.execution_count
+            if (
+                    cell_msg_id != self._prev_cell_msg_id
+                    or cell_exec_count != self._prev_cell_exec_count
+            ):
+                self._prev_cell_msg_id = cell_msg_id
+                self._prev_cell_exec_count = cell_exec_count
+                logger.debug(f"JUPYTER:changed:{cell_msg_id}|{cell_exec_count}")
+                return True
+            else:
+                return False
+        else:
+            return False
+
+
 class UpdateController:
     def __init__(self, trace_handler: TraceHandler):
         self._trace_handler = trace_handler
+        self._jupyter_change_detector = JupyterChangeDetector()
         self._messages: list[GuidanceMessage] = []
-
         self._prev_trace_id: Optional[int] = None
-        self._prev_cell_msg_id: Optional[int] = None
-        self._prev_cell_exec_count: Optional[int] = None
 
     def update(self, message: GuidanceMessage) -> RenderUpdate:
         if not isinstance(message, TraceMessage):
@@ -79,20 +100,11 @@ class UpdateController:
                     self._messages = self._messages[:ancestor_idx]
 
         # If we are in a new Jupyter cell or execution, reset
-        if ipython_imported and get_ipython() is not None:
-            ipy = get_ipython()
-            cell_msg_id = ipy.get_parent()["msg_id"]
-            cell_exec_count = ipy.execution_count
-            if (
-                cell_msg_id != self._prev_cell_msg_id
-                or cell_exec_count != self._prev_cell_exec_count
-            ):
-                need_reset = True
-                need_new_display = True
-                logger.debug(f"NEED_RESET:jupyter:{cell_msg_id}|{cell_exec_count}")
-                self._prev_cell_msg_id = cell_msg_id
-                self._prev_cell_exec_count = cell_exec_count
-                self._messages = []
+        # NOTE(nopdive): Consider refactoring out to Jupyter renderer.
+        if self._jupyter_change_detector.has_changed():
+            need_reset = True
+            need_new_display = True
+            self._messages.clear()
 
         out_messages = []
         # Add previous messages if reset required
@@ -165,20 +177,29 @@ from ._async import run_async_task, ThreadSafeAsyncCondVar, async_loop
 
 class JupyterWidgetRenderer(Renderer):
     def __init__(self, trace_handler: TraceHandler) -> None:
-        self._jupyter_widget = None
         self._update_controller = UpdateController(trace_handler)
+        self._jupyter_widget = None
+        self._jupyter_change_detector = JupyterChangeDetector()
+        self._is_alive_cell_cb = False
+        self._last_trace_id = None
 
         self._loop = async_loop()
         self._send_queue = Queue(loop=self._loop)
         self._recv_queue = Queue(loop=self._loop)
-        self._client_ready = ThreadSafeAsyncCondVar(async_loop())
 
-        run_async_task(self.handle_recv_messages())
-        run_async_task(self.handle_send_messages())
+        self._client_ready = ThreadSafeAsyncCondVar(async_loop())
+        self._cell_executed = ThreadSafeAsyncCondVar(async_loop())
+
+        run_async_task(self._handle_recv_messages())
+        run_async_task(self._handle_send_messages())
 
         super().__init__()
 
     def update(self, message: GuidanceMessage) -> None:
+        # Handle Jupyter cell completion
+        self._handle_jupyter_cell_completion()
+
+        # Handle message
         display_update = self._update_controller.update(message)
 
         if display_update.need_new_display:
@@ -190,31 +211,51 @@ class JupyterWidgetRenderer(Renderer):
             display(self._jupyter_widget)
 
         for out_message in display_update.messages:
+            if isinstance(out_message, TraceMessage):
+                self._last_trace_id = out_message.trace_id
             self._loop.call_soon_threadsafe(self._send_queue.put_nowait, out_message)
+
+    def _handle_jupyter_cell_completion(self):
+        if self._jupyter_change_detector.has_changed():
+            if self._is_alive_cell_cb:
+                get_ipython().events.unregister('post_execute', self._cell_completion_cb)
+                self._is_alive_cell_cb = False
+            get_ipython().events.register('post_execute', self._cell_completion_cb)
+            self._is_alive_cell_cb = True
+
+    def _cell_completion_cb(self):
+        try:
+            message = JupyterCellExecutionCompleted(
+                last_trace_id=self._last_trace_id
+            )
+            logger.debug(f"CELL:executed:{message}")
+
+            # Message Python observers
+            self.notify(message)
+            # Message client observers
+            self._loop.call_soon_threadsafe(self._send_queue.put_nowait, message)
+        finally:
+            get_ipython().events.unregister('post_execute', self._cell_completion_cb)
+            self._is_alive_cell_cb = False
 
     def _client_msg_cb(self, change: dict) -> None:
         # NOTE(nopdive): Widget callbacks do not print to stdout/stderr nor module log.
+        self._loop.call_soon_threadsafe(self._recv_queue.put_nowait, change['new'])
 
-        new_val = change['new']
-        try:
-            msg_di = json.loads(new_val)
-            if msg_di.get('class_name', None) == 'HeartbeatMessage':
-                self._client_ready.notify()
-            self._loop.call_soon_threadsafe(self._recv_queue.put_nowait, new_val)
-        except Exception as e:
-            self._jupyter_widget.log.error(f"Failed to process client message:{new_val}:{repr(e)}")
-
-    async def handle_recv_messages(self):
+    async def _handle_recv_messages(self):
         logger.debug("RECV:init")
         while True:
             value = await self._recv_queue.get()
             logger.debug(f"RECV:raw:{value}")
             message = from_json(value)
             logger.debug(f"RECV:msg:{message}")
+            if isinstance(message, dict) and message['class_name'] == 'ClientReadyMessage':
+                logger.debug("RECV:clientready")
+                self._client_ready.notify()
             self.notify(message)
             self._recv_queue.task_done()
 
-    async def handle_send_messages(self):
+    async def _handle_send_messages(self):
         logger.debug("SEND:init")
         # Wait until ready
         await self._client_ready.wait()
@@ -222,7 +263,7 @@ class JupyterWidgetRenderer(Renderer):
 
         while True:
             message = await self._send_queue.get()
-            # logger.debug(f"SEND:msg:{message}")
+            logger.debug(f"SEND:msg:{message}")
             message_json = message.model_dump_json(indent=2, serialize_as_any=True)
             # logger.debug(f"SEND:json:{message_json}")
             self._jupyter_widget.kernelmsg = message_json

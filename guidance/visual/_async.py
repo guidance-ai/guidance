@@ -26,7 +26,7 @@ class ThreadSafeAsyncCondVar:
                 if future in self._waiters:
                     self._waiters.remove(future)
 
-    def notify(self, n=1):
+    def notify(self, n=1, result=None):
         with self._waiters_lock:
             if n == 0:
                 waiters_to_notify = self._waiters
@@ -36,14 +36,14 @@ class ThreadSafeAsyncCondVar:
                 self._waiters = self._waiters[n:]
 
         for future in waiters_to_notify:
-            self._loop.call_soon_threadsafe(future.set_result, None)
+            self._loop.call_soon_threadsafe(future.set_result, (result,))
 
-    def notify_all(self):
+    def notify_all(self, result=None):
         with self._waiters_lock:
             waiters_to_notify = self._waiters
             self._waiters.clear()
         for future in waiters_to_notify:
-            self._loop.call_soon_threadsafe(future.set_result, None)
+            self._loop.call_soon_threadsafe(future.set_result, (result,))
 
 
 def _start_asyncio_loop(loop: AbstractEventLoop):

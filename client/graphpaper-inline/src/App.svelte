@@ -79,7 +79,7 @@
 	onMount(() => {
 		const msg: StitchMessage = {
 			type: "clientmsg",
-			content: JSON.stringify({ 'class_name': 'HeartbeatMessage' })
+			content: JSON.stringify({ 'class_name': 'ClientReadyMessage' })
 		}
 		clientmsg.set(msg);
 	})
