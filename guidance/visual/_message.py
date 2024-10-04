@@ -1,6 +1,7 @@
-from typing import Optional
+from typing import Optional, Dict
 from pydantic import BaseModel
 from ..trace import NodeAttr
+import json
 
 
 class GuidanceMessage(BaseModel):
@@ -27,3 +28,25 @@ class ResetDisplayMessage(GuidanceMessage):
 
 class ClientReadyMessage(GuidanceMessage):
     pass
+
+
+model_registry: Dict[str, type(GuidanceMessage)] = {
+    'TraceMessage': TraceMessage,
+    'JupyterCellExecutionCompleted': JupyterCellExecutionCompleted,
+    'ResetDisplayMessage': ResetDisplayMessage,
+    'ClientReadyMessage': ClientReadyMessage,
+}
+
+
+def serialize_message(message: GuidanceMessage) -> str:
+    message_json = message.model_dump_json(indent=2, serialize_as_any=True)
+    return message_json
+
+
+def deserialize_message(data: str) -> GuidanceMessage:
+    data_json = json.loads(data)
+    class_name = data_json.get("class_name")
+    model_class = model_registry.get(class_name)
+    if not model_class:
+        raise ValueError(f"Unknown class_name: {class_name}")
+    return model_class.model_validate_json(data)

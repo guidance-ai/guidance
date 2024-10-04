@@ -1,10 +1,9 @@
 import logging
 from typing import Optional, Callable
 from pydantic import BaseModel
-from pydantic_core import from_json
 from asyncio import Queue
 
-from ._message import JupyterCellExecutionCompleted
+from ._message import JupyterCellExecutionCompleted, deserialize_message, serialize_message
 from ..trace import TraceHandler
 from ..visual import GuidanceMessage, TraceMessage, ResetDisplayMessage, ClientReadyMessage
 from ._trace import trace_node_to_html
@@ -229,15 +228,18 @@ class JupyterWidgetRenderer(Renderer):
     async def _handle_recv_messages(self):
         logger.debug("RECV:init")
         while True:
-            value = await self._recv_queue.get()
-            logger.debug(f"RECV:raw:{value}")
-            message = from_json(value)
-            logger.debug(f"RECV:msg:{message}")
-            if isinstance(message, dict) and message['class_name'] == 'ClientReadyMessage':
-                logger.debug("RECV:clientready")
-                self._client_ready.notify()
-            self.notify(message)
-            self._recv_queue.task_done()
+            try:
+                value = await self._recv_queue.get()
+                logger.debug(f"RECV:raw:{value}")
+                message = deserialize_message(value)
+                logger.debug(f"RECV:msg:{message}")
+                if isinstance(message, ClientReadyMessage):
+                    logger.debug("RECV:clientready")
+                    self._client_ready.notify()
+                self.notify(message)
+                self._recv_queue.task_done()
+            except Exception as e:
+                logger.error(f"RECV:err:{repr(e)}")
 
     async def _handle_send_messages(self):
         logger.debug("SEND:init")
@@ -247,12 +249,15 @@ class JupyterWidgetRenderer(Renderer):
         logger.debug("SEND:ready")
 
         while True:
-            message = await self._send_queue.get()
-            logger.debug(f"SEND:msg:{message}")
-            message_json = message.model_dump_json(indent=2, serialize_as_any=True)
-            # logger.debug(f"SEND:json:{message_json}")
-            self._jupyter_widget.kernelmsg = message_json
-            self._send_queue.task_done()
+            try:
+                message = await self._send_queue.get()
+                logger.debug(f"SEND:msg:{message}")
+                message_json = serialize_message(message)
+                # logger.debug(f"SEND:json:{message_json}")
+                self._jupyter_widget.kernelmsg = message_json
+                self._send_queue.task_done()
+            except Exception as e:
+                logger.error(f"SEND:err:{repr(e)}")
 
 
 class LegacyHtmlRenderer(JupyterWidgetRenderer):
