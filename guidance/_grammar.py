@@ -237,13 +237,10 @@ class Terminal(GrammarFunction):
     def __init__(self, *, temperature: float, capture_name: Union[str, None]):
         super().__init__(capture_name=capture_name)
         self.temperature = temperature
+        self.max_tokens = 1000000000000
 
     def match_byte(self, byte):
         pass  # abstract
-
-    @property
-    def max_tokens(self):
-        return 1000000000000
 
 class DeferredReference(Terminal):
     """Container to hold a value that is resolved at a later time. This is useful for recursive definitions."""
@@ -496,7 +493,6 @@ class Gen(Terminal):
         "stop_regex",
         "save_stop_text",
         "name",
-        "_max_tokens",
     )
 
     def __init__(
@@ -512,11 +508,7 @@ class Gen(Terminal):
         self.stop_regex = stop_regex
         self.name = name if name is not None else GrammarFunction._new_name()
         self.save_stop_text = save_stop_text
-        self._max_tokens = max_tokens
-
-    @property
-    def max_tokens(self) -> int:
-        return self._max_tokens
+        self.max_tokens = max_tokens
 
     def __repr__(self, indent="", done=None, lbl="Gen"):
         if done is None:
@@ -560,8 +552,8 @@ class Lexeme(Gen):
         return super().__repr__(indent, done, "Lex")
 
 
-class RegularGrammar(Gen):
-    __slots__ = ("grammar",)
+class RegularGrammar(Terminal):
+    __slots__ = ("grammar", "name")
 
     def __init__(
         self,
@@ -569,8 +561,10 @@ class RegularGrammar(Gen):
         name: Union[str, None] = None,
         max_tokens=100000000,
     ) -> None:
-        super().__init__("", "", name=name, max_tokens=max_tokens)
+        super().__init__(capture_name=None, temperature=-1)
         self.grammar = grammar
+        self.name = name if name is not None else GrammarFunction._new_name()
+        self.max_tokens = max_tokens
 
     def __repr__(self, indent="", done=None):
         # TODO add grammar repr
