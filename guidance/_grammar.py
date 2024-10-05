@@ -906,6 +906,15 @@ class LLSerializer:
         else:
             return self._add_regex("Or", [self.regex_id_cache[v] for v in nodes])
 
+    def _regex_and(self, nodes: list[GrammarFunction]):
+        if len(nodes) == 1:
+            return self.regex_id_cache[nodes[0]]
+        else:
+            return self._add_regex("And", [self.regex_id_cache[v] for v in nodes])
+
+    def _regex_not(self, node: GrammarFunction):
+        return self._add_regex("Not", self.regex_id_cache[node])
+
     def regex(self, node: GrammarFunction):
         """
         Serialize node as regex. Throws if impossible.
