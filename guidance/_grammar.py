@@ -570,6 +570,30 @@ class RegularGrammar(Terminal):
         # TODO add grammar repr
         return super().__repr__(indent, done, "RegularGrammar")
 
+class And(Terminal):
+    __slots__ = ("values", "name")
+
+    def __init__(
+        self,
+        values: Sequence[GrammarFunction],
+        name: Union[str, None] = None,
+    ):
+        super().__init__(temperature=-1, capture_name=None)
+        self.values = values
+        self.name = name if name is not None else GrammarFunction._new_name()
+
+class Not(Terminal):
+    __slots__ = ("value", "name")
+
+    def __init__(
+        self,
+        value: GrammarFunction,
+        name: Union[str, None] = None,
+    ):
+        super().__init__(temperature=-1, capture_name=None)
+        self.value = value
+        self.name = name if name is not None else GrammarFunction._new_name()
+
 
 class Subgrammar(Gen):
     __slots__ = (
@@ -1022,6 +1046,20 @@ class LLSerializer:
                 if node.json_string:
                     raise ValueError("Cannot serialize lexeme with `json_string=True` as regex: " + node.__repr__())
                 res = self._add_regex("Regex", node.body_regex)
+            elif isinstance(node, And):
+                if not all_finished(node.values):
+                    add_todo(node)
+                    pending.add(node)
+                    add_todos(node.values)
+                    continue
+                res = self._regex_and(node.values)
+            elif isinstance(node, Not):
+                if not node_finished(node.value):
+                    add_todo(node)
+                    pending.add(node)
+                    add_todo(node.value)
+                    continue
+                res = self._regex_not(node.value)
             else:
                 raise ValueError("Cannot serialize as regex: " + node.__repr__())
             if node in pending:
