@@ -26,7 +26,7 @@ from .._guidance import guidance
 from ..library import char_range, gen, one_or_more, optional, sequence
 from ..library._regex_utils import rx_int_range, rx_float_range
 
-from .._grammar import GrammarFunction, select, capture, with_temperature
+from .._grammar import GrammarFunction, select, capture, with_temperature, Not, And, as_regular_grammar, quote_regex
 from ._pydantic import pydantic_to_json_schema
 from ._subgrammar import lexeme, subgrammar
 
@@ -494,9 +494,15 @@ def _gen_json_object(
     ]
     grammars = tuple(f'"{name}":' + _gen_json(json_schema=schema, definitions=definitions) for name, schema in items)
     required_items = tuple(name in required for name, _ in items)
-
+    names = set(properties.keys()) | set(required)
+    key_rx = as_regular_grammar(
+        And([
+            lexeme(r'"([^"\\]|\\["\\/bfnrt]|\\u[0-9a-fA-F]{4})*"'),
+            Not(lexeme('"(' + '|'.join(quote_regex(name) for name in names) + ')"')),
+        ])
+    )
     if additional_properties is not False:
-        additional_item_grammar =  _gen_json_string() + ':' + _gen_json(json_schema=additional_properties, definitions=definitions)
+        additional_item_grammar =  key_rx + ':' + _gen_json(json_schema=additional_properties, definitions=definitions)
         additional_items_grammar = sequence(additional_item_grammar + ',') + additional_item_grammar
         grammars += (additional_items_grammar,)
         required_items += (False,)
