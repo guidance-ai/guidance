@@ -495,14 +495,18 @@ def _gen_json_object(
     grammars = tuple(f'"{name}":' + _gen_json(json_schema=schema, definitions=definitions) for name, schema in items)
     required_items = tuple(name in required for name, _ in items)
     names = set(properties.keys()) | set(required)
-    key_rx = as_regular_grammar(
-        And([
-            lexeme(r'"([^"\\]|\\["\\/bfnrt]|\\u[0-9a-fA-F]{4})*"'),
-            Not(lexeme('"(' + '|'.join(quote_regex(name) for name in names) + ')"')),
-        ])
-    )
+    if len(names) > 0:
+        # If there are any properties, we need to disallow them as additionalProperties
+        key_grammar = as_regular_grammar(
+            And([
+                lexeme(r'"([^"\\]|\\["\\/bfnrt]|\\u[0-9a-fA-F]{4})*"'),
+                Not(lexeme('"(' + '|'.join(quote_regex(name) for name in names) + ')"')),
+            ])
+        )
+    else:
+        key_grammar = _gen_json_string()
     if additional_properties is not False:
-        additional_item_grammar =  key_rx + ':' + _gen_json(json_schema=additional_properties, definitions=definitions)
+        additional_item_grammar =  key_grammar + ':' + _gen_json(json_schema=additional_properties, definitions=definitions)
         additional_items_grammar = sequence(additional_item_grammar + ',') + additional_item_grammar
         grammars += (additional_items_grammar,)
         required_items += (False,)
