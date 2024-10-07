@@ -1,3 +1,4 @@
+from guidance._grammar import LLSerializer, RegularGrammar, string
 from .._grammar import Subgrammar, Lexeme, GrammarFunction, capture
 from typing import Optional
 
@@ -40,3 +41,12 @@ def subgrammar(
     if name:
         r = capture(r, name)
     return r
+
+
+def as_regular_grammar(value, lexeme=False) -> RegularGrammar:
+    # TODO: assert that value is not empty since we don't yet support that
+    if isinstance(value, str):
+        value = string(value)
+    # check if it serializes
+    _ignore = LLSerializer().regex(value)
+    return RegularGrammar(value, lexeme=lexeme)

@@ -4,7 +4,7 @@ import sys
 import types
 
 from . import models
-from ._guidance import _decorator, guidance
+from ._guidance import guidance
 
 from ._grammar import (
     RawFunction,
@@ -21,7 +21,7 @@ class _Guidance(types.ModuleType):
     def __call__(
         self, f=None, *, stateless=False, cache=None, dedent=True, model=models.Model
     ):
-        return _decorator(
+        return guidance(
             f, stateless=stateless, cache=cache, dedent=dedent, model=model
         )
 

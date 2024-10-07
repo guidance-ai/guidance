@@ -1,5 +1,6 @@
 from json import dumps as json_dumps
 from enum import Enum
+import math
 from typing import (
     Any,
     Callable,
@@ -10,6 +11,7 @@ from typing import (
     Union,
     Type,
     TYPE_CHECKING,
+    cast,
 )
 import warnings
 
@@ -22,11 +24,13 @@ except ImportError:
 
 from .._guidance import guidance
 from ..library import char_range, gen, one_or_more, optional, sequence
+from ..library._regex_utils import rx_int_range, rx_float_range
 
-from .._grammar import GrammarFunction, select, capture, with_temperature
+from .._grammar import GrammarFunction, select, capture, with_temperature, Not, And, quote_regex
 from ._pydantic import pydantic_to_json_schema
-from ._subgrammar import lexeme, subgrammar
+from ._subgrammar import as_regular_grammar, lexeme, subgrammar
 
+JSONSchema = Union[bool, Mapping[str, Any]]
 
 def _to_compact_json(target: Any) -> str:
     # See 'Compact Encoding':
@@ -35,6 +39,87 @@ def _to_compact_json(target: Any) -> str:
     # output, we don't need to worry about pretty printing
     # and whitespace
     return json_dumps(target, separators=(",", ":"))
+
+DRAFT202012_RESERVED_KEYWORDS = {
+    # Anchors and References
+    '$anchor',
+    '$dynamicAnchor',
+    '$dynamicRef',
+    '$id',
+    '$recursiveAnchor',
+    '$recursiveRef',
+    '$ref',
+    '$schema',
+    '$vocabulary',
+
+    # Schema Structure and Combining Schemas
+    '$defs',
+    'allOf',
+    'anyOf',
+    'definitions',
+    'dependencies',
+    'dependentRequired',
+    'dependentSchemas',
+    'else',
+    'if',
+    'not',
+    'oneOf',
+    'then',
+
+    # Validation Keywords for Any Instance Type
+    'const',
+    'enum',
+    'type',
+
+    # Validation Keywords for Numeric Instances
+    'exclusiveMaximum',
+    'exclusiveMinimum',
+    'maximum',
+    'minimum',
+    'multipleOf',
+
+    # Validation Keywords for Strings
+    'format',
+    'maxLength',
+    'minLength',
+    'pattern',
+
+    # Validation Keywords for Arrays
+    'contains',
+    'items',
+    'maxContains',
+    'maxItems',
+    'minContains',
+    'minItems',
+    'prefixItems',
+    'uniqueItems',
+
+    # Validation Keywords for Objects
+    'additionalProperties',
+    'maxProperties',
+    'minProperties',
+    'patternProperties',
+    'properties',
+    'propertyNames',
+    'required',
+    'unevaluatedItems',
+    'unevaluatedProperties',
+
+    # Metadata Keywords
+    '$comment',
+    'default',
+    'deprecated',
+    'description',
+    'examples',
+    'readOnly',
+    'title',
+    'writeOnly',
+
+    # Content Validation
+    'contentEncoding',
+    'contentMediaType',
+    'contentSchema',
+}
 
 class JSONType(str, Enum):
     NULL = "null"
@@ -54,8 +139,15 @@ class Keyword(str, Enum):
     ENUM = "enum"
     TYPE = "type"
 
+class NumberKeywords(str, Enum):
+    MINIMUM = "minimum"
+    MAXIMUM = "maximum"
+    EXCLUSIVE_MINIMUM = "exclusiveMinimum"
+    EXCLUSIVE_MAXIMUM = "exclusiveMaximum"
+
 class StringKeywords(str, Enum):
     PATTERN = "pattern"
+    FORMAT = "format"
     MIN_LENGTH = "minLength"
     MAX_LENGTH = "maxLength"
 
@@ -71,6 +163,8 @@ class ObjectKeywords(str, Enum):
     REQUIRED = "required"
 
 TYPE_SPECIFIC_KEYWORDS = {
+    JSONType.INTEGER: NumberKeywords,
+    JSONType.NUMBER: NumberKeywords,
     JSONType.STRING: StringKeywords,
     JSONType.ARRAY: ArrayKeywords,
     JSONType.OBJECT: ObjectKeywords,
@@ -98,13 +192,210 @@ IGNORED_KEYS = {
 IGNORED_KEYS.add("discriminator")
 
 WHITESPACE = {b" ", b"\t", b"\n", b"\r"}
+VALID_KEYS = set(Keyword) | IGNORED_KEYS | DEFS_KEYS | set(NumberKeywords) | set(StringKeywords) | set(ArrayKeywords) | set(ObjectKeywords)
+
+FORMAT_PATTERNS: dict[str, Optional[str]] = {
+    # https://json-schema.org/understanding-json-schema/reference/string#built-in-formats
+    # Dates and times
+    "date-time": (
+        r'(?P<date>[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01]))'
+        r'[tT]'
+        r'(?P<time>'
+            r'(?:[01][0-9]|2[0-3]):[0-5][0-9]:(?:[0-5][0-9]|60)'
+            r'(?P<time_fraction>\.[0-9]+)?'
+            r'(?P<time_zone>[zZ]|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])'
+        r')'
+    ),
+    "time": (
+        r'(?:[01][0-9]|2[0-3]):[0-5][0-9]:(?:[0-5][0-9]|60)'
+        r'(?P<time_fraction>\.[0-9]+)?'
+        r'(?P<time_zone>[zZ]|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])'
+    ),
+    "date": r'[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])',
+    "duration": (
+        r'P'                                     # Start with 'P'
+        r'(?:'                                   # Non-capturing group for main alternatives
+            r'(?P<dur_date>'                     # Named group for date duration
+                r'(?:'                           # Non-capturing group for date components
+                    r'(?P<dur_year>'             # Named group for years
+                        r'[0-9]+Y'                  # One or more digits followed by 'Y'
+                        r'(?:'                   # Optional month
+                            r'[0-9]+M'              # One or more digits followed by 'M'
+                            r'(?:[0-9]+D)?'         # Optional days
+                        r')?'
+                    r')'
+                    r'|'                         # OR
+                    r'(?P<dur_month>'            # Named group for months
+                        r'[0-9]+M'                  # One or more digits followed by 'M'
+                        r'(?:[0-9]+D)?'             # Optional days
+                    r')'
+                    r'|'                         # OR
+                    r'(?P<dur_day>'              # Named group for days
+                        r'[0-9]+D'                  # One or more digits followed by 'D'
+                    r')'
+                r')'
+                r'(?:'                           # Optional time
+                    r'T'                         # Time starts with 'T'
+                    r'(?:'                       # Non-capturing group for time components
+                        r'(?P<dur_hour>'         # Named group for hours
+                            r'[0-9]+H'              # One or more digits followed by 'H'
+                            r'(?:'               # Optional minutes
+                                r'[0-9]+M'          # One or more digits followed by 'M'
+                                r'(?:[0-9]+S)?'     # Optional seconds
+                            r')?'
+                        r')'
+                        r'|'                     # OR
+                        r'(?P<dur_minute>'       # Named group for minutes
+                            r'[0-9]+M'              # One or more digits followed by 'M'
+                            r'(?:[0-9]+S)?'         # Optional seconds
+                        r')'
+                        r'|'                     # OR
+                        r'(?P<dur_second>'       # Named group for seconds
+                            r'[0-9]+S'              # One or more digits followed by 'S'
+                        r')'
+                    r')'
+                r')?'
+            r')'
+            r'|'                                 # OR
+            r'(?P<dur_time>'                     # Named group for time-only duration
+                r'T'                             # Time starts with 'T'
+                r'(?:'                           # Non-capturing group for time components
+                    r'(?P<dur_hour2>'             # Named group for hours
+                        r'[0-9]+H'                  # One or more digits followed by 'H'
+                        r'(?:'                   # Optional minutes
+                            r'[0-9]+M'              # One or more digits followed by 'M'
+                            r'(?:[0-9]+S)?'         # Optional seconds
+                        r')?'
+                    r')'
+                    r'|'                         # OR
+                    r'(?P<dur_minute2>'           # Named group for minutes
+                        r'[0-9]+M'                  # One or more digits followed by 'M'
+                        r'(?:[0-9]+S)?'             # Optional seconds
+                    r')'
+                    r'|'                         # OR
+                    r'(?P<dur_second2>'           # Named group for seconds
+                        r'[0-9]+S'                  # One or more digits followed by 'S'
+                    r')'
+                r')'
+            r')'
+            r'|'                                 # OR
+            r'(?P<dur_week>'                     # Named group for weeks
+                r'[0-9]+W'                          # One or more digits followed by 'W'
+            r')'
+        r')'
+    ),
+    # Email addresses
+    "email": (
+        r'(?P<local_part>'
+            r'(?P<dot_string>'
+                r'[^\s@\.]+'
+                r'(\.[^\s@\.]+)*'
+            r')'
+            # TODO: Add support for quoted strings
+        r')'
+        r'@'
+        r'('
+            r'(?P<domain>'
+                r'(?P<sub_domain>'
+                    r'[a-zA-Z0-9]'
+                    r'([a-zA-Z0-9-]*[a-zA-Z0-9])?'
+                r')'
+                r'(\.(?P<sub_domain2>'
+                    r'[a-zA-Z0-9]'
+                    r'([a-zA-Z0-9-]*[a-zA-Z0-9])?'
+                r'))*'
+            r')'
+            r'|' # OR
+            r'\[(?P<ipv4>((([0-9])|(([1-9])[0-9]|(25[0-5]|(2[0-4]|(1)[0-9])[0-9])))\.){3}(([0-9])|(([1-9])[0-9]|(25[0-5]|(2[0-4]|(1)[0-9])[0-9]))))\]'
+        r')'
+    ),
+    "idn-email": None,
+    # Hostnames
+    "hostname": r"[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*",
+    "idn-hostname": None,
+    "ipv4": r'((([0-9])|(([1-9])[0-9]|(25[0-5]|(2[0-4]|(1)[0-9])[0-9])))\.){3}(([0-9])|(([1-9])[0-9]|(25[0-5]|(2[0-4]|(1)[0-9])[0-9])))',
+    "ipv6": (
+        # Full IPv6 address without "::"
+        r'(?:'
+            r'(?P<full>(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4})'
+        r')'
+        r'|'  # OR
+        # Leading "::" (shortens leading zeros)
+        r'(?:'
+            r'::(?:[0-9a-fA-F]{1,4}:){0,5}(?P<ls32>[0-9a-fA-F]{1,4}:[0-9a-fA-F]{1,4})'
+        r')'
+        r'|'  # OR
+        # "::" within the address, and variants reducing the length of the address
+        r'(?:'
+            r'(?P<h16_1>[0-9a-fA-F]{1,4})?::(?:[0-9a-fA-F]{1,4}:){0,4}(?P<ls32_1>[0-9a-fA-F]{1,4}:[0-9a-fA-F]{1,4})'
+        r')'
+        r'|'  # OR
+        r'(?:'
+            r'((?:[0-9a-fA-F]{1,4}:){0,1}[0-9a-fA-F]{1,4})?::(?:[0-9a-fA-F]{1,4}:){0,3}(?P<ls32_2>[0-9a-fA-F]{1,4}:[0-9a-fA-F]{1,4})'
+        r')'
+        r'|'  # OR
+        r'(?:'
+            r'((?:[0-9a-fA-F]{1,4}:){0,2}[0-9a-fA-F]{1,4})?::(?:[0-9a-fA-F]{1,4}:){0,2}(?P<ls32_3>[0-9a-fA-F]{1,4}:[0-9a-fA-F]{1,4})'
+        r')'
+        r'|'  # OR
+        r'(?:'
+            r'((?:[0-9a-fA-F]{1,4}:){0,3}[0-9a-fA-F]{1,4})?::[0-9a-fA-F]{1,4}:(?P<ls32_4>[0-9a-fA-F]{1,4}:[0-9a-fA-F]{1,4})'
+        r')'
+        r'|'  # OR
+        r'(?:'
+            r'((?:[0-9a-fA-F]{1,4}:){0,4}[0-9a-fA-F]{1,4})?::(?P<ls32_5>[0-9a-fA-F]{1,4}:[0-9a-fA-F]{1,4})'
+        r')'
+        r'|'  # OR
+        r'(?:'
+            r'((?:[0-9a-fA-F]{1,4}:){0,5}[0-9a-fA-F]{1,4})?::(?P<h16_2>[0-9a-fA-F]{1,4})'
+        r')'
+        r'|'  # OR
+        r'(?:'
+            r'((?:[0-9a-fA-F]{1,4}:){0,6}[0-9a-fA-F]{1,4})?::'
+        r')'
+    ),
+    # Resource identifiers
+    "uuid": (
+        r'(?P<time_low>[0-9a-fA-F]{8})'      # 4 hex octets for time-low
+        r'-'                                 # Literal hyphen
+        r'(?P<time_mid>[0-9a-fA-F]{4})'      # 2 hex octets for time-mid
+        r'-'                                 # Literal hyphen
+        r'(?P<time_high_and_version>[0-9a-fA-F]{4})'  # 2 hex octets for time-high-and-version
+        r'-'                                 # Literal hyphen
+        r'(?P<clock_seq_and_reserved>[0-9a-fA-F]{2})' # 1 hex octet for clock-seq-and-reserved
+        r'(?P<clock_seq_low>[0-9a-fA-F]{2})' # 1 hex octet for clock-seq-low
+        r'-'                                 # Literal hyphen
+        r'(?P<node>[0-9a-fA-F]{12})'         # 6 hex octets for node
+    ),
+    "uri": None,
+    "uri-reference": None,
+    "iri": None,
+    "iri-reference": None,
+    # URI template
+    "uri-template": None,
+    # JSON pointers
+    "json-pointer": None,
+    "relative-json-pointer": None,
+    # Regular expressions
+    "regex": None, # Might need a full CFG?,
+    # Unknown
+    "unknown": r"(?s:.*)",
+}
+
+def _get_format_pattern(format: str) -> str:
+    try:
+        pattern = FORMAT_PATTERNS[format]
+    except KeyError:
+        raise ValueError(f"Format {format!r} is not supported")
+    if pattern is None:
+        raise NotImplementedError(f"Format {format!r} is not yet supported")
+    return pattern
+
 
 def validate_json_node_keys(node: Mapping[str, Any]):
     keys = set(node.keys())
-    valid_keys = set(Keyword) | IGNORED_KEYS | DEFS_KEYS
-    if Keyword.TYPE in node and (tp:=node[Keyword.TYPE]) in TYPE_SPECIFIC_KEYWORDS:
-        valid_keys |= set(TYPE_SPECIFIC_KEYWORDS[tp])
-    invalid_keys = keys - valid_keys
+    # Any key that is a valid JSON schema keyword but not one that we have explicit support for is "invalid"
+    invalid_keys = (keys - VALID_KEYS).intersection(DRAFT202012_RESERVED_KEYWORDS)
     if invalid_keys:
         raise ValueError(
             f"JSON schema had keys that could not be processed: {invalid_keys}" f"\nSchema: {node}"
@@ -112,18 +403,39 @@ def validate_json_node_keys(node: Mapping[str, Any]):
 
 
 @guidance(stateless=True)
-def _gen_json_int(lm):
-    return lm + lexeme(r"-?(?:0|[1-9][0-9]*)", contextual=True)
+def _gen_json_int(lm, minimum: Union[float, int, None] = None, maximum: Union[float, int, None] = None, exclusiveMinimum: bool = False, exclusiveMaximum: bool = False):
+    if minimum is not None:
+        if exclusiveMinimum:
+            if minimum != int(minimum):
+                minimum = math.ceil(minimum)
+            else:
+                minimum += 1
+        else:
+            minimum = math.ceil(minimum)
+        minimum = int(minimum)
 
+    if maximum is not None:
+        if exclusiveMaximum:
+            if maximum != int(maximum):
+                maximum = math.floor(maximum)
+            else:
+                maximum -= 1
+        else:
+            maximum = math.floor(maximum)
+        maximum = int(maximum)
+
+    return lm + lexeme(rx_int_range(minimum, maximum), contextual=True)
 
 @guidance(stateless=True)
-def _gen_json_number(lm):
-    return lm + select([
-        _gen_json_int(),
-        lexeme(r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)", contextual=True),
-        lexeme(r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)", contextual=True),
-    ])
-
+def _gen_json_number(lm, minimum: Optional[float] = None, maximum: Optional[float] = None, exclusiveMinimum: bool = False, exclusiveMaximum: bool = False):
+    return lm + lexeme(
+        rx_float_range(
+            minimum, maximum,
+            left_inclusive = not exclusiveMinimum,
+            right_inclusive = not exclusiveMaximum
+        ),
+        contextual=True
+    )
 
 @guidance(stateless=True)
 def _gen_json_string(
@@ -131,18 +443,29 @@ def _gen_json_string(
     min_length: int = 0,
     max_length: Union[int, None] = None,
     regex: Union[str, None] = None,
+    format: Union[str, None] = None,
 ):
-    if regex is None:
+    if (regex is not None or format is not None) and (min_length > 0 or max_length is not None):
+        raise ValueError(
+            "If a pattern or format is specified for a JSON string, minLength and maxLength must be left unspecified."
+        )
+
+    if regex is not None and format is not None:
+        raise ValueError("Cannot specify both a regex and a format for a JSON string")
+
+    if format is not None:
+        regex = _get_format_pattern(format)
+
+    elif regex is not None:
+        # Sanitize the regex, removing unnecessary anchors that may cause problems later
+        # NOTE/TODO: this could potentially be pushed further down into the lexeme function,
+        # but it's not immediately clear whether anchors in other contexts are superfluous.
+        regex = regex.lstrip("^").rstrip("$")
+
+    elif regex is None:
         range_expr = f"{{{min_length},{max_length}}}" if max_length is not None else f"{{{min_length},}}"
         regex = f"(?s:.{range_expr})"
-    else:
-        if min_length > 0 or max_length is not None:
-            msg = (
-                "If a pattern is specified for a JSON "
-                "string, minLength and maxLength must be "
-                "left unspecified."
-            )
-            raise ValueError(msg)
+
     return lm + lexeme(regex, contextual=True, json_string=True)
 
 
@@ -150,22 +473,42 @@ def _gen_json_string(
 def _gen_json_object(
     lm,
     *,
-    properties: Mapping[str, Any],
-    additional_properties: Union[bool, Mapping[str, Any]],
+    properties: Mapping[str, JSONSchema],
+    additional_properties: JSONSchema,
     required: Sequence[str],
     definitions: Mapping[str, Callable[[], GrammarFunction]],
 ):
-    if any(k not in properties for k in required):
-        raise ValueError(f"Required properties not in properties: {set(required) - set(properties)}")
-
-    grammars = tuple(f'"{name}":' + _gen_json(json_schema=schema, definitions=definitions) for name, schema in properties.items())
-    required_items = tuple(name in required for name in properties)
-
+    # "required" keys will be validated against "properties" if they're present, otherwise against "additionalProperties".
+    # If "additionalProperties" is False, then required keys must be in "properties".
+    if any(k not in properties for k in required) and additional_properties is False:
+        raise ValueError(
+            f"Required properties not in properties but additionalProperties is False."
+            f" Missing required properties: {list(r for r in required if r not in properties)}"
+        )
+    items = [
+        # First iterate over the properties in order
+        *properties.items(),
+        # If there are any keys in required that weren't specified by properties, add them in order at the end,
+        # where we will validate against the additional_properties schema
+        *((key, additional_properties) for key in required if key not in properties),
+    ]
+    grammars = tuple(f'"{name}":' + _gen_json(json_schema=schema, definitions=definitions) for name, schema in items)
+    required_items = tuple(name in required for name, _ in items)
+    names = set(properties.keys()) | set(required)
+    key_grammar: GrammarFunction
+    if len(names) > 0:
+        # If there are any properties, we need to disallow them as additionalProperties
+        key_grammar = as_regular_grammar(
+            And([
+                lexeme(r'"([^"\\]|\\["\\/bfnrt]|\\u[0-9a-fA-F]{4})*"'),
+                Not(lexeme('"(' + '|'.join(quote_regex(name) for name in names) + ')"')),
+            ]),
+            lexeme = True,
+        )
+    else:
+        key_grammar = _gen_json_string()
     if additional_properties is not False:
-        if additional_properties is True:
-            # True means that anything goes
-            additional_properties = {}
-        additional_item_grammar =  _gen_json_string() + ':' + _gen_json(json_schema=additional_properties, definitions=definitions)
+        additional_item_grammar =  key_grammar + ':' + _gen_json(json_schema=additional_properties, definitions=definitions)
         additional_items_grammar = sequence(additional_item_grammar + ',') + additional_item_grammar
         grammars += (additional_items_grammar,)
         required_items += (False,)
@@ -206,16 +549,12 @@ def _gen_list(lm, *, elements: tuple[GrammarFunction, ...], required: tuple[bool
 def _gen_json_array(
     lm,
     *,
-    prefix_items_schema: Sequence[Mapping[str, Any]],
-    item_schema: Union[bool, Mapping[str, Any]],
+    prefix_items_schema: Sequence[JSONSchema],
+    item_schema: JSONSchema,
     min_items: int,
     max_items: Optional[int],
     definitions: Mapping[str, Callable[[], GrammarFunction]],
 ):
-    if item_schema is True:
-        # True means that anything goes
-        item_schema = {}
-
     if len(prefix_items_schema) < min_items and item_schema is False:
         raise ValueError(
             f"PrefixItems has too few elements ({len(prefix_items_schema)}) to"
@@ -264,7 +603,7 @@ def _gen_json_array(
         # must be present before the next one may be added, meaning we have nested optionals:
         # (first optional(,second optional(,third (optional(,...)))))
         first, *rest = optional_items
-        tail = ""
+        tail: Union[str, GrammarFunction] = ""
         for item in reversed(rest):
             tail = optional("," + item + tail)
         tail = first + tail
@@ -282,7 +621,7 @@ def _gen_json_array(
 def _process_anyOf(
     lm,
     *,
-    anyof_list: Sequence[Mapping[str, Any]],
+    anyof_list: Sequence[JSONSchema],
     definitions: Mapping[str, Callable[[], GrammarFunction]],
 ):
     options = [_gen_json(json_schema=item, definitions=definitions) for item in anyof_list]
@@ -329,9 +668,17 @@ def _gen_json_any(lm):
 @guidance(stateless=True)
 def _gen_json(
     lm,
-    json_schema: Mapping[str, Any],
+    json_schema: JSONSchema,
     definitions: Mapping[str, Callable[[], GrammarFunction]],
 ):
+    if json_schema is True:
+        json_schema = {}
+    elif json_schema is False:
+        raise ValueError("No valid JSON can be generated from a schema of `False`")
+
+    if json_schema == {}:
+        return lm + _gen_json_any()
+
     validate_json_node_keys(json_schema)
 
     if Keyword.ANYOF in json_schema:
@@ -361,39 +708,80 @@ def _gen_json(
         return lm + _process_enum(options=json_schema[Keyword.ENUM])
 
     if Keyword.TYPE in json_schema:
-        target_type = json_schema[Keyword.TYPE]
+        target_types = cast(Union[str, Sequence[str]], json_schema[Keyword.TYPE])
+        if isinstance(target_types, str):
+            target_types = [target_types]
+    else:
+        target_types = list(JSONType)
+
+    options: list[Union[str, GrammarFunction]] = []
+    option: Union[str, GrammarFunction]
+    for target_type in target_types:
         if target_type == JSONType.NULL:
-            return lm + "null"
-        if target_type == JSONType.BOOLEAN:
-            return lm + select(["true", "false"])
-        if target_type == JSONType.INTEGER:
-            return lm + _gen_json_int()
-        if target_type == JSONType.NUMBER:
-            return lm + _gen_json_number()
-        if target_type == JSONType.STRING:
-            return lm + _gen_json_string(
+            option = "null"
+        elif target_type == JSONType.BOOLEAN:
+            option = select(["true", "false"])
+        elif target_type in {JSONType.INTEGER, JSONType.NUMBER}:
+            minimum = cast(Union[int, float, None], json_schema.get(NumberKeywords.MINIMUM, None))
+            maximum = cast(Union[int, float, None], json_schema.get(NumberKeywords.MAXIMUM, None))
+            # Older schemas (Draft4) may have exclusiveMinimum and exclusiveMaximum as booleans, but Draft202012+ should have them as numbers
+            exclusive_minimum = cast(Union[int, float, None], json_schema.get(NumberKeywords.EXCLUSIVE_MINIMUM, None))
+            exclusive_maximum = cast(Union[int, float, None], json_schema.get(NumberKeywords.EXCLUSIVE_MAXIMUM, None))
+            # Internally, we'll use Draft4 style booleans
+            exclusive_minimum_flag: bool = False
+            exclusive_maximum_flag: bool = False
+
+            if exclusive_minimum is not None:
+                if minimum is None or exclusive_minimum >= minimum:
+                    minimum = exclusive_minimum
+                    exclusive_minimum_flag = True
+
+            if exclusive_maximum is not None:
+                if maximum is None or exclusive_maximum <= maximum:
+                    maximum = exclusive_maximum
+                    exclusive_maximum_flag = True
+
+            if target_type == JSONType.INTEGER:
+                option = _gen_json_int(
+                    minimum=minimum,
+                    maximum=maximum,
+                    exclusiveMinimum=exclusive_minimum_flag,
+                    exclusiveMaximum=exclusive_maximum_flag,
+                )
+            else:
+                option = _gen_json_number(
+                    minimum=minimum,
+                    maximum=maximum,
+                    exclusiveMinimum=exclusive_minimum_flag,
+                    exclusiveMaximum=exclusive_maximum_flag,
+                )
+        elif target_type == JSONType.STRING:
+            option = _gen_json_string(
                 regex=json_schema.get(StringKeywords.PATTERN, None),
+                format=json_schema.get(StringKeywords.FORMAT, None),
                 min_length=json_schema.get(StringKeywords.MIN_LENGTH, 0),
                 max_length=json_schema.get(StringKeywords.MAX_LENGTH, None),
             )
-        if target_type == JSONType.ARRAY:
-            return lm + _gen_json_array(
+        elif target_type == JSONType.ARRAY:
+            option = _gen_json_array(
                 prefix_items_schema=json_schema.get(ArrayKeywords.PREFIX_ITEMS, []),
                 item_schema=json_schema.get(ArrayKeywords.ITEMS, True),
                 min_items=json_schema.get(ArrayKeywords.MIN_ITEMS, 0),
                 max_items=json_schema.get(ArrayKeywords.MAX_ITEMS, None),
                 definitions=definitions,
             )
-        if target_type == JSONType.OBJECT:
-            return lm + _gen_json_object(
+        elif target_type == JSONType.OBJECT:
+            option = _gen_json_object(
                 properties=json_schema.get(ObjectKeywords.PROPERTIES, {}),
                 additional_properties=json_schema.get(ObjectKeywords.ADDITIONAL_PROPERTIES, True),
                 required=json_schema.get(ObjectKeywords.REQUIRED, set()),
                 definitions=definitions,
             )
-        raise ValueError(f"Unsupported type in schema: {target_type}")
+        else:
+            raise ValueError(f"Unsupported type in schema: {target_type}")
+        options.append(option)
 
-    return lm + _gen_json_any()
+    return lm + select(options)
 
 
 @guidance(stateless=True)
@@ -403,7 +791,7 @@ def json(
     *,
     schema: Union[
         None,
-        Mapping[str, Any],
+        JSONSchema,
         Type["pydantic.BaseModel"],
         "pydantic.TypeAdapter",
     ] = None,
@@ -457,20 +845,25 @@ def json(
         If True, the generated JSON will be forced to be compact (no whitespace).
         If False, output will be whitespace-flexible (i.e. decided by the model).
     """
-    if isinstance(schema, Mapping):
+    if schema is None:
+        # Default schema is empty, "anything goes" schema
+        # TODO: consider default being `{"type": "object"}`
+        schema = {}
+    elif isinstance(schema, (Mapping, bool)):
         # Raises jsonschema.exceptions.SchemaError or ValueError
         # if schema is not valid
         jsonschema.validators.Draft202012Validator.check_schema(schema)
-    elif schema is None:
-        schema = {}
-    else:
+    elif isinstance(schema, pydantic.TypeAdapter) or (isinstance(schema, type) and issubclass(schema, pydantic.BaseModel)):
         schema = pydantic_to_json_schema(schema)
+    else:
+        raise TypeError(f"Unsupported schema type: {type(schema)}")
 
     definitions: Mapping[str, Callable[[], GrammarFunction]] = {}
-    for dk in DEFS_KEYS:
-        if dk in schema:
-            assert len(definitions) == 0, "Found duplicate definitions"
-            definitions = _build_definitions(schema[dk])
+    if isinstance(schema, Mapping):
+        for dk in DEFS_KEYS:
+            if dk in schema:
+                assert len(definitions) == 0, "Found duplicate definitions"
+                definitions = _build_definitions(schema[dk])
 
     return lm + with_temperature(
         subgrammar(
@@ -488,11 +881,11 @@ def json(
 
 
 def _build_definitions(
-    raw_definitions: Mapping[str, Any]
+    raw_definitions: Mapping[str, JSONSchema]
 ) -> Mapping[str, Callable[[], GrammarFunction]]:
     definitions: Dict[str, Callable[[], GrammarFunction]] = {}
 
-    def build_definition(json_schema: Mapping[str, Any]) -> Callable[[], GrammarFunction]:
+    def build_definition(json_schema: JSONSchema) -> Callable[[], GrammarFunction]:
         @guidance(stateless=True, dedent=False, cache=True)
         def closure(lm):
             return lm + _gen_json(json_schema=json_schema, definitions=definitions)
