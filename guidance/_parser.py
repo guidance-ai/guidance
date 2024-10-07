@@ -120,6 +120,7 @@ class TokenParser:
                 elif engine_output.issued_token.token == _tokens[0]:
                     # this is generated
                     response.generated_bytes = self.tokenizer.decode([_tokens[0]])
+                    response.generated_tokens.append(_tokens[0])
                 else:
                     # check if the first byte contains the generated token
                     generated = self.tokenizer.decode([engine_output.issued_token.token]).decode("utf-8")
@@ -129,11 +130,13 @@ class TokenParser:
                         # this is marked as generated
                         # Example: engine generates token "pl" and parser decides to backtrack and generate a new token "plate"
                         response.generated_bytes = self.tokenizer.decode([_tokens[0]])
+                        response.generated_tokens.append(_tokens[0])
                     else:
                         ff_token_start_idx = 0
                 
                 if len(_tokens[ff_token_start_idx:]):
                     response.force_forwarded_bytes = self.tokenizer.decode(_tokens[ff_token_start_idx:])
+                    response.force_forwarded_tokens.extend(_tokens[ff_token_start_idx:])
 
             if r.stop:
                 break

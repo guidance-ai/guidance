@@ -514,6 +514,65 @@ class TransformersEngine(Engine):
             self.metrics.engine_output_tokens += 1
 
         return self._cached_logits
+    
+    def get_token_probs(self, token_ids: list[int], top_k: int = 5) -> list[list[dict]]:
+        tokenizer = self.tokenizer._orig_tokenizer
+
+        # NOTE (loc) - assume batch size of 1
+        input_ids = torch.tensor(token_ids).unsqueeze(0).long().to(self.device)
+
+        outputs = self.model_obj(input_ids)
+        probs = torch.softmax(outputs.logits, dim=-1).detach()
+
+        # append "1" to probs to account for the 1st token in the input_ids
+        probs = torch.cat([torch.ones_like(probs[:, :1, :]), probs], dim=1)
+
+        # collect the probability of the generated token
+        probs = probs[:, :-1, :]
+
+        batch = []
+        for input_sentence, input_probs in zip(input_ids, probs):
+            text_sequence = []
+
+            for _token_id, _probs in zip(input_sentence, input_probs):
+                _token = tokenizer.decode(_token_id)
+
+                if len(text_sequence) == 0:
+                    # skip the first one
+                    text_sequence.append(
+                        {
+                            "token": _token,
+                            "token_prob": 1.0,
+                            "top_k": {
+                                _token: {
+                                    "token_id": _token_id.item(),
+                                    "prob": 1.0,
+                                }
+                            },
+                        }
+                    )
+                    continue
+
+                # get the top k indices
+                top_k_indices = torch.topk(_probs, top_k).indices.tolist()
+                if _token_id not in top_k_indices:
+                    top_k_indices.append(_token_id.item())
+
+                top_k_probs = [_probs[i].item() for i in top_k_indices]
+
+                top_k_dict = {}
+                for t, p in zip(top_k_indices, top_k_probs):
+                    # top_k_list.append((tokenizer.decode(t), p))
+                    top_k_dict[tokenizer.decode(t)] = {
+                        "token_id": t,
+                        "prob": p,
+                    }
+
+                text_sequence.append({"token": _token, "token_prob": _probs[_token_id].item(), "top_k": top_k_dict})
+
+            batch.append(text_sequence)
+
+        return batch
 
 
 class Transformers(Model):

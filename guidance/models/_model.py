@@ -10,6 +10,8 @@ from typing import Iterator, Optional, TYPE_CHECKING
 
 import numpy as np
 
+from guidance.visual._message import JupyterCellExecutionCompleted
+
 from ..trace import NodeAttr, StatelessGuidanceInput, StatefulGuidanceInput, LiteralInput, EmbeddedInput, \
     RoleOpenerInput, RoleCloserInput, TextOutput, CaptureOutput, TraceHandler
 from ..visual import TraceMessage, AutoRenderer, trace_node_to_str, trace_node_to_html, GuidanceMessage
@@ -23,7 +25,7 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-from .._schema import EngineCallResponse, EngineOutput, GenToken, GuidanceEngineMetrics
+from .._schema import EngineCallResponse, EngineOutput, GenToken, GuidanceEngineMetrics, VisBytesChunk
 from .._utils import softmax, CaptureEvents
 from .._parser import TokenParser
 from .._grammar import (
@@ -68,10 +70,48 @@ class Engine:
         self.trace_handler = TraceHandler()
         self.renderer = AutoRenderer(self.trace_handler)
         self.renderer.subscribe(self._msg_recv)
+        self.model_dict: dict[int, Model] = {}
 
     def _msg_recv(self, message: GuidanceMessage) -> None:
         # NOTE(nopdive): This is likely running on a secondary thread.
         logger.debug(f"ENGINE:{message}")
+
+        # model = self.model_dict.get(message.trace_id)
+        print(f"ENGINE:{message}", type(message))
+
+        if isinstance(message, JupyterCellExecutionCompleted):
+            print("last_state")
+            last_model: "Model" = self.model_dict[message.last_trace_id]
+            paths = []
+            model = last_model
+            while model is not None:
+                paths.append(model)
+                if model._parent_id is None:
+                    break
+
+                model: "Model" = self.model_dict[model._parent_id]
+
+            paths.reverse()
+
+            vis_chunks = [path.vis_chunk for path in paths if path.vis_chunk is not None]
+
+            tokens = []
+            for vis_chunk in vis_chunks:
+                if vis_chunk.is_input:
+                    tokens.extend(vis_chunk.input_tokens)
+                else:
+                    tokens.extend(vis_chunk.generated_tokens)
+                    tokens.extend(vis_chunk.force_forwarded_tokens)
+
+            # print("tokens", tokens)
+            # print("bytes")
+            # print(self.tokenizer.decode(tokens).decode("utf-8"))
+            # print("end_bytes")
+
+            probs = self.get_token_probs(tokens)
+            # import json
+            # print(json.dumps(probs, indent=2))
+            # print(probs)
 
     def get_chat_template(self): # TODO [HN]: Add more logic here...should we instantiate class here? do we even need to?
         return self.tokenizer.chat_template() # Instantiate the class before returning to client for now
@@ -284,6 +324,9 @@ class Engine:
 
     def get_logits(self, token_ids: list[int]) -> np.ndarray:
         raise NotImplementedError
+    
+    def get_token_probs(self, token_ids: list[int], top_k: int = 5) -> list[list[dict]]:
+        raise NotImplementedError
 
     def sample_with_temperature(self, logits: np.ndarray, mask: Optional[bytes], temperature: float) -> int:
         if mask is not None:
@@ -371,6 +414,9 @@ class Model:
         self._parent_id = parent_id
         self._update_trace_node(self._id, self._parent_id, None)
 
+        self.vis_chunk: VisBytesChunk = None
+        self.engine.model_dict[self._id] = self
+
     @classmethod
     def gen_id(cls):
         global _id_counter
@@ -442,6 +488,8 @@ class Model:
         new_lm._id = self.__class__.gen_id()
         new_lm._parent_id = self._id
         self._update_trace_node(new_lm._id, new_lm._parent_id, None)
+        self.engine.model_dict[new_lm._id] = new_lm
+        new_lm.vis_chunk = None
 
         return new_lm
 
@@ -621,6 +669,15 @@ class Model:
 
                 lm._inplace_append(value)
                 out = lm
+
+                # generate VisBytesChunk
+                _bytes = value.encode("utf-8")
+                out.vis_chunk = VisBytesChunk(
+                    bytes=_bytes,
+                    is_input=True,
+                    input_bytes=_bytes,
+                    input_tokens=out.engine.tokenizer.encode(_bytes),
+                )
 
                 self._update_trace_node(out._id, out._parent_id, TextOutput(value=value, is_input=True))
 
@@ -858,6 +915,8 @@ class Model:
 
             delayed_bytes = b""
             # last_is_generated = False
+
+            new_lm_created = True
             for chunk in gen_obj:
 
                 # we make everything full probability if we are not computing uncertainty
@@ -899,6 +958,29 @@ class Model:
                             token_count=0,
                             prob=0.0,
                         )
+                    
+                    new_lm_created = True
+                else:
+                    new_lm_created = False
+
+                if not lm.vis_chunk or new_lm_created:
+                    lm.vis_chunk = VisBytesChunk(
+                        bytes=chunk.new_bytes,
+                        is_input=False,
+                        generated_bytes=chunk.generated_bytes,
+                        generated_tokens=chunk.generated_tokens,
+                        force_forwarded_bytes=chunk.force_forwarded_bytes,
+                        force_forwarded_tokens=chunk.force_forwarded_tokens,
+                        backtrack=chunk.backtrack,
+                    )
+                else:
+                    # append to existing VisBytesChunk
+                    lm.vis_chunk.bytes += chunk.new_bytes
+                    lm.vis_chunk.generated_bytes += chunk.generated_bytes
+                    lm.vis_chunk.generated_tokens += chunk.generated_tokens
+                    lm.vis_chunk.force_forwarded_bytes += chunk.force_forwarded_bytes
+                    lm.vis_chunk.force_forwarded_tokens += chunk.force_forwarded_tokens
+                    lm.vis_chunk.backtrack += chunk.backtrack
 
                 # last_is_generated = chunk.is_generated
                 if len(chunk.capture_groups) > 0:
