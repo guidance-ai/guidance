@@ -26,9 +26,9 @@ from .._guidance import guidance
 from ..library import char_range, gen, one_or_more, optional, sequence
 from ..library._regex_utils import rx_int_range, rx_float_range
 
-from .._grammar import GrammarFunction, select, capture, with_temperature, Not, And, as_regular_grammar, quote_regex
+from .._grammar import GrammarFunction, select, capture, with_temperature, Not, And, quote_regex
 from ._pydantic import pydantic_to_json_schema
-from ._subgrammar import lexeme, subgrammar
+from ._subgrammar import as_regular_grammar, lexeme, subgrammar
 
 JSONSchema = Union[bool, Mapping[str, Any]]
 
@@ -501,7 +501,8 @@ def _gen_json_object(
             And([
                 lexeme(r'"([^"\\]|\\["\\/bfnrt]|\\u[0-9a-fA-F]{4})*"'),
                 Not(lexeme('"(' + '|'.join(quote_regex(name) for name in names) + ')"')),
-            ])
+            ]),
+            lexeme = True,
         )
     else:
         key_grammar = _gen_json_string()

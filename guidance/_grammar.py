@@ -558,11 +558,13 @@ class RegularGrammar(Terminal):
     def __init__(
         self,
         grammar: GrammarFunction,
+        lexeme: bool = False,
         name: Union[str, None] = None,
         max_tokens=100000000,
     ) -> None:
         super().__init__(capture_name=None, temperature=-1)
         self.grammar = grammar
+        self.lexeme = lexeme
         self.name = name if name is not None else GrammarFunction._new_name()
         self.max_tokens = max_tokens
 
@@ -892,15 +894,6 @@ def _is_string_literal(node: ComposableGrammar) -> bool:
     return False
 
 
-def as_regular_grammar(value) -> RegularGrammar:
-    # TODO: assert that value is not empty since we don't yet support that
-    if isinstance(value, str):
-        value = string(value)
-    # check if it serializes
-    _ignore = LLSerializer().regex(value)
-    return RegularGrammar(value)
-
-
 class LLSerializer:
     def __init__(self) -> None:
         self.nodes: list[dict] = []
@@ -1133,14 +1126,23 @@ class LLSerializer:
                 }
             }
         elif isinstance(node, RegularGrammar):
-            obj = {
-                "Gen": {
-                    "body_rx": self.regex(node.grammar),
-                    "stop_rx": "",
-                    "lazy": False,  # TODO this should be True
-                    "temperature": node.temperature if node.temperature >= 0 else None,
+            if node.lexeme:
+                obj = {
+                    "Lexeme" : {
+                        "rx": self.regex(node.grammar),
+                        "contextual": False,
+                        "json_string": False,
+                    }
                 }
-            }
+            else:
+                obj = {
+                    "Gen": {
+                        "body_rx": self.regex(node.grammar),
+                        "stop_rx": "",
+                        "lazy": False,  # TODO this should be True
+                        "temperature": node.temperature if node.temperature >= 0 else None,
+                    }
+                }
         elif isinstance(node, Gen):
             obj = {
                 "Gen": {
