@@ -5,8 +5,8 @@ This includes a separate thread dedicated for visualization and messaging.
 
 import asyncio
 import threading
-from asyncio import AbstractEventLoop
-from typing import Tuple
+from asyncio import AbstractEventLoop, Queue, Future
+from typing import Tuple, Any
 
 
 class ThreadSafeAsyncCondVar:
@@ -39,11 +39,7 @@ class ThreadSafeAsyncCondVar:
             self._loop.call_soon_threadsafe(future.set_result, (result,))
 
     def notify_all(self, result=None):
-        with self._waiters_lock:
-            waiters_to_notify = self._waiters
-            self._waiters.clear()
-        for future in waiters_to_notify:
-            self._loop.call_soon_threadsafe(future.set_result, (result,))
+        self.notify(n=0, result=result)
 
 
 def _start_asyncio_loop(loop: AbstractEventLoop):
@@ -66,11 +62,10 @@ def _run_thread_if_needed():
         _thread.start()
     return _thread, _loop
 
-
-def run_async_task(task):
+def run_async_task(task) -> Future:
     _, loop = _run_thread_if_needed()
-    asyncio.run_coroutine_threadsafe(task, loop)
-
+    future = asyncio.run_coroutine_threadsafe(task, loop)
+    return future
 
 def async_loop() -> AbstractEventLoop:
     _, loop = _run_thread_if_needed()

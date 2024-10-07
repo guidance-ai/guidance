@@ -164,19 +164,28 @@ class JupyterWidgetRenderer(Renderer):
         self._jupyter_change_detector = JupyterChangeDetector()
         self._is_alive_cell_cb = False
         self._last_trace_id = None
-
         self._loop = async_loop()
-        self._send_queue = Queue(loop=self._loop)
-        self._recv_queue = Queue(loop=self._loop)
 
+        self._send_queue: Optional[Queue] = None
+        self._recv_queue: Optional[Queue] = None
         self._wait_for_client = wait_for_client
         self._client_ready = ThreadSafeAsyncCondVar(async_loop())
         self._cell_executed = ThreadSafeAsyncCondVar(async_loop())
 
+        # Wait for queues to instantiate
+        future = run_async_task(self._create_queues())
+        future.result()
+
+        # Start send/recv message loops
         run_async_task(self._handle_recv_messages())
         run_async_task(self._handle_send_messages())
 
         super().__init__()
+
+    async def _create_queues(self) -> None:
+        self._send_queue = Queue()
+        self._recv_queue = Queue()
+        return None
 
     def update(self, message: GuidanceMessage) -> None:
         # Handle Jupyter cell completion
@@ -227,6 +236,7 @@ class JupyterWidgetRenderer(Renderer):
 
     async def _handle_recv_messages(self):
         logger.debug("RECV:init")
+
         while True:
             try:
                 value = await self._recv_queue.get()
@@ -243,6 +253,7 @@ class JupyterWidgetRenderer(Renderer):
 
     async def _handle_send_messages(self):
         logger.debug("SEND:init")
+
         # Wait until ready
         if self._wait_for_client:
             await self._client_ready.wait()
