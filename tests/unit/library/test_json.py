@@ -17,7 +17,7 @@ from ...utils import generate_and_check as _generate_and_check
 
 
 def generate_and_check(
-    target_obj: Any, schema_obj, desired_temperature: Optional[float] = None,
+    target_obj: Any, schema_obj, desired_temperature: Optional[float] = None
 ):
     # Sanity check what we're being asked
     validate(instance=target_obj, schema=schema_obj)
@@ -2309,3 +2309,152 @@ class TestBooleanSchema:
         with pytest.raises(ValueError) as ve:
             gen_json(schema=schema_obj)
         assert ve.value.args[0] == "No valid JSON can be generated from a schema of `False`"
+
+class TestWhitespace:
+    schema = {
+        "title": "Complex Example",
+        "type": "object",
+        "properties": {
+            "id": {
+                "type": "string",
+                "format": "uuid",
+                "description": "A unique identifier"
+            },
+            "name": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 50
+            },
+            "age": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 120
+            },
+            "emails": {
+                "type": "array",
+                "items": {
+                    "type": "string",
+                    "format": "email"
+                },
+                "minItems": 1,
+                "maxItems": 5
+            },
+            "address": {
+                "type": "object",
+                "properties": {
+                    "street": { "type": "string" },
+                    "city": { "type": "string" },
+                    "zipcode": { "type": "string", "pattern": "^\\d{5}(-\\d{4})?$" }
+                },
+                "required": ["street", "city"]
+            },
+            "phoneNumbers": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "type": { "type": "string" },
+                        "number": { "type": "string", "pattern": "^\\+?[1-9]\\d{1,14}$" }
+                    },
+                    "required": ["type", "number"]
+                },
+                "minItems": 1,
+            },
+            "preferences": {
+                "type": "object",
+                "properties": {
+                    "newsletter": { "type": "boolean" },
+                    "theme": { 
+                        "enum": ["light", "dark"]
+                    }
+                },
+                "additionalProperties": False
+            },
+            "notes": {
+                "type": "array",
+                "items": { "type": "string" },
+                "minItems": 0,
+                "maxItems": 10,
+            },
+            "metadata": {
+                "type": "object",
+                "additionalProperties": { "type": "string" }
+            },
+            "createdAt": {
+                "type": "string",
+                "format": "date-time"
+            },
+            "tags": {
+                "type": "array",
+                "items": { "type": "string" },
+                "minItems": 1,
+                "maxItems": 10,
+            }
+        },
+        "required": ["id", "name", "emails", "createdAt"],
+        "additionalProperties": False
+    }
+
+    obj = {
+        "id": "d290f1ee-6c54-4b01-90e6-d701748f0851",
+        "name": "John Doe",
+        "age": 35,
+        "emails": [
+            "john.doe@example.com",
+            "john.d@example.org",
+        ],
+        "address": {
+            "street": "123 Main St",
+            "city": "Metropolis",
+            "zipcode": "12345",
+        },
+        "phoneNumbers": [
+            {
+            "type": "mobile",
+            "number": "+1234567890",
+            },
+            {
+            "type": "home",
+            "number": "+1987654321",
+            }
+        ],
+        "preferences": {
+            "newsletter": True,
+            "theme": "dark",
+        },
+        "notes": [
+            "This is the first note.",
+            "This is the second note.",
+        ],
+        "metadata": {
+            "source": "signup_form",
+            "referrer": "social_media",
+        },
+        "createdAt": "2024-09-30T14:48:00Z",
+        "tags": [
+            "new_user",
+            "vip",
+        ],
+    }
+
+    seps = [
+        (", ", ": "),
+        (",", ":"),
+        (",", ": "),
+        (", ", ":"),
+    ]
+
+    @pytest.mark.parametrize(
+        "separators",
+        seps,
+    )
+    def test_separators(self, separators):
+        grammar = gen_json(schema=self.schema, separators=separators)
+        for seps in self.seps:
+            prepared_json = json.dumps(self.obj, separators=seps)
+            if separators == seps:
+                assert grammar.match(prepared_json) is not None
+                model = models.Mock(f"<s>{prepared_json}".encode())
+                assert str(model + grammar) == prepared_json
+            else:
+                assert grammar.match(prepared_json) is None
