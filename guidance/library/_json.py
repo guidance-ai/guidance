@@ -26,9 +26,9 @@ from .._guidance import guidance
 from ..library import char_range, gen, one_or_more, optional, sequence
 from ..library._regex_utils import rx_int_range, rx_float_range
 
-from .._grammar import GrammarFunction, select, capture, with_temperature
+from .._grammar import GrammarFunction, select, capture, with_temperature, Not, And, quote_regex
 from ._pydantic import pydantic_to_json_schema
-from ._subgrammar import lexeme, subgrammar
+from ._subgrammar import as_regular_grammar, lexeme, subgrammar
 
 JSONSchema = Union[bool, Mapping[str, Any]]
 
@@ -524,9 +524,21 @@ class GenJson:
         ]
         grammars = tuple(f'"{name}"{self.key_separator}' + self.json(json_schema=schema) for name, schema in items)
         required_items = tuple(name in required for name, _ in items)
-
+        names = set(properties.keys()) | set(required)
+        key_grammar: GrammarFunction
+        if len(names) > 0:
+            # If there are any properties, we need to disallow them as additionalProperties
+            key_grammar = as_regular_grammar(
+                And([
+                    lexeme(r'"([^"\\]|\\["\\/bfnrt]|\\u[0-9a-fA-F]{4})*"'),
+                    Not(lexeme('"(' + '|'.join(quote_regex(name) for name in names) + ')"')),
+                ]),
+                lexeme = True,
+            )
+        else:
+            key_grammar = self.string()
         if additional_properties is not False:
-            additional_item_grammar =  self.string() + self.key_separator + self.json(json_schema=additional_properties)
+            additional_item_grammar = key_grammar + self.key_separator + self.json(json_schema=additional_properties)
             additional_items_grammar = sequence(additional_item_grammar + self.item_separator) + additional_item_grammar
             grammars += (additional_items_grammar,)
             required_items += (False,)

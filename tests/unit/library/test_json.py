@@ -1790,6 +1790,16 @@ class TestAdditionalProperties:
             schema_obj=schema_obj,
         )
 
+    def test_out_of_order_non_required_properties_not_validated_as_additionalProperties(self):
+        schema = {
+            "type": "object",
+            "properties": {"a": {"const": "foo"}, "b": {"const": "bar"}},
+            "required": ["b"],
+        }
+        test_string = '{"b": "bar", "a": "BAD"}'
+        grammar = gen_json(schema=schema)
+        assert grammar.match(test_string) is None
+
 
 class TestRecursiveStructures:
     @pytest.mark.parametrize(
