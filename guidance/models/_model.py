@@ -88,13 +88,13 @@ class Engine:
     Server so a single server can serve many clients' model objects through a single Engine object.
     """
 
-    def __init__(self, tokenizer: Tokenizer, compute_log_probs=False):
+    def __init__(self, tokenizer: Tokenizer, compute_log_probs=False, **kwargs):
         self.tokenizer = tokenizer
         self.compute_log_probs = compute_log_probs
         self.metrics = GuidanceEngineMetrics()
 
         self.trace_handler = TraceHandler()
-        self.renderer = AutoRenderer(self.trace_handler)
+        self.renderer = AutoRenderer(self.trace_handler,  use_legacy_renderer=kwargs.get("use_legacy_renderer", False))
         self.renderer.subscribe(self._msg_recv)
         self.model_dict: dict[int, Model] = {}
 

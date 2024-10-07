@@ -291,8 +291,8 @@ class LegacyHtmlRenderer(JupyterWidgetRenderer):
 
 
 class AutoRenderer(Renderer):
-    def __init__(self, trace_handler: TraceHandler):
-        if stitch_installed:
+    def __init__(self, trace_handler: TraceHandler, use_legacy_renderer=False):
+        if not use_legacy_renderer and stitch_installed:
             self._renderer = JupyterWidgetRenderer(trace_handler=trace_handler)
         else:
             self._renderer = LegacyHtmlRenderer(trace_handler=trace_handler)
