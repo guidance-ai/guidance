@@ -15,7 +15,7 @@ from guidance import (
     string,
     capture,
 )
-from guidance._grammar import as_regular_grammar
+from guidance.library._subgrammar import as_regular_grammar
 from guidance.library._subgrammar import subgrammar, lexeme
 
 log_level = 10
