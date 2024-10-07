@@ -7,7 +7,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from ._grammar import GrammarFunction, Join, Terminal
-from ._schema import EngineOutput, GenData, EngineCallResponse, LLInterpreterResponse
+from ._schema import EngineOutput, GenData, EngineCallResponse, GenToken, LLInterpreterResponse
 from .models._byte_tokenizer import ByteTokenizer
 from .models._tokenizer import Tokenizer
 
@@ -121,6 +121,8 @@ class TokenParser:
                     # this is generated
                     response.generated_bytes = self.tokenizer.decode([_tokens[0]])
                     response.generated_tokens.append(_tokens[0])
+                    engine_output.issued_token.is_generated = True
+                    response.associated_generated_tokens.append(engine_output.issued_token)
                 else:
                     # check if the first byte contains the generated token
                     generated = self.tokenizer.decode([engine_output.issued_token.token]).decode("utf-8")
@@ -131,12 +133,28 @@ class TokenParser:
                         # Example: engine generates token "pl" and parser decides to backtrack and generate a new token "plate"
                         response.generated_bytes = self.tokenizer.decode([_tokens[0]])
                         response.generated_tokens.append(_tokens[0])
+                        response.associated_generated_tokens.append(GenToken(
+                            token=_tokens[0],
+                            prob=1.0,
+                            bytes=response.generated_bytes,
+                            latency_ms=engine_output.issued_token.latency_ms,
+                            is_generated=True,
+                        ))
                     else:
                         ff_token_start_idx = 0
                 
                 if len(_tokens[ff_token_start_idx:]):
                     response.force_forwarded_bytes = self.tokenizer.decode(_tokens[ff_token_start_idx:])
                     response.force_forwarded_tokens.extend(_tokens[ff_token_start_idx:])
+
+                    for _token in _tokens[ff_token_start_idx:]:
+                        response.associated_force_forwarded_tokens.append(GenToken(
+                            token=_token,
+                            prob=1.0,
+                            bytes=self.tokenizer.decode([_token]),
+                            latency_ms=0,
+                            is_force_forwarded=True,
+                        ))
 
             if r.stop:
                 break

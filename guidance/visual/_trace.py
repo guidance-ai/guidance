@@ -1,6 +1,8 @@
 import base64
 from typing import Optional, Dict
 
+from guidance.trace._trace import EndOfCellTextOutput
+
 from ..trace import (
     TextOutput,
     TraceNode,
@@ -29,6 +31,18 @@ def trace_node_to_html(node: TraceNode, prettify_roles=False) -> str:
     node_path = list(node.path())
     active_role: Optional[TraceNode] = None
 
+    has_end_of_cell_output = False
+    end_of_cell_node = None
+    for node in node_path:
+        if isinstance(node.output, EndOfCellTextOutput):
+            has_end_of_cell_output = True
+            end_of_cell_node = node
+            break
+    prob_idx = 0
+
+    if has_end_of_cell_output:
+        print("has_end_of_cell_output")
+
     for i, node in enumerate(node_path):
         if isinstance(node.input, RoleOpenerInput):
             active_role = node
@@ -46,13 +60,32 @@ def trace_node_to_html(node: TraceNode, prettify_roles=False) -> str:
 
             if not (active_role and prettify_roles):
                 attr = node.output
-                if attr.is_generated:
-                    # fmt = f"<span style='background-color: rgba({165 * (1 - attr.prob)}, {165 * attr.prob}, 0, 0.15); border-radius: 3ps;' title='{attr.prob}'>{html.escape(attr.value)}</span>"
-                    fmt = f"<span style='background-color: rgba({0}, {255}, {0}, 0.15); border-radius: 3ps;' title='{attr.prob}'>{html.escape(attr.value)}</span>"
-                elif attr.is_force_forwarded:
-                    fmt = f"<span style='background-color: rgba({127}, {127}, {0}, 0.15); border-radius: 3ps;' title='{attr.prob}'>{html.escape(attr.value)}</span>"
+
+                fmt = ""
+                if not has_end_of_cell_output:
+                    if attr.is_generated:
+                        # fmt = f"<span style='background-color: rgba({165 * (1 - attr.prob)}, {165 * attr.prob}, 0, 0.15); border-radius: 3ps;' title='{attr.prob}'>{html.escape(attr.value)}</span>"
+                        fmt = f"<span style='background-color: rgba({0}, {255}, {0}, 0.15); border-radius: 3ps;' title='{attr.prob}'>{html.escape(attr.value)}</span>"
+                    elif attr.is_force_forwarded:
+                        fmt = f"<span style='background-color: rgba({127}, {127}, {0}, 0.15); border-radius: 3ps;' title='{attr.prob}'>{html.escape(attr.value)}</span>"
+                    else:
+                        fmt = f"{html.escape(attr.value)}"
                 else:
-                    fmt = f"{html.escape(attr.value)}"
+                    # switch to token-based
+                    cell_tokens = attr.tokens
+                    for token in cell_tokens:
+                        assert token == end_of_cell_node.output.tokens[prob_idx]
+                        prob = end_of_cell_node.output.probs[prob_idx]["token_prob"]
+
+                        if attr.is_generated:
+                            fmt = f"<span style='background-color: rgba({0}, {255}, {0}, 0.15); border-radius: 3ps;' title='{prob}'>{html.escape(attr.value)}</span>"
+                        elif attr.is_force_forwarded:
+                            fmt = f"<span style='background-color: rgba({127}, {127}, {0}, 0.15); border-radius: 3ps;' title='{prob}'>{html.escape(attr.value)}</span>"
+                        else:
+                            fmt = f"<span style='background-color: rgba({255}, {255}, {255}, 0.15); border-radius: 3ps;' title='{prob}'>{html.escape(attr.value)}</span>"
+
+                        prob_idx += 1
+                    pass
                 buffer.append(fmt)
 
             if active_role is not None:

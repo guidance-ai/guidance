@@ -10,6 +10,7 @@ from typing import Iterator, Optional, TYPE_CHECKING
 
 import numpy as np
 
+from guidance.trace._trace import EndOfCellTextOutput
 from guidance.visual._message import JupyterCellExecutionCompleted
 
 from ..trace import NodeAttr, StatelessGuidanceInput, StatefulGuidanceInput, LiteralInput, EmbeddedInput, \
@@ -112,6 +113,12 @@ class Engine:
             # import json
             # print(json.dumps(probs, indent=2))
             # print(probs)
+
+            self.renderer.update(EndOfCellTextOutput(
+                value=self.tokenizer.decode(tokens).decode("utf-8"),
+                tokens=tokens,
+                probs=probs
+            ))
 
     def get_chat_template(self): # TODO [HN]: Add more logic here...should we instantiate class here? do we even need to?
         return self.tokenizer.chat_template() # Instantiate the class before returning to client for now
@@ -672,14 +679,15 @@ class Model:
 
                 # generate VisBytesChunk
                 _bytes = value.encode("utf-8")
+                _tokens = out.engine.tokenizer.encode(_bytes)
                 out.vis_chunk = VisBytesChunk(
                     bytes=_bytes,
                     is_input=True,
                     input_bytes=_bytes,
-                    input_tokens=out.engine.tokenizer.encode(_bytes),
+                    input_tokens=_tokens,
                 )
 
-                self._update_trace_node(out._id, out._parent_id, TextOutput(value=value, is_input=True))
+                self._update_trace_node(out._id, out._parent_id, TextOutput(value=value, is_input=True, tokens=_tokens))
 
             # if we have embedded objects we have to convert the string to a grammar tree
             else:
@@ -949,6 +957,7 @@ class Model:
                             is_generated=True,
                             token_count=0,
                             prob=0.0,
+                            tokens=chunk.generated_tokens,
                         )
                     
                     if chunk.force_forwarded_bytes:
@@ -957,6 +966,7 @@ class Model:
                             is_force_forwarded=True,
                             token_count=0,
                             prob=0.0,
+                            tokens=chunk.force_forwarded_tokens,
                         )
                     
                     new_lm_created = True

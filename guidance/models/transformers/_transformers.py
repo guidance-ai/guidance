@@ -515,7 +515,7 @@ class TransformersEngine(Engine):
 
         return self._cached_logits
     
-    def get_token_probs(self, token_ids: list[int], top_k: int = 5) -> list[list[dict]]:
+    def get_token_probs(self, token_ids: list[int], top_k: int = 5) -> list[dict]:
         tokenizer = self.tokenizer._orig_tokenizer
 
         # NOTE (loc) - assume batch size of 1
@@ -572,7 +572,7 @@ class TransformersEngine(Engine):
 
             batch.append(text_sequence)
 
-        return batch
+        return batch[0]
 
 
 class Transformers(Model):

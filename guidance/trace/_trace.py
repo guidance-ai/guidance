@@ -103,6 +103,17 @@ class TextOutput(OutputAttr):
     is_force_forwarded: bool = False
     token_count: int = 0
     prob: float = 0.0
+    tokens: list[int] = []
+
+    def __str__(self):
+        return self.value
+    
+class EndOfCellTextOutput(OutputAttr):
+    """Text string."""
+
+    value: str
+    tokens: list[int] = []
+    probs: list[dict] = []
 
     def __str__(self):
         return self.value
