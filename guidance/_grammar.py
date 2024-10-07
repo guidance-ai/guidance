@@ -581,7 +581,7 @@ class And(Terminal):
         name: Union[str, None] = None,
     ):
         super().__init__(temperature=-1, capture_name=None)
-        self.values = values
+        self.values = list(values)
         self.name = name if name is not None else GrammarFunction._new_name()
 
 class Not(Terminal):
@@ -917,13 +917,13 @@ class LLSerializer:
     def _add_regex(self, key: str, val):
         return self._add_regex_json({key: val})
 
-    def _regex_or(self, nodes: list[GrammarFunction]):
+    def _regex_or(self, nodes: Sequence[GrammarFunction]):
         if len(nodes) == 1:
             return self.regex_id_cache[nodes[0]]
         else:
             return self._add_regex("Or", [self.regex_id_cache[v] for v in nodes])
 
-    def _regex_and(self, nodes: list[GrammarFunction]):
+    def _regex_and(self, nodes: Sequence[GrammarFunction]):
         if len(nodes) == 1:
             return self.regex_id_cache[nodes[0]]
         else:

@@ -495,6 +495,7 @@ def _gen_json_object(
     grammars = tuple(f'"{name}":' + _gen_json(json_schema=schema, definitions=definitions) for name, schema in items)
     required_items = tuple(name in required for name, _ in items)
     names = set(properties.keys()) | set(required)
+    key_grammar: GrammarFunction
     if len(names) > 0:
         # If there are any properties, we need to disallow them as additionalProperties
         key_grammar = as_regular_grammar(
