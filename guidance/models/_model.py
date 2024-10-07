@@ -718,6 +718,17 @@ class Model:
                     is_input=True,
                     input_bytes=_bytes,
                     input_tokens=_tokens,
+                    associated_input_tokens=[
+                        GenToken(
+                            token=_token,
+                            prob=1.0,
+                            text=out.engine.tokenizer.decode([_token]).decode("utf-8"),
+                            latency_ms=0,
+                            is_generated=False,
+                            is_force_forwarded=False,
+                            is_input=True,
+                        ) for _token in _tokens
+                    ]
                 )
 
                 self._update_trace_node(out._id, out._parent_id, TextOutput(value=value, is_input=True, tokens=_tokens))
@@ -1012,8 +1023,10 @@ class Model:
                         is_input=False,
                         generated_bytes=chunk.generated_bytes,
                         generated_tokens=chunk.generated_tokens,
+                        associated_generated_tokens=chunk.associated_generated_tokens,
                         force_forwarded_bytes=chunk.force_forwarded_bytes,
                         force_forwarded_tokens=chunk.force_forwarded_tokens,
+                        associated_force_forwarded_tokens=chunk.associated_force_forwarded_tokens,
                         backtrack=chunk.backtrack,
                     )
                 else:

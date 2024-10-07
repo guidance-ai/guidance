@@ -54,10 +54,13 @@ class VisBytesChunk(BaseModel):
     is_input: bool = False
     input_bytes: bytes = b""
     input_tokens: list[int] = []
+    associated_input_tokens: list[GenToken] = []
     generated_bytes: bytes = b""
     generated_tokens: list[int] = []
+    associated_generated_tokens: list[GenToken] = []
     force_forwarded_bytes: bytes = b""
     force_forwarded_tokens: list[int] = []
+    associated_force_forwarded_tokens: list["GenToken"] = []
     backtrack: NonNegativeInt = 0
 
 class GenData(BaseModel):
