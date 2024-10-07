@@ -402,7 +402,7 @@ class GenJson:
         if separators is not None:
             self.item_separator, self.key_separator = separators
         if isinstance(schema, Mapping):
-            self.definitions = self._build_definitions(self.schema.get("$defs", self.schema.get("definitions", {})))
+            self.definitions = self._build_definitions(schema.get("$defs", schema.get("definitions", {})))
         else:
             self.definitions = {}
 
@@ -884,7 +884,7 @@ def json(
             - An instance of ``pydantic.TypeAdapter``
     """
     if "compact" in kwargs:
-        warnings.warn("The 'compact' argument is deprecated and has no effect. It will be removed in a future release.", category=warnings.DeprecationWarning)
+        warnings.warn("The 'compact' argument is deprecated and has no effect. It will be removed in a future release.", category=DeprecationWarning)
         kwargs.pop("compact")
     if kwargs:
         raise TypeError(f"Unexpected keyword arguments: {kwargs.keys()}")
