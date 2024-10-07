@@ -25,9 +25,6 @@
 </script>
 
 <div class="pt-6 pb-6 flex text-gray-800 font-token">
-    <!-- Gutter -->
-    <div class="border-r-2 border-purple-700 min-w-4"></div>
-
     <!-- Tokens view -->
     <div class="px-4">
         <span class="flex flex-wrap text-sm">

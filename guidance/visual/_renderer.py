@@ -3,7 +3,7 @@ from typing import Optional, Callable
 from pydantic import BaseModel
 from asyncio import Queue
 
-from ._message import JupyterCellExecutionCompleted, deserialize_message, serialize_message
+from ._message import JupyterCellExecutionCompletedMessage, deserialize_message, serialize_message
 from ..trace import TraceHandler
 from ..visual import GuidanceMessage, TraceMessage, ResetDisplayMessage, ClientReadyMessage
 from ._trace import trace_node_to_html
@@ -190,7 +190,7 @@ class JupyterWidgetRenderer(Renderer):
             self._jupyter_widget = _create_stitch_widget()
             self._jupyter_widget.observe(self._client_msg_cb, names='clientmsg')
 
-            # clear_output(wait=True)
+            clear_output(wait=True)
             display(self._jupyter_widget)
 
         for out_message in display_update.messages:
@@ -208,7 +208,7 @@ class JupyterWidgetRenderer(Renderer):
 
     def _cell_completion_cb(self):
         try:
-            message = JupyterCellExecutionCompleted(
+            message = JupyterCellExecutionCompletedMessage(
                 last_trace_id=self._last_trace_id
             )
             logger.debug(f"CELL:executed:{message}")
@@ -254,7 +254,10 @@ class JupyterWidgetRenderer(Renderer):
                 logger.debug(f"SEND:msg:{message}")
                 message_json = serialize_message(message)
                 # logger.debug(f"SEND:json:{message_json}")
-                self._jupyter_widget.kernelmsg = message_json
+                if self._jupyter_widget is not None:
+                    self._jupyter_widget.kernelmsg = message_json
+                else:
+                    logger.debug(f"SEND:jupyter:send but no widget")
                 self._send_queue.task_done()
             except Exception as e:
                 logger.error(f"SEND:err:{repr(e)}")
@@ -271,14 +274,16 @@ class LegacyHtmlRenderer(JupyterWidgetRenderer):
         # Handle Jupyter cell completion
         self._handle_jupyter_cell_completion()
 
-        if not isinstance(message, TraceMessage):
-            return
-
-        trace_node = self._trace_handler[message.trace_id]
-        self._last_trace_id = message.trace_id
-        if trace_node is not None:
-            clear_output(wait=True)
-            display(HTML(trace_node_to_html(trace_node, prettify_roles=False)))
+        if isinstance(message, TraceMessage):
+            trace_node = self._trace_handler[message.trace_id]
+            self._last_trace_id = message.trace_id
+            if trace_node is not None:
+                clear_output(wait=True)
+                display(HTML(trace_node_to_html(trace_node, prettify_roles=False)))
+        elif isinstance(message, JupyterCellExecutionCompletedMessage):
+            logger.debug("renderer:cell executed")
+        else:
+            pass
 
 
 class AutoRenderer(Renderer):
@@ -287,6 +292,8 @@ class AutoRenderer(Renderer):
             self._renderer = JupyterWidgetRenderer(trace_handler=trace_handler)
         else:
             self._renderer = LegacyHtmlRenderer(trace_handler=trace_handler)
+
+        # self._renderer = LegacyHtmlRenderer(trace_handler=trace_handler)
         super().__init__()
 
     def notify(self, message: GuidanceMessage):
