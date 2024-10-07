@@ -851,6 +851,7 @@ def json(
     temperature: float = 0.0,
     max_tokens: int = 100000000,
     separators: Optional[tuple[str, str]] = None,
+    whitespace_flexible: bool = False,
     **kwargs,
 ):
     """Generate valid JSON according to the supplied JSON schema or `pydantic` model.
@@ -913,12 +914,21 @@ def json(
     else:
         raise TypeError(f"Unsupported schema type: {type(schema)}")
 
+    if separators is None:
+        separators = (", ", ": ")
+
+    if whitespace_flexible:
+        skip_regex = r"[\x20\x0A\x0D\x09]+"
+        # Strip whitespace from separators since we'll handle whitespace ourselves
+        separators = (separators[0].strip(), separators[1].strip())
+    else:
+        skip_regex = None
+
     return lm + with_temperature(
         subgrammar(
             name,
             body=GenJson(schema=schema, separators=separators).root(),
-            # Uncomment for whitespace flexibility; in this case we need to strip whitespace from ITEM_SEPARATOR and KEY_SEPARATOR
-            # skip_regex=r"[\x20\x0A\x0D\x09]+"
+            skip_regex=skip_regex,
             no_initial_skip=True,
             max_tokens=max_tokens,
         ),
