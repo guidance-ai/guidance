@@ -26,6 +26,12 @@ class MockMetricMessage(GuidanceMessage):
 class JupyterCellExecutionCompletedMessage(GuidanceMessage):
     last_trace_id: Optional[int]
 
+class JupyterCellExecutionCompletedOutputMessage(GuidanceMessage):
+    trace_id: int
+    text: str
+    tokens: list[int] = []
+    probs: list[dict] = []
+
 
 class ResetDisplayMessage(GuidanceMessage):
     pass

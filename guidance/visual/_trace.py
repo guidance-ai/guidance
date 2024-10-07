@@ -2,6 +2,7 @@ import base64
 from typing import Optional, Dict
 
 from guidance.trace._trace import EndOfCellTextOutput
+from guidance.visual._message import JupyterCellExecutionCompletedOutputMessage
 
 from ..trace import (
     TextOutput,
@@ -17,7 +18,7 @@ span_start = "<span style='background-color: rgba(255, 180, 0, 0.3); border-radi
 span_end = "</span>"
 
 
-def trace_node_to_html(node: TraceNode, prettify_roles=False) -> str:
+def trace_node_to_html(node: TraceNode, prettify_roles=False, complete_msg: JupyterCellExecutionCompletedOutputMessage=None) -> str:
     """Represents trace path as html string.
 
     Args:
@@ -31,16 +32,9 @@ def trace_node_to_html(node: TraceNode, prettify_roles=False) -> str:
     node_path = list(node.path())
     active_role: Optional[TraceNode] = None
 
-    has_end_of_cell_output = False
-    end_of_cell_node = None
-    for node in node_path:
-        if isinstance(node.output, EndOfCellTextOutput):
-            has_end_of_cell_output = True
-            end_of_cell_node = node
-            break
     prob_idx = 0
 
-    if has_end_of_cell_output:
+    if complete_msg:
         print("has_end_of_cell_output")
 
     for i, node in enumerate(node_path):
@@ -62,7 +56,7 @@ def trace_node_to_html(node: TraceNode, prettify_roles=False) -> str:
                 attr = node.output
 
                 fmt = ""
-                if not has_end_of_cell_output:
+                if not complete_msg:
                     if attr.is_generated:
                         # fmt = f"<span style='background-color: rgba({165 * (1 - attr.prob)}, {165 * attr.prob}, 0, 0.15); border-radius: 3ps;' title='{attr.prob}'>{html.escape(attr.value)}</span>"
                         fmt = f"<span style='background-color: rgba({0}, {255}, {0}, 0.15); border-radius: 3ps;' title='{attr.prob}'>{html.escape(attr.value)}</span>"
@@ -74,15 +68,16 @@ def trace_node_to_html(node: TraceNode, prettify_roles=False) -> str:
                     # switch to token-based
                     cell_tokens = attr.tokens
                     for token in cell_tokens:
-                        assert token == end_of_cell_node.output.tokens[prob_idx]
-                        prob = end_of_cell_node.output.probs[prob_idx]["token_prob"]
+                        assert token == complete_msg.tokens[prob_idx]
+                        prob = complete_msg.probs[prob_idx]["token_prob"]
+                        token_str = complete_msg.probs[prob_idx]["token"]
 
                         if attr.is_generated:
-                            fmt = f"<span style='background-color: rgba({0}, {255}, {0}, 0.15); border-radius: 3ps;' title='{prob}'>{html.escape(attr.value)}</span>"
+                            fmt += f"<span style='background-color: rgba({0}, {255}, {0}, 0.15); border-radius: 3ps;' title='{prob}'>{html.escape(token_str)}</span>"
                         elif attr.is_force_forwarded:
-                            fmt = f"<span style='background-color: rgba({127}, {127}, {0}, 0.15); border-radius: 3ps;' title='{prob}'>{html.escape(attr.value)}</span>"
+                            fmt += f"<span style='background-color: rgba({127}, {127}, {0}, 0.15); border-radius: 3ps;' title='{prob}'>{html.escape(token_str)}</span>"
                         else:
-                            fmt = f"<span style='background-color: rgba({255}, {255}, {255}, 0.15); border-radius: 3ps;' title='{prob}'>{html.escape(attr.value)}</span>"
+                            fmt += f"<span style='background-color: rgba({255}, {255}, {255}, 0.15); border-radius: 3ps;' title='{prob}'>{html.escape(token_str)}</span>"
 
                         prob_idx += 1
                     pass

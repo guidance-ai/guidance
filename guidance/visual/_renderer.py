@@ -3,7 +3,7 @@ from typing import Optional, Callable
 from pydantic import BaseModel
 from asyncio import Queue
 
-from ._message import JupyterCellExecutionCompletedMessage, deserialize_message, serialize_message
+from ._message import JupyterCellExecutionCompletedMessage, JupyterCellExecutionCompletedOutputMessage, deserialize_message, serialize_message
 from ..trace import TraceHandler
 from ..visual import GuidanceMessage, TraceMessage, ResetDisplayMessage, ClientReadyMessage
 from ._trace import trace_node_to_html
@@ -166,8 +166,8 @@ class JupyterWidgetRenderer(Renderer):
         self._last_trace_id = None
 
         self._loop = async_loop()
-        self._send_queue = Queue(loop=self._loop)
-        self._recv_queue = Queue(loop=self._loop)
+        self._send_queue = Queue()
+        self._recv_queue = Queue()
 
         self._wait_for_client = wait_for_client
         self._client_ready = ThreadSafeAsyncCondVar(async_loop())
@@ -274,12 +274,16 @@ class LegacyHtmlRenderer(JupyterWidgetRenderer):
         # Handle Jupyter cell completion
         self._handle_jupyter_cell_completion()
 
-        if isinstance(message, TraceMessage):
+        if isinstance(message, TraceMessage) or isinstance(message, JupyterCellExecutionCompletedOutputMessage):
+            complete_msg = None
+            if isinstance(message, JupyterCellExecutionCompletedOutputMessage):
+                complete_msg = message
+
             trace_node = self._trace_handler[message.trace_id]
             self._last_trace_id = message.trace_id
             if trace_node is not None:
                 clear_output(wait=True)
-                display(HTML(trace_node_to_html(trace_node, prettify_roles=False)))
+                display(HTML(trace_node_to_html(trace_node, prettify_roles=False, complete_msg=complete_msg)))
         elif isinstance(message, JupyterCellExecutionCompletedMessage):
             logger.debug("renderer:cell executed")
         else:

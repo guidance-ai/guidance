@@ -11,12 +11,12 @@ from typing import Iterator, Optional, TYPE_CHECKING
 import numpy as np
 
 from guidance.trace._trace import EndOfCellTextOutput
-from guidance.visual._message import JupyterCellExecutionCompleted
+from guidance.visual._message import JupyterCellExecutionCompletedMessage
 
 from ..trace import NodeAttr, StatelessGuidanceInput, StatefulGuidanceInput, LiteralInput, EmbeddedInput, \
     RoleOpenerInput, RoleCloserInput, TextOutput, CaptureOutput, TraceHandler
 from ..visual import TraceMessage, AutoRenderer, trace_node_to_str, trace_node_to_html, GuidanceMessage, Renderer
-from ..visual._message import MockMetricMessage, JupyterCellExecutionCompletedMessage
+from ..visual._message import JupyterCellExecutionCompletedOutputMessage, MockMetricMessage, JupyterCellExecutionCompletedMessage
 
 try:
     from IPython.display import clear_output, display, HTML
@@ -111,7 +111,7 @@ class Engine:
         # model = self.model_dict.get(message.trace_id)
         print(f"ENGINE:{message}", type(message))
 
-        if isinstance(message, JupyterCellExecutionCompleted):
+        if isinstance(message, JupyterCellExecutionCompletedMessage):
             print("last_state")
             last_model: "Model" = self.model_dict[message.last_trace_id]
             paths = []
@@ -145,11 +145,18 @@ class Engine:
             # print(json.dumps(probs, indent=2))
             # print(probs)
 
-            self.renderer.update(EndOfCellTextOutput(
-                value=self.tokenizer.decode(tokens).decode("utf-8"),
+            self.renderer.update(JupyterCellExecutionCompletedOutputMessage(
+                trace_id=message.last_trace_id,
+                text=self.tokenizer.decode(tokens).decode("utf-8"),
                 tokens=tokens,
                 probs=probs
             ))
+
+            # last_model._update_trace_node(last_model._id, last_model._parent_id, EndOfCellTextOutput(
+            #     value=self.tokenizer.decode(tokens).decode("utf-8"),
+            #     tokens=tokens,
+            #     probs=probs
+            # ))
 
     def get_chat_template(self): # TODO [HN]: Add more logic here...should we instantiate class here? do we even need to?
         return self.tokenizer.chat_template() # Instantiate the class before returning to client for now
@@ -363,7 +370,7 @@ class Engine:
     def get_logits(self, token_ids: list[int]) -> np.ndarray:
         raise NotImplementedError
     
-    def get_token_probs(self, token_ids: list[int], top_k: int = 5) -> list[list[dict]]:
+    def get_token_probs(self, token_ids: list[int], top_k: int = 5) -> list[dict]:
         raise NotImplementedError
 
     def sample_with_temperature(self, logits: np.ndarray, mask: Optional[bytes], temperature: float) -> int:
