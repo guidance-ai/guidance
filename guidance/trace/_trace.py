@@ -83,6 +83,7 @@ class RoleOpenerInput(InputAttr):
     """
 
     name: Optional[str]
+    text: Optional[str]
 
 
 class RoleCloserInput(InputAttr):
@@ -92,6 +93,7 @@ class RoleCloserInput(InputAttr):
     """
 
     name: Optional[str]
+    text: Optional[str]
 
 
 class TextOutput(OutputAttr):

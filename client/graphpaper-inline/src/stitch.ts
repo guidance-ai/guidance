@@ -5,6 +5,7 @@ export interface NodeAttr {
 }
 
 export interface TextOutput extends NodeAttr {
+    class_name: 'TextOutput',
     value: string,
     is_generated: boolean,
     token_count: number,
@@ -16,6 +17,7 @@ export interface GuidanceMessage {
 }
 
 export interface TraceMessage extends GuidanceMessage {
+    class_name: 'TraceMessage',
     trace_id: number,
     parent_trace_id?: number,
     node_attr?: NodeAttr,

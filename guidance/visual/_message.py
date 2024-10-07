@@ -18,7 +18,12 @@ class TraceMessage(GuidanceMessage):
     node_attr: Optional[NodeAttr]
 
 
-class JupyterCellExecutionCompleted(GuidanceMessage):
+class MockMetricMessage(GuidanceMessage):
+    name: str
+    value: float
+
+
+class JupyterCellExecutionCompletedMessage(GuidanceMessage):
     last_trace_id: Optional[int]
 
 
@@ -32,7 +37,7 @@ class ClientReadyMessage(GuidanceMessage):
 
 model_registry: Dict[str, type(GuidanceMessage)] = {
     'TraceMessage': TraceMessage,
-    'JupyterCellExecutionCompleted': JupyterCellExecutionCompleted,
+    'JupyterCellExecutionCompleted': JupyterCellExecutionCompletedMessage,
     'ResetDisplayMessage': ResetDisplayMessage,
     'ClientReadyMessage': ClientReadyMessage,
 }

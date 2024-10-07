@@ -11,7 +11,8 @@ import numpy as np
 
 from ..trace import NodeAttr, StatelessGuidanceInput, StatefulGuidanceInput, LiteralInput, EmbeddedInput, \
     RoleOpenerInput, RoleCloserInput, TextOutput, CaptureOutput, TraceHandler
-from ..visual import TraceMessage, AutoRenderer, trace_node_to_str, trace_node_to_html, GuidanceMessage
+from ..visual import TraceMessage, AutoRenderer, trace_node_to_str, trace_node_to_html, GuidanceMessage, Renderer
+from ..visual._message import MockMetricMessage, JupyterCellExecutionCompletedMessage
 
 try:
     from IPython.display import clear_output, display, HTML
@@ -50,6 +51,30 @@ html_pattern = re.compile(r"&lt;\|\|_html:(.*?)_\|\|&gt;", flags=re.DOTALL)
 image_pattern = re.compile(r"&lt;\|_image:(.*?)\|&gt;")
 
 
+# TODO(nopdive): Remove on implementation.
+class MockMetricsGenerator:
+    def __init__(self, renderer: Renderer):
+        from ..visual._async import run_async_task
+
+        self._renderer = renderer
+        run_async_task(self._emit())
+
+    async def _emit(self):
+        import asyncio
+        import time
+
+        time_start = time.time()
+        while True:
+            await asyncio.sleep(5)
+            time_end = time.time()
+            time_elapsed = time_end - time_start
+
+            logger.debug(f"mock:metric:{time_elapsed}")
+            self._renderer.update(
+                MockMetricMessage(name='time taken', value=time_elapsed)
+            )
+
+
 class Engine:
     """The engine owns the inference computation and is used/created by the Model class.
 
@@ -68,9 +93,15 @@ class Engine:
         self.renderer = AutoRenderer(self.trace_handler)
         self.renderer.subscribe(self._msg_recv)
 
+        # TODO(nopdive): Remove
+        # self.metrics_generator = MockMetricsGenerator(self.renderer)
+
     def _msg_recv(self, message: GuidanceMessage) -> None:
         # NOTE(nopdive): This is likely running on a secondary thread.
         logger.debug(f"ENGINE:{message}")
+        if isinstance(message, JupyterCellExecutionCompletedMessage):
+            logger.debug(f"ENGINE:cell executed")
+            self.renderer.update(message)
 
     def get_chat_template(self): # TODO [HN]: Add more logic here...should we instantiate class here? do we even need to?
         return self.tokenizer.chat_template() # Instantiate the class before returning to client for now
@@ -469,14 +500,17 @@ class Model:
                 self._update_trace_node(lm._id, lm._parent_id, CaptureOutput(name=context.name, value=v))
 
             # add closer
-            self._update_trace_node(lm._id, lm._parent_id, RoleCloserInput(name=context.name))
+            # TODO(nopdive): Consider removing context closer/opener on confirmation.
+            closer_text = self.role_closer(context.name)
+            self._update_trace_node(lm._id, lm._parent_id, RoleCloserInput(name=context.name, text=closer_text))
             lm += context.closer
             lm = lm.copy()
 
         # start any entering blocks
         for context in enter_blocks:
             # add opener
-            self._update_trace_node(lm._id, lm._parent_id, RoleOpenerInput(name=context.name))
+            opener_text = self.role_opener(context.name)
+            self._update_trace_node(lm._id, lm._parent_id, RoleOpenerInput(name=context.name, text=opener_text))
             lm += context.opener
             lm = lm.copy()
 
