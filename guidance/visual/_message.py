@@ -1,5 +1,7 @@
 from typing import Optional, Dict
 from pydantic import BaseModel
+
+from guidance._schema import BaseGenToken
 from ..trace import NodeAttr
 import json
 
@@ -30,7 +32,7 @@ class JupyterCellExecutionCompletedOutputMessage(GuidanceMessage):
     trace_id: int
     text: str
     tokens: list[int] = []
-    probs: list[dict] = []
+    probs: list[list[BaseGenToken]] = []
 
 
 class ResetDisplayMessage(GuidanceMessage):

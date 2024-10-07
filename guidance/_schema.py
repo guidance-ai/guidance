@@ -27,10 +27,12 @@ class EngineCallResponse(BaseModel):
     force_forwarded_tokens: list[int] = []
     associated_force_forwarded_tokens: list["GenToken"] = []  # tokens associated with the forced forwarded bytes
 
-class GenToken(BaseModel):
+class BaseGenToken(BaseModel):
     token: int
     prob: float
     bytes: bytes
+
+class GenToken(BaseGenToken):
     latency_ms: float
     is_generated: bool = False
     is_force_forwarded: bool = False

@@ -5,6 +5,8 @@ import warnings
 
 from typing import Sequence, Union
 
+from guidance._schema import BaseGenToken
+
 try:
     import torch
 except ModuleNotFoundError:
@@ -515,7 +517,7 @@ class TransformersEngine(Engine):
 
         return self._cached_logits
     
-    def get_token_probs(self, token_ids: list[int], top_k: int = 5) -> list[dict]:
+    def get_token_probs(self, token_ids: list[int], top_k: int = 5) -> list[list[BaseGenToken]]:
         tokenizer = self.tokenizer._orig_tokenizer
 
         # NOTE (loc) - assume batch size of 1
@@ -538,18 +540,12 @@ class TransformersEngine(Engine):
                 _token = tokenizer.decode(_token_id)
 
                 if len(text_sequence) == 0:
-                    # skip the first one
                     text_sequence.append(
-                        {
-                            "token": _token,
-                            "token_prob": 1.0,
-                            "top_k": {
-                                _token: {
-                                    "token_id": _token_id.item(),
-                                    "prob": 1.0,
-                                }
-                            },
-                        }
+                        [BaseGenToken(
+                            token=_token_id.item(),
+                            prob=1.0,
+                            bytes=tokenizer.decode([_token_id])
+                        )]
                     )
                     continue
 
@@ -559,16 +555,16 @@ class TransformersEngine(Engine):
                     top_k_indices.append(_token_id.item())
 
                 top_k_probs = [_probs[i].item() for i in top_k_indices]
-
-                top_k_dict = {}
+                top_k_list = []
                 for t, p in zip(top_k_indices, top_k_probs):
-                    # top_k_list.append((tokenizer.decode(t), p))
-                    top_k_dict[tokenizer.decode(t)] = {
-                        "token_id": t,
-                        "prob": p,
-                    }
-
-                text_sequence.append({"token": _token, "token_prob": _probs[_token_id].item(), "top_k": top_k_dict})
+                    top_k_list.append(
+                        BaseGenToken(
+                            token=t,
+                            prob=p,
+                            bytes=tokenizer.decode([t])
+                        )
+                    )
+                text_sequence.append(top_k_list)
 
             batch.append(text_sequence)
 

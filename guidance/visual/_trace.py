@@ -1,4 +1,5 @@
 import base64
+import json
 from typing import Optional, Dict
 
 from guidance.trace._trace import EndOfCellTextOutput
@@ -34,9 +35,6 @@ def trace_node_to_html(node: TraceNode, prettify_roles=False, complete_msg: Jupy
 
     prob_idx = 0
 
-    if complete_msg:
-        print("has_end_of_cell_output")
-
     for i, node in enumerate(node_path):
         if isinstance(node.input, RoleOpenerInput):
             active_role = node
@@ -61,23 +59,33 @@ def trace_node_to_html(node: TraceNode, prettify_roles=False, complete_msg: Jupy
                         # fmt = f"<span style='background-color: rgba({165 * (1 - attr.prob)}, {165 * attr.prob}, 0, 0.15); border-radius: 3ps;' title='{attr.prob}'>{html.escape(attr.value)}</span>"
                         fmt = f"<span style='background-color: rgba({0}, {255}, {0}, 0.15); border-radius: 3ps;' title='{attr.prob}'>{html.escape(attr.value)}</span>"
                     elif attr.is_force_forwarded:
-                        fmt = f"<span style='background-color: rgba({127}, {127}, {0}, 0.15); border-radius: 3ps;' title='{attr.prob}'>{html.escape(attr.value)}</span>"
+                        fmt = f"<span style='background-color: rgba({0}, {0}, {255}, 0.15); border-radius: 3ps;' title='{attr.prob}'>{html.escape(attr.value)}</span>"
                     else:
-                        fmt = f"{html.escape(attr.value)}"
+                        # fmt = f"{html.escape(attr.value)}"
+                        fmt += f"<span style='background-color: rgba({255}, {255}, {255}, 0.15); border-radius: 3ps;' title='{attr.prob}'>{html.escape(attr.value)}</span>"
                 else:
                     # switch to token-based
                     cell_tokens = attr.tokens
                     for token in cell_tokens:
                         assert token == complete_msg.tokens[prob_idx]
-                        prob = complete_msg.probs[prob_idx]["token_prob"]
-                        token_str = complete_msg.probs[prob_idx]["token"]
+                        token_str = ""
+                        prob = 0.0
+                        top_k = {}
+                        # find the correct token
+                        for _item in complete_msg.probs[prob_idx]:
+                            if _item.token == token:
+                                prob = _item.prob
+                                token_str += _item.bytes.decode("utf-8")
+                            
+                            top_k[f"{_item.bytes.decode('utf-8')}"] = f"{_item.prob}"
+                        top_k = json.dumps(top_k, indent=2)
 
                         if attr.is_generated:
-                            fmt += f"<span style='background-color: rgba({0}, {255}, {0}, 0.15); border-radius: 3ps;' title='{prob}'>{html.escape(token_str)}</span>"
+                            fmt += f"<span style='background-color: rgba({0}, {127 + int(127 * prob)}, {0}, 0.15); border-radius: 3ps;' title='\"{token_str}\" : {prob}\n{top_k}'>{html.escape(token_str)}</span>"
                         elif attr.is_force_forwarded:
-                            fmt += f"<span style='background-color: rgba({127}, {127}, {0}, 0.15); border-radius: 3ps;' title='{prob}'>{html.escape(token_str)}</span>"
+                            fmt += f"<span style='background-color: rgba({0}, {0}, {127 + int(127 * prob)}, 0.15); border-radius: 3ps;' title='\"{token_str}\" : {prob}\n{top_k}'>{html.escape(token_str)}</span>"
                         else:
-                            fmt += f"<span style='background-color: rgba({255}, {255}, {255}, 0.15); border-radius: 3ps;' title='{prob}'>{html.escape(token_str)}</span>"
+                            fmt += f"<span style='background-color: rgba({255}, {255}, {255}, 0.15); border-radius: 3ps;' title='\"{token_str}\" : {prob}\n{top_k}'>{html.escape(token_str)}</span>"
 
                         prob_idx += 1
                     pass

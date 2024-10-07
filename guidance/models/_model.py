@@ -27,7 +27,7 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-from .._schema import EngineCallResponse, EngineOutput, GenToken, GuidanceEngineMetrics, VisBytesChunk
+from .._schema import BaseGenToken, EngineCallResponse, EngineOutput, GenToken, GuidanceEngineMetrics, VisBytesChunk
 from .._utils import softmax, CaptureEvents
 from .._parser import TokenParser
 from .._grammar import (
@@ -109,10 +109,10 @@ class Engine:
             self.renderer.update(message)
 
         # model = self.model_dict.get(message.trace_id)
-        print(f"ENGINE:{message}", type(message))
+        # print(f"ENGINE:{message}", type(message))
 
         if isinstance(message, JupyterCellExecutionCompletedMessage):
-            print("last_state")
+            # print("last_state")
             last_model: "Model" = self.model_dict[message.last_trace_id]
             paths = []
             model = last_model
@@ -370,7 +370,7 @@ class Engine:
     def get_logits(self, token_ids: list[int]) -> np.ndarray:
         raise NotImplementedError
     
-    def get_token_probs(self, token_ids: list[int], top_k: int = 5) -> list[dict]:
+    def get_token_probs(self, token_ids: list[int], top_k: int = 5) -> list[list[BaseGenToken]]:
         raise NotImplementedError
 
     def sample_with_temperature(self, logits: np.ndarray, mask: Optional[bytes], temperature: float) -> int:
