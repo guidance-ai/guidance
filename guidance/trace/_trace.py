@@ -98,7 +98,9 @@ class TextOutput(OutputAttr):
     """Text string."""
 
     value: str
+    is_input: bool = False
     is_generated: bool = False
+    is_force_forwarded: bool = False
     token_count: int = 0
     prob: float = 0.0
 

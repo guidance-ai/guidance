@@ -47,7 +47,10 @@ def trace_node_to_html(node: TraceNode, prettify_roles=False) -> str:
             if not (active_role and prettify_roles):
                 attr = node.output
                 if attr.is_generated:
-                    fmt = f"<span style='background-color: rgba({165 * (1 - attr.prob)}, {165 * attr.prob}, 0, 0.15); border-radius: 3ps;' title='{attr.prob}'>{html.escape(attr.value)}</span>"
+                    # fmt = f"<span style='background-color: rgba({165 * (1 - attr.prob)}, {165 * attr.prob}, 0, 0.15); border-radius: 3ps;' title='{attr.prob}'>{html.escape(attr.value)}</span>"
+                    fmt = f"<span style='background-color: rgba({0}, {255}, {0}, 0.15); border-radius: 3ps;' title='{attr.prob}'>{html.escape(attr.value)}</span>"
+                elif attr.is_force_forwarded:
+                    fmt = f"<span style='background-color: rgba({127}, {127}, {0}, 0.15); border-radius: 3ps;' title='{attr.prob}'>{html.escape(attr.value)}</span>"
                 else:
                     fmt = f"{html.escape(attr.value)}"
                 buffer.append(fmt)
