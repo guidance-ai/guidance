@@ -16,12 +16,13 @@ try:
 except ImportError:
     ipython_imported = False
 
-try:
-    import stitch
+# try:
+#     import stitch
 
-    stitch_installed = True
-except ImportError:
-    stitch_installed = False
+#     stitch_installed = True
+# except ImportError:
+#     stitch_installed = False
+stitch_installed = False
 
 logger = logging.getLogger(__name__)
 

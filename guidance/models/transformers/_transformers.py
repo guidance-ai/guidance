@@ -544,7 +544,7 @@ class TransformersEngine(Engine):
                         [BaseGenToken(
                             token=_token_id.item(),
                             prob=1.0,
-                            bytes=tokenizer.decode([_token_id])
+                            text=tokenizer.decode([_token_id])
                         )]
                     )
                     continue
@@ -561,7 +561,7 @@ class TransformersEngine(Engine):
                         BaseGenToken(
                             token=t,
                             prob=p,
-                            bytes=tokenizer.decode([t])
+                            text=tokenizer.decode([t])
                         )
                     )
                 text_sequence.append(top_k_list)

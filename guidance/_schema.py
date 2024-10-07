@@ -30,13 +30,15 @@ class EngineCallResponse(BaseModel):
 class BaseGenToken(BaseModel):
     token: int
     prob: float
-    bytes: bytes
+    # bytes: bytes
+    text: str = ""
 
 class GenToken(BaseGenToken):
     latency_ms: float
     is_generated: bool = False
     is_force_forwarded: bool = False
     is_input: bool = False
+    top_k: list["GenToken"] = []
 
 
 class EngineOutput(BaseModel):

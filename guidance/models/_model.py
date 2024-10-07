@@ -94,7 +94,7 @@ class Engine:
         self.metrics = GuidanceEngineMetrics()
 
         self.trace_handler = TraceHandler()
-        self.renderer = AutoRenderer(self.trace_handler,  use_legacy_renderer=kwargs.get("use_legacy_renderer", False))
+        self.renderer = AutoRenderer(self.trace_handler,  use_legacy_renderer=kwargs.get("use_legacy_renderer", True))
         self.renderer.subscribe(self._msg_recv)
         self.model_dict: dict[int, Model] = {}
 
@@ -135,15 +135,7 @@ class Engine:
                     tokens.extend(vis_chunk.generated_tokens)
                     tokens.extend(vis_chunk.force_forwarded_tokens)
 
-            # print("tokens", tokens)
-            # print("bytes")
-            # print(self.tokenizer.decode(tokens).decode("utf-8"))
-            # print("end_bytes")
-
             probs = self.get_token_probs(tokens)
-            # import json
-            # print(json.dumps(probs, indent=2))
-            # print(probs)
 
             self.renderer.update(JupyterCellExecutionCompletedOutputMessage(
                 trace_id=message.last_trace_id,
@@ -286,7 +278,7 @@ class Engine:
                 GenToken(
                     token=token,
                     prob=prob,
-                    bytes=self.tokenizer.decode([token]),
+                    text=self.tokenizer.decode([token]).decode("utf-8"),
                     latency_ms=lat_ms,
                     is_generated=True,
                 )
@@ -314,7 +306,7 @@ class Engine:
                     issued_token=GenToken(
                         token=first_token,
                         prob=1.0,
-                        bytes=self.tokenizer.decode([first_token]),
+                        text=self.tokenizer.decode([first_token]).decode("utf-8"),
                         latency_ms=0,
                         is_generated=False,
                     ),
@@ -345,7 +337,7 @@ class Engine:
                 issued_token = GenToken(
                     token=token,
                     prob=_probs[token],
-                    bytes=self.tokenizer.decode([token]),
+                    text=self.tokenizer.decode([token]).decode("utf-8"),
                     latency_ms=0,
                     is_generated=False,
                 )

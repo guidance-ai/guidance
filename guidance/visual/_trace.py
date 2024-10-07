@@ -75,9 +75,9 @@ def trace_node_to_html(node: TraceNode, prettify_roles=False, complete_msg: Jupy
                         for _item in complete_msg.probs[prob_idx]:
                             if _item.token == token:
                                 prob = _item.prob
-                                token_str += _item.bytes.decode("utf-8")
+                                token_str += _item.text
                             
-                            top_k[f"{_item.bytes.decode('utf-8')}"] = f"{_item.prob}"
+                            top_k[f"{_item.text}"] = f"{_item.prob}"
                         top_k = json.dumps(top_k, indent=2)
 
                         if attr.is_generated:

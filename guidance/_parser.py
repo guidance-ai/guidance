@@ -136,7 +136,7 @@ class TokenParser:
                         response.associated_generated_tokens.append(GenToken(
                             token=_tokens[0],
                             prob=1.0,
-                            bytes=response.generated_bytes,
+                            text=response.generated_bytes.decode("utf-8"),
                             latency_ms=engine_output.issued_token.latency_ms,
                             is_generated=True,
                         ))
@@ -151,7 +151,7 @@ class TokenParser:
                         response.associated_force_forwarded_tokens.append(GenToken(
                             token=_token,
                             prob=1.0,
-                            bytes=self.tokenizer.decode([_token]),
+                            text=self.tokenizer.decode([_token]).decode("utf-8"),
                             latency_ms=0,
                             is_force_forwarded=True,
                         ))
