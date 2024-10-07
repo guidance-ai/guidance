@@ -50,7 +50,7 @@ class GuidanceFunction:
 
         # Update self with the wrapped function's metadata
         functools.update_wrapper(self, self._impl)
-        # Pretend to be one level of wrapping higher than we are
+        # Pretend to be one level of wrapping lower than we are
         self.__wrapped__ = self._impl.__wrapped__
 
     def __call__(self, *args, **kwargs):
@@ -58,7 +58,7 @@ class GuidanceFunction:
 
     def __get__(self, instance, owner=None, /):
         """
-        Return a GuidanceMethod bound to the instance. GuidanceMethods are cached in a WeakKeyDictionary on a per-instance basis.
+        Return a GuidanceMethod bound to the instance.
         """
         if instance is None:
             return self
@@ -77,12 +77,17 @@ class GuidanceMethod:
 
         # Update self with the wrapped function's metadata
         functools.update_wrapper(self, impl)
-        # Pretend to be one level of wrapping higher than we are
+        # Pretend to be one level of wrapping lower than we are
         self.__wrapped__ = impl.__wrapped__
 
     @classmethod
     def from_guidance_function(cls, guidance_function: GuidanceFunction, instance: Any) -> "GuidanceMethod":
-        # Use instance hash in addition to identity to make sure we miss the cache if the instance is meaningfully mutated
+        # We can't directly use a weakref.WeakKeyDictionary because those don't really work when the key objects
+        # are allowed to change their hash value.
+
+        # Instead use instance hash in addition to identity to make sure we miss the cache if the instance is meaningfully mutated.
+        # This should be safe because an id will only be reused after the original object is garbage collected, at which point we
+        # should have removed the cache entry (since we use weakref.finalize to remove the cache entry when the instance is deleted).
         key = (guidance_function.f, hash(instance), id(instance))
         try:
             impl = cls.impl_cache[key]

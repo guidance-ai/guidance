@@ -428,7 +428,7 @@ class TestMethodGarbageCollection:
         obj_ref = weakref.ref(obj)
         # Create a weak reference to the cached method
         meth_ref = weakref.WeakMethod(obj.cached_method)
-        # Quick sanity check (real methods need weakref.WeakMethod, but we're a bit different)
+        # Quick sanity check that the weak reference is working
         gc.collect()
         assert meth_ref() is not None
         # Delete the hard ref to the obj
