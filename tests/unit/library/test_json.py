@@ -2458,3 +2458,19 @@ class TestWhitespace:
                 assert str(model + grammar) == prepared_json
             else:
                 assert grammar.match(prepared_json) is None
+
+    @pytest.mark.parametrize(
+        "separators",
+        seps,
+    )
+    @pytest.mark.parametrize(
+        "indent",
+        [None, 0, 2, 4],
+    )
+    def test_whitespace_flexibility(self, indent, separators):
+        grammar = gen_json(schema=self.schema, whitespace_flexible=True)
+        for seps in self.seps:
+            prepared_json = json.dumps(self.obj, separators=separators, indent=indent)
+            assert grammar.match(prepared_json, raise_exceptions=True) is not None
+            model = models.Mock(f"<s>{prepared_json}".encode())
+            assert str(model + grammar) == prepared_json
