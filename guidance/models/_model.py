@@ -204,10 +204,19 @@ class Engine:
                     continue
 
                 # we have a mismatch due to backtracking
-                next_gen_token = gen_tokens.pop(0)
-                merged_text = gen_token.text + next_gen_token.text
+                # next_gen_token = gen_tokens.pop(0)
+                # merged_text = gen_token.text + next_gen_token.text
+                # merged_tokens = self.tokenizer.encode(merged_text.encode("utf-8"))
+                # assert len(merged_tokens) == 1, f"Expected merged tokens to be of length 1, got {len(merged_tokens)}"
+
+                merged_text = gen_token.text
+                token_text = self.tokenizer.decode([tokens[idx]]).decode("utf-8")
+                while len(merged_text) < len(token_text) and token_text.startswith(merged_text):
+                    next_gen_token = gen_tokens.pop(0)
+                    merged_text += next_gen_token.text
+
+                assert token_text == merged_text, f"Expected merged text to be {token_text}, got {merged_text}"
                 merged_tokens = self.tokenizer.encode(merged_text.encode("utf-8"))
-                assert len(merged_tokens) == 1, f"Expected merged tokens to be of length 1, got {len(merged_tokens)}"
 
                 if tokens[idx] == merged_tokens[0]:
                     # create new GenToken
@@ -419,7 +428,8 @@ class Engine:
             # compute top-k with masking
             masked_top_k: list[GenToken] = []
             if mask is not None:
-                masked_logits = np.abs(_logits * np.frombuffer(mask, dtype=np.uint8))
+                # shift logits to [0 - max] range first and apply mask
+                masked_logits = (_logits - np.min(_logits)) * np.frombuffer(mask, dtype=np.uint8)
                 masked_probs = (
                     softmax(masked_logits)
                     if temperature < 0.0001
