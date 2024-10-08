@@ -127,39 +127,90 @@ class Engine:
 
             vis_chunks: list[VisBytesChunk] = [path.vis_chunk for path in paths if path.vis_chunk is not None]
 
-            tokens = []
+            # tokens = []
+            # gen_tokens: list[GenToken] = []
+            # for vis_chunk in vis_chunks:
+            #     if vis_chunk.backtrack:
+            #         tokens = tokens[:-vis_chunk.backtrack]
+            #         gen_tokens = gen_tokens[:-vis_chunk.backtrack]
+
+            #     if vis_chunk.is_input:
+            #         for gen_token in vis_chunk.input_tokens:
+            #             tokens.append(gen_token.token)
+            #             gen_tokens.append(gen_token)
+            #     else:
+            #         for gen_token in vis_chunk.generated_tokens:
+            #             tokens.append(gen_token.token)
+            #             gen_tokens.append(gen_token)
+
+            #         for gen_token in vis_chunk.force_forwarded_tokens:
+            #             tokens.append(gen_token.token)
+            #             gen_tokens.append(gen_token)
+
+            text = ""
             gen_tokens: list[GenToken] = []
             for vis_chunk in vis_chunks:
-                if vis_chunk.backtrack:
-                    tokens = tokens[:-vis_chunk.backtrack]
-                    gen_tokens = gen_tokens[:-vis_chunk.backtrack]
+                text += vis_chunk.bytes.decode("utf-8")
+                gen_tokens.extend(vis_chunk.input_tokens)
+                gen_tokens.extend(vis_chunk.generated_tokens)
+                gen_tokens.extend(vis_chunk.force_forwarded_tokens)
 
-                if vis_chunk.is_input:
-                    for gen_token in vis_chunk.input_tokens:
-                        tokens.append(gen_token.token)
-                        gen_tokens.append(gen_token)
-                else:
-                    for gen_token in vis_chunk.generated_tokens:
-                        tokens.append(gen_token.token)
-                        gen_tokens.append(gen_token)
-
-                    for gen_token in vis_chunk.force_forwarded_tokens:
-                        tokens.append(gen_token.token)
-                        gen_tokens.append(gen_token)
-
+            tokens = self.tokenizer.encode(text.encode("utf-8"))
             probs = self.get_token_probs(tokens)
 
-            for gen_token, prob in zip(gen_tokens, probs):
-                gen_token.top_k = prob
-                for _item in prob:
-                    if _item.token == gen_token.token:
-                        gen_token.prob = _item.prob
-                        break
+            idx = 0
+            processed_gen_tokens = []
+            while gen_tokens:
+                gen_token = gen_tokens.pop(0)
+
+                if gen_token.token == tokens[idx]:
+                    gen_token.top_k = probs[idx]
+                    for _token in probs[idx]:
+                        if _token.token == gen_token.token:
+                            gen_token.prob = _token.prob
+                            break
+                    processed_gen_tokens.append(gen_token)
+                    text = text[len(gen_token.text):]
+                    idx += 1
+                    continue
+
+                # we have a mismatch due to backtracking
+                next_gen_token = gen_tokens.pop(0)
+                merged_text = gen_token.text + next_gen_token.text
+                merged_tokens = self.tokenizer.encode(merged_text.encode("utf-8"))
+                assert len(merged_tokens) == 1, f"Expected merged tokens to be of length 1, got {len(merged_tokens)}"
+
+                if tokens[idx] == merged_tokens[0]:
+                    # create new GenToken
+                    prob = 0
+                    for _token in probs[idx]:
+                        if _token.token == merged_tokens[0]:
+                            prob = _token.prob
+                            break
+
+                    _gen_token = GenToken(
+                            token=merged_tokens[0],
+                            prob=prob,
+                            text=merged_text,
+                            latency_ms=gen_token.latency_ms + next_gen_token.latency_ms,
+                            is_generated=gen_token.is_generated or next_gen_token.is_generated,
+                            is_force_forwarded=gen_token.is_force_forwarded or next_gen_token.is_force_forwarded,
+                        )
+                    _gen_token.top_k = probs[idx]
+                    processed_gen_tokens.append(
+                        _gen_token
+                    )
+                    idx += 1
+                else:
+                    assert next_gen_token.token == merged_tokens[0], f"Expected next_gen_token token to be {merged_tokens[0]}, got {next_gen_token.token}"
+
+            final_text = "".join([gen_token.text for gen_token in processed_gen_tokens])
+            print(final_text)
 
             self.renderer.update(JupyterCellExecutionCompletedOutputMessage(
                 trace_id=message.last_trace_id,
                 text=self.tokenizer.decode(tokens).decode("utf-8"),
-                tokens=gen_tokens,
+                tokens=processed_gen_tokens,
             ))
 
             # self.renderer.update(JupyterCellExecutionCompletedOutputMessage(

@@ -33,17 +33,12 @@ def trace_node_to_html(node: TraceNode, prettify_roles=False, complete_msg: Jupy
     node_path = list(node.path())
     active_role: Optional[TraceNode] = None
 
-    for idx, node in enumerate(node_path):
-        if isinstance(node.input, TokenBacktrack):
-            while node.input.value > 0:
-                for j in range(idx-1, -1, -1):
-                    if isinstance(node_path[j].output, TextOutput) and len(node_path[j].output.tokens) > 0:
-                        node_path[j].output.tokens.pop()
-                        break
-
-                node.input.value -= 1
-
     prob_idx = 0
+    remaining_text = ""
+    full_text = ""
+    if complete_msg:
+        for token in complete_msg.tokens:
+            full_text += token.text
 
     for i, node in enumerate(node_path):
         if isinstance(node.input, RoleOpenerInput):
@@ -77,7 +72,14 @@ def trace_node_to_html(node: TraceNode, prettify_roles=False, complete_msg: Jupy
                     # switch to token-based
                     cell_tokens = attr.tokens
                     for token in cell_tokens:                       
-                        assert token.token == complete_msg.tokens[prob_idx].token, f"Token mismatch {token.token} != {complete_msg.tokens[prob_idx].token}"
+                        # assert token.token == complete_msg.tokens[prob_idx].token, f"Token mismatch {token.token} != {complete_msg.tokens[prob_idx].token}"
+                        if token.token != complete_msg.tokens[prob_idx].token:
+                            if remaining_text + token.text != complete_msg.tokens[prob_idx].text:
+                                remaining_text += token.text
+                                continue
+                            else:
+                                remaining_text = ""
+
                         token_str = complete_msg.tokens[prob_idx].text
                         prob = complete_msg.tokens[prob_idx].prob
                         top_k = {}
@@ -93,6 +95,7 @@ def trace_node_to_html(node: TraceNode, prettify_roles=False, complete_msg: Jupy
                         else:
                             fmt += f"<span style='background-color: rgba({255}, {255}, {255}, 0.15); border-radius: 3ps;' title='\"{token_str}\" : {prob}\n{top_k}'>{html.escape(token_str)}</span>"
 
+                        full_text = full_text[len(token_str):]
                         prob_idx += 1
                     pass
                 buffer.append(fmt)
