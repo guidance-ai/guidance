@@ -1,4 +1,4 @@
-from typing import Optional, Dict
+from typing import Optional, Dict, Union
 from pydantic import BaseModel
 from ..trace import NodeAttr
 import json
@@ -18,9 +18,30 @@ class TraceMessage(GuidanceMessage):
     node_attr: Optional[NodeAttr]
 
 
-class MockMetricMessage(GuidanceMessage):
+class MetricMessage(GuidanceMessage):
     name: str
-    value: float
+    value: Union[float, str]
+
+
+# TODO(nopdive): Replace with implementation.
+class BaseGenToken(BaseModel):
+    token: int
+    prob: float
+    text: str
+    top_k: Optional[list["GenToken"]]
+
+
+# TODO(nopdive): Replace with implementation.
+class GenToken(BaseGenToken):
+    latency_ms: float
+    is_generated: bool = False
+    is_force_forwarded: bool = False
+    is_input: bool = False
+
+
+# TODO(nopdive): Replace with implementation.
+class TokenBatchMessage(GuidanceMessage):
+    tokens: list[GenToken]
 
 
 class JupyterCellExecutionCompletedMessage(GuidanceMessage):
@@ -40,6 +61,7 @@ model_registry: Dict[str, type(GuidanceMessage)] = {
     'JupyterCellExecutionCompleted': JupyterCellExecutionCompletedMessage,
     'ResetDisplayMessage': ResetDisplayMessage,
     'ClientReadyMessage': ClientReadyMessage,
+    'MetricMessage': MetricMessage,
 }
 
 

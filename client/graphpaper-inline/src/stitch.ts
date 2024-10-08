@@ -12,6 +12,18 @@ export interface TextOutput extends NodeAttr {
     prob: number,
 }
 
+export interface RoleOpenerInput extends NodeAttr {
+    class_name: 'RoleOpenerInput',
+    name?: string,
+    text?: string,
+}
+
+export interface RoleCloserInput extends NodeAttr {
+    class_name: 'RoleCloserInput',
+    name?: string,
+    text?: string,
+}
+
 export interface GuidanceMessage {
     class_name: string
 }
@@ -27,14 +39,31 @@ export interface ResetDisplayMessage extends GuidanceMessage {
     class_name: 'ResetDisplayMessage'
 }
 
+export interface TokenBatchMessage extends GuidanceMessage {
+    class_name: 'TokenBatchMessage',
+    tokens: Array<any>
+}
+
+export interface JupyterCellExecutionCompletedMessage extends GuidanceMessage {
+    class_name: 'JupyterCellExecutionCompletedMessage',
+    last_trace_id?: number,
+}
+
 export interface ClientReadyMessage extends GuidanceMessage {
     class_name: 'ClientReadyMessage'
+}
+
+export interface MetricMessage extends GuidanceMessage {
+    class_name: 'MetricMessage',
+    name: string,
+    value: number | string
 }
 
 export interface StitchMessage {
     type: "resize" | "clientmsg" | "kernelmsg",
     content: any
 }
+
 
 export const kernelmsg = writable<StitchMessage | undefined>(undefined);
 export const clientmsg = writable<StitchMessage | undefined>(undefined);

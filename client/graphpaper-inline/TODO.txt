@@ -1,2 +1,6 @@
+- Integrate roles
+- End of execution token details
+- Tooltip
+- Styling
 - Remove CDN font links (googlefonts)
-- Connect non-generated tokens, images etc.
+- Image integration

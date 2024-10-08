@@ -3,7 +3,7 @@
 <script lang="ts">
 	import {scaleLinear} from 'd3-scale';
 
-    export let values: ArrayLike<Number>;
+    export let values: ArrayLike<number>;
 	export let svgClass: string;
 	export let rectClass: string;
 	export let padding = {
@@ -15,6 +15,7 @@
 
 	let height = 0;
 	let width = 0;
+	let minVal = 0.05;
 	$: xScale = scaleLinear()
 		.domain([0, values.length])
 		.range([0, width - padding.right]);
@@ -31,7 +32,7 @@
 	<svg class={svgClass}>
 		<g>
 		{#each values as val, i}
-			<rect x={xScale(i)} y={yScale(val)} width={barWidth-1} height={yScale(0) - yScale(val)} class={rectClass}></rect>
+			<rect x={xScale(i)} y={yScale(Math.max(val, minVal))} width={barWidth-1} height={yScale(0) - yScale(Math.max(val, minVal))} class={rectClass}></rect>
 			{/each}
 		</g>
 	</svg>

@@ -12,7 +12,7 @@ import numpy as np
 from ..trace import NodeAttr, StatelessGuidanceInput, StatefulGuidanceInput, LiteralInput, EmbeddedInput, \
     RoleOpenerInput, RoleCloserInput, TextOutput, CaptureOutput, TraceHandler
 from ..visual import TraceMessage, AutoRenderer, trace_node_to_str, trace_node_to_html, GuidanceMessage, Renderer
-from ..visual._message import MockMetricMessage, JupyterCellExecutionCompletedMessage
+from ..visual._message import MetricMessage, JupyterCellExecutionCompletedMessage, TokenBatchMessage, GenToken
 
 try:
     from IPython.display import clear_output, display, HTML
@@ -53,26 +53,53 @@ image_pattern = re.compile(r"&lt;\|_image:(.*?)\|&gt;")
 
 # TODO(nopdive): Remove on implementation.
 class MockMetricsGenerator:
-    def __init__(self, renderer: Renderer):
+    def __init__(self, renderer: Renderer, sleep_sec = 0.1):
         from ..visual._async import run_async_task
 
         self._renderer = renderer
+        self._sleep_sec = sleep_sec
         run_async_task(self._emit())
 
     async def _emit(self):
         import asyncio
         import time
+        import random
 
         time_start = time.time()
         while True:
-            await asyncio.sleep(5)
+            await asyncio.sleep(self._sleep_sec)
             time_end = time.time()
             time_elapsed = time_end - time_start
-
-            logger.debug(f"mock:metric:{time_elapsed}")
             self._renderer.update(
-                MockMetricMessage(name='time taken', value=time_elapsed)
+                MetricMessage(name='wall time', value=time_elapsed)
             )
+            self._renderer.update(
+                MetricMessage(name='gpu', value=random.uniform(0, 1))
+            )
+            self._renderer.update(
+                MetricMessage(name='cpu', value=random.uniform(0, 1))
+            )
+            self._renderer.update(
+                MetricMessage(name='ram', value=random.uniform(0, 128))
+            )
+            self._renderer.update(
+                MetricMessage(name='vram', value=random.uniform(0, 24))
+            )
+
+# TODO(nopdive): Remove on implementation.
+class MockPostExecGenerator:
+    def __init__(self, renderer: Renderer):
+        self._renderer = renderer
+
+    def emit_messages(self):
+        import random
+
+        self._renderer.update(MetricMessage(name='avg latency', value=random.uniform(10, 200)))
+        self._renderer.update(MetricMessage(name='consumed', value=random.uniform(0, 100)))
+        self._renderer.update(MetricMessage(name='token reduction', value=random.uniform(0, 100)))
+        self._renderer.update(TokenBatchMessage(tokens=[
+            GenToken(latency_ms=100, token=0, prob=0.5, text="mock", top_k=None)
+        ]))
 
 
 class Engine:
@@ -93,14 +120,17 @@ class Engine:
         self.renderer = AutoRenderer(self.trace_handler)
         self.renderer.subscribe(self._msg_recv)
 
-        # TODO(nopdive): Remove
-        # self.metrics_generator = MockMetricsGenerator(self.renderer)
+        # TODO(nopdive): Remove on implementation.
+        self.metrics_generator = MockMetricsGenerator(self.renderer)
+        self.post_exec_generator = MockPostExecGenerator(self.renderer)
 
     def _msg_recv(self, message: GuidanceMessage) -> None:
         # NOTE(nopdive): This is likely running on a secondary thread.
         logger.debug(f"ENGINE:{message}")
+
         if isinstance(message, JupyterCellExecutionCompletedMessage):
             logger.debug(f"ENGINE:cell executed")
+            self.post_exec_generator.emit_messages()
             self.renderer.update(message)
 
     def get_chat_template(self): # TODO [HN]: Add more logic here...should we instantiate class here? do we even need to?

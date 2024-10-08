@@ -3,10 +3,12 @@ from typing import Optional, Callable
 from pydantic import BaseModel
 from asyncio import Queue
 
-from ._message import JupyterCellExecutionCompletedMessage, deserialize_message, serialize_message
+from ._message import JupyterCellExecutionCompletedMessage, deserialize_message, serialize_message, MetricMessage, \
+    TokenBatchMessage
 from ..trace import TraceHandler
 from ..visual import GuidanceMessage, TraceMessage, ResetDisplayMessage, ClientReadyMessage
 from ._trace import trace_node_to_html
+from ._async import run_async_task, ThreadSafeAsyncCondVar, async_loop
 
 try:
     from IPython.display import clear_output, display, HTML
@@ -61,9 +63,17 @@ class UpdateController:
         self._jupyter_change_detector = JupyterChangeDetector()
         self._messages: list[GuidanceMessage] = []
         self._prev_trace_id: Optional[int] = None
+        self._completed = False
 
     def update(self, message: GuidanceMessage) -> RenderUpdate:
-        if not isinstance(message, TraceMessage):
+        if isinstance(message, MetricMessage) and not self._completed:
+            return RenderUpdate(messages=[message])
+        elif isinstance(message, TokenBatchMessage) and not self._completed:
+            return RenderUpdate(messages=[message])
+        elif isinstance(message, JupyterCellExecutionCompletedMessage):
+            self._completed = True
+            return RenderUpdate()
+        elif not isinstance(message, TraceMessage):
             return RenderUpdate()
 
         trace_node = self._trace_handler[message.trace_id]
@@ -154,9 +164,6 @@ def _create_stitch_widget():
 _create_stitch_widget.src_doc_template = None
 
 
-from ._async import run_async_task, ThreadSafeAsyncCondVar, async_loop
-
-
 class JupyterWidgetRenderer(Renderer):
     def __init__(self, trace_handler: TraceHandler, wait_for_client=True) -> None:
         self._update_controller = UpdateController(trace_handler)
@@ -240,7 +247,7 @@ class JupyterWidgetRenderer(Renderer):
         while True:
             try:
                 value = await self._recv_queue.get()
-                logger.debug(f"RECV:raw:{value}")
+                # logger.debug(f"RECV:raw:{value}")
                 message = deserialize_message(value)
                 logger.debug(f"RECV:msg:{message}")
                 if isinstance(message, ClientReadyMessage):
@@ -292,7 +299,7 @@ class LegacyHtmlRenderer(JupyterWidgetRenderer):
                 clear_output(wait=True)
                 display(HTML(trace_node_to_html(trace_node, prettify_roles=False)))
         elif isinstance(message, JupyterCellExecutionCompletedMessage):
-            logger.debug("renderer:cell executed")
+            logger.debug("RENDERER:cell executed")
         else:
             pass
 
