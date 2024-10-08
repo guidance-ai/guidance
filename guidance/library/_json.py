@@ -407,9 +407,9 @@ class GenJson:
 
         registry: referencing.Registry[JSONSchema] = referencing.Registry()
         resource: referencing.Resource[JSONSchema] = referencing.jsonschema.DRAFT202012.create_resource(schema)
-        root_uri = resource.id() or ""
+        self._base_uri = resource.id() or ""
         registry = registry.with_resource(
-            uri=root_uri,
+            uri=self._base_uri,
             resource=resource
         )
         self._resolver = registry.resolver_with_root(resource)
@@ -422,7 +422,8 @@ class GenJson:
         *,
         reference: str,
     ):
-        if reference not in self._defs:
+        key = self.get_abspath(reference)
+        if key not in self._defs:
             resolved = self._resolver.lookup(reference)
             @guidance(stateless=True, dedent=False, cache=True)
             def closure(lm):
@@ -430,8 +431,18 @@ class GenJson:
                     grammar = self.json(json_schema=resolved.contents)
                 return lm + grammar
 
-            self._defs[reference] = closure
-        return lm + self._defs[reference]()
+            self._defs[key] = closure
+        return lm + self._defs[key]()
+
+    def get_abspath(self, ref):
+        from urllib.parse import urljoin, urldefrag
+        if ref.startswith("#"):
+            uri, fragment = self._base_uri, ref[1:]
+        else:
+            uri, fragment = urldefrag(urljoin(self._base_uri, ref))
+        if fragment:
+            return f"{uri}#{fragment}"
+        return uri
 
     @contextlib.contextmanager
     def resolver_context(self, resolver):
