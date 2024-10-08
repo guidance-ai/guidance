@@ -120,9 +120,8 @@ class TokenParser:
                 elif engine_output.issued_token.token == _tokens[0]:
                     # this is generated
                     response.generated_bytes = self.tokenizer.decode([_tokens[0]])
-                    response.generated_tokens.append(_tokens[0])
                     engine_output.issued_token.is_generated = True
-                    response.associated_generated_tokens.append(engine_output.issued_token)
+                    response.generated_tokens.append(engine_output.issued_token)
                 else:
                     # check if the first byte contains the generated token
                     generated = self.tokenizer.decode([engine_output.issued_token.token]).decode("utf-8")
@@ -132,8 +131,7 @@ class TokenParser:
                         # this is marked as generated
                         # Example: engine generates token "pl" and parser decides to backtrack and generate a new token "plate"
                         response.generated_bytes = self.tokenizer.decode([_tokens[0]])
-                        response.generated_tokens.append(_tokens[0])
-                        response.associated_generated_tokens.append(GenToken(
+                        response.generated_tokens.append(GenToken(
                             token=_tokens[0],
                             prob=1.0,
                             text=response.generated_bytes.decode("utf-8"),
@@ -145,10 +143,8 @@ class TokenParser:
                 
                 if len(_tokens[ff_token_start_idx:]):
                     response.force_forwarded_bytes = self.tokenizer.decode(_tokens[ff_token_start_idx:])
-                    response.force_forwarded_tokens.extend(_tokens[ff_token_start_idx:])
-
                     for _token in _tokens[ff_token_start_idx:]:
-                        response.associated_force_forwarded_tokens.append(GenToken(
+                        response.force_forwarded_tokens.append(GenToken(
                             token=_token,
                             prob=1.0,
                             text=self.tokenizer.decode([_token]).decode("utf-8"),

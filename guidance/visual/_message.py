@@ -31,8 +31,6 @@ class JupyterCellExecutionCompletedMessage(GuidanceMessage):
 class JupyterCellExecutionCompletedOutputMessage(GuidanceMessage):
     trace_id: int
     text: str
-    #tokens: list[int] = []
-    #probs: list[list[BaseGenToken]] = []
     tokens: list[GenToken] = []
 
 

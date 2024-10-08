@@ -131,18 +131,15 @@ class Engine:
             gen_tokens: list[GenToken] = []
             for vis_chunk in vis_chunks:
                 if vis_chunk.is_input:
-                    # tokens.extend(vis_chunk.input_tokens)
-                    for gen_token in vis_chunk.associated_input_tokens:
+                    for gen_token in vis_chunk.input_tokens:
                         tokens.append(gen_token.token)
                         gen_tokens.append(gen_token)
                 else:
-                    #tokens.extend(vis_chunk.generated_tokens)
-                    for gen_token in vis_chunk.associated_generated_tokens:
+                    for gen_token in vis_chunk.generated_tokens:
                         tokens.append(gen_token.token)
                         gen_tokens.append(gen_token)
 
-                    # tokens.extend(vis_chunk.force_forwarded_tokens)
-                    for gen_token in vis_chunk.associated_force_forwarded_tokens:
+                    for gen_token in vis_chunk.force_forwarded_tokens:
                         tokens.append(gen_token.token)
                         gen_tokens.append(gen_token)
 
@@ -735,8 +732,7 @@ class Model:
                     bytes=_bytes,
                     is_input=True,
                     input_bytes=_bytes,
-                    input_tokens=_tokens,
-                    associated_input_tokens=[
+                    input_tokens=[
                         GenToken(
                             token=_token,
                             prob=1.0,
@@ -1019,7 +1015,7 @@ class Model:
                             is_generated=True,
                             token_count=0,
                             prob=0.0,
-                            tokens=chunk.generated_tokens,
+                            tokens=[_gen_token.token for _gen_token in chunk.generated_tokens],
                         )
                     
                     if chunk.force_forwarded_bytes:
@@ -1028,7 +1024,7 @@ class Model:
                             is_force_forwarded=True,
                             token_count=0,
                             prob=0.0,
-                            tokens=chunk.force_forwarded_tokens,
+                            tokens=[_gen_token.token for _gen_token in chunk.force_forwarded_tokens],
                         )
                     
                     new_lm_created = True
@@ -1041,19 +1037,15 @@ class Model:
                         is_input=False,
                         generated_bytes=chunk.generated_bytes,
                         generated_tokens=chunk.generated_tokens,
-                        associated_generated_tokens=chunk.associated_generated_tokens,
                         force_forwarded_bytes=chunk.force_forwarded_bytes,
                         force_forwarded_tokens=chunk.force_forwarded_tokens,
-                        associated_force_forwarded_tokens=chunk.associated_force_forwarded_tokens,
                         backtrack=chunk.backtrack,
                     )
                 else:
                     # append to existing VisBytesChunk
                     lm.vis_chunk.bytes += chunk.new_bytes
                     lm.vis_chunk.generated_bytes += chunk.generated_bytes
-                    lm.vis_chunk.generated_tokens += chunk.generated_tokens
                     lm.vis_chunk.force_forwarded_bytes += chunk.force_forwarded_bytes
-                    lm.vis_chunk.force_forwarded_tokens += chunk.force_forwarded_tokens
                     lm.vis_chunk.backtrack += chunk.backtrack
 
                 # last_is_generated = chunk.is_generated
