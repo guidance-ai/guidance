@@ -1,4 +1,4 @@
-import { writable } from 'svelte/store';
+import {writable} from 'svelte/store';
 
 export interface NodeAttr {
     class_name: string
@@ -64,6 +64,26 @@ export interface StitchMessage {
     content: any
 }
 
+export function isTraceMessage(o: NodeAttr | undefined): o is TraceMessage {
+    if (o === undefined) return false;
+    return o.class_name === "TraceMessage";
+}
+
+export function isRoleOpenerInput(o: NodeAttr | undefined): o is RoleOpenerInput {
+    if (o === undefined) return false;
+    return o.class_name === "RoleOpenerInput";
+}
+
+export function isRoleCloserInput(o: NodeAttr | undefined): o is RoleOpenerInput {
+    if (o === undefined) return false;
+    return o.class_name === "RoleCloserInput";
+}
+
+export function isTextOutput(o: NodeAttr | undefined): o is TextOutput {
+    if (o === undefined) return false;
+    return o.class_name === "TextOutput";
+}
 
 export const kernelmsg = writable<StitchMessage | undefined>(undefined);
 export const clientmsg = writable<StitchMessage | undefined>(undefined);
+

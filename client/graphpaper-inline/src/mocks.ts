@@ -13,7 +13,7 @@ const textToNodeAttrs = (texts: Array<string>) => {
             const roleOpenerInput: RoleOpenerInput = {
                 class_name: 'RoleOpenerInput',
                 name: 'system',
-                text: "<|system|>\n",
+                text: "<|system|>",
             }
             activeRole = 'system';
             results.push(roleOpenerInput);
@@ -21,7 +21,7 @@ const textToNodeAttrs = (texts: Array<string>) => {
             const roleOpenerInput: RoleOpenerInput = {
                 class_name: 'RoleOpenerInput',
                 name: 'assistant',
-                text: "<|assistant|>\n",
+                text: "<|assistant|>",
             }
             activeRole = 'user';
             results.push(roleOpenerInput);
@@ -29,7 +29,7 @@ const textToNodeAttrs = (texts: Array<string>) => {
             const roleOpenerInput: RoleOpenerInput = {
                 class_name: 'RoleOpenerInput',
                 name: 'user',
-                text: "<|user|>\n",
+                text: "<|user|>",
             }
             activeRole = 'user';
             results.push(roleOpenerInput);
@@ -40,7 +40,7 @@ const textToNodeAttrs = (texts: Array<string>) => {
             const roleCloserInput: RoleCloserInput = {
                 class_name: 'RoleCloserInput',
                 name: activeRole,
-                text: "<|end|>\n",
+                text: "<|end|>",
             }
             activeRole = undefined;
             results.push(roleCloserInput);
@@ -70,4 +70,4 @@ text += " <|end|>\n"
 // text += "A language model is a probabilistic model of a natural language.[1]\nIn 1980, the first significant statistical language model was proposed, and during the decade IBM performed Shannon-style experiments, in which potential sources for language modeling improvement were identified by observing and analyzing the performance of human subjects in predicting or correcting text.[2]  Language models are useful for a variety of tasks, including speech recognition[3] (helping prevent predictions of low-probability (e.g. nonsense) sequences), machine translation,[4] natural language generation (generating more human-like text), optical character recognition, handwriting recognition,[5] grammar induction,[6] and information retrieval.[7][8]  Large language models, currently their most advanced form, are a combination of larger datasets (frequently using words scraped from the public internet), feedforward neural networks, and transformers. They have superseded recurrent neural network-based models, which had previously superseded the pure statistical models, such as word n-gram language model.";
 // text += " <|end|>\n <|endoftext|>"
 
-export let mockTokens = textToNodeAttrs(text.match(/(\s+|\S+)/g) || []);
+export let mockTokens = textToNodeAttrs(text.match(/([\S]+|[\s]+)/g) || []);

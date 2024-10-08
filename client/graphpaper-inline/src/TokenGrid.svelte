@@ -1,110 +1,85 @@
 <script lang="ts">
-    import { scaleSequential } from 'd3-scale';
-    import { interpolateSpectral } from 'd3-scale-chromatic';
-    import {type NodeAttr, type TextOutput} from './stitch';
+    import {isRoleOpenerInput, isTextOutput, type NodeAttr, type RoleOpenerInput} from './stitch';
+    import TokenGridItem from "./TokenGridItem.svelte";
 
-    export let nodeAttrs: Array<NodeAttr> = [];
-    // let specialTokens: Array<string> = [];
-    // $: {
-    //     for (let nodeAttr of nodeAttrs) {
-    //     }
-    // }
+    interface Token {
+        value: string,
+        prob: number,
+        role: string,
+        special: boolean,
+    }
 
-    const color = (x: number) => {
-        return scaleSequential(interpolateSpectral)(1.0 - x)
-    };
-    const imagePattern = /<-img:(.*)->/;
+    export let nodeAttrs: Array<NodeAttr>;
+    export let isCompleted: boolean = false;
+
+    let tokens: Array<Token> = [];
+
+    $: {
+        let activeOpenerRoles: Array<RoleOpenerInput> = [];
+        for (let nodeAttr of nodeAttrs) {
+            console.log(nodeAttr);
+            if (isRoleOpenerInput(nodeAttr)) {
+                activeOpenerRoles.push(nodeAttr);
+            } else if (isTextOutput(nodeAttr)) {
+                if (activeOpenerRoles.length === 0) {
+                    const token = {value: nodeAttr.value, prob: 1, role: "", special: false};
+                    tokens.push(token);
+                } else {
+                    const activeOpenerRole = activeOpenerRoles[activeOpenerRoles.length - 1];
+                    if (activeOpenerRole.text && activeOpenerRole.text !== nodeAttr.value) {
+                        console.log(`Active role text does not match next text output: ${activeOpenerRole.text} - ${nodeAttr.value}`)
+                    }
+                    const token = {value: nodeAttr.value, prob: 1, role: activeOpenerRole.name || "", special: true};
+                    tokens.push(token);
+                    activeOpenerRoles.pop();
+                }
+            }
+        }
+    }
 </script>
 
 <div class="pt-6 pb-6 flex text-gray-800 font-token">
     <!-- Tokens view -->
     <div class="px-4">
         <span class="flex flex-wrap text-sm">
-            {#each nodeAttrs as nodeAttr, i}
-                {#if nodeAttr.class_name === 'RoleOpenerInput'}
-                    <!--{#if i === 0}-->
-                    <!--    <div class="basis-full h-2"></div>-->
-                    <!--{:else}-->
-                    <!--    &lt;!&ndash; Gap between messages &ndash;&gt;-->
-                    <!--    {#each {length: 2} as _, i}-->
-                    <!--        <div class="basis-full h-0"></div>-->
-                    <!--        <span class="inline-block">&nbsp;</span>-->
-                    <!--    {/each}-->
-                    <!--    <div class="basis-full h-0"></div>-->
-                    <!--{/if}-->
-                    <!--<span class="inline-block relative">-->
-                    <!--    <span class="absolute bottom-7 text-xs mt-2 uppercase -mb-1 text-purple-800 font-sans">-->
-                    <!--        {nodeAttr.name}-->
-                    <!--    </span>-->
-                    <!--    <span class={`inline-block text-gray-300 mt-2 border-b-2 hover:bg-gray-300 hover:text-gray-700`}>-->
-                    <!--        &nbsp;-->
-                    <!--    </span>-->
-                    <!--</span>-->
-                    <!-- Do nothing -->
-                {:else if nodeAttr.class_name === 'RoleCloserInput'}
-                    <!-- Do nothing -->
-                {:else if nodeAttr.class_name === 'TextOutput'}
-                    {#if nodeAttr.value.match(imagePattern)}
-                        <span class="pb-1 inline-block mt-2 border-b-2 hover:bg-gray-300 hover:brightness-75" style={`border-bottom-color: ${color(nodeAttr.prob)}`}>
-                            <img src={`data:image/jpeg;base64,${nodeAttr.value.match(imagePattern)?.[1] || ""}`} alt="inlined img"/>
-                        </span>
-                    <!--{:else if token.is_special == 1.0}-->
-                    <!--    {#if token.role !== ""}-->
-                    <!--        {#if i == 0}-->
-                    <!--            <div class="basis-full h-2"></div>-->
-                    <!--        {:else}-->
-                    <!--            &lt;!&ndash; Gap between messages &ndash;&gt;-->
-                    <!--            {#each {length: 2} as _, i}-->
-                    <!--                <div class="basis-full h-0"></div>-->
-                    <!--                <span class="inline-block">&nbsp;</span>-->
-                    <!--            {/each}-->
-                    <!--            <div class="basis-full h-0"></div>-->
-                    <!--        {/if}-->
-                    <!--        <span class="inline-block relative">-->
-                    <!--            <span class="absolute bottom-7 text-xs mt-2 uppercase -mb-1 text-purple-800 font-sans">-->
-                    <!--                {token.role}-->
-                    <!--            </span>-->
+            {#each tokens as token, i}
+                {#if token.special === true}
+                    {#if token.role !== ""}
+                        <!-- Vertical spacing for role -->
+                        {#if i === 0}
+                            <div class="basis-full h-2"></div>
+                        {:else}
+                            {#each {length: 2} as _}
+                                <div class="basis-full h-0"></div>
+                                <span class="inline-block">&nbsp;</span>
+                            {/each}
+                            <div class="basis-full h-0"></div>
+                        {/if}
 
-                    <!--            <span class={`inline-block text-gray-300 mt-2 border-b-2 hover:bg-gray-300 hover:text-gray-700`} style={`border-bottom-color: ${color(token.prob)}`}>-->
-                    <!--                {token.value}-->
-                    <!--            </span>-->
-                    <!--        </span>-->
-                    <!--    {:else}-->
-                    <!--        <div class="basis-full h-0"></div>-->
-                    <!--        <span class="inline-block relative">-->
-                    <!--            <span class={`inline-block text-gray-300 mt-2 border-b-2 hover:bg-gray-300 hover:text-gray-700`} style={`border-bottom-color: ${color(token.prob)}`}>-->
-                    <!--                {token.value}-->
-                    <!--            </span>-->
-                    <!--        </span>-->
-                    <!--    {/if}-->
+                        <!-- Token with role annotation -->
+                        <span class="inline-block relative">
+                            <span class="absolute bottom-7 text-xs mt-2 uppercase -mb-1 text-purple-800 font-sans">
+                                {token.role}
+                            </span>
+                            <TokenGridItem token={token} />
+                        </span>
                     {:else}
-                        <!-- Regular tokens -->
-                        {#each nodeAttr.value as ch}
-                            {#if ch === ' '}
-                                <span class={`inline-block mt-2 text-gray-300 border-b-2 hover:bg-gray-300 hover:text-gray-700`} style={`border-bottom-color: ${color(nodeAttr.prob)}`}>
-                                    &nbsp;
-                                </span>
-                            {:else if ch === '\t'}
-                                <span class={`inline-block mt-2 text-gray-300 border-b-2 hover:bg-gray-300 hover:text-gray-700`} style={`border-bottom-color: ${color(nodeAttr.prob)}`}>
-                                    \t&nbsp;&nbsp;
-                                </span>
-                            {:else if ch === '\n'}
-                                <span class={`inline-block mt-2 text-gray-300 border-b-2 hover:bg-gray-300 hover:text-gray-700`} style={`border-bottom-color: ${color(nodeAttr.prob)}`}>
-                                    \n
-                                </span>
-                                <div class="basis-full h-full"></div>
-                            {:else}
-                                <span class={`inline-block mt-2 border-b-2 hover:bg-gray-300`} style={`border-bottom-color: ${color(nodeAttr.prob)}`}>
-                                    {ch}
-                                </span>
-                            {/if}
-                        {/each}
+                        <!-- Token without role annotation -->
+                        <div class="basis-full h-0"></div>
+                        <span class="inline-block relative">
+                            <TokenGridItem token={token} />
+                        </span>
                     {/if}
+                {:else if token.special === false}
+                    <!-- Regular token -->
+                    <TokenGridItem token={token} />
                 {/if}
             {/each}
-
-            <span class="inline-block mt-2 border-b-2 border-white bg-gray-700 animate-cpulse">
-            </span>
+            {#if isCompleted === false}
+                <span class="inline-block mt-2 border-b-2 border-white bg-gray-700 animate-cpulse">
+                    &nbsp;
+                </span>
+            {/if}
         </span>
     </div>
 </div>

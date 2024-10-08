@@ -2,7 +2,14 @@
     import './main.css';
     import TokenGrid from './TokenGrid.svelte';
     import ResizeListener from './ResizeListener.svelte';
-	import {kernelmsg, clientmsg, type TextOutput, type StitchMessage, type NodeAttr} from './stitch';
+	import {
+		kernelmsg,
+		clientmsg,
+		type StitchMessage,
+		type NodeAttr,
+		isTraceMessage,
+		isTextOutput, isRoleOpenerInput, isRoleCloserInput
+	} from './stitch';
     import StitchHandler from './StitchHandler.svelte';
 	import {onMount} from "svelte";
 	import MetricCard, {type MetricDef, type MetricVal} from "./MetricCard.svelte";
@@ -15,12 +22,12 @@
 	$: if ($kernelmsg !== undefined) {
 		if ($kernelmsg.content !== '') {
 			msg = JSON.parse($kernelmsg.content);
-			if (msg.class_name === "TraceMessage") {
-				if (msg.node_attr?.class_name === "TextOutput") {
+			if (isTraceMessage(msg)) {
+				if (isTextOutput(msg.node_attr)) {
 					nodeAttrs.push(msg.node_attr);
-				} else if (msg.node_attr?.class_name === "RoleOpenerInput") {
+				} else if (isRoleOpenerInput(msg.node_attr)) {
 					nodeAttrs.push(msg.node_attr)
-				} else if (msg.node_attr?.class_name === "RoleCloserInput") {
+				} else if (isRoleCloserInput(msg.node_attr)) {
 					nodeAttrs.push(msg.node_attr)
 				}
 			} else if (msg.class_name === "TokenBatchMessage") {
@@ -156,6 +163,6 @@
 	</nav>
 	<!-- Content pane -->
 	<section class="w-full">
-		<TokenGrid nodeAttrs={nodeAttrs}/>
+		<TokenGrid nodeAttrs={nodeAttrs} isCompleted={completedExecution}/>
 	</section>
 </div>
