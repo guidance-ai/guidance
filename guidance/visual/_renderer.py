@@ -3,8 +3,7 @@ from typing import Optional, Callable
 from pydantic import BaseModel
 from asyncio import Queue
 
-from ._message import JupyterCellExecutionCompletedMessage, deserialize_message, serialize_message, MetricMessage, \
-    TokenBatchMessage
+from ._message import JupyterCellExecutionCompletedMessage, JupyterCellExecutionCompletedOutputMessage, deserialize_message, serialize_message
 from ..trace import TraceHandler
 from ..visual import GuidanceMessage, TraceMessage, ResetDisplayMessage, ClientReadyMessage
 from ._trace import trace_node_to_html
@@ -18,12 +17,13 @@ try:
 except ImportError:
     ipython_imported = False
 
-try:
-    import stitch
+# try:
+#     import stitch
 
-    stitch_installed = True
-except ImportError:
-    stitch_installed = False
+#     stitch_installed = True
+# except ImportError:
+#     stitch_installed = False
+stitch_installed = False
 
 logger = logging.getLogger(__name__)
 
@@ -292,12 +292,16 @@ class LegacyHtmlRenderer(JupyterWidgetRenderer):
         # Handle Jupyter cell completion
         self._handle_jupyter_cell_completion()
 
-        if isinstance(message, TraceMessage):
+        if isinstance(message, TraceMessage) or isinstance(message, JupyterCellExecutionCompletedOutputMessage):
+            complete_msg = None
+            if isinstance(message, JupyterCellExecutionCompletedOutputMessage):
+                complete_msg = message
+
             trace_node = self._trace_handler[message.trace_id]
             self._last_trace_id = message.trace_id
             if trace_node is not None:
                 clear_output(wait=True)
-                display(HTML(trace_node_to_html(trace_node, prettify_roles=False)))
+                display(HTML(trace_node_to_html(trace_node, prettify_roles=False, complete_msg=complete_msg)))
         elif isinstance(message, JupyterCellExecutionCompletedMessage):
             logger.debug("RENDERER:cell executed")
         else:
@@ -305,8 +309,8 @@ class LegacyHtmlRenderer(JupyterWidgetRenderer):
 
 
 class AutoRenderer(Renderer):
-    def __init__(self, trace_handler: TraceHandler):
-        if stitch_installed:
+    def __init__(self, trace_handler: TraceHandler, use_legacy_renderer=False):
+        if not use_legacy_renderer and stitch_installed:
             self._renderer = JupyterWidgetRenderer(trace_handler=trace_handler)
         else:
             self._renderer = LegacyHtmlRenderer(trace_handler=trace_handler)

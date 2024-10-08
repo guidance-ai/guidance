@@ -5,6 +5,8 @@ import warnings
 
 from typing import Sequence, Union
 
+from guidance._schema import BaseGenToken
+
 try:
     import torch
 except ModuleNotFoundError:
@@ -514,6 +516,59 @@ class TransformersEngine(Engine):
             self.metrics.engine_output_tokens += 1
 
         return self._cached_logits
+    
+    def get_token_probs(self, token_ids: list[int], top_k: int = 5) -> list[list[BaseGenToken]]:
+        tokenizer = self.tokenizer._orig_tokenizer
+
+        # NOTE (loc) - assume batch size of 1
+        input_ids = torch.tensor(token_ids).unsqueeze(0).long().to(self.device)
+
+        outputs = self.model_obj(input_ids)
+        probs = torch.softmax(outputs.logits, dim=-1).detach()
+
+        # append "1" to probs to account for the 1st token in the input_ids
+        probs = torch.cat([torch.ones_like(probs[:, :1, :]), probs], dim=1)
+
+        # collect the probability of the generated token
+        probs = probs[:, :-1, :]
+
+        batch = []
+        for input_sentence, input_probs in zip(input_ids, probs):
+            text_sequence = []
+
+            for _token_id, _probs in zip(input_sentence, input_probs):
+                _token = tokenizer.decode(_token_id)
+
+                if len(text_sequence) == 0:
+                    text_sequence.append(
+                        [BaseGenToken(
+                            token=_token_id.item(),
+                            prob=1.0,
+                            text=tokenizer.decode([_token_id])
+                        )]
+                    )
+                    continue
+
+                # get the top k indices
+                top_k_indices = torch.topk(_probs, top_k).indices.tolist()
+                if _token_id not in top_k_indices:
+                    top_k_indices.append(_token_id.item())
+
+                top_k_probs = [_probs[i].item() for i in top_k_indices]
+                top_k_list = []
+                for t, p in zip(top_k_indices, top_k_probs):
+                    top_k_list.append(
+                        BaseGenToken(
+                            token=t,
+                            prob=p,
+                            text=tokenizer.decode([t])
+                        )
+                    )
+                text_sequence.append(top_k_list)
+
+            batch.append(text_sequence)
+
+        return batch[0]
 
 
 class Transformers(Model):

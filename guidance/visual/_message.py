@@ -1,5 +1,7 @@
 from typing import Optional, Dict, Union
 from pydantic import BaseModel
+
+from guidance._schema import BaseGenToken, GenToken
 from ..trace import NodeAttr
 import json
 
@@ -24,28 +26,18 @@ class MetricMessage(GuidanceMessage):
 
 
 # TODO(nopdive): Replace with implementation.
-class BaseGenToken(BaseModel):
-    token: int
-    prob: float
-    text: str
-    top_k: Optional[list["GenToken"]]
-
-
-# TODO(nopdive): Replace with implementation.
-class GenToken(BaseGenToken):
-    latency_ms: float
-    is_generated: bool = False
-    is_force_forwarded: bool = False
-    is_input: bool = False
-
-
-# TODO(nopdive): Replace with implementation.
 class TokenBatchMessage(GuidanceMessage):
     tokens: list[GenToken]
 
 
 class JupyterCellExecutionCompletedMessage(GuidanceMessage):
     last_trace_id: Optional[int]
+
+
+class JupyterCellExecutionCompletedOutputMessage(GuidanceMessage):
+    trace_id: int
+    text: str
+    tokens: list[GenToken] = []
 
 
 class ResetDisplayMessage(GuidanceMessage):

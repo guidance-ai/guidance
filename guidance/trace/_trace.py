@@ -7,6 +7,8 @@ from itertools import count
 from typing import Any, Optional, Generator, Dict
 
 from pydantic import BaseModel, Field
+
+from guidance._schema import GenToken
 from .._utils import pydantic_no_default_repr, pydantic_no_default_str
 
 
@@ -100,14 +102,17 @@ class TextOutput(OutputAttr):
     """Text string."""
 
     value: str
+    is_input: bool = False
     is_generated: bool = False
+    is_force_forwarded: bool = False
     token_count: int = 0
     prob: float = 0.0
+    tokens: list[GenToken] = [] # use to store tokens associated with the output
 
     def __str__(self):
         return self.value
 
-
+  
 # NOTE(nopdive): Placeholder, needs to be filled once multimodal PR is in.
 class ImageOutput(OutputAttr):
     """Image as bytes."""

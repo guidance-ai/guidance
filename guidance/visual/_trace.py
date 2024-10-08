@@ -1,5 +1,8 @@
 import base64
+import json
 from typing import Optional, Dict
+
+from guidance.visual._message import JupyterCellExecutionCompletedOutputMessage
 
 from ..trace import (
     TextOutput,
@@ -15,7 +18,7 @@ span_start = "<span style='background-color: rgba(255, 180, 0, 0.3); border-radi
 span_end = "</span>"
 
 
-def trace_node_to_html(node: TraceNode, prettify_roles=False) -> str:
+def trace_node_to_html(node: TraceNode, prettify_roles=False, complete_msg: JupyterCellExecutionCompletedOutputMessage=None) -> str:
     """Represents trace path as html string.
 
     Args:
@@ -28,6 +31,13 @@ def trace_node_to_html(node: TraceNode, prettify_roles=False) -> str:
     buffer = []
     node_path = list(node.path())
     active_role: Optional[TraceNode] = None
+
+    prob_idx = 0
+    remaining_text = ""
+    full_text = ""
+    if complete_msg:
+        for token in complete_msg.tokens:
+            full_text += token.text
 
     for i, node in enumerate(node_path):
         if isinstance(node.input, RoleOpenerInput):
@@ -46,10 +56,47 @@ def trace_node_to_html(node: TraceNode, prettify_roles=False) -> str:
 
             if not (active_role and prettify_roles):
                 attr = node.output
-                if attr.is_generated:
-                    fmt = f"<span style='background-color: rgba({165 * (1 - attr.prob)}, {165 * attr.prob}, 0, 0.15); border-radius: 3ps;' title='{attr.prob}'>{html.escape(attr.value)}</span>"
+
+                fmt = ""
+                if not complete_msg:
+                    if attr.is_generated:
+                        # fmt = f"<span style='background-color: rgba({165 * (1 - attr.prob)}, {165 * attr.prob}, 0, 0.15); border-radius: 3ps;' title='{attr.prob}'>{html.escape(attr.value)}</span>"
+                        fmt = f"<span style='background-color: rgba({0}, {255}, {0}, 0.15); border-radius: 3ps;' title='{attr.prob}'>{html.escape(attr.value)}</span>"
+                    elif attr.is_force_forwarded:
+                        fmt = f"<span style='background-color: rgba({0}, {0}, {255}, 0.15); border-radius: 3ps;' title='{attr.prob}'>{html.escape(attr.value)}</span>"
+                    else:
+                        # fmt = f"{html.escape(attr.value)}"
+                        fmt += f"<span style='background-color: rgba({255}, {255}, {255}, 0.15); border-radius: 3ps;' title='{attr.prob}'>{html.escape(attr.value)}</span>"
                 else:
-                    fmt = f"{html.escape(attr.value)}"
+                    # switch to token-based
+                    cell_tokens = attr.tokens
+                    for token in cell_tokens:                       
+                        # assert token.token == complete_msg.tokens[prob_idx].token, f"Token mismatch {token.token} != {complete_msg.tokens[prob_idx].token}"
+                        if token.token != complete_msg.tokens[prob_idx].token:
+                            if remaining_text + token.text != complete_msg.tokens[prob_idx].text:
+                                remaining_text += token.text
+                                continue
+                            else:
+                                remaining_text = ""
+
+                        token_str = complete_msg.tokens[prob_idx].text
+                        prob = complete_msg.tokens[prob_idx].prob
+                        top_k = {}
+                        # find the correct token
+                        for _item in complete_msg.tokens[prob_idx].top_k:
+                            top_k[f"{_item.text}"] = f"{_item.prob}"
+                        top_k = json.dumps(top_k, indent=2)
+
+                        if attr.is_generated:
+                            fmt += f"<span style='background-color: rgba({0}, {127 + int(127 * prob)}, {0}, 0.15); border-radius: 3ps;' title='\"{token_str}\" : {prob}\n{top_k}'>{html.escape(token_str)}</span>"
+                        elif attr.is_force_forwarded:
+                            fmt += f"<span style='background-color: rgba({0}, {0}, {127 + int(127 * prob)}, 0.15); border-radius: 3ps;' title='\"{token_str}\" : {prob}\n{top_k}'>{html.escape(token_str)}</span>"
+                        else:
+                            fmt += f"<span style='background-color: rgba({255}, {255}, {255}, 0.15); border-radius: 3ps;' title='\"{token_str}\" : {prob}\n{top_k}'>{html.escape(token_str)}</span>"
+
+                        full_text = full_text[len(token_str):]
+                        prob_idx += 1
+                    pass
                 buffer.append(fmt)
 
             if active_role is not None:
