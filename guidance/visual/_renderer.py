@@ -3,11 +3,13 @@ from typing import Optional, Callable
 from pydantic import BaseModel
 from asyncio import Queue
 
-from ._message import JupyterCellExecutionCompletedMessage, JupyterCellExecutionCompletedOutputMessage, deserialize_message, serialize_message
+from ._message import JupyterCellExecutionCompletedMessage, JupyterCellExecutionCompletedOutputMessage, \
+    deserialize_message, serialize_message, MetricMessage
 from ..trace import TraceHandler
 from ..visual import GuidanceMessage, TraceMessage, ResetDisplayMessage, ClientReadyMessage
 from ._trace import trace_node_to_html
 from ._async import run_async_task, ThreadSafeAsyncCondVar, async_loop
+
 
 try:
     from IPython.display import clear_output, display, HTML
@@ -17,13 +19,13 @@ try:
 except ImportError:
     ipython_imported = False
 
-# try:
-#     import stitch
 
-#     stitch_installed = True
-# except ImportError:
-#     stitch_installed = False
-stitch_installed = False
+try:
+    import stitch
+
+    stitch_installed = True
+except ImportError:
+    stitch_installed = False
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +70,7 @@ class UpdateController:
     def update(self, message: GuidanceMessage) -> RenderUpdate:
         if isinstance(message, MetricMessage) and not self._completed:
             return RenderUpdate(messages=[message])
-        elif isinstance(message, TokenBatchMessage) and not self._completed:
+        elif isinstance(message, JupyterCellExecutionCompletedOutputMessage) and not self._completed:
             return RenderUpdate(messages=[message])
         elif isinstance(message, JupyterCellExecutionCompletedMessage):
             self._completed = True
@@ -315,7 +317,6 @@ class AutoRenderer(Renderer):
         else:
             self._renderer = LegacyHtmlRenderer(trace_handler=trace_handler)
 
-        # self._renderer = LegacyHtmlRenderer(trace_handler=trace_handler)
         super().__init__()
 
     def notify(self, message: GuidanceMessage):

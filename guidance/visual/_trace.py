@@ -24,6 +24,7 @@ def trace_node_to_html(node: TraceNode, prettify_roles=False, complete_msg: Jupy
     Args:
         node: Trace node that designates the end of a trace path for HTML output.
         prettify_roles: Enables prettier formatting for roles.
+        complete_msg: Output message received on completion of engine.
 
     Returns:
         HTML string of trace path as html.

@@ -107,7 +107,7 @@ class TextOutput(OutputAttr):
     is_force_forwarded: bool = False
     token_count: int = 0
     prob: float = 0.0
-    tokens: list[GenToken] = [] # use to store tokens associated with the output
+    tokens: list[GenToken] = Field(exclude=True, default_factory=list)  # use to store tokens associated with output
 
     def __str__(self):
         return self.value

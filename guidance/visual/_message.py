@@ -1,7 +1,7 @@
 from typing import Optional, Dict, Union
 from pydantic import BaseModel
 
-from guidance._schema import BaseGenToken, GenToken
+from guidance._schema import GenToken
 from ..trace import NodeAttr
 import json
 
@@ -51,6 +51,7 @@ class ClientReadyMessage(GuidanceMessage):
 model_registry: Dict[str, type(GuidanceMessage)] = {
     'TraceMessage': TraceMessage,
     'JupyterCellExecutionCompleted': JupyterCellExecutionCompletedMessage,
+    'JupyterCellExecutionCompletedOutputMessage': JupyterCellExecutionCompletedOutputMessage,
     'ResetDisplayMessage': ResetDisplayMessage,
     'ClientReadyMessage': ClientReadyMessage,
     'MetricMessage': MetricMessage,

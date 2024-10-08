@@ -10,13 +10,11 @@ from typing import Iterator, Optional, TYPE_CHECKING
 
 import numpy as np
 
-from guidance.visual._message import JupyterCellExecutionCompletedMessage
-
 from ..trace import NodeAttr, StatelessGuidanceInput, StatefulGuidanceInput, LiteralInput, EmbeddedInput, \
     RoleOpenerInput, RoleCloserInput, TextOutput, CaptureOutput, TraceHandler
 from ..visual import TraceMessage, AutoRenderer, trace_node_to_str, trace_node_to_html, GuidanceMessage, Renderer
-from ..visual._message import MetricMessage, JupyterCellExecutionCompletedMessage, TokenBatchMessage, JupyterCellExecutionCompletedOutputMessage, MetricMessage
-from .._schema import GenToken
+from ..visual._message import JupyterCellExecutionCompletedMessage, JupyterCellExecutionCompletedOutputMessage, \
+    MetricMessage, TokenBatchMessage
 
 try:
     from IPython.display import clear_output, display, HTML
@@ -90,7 +88,8 @@ class MockMetricsGenerator:
                 MetricMessage(name='vram', value=random.uniform(0, 24))
             )
 
-# TODO(nopdive): Remove on implementation.
+
+# # TODO(nopdive): Remove on implementation.
 class MockPostExecGenerator:
     def __init__(self, renderer: Renderer):
         self._renderer = renderer
@@ -121,7 +120,7 @@ class Engine:
         self.metrics = GuidanceEngineMetrics()
 
         self.trace_handler = TraceHandler()
-        self.renderer = AutoRenderer(self.trace_handler,  use_legacy_renderer=kwargs.get("use_legacy_renderer", True))
+        self.renderer = AutoRenderer(self.trace_handler, use_legacy_renderer=kwargs.get("use_legacy_renderer", True))
         self.renderer.subscribe(self._msg_recv)
         self.model_dict: dict[int, Model] = {}
 
@@ -235,7 +234,7 @@ class Engine:
                     assert next_gen_token.token == merged_tokens[0], f"Expected next_gen_token token to be {merged_tokens[0]}, got {next_gen_token.token}"
 
             final_text = "".join([gen_token.text for gen_token in processed_gen_tokens])
-            print(final_text)
+            logger.debug(f"ENGINE:final_text:{final_text}")
 
             self.renderer.update(JupyterCellExecutionCompletedOutputMessage(
                 trace_id=message.last_trace_id,
