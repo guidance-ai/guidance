@@ -16,6 +16,7 @@ from typing import (
 import warnings
 import referencing
 import contextlib
+from urllib.parse import urljoin, urldefrag
 
 try:
     import jsonschema
@@ -445,7 +446,6 @@ class GenJson:
         Convert a reference to an absolute path, resolving it against the base URI if necessary.
         This will allow us to get a unique key for each reference and hit the _defs cache correctly.
         """
-        from urllib.parse import urljoin, urldefrag
         if ref.startswith("#"):
             uri, fragment = self._base_uri, ref[1:]
         else:
