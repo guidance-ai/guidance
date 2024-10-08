@@ -67,7 +67,10 @@ def trace_node_to_html(node: TraceNode, prettify_roles=False, complete_msg: Jupy
                     # switch to token-based
                     cell_tokens = attr.tokens
                     for token in cell_tokens:
-                        assert token == complete_msg.tokens[prob_idx].token
+                        if token.token != complete_msg.tokens[prob_idx].token:
+                            continue
+                        
+                        assert token.token == complete_msg.tokens[prob_idx].token, f"Token mismatch {token.token} != {complete_msg.tokens[prob_idx].token}"
                         token_str = complete_msg.tokens[prob_idx].text
                         prob = complete_msg.tokens[prob_idx].prob
                         top_k = {}

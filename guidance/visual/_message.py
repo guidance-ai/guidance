@@ -28,6 +28,7 @@ class MockMetricMessage(GuidanceMessage):
 class JupyterCellExecutionCompletedMessage(GuidanceMessage):
     last_trace_id: Optional[int]
 
+
 class JupyterCellExecutionCompletedOutputMessage(GuidanceMessage):
     trace_id: int
     text: str

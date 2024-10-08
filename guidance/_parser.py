@@ -70,9 +70,10 @@ class TokenParser:
             self._done = True
             return None, e.value
 
-    def _process_prompt(self, prompt: bytes, ensure_bos_token: bool) -> list[int]:
+    def _process_prompt(self, prompt: bytes, ensure_bos_token: bool) -> Tuple[list[int], int]:
+        _prompt_tokens = self.tokenizer.encode(prompt)
         prompt_tokens = self.ll_interpreter.process_prompt(
-            self.tokenizer.encode(prompt)
+            _prompt_tokens
         )
         if (
             ensure_bos_token
@@ -82,7 +83,8 @@ class TokenParser:
             # add the beginning of sequence token if needed
             prompt_tokens = [self.tokenizer.bos_token_id] + prompt_tokens
 
-        return self.tokenizer.recode(prompt_tokens)
+        prompt_tokens = self.tokenizer.recode(prompt_tokens)
+        return prompt_tokens, abs(len(_prompt_tokens) - len(prompt_tokens))
 
 
     def _parse(
@@ -90,10 +92,9 @@ class TokenParser:
         prompt: bytes,
         ensure_bos_token: bool,
     ) -> Generator[Tuple[Optional[GenData], EngineCallResponse], Optional[EngineOutput], EngineCallResponse]:
-        tokens = self._process_prompt(prompt=prompt, ensure_bos_token=ensure_bos_token)
+        tokens, backtrack = self._process_prompt(prompt=prompt, ensure_bos_token=ensure_bos_token)
 
         engine_output = None
-        backtrack = 0
         ff_tokens = []
 
         while True:
@@ -112,7 +113,8 @@ class TokenParser:
             #         response.force_forwarded_bytes = self.tokenizer.decode(ff_tokens[1:])
 
             if response.new_bytes:
-                _tokens = self.tokenizer.encode(response.new_bytes)
+                # _tokens = self.tokenizer.encode(response.new_bytes)
+                _tokens = ff_tokens
 
                 ff_token_start_idx = 1
                 if engine_output is None:
@@ -180,6 +182,7 @@ class TokenParser:
             if backtrack:
                 tokens = tokens[:-backtrack]
             tokens = tokens + ff_tokens
+            backtrack = 0
 
         stop_reason = self.ll_interpreter.stop_reason()
         if stop_reason not in {"NoExtension", "EndOfSentence"}:

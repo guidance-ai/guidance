@@ -464,6 +464,7 @@ class Model:
 
         self._id = self.__class__.gen_id()  # model id needed for tracking state
         self._parent_id = parent_id
+        self._parent: "Model" = None
         self._update_trace_node(self._id, self._parent_id, None)
 
         self.vis_chunk: VisBytesChunk = None
@@ -542,6 +543,7 @@ class Model:
         self._update_trace_node(new_lm._id, new_lm._parent_id, None)
         self.engine.model_dict[new_lm._id] = new_lm
         new_lm.vis_chunk = None
+        new_lm._parent = self
 
         return new_lm
 
@@ -745,7 +747,7 @@ class Model:
                     ]
                 )
 
-                self._update_trace_node(out._id, out._parent_id, TextOutput(value=value, is_input=True, tokens=_tokens))
+                self._update_trace_node(out._id, out._parent_id, TextOutput(value=value, is_input=True, tokens=out.vis_chunk.input_tokens))
 
             # if we have embedded objects we have to convert the string to a grammar tree
             else:
@@ -999,6 +1001,24 @@ class Model:
                     continue
                 delayed_bytes = b""
 
+                while chunk.backtrack > 0:
+                    parent = lm._parent
+                    while parent is not None:
+                        if parent.vis_chunk is not None:
+                            break
+
+                        parent = parent._parent
+
+                    if parent.vis_chunk.input_tokens:
+                        parent.vis_chunk.input_tokens.pop()
+                        chunk.backtrack -= 1
+                    elif parent.vis_chunk.generated_tokens:
+                        parent.vis_chunk.generated_tokens.pop()
+                        chunk.backtrack -= 1
+                    elif parent.vis_chunk.force_forwarded_tokens:
+                        parent.vis_chunk.force_forwarded_tokens.pop()
+                        chunk.backtrack -= 1                    
+
                 if len(chunk.new_bytes) > 0:
                     generated_value += new_text
 
@@ -1015,7 +1035,7 @@ class Model:
                             is_generated=True,
                             token_count=0,
                             prob=0.0,
-                            tokens=[_gen_token.token for _gen_token in chunk.generated_tokens],
+                            tokens=chunk.generated_tokens,
                         )
                     
                     if chunk.force_forwarded_bytes:
@@ -1024,7 +1044,7 @@ class Model:
                             is_force_forwarded=True,
                             token_count=0,
                             prob=0.0,
-                            tokens=[_gen_token.token for _gen_token in chunk.force_forwarded_tokens],
+                            tokens=chunk.force_forwarded_tokens,
                         )
                     
                     new_lm_created = True
