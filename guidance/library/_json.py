@@ -15,6 +15,7 @@ from typing import (
 )
 import warnings
 import referencing
+import contextlib
 
 try:
     import jsonschema
@@ -422,12 +423,25 @@ class GenJson:
         reference: str,
     ):
         if reference not in self._defs:
-            schema = self._resolver.lookup(reference).contents
+            resolved = self._resolver.lookup(reference)
             @guidance(stateless=True, dedent=False, cache=True)
             def closure(lm):
-                return lm + self.json(json_schema=schema)
+                with self.resolver_context(resolved.resolver):
+                    grammar = self.json(json_schema=resolved.contents)
+                return lm + grammar
+
             self._defs[reference] = closure
         return lm + self._defs[reference]()
+
+    @contextlib.contextmanager
+    def resolver_context(self, resolver):
+        old_resolver = self._resolver
+        self._resolver = resolver
+        try:
+            yield
+        finally:
+            self._resolver = old_resolver
+
 
     @guidance(stateless=True)
     def root(self, lm):
