@@ -125,27 +125,45 @@ class Engine:
 
             paths.reverse()
 
-            vis_chunks = [path.vis_chunk for path in paths if path.vis_chunk is not None]
+            vis_chunks: list[VisBytesChunk] = [path.vis_chunk for path in paths if path.vis_chunk is not None]
 
             tokens = []
+            gen_tokens: list[GenToken] = []
             for vis_chunk in vis_chunks:
                 if vis_chunk.is_input:
-                    tokens.extend(vis_chunk.input_tokens)
+                    # tokens.extend(vis_chunk.input_tokens)
+                    for gen_token in vis_chunk.associated_input_tokens:
+                        tokens.append(gen_token.token)
+                        gen_tokens.append(gen_token)
                 else:
-                    tokens.extend(vis_chunk.generated_tokens)
-                    tokens.extend(vis_chunk.force_forwarded_tokens)
+                    #tokens.extend(vis_chunk.generated_tokens)
+                    for gen_token in vis_chunk.associated_generated_tokens:
+                        tokens.append(gen_token.token)
+                        gen_tokens.append(gen_token)
+
+                    # tokens.extend(vis_chunk.force_forwarded_tokens)
+                    for gen_token in vis_chunk.associated_force_forwarded_tokens:
+                        tokens.append(gen_token.token)
+                        gen_tokens.append(gen_token)
 
             probs = self.get_token_probs(tokens)
+
+            for gen_token, prob in zip(gen_tokens, probs):
+                gen_token.top_k = prob
+                for _item in prob:
+                    if _item.token == gen_token.token:
+                        gen_token.prob = _item.prob
+                        break
 
             self.renderer.update(JupyterCellExecutionCompletedOutputMessage(
                 trace_id=message.last_trace_id,
                 text=self.tokenizer.decode(tokens).decode("utf-8"),
-                tokens=tokens,
-                probs=probs
+                tokens=gen_tokens,
             ))
 
-            # last_model._update_trace_node(last_model._id, last_model._parent_id, EndOfCellTextOutput(
-            #     value=self.tokenizer.decode(tokens).decode("utf-8"),
+            # self.renderer.update(JupyterCellExecutionCompletedOutputMessage(
+            #     trace_id=message.last_trace_id,
+            #     text=self.tokenizer.decode(tokens).decode("utf-8"),
             #     tokens=tokens,
             #     probs=probs
             # ))

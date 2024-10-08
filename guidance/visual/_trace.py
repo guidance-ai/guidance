@@ -67,16 +67,12 @@ def trace_node_to_html(node: TraceNode, prettify_roles=False, complete_msg: Jupy
                     # switch to token-based
                     cell_tokens = attr.tokens
                     for token in cell_tokens:
-                        assert token == complete_msg.tokens[prob_idx]
-                        token_str = ""
-                        prob = 0.0
+                        assert token == complete_msg.tokens[prob_idx].token
+                        token_str = complete_msg.tokens[prob_idx].text
+                        prob = complete_msg.tokens[prob_idx].prob
                         top_k = {}
                         # find the correct token
-                        for _item in complete_msg.probs[prob_idx]:
-                            if _item.token == token:
-                                prob = _item.prob
-                                token_str += _item.text
-                            
+                        for _item in complete_msg.tokens[prob_idx].top_k:
                             top_k[f"{_item.text}"] = f"{_item.prob}"
                         top_k = json.dumps(top_k, indent=2)
 
