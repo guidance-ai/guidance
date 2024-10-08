@@ -658,6 +658,39 @@ class GenJson:
         options = [self.json(json_schema=item) for item in anyof_list]
         return lm + select(options)
 
+    @guidance(stateless=True)
+    def const(
+        self,
+        lm,
+        *,
+        value: Union[None, bool, int, float, str, Mapping, Sequence],
+    ):
+        # Base case
+        if isinstance(value, (type(None), bool, int, float, str)):
+            return lm + json_dumps(value)
+        # Recursive cases
+        # NOTE: we could potentially just use json_dumps in all cases, but this will ensure that we're
+        # properly treating all parts as individual lexemes, which makes whitespace flexibility possible
+        if isinstance(value, Mapping):
+            return lm + self.json(
+                json_schema={
+                    "type": "object",
+                    "properties": {k: {"const": v} for k, v in dict(value).items()},
+                    "required": list(value.keys()),
+                    "additionalProperties": False,
+                }
+            )
+        if isinstance(value, Sequence):
+            return lm + self.json(
+                json_schema={
+                    "type": "array",
+                    "prefixItems": [{"const": v} for v in list(value)],
+                    "minItems": len(value),
+                    "maxItems": len(value),
+                    "items": False,
+                }
+            )
+        raise TypeError(f"Unsupported value type: {type(value)} for value: {value!r}")
 
     @guidance(stateless=True)
     def enum(
@@ -667,10 +700,10 @@ class GenJson:
         options: Sequence[Mapping[str, Any]]
     ):
         # TODO: can we support a whitespace-flexible version of this?
-        all_opts: list[str] = []
+        all_opts: list[GrammarFunction] = []
         for opt in options:
             all_opts.append(
-                json_dumps(opt, separators=(self.item_separator, self.key_separator))
+                self.const(value=opt)
             )
         return lm + select(options=all_opts)
 
@@ -756,8 +789,7 @@ class GenJson:
             return lm + self.ref(reference=json_schema[Keyword.REF])
 
         if Keyword.CONST in json_schema:
-            # TODO: can we support a whitespace-flexible version of this?
-            return lm + json_dumps(json_schema[Keyword.CONST], separators=(self.item_separator, self.key_separator))
+            return lm + self.const(value=json_schema[Keyword.CONST])
 
         if Keyword.ENUM in json_schema:
             return lm + self.enum(options=json_schema[Keyword.ENUM])
