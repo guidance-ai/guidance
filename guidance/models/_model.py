@@ -358,9 +358,9 @@ class Engine:
 
         # compute top-k without masking
         probs = (
-            softmax(new_tokens_logits)
+            softmax(np.array(new_tokens_logits))
             if temperature < 0.0001
-            else softmax(new_tokens_logits / temperature)
+            else softmax(np.array(new_tokens_logits) / temperature)
         )
 
         engine_list = []
