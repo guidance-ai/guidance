@@ -423,23 +423,11 @@ class GenJson:
     ):
         if reference not in self._defs:
             schema = self._resolver.lookup(reference).contents
-            grammar_callable = self._def(schema)
-            self._defs[reference] = grammar_callable
-        return lm + self._defs[reference]()
-
-    def _def(
-        self,
-        schema: JSONSchema,
-    ) -> Callable[[], GrammarFunction]:
-
-        def build_definition(json_schema: JSONSchema) -> Callable[[], GrammarFunction]:
             @guidance(stateless=True, dedent=False, cache=True)
             def closure(lm):
-                return lm + self.json(json_schema=json_schema)
-
-            return closure
-
-        return build_definition(schema)
+                return lm + self.json(json_schema=schema)
+            self._defs[reference] = closure
+        return lm + self._defs[reference]()
 
     @guidance(stateless=True)
     def root(self, lm):
