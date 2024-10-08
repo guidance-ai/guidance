@@ -2,7 +2,7 @@ import base64
 import json
 from typing import Optional, Dict
 
-from guidance.trace._trace import EndOfCellTextOutput
+from guidance.trace._trace import EndOfCellTextOutput, TokenBacktrack
 from guidance.visual._message import JupyterCellExecutionCompletedOutputMessage
 
 from ..trace import (
@@ -32,6 +32,16 @@ def trace_node_to_html(node: TraceNode, prettify_roles=False, complete_msg: Jupy
     buffer = []
     node_path = list(node.path())
     active_role: Optional[TraceNode] = None
+
+    for idx, node in enumerate(node_path):
+        if isinstance(node.input, TokenBacktrack):
+            while node.input.value > 0:
+                for j in range(idx-1, -1, -1):
+                    if isinstance(node_path[j].output, TextOutput) and len(node_path[j].output.tokens) > 0:
+                        node_path[j].output.tokens.pop()
+                        break
+
+                node.input.value -= 1
 
     prob_idx = 0
 
@@ -66,10 +76,7 @@ def trace_node_to_html(node: TraceNode, prettify_roles=False, complete_msg: Jupy
                 else:
                     # switch to token-based
                     cell_tokens = attr.tokens
-                    for token in cell_tokens:
-                        if token.token != complete_msg.tokens[prob_idx].token:
-                            continue
-                        
+                    for token in cell_tokens:                       
                         assert token.token == complete_msg.tokens[prob_idx].token, f"Token mismatch {token.token} != {complete_msg.tokens[prob_idx].token}"
                         token_str = complete_msg.tokens[prob_idx].text
                         prob = complete_msg.tokens[prob_idx].prob

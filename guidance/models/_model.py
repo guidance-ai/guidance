@@ -10,7 +10,7 @@ from typing import Iterator, Optional, TYPE_CHECKING
 
 import numpy as np
 
-from guidance.trace._trace import EndOfCellTextOutput
+from guidance.trace._trace import EndOfCellTextOutput, TokenBacktrack
 from guidance.visual._message import JupyterCellExecutionCompletedMessage
 
 from ..trace import NodeAttr, StatelessGuidanceInput, StatefulGuidanceInput, LiteralInput, EmbeddedInput, \
@@ -130,6 +130,10 @@ class Engine:
             tokens = []
             gen_tokens: list[GenToken] = []
             for vis_chunk in vis_chunks:
+                if vis_chunk.backtrack:
+                    tokens = tokens[:-vis_chunk.backtrack]
+                    gen_tokens = gen_tokens[:-vis_chunk.backtrack]
+
                 if vis_chunk.is_input:
                     for gen_token in vis_chunk.input_tokens:
                         tokens.append(gen_token.token)
@@ -1001,23 +1005,27 @@ class Model:
                     continue
                 delayed_bytes = b""
 
-                while chunk.backtrack > 0:
-                    parent = lm._parent
-                    while parent is not None:
-                        if parent.vis_chunk is not None:
-                            break
+                # while chunk.backtrack > 0:
+                #     parent = lm._parent
+                #     while parent is not None:
+                #         if parent.vis_chunk is not None:
+                #             break
 
-                        parent = parent._parent
+                #         parent = parent._parent
 
-                    if parent.vis_chunk.input_tokens:
-                        parent.vis_chunk.input_tokens.pop()
-                        chunk.backtrack -= 1
-                    elif parent.vis_chunk.generated_tokens:
-                        parent.vis_chunk.generated_tokens.pop()
-                        chunk.backtrack -= 1
-                    elif parent.vis_chunk.force_forwarded_tokens:
-                        parent.vis_chunk.force_forwarded_tokens.pop()
-                        chunk.backtrack -= 1                    
+                #     if parent.vis_chunk.input_tokens:
+                #         parent.vis_chunk.input_tokens.pop()
+                #         chunk.backtrack -= 1
+                #     elif parent.vis_chunk.generated_tokens:
+                #         parent.vis_chunk.generated_tokens.pop()
+                #         chunk.backtrack -= 1
+                #     elif parent.vis_chunk.force_forwarded_tokens:
+                #         parent.vis_chunk.force_forwarded_tokens.pop()
+                #         chunk.backtrack -= 1
+
+                if chunk.backtrack:
+                    lm = lm.copy()
+                    lm._update_trace_node(lm._id, lm._parent_id, TokenBacktrack(value=chunk.backtrack))
 
                 if len(chunk.new_bytes) > 0:
                     generated_value += new_text

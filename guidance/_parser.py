@@ -84,7 +84,7 @@ class TokenParser:
             prompt_tokens = [self.tokenizer.bos_token_id] + prompt_tokens
 
         prompt_tokens = self.tokenizer.recode(prompt_tokens)
-        return prompt_tokens, abs(len(_prompt_tokens) - len(prompt_tokens))
+        return prompt_tokens, max(0, len(_prompt_tokens) - len(prompt_tokens))
 
 
     def _parse(
@@ -94,6 +94,7 @@ class TokenParser:
     ) -> Generator[Tuple[Optional[GenData], EngineCallResponse], Optional[EngineOutput], EngineCallResponse]:
         tokens, backtrack = self._process_prompt(prompt=prompt, ensure_bos_token=ensure_bos_token)
 
+        backtrack = 0
         engine_output = None
         ff_tokens = []
 
@@ -113,8 +114,8 @@ class TokenParser:
             #         response.force_forwarded_bytes = self.tokenizer.decode(ff_tokens[1:])
 
             if response.new_bytes:
-                # _tokens = self.tokenizer.encode(response.new_bytes)
-                _tokens = ff_tokens
+                _tokens = self.tokenizer.encode(response.new_bytes)
+                # _tokens = ff_tokens
 
                 ff_token_start_idx = 1
                 if engine_output is None:

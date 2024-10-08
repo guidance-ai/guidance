@@ -112,6 +112,15 @@ class TextOutput(OutputAttr):
 
     def __str__(self):
         return self.value
+
+
+class TokenBacktrack(InputAttr):
+    """Token backtrack for a guidance program."""
+
+    value: int
+
+    def __str__(self):
+        return str(self.value)
     
 class EndOfCellTextOutput(OutputAttr):
     """Text string."""
