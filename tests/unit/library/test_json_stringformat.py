@@ -72,7 +72,7 @@ class TestDate:
     )
     def test_bad(self, bad_str):
         schema_obj = json.loads(self.schema)
-        check_match_failure(bad_string=bad_str, schema_obj=schema_obj, compact=True)
+        check_match_failure(bad_string=bad_str, schema_obj=schema_obj)
 
 
 @pytest.mark.xfail(reason="json-pointer format not implemented")
@@ -134,7 +134,7 @@ class TestJsonPointer:
     )
     def test_bad(self, bad_str):
         schema_obj = json.loads(self.schema)
-        check_match_failure(bad_string=bad_str, schema_obj=schema_obj, compact=True)
+        check_match_failure(bad_string=bad_str, schema_obj=schema_obj)
 
 @pytest.mark.xfail(reason="idn-hostname format not implemented")
 class TestIdnHostname:
@@ -213,7 +213,7 @@ class TestIdnHostname:
     )
     def test_bad(self, bad_str):
         schema_obj = json.loads(self.schema)
-        check_match_failure(bad_string=bad_str, schema_obj=schema_obj, compact=True)
+        check_match_failure(bad_string=bad_str, schema_obj=schema_obj)
 
 
 @pytest.mark.xfail(reason="uri format not implemented")
@@ -263,7 +263,7 @@ class TestUri:
     )
     def test_bad(self, bad_str):
         schema_obj = json.loads(self.schema)
-        check_match_failure(bad_string=bad_str, schema_obj=schema_obj, compact=True)
+        check_match_failure(bad_string=bad_str, schema_obj=schema_obj)
 
 
 @pytest.mark.xfail(reason="uri-template format not implemented")
@@ -297,7 +297,7 @@ class TestUriTemplate:
     )
     def test_bad(self, bad_str):
         schema_obj = json.loads(self.schema)
-        check_match_failure(bad_string=bad_str, schema_obj=schema_obj, compact=True)
+        check_match_failure(bad_string=bad_str, schema_obj=schema_obj)
 
 @pytest.mark.xfail(reason="iri-reference format is not yet implemented")
 class TestIriReference:
@@ -333,7 +333,7 @@ class TestIriReference:
     )
     def test_bad(self, bad_str):
         schema_obj = json.loads(self.schema)
-        check_match_failure(bad_string=bad_str, schema_obj=schema_obj, compact=True)
+        check_match_failure(bad_string=bad_str, schema_obj=schema_obj)
 
 
 @pytest.mark.xfail(reason="iri format not implemented")
@@ -372,7 +372,7 @@ class TestIri:
     )
     def test_bad(self, bad_str):
         schema_obj = json.loads(self.schema)
-        check_match_failure(bad_string=bad_str, schema_obj=schema_obj, compact=True)
+        check_match_failure(bad_string=bad_str, schema_obj=schema_obj)
 
 
 class TestIpv4:
@@ -411,7 +411,7 @@ class TestIpv4:
     )
     def test_bad(self, bad_str):
         schema_obj = json.loads(self.schema)
-        check_match_failure(bad_string=bad_str, schema_obj=schema_obj, compact=True)
+        check_match_failure(bad_string=bad_str, schema_obj=schema_obj)
 
 
 @pytest.mark.xfail(reason="uri-reference format not implemented")
@@ -448,7 +448,7 @@ class TestUriReference:
     )
     def test_bad(self, bad_str):
         schema_obj = json.loads(self.schema)
-        check_match_failure(bad_string=bad_str, schema_obj=schema_obj, compact=True)
+        check_match_failure(bad_string=bad_str, schema_obj=schema_obj)
 
 
 class TestTime:
@@ -516,7 +516,7 @@ class TestTime:
     )
     def test_bad(self, bad_str):
         schema_obj = json.loads(self.schema)
-        check_match_failure(bad_string=bad_str, schema_obj=schema_obj, compact=True)
+        check_match_failure(bad_string=bad_str, schema_obj=schema_obj)
 
 
 class TestIpv6:
@@ -579,7 +579,7 @@ class TestIpv6:
     )
     def test_bad(self, bad_str):
         schema_obj = json.loads(self.schema)
-        check_match_failure(bad_string=bad_str, schema_obj=schema_obj, compact=True)
+        check_match_failure(bad_string=bad_str, schema_obj=schema_obj)
 
 
 class TestUnknown:
@@ -646,7 +646,7 @@ class TestHostname:
     )
     def test_bad(self, bad_str):
         schema_obj = json.loads(self.schema)
-        check_match_failure(bad_string=bad_str, schema_obj=schema_obj, compact=True)
+        check_match_failure(bad_string=bad_str, schema_obj=schema_obj)
 
 
 class TestUuid:
@@ -690,7 +690,7 @@ class TestUuid:
     )
     def test_bad(self, bad_str):
         schema_obj = json.loads(self.schema)
-        check_match_failure(bad_string=bad_str, schema_obj=schema_obj, compact=True)
+        check_match_failure(bad_string=bad_str, schema_obj=schema_obj)
 
 
 class TestEmail:
@@ -736,7 +736,7 @@ class TestEmail:
     )
     def test_bad(self, bad_str):
         schema_obj = json.loads(self.schema)
-        check_match_failure(bad_string=bad_str, schema_obj=schema_obj, compact=True)
+        check_match_failure(bad_string=bad_str, schema_obj=schema_obj)
 
 
 class TestDuration:
@@ -784,7 +784,7 @@ class TestDuration:
     )
     def test_bad(self, bad_str):
         schema_obj = json.loads(self.schema)
-        check_match_failure(bad_string=bad_str, schema_obj=schema_obj, compact=True)
+        check_match_failure(bad_string=bad_str, schema_obj=schema_obj)
 
 
 @pytest.mark.xfail(reason="relative-json-pointer format not implemented")
@@ -826,7 +826,7 @@ class TestRelativeJsonPointer:
     )
     def test_bad(self, bad_str):
         schema_obj = json.loads(self.schema)
-        check_match_failure(bad_string=bad_str, schema_obj=schema_obj, compact=True)
+        check_match_failure(bad_string=bad_str, schema_obj=schema_obj)
 
 
 class TestDateTime:
@@ -874,7 +874,7 @@ class TestDateTime:
     )
     def test_bad(self, bad_str):
         schema_obj = json.loads(self.schema)
-        check_match_failure(bad_string=bad_str, schema_obj=schema_obj, compact=True)
+        check_match_failure(bad_string=bad_str, schema_obj=schema_obj)
 
 @pytest.mark.xfail(reason="regex format not implemented")
 class TestRegex:
@@ -905,7 +905,7 @@ class TestRegex:
     )
     def test_bad(self, bad_str):
         schema_obj = json.loads(self.schema)
-        check_match_failure(bad_string=bad_str, schema_obj=schema_obj, compact=True)
+        check_match_failure(bad_string=bad_str, schema_obj=schema_obj)
 
 
 @pytest.mark.xfail(reason="idn-email format not implemented")
@@ -939,4 +939,4 @@ class TestIdnEmail:
     )
     def test_bad(self, bad_str):
         schema_obj = json.loads(self.schema)
-        check_match_failure(bad_string=bad_str, schema_obj=schema_obj, compact=True)
+        check_match_failure(bad_string=bad_str, schema_obj=schema_obj)
