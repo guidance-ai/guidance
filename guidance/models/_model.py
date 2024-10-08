@@ -4,15 +4,19 @@ import queue
 import re
 import threading
 
+import time
 from typing import Iterator, Optional, TYPE_CHECKING
 
 
 import numpy as np
 
+from guidance.visual._message import JupyterCellExecutionCompletedMessage
+
 from ..trace import NodeAttr, StatelessGuidanceInput, StatefulGuidanceInput, LiteralInput, EmbeddedInput, \
     RoleOpenerInput, RoleCloserInput, TextOutput, CaptureOutput, TraceHandler
 from ..visual import TraceMessage, AutoRenderer, trace_node_to_str, trace_node_to_html, GuidanceMessage, Renderer
-from ..visual._message import MetricMessage, JupyterCellExecutionCompletedMessage, TokenBatchMessage, GenToken
+from ..visual._message import MetricMessage, JupyterCellExecutionCompletedMessage, TokenBatchMessage, JupyterCellExecutionCompletedOutputMessage, MetricMessage
+from .._schema import GenToken
 
 try:
     from IPython.display import clear_output, display, HTML
@@ -23,7 +27,7 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-from .._schema import EngineCallResponse, GuidanceEngineMetrics
+from .._schema import BaseGenToken, EngineCallResponse, EngineOutput, GenToken, GuidanceEngineMetrics, VisBytesChunk
 from .._utils import softmax, CaptureEvents
 from .._parser import TokenParser
 from .._grammar import (
@@ -98,7 +102,7 @@ class MockPostExecGenerator:
         self._renderer.update(MetricMessage(name='consumed', value=random.uniform(0, 100)))
         self._renderer.update(MetricMessage(name='token reduction', value=random.uniform(0, 100)))
         self._renderer.update(TokenBatchMessage(tokens=[
-            GenToken(latency_ms=100, token=0, prob=0.5, text="mock", top_k=None)
+            GenToken(latency_ms=100, token=0, prob=0.5, text="mock", top_k=[])
         ]))
 
 
@@ -111,14 +115,15 @@ class Engine:
     Server so a single server can serve many clients' model objects through a single Engine object.
     """
 
-    def __init__(self, tokenizer: Tokenizer, compute_log_probs=False):
+    def __init__(self, tokenizer: Tokenizer, compute_log_probs=False, **kwargs):
         self.tokenizer = tokenizer
         self.compute_log_probs = compute_log_probs
         self.metrics = GuidanceEngineMetrics()
 
         self.trace_handler = TraceHandler()
-        self.renderer = AutoRenderer(self.trace_handler)
+        self.renderer = AutoRenderer(self.trace_handler,  use_legacy_renderer=kwargs.get("use_legacy_renderer", True))
         self.renderer.subscribe(self._msg_recv)
+        self.model_dict: dict[int, Model] = {}
 
         # TODO(nopdive): Remove on implementation.
         self.metrics_generator = MockMetricsGenerator(self.renderer)
@@ -132,6 +137,118 @@ class Engine:
             logger.debug(f"ENGINE:cell executed")
             self.post_exec_generator.emit_messages()
             self.renderer.update(message)
+
+        # model = self.model_dict.get(message.trace_id)
+        # print(f"ENGINE:{message}", type(message))
+
+        if isinstance(message, JupyterCellExecutionCompletedMessage):
+            # print("last_state")
+            last_model: "Model" = self.model_dict[message.last_trace_id]
+            paths = []
+            model = last_model
+            while model is not None:
+                paths.append(model)
+                if model._parent_id is None:
+                    break
+
+                model: "Model" = self.model_dict[model._parent_id]
+
+            paths.reverse()
+
+            vis_chunks: list[VisBytesChunk] = [path.vis_chunk for path in paths if path.vis_chunk is not None]
+
+            # tokens = []
+            # gen_tokens: list[GenToken] = []
+            # for vis_chunk in vis_chunks:
+            #     if vis_chunk.backtrack:
+            #         tokens = tokens[:-vis_chunk.backtrack]
+            #         gen_tokens = gen_tokens[:-vis_chunk.backtrack]
+
+            #     if vis_chunk.is_input:
+            #         for gen_token in vis_chunk.input_tokens:
+            #             tokens.append(gen_token.token)
+            #             gen_tokens.append(gen_token)
+            #     else:
+            #         for gen_token in vis_chunk.generated_tokens:
+            #             tokens.append(gen_token.token)
+            #             gen_tokens.append(gen_token)
+
+            #         for gen_token in vis_chunk.force_forwarded_tokens:
+            #             tokens.append(gen_token.token)
+            #             gen_tokens.append(gen_token)
+
+            text = ""
+            gen_tokens: list[GenToken] = []
+            for vis_chunk in vis_chunks:
+                text += vis_chunk.bytes.decode("utf-8")
+                gen_tokens.extend(vis_chunk.input_tokens)
+                gen_tokens.extend(vis_chunk.generated_tokens)
+                gen_tokens.extend(vis_chunk.force_forwarded_tokens)
+
+            tokens = self.tokenizer.encode(text.encode("utf-8"))
+            probs = self.get_token_probs(tokens)
+
+            idx = 0
+            processed_gen_tokens = []
+            while gen_tokens:
+                gen_token = gen_tokens.pop(0)
+
+                if gen_token.token == tokens[idx]:
+                    gen_token.top_k = probs[idx]
+                    for _token in probs[idx]:
+                        if _token.token == gen_token.token:
+                            gen_token.prob = _token.prob
+                            break
+                    processed_gen_tokens.append(gen_token)
+                    text = text[len(gen_token.text):]
+                    idx += 1
+                    continue
+
+                # we have a mismatch due to backtracking
+                next_gen_token = gen_tokens.pop(0)
+                merged_text = gen_token.text + next_gen_token.text
+                merged_tokens = self.tokenizer.encode(merged_text.encode("utf-8"))
+                assert len(merged_tokens) == 1, f"Expected merged tokens to be of length 1, got {len(merged_tokens)}"
+
+                if tokens[idx] == merged_tokens[0]:
+                    # create new GenToken
+                    prob = 0
+                    for _token in probs[idx]:
+                        if _token.token == merged_tokens[0]:
+                            prob = _token.prob
+                            break
+
+                    _gen_token = GenToken(
+                            token=merged_tokens[0],
+                            prob=prob,
+                            text=merged_text,
+                            latency_ms=gen_token.latency_ms + next_gen_token.latency_ms,
+                            is_generated=gen_token.is_generated or next_gen_token.is_generated,
+                            is_force_forwarded=gen_token.is_force_forwarded or next_gen_token.is_force_forwarded,
+                        )
+                    _gen_token.top_k = probs[idx]
+                    processed_gen_tokens.append(
+                        _gen_token
+                    )
+                    idx += 1
+                else:
+                    assert next_gen_token.token == merged_tokens[0], f"Expected next_gen_token token to be {merged_tokens[0]}, got {next_gen_token.token}"
+
+            final_text = "".join([gen_token.text for gen_token in processed_gen_tokens])
+            print(final_text)
+
+            self.renderer.update(JupyterCellExecutionCompletedOutputMessage(
+                trace_id=message.last_trace_id,
+                text=self.tokenizer.decode(tokens).decode("utf-8"),
+                tokens=processed_gen_tokens,
+            ))
+
+            # self.renderer.update(JupyterCellExecutionCompletedOutputMessage(
+            #     trace_id=message.last_trace_id,
+            #     text=self.tokenizer.decode(tokens).decode("utf-8"),
+            #     tokens=tokens,
+            #     probs=probs
+            # ))
 
     def get_chat_template(self): # TODO [HN]: Add more logic here...should we instantiate class here? do we even need to?
         return self.tokenizer.chat_template() # Instantiate the class before returning to client for now
@@ -198,32 +315,141 @@ class Engine:
         """
         parser = self.start(prompt, grammar, ensure_bos_token)
 
-        token = None
+        engine_output = None
         while not parser.done():
-            gen_data, response = parser.advance(token)
+            t0 = time.time()
+
+            gen_data, response = parser.advance(engine_output)
 
             if gen_data is not None:
-                if parser.is_accepting() and self.tokenizer.eos_token_id is not None:
+                is_in_accepting_state = (
+                    parser.is_accepting() and self.tokenizer.eos_token_id is not None
+                )
+
+                mask = None
+                if is_in_accepting_state:
                     # Whenever we are in an accepting state, we will allow the model to generate whatever it wants
                     # but we will treat any "illegal" tokens as EOS, allowing the model to finish gracefully.
+                    # Hence, mask must be None
                     assert gen_data.mask[self.tokenizer.eos_token_id]
-                    token = self.get_next_token(
-                        token_ids=gen_data.tokens,
-                        mask=None,
-                        temperature=gen_data.temperature
-                    )
-                    if not gen_data.mask[token]:
-                        token = self.tokenizer.eos_token_id
                 else:
-                    token = self.get_next_token(
-                        token_ids=gen_data.tokens,
-                        mask=gen_data.mask,
-                        temperature=gen_data.temperature
+                    mask = gen_data.mask
+
+                engine_output = self.get_next_top_k_tokens(
+                    token_ids=gen_data.tokens,
+                    mask=mask,
+                    temperature=gen_data.temperature,
+                )[0]
+
+                if is_in_accepting_state and not gen_data.mask[engine_output.issued_token.token]:
+                    engine_output.issued_token.token = self.tokenizer.eos_token_id
+                    engine_output.issued_token.bytes = self.tokenizer.decode(
+                        [engine_output.issued_token.token]
                     )
+                    # TODO: Should we set the prob to 1.0 here?
+                    engine_output.issued_token.prob = 1.0
             else:
-                token = None
+                engine_output = None
+
+            if response:
+                response.latency_ms = (time.time() - t0) * 1000
 
             yield response
+
+    def get_next_top_k_tokens(
+        self,
+        token_ids: list[int],
+        mask: Optional[bytes],
+        temperature: float,
+        k: int = 5,
+    ) -> list[EngineOutput]:
+        t0 = time.time()
+        new_tokens_logits = [self.get_logits(token_ids)]
+        if new_tokens_logits is None:
+            return []
+
+        lat_ms = (time.time() - t0) * 1000
+
+        def get_top_k(_probs: np.ndarray, _k: int = 5) -> list[GenToken]:
+            top_k_indices = np.argsort(_probs)[::-1][:_k]
+            top_k_probs = _probs[top_k_indices]
+
+            return [
+                GenToken(
+                    token=token,
+                    prob=prob,
+                    text=self.tokenizer.decode([token]).decode("utf-8"),
+                    latency_ms=lat_ms,
+                    is_generated=True,
+                )
+                for token, prob in zip(top_k_indices, top_k_probs)
+                if prob > 0
+            ]
+
+        # compute top-k without masking
+        probs = (
+            softmax(np.array(new_tokens_logits))
+            if temperature < 0.0001
+            else softmax(np.array(new_tokens_logits) / temperature)
+        )
+
+        engine_list = []
+        unseen_tokens = token_ids[-len(probs) :][1:]
+        # for _probs, _logits in zip(probs, logits):
+
+        # we're missing the very first token
+        if len(token_ids) == len(probs):
+            first_token = token_ids[0]
+            engine_list.insert(
+                0,
+                EngineOutput(
+                    issued_token=GenToken(
+                        token=first_token,
+                        prob=1.0,
+                        text=self.tokenizer.decode([first_token]).decode("utf-8"),
+                        latency_ms=0,
+                        is_generated=False,
+                    ),
+                    top_k=[],
+                    masked_top_k=[],
+                    is_backtracked=False,
+                ),
+            )
+
+        for i, _probs in enumerate(probs):
+            top_k: list[GenToken] = get_top_k(_probs, k)
+            _logits = new_tokens_logits[i]
+
+            # compute top-k with masking
+            masked_top_k: list[GenToken] = []
+            if mask is not None:
+                masked_logits = _logits * np.frombuffer(mask, dtype=np.uint8)
+                masked_probs = (
+                    softmax(masked_logits)
+                    if temperature < 0.0001
+                    else softmax(masked_logits / temperature)
+                )
+                masked_top_k = get_top_k(masked_probs, k)
+
+            issued_token = masked_top_k[0] if len(masked_top_k) > 0 else top_k[0]
+            if i < len(unseen_tokens):
+                token = unseen_tokens[i]
+                issued_token = GenToken(
+                    token=token,
+                    prob=_probs[token],
+                    text=self.tokenizer.decode([token]).decode("utf-8"),
+                    latency_ms=0,
+                    is_generated=False,
+                )
+
+            engine_list.append(EngineOutput(
+                issued_token=issued_token,
+                top_k=top_k,
+                masked_top_k=None if not masked_top_k else masked_top_k,
+                is_backtracked=False,
+            ))
+
+        return engine_list
 
     def get_next_token(self, token_ids: list[int], mask: Optional[bytes], temperature: float) -> int:
         """Base implementation for getting the next token from the model which calls get_logits and sample_with_temperature.
@@ -234,6 +460,9 @@ class Engine:
         return token
 
     def get_logits(self, token_ids: list[int]) -> np.ndarray:
+        raise NotImplementedError
+    
+    def get_token_probs(self, token_ids: list[int], top_k: int = 5) -> list[list[BaseGenToken]]:
         raise NotImplementedError
 
     def sample_with_temperature(self, logits: np.ndarray, mask: Optional[bytes], temperature: float) -> int:
@@ -320,7 +549,11 @@ class Model:
 
         self._id = self.__class__.gen_id()  # model id needed for tracking state
         self._parent_id = parent_id
+        self._parent: "Model" = None
         self._update_trace_node(self._id, self._parent_id, None)
+
+        self.vis_chunk: VisBytesChunk = None
+        self.engine.model_dict[self._id] = self
 
     @classmethod
     def gen_id(cls):
@@ -393,6 +626,9 @@ class Model:
         new_lm._id = self.__class__.gen_id()
         new_lm._parent_id = self._id
         self._update_trace_node(new_lm._id, new_lm._parent_id, None)
+        self.engine.model_dict[new_lm._id] = new_lm
+        new_lm.vis_chunk = None
+        new_lm._parent = self
 
         return new_lm
 
@@ -576,7 +812,27 @@ class Model:
                 lm._inplace_append(value)
                 out = lm
 
-                self._update_trace_node(out._id, out._parent_id, TextOutput(value=value))
+                # generate VisBytesChunk
+                _bytes = value.encode("utf-8")
+                _tokens = out.engine.tokenizer.encode(_bytes)
+                out.vis_chunk = VisBytesChunk(
+                    bytes=_bytes,
+                    is_input=True,
+                    input_bytes=_bytes,
+                    input_tokens=[
+                        GenToken(
+                            token=_token,
+                            prob=1.0,
+                            text=out.engine.tokenizer.decode([_token]).decode("utf-8"),
+                            latency_ms=0,
+                            is_generated=False,
+                            is_force_forwarded=False,
+                            is_input=True,
+                        ) for _token in _tokens
+                    ]
+                )
+
+                self._update_trace_node(out._id, out._parent_id, TextOutput(value=value, is_input=True, tokens=out.vis_chunk.input_tokens))
 
             # if we have embedded objects we have to convert the string to a grammar tree
             else:
@@ -812,6 +1068,8 @@ class Model:
 
             delayed_bytes = b""
             # last_is_generated = False
+
+            new_lm_created = True
             for chunk in gen_obj:
 
                 # we make everything full probability if we are not computing uncertainty
@@ -828,15 +1086,72 @@ class Model:
                     continue
                 delayed_bytes = b""
 
+                # while chunk.backtrack > 0:
+                #     parent = lm._parent
+                #     while parent is not None:
+                #         if parent.vis_chunk is not None:
+                #             break
+
+                #         parent = parent._parent
+
+                #     if parent.vis_chunk.input_tokens:
+                #         parent.vis_chunk.input_tokens.pop()
+                #         chunk.backtrack -= 1
+                #     elif parent.vis_chunk.generated_tokens:
+                #         parent.vis_chunk.generated_tokens.pop()
+                #         chunk.backtrack -= 1
+                #     elif parent.vis_chunk.force_forwarded_tokens:
+                #         parent.vis_chunk.force_forwarded_tokens.pop()
+                #         chunk.backtrack -= 1
+
                 if len(chunk.new_bytes) > 0:
                     generated_value += new_text
 
-                    lm += TextOutput(
-                        value=new_text,
-                        is_generated=chunk.is_generated,
-                        token_count=chunk.new_token_count,
-                        prob=chunk.new_bytes_prob,
+                    # lm += TextOutput(
+                    #     value=new_text,
+                    #     is_generated=chunk.is_generated,
+                    #     token_count=chunk.new_token_count,
+                    #     prob=chunk.new_bytes_prob,
+                    # )
+
+                    if chunk.generated_bytes:
+                        lm += TextOutput(
+                            value=chunk.generated_bytes.decode("utf8"),
+                            is_generated=True,
+                            token_count=0,
+                            prob=0.0,
+                            tokens=chunk.generated_tokens,
+                        )
+                    
+                    if chunk.force_forwarded_bytes:
+                        lm += TextOutput(
+                            value=chunk.force_forwarded_bytes.decode("utf8"),
+                            is_force_forwarded=True,
+                            token_count=0,
+                            prob=0.0,
+                            tokens=chunk.force_forwarded_tokens,
+                        )
+                    
+                    new_lm_created = True
+                else:
+                    new_lm_created = False
+
+                if not lm.vis_chunk or new_lm_created:
+                    lm.vis_chunk = VisBytesChunk(
+                        bytes=chunk.new_bytes,
+                        is_input=False,
+                        generated_bytes=chunk.generated_bytes,
+                        generated_tokens=chunk.generated_tokens,
+                        force_forwarded_bytes=chunk.force_forwarded_bytes,
+                        force_forwarded_tokens=chunk.force_forwarded_tokens,
+                        backtrack=chunk.backtrack,
                     )
+                else:
+                    # append to existing VisBytesChunk
+                    lm.vis_chunk.bytes += chunk.new_bytes
+                    lm.vis_chunk.generated_bytes += chunk.generated_bytes
+                    lm.vis_chunk.force_forwarded_bytes += chunk.force_forwarded_bytes
+                    lm.vis_chunk.backtrack += chunk.backtrack
 
                 # last_is_generated = chunk.is_generated
                 if len(chunk.capture_groups) > 0:
