@@ -1250,7 +1250,10 @@ class TestRefs:
             # ref valid, maxItems valid
             ({'foo': []}, True),
             # ref valid, maxItems invalid
-            ({'foo': [1, 2, 3]}, False),
+            pytest.param(
+                *({'foo': [1, 2, 3]}, False),
+                marks=pytest.mark.xfail(reason="sibling keywords to ref are not yet supported")
+            ),
             # ref invalid
             ({'foo': 'string'}, False)
         ]
@@ -1277,6 +1280,7 @@ class TestRefs:
             ({'minLength': -1}, False)
         ]
     )
+    @pytest.mark.xfail(reason="Remote refs are not supported")
     def test_remote_ref_containing_refs_itself(self, test_object, valid):
         schema = {'$schema': 'https://json-schema.org/draft/2020-12/schema', '$ref': 'https://json-schema.org/draft/2020-12/schema'}
         if valid:
@@ -1361,6 +1365,7 @@ class TestRefs:
             ('foo', False)
         ]
     )
+    @pytest.mark.xfail(reason="false schema is not implemented")
     def test_ref_to_boolean_schema_false(self, test_object, valid):
         schema = {'$schema': 'https://json-schema.org/draft/2020-12/schema', '$ref': '#/$defs/bool', '$defs': {'bool': False}}
         if valid:
@@ -1425,6 +1430,7 @@ class TestRefs:
             ({'prop1': 'match'}, False)
         ]
     )
+    @pytest.mark.xfail(reason="unevaluatedProperties is not implemented")
     def test_ref_creates_new_scope_when_adjacent_to_keywords(self, test_object, valid):
         schema = {'$schema': 'https://json-schema.org/draft/2020-12/schema', '$defs': {'A': {'unevaluatedProperties': False}}, 'properties': {'prop1': {'type': 'string'}}, '$ref': '#/$defs/A'}
         if valid:
@@ -1761,6 +1767,7 @@ class TestRefs:
             (12, True)
         ]
     )
+    @pytest.mark.xfail(reason="if not implemented")
     def test_ref_to_if(self, test_object, valid):
         schema = {'$schema': 'https://json-schema.org/draft/2020-12/schema', '$ref': 'http://example.com/ref/if', 'if': {'$id': 'http://example.com/ref/if', 'type': 'integer'}}
         if valid:
@@ -1783,6 +1790,7 @@ class TestRefs:
             (12, True)
         ]
     )
+    @pytest.mark.xfail(reason="then not implemented")
     def test_ref_to_then(self, test_object, valid):
         schema = {'$schema': 'https://json-schema.org/draft/2020-12/schema', '$ref': 'http://example.com/ref/then', 'then': {'$id': 'http://example.com/ref/then', 'type': 'integer'}}
         if valid:
@@ -1805,6 +1813,7 @@ class TestRefs:
             (12, True)
         ]
     )
+    @pytest.mark.xfail(reason="else not implemented")
     def test_ref_to_else(self, test_object, valid):
         schema = {'$schema': 'https://json-schema.org/draft/2020-12/schema', '$ref': 'http://example.com/ref/else', 'else': {'$id': 'http://example.com/ref/else', 'type': 'integer'}}
         if valid:
