@@ -342,9 +342,6 @@ class Engine:
 
                 if is_in_accepting_state and not gen_data.mask[engine_output.issued_token.token]:
                     engine_output.issued_token.token = self.tokenizer.eos_token_id
-                    engine_output.issued_token.bytes = self.tokenizer.decode(
-                        [engine_output.issued_token.token]
-                    )
                     # TODO: Should we set the prob to 1.0 here?
                     engine_output.issued_token.prob = 1.0
             else:
@@ -422,7 +419,7 @@ class Engine:
             # compute top-k with masking
             masked_top_k: list[GenToken] = []
             if mask is not None:
-                masked_logits = _logits * np.frombuffer(mask, dtype=np.uint8)
+                masked_logits = np.abs(_logits * np.frombuffer(mask, dtype=np.uint8))
                 masked_probs = (
                     softmax(masked_logits)
                     if temperature < 0.0001
