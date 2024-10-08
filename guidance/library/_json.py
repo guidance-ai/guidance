@@ -14,6 +14,7 @@ from typing import (
     cast,
 )
 import warnings
+import referencing
 
 try:
     import jsonschema
@@ -165,6 +166,7 @@ TYPE_SPECIFIC_KEYWORDS = {
 DEFS_KEYS = {"$defs", "definitions"}
 
 IGNORED_KEYS = {
+    "$anchor",
     "$schema",
     "$id",
     "id",
@@ -401,16 +403,34 @@ class GenJson:
         self.schema = schema
         if separators is not None:
             self.item_separator, self.key_separator = separators
-        if isinstance(schema, Mapping):
-            self.definitions = self._build_definitions(schema.get("$defs", schema.get("definitions", {})))
-        else:
-            self.definitions = {}
 
-    def _build_definitions(
+        registry: referencing.Registry[JSONSchema] = referencing.Registry()
+        resource: referencing.Resource[JSONSchema] = referencing.jsonschema.DRAFT202012.create_resource(schema)
+        root_uri = resource.id() or ""
+        registry = registry.with_resource(
+            uri=root_uri,
+            resource=resource
+        )
+        self._resolver = registry.resolver_with_root(resource)
+        self._defs: dict[str, Callable[[], GrammarFunction]] = {}
+
+    @guidance(stateless=True)
+    def ref(
         self,
-        raw_definitions: Mapping[str, JSONSchema],
-    ) -> Mapping[str, Callable[[], GrammarFunction]]:
-        definitions: Dict[str, Callable[[], GrammarFunction]] = {}
+        lm,
+        *,
+        reference: str,
+    ):
+        if reference not in self._defs:
+            schema = self._resolver.lookup(reference).contents
+            grammar_callable = self._def(schema)
+            self._defs[reference] = grammar_callable
+        return lm + self._defs[reference]()
+
+    def _def(
+        self,
+        schema: JSONSchema,
+    ) -> Callable[[], GrammarFunction]:
 
         def build_definition(json_schema: JSONSchema) -> Callable[[], GrammarFunction]:
             @guidance(stateless=True, dedent=False, cache=True)
@@ -419,8 +439,7 @@ class GenJson:
 
             return closure
 
-        definitions = {ref: build_definition(schema) for ref, schema in raw_definitions.items()}
-        return definitions
+        return build_definition(schema)
 
     @guidance(stateless=True)
     def root(self, lm):
@@ -732,24 +751,6 @@ class GenJson:
                 ),
             ]
         )
-
-
-    @guidance(stateless=True, cache=True)
-    def ref(
-        self,
-        lm,
-        *,
-        reference: str,
-    ):
-        target_definition = None
-        for dk in DEFS_KEYS:
-            ref_start = f"#/{dk}/"
-            if reference.startswith(ref_start):
-                target_name = reference[len(ref_start) :]
-                target_definition = self.definitions[target_name]
-
-        assert target_definition is not None
-        return lm + target_definition()
 
 
     @guidance(stateless=True)
