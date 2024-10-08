@@ -422,19 +422,29 @@ class GenJson:
         *,
         reference: str,
     ):
-        key = self.get_abspath(reference)
+        """
+        Resolve a reference to another schema and return the grammar for that schema.
+
+        Note: we define a zero-argument closure that will return the grammar for the reference and
+        add it to the _defs cache. This allows us to avoid re-resolving the reference every time
+        and to handle recursive references correctly.
+        """
+        key = self._get_abspath(reference)
         if key not in self._defs:
             resolved = self._resolver.lookup(reference)
             @guidance(stateless=True, dedent=False, cache=True)
             def closure(lm):
-                with self.resolver_context(resolved.resolver):
+                with self._resolver_context(resolved.resolver):
                     grammar = self.json(json_schema=resolved.contents)
                 return lm + grammar
-
             self._defs[key] = closure
         return lm + self._defs[key]()
 
-    def get_abspath(self, ref):
+    def _get_abspath(self, ref):
+        """
+        Convert a reference to an absolute path, resolving it against the base URI if necessary.
+        This will allow us to get a unique key for each reference and hit the _defs cache correctly.
+        """
         from urllib.parse import urljoin, urldefrag
         if ref.startswith("#"):
             uri, fragment = self._base_uri, ref[1:]
@@ -445,7 +455,15 @@ class GenJson:
         return uri
 
     @contextlib.contextmanager
-    def resolver_context(self, resolver):
+    def _resolver_context(self, resolver):
+        """
+        Temporarily replace the resolver for the duration of the context manager.
+        This allows refs with different base URIs to be resolved correctly without passing the resolver around.
+
+        Note: very much not thread-safe, but I don't expect instances of this class to be shared between threads.
+        TODO: ensure that the instance's hash depends on the resolver (or more likely the resolver's base URI)
+            before adding more caching to this class.
+        """
         old_resolver = self._resolver
         self._resolver = resolver
         try:
