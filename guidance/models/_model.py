@@ -420,7 +420,7 @@ class Engine:
             # compute top-k with masking
             masked_top_k: list[GenToken] = []
             if mask is not None:
-                masked_logits = _logits + np.frombuffer(mask, dtype=np.uint8)
+                masked_logits = np.abs(_logits * np.frombuffer(mask, dtype=np.uint8))
                 masked_probs = (
                     softmax(masked_logits)
                     if temperature < 0.0001
