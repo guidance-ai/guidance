@@ -554,16 +554,28 @@ class GenJson:
             # where we will validate against the additional_properties schema
             *((key, additional_properties) for key in required if key not in properties),
         ]
-        grammars = tuple(f'"{name}"{self.key_separator}' + self.json(json_schema=schema) for name, schema in items)
-        required_items = tuple(name in required for name, _ in items)
-        names = set(properties.keys()) | set(required)
+
+        # We need to keep track of which properties are required and which are optional, and we need to properly quote and escape the names
+        required_items: list[bool] = []
+        quoted_names: list[str] = []
+        quoted_and_rx_escaped_names: list[str] = []
+        grammars: list[GrammarFunction] = []
+        for name, schema in items:
+            required_items.append(name in required)
+            # Use json_dumps to properly quote and escape the name
+            quoted_name = json_dumps(name)
+            quoted_names.append(quoted_name)
+            # Escape the name for use in a regex so it matches the quoted name
+            quoted_and_rx_escaped_names.append(quote_regex(quoted_name))
+            grammars.append(f'{quoted_name}{self.key_separator}' + self.json(json_schema=schema))
+
+        # Key for additionalProperties is a json string, but we need to disallow any properties that are already defined
         key_grammar: GrammarFunction
-        if len(names) > 0:
-            # If there are any properties, we need to disallow them as additionalProperties
+        if len(quoted_names) > 0:
             key_grammar = as_regular_grammar(
                 And([
                     lexeme(r'"([^"\\]|\\["\\/bfnrt]|\\u[0-9a-fA-F]{4})*"'),
-                    Not(lexeme('"(' + '|'.join(quote_regex(name) for name in names) + ')"')),
+                    Not(lexeme('|'.join(quoted_and_rx_escaped_names))),
                 ]),
                 lexeme = True,
             )
@@ -576,8 +588,8 @@ class GenJson:
             required_items += (False,)
 
         return lm + "{" + self._join(
-            elements = grammars,
-            required = required_items,
+            elements = tuple(grammars),
+            required = tuple(required_items),
         ) + "}"
 
 
