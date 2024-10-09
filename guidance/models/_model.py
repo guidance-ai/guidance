@@ -156,107 +156,109 @@ class Engine:
 
             vis_chunks: list[VisBytesChunk] = [path.vis_chunk for path in paths if path.vis_chunk is not None]
 
-            # tokens = []
+            text = last_model._state
             # gen_tokens: list[GenToken] = []
             # for vis_chunk in vis_chunks:
-            #     if vis_chunk.backtrack:
-            #         tokens = tokens[:-vis_chunk.backtrack]
-            #         gen_tokens = gen_tokens[:-vis_chunk.backtrack]
-
-            #     if vis_chunk.is_input:
-            #         for gen_token in vis_chunk.input_tokens:
-            #             tokens.append(gen_token.token)
-            #             gen_tokens.append(gen_token)
-            #     else:
-            #         for gen_token in vis_chunk.generated_tokens:
-            #             tokens.append(gen_token.token)
-            #             gen_tokens.append(gen_token)
-
-            #         for gen_token in vis_chunk.force_forwarded_tokens:
-            #             tokens.append(gen_token.token)
-            #             gen_tokens.append(gen_token)
-
-            text = ""
-            gen_tokens: list[GenToken] = []
-            for vis_chunk in vis_chunks:
-                text += vis_chunk.bytes.decode("utf-8")
-                gen_tokens.extend(vis_chunk.input_tokens)
-                gen_tokens.extend(vis_chunk.generated_tokens)
-                gen_tokens.extend(vis_chunk.force_forwarded_tokens)
+            #     text += vis_chunk.bytes.decode("utf-8")
+            #     gen_tokens.extend(vis_chunk.input_tokens)
+            #     gen_tokens.extend(vis_chunk.generated_tokens)
+            #     gen_tokens.extend(vis_chunk.force_forwarded_tokens)
 
             tokens = self.tokenizer.encode(text.encode("utf-8"))
             probs = self.get_token_probs(tokens)
+            tokens_texts: list[str] = []
+            for idx in range(len(tokens)):
+                tokens_texts.append(self.tokenizer.decode([tokens[idx]]).decode("utf-8"))
 
-            idx = 0
+            start_idx = 0
+            end_idx = 1
+            start_pos = 0
+            remainder = ""
+            failed = False
+
             processed_gen_tokens = []
-            while gen_tokens:
-                gen_token = gen_tokens.pop(0)
+            for vis_chunk in vis_chunks:
+                vis_text = vis_chunk.bytes.decode("utf-8")
 
-                if gen_token.token == tokens[idx]:
-                    gen_token.top_k = probs[idx]
-                    for _token in probs[idx]:
-                        if _token.token == gen_token.token:
-                            gen_token.prob = _token.prob
-                            break
-                    processed_gen_tokens.append(gen_token)
-                    text = text[len(gen_token.text):]
-                    idx += 1
+                if not vis_text:
                     continue
 
-                # we have a mismatch due to backtracking
-                # next_gen_token = gen_tokens.pop(0)
-                # merged_text = gen_token.text + next_gen_token.text
-                # merged_tokens = self.tokenizer.encode(merged_text.encode("utf-8"))
-                # assert len(merged_tokens) == 1, f"Expected merged tokens to be of length 1, got {len(merged_tokens)}"
+                end_idx = start_idx
+                _chunk = "".join(tokens_texts[start_idx:end_idx+1])
+                while vis_text not in _chunk and end_idx < len(tokens_texts):
+                    # expand the chunk
+                    end_idx += 1
+                    _chunk = "".join(tokens_texts[start_idx:end_idx+1])
 
-                merged_text = gen_token.text
-                token_text = self.tokenizer.decode([tokens[idx]]).decode("utf-8")
-                while len(merged_text) < len(token_text) and token_text.startswith(merged_text):
-                    next_gen_token = gen_tokens.pop(0)
-                    merged_text += next_gen_token.text
+                if vis_text not in _chunk and end_idx >= len(tokens_texts):
+                    failed = True
+                    break
+                
+                if vis_text == _chunk:
+                    # perfect match
+                    pass
+                else:
+                    start_pos = _chunk.index(vis_text)
+                    remainder = _chunk[start_pos + len(vis_text):]
 
-                assert token_text == merged_text, f"Expected merged text to be {token_text}, got {merged_text}"
-                merged_tokens = self.tokenizer.encode(merged_text.encode("utf-8"))
+                if remainder:
+                    # we have a current chunk that is larger than the vis_text
+                    # probably the last token is a partial token
+                    # we should not issue that token for now
+                    end_idx -= 1
 
-                if tokens[idx] == merged_tokens[0]:
-                    # create new GenToken
-                    prob = 0
-                    for _token in probs[idx]:
-                        if _token.token == merged_tokens[0]:
+                real_chunk_tokens = tokens[start_idx:end_idx+1]
+                real_chunk_probs = probs[start_idx:end_idx+1]
+
+                is_input = len(vis_chunk.input_tokens) > 0
+                is_force_forwarded = len(vis_chunk.force_forwarded_tokens) > 0
+
+                _gen_tokens: list[GenToken] = []
+                for token, top_k_prob in zip(real_chunk_tokens, real_chunk_probs):
+                    prob = -1
+                    for _token in top_k_prob:
+                        if _token.token == token:
                             prob = _token.prob
                             break
 
                     _gen_token = GenToken(
-                            token=merged_tokens[0],
+                            token=token,
                             prob=prob,
-                            text=merged_text,
-                            latency_ms=gen_token.latency_ms + next_gen_token.latency_ms,
-                            is_generated=gen_token.is_generated or next_gen_token.is_generated,
-                            is_force_forwarded=gen_token.is_force_forwarded or next_gen_token.is_force_forwarded,
+                            text=self.tokenizer.decode([token]).decode("utf-8"),
+                            latency_ms=0,
+                            is_input=is_input,
+                            is_generated=False,
+                            is_force_forwarded=False
                         )
-                    _gen_token.top_k = probs[idx]
-                    processed_gen_tokens.append(
-                        _gen_token
-                    )
-                    idx += 1
-                else:
-                    assert next_gen_token.token == merged_tokens[0], f"Expected next_gen_token token to be {merged_tokens[0]}, got {next_gen_token.token}"
+                    _gen_token.top_k = top_k_prob
+                    _gen_tokens.append(_gen_token)
 
-            final_text = "".join([gen_token.text for gen_token in processed_gen_tokens])
-            logger.debug(f"ENGINE:final_text:{final_text}")
+                for i, _gen_token in enumerate(_gen_tokens):
+                    if i < len(vis_chunk.generated_tokens):
+                        _gen_token.latency_ms = vis_chunk.generated_tokens[i].latency_ms
+                        _gen_token.is_generated = True
+                    else:
+                        if is_force_forwarded:
+                            _gen_token.is_force_forwarded = True
+                            if i - len(vis_chunk.generated_tokens) < len(vis_chunk.force_forwarded_tokens):
+                                _gen_token.latency_ms = vis_chunk.force_forwarded_tokens[i - len(vis_chunk.generated_tokens)].latency_ms
 
-            self.renderer.update(JupyterCellExecutionCompletedOutputMessage(
-                trace_id=message.last_trace_id,
-                text=self.tokenizer.decode(tokens).decode("utf-8"),
-                tokens=processed_gen_tokens,
-            ))
+                processed_gen_tokens.extend(_gen_tokens)
 
-            # self.renderer.update(JupyterCellExecutionCompletedOutputMessage(
-            #     trace_id=message.last_trace_id,
-            #     text=self.tokenizer.decode(tokens).decode("utf-8"),
-            #     tokens=tokens,
-            #     probs=probs
-            # ))
+                start_idx = end_idx + 1
+
+                start_pos = 0
+                remainder = ""
+
+            if not failed:
+                final_text = "".join([gen_token.text for gen_token in processed_gen_tokens])
+                logger.debug(f"ENGINE:final_text:{final_text}")
+
+                self.renderer.update(JupyterCellExecutionCompletedOutputMessage(
+                    trace_id=message.last_trace_id,
+                    text=self.tokenizer.decode(tokens).decode("utf-8"),
+                    tokens=processed_gen_tokens,
+                ))
 
     def get_chat_template(self): # TODO [HN]: Add more logic here...should we instantiate class here? do we even need to?
         return self.tokenizer.chat_template() # Instantiate the class before returning to client for now
