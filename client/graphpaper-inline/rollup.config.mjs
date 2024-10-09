@@ -21,6 +21,7 @@ export default [{
 		sourcemap: !production,
 	},
 	plugins: [
+		typescript(),
 		svelte({
 			compilerOptions: {
 				dev: !production
@@ -33,7 +34,6 @@ export default [{
 			extensions: ['.svelte', '.mjs', '.ts', '.js', '.json', '.node']
 		}),
 		commonjs(),
-		typescript(),
 		postcss(),
 		copy({
 			targets: [

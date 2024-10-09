@@ -55,6 +55,7 @@
 			nodeAttrs = nodeAttrs;
 		}
 	}
+
 	nodeAttrs = mockTokens;
 
 	// TODO(nopdive): Restrict metrics while updating style.

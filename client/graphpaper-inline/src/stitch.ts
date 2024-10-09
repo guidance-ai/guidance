@@ -65,23 +65,23 @@ export interface StitchMessage {
     content: any
 }
 
-export function isTraceMessage(o: NodeAttr | undefined): o is TraceMessage {
-    if (o === undefined) return false;
+export function isTraceMessage(o: NodeAttr | undefined | null): o is TraceMessage {
+    if (o === undefined || o === null) return false;
     return o.class_name === "TraceMessage";
 }
 
-export function isRoleOpenerInput(o: NodeAttr | undefined): o is RoleOpenerInput {
-    if (o === undefined) return false;
+export function isRoleOpenerInput(o: NodeAttr | undefined | null): o is RoleOpenerInput {
+    if (o === undefined || o === null) return false;
     return o.class_name === "RoleOpenerInput";
 }
 
-export function isRoleCloserInput(o: NodeAttr | undefined): o is RoleCloserInput {
-    if (o === undefined) return false;
+export function isRoleCloserInput(o: NodeAttr | undefined | null): o is RoleCloserInput {
+    if (o === undefined || o === null) return false;
     return o.class_name === "RoleCloserInput";
 }
 
-export function isTextOutput(o: NodeAttr | undefined): o is TextOutput {
-    if (o === undefined) return false;
+export function isTextOutput(o: NodeAttr | undefined | null): o is TextOutput {
+    if (o === undefined || o === null) return false;
     return o.class_name === "TextOutput";
 }
 
