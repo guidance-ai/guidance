@@ -16,6 +16,7 @@ export interface RoleOpenerInput extends NodeAttr {
     class_name: 'RoleOpenerInput',
     name?: string,
     text?: string,
+    closer_text?: string,
 }
 
 export interface RoleCloserInput extends NodeAttr {
@@ -74,7 +75,7 @@ export function isRoleOpenerInput(o: NodeAttr | undefined): o is RoleOpenerInput
     return o.class_name === "RoleOpenerInput";
 }
 
-export function isRoleCloserInput(o: NodeAttr | undefined): o is RoleOpenerInput {
+export function isRoleCloserInput(o: NodeAttr | undefined): o is RoleCloserInput {
     if (o === undefined) return false;
     return o.class_name === "RoleCloserInput";
 }

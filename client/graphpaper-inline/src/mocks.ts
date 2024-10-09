@@ -14,6 +14,7 @@ const textToNodeAttrs = (texts: Array<string>) => {
                 class_name: 'RoleOpenerInput',
                 name: 'system',
                 text: "<|system|>",
+                closer_text: "<|end|>",
             }
             activeRole = 'system';
             results.push(roleOpenerInput);
@@ -22,6 +23,7 @@ const textToNodeAttrs = (texts: Array<string>) => {
                 class_name: 'RoleOpenerInput',
                 name: 'assistant',
                 text: "<|assistant|>",
+                closer_text: "<|end|>",
             }
             activeRole = 'user';
             results.push(roleOpenerInput);
@@ -30,6 +32,7 @@ const textToNodeAttrs = (texts: Array<string>) => {
                 class_name: 'RoleOpenerInput',
                 name: 'user',
                 text: "<|user|>",
+                closer_text: "<|end|>",
             }
             activeRole = 'user';
             results.push(roleOpenerInput);
