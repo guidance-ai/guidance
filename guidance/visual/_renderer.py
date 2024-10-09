@@ -217,6 +217,7 @@ class JupyterWidgetRenderer(Renderer):
             self._loop.call_soon_threadsafe(self._send_queue.put_nowait, out_message)
 
     def _handle_jupyter_cell_completion(self):
+        # TODO(nopdive): Review interaction of primary/UI thread here.
         if self._jupyter_change_detector.has_changed():
             if self._is_alive_cell_cb:
                 get_ipython().events.unregister('post_execute', self._cell_completion_cb)
@@ -251,7 +252,7 @@ class JupyterWidgetRenderer(Renderer):
                 value = await self._recv_queue.get()
                 # logger.debug(f"RECV:raw:{value}")
                 message = deserialize_message(value)
-                logger.debug(f"RECV:msg:{message}")
+                # logger.debug(f"RECV:msg:{message}")
                 if isinstance(message, ClientReadyMessage):
                     logger.debug("RECV:clientready")
                     self._client_ready.notify()
@@ -264,14 +265,19 @@ class JupyterWidgetRenderer(Renderer):
         logger.debug("SEND:init")
 
         # Wait until ready
-        if self._wait_for_client:
-            await self._client_ready.wait()
+        # TODO(nopdive): This blocks until cell completion. Not what we want.
+        # if self._wait_for_client:
+        #     await self._client_ready.wait()
+
+        # What if we only used 1% of our brain?
+        import asyncio
+        await asyncio.sleep(0.5)
         logger.debug("SEND:ready")
 
         while True:
             try:
                 message = await self._send_queue.get()
-                logger.debug(f"SEND:msg:{message}")
+                # logger.debug(f"SEND:msg:{message}")
                 message_json = serialize_message(message)
                 # logger.debug(f"SEND:json:{message_json}")
                 if self._jupyter_widget is not None:
@@ -316,7 +322,6 @@ class AutoRenderer(Renderer):
             self._renderer = JupyterWidgetRenderer(trace_handler=trace_handler)
         else:
             self._renderer = LegacyHtmlRenderer(trace_handler=trace_handler)
-
         super().__init__()
 
     def notify(self, message: GuidanceMessage):

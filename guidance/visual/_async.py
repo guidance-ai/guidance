@@ -5,8 +5,8 @@ This includes a separate thread dedicated for visualization and messaging.
 
 import asyncio
 import threading
-from asyncio import AbstractEventLoop, Queue, Future
-from typing import Tuple, Any
+from asyncio import AbstractEventLoop, Future
+from typing import Tuple
 
 
 class ThreadSafeAsyncCondVar:

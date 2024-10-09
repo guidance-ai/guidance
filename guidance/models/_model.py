@@ -782,13 +782,13 @@ class Model:
         for context in enter_blocks:
             # add opener
             opener_text = self.role_opener(context.name)
-            self._update_trace_node(lm._id, lm._parent_id, RoleOpenerInput(name=context.name, text=opener_text))
+            closer_text = self.role_closer(context.name)
+            self._update_trace_node(lm._id, lm._parent_id, RoleOpenerInput(name=context.name, text=opener_text, closer_text=closer_text))
             lm += context.opener
             lm = lm.copy()
 
             # store closer for state extraction later
-            close_text = self.role_closer(context.name)
-            lm.opened_blocks[context] = (len(lm._state), close_text)
+            lm.opened_blocks[context] = (len(lm._state), closer_text)
 
             # handle variables
             # NOTE(nopdive): No stack for variables, this process removes shadowed variables?
