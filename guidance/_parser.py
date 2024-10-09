@@ -104,6 +104,8 @@ class TokenParser:
             response = r.progress.to_engine_call_response()
 
             response.backtrack = backtrack
+            if engine_output:
+                response.engine_outputs.append(engine_output)
 
             # if ff_tokens:
             #     if engine_output.issued_token.token == ff_tokens[0]:

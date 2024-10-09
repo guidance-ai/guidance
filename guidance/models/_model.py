@@ -155,6 +155,11 @@ class Engine:
             paths.reverse()
 
             vis_chunks: list[VisBytesChunk] = [path.vis_chunk for path in paths if path.vis_chunk is not None]
+            gen_tokens_lats = []
+            for vis_chunk in vis_chunks:
+                for engine_output in vis_chunk.engine_outputs:
+                    gen_tokens_lats.append((engine_output.issued_token.token, engine_output.issued_token.latency_ms))
+            gen_tokens_lats_idx = 0
 
             text = last_model._state
             # gen_tokens: list[GenToken] = []
@@ -234,14 +239,30 @@ class Engine:
                     _gen_tokens.append(_gen_token)
 
                 for i, _gen_token in enumerate(_gen_tokens):
-                    if i < len(vis_chunk.generated_tokens):
-                        _gen_token.latency_ms = vis_chunk.generated_tokens[i].latency_ms
-                        _gen_token.is_generated = True
-                    else:
-                        if is_force_forwarded:
-                            _gen_token.is_force_forwarded = True
-                            if i - len(vis_chunk.generated_tokens) < len(vis_chunk.force_forwarded_tokens):
-                                _gen_token.latency_ms = vis_chunk.force_forwarded_tokens[i - len(vis_chunk.generated_tokens)].latency_ms
+                    # if i < len(vis_chunk.generated_tokens):
+                    #     _gen_token.latency_ms = vis_chunk.generated_tokens[i].latency_ms
+                    #     _gen_token.is_generated = True
+                    # else:
+                    #     if is_force_forwarded:
+                    #         _gen_token.is_force_forwarded = True
+                    #         if i - len(vis_chunk.generated_tokens) < len(vis_chunk.force_forwarded_tokens):
+                    #             _gen_token.latency_ms = vis_chunk.force_forwarded_tokens[i - len(vis_chunk.generated_tokens)].latency_ms
+
+                    if not is_input:
+                        if i < len(vis_chunk.generated_tokens):
+                            _gen_token.is_generated = True
+                        else:
+                            if is_force_forwarded:
+                                _gen_token.is_force_forwarded = True
+
+                        base_idx = gen_tokens_lats_idx
+                        while base_idx < len(gen_tokens_lats):
+                            if _gen_token.token == gen_tokens_lats[base_idx][0]:
+                                _gen_token.latency_ms = gen_tokens_lats[base_idx][1]
+                                gen_tokens_lats_idx = base_idx + 1
+                                break
+
+                            base_idx += 1
 
                 processed_gen_tokens.extend(_gen_tokens)
 
@@ -1153,6 +1174,7 @@ class Model:
                         force_forwarded_bytes=chunk.force_forwarded_bytes,
                         force_forwarded_tokens=chunk.force_forwarded_tokens,
                         backtrack=chunk.backtrack,
+                        engine_outputs=chunk.engine_outputs,
                     )
                 else:
                     # append to existing VisBytesChunk
@@ -1160,6 +1182,7 @@ class Model:
                     lm.vis_chunk.generated_bytes += chunk.generated_bytes
                     lm.vis_chunk.force_forwarded_bytes += chunk.force_forwarded_bytes
                     lm.vis_chunk.backtrack += chunk.backtrack
+                    lm.vis_chunk.engine_outputs += chunk.engine_outputs
 
                 # last_is_generated = chunk.is_generated
                 if len(chunk.capture_groups) > 0:
