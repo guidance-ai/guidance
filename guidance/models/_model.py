@@ -120,7 +120,7 @@ class Engine:
         self.metrics = GuidanceEngineMetrics()
 
         self.trace_handler = TraceHandler()
-        self.renderer = AutoRenderer(self.trace_handler, use_legacy_renderer=kwargs.get("use_legacy_renderer", True))
+        self.renderer = AutoRenderer(self.trace_handler, use_legacy_renderer=kwargs.get("use_legacy_renderer", False))
         self.renderer.subscribe(self._msg_recv)
         self.model_dict: dict[int, Model] = {}
 

@@ -6,7 +6,9 @@ import terser from '@rollup/plugin-terser';
 import typescript from '@rollup/plugin-typescript';
 import postcss from 'rollup-plugin-postcss';
 import livereload from 'rollup-plugin-livereload';
+// @ts-ignore
 import serve from 'rollup-plugin-serve';
+// @ts-ignore
 import htmlBundle from 'rollup-plugin-html-bundle';
 import copy from 'rollup-plugin-copy';
 
