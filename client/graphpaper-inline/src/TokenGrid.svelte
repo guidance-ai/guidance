@@ -4,6 +4,7 @@
     import {isRoleOpenerInput, isTextOutput, type NodeAttr, type RoleOpenerInput} from './stitch';
     import TokenGridItem from "./TokenGridItem.svelte";
     import {longhover} from "./longhover";
+    import DOMPurify from "dompurify";
 
     interface Token {
         value: string,
@@ -59,7 +60,7 @@
     let tooltip: HTMLElement;
     let tooltipX = 0;
     let tooltipY = 0;
-    let tooltipText = '';
+    let tooltipToken: Token;
     const mouseLongHoverDuration = 200;
 
     const handleLongMouseOver = (event: CustomEvent<MouseEvent>) => {
@@ -70,11 +71,12 @@
             const positionYOffset = 10;
 
             // Add tooltip
-            tooltipText = index || "";
             const rect = target.getBoundingClientRect();
             tooltipX = (rect.left + window.scrollX + rect.width / 2) + positionXOffset;
             tooltipY = (rect.bottom + window.scrollY) + positionYOffset;
             tooltip.style.display = 'block';
+            const indexNum = Number(index);
+            tooltipToken = tokens[indexNum];
 
             // Adjust if near edge of viewport
             if (tooltipX + tooltip.offsetWidth > window.innerWidth) {
@@ -126,12 +128,50 @@
         }
     }
     const doNothing = (_: any) => {}
-
+    const escapeWhitespaceCharacters = (text: string) => {
+        return text.replaceAll(' ', '&nbsp;').replaceAll('\t', '\\t').replaceAll('\n', '\\n');
+    }
 </script>
 
 <!-- Tooltip -->
-<div bind:this={tooltip} class="absolute opacity-70 bg-black text-gray-50 pointer-events-none z-10" style="top: {tooltipY}px; left: {tooltipX}px">
-    {tooltipText}
+<div bind:this={tooltip} class="px-2 pt-2 pb-3 absolute opacity-90 bg-gray-600 text-gray-200 pointer-events-none z-10" style="top: {tooltipY}px; left: {tooltipX}px">
+    <div>
+        {#if tooltipToken}
+            <div class={`col-1 pb-2 flex flex-col items-center text-gray-100 bg-gray-900}`}>
+                <div class="text-2xl pl-2 pt-2 pb-6 text-left w-full">
+                    <span class="bg-gray-700">
+                        {@html DOMPurify.sanitize(escapeWhitespaceCharacters(tooltipToken.value))}
+                    </span>
+                </div>
+                <table class="divide-gray-100">
+                    <thead>
+                        <tr>
+                            <th class={`px-2 pb-1 tracking-wider uppercase text-xs text-left text-gray-400`}>
+                                Token
+                            </th>
+                            <th class={`px-2 pb-1 tracking-wider uppercase text-xs text-right text-gray-400`}>
+                                Prob
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class={`text-gray-300`}>
+                        <tr class="line-through">
+                            <td class="px-2 font-mono text-base"><span class="bg-gray-700">degenerates</span></td>
+                            <td class="px-2 font-mono text-base">0.983</td>
+                        </tr>
+                        <tr>
+                            <td class="px-2 font-mono text-base"><span class="bg-gray-700">jugs</span></td>
+                            <td class="px-2 font-mono text-base">0.201</td>
+                        </tr>
+                        <tr>
+                            <td class="px-2 font-mono text-base"><span class="bg-gray-700">madness</span></td>
+                            <td class="px-2 font-mono text-base">0.005</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        {/if}
+    </div>
 </div>
 
 <div class="pt-6 pb-6 flex text-gray-800 font-token">
