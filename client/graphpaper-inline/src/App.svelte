@@ -55,8 +55,7 @@
 			nodeAttrs = nodeAttrs;
 		}
 	}
-
-	nodeAttrs = mockTokens;
+	// nodeAttrs = mockTokens;
 
 	// TODO(nopdive): Restrict metrics while updating style.
 	const metricDefs: Record<string, MetricDef> = {
