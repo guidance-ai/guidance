@@ -156,9 +156,11 @@ class Engine:
 
             vis_chunks: list[VisBytesChunk] = [path.vis_chunk for path in paths if path.vis_chunk is not None]
             gen_tokens_lats = []
+            gen_tokens_indices = []
             for vis_chunk in vis_chunks:
                 for engine_output in vis_chunk.engine_outputs:
                     gen_tokens_lats.append((engine_output.issued_token.token, engine_output.issued_token.latency_ms))
+                gen_tokens_indices.append(len(gen_tokens_lats) - 1)
             gen_tokens_lats_idx = 0
 
             text = last_model._state
@@ -182,7 +184,7 @@ class Engine:
             failed = False
 
             processed_gen_tokens = []
-            for vis_chunk in vis_chunks:
+            for vis_chunk_idx, vis_chunk in enumerate(vis_chunks):
                 vis_text = vis_chunk.bytes.decode("utf-8")
 
                 if not vis_text:
@@ -255,14 +257,20 @@ class Engine:
                             if is_force_forwarded:
                                 _gen_token.is_force_forwarded = True
 
-                        base_idx = gen_tokens_lats_idx
-                        while base_idx < len(gen_tokens_lats):
-                            if _gen_token.token == gen_tokens_lats[base_idx][0]:
-                                _gen_token.latency_ms = gen_tokens_lats[base_idx][1]
-                                gen_tokens_lats_idx = base_idx + 1
-                                break
+                        # base_idx = gen_tokens_lats_idx
+                        # while base_idx < len(gen_tokens_lats):
+                        #     if _gen_token.token == gen_tokens_lats[base_idx][0]:
+                        #         _gen_token.latency_ms = gen_tokens_lats[base_idx][1]
+                        #         gen_tokens_lats_idx = base_idx + 1
+                        #         break
 
-                            base_idx += 1
+                        #     base_idx += 1
+
+                        max_idx = gen_tokens_indices[vis_chunk_idx]
+                        for idx in range(max_idx, -1, -1):
+                            if _gen_token.token == gen_tokens_lats[idx][0]:
+                                _gen_token.latency_ms = gen_tokens_lats[idx][1]
+                                break
 
                 processed_gen_tokens.extend(_gen_tokens)
 
