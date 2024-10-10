@@ -58,10 +58,11 @@ image_pattern = re.compile(r"&lt;\|_image:(.*?)\|&gt;")
 
 # TODO(nopdive): Remove on implementation.
 class MockMetricsGenerator:
-    def __init__(self, renderer: Renderer, sleep_sec = 0.1):
+    def __init__(self, renderer: Renderer, monitor: "Monitor", sleep_sec = 0.5):
         from ..visual._async import run_async_task
 
         self._renderer = renderer
+        self._monitor = monitor
         self._sleep_sec = sleep_sec
         run_async_task(self._emit())
 
@@ -73,22 +74,52 @@ class MockMetricsGenerator:
         time_start = time.time()
         while True:
             await asyncio.sleep(self._sleep_sec)
+
+            cpu_percent = self._monitor.get_metric(MonitoringMetric.CPU_USAGE)
+            mem_percent = self._monitor.get_metric(MonitoringMetric.MEM_USAGE)
+            gpu_percent = self._monitor.get_metric(MonitoringMetric.GPU_USAGE)
+            gpu_used_vram = self._monitor.get_metric(MonitoringMetric.GPU_USED_MEM)
+
+            if gpu_percent:
+                gpu_percent = max(gpu_percent)
+            else:
+                gpu_percent = 0
+
+            if gpu_used_vram:
+                gpu_used_vram = max(gpu_used_vram)
+            else:
+                gpu_used_vram = 0
+
+            if not cpu_percent:
+                cpu_percent = 0
+
+            if not mem_percent:
+                mem_percent = 0
+
+            # print(f"CPU: {cpu_percent}, RAM: {mem_percent}")
+            # print("gpu_percent", gpu_percent)
+            # print("gpu_used_vram",gpu_used_vram)
+
             time_end = time.time()
             time_elapsed = time_end - time_start
             self._renderer.update(
                 MetricMessage(name='wall time', value=time_elapsed)
             )
+
             self._renderer.update(
-                MetricMessage(name='gpu', value=random.uniform(0, 1))
+                MetricMessage(name='cpu', value=self._monitor.get_metric(MonitoringMetric.CPU_USAGE))
             )
+
             self._renderer.update(
-                MetricMessage(name='cpu', value=random.uniform(0, 1))
+                MetricMessage(name='ram', value=self._monitor.get_metric(MonitoringMetric.MEM_USAGE))
             )
+
             self._renderer.update(
-                MetricMessage(name='ram', value=random.uniform(0, 128))
+                MetricMessage(name='gpu', value=gpu_percent)
             )
+
             self._renderer.update(
-                MetricMessage(name='vram', value=random.uniform(0, 24))
+                MetricMessage(name='vram', value=gpu_used_vram)
             )
 
 
@@ -127,8 +158,11 @@ class Engine:
         self.renderer.subscribe(self._msg_recv)
         self.model_dict: dict[int, Model] = {}
 
+        self.monitor = Monitor(self)
+        self.monitor.start()
+
         # TODO(nopdive): Remove on implementation.
-        self.metrics_generator = MockMetricsGenerator(self.renderer)
+        self.metrics_generator = MockMetricsGenerator(self.renderer, self.monitor)
         self.post_exec_generator = MockPostExecGenerator(self.renderer)
 
     def _msg_recv(self, message: GuidanceMessage) -> None:
