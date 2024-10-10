@@ -388,7 +388,7 @@ class TransformersEngine(Engine):
             self.model = model.__class__.__name__
         self.device = self.model_obj.device  # otherwise note the current device
 
-        self._past_key_values = None
+        self._past_key_values: Union[transformers_package.Cache, tuple[tuple[torch.Tensor, ...], tuple[torch.Tensor, ...]], None] = None
         self._cached_logits = None
         self._cached_token_ids: list[int] = []
 
@@ -456,11 +456,17 @@ class TransformersEngine(Engine):
         past_key_values = self._past_key_values
         past_length = past_key_values[0][0].size(-2) if past_key_values is not None else 0
         if past_length > num_cached:
-            # note we recompute the last token because we don't bother to handle the special case of just computing logits
-            past_length = max(0, num_cached - 1)
-            self._past_key_values = tuple(
-                tuple(p[..., :past_length, :] for p in v) for v in past_key_values
-            )
+            if isinstance(self._past_key_values, (tuple, transformers_package.DynamicCache)):
+                # note we recompute the last token because we don't bother to handle the special case of just computing logits
+                past_length = max(0, num_cached - 1)
+                self._past_key_values = tuple(
+                    tuple(p[..., :past_length, :] for p in v) for v in past_key_values
+                )
+            else:
+                warnings.warn(f"Unsupported cache type: {type(self._past_key_values)}. Resetting cache.")
+                past_length = 0
+                self._past_key_values = None
+
         cache_token_ids[past_length:] = []
 
         # call the model
