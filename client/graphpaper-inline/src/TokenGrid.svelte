@@ -129,16 +129,16 @@
     }
     const doNothing = (_: any) => {}
     const escapeWhitespaceCharacters = (text: string) => {
-        return text.replaceAll(' ', '\\s').replaceAll('\t', '\\t').replaceAll('\n', '\\n');
+        return text.replaceAll(' ', '&nbsp;').replaceAll('\t', '\\t').replaceAll('\n', '\\n');
     }
 </script>
 
 <!-- Tooltip -->
-<div bind:this={tooltip} class="px-2 pt-2 pb-3 absolute opacity-95 bg-gray-100 border-l-4 border-l-red-500 border-b-2 border-b-gray-300 text-gray-700 pointer-events-none z-10" style="top: {tooltipY}px; left: {tooltipX}px">
+<div bind:this={tooltip} class="px-1 pt-2 pb-3 absolute opacity-95 bg-gray-100 border-l-4 border-l-red-500 border-b-2 border-b-gray-300 text-gray-700 pointer-events-none z-50" style="top: {tooltipY}px; left: {tooltipX}px; display: none;">
     <div>
         {#if tooltipToken}
-            <div class={`col-1 pb-2 flex flex-col items-center`}>
-                <div class="text-3xl px-2 pt-2 pb-6 text-left w-full">
+            <div class={`col-1 flex flex-col items-center`}>
+                <div class="text-lg px-1 pb-3 text-left w-full">
                     <div class="uppercase text-xs text-gray-500 tracking-wide">
                         Token
                     </div>
@@ -149,25 +149,25 @@
                 <table class="divide-gray-200">
                     <thead>
                         <tr>
-                            <th class={`px-2 pb-1 uppercase font-normal text-xs text-left text-gray-500 tracking-wide`}>
+                            <th class={`px-1 pb-1 uppercase font-normal text-xs text-left text-gray-500 tracking-wide`}>
                             </th>
-                            <th class={`px-2 pb-1 uppercase font-normal text-xs text-right text-gray-500 tracking-wide`}>
+                            <th class={`px-1 pb-1 uppercase font-normal text-xs text-right text-gray-500 tracking-wide`}>
                                 Prob
                             </th>
                         </tr>
                     </thead>
-                    <tbody class={`text-gray-700`}>
+                    <tbody>
                         <tr class="line-through">
-                            <td class="px-2 font-mono text-base"><span class="bg-gray-200">degenerates</span></td>
-                            <td class="px-2 font-mono text-base">0.983</td>
+                            <td class="px-1 font-mono text-sm"><span class="bg-gray-200">degenerates</span></td>
+                            <td class="px-1 font-mono text-sm">0.983</td>
                         </tr>
                         <tr>
-                            <td class="px-2 font-mono text-base"><span class="bg-gray-200">jugs</span></td>
-                            <td class="px-2 font-mono text-base">0.201</td>
+                            <td class="px-1 font-mono text-sm"><span class="bg-gray-200">jugs</span></td>
+                            <td class="px-1 font-mono text-sm">0.201</td>
                         </tr>
                         <tr>
-                            <td class="px-2 font-mono text-base"><span class="bg-gray-200">madness</span></td>
-                            <td class="px-2 font-mono text-base">0.005</td>
+                            <td class="px-1 font-mono text-sm"><span class="bg-gray-200">madness</span></td>
+                            <td class="px-1 font-mono text-sm">0.005</td>
                         </tr>
                     </tbody>
                 </table>

@@ -153,9 +153,9 @@
 
 <StitchHandler/>
 <ResizeListener/>
-<div class="w-full">
+<div class="w-full min-h-48">
 	<!-- Navigation bar -->
-	<nav class="sticky top-0 z-50 opacity-90 w-full flex bg-gray-100 text-gray-500 justify-between">
+	<nav class="sticky top-0 z-30 opacity-90 w-full flex bg-gray-100 text-gray-500 justify-between">
 		<div class="pl-2 flex">
 			{#each Object.entries(metrics) as [name, value], i}
 				<MetricCard value={value} i={i} metricDef={metricDefs[name]} />
