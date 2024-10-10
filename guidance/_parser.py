@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from typing import Any, Generator, Optional, Sequence, Tuple, Union
 
@@ -10,6 +11,9 @@ from ._grammar import GrammarFunction, Join, Terminal
 from ._schema import GenData, EngineCallResponse, LLInterpreterResponse
 from .models._byte_tokenizer import ByteTokenizer
 from .models._tokenizer import Tokenizer
+
+
+logger = logging.getLogger(__name__)
 
 
 class TokenParserException(Exception):
@@ -110,7 +114,7 @@ def process_prompt(prompt_tokens: Sequence[int], ll_interpreter: llguidance.LLIn
     return processed_tokens
 
 
-def process_grammar(grammar: Union[GrammarFunction, str]) -> str:
+def serialize_grammar(grammar: Union[GrammarFunction, str]) -> str:
     if isinstance(grammar, GrammarFunction):
         # we can't have a terminal as the root
         if isinstance(grammar, Terminal):
@@ -127,7 +131,7 @@ def create_token_parser(
     ensure_bos_token: bool = True,
     trace: bool = False
 ) -> TokenParser:
-    serialized_grammar = process_grammar(grammar)
+    serialized_grammar = serialize_grammar(grammar)
     ll_tokenizer = llguidance.LLTokenizer(
         llguidance.TokenizerWrapper(tokenizer)
     )
@@ -136,12 +140,15 @@ def create_token_parser(
         serialized_grammar,
         log_level=2 if trace else int(os.environ.get("LLGUIDANCE_LOG_LEVEL", "1")),
     )
-    if ensure_bos_token and tokenizer.bos_token_id is not None:
+    if ensure_bos_token:
+        if tokenizer.bos_token_id is None:
+            logger.warning("Tokenizer does not have a BOS token, but ensure_bos_token is True")
         bos_token_id = tokenizer.bos_token_id
     else:
         bos_token_id = None
     prompt_tokens = tokenizer.encode(prompt)
     processed_tokens = process_prompt(prompt_tokens, ll_interpreter, bos_token_id)
+    processed_tokens = tokenizer.recode(processed_tokens)
     return TokenParser(ll_interpreter, processed_tokens)
 
 
