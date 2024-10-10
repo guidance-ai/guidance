@@ -30,6 +30,7 @@ class BaseGenToken(BaseModel):
     prob: float
     # bytes: bytes
     text: str = ""
+    is_masked: bool = False
 
 class GenToken(BaseGenToken):
     latency_ms: float

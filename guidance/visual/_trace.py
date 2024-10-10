@@ -85,7 +85,7 @@ def trace_node_to_html(node: TraceNode, prettify_roles=False, complete_msg: Jupy
                         top_k = {}
                         # find the correct token
                         for _item in complete_msg.tokens[prob_idx].top_k:
-                            top_k[f"{_item.text}"] = f"{_item.prob}"
+                            top_k[f"{_item.text}"] = f"{_item.prob} - Masked: {_item.is_masked}"
                         top_k = json.dumps(top_k, indent=2)
 
                         latency = f"{complete_msg.tokens[prob_idx].latency_ms:.2f}"

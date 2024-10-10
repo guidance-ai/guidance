@@ -196,7 +196,7 @@ class Engine:
             gen_tokens_indices = []
             for vis_chunk in vis_chunks:
                 for engine_output in vis_chunk.engine_outputs:
-                    gen_tokens_lats.append((engine_output.issued_token.token, engine_output.issued_token.latency_ms))
+                    gen_tokens_lats.append((engine_output.issued_token.token, engine_output.issued_token.latency_ms, engine_output.masked_top_k))
                 gen_tokens_indices.append(len(gen_tokens_lats) - 1)
             gen_tokens_lats_idx = 0
 
@@ -278,15 +278,6 @@ class Engine:
                     _gen_tokens.append(_gen_token)
 
                 for i, _gen_token in enumerate(_gen_tokens):
-                    # if i < len(vis_chunk.generated_tokens):
-                    #     _gen_token.latency_ms = vis_chunk.generated_tokens[i].latency_ms
-                    #     _gen_token.is_generated = True
-                    # else:
-                    #     if is_force_forwarded:
-                    #         _gen_token.is_force_forwarded = True
-                    #         if i - len(vis_chunk.generated_tokens) < len(vis_chunk.force_forwarded_tokens):
-                    #             _gen_token.latency_ms = vis_chunk.force_forwarded_tokens[i - len(vis_chunk.generated_tokens)].latency_ms
-
                     if not is_input:
                         if i < len(vis_chunk.generated_tokens):
                             _gen_token.is_generated = True
@@ -294,20 +285,52 @@ class Engine:
                             if is_force_forwarded:
                                 _gen_token.is_force_forwarded = True
 
-                        # base_idx = gen_tokens_lats_idx
-                        # while base_idx < len(gen_tokens_lats):
-                        #     if _gen_token.token == gen_tokens_lats[base_idx][0]:
-                        #         _gen_token.latency_ms = gen_tokens_lats[base_idx][1]
-                        #         gen_tokens_lats_idx = base_idx + 1
-                        #         break
-
-                        #     base_idx += 1
-
+                        found_perfect_match = False
                         max_idx = gen_tokens_indices[vis_chunk_idx]
                         for idx in range(max_idx, -1, -1):
                             if _gen_token.token == gen_tokens_lats[idx][0]:
                                 _gen_token.latency_ms = gen_tokens_lats[idx][1]
+                                _masked_top_k = gen_tokens_lats[idx][2]
+                                if _masked_top_k is None:
+                                    # in free accepting state, no masking
+                                    for _token in _gen_token.top_k:
+                                        _token.is_masked = False
+                                else:
+                                    _masked_tokens = [token.token for token in _masked_top_k]
+                                    for _token in _gen_token.top_k:
+                                        if _token.token not in _masked_tokens:
+                                            _token.is_masked = True
+                                        else:
+                                            _token.is_masked = False
+
+                                found_perfect_match = True
                                 break
+
+                        if not found_perfect_match:
+                            # only search within this chunk
+                            max_idx = gen_tokens_indices[vis_chunk_idx]
+                            prev_max_idx = -1 if vis_chunk_idx == 0 else gen_tokens_indices[vis_chunk_idx - 1] - 1
+                            for idx in range(max_idx, prev_max_idx, -1):
+                                if self.tokenizer.decode([gen_tokens_lats[idx][0]]).decode("utf-8") in _gen_token.text:
+                                    _gen_token.latency_ms = gen_tokens_lats[idx][1]
+                                    _masked_top_k = gen_tokens_lats[idx][2]
+                                    if _masked_top_k is None:
+                                        # in free accepting state, no masking
+                                        for _token in _gen_token.top_k:
+                                            _token.is_masked = False
+                                    else:
+                                        _masked_tokens = [token.token for token in _masked_top_k]
+                                        for _token in _gen_token.top_k:
+                                            if _token.token not in _masked_tokens and _token.token != _gen_token.token:
+                                                _token.is_masked = True
+                                            else:
+                                                _token.is_masked = False
+
+                                    break
+                    else:
+                        # input tokens are not masked
+                        for _token in _gen_token.top_k:
+                            _token.is_masked = False
 
                 processed_gen_tokens.extend(_gen_tokens)
 
