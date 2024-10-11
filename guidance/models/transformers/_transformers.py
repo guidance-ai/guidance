@@ -479,18 +479,16 @@ class TransformersEngine(Engine):
                 # between these two types, so we can use the same logic for both.
                 warnings.warn("Cache is too small. Re-initializing cache with larger size.")
                 cache_type = type(past_key_values)
+                config = self.model_obj.config
                 device = self.model_obj.device
-                layer_device_map = getattr(self.model_obj, "hf_device_map", None)
-                if layer_device_map is not None and set(layer_device_map.values()) == {device}:
-                    # layer_device_map should map layer numbers to devices, but sometimes it will look like {'': device}.
-                    # In this case, we should just use the device (which the cache init will fall back to if layer_device_map is None).
-                    layer_device_map = None
+                hf_device_map = getattr(self.model_obj, "hf_device_map", {})
+                # hf_device_map is not always a complete mapping of layers to devices...
+                layer_device_map = {k: hf_device_map.get(k, device) for k in range(config.num_hidden_layers)}
                 self._past_key_values = cache_type(
-                    config=self.model_obj.config,
+                    config=config,
                     batch_size=past_key_values.batch_size,
                     # Double the cache size to be safe
                     max_cache_len=len(token_ids)*2,
-                    device=device,
                     dtype=past_key_values.dtype,
                     layer_device_map=layer_device_map,
                 )
