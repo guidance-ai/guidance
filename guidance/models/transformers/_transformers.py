@@ -483,12 +483,17 @@ class TransformersEngine(Engine):
                 self._past_key_values = tuple(
                     tuple(p[..., :past_length, :] for p in v) for v in past_key_values
                 )
-            elif isinstance(past_key_values, transformers_package.Cache) and hasattr(past_key_values, "crop"):
-                self._past_key_values.crop(past_length)
             else:
-                warnings.warn(f"Cropping unsupported for cache type: {type(self._past_key_values)}. Resetting cache.")
-                self._past_key_values = None
-                past_length = 0
+                if hasattr(past_key_values, "crop"):
+                    self._past_key_values.crop(past_length)
+                else:
+                    warnings.warn(f"Cropping unsupported for cache type: {type(self._past_key_values)}. Resetting cache.")
+                    if hasattr(self._past_key_values, "reset"):
+                        # Use built-in reset method if available to avoid constructing/allocating a new cache
+                        self._past_key_values.reset()
+                    else:
+                        self._past_key_values = None
+                    past_length = 0
 
         cache_token_ids[past_length:] = []
 
