@@ -30,6 +30,7 @@ class BaseGenToken(BaseModel):
     prob: float
     # bytes: bytes
     text: str = ""
+    is_masked: bool = False
 
 class GenToken(BaseGenToken):
     latency_ms: float
@@ -57,6 +58,7 @@ class VisBytesChunk(BaseModel):
     force_forwarded_bytes: bytes = b""
     force_forwarded_tokens: list["GenToken"] = []
     backtrack: NonNegativeInt = 0
+    engine_outputs: list[EngineOutput] = []
 
 class GenData(BaseModel):
     tokens: list[int]
