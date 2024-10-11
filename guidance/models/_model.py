@@ -6,7 +6,10 @@ import threading
 
 import time
 from typing import Iterator, Optional, TYPE_CHECKING
-
+from multiprocessing import Manager, Process
+from typing import Any, Union
+from enum import Enum
+import psutil
 
 import numpy as np
 
@@ -55,10 +58,11 @@ image_pattern = re.compile(r"&lt;\|_image:(.*?)\|&gt;")
 
 # TODO(nopdive): Remove on implementation.
 class MockMetricsGenerator:
-    def __init__(self, renderer: Renderer, sleep_sec = 0.1):
+    def __init__(self, renderer: Renderer, monitor: "Monitor", sleep_sec = 0.5):
         from ..visual._async import run_async_task
 
         self._renderer = renderer
+        self._monitor = monitor
         self._sleep_sec = sleep_sec
         run_async_task(self._emit())
 
@@ -70,22 +74,52 @@ class MockMetricsGenerator:
         time_start = time.time()
         while True:
             await asyncio.sleep(self._sleep_sec)
+
+            cpu_percent = self._monitor.get_metric(MonitoringMetric.CPU_USAGE)
+            mem_percent = self._monitor.get_metric(MonitoringMetric.MEM_USAGE)
+            gpu_percent = self._monitor.get_metric(MonitoringMetric.GPU_USAGE)
+            gpu_used_vram = self._monitor.get_metric(MonitoringMetric.GPU_USED_MEM)
+
+            if gpu_percent:
+                gpu_percent = max(gpu_percent)
+            else:
+                gpu_percent = 0
+
+            if gpu_used_vram:
+                gpu_used_vram = max(gpu_used_vram)
+            else:
+                gpu_used_vram = 0
+
+            if not cpu_percent:
+                cpu_percent = 0
+
+            if not mem_percent:
+                mem_percent = 0
+
+            # print(f"CPU: {cpu_percent}, RAM: {mem_percent}")
+            # print("gpu_percent", gpu_percent)
+            # print("gpu_used_vram",gpu_used_vram)
+
             time_end = time.time()
             time_elapsed = time_end - time_start
             self._renderer.update(
                 MetricMessage(name='wall time', value=time_elapsed)
             )
+
             self._renderer.update(
-                MetricMessage(name='gpu', value=random.uniform(0, 1))
+                MetricMessage(name='cpu', value=self._monitor.get_metric(MonitoringMetric.CPU_USAGE))
             )
+
             self._renderer.update(
-                MetricMessage(name='cpu', value=random.uniform(0, 1))
+                MetricMessage(name='ram', value=self._monitor.get_metric(MonitoringMetric.MEM_USAGE))
             )
+
             self._renderer.update(
-                MetricMessage(name='ram', value=random.uniform(0, 128))
+                MetricMessage(name='gpu', value=gpu_percent)
             )
+
             self._renderer.update(
-                MetricMessage(name='vram', value=random.uniform(0, 24))
+                MetricMessage(name='vram', value=gpu_used_vram)
             )
 
 
@@ -121,8 +155,11 @@ class Engine:
         self.renderer.subscribe(self._msg_recv)
         self.model_dict: dict[int, Model] = {}
 
+        self.monitor = Monitor(self)
+        self.monitor.start()
+
         # TODO(nopdive): Remove on implementation.
-        self.metrics_generator = MockMetricsGenerator(self.renderer)
+        self.metrics_generator = MockMetricsGenerator(self.renderer, self.monitor)
         self.post_exec_generator = MockPostExecGenerator(self.renderer)
 
     def _msg_recv(self, message: GuidanceMessage) -> None:
@@ -152,6 +189,13 @@ class Engine:
             paths.reverse()
 
             vis_chunks: list[VisBytesChunk] = [path.vis_chunk for path in paths if path.vis_chunk is not None]
+            gen_tokens_lats = []
+            gen_tokens_indices = []
+            for vis_chunk in vis_chunks:
+                for engine_output in vis_chunk.engine_outputs:
+                    gen_tokens_lats.append((engine_output.issued_token.token, engine_output.issued_token.latency_ms, engine_output.masked_top_k))
+                gen_tokens_indices.append(len(gen_tokens_lats) - 1)
+            gen_tokens_lats_idx = 0
 
             text = last_model._state
             # gen_tokens: list[GenToken] = []
@@ -174,7 +218,7 @@ class Engine:
             failed = False
 
             processed_gen_tokens = []
-            for vis_chunk in vis_chunks:
+            for vis_chunk_idx, vis_chunk in enumerate(vis_chunks):
                 vis_text = vis_chunk.bytes.decode("utf-8")
 
                 if not vis_text:
@@ -231,14 +275,59 @@ class Engine:
                     _gen_tokens.append(_gen_token)
 
                 for i, _gen_token in enumerate(_gen_tokens):
-                    if i < len(vis_chunk.generated_tokens):
-                        _gen_token.latency_ms = vis_chunk.generated_tokens[i].latency_ms
-                        _gen_token.is_generated = True
+                    if not is_input:
+                        if i < len(vis_chunk.generated_tokens):
+                            _gen_token.is_generated = True
+                        else:
+                            if is_force_forwarded:
+                                _gen_token.is_force_forwarded = True
+
+                        found_perfect_match = False
+                        max_idx = gen_tokens_indices[vis_chunk_idx]
+                        for idx in range(max_idx, -1, -1):
+                            if _gen_token.token == gen_tokens_lats[idx][0]:
+                                _gen_token.latency_ms = gen_tokens_lats[idx][1]
+                                _masked_top_k = gen_tokens_lats[idx][2]
+                                if _masked_top_k is None:
+                                    # in free accepting state, no masking
+                                    for _token in _gen_token.top_k:
+                                        _token.is_masked = False
+                                else:
+                                    _masked_tokens = [token.token for token in _masked_top_k]
+                                    for _token in _gen_token.top_k:
+                                        if _token.token not in _masked_tokens:
+                                            _token.is_masked = True
+                                        else:
+                                            _token.is_masked = False
+
+                                found_perfect_match = True
+                                break
+
+                        if not found_perfect_match:
+                            # only search within this chunk
+                            max_idx = gen_tokens_indices[vis_chunk_idx]
+                            prev_max_idx = -1 if vis_chunk_idx == 0 else gen_tokens_indices[vis_chunk_idx - 1] - 1
+                            for idx in range(max_idx, prev_max_idx, -1):
+                                if self.tokenizer.decode([gen_tokens_lats[idx][0]]).decode("utf-8") in _gen_token.text:
+                                    _gen_token.latency_ms = gen_tokens_lats[idx][1]
+                                    _masked_top_k = gen_tokens_lats[idx][2]
+                                    if _masked_top_k is None:
+                                        # in free accepting state, no masking
+                                        for _token in _gen_token.top_k:
+                                            _token.is_masked = False
+                                    else:
+                                        _masked_tokens = [token.token for token in _masked_top_k]
+                                        for _token in _gen_token.top_k:
+                                            if _token.token not in _masked_tokens and _token.token != _gen_token.token:
+                                                _token.is_masked = True
+                                            else:
+                                                _token.is_masked = False
+
+                                    break
                     else:
-                        if is_force_forwarded:
-                            _gen_token.is_force_forwarded = True
-                            if i - len(vis_chunk.generated_tokens) < len(vis_chunk.force_forwarded_tokens):
-                                _gen_token.latency_ms = vis_chunk.force_forwarded_tokens[i - len(vis_chunk.generated_tokens)].latency_ms
+                        # input tokens are not masked
+                        for _token in _gen_token.top_k:
+                            _token.is_masked = False
 
                 processed_gen_tokens.extend(_gen_tokens)
 
@@ -1152,6 +1241,7 @@ class Model:
                         force_forwarded_bytes=chunk.force_forwarded_bytes,
                         force_forwarded_tokens=chunk.force_forwarded_tokens,
                         backtrack=chunk.backtrack,
+                        engine_outputs=chunk.engine_outputs,
                     )
                 else:
                     # append to existing VisBytesChunk
@@ -1159,6 +1249,7 @@ class Model:
                     lm.vis_chunk.generated_bytes += chunk.generated_bytes
                     lm.vis_chunk.force_forwarded_bytes += chunk.force_forwarded_bytes
                     lm.vis_chunk.backtrack += chunk.backtrack
+                    lm.vis_chunk.engine_outputs += chunk.engine_outputs
 
                 # last_is_generated = chunk.is_generated
                 if len(chunk.capture_groups) > 0:
@@ -1352,3 +1443,163 @@ class ConstraintException(Exception):
         self.prompt = kwargs.pop("prompt", None)
         self.data = kwargs.pop("data", None)
         super().__init__(*args, **kwargs)
+
+class MonitoringMetric(str, Enum):
+    CPU_USAGE = "cpu_usage"
+    MEM_USAGE = "mem_usage"
+    GPU_USAGE = "gpu_usage"
+    GPU_USED_MEM = "gpu_used_mem"
+    GPU_TOTAL_MEM = "gpu_total_mem"
+    INPUT_TOKENS = "input_tokens"
+    OUTPUT_TOKENS = "output_tokens"
+    BACKTRACK_TOKENS = "backtrack_tokens"
+    TOKEN_COUNT = "token_count"
+    TOKEN_REDUCTION = "token_reduction"
+
+ALL_METRICS = [
+    MonitoringMetric.CPU_USAGE,
+    MonitoringMetric.MEM_USAGE,
+    MonitoringMetric.GPU_USAGE,
+    MonitoringMetric.GPU_USED_MEM,
+    MonitoringMetric.GPU_TOTAL_MEM,
+    MonitoringMetric.INPUT_TOKENS,
+    MonitoringMetric.OUTPUT_TOKENS,
+    MonitoringMetric.BACKTRACK_TOKENS,
+    MonitoringMetric.TOKEN_COUNT,
+    MonitoringMetric.TOKEN_REDUCTION
+]
+
+def _monitor_fn(stop_flag, metrics_dict: dict[MonitoringMetric, list], max_size: int = 100, interval_ms: float = 1000):
+    print("Monitoring started")
+
+    to_collect_gpu_stats = False
+    try:
+        import gpustat
+        gpu_stats = gpustat.GPUStatCollection.new_query()
+        if len(gpu_stats) > 0:
+            # only collect GPU stats if there is at least one GPU
+            to_collect_gpu_stats = True
+    except:
+        pass
+
+    try:
+        while not stop_flag.value:
+            t0 = time.time()
+
+            #cpu_percent = psutil.cpu_percent(interval=1)
+            cpu_percent = psutil.cpu_percent()
+            memory_usage = psutil.virtual_memory()
+
+            metrics_dict[MonitoringMetric.CPU_USAGE].append(cpu_percent)
+            metrics_dict[MonitoringMetric.MEM_USAGE].append(memory_usage.percent)
+
+            t1 = time.time()
+
+            if to_collect_gpu_stats:
+                gpu_stats = gpustat.GPUStatCollection.new_query()
+
+                usage = [gpu.utilization for gpu in gpu_stats.gpus]
+                mem_usage = [gpu.memory_used for gpu in gpu_stats.gpus]
+                mem_total = [gpu.memory_total for gpu in gpu_stats.gpus]
+
+                metrics_dict[MonitoringMetric.GPU_USAGE].append(usage)
+                metrics_dict[MonitoringMetric.GPU_USED_MEM].append(mem_usage)
+                metrics_dict[MonitoringMetric.GPU_TOTAL_MEM].append(mem_total)
+
+            t2 = time.time()
+            
+            for metrics in metrics_dict.values():
+                if len(metrics) > max_size:
+                    metrics.pop(0)
+
+            lat = time.time() - t0
+            cpu_lat = t1 - t0
+            gpu_lat = t2 - t1
+
+            # print(f"Monitoring took {lat*1000:.1f}ms")
+            # print(f"CPU/MEM: {cpu_lat*1000:.1f}ms, GPU: {gpu_lat*1000:.1f}ms")
+
+            # sleep for the remaining time of the interval
+            sleep_time = interval_ms / 1000.0 - lat
+            if sleep_time < 0:
+                time.sleep(sleep_time)
+    except Exception as e:
+        # print(f"Error in monitoring: {e}")
+        pass
+
+    print("Monitoring stopped")
+
+class Monitor:
+    """Monitoring service to collect neccessary metrics for visualizatoin
+    """
+    
+    def __init__(self, engine: Engine, **kwargs):
+        self.engine = engine
+        self.mp_manager = Manager()
+
+        # use list instead of queue for easily accessing each item, e.g., last item
+        self.max_size = kwargs.get("max_size", 100)
+        
+        self.metrics_dict = {
+            MonitoringMetric.CPU_USAGE: self.mp_manager.list(),
+            MonitoringMetric.MEM_USAGE: self.mp_manager.list(),
+            MonitoringMetric.GPU_USAGE: self.mp_manager.list(),
+            MonitoringMetric.GPU_USED_MEM: self.mp_manager.list(),
+            MonitoringMetric.GPU_TOTAL_MEM: self.mp_manager.list()
+        }
+
+        self.stop_flag = self.mp_manager.Value("b", False)
+        self.process = None
+
+        self.per_token_metrics = [] # store metrics per token in token list
+
+    def start(self):
+        self.process = Process(target=_monitor_fn, args=(self.stop_flag, self.metrics_dict, self.max_size))
+        self.process.start()
+
+    def stop(self):
+        if self.process:
+            self.stop_flag.value = True
+            self.process.join()
+
+            for metrics in self.metrics_dict.values():
+                metrics.clear()
+
+    def reset(self):
+        self.stop()
+
+        for metrics in self.metrics_dict.values():
+            metrics.clear()
+
+        self.start()
+
+    def get_metrics(self, metrics: list[MonitoringMetric] = ALL_METRICS, lm: Union[Model, None] = None) -> dict[MonitoringMetric, Any]:
+        result = {}
+
+        for metric in metrics:
+            if metric in [
+                MonitoringMetric.CPU_USAGE,
+                MonitoringMetric.MEM_USAGE,
+                MonitoringMetric.GPU_USAGE,
+                MonitoringMetric.GPU_USED_MEM,
+                MonitoringMetric.GPU_TOTAL_MEM
+            ]:
+                result[metric] = self.metrics_dict[metric][-1] if len(self.metrics_dict[metric]) > 0 else None
+            elif metric == MonitoringMetric.INPUT_TOKENS:
+                result[metric] = self.engine.metrics.engine_input_tokens
+            elif metric == MonitoringMetric.OUTPUT_TOKENS:
+                result[metric] = self.engine.metrics.engine_output_tokens
+            elif metric == MonitoringMetric.BACKTRACK_TOKENS:
+                result[metric] = self.engine.metrics.engine_backtrack_tokens
+            elif metric == MonitoringMetric.TOKEN_COUNT:
+                result[metric] = lm.token_count if lm is not None else None
+            elif metric == MonitoringMetric.TOKEN_REDUCTION:
+                if lm is not None and lm.token_count > 0:
+                    result[metric] = 1 - (self.engine.metrics.engine_output_tokens / lm.token_count)
+                else:
+                    result[metric] = None
+        
+        return result
+    
+    def get_metric(self, metric: MonitoringMetric, lm: Union[Model, None] = None) -> Any:
+        return self.get_metrics([metric], lm)[metric]
