@@ -4,6 +4,7 @@ export interface BaseToken {
     token: number,
     prob: number,
     text: string,
+    is_masked: boolean,
 }
 
 export interface GenToken extends BaseToken {

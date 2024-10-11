@@ -247,8 +247,9 @@
                     <tbody>
                     {#each tooltipToken.extra.top_k as candidate}
                         <tr>
-                            <td class="px-1 font-mono text-sm"><span class="bg-gray-200">{@html DOMPurify.sanitize(escapeWhitespaceCharacters(candidate.text))}</span></td>
-                            <td class="px-1 font-mono text-sm">{candidate.prob.toFixed(3)}</td>
+                            <!-- TODO(nopdive): Text strike through is ugly, replace with line drawn through whole row via css pseudo-element -->
+                            <td class={`px-1 font-mono text-sm decoration-2 ${candidate.is_masked ? "line-through" : ""}`}><span class="bg-gray-200">{@html DOMPurify.sanitize(escapeWhitespaceCharacters(candidate.text))}</span></td>
+                            <td class={`px-1 font-mono text-sm decoration-2 ${candidate.is_masked ? "line-through" : ""}`}>{candidate.prob.toFixed(3)}</td>
                         </tr>
                     {/each}
                     </tbody>
@@ -259,8 +260,8 @@
     </div>
 </div>
 
+<!-- Tokens view -->
 <div class="pt-6 pb-6 flex text-gray-800 font-token">
-    <!-- Tokens view -->
     <div class="px-4">
         <span class="flex flex-wrap text-sm" role="main" use:longhover={mouseLongHoverDuration} on:longmouseover={handleLongMouseOver} on:longmouseout={handleLongMouseOut} on:mouseover={handleMouseOver} on:mouseout={handleMouseOut} on:focus={doNothing} on:blur={doNothing}>
             {#each tokens as token, i}

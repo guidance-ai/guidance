@@ -63,6 +63,8 @@
 				completedExecution = true;
 			} else if (isExecutionCompletedOutputMessage(msg)) {
 				tokenDetails = msg.tokens;
+				console.log(textComponents);
+				console.log(msg.tokens);
 			}
 			textComponents = textComponents;
 		}
