@@ -454,18 +454,27 @@ class TransformersEngine(Engine):
 
         # reset the cache length according to that number of positions
         past_key_values = self._past_key_values
-        past_length = past_key_values[0][0].size(-2) if past_key_values is not None else 0
+        if past_key_values is None:
+            past_length = 0
+        elif isinstance(past_key_values, tuple):
+            past_length = past_key_values[0][0].size(-2)
+        elif isinstance(past_key_values, transformers_package.Cache):
+            # TODO: use model's `cache_position` as this may be deprecated in a future version
+            past_length = past_key_values.get_seq_length()
+        else:
+            raise TypeError(f"Unknown type of past_key_values: {type(past_key_values)}")
         if past_length > num_cached:
-            if isinstance(self._past_key_values, (tuple, transformers_package.DynamicCache)):
-                # note we recompute the last token because we don't bother to handle the special case of just computing logits
-                past_length = max(0, num_cached - 1)
+            past_length = max(0, num_cached - 1)
+            if isinstance(past_key_values, tuple):
                 self._past_key_values = tuple(
                     tuple(p[..., :past_length, :] for p in v) for v in past_key_values
                 )
+            elif isinstance(past_key_values, transformers_package.Cache) and hasattr(past_key_values, "crop"):
+                self._past_key_values.crop(past_length)
             else:
                 warnings.warn(f"Unsupported cache type: {type(self._past_key_values)}. Resetting cache.")
-                past_length = 0
                 self._past_key_values = None
+                past_length = 0
 
         cache_token_ids[past_length:] = []
 
