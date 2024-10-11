@@ -454,16 +454,30 @@ class TransformersEngine(Engine):
 
         # reset the cache length according to that number of positions
         past_key_values = self._past_key_values
+        max_cache_shape = None
         if past_key_values is None:
             past_length = 0
         elif isinstance(past_key_values, tuple):
             past_length = past_key_values[0][0].size(-2)
         elif isinstance(past_key_values, transformers_package.Cache):
             # TODO: use model's `cache_position` as this may be deprecated in a future version
+            # https://github.com/huggingface/transformers/blob/70b07d97cf2c5f61fff55700b65528a1b6845cd2/src/transformers/cache_utils.py#L64
             past_length = past_key_values.get_seq_length()
+            # TODO: use `get_max_cache_shape` as `get_max_length` will be deprecated in a future version
+            # (`get_max_cache_shape` is not yet available so we can't use it yet)
+            # https://github.com/huggingface/transformers/blob/70b07d97cf2c5f61fff55700b65528a1b6845cd2/src/transformers/cache_utils.py#L67
+            max_cache_shape = past_key_values.get_max_length()
         else:
             raise TypeError(f"Unknown type of past_key_values: {type(past_key_values)}")
-        if past_length > num_cached:
+
+        if max_cache_shape is not None and len(token_ids) > max_cache_shape:
+            warnings.warn("Cache is too small. Resetting.")
+            # TODO: this seems to get set to the length of the first sequence we pass for models using
+            # StaticCache or HybridCache. We need to initialize our own cache with a large enough size
+            # if we want to continue generation with the same cache.
+            self._past_key_values = None
+            past_length = 0
+        elif past_length > num_cached:
             past_length = max(0, num_cached - 1)
             if isinstance(past_key_values, tuple):
                 self._past_key_values = tuple(
@@ -472,7 +486,7 @@ class TransformersEngine(Engine):
             elif isinstance(past_key_values, transformers_package.Cache) and hasattr(past_key_values, "crop"):
                 self._past_key_values.crop(past_length)
             else:
-                warnings.warn(f"Unsupported cache type: {type(self._past_key_values)}. Resetting cache.")
+                warnings.warn(f"Cropping unsupported for cache type: {type(self._past_key_values)}. Resetting cache.")
                 self._past_key_values = None
                 past_length = 0
 
