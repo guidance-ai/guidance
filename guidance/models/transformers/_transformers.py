@@ -471,11 +471,32 @@ class TransformersEngine(Engine):
             raise TypeError(f"Unknown type of past_key_values: {type(past_key_values)}")
 
         if max_cache_shape is not None and len(token_ids) > max_cache_shape:
-            warnings.warn("Cache is too small. Resetting.")
             # TODO: this seems to get set to the length of the first sequence we pass for models using
             # StaticCache or HybridCache. We need to initialize our own cache with a large enough size
             # if we want to continue generation with the same cache.
-            self._past_key_values = None
+            if isinstance(past_key_values, (transformers_package.StaticCache, transformers_package.HybridCache)):
+                # The __init__ API isn't consistent between different cache types, but there seems to be consistency
+                # between these two types, so we can use the same logic for both.
+                warnings.warn("Cache is too small. Re-initializing cache with larger size.")
+                cache_type = type(past_key_values)
+                device = self.model_obj.device
+                layer_device_map = getattr(self.model_obj, "hf_device_map", None)
+                if layer_device_map is not None and set(layer_device_map.values()) == {device}:
+                    # layer_device_map should map layer numbers to devices, but sometimes it will look like {'': device}.
+                    # In this case, we should just use the device (which the cache init will fall back to if layer_device_map is None).
+                    layer_device_map = None
+                self._past_key_values = cache_type(
+                    config=self.model_obj.config,
+                    batch_size=past_key_values.batch_size,
+                    # Double the cache size to be safe
+                    max_cache_len=len(token_ids)*2,
+                    device=device,
+                    dtype=past_key_values.dtype,
+                    layer_device_map=layer_device_map,
+                )
+            else:
+                warnings.warn(f"Cache is too small. Resetting cache (no method implemented to resize cache for type {type(past_key_values)}).")
+                self._past_key_values = None
             past_length = 0
         elif past_length > num_cached:
             past_length = max(0, num_cached - 1)
