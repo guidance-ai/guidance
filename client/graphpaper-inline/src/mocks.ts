@@ -1,75 +1,2110 @@
 // Mocks for interactive testing
 
-import {type TextOutput, type RoleOpenerInput, type RoleCloserInput} from './stitch';
+import {type TextOutput, type RoleOpenerInput, type RoleCloserInput, type GenToken} from './stitch';
 
-const textToNodeAttrs = (texts: Array<string>) => {
-    let results = [];
+export const mockNodeAttrs: Array<RoleCloserInput | RoleOpenerInput | TextOutput> = [
+  {
+    "class_name": "RoleOpenerInput",
+    "name": "system",
+    "text": "<|im_start|>system\n",
+    "closer_text": "<|im_end|>\n"
+  },
+  {
+    "class_name": "TextOutput",
+    "value": "<|im_start|>system\n",
+    "is_input": true,
+    "is_generated": false,
+    "is_force_forwarded": false,
+    "token_count": 0,
+    "prob": 0
+  },
+  {
+    "class_name": "TextOutput",
+    "value": "You are responsible for autocompleting a sentence.",
+    "is_input": true,
+    "is_generated": false,
+    "is_force_forwarded": false,
+    "token_count": 0,
+    "prob": 0
+  },
+  {
+    "class_name": "RoleCloserInput",
+    "name": "system",
+    "text": "<|im_end|>\n"
+  },
+  {
+    "class_name": "TextOutput",
+    "value": "<|im_end|>\n",
+    "is_input": true,
+    "is_generated": false,
+    "is_force_forwarded": false,
+    "token_count": 0,
+    "prob": 0
+  },
+  {
+    "class_name": "RoleOpenerInput",
+    "name": "user",
+    "text": "<|im_start|>user\n",
+    "closer_text": "<|im_end|>\n"
+  },
+  {
+    "class_name": "TextOutput",
+    "value": "<|im_start|>user\n",
+    "is_input": true,
+    "is_generated": false,
+    "is_force_forwarded": false,
+    "token_count": 0,
+    "prob": 0
+  },
+  {
+    "class_name": "TextOutput",
+    "value": "Roses are red and ",
+    "is_input": true,
+    "is_generated": false,
+    "is_force_forwarded": false,
+    "token_count": 0,
+    "prob": 0
+  },
+  {
+    "class_name": "TextOutput",
+    "value": "you",
+    "is_input": false,
+    "is_generated": false,
+    "is_force_forwarded": true,
+    "token_count": 0,
+    "prob": 0
+  },
+  {
+    "class_name": "TextOutput",
+    "value": " are",
+    "is_input": false,
+    "is_generated": true,
+    "is_force_forwarded": false,
+    "token_count": 0,
+    "prob": 0
+  },
+  {
+    "class_name": "TextOutput",
+    "value": " responsible",
+    "is_input": false,
+    "is_generated": true,
+    "is_force_forwarded": false,
+    "token_count": 0,
+    "prob": 0
+  },
+  {
+    "class_name": "RoleCloserInput",
+    "name": "user",
+    "text": "<|im_end|>\n"
+  },
+  {
+    "class_name": "TextOutput",
+    "value": "<|im_end|>\n",
+    "is_input": true,
+    "is_generated": false,
+    "is_force_forwarded": false,
+    "token_count": 0,
+    "prob": 0
+  },
+  {
+    "class_name": "TextOutput",
+    "value": ">:(",
+    "is_input": true,
+    "is_generated": false,
+    "is_force_forwarded": false,
+    "token_count": 0,
+    "prob": 0
+  }
+];
 
-    // NOTE: Mock does not work with nested roles. Would need a stack for that.
-    let activeRole: string | undefined = undefined;
-
-    for (text of texts) {
-        if (text === "<|system|>") {
-            const roleOpenerInput: RoleOpenerInput = {
-                class_name: 'RoleOpenerInput',
-                name: 'system',
-                text: "<|system|>",
-                closer_text: "<|end|>",
-            }
-            activeRole = 'system';
-            results.push(roleOpenerInput);
-        } else if (text === "<|assistant|>") {
-            const roleOpenerInput: RoleOpenerInput = {
-                class_name: 'RoleOpenerInput',
-                name: 'assistant',
-                text: "<|assistant|>",
-                closer_text: "<|end|>",
-            }
-            activeRole = 'user';
-            results.push(roleOpenerInput);
-        } else if (text === "<|user|>") {
-            const roleOpenerInput: RoleOpenerInput = {
-                class_name: 'RoleOpenerInput',
-                name: 'user',
-                text: "<|user|>",
-                closer_text: "<|end|>",
-            }
-            activeRole = 'user';
-            results.push(roleOpenerInput);
-        } else if (text === "<|end|>") {
-            if (activeRole === undefined) {
-                console.log("Active role not set for mock.")
-            }
-            const roleCloserInput: RoleCloserInput = {
-                class_name: 'RoleCloserInput',
-                name: activeRole,
-                text: "<|end|>",
-            }
-            activeRole = undefined;
-            results.push(roleCloserInput);
-        } else if (text === "<|endoftext|>") {
-            // Do nothing.
+export const mockGenTokens: Array<GenToken> =
+  [
+    {
+      "token": 27,
+      "prob": 1,
+      "text": "<",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 27,
+          "prob": 1,
+          "text": "<"
         }
-        const textOutput: TextOutput = {
-            class_name: "TextOutput",
-            value: text,
-            is_generated: false,
-            token_count: 0,
-            prob: 0.
+      ]
+    },
+    {
+      "token": 91,
+      "prob": 0.0008722934871912003,
+      "text": "|",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 198,
+          "prob": 0.029958423227071762,
+          "text": "\n"
+        },
+        {
+          "token": 13,
+          "prob": 0.013489649631083012,
+          "text": "."
+        },
+        {
+          "token": 16,
+          "prob": 0.011806909926235676,
+          "text": "1"
+        },
+        {
+          "token": 12,
+          "prob": 0.010169479995965958,
+          "text": "-"
+        },
+        {
+          "token": 15,
+          "prob": 0.009271609596908092,
+          "text": "0"
+        },
+        {
+          "token": 91,
+          "prob": 0.0008722934871912003,
+          "text": "|"
         }
-        results.push(textOutput);
+      ]
+    },
+    {
+      "token": 320,
+      "prob": 0.000027396810764912516,
+      "text": "im",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 930,
+          "prob": 0.12004928290843964,
+          "text": " |"
+        },
+        {
+          "token": 29,
+          "prob": 0.06939840316772461,
+          "text": ">"
+        },
+        {
+          "token": 27,
+          "prob": 0.03129403665661812,
+          "text": "<"
+        },
+        {
+          "token": 198,
+          "prob": 0.028110388666391373,
+          "text": "\n"
+        },
+        {
+          "token": 60,
+          "prob": 0.02136152982711792,
+          "text": "]"
+        },
+        {
+          "token": 320,
+          "prob": 0.000027396810764912516,
+          "text": "im"
+        }
+      ]
+    },
+    {
+      "token": 62,
+      "prob": 0.01482831034809351,
+      "text": "_",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 91,
+          "prob": 0.42150357365608215,
+          "text": "|"
+        },
+        {
+          "token": 7629,
+          "prob": 0.023308370262384415,
+          "text": "perial"
+        },
+        {
+          "token": 60,
+          "prob": 0.020157789811491966,
+          "text": "]"
+        },
+        {
+          "token": 14,
+          "prob": 0.018618104979395866,
+          "text": "/"
+        },
+        {
+          "token": 92,
+          "prob": 0.015273063443601131,
+          "text": "}"
+        },
+        {
+          "token": 62,
+          "prob": 0.01482831034809351,
+          "text": "_"
+        }
+      ]
+    },
+    {
+      "token": 9688,
+      "prob": 0.0003535318828653544,
+      "text": "start",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 91,
+          "prob": 0.017649956047534943,
+          "text": "|"
+        },
+        {
+          "token": 79,
+          "prob": 0.011138186790049076,
+          "text": "p"
+        },
+        {
+          "token": 16366,
+          "prob": 0.011045439168810844,
+          "text": "client"
+        },
+        {
+          "token": 82,
+          "prob": 0.008266090415418148,
+          "text": "s"
+        },
+        {
+          "token": 15908,
+          "prob": 0.00811094231903553,
+          "text": "dir"
+        },
+        {
+          "token": 9688,
+          "prob": 0.0003535318828653544,
+          "text": "start"
+        }
+      ]
+    },
+    {
+      "token": 91,
+      "prob": 0.12612135708332062,
+      "text": "|",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 62,
+          "prob": 0.3673606216907501,
+          "text": "_"
+        },
+        {
+          "token": 91,
+          "prob": 0.12612135708332062,
+          "text": "|"
+        },
+        {
+          "token": 929,
+          "prob": 0.041732169687747955,
+          "text": "up"
+        },
+        {
+          "token": 92,
+          "prob": 0.032134898006916046,
+          "text": "}"
+        },
+        {
+          "token": 28,
+          "prob": 0.024743985384702682,
+          "text": "="
+        }
+      ]
+    },
+    {
+      "token": 29,
+      "prob": 0.012729871086776257,
+      "text": ">",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 259,
+          "prob": 0.028011340647935867,
+          "text": "in"
+        },
+        {
+          "token": 4023,
+          "prob": 0.01824311725795269,
+          "text": "http"
+        },
+        {
+          "token": 27,
+          "prob": 0.015950094908475876,
+          "text": "<"
+        },
+        {
+          "token": 929,
+          "prob": 0.01563503034412861,
+          "text": "up"
+        },
+        {
+          "token": 29,
+          "prob": 0.012729871086776257,
+          "text": ">"
+        }
+      ]
+    },
+    {
+      "token": 10057,
+      "prob": 0.00004459881893126294,
+      "text": "system",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 91,
+          "prob": 0.2632869482040405,
+          "text": "|"
+        },
+        {
+          "token": 198,
+          "prob": 0.05016319826245308,
+          "text": "\n"
+        },
+        {
+          "token": 1279,
+          "prob": 0.04930492863059044,
+          "text": " <"
+        },
+        {
+          "token": 930,
+          "prob": 0.045030541718006134,
+          "text": " |"
+        },
+        {
+          "token": 28,
+          "prob": 0.023192651569843292,
+          "text": "="
+        },
+        {
+          "token": 10057,
+          "prob": 0.00004459881893126294,
+          "text": "system"
+        }
+      ]
+    },
+    {
+      "token": 198,
+      "prob": 0.01464146375656128,
+      "text": "\n",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 91,
+          "prob": 0.20154249668121338,
+          "text": "|"
+        },
+        {
+          "token": 3556,
+          "prob": 0.11300163716077805,
+          "text": "</"
+        },
+        {
+          "token": 62,
+          "prob": 0.11157143115997314,
+          "text": "_"
+        },
+        {
+          "token": 14,
+          "prob": 0.08955718576908112,
+          "text": "/"
+        },
+        {
+          "token": 12,
+          "prob": 0.06915956735610962,
+          "text": "-"
+        },
+        {
+          "token": 198,
+          "prob": 0.01464146375656128,
+          "text": "\n"
+        }
+      ]
+    },
+    {
+      "token": 1639,
+      "prob": 2.8333360546639597e-7,
+      "text": "You",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 198,
+          "prob": 0.9993786811828613,
+          "text": "\n"
+        },
+        {
+          "token": 13,
+          "prob": 0.00007136884960345924,
+          "text": "."
+        },
+        {
+          "token": 1,
+          "prob": 0.00004172701665083878,
+          "text": "\""
+        },
+        {
+          "token": 25,
+          "prob": 0.0000411842847825028,
+          "text": ":"
+        },
+        {
+          "token": 11,
+          "prob": 0.000037523903301917017,
+          "text": ","
+        },
+        {
+          "token": 1639,
+          "prob": 2.8333360546639597e-7,
+          "text": "You"
+        }
+      ]
+    },
+    {
+      "token": 389,
+      "prob": 0.04107223451137543,
+      "text": " are",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 460,
+          "prob": 0.25261735916137695,
+          "text": " can"
+        },
+        {
+          "token": 815,
+          "prob": 0.05772041901946068,
+          "text": " should"
+        },
+        {
+          "token": 821,
+          "prob": 0.04306665435433388,
+          "text": "'re"
+        },
+        {
+          "token": 1183,
+          "prob": 0.04206516593694687,
+          "text": "'ll"
+        },
+        {
+          "token": 389,
+          "prob": 0.04107223451137543,
+          "text": " are"
+        }
+      ]
+    },
+    {
+      "token": 4497,
+      "prob": 0.0011660599848255515,
+      "text": " responsible",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 783,
+          "prob": 0.09382512420415878,
+          "text": " now"
+        },
+        {
+          "token": 407,
+          "prob": 0.06339426338672638,
+          "text": " not"
+        },
+        {
+          "token": 18832,
+          "prob": 0.044431913644075394,
+          "text": " logged"
+        },
+        {
+          "token": 1262,
+          "prob": 0.03386500105261803,
+          "text": " using"
+        },
+        {
+          "token": 287,
+          "prob": 0.02802243083715439,
+          "text": " in"
+        },
+        {
+          "token": 4497,
+          "prob": 0.0011660599848255515,
+          "text": " responsible"
+        }
+      ]
+    },
+    {
+      "token": 329,
+      "prob": 0.9461202621459961,
+      "text": " for",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 329,
+          "prob": 0.9461202621459961,
+          "text": " for"
+        },
+        {
+          "token": 284,
+          "prob": 0.023375902324914932,
+          "text": " to"
+        },
+        {
+          "token": 286,
+          "prob": 0.003662876319140196,
+          "text": " of"
+        },
+        {
+          "token": 691,
+          "prob": 0.00276382127776742,
+          "text": " only"
+        },
+        {
+          "token": 11,
+          "prob": 0.002147114370018244,
+          "text": ","
+        }
+      ]
+    },
+    {
+      "token": 1960,
+      "prob": 0.000013145288903615437,
+      "text": " aut",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 262,
+          "prob": 0.05765107646584511,
+          "text": " the"
+        },
+        {
+          "token": 534,
+          "prob": 0.04888231307268143,
+          "text": " your"
+        },
+        {
+          "token": 13359,
+          "prob": 0.041589509695768356,
+          "text": " ensuring"
+        },
+        {
+          "token": 10941,
+          "prob": 0.029673287644982338,
+          "text": " maintaining"
+        },
+        {
+          "token": 4634,
+          "prob": 0.023319991305470467,
+          "text": " setting"
+        },
+        {
+          "token": 1960,
+          "prob": 0.000013145288903615437,
+          "text": " aut"
+        }
+      ]
+    },
+    {
+      "token": 42829,
+      "prob": 0.10221736133098602,
+      "text": "ocom",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 36221,
+          "prob": 0.1104634627699852,
+          "text": "ocon"
+        },
+        {
+          "token": 42829,
+          "prob": 0.10221736133098602,
+          "text": "ocom"
+        },
+        {
+          "token": 349,
+          "prob": 0.08124707639217377,
+          "text": "ol"
+        },
+        {
+          "token": 420,
+          "prob": 0.0743418037891388,
+          "text": "oc"
+        },
+        {
+          "token": 375,
+          "prob": 0.06453607976436615,
+          "text": "od"
+        }
+      ]
+    },
+    {
+      "token": 47130,
+      "prob": 0.1489240676164627,
+      "text": "pleting",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 24547,
+          "prob": 0.47585758566856384,
+          "text": "pletion"
+        },
+        {
+          "token": 6677,
+          "prob": 0.3272377550601959,
+          "text": "plete"
+        },
+        {
+          "token": 47130,
+          "prob": 0.1489240676164627,
+          "text": "pleting"
+        },
+        {
+          "token": 37069,
+          "prob": 0.010913231410086155,
+          "text": "plet"
+        },
+        {
+          "token": 48074,
+          "prob": 0.009519742801785469,
+          "text": "puting"
+        }
+      ]
+    },
+    {
+      "token": 257,
+      "prob": 0.02377660945057869,
+      "text": " a",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 262,
+          "prob": 0.3159867525100708,
+          "text": " the"
+        },
+        {
+          "token": 428,
+          "prob": 0.09937503933906555,
+          "text": " this"
+        },
+        {
+          "token": 477,
+          "prob": 0.06309774518013,
+          "text": " all"
+        },
+        {
+          "token": 534,
+          "prob": 0.04899457469582558,
+          "text": " your"
+        },
+        {
+          "token": 597,
+          "prob": 0.02953566052019596,
+          "text": " any"
+        },
+        {
+          "token": 257,
+          "prob": 0.02377660945057869,
+          "text": " a"
+        }
+      ]
+    },
+    {
+      "token": 6827,
+      "prob": 0.000513878301717341,
+      "text": " sentence",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 3141,
+          "prob": 0.05367027968168259,
+          "text": " command"
+        },
+        {
+          "token": 3275,
+          "prob": 0.043787699192762375,
+          "text": " message"
+        },
+        {
+          "token": 1351,
+          "prob": 0.034799974411726,
+          "text": " list"
+        },
+        {
+          "token": 2393,
+          "prob": 0.03282475844025612,
+          "text": " file"
+        },
+        {
+          "token": 4876,
+          "prob": 0.021464355289936066,
+          "text": " task"
+        },
+        {
+          "token": 6827,
+          "prob": 0.000513878301717341,
+          "text": " sentence"
+        }
+      ]
+    },
+    {
+      "token": 29847,
+      "prob": 0.00025674980133771896,
+      "text": ".<",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 13,
+          "prob": 0.18595099449157715,
+          "text": "."
+        },
+        {
+          "token": 287,
+          "prob": 0.08436127007007599,
+          "text": " in"
+        },
+        {
+          "token": 11,
+          "prob": 0.06681626290082932,
+          "text": ","
+        },
+        {
+          "token": 351,
+          "prob": 0.05892467126250267,
+          "text": " with"
+        },
+        {
+          "token": 326,
+          "prob": 0.049389537423849106,
+          "text": " that"
+        },
+        {
+          "token": 29847,
+          "prob": 0.00025674980133771896,
+          "text": ".<"
+        }
+      ]
+    },
+    {
+      "token": 91,
+      "prob": 0.6894029378890991,
+      "text": "|",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 91,
+          "prob": 0.6894029378890991,
+          "text": "|"
+        },
+        {
+          "token": 1671,
+          "prob": 0.11479752510786057,
+          "text": "br"
+        },
+        {
+          "token": 930,
+          "prob": 0.008212408982217312,
+          "text": " |"
+        },
+        {
+          "token": 1652,
+          "prob": 0.00741753913462162,
+          "text": "lf"
+        },
+        {
+          "token": 65,
+          "prob": 0.0065499767661094666,
+          "text": "b"
+        }
+      ]
+    },
+    {
+      "token": 320,
+      "prob": 0.3683234453201294,
+      "text": "im",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 320,
+          "prob": 0.3683234453201294,
+          "text": "im"
+        },
+        {
+          "token": 29,
+          "prob": 0.026579268276691437,
+          "text": ">"
+        },
+        {
+          "token": 361,
+          "prob": 0.02362215332686901,
+          "text": "if"
+        },
+        {
+          "token": 3546,
+          "prob": 0.019490960985422134,
+          "text": "Im"
+        },
+        {
+          "token": 930,
+          "prob": 0.016572270542383194,
+          "text": " |"
+        }
+      ]
+    },
+    {
+      "token": 62,
+      "prob": 0.9976491332054138,
+      "text": "_",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 62,
+          "prob": 0.9976491332054138,
+          "text": "_"
+        },
+        {
+          "token": 91,
+          "prob": 0.000336194148985669,
+          "text": "|"
+        },
+        {
+          "token": 41052,
+          "prob": 0.00012316853099036962,
+          "text": "_("
+        },
+        {
+          "token": 29,
+          "prob": 0.000117526447866112,
+          "text": ">"
+        },
+        {
+          "token": 59,
+          "prob": 0.00009838600090006366,
+          "text": "\\"
+        }
+      ]
+    },
+    {
+      "token": 437,
+      "prob": 0.4462008774280548,
+      "text": "end",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 437,
+          "prob": 0.4462008774280548,
+          "text": "end"
+        },
+        {
+          "token": 9688,
+          "prob": 0.09380462765693665,
+          "text": "start"
+        },
+        {
+          "token": 12957,
+          "prob": 0.017503555864095688,
+          "text": "last"
+        },
+        {
+          "token": 11338,
+          "prob": 0.016530489549040794,
+          "text": "stop"
+        },
+        {
+          "token": 27471,
+          "prob": 0.012605799362063408,
+          "text": "begin"
+        }
+      ]
+    },
+    {
+      "token": 91,
+      "prob": 0.9823351502418518,
+      "text": "|",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 91,
+          "prob": 0.9823351502418518,
+          "text": "|"
+        },
+        {
+          "token": 29,
+          "prob": 0.002384455408900976,
+          "text": ">"
+        },
+        {
+          "token": 60,
+          "prob": 0.0023481370881199837,
+          "text": "]"
+        },
+        {
+          "token": 15886,
+          "prob": 0.002319696359336376,
+          "text": "||"
+        },
+        {
+          "token": 930,
+          "prob": 0.0013476606691256166,
+          "text": " |"
+        }
+      ]
+    },
+    {
+      "token": 29,
+      "prob": 0.9560039639472961,
+      "text": ">",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 29,
+          "prob": 0.9560039639472961,
+          "text": ">"
+        },
+        {
+          "token": 6927,
+          "prob": 0.005681615322828293,
+          "text": "><"
+        },
+        {
+          "token": 60,
+          "prob": 0.0032080409582704306,
+          "text": "]"
+        },
+        {
+          "token": 27,
+          "prob": 0.002467683283612132,
+          "text": "<"
+        },
+        {
+          "token": 4211,
+          "prob": 0.0021098603028804064,
+          "text": ">>"
+        }
+      ]
+    },
+    {
+      "token": 198,
+      "prob": 0.02139684557914734,
+      "text": "\n",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 10057,
+          "prob": 0.35756662487983704,
+          "text": "system"
+        },
+        {
+          "token": 198,
+          "prob": 0.02139684557914734,
+          "text": "\n"
+        },
+        {
+          "token": 11964,
+          "prob": 0.01934202015399933,
+          "text": "System"
+        },
+        {
+          "token": 1662,
+          "prob": 0.010047300718724728,
+          "text": "not"
+        },
+        {
+          "token": 1169,
+          "prob": 0.006138301454484463,
+          "text": "the"
+        }
+      ]
+    },
+    {
+      "token": 27,
+      "prob": 0.039419274777173996,
+      "text": "<",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 1639,
+          "prob": 0.1665498912334442,
+          "text": "You"
+        },
+        {
+          "token": 464,
+          "prob": 0.06005862355232239,
+          "text": "The"
+        },
+        {
+          "token": 27,
+          "prob": 0.039419274777173996,
+          "text": "<"
+        },
+        {
+          "token": 1212,
+          "prob": 0.027387971058487892,
+          "text": "This"
+        },
+        {
+          "token": 1532,
+          "prob": 0.022758493199944496,
+          "text": "If"
+        }
+      ]
+    },
+    {
+      "token": 91,
+      "prob": 0.7559300065040588,
+      "text": "|",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 91,
+          "prob": 0.7559300065040588,
+          "text": "|"
+        },
+        {
+          "token": 320,
+          "prob": 0.006860977970063686,
+          "text": "im"
+        },
+        {
+          "token": 15886,
+          "prob": 0.0064566307701170444,
+          "text": "||"
+        },
+        {
+          "token": 1671,
+          "prob": 0.004361273255199194,
+          "text": "br"
+        },
+        {
+          "token": 930,
+          "prob": 0.004342366941273212,
+          "text": " |"
+        }
+      ]
+    },
+    {
+      "token": 320,
+      "prob": 0.8291174173355103,
+      "text": "im",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 320,
+          "prob": 0.8291174173355103,
+          "text": "im"
+        },
+        {
+          "token": 3546,
+          "prob": 0.012388699688017368,
+          "text": "Im"
+        },
+        {
+          "token": 361,
+          "prob": 0.007399916183203459,
+          "text": "if"
+        },
+        {
+          "token": 72,
+          "prob": 0.004467112943530083,
+          "text": "i"
+        },
+        {
+          "token": 29,
+          "prob": 0.0026658582501113415,
+          "text": ">"
+        }
+      ]
+    },
+    {
+      "token": 62,
+      "prob": 0.9993433356285095,
+      "text": "_",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 62,
+          "prob": 0.9993433356285095,
+          "text": "_"
+        },
+        {
+          "token": 7,
+          "prob": 0.0000683960533933714,
+          "text": "("
+        },
+        {
+          "token": 59,
+          "prob": 0.00006206566467881203,
+          "text": "\\"
+        },
+        {
+          "token": 13,
+          "prob": 0.00004414364229887724,
+          "text": "."
+        },
+        {
+          "token": 29,
+          "prob": 0.00002257493724755477,
+          "text": ">"
+        }
+      ]
+    },
+    {
+      "token": 9688,
+      "prob": 0.6440587043762207,
+      "text": "start",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 9688,
+          "prob": 0.6440587043762207,
+          "text": "start"
+        },
+        {
+          "token": 437,
+          "prob": 0.05475924164056778,
+          "text": "end"
+        },
+        {
+          "token": 27471,
+          "prob": 0.043713200837373734,
+          "text": "begin"
+        },
+        {
+          "token": 11338,
+          "prob": 0.003659052774310112,
+          "text": "stop"
+        },
+        {
+          "token": 38690,
+          "prob": 0.003096950938925147,
+          "text": "starting"
+        }
+      ]
+    },
+    {
+      "token": 91,
+      "prob": 0.9499432444572449,
+      "text": "|",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 91,
+          "prob": 0.9499432444572449,
+          "text": "|"
+        },
+        {
+          "token": 62,
+          "prob": 0.00848131813108921,
+          "text": "_"
+        },
+        {
+          "token": 15886,
+          "prob": 0.005286256782710552,
+          "text": "||"
+        },
+        {
+          "token": 930,
+          "prob": 0.003634629538282752,
+          "text": " |"
+        },
+        {
+          "token": 29,
+          "prob": 0.0032877251505851746,
+          "text": ">"
+        }
+      ]
+    },
+    {
+      "token": 29,
+      "prob": 0.9690060615539551,
+      "text": ">",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 29,
+          "prob": 0.9690060615539551,
+          "text": ">"
+        },
+        {
+          "token": 6927,
+          "prob": 0.004052347969263792,
+          "text": "><"
+        },
+        {
+          "token": 24618,
+          "prob": 0.0019232694758102298,
+          "text": ">\""
+        },
+        {
+          "token": 27,
+          "prob": 0.0012727173743769526,
+          "text": "<"
+        },
+        {
+          "token": 4211,
+          "prob": 0.0011409870348870754,
+          "text": ">>"
+        }
+      ]
+    },
+    {
+      "token": 7220,
+      "prob": 0.003625249955803156,
+      "text": "user",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 10057,
+          "prob": 0.43270590901374817,
+          "text": "system"
+        },
+        {
+          "token": 11964,
+          "prob": 0.012400631792843342,
+          "text": "System"
+        },
+        {
+          "token": 9688,
+          "prob": 0.008726297877728939,
+          "text": "start"
+        },
+        {
+          "token": 847,
+          "prob": 0.007208186201751232,
+          "text": "other"
+        },
+        {
+          "token": 198,
+          "prob": 0.006247976794838905,
+          "text": "\n"
+        },
+        {
+          "token": 7220,
+          "prob": 0.003625249955803156,
+          "text": "user"
+        }
+      ]
+    },
+    {
+      "token": 198,
+      "prob": 0.5544214248657227,
+      "text": "\n",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 198,
+          "prob": 0.5544214248657227,
+          "text": "\n"
+        },
+        {
+          "token": 62,
+          "prob": 0.04264130815863609,
+          "text": "_"
+        },
+        {
+          "token": 12,
+          "prob": 0.029624110087752342,
+          "text": "-"
+        },
+        {
+          "token": 29,
+          "prob": 0.014048474840819836,
+          "text": ">"
+        },
+        {
+          "token": 14,
+          "prob": 0.011965525336563587,
+          "text": "/"
+        }
+      ]
+    },
+    {
+      "token": 49,
+      "prob": 0.00022193520271684974,
+      "text": "R",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 1639,
+          "prob": 0.39992958307266235,
+          "text": "You"
+        },
+        {
+          "token": 27,
+          "prob": 0.11402493715286255,
+          "text": "<"
+        },
+        {
+          "token": 464,
+          "prob": 0.05199533700942993,
+          "text": "The"
+        },
+        {
+          "token": 1212,
+          "prob": 0.01731906458735466,
+          "text": "This"
+        },
+        {
+          "token": 3556,
+          "prob": 0.016215169802308083,
+          "text": "</"
+        },
+        {
+          "token": 49,
+          "prob": 0.00022193520271684974,
+          "text": "R"
+        }
+      ]
+    },
+    {
+      "token": 4629,
+      "prob": 0.0011175252730026841,
+      "text": "oses",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 12453,
+          "prob": 0.20455273985862732,
+          "text": "ename"
+        },
+        {
+          "token": 964,
+          "prob": 0.08992191404104233,
+          "text": "ever"
+        },
+        {
+          "token": 864,
+          "prob": 0.06109633296728134,
+          "text": "ational"
+        },
+        {
+          "token": 3798,
+          "prob": 0.05252346768975258,
+          "text": "esc"
+        },
+        {
+          "token": 13,
+          "prob": 0.02254168502986431,
+          "text": "."
+        },
+        {
+          "token": 4629,
+          "prob": 0.0011175252730026841,
+          "text": "oses"
+        }
+      ]
+    },
+    {
+      "token": 389,
+      "prob": 0.13565655052661896,
+      "text": " are",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 389,
+          "prob": 0.13565655052661896,
+          "text": " are"
+        },
+        {
+          "token": 262,
+          "prob": 0.03858645260334015,
+          "text": " the"
+        },
+        {
+          "token": 290,
+          "prob": 0.027977442368865013,
+          "text": " and"
+        },
+        {
+          "token": 481,
+          "prob": 0.027524998411536217,
+          "text": " will"
+        },
+        {
+          "token": 345,
+          "prob": 0.025067530572414398,
+          "text": " you"
+        }
+      ]
+    },
+    {
+      "token": 2266,
+      "prob": 0.0004926767433062196,
+      "text": " red",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 407,
+          "prob": 0.05439644306898117,
+          "text": " not"
+        },
+        {
+          "token": 6338,
+          "prob": 0.021079493686556816,
+          "text": " automatically"
+        },
+        {
+          "token": 973,
+          "prob": 0.018136756494641304,
+          "text": " used"
+        },
+        {
+          "token": 257,
+          "prob": 0.015725180506706238,
+          "text": " a"
+        },
+        {
+          "token": 1464,
+          "prob": 0.015290400944650173,
+          "text": " always"
+        },
+        {
+          "token": 2266,
+          "prob": 0.0004926767433062196,
+          "text": " red"
+        }
+      ]
+    },
+    {
+      "token": 290,
+      "prob": 0.04066063463687897,
+      "text": " and",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 18156,
+          "prob": 0.24244694411754608,
+          "text": "efined"
+        },
+        {
+          "token": 5791,
+          "prob": 0.14630955457687378,
+          "text": "rawn"
+        },
+        {
+          "token": 13,
+          "prob": 0.07232632488012314,
+          "text": "."
+        },
+        {
+          "token": 11,
+          "prob": 0.05644136667251587,
+          "text": ","
+        },
+        {
+          "token": 1831,
+          "prob": 0.04790006950497627,
+          "text": "raw"
+        },
+        {
+          "token": 290,
+          "prob": 0.04066063463687897,
+          "text": " and"
+        }
+      ]
+    },
+    {
+      "token": 345,
+      "prob": 0.05122449994087219,
+      "text": " you",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": true,
+      "is_input": false,
+      "top_k": [
+        {
+          "token": 345,
+          "prob": 0.05122449994087219,
+          "text": " you"
+        },
+        {
+          "token": 262,
+          "prob": 0.02627693861722946,
+          "text": " the"
+        },
+        {
+          "token": 2266,
+          "prob": 0.02242019586265087,
+          "text": " red"
+        },
+        {
+          "token": 389,
+          "prob": 0.01836078055202961,
+          "text": " are"
+        },
+        {
+          "token": 2330,
+          "prob": 0.016507919877767563,
+          "text": " white"
+        }
+      ]
+    },
+    {
+      "token": 389,
+      "prob": 0.2900826930999756,
+      "text": " are",
+      "latency_ms": 17.925739288330078,
+      "is_generated": true,
+      "is_force_forwarded": false,
+      "is_input": false,
+      "top_k": [
+        {
+          "token": 389,
+          "prob": 0.2900826930999756,
+          "text": " are"
+        },
+        {
+          "token": 1276,
+          "prob": 0.10353875160217285,
+          "text": " must"
+        },
+        {
+          "token": 460,
+          "prob": 0.08833532780408859,
+          "text": " can"
+        },
+        {
+          "token": 423,
+          "prob": 0.06707955151796341,
+          "text": " have"
+        },
+        {
+          "token": 761,
+          "prob": 0.05822150409221649,
+          "text": " need"
+        }
+      ]
+    },
+    {
+      "token": 4497,
+      "prob": 0.43562158942222595,
+      "text": " responsible",
+      "latency_ms": 9.285926818847656,
+      "is_generated": true,
+      "is_force_forwarded": false,
+      "is_input": false,
+      "top_k": [
+        {
+          "token": 4497,
+          "prob": 0.43562158942222595,
+          "text": " responsible"
+        },
+        {
+          "token": 407,
+          "prob": 0.04081293195486069,
+          "text": " not"
+        },
+        {
+          "token": 262,
+          "prob": 0.023834867402911186,
+          "text": " the"
+        },
+        {
+          "token": 18832,
+          "prob": 0.011552640236914158,
+          "text": " logged"
+        },
+        {
+          "token": 257,
+          "prob": 0.0088853994384408,
+          "text": " a"
+        }
+      ]
+    },
+    {
+      "token": 27,
+      "prob": 0.0004999017692171037,
+      "text": "<",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 329,
+          "prob": 0.9797589778900146,
+          "text": " for"
+        },
+        {
+          "token": 284,
+          "prob": 0.003256487660109997,
+          "text": " to"
+        },
+        {
+          "token": 286,
+          "prob": 0.001405500341206789,
+          "text": " of"
+        },
+        {
+          "token": 1279,
+          "prob": 0.001338837668299675,
+          "text": " <"
+        },
+        {
+          "token": 13,
+          "prob": 0.001244492013938725,
+          "text": "."
+        },
+        {
+          "token": 27,
+          "prob": 0.0004999017692171037,
+          "text": "<"
+        }
+      ]
+    },
+    {
+      "token": 91,
+      "prob": 0.9909712076187134,
+      "text": "|",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 91,
+          "prob": 0.9909712076187134,
+          "text": "|"
+        },
+        {
+          "token": 15886,
+          "prob": 0.0004430859407875687,
+          "text": "||"
+        },
+        {
+          "token": 10,
+          "prob": 0.00040545235970057547,
+          "text": "+"
+        },
+        {
+          "token": 11139,
+          "prob": 0.0003702065150719136,
+          "text": "\\/"
+        },
+        {
+          "token": 930,
+          "prob": 0.00035656234831549227,
+          "text": " |"
+        }
+      ]
+    },
+    {
+      "token": 320,
+      "prob": 0.9680559039115906,
+      "text": "im",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 320,
+          "prob": 0.9680559039115906,
+          "text": "im"
+        },
+        {
+          "token": 3546,
+          "prob": 0.0025652858894318342,
+          "text": "Im"
+        },
+        {
+          "token": 72,
+          "prob": 0.0016249691834673285,
+          "text": "i"
+        },
+        {
+          "token": 29,
+          "prob": 0.0013347472995519638,
+          "text": ">"
+        },
+        {
+          "token": 361,
+          "prob": 0.0009765964932739735,
+          "text": "if"
+        }
+      ]
+    },
+    {
+      "token": 62,
+      "prob": 0.9997590184211731,
+      "text": "_",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 62,
+          "prob": 0.9997590184211731,
+          "text": "_"
+        },
+        {
+          "token": 13,
+          "prob": 0.000022090805941843428,
+          "text": "."
+        },
+        {
+          "token": 59,
+          "prob": 0.000015420928320963867,
+          "text": "\\"
+        },
+        {
+          "token": 834,
+          "prob": 0.000013038138604315463,
+          "text": "__"
+        },
+        {
+          "token": 12,
+          "prob": 0.000011890577297890559,
+          "text": "-"
+        }
+      ]
+    },
+    {
+      "token": 437,
+      "prob": 0.7618218064308167,
+      "text": "end",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 437,
+          "prob": 0.7618218064308167,
+          "text": "end"
+        },
+        {
+          "token": 9688,
+          "prob": 0.17939522862434387,
+          "text": "start"
+        },
+        {
+          "token": 27471,
+          "prob": 0.00941860768944025,
+          "text": "begin"
+        },
+        {
+          "token": 11338,
+          "prob": 0.005442698486149311,
+          "text": "stop"
+        },
+        {
+          "token": 1571,
+          "prob": 0.0011666559148579836,
+          "text": "ending"
+        }
+      ]
+    },
+    {
+      "token": 91,
+      "prob": 0.9977994561195374,
+      "text": "|",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 91,
+          "prob": 0.9977994561195374,
+          "text": "|"
+        },
+        {
+          "token": 62,
+          "prob": 0.00038299127481877804,
+          "text": "_"
+        },
+        {
+          "token": 15886,
+          "prob": 0.00029917186475358903,
+          "text": "||"
+        },
+        {
+          "token": 29,
+          "prob": 0.0001353792322333902,
+          "text": ">"
+        },
+        {
+          "token": 10,
+          "prob": 0.00012695405166596174,
+          "text": "+"
+        }
+      ]
+    },
+    {
+      "token": 29,
+      "prob": 0.9984844326972961,
+      "text": ">",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 29,
+          "prob": 0.9984844326972961,
+          "text": ">"
+        },
+        {
+          "token": 60,
+          "prob": 0.00033915083622559905,
+          "text": "]"
+        },
+        {
+          "token": 6927,
+          "prob": 0.00010037984611699358,
+          "text": "><"
+        },
+        {
+          "token": 28,
+          "prob": 0.00008626521594123915,
+          "text": "="
+        },
+        {
+          "token": 24618,
+          "prob": 0.00007595126226078719,
+          "text": ">\""
+        }
+      ]
+    },
+    {
+      "token": 198,
+      "prob": 0.5057048797607422,
+      "text": "\n",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 198,
+          "prob": 0.5057048797607422,
+          "text": "\n"
+        },
+        {
+          "token": 1640,
+          "prob": 0.21033842861652374,
+          "text": "for"
+        },
+        {
+          "token": 10057,
+          "prob": 0.032438330352306366,
+          "text": "system"
+        },
+        {
+          "token": 7220,
+          "prob": 0.028024563565850258,
+          "text": "user"
+        },
+        {
+          "token": 329,
+          "prob": 0.010914873331785202,
+          "text": " for"
+        }
+      ]
+    },
+    {
+      "token": 31175,
+      "prob": 0.0000045710116864938755,
+      "text": ">:",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 27,
+          "prob": 0.3989731967449188,
+          "text": "<"
+        },
+        {
+          "token": 1639,
+          "prob": 0.1570923775434494,
+          "text": "You"
+        },
+        {
+          "token": 49,
+          "prob": 0.03772936016321182,
+          "text": "R"
+        },
+        {
+          "token": 464,
+          "prob": 0.027823705226182938,
+          "text": "The"
+        },
+        {
+          "token": 3556,
+          "prob": 0.01715909130871296,
+          "text": "</"
+        },
+        {
+          "token": 31175,
+          "prob": 0.0000045710116864938755,
+          "text": ">:"
+        }
+      ]
+    },
+    {
+      "token": 7,
+      "prob": 0.0029301203321665525,
+      "text": "(",
+      "latency_ms": 0,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "is_input": true,
+      "top_k": [
+        {
+          "token": 16,
+          "prob": 0.0514117032289505,
+          "text": "1"
+        },
+        {
+          "token": 27,
+          "prob": 0.03453383222222328,
+          "text": "<"
+        },
+        {
+          "token": 15,
+          "prob": 0.03179513290524483,
+          "text": "0"
+        },
+        {
+          "token": 352,
+          "prob": 0.01785029098391533,
+          "text": " 1"
+        },
+        {
+          "token": 198,
+          "prob": 0.0139352697879076,
+          "text": "\n"
+        },
+        {
+          "token": 7,
+          "prob": 0.0029301203321665525,
+          "text": "("
+        }
+      ]
     }
-
-    return results;
-}
-
-let text = "Pack my box with five dozen liquor jugs valued at $12.95, according to sources.";
-// text += "\n<-img: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->";
-text = "<|system|>\n" + text + " <|end|>\n<|assistant|>\n";
-text += "{\n    'glossary': {\n        'title': 'example glossary',\n		'GlossDiv': {\n            'title': 'S',\n			'GlossList': {\n                'GlossEntry': {\n                    'ID': 'SGML',\n					'SortAs': 'SGML',\n					'GlossTerm': 'Standard Generalized Markup Language',\n					'Acronym': 'SGML',\n					'Abbrev': 'ISO 8879:1986',\n					'GlossDef': {\n                        'para': 'A meta-markup language, used to create markup languages such as DocBook.',\n						'GlossSeeAlso': ['GML', 'XML']\n                    },\n					'GlossSee': 'markup'\n                }\n            }\n        }\n    }\n}";
-// text += " <|end|>\n"
-// text += "<|user|>\n"
-// text += "A language model is a probabilistic model of a natural language.[1]\nIn 1980, the first significant statistical language model was proposed, and during the decade IBM performed Shannon-style experiments, in which potential sources for language modeling improvement were identified by observing and analyzing the performance of human subjects in predicting or correcting text.[2]  Language models are useful for a variety of tasks, including speech recognition[3] (helping prevent predictions of low-probability (e.g. nonsense) sequences), machine translation,[4] natural language generation (generating more human-like text), optical character recognition, handwriting recognition,[5] grammar induction,[6] and information retrieval.[7][8]  Large language models, currently their most advanced form, are a combination of larger datasets (frequently using words scraped from the public internet), feedforward neural networks, and transformers. They have superseded recurrent neural network-based models, which had previously superseded the pure statistical models, such as word n-gram language model.";
-// text += " <|end|>\n <|endoftext|>"
-
-export let mockTokens = textToNodeAttrs(text.match(/([\S]+|[\s]+)/g) || []);
+  ];

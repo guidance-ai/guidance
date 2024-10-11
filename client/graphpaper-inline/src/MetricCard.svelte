@@ -6,7 +6,7 @@
         isScalar: boolean,
         precision: number,
     }
-    export type MetricVal = string | number | ArrayLike<number> | ArrayLike<string>;
+    export type MetricVal = string | number | Array<number | string>;
 </script>
 
 <script lang="ts">

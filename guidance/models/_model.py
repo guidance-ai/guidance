@@ -13,8 +13,8 @@ import numpy as np
 from ..trace import NodeAttr, StatelessGuidanceInput, StatefulGuidanceInput, LiteralInput, EmbeddedInput, \
     RoleOpenerInput, RoleCloserInput, TextOutput, CaptureOutput, TraceHandler
 from ..visual import TraceMessage, AutoRenderer, trace_node_to_str, trace_node_to_html, GuidanceMessage, Renderer
-from ..visual._message import JupyterCellExecutionCompletedMessage, JupyterCellExecutionCompletedOutputMessage, \
-    MetricMessage, TokenBatchMessage
+from ..visual._message import ExecutionCompletedMessage, ExecutionCompletedOutputMessage, \
+    MetricMessage
 
 try:
     from IPython.display import clear_output, display, HTML
@@ -100,9 +100,6 @@ class MockPostExecGenerator:
         self._renderer.update(MetricMessage(name='avg latency', value=random.uniform(10, 200)))
         self._renderer.update(MetricMessage(name='consumed', value=random.uniform(0, 100)))
         self._renderer.update(MetricMessage(name='token reduction', value=random.uniform(0, 100)))
-        self._renderer.update(TokenBatchMessage(tokens=[
-            GenToken(latency_ms=100, token=0, prob=0.5, text="mock", top_k=[])
-        ]))
 
 
 class Engine:
@@ -132,15 +129,15 @@ class Engine:
         # NOTE(nopdive): This is likely running on a secondary thread.
         logger.debug(f"ENGINE:{message}")
 
-        if isinstance(message, JupyterCellExecutionCompletedMessage):
-            logger.debug(f"ENGINE:cell executed")
-            self.post_exec_generator.emit_messages()
-            self.renderer.update(message)
+        # if isinstance(message, ExecutionCompletedMessage):
+        #     logger.debug(f"ENGINE:cell executed")
+        #     self.post_exec_generator.emit_messages()
+        #     self.renderer.update(message)
 
         # model = self.model_dict.get(message.trace_id)
         # print(f"ENGINE:{message}", type(message))
 
-        if isinstance(message, JupyterCellExecutionCompletedMessage):
+        if isinstance(message, ExecutionCompletedMessage):
             # print("last_state")
             last_model: "Model" = self.model_dict[message.last_trace_id]
             paths = []
@@ -253,11 +250,13 @@ class Engine:
             if not failed:
                 final_text = "".join([gen_token.text for gen_token in processed_gen_tokens])
                 logger.debug(f"ENGINE:final_text:{final_text}")
-
-                self.renderer.update(JupyterCellExecutionCompletedOutputMessage(
+                self.renderer.update(ExecutionCompletedOutputMessage(
                     trace_id=message.last_trace_id,
                     text=self.tokenizer.decode(tokens).decode("utf-8"),
                     tokens=processed_gen_tokens,
+                ))
+                self.renderer.update(ExecutionCompletedMessage(
+                    last_trace_id=message.last_trace_id,
                 ))
 
     def get_chat_template(self): # TODO [HN]: Add more logic here...should we instantiate class here? do we even need to?

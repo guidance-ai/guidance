@@ -2,7 +2,7 @@ import base64
 import json
 from typing import Optional, Dict
 
-from guidance.visual._message import JupyterCellExecutionCompletedOutputMessage
+from guidance.visual._message import ExecutionCompletedOutputMessage
 
 from ..trace import (
     TextOutput,
@@ -18,7 +18,7 @@ span_start = "<span style='background-color: rgba(255, 180, 0, 0.3); border-radi
 span_end = "</span>"
 
 
-def trace_node_to_html(node: TraceNode, prettify_roles=False, complete_msg: JupyterCellExecutionCompletedOutputMessage=None) -> str:
+def trace_node_to_html(node: TraceNode, prettify_roles=False, complete_msg: ExecutionCompletedOutputMessage=None) -> str:
     """Represents trace path as html string.
 
     Args:

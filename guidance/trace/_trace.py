@@ -1,4 +1,5 @@
 # TODO(nopdive): Deal with weak referencing for GC. Take care of cyclical dependencies from parent & children fields.
+# TODO(nopdive): Consider integrating token operatins into trace nodes.
 # TODO(nopdive): Benchmark (expected heap fragmentation issue). Likely need memory pooling (via rust/ctypes/Cython).
 # TODO(nopdive): Integrate images when PR for multimodal is in.
 # NOTE(nopdive): Should we be explicit on capture variables? Right now they are within guidance grammars.

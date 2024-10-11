@@ -3,7 +3,7 @@ from typing import Optional, Callable
 from pydantic import BaseModel
 from asyncio import Queue
 
-from ._message import JupyterCellExecutionCompletedMessage, JupyterCellExecutionCompletedOutputMessage, \
+from ._message import ExecutionCompletedMessage, ExecutionCompletedOutputMessage, \
     deserialize_message, serialize_message, MetricMessage
 from ..trace import TraceHandler
 from ..visual import GuidanceMessage, TraceMessage, ResetDisplayMessage, ClientReadyMessage
@@ -70,9 +70,11 @@ class UpdateController:
     def update(self, message: GuidanceMessage) -> RenderUpdate:
         if isinstance(message, MetricMessage) and not self._completed:
             return RenderUpdate(messages=[message])
-        elif isinstance(message, JupyterCellExecutionCompletedOutputMessage) and not self._completed:
+        elif isinstance(message, ExecutionCompletedOutputMessage) and not self._completed:
+            logger.debug("RENDER:execution completed out")
             return RenderUpdate(messages=[message])
-        elif isinstance(message, JupyterCellExecutionCompletedMessage):
+        elif isinstance(message, ExecutionCompletedMessage):
+            logger.debug("RENDER:execution completed")
             self._completed = True
             return RenderUpdate()
         elif not isinstance(message, TraceMessage):
@@ -227,15 +229,16 @@ class JupyterWidgetRenderer(Renderer):
 
     def _cell_completion_cb(self):
         try:
-            message = JupyterCellExecutionCompletedMessage(
+            message = ExecutionCompletedMessage(
                 last_trace_id=self._last_trace_id
             )
             logger.debug(f"CELL:executed:{message}")
 
             # Message Python observers
             self.notify(message)
+
             # Message client observers
-            self._loop.call_soon_threadsafe(self._send_queue.put_nowait, message)
+            # self._loop.call_soon_threadsafe(self._send_queue.put_nowait, message)
         finally:
             get_ipython().events.unregister('post_execute', self._cell_completion_cb)
             self._is_alive_cell_cb = False
@@ -266,12 +269,12 @@ class JupyterWidgetRenderer(Renderer):
 
         # Wait until ready
         # TODO(nopdive): This blocks until cell completion. Not what we want.
-        # if self._wait_for_client:
-        #     await self._client_ready.wait()
+        if self._wait_for_client:
+            await self._client_ready.wait()
 
         # What if we only used 1% of our brain?
-        import asyncio
-        await asyncio.sleep(0.5)
+        # import asyncio
+        # await asyncio.sleep(0.5)
         logger.debug("SEND:ready")
 
         while True:
@@ -300,9 +303,9 @@ class LegacyHtmlRenderer(JupyterWidgetRenderer):
         # Handle Jupyter cell completion
         self._handle_jupyter_cell_completion()
 
-        if isinstance(message, TraceMessage) or isinstance(message, JupyterCellExecutionCompletedOutputMessage):
+        if isinstance(message, TraceMessage) or isinstance(message, ExecutionCompletedOutputMessage):
             complete_msg = None
-            if isinstance(message, JupyterCellExecutionCompletedOutputMessage):
+            if isinstance(message, ExecutionCompletedOutputMessage):
                 complete_msg = message
 
             trace_node = self._trace_handler[message.trace_id]
@@ -310,7 +313,7 @@ class LegacyHtmlRenderer(JupyterWidgetRenderer):
             if trace_node is not None:
                 clear_output(wait=True)
                 display(HTML(trace_node_to_html(trace_node, prettify_roles=False, complete_msg=complete_msg)))
-        elif isinstance(message, JupyterCellExecutionCompletedMessage):
+        elif isinstance(message, ExecutionCompletedMessage):
             logger.debug("RENDERER:cell executed")
         else:
             pass

@@ -22,19 +22,15 @@ class TraceMessage(GuidanceMessage):
 
 class MetricMessage(GuidanceMessage):
     name: str
-    value: Union[float, str]
+    value: Union[float, str, list[float], list[str]]
+    scalar: bool = True
 
 
-# TODO(nopdive): Replace with implementation.
-class TokenBatchMessage(GuidanceMessage):
-    tokens: list[GenToken]
-
-
-class JupyterCellExecutionCompletedMessage(GuidanceMessage):
+class ExecutionCompletedMessage(GuidanceMessage):
     last_trace_id: Optional[int]
 
 
-class JupyterCellExecutionCompletedOutputMessage(GuidanceMessage):
+class ExecutionCompletedOutputMessage(GuidanceMessage):
     trace_id: int
     text: str
     tokens: list[GenToken] = []
@@ -50,8 +46,8 @@ class ClientReadyMessage(GuidanceMessage):
 
 model_registry: Dict[str, type(GuidanceMessage)] = {
     'TraceMessage': TraceMessage,
-    'JupyterCellExecutionCompleted': JupyterCellExecutionCompletedMessage,
-    'JupyterCellExecutionCompletedOutputMessage': JupyterCellExecutionCompletedOutputMessage,
+    'ExecutionCompleted': ExecutionCompletedMessage,
+    'ExecutionCompletedOutputMessage': ExecutionCompletedOutputMessage,
     'ResetDisplayMessage': ResetDisplayMessage,
     'ClientReadyMessage': ClientReadyMessage,
     'MetricMessage': MetricMessage,
