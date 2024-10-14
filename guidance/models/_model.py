@@ -253,7 +253,14 @@ class Engine:
             #     gen_tokens.extend(vis_chunk.force_forwarded_tokens)
 
             tokens = self.tokenizer.encode(text.encode("utf-8"))
-            probs = self.get_token_probs(tokens)
+
+            # NOTE (loc): Not all engines support the get_token_probs method
+            try:
+                probs = self.get_token_probs(tokens)
+            except Exception as e:
+                # FIXME (loc): assume prob 1.0 for all tokens
+                probs = [1.0] * len(tokens)
+
             tokens_texts: list[str] = []
             for idx in range(len(tokens)):
                 tokens_texts.append(self.tokenizer.decode([tokens[idx]]).decode("utf-8"))
