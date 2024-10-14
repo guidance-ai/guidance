@@ -1,4 +1,4 @@
-from json import dumps as json_dumps
+from json import dumps as json_dumps, loads as json_loads
 from enum import Enum
 import math
 from typing import (
@@ -791,6 +791,7 @@ def json(
     *,
     schema: Union[
         None,
+        str,
         JSONSchema,
         Type["pydantic.BaseModel"],
         "pydantic.TypeAdapter",
@@ -849,7 +850,9 @@ def json(
         # Default schema is empty, "anything goes" schema
         # TODO: consider default being `{"type": "object"}`
         schema = {}
-    elif isinstance(schema, (Mapping, bool)):
+    elif isinstance(schema, (Mapping, bool, str)):
+        if isinstance(schema, str):
+            schema = cast(JSONSchema, json_loads(schema))
         # Raises jsonschema.exceptions.SchemaError or ValueError
         # if schema is not valid
         jsonschema.validators.Draft202012Validator.check_schema(schema)
