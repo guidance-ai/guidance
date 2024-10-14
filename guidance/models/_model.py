@@ -13,11 +13,32 @@ import psutil
 
 import numpy as np
 
-from ..trace import NodeAttr, StatelessGuidanceInput, StatefulGuidanceInput, LiteralInput, EmbeddedInput, \
-    RoleOpenerInput, RoleCloserInput, TextOutput, CaptureOutput, TraceHandler
-from ..visual import TraceMessage, AutoRenderer, trace_node_to_str, trace_node_to_html, GuidanceMessage, Renderer
-from ..visual._message import JupyterCellExecutionCompletedMessage, JupyterCellExecutionCompletedOutputMessage, \
-    MetricMessage, TokenBatchMessage
+from ..trace import (
+    NodeAttr,
+    StatelessGuidanceInput,
+    StatefulGuidanceInput,
+    LiteralInput,
+    EmbeddedInput,
+    RoleOpenerInput,
+    RoleCloserInput,
+    TextOutput,
+    CaptureOutput,
+    TraceHandler,
+)
+from ..visual import (
+    TraceMessage,
+    AutoRenderer,
+    trace_node_to_str,
+    trace_node_to_html,
+    GuidanceMessage,
+    Renderer,
+)
+from ..visual._message import (
+    JupyterCellExecutionCompletedMessage,
+    JupyterCellExecutionCompletedOutputMessage,
+    MetricMessage,
+    TokenBatchMessage,
+)
 
 try:
     from IPython.display import clear_output, display, HTML
@@ -28,7 +49,14 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-from .._schema import BaseGenToken, EngineCallResponse, EngineOutput, GenToken, GuidanceEngineMetrics, VisBytesChunk
+from .._schema import (
+    BaseGenToken,
+    EngineCallResponse,
+    EngineOutput,
+    GenToken,
+    GuidanceEngineMetrics,
+    VisBytesChunk,
+)
 from .._utils import softmax, CaptureEvents
 from .._parser import TokenParser
 from .._grammar import (
@@ -58,7 +86,7 @@ image_pattern = re.compile(r"&lt;\|_image:(.*?)\|&gt;")
 
 # TODO(nopdive): Remove on implementation.
 class MockMetricsGenerator:
-    def __init__(self, renderer: Renderer, monitor: "Monitor", sleep_sec = 0.5):
+    def __init__(self, renderer: Renderer, monitor: "Monitor", sleep_sec=0.5):
         from ..visual._async import run_async_task
 
         self._renderer = renderer
@@ -102,41 +130,56 @@ class MockMetricsGenerator:
 
             time_end = time.time()
             time_elapsed = time_end - time_start
+            self._renderer.update(MetricMessage(name="wall time", value=time_elapsed))
+
             self._renderer.update(
-                MetricMessage(name='wall time', value=time_elapsed)
+                MetricMessage(
+                    name="cpu", value=self._monitor.get_metric(MonitoringMetric.CPU_USAGE)
+                )
             )
 
             self._renderer.update(
-                MetricMessage(name='cpu', value=self._monitor.get_metric(MonitoringMetric.CPU_USAGE))
+                MetricMessage(
+                    name="ram", value=self._monitor.get_metric(MonitoringMetric.MEM_USAGE)
+                )
             )
 
-            self._renderer.update(
-                MetricMessage(name='ram', value=self._monitor.get_metric(MonitoringMetric.MEM_USAGE))
-            )
+            self._renderer.update(MetricMessage(name="gpu", value=gpu_percent))
 
-            self._renderer.update(
-                MetricMessage(name='gpu', value=gpu_percent)
-            )
-
-            self._renderer.update(
-                MetricMessage(name='vram', value=gpu_used_vram)
-            )
+            self._renderer.update(MetricMessage(name="vram", value=gpu_used_vram))
 
 
 # # TODO(nopdive): Remove on implementation.
 class MockPostExecGenerator:
-    def __init__(self, renderer: Renderer):
+    def __init__(self, renderer: Renderer, monitor: "Monitor"):
         self._renderer = renderer
+        self._monitor = monitor
 
-    def emit_messages(self):
+    def emit_messages(self, lm: "Model"):
         import random
 
-        self._renderer.update(MetricMessage(name='avg latency', value=random.uniform(10, 200)))
-        self._renderer.update(MetricMessage(name='consumed', value=random.uniform(0, 100)))
-        self._renderer.update(MetricMessage(name='token reduction', value=random.uniform(0, 100)))
-        self._renderer.update(TokenBatchMessage(tokens=[
-            GenToken(latency_ms=100, token=0, prob=0.5, text="mock", top_k=[])
-        ]))
+        # self._renderer.update(MetricMessage(name="avg latency", value=random.uniform(10, 200)))
+        # self._renderer.update(MetricMessage(name="consumed", value=random.uniform(0, 100)))
+        # self._renderer.update(MetricMessage(name="token reduction", value=random.uniform(0, 100)))
+        # self._renderer.update(
+        #     TokenBatchMessage(
+        #         tokens=[GenToken(latency_ms=100, token=0, prob=0.5, text="mock", top_k=[])]
+        #     )
+        # )
+
+        token_reduction = self._monitor.get_metric(MonitoringMetric.TOKEN_REDUCTION, lm)
+        self._renderer.update(
+            MetricMessage(
+                name="token reduction",
+                value=token_reduction * 100,
+            )
+        )
+
+        output_tokens = self._monitor.get_metric(MonitoringMetric.OUTPUT_TOKENS, lm)
+        self._renderer.update(MetricMessage(name="consumed", value=output_tokens))
+
+        avg_latency = self._monitor.get_metric(MonitoringMetric.AVG_LATENCY, lm)
+        self._renderer.update(MetricMessage(name="avg latency", value=avg_latency))
 
 
 class Engine:
@@ -154,7 +197,9 @@ class Engine:
         self.metrics = GuidanceEngineMetrics()
 
         self.trace_handler = TraceHandler()
-        self.renderer = AutoRenderer(self.trace_handler, use_legacy_renderer=kwargs.get("use_legacy_renderer", False))
+        self.renderer = AutoRenderer(
+            self.trace_handler, use_legacy_renderer=kwargs.get("use_legacy_renderer", False)
+        )
         self.renderer.subscribe(self._msg_recv)
         self.model_dict: dict[int, Model] = {}
 
@@ -163,23 +208,20 @@ class Engine:
 
         # TODO(nopdive): Remove on implementation.
         self.metrics_generator = MockMetricsGenerator(self.renderer, self.monitor)
-        self.post_exec_generator = MockPostExecGenerator(self.renderer)
+        self.post_exec_generator = MockPostExecGenerator(self.renderer, self.monitor)
 
     def _msg_recv(self, message: GuidanceMessage) -> None:
         # NOTE(nopdive): This is likely running on a secondary thread.
         logger.debug(f"ENGINE:{message}")
 
         if isinstance(message, JupyterCellExecutionCompletedMessage):
-            logger.debug(f"ENGINE:cell executed")
-            self.post_exec_generator.emit_messages()
-            self.renderer.update(message)
-
-        # model = self.model_dict.get(message.trace_id)
-        # print(f"ENGINE:{message}", type(message))
-
-        if isinstance(message, JupyterCellExecutionCompletedMessage):
             # print("last_state")
             last_model: "Model" = self.model_dict[message.last_trace_id]
+
+            # send stats to the renderer
+            self.post_exec_generator.emit_messages(last_model)
+            self.renderer.update(message)
+
             paths = []
             model = last_model
             while model is not None:
@@ -191,12 +233,20 @@ class Engine:
 
             paths.reverse()
 
-            vis_chunks: list[VisBytesChunk] = [path.vis_chunk for path in paths if path.vis_chunk is not None]
+            vis_chunks: list[VisBytesChunk] = [
+                path.vis_chunk for path in paths if path.vis_chunk is not None
+            ]
             gen_tokens_lats = []
             gen_tokens_indices = []
             for vis_chunk in vis_chunks:
                 for engine_output in vis_chunk.engine_outputs:
-                    gen_tokens_lats.append((engine_output.issued_token.token, engine_output.issued_token.latency_ms, engine_output.masked_top_k))
+                    gen_tokens_lats.append(
+                        (
+                            engine_output.issued_token.token,
+                            engine_output.issued_token.latency_ms,
+                            engine_output.masked_top_k,
+                        )
+                    )
                 gen_tokens_indices.append(len(gen_tokens_lats) - 1)
             gen_tokens_lats_idx = 0
 
@@ -228,22 +278,22 @@ class Engine:
                     continue
 
                 end_idx = start_idx
-                _chunk = "".join(tokens_texts[start_idx:end_idx+1])
+                _chunk = "".join(tokens_texts[start_idx : end_idx + 1])
                 while vis_text not in _chunk and end_idx < len(tokens_texts):
                     # expand the chunk
                     end_idx += 1
-                    _chunk = "".join(tokens_texts[start_idx:end_idx+1])
+                    _chunk = "".join(tokens_texts[start_idx : end_idx + 1])
 
                 if vis_text not in _chunk and end_idx >= len(tokens_texts):
                     failed = True
                     break
-                
+
                 if vis_text == _chunk:
                     # perfect match
                     pass
                 else:
                     start_pos = _chunk.index(vis_text)
-                    remainder = _chunk[start_pos + len(vis_text):]
+                    remainder = _chunk[start_pos + len(vis_text) :]
 
                 if remainder:
                     # we have a current chunk that is larger than the vis_text
@@ -251,8 +301,8 @@ class Engine:
                     # we should not issue that token for now
                     end_idx -= 1
 
-                real_chunk_tokens = tokens[start_idx:end_idx+1]
-                real_chunk_probs = probs[start_idx:end_idx+1]
+                real_chunk_tokens = tokens[start_idx : end_idx + 1]
+                real_chunk_probs = probs[start_idx : end_idx + 1]
 
                 is_input = len(vis_chunk.input_tokens) > 0
                 is_force_forwarded = len(vis_chunk.force_forwarded_tokens) > 0
@@ -266,14 +316,14 @@ class Engine:
                             break
 
                     _gen_token = GenToken(
-                            token=token,
-                            prob=prob,
-                            text=self.tokenizer.decode([token]).decode("utf-8"),
-                            latency_ms=0,
-                            is_input=is_input,
-                            is_generated=False,
-                            is_force_forwarded=False
-                        )
+                        token=token,
+                        prob=prob,
+                        text=self.tokenizer.decode([token]).decode("utf-8"),
+                        latency_ms=0,
+                        is_input=is_input,
+                        is_generated=False,
+                        is_force_forwarded=False,
+                    )
                     _gen_token.top_k = top_k_prob
                     _gen_tokens.append(_gen_token)
 
@@ -309,9 +359,18 @@ class Engine:
                         if not found_perfect_match:
                             # only search within this chunk
                             max_idx = gen_tokens_indices[vis_chunk_idx]
-                            prev_max_idx = -1 if vis_chunk_idx == 0 else gen_tokens_indices[vis_chunk_idx - 1] - 1
+                            prev_max_idx = (
+                                -1
+                                if vis_chunk_idx == 0
+                                else gen_tokens_indices[vis_chunk_idx - 1] - 1
+                            )
                             for idx in range(max_idx, prev_max_idx, -1):
-                                if self.tokenizer.decode([gen_tokens_lats[idx][0]]).decode("utf-8") in _gen_token.text:
+                                if (
+                                    self.tokenizer.decode([gen_tokens_lats[idx][0]]).decode(
+                                        "utf-8"
+                                    )
+                                    in _gen_token.text
+                                ):
                                     _gen_token.latency_ms = gen_tokens_lats[idx][1]
                                     _masked_top_k = gen_tokens_lats[idx][2]
                                     if _masked_top_k is None:
@@ -321,7 +380,10 @@ class Engine:
                                     else:
                                         _masked_tokens = [token.token for token in _masked_top_k]
                                         for _token in _gen_token.top_k:
-                                            if _token.token not in _masked_tokens and _token.token != _gen_token.token:
+                                            if (
+                                                _token.token not in _masked_tokens
+                                                and _token.token != _gen_token.token
+                                            ):
                                                 _token.is_masked = True
                                             else:
                                                 _token.is_masked = False
@@ -343,15 +405,21 @@ class Engine:
                 final_text = "".join([gen_token.text for gen_token in processed_gen_tokens])
                 logger.debug(f"ENGINE:final_text:{final_text}")
 
-                self.renderer.update(JupyterCellExecutionCompletedOutputMessage(
-                    trace_id=message.last_trace_id,
-                    text=self.tokenizer.decode(tokens).decode("utf-8"),
-                    tokens=processed_gen_tokens,
-                ))
+                self.renderer.update(
+                    JupyterCellExecutionCompletedOutputMessage(
+                        trace_id=message.last_trace_id,
+                        text=self.tokenizer.decode(tokens).decode("utf-8"),
+                        tokens=processed_gen_tokens,
+                    )
+                )
 
-    def get_chat_template(self): # TODO [HN]: Add more logic here...should we instantiate class here? do we even need to?
-        return self.tokenizer.chat_template() # Instantiate the class before returning to client for now
-    
+    def get_chat_template(
+        self,
+    ):  # TODO [HN]: Add more logic here...should we instantiate class here? do we even need to?
+        return (
+            self.tokenizer.chat_template()
+        )  # Instantiate the class before returning to client for now
+
     def reset_metrics(self):
         self.metrics = GuidanceEngineMetrics()
 
@@ -394,7 +462,7 @@ class Engine:
             grammar=grammar,
             tokenizer=self.tokenizer,
             prompt=prompt,
-            ensure_bos_token=ensure_bos_token
+            ensure_bos_token=ensure_bos_token,
         )
 
     def __call__(self, prompt, grammar, ensure_bos_token=True) -> Iterator[EngineCallResponse]:
@@ -539,16 +607,20 @@ class Engine:
                     is_generated=False,
                 )
 
-            engine_list.append(EngineOutput(
-                issued_token=issued_token,
-                top_k=top_k,
-                masked_top_k=None if not masked_top_k else masked_top_k,
-                is_backtracked=False,
-            ))
+            engine_list.append(
+                EngineOutput(
+                    issued_token=issued_token,
+                    top_k=top_k,
+                    masked_top_k=None if not masked_top_k else masked_top_k,
+                    is_backtracked=False,
+                )
+            )
 
         return engine_list
 
-    def get_next_token(self, token_ids: list[int], mask: Optional[bytes], temperature: float) -> int:
+    def get_next_token(
+        self, token_ids: list[int], mask: Optional[bytes], temperature: float
+    ) -> int:
         """Base implementation for getting the next token from the model which calls get_logits and sample_with_temperature.
         Subclasses may override this method, e.g. if they use external APIs that do not support getting logits directly.
         """
@@ -558,17 +630,19 @@ class Engine:
 
     def get_logits(self, token_ids: list[int]) -> np.ndarray:
         raise NotImplementedError
-    
+
     def get_token_probs(self, token_ids: list[int], top_k: int = 5) -> list[list[BaseGenToken]]:
         raise NotImplementedError
 
-    def sample_with_temperature(self, logits: np.ndarray, mask: Optional[bytes], temperature: float) -> int:
+    def sample_with_temperature(
+        self, logits: np.ndarray, mask: Optional[bytes], temperature: float
+    ) -> int:
         if mask is not None:
             logits += np.frombuffer(mask, dtype=np.uint8)
         if temperature < 0.0001:
             return int(np.argmax(logits))
         # Get probabilities from softmax
-        probabilities = softmax(logits/temperature)
+        probabilities = softmax(logits / temperature)
         # Sample an index based on the probabilities
         sampled_index = np.random.choice(len(logits), p=probabilities)
         return sampled_index
@@ -582,6 +656,8 @@ class Engine:
 
 
 _id_counter = 0  # Counter for identifiers, this has to be outside the model to handle child classes properly.
+
+
 class Model:
     """The base guidance model object, which represents a model in a given state.
 
@@ -593,7 +669,9 @@ class Model:
     .. automethod:: __add__
     """
 
-    global_active_blocks: list["ContextBlock"] = []  # track what context blocks are globally active
+    global_active_blocks: list["ContextBlock"] = (
+        []
+    )  # track what context blocks are globally active
 
     _grammar_only = 0  # a flag that tracks when we are forced to be executing only compiled grammars (like when we are inside a select)
 
@@ -621,11 +699,15 @@ class Model:
         #     tokenizer = Tokenizer(tokenizer)
 
         self.engine = engine
-        self.chat_template = engine.get_chat_template() # TODO [HN]: Should this be a method or attr?
+        self.chat_template = (
+            engine.get_chat_template()
+        )  # TODO [HN]: Should this be a method or attr?
         # NOTE(nopdive): `echo` seems to be better on the engine, when is there an opportunity to turn echo off midway?
         self.echo = echo
         self.token_count = 0  # tracks how many tokens our byte state represents
-        self.max_display_rate = 0.2  # this controls how frequently we are allowed to redraw the display (in seconds)
+        self.max_display_rate = (
+            0.2  # this controls how frequently we are allowed to redraw the display (in seconds)
+        )
         self.opened_blocks = {}  # what context blocks have been opened but not closed
         # self.compute_log_probs = compute_log_probs
 
@@ -639,10 +721,14 @@ class Model:
             self._renderer = engine.renderer  # renderer for display
         else:
             self._renderer = None  # no renderer if echo is false
-        self._event_queue = None  # TODO: these are for streaming results in code, but that needs implemented
+        self._event_queue = (
+            None  # TODO: these are for streaming results in code, but that needs implemented
+        )
         self._event_parent = None
         self._last_display = 0  # used to track the last display call to enable throttling
-        self._last_event_stream = 0  # used to track the last event streaming call to enable throttling
+        self._last_event_stream = (
+            0  # used to track the last event streaming call to enable throttling
+        )
 
         self._id = self.__class__.gen_id()  # model id needed for tracking state
         self._parent_id = parent_id
@@ -651,6 +737,7 @@ class Model:
 
         self.vis_chunk: VisBytesChunk = None
         self.engine.model_dict[self._id] = self
+        self.metrics = GuidanceEngineMetrics()
 
     @classmethod
     def gen_id(cls):
@@ -682,8 +769,7 @@ class Model:
         """Generate HTML that displays the model object."""
 
         return trace_node_to_html(
-            self._trace_handler.id_node_map[self._id],
-            hasattr(self, "indent_roles")
+            self._trace_handler.id_node_map[self._id], hasattr(self, "indent_roles")
         )
 
     def _send_to_event_queue(self, value):
@@ -710,7 +796,9 @@ class Model:
         new_lm.opened_blocks = self.opened_blocks.copy()
 
         # create a new clean event queue
-        new_lm._event_queue = None  # we start with no event queue because nobody is listening to us yet
+        new_lm._event_queue = (
+            None  # we start with no event queue because nobody is listening to us yet
+        )
 
         if self._event_queue is not None:
             # if the current lm has an event queue, we make it our parent
@@ -726,6 +814,7 @@ class Model:
         self.engine.model_dict[new_lm._id] = new_lm
         new_lm.vis_chunk = None
         new_lm._parent = self
+        new_lm.metrics = self.metrics.model_copy(deep=True)
 
         return new_lm
 
@@ -750,7 +839,6 @@ class Model:
         # this is for programmatic streaming among other things
         self._send_to_event_queue(self)
 
-
     def reset(self, clear_variables=True):
         """This resets the state of the model object.
 
@@ -767,7 +855,6 @@ class Model:
             self._variables_log_probs = {}
         return self
 
-
     def role_opener(self, role_name, **kwargs):
         # TODO [HN]: Temporary change while I instrument chat_template in transformers only.
         # Eventually have all models use chat_template.
@@ -779,7 +866,6 @@ class Model:
             raise Exception(
                 f"You need to use a chat model in order the use role blocks like `with {role_name}():`! Perhaps you meant to use the {type(lm).__name__}Chat class?"
             )
-
 
     def role_closer(self, role_name, **kwargs):
         # TODO [HN]: Temporary change while I instrument chat_template in transformers only.
@@ -793,7 +879,6 @@ class Model:
                 f"You need to use a chat model in order the use role blocks like `with {role_name}():`! Perhaps you meant to use the {type(lm).__name__}Chat class?"
             )
 
-
     def _repr_html_(self):
         if ipython_is_imported:
             clear_output(wait=True)
@@ -803,7 +888,9 @@ class Model:
         """The current prompt in bytes (which is the state without the context close tags)."""
         return trace_node_to_str(self._trace_handler.id_node_map[self._id])
 
-    def _update_trace_node(self, identifier: int, parent_id: Optional[int], node_attr: Optional[NodeAttr]):
+    def _update_trace_node(
+        self, identifier: int, parent_id: Optional[int], node_attr: Optional[NodeAttr]
+    ):
         """Updates trace node that corresponds to this model."""
 
         self._trace_handler.update_node(identifier, parent_id, node_attr)
@@ -816,13 +903,11 @@ class Model:
                 )
             )
 
-
     def __str__(self):
         """A string representation of the current model object (that includes context closers)."""
 
         # TODO(nopdive): Ensure context closers or no?
         return trace_node_to_str(self._trace_handler.id_node_map[self._id])
-
 
     def __add__(self, value):
         """Adding is the primary mechanism for extending model state.
@@ -836,6 +921,9 @@ class Model:
         # create the new lm object we will return
         # (we need to do this since Model objects are immutable)
         lm = self.copy()
+
+        # map model's metrics to engine
+        lm.engine.metrics = lm.metrics
 
         # find blocks that are now active, but haven't been opened by lm yet
         enter_blocks = []
@@ -860,12 +948,16 @@ class Model:
                 # TODO(nopdive): Replace with trace traversal.
                 v = format_pattern.sub("", lm._state[pos:])
                 lm._variables[context.name] = v
-                self._update_trace_node(lm._id, lm._parent_id, CaptureOutput(name=context.name, value=v))
+                self._update_trace_node(
+                    lm._id, lm._parent_id, CaptureOutput(name=context.name, value=v)
+                )
 
             # add closer
             # TODO(nopdive): Consider removing context closer/opener on confirmation.
             closer_text = self.role_closer(context.name)
-            self._update_trace_node(lm._id, lm._parent_id, RoleCloserInput(name=context.name, text=closer_text))
+            self._update_trace_node(
+                lm._id, lm._parent_id, RoleCloserInput(name=context.name, text=closer_text)
+            )
             lm += context.closer
             lm = lm.copy()
 
@@ -874,7 +966,11 @@ class Model:
             # add opener
             opener_text = self.role_opener(context.name)
             closer_text = self.role_closer(context.name)
-            self._update_trace_node(lm._id, lm._parent_id, RoleOpenerInput(name=context.name, text=opener_text, closer_text=closer_text))
+            self._update_trace_node(
+                lm._id,
+                lm._parent_id,
+                RoleOpenerInput(name=context.name, text=opener_text, closer_text=closer_text),
+            )
             lm += context.opener
             lm = lm.copy()
 
@@ -925,11 +1021,16 @@ class Model:
                             is_generated=False,
                             is_force_forwarded=False,
                             is_input=True,
-                        ) for _token in _tokens
-                    ]
+                        )
+                        for _token in _tokens
+                    ],
                 )
 
-                self._update_trace_node(out._id, out._parent_id, TextOutput(value=value, is_input=True, tokens=out.vis_chunk.input_tokens))
+                self._update_trace_node(
+                    out._id,
+                    out._parent_id,
+                    TextOutput(value=value, is_input=True, tokens=out.vis_chunk.input_tokens),
+                )
 
             # if we have embedded objects we have to convert the string to a grammar tree
             else:
@@ -976,6 +1077,9 @@ class Model:
                     f"A guidance function did not return a model object! Did you try to add a function to a model without calling the function? For example `model + guidance_function()` is correct, while `model + guidance_function` will cause this error."
                 )
 
+        # copy model metrics back to engine
+        out.metrics = self.engine.metrics.model_copy(deep=True)
+
         return out
 
     # def endswith(self, s):
@@ -1002,9 +1106,7 @@ class Model:
         else:
             for context in list(reversed(self.opened_blocks)):
                 if context.name == key:
-                    return format_pattern.sub(
-                        "", self._state[self.opened_blocks[context][0] :]
-                    )
+                    return format_pattern.sub("", self._state[self.opened_blocks[context][0] :])
 
         raise KeyError(f"Model does not contain the variable '{key}'")
 
@@ -1183,6 +1285,9 @@ class Model:
                     continue
                 delayed_bytes = b""
 
+                if chunk.backtrack:
+                    lm.engine.metrics.engine_backtrack_tokens += chunk.backtrack
+
                 # while chunk.backtrack > 0:
                 #     parent = lm._parent
                 #     while parent is not None:
@@ -1219,7 +1324,7 @@ class Model:
                             prob=0.0,
                             tokens=chunk.generated_tokens,
                         )
-                    
+
                     if chunk.force_forwarded_bytes:
                         lm += TextOutput(
                             value=chunk.force_forwarded_bytes.decode("utf8"),
@@ -1228,7 +1333,7 @@ class Model:
                             prob=0.0,
                             tokens=chunk.force_forwarded_tokens,
                         )
-                    
+
                     new_lm_created = True
                 else:
                     new_lm_created = False
@@ -1274,7 +1379,9 @@ class Model:
                                 if k not in lm or not isinstance(lm._variables[k], list):
                                     lm._variables[k] = []
                                     lm += CaptureOutput(name=k)
-                                if k not in lm._variables_log_probs or not isinstance(lm._variables_log_probs[k], list):
+                                if k not in lm._variables_log_probs or not isinstance(
+                                    lm._variables_log_probs[k], list
+                                ):
                                     lm._variables_log_probs[k] = []
 
                                 lm._variables[k].append(inner_v)
@@ -1396,10 +1503,7 @@ class Chat(Model):
             This kwargs are added to the role start as arguments.
         """
         return (
-            "<|im_start|>"
-            + role_name
-            + "".join([f' {k}="{v}"' for k, v in kwargs.items()])
-            + "\n"
+            "<|im_start|>" + role_name + "".join([f' {k}="{v}"' for k, v in kwargs.items()]) + "\n"
         )
 
     def get_role_end(self, role_name=None):
@@ -1415,6 +1519,7 @@ class Chat(Model):
             The name of the role, like "user", or "assistant"
         """
         return "<|im_end|>"
+
 
 class Instruct(Model):
     """The base class for all instruction-tuned models."""
@@ -1445,6 +1550,7 @@ class ConstraintException(Exception):
         self.data = kwargs.pop("data", None)
         super().__init__(*args, **kwargs)
 
+
 class MonitoringMetric(str, Enum):
     CPU_USAGE = "cpu_usage"
     MEM_USAGE = "mem_usage"
@@ -1456,6 +1562,8 @@ class MonitoringMetric(str, Enum):
     BACKTRACK_TOKENS = "backtrack_tokens"
     TOKEN_COUNT = "token_count"
     TOKEN_REDUCTION = "token_reduction"
+    AVG_LATENCY = "avg_latency"
+
 
 ALL_METRICS = [
     MonitoringMetric.CPU_USAGE,
@@ -1467,15 +1575,23 @@ ALL_METRICS = [
     MonitoringMetric.OUTPUT_TOKENS,
     MonitoringMetric.BACKTRACK_TOKENS,
     MonitoringMetric.TOKEN_COUNT,
-    MonitoringMetric.TOKEN_REDUCTION
+    MonitoringMetric.TOKEN_REDUCTION,
+    MonitoringMetric.AVG_LATENCY,
 ]
 
-def _monitor_fn(stop_flag, metrics_dict: dict[MonitoringMetric, list], max_size: int = 100, interval_ms: float = 1000):
+
+def _monitor_fn(
+    stop_flag,
+    metrics_dict: dict[MonitoringMetric, list],
+    max_size: int = 100,
+    interval_ms: float = 1000,
+):
     print("Monitoring started")
 
     to_collect_gpu_stats = False
     try:
         import gpustat
+
         gpu_stats = gpustat.GPUStatCollection.new_query()
         if len(gpu_stats) > 0:
             # only collect GPU stats if there is at least one GPU
@@ -1487,7 +1603,7 @@ def _monitor_fn(stop_flag, metrics_dict: dict[MonitoringMetric, list], max_size:
         while not stop_flag.value:
             t0 = time.time()
 
-            #cpu_percent = psutil.cpu_percent(interval=1)
+            # cpu_percent = psutil.cpu_percent(interval=1)
             cpu_percent = psutil.cpu_percent()
             memory_usage = psutil.virtual_memory()
 
@@ -1508,7 +1624,7 @@ def _monitor_fn(stop_flag, metrics_dict: dict[MonitoringMetric, list], max_size:
                 metrics_dict[MonitoringMetric.GPU_TOTAL_MEM].append(mem_total)
 
             t2 = time.time()
-            
+
             for metrics in metrics_dict.values():
                 if len(metrics) > max_size:
                     metrics.pop(0)
@@ -1530,32 +1646,34 @@ def _monitor_fn(stop_flag, metrics_dict: dict[MonitoringMetric, list], max_size:
 
     print("Monitoring stopped")
 
+
 class Monitor:
-    """Monitoring service to collect neccessary metrics for visualizatoin
-    """
-    
+    """Monitoring service to collect neccessary metrics for visualizatoin"""
+
     def __init__(self, engine: Engine, **kwargs):
         self.engine = engine
         self.mp_manager = Manager()
 
         # use list instead of queue for easily accessing each item, e.g., last item
         self.max_size = kwargs.get("max_size", 100)
-        
+
         self.metrics_dict = {
             MonitoringMetric.CPU_USAGE: self.mp_manager.list(),
             MonitoringMetric.MEM_USAGE: self.mp_manager.list(),
             MonitoringMetric.GPU_USAGE: self.mp_manager.list(),
             MonitoringMetric.GPU_USED_MEM: self.mp_manager.list(),
-            MonitoringMetric.GPU_TOTAL_MEM: self.mp_manager.list()
+            MonitoringMetric.GPU_TOTAL_MEM: self.mp_manager.list(),
         }
 
         self.stop_flag = self.mp_manager.Value("b", False)
         self.process = None
 
-        self.per_token_metrics = [] # store metrics per token in token list
+        self.per_token_metrics = []  # store metrics per token in token list
 
     def start(self):
-        self.process = Process(target=_monitor_fn, args=(self.stop_flag, self.metrics_dict, self.max_size))
+        self.process = Process(
+            target=_monitor_fn, args=(self.stop_flag, self.metrics_dict, self.max_size)
+        )
         self.process.start()
 
     def stop(self):
@@ -1574,7 +1692,9 @@ class Monitor:
 
         self.start()
 
-    def get_metrics(self, metrics: list[MonitoringMetric] = ALL_METRICS, lm: Union[Model, None] = None) -> dict[MonitoringMetric, Any]:
+    def get_metrics(
+        self, metrics: list[MonitoringMetric] = ALL_METRICS, lm: Union[Model, None] = None
+    ) -> dict[MonitoringMetric, Any]:
         result = {}
 
         for metric in metrics:
@@ -1583,9 +1703,11 @@ class Monitor:
                 MonitoringMetric.MEM_USAGE,
                 MonitoringMetric.GPU_USAGE,
                 MonitoringMetric.GPU_USED_MEM,
-                MonitoringMetric.GPU_TOTAL_MEM
+                MonitoringMetric.GPU_TOTAL_MEM,
             ]:
-                result[metric] = self.metrics_dict[metric][-1] if len(self.metrics_dict[metric]) > 0 else None
+                result[metric] = (
+                    self.metrics_dict[metric][-1] if len(self.metrics_dict[metric]) > 0 else None
+                )
             elif metric == MonitoringMetric.INPUT_TOKENS:
                 result[metric] = self.engine.metrics.engine_input_tokens
             elif metric == MonitoringMetric.OUTPUT_TOKENS:
@@ -1596,11 +1718,31 @@ class Monitor:
                 result[metric] = lm.token_count if lm is not None else None
             elif metric == MonitoringMetric.TOKEN_REDUCTION:
                 if lm is not None and lm.token_count > 0:
-                    result[metric] = 1 - (self.engine.metrics.engine_output_tokens / lm.token_count)
+                    result[metric] = 1 - (
+                        self.engine.metrics.engine_output_tokens / lm.token_count
+                    )
                 else:
                     result[metric] = None
-        
+            elif metric == MonitoringMetric.AVG_LATENCY:
+                if lm is None:
+                    result[metric] = None
+                else:
+                    lats = []
+                    model = lm
+                    while model._parent is not None:
+                        if model.vis_chunk:
+                            for token in model.vis_chunk.generated_tokens:
+                                lats.append(token.latency_ms)
+                            for token in model.vis_chunk.force_forwarded_tokens:
+                                lats.append(token.latency_ms)
+                        model = model._parent
+
+                    if len(lats) == 0:
+                        result[metric] = None
+                    else:
+                        result[metric] = np.mean(lats)
+
         return result
-    
+
     def get_metric(self, metric: MonitoringMetric, lm: Union[Model, None] = None) -> Any:
         return self.get_metrics([metric], lm)[metric]
