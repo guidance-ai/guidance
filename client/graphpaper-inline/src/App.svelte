@@ -7,16 +7,26 @@
 		clientmsg,
 		type StitchMessage,
 		type NodeAttr,
+		type GenToken,
 		isTraceMessage,
-		isTextOutput, isRoleOpenerInput, isRoleCloserInput
+		isTextOutput,
+		isRoleOpenerInput,
+		isRoleCloserInput,
+		isResetDisplayMessage,
+		isMetricMessage,
+		isExecutionCompletedMessage,
+		isExecutionCompletedOutputMessage,
 	} from './stitch';
     import StitchHandler from './StitchHandler.svelte';
 	import {onMount} from "svelte";
 	import MetricCard, {type MetricDef, type MetricVal} from "./MetricCard.svelte";
-	import {mockTokens} from "./mocks";
+	// import {mockGenTokens, mockNodeAttrs} from "./mocks";
 
     let msg: any;
-    let nodeAttrs: Array<NodeAttr> = [];
+    let textComponents: Array<NodeAttr> = [];
+	let tokenDetails: Array<GenToken> = [];
+	// textComponents = mockNodeAttrs;
+	// tokenDetails = mockGenTokens;
 	let completedExecution: boolean = false;
 
 	$: if ($kernelmsg !== undefined) {
@@ -24,39 +34,41 @@
 			msg = JSON.parse($kernelmsg.content);
 			if (isTraceMessage(msg)) {
 				if (isTextOutput(msg.node_attr)) {
-					nodeAttrs.push(msg.node_attr);
+					textComponents.push(msg.node_attr);
 				} else if (isRoleOpenerInput(msg.node_attr)) {
-					nodeAttrs.push(msg.node_attr)
+					textComponents.push(msg.node_attr)
 				} else if (isRoleCloserInput(msg.node_attr)) {
-					nodeAttrs.push(msg.node_attr)
+					textComponents.push(msg.node_attr)
 				}
-			} else if (msg.class_name === "TokenBatchMessage") {
-				console.log(msg.tokens);
-			} else if (msg.class_name === "ResetDisplayMessage") {
-				nodeAttrs = [];
-			} else if (msg.class_name === "MetricMessage") {
+			} else if (isResetDisplayMessage(msg)) {
+				textComponents = [];
+			} else if (isMetricMessage(msg)) {
+				// TODO(nopdive): Move aggregation to server-side.
 				const name = msg.name;
 				const value = msg.value;
 
 				if (name in metrics && name in metricDefs) {
 					let currVal = metrics[name];
 					const metricDef = metricDefs[name];
-					if (metricDef.isScalar === false && currVal instanceof Array) {
-						metrics[name] = [...currVal.slice(1), value];
+					if (metricDef.isScalar === false) {
+						currVal = currVal as Array<any>;
+						metrics[name] = [...currVal.slice(1), value as string | number];
 					} else if (metricDef.isScalar === true) {
 						metrics[name] = value;
 					} else {
 						console.log(`Cannot handle metric: ${name}: ${value}.`)
 					}
 				}
-			} else if (msg.class_name === 'JupyterCellExecutionCompletedMessage') {
+			} else if (isExecutionCompletedMessage(msg)) {
 				completedExecution = true;
+			} else if (isExecutionCompletedOutputMessage(msg)) {
+				tokenDetails = msg.tokens;
+				console.log(textComponents);
+				console.log(msg.tokens);
 			}
-			nodeAttrs = nodeAttrs;
+			textComponents = textComponents;
 		}
 	}
-
-	nodeAttrs = mockTokens;
 
 	// TODO(nopdive): Restrict metrics while updating style.
 	const metricDefs: Record<string, MetricDef> = {
@@ -153,9 +165,9 @@
 
 <StitchHandler/>
 <ResizeListener/>
-<div class="w-full">
+<div class="w-full min-h-48">
 	<!-- Navigation bar -->
-	<nav class="sticky top-0 z-50 opacity-90 w-full flex bg-gray-100 text-gray-500 justify-between">
+	<nav class="sticky top-0 z-30 opacity-90 w-full flex bg-gray-100 text-gray-500 justify-between">
 		<div class="pl-2 flex">
 			{#each Object.entries(metrics) as [name, value], i}
 				<MetricCard value={value} i={i} metricDef={metricDefs[name]} />
@@ -164,6 +176,6 @@
 	</nav>
 	<!-- Content pane -->
 	<section class="w-full">
-		<TokenGrid nodeAttrs={nodeAttrs} isCompleted={completedExecution}/>
+		<TokenGrid textComponents={textComponents} tokenDetails={tokenDetails} isCompleted={completedExecution}/>
 	</section>
 </div>

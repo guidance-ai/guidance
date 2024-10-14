@@ -34,10 +34,9 @@ from ..visual import (
     Renderer,
 )
 from ..visual._message import (
-    JupyterCellExecutionCompletedMessage,
-    JupyterCellExecutionCompletedOutputMessage,
+    ExecutionCompletedMessage,
+    ExecutionCompletedOutputMessage,
     MetricMessage,
-    TokenBatchMessage,
 )
 
 try:
@@ -209,7 +208,7 @@ class Engine:
         # NOTE(nopdive): This is likely running on a secondary thread.
         logger.debug(f"ENGINE:{message}")
 
-        if isinstance(message, JupyterCellExecutionCompletedMessage):
+        if isinstance(message, ExecutionCompletedMessage):
             # print("last_state")
             last_model: "Model" = self.model_dict[message.last_trace_id]
 
@@ -399,12 +398,16 @@ class Engine:
             if not failed:
                 final_text = "".join([gen_token.text for gen_token in processed_gen_tokens])
                 logger.debug(f"ENGINE:final_text:{final_text}")
-
                 self.renderer.update(
-                    JupyterCellExecutionCompletedOutputMessage(
+                    ExecutionCompletedOutputMessage(
                         trace_id=message.last_trace_id,
                         text=self.tokenizer.decode(tokens).decode("utf-8"),
                         tokens=processed_gen_tokens,
+                    )
+                )
+                self.renderer.update(
+                    ExecutionCompletedMessage(
+                        last_trace_id=message.last_trace_id,
                     )
                 )
 
@@ -1579,7 +1582,7 @@ def _monitor_fn(
     max_size: int = 100,
     interval_ms: float = 1000,
 ):
-    print("Monitoring started")
+    # print("Monitoring started")
 
     to_collect_gpu_stats = False
     try:
@@ -1637,7 +1640,7 @@ def _monitor_fn(
         # print(f"Error in monitoring: {e}")
         pass
 
-    print("Monitoring stopped")
+    # print("Monitoring stopped")
 
 
 class Monitor:

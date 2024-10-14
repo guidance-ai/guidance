@@ -6,7 +6,7 @@
         isScalar: boolean,
         precision: number,
     }
-    export type MetricVal = string | number | ArrayLike<number> | ArrayLike<string>;
+    export type MetricVal = string | number | Array<number | string>;
 </script>
 
 <script lang="ts">
@@ -30,9 +30,9 @@
         <Minibar values={value} svgClass={"w-12 h-6"} rectClass={`${i === selectedIndex ? "fill-gray-100" : "fill-gray-700"} group-hover:fill-gray-100`} padding={minibarPadding}/>
     {:else}
         {#if typeof value === "number"}
-            <div class={`text-lg ${i === selectedIndex ? "text-gray-100" : "text-gray-700"} group-hover:text-gray-100`}>{value.toFixed(metricDef.precision)}<span class="text-xs pl-1">{metricDef.units}</span></div>
+            <div class={`min-w-12 text-center text-lg ${i === selectedIndex ? "text-gray-100" : "text-gray-700"} group-hover:text-gray-100`}>{value.toFixed(metricDef.precision)}<span class="text-xs pl-1">{metricDef.units}</span></div>
         {:else}
-            <div class={`text-lg ${i === selectedIndex ? "text-gray-100" : "text-gray-700"} group-hover:text-gray-100`}>{value}<span class="text-xs pl-1">{metricDef.units}</span></div>
+            <div class={`min-w-12 text-center text-lg ${i === selectedIndex ? "text-gray-100" : "text-gray-700"} group-hover:text-gray-100`}>{value}<span class="text-xs pl-1">{metricDef.units}</span></div>
         {/if}
     {/if}
 </div>

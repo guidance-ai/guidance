@@ -1,5 +1,20 @@
 import {writable} from 'svelte/store';
 
+export interface BaseToken {
+    token: number,
+    prob: number,
+    text: string,
+    is_masked: boolean,
+}
+
+export interface GenToken extends BaseToken {
+    latency_ms: number,
+    is_generated: boolean,
+    is_force_forwarded: boolean,
+    is_input: boolean,
+    top_k: Array<BaseToken>,
+}
+
 export interface NodeAttr {
     class_name: string
 }
@@ -7,7 +22,9 @@ export interface NodeAttr {
 export interface TextOutput extends NodeAttr {
     class_name: 'TextOutput',
     value: string,
+    is_input: boolean,
     is_generated: boolean,
+    is_force_forwarded: boolean,
     token_count: number,
     prob: number,
 }
@@ -40,14 +57,16 @@ export interface ResetDisplayMessage extends GuidanceMessage {
     class_name: 'ResetDisplayMessage'
 }
 
-export interface TokenBatchMessage extends GuidanceMessage {
-    class_name: 'TokenBatchMessage',
-    tokens: Array<any>
+export interface ExecutionCompletedMessage extends GuidanceMessage {
+    class_name: 'ExecutionCompletedMessage',
+    last_trace_id?: number,
 }
 
-export interface JupyterCellExecutionCompletedMessage extends GuidanceMessage {
-    class_name: 'JupyterCellExecutionCompletedMessage',
-    last_trace_id?: number,
+export interface ExecutionCompletedOutputMessage extends GuidanceMessage {
+    class_name: 'ExecutionCompletedOutputMessage',
+    trace_id: number,
+    text: string,
+    tokens: Array<GenToken>,
 }
 
 export interface ClientReadyMessage extends GuidanceMessage {
@@ -57,7 +76,8 @@ export interface ClientReadyMessage extends GuidanceMessage {
 export interface MetricMessage extends GuidanceMessage {
     class_name: 'MetricMessage',
     name: string,
-    value: number | string
+    value: number | string | Array<number> | Array<string>,
+    scalar: boolean,
 }
 
 export interface StitchMessage {
@@ -83,6 +103,26 @@ export function isRoleCloserInput(o: NodeAttr | undefined | null): o is RoleClos
 export function isTextOutput(o: NodeAttr | undefined | null): o is TextOutput {
     if (o === undefined || o === null) return false;
     return o.class_name === "TextOutput";
+}
+
+export function isResetDisplayMessage(o: NodeAttr | undefined | null): o is ResetDisplayMessage {
+    if (o === undefined || o === null) return false;
+    return o.class_name === "ResetDisplayMessage";
+}
+
+export function isMetricMessage(o: NodeAttr | undefined | null): o is MetricMessage {
+    if (o === undefined || o === null) return false;
+    return o.class_name === "MetricMessage";
+}
+
+export function isExecutionCompletedMessage(o: NodeAttr | undefined | null): o is ExecutionCompletedMessage {
+    if (o === undefined || o === null) return false;
+    return o.class_name === "ExecutionCompletedMessage";
+}
+
+export function isExecutionCompletedOutputMessage(o: NodeAttr | undefined | null): o is ExecutionCompletedOutputMessage {
+    if (o === undefined || o === null) return false;
+    return o.class_name === "ExecutionCompletedOutputMessage";
 }
 
 export const kernelmsg = writable<StitchMessage | undefined>(undefined);
