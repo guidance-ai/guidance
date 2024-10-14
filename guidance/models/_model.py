@@ -84,8 +84,7 @@ html_pattern = re.compile(r"&lt;\|\|_html:(.*?)_\|\|&gt;", flags=re.DOTALL)
 image_pattern = re.compile(r"&lt;\|_image:(.*?)\|&gt;")
 
 
-# TODO(nopdive): Remove on implementation.
-class MockMetricsGenerator:
+class MetricsGenerator:
     def __init__(self, renderer: Renderer, monitor: "Monitor", sleep_sec=0.5):
         from ..visual._async import run_async_task
 
@@ -97,7 +96,6 @@ class MockMetricsGenerator:
     async def _emit(self):
         import asyncio
         import time
-        import random
 
         time_start = time.time()
         while True:
@@ -124,10 +122,6 @@ class MockMetricsGenerator:
             if not mem_percent:
                 mem_percent = 0
 
-            # print(f"CPU: {cpu_percent}, RAM: {mem_percent}")
-            # print("gpu_percent", gpu_percent)
-            # print("gpu_used_vram",gpu_used_vram)
-
             time_end = time.time()
             time_elapsed = time_end - time_start
             self._renderer.update(MetricMessage(name="wall time", value=time_elapsed))
@@ -149,15 +143,13 @@ class MockMetricsGenerator:
             self._renderer.update(MetricMessage(name="vram", value=gpu_used_vram))
 
 
-# # TODO(nopdive): Remove on implementation.
-class MockPostExecGenerator:
+class PostExecGenerator:
     def __init__(self, renderer: Renderer, monitor: "Monitor"):
         self._renderer = renderer
         self._monitor = monitor
 
     def emit_messages(self, lm: "Model"):
-        import random
-
+        # import random
         # self._renderer.update(MetricMessage(name="avg latency", value=random.uniform(10, 200)))
         # self._renderer.update(MetricMessage(name="consumed", value=random.uniform(0, 100)))
         # self._renderer.update(MetricMessage(name="token reduction", value=random.uniform(0, 100)))
@@ -210,8 +202,8 @@ class Engine:
         self.monitor.start()
 
         # TODO(nopdive): Remove on implementation.
-        self.metrics_generator = MockMetricsGenerator(self.renderer, self.monitor)
-        self.post_exec_generator = MockPostExecGenerator(self.renderer, self.monitor)
+        self.metrics_generator = MetricsGenerator(self.renderer, self.monitor)
+        self.post_exec_generator = PostExecGenerator(self.renderer, self.monitor)
 
     def _msg_recv(self, message: GuidanceMessage) -> None:
         # NOTE(nopdive): This is likely running on a secondary thread.
