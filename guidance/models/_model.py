@@ -168,18 +168,21 @@ class MockPostExecGenerator:
         # )
 
         token_reduction = self._monitor.get_metric(MonitoringMetric.TOKEN_REDUCTION, lm)
-        self._renderer.update(
-            MetricMessage(
-                name="token reduction",
-                value=token_reduction * 100,
+        if token_reduction is not None:
+            self._renderer.update(
+                MetricMessage(
+                    name="token reduction",
+                    value=token_reduction * 100,
+                )
             )
-        )
 
         output_tokens = self._monitor.get_metric(MonitoringMetric.OUTPUT_TOKENS, lm)
-        self._renderer.update(MetricMessage(name="consumed", value=output_tokens))
+        if output_tokens is not None:
+            self._renderer.update(MetricMessage(name="consumed", value=output_tokens))
 
         avg_latency = self._monitor.get_metric(MonitoringMetric.AVG_LATENCY, lm)
-        self._renderer.update(MetricMessage(name="avg latency", value=avg_latency))
+        if avg_latency is not None:
+            self._renderer.update(MetricMessage(name="avg latency", value=avg_latency))
 
 
 class Engine:
@@ -922,9 +925,6 @@ class Model:
         # (we need to do this since Model objects are immutable)
         lm = self.copy()
 
-        # map model's metrics to engine
-        lm.engine.metrics = lm.metrics
-
         # find blocks that are now active, but haven't been opened by lm yet
         enter_blocks = []
         for context in Model.global_active_blocks:
@@ -1076,9 +1076,6 @@ class Model:
                 raise Exception(
                     f"A guidance function did not return a model object! Did you try to add a function to a model without calling the function? For example `model + guidance_function()` is correct, while `model + guidance_function` will cause this error."
                 )
-
-        # copy model metrics back to engine
-        out.metrics = self.engine.metrics.model_copy(deep=True)
 
         return out
 
@@ -1260,6 +1257,8 @@ class Model:
         # we will return a new extended version of ourselves, which we track as `lm`
         lm = self
 
+        lm.engine.metrics = lm.metrics.model_copy(deep=True)
+
         # single generation
         if n == 1:
             generated_value = ""
@@ -1420,6 +1419,8 @@ class Model:
         unreplace_model_variables(replacements)
 
         logger.debug("finish Model._run_stateless")
+
+        lm.metrics = lm.engine.metrics.model_copy(deep=True)
 
         return lm
 
@@ -1718,9 +1719,7 @@ class Monitor:
                 result[metric] = lm.token_count if lm is not None else None
             elif metric == MonitoringMetric.TOKEN_REDUCTION:
                 if lm is not None and lm.token_count > 0:
-                    result[metric] = 1 - (
-                        self.engine.metrics.engine_output_tokens / lm.token_count
-                    )
+                    result[metric] = 1 - min(1, (lm.metrics.engine_output_tokens / lm.token_count))
                 else:
                     result[metric] = None
             elif metric == MonitoringMetric.AVG_LATENCY:
