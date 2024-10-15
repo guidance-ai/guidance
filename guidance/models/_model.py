@@ -1279,18 +1279,19 @@ class Model:
             gen_tokens_indices.append(len(gen_tokens_lats) - 1)
 
         text = self._state
-        tokens = self.engine.tokenizer.encode(text.encode("utf-8"))
+        token_ids = self.engine.tokenizer.encode(text.encode("utf-8"))
+        token_texts: list[str] = []
+        for idx in range(len(token_ids)):
+            token_texts.append(self.engine.tokenizer.decode([token_ids[idx]]).decode("utf-8"))
 
         # NOTE (loc): Not all engines support the get_token_probs method
         try:
-            probs = self.engine.get_token_probs(tokens)
+            probs = self.engine.get_token_probs(token_ids)
         except Exception as e:
             # FIXME (loc): assume prob 1.0 for all tokens
-            probs = [1.0] * len(tokens)
-
-        tokens_texts: list[str] = []
-        for idx in range(len(tokens)):
-            tokens_texts.append(self.engine.tokenizer.decode([tokens[idx]]).decode("utf-8"))
+            probs = []
+            for token_id, token_text in zip(token_ids, token_texts):
+                probs.append([BaseGenToken(token=token_id, prob=1.0, text=token_text)])
 
         start_idx = 0
         end_idx = 1
@@ -1304,14 +1305,15 @@ class Model:
             if not vis_text:
                 continue
 
+            # Find the chunk starting at start_idx that contains the vis_text
             end_idx = start_idx
-            _chunk = "".join(tokens_texts[start_idx : end_idx + 1])
-            while vis_text not in _chunk and end_idx < len(tokens_texts):
+            _chunk = "".join(token_texts[start_idx : end_idx + 1])
+            while vis_text not in _chunk and end_idx < len(token_texts):
                 # expand the chunk
                 end_idx += 1
-                _chunk = "".join(tokens_texts[start_idx : end_idx + 1])
+                _chunk = "".join(token_texts[start_idx : end_idx + 1])
 
-            if vis_text not in _chunk and end_idx >= len(tokens_texts):
+            if vis_text not in _chunk and end_idx >= len(token_texts):
                 # failed = True
                 # break
                 raise Exception(f"Failed to find the {vis_text} in the tokens chunk {_chunk}")
@@ -1329,24 +1331,24 @@ class Model:
                 # we should not issue that token for now
                 end_idx -= 1
 
-            real_chunk_tokens = tokens[start_idx : end_idx + 1]
-            real_chunk_probs = probs[start_idx : end_idx + 1]
+            _chunk_token_ids = token_ids[start_idx : end_idx + 1]
+            _chunk_probs = probs[start_idx : end_idx + 1]
 
             is_input = len(vis_chunk.input_tokens) > 0
             is_force_forwarded = len(vis_chunk.force_forwarded_tokens) > 0
 
             _gen_tokens: list[GenToken] = []
-            for token, top_k_prob in zip(real_chunk_tokens, real_chunk_probs):
+            for token_id, top_k_prob in zip(_chunk_token_ids, _chunk_probs):
                 prob = -1
                 for _token in top_k_prob:
-                    if _token.token == token:
+                    if _token.token == token_id:
                         prob = _token.prob
                         break
 
                 _gen_token = GenToken(
-                    token=token,
+                    token=token_id,
                     prob=prob,
-                    text=self.engine.tokenizer.decode([token]).decode("utf-8"),
+                    text=self.engine.tokenizer.decode([token_id]).decode("utf-8"),
                     latency_ms=0,
                     is_input=is_input,
                     is_generated=False,
@@ -1363,12 +1365,19 @@ class Model:
                         if is_force_forwarded:
                             _gen_token.is_force_forwarded = True
 
+                    # Start from the end of current chunk
+                    # go backwards to find the match between token and associated text string
                     found_perfect_match = False
                     max_idx = gen_tokens_indices[vis_chunk_idx]
                     for idx in range(max_idx, -1, -1):
                         if _gen_token.token == gen_tokens_lats[idx][0]:
                             _gen_token.latency_ms = gen_tokens_lats[idx][1]
                             _masked_top_k = gen_tokens_lats[idx][2]
+
+                            # if we find a match, then this token should be marked as generated
+                            _gen_token.is_generated = True
+                            _gen_token.is_force_forwarded = False
+
                             if _masked_top_k is None:
                                 # in free accepting state, no masking
                                 for _token in _gen_token.top_k:
@@ -1384,6 +1393,9 @@ class Model:
                             found_perfect_match = True
                             break
 
+                    # NOTE (loc): There are cases that the generated token and issued token are not matched
+                    # for example, the engine may issue token "pl" but the parser decides to generate token "plate" due to the constraints
+                    # To mitigate the issue, we narrow down the search space to find the text that may contain the generated token
                     if not found_perfect_match:
                         # only search within this chunk
                         max_idx = gen_tokens_indices[vis_chunk_idx]
@@ -1399,6 +1411,11 @@ class Model:
                             ):
                                 _gen_token.latency_ms = gen_tokens_lats[idx][1]
                                 _masked_top_k = gen_tokens_lats[idx][2]
+
+                                # if we find a match, then this token should be marked as generated
+                                _gen_token.is_generated = True
+                                _gen_token.is_force_forwarded = False
+
                                 if _masked_top_k is None:
                                     # in free accepting state, no masking
                                     for _token in _gen_token.top_k:
