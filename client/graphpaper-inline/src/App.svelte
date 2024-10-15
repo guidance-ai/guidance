@@ -46,7 +46,6 @@
 			} else if (isResetDisplayMessage(msg)) {
 				textComponents = [];
 			} else if (isMetricMessage(msg)) {
-				// TODO(nopdive): Move aggregation to server-side.
 				const name = msg.name;
 				const value = msg.value;
 
@@ -54,8 +53,12 @@
 					let currVal = metrics[name];
 					const metricDef = metricDefs[name];
 					if (metricDef.isScalar === false) {
-						currVal = currVal as Array<any>;
-						metrics[name] = [...currVal.slice(1), value as string | number];
+						if (value.constructor === Array) {
+							metrics[name] = value;
+						} else {
+							currVal = currVal as Array<any>;
+							metrics[name] = [...currVal.slice(1), value as string | number];
+						}
 					} else if (metricDef.isScalar === true) {
 						metrics[name] = value;
 					} else {
