@@ -43,15 +43,25 @@
     }
 
     let tokens: Array<Token> = [];
+    let activeOpenerRoles: Array<RoleOpenerInput> = [];
+    let activeCloserRoleText: Array<string> = [];
+    let specialSet: Set<string> = new Set<string>();
+    let namedRoleSet: Record<string, string> = {};
+    let currentTokenIndex: number = 0;
     $: {
-        let activeOpenerRoles: Array<RoleOpenerInput> = [];
-        let activeCloserRoleText: Array<string> = [];
+        if (textComponents.length === 0) {
+            // Reset
+            tokens = [];
+            activeOpenerRoles = [];
+            activeCloserRoleText = [];
+            specialSet.clear();
+            namedRoleSet = {};
+            currentTokenIndex = 0;
+        }
 
-        let specialSet: Set<string> = new Set<string>();
-        let namedRoleSet: Record<string, string> = {};
+        for (; currentTokenIndex < textComponents.length; currentTokenIndex += 1) {
+            const nodeAttr = textComponents[currentTokenIndex];
 
-        tokens = [];
-        for (let nodeAttr of textComponents) {
             if (isRoleOpenerInput(nodeAttr)) {
                 activeOpenerRoles.push(nodeAttr);
                 activeCloserRoleText.push(nodeAttr.closer_text || "");
@@ -87,7 +97,7 @@
             // console.log("Opener and closer role texts did not balance.")
         }
 
-        // Process tokens to have detail if we have it
+        // Process tokens to have detail if we have it (should only happen once at the end).
         const isDetailed = (tokenDetails.length > 0);
         if (isDetailed) {
             // Preprocess for special words
@@ -112,6 +122,8 @@
                         let value = specialMatchStack.shift();
                         if (value !== undefined) {
                             [matchStart, matchEnd, match] = value;
+                        } else {
+                            break;
                         }
                     }
 
@@ -140,9 +152,6 @@
                         withinRoleMatch = false;
                     }
                 }
-
-                // const role = Object.keys(namedRoleSet).includes(tokenDetail.text) ? namedRoleSet[tokenDetail.text] : "";
-                // const special = specialSet.has(tokenDetail.text);
 
                 const token = {
                     text: tokenDetail.text,

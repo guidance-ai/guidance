@@ -216,6 +216,7 @@ class Engine:
             self.renderer.update(message)
 
             failed = False
+            processed_gen_tokens: list[GenToken] = []  # suppress IDE warnings by definition
             try:
                 processed_gen_tokens = last_model.get_per_token_stats()
             except Exception as e:
