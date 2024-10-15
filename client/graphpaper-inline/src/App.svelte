@@ -29,8 +29,8 @@
 	let completedExecution: boolean = false;
 	let mode: string;
 
-	textComponents = mockNodeAttrs;
-	tokenDetails = mockGenTokens;
+	// textComponents = mockNodeAttrs;
+	// tokenDetails = mockGenTokens;
 
 	$: if ($kernelmsg !== undefined) {
 		if ($kernelmsg.content !== '') {
@@ -76,7 +76,6 @@
 		}
 	}
 
-	// TODO(nopdive): Restrict metrics while updating style.
 	const metricDefs: Record<string, MetricDef> = {
 		'status': {
 			name: 'status',
