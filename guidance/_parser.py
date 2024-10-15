@@ -44,9 +44,7 @@ class TokenParser:
             serialized_grammar = grammar
 
         self.tokenizer = tokenizer
-        self.ll_tokenizer = llguidance.LLTokenizer(
-            llguidance.TokenizerWrapper(tokenizer)
-        )
+        self.ll_tokenizer = llguidance.LLTokenizer(llguidance.TokenizerWrapper(tokenizer))
         self.ll_interpreter = llguidance.LLInterpreter(
             self.ll_tokenizer,
             serialized_grammar,
@@ -72,9 +70,7 @@ class TokenParser:
 
     def _process_prompt(self, prompt: bytes, ensure_bos_token: bool) -> Tuple[list[int], int]:
         _prompt_tokens = self.tokenizer.encode(prompt)
-        prompt_tokens = self.ll_interpreter.process_prompt(
-            _prompt_tokens
-        )
+        prompt_tokens = self.ll_interpreter.process_prompt(_prompt_tokens)
         if (
             ensure_bos_token
             and self.tokenizer.bos_token is not None
@@ -86,12 +82,13 @@ class TokenParser:
         prompt_tokens = self.tokenizer.recode(prompt_tokens)
         return prompt_tokens, max(0, len(_prompt_tokens) - len(prompt_tokens))
 
-
     def _parse(
         self,
         prompt: bytes,
         ensure_bos_token: bool,
-    ) -> Generator[Tuple[Optional[GenData], EngineCallResponse], Optional[EngineOutput], EngineCallResponse]:
+    ) -> Generator[
+        Tuple[Optional[GenData], EngineCallResponse], Optional[EngineOutput], EngineCallResponse
+    ]:
         tokens, backtrack = self._process_prompt(prompt=prompt, ensure_bos_token=ensure_bos_token)
 
         backtrack = 0
@@ -111,7 +108,7 @@ class TokenParser:
             #     if engine_output.issued_token.token == ff_tokens[0]:
             #         # this is generated
             #         response.generated_bytes = self.tokenizer.decode([ff_tokens[0]])
-                
+
             #     if len(ff_tokens[1:]):
             #         response.force_forwarded_bytes = self.tokenizer.decode(ff_tokens[1:])
 
@@ -129,33 +126,41 @@ class TokenParser:
                     response.generated_tokens.append(engine_output.issued_token)
                 else:
                     # check if the first byte contains the generated token
-                    generated = self.tokenizer.decode([engine_output.issued_token.token]).decode("utf-8")
+                    generated = self.tokenizer.decode([engine_output.issued_token.token]).decode(
+                        "utf-8"
+                    )
                     force_forwarded = self.tokenizer.decode([_tokens[0]]).decode("utf-8")
 
                     if force_forwarded.startswith(generated):
                         # this is marked as generated
                         # Example: engine generates token "pl" and parser decides to backtrack and generate a new token "plate"
                         response.generated_bytes = self.tokenizer.decode([_tokens[0]])
-                        response.generated_tokens.append(GenToken(
-                            token=_tokens[0],
-                            prob=1.0,
-                            text=response.generated_bytes.decode("utf-8"),
-                            latency_ms=engine_output.issued_token.latency_ms,
-                            is_generated=True,
-                        ))
+                        response.generated_tokens.append(
+                            GenToken(
+                                token=_tokens[0],
+                                prob=1.0,
+                                text=response.generated_bytes.decode("utf-8"),
+                                latency_ms=engine_output.issued_token.latency_ms,
+                                is_generated=True,
+                            )
+                        )
                     else:
                         ff_token_start_idx = 0
-                
+
                 if len(_tokens[ff_token_start_idx:]):
-                    response.force_forwarded_bytes = self.tokenizer.decode(_tokens[ff_token_start_idx:])
+                    response.force_forwarded_bytes = self.tokenizer.decode(
+                        _tokens[ff_token_start_idx:]
+                    )
                     for _token in _tokens[ff_token_start_idx:]:
-                        response.force_forwarded_tokens.append(GenToken(
-                            token=_token,
-                            prob=1.0,
-                            text=self.tokenizer.decode([_token]).decode("utf-8"),
-                            latency_ms=0,
-                            is_force_forwarded=True,
-                        ))
+                        response.force_forwarded_tokens.append(
+                            GenToken(
+                                token=_token,
+                                prob=1.0,
+                                text=self.tokenizer.decode([_token]).decode("utf-8"),
+                                latency_ms=0,
+                                is_force_forwarded=True,
+                            )
+                        )
 
             if r.stop:
                 break
@@ -174,18 +179,24 @@ class TokenParser:
                 if not mask[engine_output.issued_token.token]:
                     # Note: we could punt this probem to ll_interpreter.post_process,
                     # but it's a bit clearer to handle it here
-                    raise InvalidTokenException(engine_output.issued_token.token, gen_data.valid_next_tokens, tokens)
+                    raise InvalidTokenException(
+                        engine_output.issued_token.token, gen_data.valid_next_tokens, tokens
+                    )
             else:
                 gen_data = None
                 engine_output = yield (gen_data, response)
                 if engine_output is not None:
-                    raise TokenParserException(f"Expected None, got token {engine_output.issued_token.token}")
+                    raise TokenParserException(
+                        f"Expected None, got token {engine_output.issued_token.token}"
+                    )
 
-            backtrack, ff_tokens = self.ll_interpreter.post_process(engine_output.issued_token.token)
+            backtrack, ff_tokens = self.ll_interpreter.post_process(
+                engine_output.issued_token.token
+            )
             if backtrack:
                 tokens = tokens[:-backtrack]
             tokens = tokens + ff_tokens
-            backtrack = 0
+            # backtrack = 0
 
         stop_reason = self.ll_interpreter.stop_reason()
         if stop_reason not in {"NoExtension", "EndOfSentence"}:
@@ -230,9 +241,7 @@ class ByteParser:
         if self.gen_data is None:
             return set()
         return {
-            bytes([t])
-            for t in self.gen_data.valid_next_tokens
-            if t != self.tokenizer.eos_token_id
+            bytes([t]) for t in self.gen_data.valid_next_tokens if t != self.tokenizer.eos_token_id
         }
 
     def next_byte_mask(self) -> NDArray[np.uint8]:
@@ -323,23 +332,15 @@ class ByteParser:
                     # convert to a string if possible
                     # TODO: will need to not just always do this once we support images etc.
                     try:
-                        inner_v = (
-                            inner_v.decode("utf8")
-                            if isinstance(inner_v, bytes)
-                            else inner_v
-                        )
+                        inner_v = inner_v.decode("utf8") if isinstance(inner_v, bytes) else inner_v
                     except UnicodeDecodeError:
                         pass
 
-                    if k not in self._variables or not isinstance(
-                        self._variables[k], list
-                    ):
+                    if k not in self._variables or not isinstance(self._variables[k], list):
                         self._variables[k] = []
                         self._variables_log_probs[k] = []
                     self._variables[k].append(inner_v)
-                    self._variables_log_probs[k].append(
-                        response.capture_group_log_probs[k][i]
-                    )
+                    self._variables_log_probs[k].append(response.capture_group_log_probs[k][i])
 
             # ...or standard assignment mode
             else:
