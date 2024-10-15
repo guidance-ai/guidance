@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      d3-interpolate:
+        specifier: ^3.0.1
+        version: 3.0.1
       d3-scale:
         specifier: ^4.0.2
         version: 4.0.2

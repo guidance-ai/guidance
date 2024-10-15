@@ -2,13 +2,29 @@
 
 <script lang="ts">
     import {isRoleOpenerInput, isTextOutput, type NodeAttr, type RoleOpenerInput, type GenToken} from './stitch';
-    import TokenGridItem, {type Token} from "./TokenGridItem.svelte";
+    import TokenGridItem from "./TokenGridItem.svelte";
+    import {type Token, type TokenCallback} from "./interfaces";
+    import {type MetricDef} from "./interfaces";
     import {longhover} from "./longhover";
     import DOMPurify from "dompurify";
 
     export let textComponents: Array<NodeAttr>;
     export let tokenDetails: Array<GenToken>;
     export let isCompleted: boolean = false;
+    export let metricDef: MetricDef;
+
+    let underline: TokenCallback | undefined;
+    let bg: TokenCallback | undefined;
+    $: {
+        if (metricDef.name === 'avg latency') {
+            underline = (x: Token) => (+x.special);
+            underline = (x: Token) => x.extra?.latency_ms || 0;
+            bg = undefined;
+        } else {
+            underline = (x: Token) => x.prob;
+            bg = undefined;
+        }
+    }
 
     function findTargetWords(text: string, targetWords: string[]): [number, number, string][] {
         // NOTE(nopdive): Not the most efficient approach, but there aren't many special words anyway.
@@ -215,8 +231,10 @@
         }
     }
     const doNothing = (_: any) => {}
-    const escapeWhitespaceCharacters = (text: string) => {
-        return text.replaceAll(' ', '&nbsp;').replaceAll('\t', '\\t').replaceAll('\n', '\\n');
+    const renderText = (text: string) => {
+        return DOMPurify.sanitize(
+            text.replaceAll(' ', '&nbsp;').replaceAll('\t', '\\t').replaceAll('\n', '\\n')
+        );
     }
 </script>
 
@@ -230,7 +248,7 @@
                         Token
                     </div>
                     <div class="bg-gray-200">
-                        {@html DOMPurify.sanitize(escapeWhitespaceCharacters(tooltipToken.text))}
+                        {@html renderText(tooltipToken.text)}
                     </div>
                 </div>
                 {#if tooltipToken.extra !== undefined}
@@ -248,8 +266,14 @@
                     {#each tooltipToken.extra.top_k as candidate}
                         <tr>
                             <!-- TODO(nopdive): Text strike through is ugly, replace with line drawn through whole row via css pseudo-element -->
-                            <td class={`px-1 font-mono text-sm decoration-2 ${candidate.is_masked ? "line-through" : ""}`}><span class="bg-gray-200">{@html DOMPurify.sanitize(escapeWhitespaceCharacters(candidate.text))}</span></td>
-                            <td class={`px-1 font-mono text-sm decoration-2 ${candidate.is_masked ? "line-through" : ""}`}>{candidate.prob.toFixed(3)}</td>
+                            <td class={`px-1 text-left font-mono text-sm decoration-2 ${candidate.is_masked ? "line-through" : ""}`}>
+                                <span class="bg-gray-200">
+                                    {@html renderText(candidate.text)}
+                                </span>
+                            </td>
+                            <td class={`px-1 text-right font-mono text-sm decoration-2 ${candidate.is_masked ? "line-through" : ""}`}>
+                                {candidate.prob.toFixed(3)}
+                            </td>
                         </tr>
                     {/each}
                     </tbody>
@@ -279,8 +303,7 @@
                     {/if}
                 {/if}
 
-                <TokenGridItem token={token} index={i} />
-
+                <TokenGridItem token={token} index={i} underline={underline} bg={bg}/>
             {/each}
 
             {#if isCompleted === false}

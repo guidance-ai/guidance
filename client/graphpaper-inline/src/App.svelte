@@ -19,15 +19,18 @@
 	} from './stitch';
     import StitchHandler from './StitchHandler.svelte';
 	import {onMount} from "svelte";
-	import MetricCard, {type MetricDef, type MetricVal} from "./MetricCard.svelte";
-	// import {mockGenTokens, mockNodeAttrs} from "./mocks";
+	import {type MetricDef, type MetricVal} from "./interfaces";
+	import MetricCard from "./MetricCard.svelte";
+	import {mockGenTokens, mockNodeAttrs} from "./mocks";
 
     let msg: any;
     let textComponents: Array<NodeAttr> = [];
 	let tokenDetails: Array<GenToken> = [];
-	// textComponents = mockNodeAttrs;
-	// tokenDetails = mockGenTokens;
 	let completedExecution: boolean = false;
+	let mode: string;
+
+	textComponents = mockNodeAttrs;
+	tokenDetails = mockGenTokens;
 
 	$: if ($kernelmsg !== undefined) {
 		if ($kernelmsg.content !== '') {
@@ -135,7 +138,8 @@
 			isScalar: true,
 			precision: 0,
 		}
-	}
+	};
+	let selectedMetricDef: MetricDef = metricDefs['consumed'];
 
 	const metrics: Record<string, MetricVal> = {
 		'status': '✓',
@@ -147,7 +151,11 @@
 		'avg latency': 0,
 		'consumed': 0,
 		'token reduction': 0,
-	}
+	};
+
+	let metricModes = new Set<string>();
+	metricModes.add('avg latency');
+	metricModes.add('consumed');
 
 	onMount(() => {
 		const msg: StitchMessage = {
@@ -155,7 +163,12 @@
 			content: JSON.stringify({ 'class_name': 'ClientReadyMessage' })
 		}
 		clientmsg.set(msg);
-	})
+	});
+
+	const onNavClick = (event: CustomEvent<string>) => {
+		mode = event.detail;
+		selectedMetricDef = metricDefs[mode];
+	};
 </script>
 
 <svelte:head>
@@ -170,12 +183,12 @@
 	<nav class="sticky top-0 z-30 opacity-90 w-full flex bg-gray-100 text-gray-500 justify-between">
 		<div class="pl-2 flex">
 			{#each Object.entries(metrics) as [name, value], i}
-				<MetricCard value={value} i={i} metricDef={metricDefs[name]} />
+				<MetricCard value={value} selected={name === selectedMetricDef.name} metricDef={metricDefs[name]} on:forwardclick={onNavClick} enabled={metricModes.has(name)}/>
 			{/each}
 		</div>
 	</nav>
 	<!-- Content pane -->
 	<section class="w-full">
-		<TokenGrid textComponents={textComponents} tokenDetails={tokenDetails} isCompleted={completedExecution}/>
+		<TokenGrid textComponents={textComponents} tokenDetails={tokenDetails} isCompleted={completedExecution} metricDef={selectedMetricDef}/>
 	</section>
 </div>
