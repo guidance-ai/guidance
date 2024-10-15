@@ -1620,7 +1620,7 @@ def _monitor_fn(
             # only collect GPU stats if there is at least one GPU
             to_collect_gpu_stats = True
     except:
-        pass
+        logger.warning("gpustat is not installed, run `pip install gpustat` to collect GPU stats.")
 
     try:
         while not stop_flag.value:
