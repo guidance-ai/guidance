@@ -1372,6 +1372,11 @@ class Model:
                         if _gen_token.token == gen_tokens_lats[idx][0]:
                             _gen_token.latency_ms = gen_tokens_lats[idx][1]
                             _masked_top_k = gen_tokens_lats[idx][2]
+
+                            # if we find a match, then this token should be marked as generated
+                            _gen_token.is_generated = True
+                            _gen_token.is_force_forwarded = False
+
                             if _masked_top_k is None:
                                 # in free accepting state, no masking
                                 for _token in _gen_token.top_k:
@@ -1405,6 +1410,11 @@ class Model:
                             ):
                                 _gen_token.latency_ms = gen_tokens_lats[idx][1]
                                 _masked_top_k = gen_tokens_lats[idx][2]
+
+                                # if we find a match, then this token should be marked as generated
+                                _gen_token.is_generated = True
+                                _gen_token.is_force_forwarded = False
+
                                 if _masked_top_k is None:
                                     # in free accepting state, no masking
                                     for _token in _gen_token.top_k:

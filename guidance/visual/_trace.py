@@ -90,9 +90,9 @@ def trace_node_to_html(node: TraceNode, prettify_roles=False, complete_msg: Exec
 
                         latency = f"{complete_msg.tokens[prob_idx].latency_ms:.2f}"
 
-                        if attr.is_generated:
+                        if complete_msg.tokens[prob_idx].is_generated:
                             fmt += f"<span style='background-color: rgba({0}, {127 + int(127 * prob)}, {0}, 0.15); border-radius: 3ps;' title='Token: \"{token_str}\" : {prob}\nTop-k: {top_k}\nlatency_ms: {latency}'>{html.escape(token_str)}</span>"
-                        elif attr.is_force_forwarded:
+                        elif complete_msg.tokens[prob_idx].is_force_forwarded:
                             fmt += f"<span style='background-color: rgba({0}, {0}, {127 + int(127 * prob)}, 0.15); border-radius: 3ps;' title='Token: \"{token_str}\" : {prob}\nTop-k: {top_k}\nlatency_ms: {latency}'>{html.escape(token_str)}</span>"
                         else:
                             fmt += f"<span style='background-color: rgba({255}, {255}, {255}, 0.15); border-radius: 3ps;' title='Token: \"{token_str}\" : {prob}\nTop-k: {top_k}'>{html.escape(token_str)}</span>"
