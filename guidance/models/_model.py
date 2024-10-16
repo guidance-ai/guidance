@@ -1261,8 +1261,8 @@ class Model:
         text = self._state
         token_ids = self.engine.tokenizer.encode(text.encode("utf-8"))
         token_texts: list[str] = []
-        for idx in range(len(token_ids)):
-            token_texts.append(self.engine.tokenizer.decode([token_ids[idx]]).decode("utf-8"))
+        for idx, token_id in enumerate(token_ids):
+            token_texts.append(self.engine.tokenizer.decode([token_id]).decode("utf-8"))
 
         # NOTE (loc): Not all engines support the get_token_probs method
         try:
@@ -1363,7 +1363,7 @@ class Model:
                                 for _token in _gen_token.top_k:
                                     _token.is_masked = False
                             else:
-                                _masked_tokens = [token.token for token in _masked_top_k]
+                                _masked_tokens = [token.token_id for token in _masked_top_k]
                                 for _token in _gen_token.top_k:
                                     if _token.token_id not in _masked_tokens:
                                         _token.is_masked = True
@@ -1401,7 +1401,7 @@ class Model:
                                     for _token in _gen_token.top_k:
                                         _token.is_masked = False
                                 else:
-                                    _masked_tokens = [token.token for token in _masked_top_k]
+                                    _masked_tokens = [token.token_id for token in _masked_top_k]
                                     for _token in _gen_token.top_k:
                                         if (
                                             _token.token_id not in _masked_tokens
