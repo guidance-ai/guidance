@@ -946,13 +946,10 @@ def json(
     else:
         raise TypeError(f"Unsupported schema type: {type(schema)}")
 
-    if separators is None:
-        separators = (", ", ": ")
-
     if whitespace_flexible:
+        if separators is None:
+            separators = (",", ":")
         skip_regex = r"[\x20\x0A\x0D\x09]+"
-        # Strip whitespace from separators since we'll handle whitespace ourselves
-        separators = (separators[0].strip(), separators[1].strip())
     else:
         skip_regex = None
 
