@@ -1095,24 +1095,6 @@ class Model:
                 if chunk.backtrack:
                     lm.engine.metrics.engine_backtrack_tokens += chunk.backtrack
 
-                # while chunk.backtrack > 0:
-                #     parent = lm._parent
-                #     while parent is not None:
-                #         if parent.vis_chunk is not None:
-                #             break
-
-                #         parent = parent._parent
-
-                #     if parent.vis_chunk.input_tokens:
-                #         parent.vis_chunk.input_tokens.pop()
-                #         chunk.backtrack -= 1
-                #     elif parent.vis_chunk.generated_tokens:
-                #         parent.vis_chunk.generated_tokens.pop()
-                #         chunk.backtrack -= 1
-                #     elif parent.vis_chunk.force_forwarded_tokens:
-                #         parent.vis_chunk.force_forwarded_tokens.pop()
-                #         chunk.backtrack -= 1
-
                 if len(chunk.new_bytes) > 0:
                     generated_value += new_text
 
@@ -1123,6 +1105,7 @@ class Model:
                     #     prob=chunk.new_bytes_prob,
                     # )
 
+                    # split chunk into generated and force_forwarded parts for better animated visualization
                     if chunk.generated_bytes:
                         lm += TextOutput(
                             value=chunk.generated_bytes.decode("utf8"),
@@ -1245,18 +1228,18 @@ class Model:
             path.vis_chunk for path in paths if path.vis_chunk is not None
         ]
 
-        gen_tokens_lats = []
-        gen_tokens_indices = []
+        gen_tokens_infos: list[tuple[int, float, list[GenToken]]] = []
+        gen_tokens_indices: list[int] = []
         for vis_chunk in vis_chunks:
             for engine_output in vis_chunk.engine_outputs:
-                gen_tokens_lats.append(
+                gen_tokens_infos.append(
                     (
                         engine_output.issued_token.token_id,
                         engine_output.issued_token.latency_ms,
                         engine_output.masked_top_k,
                     )
                 )
-            gen_tokens_indices.append(len(gen_tokens_lats) - 1)
+            gen_tokens_indices.append(len(gen_tokens_infos) - 1)
 
         text = self._state
         token_ids = self.engine.tokenizer.encode(text.encode("utf-8"))
@@ -1350,9 +1333,9 @@ class Model:
                     found_perfect_match = False
                     max_idx = gen_tokens_indices[vis_chunk_idx]
                     for idx in range(max_idx, -1, -1):
-                        if _gen_token.token_id == gen_tokens_lats[idx][0]:
-                            _gen_token.latency_ms = gen_tokens_lats[idx][1]
-                            _masked_top_k = gen_tokens_lats[idx][2]
+                        if _gen_token.token_id == gen_tokens_infos[idx][0]:
+                            _gen_token.latency_ms = gen_tokens_infos[idx][1]
+                            _masked_top_k = gen_tokens_infos[idx][2]
 
                             # if we find a match, then this token should be marked as generated
                             _gen_token.is_generated = True
@@ -1384,13 +1367,13 @@ class Model:
                         )
                         for idx in range(max_idx, prev_max_idx, -1):
                             if (
-                                self.engine.tokenizer.decode([gen_tokens_lats[idx][0]]).decode(
+                                self.engine.tokenizer.decode([gen_tokens_infos[idx][0]]).decode(
                                     "utf-8"
                                 )
                                 in _gen_token.text
                             ):
-                                _gen_token.latency_ms = gen_tokens_lats[idx][1]
-                                _masked_top_k = gen_tokens_lats[idx][2]
+                                _gen_token.latency_ms = gen_tokens_infos[idx][1]
+                                _masked_top_k = gen_tokens_infos[idx][2]
 
                                 # if we find a match, then this token should be marked as generated
                                 _gen_token.is_generated = True
