@@ -5,11 +5,11 @@ from typing import List, Union
 
 import pytest
 import requests
+from json import dumps as json_dumps
 from jsonschema import validate
 
 from guidance import Server, gen, models
 from guidance.library import json as gen_json
-from guidance.library._json import _to_compact_json
 
 # We spin out a separate process, and it
 # has to start up and get ready to
@@ -129,9 +129,9 @@ def test_remote_gen_json(target_obj):
     # Sanity check input
     validate(target_obj, schema_obj)
 
-    print(f"target_obj={_to_compact_json(target_obj)}")
+    print(f"target_obj={json_dumps(target_obj)}")
 
-    with ServerContext(mock_string=[_to_compact_json(target_obj)]):
+    with ServerContext(mock_string=[json_dumps(target_obj)]):
         m = models.Model("http://localhost:8392", api_key="SDFSDF")
         m += gen_json(schema=schema_obj, name="my_json_string")
         print(f"Raw: {m['my_json_string']}")

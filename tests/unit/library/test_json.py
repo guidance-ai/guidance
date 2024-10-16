@@ -4,11 +4,12 @@ from typing import Any, Dict, Set, Union, Optional
 
 import pytest
 from jsonschema import validate, ValidationError
+from json import dumps as json_dumps
 
 from guidance import json as gen_json
 from guidance import models
 
-from guidance.library._json import _to_compact_json, WHITESPACE, IGNORED_KEYS
+from guidance.library._json import IGNORED_KEYS
 
 from ...utils import check_match_failure as _check_match_failure
 from ...utils import check_run_with_temperature
@@ -16,11 +17,11 @@ from ...utils import generate_and_check as _generate_and_check
 
 
 def generate_and_check(
-    target_obj: Any, schema_obj, desired_temperature: Optional[float] = None,
+    target_obj: Any, schema_obj, desired_temperature: Optional[float] = None
 ):
     # Sanity check what we're being asked
     validate(instance=target_obj, schema=schema_obj)
-    prepared_json = _to_compact_json(target_obj)
+    prepared_json = json_dumps(target_obj)
     assert json.loads(prepared_json) == target_obj
 
     # Now test that the grammar can recognize and generate prepared_json
@@ -46,15 +47,8 @@ def check_match_failure(
     failure_byte: Optional[bytes] = None,
     allowed_bytes: Optional[Set[bytes]] = None,
     schema_obj: Dict[str, Any],
-    maybe_whitespace: Optional[bool] = None,
-    compact: bool = True,
 ):
-    if (allowed_bytes is not None) and (maybe_whitespace is None):
-        raise ValueError("If allowed_bytes is provided, maybe_whitespace must also be provided")
-    if allowed_bytes is not None and maybe_whitespace and not compact:
-        allowed_bytes = allowed_bytes.union(WHITESPACE)
-
-    grammar = gen_json(schema=schema_obj, compact=compact)
+    grammar = gen_json(schema=schema_obj)
 
     _check_match_failure(
         bad_string=bad_string,
@@ -110,20 +104,17 @@ class TestInteger:
         generate_and_check(my_int, schema_obj)
 
     @pytest.mark.parametrize(
-        "compact", [True, False]
-    )
-    @pytest.mark.parametrize(
-        ["bad_string", "good_bytes", "failure_byte", "allowed_bytes", "maybe_whitespace"],
+        ["bad_string", "good_bytes", "failure_byte", "allowed_bytes"],
         [
-            ("9999a7777", b"9999", b"a", INTEGER_FOLLOWING, True),
-            ("123, []", b"123", b",", INTEGER_FOLLOWING, True),
-            ("a321", b"", b"a", INTEGER_LEADING, False),
-            ("123789.456", b"123789", b".", INTEGER_FOLLOWING, True),
-            ("[]", b"", b"[", INTEGER_LEADING, False),
-            ('{"a":4}', b"", b"{", INTEGER_LEADING, False),
+            ("9999a7777", b"9999", b"a", INTEGER_FOLLOWING),
+            ("123, []", b"123", b",", INTEGER_FOLLOWING),
+            ("a321", b"", b"a", INTEGER_LEADING),
+            ("123789.456", b"123789", b".", INTEGER_FOLLOWING),
+            ("[]", b"", b"[", INTEGER_LEADING),
+            ('{"a": 4}', b"", b"{", INTEGER_LEADING),
         ],
     )
-    def test_bad_integer(self, bad_string, good_bytes, failure_byte, allowed_bytes, maybe_whitespace, compact):
+    def test_bad_integer(self, bad_string, good_bytes, failure_byte, allowed_bytes):
         schema_obj = json.loads(TestInteger.schema)
         check_match_failure(
             bad_string=bad_string,
@@ -131,8 +122,6 @@ class TestInteger:
             failure_byte=failure_byte,
             allowed_bytes=allowed_bytes,
             schema_obj=schema_obj,
-            maybe_whitespace=maybe_whitespace,
-            compact=compact,
         )
 
 
@@ -170,19 +159,16 @@ class TestNumber:
         generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
 
     @pytest.mark.parametrize(
-        "compact", [True, False]
-    )
-    @pytest.mark.parametrize(
-        ["bad_string", "good_bytes", "failure_byte", "allowed_bytes", "maybe_whitespace"],
+        ["bad_string", "good_bytes", "failure_byte", "allowed_bytes"],
         [
-            ("9999a7777", b"9999", b"a", {b"e", b"E", b".", *INTEGER_FOLLOWING}, True),
-            ("123.6, []", b"123.6", b",", {b"e", b"E", *INTEGER_FOLLOWING}, True),
-            ("a321", b"", b"a", INTEGER_LEADING, False),
-            ("[]", b"", b"[", INTEGER_LEADING, False),
-            ('{"a":4}', b"", b"{", INTEGER_LEADING, False),
+            ("9999a7777", b"9999", b"a", {b"e", b"E", b".", *INTEGER_FOLLOWING}),
+            ("123.6, []", b"123.6", b",", {b"e", b"E", *INTEGER_FOLLOWING}),
+            ("a321", b"", b"a", INTEGER_LEADING),
+            ("[]", b"", b"[", INTEGER_LEADING),
+            ('{"a": 4}', b"", b"{", INTEGER_LEADING),
         ],
     )
-    def test_bad_number(self, bad_string, good_bytes, failure_byte, allowed_bytes, maybe_whitespace, compact):
+    def test_bad_number(self, bad_string, good_bytes, failure_byte, allowed_bytes):
         schema_obj = json.loads(TestNumber.schema)
         check_match_failure(
             bad_string=bad_string,
@@ -190,8 +176,6 @@ class TestNumber:
             failure_byte=failure_byte,
             allowed_bytes=allowed_bytes,
             schema_obj=schema_obj,
-            maybe_whitespace=maybe_whitespace,
-            compact=compact,
         )
 
 class TestBoundedNumeric:
@@ -322,7 +306,7 @@ class TestBoundedNumeric:
             with pytest.raises(ValidationError):
                 validate(instance, schema=schema)
             check_match_failure(
-                bad_string=_to_compact_json(instance),
+                bad_string=json_dumps(instance),
                 schema_obj=schema
             )
 
@@ -403,8 +387,6 @@ class TestString:
             failure_byte=failure_byte,
             allowed_bytes=allowed_bytes,
             schema_obj=schema_obj,
-            maybe_whitespace=False,
-            compact=True,
         )
 
     @pytest.mark.parametrize(
@@ -438,8 +420,6 @@ class TestString:
             failure_byte=failure_byte,
             allowed_bytes=allowed_bytes,
             schema_obj=schema_obj,
-            maybe_whitespace=False,
-            compact=True,
         )
 
 
@@ -474,8 +454,6 @@ class TestString:
             failure_byte=failure_byte,
             allowed_bytes=allowed_bytes,
             schema_obj=schema_obj,
-            maybe_whitespace=False,
-            compact=True,
         )
 
     @pytest.mark.parametrize(
@@ -547,8 +525,6 @@ class TestString:
             failure_byte=failure_byte,
             allowed_bytes=allowed_bytes,
             schema_obj=schema_obj,
-            maybe_whitespace=False,
-            compact=True,
         )
 
     @pytest.mark.parametrize(
@@ -605,8 +581,6 @@ class TestString:
             failure_byte=failure_byte,
             allowed_bytes=allowed_bytes,
             schema_obj=schema_obj,
-            maybe_whitespace=False,
-            compact=True,
         )
 
 
@@ -714,17 +688,14 @@ class TestSimpleObject:
         generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
 
     @pytest.mark.parametrize(
-        "compact", [True, False]
-    )
-    @pytest.mark.parametrize(
-        ["bad_string", "good_bytes", "failure_byte", "allowed_bytes", "maybe_whitespace"],
+        ["bad_string", "good_bytes", "failure_byte", "allowed_bytes"],
         [
-            ("9999a7777", b"", b"9", {b"{"}, False),
-            ('{"a":1255.4567}', b'{"a":1255', b".", {b"}", *INTEGER_FOLLOWING}, True),
-            ('{"a":"123"}', b'{"a":', b'"', INTEGER_LEADING, True),
+            ("9999a7777", b"", b"9", {b"{"}),
+            ('{"a": 1255.4567}', b'{"a": 1255', b".", {b"}", *INTEGER_FOLLOWING}),
+            ('{"a": "123"}', b'{"a": ', b'"', INTEGER_LEADING),
         ],
     )
-    def test_bad_object(self, bad_string, good_bytes, failure_byte, allowed_bytes, maybe_whitespace, compact):
+    def test_bad_object(self, bad_string, good_bytes, failure_byte, allowed_bytes):
         schema = """{
             "type": "object",
             "properties": {
@@ -741,8 +712,6 @@ class TestSimpleObject:
             failure_byte=failure_byte,
             allowed_bytes=allowed_bytes,
             schema_obj=schema_obj,
-            maybe_whitespace=maybe_whitespace,
-            compact=compact,
         )
 
 
@@ -752,7 +721,7 @@ class TestObjectWithMissingRequired:
         generate_and_check({"b": 1}, schema)
         generate_and_check({"a": 1, "b": "xyz"}, schema)
         check_match_failure(
-            bad_string=_to_compact_json(
+            bad_string=json_dumps(
                 {"a": 1}
             ),
             schema_obj=schema,
@@ -763,7 +732,7 @@ class TestObjectWithMissingRequired:
         generate_and_check({"b": 1}, schema)
         generate_and_check({"a": 1, "b": 42}, schema)
         check_match_failure(
-            bad_string=_to_compact_json(
+            bad_string=json_dumps(
                 {"a": 1, "b": "string"}
             ),
             schema_obj=schema,
@@ -839,18 +808,16 @@ class TestSimpleArray:
         # The actual check
         generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
 
+
     @pytest.mark.parametrize(
-        "compact", [True, False]
-    )
-    @pytest.mark.parametrize(
-        ["bad_string", "good_bytes", "failure_byte", "allowed_bytes", "maybe_whitespace"],
+        ["bad_string", "good_bytes", "failure_byte", "allowed_bytes"],
         [
-            ("9999a7777", b"", b"9", {b"["}, False),
-            ("[321.654]", b"[321", b".", {b"]", b",", *INTEGER_FOLLOWING}, True),
-            ('["123"]', b"[", b'"', {b"]", *INTEGER_LEADING}, True),
+            ("9999a7777", b"", b"9", {b"["}),
+            ("[321.654]", b"[321", b".", {b"]", b",", *INTEGER_FOLLOWING}),
+            ('["123"]', b"[", b'"', {b"]", *INTEGER_LEADING}),
         ],
     )
-    def test_bad_object(self, bad_string, good_bytes, failure_byte, allowed_bytes, maybe_whitespace, compact):
+    def test_bad_object(self, bad_string, good_bytes, failure_byte, allowed_bytes):
         schema = """{
         "type" : "array",
         "items" : {
@@ -864,8 +831,6 @@ class TestSimpleArray:
             failure_byte=failure_byte,
             allowed_bytes=allowed_bytes,
             schema_obj=schema_obj,
-            maybe_whitespace=maybe_whitespace,
-            compact=compact,
         )
 
 
@@ -953,38 +918,33 @@ class TestArrayWithLengthConstraints:
         }
         generate_and_check(target_obj, schema_obj)
 
+
     @pytest.mark.parametrize(
-        "compact", [True, False]
-    )
-    @pytest.mark.parametrize(
-        "min_items, max_items, bad_obj, good_bytes, failure_byte, allowed_bytes, maybe_whitespace",
+        "min_items, max_items, bad_obj, good_bytes, failure_byte, allowed_bytes",
         [
             (
                 1,
                 4,
                 [42, "string_not_bool", "hello", "extra"],
-                b"[42,",
+                b"[42, ",
                 b'"',
                 {b"t", b"f"},
-                True,
             ),  # Second item does not match prefix schema
             (
                 0,
                 3,
                 [42, True, 100],
-                b"[42,true,",
+                b"[42, true, ",
                 b"1",
                 {b'"'},
-                True,
             ),  # Last item does not match general item schema
             (
                 3,
                 5,
                 [42, True, "valid", "extra1", "extra2", "too_many"],
-                b'[42,true,"valid","extra1","extra2"',
+                b'[42, true, "valid", "extra1", "extra2"',
                 b",",
                 {b"]"},
-                True,
             ),  # Exceeds maxItems
             (
                 2,
@@ -993,7 +953,6 @@ class TestArrayWithLengthConstraints:
                 b"[42",
                 b"]",
                 {b",", *INTEGER_FOLLOWING},
-                True,
             ),  # Not enough items
             (
                 1,
@@ -1002,7 +961,6 @@ class TestArrayWithLengthConstraints:
                 b"[42",
                 b",",
                 {b"]", *INTEGER_FOLLOWING},
-                True,
             ),  # Too many items for maxItems
             (
                 0,
@@ -1011,21 +969,19 @@ class TestArrayWithLengthConstraints:
                 b"[",
                 b"4",
                 {b"]"},
-                True,
             ),  # maxItems set to 0, but array is not empty
             (
                 3,
                 5,
                 [42, True],
-                b"[42,true",
+                b"[42, true",
                 b"]",
                 {b","},
-                True,
             ),  # Array has one fewer item than required by minItems
         ],
     )
     def test_bad_with_prefix_and_items(
-        self, min_items, max_items, bad_obj, good_bytes, failure_byte, allowed_bytes, maybe_whitespace, compact
+        self, min_items, max_items, bad_obj, good_bytes, failure_byte, allowed_bytes
     ):
         schema_obj = {
             "prefixItems": self.prefix_schema_obj,
@@ -1034,22 +990,18 @@ class TestArrayWithLengthConstraints:
             "maxItems": max_items,
             "type": "array",
         }
-        bad_string = _to_compact_json(bad_obj)
+        bad_string = json_dumps(bad_obj)
         check_match_failure(
             bad_string=bad_string,
             good_bytes=good_bytes,
             failure_byte=failure_byte,
             allowed_bytes=allowed_bytes,
             schema_obj=schema_obj,
-            maybe_whitespace=maybe_whitespace,
-            compact=compact,
         )
 
+
     @pytest.mark.parametrize(
-        "compact", [True, False]
-    )
-    @pytest.mark.parametrize(
-        "min_items, max_items, bad_obj, good_bytes, failure_byte, allowed_bytes, maybe_whitespace",
+        "min_items, max_items, bad_obj, good_bytes, failure_byte, allowed_bytes",
         [
             (
                 2,
@@ -1058,16 +1010,14 @@ class TestArrayWithLengthConstraints:
                 b"[42",
                 b"]",
                 {b",", *INTEGER_FOLLOWING},
-                True,
             ),  # Array too short to meet minItems, despite matching prefixItems
             (
                 1,
                 2,
                 [42, "not_bool"],
-                b"[42,",
+                b"[42, ",
                 b'"',
                 {b"t", b"f"},
-                True,
             ),  # Second item violates prefixItems type requirement
             (
                 0,
@@ -1076,16 +1026,14 @@ class TestArrayWithLengthConstraints:
                 b"[42",
                 b",",
                 {b"]", *INTEGER_FOLLOWING},
-                True,
             ),  # Array exceeds maxItems with valid prefixItems types
             (
                 1,
                 5,
                 [42, True, "extra"],
-                b"[42,true",
+                b"[42, true",
                 b",",
                 {b"]"},
-                True,
             ),  # Item beyond prefixItems with no "items" schema
             (
                 0,
@@ -1094,12 +1042,11 @@ class TestArrayWithLengthConstraints:
                 b"[",
                 b"4",
                 {b"]"},
-                True,
             ),  # maxItems set to 0, but array is not empty
         ],
     )
     def test_bad_with_prefix(
-        self, min_items, max_items, bad_obj, good_bytes, failure_byte, allowed_bytes, maybe_whitespace, compact
+        self, min_items, max_items, bad_obj, good_bytes, failure_byte, allowed_bytes
     ):
         schema_obj = {
             "prefixItems": self.prefix_schema_obj,
@@ -1108,31 +1055,26 @@ class TestArrayWithLengthConstraints:
             "maxItems": max_items,
             "type": "array",
         }
-        bad_string = _to_compact_json(bad_obj)
+        bad_string = json_dumps(bad_obj)
         check_match_failure(
             bad_string=bad_string,
             good_bytes=good_bytes,
             failure_byte=failure_byte,
             allowed_bytes=allowed_bytes,
             schema_obj=schema_obj,
-            maybe_whitespace=maybe_whitespace,
-            compact=compact,
         )
 
+
     @pytest.mark.parametrize(
-        "compact", [True, False]
-    )
-    @pytest.mark.parametrize(
-        "min_items, max_items, bad_obj, good_bytes, failure_byte, allowed_bytes, maybe_whitespace",
+        "min_items, max_items, bad_obj, good_bytes, failure_byte, allowed_bytes",
         [
             (
                 1,
                 2,
                 ["hello", "world", "extra"],
-                b'["hello","world"',
+                b'["hello", "world"',
                 b",",
                 {b"]"},
-                True,
             ),  # Too many items for maxItems
             (
                 2,
@@ -1141,16 +1083,14 @@ class TestArrayWithLengthConstraints:
                 b'["hello"',
                 b"]",
                 {b","},
-                True,
             ),  # Not enough items
             (
                 2,
                 3,
                 ["hello", 42],
-                b'["hello",',
+                b'["hello", ',
                 b"4",
                 {b'"'},
-                True,
             ),  # Badly typed second item
             (
                 0,
@@ -1159,12 +1099,11 @@ class TestArrayWithLengthConstraints:
                 b"[",
                 b'"',
                 {b"]"},
-                True,
             ),  # maxItems set to 0, but array is not empty
         ],
     )
     def test_bad_with_items(
-        self, min_items, max_items, bad_obj, good_bytes, failure_byte, allowed_bytes, maybe_whitespace, compact
+        self, min_items, max_items, bad_obj, good_bytes, failure_byte, allowed_bytes
     ):
         schema_obj = {
             "items": self.items_schema_obj,
@@ -1172,15 +1111,13 @@ class TestArrayWithLengthConstraints:
             "maxItems": max_items,
             "type": "array",
         }
-        bad_string = _to_compact_json(bad_obj)
+        bad_string = json_dumps(bad_obj)
         check_match_failure(
             bad_string=bad_string,
             good_bytes=good_bytes,
             failure_byte=failure_byte,
             allowed_bytes=allowed_bytes,
             schema_obj=schema_obj,
-            maybe_whitespace=maybe_whitespace,
-            compact=compact,
         )
 
 
@@ -1525,7 +1462,7 @@ class TestAllOf:
         TARGET_VALUE = 20
         validate(instance=TARGET_VALUE, schema=schema_obj)
 
-        prepared_string = f"<s>{_to_compact_json(TARGET_VALUE)}"
+        prepared_string = f"<s>{json_dumps(TARGET_VALUE)}"
         lm = models.Mock(prepared_string.encode())
 
         # Run with the mock model
@@ -1586,52 +1523,44 @@ class TestEnum:
         # The actual check
         generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
 
-    @pytest.mark.parametrize(
-        "compact", [True, False]
-    )
-    @pytest.mark.parametrize(
-        "bad_obj, good_bytes, failure_byte, allowed_bytes, maybe_whitespace",
-        [
-            ("1", b'"', b"1", {b"2"}, False),
-            (2, b"", b"2", {b'"', b"1", b"f"}, False),
-            (True, b"", b"t", {b'"', b"1", b"f"}, False),
-        ],
-    )
-    def test_bad_enum(self, bad_obj, good_bytes, failure_byte, allowed_bytes, maybe_whitespace, compact):
-        schema_obj = json.loads(self.simple_schema)
-        bad_string = _to_compact_json(bad_obj)
-        check_match_failure(
-            bad_string=bad_string,
-            good_bytes=good_bytes,
-            failure_byte=failure_byte,
-            allowed_bytes=allowed_bytes,
-            schema_obj=schema_obj,
-            maybe_whitespace=maybe_whitespace,
-            compact=compact,
-        )
 
     @pytest.mark.parametrize(
-        "compact", [True, False]
-    )
-    @pytest.mark.parametrize(
-        "bad_obj, good_bytes, failure_byte, allowed_bytes, maybe_whitespace",
+        "bad_obj, good_bytes, failure_byte, allowed_bytes",
         [
-            ("ab", b'"a', b"b", {b"a"}, False),
-            ("bc", b'"b', b"c", {b"b"}, False),
-            ("ca", b'"c', b"a", {b"c"}, False),
+            ("1", b'"', b"1", {b"2"}),
+            (2, b"", b"2", {b'"', b"1", b"f"}),
+            (True, b"", b"t", {b'"', b"1", b"f"}),
         ],
     )
-    def test_bad_prefix_enum(self, bad_obj, good_bytes, failure_byte, allowed_bytes, maybe_whitespace, compact):
-        schema_obj = json.loads(self.prefix_schema)
-        bad_string = _to_compact_json(bad_obj)
+    def test_bad_enum(self, bad_obj, good_bytes, failure_byte, allowed_bytes):
+        schema_obj = json.loads(self.simple_schema)
+        bad_string = json_dumps(bad_obj)
         check_match_failure(
             bad_string=bad_string,
             good_bytes=good_bytes,
             failure_byte=failure_byte,
             allowed_bytes=allowed_bytes,
             schema_obj=schema_obj,
-            maybe_whitespace=maybe_whitespace,
-            compact=compact,
+        )
+
+
+    @pytest.mark.parametrize(
+        "bad_obj, good_bytes, failure_byte, allowed_bytes",
+        [
+            ("ab", b'"a', b"b", {b"a"}),
+            ("bc", b'"b', b"c", {b"b"}),
+            ("ca", b'"c', b"a", {b"c"}),
+        ],
+    )
+    def test_bad_prefix_enum(self, bad_obj, good_bytes, failure_byte, allowed_bytes):
+        schema_obj = json.loads(self.prefix_schema)
+        bad_string = json_dumps(bad_obj)
+        check_match_failure(
+            bad_string=bad_string,
+            good_bytes=good_bytes,
+            failure_byte=failure_byte,
+            allowed_bytes=allowed_bytes,
+            schema_obj=schema_obj,
         )
 
 
@@ -1683,7 +1612,7 @@ class TestConst:
 
     def test_constant_precedence(self):
         schema_obj = {"type": "integer", "const": 1}
-        bad_string = _to_compact_json(2)
+        bad_string = json_dumps(2)
 
         check_match_failure(
             bad_string=bad_string,
@@ -1691,8 +1620,6 @@ class TestConst:
             failure_byte=b"2",
             allowed_bytes={b"1"},
             schema_obj=schema_obj,
-            maybe_whitespace=False,
-            compact=True,
         )
 
 
@@ -1739,33 +1666,28 @@ class TestAdditionalProperties:
         # The actual check
         generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
 
+
     @pytest.mark.parametrize(
-        "compact", [True, False]
-    )
-    @pytest.mark.parametrize(
-        "bad_obj, good_bytes, failure_byte, allowed_bytes, maybe_whitespace",
+        "bad_obj, good_bytes, failure_byte, allowed_bytes",
         [
-            ({"a": "1"}, b'{"a":', b'"', INTEGER_LEADING, True),
+            ({"a": "1"}, b'{"a": ', b'"', INTEGER_LEADING, ),
             (
                 {"a": 1, "b": 1.5},
-                b'{"a":1,"b":1',
+                b'{"a": 1, "b": 1',
                 b".",
                 {b",", b"}", *INTEGER_FOLLOWING},
-                True,
             ),
         ],
     )
-    def test_simple_bad_type(self, bad_obj, good_bytes, failure_byte, allowed_bytes, maybe_whitespace, compact):
+    def test_simple_bad_type(self, bad_obj, good_bytes, failure_byte, allowed_bytes):
         schema_obj = json.loads(self.simple_schema)
-        bad_string = _to_compact_json(bad_obj)
+        bad_string = json_dumps(bad_obj)
         check_match_failure(
             bad_string=bad_string,
             good_bytes=good_bytes,
             failure_byte=failure_byte,
             allowed_bytes=allowed_bytes,
             schema_obj=schema_obj,
-            maybe_whitespace=maybe_whitespace,
-            compact=compact,
         )
 
     @pytest.mark.parametrize(
@@ -1779,34 +1701,29 @@ class TestAdditionalProperties:
         # The actual check
         generate_and_check(target_obj, schema_obj)
 
+
     @pytest.mark.parametrize(
-        "compact", [True, False]
-    )
-    @pytest.mark.parametrize(
-        "bad_obj, good_bytes, failure_byte, allowed_bytes, maybe_whitespace",
+        "bad_obj, good_bytes, failure_byte, allowed_bytes",
         [
-            ({"a": 1.5}, b'{"a":1', b".", {b",", b"}", *INTEGER_FOLLOWING}, True),
-            ({"a": True}, b'{"a":', b"t", {b'"', *INTEGER_LEADING}, True),
+            ({"a": 1.5}, b'{"a": 1', b".", {b",", b"}", *INTEGER_FOLLOWING}),
+            ({"a": True}, b'{"a": ', b"t", {b'"', *INTEGER_LEADING}),
             (
                 {"a": 1, "b": False},
-                b'{"a":1,"b":',
+                b'{"a": 1, "b": ',
                 b"f",
                 {b'"', *INTEGER_LEADING},
-                True,
             ),
         ],
     )
-    def test_anyOf_bad_type(self, bad_obj, good_bytes, failure_byte, allowed_bytes, maybe_whitespace, compact):
+    def test_anyOf_bad_type(self, bad_obj, good_bytes, failure_byte, allowed_bytes):
         schema_obj = json.loads(self.anyOf_schema)
-        bad_string = _to_compact_json(bad_obj)
+        bad_string = json_dumps(bad_obj)
         check_match_failure(
             bad_string=bad_string,
             good_bytes=good_bytes,
             failure_byte=failure_byte,
             allowed_bytes=allowed_bytes,
             schema_obj=schema_obj,
-            maybe_whitespace=maybe_whitespace,
-            compact=compact,
         )
 
     @pytest.mark.parametrize(
@@ -1826,60 +1743,51 @@ class TestAdditionalProperties:
         # The actual check
         generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
 
+
     @pytest.mark.parametrize(
-        "compact", [True, False]
-    )
-    @pytest.mark.parametrize(
-        "bad_obj, good_bytes, failure_byte, allowed_bytes, maybe_whitespace",
+        "bad_obj, good_bytes, failure_byte, allowed_bytes",
         [
-            ({}, b"{", b"}", {b'"'}, True),
-            ({"a": 1}, b'{"', b"a", {b"m"}, False),
-            ({"a": 1, "b": 2}, b'{"', b"a", {b"m"}, False),
+            ({}, b"{", b"}", {b'"'}),
+            ({"a": 1}, b'{"', b"a", {b"m"}),
+            ({"a": 1, "b": 2}, b'{"', b"a", {b"m"}),
         ],
     )
     def test_combined_missing_properties(
-        self, bad_obj, good_bytes, failure_byte, allowed_bytes, maybe_whitespace, compact
+        self, bad_obj, good_bytes, failure_byte, allowed_bytes
     ):
         schema_obj = json.loads(self.combined_schema)
-        bad_string = _to_compact_json(bad_obj)
+        bad_string = json_dumps(bad_obj)
         check_match_failure(
             bad_string=bad_string,
             good_bytes=good_bytes,
             failure_byte=failure_byte,
             allowed_bytes=allowed_bytes,
             schema_obj=schema_obj,
-            maybe_whitespace=maybe_whitespace,
-            compact=compact,
         )
 
+
     @pytest.mark.parametrize(
-        "compact", [True, False]
-    )
-    @pytest.mark.parametrize(
-        "bad_obj, good_bytes, failure_byte, allowed_bytes, maybe_whitespace",
+        "bad_obj, good_bytes, failure_byte, allowed_bytes",
         [
-            ({"mystr": 1}, b'{"mystr":', b"1", {b'"'}, True),
-            ({"mystr": 1, "a": 2}, b'{"mystr":', b"1", {b'"'}, True),
+            ({"mystr": 1}, b'{"mystr": ', b"1", {b'"'}),
+            ({"mystr": 1, "a": 2}, b'{"mystr": ', b"1", {b'"'}),
             (
                 {"mystr": "hello", "a": False},
-                b'{"mystr":"hello","a":',
+                b'{"mystr": "hello", "a": ',
                 b"f",
                 INTEGER_LEADING,
-                True,
             ),
         ],
     )
-    def test_combined_bad_type(self, bad_obj, good_bytes, failure_byte, allowed_bytes, maybe_whitespace, compact):
+    def test_combined_bad_type(self, bad_obj, good_bytes, failure_byte, allowed_bytes):
         schema_obj = json.loads(self.combined_schema)
-        bad_string = _to_compact_json(bad_obj)
+        bad_string = json_dumps(bad_obj)
         check_match_failure(
             bad_string=bad_string,
             good_bytes=good_bytes,
             failure_byte=failure_byte,
             allowed_bytes=allowed_bytes,
             schema_obj=schema_obj,
-            maybe_whitespace=maybe_whitespace,
-            compact=compact,
         )
 
     def test_out_of_order_non_required_properties_not_validated_as_additionalProperties(self):
@@ -1986,22 +1894,19 @@ class TestEmptySchemas:
         # The actual check
         generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
 
+
     @pytest.mark.parametrize(
-        "compact", [True, False]
-    )
-    @pytest.mark.parametrize(
-        "bad_string, good_bytes, failure_byte, allowed_bytes, maybe_whitespace",
+        "bad_string, good_bytes, failure_byte, allowed_bytes",
         [
             # {} is not carte blanche for malformed JSON
-            ("{a:1}", b"{", b"a", {b'"', b"}"}, True),
+            ("{a:1}", b"{", b"a", {b'"', b"}"}),
             (
-                "[1,2} ",
-                b"[1,2",
+                "[1, 2} ",
+                b"[1, 2",
                 b"}",
                 {b",", b"]", b"e", b"E", b".", *INTEGER_FOLLOWING},
-                True,
             ),
-            ("123a", b"123", b"a", {b"e", b"E", b".", *INTEGER_FOLLOWING}, True),
+            ("123a", b"123", b"a", {b"e", b"E", b".", *INTEGER_FOLLOWING}),
             (
                 "]",
                 b"",
@@ -2015,12 +1920,11 @@ class TestEmptySchemas:
                     b"n",
                     *INTEGER_LEADING,
                 },
-                False,
             ),
         ],
     )
     def test_bad_empty_schema(
-        self, bad_string, good_bytes, failure_byte, allowed_bytes, maybe_whitespace, compact
+        self, bad_string, good_bytes, failure_byte, allowed_bytes
     ):
         schema_obj = json.loads(self.empty_schema)
         check_match_failure(
@@ -2029,8 +1933,6 @@ class TestEmptySchemas:
             failure_byte=failure_byte,
             allowed_bytes=allowed_bytes,
             schema_obj=schema_obj,
-            maybe_whitespace=maybe_whitespace,
-            compact=compact,
         )
 
     @pytest.mark.parametrize(
@@ -2073,28 +1975,24 @@ class TestEmptySchemas:
             {"type": "object", "properties": {"a": {"$ref": "#/$defs/A"}}, "$defs": {"A": {}}, "required": ["a"]},
         ],
     )
+
     @pytest.mark.parametrize(
-        "compact", [True, False]
-    )
-    @pytest.mark.parametrize(
-        "bad_obj, good_bytes, failure_byte, allowed_bytes, maybe_whitespace",
+        "bad_obj, good_bytes, failure_byte, allowed_bytes",
         [
             # Missing property -- presence of {} deeper in the schema isn't carte blanche
-            ({"b": 42}, b'{"', b"b", {b"a"}, False),
+            ({"b": 42}, b'{"', b"b", {b"a"}),
         ],
     )
     def test_nested_empty_schema_bad(
-        self, schema_obj, bad_obj, good_bytes, failure_byte, allowed_bytes, maybe_whitespace, compact
+        self, schema_obj, bad_obj, good_bytes, failure_byte, allowed_bytes
     ):
-        bad_string = _to_compact_json(bad_obj)
+        bad_string = json_dumps(bad_obj)
         check_match_failure(
             bad_string=bad_string,
             good_bytes=good_bytes,
             failure_byte=failure_byte,
             allowed_bytes=allowed_bytes,
             schema_obj=schema_obj,
-            maybe_whitespace=maybe_whitespace,
-            compact=compact,
         )
 
     @pytest.mark.parametrize(
@@ -2120,30 +2018,26 @@ class TestEmptySchemas:
         # The actual check
         generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
 
+
     @pytest.mark.parametrize(
-        "compact", [True, False]
-    )
-    @pytest.mark.parametrize(
-        "bad_obj, good_bytes, failure_byte, allowed_bytes, maybe_whitespace",
+        "bad_obj, good_bytes, failure_byte, allowed_bytes",
         [
             # Missing property -- presence of {} deeper in the schema isn't carte blanche
-            ({"b": 42}, b'{"', b"b", {b"a"}, False),
+            ({"b": 42}, b'{"', b"b", {b"a"}),
         ],
     )
     def test_nested_empty_schema_with_props_bad(
-        self, bad_obj, good_bytes, failure_byte, allowed_bytes, maybe_whitespace, compact
+        self, bad_obj, good_bytes, failure_byte, allowed_bytes
     ):
         schema_obj = json.loads(self.nested_empty_schema_with_props)
 
-        bad_string = _to_compact_json(bad_obj)
+        bad_string = json_dumps(bad_obj)
         check_match_failure(
             bad_string=bad_string,
             good_bytes=good_bytes,
             failure_byte=failure_byte,
             allowed_bytes=allowed_bytes,
             schema_obj=schema_obj,
-            maybe_whitespace=maybe_whitespace,
-            compact=compact,
         )
 
     @pytest.mark.parametrize(
@@ -2159,10 +2053,8 @@ class TestEmptySchemas:
             [1, 0.4, "hello", False, None, {"a": 42}, [1, 2, 3, "four"]], schema_obj
         )
 
-    @pytest.mark.parametrize(
-        "compact", [True, False]
-    )
-    def test_no_items(self, compact):
+
+    def test_no_items(self):
         schema_obj = {"type": "array", "items": False}
         check_match_failure(
             bad_string="[42]",
@@ -2170,8 +2062,6 @@ class TestEmptySchemas:
             failure_byte=b"4",
             allowed_bytes={b"]"},  # array must be empty
             schema_obj=schema_obj,
-            maybe_whitespace=True,
-            compact=compact,
         )
 
     @pytest.mark.parametrize(
@@ -2196,10 +2086,8 @@ class TestEmptySchemas:
             schema_obj,
         )
 
-    @pytest.mark.parametrize(
-        "compact", [True, False]
-    )
-    def test_no_additionalProperties(self, compact):
+
+    def test_no_additionalProperties(self):
         schema_obj = {"type": "object", "additionalProperties": False}
         check_match_failure(
             bad_string='{"a": 42}',
@@ -2207,8 +2095,6 @@ class TestEmptySchemas:
             failure_byte=b'"',
             allowed_bytes={b"}"},  # object must be empty
             schema_obj=schema_obj,
-            maybe_whitespace=True,
-            compact=compact,
         )
 
 def test_ignored_keys_allowed_as_properties():
@@ -2267,9 +2153,8 @@ class TestRequiredProperties:
     def test_all_required_bad(self, bad_obj):
         schema_obj = {**self.schema_obj, "required": self.ALL_REQUIRED}
         check_match_failure(
-            bad_string=_to_compact_json(bad_obj),
+            bad_string=json_dumps(bad_obj),
             schema_obj=schema_obj,
-            compact=True
         )
 
     @pytest.mark.parametrize(
@@ -2305,9 +2190,8 @@ class TestRequiredProperties:
             if not set(required).issubset(subset):
                 bad_obj = {key: base_obj[key] for key in subset}
                 check_match_failure(
-                    bad_string=_to_compact_json(bad_obj),
+                    bad_string=json_dumps(bad_obj),
                     schema_obj=schema_obj,
-                    compact=True
                 )
 
     # No equivalent "bad" tests for none required, as the schema is satisfied by an empty object
@@ -2349,12 +2233,11 @@ class TestRequiredPropertiesScaling:
             },
             "required": [] # Empty should be worst-case scenario
         }
-        from guidance.library._json import _gen_list
-        _gen_list.__wrapped__.cache_clear()
-        _ = gen_json(
-            schema=schema_obj,
-        )
-        cache_info = _gen_list.__wrapped__.cache_info()
+        from guidance.library._json import GenJson
+        genjson = GenJson(schema=schema_obj)
+        genjson._join.__wrapped__.cache_clear()
+        _ = genjson.root()
+        cache_info = genjson._join.__wrapped__.cache_info()
 
         # Theoretical number of cache misses under the current implementation
         expected_misses = 2*num_properties - 1
@@ -2379,12 +2262,11 @@ class TestRequiredPropertiesScaling:
             },
             "required": [f"prop_{i}" for i in range(num_properties)]
         }
-        from guidance.library._json import _gen_list
-        _gen_list.__wrapped__.cache_clear()
-        _ = gen_json(
-            schema=schema_obj,
-        )
-        cache_info = _gen_list.__wrapped__.cache_info()
+        from guidance.library._json import GenJson
+        genjson = GenJson(schema=schema_obj)
+        genjson._join.__wrapped__.cache_clear()
+        _ = genjson.root()
+        cache_info = genjson._join.__wrapped__.cache_info()
 
         # Theoretical number of cache misses under the current implementation
         expected_misses = num_properties
@@ -2427,3 +2309,64 @@ class TestBooleanSchema:
         with pytest.raises(ValueError) as ve:
             gen_json(schema=schema_obj)
         assert ve.value.args[0] == "No valid JSON can be generated from a schema of `False`"
+
+class TestWhitespace:
+    seps = [
+        (", ", ": "),
+        (",", ":"),
+        (",", ": "),
+        (", ", ":"),
+    ]
+
+    @pytest.mark.parametrize(
+        "schema, obj",
+        [
+            # Dynamic object (both item and key seps)
+            ({"type": "object"}, {"a": 1, "b": 2, "c": [1, 2, 3]}),
+            # Static object: enum (both item and key seps)
+            ({"enum": [{"a": 1, "b": 2, "c": [1, 2, 3]}]}, {"a": 1, "b": 2, "c": [1, 2, 3]}),
+            # Static object: const (both item and key seps)
+            ({"const": {"a": 1, "b": 2, "c": [1, 2, 3]}}, {"a": 1, "b": 2, "c": [1, 2, 3]}),
+        ]
+    )
+    @pytest.mark.parametrize(
+        "separators",
+        seps,
+    )
+    def test_separators(self, separators, schema, obj):
+        grammar = gen_json(schema=schema, separators=separators)
+        for seps in self.seps:
+            prepared_json = json.dumps(obj, separators=seps)
+            if separators == seps:
+                assert grammar.match(prepared_json) is not None
+                model = models.Mock(f"<s>{prepared_json}".encode())
+                assert str(model + grammar) == prepared_json
+            else:
+                assert grammar.match(prepared_json) is None
+
+    @pytest.mark.parametrize(
+        "schema, obj",
+        [
+            # Dynamic object (both item and key seps)
+            ({"type": "object"}, {"a": 1, "b": 2, "c": [1, 2, 3]}),
+            # Static object: enum (both item and key seps)
+            ({"enum": [{"a": 1, "b": 2, "c": [1, 2, 3]}]}, {"a": 1, "b": 2, "c": [1, 2, 3]}),
+            # Static object: const (both item and key seps)
+            ({"const": {"a": 1, "b": 2, "c": [1, 2, 3]}}, {"a": 1, "b": 2, "c": [1, 2, 3]}),
+        ]
+    )
+    @pytest.mark.parametrize(
+        "separators",
+        seps,
+    )
+    @pytest.mark.parametrize(
+        "indent",
+        [None, 0, 2, 4],
+    )
+    def test_whitespace_flexibility(self, indent, separators, schema, obj):
+        grammar = gen_json(schema=schema, whitespace_flexible=True)
+        prepared_json = json.dumps(obj, separators=separators, indent=indent)
+
+        assert grammar.match(prepared_json, raise_exceptions=True) is not None
+        model = models.Mock(f"<s>{prepared_json}".encode())
+        assert str(model + grammar) == prepared_json
