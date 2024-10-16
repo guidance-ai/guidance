@@ -556,7 +556,7 @@ class TransformersEngine(Engine):
                     text_sequence.append(
                         [
                             BaseGenToken(
-                                token=_token_id.item(),
+                                token_id=_token_id.item(),
                                 prob=1.0,
                                 text=tokenizer.decode([_token_id]),
                             )
@@ -572,7 +572,7 @@ class TransformersEngine(Engine):
                 top_k_probs = [_probs[i].item() for i in top_k_indices]
                 top_k_list = []
                 for t, p in zip(top_k_indices, top_k_probs):
-                    top_k_list.append(BaseGenToken(token=t, prob=p, text=tokenizer.decode([t])))
+                    top_k_list.append(BaseGenToken(token_id=t, prob=p, text=tokenizer.decode([t])))
                 text_sequence.append(top_k_list)
 
             batch.append(text_sequence)

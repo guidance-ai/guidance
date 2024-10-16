@@ -30,7 +30,7 @@ class EngineCallResponse(BaseModel):
 
 
 class BaseGenToken(BaseModel):
-    token: int
+    token_id: int
     prob: float
     text: str = ""
     is_masked: bool = False

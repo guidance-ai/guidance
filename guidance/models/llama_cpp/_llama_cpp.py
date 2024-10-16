@@ -270,7 +270,7 @@ class LlamaCppEngine(Engine):
         except Exception as e:
             _text = str(_bytes)
             print(f"Failed to decode token: {token_ids[0]}, error: {e}, _bytes: {str(_bytes)}")
-        text_sequence.append([BaseGenToken(token=token_ids[0], prob=1.0, text=_text)])
+        text_sequence.append([BaseGenToken(token_id=token_ids[0], prob=1.0, text=_text)])
 
         for token_idx, logits in zip(token_ids[1:], logits_batch[:-1]):
             _probs = self._softmax(logits)
@@ -292,7 +292,7 @@ class LlamaCppEngine(Engine):
                     print(
                         f"Failed to decode token: {_token_idx}, error: {e}, _bytes: {str(_bytes)}"
                     )
-                top_k_list.append(BaseGenToken(token=_token_idx, prob=_prob, text=_text))
+                top_k_list.append(BaseGenToken(token_id=_token_idx, prob=_prob, text=_text))
 
             text_sequence.append(top_k_list)
 

@@ -18,7 +18,9 @@ span_start = "<span style='background-color: rgba(255, 180, 0, 0.3); border-radi
 span_end = "</span>"
 
 
-def trace_node_to_html(node: TraceNode, prettify_roles=False, complete_msg: ExecutionCompletedOutputMessage=None) -> str:
+def trace_node_to_html(
+    node: TraceNode, prettify_roles=False, complete_msg: ExecutionCompletedOutputMessage = None
+) -> str:
     """Represents trace path as html string.
 
     Args:
@@ -71,9 +73,9 @@ def trace_node_to_html(node: TraceNode, prettify_roles=False, complete_msg: Exec
                 else:
                     # switch to token-based
                     cell_tokens = attr.tokens
-                    for token in cell_tokens:                       
+                    for token in cell_tokens:
                         # assert token.token == complete_msg.tokens[prob_idx].token, f"Token mismatch {token.token} != {complete_msg.tokens[prob_idx].token}"
-                        if token.token != complete_msg.tokens[prob_idx].token:
+                        if token.token_id != complete_msg.tokens[prob_idx].token_id:
                             if remaining_text + token.text != complete_msg.tokens[prob_idx].text:
                                 remaining_text += token.text
                                 continue
@@ -97,7 +99,7 @@ def trace_node_to_html(node: TraceNode, prettify_roles=False, complete_msg: Exec
                         else:
                             fmt += f"<span style='background-color: rgba({255}, {255}, {255}, 0.15); border-radius: 3ps;' title='Token: \"{token_str}\" : {prob}\nTop-k: {top_k}'>{html.escape(token_str)}</span>"
 
-                        full_text = full_text[len(token_str):]
+                        full_text = full_text[len(token_str) :]
                         prob_idx += 1
                     pass
                 buffer.append(fmt)

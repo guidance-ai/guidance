@@ -227,7 +227,7 @@ class Engine:
                 final_text = "".join([gen_token.text for gen_token in processed_gen_tokens])
                 logger.debug(f"ENGINE:final_text:{final_text}")
 
-                tokens = [gen_token.token for gen_token in processed_gen_tokens]
+                tokens = [gen_token.token_id for gen_token in processed_gen_tokens]
                 self.renderer.update(
                     ExecutionCompletedOutputMessage(
                         trace_id=message.last_trace_id,
@@ -336,8 +336,11 @@ class Engine:
                     temperature=gen_data.temperature,
                 )
 
-                if is_in_accepting_state and not gen_data.mask[engine_output.issued_token.token]:
-                    engine_output.issued_token.token = self.tokenizer.eos_token_id
+                if (
+                    is_in_accepting_state
+                    and not gen_data.mask[engine_output.issued_token.token_id]
+                ):
+                    engine_output.issued_token.token_id = self.tokenizer.eos_token_id
                     # TODO: Should we set the prob to 1.0 here?
                     engine_output.issued_token.prob = 1.0
             else:
@@ -365,7 +368,7 @@ class Engine:
 
             return [
                 GenToken(
-                    token=token,
+                    token_id=token,
                     prob=prob,
                     text=self.tokenizer.decode([token]).decode("utf-8"),
                     latency_ms=lat_ms,
@@ -408,7 +411,7 @@ class Engine:
                 sampled_prob = masked_probs[sampled_index]
 
             issued_token = GenToken(
-                token=sampled_index,
+                token_id=sampled_index,
                 prob=sampled_prob,
                 text=self.tokenizer.decode([sampled_index]).decode("utf-8"),
                 latency_ms=lat_ms,
@@ -819,7 +822,7 @@ class Model:
                     is_input=True,
                     input_tokens=[
                         GenToken(
-                            token=_token,
+                            token_id=_token,
                             prob=1.0,
                             text=out.engine.tokenizer.decode([_token]).decode("utf-8"),
                             latency_ms=0,
@@ -1248,7 +1251,7 @@ class Model:
             for engine_output in vis_chunk.engine_outputs:
                 gen_tokens_lats.append(
                     (
-                        engine_output.issued_token.token,
+                        engine_output.issued_token.token_id,
                         engine_output.issued_token.latency_ms,
                         engine_output.masked_top_k,
                     )
@@ -1268,7 +1271,7 @@ class Model:
             # FIXME (loc): assume prob 1.0 for all tokens
             probs = []
             for token_id, token_text in zip(token_ids, token_texts):
-                probs.append([BaseGenToken(token=token_id, prob=1.0, text=token_text)])
+                probs.append([BaseGenToken(token_id=token_id, prob=1.0, text=token_text)])
 
         start_idx = 0
         end_idx = 1
@@ -1318,12 +1321,12 @@ class Model:
             for token_id, top_k_prob in zip(_chunk_token_ids, _chunk_probs):
                 prob = -1
                 for _token in top_k_prob:
-                    if _token.token == token_id:
+                    if _token.token_id == token_id:
                         prob = _token.prob
                         break
 
                 _gen_token = GenToken(
-                    token=token_id,
+                    token_id=token_id,
                     prob=prob,
                     text=self.engine.tokenizer.decode([token_id]).decode("utf-8"),
                     latency_ms=0,
@@ -1347,7 +1350,7 @@ class Model:
                     found_perfect_match = False
                     max_idx = gen_tokens_indices[vis_chunk_idx]
                     for idx in range(max_idx, -1, -1):
-                        if _gen_token.token == gen_tokens_lats[idx][0]:
+                        if _gen_token.token_id == gen_tokens_lats[idx][0]:
                             _gen_token.latency_ms = gen_tokens_lats[idx][1]
                             _masked_top_k = gen_tokens_lats[idx][2]
 
@@ -1362,7 +1365,7 @@ class Model:
                             else:
                                 _masked_tokens = [token.token for token in _masked_top_k]
                                 for _token in _gen_token.top_k:
-                                    if _token.token not in _masked_tokens:
+                                    if _token.token_id not in _masked_tokens:
                                         _token.is_masked = True
                                     else:
                                         _token.is_masked = False
@@ -1401,8 +1404,8 @@ class Model:
                                     _masked_tokens = [token.token for token in _masked_top_k]
                                     for _token in _gen_token.top_k:
                                         if (
-                                            _token.token not in _masked_tokens
-                                            and _token.token != _gen_token.token
+                                            _token.token_id not in _masked_tokens
+                                            and _token.token_id != _gen_token.token_id
                                         ):
                                             _token.is_masked = True
                                         else:
