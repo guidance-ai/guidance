@@ -104,17 +104,11 @@ class TokenParser:
             if engine_output:
                 response.engine_outputs.append(engine_output)
 
-            # if ff_tokens:
-            #     if engine_output.issued_token.token == ff_tokens[0]:
-            #         # this is generated
-            #         response.generated_bytes = self.tokenizer.decode([ff_tokens[0]])
-
-            #     if len(ff_tokens[1:]):
-            #         response.force_forwarded_bytes = self.tokenizer.decode(ff_tokens[1:])
-
+            # NOTE (loc): Temporary solution to quickly check which segments are generated and which are force-forwarded to animate visualizations on the UI
+            # These tokens in chunk will not be used for final visualization
+            # TODO: This should be handled by the interpreter
             if response.new_bytes:
                 _tokens = self.tokenizer.encode(response.new_bytes)
-                # _tokens = ff_tokens
 
                 ff_token_start_idx = 1
                 if engine_output is None:

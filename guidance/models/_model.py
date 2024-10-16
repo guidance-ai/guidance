@@ -330,11 +330,11 @@ class Engine:
                 else:
                     mask = gen_data.mask
 
-                engine_output = self.get_next_top_k_tokens(
+                engine_output = self.get_next_token_with_top_k(
                     token_ids=gen_data.tokens,
                     mask=mask,
                     temperature=gen_data.temperature,
-                )[0]
+                )
 
                 if is_in_accepting_state and not gen_data.mask[engine_output.issued_token.token]:
                     engine_output.issued_token.token = self.tokenizer.eos_token_id
@@ -348,18 +348,15 @@ class Engine:
 
             yield response
 
-    def get_next_top_k_tokens(
+    def get_next_token_with_top_k(
         self,
         token_ids: list[int],
         mask: Optional[bytes],
         temperature: float,
         k: int = 5,
-    ) -> list[EngineOutput]:
+    ) -> EngineOutput:
         t0 = time.time()
-        new_tokens_logits = [self.get_logits(token_ids)]
-        if new_tokens_logits is None:
-            return []
-
+        logits = self.get_logits(token_ids)
         lat_ms = (time.time() - t0) * 1000
 
         def get_top_k(_probs: np.ndarray, _k: int = 5) -> list[GenToken]:
@@ -380,86 +377,52 @@ class Engine:
 
         # compute top-k without masking
         probs = (
-            softmax(np.array(new_tokens_logits))
+            softmax(np.array(logits))
             if temperature < 0.0001
-            else softmax(np.array(new_tokens_logits) / temperature)
+            else softmax(np.array(logits) / temperature)
         )
 
-        engine_list = []
-        unseen_tokens = token_ids[-len(probs) :][1:]
+        top_k: list[GenToken] = get_top_k(probs, k)
 
-        # we're missing the very first token
-        if len(token_ids) == len(probs):
-            first_token = token_ids[0]
-            engine_list.insert(
-                0,
-                EngineOutput(
-                    issued_token=GenToken(
-                        token=first_token,
-                        prob=1.0,
-                        text=self.tokenizer.decode([first_token]).decode("utf-8"),
-                        latency_ms=0,
-                        is_generated=False,
-                    ),
-                    top_k=[],
-                    masked_top_k=[],
-                    is_backtracked=False,
-                ),
+        # compute top-k with masking
+        masked_top_k: list[GenToken] = []
+        if mask is not None:
+            # shift logits to [0 - max] range first and apply mask
+            masked_logits = (logits - np.min(logits)) * np.frombuffer(mask, dtype=np.uint8)
+            masked_probs = (
+                softmax(masked_logits)
+                if temperature < 0.0001
+                else softmax(masked_logits / temperature)
             )
+            masked_top_k = get_top_k(masked_probs, k)
 
-        for i, _probs in enumerate(probs):
-            top_k: list[GenToken] = get_top_k(_probs, k)
-            _logits = new_tokens_logits[i]
-
-            # compute top-k with masking
-            masked_top_k: list[GenToken] = []
-            if mask is not None:
-                # shift logits to [0 - max] range first and apply mask
-                masked_logits = (_logits - np.min(_logits)) * np.frombuffer(mask, dtype=np.uint8)
-                masked_probs = (
-                    softmax(masked_logits)
-                    if temperature < 0.0001
-                    else softmax(masked_logits / temperature)
-                )
-                masked_top_k = get_top_k(masked_probs, k)
-
-            if temperature < 0.0001:
-                issued_token = masked_top_k[0] if len(masked_top_k) > 0 else top_k[0]
+        if temperature < 0.0001:
+            issued_token = masked_top_k[0] if len(masked_top_k) > 0 else top_k[0]
+        else:
+            # we need to sample from the probabilities
+            if mask is None:
+                sampled_index = np.random.choice(len(probs), p=probs)
+                sampled_prob = probs[sampled_index]
             else:
-                # we need to sample from the probabilities
-                if mask is None:
-                    sampled_index = np.random.choice(len(_probs), p=_probs)
-                else:
-                    sampled_index = np.random.choice(len(masked_probs), p=masked_probs)
+                sampled_index = np.random.choice(len(masked_probs), p=masked_probs)
+                sampled_prob = masked_probs[sampled_index]
 
-                issued_token = GenToken(
-                    token=sampled_index,
-                    prob=_probs[sampled_index],
-                    text=self.tokenizer.decode([sampled_index]).decode("utf-8"),
-                    latency_ms=lat_ms,
-                    is_generated=True,
-                )
-
-            if i < len(unseen_tokens):
-                token = unseen_tokens[i]
-                issued_token = GenToken(
-                    token=token,
-                    prob=_probs[token],
-                    text=self.tokenizer.decode([token]).decode("utf-8"),
-                    latency_ms=0,
-                    is_generated=False,
-                )
-
-            engine_list.append(
-                EngineOutput(
-                    issued_token=issued_token,
-                    top_k=top_k,
-                    masked_top_k=None if not masked_top_k else masked_top_k,
-                    is_backtracked=False,
-                )
+            issued_token = GenToken(
+                token=sampled_index,
+                prob=sampled_prob,
+                text=self.tokenizer.decode([sampled_index]).decode("utf-8"),
+                latency_ms=lat_ms,
+                is_generated=True,
             )
 
-        return engine_list
+        output = EngineOutput(
+            issued_token=issued_token,
+            top_k=top_k,
+            masked_top_k=None if not masked_top_k else masked_top_k,
+            is_backtracked=False,
+        )
+
+        return output
 
     def get_next_token(
         self, token_ids: list[int], mask: Optional[bytes], temperature: float
