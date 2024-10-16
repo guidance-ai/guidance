@@ -836,7 +836,6 @@ class Model:
                 out.vis_chunk = VisBytesChunk(
                     bytes=_bytes,
                     is_input=True,
-                    input_bytes=_bytes,
                     input_tokens=[
                         GenToken(
                             token=_token,
@@ -1166,9 +1165,8 @@ class Model:
                     lm.vis_chunk = VisBytesChunk(
                         bytes=chunk.new_bytes,
                         is_input=False,
-                        generated_bytes=chunk.generated_bytes,
+                        # generated_bytes=chunk.generated_bytes,
                         generated_tokens=chunk.generated_tokens,
-                        force_forwarded_bytes=chunk.force_forwarded_bytes,
                         force_forwarded_tokens=chunk.force_forwarded_tokens,
                         backtrack=chunk.backtrack,
                         engine_outputs=chunk.engine_outputs,
@@ -1176,8 +1174,6 @@ class Model:
                 else:
                     # append to existing VisBytesChunk
                     lm.vis_chunk.bytes += chunk.new_bytes
-                    lm.vis_chunk.generated_bytes += chunk.generated_bytes
-                    lm.vis_chunk.force_forwarded_bytes += chunk.force_forwarded_bytes
                     lm.vis_chunk.backtrack += chunk.backtrack
                     lm.vis_chunk.engine_outputs += chunk.engine_outputs
 
