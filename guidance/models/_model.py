@@ -387,7 +387,6 @@ class Engine:
 
         engine_list = []
         unseen_tokens = token_ids[-len(probs) :][1:]
-        # for _probs, _logits in zip(probs, logits):
 
         # we're missing the very first token
         if len(token_ids) == len(probs):
@@ -424,7 +423,23 @@ class Engine:
                 )
                 masked_top_k = get_top_k(masked_probs, k)
 
-            issued_token = masked_top_k[0] if len(masked_top_k) > 0 else top_k[0]
+            if temperature < 0.0001:
+                issued_token = masked_top_k[0] if len(masked_top_k) > 0 else top_k[0]
+            else:
+                # we need to sample from the probabilities
+                if mask is None:
+                    sampled_index = np.random.choice(len(_probs), p=_probs)
+                else:
+                    sampled_index = np.random.choice(len(masked_probs), p=masked_probs)
+
+                issued_token = GenToken(
+                    token=sampled_index,
+                    prob=_probs[sampled_index],
+                    text=self.tokenizer.decode([sampled_index]).decode("utf-8"),
+                    latency_ms=lat_ms,
+                    is_generated=True,
+                )
+
             if i < len(unseen_tokens):
                 token = unseen_tokens[i]
                 issued_token = GenToken(
@@ -459,7 +474,10 @@ class Engine:
     def get_logits(self, token_ids: list[int]) -> np.ndarray:
         raise NotImplementedError
 
-    def get_token_probs(self, token_ids: list[int], top_k: int = 5) -> list[list[BaseGenToken]]:
+    def get_per_token_topk_probs(
+        self, token_ids: list[int], top_k: int = 5
+    ) -> list[list[BaseGenToken]]:
+        """Get the top-k probabilities for each token in the sequence."""
         raise NotImplementedError
 
     def sample_with_temperature(
@@ -1282,7 +1300,7 @@ class Model:
 
         # NOTE (loc): Not all engines support the get_token_probs method
         try:
-            probs = self.engine.get_token_probs(token_ids)
+            probs = self.engine.get_per_token_topk_probs(token_ids)
         except Exception as e:
             # FIXME (loc): assume prob 1.0 for all tokens
             probs = []

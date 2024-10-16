@@ -37,11 +37,14 @@ _COMMON_TRANSFORMERS_KWARGS = [
     "trust_remote_code",
 ]
 
+
 class ByteDecoderError(Exception):
     pass
 
+
 class ByteTokensError(Exception):
     pass
+
 
 class TransformersTokenizer(Tokenizer):
     def __init__(
@@ -106,10 +109,14 @@ class TransformersTokenizer(Tokenizer):
             raise
         except ByteTokensError as e:
             # Give a specific warning for ByteTokensError and fall back to fast tokenizer
-            warnings.warn(f"Falling back to fast tokenizer. Could not build byte tokens for model {model!r} due to exception {e.__class__.__name__}: {e}")
+            warnings.warn(
+                f"Falling back to fast tokenizer. Could not build byte tokens for model {model!r} due to exception {e.__class__.__name__}: {e}"
+            )
         except Exception as e:
             # Fall back for other exceptions
-            warnings.warn(f"Falling back to fast tokenizer. Could not load tokenizer for model {model!r} due to exception {e.__class__.__name__}: {e}")
+            warnings.warn(
+                f"Falling back to fast tokenizer. Could not load tokenizer for model {model!r} due to exception {e.__class__.__name__}: {e}"
+            )
         else:
             return tokenizer, byte_tokens
 
@@ -141,7 +148,9 @@ class TransformersTokenizer(Tokenizer):
                 )
                 pass
             else:
-                return self._byte_tokens_from_byte_decoder(transformers_tokenizer.byte_decoder, transformers_tokenizer)
+                return self._byte_tokens_from_byte_decoder(
+                    transformers_tokenizer.byte_decoder, transformers_tokenizer
+                )
 
         if hasattr(transformers_tokenizer, "sp_model"):
             return self._byte_tokens_from_sp_model(transformers_tokenizer)
@@ -156,9 +165,7 @@ class TransformersTokenizer(Tokenizer):
 
         fallback_byte_decoder = self._fallback_byte_decoder()
         try:
-            self._check_byte_decoder(
-                fallback_byte_decoder, transformers_tokenizer
-            )
+            self._check_byte_decoder(fallback_byte_decoder, transformers_tokenizer)
         except ByteDecoderError as e:
             # Should be the only exception that is raised in _byte_tokens
             raise ByteTokensError(
@@ -232,7 +239,9 @@ class TransformersTokenizer(Tokenizer):
                         token_str = transformers_tokenizer.convert_tokens_to_string([token])
                         encoded_str = transformers_tokenizer.encode(token_str)
                         if len(encoded_str) != 1:
-                            raise ValueError(f"Round-trip encoding of tokens [{token}] failed! Got {encoded_str}")
+                            raise ValueError(
+                                f"Round-trip encoding of tokens [{token}] failed! Got {encoded_str}"
+                            )
                         roundtrip_id = encoded_str[0]
                         if roundtrip_id == i:
                             byte_coded = token_str.encode()
@@ -248,7 +257,7 @@ class TransformersTokenizer(Tokenizer):
     def _fallback_byte_decoder(self) -> dict[str, int]:
         byte_decoder = transformers_package.AutoTokenizer.from_pretrained(
             "gpt2", use_fast=False
-        ).byte_decoder # fall back to gpt2 mapping
+        ).byte_decoder  # fall back to gpt2 mapping
 
         # some special tokens may not have their whitespace encoded...
         byte_decoder[" "] = 32
@@ -295,8 +304,10 @@ class TransformersTokenizer(Tokenizer):
                 # if it's at the start of the reconstructed bytes
                 # Some tokenizers add this automatically as part of the call function, so
                 # we need to remove it to compare
-                if hasattr(transformers_tokenizer, "bos_token") and transformers_tokenizer.bos_token and reconstructed.startswith(
-                    transformers_tokenizer.bos_token.encode()
+                if (
+                    hasattr(transformers_tokenizer, "bos_token")
+                    and transformers_tokenizer.bos_token
+                    and reconstructed.startswith(transformers_tokenizer.bos_token.encode())
                 ):
                     reconstructed = reconstructed[len(transformers_tokenizer.bos_token) :]
             # TODO: can we narrow this exception?
@@ -516,8 +527,10 @@ class TransformersEngine(Engine):
             self.metrics.engine_output_tokens += 1
 
         return self._cached_logits
-    
-    def get_token_probs(self, token_ids: list[int], top_k: int = 5) -> list[list[BaseGenToken]]:
+
+    def get_per_token_topk_probs(
+        self, token_ids: list[int], top_k: int = 5
+    ) -> list[list[BaseGenToken]]:
         tokenizer = self.tokenizer._orig_tokenizer
 
         # NOTE (loc) - assume batch size of 1
@@ -541,11 +554,13 @@ class TransformersEngine(Engine):
 
                 if len(text_sequence) == 0:
                     text_sequence.append(
-                        [BaseGenToken(
-                            token=_token_id.item(),
-                            prob=1.0,
-                            text=tokenizer.decode([_token_id])
-                        )]
+                        [
+                            BaseGenToken(
+                                token=_token_id.item(),
+                                prob=1.0,
+                                text=tokenizer.decode([_token_id]),
+                            )
+                        ]
                     )
                     continue
 
@@ -557,13 +572,7 @@ class TransformersEngine(Engine):
                 top_k_probs = [_probs[i].item() for i in top_k_indices]
                 top_k_list = []
                 for t, p in zip(top_k_indices, top_k_probs):
-                    top_k_list.append(
-                        BaseGenToken(
-                            token=t,
-                            prob=p,
-                            text=tokenizer.decode([t])
-                        )
-                    )
+                    top_k_list.append(BaseGenToken(token=t, prob=p, text=tokenizer.decode([t])))
                 text_sequence.append(top_k_list)
 
             batch.append(text_sequence)

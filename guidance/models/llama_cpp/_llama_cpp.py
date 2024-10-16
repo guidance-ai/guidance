@@ -218,11 +218,13 @@ class LlamaCppEngine(Engine):
         self._cached_logits = logits
 
         return logits
-    
-    def get_token_probs(self, token_ids: list[int], top_k: int = 5) -> list[list[BaseGenToken]]:
+
+    def get_per_token_topk_probs(
+        self, token_ids: list[int], top_k: int = 5
+    ) -> list[list[BaseGenToken]]:
         if len(token_ids) == 0:
             return []
-        
+
         # clear kv-cache
         llama_cpp.llama_kv_cache_seq_rm(self.model_obj.ctx, -1, 0, -1)
 
@@ -246,7 +248,7 @@ class LlamaCppEngine(Engine):
             ret = llama_cpp.llama_decode(self.model_obj.ctx, batch)
             if ret != 0:
                 raise Exception(f"Call to llama_cpp.llama_decode returned {ret}.")
-            
+
             # get all the logits
             if llama_cpp.__version__ < "0.2.58":
                 logits = llama_cpp.llama_get_logits(self.model_obj.ctx)
@@ -264,18 +266,12 @@ class LlamaCppEngine(Engine):
         # add 1st token
         _bytes = self.tokenizer.decode([token_ids[0]])
         try:
-            _text = _bytes.decode('utf-8')
+            _text = _bytes.decode("utf-8")
         except Exception as e:
             _text = str(_bytes)
             print(f"Failed to decode token: {token_ids[0]}, error: {e}, _bytes: {str(_bytes)}")
-        text_sequence.append(
-                        [BaseGenToken(
-                            token=token_ids[0],
-                            prob=1.0,
-                            text=_text
-                        )]
-                    )
-        
+        text_sequence.append([BaseGenToken(token=token_ids[0], prob=1.0, text=_text)])
+
         for token_idx, logits in zip(token_ids[1:], logits_batch[:-1]):
             _probs = self._softmax(logits)
 
@@ -289,39 +285,35 @@ class LlamaCppEngine(Engine):
             for _token_idx, _prob in zip(top_k_indices, top_k_probs):
                 _text = ""
                 try:
-                    _text = self.tokenizer.decode([_token_idx]).decode('utf-8')
+                    _text = self.tokenizer.decode([_token_idx]).decode("utf-8")
                 except Exception as e:
                     _bytes = self.tokenizer.decode([_token_idx])
                     _text = str(_bytes)
-                    print(f"Failed to decode token: {_token_idx}, error: {e}, _bytes: {str(_bytes)}")
-                top_k_list.append(
-                    BaseGenToken(
-                        token=_token_idx,
-                        prob=_prob,
-                        text=_text
+                    print(
+                        f"Failed to decode token: {_token_idx}, error: {e}, _bytes: {str(_bytes)}"
                     )
-                )
-            
+                top_k_list.append(BaseGenToken(token=_token_idx, prob=_prob, text=_text))
+
             text_sequence.append(top_k_list)
 
         return text_sequence
-    
+
     def _softmax(self, x) -> np.ndarray:
-        return(np.exp(x - np.max(x)) / np.exp(x - np.max(x)).sum())
-    
+        return np.exp(x - np.max(x)) / np.exp(x - np.max(x)).sum()
+
     def _top_k(self, input, k, axis=None, ascending=True):
         if not ascending:
             input *= -1
         ind = np.argpartition(input, k, axis=axis)
-        ind = np.take(ind, np.arange(k), axis=axis) # k non-sorted indices
-        input = np.take_along_axis(input, ind, axis=axis) # k non-sorted values
+        ind = np.take(ind, np.arange(k), axis=axis)  # k non-sorted indices
+        input = np.take_along_axis(input, ind, axis=axis)  # k non-sorted values
 
         # sort within k elements
         ind_part = np.argsort(input, axis=axis)
         ind = np.take_along_axis(ind, ind_part, axis=axis)
         if not ascending:
             input *= -1
-        val = np.take_along_axis(input, ind_part, axis=axis) 
+        val = np.take_along_axis(input, ind_part, axis=axis)
         return ind, val
 
 
