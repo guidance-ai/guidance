@@ -27,7 +27,7 @@
     let textComponents: Array<NodeAttr> = [];
 	let tokenDetails: Array<GenToken> = [];
 	let completedExecution: boolean = false;
-	let mode: string;
+	let showMetrics: boolean = true;
 
 	textComponents = mockNodeAttrs;
 	tokenDetails = mockGenTokens;
@@ -140,8 +140,6 @@
 			precision: 0,
 		}
 	};
-	let selectedMetricDef: MetricDef = metricDefs['consumed'];
-
 	const metrics: Record<string, MetricVal> = {
 		'status': '✓',
 		'gpu': [0.0, 0.0, 0.0, 0.0, 0.0],
@@ -154,10 +152,6 @@
 		'token reduction': 0,
 	};
 
-	let metricModes = new Set<string>();
-	metricModes.add('avg latency');
-	metricModes.add('consumed');
-
 	onMount(() => {
 		const msg: StitchMessage = {
 			type: "clientmsg",
@@ -165,11 +159,6 @@
 		}
 		clientmsg.set(msg);
 	});
-
-	const onNavClick = (event: CustomEvent<string>) => {
-		mode = event.detail;
-		selectedMetricDef = metricDefs[mode];
-	};
 </script>
 
 <svelte:head>
@@ -180,16 +169,50 @@
 <StitchHandler/>
 <ResizeListener/>
 <div class="w-full min-h-96">
-	<!-- Navigation bar -->
-	<nav class="sticky top-0 z-30 opacity-90 w-full flex bg-gray-100 shadow text-gray-500 justify-between">
-		<div class="pl-2 flex">
-			{#each Object.entries(metrics) as [name, value], i}
-				<MetricCard value={value} selected={name === selectedMetricDef.name} metricDef={metricDefs[name]} on:forwardclick={onNavClick} enabled={metricModes.has(name)}/>
-			{/each}
-		</div>
+	<nav class="sticky top-0 z-50 opacity-90">
+		<!-- Metric bar -->
+		{#if showMetrics}
+			<section class="w-full flex bg-gray-100 border-b border-gray-200 text-gray-500 justify-between">
+				<div class="pl-2 flex">
+					{#each Object.entries(metrics) as [name, value]}
+						<MetricCard value={value} metricDef={metricDefs[name]}/>
+					{/each}
+				</div>
+			</section>
+		{/if}
+		<!-- Controls -->
+		<section>
+			<div class="text-sm pt-2 pb-2 flex border-b border-gray-200">
+				<div class="ml-4 mr-4 inline-flex justify-between items-center">
+					<span class="text-xs inline-flex flex-col justify-center uppercase tracking-wider">
+						Metrics
+					</span>
+					<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-3">
+						<path d="M8 9.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z" />
+						<path fill-rule="evenodd" d="M1.38 8.28a.87.87 0 0 1 0-.566 7.003 7.003 0 0 1 13.238.006.87.87 0 0 1 0 .566A7.003 7.003 0 0 1 1.379 8.28ZM11 8a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" clip-rule="evenodd" />
+					</svg>
+				</div>
+				<div class="mr-4 inline-flex justify-between items-center bg-gray-200">
+					<span class="">
+						Type
+					</span>
+					<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
+						<path fill-rule="evenodd" d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
+					</svg>
+				</div>
+				<div class="mr-4 inline-flex justify-between items-center border-b-2 border-gray-400">
+					<span class="">
+						Probability
+					</span>
+					<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
+						<path fill-rule="evenodd" d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
+					</svg>
+				</div>
+			</div>
+		</section>
 	</nav>
 	<!-- Content pane -->
 	<section class="w-full">
-		<TokenGrid textComponents={textComponents} tokenDetails={tokenDetails} isCompleted={completedExecution} metricDef={selectedMetricDef}/>
+		<TokenGrid textComponents={textComponents} tokenDetails={tokenDetails} isCompleted={completedExecution}/>
 	</section>
 </div>

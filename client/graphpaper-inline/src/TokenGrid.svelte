@@ -19,7 +19,9 @@
     export let textComponents: Array<NodeAttr>;
     export let tokenDetails: Array<GenToken>;
     export let isCompleted: boolean = false;
-    export let metricDef: MetricDef;
+    let metricDef: MetricDef = {
+        name: 'consumed'
+    };
 
     let underline: TokenCallback | undefined;
     let bg: TokenCallback | undefined;
@@ -28,11 +30,8 @@
         if (x.is_input) {
             return "rgba(255, 255, 255, 0)";
         } else if (x.is_force_forwarded) {
-            // return "rgba(229, 231, 235, 1)";
             return "rgba(243, 244, 246, 1)";
         } else if (x.is_generated) {
-            // return "rgba(187, 247, 208, 1)";
-            // return "rgba(187, 247, 208, 1)";
             return "rgba(229, 231, 235, 1)";
         } else {
             console.log(`ERROR: token ${x.text} does not have emit flags.`)
@@ -293,39 +292,63 @@
 </script>
 
 <!-- Tooltip -->
-<div bind:this={tooltip} class="px-1 pt-2 pb-3 absolute opacity-95 border-l-4 bg-gray-100 border-l-red-500 border-b-2 border-b-gray-300 text-gray-700 pointer-events-none z-50" style="top: {tooltipY}px; left: {tooltipX}px; display: none;">
+<div bind:this={tooltip} class="px-1 pt-2 pb-3 absolute opacity-95 bg-white shadow border border-gray-300 pointer-events-none z-50" style="top: {tooltipY}px; left: {tooltipX}px; display: none;">
     <div>
         {#if tooltipToken}
             <div class={`col-1 flex flex-col items-center`}>
-                <div class="text-lg px-1 pt-1 pb-1 text-left w-full bg-white">
-                    <div class="bg-gray-200 mb-2">
+                <div class="text-2xl px-1 pt-1 pb-1 text-left w-full bg-white">
+                    <div class="mb-4">
+                        <span class="border-b-2 border-red-700">
                         {@html renderText(tooltipToken.text)}
+                        </span>
                     </div>
-                    <div class="text-xs text-gray-500 tracking-wide">
-                        TYPE
-                        {#if tooltipToken.is_generated}
-                            Generated
-                        {:else if tooltipToken.is_input}
-                            Input
-                        {:else if tooltipToken.is_force_forwarded}
-                            Forced
-                        {:else}
-                            Token
-                        {/if}
-                    </div>
-                    <div class="text-xs text-gray-500 tracking-wide">
-                        PROB
-                        {tooltipToken.prob.toFixed(3)}
-                    </div>
+                    <table class="w-full">
+                        <tbody class="text-xs tracking-wider">
+                            <tr>
+                                <td>
+                                    <span class="bg-gray-200">
+                                        Type
+                                    </span>
+                                </td>
+                                <td class="text-right">
+                                    <span class="pl-1">
+                                        {#if tooltipToken.is_generated}
+                                            Generated
+                                        {:else if tooltipToken.is_input}
+                                            Input
+                                        {:else if tooltipToken.is_force_forwarded}
+                                            Forced
+                                        {:else}
+                                            Token
+                                        {/if}
+                                    </span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <span class="border-b-2 border-red-700">
+                                        Probability
+                                    </span>
+                                </td>
+                                <td class="text-right">
+                                    <span>
+                                        {tooltipToken.prob.toFixed(3)}
+                                    </span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
                 {#if tooltipToken.extra !== undefined}
-                <table class="divide-gray-200">
+                <hr class="bg-gray-400 w-full my-2"/>
+                <table class="w-full">
                     <thead>
                         <tr>
-                            <th class={`px-1 pb-1 uppercase font-normal text-xs text-left text-gray-500 tracking-wide`}>
+                            <th class={`px-1 pb-1 font-normal text-xs text-left text-gray-700 tracking-wide`}>
+                                Candidate
                             </th>
-                            <th class={`px-1 pb-1 uppercase font-normal text-xs text-right text-gray-500 tracking-wide`}>
-                                Probability
+                            <th class={`px-1 pb-1 font-normal text-xs text-right text-gray-700 tracking-wide`}>
+                                Prob
                             </th>
                         </tr>
                     </thead>
