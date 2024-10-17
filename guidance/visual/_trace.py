@@ -2,6 +2,7 @@ import base64
 import json
 from typing import Optional, Dict
 
+from guidance._schema import GenToken
 from guidance.visual._message import ExecutionCompletedOutputMessage
 
 from ..trace import (
@@ -72,36 +73,81 @@ def trace_node_to_html(
                         fmt += f"<span style='background-color: rgba({255}, {255}, {255}, 0.15); border-radius: 3ps;' title='{attr.prob}'>{html.escape(attr.value)}</span>"
                 else:
                     # switch to token-based
-                    cell_tokens = attr.tokens
-                    for token in cell_tokens:
-                        # assert token.token == complete_msg.tokens[prob_idx].token, f"Token mismatch {token.token} != {complete_msg.tokens[prob_idx].token}"
-                        if token.token_id != complete_msg.tokens[prob_idx].token_id:
-                            if remaining_text + token.text != complete_msg.tokens[prob_idx].text:
-                                remaining_text += token.text
-                                continue
-                            else:
-                                remaining_text = ""
+                    # cell_tokens = attr.tokens
+                    # for token in cell_tokens:
+                    #     # assert token.token == complete_msg.tokens[prob_idx].token, f"Token mismatch {token.token} != {complete_msg.tokens[prob_idx].token}"
+                    #     if token.token_id != complete_msg.tokens[prob_idx].token_id:
+                    #         if remaining_text + token.text != complete_msg.tokens[prob_idx].text:
+                    #             remaining_text += token.text
+                    #             continue
+                    #         else:
+                    #             remaining_text = ""
 
-                        token_str = complete_msg.tokens[prob_idx].text
-                        prob = complete_msg.tokens[prob_idx].prob
+                    #     token_str = complete_msg.tokens[prob_idx].text
+                    #     prob = complete_msg.tokens[prob_idx].prob
+                    #     top_k = {}
+                    #     # find the correct token
+                    #     for _item in complete_msg.tokens[prob_idx].top_k:
+                    #         top_k[f"{_item.text}"] = f"{_item.prob} - Masked: {_item.is_masked}"
+                    #     top_k = json.dumps(top_k, indent=2)
+
+                    #     latency = f"{complete_msg.tokens[prob_idx].latency_ms:.2f}"
+
+                    #     if complete_msg.tokens[prob_idx].is_generated:
+                    #         fmt += f"<span style='background-color: rgba({0}, {127 + int(127 * prob)}, {0}, 0.15); border-radius: 3ps;' title='Token: \"{token_str}\" : {prob}\nTop-k: {top_k}\nlatency_ms: {latency}'>{html.escape(token_str)}</span>"
+                    #     elif complete_msg.tokens[prob_idx].is_force_forwarded:
+                    #         fmt += f"<span style='background-color: rgba({0}, {0}, {127 + int(127 * prob)}, 0.15); border-radius: 3ps;' title='Token: \"{token_str}\" : {prob}\nTop-k: {top_k}\nlatency_ms: {latency}'>{html.escape(token_str)}</span>"
+                    #     else:
+                    #         fmt += f"<span style='background-color: rgba({255}, {255}, {255}, 0.15); border-radius: 3ps;' title='Token: \"{token_str}\" : {prob}\nTop-k: {top_k}'>{html.escape(token_str)}</span>"
+
+                    #     full_text = full_text[len(token_str) :]
+                    #     prob_idx += 1
+
+                    chunk_text = attr.value
+                    # find tokens in complete message that cover this chunk
+                    tokens: list[GenToken] = []
+                    _idx = prob_idx
+                    tokens_text = ""
+                    while _idx < len(complete_msg.tokens):
+                        _token = complete_msg.tokens[_idx]
+                        tokens_text += _token.text
+                        tokens.append(_token)
+                        if chunk_text in tokens_text:
+                            break
+                        _idx += 1
+
+                    assert (
+                        chunk_text in tokens_text
+                    ), f"Token mismatch {tokens_text} != {chunk_text}"
+
+                    start_idx = tokens_text.index(chunk_text)
+                    remaining_text = tokens_text[start_idx + len(chunk_text) :]
+
+                    if remaining_text:
+                        # remove the last tokens
+                        tokens.pop(-1)
+
+                    # update prob_idx
+                    prob_idx += len(tokens)
+
+                    for token in tokens:
+                        token_str = token.text
+                        prob = token.prob
                         top_k = {}
                         # find the correct token
-                        for _item in complete_msg.tokens[prob_idx].top_k:
+                        for _item in token.top_k:
                             top_k[f"{_item.text}"] = f"{_item.prob} - Masked: {_item.is_masked}"
                         top_k = json.dumps(top_k, indent=2)
 
-                        latency = f"{complete_msg.tokens[prob_idx].latency_ms:.2f}"
+                        latency = f"{token.latency_ms:.2f}"
 
-                        if complete_msg.tokens[prob_idx].is_generated:
+                        if token.is_generated:
                             fmt += f"<span style='background-color: rgba({0}, {127 + int(127 * prob)}, {0}, 0.15); border-radius: 3ps;' title='Token: \"{token_str}\" : {prob}\nTop-k: {top_k}\nlatency_ms: {latency}'>{html.escape(token_str)}</span>"
-                        elif complete_msg.tokens[prob_idx].is_force_forwarded:
+                        elif token.is_force_forwarded:
                             fmt += f"<span style='background-color: rgba({0}, {0}, {127 + int(127 * prob)}, 0.15); border-radius: 3ps;' title='Token: \"{token_str}\" : {prob}\nTop-k: {top_k}\nlatency_ms: {latency}'>{html.escape(token_str)}</span>"
                         else:
                             fmt += f"<span style='background-color: rgba({255}, {255}, {255}, 0.15); border-radius: 3ps;' title='Token: \"{token_str}\" : {prob}\nTop-k: {top_k}'>{html.escape(token_str)}</span>"
 
-                        full_text = full_text[len(token_str) :]
-                        prob_idx += 1
-                    pass
                 buffer.append(fmt)
 
             if active_role is not None:

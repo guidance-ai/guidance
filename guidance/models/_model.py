@@ -1243,9 +1243,34 @@ class Model:
 
         text = self._state
         token_ids = self.engine.tokenizer.encode(text.encode("utf-8"))
+
+        # verify if text == encode(decode(text))
+        decoded_text = self.engine.tokenizer.decode(token_ids).decode("utf-8")
+
         token_texts: list[str] = []
-        for idx, token_id in enumerate(token_ids):
-            token_texts.append(self.engine.tokenizer.decode([token_id]).decode("utf-8"))
+        if text == decoded_text:
+            for idx, token_id in enumerate(token_ids):
+                token_texts.append(self.engine.tokenizer.decode([token_id]).decode("utf-8"))
+        else:
+            # need to pad missing tokens
+            ptr_idx = 0
+            for token_id in token_ids:
+                missing_chunk = ""
+                decoded = self.engine.tokenizer.decode([token_id]).decode("utf-8")
+                if not text[ptr_idx:].startswith(decoded):
+                    _next_idx = ptr_idx
+                    found = False
+                    while _next_idx < len(text):
+                        if text[_next_idx:].startswith(decoded):
+                            found = True
+                            break
+                        _next_idx += 1
+
+                    assert found, f"Failed to find the token {decoded} in the text {text}"
+                    missing_chunk = text[ptr_idx:_next_idx]
+
+                token_texts.append(missing_chunk + decoded)
+                ptr_idx += len(missing_chunk + decoded)
 
         # NOTE (loc): Not all engines support the get_token_probs method
         try:
@@ -1296,12 +1321,15 @@ class Model:
 
             _chunk_token_ids = token_ids[start_idx : end_idx + 1]
             _chunk_probs = probs[start_idx : end_idx + 1]
+            _chunk_token_texts = token_texts[start_idx : end_idx + 1]
 
             is_input = len(vis_chunk.input_tokens) > 0
             is_force_forwarded = len(vis_chunk.force_forwarded_tokens) > 0
 
             _gen_tokens: list[GenToken] = []
-            for token_id, top_k_prob in zip(_chunk_token_ids, _chunk_probs):
+            for token_id, top_k_prob, token_text in zip(
+                _chunk_token_ids, _chunk_probs, _chunk_token_texts
+            ):
                 prob = -1
                 for _token in top_k_prob:
                     if _token.token_id == token_id:
@@ -1311,7 +1339,7 @@ class Model:
                 _gen_token = GenToken(
                     token_id=token_id,
                     prob=prob,
-                    text=self.engine.tokenizer.decode([token_id]).decode("utf-8"),
+                    text=token_text,
                     latency_ms=0,
                     is_input=is_input,
                     is_generated=False,
