@@ -269,12 +269,12 @@ class JupyterWidgetRenderer(Renderer):
 
         # Wait until ready
         # TODO(nopdive): This blocks until cell completion. Not what we want.
-        if self._wait_for_client:
-            await self._client_ready.wait()
+        # if self._wait_for_client:
+        #     await self._client_ready.wait()
 
         # What if we only used 1% of our brain?
-        # import asyncio
-        # await asyncio.sleep(0.5)
+        import asyncio
+        await asyncio.sleep(0.5)
         logger.debug("SEND:ready")
 
         while True:

@@ -1,5 +1,3 @@
-<!-- TODO(nopdive): Process tokens incrementally. -->
-
 <script lang="ts">
     import {isRoleOpenerInput, isTextOutput, type NodeAttr, type RoleOpenerInput, type GenToken} from './stitch';
     import TokenGridItem from "./TokenGridItem.svelte";
@@ -8,6 +6,16 @@
     import {longhover} from "./longhover";
     import DOMPurify from "dompurify";
 
+    import {scaleSequential} from "d3-scale";
+    import {interpolateCool, interpolateSpectral, interpolateOrRd, interpolateYlOrRd} from "d3-scale-chromatic";
+
+    const underlineColor = (x: number) => {
+        return interpolateOrRd(x);
+    };
+    const bgColor = (x: number) => {
+        return interpolateYlOrRd(1 - x);
+    };
+
     export let textComponents: Array<NodeAttr>;
     export let tokenDetails: Array<GenToken>;
     export let isCompleted: boolean = false;
@@ -15,14 +23,20 @@
 
     let underline: TokenCallback | undefined;
     let bg: TokenCallback | undefined;
-    $: {
-        if (metricDef.name === 'avg latency') {
-            underline = (x: Token) => (+x.special);
-            underline = (x: Token) => x.extra?.latency_ms || 0;
-            bg = undefined;
+
+    const colorTokenEmit = (x: Token) => {
+        if (x.is_input) {
+            return "rgba(255, 255, 255, 0)";
+        } else if (x.is_force_forwarded) {
+            // return "rgba(229, 231, 235, 1)";
+            return "rgba(243, 244, 246, 1)";
+        } else if (x.is_generated) {
+            // return "rgba(187, 247, 208, 1)";
+            // return "rgba(187, 247, 208, 1)";
+            return "rgba(229, 231, 235, 1)";
         } else {
-            underline = (x: Token) => x.prob;
-            bg = undefined;
+            console.log(`ERROR: token ${x.text} does not have emit flags.`)
+            return "rgba(255, 255, 255, 0)";
         }
     }
 
@@ -68,12 +82,20 @@
             } else if (isTextOutput(nodeAttr)) {
                 if (activeOpenerRoles.length === 0) {
                     if (activeCloserRoleText.length !== 0 && activeCloserRoleText[activeCloserRoleText.length - 1] === nodeAttr.value) {
-                        const token = {text: nodeAttr.value, prob: 1, role: "", special: true};
+                        const token = {
+                            text: nodeAttr.value, prob: 1, role: "", special: true,
+                            is_input: nodeAttr.is_input, is_force_forwarded: nodeAttr.is_force_forwarded,
+                            is_generated: nodeAttr.is_generated,
+                        };
                         specialSet.add(token.text);
                         tokens.push(token);
                         activeCloserRoleText.pop();
                     } else {
-                        const token = {text: nodeAttr.value, prob: 1, role: "", special: false};
+                        const token = {
+                            text: nodeAttr.value, prob: 1, role: "", special: false,
+                            is_input: nodeAttr.is_input, is_force_forwarded: nodeAttr.is_force_forwarded,
+                            is_generated: nodeAttr.is_generated,
+                        };
                         tokens.push(token);
                     }
                 } else {
@@ -82,7 +104,11 @@
                         console.log(`Active role text does not match next text output: ${activeOpenerRole.text} - ${nodeAttr.value}`)
                     }
 
-                    const token = {text: nodeAttr.value, prob: 1, role: activeOpenerRole.name || "", special: true};
+                    const token = {
+                        text: nodeAttr.value, prob: 1, role: activeOpenerRole.name || "", special: true,
+                        is_input: nodeAttr.is_input, is_force_forwarded: nodeAttr.is_force_forwarded,
+                        is_generated: nodeAttr.is_generated,
+                    };
                     if (token.role !== "") {
                         namedRoleSet[nodeAttr.value] = token.role;
                     }
@@ -158,12 +184,25 @@
                     prob: tokenDetail.prob,
                     role: role,
                     special: special,
-                    extra: tokenDetail
-                }
+                    is_input: tokenDetail.is_input,
+                    is_force_forwarded: tokenDetail.is_force_forwarded,
+                    is_generated: tokenDetail.is_generated,
+                    extra: tokenDetail,
+                };
                 tokens.push(token);
             }
         }
 
+        // Visual updates
+        if (metricDef.name === 'avg latency') {
+            bg = (x: Token) => bgColor(x.extra?.latency_ms || 0);
+            underline = undefined;
+        } else {
+            underline = (x: Token) => underlineColor(x.prob);
+            bg = (x: Token) => colorTokenEmit(x);
+        }
+
+        // End bookkeeping (svelte)
         tokenDetails = tokenDetails;
         textComponents = textComponents;
         tokens = tokens;
@@ -200,6 +239,8 @@
         }
     }
 
+    let highlightPrevColor = '';
+    let highlightPrevBackgroundColor = '';
     const handleMouseOver = (event: MouseEvent) => {
         const target = event.target as HTMLElement;
         if (target.matches('.token-grid-item')) {
@@ -209,8 +250,11 @@
             // Add highlight
             if (siblingsIncludingSelf) {
                 for (const sibling of siblingsIncludingSelf) {
-                    sibling.classList.add('text-gray-50');
-                    sibling.classList.add('bg-gray-400');
+                    const htmlSibling = sibling as HTMLElement;
+                    highlightPrevColor = htmlSibling.style.color;
+                    highlightPrevBackgroundColor = htmlSibling.style.backgroundColor;
+                    htmlSibling.style.color = "rgb(249, 250, 251)";
+                    htmlSibling.style.backgroundColor = "rgb(75, 85, 99)";
                 }
             }
         }
@@ -233,8 +277,9 @@
             // Remove highlight
             if (siblingsIncludingSelf) {
                 for (const sibling of siblingsIncludingSelf) {
-                    sibling.classList.remove('text-gray-50');
-                    sibling.classList.remove('bg-gray-400');
+                    const htmlSibling = sibling as HTMLElement;
+                    htmlSibling.style.color = highlightPrevColor;
+                    htmlSibling.style.backgroundColor = highlightPrevBackgroundColor;
                 }
             }
         }
@@ -248,16 +293,29 @@
 </script>
 
 <!-- Tooltip -->
-<div bind:this={tooltip} class="px-1 pt-2 pb-3 absolute opacity-95 bg-gray-100 border-l-4 border-l-red-500 border-b-2 border-b-gray-300 text-gray-700 pointer-events-none z-50" style="top: {tooltipY}px; left: {tooltipX}px; display: none;">
+<div bind:this={tooltip} class="px-1 pt-2 pb-3 absolute opacity-95 border-l-4 bg-gray-100 border-l-red-500 border-b-2 border-b-gray-300 text-gray-700 pointer-events-none z-50" style="top: {tooltipY}px; left: {tooltipX}px; display: none;">
     <div>
         {#if tooltipToken}
             <div class={`col-1 flex flex-col items-center`}>
-                <div class="text-lg px-1 pb-2 text-left w-full">
-                    <div class="uppercase text-xs text-gray-500 tracking-wide">
-                        Token
-                    </div>
-                    <div class="bg-gray-200">
+                <div class="text-lg px-1 pt-1 pb-1 text-left w-full bg-white">
+                    <div class="bg-gray-200 mb-2">
                         {@html renderText(tooltipToken.text)}
+                    </div>
+                    <div class="text-xs text-gray-500 tracking-wide">
+                        TYPE
+                        {#if tooltipToken.is_generated}
+                            Generated
+                        {:else if tooltipToken.is_input}
+                            Input
+                        {:else if tooltipToken.is_force_forwarded}
+                            Forced
+                        {:else}
+                            Token
+                        {/if}
+                    </div>
+                    <div class="text-xs text-gray-500 tracking-wide">
+                        PROB
+                        {tooltipToken.prob.toFixed(3)}
                     </div>
                 </div>
                 {#if tooltipToken.extra !== undefined}
@@ -267,14 +325,13 @@
                             <th class={`px-1 pb-1 uppercase font-normal text-xs text-left text-gray-500 tracking-wide`}>
                             </th>
                             <th class={`px-1 pb-1 uppercase font-normal text-xs text-right text-gray-500 tracking-wide`}>
-                                Prob
+                                Probability
                             </th>
                         </tr>
                     </thead>
                     <tbody>
                     {#each tooltipToken.extra.top_k as candidate}
                         <tr>
-                            <!-- TODO(nopdive): Text strike through is ugly, replace with line drawn through whole row via css pseudo-element -->
                             <td class={`px-1 text-left font-mono text-sm decoration-2 ${candidate.is_masked ? "line-through" : ""}`}>
                                 <span class="bg-gray-200">
                                     {@html renderText(candidate.text)}
@@ -298,7 +355,6 @@
     <div class="px-4">
         <span class="flex flex-wrap text-sm" role="main" use:longhover={mouseLongHoverDuration} on:longmouseover={handleLongMouseOver} on:longmouseout={handleLongMouseOut} on:mouseover={handleMouseOver} on:mouseout={handleMouseOut} on:focus={doNothing} on:blur={doNothing}>
             {#each tokens as token, i}
-
                 {#if token.special === true && token.role !== ""}
                     <!-- Vertical spacing for role -->
                     {#if i === 0}

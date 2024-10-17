@@ -1,25 +1,15 @@
 <script lang="ts">
     import {type Token, type TokenCallback} from "./interfaces";
-    import {scaleSequential} from "d3-scale";
-    import {interpolateCool, interpolateSpectral, interpolateOrRd, interpolateYlOrRd} from "d3-scale-chromatic";
-    // import {interpolateRgb} from "d3-interpolate";
 
     export let token: Token;
     export let index: number;
     export let underline: TokenCallback | undefined;
     export let bg: TokenCallback | undefined;
 
-    const underlineColor = (x: number) => {
-        return interpolateOrRd(x);
-    };
-    const bgColor = (x: number) => {
-        return interpolateYlOrRd(1 - x);
-    };
-
     let underlineStyle: string;
-    $: underlineStyle = underline !== undefined ? "border-bottom-color: " + underlineColor(underline(token))  + ";": "";
+    $: underlineStyle = underline !== undefined ? "border-bottom-color: " + underline(token)  + ";": "";
     let bgStyle: string;
-    $: bgStyle = bg !== undefined ? "background-color: " + bgColor(bg(token))  + ";": "";
+    $: bgStyle = bg !== undefined ? "background-color: " + bg(token)  + ";": "";
 </script>
 
 {#each token.text as ch, i}

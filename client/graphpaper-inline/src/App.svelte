@@ -29,8 +29,8 @@
 	let completedExecution: boolean = false;
 	let mode: string;
 
-	// textComponents = mockNodeAttrs;
-	// tokenDetails = mockGenTokens;
+	textComponents = mockNodeAttrs;
+	tokenDetails = mockGenTokens;
 
 	$: if ($kernelmsg !== undefined) {
 		if ($kernelmsg.content !== '') {
@@ -45,6 +45,7 @@
 				}
 			} else if (isResetDisplayMessage(msg)) {
 				textComponents = [];
+				completedExecution = false;
 			} else if (isMetricMessage(msg)) {
 				const name = msg.name;
 				const value = msg.value;
@@ -68,8 +69,6 @@
 			} else if (isExecutionCompletedMessage(msg)) {
 				completedExecution = true;
 			} else if (isExecutionCompletedOutputMessage(msg)) {
-				console.log(textComponents);
-				console.log(msg.tokens);
 				tokenDetails = msg.tokens;
 			}
 			textComponents = textComponents;
@@ -100,17 +99,17 @@
 		},
 		'ram': {
 			name: 'ram',
-			units: 'GB',
+			units: 'G',
 			description: 'Utilization of RAM.',
 			isScalar: true,
-			precision: 0,
+			precision: 1,
 		},
 		'vram': {
 			name: 'vram',
-			units: 'GB',
+			units: 'G',
 			description: 'Utilization of video RAM.',
 			isScalar: true,
-			precision: 0,
+			precision: 1,
 		},
 		'wall time': {
 			name: 'wall time',
@@ -180,9 +179,9 @@
 
 <StitchHandler/>
 <ResizeListener/>
-<div class="w-full min-h-48">
+<div class="w-full min-h-96">
 	<!-- Navigation bar -->
-	<nav class="sticky top-0 z-30 opacity-90 w-full flex bg-gray-100 text-gray-500 justify-between">
+	<nav class="sticky top-0 z-30 opacity-90 w-full flex bg-gray-100 shadow text-gray-500 justify-between">
 		<div class="pl-2 flex">
 			{#each Object.entries(metrics) as [name, value], i}
 				<MetricCard value={value} selected={name === selectedMetricDef.name} metricDef={metricDefs[name]} on:forwardclick={onNavClick} enabled={metricModes.has(name)}/>
