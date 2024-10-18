@@ -359,7 +359,33 @@ class Engine:
         k: int = 5,
     ) -> EngineOutput:
         t0 = time.time()
-        logits = self.get_logits(token_ids)
+        try:
+            logits = self.get_logits(token_ids)
+        except NotImplementedError:
+            # fallback to orignal get_next_token method
+            _t0 = time.time()
+            token_id = self.get_next_token(
+                token_ids=token_ids,
+                mask=mask,
+                temperature=temperature,
+            )
+            _lat = (time.time() - _t0) * 1000
+
+            _issued_token = GenToken(
+                token_id=token_id,
+                prob=1.0,
+                text=self.tokenizer.decode([token_id]).decode("utf-8"),
+                latency_ms=_lat,
+                is_generated=True,
+            )
+
+            return EngineOutput(
+                issued_token=_issued_token,
+                top_k=[
+                    _issued_token
+                ],
+                masked_top_k=[_issued_token] if mask is not None else None,
+            )
         lat_ms = (time.time() - t0) * 1000
 
         def get_top_k(_probs: np.ndarray, _k: int = 5) -> list[GenToken]:
