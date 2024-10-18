@@ -16,7 +16,7 @@ from guidance._schema import GenToken
 from .._model import Engine, Model, Chat
 from .._remote import RemoteEngine
 from .._tokenizer import Tokenizer
-from ..._utils import normalize_notebook_stdout_stderr
+from ..._utils import normalize_notebook_stdout_stderr, softmax
 
 try:
     import llama_cpp
@@ -273,7 +273,7 @@ class LlamaCppEngine(Engine):
         text_sequence.append([GenToken(token_id=token_ids[0], prob=1.0, text=_text)])
 
         for token_idx, logits in zip(token_ids[1:], logits_batch[:-1]):
-            _probs = self._softmax(logits)
+            _probs = softmax(logits)
 
             # get the top k indices
             top_k_indices, top_k_probs = self._top_k(_probs.copy(), top_k, ascending=False)
@@ -298,22 +298,19 @@ class LlamaCppEngine(Engine):
 
         return text_sequence
 
-    def _softmax(self, x) -> np.ndarray:
-        return np.exp(x - np.max(x)) / np.exp(x - np.max(x)).sum()
-
-    def _top_k(self, input, k, axis=None, ascending=True):
+    def _top_k(self, probs: np.ndarray, k: int, axis: int = None, ascending: bool = True):
         if not ascending:
-            input *= -1
-        ind = np.argpartition(input, k, axis=axis)
+            probs *= -1
+        ind = np.argpartition(probs, k, axis=axis)
         ind = np.take(ind, np.arange(k), axis=axis)  # k non-sorted indices
-        input = np.take_along_axis(input, ind, axis=axis)  # k non-sorted values
+        probs = np.take_along_axis(probs, ind, axis=axis)  # k non-sorted values
 
         # sort within k elements
-        ind_part = np.argsort(input, axis=axis)
+        ind_part = np.argsort(probs, axis=axis)
         ind = np.take_along_axis(ind, ind_part, axis=axis)
         if not ascending:
-            input *= -1
-        val = np.take_along_axis(input, ind_part, axis=axis)
+            probs *= -1
+        val = np.take_along_axis(probs, ind_part, axis=axis)
         return ind, val
 
 
