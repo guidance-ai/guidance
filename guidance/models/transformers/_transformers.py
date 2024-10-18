@@ -5,7 +5,7 @@ import warnings
 
 from typing import Sequence, Union
 
-from guidance._schema import BaseGenToken
+from guidance._schema import GenToken
 
 try:
     import torch
@@ -530,7 +530,7 @@ class TransformersEngine(Engine):
 
     def get_per_token_topk_probs(
         self, token_ids: list[int], top_k: int = 5
-    ) -> list[list[BaseGenToken]]:
+    ) -> list[list[GenToken]]:
         tokenizer = self.tokenizer._orig_tokenizer
 
         # NOTE (loc) - assume batch size of 1
@@ -555,7 +555,7 @@ class TransformersEngine(Engine):
                 if len(text_sequence) == 0:
                     text_sequence.append(
                         [
-                            BaseGenToken(
+                            GenToken(
                                 token_id=_token_id.item(),
                                 prob=1.0,
                                 text=tokenizer.decode([_token_id]),
@@ -572,7 +572,7 @@ class TransformersEngine(Engine):
                 top_k_probs = [_probs[i].item() for i in top_k_indices]
                 top_k_list = []
                 for t, p in zip(top_k_indices, top_k_probs):
-                    top_k_list.append(BaseGenToken(token_id=t, prob=p, text=tokenizer.decode([t])))
+                    top_k_list.append(GenToken(token_id=t, prob=p, text=tokenizer.decode([t])))
                 text_sequence.append(top_k_list)
 
             batch.append(text_sequence)

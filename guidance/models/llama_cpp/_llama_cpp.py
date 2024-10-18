@@ -11,7 +11,7 @@ from pathlib import Path
 
 import numpy as np
 
-from guidance._schema import BaseGenToken
+from guidance._schema import GenToken
 
 from .._model import Engine, Model, Chat
 from .._remote import RemoteEngine
@@ -221,7 +221,7 @@ class LlamaCppEngine(Engine):
 
     def get_per_token_topk_probs(
         self, token_ids: list[int], top_k: int = 5
-    ) -> list[list[BaseGenToken]]:
+    ) -> list[list[GenToken]]:
         if len(token_ids) == 0:
             return []
 
@@ -270,7 +270,7 @@ class LlamaCppEngine(Engine):
         except Exception as e:
             _text = str(_bytes)
             print(f"Failed to decode token: {token_ids[0]}, error: {e}, _bytes: {str(_bytes)}")
-        text_sequence.append([BaseGenToken(token_id=token_ids[0], prob=1.0, text=_text)])
+        text_sequence.append([GenToken(token_id=token_ids[0], prob=1.0, text=_text)])
 
         for token_idx, logits in zip(token_ids[1:], logits_batch[:-1]):
             _probs = self._softmax(logits)
@@ -292,7 +292,7 @@ class LlamaCppEngine(Engine):
                     print(
                         f"Failed to decode token: {_token_idx}, error: {e}, _bytes: {str(_bytes)}"
                     )
-                top_k_list.append(BaseGenToken(token_id=_token_idx, prob=_prob, text=_text))
+                top_k_list.append(GenToken(token_id=_token_idx, prob=_prob, text=_text))
 
             text_sequence.append(top_k_list)
 

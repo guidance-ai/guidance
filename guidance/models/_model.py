@@ -49,7 +49,6 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 from .._schema import (
-    BaseGenToken,
     EngineCallResponse,
     EngineOutput,
     GenToken,
@@ -468,7 +467,7 @@ class Engine:
 
     def get_per_token_topk_probs(
         self, token_ids: list[int], top_k: int = 5
-    ) -> list[list[BaseGenToken]]:
+    ) -> list[list[GenToken]]:
         """Get the top-k probabilities for each token in the sequence."""
         raise NotImplementedError
 
@@ -1305,7 +1304,7 @@ class Model:
             # FIXME (loc): assume prob 1.0 for all tokens
             probs = []
             for token_id, token_text in zip(token_ids, token_texts):
-                probs.append([BaseGenToken(token_id=token_id, prob=1.0, text=token_text)])
+                probs.append([GenToken(token_id=token_id, prob=1.0, text=token_text)])
 
         start_idx = 0
         end_idx = 1
