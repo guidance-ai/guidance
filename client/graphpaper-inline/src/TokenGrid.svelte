@@ -112,6 +112,7 @@
     let specialSet: Set<string> = new Set<string>();
     let namedRoleSet: Record<string, string> = {};
     let currentTokenIndex: number = 0;
+    let statCounter: Record<string, number> = {};
     $: {
         if (textComponents.length === 0) {
             // Reset
@@ -238,6 +239,7 @@
                     is_generated: tokenDetail.is_generated,
                     extra: tokenDetail,
                 };
+                statCounter["latency.max"] = Math.max(token.extra.latency_ms, statCounter["latency.max"] || 0);
                 tokens.push(token);
             }
         }
@@ -256,7 +258,8 @@
         } else if (bgField === "Probability") {
             bg = (x: Token) => bgStyle(x.prob);
         } else if (bgField === "Latency (ms)") {
-            bg = (x: Token) => bgStyle(x.extra?.latency_ms || 0);
+            bg = (x: Token) => bgStyle(Math.log(x.extra?.latency_ms || 0) / Math.log(statCounter['latency.max']));
+            console.log(statCounter['latency.max']);
         } else {
             bg = (_: Token) => "";
         }
