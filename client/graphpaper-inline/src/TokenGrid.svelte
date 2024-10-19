@@ -2,42 +2,93 @@
     import {isRoleOpenerInput, isTextOutput, type NodeAttr, type RoleOpenerInput, type GenToken} from './stitch';
     import TokenGridItem from "./TokenGridItem.svelte";
     import {type Token, type TokenCallback} from "./interfaces";
-    import {type MetricDef} from "./interfaces";
     import {longhover} from "./longhover";
     import DOMPurify from "dompurify";
 
-    import {scaleSequential} from "d3-scale";
-    import {interpolateCool, interpolateSpectral, interpolateOrRd, interpolateYlOrRd} from "d3-scale-chromatic";
-
-    const underlineColor = (x: number) => {
-        return interpolateOrRd(x);
-    };
-    const bgColor = (x: number) => {
-        return interpolateYlOrRd(1 - x);
-    };
+    import {interpolateGreens, interpolateYlOrRd} from "d3-scale-chromatic";
 
     export let textComponents: Array<NodeAttr>;
     export let tokenDetails: Array<GenToken>;
     export let isCompleted: boolean = false;
-    let metricDef: MetricDef = {
-        name: 'consumed'
+    export let bgField: string = "Token";
+    export let underlineField: string = "Probability";
+
+    let underline: TokenCallback = (_: Token) => "";
+    let bg: TokenCallback = (_: Token) => "";
+
+    const tokenDisplayValue = (x: Token, s: string) => {
+        if (s === "Probability") {
+            return x.prob.toFixed(3);
+        } else if (s === "Latency (ms)") {
+            return (x.extra?.latency_ms || 0).toFixed(0);
+        } else if (s === "Type") {
+            if (x.is_input) {
+                return "Input";
+            } else if (x.is_force_forwarded) {
+                return "Forwarded";
+            } else if (x.is_generated) {
+                return "Generated";
+            }
+        }
     };
 
-    let underline: TokenCallback | undefined;
-    let bg: TokenCallback | undefined;
+    const getBrightness = (rgba: string) => {
+        const rgbMatch = rgba.match(/rgba?\(\s*(\d+),\s*(\d+),\s*(\d+)/);
+        if (!rgbMatch) {
+            console.error('Invalid RGBA format.');
+            return 0;
+        }
 
-    const colorTokenEmit = (x: Token) => {
+        const r = parseInt(rgbMatch[1], 10);
+        const g = parseInt(rgbMatch[2], 10);
+        const b = parseInt(rgbMatch[3], 10);
+        return (r * 0.299 + g * 0.587 + b * 0.114);
+    };
+
+    const getTextColor = (backgroundColor: string) => {
+        const brightness = getBrightness(backgroundColor);
+        return (brightness) > 186 ? 'rgba(0, 0, 0, 1)' : 'rgba(255, 255, 255, 1)'; // Black for light bg, white for dark bg
+    };
+
+    const bgStyle = (x: number | undefined, color?: ((x: number) => string) | undefined) => {
+        if (x === undefined) {
+            return "";
+        }
+
+        let colorVal = interpolateYlOrRd(x);
+        if (color !== undefined) {
+            colorVal = color(x);
+        }
+        let textColor = getTextColor(colorVal);
+        return `background-color: ${colorVal}; color: ${textColor};`;
+    };
+
+    const underlineStyle = (x: number | undefined, color?: ((x: number) => string) | undefined) => {
+        if (x === undefined) {
+            return "";
+        }
+
+        let colorVal = interpolateGreens(x);
+        if (color !== undefined) {
+            colorVal = color(x);
+        }
+        return `border-bottom-color: ${colorVal};`;
+    };
+
+    const bgTokenStyle = (x: Token) => {
+        let color = "";
         if (x.is_input) {
-            return "rgba(255, 255, 255, 0)";
+            color = "rgba(255, 255, 255, 0)";
         } else if (x.is_force_forwarded) {
-            return "rgba(243, 244, 246, 1)";
+            color = "rgba(243, 244, 246, 1)";
         } else if (x.is_generated) {
-            return "rgba(229, 231, 235, 1)";
+            color = "rgba(229, 231, 235, 1)";
         } else {
             console.log(`ERROR: token ${x.text} does not have emit flags.`)
-            return "rgba(255, 255, 255, 0)";
+            color = "rgba(255, 255, 255, 0)";
         }
-    }
+        return `background-color: ${color};`;
+    };
 
     function findTargetWords(text: string, targetWords: string[]): [number, number, string][] {
         // NOTE(nopdive): Not the most efficient approach, but there aren't many special words anyway.
@@ -130,7 +181,6 @@
             const specialMatchStack = findTargetWords(fullText, Array.from(specialSet));
 
             tokens = [];
-
             let tokenStart = 0;
             let tokenEnd = 0;
             let withinRoleMatch = false;
@@ -193,12 +243,22 @@
         }
 
         // Visual updates
-        if (metricDef.name === 'avg latency') {
-            bg = (x: Token) => bgColor(x.extra?.latency_ms || 0);
-            underline = undefined;
+        if (underlineField === "Probability") {
+            underline = (x: Token) => underlineStyle(x.prob);
+        } else if (underlineField === "Latency (ms)") {
+            underline = (x: Token) => underlineStyle(x.extra?.latency_ms);
         } else {
-            underline = (x: Token) => underlineColor(x.prob);
-            bg = (x: Token) => colorTokenEmit(x);
+            underline = (_: Token) => "";
+        }
+
+        if (bgField === "Type") {
+            bg = (x: Token) => bgTokenStyle(x);
+        } else if (bgField === "Probability") {
+            bg = (x: Token) => bgStyle(x.prob);
+        } else if (bgField === "Latency (ms)") {
+            bg = (x: Token) => bgStyle(x.extra?.latency_ms || 0);
+        } else {
+            bg = (_: Token) => "";
         }
 
         // End bookkeeping (svelte)
@@ -292,47 +352,37 @@
 </script>
 
 <!-- Tooltip -->
-<div bind:this={tooltip} class="px-1 pt-2 pb-3 absolute opacity-95 bg-white shadow border border-gray-300 pointer-events-none z-50" style="top: {tooltipY}px; left: {tooltipX}px; display: none;">
+<div bind:this={tooltip} class="px-1 pt-1 pb-3 absolute opacity-95 bg-white shadow border border-gray-300 pointer-events-none z-50" style="top: {tooltipY}px; left: {tooltipX}px; display: none;">
     <div>
         {#if tooltipToken}
             <div class={`col-1 flex flex-col items-center`}>
-                <div class="text-2xl px-1 pt-1 pb-1 text-left w-full bg-white">
+                <div class="text-2xl px-1 pb-1 text-left w-full bg-white">
                     <div class="mb-4">
-                        <span class="border-b-2 border-red-700">
-                        {@html renderText(tooltipToken.text)}
-                        </span>
+                        <TokenGridItem token={tooltipToken} index={-1} underlineStyle={underline(tooltipToken)} bgStyle={bg(tooltipToken)}/>
                     </div>
                     <table class="w-full">
                         <tbody class="text-xs tracking-wider">
                             <tr>
                                 <td>
-                                    <span class="bg-gray-200">
-                                        Type
+                                    <span style={bg(tooltipToken)}>
+                                        {bgField}
                                     </span>
                                 </td>
                                 <td class="text-right">
                                     <span class="pl-1">
-                                        {#if tooltipToken.is_generated}
-                                            Generated
-                                        {:else if tooltipToken.is_input}
-                                            Input
-                                        {:else if tooltipToken.is_force_forwarded}
-                                            Forced
-                                        {:else}
-                                            Token
-                                        {/if}
+                                        {tokenDisplayValue(tooltipToken, bgField)}
                                     </span>
                                 </td>
                             </tr>
                             <tr>
                                 <td>
-                                    <span class="border-b-2 border-red-700">
-                                        Probability
+                                    <span class="border-b-2" style={underline(tooltipToken)}>
+                                        {underlineField}
                                     </span>
                                 </td>
                                 <td class="text-right">
                                     <span>
-                                        {tooltipToken.prob.toFixed(3)}
+                                        {tokenDisplayValue(tooltipToken, underlineField)}
                                     </span>
                                 </td>
                             </tr>
@@ -353,8 +403,8 @@
                         </tr>
                     </thead>
                     <tbody>
-                    {#each tooltipToken.extra.top_k as candidate}
-                        <tr>
+                    {#each tooltipToken.extra.top_k as candidate, i}
+                        <tr class={`${i === 5 ? "border-t border-dashed border-gray-300" : ""}`}>
                             <td class={`px-1 text-left font-mono text-sm decoration-2 ${candidate.is_masked ? "line-through" : ""}`}>
                                 <span class="bg-gray-200">
                                     {@html renderText(candidate.text)}
@@ -391,7 +441,7 @@
                     {/if}
                 {/if}
 
-                <TokenGridItem token={token} index={i} underline={underline} bg={bg}/>
+                <TokenGridItem token={token} index={i} underlineStyle={underline(token)} bgStyle={bg(token)}/>
             {/each}
 
             {#if isCompleted === false}

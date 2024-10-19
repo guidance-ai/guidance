@@ -16,7 +16,7 @@
     };
 </script>
 
-<div class={`flex flex-col items-center py-1 px-4 hover:bg-gray-900 group`}>
+<div class={`flex flex-col items-center py-1 px-4 hover:bg-gray-700 group`}>
     <div class={`uppercase tracking-wider text-xs text-gray-500 group-hover:text-gray-100 whitespace-nowrap`}>{metricDef.name}</div>
     {#if value.constructor === Array}
         <Minibar values={value} svgClass={"w-12 h-6"} rectClass={`fill-gray-700 group-hover:fill-gray-100`} padding={minibarPadding}/>

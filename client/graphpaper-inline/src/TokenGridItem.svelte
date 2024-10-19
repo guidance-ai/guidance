@@ -1,15 +1,10 @@
 <script lang="ts">
-    import {type Token, type TokenCallback} from "./interfaces";
+    import {type Token} from "./interfaces";
 
     export let token: Token;
     export let index: number;
-    export let underline: TokenCallback | undefined;
-    export let bg: TokenCallback | undefined;
-
-    let underlineStyle: string;
-    $: underlineStyle = underline !== undefined ? "border-bottom-color: " + underline(token)  + ";": "";
-    let bgStyle: string;
-    $: bgStyle = bg !== undefined ? "background-color: " + bg(token)  + ";": "";
+    export let underlineStyle: string = "";
+    export let bgStyle: string = "";
 </script>
 
 {#each token.text as ch, i}
