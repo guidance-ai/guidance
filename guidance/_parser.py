@@ -104,31 +104,25 @@ class TokenParser:
             if engine_output:
                 response.engine_outputs.append(engine_output)
 
-            # if ff_tokens:
-            #     if engine_output.issued_token.token == ff_tokens[0]:
-            #         # this is generated
-            #         response.generated_bytes = self.tokenizer.decode([ff_tokens[0]])
-
-            #     if len(ff_tokens[1:]):
-            #         response.force_forwarded_bytes = self.tokenizer.decode(ff_tokens[1:])
-
+            # NOTE (loc): Temporary solution to quickly check which segments are generated and which are force-forwarded to animate visualizations on the UI
+            # These tokens in chunk will not be used for final visualization
+            # TODO: This should be handled by the interpreter
             if response.new_bytes:
                 _tokens = self.tokenizer.encode(response.new_bytes)
-                # _tokens = ff_tokens
 
                 ff_token_start_idx = 1
                 if engine_output is None:
                     ff_token_start_idx = 0
-                elif engine_output.issued_token.token == _tokens[0]:
+                elif engine_output.issued_token.token_id == _tokens[0]:
                     # this is generated
                     response.generated_bytes = self.tokenizer.decode([_tokens[0]])
                     engine_output.issued_token.is_generated = True
                     response.generated_tokens.append(engine_output.issued_token)
                 else:
                     # check if the first byte contains the generated token
-                    generated = self.tokenizer.decode([engine_output.issued_token.token]).decode(
-                        "utf-8"
-                    )
+                    generated = self.tokenizer.decode(
+                        [engine_output.issued_token.token_id]
+                    ).decode("utf-8")
                     force_forwarded = self.tokenizer.decode([_tokens[0]]).decode("utf-8")
 
                     if force_forwarded.startswith(generated):
@@ -137,7 +131,7 @@ class TokenParser:
                         response.generated_bytes = self.tokenizer.decode([_tokens[0]])
                         response.generated_tokens.append(
                             GenToken(
-                                token=_tokens[0],
+                                token_id=_tokens[0],
                                 prob=1.0,
                                 text=response.generated_bytes.decode("utf-8"),
                                 latency_ms=engine_output.issued_token.latency_ms,
@@ -154,7 +148,7 @@ class TokenParser:
                     for _token in _tokens[ff_token_start_idx:]:
                         response.force_forwarded_tokens.append(
                             GenToken(
-                                token=_token,
+                                token_id=_token,
                                 prob=1.0,
                                 text=self.tokenizer.decode([_token]).decode("utf-8"),
                                 latency_ms=0,
@@ -176,22 +170,22 @@ class TokenParser:
                 engine_output = yield (gen_data, response)
                 if engine_output is None:
                     raise TokenParserException("Expected EngineOutput, got None")
-                if not mask[engine_output.issued_token.token]:
+                if not mask[engine_output.issued_token.token_id]:
                     # Note: we could punt this probem to ll_interpreter.post_process,
                     # but it's a bit clearer to handle it here
                     raise InvalidTokenException(
-                        engine_output.issued_token.token, gen_data.valid_next_tokens, tokens
+                        engine_output.issued_token.token_id, gen_data.valid_next_tokens, tokens
                     )
             else:
                 gen_data = None
                 engine_output = yield (gen_data, response)
                 if engine_output is not None:
                     raise TokenParserException(
-                        f"Expected None, got token {engine_output.issued_token.token}"
+                        f"Expected None, got token {engine_output.issued_token.token_id}"
                     )
 
             backtrack, ff_tokens = self.ll_interpreter.post_process(
-                engine_output.issued_token.token
+                engine_output.issued_token.token_id
             )
             if backtrack:
                 tokens = tokens[:-backtrack]
