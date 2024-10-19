@@ -49,7 +49,6 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 from .._schema import (
-    BaseGenToken,
     EngineCallResponse,
     EngineOutput,
     GenToken,
@@ -227,7 +226,7 @@ class Engine:
                 final_text = "".join([gen_token.text for gen_token in processed_gen_tokens])
                 logger.debug(f"ENGINE:final_text:{final_text}")
 
-                tokens = [gen_token.token for gen_token in processed_gen_tokens]
+                tokens = [gen_token.token_id for gen_token in processed_gen_tokens]
                 self.renderer.update(
                     ExecutionCompletedOutputMessage(
                         trace_id=message.last_trace_id,
@@ -330,14 +329,17 @@ class Engine:
                 else:
                     mask = gen_data.mask
 
-                engine_output = self.get_next_top_k_tokens(
+                engine_output = self.get_next_token_with_top_k(
                     token_ids=gen_data.tokens,
                     mask=mask,
                     temperature=gen_data.temperature,
-                )[0]
+                )
 
-                if is_in_accepting_state and not gen_data.mask[engine_output.issued_token.token]:
-                    engine_output.issued_token.token = self.tokenizer.eos_token_id
+                if (
+                    is_in_accepting_state
+                    and not gen_data.mask[engine_output.issued_token.token_id]
+                ):
+                    engine_output.issued_token.token_id = self.tokenizer.eos_token_id
                     # TODO: Should we set the prob to 1.0 here?
                     engine_output.issued_token.prob = 1.0
             else:
@@ -348,18 +350,39 @@ class Engine:
 
             yield response
 
-    def get_next_top_k_tokens(
+    def get_next_token_with_top_k(
         self,
         token_ids: list[int],
         mask: Optional[bytes],
         temperature: float,
         k: int = 5,
-    ) -> list[EngineOutput]:
+    ) -> EngineOutput:
         t0 = time.time()
-        new_tokens_logits = [self.get_logits(token_ids)]
-        if new_tokens_logits is None:
-            return []
+        try:
+            logits = self.get_logits(token_ids)
+        except NotImplementedError:
+            # fallback to orignal get_next_token method
+            _t0 = time.time()
+            token_id = self.get_next_token(
+                token_ids=token_ids,
+                mask=mask,
+                temperature=temperature,
+            )
+            _lat = (time.time() - _t0) * 1000
 
+            _issued_token = GenToken(
+                token_id=token_id,
+                prob=1.0,
+                text=self.tokenizer.decode([token_id]).decode("utf-8"),
+                latency_ms=_lat,
+                is_generated=True,
+            )
+
+            return EngineOutput(
+                issued_token=_issued_token,
+                top_k=[_issued_token],
+                masked_top_k=[_issued_token] if mask is not None else None,
+            )
         lat_ms = (time.time() - t0) * 1000
 
         def get_top_k(_probs: np.ndarray, _k: int = 5) -> list[GenToken]:
@@ -368,7 +391,7 @@ class Engine:
 
             return [
                 GenToken(
-                    token=token,
+                    token_id=token,
                     prob=prob,
                     text=self.tokenizer.decode([token]).decode("utf-8"),
                     latency_ms=lat_ms,
@@ -380,71 +403,52 @@ class Engine:
 
         # compute top-k without masking
         probs = (
-            softmax(np.array(new_tokens_logits))
+            softmax(np.array(logits))
             if temperature < 0.0001
-            else softmax(np.array(new_tokens_logits) / temperature)
+            else softmax(np.array(logits) / temperature)
         )
 
-        engine_list = []
-        unseen_tokens = token_ids[-len(probs) :][1:]
-        # for _probs, _logits in zip(probs, logits):
+        top_k: list[GenToken] = get_top_k(probs, k)
 
-        # we're missing the very first token
-        if len(token_ids) == len(probs):
-            first_token = token_ids[0]
-            engine_list.insert(
-                0,
-                EngineOutput(
-                    issued_token=GenToken(
-                        token=first_token,
-                        prob=1.0,
-                        text=self.tokenizer.decode([first_token]).decode("utf-8"),
-                        latency_ms=0,
-                        is_generated=False,
-                    ),
-                    top_k=[],
-                    masked_top_k=[],
-                    is_backtracked=False,
-                ),
+        # compute top-k with masking
+        masked_top_k: list[GenToken] = []
+        if mask is not None:
+            # shift logits to [0 - max] range first and apply mask
+            masked_logits = (logits - np.min(logits)) * np.frombuffer(mask, dtype=np.uint8)
+            masked_probs = (
+                softmax(masked_logits)
+                if temperature < 0.0001
+                else softmax(masked_logits / temperature)
             )
+            masked_top_k = get_top_k(masked_probs, k)
 
-        for i, _probs in enumerate(probs):
-            top_k: list[GenToken] = get_top_k(_probs, k)
-            _logits = new_tokens_logits[i]
-
-            # compute top-k with masking
-            masked_top_k: list[GenToken] = []
-            if mask is not None:
-                # shift logits to [0 - max] range first and apply mask
-                masked_logits = (_logits - np.min(_logits)) * np.frombuffer(mask, dtype=np.uint8)
-                masked_probs = (
-                    softmax(masked_logits)
-                    if temperature < 0.0001
-                    else softmax(masked_logits / temperature)
-                )
-                masked_top_k = get_top_k(masked_probs, k)
-
+        if temperature < 0.0001:
             issued_token = masked_top_k[0] if len(masked_top_k) > 0 else top_k[0]
-            if i < len(unseen_tokens):
-                token = unseen_tokens[i]
-                issued_token = GenToken(
-                    token=token,
-                    prob=_probs[token],
-                    text=self.tokenizer.decode([token]).decode("utf-8"),
-                    latency_ms=0,
-                    is_generated=False,
-                )
+        else:
+            # we need to sample from the probabilities
+            if mask is None:
+                sampled_index = np.random.choice(len(probs), p=probs)
+                sampled_prob = probs[sampled_index]
+            else:
+                sampled_index = np.random.choice(len(masked_probs), p=masked_probs)
+                sampled_prob = masked_probs[sampled_index]
 
-            engine_list.append(
-                EngineOutput(
-                    issued_token=issued_token,
-                    top_k=top_k,
-                    masked_top_k=None if not masked_top_k else masked_top_k,
-                    is_backtracked=False,
-                )
+            issued_token = GenToken(
+                token_id=sampled_index,
+                prob=sampled_prob,
+                text=self.tokenizer.decode([sampled_index]).decode("utf-8"),
+                latency_ms=lat_ms,
+                is_generated=True,
             )
 
-        return engine_list
+        output = EngineOutput(
+            issued_token=issued_token,
+            top_k=top_k,
+            masked_top_k=None if not masked_top_k else masked_top_k,
+            is_backtracked=False,
+        )
+
+        return output
 
     def get_next_token(
         self, token_ids: list[int], mask: Optional[bytes], temperature: float
@@ -459,7 +463,10 @@ class Engine:
     def get_logits(self, token_ids: list[int]) -> np.ndarray:
         raise NotImplementedError
 
-    def get_token_probs(self, token_ids: list[int], top_k: int = 5) -> list[list[BaseGenToken]]:
+    def get_per_token_topk_probs(
+        self, token_ids: list[int], top_k: int = 5
+    ) -> list[list[GenToken]]:
+        """Get the top-k probabilities for each token in the sequence."""
         raise NotImplementedError
 
     def sample_with_temperature(
@@ -836,10 +843,9 @@ class Model:
                 out.vis_chunk = VisBytesChunk(
                     bytes=_bytes,
                     is_input=True,
-                    input_bytes=_bytes,
                     input_tokens=[
                         GenToken(
-                            token=_token,
+                            token_id=_token,
                             prob=1.0,
                             text=out.engine.tokenizer.decode([_token]).decode("utf-8"),
                             latency_ms=0,
@@ -1112,24 +1118,6 @@ class Model:
                 if chunk.backtrack:
                     lm.engine.metrics.engine_backtrack_tokens += chunk.backtrack
 
-                # while chunk.backtrack > 0:
-                #     parent = lm._parent
-                #     while parent is not None:
-                #         if parent.vis_chunk is not None:
-                #             break
-
-                #         parent = parent._parent
-
-                #     if parent.vis_chunk.input_tokens:
-                #         parent.vis_chunk.input_tokens.pop()
-                #         chunk.backtrack -= 1
-                #     elif parent.vis_chunk.generated_tokens:
-                #         parent.vis_chunk.generated_tokens.pop()
-                #         chunk.backtrack -= 1
-                #     elif parent.vis_chunk.force_forwarded_tokens:
-                #         parent.vis_chunk.force_forwarded_tokens.pop()
-                #         chunk.backtrack -= 1
-
                 if len(chunk.new_bytes) > 0:
                     generated_value += new_text
 
@@ -1140,6 +1128,7 @@ class Model:
                     #     prob=chunk.new_bytes_prob,
                     # )
 
+                    # split chunk into generated and force_forwarded parts for better animated visualization
                     if chunk.generated_bytes:
                         lm += TextOutput(
                             value=chunk.generated_bytes.decode("utf8"),
@@ -1166,9 +1155,8 @@ class Model:
                     lm.vis_chunk = VisBytesChunk(
                         bytes=chunk.new_bytes,
                         is_input=False,
-                        generated_bytes=chunk.generated_bytes,
+                        # generated_bytes=chunk.generated_bytes,
                         generated_tokens=chunk.generated_tokens,
-                        force_forwarded_bytes=chunk.force_forwarded_bytes,
                         force_forwarded_tokens=chunk.force_forwarded_tokens,
                         backtrack=chunk.backtrack,
                         engine_outputs=chunk.engine_outputs,
@@ -1176,8 +1164,6 @@ class Model:
                 else:
                     # append to existing VisBytesChunk
                     lm.vis_chunk.bytes += chunk.new_bytes
-                    lm.vis_chunk.generated_bytes += chunk.generated_bytes
-                    lm.vis_chunk.force_forwarded_bytes += chunk.force_forwarded_bytes
                     lm.vis_chunk.backtrack += chunk.backtrack
                     lm.vis_chunk.engine_outputs += chunk.engine_outputs
 
@@ -1250,6 +1236,12 @@ class Model:
         return lm
 
     def get_per_token_stats(self) -> list[GenToken]:
+        """Get the per token stats (prob, top-k, latency, etc.) for the model.
+
+        Returns
+            List[GenToken]: a list of GenToken objects.
+        """
+
         paths = []
         model = self
         while model is not None:
@@ -1258,39 +1250,65 @@ class Model:
                 break
 
             model: "Model" = self.engine.model_dict[model._parent_id]
-
         paths.reverse()
 
         vis_chunks: list[VisBytesChunk] = [
             path.vis_chunk for path in paths if path.vis_chunk is not None
         ]
 
-        gen_tokens_lats = []
-        gen_tokens_indices = []
+        gen_tokens_infos: list[tuple[int, float, list[GenToken]]] = []
+        gen_tokens_indices: list[int] = []
         for vis_chunk in vis_chunks:
             for engine_output in vis_chunk.engine_outputs:
-                gen_tokens_lats.append(
+                gen_tokens_infos.append(
                     (
-                        engine_output.issued_token.token,
+                        engine_output.issued_token.token_id,
                         engine_output.issued_token.latency_ms,
                         engine_output.masked_top_k,
                     )
                 )
-            gen_tokens_indices.append(len(gen_tokens_lats) - 1)
+            gen_tokens_indices.append(len(gen_tokens_infos) - 1)
 
         text = self._state
-        tokens = self.engine.tokenizer.encode(text.encode("utf-8"))
+        token_ids = self.engine.tokenizer.encode(text.encode("utf-8"))
 
-        # NOTE (loc): Not all engines support the get_token_probs method
+        # verify if text == encode(decode(text))
+        decoded_text = self.engine.tokenizer.decode(token_ids).decode("utf-8")
+
+        token_texts: list[str] = []
+        if text == decoded_text:
+            for idx, token_id in enumerate(token_ids):
+                token_texts.append(self.engine.tokenizer.decode([token_id]).decode("utf-8"))
+        else:
+            # Some models like phi-3 removes spaces and line breaks
+            # Scan through the text and find the missing chunks so we can map the token back into generated chunks by the parser later on
+            ptr_idx = 0
+            for token_id in token_ids:
+                missing_chunk = ""
+                decoded = self.engine.tokenizer.decode([token_id]).decode("utf-8")
+                if not text[ptr_idx:].startswith(decoded):
+                    _next_idx = ptr_idx
+                    found = False
+                    while _next_idx < len(text):
+                        if text[_next_idx:].startswith(decoded):
+                            found = True
+                            break
+                        _next_idx += 1
+
+                    assert found, f"Failed to find the token {decoded} in the text {text}"
+                    missing_chunk = text[ptr_idx:_next_idx]
+
+                token_texts.append(missing_chunk + decoded)
+                ptr_idx += len(missing_chunk + decoded)
+
+        # NOTE (loc): Not all engines support the get_logits method
         try:
-            probs = self.engine.get_token_probs(tokens)
-        except Exception as e:
+            probs = self.engine.get_per_token_topk_probs(token_ids)
+        except:
             # FIXME (loc): assume prob 1.0 for all tokens
-            probs = [1.0] * len(tokens)
-
-        tokens_texts: list[str] = []
-        for idx in range(len(tokens)):
-            tokens_texts.append(self.engine.tokenizer.decode([tokens[idx]]).decode("utf-8"))
+            probs = []
+            for token_id, token_text in zip(token_ids, token_texts):
+                probs.append([GenToken(token_id=token_id, prob=1.0, text=token_text)])
 
         start_idx = 0
         end_idx = 1
@@ -1298,20 +1316,22 @@ class Model:
         remainder = ""
 
         processed_gen_tokens = []
+        # Map token back to generated chunk to extract correct info (is_generated, latency, etc.)
         for vis_chunk_idx, vis_chunk in enumerate(vis_chunks):
             vis_text = vis_chunk.bytes.decode("utf-8")
 
             if not vis_text:
                 continue
 
+            # Find the chunk starting at start_idx that contains the vis_text
             end_idx = start_idx
-            _chunk = "".join(tokens_texts[start_idx : end_idx + 1])
-            while vis_text not in _chunk and end_idx < len(tokens_texts):
+            _chunk = "".join(token_texts[start_idx : end_idx + 1])
+            while vis_text not in _chunk and end_idx < len(token_texts):
                 # expand the chunk
                 end_idx += 1
-                _chunk = "".join(tokens_texts[start_idx : end_idx + 1])
+                _chunk = "".join(token_texts[start_idx : end_idx + 1])
 
-            if vis_text not in _chunk and end_idx >= len(tokens_texts):
+            if vis_text not in _chunk and end_idx >= len(token_texts):
                 # failed = True
                 # break
                 raise Exception(f"Failed to find the {vis_text} in the tokens chunk {_chunk}")
@@ -1325,28 +1345,31 @@ class Model:
 
             if remainder:
                 # we have a current chunk that is larger than the vis_text
-                # probably the last token is a partial token
+                # probably the last token is a partial token that spans across two chunks due to backtracking
                 # we should not issue that token for now
                 end_idx -= 1
 
-            real_chunk_tokens = tokens[start_idx : end_idx + 1]
-            real_chunk_probs = probs[start_idx : end_idx + 1]
+            _chunk_token_ids = token_ids[start_idx : end_idx + 1]
+            _chunk_probs = probs[start_idx : end_idx + 1]
+            _chunk_token_texts = token_texts[start_idx : end_idx + 1]
 
             is_input = len(vis_chunk.input_tokens) > 0
             is_force_forwarded = len(vis_chunk.force_forwarded_tokens) > 0
 
             _gen_tokens: list[GenToken] = []
-            for token, top_k_prob in zip(real_chunk_tokens, real_chunk_probs):
+            for token_id, top_k_prob, token_text in zip(
+                _chunk_token_ids, _chunk_probs, _chunk_token_texts
+            ):
                 prob = -1
                 for _token in top_k_prob:
-                    if _token.token == token:
+                    if _token.token_id == token_id:
                         prob = _token.prob
                         break
 
                 _gen_token = GenToken(
-                    token=token,
+                    token_id=token_id,
                     prob=prob,
-                    text=self.engine.tokenizer.decode([token]).decode("utf-8"),
+                    text=token_text,
                     latency_ms=0,
                     is_input=is_input,
                     is_generated=False,
@@ -1363,20 +1386,27 @@ class Model:
                         if is_force_forwarded:
                             _gen_token.is_force_forwarded = True
 
+                    # Start from the end of current chunk
+                    # go backwards to find the match between token and associated text string
                     found_perfect_match = False
                     max_idx = gen_tokens_indices[vis_chunk_idx]
                     for idx in range(max_idx, -1, -1):
-                        if _gen_token.token == gen_tokens_lats[idx][0]:
-                            _gen_token.latency_ms = gen_tokens_lats[idx][1]
-                            _masked_top_k = gen_tokens_lats[idx][2]
+                        if _gen_token.token_id == gen_tokens_infos[idx][0]:
+                            _gen_token.latency_ms = gen_tokens_infos[idx][1]
+                            _masked_top_k = gen_tokens_infos[idx][2]
+
+                            # if we find a match in tokens list generated by the engine, then this token should be marked as generated
+                            _gen_token.is_generated = True
+                            _gen_token.is_force_forwarded = False
+
                             if _masked_top_k is None:
                                 # in free accepting state, no masking
                                 for _token in _gen_token.top_k:
                                     _token.is_masked = False
                             else:
-                                _masked_tokens = [token.token for token in _masked_top_k]
+                                _masked_tokens = [token.token_id for token in _masked_top_k]
                                 for _token in _gen_token.top_k:
-                                    if _token.token not in _masked_tokens:
+                                    if _token.token_id not in _masked_tokens:
                                         _token.is_masked = True
                                     else:
                                         _token.is_masked = False
@@ -1384,6 +1414,9 @@ class Model:
                             found_perfect_match = True
                             break
 
+                    # NOTE (loc): There are cases that the generated token and issued token are not matched
+                    # for example, the engine may issue token "pl" but the parser decides to generate token "plate" due to the constraints
+                    # To mitigate the issue, we narrow down the search space to find the text that may contain the generated token
                     if not found_perfect_match:
                         # only search within this chunk
                         max_idx = gen_tokens_indices[vis_chunk_idx]
@@ -1392,23 +1425,28 @@ class Model:
                         )
                         for idx in range(max_idx, prev_max_idx, -1):
                             if (
-                                self.engine.tokenizer.decode([gen_tokens_lats[idx][0]]).decode(
+                                self.engine.tokenizer.decode([gen_tokens_infos[idx][0]]).decode(
                                     "utf-8"
                                 )
                                 in _gen_token.text
                             ):
-                                _gen_token.latency_ms = gen_tokens_lats[idx][1]
-                                _masked_top_k = gen_tokens_lats[idx][2]
+                                _gen_token.latency_ms = gen_tokens_infos[idx][1]
+                                _masked_top_k = gen_tokens_infos[idx][2]
+
+                                # if we find a match in tokens list generated by the engine, then this token should be marked as generated
+                                _gen_token.is_generated = True
+                                _gen_token.is_force_forwarded = False
+
                                 if _masked_top_k is None:
                                     # in free accepting state, no masking
                                     for _token in _gen_token.top_k:
                                         _token.is_masked = False
                                 else:
-                                    _masked_tokens = [token.token for token in _masked_top_k]
+                                    _masked_tokens = [token.token_id for token in _masked_top_k]
                                     for _token in _gen_token.top_k:
                                         if (
-                                            _token.token not in _masked_tokens
-                                            and _token.token != _gen_token.token
+                                            _token.token_id not in _masked_tokens
+                                            and _token.token_id != _gen_token.token_id
                                         ):
                                             _token.is_masked = True
                                         else:
@@ -1603,7 +1641,7 @@ def _monitor_fn(
             # only collect GPU stats if there is at least one GPU
             to_collect_gpu_stats = True
     except:
-        pass
+        logger.warning("gpustat is not installed, run `pip install gpustat` to collect GPU stats.")
 
     try:
         while not stop_flag.value:
