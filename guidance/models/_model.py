@@ -357,6 +357,25 @@ class Engine:
         temperature: float,
         k: int = 5,
     ) -> EngineOutput:
+        """Get the next token and associated top-k tokens from the engine.
+
+        Parameters
+        -------
+        token_ids : list[int]
+            The current token ids in the sequence.
+        mask : Optional[bytes]
+            The mask to apply to the logits.
+        temperature : float
+            The temperature to apply to the logits.
+        k : int
+            The number of top-k tokens to return.
+
+        Returns
+        -------
+        EngineOutput
+            The output from the model.
+        """
+
         t0 = time.time()
         try:
             logits = self.get_logits(token_ids)
@@ -837,7 +856,7 @@ class Model:
                 lm._inplace_append(value)
                 out = lm
 
-                # generate VisBytesChunk
+                # generate VisBytesChunk so we know this chunk is input
                 _bytes = value.encode("utf-8")
                 _tokens = out.engine.tokenizer.encode(_bytes)
                 out.vis_chunk = VisBytesChunk(
