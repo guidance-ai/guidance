@@ -1,16 +1,23 @@
 from typing import Optional, Dict, Union
-from pydantic import BaseModel
 
-from guidance._schema import GenToken
+from pydantic import BaseModel, Field, PrivateAttr
+
+from guidance._schema import GenTokenExtra
 from ..trace import NodeAttr
 import json
 
 
+_msg_counter: int = -1
 class GuidanceMessage(BaseModel):
+    message_id: int = Field(default=None)
     class_name: str = ""
 
     def __init__(self, **kwargs):
+        global _msg_counter
+
         kwargs["class_name"] = self.__class__.__name__
+        _msg_counter += 1
+        kwargs["message_id"] = _msg_counter
         super().__init__(**kwargs)
 
 
@@ -33,7 +40,7 @@ class ExecutionCompletedMessage(GuidanceMessage):
 class ExecutionCompletedOutputMessage(GuidanceMessage):
     trace_id: int
     text: str
-    tokens: list[GenToken] = []
+    tokens: list[GenTokenExtra]
 
 
 class ResetDisplayMessage(GuidanceMessage):
@@ -44,12 +51,22 @@ class ClientReadyMessage(GuidanceMessage):
     pass
 
 
+class ClientReadyAckMessage(GuidanceMessage):
+    pass
+
+
+class OutputRequestMessage(GuidanceMessage):
+    pass
+
+
 model_registry: Dict[str, type(GuidanceMessage)] = {
     'TraceMessage': TraceMessage,
     'ExecutionCompleted': ExecutionCompletedMessage,
     'ExecutionCompletedOutputMessage': ExecutionCompletedOutputMessage,
     'ResetDisplayMessage': ResetDisplayMessage,
     'ClientReadyMessage': ClientReadyMessage,
+    'ClientReadyAckMessage': ClientReadyAckMessage,
+    'OutputRequestMessage': OutputRequestMessage,
     'MetricMessage': MetricMessage,
 }
 

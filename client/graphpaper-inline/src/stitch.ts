@@ -1,18 +1,18 @@
 import {writable} from 'svelte/store';
 
-export interface BaseToken {
-    token: number,
+export interface GenToken {
+    token_id: number,
     prob: number,
     text: string,
-    is_masked: boolean,
-}
-
-export interface GenToken extends BaseToken {
     latency_ms: number,
+    is_masked: boolean,
     is_generated: boolean,
     is_force_forwarded: boolean,
     is_input: boolean,
-    top_k: Array<BaseToken>,
+}
+
+export interface GenTokenExtra extends GenToken {
+    top_k: Array<GenToken>,
 }
 
 export interface NodeAttr {
@@ -43,7 +43,8 @@ export interface RoleCloserInput extends NodeAttr {
 }
 
 export interface GuidanceMessage {
-    class_name: string
+    message_id: number,
+    class_name: string,
 }
 
 export interface TraceMessage extends GuidanceMessage {
@@ -66,11 +67,19 @@ export interface ExecutionCompletedOutputMessage extends GuidanceMessage {
     class_name: 'ExecutionCompletedOutputMessage',
     trace_id: number,
     text: string,
-    tokens: Array<GenToken>,
+    tokens: Array<GenTokenExtra>,
 }
 
 export interface ClientReadyMessage extends GuidanceMessage {
     class_name: 'ClientReadyMessage'
+}
+
+export interface ClientReadyAckMessage extends GuidanceMessage {
+    class_name: 'ClientReadyAckMessage'
+}
+
+export interface OutputRequestMessage extends GuidanceMessage {
+    class_name: 'OutputRequestMessage'
 }
 
 export interface MetricMessage extends GuidanceMessage {
@@ -85,7 +94,12 @@ export interface StitchMessage {
     content: any
 }
 
-export function isTraceMessage(o: NodeAttr | undefined | null): o is TraceMessage {
+export function isGuidanceMessage(o: GuidanceMessage | undefined | null): o is GuidanceMessage {
+    if (o === undefined || o === null) return false;
+    return o.hasOwnProperty("class_name") && o.hasOwnProperty("message_id");
+}
+
+export function isTraceMessage(o: GuidanceMessage | undefined | null): o is TraceMessage {
     if (o === undefined || o === null) return false;
     return o.class_name === "TraceMessage";
 }
@@ -105,22 +119,27 @@ export function isTextOutput(o: NodeAttr | undefined | null): o is TextOutput {
     return o.class_name === "TextOutput";
 }
 
-export function isResetDisplayMessage(o: NodeAttr | undefined | null): o is ResetDisplayMessage {
+export function isResetDisplayMessage(o: GuidanceMessage | undefined | null): o is ResetDisplayMessage {
     if (o === undefined || o === null) return false;
     return o.class_name === "ResetDisplayMessage";
 }
 
-export function isMetricMessage(o: NodeAttr | undefined | null): o is MetricMessage {
+export function isMetricMessage(o: GuidanceMessage | undefined | null): o is MetricMessage {
     if (o === undefined || o === null) return false;
     return o.class_name === "MetricMessage";
 }
 
-export function isExecutionCompletedMessage(o: NodeAttr | undefined | null): o is ExecutionCompletedMessage {
+export function isClientReadyAckMessage(o: GuidanceMessage | undefined | null): o is MetricMessage {
+    if (o === undefined || o === null) return false;
+    return o.class_name === "ClientReadyAckMessage";
+}
+
+export function isExecutionCompletedMessage(o: GuidanceMessage | undefined | null): o is ExecutionCompletedMessage {
     if (o === undefined || o === null) return false;
     return o.class_name === "ExecutionCompletedMessage";
 }
 
-export function isExecutionCompletedOutputMessage(o: NodeAttr | undefined | null): o is ExecutionCompletedOutputMessage {
+export function isExecutionCompletedOutputMessage(o: GuidanceMessage | undefined | null): o is ExecutionCompletedOutputMessage {
     if (o === undefined || o === null) return false;
     return o.class_name === "ExecutionCompletedOutputMessage";
 }

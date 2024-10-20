@@ -1,15 +1,16 @@
+import asyncio
 import logging
+import weakref
 from typing import Optional, Callable
 from pydantic import BaseModel
 from asyncio import Queue
 
 from ._message import ExecutionCompletedMessage, ExecutionCompletedOutputMessage, \
-    deserialize_message, serialize_message, MetricMessage
+    deserialize_message, serialize_message, MetricMessage, ClientReadyAckMessage
 from ..trace import TraceHandler
 from ..visual import GuidanceMessage, TraceMessage, ResetDisplayMessage, ClientReadyMessage
 from ._trace import trace_node_to_html
-from ._async import run_async_task, ThreadSafeAsyncCondVar, async_loop
-
+from ._async import run_async_coroutine, ThreadSafeAsyncCondVar, async_loop, async_task
 
 try:
     from IPython.display import clear_output, display, HTML
@@ -169,7 +170,7 @@ _create_stitch_widget.src_doc_template = None
 
 
 class JupyterWidgetRenderer(Renderer):
-    def __init__(self, trace_handler: TraceHandler, wait_for_client=True) -> None:
+    def __init__(self, trace_handler: TraceHandler) -> None:
         self._update_controller = UpdateController(trace_handler)
         self._jupyter_widget = None
         self._jupyter_change_detector = JupyterChangeDetector()
@@ -179,19 +180,28 @@ class JupyterWidgetRenderer(Renderer):
 
         self._send_queue: Optional[Queue] = None
         self._recv_queue: Optional[Queue] = None
-        self._wait_for_client = wait_for_client
-        self._client_ready = ThreadSafeAsyncCondVar(async_loop())
         self._cell_executed = ThreadSafeAsyncCondVar(async_loop())
 
         # Wait for queues to instantiate
-        future = run_async_task(self._create_queues())
+        future = run_async_coroutine(self._create_queues())
         future.result()
 
         # Start send/recv message loops
-        run_async_task(self._handle_recv_messages())
-        run_async_task(self._handle_send_messages())
+        recv_coroutine = self._handle_recv_messages()
+        send_coroutine = self._handle_send_messages()
+        self._recv_task = run_async_coroutine(async_task(recv_coroutine)).result()
+        self._send_task = run_async_coroutine(async_task(send_coroutine)).result()
 
+        weakref.finalize(self, self.cleanup)
         super().__init__()
+
+    def cleanup(self):
+        # NOTE(nopdive): This might not be called on GC due potential circular refs.
+        # Follow-up work is dependent on overall memory review for engine.
+
+        logger.debug("RENDERER:cleanup")
+        self._loop.call_soon_threadsafe(self._send_queue.put_nowait, None)
+        self._loop.call_soon_threadsafe(self._recv_queue.put_nowait, None)
 
     async def _create_queues(self) -> None:
         self._send_queue = Queue()
@@ -219,7 +229,6 @@ class JupyterWidgetRenderer(Renderer):
             self._loop.call_soon_threadsafe(self._send_queue.put_nowait, out_message)
 
     def _handle_jupyter_cell_completion(self):
-        # TODO(nopdive): Review interaction of primary/UI thread here.
         if self._jupyter_change_detector.has_changed():
             if self._is_alive_cell_cb:
                 get_ipython().events.unregister('post_execute', self._cell_completion_cb)
@@ -236,9 +245,6 @@ class JupyterWidgetRenderer(Renderer):
 
             # Message Python observers
             self.notify(message)
-
-            # Message client observers
-            # self._loop.call_soon_threadsafe(self._send_queue.put_nowait, message)
         finally:
             get_ipython().events.unregister('post_execute', self._cell_completion_cb)
             self._is_alive_cell_cb = False
@@ -254,11 +260,18 @@ class JupyterWidgetRenderer(Renderer):
             try:
                 value = await self._recv_queue.get()
                 # logger.debug(f"RECV:raw:{value}")
+
+                if value is None:
+                    logger.debug("RECV:closing")
+                    break
+
                 message = deserialize_message(value)
                 # logger.debug(f"RECV:msg:{message}")
+
                 if isinstance(message, ClientReadyMessage):
                     logger.debug("RECV:clientready")
-                    self._client_ready.notify()
+                    self._loop.call_soon_threadsafe(self._send_queue.put_nowait, ClientReadyAckMessage())
+
                 self.notify(message)
                 self._recv_queue.task_done()
             except Exception as e:
@@ -267,22 +280,25 @@ class JupyterWidgetRenderer(Renderer):
     async def _handle_send_messages(self):
         logger.debug("SEND:init")
 
-        # Wait until ready
-        # TODO(nopdive): This blocks until cell completion. Not what we want.
-        # if self._wait_for_client:
-        #     await self._client_ready.wait()
-
+        # TODO(nopdive): Find better alternative at some point
+        # NOTE(nopdive): Waiting on client cb does not work, client messages received on cell completion.
         # What if we only used 1% of our brain?
         import asyncio
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(.2)
         logger.debug("SEND:ready")
 
         while True:
             try:
                 message = await self._send_queue.get()
                 # logger.debug(f"SEND:msg:{message}")
+
+                if message is None:
+                    logger.debug("SEND:closing")
+                    break
+
                 message_json = serialize_message(message)
                 # logger.debug(f"SEND:json:{message_json}")
+
                 if self._jupyter_widget is not None:
                     self._jupyter_widget.kernelmsg = message_json
                 else:
@@ -297,7 +313,7 @@ class LegacyHtmlRenderer(JupyterWidgetRenderer):
 
     def __init__(self, trace_handler: TraceHandler) -> None:
         self._trace_handler = trace_handler
-        super().__init__(trace_handler, wait_for_client=False)
+        super().__init__(trace_handler)
 
     def update(self, message: GuidanceMessage) -> None:
         # Handle Jupyter cell completion
@@ -320,8 +336,8 @@ class LegacyHtmlRenderer(JupyterWidgetRenderer):
 
 
 class AutoRenderer(Renderer):
-    def __init__(self, trace_handler: TraceHandler, use_legacy_renderer=False):
-        if not use_legacy_renderer and stitch_installed:
+    def __init__(self, trace_handler: TraceHandler):
+        if stitch_installed:
             self._renderer = JupyterWidgetRenderer(trace_handler=trace_handler)
         else:
             self._renderer = LegacyHtmlRenderer(trace_handler=trace_handler)

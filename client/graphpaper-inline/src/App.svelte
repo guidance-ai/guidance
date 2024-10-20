@@ -7,7 +7,7 @@
 		clientmsg,
 		type StitchMessage,
 		type NodeAttr,
-		type GenToken,
+		type GenTokenExtra,
 		isTraceMessage,
 		isTextOutput,
 		isRoleOpenerInput,
@@ -15,7 +15,7 @@
 		isResetDisplayMessage,
 		isMetricMessage,
 		isExecutionCompletedMessage,
-		isExecutionCompletedOutputMessage,
+		isExecutionCompletedOutputMessage, isGuidanceMessage, isClientReadyAckMessage,
 	} from './stitch';
     import StitchHandler from './StitchHandler.svelte';
 	import {onMount} from "svelte";
@@ -26,19 +26,26 @@
 
     let msg: any;
     let textComponents: Array<NodeAttr> = [];
-	let tokenDetails: Array<GenToken> = [];
+	let tokenDetails: Array<GenTokenExtra> = [];
 	let completedExecution: boolean = false;
 	let showMetrics: boolean = true;
+	let firstMessageId: number = -1;
+	let requireFullReplay: boolean = false;
 
-	let bgField: string = "Type";
+	let bgField: string = "None";
 	let underlineField: string = "Probability";
 
-	textComponents = mockNodeAttrs;
-	tokenDetails = mockGenTokens;
+	// textComponents = mockNodeAttrs;
+	// tokenDetails = mockGenTokens;
 
 	$: if ($kernelmsg !== undefined) {
 		if ($kernelmsg.content !== '') {
 			msg = JSON.parse($kernelmsg.content);
+			if (isGuidanceMessage(msg) && firstMessageId === -1) {
+				firstMessageId = msg.message_id;
+				requireFullReplay = firstMessageId > 0;
+			}
+
 			if (isTraceMessage(msg)) {
 				if (isTextOutput(msg.node_attr)) {
 					textComponents.push(msg.node_attr);
@@ -46,6 +53,15 @@
 					textComponents.push(msg.node_attr)
 				} else if (isRoleCloserInput(msg.node_attr)) {
 					textComponents.push(msg.node_attr)
+				}
+			} else if (isClientReadyAckMessage(msg)) {
+				if (requireFullReplay) {
+					console.log("Require full replay and went past completion output message.");
+					const msg: StitchMessage = {
+						type: "clientmsg",
+						content: JSON.stringify({ 'class_name': 'OutputRequestMessage' })
+					}
+					clientmsg.set(msg);
 				}
 			} else if (isResetDisplayMessage(msg)) {
 				textComponents = [];
@@ -73,7 +89,11 @@
 			} else if (isExecutionCompletedMessage(msg)) {
 				completedExecution = true;
 			} else if (isExecutionCompletedOutputMessage(msg)) {
+				requireFullReplay = false;
 				tokenDetails = msg.tokens;
+
+				console.log(textComponents);
+				console.log(msg.tokens);
 			}
 			textComponents = textComponents;
 		}
@@ -177,7 +197,7 @@
 
 <StitchHandler/>
 <ResizeListener/>
-<div class="w-full min-h-96">
+<div class="w-full min-h-72">
 	<nav class="sticky top-0 z-50 opacity-90">
 		<!-- Metric bar -->
 		{#if showMetrics}
@@ -209,14 +229,14 @@
 						</svg>
 					{/if}
 				</div>
-				<Select values={["Type", "Probability", "Latency (ms)"]} classes="bg-gray-200" on:select={(selected) => bgField = selected.detail}/>
-				<Select values={["Probability", "Latency (ms)"]} classes="border-b-2 border-gray-400" on:select={(selected) => underlineField = selected.detail}/>
+				<Select values={["None", "Type", "Probability", "Latency (ms)"]} classes="bg-gray-200" defaultValue={"None"} on:select={(selected) => bgField = selected.detail}/>
+				<Select values={["None", "Probability", "Latency (ms)"]} classes="border-b-2 border-gray-400" defaultValue={"Probability"} on:select={(selected) => underlineField = selected.detail}/>
 			</div>
 		</section>
 	</nav>
 
 	<!-- Content pane -->
 	<section class="w-full">
-		<TokenGrid textComponents={textComponents} tokenDetails={tokenDetails} isCompleted={completedExecution} bgField={bgField} underlineField={underlineField}/>
+		<TokenGrid textComponents={textComponents} tokenDetails={tokenDetails} isCompleted={completedExecution} bgField={bgField} underlineField={underlineField} requireFullReplay="{requireFullReplay}"/>
 	</section>
 </div>

@@ -1,3 +1,5 @@
+# NOTE(nopdive): We might be at risk of memory leak as async tasks may not be exiting on engine dealloc.
+
 import copy
 import logging
 import queue
@@ -36,7 +38,7 @@ from ..visual import (
 from ..visual._message import (
     ExecutionCompletedMessage,
     ExecutionCompletedOutputMessage,
-    MetricMessage,
+    MetricMessage, OutputRequestMessage,
 )
 
 try:
@@ -53,7 +55,7 @@ from .._schema import (
     EngineOutput,
     GenToken,
     GuidanceEngineMetrics,
-    VisBytesChunk,
+    VisBytesChunk, GenTokenExtra,
 )
 from .._utils import softmax, CaptureEvents
 from .._parser import TokenParser
@@ -84,12 +86,12 @@ image_pattern = re.compile(r"&lt;\|_image:(.*?)\|&gt;")
 
 class MetricsGenerator:
     def __init__(self, renderer: Renderer, monitor: "Monitor", sleep_sec=0.5):
-        from ..visual._async import run_async_task
+        from ..visual._async import run_async_coroutine
 
         self._renderer = renderer
         self._monitor = monitor
         self._sleep_sec = sleep_sec
-        run_async_task(self._emit())
+        run_async_coroutine(self._emit())
 
     async def _emit(self):
         import asyncio
@@ -147,16 +149,6 @@ class PostExecGenerator:
         self._monitor = monitor
 
     def emit_messages(self, lm: "Model"):
-        # import random
-        # self._renderer.update(MetricMessage(name="avg latency", value=random.uniform(10, 200)))
-        # self._renderer.update(MetricMessage(name="consumed", value=random.uniform(0, 100)))
-        # self._renderer.update(MetricMessage(name="token reduction", value=random.uniform(0, 100)))
-        # self._renderer.update(
-        #     TokenBatchMessage(
-        #         tokens=[GenToken(latency_ms=100, token=0, prob=0.5, text="mock", top_k=[])]
-        #     )
-        # )
-
         token_reduction = self._monitor.get_metric(MonitoringMetric.TOKEN_REDUCTION, lm)
         if token_reduction is not None:
             self._renderer.update(
@@ -190,9 +182,9 @@ class Engine:
         self.metrics = GuidanceEngineMetrics()
 
         self.trace_handler = TraceHandler()
-        self.renderer = AutoRenderer(
-            self.trace_handler, use_legacy_renderer=kwargs.get("use_legacy_renderer", False)
-        )
+        self.renderer = AutoRenderer(self.trace_handler)
+        # self.renderer = LegacyHtmlRenderer(self.trace_handler)
+
         self.renderer.subscribe(self._msg_recv)
         self.model_dict: dict[int, Model] = {}
 
@@ -206,13 +198,12 @@ class Engine:
         # NOTE(nopdive): This is likely running on a secondary thread.
         logger.debug(f"ENGINE:{message}")
 
-        if isinstance(message, ExecutionCompletedMessage):
+        if isinstance(message, (ExecutionCompletedMessage, OutputRequestMessage)):
             # print("last_state")
             last_model: "Model" = self.model_dict[message.last_trace_id]
 
             # send stats to the renderer
             self.post_exec_generator.emit_messages(last_model)
-            self.renderer.update(message)
 
             failed = False
             processed_gen_tokens: list[GenToken] = []  # suppress IDE warnings by definition
@@ -239,6 +230,9 @@ class Engine:
                         last_trace_id=message.last_trace_id,
                     )
                 )
+
+            # Conclude messaging to client
+            # self.renderer.update(message)
 
     def get_chat_template(
         self,
@@ -1121,13 +1115,6 @@ class Model:
                 if len(chunk.new_bytes) > 0:
                     generated_value += new_text
 
-                    # lm += TextOutput(
-                    #     value=new_text,
-                    #     is_generated=chunk.is_generated,
-                    #     token_count=chunk.new_token_count,
-                    #     prob=chunk.new_bytes_prob,
-                    # )
-
                     # split chunk into generated and force_forwarded parts for better animated visualization
                     if chunk.generated_bytes:
                         lm += TextOutput(
@@ -1366,7 +1353,7 @@ class Model:
                         prob = _token.prob
                         break
 
-                _gen_token = GenToken(
+                _gen_token = GenTokenExtra(
                     token_id=token_id,
                     prob=prob,
                     text=token_text,

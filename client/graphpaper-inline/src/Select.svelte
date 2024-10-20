@@ -4,7 +4,9 @@
 
     export let classes: string = "";
     export let values: Array<string> = [];
-    let selected = (values.length > 0) ? values[0] : "";
+    export let defaultValue: string = "";
+
+    let selected = defaultValue;
     let showList = false;
 
     const dispatch = createEventDispatcher();

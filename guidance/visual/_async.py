@@ -2,10 +2,12 @@
 
 This includes a separate thread dedicated for visualization and messaging.
 """
+# NOTE(nopdive): This is run on a single global thread.
+# Consider per engine threads later after memory review on engine.
 
 import asyncio
 import threading
-from asyncio import AbstractEventLoop, Future
+from asyncio import AbstractEventLoop, Future, Task
 from typing import Tuple
 
 
@@ -62,15 +64,22 @@ def _run_thread_if_needed():
         _thread.start()
     return _thread, _loop
 
-def run_async_task(task) -> Future:
+def run_async_coroutine(coroutine):
     _, loop = _run_thread_if_needed()
-    future = asyncio.run_coroutine_threadsafe(task, loop)
+    future = asyncio.run_coroutine_threadsafe(coroutine, loop)
     return future
+
+async def async_task(coroutine):
+    task = asyncio.create_task(coroutine)
+    return task
+
+async def print_all_tasks():
+    for task in asyncio.all_tasks():
+        print(task)
 
 def async_loop() -> AbstractEventLoop:
     _, loop = _run_thread_if_needed()
     return loop
-
 
 _loop = None
 _thread = None
