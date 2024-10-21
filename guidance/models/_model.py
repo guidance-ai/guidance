@@ -482,9 +482,7 @@ class Engine:
     def get_logits(self, token_ids: list[int]) -> np.ndarray:
         raise NotImplementedError
 
-    def get_per_token_topk_probs(
-        self, token_ids: list[int], top_k: int = 5
-    ) -> list[list[GenToken]]:
+    def get_per_token_topk_probs(self, token_ids: list[int], top_k: int = 5) -> list[GenToken]:
         """Get the top-k probabilities for each token in the sequence."""
         raise NotImplementedError
 
@@ -1322,12 +1320,24 @@ class Model:
 
         # NOTE (loc): Not all engines support the get_logits method
         try:
-            probs = self.engine.get_per_token_topk_probs(token_ids)
-        except:
+            tokens_with_topk = self.engine.get_per_token_topk_probs(token_ids)
+        except Exception as e:
+            logger.warning(
+                f"Failed to get the top k probabilities for the tokens {token_ids}. Error: {e}"
+            )
             # FIXME (loc): assume prob 1.0 for all tokens
-            probs = []
+            tokens_with_topk = []
             for token_id, token_text in zip(token_ids, token_texts):
-                probs.append([GenToken(token_id=token_id, prob=1.0, text=token_text)])
+                tokens_with_topk.append(
+                    GenToken(
+                        token_id=token_id,
+                        prob=1.0,
+                        text=token_text,
+                        top_k=[
+                            GenToken(token_id=token_id, prob=1.0, text=token_text),
+                        ],
+                    )
+                )
 
         start_idx = 0
         end_idx = 1
@@ -1369,18 +1379,18 @@ class Model:
                 end_idx -= 1
 
             _chunk_token_ids = token_ids[start_idx : end_idx + 1]
-            _chunk_probs = probs[start_idx : end_idx + 1]
+            _chunk_tokens_with_topk = tokens_with_topk[start_idx : end_idx + 1]
             _chunk_token_texts = token_texts[start_idx : end_idx + 1]
 
             is_input = len(vis_chunk.input_tokens) > 0
             is_force_forwarded = len(vis_chunk.force_forwarded_tokens) > 0
 
             _gen_tokens: list[GenToken] = []
-            for token_id, top_k_prob, token_text in zip(
-                _chunk_token_ids, _chunk_probs, _chunk_token_texts
+            for token_id, token_info_with_topk, token_text in zip(
+                _chunk_token_ids, _chunk_tokens_with_topk, _chunk_token_texts
             ):
                 prob = -1
-                for _token in top_k_prob:
+                for _token in token_info_with_topk.top_k:
                     if _token.token_id == token_id:
                         prob = _token.prob
                         break
@@ -1394,7 +1404,7 @@ class Model:
                     is_generated=False,
                     is_force_forwarded=False,
                 )
-                _gen_token.top_k = top_k_prob
+                _gen_token.top_k = token_info_with_topk.top_k
                 _gen_tokens.append(_gen_token)
 
             for i, _gen_token in enumerate(_gen_tokens):
@@ -1673,8 +1683,6 @@ def _monitor_fn(
             metrics_dict[MonitoringMetric.CPU_USAGE].append(cpu_percent)
             metrics_dict[MonitoringMetric.MEM_USAGE].append(memory_usage.percent)
 
-            t1 = time.time()
-
             if to_collect_gpu_stats:
                 gpu_stats = gpustat.GPUStatCollection.new_query()
 
@@ -1686,18 +1694,11 @@ def _monitor_fn(
                 metrics_dict[MonitoringMetric.GPU_USED_MEM].append(mem_usage)
                 metrics_dict[MonitoringMetric.GPU_TOTAL_MEM].append(mem_total)
 
-            t2 = time.time()
-
             for metrics in metrics_dict.values():
                 if len(metrics) > max_size:
                     metrics.pop(0)
 
             lat = time.time() - t0
-            cpu_lat = t1 - t0
-            gpu_lat = t2 - t1
-
-            # print(f"Monitoring took {lat*1000:.1f}ms")
-            # print(f"CPU/MEM: {cpu_lat*1000:.1f}ms, GPU: {gpu_lat*1000:.1f}ms")
 
             # sleep for the remaining time of the interval
             sleep_time = interval_ms / 1000.0 - lat
