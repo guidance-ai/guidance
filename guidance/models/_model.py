@@ -21,6 +21,17 @@ try:
     ipython_is_imported = True
 except ImportError:
     ipython_is_imported = False
+try:
+    import torch
+
+    torch_is_imported = True
+except ImportError:
+    torch_is_imported = False
+try:
+    import marimo
+    marimo_is_imported = True
+except ImportError:
+    marimo_is_imported = False
 
 logger = logging.getLogger(__name__)
 
@@ -357,6 +368,8 @@ class Model:
             if ipython_is_imported:
                 clear_output(wait=True)
                 display(HTML(self._html()))
+            elif marimo_is_imported:
+                marimo.output.replace(marimo.Html(self._html()))
             else:
                 pprint(self._state)
 
@@ -907,3 +920,4 @@ class ConstraintException(Exception):
         self.prompt = kwargs.pop("prompt", None)
         self.data = kwargs.pop("data", None)
         super().__init__(*args, **kwargs)
+
