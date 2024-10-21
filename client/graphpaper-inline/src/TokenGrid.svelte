@@ -284,7 +284,7 @@
         } else if (underlineField === "Latency (ms)") {
             underline = (x: Token) => underlineStyle(Math.log(x.latency_ms) / Math.log(statCounter['latency.max']));
         } else {
-            underline = (_: Token) => "border: none";
+            underline = (_: Token) => "border: none;";
         }
 
         if (bgField === "Type") {
