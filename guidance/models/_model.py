@@ -222,13 +222,18 @@ class Engine:
 
         if isinstance(message, (ExecutionCompletedMessage, OutputRequestMessage)):
             # print("last_state")
-            last_model: "Model" = self.model_dict[message.last_trace_id]
+            if isinstance(message, ExecutionCompletedOutputMessage):
+                last_model: "Model" = self.model_dict[message.last_trace_id]
+                last_trace_id = message.last_trace_id
+            else:
+                last_model = list(self.model_dict.values())[-1]
+                last_trace_id = last_model._id
 
             # send stats to the renderer
             self.post_exec_metrics.emit_messages(last_model)
 
             failed = False
-            processed_gen_tokens: list[GenToken] = []  # suppress IDE warnings by definition
+            processed_gen_tokens: list[GenTokenExtra] = []  # suppress IDE warnings by definition
             try:
                 processed_gen_tokens = last_model.get_per_token_stats()
             except Exception as e:
@@ -242,16 +247,19 @@ class Engine:
                 tokens = [gen_token.token_id for gen_token in processed_gen_tokens]
                 self.renderer.update(
                     ExecutionCompletedOutputMessage(
-                        trace_id=message.last_trace_id,
+                        trace_id=last_trace_id,
                         text=self.tokenizer.decode(tokens).decode("utf-8"),
                         tokens=processed_gen_tokens,
                     )
                 )
+                self.renderer.update(MetricMessage(name="status", value="✓"))
+            else:
+                self.renderer.update(MetricMessage(name="status", value="⚠"))
 
             # Finalize by sending completion message
             self.renderer.update(
                 ExecutionCompletedMessage(
-                    last_trace_id=message.last_trace_id,
+                    last_trace_id=last_trace_id,
                 )
             )
 
@@ -1273,11 +1281,11 @@ class Model:
 
         return lm
 
-    def get_per_token_stats(self) -> list[GenToken]:
+    def get_per_token_stats(self) -> list[GenTokenExtra]:
         """Get the per token stats (prob, top-k, latency, etc.) for the model.
 
         Returns
-            List[GenToken]: a list of GenToken objects.
+            List[GenTokenExtra]: a list of GenToken objects.
         """
 
         paths = []
@@ -1350,7 +1358,7 @@ class Model:
             tokens_with_topk = []
             for token_id, token_text in zip(token_ids, token_texts):
                 tokens_with_topk.append(
-                    GenToken(
+                    GenTokenExtra(
                         token_id=token_id,
                         prob=1.0,
                         text=token_text,
@@ -1406,7 +1414,7 @@ class Model:
             is_input = len(vis_chunk.input_tokens) > 0
             is_force_forwarded = len(vis_chunk.force_forwarded_tokens) > 0
 
-            _gen_tokens: list[GenToken] = []
+            _gen_tokens: list[GenTokenExtra] = []
             for token_id, token_info_with_topk, token_text in zip(
                 _chunk_token_ids, _chunk_tokens_with_topk, _chunk_token_texts
             ):

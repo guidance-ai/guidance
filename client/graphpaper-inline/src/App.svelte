@@ -88,6 +88,11 @@
 				}
 			} else if (isExecutionCompletedMessage(msg)) {
 				completedExecution = true;
+				if (requireFullReplay) {
+					metrics['status'] = '⚠';
+				} else {
+					metrics['status'] = '✓';
+				}
 			} else if (isExecutionCompletedOutputMessage(msg)) {
 				requireFullReplay = false;
 				tokenDetails = msg.tokens;
@@ -165,7 +170,7 @@
 		}
 	};
 	const metrics: Record<string, MetricVal> = {
-		'status': '✓',
+		'status': '⟳',
 		'gpu': [0.0, 0.0, 0.0, 0.0, 0.0],
 		'vram': 0,
 		// 'cpu': [0.0, 0.0, 0.0, 0.0, 0.0],

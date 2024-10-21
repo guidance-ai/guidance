@@ -4,7 +4,7 @@ import logging
 
 from .._utils import softmax
 
-from guidance._schema import EngineOutput, GenToken
+from guidance._schema import EngineOutput, GenToken, GenTokenExtra
 
 from ._model import Engine, Model, Chat
 from ._remote import RemoteEngine
@@ -130,14 +130,14 @@ class MockEngine(Engine):
 
         return logits
 
-    def get_per_token_topk_probs(self, token_ids: list[int], top_k: int = 5) -> list[GenToken]:
+    def get_per_token_topk_probs(self, token_ids: list[int], top_k: int = 5) -> list[GenTokenExtra]:
         result_list = []
         if len(token_ids) == 0:
             return result_list
 
         # assume the first token has probability 1.0 because it is the input token
         result_list.append(
-            GenToken(
+            GenTokenExtra(
                 token_id=token_ids[0],
                 prob=1.0,
                 text=self.tokenizer.decode([token_ids[0]]).decode("utf8"),
@@ -172,7 +172,7 @@ class MockEngine(Engine):
                 )
 
             result_list.append(
-                GenToken(
+                GenTokenExtra(
                     token_id=token_id,
                     prob=_probs[token_id],
                     text=self.tokenizer.decode([token_id]).decode("utf-8"),
