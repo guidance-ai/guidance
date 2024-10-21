@@ -219,9 +219,7 @@ class LlamaCppEngine(Engine):
 
         return logits
 
-    def get_per_token_topk_probs(
-        self, token_ids: list[int], top_k: int = 5
-    ) -> list[list[GenToken]]:
+    def get_per_token_topk_probs(self, token_ids: list[int], top_k: int = 5) -> list[GenToken]:
         if len(token_ids) == 0:
             return []
 
@@ -270,31 +268,45 @@ class LlamaCppEngine(Engine):
         except Exception as e:
             _text = str(_bytes)
             print(f"Failed to decode token: {token_ids[0]}, error: {e}, _bytes: {str(_bytes)}")
-        text_sequence.append([GenToken(token_id=token_ids[0], prob=1.0, text=_text)])
+        text_sequence.append(
+            GenToken(
+                token_id=token_ids[0],
+                prob=1.0,
+                text=_text,
+                top_k=[GenToken(token_id=token_ids[0], prob=1.0, text=_text)],
+            )
+        )
 
-        for token_idx, logits in zip(token_ids[1:], logits_batch[:-1]):
+        for token_id, logits in zip(token_ids[1:], logits_batch[:-1]):
             _probs = softmax(logits)
 
             # get the top k indices
-            top_k_indices, top_k_probs = self._top_k(_probs.copy(), top_k, ascending=False)
-            if token_idx not in top_k_indices:
-                top_k_indices = np.append(top_k_indices, token_idx)
-                top_k_probs = np.append(top_k_probs, _probs[token_idx])
+            top_k_ids, top_k_probs = self._top_k(_probs.copy(), top_k, ascending=False)
+            if token_id not in top_k_ids:
+                top_k_ids = np.append(top_k_ids, token_id)
+                top_k_probs = np.append(top_k_probs, _probs[token_id])
 
             top_k_list = []
-            for _token_idx, _prob in zip(top_k_indices, top_k_probs):
+            for _token_id, _prob in zip(top_k_ids, top_k_probs):
                 _text = ""
                 try:
-                    _text = self.tokenizer.decode([_token_idx]).decode("utf-8")
+                    _text = self.tokenizer.decode([_token_id]).decode("utf-8")
                 except Exception as e:
-                    _bytes = self.tokenizer.decode([_token_idx])
+                    _bytes = self.tokenizer.decode([_token_id])
                     _text = str(_bytes)
                     print(
-                        f"Failed to decode token: {_token_idx}, error: {e}, _bytes: {str(_bytes)}"
+                        f"Failed to decode token: {_token_id}, error: {e}, _bytes: {str(_bytes)}"
                     )
-                top_k_list.append(GenToken(token_id=_token_idx, prob=_prob, text=_text))
+                top_k_list.append(GenToken(token_id=_token_id, prob=_prob, text=_text))
 
-            text_sequence.append(top_k_list)
+            text_sequence.append(
+                GenToken(
+                    token_id=token_id,
+                    prob=_probs[token_id],
+                    text=self.tokenizer.decode([token_id]).decode("utf-8"),
+                    top_k=top_k_list,
+                )
+            )
 
         return text_sequence
 

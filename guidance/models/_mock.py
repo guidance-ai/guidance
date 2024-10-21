@@ -2,6 +2,10 @@ from typing import Sequence, Optional
 import numpy as np
 import logging
 
+from .._utils import softmax
+
+from guidance._schema import EngineOutput, GenToken
+
 from ._model import Engine, Model, Chat
 from ._remote import RemoteEngine
 from ._tokenizer import Tokenizer
@@ -12,10 +16,9 @@ logger = logging.getLogger(__name__)
 try:
     from .. import cpp  # type: ignore[attr-defined]
 except ImportError:
-    logger.warn(
-        "Failed to load guidance.cpp, falling back to Python mirror implementations..."
-    )
+    logger.warn("Failed to load guidance.cpp, falling back to Python mirror implementations...")
     from .. import _cpp as cpp
+
 
 class MockTokenizer(Tokenizer):
     def __init__(self, tokens: Sequence[bytes]):
@@ -33,7 +36,9 @@ class MockTokenizer(Tokenizer):
             last_match = None
             match_pos = pos
 
-            while match_pos < len(byte_string) and current_node.has_child(byte_string[match_pos : match_pos + 1]):
+            while match_pos < len(byte_string) and current_node.has_child(
+                byte_string[match_pos : match_pos + 1]
+            ):
                 current_node = current_node.child(byte_string[match_pos : match_pos + 1])
                 if current_node.value >= 0:
                     last_match = (current_node.value, match_pos + 1)
@@ -43,7 +48,9 @@ class MockTokenizer(Tokenizer):
                 tokens.append(last_match[0])
                 pos = last_match[1]
             else:
-                raise ValueError(f"Could not find a match for byte {byte_string[pos]} at position {pos}")
+                raise ValueError(
+                    f"Could not find a match for byte {byte_string[pos]} at position {pos}"
+                )
 
         return tokens
 
@@ -80,9 +87,21 @@ class MockEngine(Engine):
         # seed the random number generator
         self._rand_generator = np.random.default_rng(seed=42)
 
-    def get_next_token(self, token_ids: list[int], mask: Optional[bytes], temperature: float) -> int:
+    def get_next_token(
+        self, token_ids: list[int], mask: Optional[bytes], temperature: float
+    ) -> int:
         self.called_temperatures.append(temperature)
         return super().get_next_token(token_ids, mask, temperature)
+
+    def get_next_token_with_top_k(
+        self,
+        token_ids: list[int],
+        mask: Optional[bytes],
+        temperature: float,
+        k: int = 5,
+    ) -> EngineOutput:
+        self.called_temperatures.append(temperature)
+        return super().get_next_token_with_top_k(token_ids, mask, temperature, k)
 
     def get_logits(self, token_ids: list[int]) -> np.ndarray:
         """Pretends to compute the logits for the given token state."""
@@ -96,8 +115,7 @@ class MockEngine(Engine):
         # otherwise we randomly generate valid unicode bytes
         else:
             logits = (
-                self._rand_generator.standard_normal(len(self.tokenizer.tokens))
-                * self._valid_mask
+                self._rand_generator.standard_normal(len(self.tokenizer.tokens)) * self._valid_mask
             )
 
         # if we have a pattern that matches then force the next token
@@ -112,10 +130,62 @@ class MockEngine(Engine):
 
         return logits
 
+    def get_per_token_topk_probs(self, token_ids: list[int], top_k: int = 5) -> list[GenToken]:
+        result_list = []
+        if len(token_ids) == 0:
+            return result_list
+
+        # assume the first token has probability 1.0 because it is the input token
+        result_list.append(
+            GenToken(
+                token_id=token_ids[0],
+                prob=1.0,
+                text=self.tokenizer.decode([token_ids[0]]).decode("utf8"),
+                top_k=[
+                    GenToken(
+                        token_id=token_ids[0],
+                        prob=1.0,
+                        text=self.tokenizer.decode([token_ids[0]]).decode("utf8"),
+                    )
+                ],
+            )
+        )
+
+        for i in range(1, len(token_ids)):
+            token_id = token_ids[i]
+            _logits = self.get_logits(token_ids[:i])
+            _probs = softmax(_logits)
+            top_k_indices = np.argsort(_logits)[-top_k:][::-1]
+
+            top_k_indices = top_k_indices.tolist()
+            if token_ids[i] not in top_k_indices:
+                top_k_indices.append(token_id)
+
+            top_k_result = []
+            for token_id in top_k_indices:
+                top_k_result.append(
+                    GenToken(
+                        token_id=token_id,
+                        prob=_probs[token_id],
+                        text=self.tokenizer.decode([token_id]).decode("utf8"),
+                    )
+                )
+
+            result_list.append(
+                GenToken(
+                    token_id=token_id,
+                    prob=_probs[token_id],
+                    text=self.tokenizer.decode([token_id]).decode("utf-8"),
+                    top_k=top_k_result,
+                )
+            )
+
+        return result_list
+
     def _get_next_tokens(self, byte_string):
         special_tokens = [
             (self.tokenizer.bos_token_id, self.tokenizer.bos_token),
-            (self.tokenizer.eos_token_id, self.tokenizer.eos_token)
+            (self.tokenizer.eos_token_id, self.tokenizer.eos_token),
         ]
         for i, t in special_tokens:
             # if the byte string starts with a special token then make sure we don't yield any other tokens
@@ -143,9 +213,7 @@ class Mock(Model):
         else:
             # Our tokens are all bytes and all lowercase letter pairs
             all_lc_pairs = [
-                bytes([i, j])
-                for i in range(ord("a"), ord("z"))
-                for j in range(ord("a"), ord("z"))
+                bytes([i, j]) for i in range(ord("a"), ord("z")) for j in range(ord("a"), ord("z"))
             ]
             all_bytes = [bytes([i]) for i in range(256)]
             tokens = [b"<s>"] + all_lc_pairs + all_bytes
