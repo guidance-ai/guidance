@@ -237,13 +237,10 @@ class Terminal(GrammarFunction):
     def __init__(self, *, temperature: float, capture_name: Union[str, None]):
         super().__init__(capture_name=capture_name)
         self.temperature = temperature
+        self.max_tokens = 1000000000000
 
     def match_byte(self, byte):
         pass  # abstract
-
-    @property
-    def max_tokens(self):
-        return 1000000000000
 
 class DeferredReference(Terminal):
     """Container to hold a value that is resolved at a later time. This is useful for recursive definitions."""
@@ -496,7 +493,6 @@ class Gen(Terminal):
         "stop_regex",
         "save_stop_text",
         "name",
-        "_max_tokens",
     )
 
     def __init__(
@@ -512,11 +508,7 @@ class Gen(Terminal):
         self.stop_regex = stop_regex
         self.name = name if name is not None else GrammarFunction._new_name()
         self.save_stop_text = save_stop_text
-        self._max_tokens = max_tokens
-
-    @property
-    def max_tokens(self) -> int:
-        return self._max_tokens
+        self.max_tokens = max_tokens
 
     def __repr__(self, indent="", done=None, lbl="Gen"):
         if done is None:
@@ -560,21 +552,49 @@ class Lexeme(Gen):
         return super().__repr__(indent, done, "Lex")
 
 
-class RegularGrammar(Gen):
-    __slots__ = ("grammar",)
+class RegularGrammar(Terminal):
+    __slots__ = ("grammar", "name")
 
     def __init__(
         self,
         grammar: GrammarFunction,
+        lexeme: bool = False,
         name: Union[str, None] = None,
         max_tokens=100000000,
     ) -> None:
-        super().__init__("", "", name=name, max_tokens=max_tokens)
+        super().__init__(capture_name=None, temperature=-1)
         self.grammar = grammar
+        self.lexeme = lexeme
+        self.name = name if name is not None else GrammarFunction._new_name()
+        self.max_tokens = max_tokens
 
     def __repr__(self, indent="", done=None):
         # TODO add grammar repr
         return super().__repr__(indent, done, "RegularGrammar")
+
+class And(Terminal):
+    __slots__ = ("values", "name")
+
+    def __init__(
+        self,
+        values: Sequence[GrammarFunction],
+        name: Union[str, None] = None,
+    ):
+        super().__init__(temperature=-1, capture_name=None)
+        self.values = list(values)
+        self.name = name if name is not None else GrammarFunction._new_name()
+
+class Not(Terminal):
+    __slots__ = ("value", "name")
+
+    def __init__(
+        self,
+        value: GrammarFunction,
+        name: Union[str, None] = None,
+    ):
+        super().__init__(temperature=-1, capture_name=None)
+        self.value = value
+        self.name = name if name is not None else GrammarFunction._new_name()
 
 
 class Subgrammar(Gen):
@@ -874,15 +894,6 @@ def _is_string_literal(node: ComposableGrammar) -> bool:
     return False
 
 
-def as_regular_grammar(value) -> RegularGrammar:
-    # TODO: assert that value is not empty since we don't yet support that
-    if isinstance(value, str):
-        value = string(value)
-    # check if it serializes
-    _ignore = LLSerializer().regex(value)
-    return RegularGrammar(value)
-
-
 class LLSerializer:
     def __init__(self) -> None:
         self.nodes: list[dict] = []
@@ -906,11 +917,20 @@ class LLSerializer:
     def _add_regex(self, key: str, val):
         return self._add_regex_json({key: val})
 
-    def _regex_or(self, nodes: list[GrammarFunction]):
+    def _regex_or(self, nodes: Sequence[GrammarFunction]):
         if len(nodes) == 1:
             return self.regex_id_cache[nodes[0]]
         else:
             return self._add_regex("Or", [self.regex_id_cache[v] for v in nodes])
+
+    def _regex_and(self, nodes: Sequence[GrammarFunction]):
+        if len(nodes) == 1:
+            return self.regex_id_cache[nodes[0]]
+        else:
+            return self._add_regex("And", [self.regex_id_cache[v] for v in nodes])
+
+    def _regex_not(self, node: GrammarFunction):
+        return self._add_regex("Not", self.regex_id_cache[node])
 
     def regex(self, node: GrammarFunction):
         """
@@ -1019,6 +1039,20 @@ class LLSerializer:
                 if node.json_string:
                     raise ValueError("Cannot serialize lexeme with `json_string=True` as regex: " + node.__repr__())
                 res = self._add_regex("Regex", node.body_regex)
+            elif isinstance(node, And):
+                if not all_finished(node.values):
+                    add_todo(node)
+                    pending.add(node)
+                    add_todos(node.values)
+                    continue
+                res = self._regex_and(node.values)
+            elif isinstance(node, Not):
+                if not node_finished(node.value):
+                    add_todo(node)
+                    pending.add(node)
+                    add_todo(node.value)
+                    continue
+                res = self._regex_not(node.value)
             else:
                 raise ValueError("Cannot serialize as regex: " + node.__repr__())
             if node in pending:
@@ -1092,14 +1126,23 @@ class LLSerializer:
                 }
             }
         elif isinstance(node, RegularGrammar):
-            obj = {
-                "Gen": {
-                    "body_rx": self.regex(node.grammar),
-                    "stop_rx": "",
-                    "lazy": False,  # TODO this should be True
-                    "temperature": node.temperature if node.temperature >= 0 else None,
+            if node.lexeme:
+                obj = {
+                    "Lexeme" : {
+                        "rx": self.regex(node.grammar),
+                        "contextual": False,
+                        "json_string": False,
+                    }
                 }
-            }
+            else:
+                obj = {
+                    "Gen": {
+                        "body_rx": self.regex(node.grammar),
+                        "stop_rx": "",
+                        "lazy": False,  # TODO this should be True
+                        "temperature": node.temperature if node.temperature >= 0 else None,
+                    }
+                }
         elif isinstance(node, Gen):
             obj = {
                 "Gen": {

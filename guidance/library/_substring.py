@@ -1,9 +1,11 @@
 from typing import Optional, Dict, Union
 
+from ._subgrammar import as_regular_grammar
+
 from .._guidance import guidance
 
 # from ._prefix_tree import prefix_tree
-from .._grammar import string, select, capture, as_regular_grammar, Terminal, GrammarFunction
+from .._grammar import string, select, capture, Terminal, GrammarFunction
 from ._optional import optional
 
 

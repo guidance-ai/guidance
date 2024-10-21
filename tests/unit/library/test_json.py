@@ -3,7 +3,7 @@ from functools import partial
 from typing import Any, Dict, Set, Union, Optional
 
 import pytest
-from jsonschema import validate
+from jsonschema import validate, ValidationError
 
 from guidance import json as gen_json
 from guidance import models
@@ -16,7 +16,7 @@ from ...utils import generate_and_check as _generate_and_check
 
 
 def generate_and_check(
-    target_obj: Any, schema_obj, desired_temperature: Optional[float] = None
+    target_obj: Any, schema_obj, desired_temperature: Optional[float] = None,
 ):
     # Sanity check what we're being asked
     validate(instance=target_obj, schema=schema_obj)
@@ -193,6 +193,138 @@ class TestNumber:
             maybe_whitespace=maybe_whitespace,
             compact=compact,
         )
+
+class TestBoundedNumeric:
+    @pytest.mark.parametrize(
+        "instance, schema, should_pass",
+        [
+            # --- Integer type tests ---
+            (5, {"type": "integer", "minimum": 5}, True),
+            (-5, {"type": "integer", "minimum": -5}, True),
+            pytest.param(
+                *(5.0, {"type": "integer", "minimum": 5}, True),
+                marks=pytest.mark.xfail(reason="JSON technically allows trailing zeroes, but we currently don't")
+            ),
+            pytest.param(
+                *(-5.0, {"type": "integer", "minimum": -5}, True),
+                marks=pytest.mark.xfail(reason="JSON technically allows trailing zeroes, but we currently don't")
+            ),
+            (5.1, {"type": "integer", "minimum": 5}, False),
+            (-5.1, {"type": "integer", "minimum": -5}, False),
+            (4, {"type": "integer", "minimum": 5}, False),
+            (-6, {"type": "integer", "minimum": -5}, False),
+            (6, {"type": "integer", "exclusiveMinimum": 5}, True),
+            (-4, {"type": "integer", "exclusiveMinimum": -5}, True),
+            (5, {"type": "integer", "exclusiveMinimum": 5}, False),
+            (-5, {"type": "integer", "exclusiveMinimum": -5}, False),
+            (5, {"type": "integer", "maximum": 5}, True),
+            (-5, {"type": "integer", "maximum": -5}, True),
+            (6, {"type": "integer", "maximum": 5}, False),
+            (-4, {"type": "integer", "maximum": -5}, False),
+            (4, {"type": "integer", "exclusiveMaximum": 5}, True),
+            (-6, {"type": "integer", "exclusiveMaximum": -5}, True),
+            (5, {"type": "integer", "exclusiveMaximum": 5}, False),
+            (-5, {"type": "integer", "exclusiveMaximum": -5}, False),
+            (5, {"type": "integer", "minimum": 5, "maximum": 10}, True),
+            (-10, {"type": "integer", "minimum": -10, "maximum": -5}, True),
+            (4, {"type": "integer", "minimum": 5, "maximum": 10}, False),
+            (-11, {"type": "integer", "minimum": -10, "maximum": -5}, False),
+            (10, {"type": "integer", "exclusiveMinimum": 5, "exclusiveMaximum": 10}, False),
+            (-5, {"type": "integer", "exclusiveMinimum": -10, "exclusiveMaximum": -5}, False),
+            (5, {"type": "integer", "exclusiveMinimum": 5, "exclusiveMaximum": 10}, False),
+            (-10, {"type": "integer", "exclusiveMinimum": -10, "exclusiveMaximum": -5}, False),
+            (7, {"type": "integer", "exclusiveMinimum": 5, "exclusiveMaximum": 10}, True),
+            (-7, {"type": "integer", "exclusiveMinimum": -10, "exclusiveMaximum": -5}, True),
+            # --- Number type tests ---
+            (5, {"type": "number", "minimum": 5.0}, True),
+            (-5, {"type": "number", "minimum": -5.0}, True),
+            (5.0, {"type": "number", "minimum": 5.0}, True),
+            (-5.0, {"type": "number", "minimum": -5.0}, True),
+            (4.9, {"type": "number", "minimum": 5.0}, False),
+            (-5.1, {"type": "number", "minimum": -5.0}, False),
+            (5.1, {"type": "number", "exclusiveMinimum": 5.0}, True),
+            (-4.9, {"type": "number", "exclusiveMinimum": -5.0}, True),
+            (5, {"type": "number", "exclusiveMinimum": 5.0}, False),
+            (-5, {"type": "number", "exclusiveMinimum": -5.0}, False),
+            (5.0, {"type": "number", "exclusiveMinimum": 5.0}, False),
+            (-5.0, {"type": "number", "exclusiveMinimum": -5.0}, False),
+            (5, {"type": "number", "maximum": 5.0}, True),
+            (-5, {"type": "number", "maximum": -5.0}, True),
+            (5.0, {"type": "number", "maximum": 5.0}, True),
+            (-5.0, {"type": "number", "maximum": -5.0}, True),
+            (5.1, {"type": "number", "maximum": 5.0}, False),
+            (-4.9, {"type": "number", "maximum": -5.0}, False),
+            (4.9, {"type": "number", "exclusiveMaximum": 5.0}, True),
+            (-5.1, {"type": "number", "exclusiveMaximum": -5.0}, True),
+            (5, {"type": "number", "exclusiveMaximum": 5.0}, False),
+            (-5, {"type": "number", "exclusiveMaximum": -5.0}, False),
+            (5.0, {"type": "number", "exclusiveMaximum": 5.0}, False),
+            (-5.0, {"type": "number", "exclusiveMaximum": -5.0}, False),
+            (7.5, {"type": "number", "minimum": 5.0, "maximum": 10.0}, True),
+            (-7.5, {"type": "number", "minimum": -10.0, "maximum": -5.0}, True),
+            (4.9, {"type": "number", "minimum": 5.0, "maximum": 10.0}, False),
+            (-10.1, {"type": "number", "minimum": -10.0, "maximum": -5.0}, False),
+            (5.1, {"type": "number", "exclusiveMinimum": 5.0, "exclusiveMaximum": 10.0}, True),
+            (-9.9, {"type": "number", "exclusiveMinimum": -10.0, "exclusiveMaximum": -5.0}, True),
+            (5.0, {"type": "number", "exclusiveMinimum": 5.0, "exclusiveMaximum": 10.0}, False),
+            (-10.0, {"type": "number", "exclusiveMinimum": -10.0, "exclusiveMaximum": -5.0}, False),
+            (9.9, {"type": "number", "exclusiveMinimum": 5.0, "exclusiveMaximum": 10.0}, True),
+            (-5.1, {"type": "number", "exclusiveMinimum": -10.0, "exclusiveMaximum": -5.0}, True),
+            # --- Edge cases ---
+            (0, {"type": "integer", "minimum": 0}, True),
+            (0, {"type": "number", "maximum": 0}, True),
+            (-1, {"type": "integer", "minimum": 0}, False),
+            (1, {"type": "integer", "minimum": 0}, True),
+            (-5, {"type": "number", "maximum": 0}, True),
+            (5, {"type": "number", "maximum": 0}, False),
+            (5, {"type": "integer", "minimum": 5.5}, False),
+            (-6, {"type": "integer", "minimum": -5.5}, False),
+            (6, {"type": "integer", "minimum": 5.5}, True),
+            (-5, {"type": "integer", "minimum": -5.5}, True),
+            (5, {"type": "integer", "exclusiveMinimum": 5.5}, False),
+            (-6, {"type": "integer", "exclusiveMinimum": -5.5}, False),
+            (6, {"type": "integer", "exclusiveMinimum": 5.5}, True),
+            (-5, {"type": "integer", "exclusiveMinimum": -5.5}, True),
+            (5, {"type": "integer", "maximum": 5.5}, True),
+            (-6, {"type": "integer", "maximum": -5.5}, True),
+            (6, {"type": "integer", "maximum": 5.5}, False),
+            (-5, {"type": "integer", "maximum": -5.5}, False),
+            (5, {"type": "integer", "exclusiveMaximum": 5.5}, True),
+            (-6, {"type": "integer", "exclusiveMaximum": -5.5}, True),
+            (6, {"type": "integer", "exclusiveMaximum": 5.5}, False),
+            (-5, {"type": "integer", "exclusiveMaximum": -5.5}, False),
+            # --- Large numbers ---
+            (1e10, {"type": "number", "minimum": 1e10}, True),
+            (-1e10, {"type": "number", "minimum": -1e10}, True),
+            (1e9, {"type": "number", "minimum": 1e10}, False),
+            (-1e11, {"type": "number", "minimum": -1e10}, False),
+            (1e10, {"type": "number", "maximum": 1e10}, True),
+            (-1e10, {"type": "number", "maximum": -1e10}, True),
+            (1e11, {"type": "number", "maximum": 1e10}, False),
+            (-1e9, {"type": "number", "maximum": -1e10}, False),
+            # --- Decimal precision ---
+            (0.1001, {"type": "number", "minimum": 0.1, "maximum": 0.3}, True),
+            (-0.1001, {"type": "number", "minimum": -0.3, "maximum": -0.1}, True),
+            (0.2999, {"type": "number", "minimum": 0.1, "maximum": 0.3}, True),
+            (-0.2999, {"type": "number", "minimum": -0.3, "maximum": -0.1}, True),
+            (0.0999, {"type": "number", "minimum": 0.1, "maximum": 0.3}, False),
+            (-0.0999, {"type": "number", "minimum": -.3, "maximum": -0.1}, False),
+            (0.3001, {"type": "number", "minimum": 0.1, "maximum": 0.3}, False),
+            (-0.3001, {"type": "number", "minimum": -0.3, "maximum": -0.1}, False),
+        ]
+    )
+    def test_numeric_validation(self, instance, schema, should_pass):
+        # Sanity check
+        if should_pass:
+            validate(instance, schema=schema)
+            generate_and_check(instance, schema)
+        else:
+            with pytest.raises(ValidationError):
+                validate(instance, schema=schema)
+            check_match_failure(
+                bad_string=_to_compact_json(instance),
+                schema_obj=schema
+            )
 
 
 class TestString:
@@ -1749,6 +1881,16 @@ class TestAdditionalProperties:
             maybe_whitespace=maybe_whitespace,
             compact=compact,
         )
+
+    def test_out_of_order_non_required_properties_not_validated_as_additionalProperties(self):
+        schema = {
+            "type": "object",
+            "properties": {"a": {"const": "foo"}, "b": {"const": "bar"}},
+            "required": ["b"],
+        }
+        test_string = '{"b": "bar", "a": "BAD"}'
+        grammar = gen_json(schema=schema)
+        assert grammar.match(test_string) is None
 
 
 class TestRecursiveStructures:
