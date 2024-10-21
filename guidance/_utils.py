@@ -6,6 +6,8 @@ import queue
 import sys
 import textwrap
 import types
+import weakref
+import functools
 
 import numpy as np
 
@@ -113,7 +115,31 @@ def strip_multiline_string_indents(f):
         closure=f.__closure__,
     )
     new_f.__kwdefaults__ = f.__kwdefaults__
+    new_f.__qualname__ = f.__qualname__
+    new_f.__annotations__ = f.__annotations__
+    new_f.__doc__ = f.__doc__
+    new_f.__module__ = f.__module__
     return new_f
+
+def make_weak_bound_method(f, instance):
+    instance_ref = weakref.ref(instance)
+    instance_repr = repr(instance)
+    @functools.wraps(f) # ish
+    def weak_bound_f(*args, **kwargs):
+        instance = instance_ref()
+        if instance is None:
+            raise ReferenceError(f"Lost reference to {instance_repr} and cannot bind {f} to it.")
+        method = types.MethodType(f, instance)
+        return method(*args, **kwargs)
+
+    # remove the first argument from the wrapped function since it is now bound
+    weak_bound_f.__signature__ = signature_pop(inspect.signature(f), 0)
+    return weak_bound_f
+
+def signature_pop(signature, index):
+    params = list(signature.parameters.values())
+    params.pop(index)
+    return signature.replace(parameters=params)
 
 class CaptureEvents:
     """Creates a scope where all the events are captured in a queue.
