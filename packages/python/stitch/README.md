@@ -5,7 +5,7 @@
 [![codecov](https://codecov.io/gh/guidance-ai/stitch/branch/master/graph/badge.svg)](https://codecov.io/gh/guidance-ai/stitch)
 
 
-Bidirectional comms for Jupyer and JavaScript.
+Bidirectional comms for Jupyter and JavaScript.
 
 ## Installation
 

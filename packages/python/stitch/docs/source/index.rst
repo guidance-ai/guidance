@@ -4,7 +4,7 @@ stitch
 
 Version: |release|
 
-Bidirectional comms for Jupyer and JavaScript.
+Bidirectional comms for Jupyter and JavaScript.
 
 
 Quickstart

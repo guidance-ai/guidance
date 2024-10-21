@@ -175,7 +175,7 @@ texinfo_documents = [
      'stitch Documentation',
      author,
      'stitch',
-     'Bidirectional comms for Jupyer and JavaScript.',
+     'Bidirectional comms for Jupyter and JavaScript.',
      'Miscellaneous'),
 ]
 
