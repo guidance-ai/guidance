@@ -110,6 +110,27 @@
         return results;
     }
 
+    const checkOverlapped = (tokenStart: number, tokenEnd: number, matchStart: number, matchEnd: number) => {
+        let overlapped = false;
+        let noSpecialOverride = false;
+
+        if (tokenStart <= matchStart && (tokenEnd-1) >= matchStart) {
+            // Match with token leading
+            overlapped = true;
+        } else if (tokenStart <= (matchEnd-1) && tokenEnd >= matchEnd) {
+            // Match with token trailing
+            overlapped = true;
+
+            // Visually looks bad when next word is also greyed out.
+            noSpecialOverride = true;
+        } else if (tokenStart >= matchStart && tokenEnd <= matchEnd) {
+            // Match with token equal or within
+            overlapped = true;
+        }
+
+        return [overlapped, noSpecialOverride];
+    }
+
     let tokens: Array<Token> = [];
     let activeOpenerRoles: Array<RoleOpenerInput> = [];
     let activeCloserRoleText: Array<string> = [];
@@ -184,7 +205,11 @@
         if (isDetailed) {
             // Preprocess for special words
             const fullText = tokenDetails.map((x) => {return x.text}).join("");
+
             const specialMatchStack = findTargetWords(fullText, Array.from(specialSet));
+            // for (const [start, end, match] of specialMatchStack) {
+            //     console.log(match, start, end);
+            // }
 
             tokens = [];
             let tokenStart = 0;
@@ -197,29 +222,20 @@
                 let role = "";
 
                 if (specialMatchStack.length > 0) {
-                    // Drop special matches that token has passed
                     let [matchStart, matchEnd, match] = specialMatchStack[0];
-                    while (tokenStart >= matchEnd) {
-                        let value = specialMatchStack.shift();
-                        if (value !== undefined) {
-                            [matchStart, matchEnd, match] = value;
+                    if (tokenStart >= matchEnd) {
+                        specialMatchStack.shift();
+                        if (specialMatchStack.length > 0) {
+                            [matchStart, matchEnd, match] = specialMatchStack[0];
                         } else {
-                            break;
+                            continue;
                         }
                     }
 
-                    // TODO(nopdive): Review, might be off by one.
-                    let overlapped = false;
-                    if (tokenStart <= matchStart && (tokenEnd-1) >= matchStart) {
-                        // Match with token leading
-                        overlapped = true;
-                    } else if (tokenStart <= (matchEnd-1) && tokenEnd >= matchEnd) {
-                        // Match with token trailing
-                        overlapped = true;
-                    } else if (tokenStart >= matchStart && tokenEnd <= matchEnd) {
-                        // Match with token equal or within
-                        overlapped = true;
-                    }
+                    let [overlapped, noSpecialOverride] = checkOverlapped(tokenStart, tokenEnd, matchStart, matchEnd);
+                    // console.log("token: ", tokenStart, tokenEnd, withinRoleMatch, fullText.slice(tokenStart, tokenEnd));
+                    // console.log("match: ", matchStart, matchEnd, match);
+                    // console.log(overlapped ? "matched" : "");
 
                     if (overlapped) {
                         if (Object.keys(namedRoleSet).includes(match)) {
@@ -228,7 +244,21 @@
                                 withinRoleMatch = true;
                             }
                         }
-                        special = true;
+
+                        // Peek for overlap of next role (needed for phi 3)
+                        if (specialMatchStack.length > 1) {
+                            let [matchStart, matchEnd, match] = specialMatchStack[1];
+                            const [overlapped, _] = checkOverlapped(tokenStart, tokenEnd, matchStart, matchEnd);
+                            if (overlapped && Object.keys(namedRoleSet).includes(match)) {
+                                role = namedRoleSet[match];
+                                withinRoleMatch = true;
+                                noSpecialOverride = false;
+                            }
+                        }
+
+                        if (!noSpecialOverride) {
+                            special = true;
+                        }
                     } else {
                         withinRoleMatch = false;
                     }
@@ -376,7 +406,7 @@
         {#if tooltipToken}
             <div class={`col-1 flex flex-col items-center`}>
                 <div class="text-2xl px-1 pb-1 text-left w-full bg-white">
-                    <div class="mb-4">
+                    <div class="mb-5 mt-1">
                         <TokenGridItem token={tooltipToken} index={-1} underlineStyle={underline(tooltipToken)} bgStyle={bg(tooltipToken)}/>
                     </div>
                     <table class="w-full">
