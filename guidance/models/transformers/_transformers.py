@@ -528,9 +528,7 @@ class TransformersEngine(Engine):
 
         return self._cached_logits
 
-    def get_per_token_topk_probs(
-        self, token_ids: list[int], top_k: int = 5
-    ) -> list[list[GenToken]]:
+    def get_per_token_topk_probs(self, token_ids: list[int], top_k: int = 5) -> list[GenToken]:
         tokenizer = self.tokenizer._orig_tokenizer
 
         # NOTE (loc) - assume batch size of 1
@@ -553,15 +551,15 @@ class TransformersEngine(Engine):
                 _token = tokenizer.decode(_token_id)
 
                 if len(text_sequence) == 0:
-                    text_sequence.append(
-                        [
-                            GenToken(
-                                token_id=_token_id.item(),
-                                prob=1.0,
-                                text=tokenizer.decode([_token_id]),
-                            )
-                        ]
+                    token = GenToken(
+                        token_id=_token_id.item(),
+                        prob=1.0,
+                        text=tokenizer.decode([_token_id]),
+                        top_k=[
+                            GenToken(token_id=_token_id.item(), prob=1.0, text=_token),
+                        ],
                     )
+                    text_sequence.append(token)
                     continue
 
                 # get the top k indices
@@ -573,7 +571,14 @@ class TransformersEngine(Engine):
                 top_k_list = []
                 for t, p in zip(top_k_indices, top_k_probs):
                     top_k_list.append(GenToken(token_id=t, prob=p, text=tokenizer.decode([t])))
-                text_sequence.append(top_k_list)
+
+                token = GenToken(
+                    token_id=_token_id.item(),
+                    prob=_probs[_token_id].item(),
+                    text=_token,
+                    top_k=top_k_list,
+                )
+                text_sequence.append(token)
 
             batch.append(text_sequence)
 
