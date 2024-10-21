@@ -1516,7 +1516,9 @@ class Model:
                     for _token in _gen_token.top_k:
                         _token.is_masked = False
 
-            processed_gen_tokens.extend(_gen_tokens)
+            for _gen_token in _gen_tokens:
+                if _gen_token.text != "":
+                    processed_gen_tokens.append(_gen_token)
 
             start_idx = end_idx + 1
 
