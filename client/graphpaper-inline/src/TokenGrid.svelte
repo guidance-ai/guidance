@@ -227,8 +227,6 @@
                         specialMatchStack.shift();
                         if (specialMatchStack.length > 0) {
                             [matchStart, matchEnd, match] = specialMatchStack[0];
-                        } else {
-                            continue;
                         }
                     }
 
