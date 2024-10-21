@@ -1,12 +1,14 @@
-# NOTE(nopdive): We might be at risk of memory leak as async tasks may not be exiting on engine dealloc.
+# TODO(nopdive): This module requires a memory review.
 
 import copy
 import logging
 import queue
 import re
 import threading
+import weakref
 
 import time
+from asyncio import CancelledError
 from typing import Iterator, Optional, TYPE_CHECKING
 from multiprocessing import Manager, Process
 from typing import Any, Union
@@ -34,12 +36,11 @@ from ..visual import (
     trace_node_to_html,
     GuidanceMessage,
     Renderer,
-)
-from ..visual._message import (
     ExecutionCompletedMessage,
     ExecutionCompletedOutputMessage,
     MetricMessage, OutputRequestMessage,
 )
+from ..visual._async import run_async_coroutine, async_task
 
 try:
     from IPython.display import clear_output, display, HTML
@@ -77,21 +78,23 @@ if TYPE_CHECKING:
 # define some constants we will reuse many times
 _null_grammar = string("")
 format_pattern = re.compile(r"<\|\|_.*?_\|\|>", flags=re.DOTALL)
-nodisp_pattern = re.compile(
-    r"&lt;\|\|_#NODISP_\|\|&gt;.*?&lt;\|\|_/NODISP_\|\|&gt;", flags=re.DOTALL
-)
-html_pattern = re.compile(r"&lt;\|\|_html:(.*?)_\|\|&gt;", flags=re.DOTALL)
-image_pattern = re.compile(r"&lt;\|_image:(.*?)\|&gt;")
 
 
-class MetricsGenerator:
+class PeriodicMetricsGenerator:
     def __init__(self, renderer: Renderer, monitor: "Monitor", sleep_sec=0.5):
-        from ..visual._async import run_async_coroutine
 
         self._renderer = renderer
         self._monitor = monitor
         self._sleep_sec = sleep_sec
+        self._task = None
         run_async_coroutine(self._emit())
+
+    def start(self):
+        self._task = run_async_coroutine(async_task(self._emit())).result()
+
+    def stop(self):
+        if self._task is not None:
+            self._task.cancel()
 
     async def _emit(self):
         import asyncio
@@ -99,51 +102,54 @@ class MetricsGenerator:
 
         time_start = time.time()
         while True:
-            await asyncio.sleep(self._sleep_sec)
+            try:
+                await asyncio.sleep(self._sleep_sec)
 
-            cpu_percent = self._monitor.get_metric(MonitoringMetric.CPU_USAGE)
-            mem_percent = self._monitor.get_metric(MonitoringMetric.MEM_USAGE)
-            gpu_percent = self._monitor.get_metric(MonitoringMetric.GPU_USAGE)
-            gpu_used_vram = self._monitor.get_metric(MonitoringMetric.GPU_USED_MEM)
+                cpu_percent = self._monitor.get_metric(MonitoringMetric.CPU_USAGE)
+                mem_percent = self._monitor.get_metric(MonitoringMetric.MEM_USAGE)
+                gpu_percent = self._monitor.get_metric(MonitoringMetric.GPU_USAGE)
+                gpu_used_vram = self._monitor.get_metric(MonitoringMetric.GPU_USED_MEM)
 
-            if gpu_percent:
-                gpu_percent = max(gpu_percent)
-            else:
-                gpu_percent = 0
+                if gpu_percent:
+                    gpu_percent = max(gpu_percent)
+                else:
+                    gpu_percent = 0
 
-            if gpu_used_vram:
-                gpu_used_vram = max(gpu_used_vram)
-            else:
-                gpu_used_vram = 0
+                if gpu_used_vram:
+                    gpu_used_vram = max(gpu_used_vram)
+                else:
+                    gpu_used_vram = 0
 
-            if not cpu_percent:
-                cpu_percent = 0
+                if not cpu_percent:
+                    cpu_percent = 0
 
-            if not mem_percent:
-                mem_percent = 0
+                if not mem_percent:
+                    mem_percent = 0
 
-            time_end = time.time()
-            time_elapsed = time_end - time_start
-            self._renderer.update(MetricMessage(name="wall time", value=time_elapsed))
+                time_end = time.time()
+                time_elapsed = time_end - time_start
+                self._renderer.update(MetricMessage(name="wall time", value=time_elapsed))
 
-            self._renderer.update(
-                MetricMessage(
-                    name="cpu", value=self._monitor.get_metric(MonitoringMetric.CPU_USAGE)
+                self._renderer.update(
+                    MetricMessage(
+                        name="cpu", value=self._monitor.get_metric(MonitoringMetric.CPU_USAGE)
+                    )
                 )
-            )
 
-            self._renderer.update(
-                MetricMessage(
-                    name="ram", value=self._monitor.get_metric(MonitoringMetric.MEM_USAGE)
+                self._renderer.update(
+                    MetricMessage(
+                        name="ram", value=self._monitor.get_metric(MonitoringMetric.MEM_USAGE)
+                    )
                 )
-            )
 
-            self._renderer.update(MetricMessage(name="gpu", value=gpu_percent))
+                self._renderer.update(MetricMessage(name="gpu", value=gpu_percent))
 
-            self._renderer.update(MetricMessage(name="vram", value=gpu_used_vram))
+                self._renderer.update(MetricMessage(name="vram", value=gpu_used_vram))
+            except CancelledError:
+                break
 
 
-class PostExecGenerator:
+class PostExecMetrics:
     def __init__(self, renderer: Renderer, monitor: "Monitor"):
         self._renderer = renderer
         self._monitor = monitor
@@ -176,14 +182,17 @@ class Engine:
     Server so a single server can serve many clients' model objects through a single Engine object.
     """
 
-    def __init__(self, tokenizer: Tokenizer, compute_log_probs=False, **kwargs):
+    def __init__(self, tokenizer: Tokenizer, compute_log_probs=False, renderer=None, **kwargs):
+        # TODO(nopdive): Hook up renderer keyword to all engines.
+
         self.tokenizer = tokenizer
         self.compute_log_probs = compute_log_probs
         self.metrics = GuidanceEngineMetrics()
 
         self.trace_handler = TraceHandler()
-        self.renderer = AutoRenderer(self.trace_handler)
-        # self.renderer = LegacyHtmlRenderer(self.trace_handler)
+        if renderer is None:
+            self.renderer = AutoRenderer(self.trace_handler)
+            # self.renderer = LegacyHtmlRenderer(self.trace_handler)
 
         self.renderer.subscribe(self._msg_recv)
         self.model_dict: dict[int, Model] = {}
@@ -191,11 +200,24 @@ class Engine:
         self.monitor = Monitor(self)
         self.monitor.start()
 
-        self.metrics_generator = MetricsGenerator(self.renderer, self.monitor)
-        self.post_exec_generator = PostExecGenerator(self.renderer, self.monitor)
+        self.periodic_metrics_generator = PeriodicMetricsGenerator(self.renderer, self.monitor)
+        self.periodic_metrics_generator.start()
+        self.post_exec_metrics = PostExecMetrics(self.renderer, self.monitor)
+
+        weakref.finalize(self, self.cleanup)
+
+    def cleanup(self):
+        # NOTE(nopdive): This might not be called on GC due potential circular refs.
+        # Follow-up work is needed on engine memory review.
+
+        logger.debug("ENGINE:cleanup")
+
+        self.periodic_metrics_generator.stop()
+        self.monitor.stop()
+        self.renderer.cleanup()
 
     def _msg_recv(self, message: GuidanceMessage) -> None:
-        # NOTE(nopdive): This is likely running on a secondary thread.
+        # NOTE(nopdive): This is usually run on a background thread.
         logger.debug(f"ENGINE:{message}")
 
         if isinstance(message, (ExecutionCompletedMessage, OutputRequestMessage)):
@@ -203,7 +225,7 @@ class Engine:
             last_model: "Model" = self.model_dict[message.last_trace_id]
 
             # send stats to the renderer
-            self.post_exec_generator.emit_messages(last_model)
+            self.post_exec_metrics.emit_messages(last_model)
 
             failed = False
             processed_gen_tokens: list[GenToken] = []  # suppress IDE warnings by definition
@@ -225,14 +247,13 @@ class Engine:
                         tokens=processed_gen_tokens,
                     )
                 )
-                self.renderer.update(
-                    ExecutionCompletedMessage(
-                        last_trace_id=message.last_trace_id,
-                    )
-                )
 
-            # Conclude messaging to client
-            # self.renderer.update(message)
+            # Finalize by sending completion message
+            self.renderer.update(
+                ExecutionCompletedMessage(
+                    last_trace_id=message.last_trace_id,
+                )
+            )
 
     def get_chat_template(
         self,
@@ -546,6 +567,7 @@ class Model:
         self._cache_state = {}  # mutable caching state used to save computation
         self._state = ""  # the current bytes that represent the state of the model
         self._trace_handler = engine.trace_handler  # builds state for models
+        self._trace_nodes = set()  # keep trace node reference for pinning
         if self.echo:
             self._renderer = engine.renderer  # renderer for display
         else:
@@ -639,7 +661,8 @@ class Model:
 
         new_lm._id = self.__class__.gen_id()
         new_lm._parent_id = self._id
-        self._update_trace_node(new_lm._id, new_lm._parent_id, None)
+        new_lm._trace_nodes = set()
+        new_lm._update_trace_node(new_lm._id, new_lm._parent_id, None)
         self.engine.model_dict[new_lm._id] = new_lm
         new_lm.vis_chunk = None
         new_lm._parent = self
@@ -722,7 +745,9 @@ class Model:
     ):
         """Updates trace node that corresponds to this model."""
 
-        self._trace_handler.update_node(identifier, parent_id, node_attr)
+        trace_node = self._trace_handler.update_node(identifier, parent_id, node_attr)
+        self._trace_nodes.add(trace_node)
+
         if self._renderer is not None:
             self._renderer.update(
                 TraceMessage(
@@ -774,14 +799,14 @@ class Model:
                 # TODO(nopdive): Replace with trace traversal.
                 v = format_pattern.sub("", lm._state[pos:])
                 lm._variables[context.name] = v
-                self._update_trace_node(
+                lm._update_trace_node(
                     lm._id, lm._parent_id, CaptureOutput(name=context.name, value=v)
                 )
 
             # add closer
             # TODO(nopdive): Consider removing context closer/opener on confirmation.
             closer_text = self.role_closer(context.name)
-            self._update_trace_node(
+            lm._update_trace_node(
                 lm._id, lm._parent_id, RoleCloserInput(name=context.name, text=closer_text)
             )
             lm += context.closer
@@ -792,7 +817,7 @@ class Model:
             # add opener
             opener_text = self.role_opener(context.name)
             closer_text = self.role_closer(context.name)
-            self._update_trace_node(
+            lm._update_trace_node(
                 lm._id,
                 lm._parent_id,
                 RoleOpenerInput(name=context.name, text=opener_text, closer_text=closer_text),
@@ -801,6 +826,7 @@ class Model:
             lm = lm.copy()
 
             # store closer for state extraction later
+            # TODO(nopdive): Replace with trace traversal.
             lm.opened_blocks[context] = (len(lm._state), closer_text)
 
             # handle variables
@@ -814,10 +840,10 @@ class Model:
         if isinstance(value, TextOutput):
             lm._inplace_append(value.value)
             out = lm
-            self._update_trace_node(out._id, out._parent_id, value)
+            out._update_trace_node(out._id, out._parent_id, value)
         elif isinstance(value, CaptureOutput):
-            self._update_trace_node(lm._id, lm._parent_id, value)
             out = lm
+            out._update_trace_node(out._id, out._parent_id, value)
         elif isinstance(value, str):
             # wrap raw string values
 
@@ -826,7 +852,7 @@ class Model:
 
             # we have no embedded objects
             if len(parts) == 1:
-                self._update_trace_node(lm._id, lm._parent_id, LiteralInput(value=value))
+                lm._update_trace_node(lm._id, lm._parent_id, LiteralInput(value=value))
 
                 lm._inplace_append(value)
                 out = lm
@@ -851,7 +877,7 @@ class Model:
                     ],
                 )
 
-                self._update_trace_node(
+                out._update_trace_node(
                     out._id,
                     out._parent_id,
                     TextOutput(value=value, is_input=True, tokens=out.vis_chunk.input_tokens),
@@ -859,7 +885,7 @@ class Model:
 
             # if we have embedded objects we have to convert the string to a grammar tree
             else:
-                self._update_trace_node(lm._id, lm._parent_id, EmbeddedInput(value=value))
+                lm._update_trace_node(lm._id, lm._parent_id, EmbeddedInput(value=value))
 
                 partial_grammar = _null_grammar
                 lm.suffix = ""
@@ -886,12 +912,12 @@ class Model:
 
         # run stateless functions (grammar nodes)
         elif isinstance(value, GrammarFunction):
-            self._update_trace_node(lm._id, lm._parent_id, StatelessGuidanceInput(value=value))
+            lm._update_trace_node(lm._id, lm._parent_id, StatelessGuidanceInput(value=value))
             out = lm._run_stateless(value)
 
         # run stateful functions
         else:
-            self._update_trace_node(lm._id, lm._parent_id, StatefulGuidanceInput(value=value))
+            lm._update_trace_node(lm._id, lm._parent_id, StatefulGuidanceInput(value=value))
             out = value(lm)
             if out is None:
                 raise Exception(
@@ -1627,7 +1653,7 @@ def _monitor_fn(
         if len(gpu_stats) > 0:
             # only collect GPU stats if there is at least one GPU
             to_collect_gpu_stats = True
-    except:
+    except ImportError:
         logger.warning("gpustat is not installed, run `pip install gpustat` to collect GPU stats.")
 
     try:
@@ -1679,7 +1705,7 @@ def _monitor_fn(
 
 
 class Monitor:
-    """Monitoring service to collect neccessary metrics for visualizatoin"""
+    """Monitoring service to collect necessary metrics for visualization"""
 
     def __init__(self, engine: Engine, **kwargs):
         self.engine = engine
@@ -1713,7 +1739,7 @@ class Monitor:
             self.process.join()
 
             for metrics in self.metrics_dict.values():
-                metrics.clear()
+                metrics[:] = []  # NOTE(nopdive): ListProxy does not have .clear method.
 
     def reset(self):
         self.stop()
@@ -1724,8 +1750,10 @@ class Monitor:
         self.start()
 
     def get_metrics(
-        self, metrics: list[MonitoringMetric] = ALL_METRICS, lm: Union[Model, None] = None
+        self, metrics=None, lm: Union[Model, None] = None
     ) -> dict[MonitoringMetric, Any]:
+        if metrics is None:
+            metrics = ALL_METRICS
         result = {}
 
         for metric in metrics:

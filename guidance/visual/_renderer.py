@@ -1,3 +1,9 @@
+""" Renderer is responsible for displaying output.
+
+Our main focus is on jupyter notebooks and later terminal.
+"""
+# TODO(nopdive): Implementation for terminals & append-only text displays.
+
 import asyncio
 import logging
 import weakref
@@ -145,6 +151,9 @@ class Renderer:
     def subscribe(self, callback: Callable[[GuidanceMessage], None]) -> None:
         self._observers.append(callback)
 
+    def cleanup(self):
+        pass
+
     def update(self, message: GuidanceMessage) -> None:
         raise NotImplementedError("Update not implemented.")
 
@@ -280,11 +289,11 @@ class JupyterWidgetRenderer(Renderer):
     async def _handle_send_messages(self):
         logger.debug("SEND:init")
 
-        # TODO(nopdive): Find better alternative at some point
+        # TODO(nopdive): Find better alternative at some point for client readiness.
         # NOTE(nopdive): Waiting on client cb does not work, client messages received on cell completion.
+
         # What if we only used 1% of our brain?
-        import asyncio
-        await asyncio.sleep(.2)
+        await asyncio.sleep(200 / 1000.)
         logger.debug("SEND:ready")
 
         while True:
@@ -351,3 +360,6 @@ class AutoRenderer(Renderer):
 
     def update(self, message: GuidanceMessage) -> None:
         self._renderer.update(message)
+
+    def cleanup(self):
+        self._renderer.cleanup()

@@ -1,15 +1,15 @@
-# TODO(nopdive): Deal with weak referencing for GC. Take care of cyclical dependencies from parent & children fields.
-# TODO(nopdive): Consider integrating token operations into trace nodes.
+# TODO(nopdive): Consider integrating token operations into trace nodes (handles token healing cleaner).
 # TODO(nopdive): Benchmark (expected heap fragmentation issue). Likely need memory pooling (via rust/ctypes/Cython).
 # TODO(nopdive): Integrate images when PR for multimodal is in.
-
+import weakref
 from itertools import count
 from typing import Any, Optional, Generator, Dict
-
+import logging
 from pydantic import BaseModel, Field
-
 from guidance._schema import GenToken
 from .._utils import pydantic_no_default_repr, pydantic_no_default_str
+
+logger = logging.getLogger(__name__)
 
 
 class NodeAttr(BaseModel):
@@ -84,9 +84,9 @@ class RoleOpenerInput(InputAttr):
     This usually occurs as a role context and __enter__ is called.
     """
 
-    name: Optional[str]
-    text: Optional[str]
-    closer_text: Optional[str]
+    name: Optional[str] = None
+    text: Optional[str] = None
+    closer_text: Optional[str] = None
 
 
 class RoleCloserInput(InputAttr):
@@ -95,8 +95,8 @@ class RoleCloserInput(InputAttr):
     This usually occurs as a role context and __exit__ is called.
     """
 
-    name: Optional[str]
-    text: Optional[str]
+    name: Optional[str] = None
+    text: Optional[str] = None
 
 
 class TextOutput(OutputAttr):
@@ -136,14 +136,52 @@ class CaptureOutput(OutputAttr):
         return f"{self.name}{'+=' if self.is_append else '='}{self.value.__str__()}"
 
 
+class WeakRefList(list):
+    """Weak reference list implementation that uses weakref ref objects.
+
+    This does not override all methods for list.
+    """
+
+    def append(self, item):
+        super().append(weakref.ref(item))
+
+    def __getitem__(self, index):
+        ref = super().__getitem__(index)
+        obj = ref()
+        if obj is None:
+            raise ReferenceError("The referenced object has been garbage collected")
+        return obj
+
+    def __iter__(self):
+        return (ref() for ref in super().__iter__() if ref() is not None)
+
+    def remove(self, item):
+        ref_to_remove = None
+        for ref in super().__iter__():
+            obj = ref()
+            if obj is item:
+                ref_to_remove = ref
+                break
+        if ref_to_remove:
+            super().remove(ref_to_remove)
+
+
 class TraceNode(BaseModel):
     """Trace node which associates inputs and outputs of a guidance program."""
 
     identifier: int = Field(default_factory=count().__next__)
     parent: Optional["TraceNode"] = None
-    children: list["TraceNode"] = []
+    children: list["TraceNode"] = Field(default_factory=WeakRefList)
     input: Optional[InputAttr] = None
     output: Optional[OutputAttr] = None
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        weakref.finalize(self, self.cleanup)
+
+    def cleanup(self):
+        """Cleans up resources on de-allocation."""
+        logger.debug(f"TRACENODE:cleanup:{self.identifier}")
 
     def add_child(self, child: "TraceNode") -> None:
         """Add a child node to the trace node.
@@ -233,8 +271,8 @@ class TraceHandler(BaseModel):
     can do near-real-time partial updates.
     """
 
-    id_node_map: Dict[int, TraceNode] = {}
-    node_id_map: Dict[TraceNode, int] = {}
+    id_node_map: Dict[int, TraceNode] = weakref.WeakValueDictionary()
+    node_id_map: Dict[TraceNode, int] = weakref.WeakKeyDictionary()
 
     def __getitem__(self, item):
         return self.id_node_map[item]
@@ -273,7 +311,6 @@ class TraceHandler(BaseModel):
                 node.output = node_attr
             else:
                 raise ValueError(f"Unexpected node attr: {node_attr}")
-
         return node
 
     def root(self) -> TraceNode:

@@ -15,9 +15,6 @@ from ..trace import (
 )
 import html
 
-span_start = "<span style='background-color: rgba(255, 180, 0, 0.3); border-radius: 3px;'>"
-span_end = "</span>"
-
 
 def trace_node_to_html(
     node: TraceNode, prettify_roles=False, complete_msg: ExecutionCompletedOutputMessage = None
@@ -37,7 +34,7 @@ def trace_node_to_html(
     active_role: Optional[TraceNode] = None
 
     prob_idx = 0
-    remaining_text = ""
+    # remaining_text = ""
     full_text = ""
     if complete_msg:
         for token in complete_msg.tokens:
@@ -56,7 +53,7 @@ def trace_node_to_html(
                     fmt = f"<div style='display: flex; border-bottom: 1px solid rgba(127, 127, 127, 0.2);  justify-content: center; align-items: center;'><div style='flex: 0 0 80px; opacity: 0.5;'>{role_name.lower()}</div><div style='flex-grow: 1; padding: 5px; padding-top: 10px; padding-bottom: 10px; margin-top: 0px; white-space: pre-wrap; margin-bottom: 0px;'>"
                     buffer.append(fmt)
                 if not prettify_roles:
-                    buffer.append(span_start)
+                    buffer.append("<span style='background-color: rgba(255, 180, 0, 0.3); border-radius: 3px;'>")
 
             if not (active_role and prettify_roles):
                 attr = node.output
@@ -152,7 +149,7 @@ def trace_node_to_html(
 
             if active_role is not None:
                 if not prettify_roles:
-                    buffer.append(span_end)
+                    buffer.append("</span>")
                 if isinstance(active_role.input, RoleCloserInput) and prettify_roles:
                     buffer.append(f"</div></div>")
                 active_role = None
