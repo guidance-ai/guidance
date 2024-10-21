@@ -3,7 +3,7 @@ from guidance._schema import GenTokenExtra, GenToken
 from guidance.trace import TraceHandler, LiteralInput, TextOutput
 from guidance.visual import TraceMessage, MetricMessage, ExecutionCompletedMessage, \
     ExecutionCompletedOutputMessage, ResetDisplayMessage, ClientReadyMessage, OutputRequestMessage, \
-    ClientReadyAckMessage, trace_node_to_html
+    ClientReadyAckMessage, trace_node_to_html, display_trace_tree, trace_node_to_str
 from guidance.visual import serialize_message, deserialize_message
 from guidance.visual._async import async_loop, async_task, run_async_coroutine
 import asyncio
@@ -41,13 +41,14 @@ def test_async():
     assert task.result() is True
 
 
-def test_str_methods():
+def test_str_method_smoke():
     trace_handler = TraceHandler()
-    root_node = trace_handler.update_node(0, None, None)
     trace_handler.update_node(1, 0, None)
-    inp = LiteralInput(value="")
-    out = TextOutput(value="")
+    inp = LiteralInput(value="Hi there!")
+    out = TextOutput(value="Hi there!")
     trace_handler.update_node(2, 0, inp)
     child_node = trace_handler.update_node(2, 0, out)
 
     assert trace_node_to_html(child_node) != ""
+    assert trace_node_to_str(child_node) != ""
+    assert display_trace_tree(trace_handler) is None

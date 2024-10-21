@@ -207,7 +207,7 @@ class Engine:
         weakref.finalize(self, self.cleanup)
 
     def cleanup(self):
-        # NOTE(nopdive): This might not be called on GC due potential circular refs.
+        # NOTE(nopdive): This might not be called on GC due to potential circular refs.
         # Follow-up work is needed on engine memory review.
 
         logger.debug("ENGINE:cleanup")
