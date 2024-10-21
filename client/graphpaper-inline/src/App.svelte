@@ -37,7 +37,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
 	let firstMessageId: number = -1;
 	let requireFullReplay: boolean = false;
 
-	let bgField: string = "None";
+	let bgField: string = "Type";
 	let underlineField: string = "Probability";
 
 	// textComponents = mockNodeAttrs;
@@ -239,7 +239,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
 						</svg>
 					{/if}
 				</div>
-				<Select values={["None", "Type", "Probability", "Latency (ms)"]} classes="bg-gray-200" defaultValue={"None"} on:select={(selected) => bgField = selected.detail}/>
+				<Select values={["None", "Type", "Probability", "Latency (ms)"]} classes="bg-gray-200" defaultValue={"Type"} on:select={(selected) => bgField = selected.detail}/>
 				<Select values={["None", "Probability", "Latency (ms)"]} classes="border-b-2 border-gray-400" defaultValue={"Probability"} on:select={(selected) => underlineField = selected.detail}/>
 			</div>
 		</section>
