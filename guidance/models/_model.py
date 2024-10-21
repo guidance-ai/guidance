@@ -616,8 +616,16 @@ class Model:
 
         return select(parts)
 
-    def _html(self):
-        """Generate HTML that displays the model object."""
+
+    def html(self):
+        """Displays model as HTML."""
+        # NOTE(nopdive): Have this public for now until all widget related issues are sorted out.
+        clear_output(wait=True)
+        display(HTML(self._html()))
+
+
+    def _html(self) -> str:
+        """Returns HTML string that displays the model object."""
 
         return trace_node_to_html(
             self._trace_handler.id_node_map[self._id], hasattr(self, "indent_roles")

@@ -3,6 +3,7 @@
 Our main focus is on jupyter notebooks and later terminal.
 """
 # TODO(nopdive): Implementation for terminals & append-only text displays.
+# NOTE(nopdive): Testing this notebook related components is tricky. Should figure this out at some point.
 
 import asyncio
 import logging
@@ -37,17 +38,46 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
+# NOTE(nopdive): Temporary solution until we iron out all issues with widgets.
+_legacy_mode = False  # pragma: no cover
+def legacy_mode(flag: Optional[bool] = None) -> bool:  # pragma: no cover
+    """ Sets visualizations to legacy mode (how Guidance used to be).
+
+    This method call will likely deprecate when a fresher API for
+    renderers is defined.
+
+    Args:
+        flag: True if legacy is wanted.
+
+    Returns:
+        Whether legacy mode is enabled.
+    """
+    global _legacy_mode
+    if flag is not None:
+        _legacy_mode = flag
+    return _legacy_mode
+
+
 class RenderUpdate(BaseModel):
+    """ This informs which new messages are to render, along with if a new display is needed."""
+
     messages: list = []
     need_new_display: bool = False
 
 
 class JupyterChangeDetector:
+    """ Detects if a change has occurred on a Jupyter cell."""
+
     def __init__(self):
         self._prev_cell_msg_id: Optional[int] = None
         self._prev_cell_exec_count: Optional[int] = None
 
     def has_changed(self) -> bool:
+        """ Detects if Jupyter cell has been updated.
+
+        Returns:
+            True if cell has a higher exec count or if we're in a different cell to before.
+        """
         if ipython_imported and get_ipython() is not None:
             ipy = get_ipython()
             cell_msg_id = ipy.get_parent()["msg_id"]
@@ -67,7 +97,14 @@ class JupyterChangeDetector:
 
 
 class UpdateController:
+    """ Responsible for producing a RenderUpdate object, that has messages to be sent to client."""
+
     def __init__(self, trace_handler: TraceHandler):
+        """ Initializes.
+
+        Args:
+            trace_handler: Trace handler of an engine.
+        """
         self._trace_handler = trace_handler
         self._jupyter_change_detector = JupyterChangeDetector()
         self._messages: list[GuidanceMessage] = []
@@ -75,6 +112,17 @@ class UpdateController:
         self._completed = False
 
     def update(self, message: GuidanceMessage) -> RenderUpdate:
+        """ Determines which messages need to be sent to a client.
+
+        This can include resets, as well as full message replays when the jupyter
+        cell changes, or a new model is displaying.
+
+        Args:
+            message: Incoming message.
+
+        Returns:
+            Render update that has messages to be sent to client alongside a reset flag.
+        """
         if isinstance(message, MetricMessage) and not self._completed:
             return RenderUpdate(messages=[message])
         elif isinstance(message, ExecutionCompletedOutputMessage) and not self._completed:
@@ -142,19 +190,35 @@ class Renderer:
     """Renders guidance model to a visual medium."""
 
     def __init__(self):
+        """Initializes. """
         self._observers = []
 
     def notify(self, message: GuidanceMessage):
+        """ Notifies all observers of the renderer of an incoming message.
+
+        Args:
+            message: Incoming message.
+        """
         for observer in self._observers:
             observer(message)
 
     def subscribe(self, callback: Callable[[GuidanceMessage], None]) -> None:
+        """ Subscribes to incoming messages.
+
+        Args:
+            callback: Callback to handle incoming messages.
+        """
         self._observers.append(callback)
 
     def cleanup(self):
         pass
 
     def update(self, message: GuidanceMessage) -> None:
+        """ Updates renderer with incoming message.
+
+        Args:
+            message: Incoming message.
+        """
         raise NotImplementedError("Update not implemented.")
 
 
@@ -179,7 +243,14 @@ _create_stitch_widget.src_doc_template = None
 
 
 class JupyterWidgetRenderer(Renderer):
+    """Jupyter widget renderer that is implemented via stitch package."""
+
     def __init__(self, trace_handler: TraceHandler) -> None:
+        """ Initializes.
+
+        Args:
+            trace_handler: Trace handler of an engine.
+        """
         self._update_controller = UpdateController(trace_handler)
         self._jupyter_widget = None
         self._jupyter_change_detector = JupyterChangeDetector()
@@ -319,6 +390,12 @@ class LegacyHtmlRenderer(JupyterWidgetRenderer):
     """Original HTML renderer for guidance."""
 
     def __init__(self, trace_handler: TraceHandler) -> None:
+        """ Initializes.
+
+        Args:
+            trace_handler: Trace handler of an engine.
+        """
+
         self._trace_handler = trace_handler
         super().__init__(trace_handler)
 
@@ -343,8 +420,18 @@ class LegacyHtmlRenderer(JupyterWidgetRenderer):
 
 
 class AutoRenderer(Renderer):
+    """ Automatically detects which renderer to use based on environment."""
+
     def __init__(self, trace_handler: TraceHandler):
-        if stitch_installed:
+        """ Initializes.
+
+        Args:
+            trace_handler: Trace handler of an engine.
+        """
+
+        if legacy_mode():
+            self._renderer = LegacyHtmlRenderer(trace_handler=trace_handler)
+        elif stitch_installed:
             self._renderer = JupyterWidgetRenderer(trace_handler=trace_handler)
         else:
             self._renderer = LegacyHtmlRenderer(trace_handler=trace_handler)
