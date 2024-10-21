@@ -1,3 +1,5 @@
+// Action for clicking outside an element.
+
 export function clickOutside(node: HTMLElement) {
 	const handleClick = (event: MouseEvent) => {
 		let target = event.target as HTMLElement;

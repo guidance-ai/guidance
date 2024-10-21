@@ -1,3 +1,4 @@
+<!-- Custom select dropdown -->
 <script lang="ts">
     import { clickOutside } from "./clickoutside";
     import { createEventDispatcher } from 'svelte';

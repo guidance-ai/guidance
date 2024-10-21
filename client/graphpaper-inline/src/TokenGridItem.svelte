@@ -1,3 +1,4 @@
+<!-- Token(s) within token grid -->
 <script lang="ts">
     import {type Token} from "./interfaces";
 

@@ -1,3 +1,8 @@
+<!-- Main app that handles token rendering and metrics.
+
+This has bidirectional communication between the guidance server (usually Jupyter kernel) and client.
+For upcoming features, we won't be able to send all details over the wire, and will need to operate on client request.
+-->
 <script lang="ts">
     import './main.css';
     import TokenGrid from './TokenGrid.svelte';

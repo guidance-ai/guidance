@@ -1,3 +1,4 @@
+<!-- Handles stitch client and kernel messages. -->
 <script lang="ts">
     import type { Unsubscriber } from 'svelte/store';
     import { kernelmsg, clientmsg, type StitchMessage } from './stitch';

@@ -1,3 +1,5 @@
+// Action for long mouse hovers.
+
 export function longhover(node: HTMLElement, duration: number) {
     let timer: any;
 

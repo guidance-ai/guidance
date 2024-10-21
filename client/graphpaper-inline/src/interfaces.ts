@@ -1,3 +1,5 @@
+// Interfaces used within the client. This is separate to messaging interfaces.
+
 import type {GenToken} from "./stitch";
 
 export interface MetricDef {

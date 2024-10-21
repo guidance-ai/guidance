@@ -1,6 +1,4 @@
-<script lang="ts" context="module">
-    </script>
-
+<!-- Each metric is displayed as a card. -->
 <script lang="ts">
     import Minibar from "./Minibar.svelte";
     import { type MetricDef, type MetricVal} from "./interfaces";

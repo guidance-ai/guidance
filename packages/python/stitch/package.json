@@ -1,7 +1,7 @@
 {
   "name": "stitch",
   "version": "0.1.0",
-  "description": "Bidirectional comms for Jupyer and JavaScript.",
+  "description": "Bidirectional comms for Jupyter and JavaScript.",
   "keywords": [
     "jupyter",
     "jupyterlab",

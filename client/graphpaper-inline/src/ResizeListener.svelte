@@ -1,3 +1,4 @@
+<!-- Handles resizing of content, especially important for jupyter notebooks. -->
 <script lang="ts">
     import { onMount, onDestroy } from 'svelte';
     import { clientmsg, type StitchMessage} from "./stitch";

@@ -1,3 +1,5 @@
+// Interfaces for working with guidance messages and stitch.
+
 import {writable} from 'svelte/store';
 
 export interface GenToken {

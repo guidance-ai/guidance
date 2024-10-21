@@ -1,3 +1,4 @@
+<!-- Token grid that exposes each token and hover info. -->
 <script lang="ts">
     import {isRoleOpenerInput, isTextOutput, type NodeAttr, type RoleOpenerInput, type GenTokenExtra} from './stitch';
     import TokenGridItem from "./TokenGridItem.svelte";

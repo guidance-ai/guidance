@@ -1,3 +1,5 @@
+// Entrypoint for web app.
+
 import App from './App.svelte';
 
 const app = new App({
