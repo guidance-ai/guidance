@@ -248,7 +248,7 @@ class Engine:
                 self.renderer.update(
                     ExecutionCompletedOutputMessage(
                         trace_id=last_trace_id,
-                        text=self.tokenizer.decode(tokens).decode("utf-8"),
+                    text=self.tokenizer.decode(tokens).decode("utf-8"),
                         tokens=processed_gen_tokens,
                     )
                 )
