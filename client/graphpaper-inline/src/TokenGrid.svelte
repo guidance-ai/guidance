@@ -59,7 +59,7 @@
             return "";
         }
 
-        let colorVal = interpolateYlOrRd(x);
+        let colorVal = interpolateYlOrRd(x * 0.85);
         if (color !== undefined) {
             colorVal = color(x);
         }
@@ -72,7 +72,7 @@
             return "";
         }
 
-        let colorVal = interpolateGreens(x);
+        let colorVal = interpolateGreens(x * 0.70);
         if (color !== undefined) {
             colorVal = color(x);
         }
@@ -284,7 +284,7 @@
         if (underlineField === "Probability") {
             underline = (x: Token) => underlineStyle(x.prob);
         } else if (underlineField === "Latency (ms)") {
-            underline = (x: Token) => underlineStyle(x.latency_ms);
+            underline = (x: Token) => underlineStyle(Math.log(x.latency_ms) / Math.log(statCounter['latency.max']));
         } else {
             underline = (_: Token) => "";
         }
