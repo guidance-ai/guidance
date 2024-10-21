@@ -146,6 +146,7 @@ class PeriodicMetricsGenerator:
 
                 self._renderer.update(MetricMessage(name="vram", value=gpu_used_vram))
             except CancelledError:
+                logger.debug("METRICGEN:canceling")
                 break
 
 
