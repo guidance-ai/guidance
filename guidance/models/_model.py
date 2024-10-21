@@ -38,7 +38,8 @@ from ..visual import (
     Renderer,
     ExecutionCompletedMessage,
     ExecutionCompletedOutputMessage,
-    MetricMessage, OutputRequestMessage,
+    MetricMessage,
+    OutputRequestMessage,
 )
 from ..visual._async import run_async_coroutine, async_task
 
@@ -56,7 +57,8 @@ from .._schema import (
     EngineOutput,
     GenToken,
     GuidanceEngineMetrics,
-    VisBytesChunk, GenTokenExtra,
+    VisBytesChunk,
+    GenTokenExtra,
 )
 from .._utils import softmax, CaptureEvents
 from .._parser import TokenParser
@@ -642,13 +644,11 @@ class Model:
 
         return select(parts)
 
-
     def html(self):
         """Displays model as HTML."""
         # NOTE(nopdive): Have this public for now until all widget related issues are sorted out.
         clear_output(wait=True)
         display(HTML(self._html()))
-
 
     def _html(self) -> str:
         """Returns HTML string that displays the model object."""
@@ -1517,7 +1517,9 @@ class Model:
                     for _token in _gen_token.top_k:
                         _token.is_masked = False
 
-            processed_gen_tokens.extend(_gen_tokens)
+            for _gen_token in _gen_tokens:
+                if _gen_token.text != "":
+                    processed_gen_tokens.append(_gen_token)
 
             start_idx = end_idx + 1
 
@@ -1692,15 +1694,22 @@ def _monitor_fn(
     # print("Monitoring started")
 
     to_collect_gpu_stats = False
+    has_gpustat = False
     try:
         import gpustat
 
-        gpu_stats = gpustat.GPUStatCollection.new_query()
-        if len(gpu_stats) > 0:
-            # only collect GPU stats if there is at least one GPU
-            to_collect_gpu_stats = True
-    except ImportError:
+        has_gpustat = True
+    except:
         logger.warning("gpustat is not installed, run `pip install gpustat` to collect GPU stats.")
+
+    if has_gpustat:
+        try:
+            gpu_stats = gpustat.GPUStatCollection.new_query()
+            if len(gpu_stats) > 0:
+                # only collect GPU stats if there is at least one GPU
+                to_collect_gpu_stats = True
+        except:
+            logger.warning("Non-Nvidia GPU monitoring is not supported in this version.")
 
     try:
         while not stop_flag.value:
