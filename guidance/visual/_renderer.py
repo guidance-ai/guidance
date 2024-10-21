@@ -16,7 +16,7 @@ from ._message import ExecutionCompletedMessage, ExecutionCompletedOutputMessage
 from ..trace import TraceHandler
 from ..visual import GuidanceMessage, TraceMessage, ResetDisplayMessage, ClientReadyMessage
 from ._trace import trace_node_to_html
-from ._async import run_async_coroutine, ThreadSafeAsyncCondVar, async_loop, async_task
+from ._async import run_async_coroutine, async_loop, async_task
 
 try:
     from IPython.display import clear_output, display, HTML
@@ -187,11 +187,9 @@ class JupyterWidgetRenderer(Renderer):
         self._last_trace_id = None
         self._loop = async_loop()
 
+        # Create queue and wait for instantiation
         self._send_queue: Optional[Queue] = None
         self._recv_queue: Optional[Queue] = None
-        self._cell_executed = ThreadSafeAsyncCondVar(async_loop())
-
-        # Wait for queues to instantiate
         future = run_async_coroutine(self._create_queues())
         future.result()
 

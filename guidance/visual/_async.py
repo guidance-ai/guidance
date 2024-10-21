@@ -8,40 +8,7 @@ This includes a separate thread dedicated for visualization and messaging.
 import asyncio
 import threading
 from asyncio import AbstractEventLoop, Future, Task
-from typing import Tuple
-
-
-class ThreadSafeAsyncCondVar:
-    def __init__(self, loop:AbstractEventLoop = None):
-        self._loop = loop or asyncio.get_event_loop()
-        self._waiters = []
-        self._waiters_lock = threading.Lock()
-
-    async def wait(self):
-        future = self._loop.create_future()
-        with self._waiters_lock:
-            self._waiters.append(future)
-        try:
-            await future
-        finally:
-            with self._waiters_lock:
-                if future in self._waiters:
-                    self._waiters.remove(future)
-
-    def notify(self, n=1, result=None):
-        with self._waiters_lock:
-            if n == 0:
-                waiters_to_notify = self._waiters
-                self._waiters.clear()
-            else:
-                waiters_to_notify = self._waiters[:n]
-                self._waiters = self._waiters[n:]
-
-        for future in waiters_to_notify:
-            self._loop.call_soon_threadsafe(future.set_result, (result,))
-
-    def notify_all(self, result=None):
-        self.notify(n=0, result=result)
+from typing import Tuple, Coroutine
 
 
 def _start_asyncio_loop(loop: AbstractEventLoop):
@@ -64,22 +31,48 @@ def _run_thread_if_needed():
         _thread.start()
     return _thread, _loop
 
-def run_async_coroutine(coroutine):
-    _, loop = _run_thread_if_needed()
-    future = asyncio.run_coroutine_threadsafe(coroutine, loop)
-    return future
 
-async def async_task(coroutine):
+async def async_task(coroutine: Coroutine) -> Task:
+    """ Creates an asyncio task from coroutine.
+
+    Args:
+        coroutine: Coroutine within task.
+
+    Returns:
+        Asyncio task.
+    """
     task = asyncio.create_task(coroutine)
     return task
 
-async def print_all_tasks():
+
+async def print_all_tasks():  # pragma: no cover
+    """Prints all tasks running in visual thread loop."""
     for task in asyncio.all_tasks():
         print(task)
 
+
 def async_loop() -> AbstractEventLoop:
+    """ Returns async loop in visual thread.
+
+    Returns:
+        Async loop of visual thread.
+    """
     _, loop = _run_thread_if_needed()
     return loop
+
+
+def run_async_coroutine(coroutine: Coroutine) -> Future:
+    """ Runs an asynchronous coroutine in the visual thread.
+
+    Args:
+        coroutine: Coroutine to be run on visual thread.
+
+    Returns:
+        Future of coroutine.
+    """
+    _, loop = _run_thread_if_needed()
+    future = asyncio.run_coroutine_threadsafe(coroutine, loop)
+    return future
 
 _loop = None
 _thread = None

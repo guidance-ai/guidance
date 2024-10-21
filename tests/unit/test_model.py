@@ -40,3 +40,15 @@ def test_model_set():
 
     model += gen("list_num", max_tokens=10, list_append=True)
     assert len(model['list_num']) == 3
+
+
+def test_trace():
+    from guidance import system, user, gen, models
+    m0 = models.Mock()
+
+    with system():
+        m1 = m0 + "You are responsible for autocompleting a sentence."
+    with user():
+        m2 = m1 + "Roses are red and " + gen(name="suffix", regex='[A-Za-z]{2,5}', max_tokens=5)
+
+    assert m2['suffix'] is not None

@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 class NodeAttr(BaseModel):
     """Attributes of a trace node."""
+
     class_name: str = ""
 
     def __init__(self, **kwargs):
@@ -108,12 +109,14 @@ class TextOutput(OutputAttr):
     is_force_forwarded: bool = False
     token_count: int = 0
     prob: float = 0.0
-    tokens: list[GenToken] = Field(exclude=True, default_factory=list)  # use to store tokens associated with output
+    tokens: list[GenToken] = Field(
+        exclude=True, default_factory=list
+    )  # use to store tokens associated with output
 
     def __str__(self):
         return self.value
 
-  
+
 # NOTE(nopdive): Placeholder, needs to be filled once multimodal PR is in.
 class ImageOutput(OutputAttr):
     """Image as bytes."""
@@ -271,8 +274,9 @@ class TraceHandler(BaseModel):
     can do near-real-time partial updates.
     """
 
-    id_node_map: Dict[int, TraceNode] = weakref.WeakValueDictionary()
-    node_id_map: Dict[TraceNode, int] = weakref.WeakKeyDictionary()
+    # NOTE(nopdive): Type trickery for pydantic.
+    id_node_map: Dict[int, TraceNode] = weakref.WeakValueDictionary()  # type: ignore
+    node_id_map: Dict[TraceNode, int] = weakref.WeakKeyDictionary()  # type: ignore
 
     def __getitem__(self, item):
         return self.id_node_map[item]

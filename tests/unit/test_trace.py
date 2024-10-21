@@ -54,14 +54,14 @@ def test_trace_handler():
     trace_handler = TraceHandler()
     root = trace_handler.update_node(0, None, None)
     child1 = trace_handler.update_node(1, 0, None)
-    input = LiteralInput(value="")
-    output = TextOutput(value="")
-    pre_child2 = trace_handler.update_node(2, 0, input)
-    child2 = trace_handler.update_node(2, 0, output)
+    inp = LiteralInput(value="")
+    out = TextOutput(value="")
+    pre_child2 = trace_handler.update_node(2, 0, inp)
+    child2 = trace_handler.update_node(2, 0, out)
 
     assert pre_child2 == child2
-    assert child2.input == input
-    assert child2.output == output
+    assert child2.input == inp
+    assert child2.output == out
     assert child2.root() == root
     assert child1 not in child2.path()
 

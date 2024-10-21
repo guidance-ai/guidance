@@ -1,10 +1,11 @@
+""" Visualization related to trace. """
+
 import base64
 import json
 from typing import Optional, Dict
+from .._schema import GenToken
 
-from guidance._schema import GenToken
-from guidance.visual._message import ExecutionCompletedOutputMessage
-
+from ..visual._message import ExecutionCompletedOutputMessage
 from ..trace import (
     TextOutput,
     TraceNode,
