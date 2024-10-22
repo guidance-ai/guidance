@@ -40,8 +40,8 @@ For upcoming features, we won't be able to send all details over the wire, and w
 	let bgField: string = "Type";
 	let underlineField: string = "Probability";
 
-	textComponents = mockNodeAttrs;
-	tokenDetails = mockGenTokens;
+	// textComponents = mockNodeAttrs;
+	// tokenDetails = mockGenTokens;
 
 	$: if ($kernelmsg !== undefined) {
 		if ($kernelmsg.content !== '') {

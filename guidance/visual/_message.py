@@ -38,7 +38,7 @@ class TraceMessage(GuidanceMessage):
 class MetricMessage(GuidanceMessage):
     """Metric that has been emitted."""
     name: str
-    value: Union[float, str, list[float], list[str]]
+    value: Union[float, str, list[float], list[str]] = Field(union_mode='left_to_right')
     scalar: bool = True
 
 

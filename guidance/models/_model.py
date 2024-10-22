@@ -150,6 +150,9 @@ class PeriodicMetricsGenerator:
             except CancelledError:
                 logger.debug("METRICGEN:canceling")
                 break
+            except Exception as e:
+                logger.debug(f"METRICGEN: {repr(e)}")
+                break
 
 
 class PostExecMetrics:
