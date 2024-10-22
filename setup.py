@@ -27,6 +27,7 @@ install_requires = [
     "platformdirs",
     "pydantic",
     "requests",
+    "psutil",
     "tiktoken>=0.3",
     "llguidance>=0.1.7",
 ]
