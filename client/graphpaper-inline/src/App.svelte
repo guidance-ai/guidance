@@ -100,6 +100,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
 				}
 			} else if (isExecutionCompletedOutputMessage(msg)) {
 				requireFullReplay = false;
+				completedExecution = true;
 				tokenDetails = msg.tokens;
 
 				console.log(textComponents);

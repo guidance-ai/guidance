@@ -10,7 +10,7 @@
 
     export let textComponents: Array<NodeAttr>;
     export let tokenDetails: Array<GenTokenExtra>;
-    export let isCompleted: boolean = false;
+    export let isCompleted: boolean;
     export let requireFullReplay: boolean = false;
     export let bgField: string = "Token";
     export let underlineField: string = "Probability";
@@ -280,7 +280,9 @@
         }
 
         // Visual updates
-        if (underlineField === "Probability") {
+        if (!isCompleted) {
+            underline = (_: Token) => "border: none;";
+        } else if (underlineField === "Probability") {
             underline = (x: Token) => underlineStyle(x.prob);
         } else if (underlineField === "Latency (ms)") {
             underline = (x: Token) => underlineStyle(Math.log(x.latency_ms) / Math.log(statCounter['latency.max']));
@@ -288,7 +290,10 @@
             underline = (_: Token) => "border: none;";
         }
 
-        if (bgField === "Type") {
+        if (!isCompleted) {
+            // bg = (_: Token) => "";
+            bg = (x: Token) => bgTokenStyle(x);
+        } else if (bgField === "Type") {
             bg = (x: Token) => bgTokenStyle(x);
         } else if (bgField === "Probability") {
             bg = (x: Token) => bgStyle(x.prob);
@@ -300,6 +305,7 @@
         }
 
         // End bookkeeping (svelte)
+        isCompleted = isCompleted;
         tokenDetails = tokenDetails;
         textComponents = textComponents;
         tokens = tokens;
