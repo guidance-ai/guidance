@@ -401,10 +401,11 @@ def validate_json_node_keys(node: Mapping[str, Any]):
 class GenJson:
     item_separator = ", "
     key_separator = ": "
-    def __init__(self, schema: JSONSchema, separators: Optional[tuple[str, str]] = None) -> None:
+    def __init__(self, schema: JSONSchema, separators: Optional[tuple[str, str]] = None, strict_properties=True) -> None:
         self.schema = schema
         if separators is not None:
             self.item_separator, self.key_separator = separators
+        self.strict_properties = strict_properties
 
         registry: referencing.Registry[JSONSchema] = referencing.Registry()
         resource: referencing.Resource[JSONSchema] = referencing.jsonschema.DRAFT202012.create_resource(schema)
@@ -777,18 +778,8 @@ class GenJson:
                 self.json(json_schema={"type": "number"}),
                 self.json(json_schema={"type": "string"}),
                 # Recursive cases
-                self.json(
-                    json_schema={
-                        "type": "array",
-                        "items": True,
-                    },
-                ),
-                self.json(
-                    json_schema={
-                        "type": "object",
-                        "additionalProperties": True,
-                    },
-                ),
+                self.json(json_schema={"type": "array"}),
+                self.json(json_schema={"type": "object"}),
             ]
         )
 
@@ -900,7 +891,10 @@ class GenJson:
             elif target_type == JSONType.OBJECT:
                 option = self.object(
                     properties=json_schema.get(ObjectKeywords.PROPERTIES, {}),
-                    additional_properties=json_schema.get(ObjectKeywords.ADDITIONAL_PROPERTIES, True),
+                    # For "true" adherence to the JSON schema spec, additionalProperties should be `False` by default.
+                    # However, defaulting to `False` is going to give a more terse output, which is probably
+                    # more useful for most users.
+                    additional_properties=json_schema.get(ObjectKeywords.ADDITIONAL_PROPERTIES, not self.strict_properties),
                     required=json_schema.get(ObjectKeywords.REQUIRED, set()),
                 )
             else:
@@ -925,6 +919,7 @@ def json(
     max_tokens: int = 100000000,
     separators: Optional[tuple[str, str]] = None,
     whitespace_flexible: bool = False,
+    strict_properties: bool = True,
     **kwargs,
 ):
     """Generate valid JSON according to the supplied JSON schema or `pydantic` model.
@@ -994,10 +989,16 @@ def json(
     else:
         skip_regex = None
 
+    body = GenJson(
+        schema=schema,
+        separators=separators,
+        strict_properties=strict_properties,
+    ).root()
+
     return lm + with_temperature(
         subgrammar(
             name,
-            body=GenJson(schema=schema, separators=separators).root(),
+            body=body,
             skip_regex=skip_regex,
             no_initial_skip=True,
             max_tokens=max_tokens,
