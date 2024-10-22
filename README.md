@@ -477,7 +477,7 @@ def calculator_call(lm):
 @guidance
 def calculator(lm):
     expression = lm['tool_args']
-    # You typically don't want to run eval directly for safe reasons
+    # You typically don't want to run eval directly for security reasons
     # Here we are guaranteed to only have mathematical expressions
     lm += f' = {eval(expression)}'
     return lm
