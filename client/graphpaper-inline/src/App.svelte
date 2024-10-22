@@ -176,10 +176,10 @@ For upcoming features, we won't be able to send all details over the wire, and w
 	};
 	const metrics: Record<string, MetricVal> = {
 		'status': '⟳',
-		'gpu': [0.0, 0.0, 0.0, 0.0, 0.0],
-		'vram': 0,
-		// 'cpu': [0.0, 0.0, 0.0, 0.0, 0.0],
-		// 'ram': 0,
+		// 'gpu': [0.0, 0.0, 0.0, 0.0, 0.0],
+		// 'vram': 0,
+		'cpu': [0.0, 0.0, 0.0, 0.0, 0.0],
+		'ram': 0,
 		'wall time': 0,
 		'avg latency': 0,
 		'consumed': 0,

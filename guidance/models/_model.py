@@ -84,7 +84,6 @@ format_pattern = re.compile(r"<\|\|_.*?_\|\|>", flags=re.DOTALL)
 
 class PeriodicMetricsGenerator:
     def __init__(self, renderer: Renderer, monitor: "Monitor", sleep_sec=0.5):
-
         self._renderer = renderer
         self._monitor = monitor
         self._sleep_sec = sleep_sec
