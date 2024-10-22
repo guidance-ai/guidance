@@ -6,6 +6,7 @@ from guidance.visual import TraceMessage, MetricMessage, ExecutionCompletedMessa
     ClientReadyAckMessage, trace_node_to_html, display_trace_tree, trace_node_to_str
 from guidance.visual import serialize_message, deserialize_message
 from guidance.visual._async import async_loop, async_task, run_async_coroutine
+from guidance.visual import Environment
 import asyncio
 
 
@@ -52,3 +53,12 @@ def test_str_method_smoke():
     assert trace_node_to_html(child_node) != ""
     assert trace_node_to_str(child_node) != ""
     assert display_trace_tree(trace_handler) is None
+
+
+def test_environment():
+    env = Environment()
+    assert not env.is_cloud()
+    assert not env.is_notebook()
+    assert env.is_terminal()
+    assert "ipython-zmq" not in env.detected_envs
+

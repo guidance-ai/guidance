@@ -12,12 +12,14 @@ from typing import Optional, Callable
 from pydantic import BaseModel
 from asyncio import Queue
 
+from ._environment import Environment
 from ._message import ExecutionCompletedMessage, ExecutionCompletedOutputMessage, \
     deserialize_message, serialize_message, MetricMessage, ClientReadyAckMessage
-from ..trace import TraceHandler
+from ..trace import TraceHandler, TextOutput
 from ..visual import GuidanceMessage, TraceMessage, ResetDisplayMessage, ClientReadyMessage
 from ._trace import trace_node_to_html
 from ._async import run_async_coroutine, async_loop, async_task
+from warnings import warn
 
 try:
     from IPython.display import clear_output, display, HTML
@@ -386,6 +388,22 @@ class JupyterWidgetRenderer(Renderer):
                 logger.error(f"SEND:err:{repr(e)}")
 
 
+class DoNothingRenderer(Renderer):
+    """ It does nothing. Placeholder for future renderers."""
+
+    def __init__(self, trace_handler: TraceHandler) -> None:
+        """ Initializes.
+
+        Args:
+            trace_handler: Trace handler of an engine.
+        """
+        self._trace_handler = trace_handler
+        super().__init__()
+
+    def update(self, message: GuidanceMessage) -> None:
+        pass
+
+
 class LegacyHtmlRenderer(JupyterWidgetRenderer):
     """Original HTML renderer for guidance."""
 
@@ -428,13 +446,26 @@ class AutoRenderer(Renderer):
         Args:
             trace_handler: Trace handler of an engine.
         """
+        self._env = Environment()
 
         if legacy_mode():
             self._renderer = LegacyHtmlRenderer(trace_handler=trace_handler)
-        elif stitch_installed:
-            self._renderer = JupyterWidgetRenderer(trace_handler=trace_handler)
         else:
-            self._renderer = LegacyHtmlRenderer(trace_handler=trace_handler)
+            if self._env.is_notebook():
+                if stitch_installed:
+                    self._renderer = JupyterWidgetRenderer(trace_handler=trace_handler)
+                else:
+                    self._renderer = LegacyHtmlRenderer(trace_handler=trace_handler)
+            elif self._env.is_terminal():
+                # TODO(nopdive): When IPython events are figured out (cell completion)
+                #                hook up terminal interface separate to non-interactive
+                #                shell.
+                self._renderer = DoNothingRenderer(trace_handler=trace_handler)
+            else:  # pragma: no cover
+                logger.error("Env detection has failed. This is a bug.")
+                warn("Env detection has failed. No renderer will be provided.")
+                self._renderer = None
+
         super().__init__()
 
     def notify(self, message: GuidanceMessage):

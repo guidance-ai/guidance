@@ -189,7 +189,6 @@ class Engine:
         self.trace_handler = TraceHandler()
         if renderer is None:
             self.renderer = AutoRenderer(self.trace_handler)
-            # self.renderer = LegacyHtmlRenderer(self.trace_handler)
 
         self.renderer.subscribe(self._msg_recv)
         self.model_dict: dict[int, Model] = {}
