@@ -293,7 +293,8 @@ class ByteParser:
                     consumed_bytes=self.bytes[: self.pos],
                 )
             # Byte was good, have ll_parser consume it so we can advance further
-            self.gen_data, response = self.token_parser.advance(b)
+            fake_engine_output = self.fake_engine_output(b)
+            self.gen_data, response = self.token_parser.advance(fake_engine_output)
             self._update_capture(response)
             self.bytes += response.new_bytes
 
@@ -306,7 +307,8 @@ class ByteParser:
         if self.token_parser.done():
             return
 
-        self.gen_data, response = self.token_parser.advance(self.tokenizer.eos_token_id)
+        fake_engine_output = self.fake_engine_output(self.tokenizer.eos_token_id)
+        self.gen_data, response = self.token_parser.advance(fake_engine_output)
         self._update_capture(response)
         self.bytes += response.new_bytes
         if not self.token_parser.done() or not self.matched():
@@ -346,3 +348,18 @@ class ByteParser:
                     pass
                 self._variables[k] = v
                 self._variables_log_probs[k] = response.capture_group_log_probs[k]
+
+    def fake_engine_output(self, token_id: int) -> EngineOutput:
+        fake_issued_token = GenToken(
+            token_id=token_id,
+            prob=1.0,
+            text=self.tokenizer.decode([token_id]).decode("utf-8"),
+            latency_ms=0,
+            is_generated=True,
+        )
+        fake_engine_output = EngineOutput(
+            issued_token=fake_issued_token,
+            top_k=None,
+            masked_top_k=None,
+        )
+        return fake_engine_output
