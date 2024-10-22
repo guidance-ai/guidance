@@ -6,7 +6,7 @@
     import {longhover} from "./longhover";
     import DOMPurify from "dompurify";
 
-    import {interpolateGreens, interpolateYlOrRd} from "d3-scale-chromatic";
+    import {interpolateGreens, interpolateYlOrRd, interpolateBlues} from "d3-scale-chromatic";
 
     export let textComponents: Array<NodeAttr>;
     export let tokenDetails: Array<GenTokenExtra>;
@@ -59,7 +59,8 @@
             return "";
         }
 
-        let colorVal = interpolateYlOrRd(x * 0.85);
+        // let colorVal = interpolateYlOrRd(x * 0.85);
+        let colorVal = interpolateBlues(x);
         if (color !== undefined) {
             colorVal = color(x);
         }
