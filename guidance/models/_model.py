@@ -132,17 +132,9 @@ class PeriodicMetricsGenerator:
                 time_elapsed = time_end - time_start
                 self._renderer.update(MetricMessage(name="wall time", value=time_elapsed))
 
-                self._renderer.update(
-                    MetricMessage(
-                        name="cpu", value=self._monitor.get_metric(MonitoringMetric.CPU_USAGE)
-                    )
-                )
+                self._renderer.update(MetricMessage(name="cpu", value=cpu_percent))
 
-                self._renderer.update(
-                    MetricMessage(
-                        name="ram", value=self._monitor.get_metric(MonitoringMetric.MEM_USAGE)
-                    )
-                )
+                self._renderer.update(MetricMessage(name="ram", value=mem_percent))
 
                 self._renderer.update(MetricMessage(name="gpu", value=gpu_percent))
 
@@ -254,7 +246,7 @@ class Engine:
                 self.renderer.update(
                     ExecutionCompletedOutputMessage(
                         trace_id=last_trace_id,
-                    text=self.tokenizer.decode(tokens).decode("utf-8"),
+                        text=self.tokenizer.decode(tokens).decode("utf-8"),
                         tokens=processed_gen_tokens,
                     )
                 )
