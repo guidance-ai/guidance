@@ -477,7 +477,7 @@ def calculator_call(lm):
 @guidance
 def calculator(lm):
     expression = lm['tool_args']
-    # You typically don't want to run eval directly for save reasons
+    # You typically don't want to run eval directly for security reasons
     # Here we are guaranteed to only have mathematical expressions
     lm += f' = {eval(expression)}'
     return lm
@@ -489,7 +489,7 @@ lm += gen(max_tokens=30, tools=[calculator_tool], stop='\n\n')
 
 
 ### Gsm8k example
-Notice that the calculator is just called seamlessly during generation. Here is a more realistic exampe of the model solving a gsm8k question:
+Notice that the calculator is just called seamlessly during generation. Here is a more realistic example of the model solving a gsm8k question:
 
 ```python
 @guidance
