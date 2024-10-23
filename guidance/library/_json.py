@@ -413,7 +413,7 @@ class GenJson:
             uri=self._base_uri,
             resource=resource
         )
-        self._resolver = registry.resolver_with_root(resource)
+        self._resolver = registry.resolver()
         self._defs: dict[str, Callable[[], GrammarFunction]] = {}
 
     @guidance(stateless=True)
@@ -430,16 +430,20 @@ class GenJson:
         add it to the _defs cache. This allows us to avoid re-resolving the reference every time
         and to handle recursive references correctly.
         """
-        key = self._get_abspath(reference)
-        if key not in self._defs:
-            resolved = self._resolver.lookup(reference)
+        abspath = self._get_abspath(reference)
+        if abspath not in self._defs:
+            resolved = self._resolver.lookup(abspath)
+            base_uri_of_resolved = resolved.resolver._base_uri
+
             @guidance(stateless=True, dedent=False, cache=True)
             def closure(lm):
-                with self._resolver_context(resolved.resolver):
+                with self._base_uri_context(base_uri_of_resolved):
                     grammar = self.json(json_schema=resolved.contents)
                 return lm + grammar
-            self._defs[key] = closure
-        return lm + self._defs[key]()
+
+            self._defs[abspath] = closure
+        return lm + self._defs[abspath]()
+
 
     def _get_abspath(self, ref):
         """
@@ -455,21 +459,20 @@ class GenJson:
         return uri
 
     @contextlib.contextmanager
-    def _resolver_context(self, resolver):
+    def _base_uri_context(self, base_uri: str):
         """
-        Temporarily replace the resolver for the duration of the context manager.
+        Temporarily replace the base_uri for the duration of the context manager.
         This allows refs with different base URIs to be resolved correctly without passing the resolver around.
 
         Note: very much not thread-safe, but I don't expect instances of this class to be shared between threads.
-        TODO: ensure that the instance's hash depends on the resolver (or more likely the resolver's base URI)
-            before adding more caching to this class.
+        TODO: ensure that the instance's hash depends on the base_uri before adding more caching to this class.
         """
-        old_resolver = self._resolver
-        self._resolver = resolver
+        old_base_uri = self._base_uri
+        self._base_uri = base_uri
         try:
             yield
         finally:
-            self._resolver = old_resolver
+            self._base_uri = old_base_uri
 
 
     @guidance(stateless=True)
