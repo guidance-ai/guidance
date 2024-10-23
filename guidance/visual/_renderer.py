@@ -479,3 +479,11 @@ class AutoRenderer(Renderer):
 
     def cleanup(self):
         self._renderer.cleanup()
+
+    def renderer_type(self) -> type:
+        """Type of renderer that has been selected based on environment.
+
+        Returns:
+            Type of selected renderer.
+        """
+        return type(self._renderer)
