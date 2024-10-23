@@ -1,0 +1,4 @@
+/* Custom CSS for web app. */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

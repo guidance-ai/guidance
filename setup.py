@@ -27,6 +27,7 @@ install_requires = [
     "platformdirs",
     "pydantic",
     "requests",
+    "psutil",
     "tiktoken>=0.3",
     "llguidance>=0.1.7",
 ]
@@ -37,6 +38,7 @@ extras_requires = {
     "openai": ["openai>=1.0"],
     "schemas": ["jsonschema"],
     "server": ["fastapi-slim", "uvicorn"],
+    "visual": ["stitch"],  # TODO(nopdive): Shouldn't this be a core requirement?
 }
 
 # Create the union of all our requirements
