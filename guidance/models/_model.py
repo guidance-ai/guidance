@@ -193,12 +193,12 @@ class Engine:
         self.renderer.subscribe(self._msg_recv)
         self.model_dict: dict[int, Model] = {}
 
-        self.monitor = Monitor(self)
-        self.monitor.start()
+        # self.monitor = Monitor(self)
+        # self.monitor.start()
 
-        self.periodic_metrics_generator = PeriodicMetricsGenerator(self.renderer, self.monitor)
-        self.periodic_metrics_generator.start()
-        self.post_exec_metrics = PostExecMetrics(self.renderer, self.monitor)
+        # self.periodic_metrics_generator = PeriodicMetricsGenerator(self.renderer, self.monitor)
+        # self.periodic_metrics_generator.start()
+        # self.post_exec_metrics = PostExecMetrics(self.renderer, self.monitor)
 
         weakref.finalize(self, self.cleanup)
 
@@ -208,8 +208,8 @@ class Engine:
 
         logger.debug("ENGINE:cleanup")
 
-        self.periodic_metrics_generator.stop()
-        self.monitor.stop()
+        # self.periodic_metrics_generator.stop()
+        # self.monitor.stop()
         self.renderer.cleanup()
 
     def _msg_recv(self, message: GuidanceMessage) -> None:
@@ -226,7 +226,7 @@ class Engine:
                 last_trace_id = last_model._id
 
             # send stats to the renderer
-            self.post_exec_metrics.emit_messages(last_model)
+            # self.post_exec_metrics.emit_messages(last_model)
 
             failed = False
             processed_gen_tokens: list[GenTokenExtra] = []  # suppress IDE warnings by definition
