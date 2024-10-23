@@ -451,6 +451,8 @@ class GenJson:
         This will allow us to get a unique key for each reference and hit the _defs cache correctly.
         """
         if ref.startswith("#"):
+            # Special case for fragment-only references:
+            # for certain schemes (e.g. urn), urljoin may throw the base URI, but we need to keep them around
             uri, fragment = self._base_uri, ref[1:]
         else:
             uri, fragment = urldefrag(urljoin(self._base_uri, ref))
