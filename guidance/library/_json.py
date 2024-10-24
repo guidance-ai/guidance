@@ -569,45 +569,38 @@ class GenJson:
                 f"Required properties not in properties but additionalProperties is False."
                 f" Missing required properties: {list(r for r in required if r not in properties)}"
             )
-        items = [
-            # First iterate over the properties in order
-            *properties.items(),
-            # If there are any keys in required that weren't specified by properties, add them in order at the end,
-            # where we will validate against the additional_properties schema
-            *((key, additional_properties) for key in required if key not in properties),
-        ]
 
-        # We need to keep track of which properties are required and which are optional, and we need to properly quote and escape the names
+        keys: list[str] = []
         required_items: list[bool] = []
-        quoted_names: list[str] = []
-        quoted_and_rx_escaped_names: list[str] = []
         grammars: list[GrammarFunction] = []
-        for name, schema in items:
+        # First iterate over the properties in order, then iterate over any missing required keys, using additional_properties as the schema
+        for name in (*properties, *(r for r in required if r not in properties)):
+            # Use json_dumps to properly quote / escape the key
+            key = json_dumps(name)
+            keys.append(key)
+            # Identify if the key is required
             required_items.append(name in required)
-            # Use json_dumps to properly quote and escape the name
-            quoted_name = json_dumps(name)
-            quoted_names.append(quoted_name)
-            # Escape the name for use in a regex so it matches the quoted name
-            quoted_and_rx_escaped_names.append(quote_regex(quoted_name))
-            grammars.append(f'{quoted_name}{self.key_separator}' + self.json(json_schema=schema))
+            # Build the grammar we'll use for this property
+            grammars.append(f'{key}{self.key_separator}' + self.json(json_schema=properties.get(name, additional_properties)))
 
-        # Key for additionalProperties is a json string, but we need to disallow any properties that are already defined
-        key_grammar: GrammarFunction
-        if len(quoted_names) > 0:
-            key_grammar = as_regular_grammar(
-                And([
-                    lexeme(r'"([^"\\]|\\["\\/bfnrt]|\\u[0-9a-fA-F]{4})*"'),
-                    Not(lexeme('|'.join(quoted_and_rx_escaped_names))),
-                ]),
-                lexeme = True,
-            )
-        else:
-            key_grammar = self.string()
         if additional_properties is not False:
-            additional_item_grammar = key_grammar + self.key_separator + self.json(json_schema=additional_properties)
+            # Key for additionalProperties is a json string, but we need to disallow any properties that are already defined
+            additional_key_grammar: GrammarFunction
+            if len(keys) > 0:
+                additional_key_grammar = as_regular_grammar(
+                    And([
+                        lexeme(r'"([^"\\]|\\["\\/bfnrt]|\\u[0-9a-fA-F]{4})*"'),
+                        Not(lexeme('|'.join(map(quote_regex, keys)))),
+                    ]),
+                    lexeme = True,
+                )
+            else:
+                additional_key_grammar = self.string()
+
+            additional_item_grammar = additional_key_grammar + self.key_separator + self.json(json_schema=additional_properties)
             additional_items_grammar = sequence(additional_item_grammar + self.item_separator) + additional_item_grammar
-            grammars += (additional_items_grammar,)
-            required_items += (False,)
+            grammars.append(additional_items_grammar)
+            required_items.append(False)
 
         return lm + "{" + self._join(
             elements = tuple(grammars),
