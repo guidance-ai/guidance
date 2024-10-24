@@ -169,6 +169,8 @@ class PostExecMetrics:
         if avg_latency is not None:
             self._renderer.update(MetricMessage(name="avg latency", value=avg_latency))
 
+def _cleanup(s: str):
+    logger.debug(f"CLEANUP: {s}")
 
 class Engine:
     """The engine owns the inference computation and is used/created by the Model class.
@@ -185,7 +187,6 @@ class Engine:
         self.tokenizer = tokenizer
         self.compute_log_probs = compute_log_probs
         self.metrics = GuidanceEngineMetrics()
-
         self.trace_handler = TraceHandler()
         if renderer is None:
             self.renderer = AutoRenderer(self.trace_handler)
@@ -200,17 +201,9 @@ class Engine:
         # self.periodic_metrics_generator.start()
         # self.post_exec_metrics = PostExecMetrics(self.renderer, self.monitor)
 
-        weakref.finalize(self, self.cleanup)
+        weakref.finalize(self, _cleanup, f'engine({id(self)})')
+        logger.debug(f"ENGINE:init:{id(self)}")
 
-    def cleanup(self):
-        # NOTE(nopdive): This might not be called on GC due to potential circular refs.
-        # Follow-up work is needed on engine memory review.
-
-        logger.debug("ENGINE:cleanup")
-
-        # self.periodic_metrics_generator.stop()
-        # self.monitor.stop()
-        self.renderer.cleanup()
 
     def _msg_recv(self, message: GuidanceMessage) -> None:
         # NOTE(nopdive): This is usually run on a background thread.
@@ -598,6 +591,7 @@ class Model:
         )
         self._event_parent = None
         self._last_display = 0  # used to track the last display call to enable throttling
+        self._last_event_stream = 0  # used to track the last event streaming call to enable throttling
         self._last_event_stream = (
             0  # used to track the last event streaming call to enable throttling
         )
@@ -610,6 +604,9 @@ class Model:
         self.vis_chunk: VisBytesChunk = None
         self.engine.model_dict[self._id] = self
         self.metrics = GuidanceEngineMetrics()
+
+        weakref.finalize(self, _cleanup, f'model({id(self)})')
+        logger.debug(f"MODEL:init:{id(self)}")
 
     @classmethod
     def gen_id(cls):
@@ -695,6 +692,8 @@ class Model:
         new_lm._parent = self
         new_lm.metrics = self.metrics.model_copy(deep=True)
 
+        weakref.finalize(new_lm, _cleanup, f'model({id(self)})')
+        logger.debug(f"MODEL:copy:{id(new_lm)}")
         return new_lm
 
     def _inplace_append(self, value, force_silent=False):
