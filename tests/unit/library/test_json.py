@@ -2394,6 +2394,15 @@ class TestEnum:
                 validate(instance=obj, schema=schema_obj)
             check_match_failure(bad_string=json_dumps(obj), schema_obj=schema_obj)
 
+    def test_invalid_typed_enum(self):
+        schema_obj = {
+            "enum": [1, "2"],
+            "type": "boolean"
+        }
+        with pytest.raises(ValueError) as ve:
+            gen_json(schema=schema_obj)
+        assert ve.value.args[0] == "No valid options found for enum with type 'boolean': [1, '2']"
+
 class TestConst:
     def test_constant_int(self):
         # First sanity check what we're setting up
