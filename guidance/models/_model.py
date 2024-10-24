@@ -9,7 +9,7 @@ import weakref
 
 import time
 from asyncio import CancelledError
-from typing import Iterator, Optional, TYPE_CHECKING
+from typing import Iterator, Optional, TYPE_CHECKING, Callable
 from multiprocessing import Manager, Process
 from typing import Any, Union
 from enum import Enum
@@ -169,8 +169,62 @@ class PostExecMetrics:
         if avg_latency is not None:
             self._renderer.update(MetricMessage(name="avg latency", value=avg_latency))
 
+
 def _cleanup(s: str):
     logger.debug(f"CLEANUP: {s}")
+
+
+def _msg_recv(engine: weakref.CallableProxyType, unsubscribe_fn: Callable[[], None], message: GuidanceMessage) -> None:
+    if weakref is None:
+        unsubscribe_fn()
+        return
+
+    # NOTE(nopdive): This is usually run on a background thread.
+    logger.debug(f"ENGINE:msg_recv:{message}")
+
+    if isinstance(message, (ExecutionCompletedMessage, OutputRequestMessage)):
+        # print("last_state")
+        if isinstance(message, ExecutionCompletedOutputMessage):
+            last_model: "Model" = engine.model_dict[message.last_trace_id]
+            last_trace_id = message.last_trace_id
+        else:
+            last_model = list(engine.model_dict.values())[-1]
+            last_trace_id = last_model._id
+
+        # send stats to the renderer
+        # self.post_exec_metrics.emit_messages(last_model)
+
+        failed = False
+        processed_gen_tokens: list[GenTokenExtra] = []  # suppress IDE warnings by definition
+        try:
+            processed_gen_tokens = last_model.get_per_token_stats()
+        except Exception as e:
+            logger.error(f"Failed to get per token stats: {e}")
+            failed = True
+
+        if not failed:
+            final_text = "".join([gen_token.text for gen_token in processed_gen_tokens])
+            logger.debug(f"ENGINE:final_text:{final_text}")
+
+            tokens = [gen_token.token_id for gen_token in processed_gen_tokens]
+            engine.renderer.update(
+                ExecutionCompletedOutputMessage(
+                    trace_id=last_trace_id,
+                    text=engine.tokenizer.decode(tokens).decode("utf-8"),
+                    tokens=processed_gen_tokens,
+                )
+            )
+            engine.renderer.update(MetricMessage(name="status", value="✓"))
+        else:
+            engine.renderer.update(MetricMessage(name="status", value="⚠"))
+
+        # Finalize by sending completion message
+        engine.renderer.update(
+            ExecutionCompletedMessage(
+                last_trace_id=last_trace_id,
+            )
+        )
+
 
 class Engine:
     """The engine owns the inference computation and is used/created by the Model class.
@@ -191,8 +245,12 @@ class Engine:
         if renderer is None:
             self.renderer = AutoRenderer(self.trace_handler)
 
-        self.renderer.subscribe(self._msg_recv)
-        self.model_dict: dict[int, Model] = {}
+        unsubscribe_fn = lambda: renderer.unsubscribe(msg_recv)
+        self_proxy = weakref.proxy(self)
+        msg_recv = lambda msg: _msg_recv(engine=self_proxy, unsubscribe_fn=unsubscribe_fn, message=msg)
+        self.renderer.subscribe(msg_recv)
+
+        self.model_dict: weakref.WeakValueDictionary[int, Model] = weakref.WeakValueDictionary()
 
         # self.monitor = Monitor(self)
         # self.monitor.start()
@@ -204,53 +262,6 @@ class Engine:
         weakref.finalize(self, _cleanup, f'engine({id(self)})')
         logger.debug(f"ENGINE:init:{id(self)}")
 
-
-    def _msg_recv(self, message: GuidanceMessage) -> None:
-        # NOTE(nopdive): This is usually run on a background thread.
-        logger.debug(f"ENGINE:{message}")
-
-        if isinstance(message, (ExecutionCompletedMessage, OutputRequestMessage)):
-            # print("last_state")
-            if isinstance(message, ExecutionCompletedOutputMessage):
-                last_model: "Model" = self.model_dict[message.last_trace_id]
-                last_trace_id = message.last_trace_id
-            else:
-                last_model = list(self.model_dict.values())[-1]
-                last_trace_id = last_model._id
-
-            # send stats to the renderer
-            # self.post_exec_metrics.emit_messages(last_model)
-
-            failed = False
-            processed_gen_tokens: list[GenTokenExtra] = []  # suppress IDE warnings by definition
-            try:
-                processed_gen_tokens = last_model.get_per_token_stats()
-            except Exception as e:
-                logger.error(f"Failed to get per token stats: {e}")
-                failed = True
-
-            if not failed:
-                final_text = "".join([gen_token.text for gen_token in processed_gen_tokens])
-                logger.debug(f"ENGINE:final_text:{final_text}")
-
-                tokens = [gen_token.token_id for gen_token in processed_gen_tokens]
-                self.renderer.update(
-                    ExecutionCompletedOutputMessage(
-                        trace_id=last_trace_id,
-                        text=self.tokenizer.decode(tokens).decode("utf-8"),
-                        tokens=processed_gen_tokens,
-                    )
-                )
-                self.renderer.update(MetricMessage(name="status", value="✓"))
-            else:
-                self.renderer.update(MetricMessage(name="status", value="⚠"))
-
-            # Finalize by sending completion message
-            self.renderer.update(
-                ExecutionCompletedMessage(
-                    last_trace_id=last_trace_id,
-                )
-            )
 
     def get_chat_template(
         self,
@@ -1287,7 +1298,6 @@ class Model:
             paths.append(model)
             if model._parent_id is None:
                 break
-
             model: "Model" = self.engine.model_dict[model._parent_id]
         paths.reverse()
 

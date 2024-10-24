@@ -212,6 +212,9 @@ class Renderer:
         """
         self._observers.append(callback)
 
+    def unsubscribe(self, callback: Callable[[GuidanceMessage], None]) -> None:
+        self._observers.remove(callback)
+
     def cleanup(self):
         pass
 
