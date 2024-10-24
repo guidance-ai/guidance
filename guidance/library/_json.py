@@ -729,12 +729,18 @@ class GenJson:
         *,
         value: Union[None, bool, int, float, str, Mapping, Sequence],
         instance_type: Optional[Union[str, Sequence[str]]] = None,
+        enum: Optional[Sequence[Union[None, bool, int, float, str, Mapping, Sequence]]] = None,
     ):
+        schema_to_validate_against: dict[str, Any] = {}
         if instance_type is not None:
+            schema_to_validate_against["type"] = instance_type
+        if enum is not None:
+            schema_to_validate_against["enum"] = enum
+        if schema_to_validate_against:
             # Raise a validation error if the value doesn't match the type
             jsonschema.validate(
                 instance=value,
-                schema={"type": instance_type},
+                schema=schema_to_validate_against,
             )
         # Base case
         if isinstance(value, (type(None), bool, int, float, str)):
@@ -768,7 +774,7 @@ class GenJson:
         self,
         lm,
         *,
-        options: Sequence[Mapping[str, Any]],
+        options: Sequence[Union[None, bool, int, float, str, Mapping, Sequence]],
         instance_type: Optional[Union[str, Sequence[str]]] = None,
     ):
         all_opts: list[GrammarFunction] = []
@@ -858,10 +864,10 @@ class GenJson:
             return lm + self.ref(reference=json_schema[Keyword.REF])
 
         if Keyword.CONST in json_schema:
-            sibling_keys = get_sibling_keys(json_schema, Keyword.CONST) - {Keyword.TYPE}
+            sibling_keys = get_sibling_keys(json_schema, Keyword.CONST) - {Keyword.TYPE, Keyword.ENUM}
             if sibling_keys:
                 raise NotImplementedError(f"const with sibling keys is not yet supported. Got {sibling_keys}")
-            return lm + self.const(value=json_schema[Keyword.CONST], instance_type=json_schema.get(Keyword.TYPE, None))
+            return lm + self.const(value=json_schema[Keyword.CONST], instance_type=json_schema.get(Keyword.TYPE, None), enum=json_schema.get(Keyword.ENUM, None))
 
         if Keyword.ENUM in json_schema:
             sibling_keys = get_sibling_keys(json_schema, Keyword.ENUM) - {Keyword.TYPE}
