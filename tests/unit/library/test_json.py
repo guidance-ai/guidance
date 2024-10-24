@@ -2348,6 +2348,51 @@ class TestEnum:
             schema_obj=schema_obj,
         )
 
+    @pytest.mark.parametrize(
+        "obj, valid",
+        [
+            (1, True),
+            (2, False),
+            ("2", False),
+            ("1", False),
+            (True, False),
+        ]
+    )
+    def test_typed_enum_single_type(self, obj, valid):
+        schema_obj = {
+            "enum": [1, "2", True],
+            "type": "integer"
+        }
+        if valid:
+            validate(instance=obj, schema=schema_obj)
+            generate_and_check(obj, schema_obj)
+        else:
+            with pytest.raises(ValidationError):
+                validate(instance=obj, schema=schema_obj)
+            check_match_failure(bad_string=json_dumps(obj), schema_obj=schema_obj)
+
+    @pytest.mark.parametrize(
+        "obj, valid",
+        [
+            (1, True),
+            (2, False),
+            ("2", True),
+            ("1", False),
+            (True, False),
+        ]
+    )
+    def test_typed_enum_multiple_types(self, obj, valid):
+        schema_obj = {
+            "enum": [1, "2", True],
+            "type": ["integer", "string"]
+        }
+        if valid:
+            validate(instance=obj, schema=schema_obj)
+            generate_and_check(obj, schema_obj)
+        else:
+            with pytest.raises(ValidationError):
+                validate(instance=obj, schema=schema_obj)
+            check_match_failure(bad_string=json_dumps(obj), schema_obj=schema_obj)
 
 class TestConst:
     def test_constant_int(self):
