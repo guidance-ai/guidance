@@ -416,6 +416,7 @@ class GenJson:
         self._resolver = registry.resolver()
         self._defs: dict[str, Callable[[], GrammarFunction]] = {}
 
+
     @guidance(stateless=True)
     def ref(
         self,
@@ -456,6 +457,7 @@ class GenJson:
             return f"{self._base_uri}{ref}"
         return urljoin(self._base_uri, ref)
 
+
     @contextlib.contextmanager
     def _base_uri_context(self, base_uri: str):
         """
@@ -476,6 +478,7 @@ class GenJson:
     @guidance(stateless=True)
     def root(self, lm):
         return lm + self.json(json_schema=self.schema)
+
 
     @classmethod
     @guidance(stateless=True)
