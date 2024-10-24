@@ -398,6 +398,11 @@ def validate_json_node_keys(node: Mapping[str, Any]):
         )
 
 
+def get_sibling_keys(node: Mapping[str, Any], key: str) -> set[str]:
+    # Get the set of functional (non-ignored) keys that are siblings of the given key
+    return set(node.keys()) & VALID_KEYS - set(IGNORED_KEYS) - {key}
+
+
 class GenJson:
     item_separator = ", "
     key_separator = ": "
@@ -811,15 +816,24 @@ class GenJson:
         validate_json_node_keys(json_schema)
 
         if Keyword.ANYOF in json_schema:
+            sibling_keys = get_sibling_keys(json_schema, Keyword.ANYOF)
+            if sibling_keys:
+                raise NotImplementedError(f"anyOf with sibling keys is not yet supported. Got {sibling_keys}")
             return lm + self.anyOf(anyof_list=json_schema[Keyword.ANYOF])
 
         if Keyword.ALLOF in json_schema:
+            sibling_keys = get_sibling_keys(json_schema, Keyword.ALLOF)
+            if sibling_keys:
+                raise NotImplementedError(f"allOf with sibling keys is not yet supported. Got {sibling_keys}")
             allof_list = json_schema[Keyword.ALLOF]
             if len(allof_list) != 1:
                 raise ValueError("Only support allOf with exactly one item")
             return lm + self.json(json_schema=allof_list[0])
 
         if Keyword.ONEOF in json_schema:
+            sibling_keys = get_sibling_keys(json_schema, Keyword.ONEOF)
+            if sibling_keys:
+                raise NotImplementedError(f"oneOf with sibling keys is not yet supported. Got {sibling_keys}")
             oneof_list = json_schema[Keyword.ONEOF]
             if len(oneof_list) == 1:
                 return lm + self.json(json_schema=oneof_list[0])
@@ -827,12 +841,21 @@ class GenJson:
             return lm + self.anyOf(anyof_list=oneof_list)
 
         if Keyword.REF in json_schema:
+            sibling_keys = get_sibling_keys(json_schema, Keyword.REF)
+            if sibling_keys:
+                raise NotImplementedError(f"$ref with sibling keys is not yet supported. Got {sibling_keys}")
             return lm + self.ref(reference=json_schema[Keyword.REF])
 
         if Keyword.CONST in json_schema:
+            sibling_keys = get_sibling_keys(json_schema, Keyword.CONST)
+            if sibling_keys:
+                raise NotImplementedError(f"const with sibling keys is not yet supported. Got {sibling_keys}")
             return lm + self.const(value=json_schema[Keyword.CONST])
 
         if Keyword.ENUM in json_schema:
+            sibling_keys = get_sibling_keys(json_schema, Keyword.ENUM)
+            if sibling_keys:
+                raise NotImplementedError(f"enum with sibling keys is not yet supported. Got {sibling_keys}")
             return lm + self.enum(options=json_schema[Keyword.ENUM])
 
         if Keyword.TYPE in json_schema:
