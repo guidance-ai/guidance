@@ -728,7 +728,14 @@ class GenJson:
         lm,
         *,
         value: Union[None, bool, int, float, str, Mapping, Sequence],
+        instance_type: Optional[Union[str, Sequence[str]]] = None,
     ):
+        if instance_type is not None:
+            # Raise a validation error if the value doesn't match the type
+            jsonschema.validate(
+                instance=value,
+                schema={"type": instance_type},
+            )
         # Base case
         if isinstance(value, (type(None), bool, int, float, str)):
             return lm + json_dumps(value)
@@ -761,14 +768,18 @@ class GenJson:
         self,
         lm,
         *,
-        options: Sequence[Mapping[str, Any]]
+        options: Sequence[Mapping[str, Any]],
+        instance_type: Optional[Union[str, Sequence[str]]] = None,
     ):
-        # TODO: can we support a whitespace-flexible version of this?
         all_opts: list[GrammarFunction] = []
-        for opt in options:
-            all_opts.append(
-                self.const(value=opt)
-            )
+        for instance in options:
+            try:
+                grm = self.const(value=instance, instance_type=instance_type)
+            except jsonschema.ValidationError:
+                continue
+            all_opts.append(grm)
+        if not all_opts:
+            raise ValueError(f"No valid options found for enum with type {instance_type!r}: {options}")
         return lm + select(options=all_opts)
 
 
@@ -847,16 +858,16 @@ class GenJson:
             return lm + self.ref(reference=json_schema[Keyword.REF])
 
         if Keyword.CONST in json_schema:
-            sibling_keys = get_sibling_keys(json_schema, Keyword.CONST)
+            sibling_keys = get_sibling_keys(json_schema, Keyword.CONST) - {Keyword.TYPE}
             if sibling_keys:
                 raise NotImplementedError(f"const with sibling keys is not yet supported. Got {sibling_keys}")
-            return lm + self.const(value=json_schema[Keyword.CONST])
+            return lm + self.const(value=json_schema[Keyword.CONST], instance_type=json_schema.get(Keyword.TYPE, None))
 
         if Keyword.ENUM in json_schema:
-            sibling_keys = get_sibling_keys(json_schema, Keyword.ENUM)
+            sibling_keys = get_sibling_keys(json_schema, Keyword.ENUM) - {Keyword.TYPE}
             if sibling_keys:
                 raise NotImplementedError(f"enum with sibling keys is not yet supported. Got {sibling_keys}")
-            return lm + self.enum(options=json_schema[Keyword.ENUM])
+            return lm + self.enum(options=json_schema[Keyword.ENUM], instance_type=json_schema.get(Keyword.TYPE, None))
 
         if Keyword.TYPE in json_schema:
             target_types = cast(Union[str, Sequence[str]], json_schema[Keyword.TYPE])
