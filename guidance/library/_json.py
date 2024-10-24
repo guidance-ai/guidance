@@ -16,7 +16,7 @@ from typing import (
 import warnings
 import referencing
 import contextlib
-from urllib.parse import urljoin, urldefrag
+from urllib.parse import urljoin
 
 try:
     import jsonschema
@@ -453,12 +453,8 @@ class GenJson:
         if ref.startswith("#"):
             # Special case for fragment-only references:
             # for certain schemes (e.g. urn), urljoin may throw the base URI, but we need to keep them around
-            uri, fragment = self._base_uri, ref[1:]
-        else:
-            uri, fragment = urldefrag(urljoin(self._base_uri, ref))
-        if fragment:
-            return f"{uri}#{fragment}"
-        return uri
+            return f"{self._base_uri}{ref}"
+        return urljoin(self._base_uri, ref)
 
     @contextlib.contextmanager
     def _base_uri_context(self, base_uri: str):
