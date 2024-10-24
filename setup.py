@@ -26,6 +26,7 @@ install_requires = [
     "ordered_set",
     "platformdirs",
     "pydantic",
+    "referencing",
     "requests",
     "tiktoken>=0.3",
     "llguidance>=0.1.7",
