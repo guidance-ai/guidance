@@ -8,8 +8,11 @@ import textwrap
 import types
 import weakref
 import functools
-
 import numpy as np
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class _Rewrite(ast.NodeTransformer):
     def __init__(self, source_lines):
@@ -292,3 +295,15 @@ def pydantic_no_default_str(obj, target_fields=None):
         )
     out = "\n".join(records)
     return out
+
+
+def log_init(s: str):
+    logger.debug(f"INIT:{s}")
+
+
+def log_copy(s: str):
+    logger.debug(f"COPY:{s}")
+
+
+def log_cleanup(s: str):
+    logger.debug(f"CLEANUP:{s}")

@@ -60,7 +60,7 @@ from .._schema import (
     VisBytesChunk,
     GenTokenExtra,
 )
-from .._utils import softmax, CaptureEvents
+from .._utils import softmax, CaptureEvents, log_cleanup, log_init, log_copy
 from .._parser import TokenParser
 from .._grammar import (
     GrammarFunction,
@@ -170,9 +170,9 @@ class PostExecMetrics:
             self._renderer.update(MetricMessage(name="avg latency", value=avg_latency))
 
 
-def _cleanup(s: str):
-    logger.debug(f"CLEANUP: {s}")
-
+def _engine_cleanup(renderer: Renderer, log_msg: str):
+    log_cleanup(log_msg)
+    renderer.cleanup()
 
 def _msg_recv(engine: weakref.CallableProxyType, unsubscribe_fn: Callable[[], None], message: GuidanceMessage) -> None:
     if weakref is None:
@@ -259,8 +259,8 @@ class Engine:
         # self.periodic_metrics_generator.start()
         # self.post_exec_metrics = PostExecMetrics(self.renderer, self.monitor)
 
-        weakref.finalize(self, _cleanup, f'engine({id(self)})')
-        logger.debug(f"ENGINE:init:{id(self)}")
+        weakref.finalize(self, _engine_cleanup, self.renderer, f"engine({id(self)})")
+        log_init(f"engine({id(self)})")
 
 
     def get_chat_template(
@@ -616,8 +616,8 @@ class Model:
         self.engine.model_dict[self._id] = self
         self.metrics = GuidanceEngineMetrics()
 
-        weakref.finalize(self, _cleanup, f'model({id(self)})')
-        logger.debug(f"MODEL:init:{id(self)}")
+        weakref.finalize(self, log_cleanup, f'model({id(self)})')
+        log_init(f"model({id(self)})")
 
     @classmethod
     def gen_id(cls):
@@ -703,8 +703,8 @@ class Model:
         new_lm._parent = self
         new_lm.metrics = self.metrics.model_copy(deep=True)
 
-        weakref.finalize(new_lm, _cleanup, f'model({id(self)})')
-        logger.debug(f"MODEL:copy:{id(new_lm)}")
+        weakref.finalize(new_lm, log_cleanup, f'model({id(self)})')
+        log_copy(f"model({id(self)})")
         return new_lm
 
     def _inplace_append(self, value, force_silent=False):
@@ -753,7 +753,7 @@ class Model:
             return self.chat_template.get_role_start(role_name)
         else:
             raise Exception(
-                f"You need to use a chat model in order the use role blocks like `with {role_name}():`! Perhaps you meant to use the {type(lm).__name__}Chat class?"
+                f"You need to use a chat model in order the use role blocks like `with {role_name}():`! Perhaps you meant to use the {type(self).__name__}Chat class?"
             )
 
     def role_closer(self, role_name, **kwargs):
@@ -765,7 +765,7 @@ class Model:
             return self.chat_template.get_role_end(role_name)
         else:
             raise Exception(
-                f"You need to use a chat model in order the use role blocks like `with {role_name}():`! Perhaps you meant to use the {type(lm).__name__}Chat class?"
+                f"You need to use a chat model in order the use role blocks like `with {role_name}():`! Perhaps you meant to use the {type(self).__name__}Chat class?"
             )
 
     def _repr_html_(self):
