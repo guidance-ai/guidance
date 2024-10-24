@@ -165,17 +165,17 @@ TYPE_SPECIFIC_KEYWORDS = {
     JSONType.OBJECT: ObjectKeywords,
 }
 
-DEFS_KEYS = {"$defs", "definitions"}
-
 IGNORED_KEYS = {
     "$anchor",
+    "$defs",
     "$schema",
     "$id",
     "id",
     "$comment",
     "title",
-    "description",
     "default",
+    "definitions",
+    "description",
     "examples",
 }
 
@@ -188,7 +188,7 @@ IGNORED_KEYS = {
 IGNORED_KEYS.add("discriminator")
 
 WHITESPACE = {b" ", b"\t", b"\n", b"\r"}
-VALID_KEYS = set(Keyword) | IGNORED_KEYS | DEFS_KEYS | set(NumberKeywords) | set(StringKeywords) | set(ArrayKeywords) | set(ObjectKeywords)
+VALID_KEYS = set(Keyword) | set(NumberKeywords) | set(StringKeywords) | set(ArrayKeywords) | set(ObjectKeywords) | IGNORED_KEYS
 
 FORMAT_PATTERNS: dict[str, Optional[str]] = {
     # https://json-schema.org/understanding-json-schema/reference/string#built-in-formats
