@@ -2461,6 +2461,67 @@ class TestConst:
             schema_obj=schema_obj,
         )
 
+    def test_valid_typed_const(self):
+        schema_obj = {
+            "const": 1,
+            "type": "integer"
+        }
+        target_obj = 1
+        validate(instance=target_obj, schema=schema_obj)
+        generate_and_check(target_obj, schema_obj)
+
+    def test_invalid_typed_const(self):
+        schema_obj = {
+            "const": 1,
+            "type": "boolean"
+        }
+        with pytest.raises(ValidationError):
+            gen_json(schema=schema_obj)
+
+    def test_valid_enum_const(self):
+        schema_obj = {
+            "const": 1,
+            "enum": [1, 2, 3]
+        }
+        target_obj = 1
+        validate(instance=target_obj, schema=schema_obj)
+        generate_and_check(target_obj, schema_obj)
+
+    def test_invalid_enum_const(self):
+        schema_obj = {
+            "const": 1,
+            "enum": [2, 3]
+        }
+        with pytest.raises(ValidationError):
+            gen_json(schema=schema_obj)
+
+    def test_valid_typed_enum_const(self):
+        schema_obj = {
+            "const": 1,
+            "enum": [1, "2", 3],
+            "type": "integer"
+        }
+        target_obj = 1
+        validate(instance=target_obj, schema=schema_obj)
+        generate_and_check(target_obj, schema_obj)
+
+    @pytest.mark.parametrize(
+        "const",
+        [
+            "2", # right enum, wrong type
+            2, # wrong enum, right type
+            "3", # wrong enum, wrong type
+        ]
+    )
+    def test_invalid_typed_enum_const(self, const):
+        schema_obj = {
+            "const": const,
+            "enum": [1, "2", 3],
+            "type": "integer"
+        }
+        with pytest.raises(ValidationError):
+            gen_json(schema=schema_obj)
+
 
 class TestAdditionalProperties:
 
