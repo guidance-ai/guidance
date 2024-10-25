@@ -89,48 +89,43 @@ class TokenParser:
         self,
         prompt: bytes,
         ensure_bos_token: bool,
-    ) -> Generator[Tuple[Optional[GenData], EngineCallResponse], Optional[int], EngineCallResponse]:
+    ) -> Generator[Tuple[GenData, EngineCallResponse], Optional[int], EngineCallResponse]:
         tokens = self._process_prompt(prompt=prompt, ensure_bos_token=ensure_bos_token)
 
         while True:
             mask, resp = self.ll_interpreter.mid_process()
             r = LLInterpreterResponse.model_validate_json(resp)
             response = r.progress.to_engine_call_response()
-            if r.stop:
-                break
 
-            if mask is not None:
-                assert r.temperature is not None
-                gen_data = GenData(
-                    tokens=tokens,
-                    mask=mask,
-                    temperature=r.temperature,
-                )
-                # Send caller the mask and response; wait for token
-                token = yield (gen_data, response)
-                if token is None:
-                    raise TokenParserException("Expected token, got None")
-                if not mask[token]:
-                    # Note: we could punt this probem to ll_interpreter.post_process,
-                    # but it's a bit clearer to handle it here
-                    raise InvalidTokenException(token, gen_data.valid_next_tokens, tokens)
-            else:
-                gen_data = None
-                token = yield (gen_data, response)
-                if token is not None:
-                    raise TokenParserException(f"Expected None, got token {token}")
+            if r.stop:
+                assert mask is None
+                stop_reason = self.ll_interpreter.stop_reason()
+                if stop_reason not in {"NoExtension", "EndOfSentence"}:
+                    # TODO: extend exception handling
+                    raise TokenParserException(f"Unexpected stop reason: {stop_reason}")
+                return response
+
+            assert mask is not None
+            assert r.temperature is not None
+            gen_data = GenData(
+                tokens=tokens,
+                mask=mask,
+                temperature=r.temperature,
+            )
+
+            token = yield (gen_data, response)
+
+            if token is None:
+                raise TokenParserException("Expected token, got None")
+            if not mask[token]:
+                # Note: we could punt this probem to ll_interpreter.post_process,
+                # but it's a bit clearer to handle it here
+                raise InvalidTokenException(token, gen_data.valid_next_tokens, tokens)
 
             backtrack, ff_tokens = self.ll_interpreter.post_process(token)
             if backtrack:
                 tokens = tokens[:-backtrack]
             tokens = tokens + ff_tokens
-
-        stop_reason = self.ll_interpreter.stop_reason()
-        if stop_reason not in {"NoExtension", "EndOfSentence"}:
-            # TODO: extend exception handling
-            raise TokenParserException(f"Unexpected stop reason: {stop_reason}")
-
-        return response
 
 
 class ByteParserException(Exception):
