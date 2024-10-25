@@ -1,6 +1,7 @@
 import json
 import os
-from typing import Any, Generator, Optional, Tuple, Union
+from typing import Any, Generator, Optional, Union
+from concurrent.futures import ThreadPoolExecutor, Future
 
 import llguidance  # type: ignore[import-untyped]
 import numpy as np
@@ -10,7 +11,6 @@ from ._grammar import GrammarFunction, Join, Terminal
 from ._schema import GenData, EngineCallResponse, LLInterpreterResponse
 from .models._byte_tokenizer import ByteTokenizer
 from .models._tokenizer import Tokenizer
-
 
 class TokenParserException(Exception):
     pass
@@ -52,6 +52,7 @@ class TokenParser:
             serialized_grammar,
             log_level=int(os.environ.get("LLGUIDANCE_LOG_LEVEL", "1")),
         )
+        self._threadpool = ThreadPoolExecutor(max_workers=1)
         self._generator = self._parse(prompt, ensure_bos_token)
         self._done = False
 
@@ -63,7 +64,7 @@ class TokenParser:
 
     def advance(
         self, token: Optional[int]
-    ) -> Tuple[Optional[GenData], EngineCallResponse]:
+    ) -> tuple[Optional[list[int]], Future[tuple[Optional[bytes], str]]]:
         try:
             return self._generator.send(token)
         except StopIteration as e:
@@ -89,38 +90,38 @@ class TokenParser:
         self,
         prompt: bytes,
         ensure_bos_token: bool,
-    ) -> Generator[Tuple[GenData, EngineCallResponse], Optional[int], EngineCallResponse]:
+    ) -> Generator[
+            tuple[
+                list[int],
+                Future[tuple[Optional[bytes], str]],
+            ],
+            Optional[int],
+            Future[tuple[Optional[bytes], str]]
+        ]:
         tokens = self._process_prompt(prompt=prompt, ensure_bos_token=ensure_bos_token)
 
         while True:
-            mask, resp = self.ll_interpreter.mid_process()
-            r = LLInterpreterResponse.model_validate_json(resp)
-            response = r.progress.to_engine_call_response()
+            mid_process_future = self._threadpool.submit(self.ll_interpreter.mid_process)
+            token = yield (tokens, mid_process_future)
 
-            if r.stop:
-                assert mask is None
+            mask, _ = mid_process_future.result()
+
+            if mask is None:
                 stop_reason = self.ll_interpreter.stop_reason()
                 if stop_reason not in {"NoExtension", "EndOfSentence"}:
                     # TODO: extend exception handling
                     raise TokenParserException(f"Unexpected stop reason: {stop_reason}")
-                return response
-
-            assert mask is not None
-            assert r.temperature is not None
-            gen_data = GenData(
-                tokens=tokens,
-                mask=mask,
-                temperature=r.temperature,
-            )
-
-            token = yield (gen_data, response)
+                # Yes, this future has already been waited on, but let's return it rather than
+                # the response to keep the API consistent
+                return mid_process_future
 
             if token is None:
                 raise TokenParserException("Expected token, got None")
             if not mask[token]:
                 # Note: we could punt this probem to ll_interpreter.post_process,
                 # but it's a bit clearer to handle it here
-                raise InvalidTokenException(token, gen_data.valid_next_tokens, tokens)
+                # TODO: send valid tokens rather than mask?
+                raise InvalidTokenException(token, mask, tokens)
 
             backtrack, ff_tokens = self.ll_interpreter.post_process(token)
             if backtrack:
@@ -174,13 +175,29 @@ class ByteParser:
             mask[t[0]] = 1
         return mask
 
+    def _advance(self, token: Optional[int]) -> None:
+        tokens, mid_process_fut = self.token_parser.advance(token)
+        mask, ll_response_string = mid_process_fut.result()
+        ll_response = LLInterpreterResponse.model_validate_json(ll_response_string)
+        if mask is None:
+            self.gen_data = None
+        else:
+            assert tokens is not None
+            assert ll_response.temperature is not None
+            self.gen_data = GenData(
+                tokens=tokens,
+                mask=mask,
+                temperature=ll_response.temperature,
+            )
+        response = ll_response.progress.to_engine_call_response()
+        self._update_capture(response)
+        self.bytes += response.new_bytes
+
     def consume_bytes(self, bts: bytes) -> None:
         # Run underlying ll_parser and fast-forward all of our bytes
         # until we have a "choice" (generation step) to make
         while self.gen_data is None and not self.token_parser.done():
-            self.gen_data, response = self.token_parser.advance(None)
-            self._update_capture(response)
-            self.bytes += response.new_bytes
+            self._advance(None)
 
         if not bts:
             return
@@ -223,9 +240,7 @@ class ByteParser:
                     consumed_bytes=self.bytes[: self.pos],
                 )
             # Byte was good, have ll_parser consume it so we can advance further
-            self.gen_data, response = self.token_parser.advance(b)
-            self._update_capture(response)
-            self.bytes += response.new_bytes
+            self._advance(b)
 
             # Run consume_bytes to advance ll_parser and consume the next byte
             self.consume_bytes(bts)
@@ -236,9 +251,7 @@ class ByteParser:
         if self.token_parser.done():
             return
 
-        self.gen_data, response = self.token_parser.advance(self.tokenizer.eos_token_id)
-        self._update_capture(response)
-        self.bytes += response.new_bytes
+        self._advance(self.tokenizer.eos_token_id)
         if not self.token_parser.done() or not self.matched():
             raise ByteParserException("Hit end of input before reaching a valid state")
 
