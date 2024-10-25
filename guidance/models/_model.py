@@ -132,38 +132,39 @@ class Engine:
         parser = self.start(prompt, grammar, ensure_bos_token)
 
         token = None
-        while not parser.done():
+        while True:
             gen_data, response = parser.advance(token)
-
-            if gen_data is not None:
-                can_finish_early = parser.is_accepting() and self.tokenizer.eos_token_id is not None
-
-                if can_finish_early:
-                    # Type checker needs some help
-                    assert self.tokenizer.eos_token_id is not None
-                    # Should be equivalent to parser.is_accepting()
-                    assert gen_data.mask[self.tokenizer.eos_token_id]
-                    # Whenever we are in an accepting state, we will allow the model to generate whatever it wants
-                    # but we will treat any "illegal" tokens as EOS, allowing the model to finish gracefully.
-                    # Hence, mask must be None
-                    mask_for_get_next_token = None
-                else:
-                    mask_for_get_next_token = gen_data.mask
-
-                token = self.get_next_token(
-                    token_ids=gen_data.tokens,
-                    mask=mask_for_get_next_token,
-                    temperature=gen_data.temperature
-                )
-
-                if can_finish_early and not gen_data.mask[token]:
-                    # Type checker needs some help
-                    assert self.tokenizer.eos_token_id is not None
-                    token = self.tokenizer.eos_token_id
-            else:
-                token = None
-
             yield response
+
+            if gen_data is None:
+                assert parser.done()
+                break
+
+            can_finish_early = parser.is_accepting() and self.tokenizer.eos_token_id is not None
+
+            if can_finish_early:
+                # Type checker needs some help
+                assert self.tokenizer.eos_token_id is not None
+                # Should be equivalent to parser.is_accepting()
+                assert gen_data.mask[self.tokenizer.eos_token_id]
+                # Whenever we are in an accepting state, we will allow the model to generate whatever it wants
+                # but we will treat any "illegal" tokens as EOS, allowing the model to finish gracefully.
+                # Hence, mask must be None
+                mask_for_get_next_token = None
+            else:
+                mask_for_get_next_token = gen_data.mask
+
+            token = self.get_next_token(
+                token_ids=gen_data.tokens,
+                mask=mask_for_get_next_token,
+                temperature=gen_data.temperature
+            )
+
+            if can_finish_early and not gen_data.mask[token]:
+                # Type checker needs some help
+                assert self.tokenizer.eos_token_id is not None
+                token = self.tokenizer.eos_token_id
+
 
     def get_next_token(self, token_ids: list[int], mask: Optional[bytes], temperature: float) -> int:
         """Base implementation for getting the next token from the model which calls get_logits and sample_with_temperature.
