@@ -415,6 +415,11 @@ class TransformersEngine(Engine):
             compute_log_probs=compute_log_probs,
         )
 
+    def enable_parallel_execution(self):
+        """Enable parallel execution only if the model is on a GPU."""
+        device_type = str(self.device).lower()
+        self._parallel_state.enabled = device_type.startswith('cuda') or device_type.startswith('mps')
+
     def _model(self, model, **kwargs):
         # intantiate the model if needed
         if isinstance(model, str):

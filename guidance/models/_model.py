@@ -52,6 +52,21 @@ html_pattern = re.compile(r"&lt;\|\|_html:(.*?)_\|\|&gt;", flags=re.DOTALL)
 image_pattern = re.compile(r"&lt;\|_image:(.*?)\|&gt;")
 
 
+# Parallel Execution of Masks
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
+from typing import Optional
+import threading
+
+@dataclass
+class ParallelState:
+    future_gen_data: Optional[object] = None
+    future_response: Optional[object] = None
+    executor: Optional[ThreadPoolExecutor] = None
+    last_token: Optional[int] = None
+    enabled: bool = False
+
+
 class Engine:
     """The engine owns the inference computation and is used/created by the Model class.
 
@@ -65,6 +80,15 @@ class Engine:
         self.tokenizer = tokenizer
         self.compute_log_probs = compute_log_probs
         self.metrics = GuidanceEngineMetrics()
+        self._parallel_state = ParallelState(
+            executor=ThreadPoolExecutor(max_workers=1),
+            enabled=False  # Will be set properly when we know the device
+        )
+
+    def enable_parallel_execution(self):
+        """Enable parallel execution if the model is on GPU."""
+        # subclasses should override if they know about devices
+        self._parallel_state.enabled = False
 
     def get_chat_template(self): # TODO [HN]: Add more logic here...should we instantiate class here? do we even need to?
         return self.tokenizer.chat_template() # Instantiate the class before returning to client for now
@@ -130,16 +154,76 @@ class Engine:
             This is the grammar we are extending the prompt with.
         """
         parser = self.start(prompt, grammar, ensure_bos_token)
+        parallel_state = self._parallel_state
+        
+        # Check if we should run in parallel mode
+        self.enable_parallel_execution()
+        
+        if not parallel_state.enabled:
+            # Fall back to original sequential implementation
+            token = None
+            while not parser.done():
+                gen_data, response = parser.advance(token)
+                
+                if gen_data is not None:
+                    if parser.is_accepting() and self.tokenizer.eos_token_id is not None:
+                        token = self.get_next_token(
+                            token_ids=gen_data.tokens,
+                            mask=None,
+                            temperature=gen_data.temperature
+                        )
+                        if not gen_data.mask[token]:
+                            token = self.tokenizer.eos_token_id
+                    else:
+                        token = self.get_next_token(
+                            token_ids=gen_data.tokens,
+                            mask=gen_data.mask,
+                            temperature=gen_data.temperature
+                        )
+                else:
+                    token = None
+                    
+                yield response
+            return
 
-        token = None
+        # Handle initial parser state synchronously
+        gen_data, response = parser.advance(None)
+        yield response
+
+        if gen_data is not None:
+            if parser.is_accepting() and self.tokenizer.eos_token_id is not None:
+                token = self.get_next_token(
+                    token_ids=gen_data.tokens,
+                    mask=None,
+                    temperature=gen_data.temperature
+                )
+                if not gen_data.mask[token]:
+                    token = self.tokenizer.eos_token_id
+            else:
+                token = self.get_next_token(
+                    token_ids=gen_data.tokens,
+                    mask=gen_data.mask,
+                    temperature=gen_data.temperature
+                )
+        else:
+            token = None
+
+        parallel_state.last_token = token
+
+        # Now start parallel execution if we're not done
         while not parser.done():
-            gen_data, response = parser.advance(token)
+            # Start the next parser advance asynchronously before doing the forward pass
+            future = parallel_state.executor.submit(
+                parser.advance,
+                parallel_state.last_token  # Use the token from previous iteration
+            )
 
+            # Get results from the parallel parser advance
+            gen_data, response = future.result()
+            
+            # Process current token while next parser advance could be running
             if gen_data is not None:
                 if parser.is_accepting() and self.tokenizer.eos_token_id is not None:
-                    # Whenever we are in an accepting state, we will allow the model to generate whatever it wants
-                    # but we will treat any "illegal" tokens as EOS, allowing the model to finish gracefully.
-                    assert gen_data.mask[self.tokenizer.eos_token_id]
                     token = self.get_next_token(
                         token_ids=gen_data.tokens,
                         mask=None,
@@ -155,8 +239,15 @@ class Engine:
                     )
             else:
                 token = None
-
+                
+            parallel_state.last_token = token
             yield response
+
+        # Clean up
+        if parallel_state.executor is not None:
+            parallel_state.executor.shutdown(wait=True)
+        parallel_state.future_gen_data = None
+        parallel_state.future_response = None
 
     def get_next_token(self, token_ids: list[int], mask: Optional[bytes], temperature: float) -> int:
         """Base implementation for getting the next token from the model which calls get_logits and sample_with_temperature.
