@@ -139,6 +139,13 @@ class TokenParser:
             raise TokenParserException(f"Unexpected stop reason: {stop_reason}")
         self._done = True
 
+    def __del__(self):
+        # Silence exceptions from generator cleanup so users don't get any unraisable exceptions during GC
+        try:
+            self.cleanup()
+        except TokenParserException:
+            pass
+
 class ByteParserException(Exception):
     def __init__(self, *args, **kwargs):
         self.current_byte = kwargs.pop("current_byte", None)
