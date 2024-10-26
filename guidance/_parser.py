@@ -193,7 +193,7 @@ class ByteParser:
             self.token_parser.cleanup()
             self.gen_data = None
         else:
-            assert tokens is not None
+            assert mask is not None
             assert ll_response.temperature is not None
             self.gen_data = GenData(
                 tokens=tokens,
