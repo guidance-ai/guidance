@@ -168,6 +168,8 @@ class ByteParser:
         self.pos = 0
         self._variables: dict[str, Any] = {}
         self._variables_log_probs: dict[str, Any] = {}
+        # Prime the parser
+        self._advance(None)
         self.consume_bytes(prompt)
 
     def matched(self) -> bool:
@@ -212,11 +214,6 @@ class ByteParser:
         self.bytes += response.new_bytes
 
     def consume_bytes(self, bts: bytes) -> None:
-        # Run underlying ll_parser and fast-forward all of our bytes
-        # until we have a "choice" (generation step) to make
-        while self.gen_data is None and not self.token_parser.done():
-            self._advance(None)
-
         if not bts:
             return
 
