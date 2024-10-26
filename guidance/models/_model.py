@@ -161,7 +161,6 @@ class Engine:
                 break
 
             # Help the type checker: assert that everything we need to get the next token is not None
-            assert logits is not None
             assert mask is not None
             assert ll_response.temperature is not None
 
