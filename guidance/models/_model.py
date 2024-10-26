@@ -148,8 +148,9 @@ class Engine:
             yield engine_response
 
             if ll_response.stop:
-                # assert logits is None
                 assert mask is None
+                # May raise an exception if the parser is in an bad state!
+                parser.cleanup()
                 # Ensure we break AFTER yielding the final response
                 break
 

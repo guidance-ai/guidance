@@ -64,12 +64,13 @@ class TokenParser:
 
     def advance(
         self, token: Optional[int]
-    ) -> tuple[Optional[list[int]], Future[tuple[Optional[bytes], str]]]:
-        try:
-            return self._generator.send(token)
-        except StopIteration as e:
-            self._done = True
-            return None, e.value
+    ) -> tuple[list[int], Future[tuple[Optional[bytes], str]]]:
+        if self.done():
+            raise TokenParserException("Cannot advance on a done parser")
+        return self._generator.send(token)
+
+    def cleanup(self) -> None:
+        self._generator.close()
 
     def _process_prompt(self, prompt: bytes, ensure_bos_token: bool) -> list[int]:
         prompt_tokens = self.ll_interpreter.process_prompt(
@@ -96,24 +97,26 @@ class TokenParser:
                 Future[tuple[Optional[bytes], str]],
             ],
             Optional[int],
-            Future[tuple[Optional[bytes], str]]
+            None
         ]:
         tokens = self._process_prompt(prompt=prompt, ensure_bos_token=ensure_bos_token)
 
         while True:
             mid_process_future = self._threadpool.submit(self.ll_interpreter.mid_process)
-            token = yield (tokens, mid_process_future)
+            try:
+                token = yield (tokens, mid_process_future)
+            except GeneratorExit:
+                # Allow cleanup to happen
+                break
 
+            # Upstairs should have already waited on this future
             mask, _ = mid_process_future.result()
 
             if mask is None:
-                stop_reason = self.ll_interpreter.stop_reason()
-                if stop_reason not in {"NoExtension", "EndOfSentence"}:
-                    # TODO: extend exception handling
-                    raise TokenParserException(f"Unexpected stop reason: {stop_reason}")
-                # Yes, this future has already been waited on, but let's return it rather than
-                # the response to keep the API consistent
-                return mid_process_future
+                if token is not None:
+                    raise TokenParserException(f"Expected None, got token {token}")
+                # We're done
+                break
 
             if token is None:
                 raise TokenParserException("Expected token, got None")
@@ -128,6 +131,13 @@ class TokenParser:
                 tokens = tokens[:-backtrack]
             tokens = tokens + ff_tokens
 
+        # Do some final cleanup
+        stop_reason = self.ll_interpreter.stop_reason()
+        if stop_reason not in {"NoExtension", "EndOfSentence"}:
+            # Will raise if there is some "bad" stop reason (like hit token limit) OR we're NOT stopped.
+            # TODO: raise specific exceptions for reasons such as MaxTokensTotal
+            raise TokenParserException(f"Unexpected stop reason: {stop_reason}")
+        self._done = True
 
 class ByteParserException(Exception):
     def __init__(self, *args, **kwargs):
@@ -179,7 +189,8 @@ class ByteParser:
         tokens, mid_process_fut = self.token_parser.advance(token)
         mask, ll_response_string = mid_process_fut.result()
         ll_response = LLInterpreterResponse.model_validate_json(ll_response_string)
-        if mask is None:
+        if ll_response.stop:
+            self.token_parser.cleanup()
             self.gen_data = None
         else:
             assert tokens is not None
