@@ -131,11 +131,17 @@ class Engine:
         """
         parser = self.start(prompt, grammar, ensure_bos_token)
 
+        has_get_logits = True
         token = None
         while True:
             tokens, mid_process_fut = parser.advance(token)
-            if tokens is not None:
-                logits = self.get_logits(tokens)
+            if has_get_logits:
+                try:
+                    logits = self.get_logits(tokens)
+                except NotImplementedError:
+                    # Permanently fall-back to get_next_token if get_logits is not implemented
+                    has_get_logits = False
+                    logits = None
             else:
                 logits = None
 
@@ -173,11 +179,18 @@ class Engine:
             else:
                 mask_for_sampling = mask
 
-            token = self.sample_with_temperature(
-                logits=logits,
-                mask=mask_for_sampling,
-                temperature=ll_response.temperature,
-            )
+            if logits is not None:
+                token = self.sample_with_temperature(
+                    logits=logits,
+                    mask=mask_for_sampling,
+                    temperature=ll_response.temperature,
+                )
+            else:
+                token = self.get_next_token(
+                    tokens,
+                    mask_for_sampling,
+                    ll_response.temperature
+                )
 
             if can_finish_early and not mask[token]:
                 # Type checker needs some help
@@ -186,14 +199,11 @@ class Engine:
 
 
     def get_next_token(self, token_ids: list[int], mask: Optional[bytes], temperature: float) -> int:
-        """Base implementation for getting the next token from the model which calls get_logits and sample_with_temperature.
-        Subclasses may override this method, e.g. if they use external APIs that do not support getting logits directly.
-        """
-        logits = self.get_logits(token_ids)
-        token = self.sample_with_temperature(logits, mask, temperature)
-        return token
+        # Prefer to implement get_logits over get_next_token as it allows for concurrent mask computation
+        raise NotImplementedError
 
     def get_logits(self, token_ids: list[int]) -> np.ndarray:
+        # Prefer to implement get_logits over get_next_token as it allows for concurrent mask computation
         raise NotImplementedError
 
     def sample_with_temperature(self, logits: np.ndarray, mask: Optional[bytes], temperature: float) -> int:
