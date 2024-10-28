@@ -7,7 +7,7 @@ from typing import Any, Optional, Generator, Dict
 import logging
 from pydantic import BaseModel, Field
 from guidance._schema import GenToken
-from .._utils import pydantic_no_default_repr, pydantic_no_default_str
+from .._utils import pydantic_no_default_repr, pydantic_no_default_str, log_cleanup
 
 logger = logging.getLogger(__name__)
 
@@ -169,6 +169,10 @@ class WeakRefList(list):
             super().remove(ref_to_remove)
 
 
+def _cleanup(log_msg: str):
+    log_cleanup(log_msg)
+
+
 class TraceNode(BaseModel):
     """Trace node which associates inputs and outputs of a guidance program."""
 
@@ -180,11 +184,7 @@ class TraceNode(BaseModel):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        weakref.finalize(self, self.cleanup)
-
-    def cleanup(self):
-        """Cleans up resources on de-allocation."""
-        logger.debug(f"TRACENODE:cleanup:{self.identifier}")
+        weakref.finalize(self, _cleanup, f"trace({id(self)}):{self.identifier}")
 
     def add_child(self, child: "TraceNode") -> None:
         """Add a child node to the trace node.
@@ -277,6 +277,10 @@ class TraceHandler(BaseModel):
     # NOTE(nopdive): Type trickery for pydantic.
     id_node_map: Dict[int, TraceNode] = weakref.WeakValueDictionary()  # type: ignore
     node_id_map: Dict[TraceNode, int] = weakref.WeakKeyDictionary()  # type: ignore
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        weakref.finalize(self, _cleanup, f"tracehandler({id(self)})")
 
     def __getitem__(self, item):
         return self.id_node_map[item]

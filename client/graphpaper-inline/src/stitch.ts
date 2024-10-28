@@ -60,13 +60,17 @@ export interface ResetDisplayMessage extends GuidanceMessage {
     class_name: 'ResetDisplayMessage'
 }
 
+export interface ExecutionStartedMessage extends GuidanceMessage {
+    class_name: 'ExecutionStartedMessage',
+}
+
 export interface ExecutionCompletedMessage extends GuidanceMessage {
     class_name: 'ExecutionCompletedMessage',
     last_trace_id?: number,
 }
 
-export interface ExecutionCompletedOutputMessage extends GuidanceMessage {
-    class_name: 'ExecutionCompletedOutputMessage',
+export interface TokensMessage extends GuidanceMessage {
+    class_name: 'TokensMessage',
     trace_id: number,
     text: string,
     tokens: Array<GenTokenExtra>,
@@ -141,9 +145,14 @@ export function isExecutionCompletedMessage(o: GuidanceMessage | undefined | nul
     return o.class_name === "ExecutionCompletedMessage";
 }
 
-export function isExecutionCompletedOutputMessage(o: GuidanceMessage | undefined | null): o is ExecutionCompletedOutputMessage {
+export function isExecutionStartedMessage(o: GuidanceMessage | undefined | null): o is ExecutionStartedMessage {
     if (o === undefined || o === null) return false;
-    return o.class_name === "ExecutionCompletedOutputMessage";
+    return o.class_name === "ExecutionStartedMessage";
+}
+
+export function isTokensMessage(o: GuidanceMessage | undefined | null): o is TokensMessage {
+    if (o === undefined || o === null) return false;
+    return o.class_name === "TokensMessage";
 }
 
 export const kernelmsg = writable<StitchMessage | undefined>(undefined);

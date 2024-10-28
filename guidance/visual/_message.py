@@ -42,19 +42,27 @@ class MetricMessage(GuidanceMessage):
     scalar: bool = True
 
 
+class ExecutionStartedMessage(GuidanceMessage):
+    """Fired when renderer has started trace messages."""
+
+
 class ExecutionCompletedMessage(GuidanceMessage):
-    """Fired when Jupyter cell completes.
+    """Fired when renderer has completed trace messages.
 
     This functions as the last message sent to client.
     """
     last_trace_id: Optional[int] = None
+    is_err: bool = False
 
 
-class ExecutionCompletedOutputMessage(GuidanceMessage):
-    """Fired when Jupyter cell completes with tokens for client."""
+class TokensMessage(GuidanceMessage):
+    """Fired when trace messages are completed, with tokens for client."""
     trace_id: int
     text: str
     tokens: list[GenTokenExtra]
+
+    def __str__(self):
+        return f"message_id={self.message_id} class_name={self.class_name} trace_id={self.trace_id}"
 
 
 class ResetDisplayMessage(GuidanceMessage):
@@ -79,8 +87,9 @@ class OutputRequestMessage(GuidanceMessage):
 
 model_registry: Dict[str, type(GuidanceMessage)] = {
     'TraceMessage': TraceMessage,
+    'ExecutionStartedMessage': ExecutionStartedMessage,
     'ExecutionCompletedMessage': ExecutionCompletedMessage,
-    'ExecutionCompletedOutputMessage': ExecutionCompletedOutputMessage,
+    'ExecutionCompletedOutputMessage': TokensMessage,
     'ResetDisplayMessage': ResetDisplayMessage,
     'ClientReadyMessage': ClientReadyMessage,
     'ClientReadyAckMessage': ClientReadyAckMessage,

@@ -61,6 +61,12 @@ def async_loop() -> AbstractEventLoop:
     return loop
 
 
+# TODO: Test.
+def call_soon_threadsafe(cb, *args, context = None):
+    loop = async_loop()
+    return loop.call_soon_threadsafe(cb, *args, context=context)
+
+
 def run_async_coroutine(coroutine: Coroutine) -> Future:
     """ Runs an asynchronous coroutine in the visual thread.
 

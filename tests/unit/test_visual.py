@@ -2,7 +2,7 @@ import pytest
 from guidance._schema import GenTokenExtra, GenToken
 from guidance.trace import TraceHandler, LiteralInput, TextOutput
 from guidance.visual import TraceMessage, MetricMessage, ExecutionCompletedMessage, \
-    ExecutionCompletedOutputMessage, ResetDisplayMessage, ClientReadyMessage, OutputRequestMessage, \
+    TokensMessage, ResetDisplayMessage, ClientReadyMessage, OutputRequestMessage, \
     ClientReadyAckMessage, trace_node_to_html, display_trace_tree, trace_node_to_str
 from guidance.visual import serialize_message, deserialize_message
 from guidance.visual._async import async_loop, async_task, run_async_coroutine
@@ -16,7 +16,7 @@ import asyncio
         TraceMessage(trace_id=0),
         MetricMessage(name="name", value="value"),
         ExecutionCompletedMessage(last_trace_id=0),
-        ExecutionCompletedOutputMessage(trace_id=0, text="text", tokens=[
+        TokensMessage(trace_id=0, text="text", tokens=[
             GenTokenExtra(token_id=0, prob=0, top_k=[GenToken(token_id=0, prob=0)])
         ]),
         ResetDisplayMessage(),

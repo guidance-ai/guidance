@@ -20,7 +20,9 @@ For upcoming features, we won't be able to send all details over the wire, and w
 		isResetDisplayMessage,
 		isMetricMessage,
 		isExecutionCompletedMessage,
-		isExecutionCompletedOutputMessage, isGuidanceMessage, isClientReadyAckMessage,
+		isTokensMessage,
+		isClientReadyAckMessage,
+		isExecutionStartedMessage,
 	} from './stitch';
     import StitchHandler from './StitchHandler.svelte';
 	import {onMount} from "svelte";
@@ -32,10 +34,10 @@ For upcoming features, we won't be able to send all details over the wire, and w
     let msg: any;
     let textComponents: Array<NodeAttr> = [];
 	let tokenDetails: Array<GenTokenExtra> = [];
-	let completedExecution: boolean = false;
+	let isCompleted: boolean = false;
+	let isError: boolean = false;
 	let showMetrics: boolean = true;
-	let firstMessageId: number = -1;
-	let requireFullReplay: boolean = false;
+	let requireFullReplay: boolean = true;
 
 	let bgField: string = "Type";
 	let underlineField: string = "Probability";
@@ -46,11 +48,6 @@ For upcoming features, we won't be able to send all details over the wire, and w
 	$: if ($kernelmsg !== undefined) {
 		if ($kernelmsg.content !== '') {
 			msg = JSON.parse($kernelmsg.content);
-			if (isGuidanceMessage(msg) && firstMessageId === -1) {
-				firstMessageId = msg.message_id;
-				requireFullReplay = firstMessageId > 0;
-			}
-
 			if (isTraceMessage(msg)) {
 				if (isTextOutput(msg.node_attr)) {
 					textComponents.push(msg.node_attr);
@@ -59,6 +56,8 @@ For upcoming features, we won't be able to send all details over the wire, and w
 				} else if (isRoleCloserInput(msg.node_attr)) {
 					textComponents.push(msg.node_attr)
 				}
+			} else if (isExecutionStartedMessage(msg)) {
+				requireFullReplay = false;
 			} else if (isClientReadyAckMessage(msg)) {
 				if (requireFullReplay) {
 					console.log("Require full replay and went past completion output message.");
@@ -70,7 +69,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
 				}
 			} else if (isResetDisplayMessage(msg)) {
 				textComponents = [];
-				completedExecution = false;
+				isCompleted = false;
 			} else if (isMetricMessage(msg)) {
 				const name = msg.name;
 				const value = msg.value;
@@ -90,17 +89,16 @@ For upcoming features, we won't be able to send all details over the wire, and w
 					} else {
 						console.log(`Cannot handle metric: ${name}: ${value}.`)
 					}
+
+					if (name === 'status') {
+						isError = value === '⚠';
+					}
 				}
 			} else if (isExecutionCompletedMessage(msg)) {
-				completedExecution = true;
-				if (requireFullReplay) {
-					metrics['status'] = '⚠';
-				} else {
-					metrics['status'] = '✓';
-				}
-			} else if (isExecutionCompletedOutputMessage(msg)) {
+				isCompleted = true;
+			} else if (isTokensMessage(msg)) {
 				requireFullReplay = false;
-				completedExecution = true;
+				isCompleted = true;
 				tokenDetails = msg.tokens;
 
 				console.log(textComponents);
@@ -248,6 +246,6 @@ For upcoming features, we won't be able to send all details over the wire, and w
 
 	<!-- Content pane -->
 	<section class="w-full">
-		<TokenGrid textComponents={textComponents} tokenDetails={tokenDetails} isCompleted={completedExecution} bgField={bgField} underlineField={underlineField} requireFullReplay="{requireFullReplay}"/>
+		<TokenGrid textComponents={textComponents} tokenDetails={tokenDetails} isCompleted={isCompleted} isError={isError} bgField={bgField} underlineField={underlineField} requireFullReplay="{requireFullReplay}"/>
 	</section>
 </div>

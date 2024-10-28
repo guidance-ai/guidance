@@ -37,9 +37,9 @@ from ..visual import (
     GuidanceMessage,
     Renderer,
     ExecutionCompletedMessage,
-    ExecutionCompletedOutputMessage,
+    TokensMessage,
     MetricMessage,
-    OutputRequestMessage,
+    OutputRequestMessage, JupyterWidgetRenderer,
 )
 from ..visual._async import run_async_coroutine, async_task
 
@@ -172,19 +172,21 @@ class PostExecMetrics:
 
 def _engine_cleanup(renderer: Renderer, log_msg: str):
     log_cleanup(log_msg)
-    renderer.cleanup()
 
-def _msg_recv(engine: weakref.CallableProxyType, unsubscribe_fn: Callable[[], None], message: GuidanceMessage) -> None:
-    if weakref is None:
+
+def _msg_recv(engine_weakref: weakref.ReferenceType, unsubscribe_fn: Callable[[], None], message: GuidanceMessage) -> None:
+    engine = engine_weakref()
+    if engine is None:
         unsubscribe_fn()
         return
 
     # NOTE(nopdive): This is usually run on a background thread.
     logger.debug(f"ENGINE:msg_recv:{message}")
-
-    if isinstance(message, (ExecutionCompletedMessage, OutputRequestMessage)):
+    if isinstance(message, ExecutionCompletedMessage) and message.is_err:
+        pass
+    elif isinstance(message, (ExecutionCompletedMessage, OutputRequestMessage)):
         # print("last_state")
-        if isinstance(message, ExecutionCompletedOutputMessage):
+        if isinstance(message, TokensMessage):
             last_model: "Model" = engine.model_dict[message.last_trace_id]
             last_trace_id = message.last_trace_id
         else:
@@ -208,7 +210,7 @@ def _msg_recv(engine: weakref.CallableProxyType, unsubscribe_fn: Callable[[], No
 
             tokens = [gen_token.token_id for gen_token in processed_gen_tokens]
             engine.renderer.update(
-                ExecutionCompletedOutputMessage(
+                TokensMessage(
                     trace_id=last_trace_id,
                     text=engine.tokenizer.decode(tokens).decode("utf-8"),
                     tokens=processed_gen_tokens,
@@ -217,13 +219,6 @@ def _msg_recv(engine: weakref.CallableProxyType, unsubscribe_fn: Callable[[], No
             engine.renderer.update(MetricMessage(name="status", value="✓"))
         else:
             engine.renderer.update(MetricMessage(name="status", value="⚠"))
-
-        # Finalize by sending completion message
-        engine.renderer.update(
-            ExecutionCompletedMessage(
-                last_trace_id=last_trace_id,
-            )
-        )
 
 
 class Engine:
@@ -243,11 +238,13 @@ class Engine:
         self.metrics = GuidanceEngineMetrics()
         self.trace_handler = TraceHandler()
         if renderer is None:
-            self.renderer = AutoRenderer(self.trace_handler)
+            # self.renderer = AutoRenderer(self.trace_handler)
+            self.renderer = JupyterWidgetRenderer(self.trace_handler)
 
+        # TODO(nopdive): Review this, I don't think this is correct.
         unsubscribe_fn = lambda: renderer.unsubscribe(msg_recv)
-        self_proxy = weakref.proxy(self)
-        msg_recv = lambda msg: _msg_recv(engine=self_proxy, unsubscribe_fn=unsubscribe_fn, message=msg)
+        self_ref = weakref.ref(self)
+        msg_recv = lambda msg: _msg_recv(engine_weakref=self_ref, unsubscribe_fn=unsubscribe_fn, message=msg)
         self.renderer.subscribe(msg_recv)
 
         self.model_dict: weakref.WeakValueDictionary[int, Model] = weakref.WeakValueDictionary()
@@ -591,7 +588,6 @@ class Model:
         self._variables_log_probs = {}  # these are the state variables stored with the model
         self._cache_state = {}  # mutable caching state used to save computation
         self._state = ""  # the current bytes that represent the state of the model
-        self._trace_handler = engine.trace_handler  # builds state for models
         self._trace_nodes = set()  # keep trace node reference for pinning
         if self.echo:
             self._renderer = engine.renderer  # renderer for display
@@ -655,7 +651,7 @@ class Model:
         """Returns HTML string that displays the model object."""
 
         return trace_node_to_html(
-            self._trace_handler.id_node_map[self._id], hasattr(self, "indent_roles")
+            self.engine.trace_handler.id_node_map[self._id], hasattr(self, "indent_roles")
         )
 
     def _send_to_event_queue(self, value):
@@ -775,14 +771,14 @@ class Model:
 
     def _current_prompt(self):
         """The current prompt in bytes (which is the state without the context close tags)."""
-        return trace_node_to_str(self._trace_handler.id_node_map[self._id])
+        return trace_node_to_str(self.engine.trace_handler.id_node_map[self._id])
 
     def _update_trace_node(
         self, identifier: int, parent_id: Optional[int], node_attr: Optional[NodeAttr]
     ):
         """Updates trace node that corresponds to this model."""
 
-        trace_node = self._trace_handler.update_node(identifier, parent_id, node_attr)
+        trace_node = self.engine.trace_handler.update_node(identifier, parent_id, node_attr)
         self._trace_nodes.add(trace_node)
 
         if self._renderer is not None:
@@ -798,7 +794,7 @@ class Model:
         """A string representation of the current model object (that includes context closers)."""
 
         # TODO(nopdive): Ensure context closers or no?
-        return trace_node_to_str(self._trace_handler.id_node_map[self._id])
+        return trace_node_to_str(self.engine.trace_handler.id_node_map[self._id])
 
     def __add__(self, value):
         """Adding is the primary mechanism for extending model state.

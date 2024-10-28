@@ -5,7 +5,7 @@ import json
 from typing import Optional, Dict
 from .._schema import GenToken
 
-from ..visual._message import ExecutionCompletedOutputMessage
+from ..visual._message import TokensMessage
 from ..trace import (
     TextOutput,
     TraceNode,
@@ -18,7 +18,7 @@ import html
 
 
 def trace_node_to_html(
-    node: TraceNode, prettify_roles=False, complete_msg: ExecutionCompletedOutputMessage = None
+    node: TraceNode, prettify_roles=False, complete_msg: TokensMessage = None
 ) -> str:
     """Represents trace path as html string.
 
