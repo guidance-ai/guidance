@@ -210,8 +210,8 @@ class JupyterWidgetRenderer(Renderer):
         # If we diverge from the model path, truncate and reset
         message_trace_node = self._trace_handler[message.trace_id]
 
-        trace_messages = [x for x in reversed(self._messages) if isinstance(x, TraceMessage)]
-        trace_messages_len = len(trace_messages)
+        prev_trace_messages = [x for x in self._messages if isinstance(x, TraceMessage)]
+        trace_messages_len = len(prev_trace_messages)
         if trace_messages_len == 0:
             return False, -1
         elif trace_messages_len == 1:
@@ -224,7 +224,7 @@ class JupyterWidgetRenderer(Renderer):
             else:
                 return False, -1
         else:
-            last_trace_message = trace_messages[-1]
+            last_trace_message = prev_trace_messages[-1]
             last_trace_node = self._trace_handler[last_trace_message.trace_id]
 
             if last_trace_node not in message_trace_node.path():
@@ -236,7 +236,8 @@ class JupyterWidgetRenderer(Renderer):
                 ancestors = set(message_trace_node.ancestors())
                 for idx, prev_message in enumerate(self._messages):
                     if isinstance(prev_message, TraceMessage):
-                        if self._trace_handler[prev_message.trace_id] in ancestors:
+                        prev_trace_node = self._trace_handler[prev_message.trace_id]
+                        if prev_trace_node in ancestors:
                             ancestor_idx = idx
 
                 if ancestor_idx == -1:  # pragma: no cover
