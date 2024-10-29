@@ -966,6 +966,7 @@ def json(
     schema : Union[None, Mapping[str, Any], Type[pydantic.BaseModel], pydantic.TypeAdapter]
         One of:
             - None, in which case any valid JSON will be generated
+            - A string representing a JSON schema which will be parsed using ``json.loads()``
             - A JSON schema object. This is a JSON schema string which has been passed to ``json.loads()``
             - A subclass of ``pydantic.BaseModel``
             - An instance of ``pydantic.TypeAdapter``
