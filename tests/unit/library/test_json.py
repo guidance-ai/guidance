@@ -1268,14 +1268,12 @@ class TestRefs:
             # ref valid, maxItems valid
             ({"foo": []}, True),
             # ref valid, maxItems invalid
-            pytest.param(
-                *({"foo": [1, 2, 3]}, False),
-                marks=pytest.mark.xfail(reason="sibling keywords to ref are not yet supported"),
-            ),
+            ({"foo": [1, 2, 3]}, False),
             # ref invalid
             ({"foo": "string"}, False),
         ],
     )
+    @pytest.mark.xfail(reason="sibling keywords to ref are not yet supported")
     def test_ref_applies_alongside_sibling_keywords(self, test_object, valid):
         schema = {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1562,12 +1560,10 @@ class TestRefs:
             # invalid on outer field
             ({"foo": {"bar": "a"}, "bar": 1}, False),
             # valid on both fields
-            pytest.param(
-                *({"foo": {"bar": "a"}, "bar": "a"}, True),
-                marks=pytest.mark.xfail(reason="refs with sibling keywords are not yet supported; foo here is being seen as an additionalProperty before bar"),
-            ),
+            ({"foo": {"bar": "a"}, "bar": "a"}, True),
         ],
     )
+    @pytest.mark.xfail(reason="refs with sibling keywords are not yet supported")
     def test_refs_with_relative_uris_and_defs(self, test_object, valid):
         schema = {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1597,12 +1593,10 @@ class TestRefs:
             # invalid on outer field
             ({"foo": {"bar": "a"}, "bar": 1}, False),
             # valid on both fields
-            pytest.param(
-                *({"foo": {"bar": "a"}, "bar": "a"}, True),
-                marks=pytest.mark.xfail(reason="refs with sibling keywords are not yet supported; foo here is being seen as an additionalProperty before bar"),
-            ),
+            ({"foo": {"bar": "a"}, "bar": "a"}, True),
         ],
     )
+    @pytest.mark.xfail(reason="refs with sibling keywords are not yet supported")
     def test_relative_refs_with_absolute_uris_and_defs(self, test_object, valid):
         schema = {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -2357,6 +2351,60 @@ class TestEnum:
             schema_obj=schema_obj,
         )
 
+    @pytest.mark.parametrize(
+        "obj, valid",
+        [
+            (1, True),
+            (2, False),
+            ("2", False),
+            ("1", False),
+            (True, False),
+        ]
+    )
+    def test_typed_enum_single_type(self, obj, valid):
+        schema_obj = {
+            "enum": [1, "2", True],
+            "type": "integer"
+        }
+        if valid:
+            validate(instance=obj, schema=schema_obj)
+            generate_and_check(obj, schema_obj)
+        else:
+            with pytest.raises(ValidationError):
+                validate(instance=obj, schema=schema_obj)
+            check_match_failure(bad_string=json_dumps(obj), schema_obj=schema_obj)
+
+    @pytest.mark.parametrize(
+        "obj, valid",
+        [
+            (1, True),
+            (2, False),
+            ("2", True),
+            ("1", False),
+            (True, False),
+        ]
+    )
+    def test_typed_enum_multiple_types(self, obj, valid):
+        schema_obj = {
+            "enum": [1, "2", True],
+            "type": ["integer", "string"]
+        }
+        if valid:
+            validate(instance=obj, schema=schema_obj)
+            generate_and_check(obj, schema_obj)
+        else:
+            with pytest.raises(ValidationError):
+                validate(instance=obj, schema=schema_obj)
+            check_match_failure(bad_string=json_dumps(obj), schema_obj=schema_obj)
+
+    def test_invalid_typed_enum(self):
+        schema_obj = {
+            "enum": [1, "2"],
+            "type": "boolean"
+        }
+        with pytest.raises(ValueError) as ve:
+            gen_json(schema=schema_obj)
+        assert ve.value.args[0] == "No valid options found for enum with type 'boolean': [1, '2']"
 
 class TestConst:
     def test_constant_int(self):
@@ -2415,6 +2463,67 @@ class TestConst:
             allowed_bytes={b"1"},
             schema_obj=schema_obj,
         )
+
+    def test_valid_typed_const(self):
+        schema_obj = {
+            "const": 1,
+            "type": "integer"
+        }
+        target_obj = 1
+        validate(instance=target_obj, schema=schema_obj)
+        generate_and_check(target_obj, schema_obj)
+
+    def test_invalid_typed_const(self):
+        schema_obj = {
+            "const": 1,
+            "type": "boolean"
+        }
+        with pytest.raises(ValidationError):
+            gen_json(schema=schema_obj)
+
+    def test_valid_enum_const(self):
+        schema_obj = {
+            "const": 1,
+            "enum": [1, 2, 3]
+        }
+        target_obj = 1
+        validate(instance=target_obj, schema=schema_obj)
+        generate_and_check(target_obj, schema_obj)
+
+    def test_invalid_enum_const(self):
+        schema_obj = {
+            "const": 1,
+            "enum": [2, 3]
+        }
+        with pytest.raises(ValidationError):
+            gen_json(schema=schema_obj)
+
+    def test_valid_typed_enum_const(self):
+        schema_obj = {
+            "const": 1,
+            "enum": [1, "2", 3],
+            "type": "integer"
+        }
+        target_obj = 1
+        validate(instance=target_obj, schema=schema_obj)
+        generate_and_check(target_obj, schema_obj)
+
+    @pytest.mark.parametrize(
+        "const",
+        [
+            "2", # right enum, wrong type
+            2, # wrong enum, right type
+            "3", # wrong enum, wrong type
+        ]
+    )
+    def test_invalid_typed_enum_const(self, const):
+        schema_obj = {
+            "const": const,
+            "enum": [1, "2", 3],
+            "type": "integer"
+        }
+        with pytest.raises(ValidationError):
+            gen_json(schema=schema_obj)
 
 
 class TestAdditionalProperties:
