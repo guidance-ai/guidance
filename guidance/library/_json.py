@@ -165,17 +165,17 @@ TYPE_SPECIFIC_KEYWORDS = {
     JSONType.OBJECT: ObjectKeywords,
 }
 
-DEFS_KEYS = {"$defs", "definitions"}
-
 IGNORED_KEYS = {
     "$anchor",
+    "$defs",
     "$schema",
     "$id",
     "id",
     "$comment",
     "title",
-    "description",
     "default",
+    "definitions",
+    "description",
     "examples",
 }
 
@@ -188,7 +188,7 @@ IGNORED_KEYS = {
 IGNORED_KEYS.add("discriminator")
 
 WHITESPACE = {b" ", b"\t", b"\n", b"\r"}
-VALID_KEYS = set(Keyword) | IGNORED_KEYS | DEFS_KEYS | set(NumberKeywords) | set(StringKeywords) | set(ArrayKeywords) | set(ObjectKeywords)
+VALID_KEYS = set(Keyword) | set(NumberKeywords) | set(StringKeywords) | set(ArrayKeywords) | set(ObjectKeywords) | IGNORED_KEYS
 
 FORMAT_PATTERNS: dict[str, Optional[str]] = {
     # https://json-schema.org/understanding-json-schema/reference/string#built-in-formats
@@ -396,6 +396,11 @@ def validate_json_node_keys(node: Mapping[str, Any]):
         raise ValueError(
             f"JSON schema had keys that could not be processed: {invalid_keys}" f"\nSchema: {node}"
         )
+
+
+def get_sibling_keys(node: Mapping[str, Any], key: str) -> set[str]:
+    # Get the set of functional (non-ignored) keys that are siblings of the given key
+    return set(node.keys()) & VALID_KEYS - set(IGNORED_KEYS) - {key}
 
 
 class GenJson:
@@ -723,7 +728,20 @@ class GenJson:
         lm,
         *,
         value: Union[None, bool, int, float, str, Mapping, Sequence],
+        instance_type: Optional[Union[str, Sequence[str]]] = None,
+        enum: Optional[Sequence[Union[None, bool, int, float, str, Mapping, Sequence]]] = None,
     ):
+        schema_to_validate_against: dict[str, Any] = {}
+        if instance_type is not None:
+            schema_to_validate_against["type"] = instance_type
+        if enum is not None:
+            schema_to_validate_against["enum"] = enum
+        if schema_to_validate_against:
+            # Raise a validation error if the value doesn't match the type
+            jsonschema.validate(
+                instance=value,
+                schema=schema_to_validate_against,
+            )
         # Base case
         if isinstance(value, (type(None), bool, int, float, str)):
             return lm + json_dumps(value)
@@ -756,14 +774,18 @@ class GenJson:
         self,
         lm,
         *,
-        options: Sequence[Mapping[str, Any]]
+        options: Sequence[Union[None, bool, int, float, str, Mapping, Sequence]],
+        instance_type: Optional[Union[str, Sequence[str]]] = None,
     ):
-        # TODO: can we support a whitespace-flexible version of this?
         all_opts: list[GrammarFunction] = []
-        for opt in options:
-            all_opts.append(
-                self.const(value=opt)
-            )
+        for instance in options:
+            try:
+                grm = self.const(value=instance, instance_type=instance_type)
+            except jsonschema.ValidationError:
+                continue
+            all_opts.append(grm)
+        if not all_opts:
+            raise ValueError(f"No valid options found for enum with type {instance_type!r}: {options}")
         return lm + select(options=all_opts)
 
 
@@ -811,15 +833,24 @@ class GenJson:
         validate_json_node_keys(json_schema)
 
         if Keyword.ANYOF in json_schema:
+            sibling_keys = get_sibling_keys(json_schema, Keyword.ANYOF)
+            if sibling_keys:
+                raise NotImplementedError(f"anyOf with sibling keys is not yet supported. Got {sibling_keys}")
             return lm + self.anyOf(anyof_list=json_schema[Keyword.ANYOF])
 
         if Keyword.ALLOF in json_schema:
+            sibling_keys = get_sibling_keys(json_schema, Keyword.ALLOF)
+            if sibling_keys:
+                raise NotImplementedError(f"allOf with sibling keys is not yet supported. Got {sibling_keys}")
             allof_list = json_schema[Keyword.ALLOF]
             if len(allof_list) != 1:
                 raise ValueError("Only support allOf with exactly one item")
             return lm + self.json(json_schema=allof_list[0])
 
         if Keyword.ONEOF in json_schema:
+            sibling_keys = get_sibling_keys(json_schema, Keyword.ONEOF)
+            if sibling_keys:
+                raise NotImplementedError(f"oneOf with sibling keys is not yet supported. Got {sibling_keys}")
             oneof_list = json_schema[Keyword.ONEOF]
             if len(oneof_list) == 1:
                 return lm + self.json(json_schema=oneof_list[0])
@@ -827,13 +858,22 @@ class GenJson:
             return lm + self.anyOf(anyof_list=oneof_list)
 
         if Keyword.REF in json_schema:
+            sibling_keys = get_sibling_keys(json_schema, Keyword.REF)
+            if sibling_keys:
+                raise NotImplementedError(f"$ref with sibling keys is not yet supported. Got {sibling_keys}")
             return lm + self.ref(reference=json_schema[Keyword.REF])
 
         if Keyword.CONST in json_schema:
-            return lm + self.const(value=json_schema[Keyword.CONST])
+            sibling_keys = get_sibling_keys(json_schema, Keyword.CONST) - {Keyword.TYPE, Keyword.ENUM}
+            if sibling_keys:
+                raise NotImplementedError(f"const with sibling keys is not yet supported. Got {sibling_keys}")
+            return lm + self.const(value=json_schema[Keyword.CONST], instance_type=json_schema.get(Keyword.TYPE, None), enum=json_schema.get(Keyword.ENUM, None))
 
         if Keyword.ENUM in json_schema:
-            return lm + self.enum(options=json_schema[Keyword.ENUM])
+            sibling_keys = get_sibling_keys(json_schema, Keyword.ENUM) - {Keyword.TYPE}
+            if sibling_keys:
+                raise NotImplementedError(f"enum with sibling keys is not yet supported. Got {sibling_keys}")
+            return lm + self.enum(options=json_schema[Keyword.ENUM], instance_type=json_schema.get(Keyword.TYPE, None))
 
         if Keyword.TYPE in json_schema:
             target_types = cast(Union[str, Sequence[str]], json_schema[Keyword.TYPE])
