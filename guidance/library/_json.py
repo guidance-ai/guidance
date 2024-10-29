@@ -406,7 +406,7 @@ def get_sibling_keys(node: Mapping[str, Any], key: str) -> set[str]:
 class GenJson:
     item_separator = ", "
     key_separator = ": "
-    def __init__(self, schema: JSONSchema, separators: Optional[tuple[str, str]] = None, strict_properties=True) -> None:
+    def __init__(self, schema: JSONSchema, separators: Optional[tuple[str, str]] = None, strict_properties: bool = True) -> None:
         self.schema = schema
         if separators is not None:
             self.item_separator, self.key_separator = separators
