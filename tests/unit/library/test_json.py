@@ -23,7 +23,7 @@ def generate_and_check(
     strict_properties: bool = False,
 ):
     # Sanity check what we're being asked
-    validate(instance=target_obj, schema=schema_obj)
+    validate(instance=target_obj, schema=schema_obj or {})
     prepared_json = json_dumps(target_obj)
     assert json.loads(prepared_json) == target_obj
 
@@ -3166,3 +3166,179 @@ class TestWhitespace:
         assert grammar.match(prepared_json, raise_exceptions=True) is not None
         model = models.Mock(f"<s>{prepared_json}".encode())
         assert str(model + grammar) == prepared_json
+
+class TestStrictProperties:
+    @pytest.mark.parametrize(
+        "target_obj",
+        [
+            1,
+            1.0,
+            "2",
+            False,
+            [1, 2, 3],
+            {},
+            {"a": 1, "b": 2, "c": 3},
+        ]
+    )
+    def test_none_schema_exempt(self, target_obj):
+        schema_obj = None
+        generate_and_check(target_obj, schema_obj, strict_properties=True)
+
+    @pytest.mark.parametrize(
+        "target_obj",
+        [
+            1,
+            1.0,
+            "2",
+            False,
+            [1, 2, 3],
+            {},
+        ]
+    )
+    def test_empty_schema_good(self, target_obj):
+        schema_obj = {}
+        generate_and_check(target_obj, schema_obj, strict_properties=True)
+
+    @pytest.mark.parametrize(
+        "target_obj",
+        [
+            {"a": 1, "b": 2, "c": 3},
+            {"a": 1, "b": 2},
+            {"a": 1},
+        ]
+    )
+    def test_empty_schema_bad(self, target_obj):
+        schema_obj = {}
+        check_match_failure(
+            bad_string=json_dumps(target_obj),
+            schema_obj=schema_obj,
+            strict_properties=True,
+        )
+
+    @pytest.mark.parametrize(
+        "target_obj",
+        [
+            {},
+        ]
+    )
+    def test_object_schema_good(self, target_obj):
+        schema_obj = {"type": "object"}
+        generate_and_check(target_obj, schema_obj, strict_properties=True)
+
+    @pytest.mark.parametrize(
+        "target_obj",
+        [
+            1,
+            1.0,
+            "2",
+            False,
+            [1, 2, 3],
+            {"a": 1, "b": 2, "c": 3},
+        ]
+    )
+    def test_object_schema_bad(self, target_obj):
+        schema_obj = {"type": "object"}
+        check_match_failure(
+            bad_string=json_dumps(target_obj),
+            schema_obj=schema_obj,
+            strict_properties=True,
+        )
+
+    @pytest.mark.parametrize(
+        "target_obj",
+        [
+            {},
+            {"a": 1},
+            {"b": 2},
+            {"a": 1, "b": 2},
+        ]
+    )
+    def test_object_schema_with_properties_good(self, target_obj):
+        schema_obj = {
+            "type": "object",
+            "properties": {
+                "a": {"type": "integer"},
+                "b": {"type": "number"},
+            }
+        }
+        generate_and_check(target_obj, schema_obj, strict_properties=True)
+
+    @pytest.mark.parametrize(
+        "target_obj",
+        [
+            {"a": 1, "b": 2, "c": 3},
+        ]
+    )
+    def test_object_schema_with_properties_bad(self, target_obj):
+        schema_obj = {
+            "type": "object",
+            "properties": {
+                "a": {"type": "integer"},
+                "b": {"type": "number"},
+            }
+        }
+        check_match_failure(
+            bad_string=json_dumps(target_obj),
+            schema_obj=schema_obj,
+            strict_properties=True,
+        )
+
+    @pytest.mark.parametrize(
+        "target_obj",
+        [
+            {"foo": {"a": 1}},
+            {"foo": {"a": 1.0}},
+            {"foo": {"a": "2"}},
+            {"foo": {"a": False}},
+            {"foo": {"a": [1, 2, 3]}},
+            {"foo": {"a": {}}},
+        ]
+    )
+    def test_nested_empty_schema_good(self, target_obj):
+        schema_obj = {
+            "type": "object",
+            "properties": {
+                "foo": {"type": "object", "properties": {"a": {}}},
+            }
+        }
+        generate_and_check(target_obj, schema_obj, strict_properties=True)
+
+    @pytest.mark.parametrize(
+        "target_obj",
+        [
+            {"foo": {"a": {"x": 1}}},
+            {"foo": {"b": 1}},
+        ]
+    )
+    def test_nested_empty_schema_bad(self, target_obj):
+        schema_obj = {
+            "type": "object",
+            "properties": {
+                "foo": {"type": "object", "properties": {"a": {}}},
+            }
+        }
+        check_match_failure(
+            bad_string=json_dumps(target_obj),
+            schema_obj=schema_obj,
+            strict_properties=True,
+        )
+
+    @pytest.mark.parametrize(
+        "target_obj",
+        [
+            {"a": 1},
+            {"b": 2},
+            {"a": 1, "b": 2},
+            {"c": "hello"},
+        ]
+    )
+    def test_explicit_additional_properties_ok(self, target_obj):
+        schema_obj = {
+            "type": "object",
+            "properties": {
+                "a": {"type": "integer"},
+                "b": {"type": "number"},
+            },
+            "additionalProperties": {"type": "string"},
+        }
+        generate_and_check(target_obj, schema_obj, strict_properties=True)
