@@ -306,7 +306,7 @@ class JupyterWidgetRenderer(Renderer):
 
         # Send outgoing messages to client
         for out_message in out_messages:
-            logger.debug(f"RENDERER:out:{out_message}")
+            # logger.debug(f"RENDERER:out:{out_message}")
             if isinstance(out_message, TraceMessage):
                 self._last_trace_id = out_message.trace_id
 
