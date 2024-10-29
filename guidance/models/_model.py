@@ -137,7 +137,7 @@ class Engine:
             tokens, mid_process_fut = parser.advance(token)
             if has_get_logits:
                 try:
-                    logits = self.get_logits(tokens)
+                    logits = self.get_logits(token_ids=tokens)
                 except NotImplementedError:
                     # Permanently fall-back to get_next_token if get_logits is not implemented
                     has_get_logits = False
