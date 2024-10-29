@@ -990,6 +990,9 @@ def json(
         # Default schema is empty, "anything goes" schema
         # TODO: consider default being `{"type": "object"}`
         schema = {}
+        # In this case, we don't want to use strict_properties
+        # because we're not actually validating against a schema
+        strict_properties = False
     elif isinstance(schema, (Mapping, bool)):
         # Raises jsonschema.exceptions.SchemaError or ValueError
         # if schema is not valid
