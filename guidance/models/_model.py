@@ -170,14 +170,20 @@ class PostExecMetrics:
             self._renderer.update(MetricMessage(name="avg latency", value=avg_latency))
 
 
-def _engine_cleanup(renderer: Renderer, log_msg: str):
+def _engine_cleanup(renderer: Renderer, msg_recv: Callable[[GuidanceMessage], None], log_msg: str):
+    renderer.unsubscribe(msg_recv)
     log_cleanup(log_msg)
 
 
-def _msg_recv(engine_weakref: weakref.ReferenceType, unsubscribe_fn: Callable[[], None], message: GuidanceMessage) -> None:
+def _wrapped_msg_recv(engine_weak_ref: weakref.ref) -> Callable[[GuidanceMessage], None]:
+    def closure(message):
+        return _msg_recv(engine_weak_ref, message)
+    return closure
+
+
+def _msg_recv(engine_weakref: weakref.ReferenceType, message: GuidanceMessage) -> None:
     engine = engine_weakref()
     if engine is None:
-        unsubscribe_fn()
         return
 
     # NOTE(nopdive): This is usually run on a background thread.
@@ -241,10 +247,7 @@ class Engine:
             # self.renderer = AutoRenderer(self.trace_handler)
             self.renderer = JupyterWidgetRenderer(self.trace_handler)
 
-        # TODO(nopdive): Review this, I don't think this is correct.
-        unsubscribe_fn = lambda: renderer.unsubscribe(msg_recv)
-        self_ref = weakref.ref(self)
-        msg_recv = lambda msg: _msg_recv(engine_weakref=self_ref, unsubscribe_fn=unsubscribe_fn, message=msg)
+        msg_recv = _wrapped_msg_recv(weakref.ref(self))
         self.renderer.subscribe(msg_recv)
 
         self.model_dict: weakref.WeakValueDictionary[int, Model] = weakref.WeakValueDictionary()
@@ -256,7 +259,7 @@ class Engine:
         # self.periodic_metrics_generator.start()
         # self.post_exec_metrics = PostExecMetrics(self.renderer, self.monitor)
 
-        weakref.finalize(self, _engine_cleanup, self.renderer, f"engine({id(self)})")
+        weakref.finalize(self, _engine_cleanup, self.renderer, msg_recv, f"engine({id(self)})")
         log_init(f"engine({id(self)})")
 
 

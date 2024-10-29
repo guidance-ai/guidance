@@ -298,15 +298,15 @@ def pydantic_no_default_str(obj, target_fields=None):
 
 
 def log_init(s: str):
-    # logger.debug(f"INIT:{s}")
+    logger.debug(f"INIT:{s}")
     pass
 
 
 def log_copy(s: str):
-    # logger.debug(f"COPY:{s}")
+    logger.debug(f"COPY:{s}")
     pass
 
 
 def log_cleanup(s: str):
-    # logger.debug(f"CLEANUP:{s}")
+    logger.debug(f"CLEANUP:{s}")
     pass

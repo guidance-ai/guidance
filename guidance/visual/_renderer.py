@@ -158,6 +158,80 @@ def _on_cell_completion(renderer_weakref: weakref.ReferenceType["Renderer"], inf
         logger.error(repr(e))
 
 
+async def _handle_recv_messages(renderer_weakref: weakref.ReferenceType["Renderer"], queue_weakref: weakref.ReferenceType["Queue"]) -> None:
+    logger.debug("RECV:init")
+
+    while True:
+        try:
+            queue = queue_weakref()
+            if queue is None:
+                break
+            value = await queue.get()
+
+            # logger.debug(f"RECV:raw:{value}")
+
+            if value is None:
+                logger.debug("RECV:closing")
+                break
+
+            message = deserialize_message(value)
+            # logger.debug(f"RECV:msg:{message}")
+
+            renderer = renderer_weakref()
+            if renderer is None:
+                logger.debug("RECV:renderer early clean")
+                break
+
+            if isinstance(message, ClientReadyMessage):
+                logger.debug("RECV:clientready")
+                call_soon_threadsafe(renderer._send_queue.put_nowait, ClientReadyAckMessage())
+
+            renderer.notify(message)
+            renderer._recv_queue.task_done()
+        except Exception as e:
+            logger.error(f"RECV:err:{repr(e)}")
+
+
+async def _handle_send_messages(renderer_weakref: weakref.ReferenceType["Renderer"], queue_weakref: weakref.ReferenceType["Queue"]) -> None:
+    logger.debug("SEND:init")
+    # NOTE(nopdive): Waiting on client cb does not work, client messages received on cell completion.
+    #                Currently, we do a replay of messages on completion for client if client
+    #                first receives non-zero message identifier.
+
+    # What if we only used 1% of our brain?
+    await asyncio.sleep(200 / 1000.)
+    logger.debug("SEND:ready")
+
+    while True:
+        try:
+            queue = queue_weakref()
+            if queue is None:
+                break
+            message = await queue.get()
+            # logger.debug(f"SEND:msg:{message}")
+
+            if message is None:
+                logger.debug("SEND:closing")
+                break
+
+            message_json = serialize_message(message)
+            # logger.debug(f"SEND:json:{message_json}")
+
+            renderer = renderer_weakref()
+            if renderer is None:
+                break
+            if renderer._stitch_widget is not None:
+                renderer._stitch_widget.kernelmsg = message_json
+            else:
+                logger.debug(f"SEND:jupyter:send but no widget")
+            renderer._send_queue.task_done()
+        except Exception as e:
+            logger.error(f"SEND:err:{repr(e)}")
+
+
+
+
+
 class JupyterWidgetRenderer(Renderer):
     """Jupyter widget renderer that is implemented via stitch package."""
 
@@ -184,8 +258,8 @@ class JupyterWidgetRenderer(Renderer):
         self._recv_queue: Queue = run_async_coroutine(_create_queue()).result()
 
         # Start send/recv message loops
-        recv_coroutine = self._handle_recv_messages()
-        send_coroutine = self._handle_send_messages()
+        recv_coroutine = _handle_recv_messages(weakref.ref(self), weakref.ref(self._recv_queue))
+        send_coroutine = _handle_send_messages(weakref.ref(self), weakref.ref(self._send_queue))
         self._recv_task = run_async_coroutine(async_task(recv_coroutine)).result()
         self._send_task = run_async_coroutine(async_task(send_coroutine)).result()
 
@@ -312,62 +386,6 @@ class JupyterWidgetRenderer(Renderer):
 
             self._messages.append(out_message)
             call_soon_threadsafe(self._send_queue.put_nowait, out_message)
-
-    async def _handle_recv_messages(self):
-        logger.debug("RECV:init")
-
-        while True:
-            try:
-                value = await self._recv_queue.get()
-                # logger.debug(f"RECV:raw:{value}")
-
-                if value is None:
-                    logger.debug("RECV:closing")
-                    break
-
-                message = deserialize_message(value)
-                # logger.debug(f"RECV:msg:{message}")
-
-                if isinstance(message, ClientReadyMessage):
-                    logger.debug("RECV:clientready")
-                    call_soon_threadsafe(self._send_queue.put_nowait, ClientReadyAckMessage())
-
-                self.notify(message)
-                self._recv_queue.task_done()
-            except Exception as e:
-                logger.error(f"RECV:err:{repr(e)}")
-
-
-    async def _handle_send_messages(self):
-        logger.debug("SEND:init")
-        # NOTE(nopdive): Waiting on client cb does not work, client messages received on cell completion.
-        #                Currently, we do a replay of messages on completion for client if client
-        #                first receives non-zero message identifier.
-
-        # What if we only used 1% of our brain?
-        await asyncio.sleep(200 / 1000.)
-        logger.debug("SEND:ready")
-
-        while True:
-            try:
-                message = await self._send_queue.get()
-                # logger.debug(f"SEND:msg:{message}")
-
-                if message is None:
-                    logger.debug("SEND:closing")
-                    break
-
-                message_json = serialize_message(message)
-                # logger.debug(f"SEND:json:{message_json}")
-
-                if self._stitch_widget is not None:
-                    self._stitch_widget.kernelmsg = message_json
-                else:
-                    logger.debug(f"SEND:jupyter:send but no widget")
-                self._send_queue.task_done()
-            except Exception as e:
-                logger.error(f"SEND:err:{repr(e)}")
-
 
 class DoNothingRenderer(Renderer):
     """ It does nothing. Placeholder for future renderers."""
