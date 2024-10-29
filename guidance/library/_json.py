@@ -14,6 +14,9 @@ from typing import (
     cast,
 )
 import warnings
+import referencing
+import contextlib
+from urllib.parse import urljoin
 
 try:
     import jsonschema
@@ -165,6 +168,7 @@ TYPE_SPECIFIC_KEYWORDS = {
 DEFS_KEYS = {"$defs", "definitions"}
 
 IGNORED_KEYS = {
+    "$anchor",
     "$schema",
     "$id",
     "id",
@@ -401,30 +405,80 @@ class GenJson:
         self.schema = schema
         if separators is not None:
             self.item_separator, self.key_separator = separators
-        if isinstance(schema, Mapping):
-            self.definitions = self._build_definitions(schema.get("$defs", schema.get("definitions", {})))
-        else:
-            self.definitions = {}
 
-    def _build_definitions(
+        registry: referencing.Registry[JSONSchema] = referencing.Registry()
+        resource: referencing.Resource[JSONSchema] = referencing.jsonschema.DRAFT202012.create_resource(schema)
+        self._base_uri = resource.id() or ""
+        registry = registry.with_resource(
+            uri=self._base_uri,
+            resource=resource
+        )
+        self._resolver = registry.resolver()
+        self._defs: dict[str, Callable[[], GrammarFunction]] = {}
+
+
+    @guidance(stateless=True)
+    def ref(
         self,
-        raw_definitions: Mapping[str, JSONSchema],
-    ) -> Mapping[str, Callable[[], GrammarFunction]]:
-        definitions: Dict[str, Callable[[], GrammarFunction]] = {}
+        lm,
+        *,
+        reference: str,
+    ):
+        """
+        Resolve a reference to another schema and return the grammar for that schema.
 
-        def build_definition(json_schema: JSONSchema) -> Callable[[], GrammarFunction]:
+        Note: we define a zero-argument closure that will return the grammar for the reference and
+        add it to the _defs cache. This allows us to avoid re-resolving the reference every time
+        and to handle recursive references correctly.
+        """
+        abspath = self._get_abspath(reference)
+        if abspath not in self._defs:
+            resolved = self._resolver.lookup(abspath)
+            base_uri_of_resolved = resolved.resolver._base_uri
+
             @guidance(stateless=True, dedent=False, cache=True)
             def closure(lm):
-                return lm + self.json(json_schema=json_schema)
+                with self._base_uri_context(base_uri_of_resolved):
+                    grammar = self.json(json_schema=resolved.contents)
+                return lm + grammar
 
-            return closure
+            self._defs[abspath] = closure
+        return lm + self._defs[abspath]()
 
-        definitions = {ref: build_definition(schema) for ref, schema in raw_definitions.items()}
-        return definitions
+
+    def _get_abspath(self, ref):
+        """
+        Convert a reference to an absolute path, resolving it against the base URI if necessary.
+        This will allow us to get a unique key for each reference and hit the _defs cache correctly.
+        """
+        if ref.startswith("#"):
+            # Special case for fragment-only references:
+            # for certain schemes (e.g. urn), urljoin may throw the base URI, but we need to keep them around
+            return f"{self._base_uri}{ref}"
+        return urljoin(self._base_uri, ref)
+
+
+    @contextlib.contextmanager
+    def _base_uri_context(self, base_uri: str):
+        """
+        Temporarily replace the base_uri for the duration of the context manager.
+        This allows refs with different base URIs to be resolved correctly without passing the resolver around.
+
+        Note: very much not thread-safe, but I don't expect instances of this class to be shared between threads.
+        TODO: ensure that the instance's hash depends on the base_uri before adding more caching to this class.
+        """
+        old_base_uri = self._base_uri
+        self._base_uri = base_uri
+        try:
+            yield
+        finally:
+            self._base_uri = old_base_uri
+
 
     @guidance(stateless=True)
     def root(self, lm):
         return lm + self.json(json_schema=self.schema)
+
 
     @classmethod
     @guidance(stateless=True)
@@ -515,37 +569,42 @@ class GenJson:
                 f"Required properties not in properties but additionalProperties is False."
                 f" Missing required properties: {list(r for r in required if r not in properties)}"
             )
-        items = [
-            # First iterate over the properties in order
-            *properties.items(),
-            # If there are any keys in required that weren't specified by properties, add them in order at the end,
-            # where we will validate against the additional_properties schema
-            *((key, additional_properties) for key in required if key not in properties),
-        ]
-        grammars = tuple(f'"{name}"{self.key_separator}' + self.json(json_schema=schema) for name, schema in items)
-        required_items = tuple(name in required for name, _ in items)
-        names = set(properties.keys()) | set(required)
-        key_grammar: GrammarFunction
-        if len(names) > 0:
-            # If there are any properties, we need to disallow them as additionalProperties
-            key_grammar = as_regular_grammar(
-                And([
-                    lexeme(r'"([^"\\]|\\["\\/bfnrt]|\\u[0-9a-fA-F]{4})*"'),
-                    Not(lexeme('"(' + '|'.join(quote_regex(name) for name in names) + ')"')),
-                ]),
-                lexeme = True,
-            )
-        else:
-            key_grammar = self.string()
+
+        keys: list[str] = []
+        required_items: list[bool] = []
+        grammars: list[GrammarFunction] = []
+        # First iterate over the properties in order, then iterate over any missing required keys, using additional_properties as the schema
+        for name in (*properties, *(r for r in required if r not in properties)):
+            # Use json_dumps to properly quote / escape the key
+            key = json_dumps(name)
+            keys.append(key)
+            # Identify if the key is required
+            required_items.append(name in required)
+            # Build the grammar we'll use for this property
+            grammars.append(f'{key}{self.key_separator}' + self.json(json_schema=properties.get(name, additional_properties)))
+
         if additional_properties is not False:
-            additional_item_grammar = key_grammar + self.key_separator + self.json(json_schema=additional_properties)
+            # Key for additionalProperties is a json string, but we need to disallow any properties that are already defined
+            additional_key_grammar: GrammarFunction
+            if len(keys) > 0:
+                additional_key_grammar = as_regular_grammar(
+                    And([
+                        lexeme(r'"([^"\\]|\\["\\/bfnrt]|\\u[0-9a-fA-F]{4})*"'),
+                        Not(lexeme('|'.join(map(quote_regex, keys)))),
+                    ]),
+                    lexeme = True,
+                )
+            else:
+                additional_key_grammar = self.string()
+
+            additional_item_grammar = additional_key_grammar + self.key_separator + self.json(json_schema=additional_properties)
             additional_items_grammar = sequence(additional_item_grammar + self.item_separator) + additional_item_grammar
-            grammars += (additional_items_grammar,)
-            required_items += (False,)
+            grammars.append(additional_items_grammar)
+            required_items.append(False)
 
         return lm + "{" + self._join(
-            elements = grammars,
-            required = required_items,
+            elements = tuple(grammars),
+            required = tuple(required_items),
         ) + "}"
 
 
@@ -732,24 +791,6 @@ class GenJson:
                 ),
             ]
         )
-
-
-    @guidance(stateless=True, cache=True)
-    def ref(
-        self,
-        lm,
-        *,
-        reference: str,
-    ):
-        target_definition = None
-        for dk in DEFS_KEYS:
-            ref_start = f"#/{dk}/"
-            if reference.startswith(ref_start):
-                target_name = reference[len(ref_start) :]
-                target_definition = self.definitions[target_name]
-
-        assert target_definition is not None
-        return lm + target_definition()
 
 
     @guidance(stateless=True)
