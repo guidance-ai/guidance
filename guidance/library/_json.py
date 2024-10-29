@@ -915,11 +915,11 @@ def json(
         Type["pydantic.BaseModel"],
         "pydantic.TypeAdapter",
     ] = None,
-    temperature: float = 0.0,
-    max_tokens: int = 100000000,
     separators: Optional[tuple[str, str]] = None,
     whitespace_flexible: bool = False,
     strict_properties: bool = True,
+    temperature: float = 0.0,
+    max_tokens: int = 100000000,
     **kwargs,
 ):
     """Generate valid JSON according to the supplied JSON schema or `pydantic` model.
@@ -963,6 +963,23 @@ def json(
             - A JSON schema object. This is a JSON schema string which has been passed to ``json.loads()``
             - A subclass of ``pydantic.BaseModel``
             - An instance of ``pydantic.TypeAdapter``
+    separators : Optional[Tuple[str, str]]
+        The (item, key) separators to use when generating the JSON. For maximal compactness/token savings, use `(",", ":")`.
+        Note that most JSON "in the wild" will include whitespace around these separators, and compact JSON may be out-of-distribution
+        for some models.
+        Default: (", ", ": ")
+    whitespace_flexible : bool
+        If True, allow for whitespace to be inserted between tokens in the JSON output. This gives maximal control to the model in terms of
+        formatting (and therefore might be more likely to be in-distribution for some models), but guidance will be able to accelerate fewer
+        tokens.
+    strict_properties : bool
+        If True, the generated JSON will only include additional properties if they are explicitly allowed in the schema. If False, additional
+        properties will be allowed unless they are explicitly disallowed.
+    max_tokens : int
+        The maximum number of tokens to generate.
+        Note setting this to a small number will likely result in an incomplete JSON object.
+    temperature : float
+        The temperature to use when generating the JSON.
     """
     if "compact" in kwargs:
         warnings.warn("The 'compact' argument is deprecated and has no effect. It will be removed in a future release.", category=DeprecationWarning)
