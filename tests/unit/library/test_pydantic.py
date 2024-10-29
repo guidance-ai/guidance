@@ -1,7 +1,7 @@
 import inspect
 from json import dumps as original_json_dumps
 from functools import partial
-from typing import Any, Dict, Generic, List, Literal, Tuple, Type, TypeVar, Union, Set
+from typing import Any, Dict, Generic, List, Literal, Tuple, Type, TypeVar, Union, Optional
 
 import pydantic
 import pytest
@@ -55,6 +55,7 @@ def validate_string(
 def generate_and_check(
     target_obj: Any,
     pydantic_model: Union[Type[pydantic.BaseModel], pydantic.TypeAdapter],
+    strict_properties: bool = False,
 ):
     # Sanity check what we're being asked
     target_obj = validate_obj(target_obj, pydantic_model)
@@ -62,19 +63,21 @@ def generate_and_check(
     assert validate_string(prepared_json, pydantic_model) == target_obj
 
     # Check that the grammar can produce the literal prepared_json string
-    grammar_callable = partial(gen_json, schema=pydantic_model)
+    grammar_callable = partial(gen_json, schema=pydantic_model, strict_properties=strict_properties)
     _generate_and_check(grammar_callable, prepared_json)
 
 
 def check_match_failure(
+    *,
     bad_obj: Any,
-    good_bytes: bytes,
-    failure_byte: bytes,
-    allowed_bytes: Set[bytes],
+    good_bytes: Optional[bytes] = None,
+    failure_byte: Optional[bytes] = None,
+    allowed_bytes: Optional[set[bytes]] = None,
     pydantic_model: Union[Type[pydantic.BaseModel], pydantic.TypeAdapter],
+    strict_properties: bool = False,
 ):
     bad_string = json_dumps(bad_obj)
-    grammar = gen_json(schema=pydantic_model)
+    grammar = gen_json(schema=pydantic_model, strict_properties=strict_properties)
     _check_match_failure(
         bad_string=bad_string,
         good_bytes=good_bytes,
@@ -292,3 +295,39 @@ class TestDiscriminatedUnion:
             allowed_bytes={b","}, # expect a comma to continue the object with "barks"
             pydantic_model=self.Model,
         )
+
+class TestExtra:
+    class Unset(pydantic.BaseModel):
+        a: int
+
+    class Ignore(pydantic.BaseModel):
+        a: int
+        model_config = pydantic.ConfigDict(extra="ignore")
+
+    class Allow(pydantic.BaseModel):
+        a: int
+        model_config = pydantic.ConfigDict(extra="allow")
+
+    class Forbid(pydantic.BaseModel):
+        a: int
+        model_config = pydantic.ConfigDict(extra="forbid")
+
+    def test_unset(self):
+        obj = {"a": 42, "b": "hello"}
+        generate_and_check(target_obj=obj, pydantic_model=self.Unset, strict_properties=False)
+        check_match_failure(bad_obj=obj, pydantic_model=self.Unset, strict_properties=True)
+
+    def test_ignore(self):
+        obj = {"a": 42, "b": "hello"}
+        generate_and_check(target_obj=obj, pydantic_model=self.Ignore, strict_properties=False)
+        check_match_failure(bad_obj=obj, pydantic_model=self.Ignore, strict_properties=True)
+
+    def test_allow(self):
+        obj = {"a": 42, "b": "hello"}
+        generate_and_check(target_obj=obj, pydantic_model=self.Allow, strict_properties=False)
+        generate_and_check(target_obj=obj, pydantic_model=self.Allow, strict_properties=True)
+
+    def test_forbid(self):
+        obj = {"a": 42, "b": "hello"}
+        check_match_failure(bad_obj=obj, pydantic_model=self.Forbid, strict_properties=False)
+        check_match_failure(bad_obj=obj, pydantic_model=self.Forbid, strict_properties=True)
