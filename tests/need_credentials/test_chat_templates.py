@@ -19,6 +19,8 @@ from ..utils import env_or_fail
         ("mistralai/Mistral-7B-Instruct-v0.2", True),  # Mistral-7B-Instruct-v0.2
         ("google/gemma-2-9b-it", True),  # Gemma2
         ("HuggingFaceH4/zephyr-7b-beta", False),  # Have a test for model not in cache
+        ("Qwen/Qwen2.5-0.5B", True),  # Qwen2.5-0.5B
+        ("Qwen2.5-0.5B-Instruct", True),  # Qwen2.5-0.5B-Instruct
     ],
 )
 def test_popular_models_in_cache(model_id: str, should_pass: bool):
@@ -83,6 +85,8 @@ def test_chat_format_smoke(model_id: str):
     [
         "microsoft/Phi-3-mini-4k-instruct",
         "meta-llama/Meta-Llama-3-8B-Instruct",
+        "Qwen/Qwen2.5-0.5B",
+        "Qwen2.5-0.5B-Instruct",
         pytest.param(
             "meta-llama/Llama-2-7b-chat-hf",
             marks=pytest.mark.xfail(
