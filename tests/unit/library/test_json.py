@@ -3130,7 +3130,7 @@ class TestWhitespace:
         seps,
     )
     def test_separators(self, separators, schema, obj):
-        grammar = gen_json(schema=schema, separators=separators)
+        grammar = gen_json(schema=schema, separators=separators, strict_properties=False)
         for seps in self.seps:
             prepared_json = json.dumps(obj, separators=seps)
             if separators == seps:
@@ -3160,7 +3160,7 @@ class TestWhitespace:
         [None, 0, 2, 4],
     )
     def test_whitespace_flexibility(self, indent, separators, schema, obj):
-        grammar = gen_json(schema=schema, whitespace_flexible=True)
+        grammar = gen_json(schema=schema, strict_properties=False, whitespace_flexible=True)
         prepared_json = json.dumps(obj, separators=separators, indent=indent)
 
         assert grammar.match(prepared_json, raise_exceptions=True) is not None
