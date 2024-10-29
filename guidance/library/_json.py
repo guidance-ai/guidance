@@ -1,4 +1,4 @@
-from json import dumps as json_dumps
+from json import dumps as json_dumps, loads as json_loads
 from enum import Enum
 import math
 from typing import (
@@ -957,6 +957,7 @@ def json(
     *,
     schema: Union[
         None,
+        str,
         JSONSchema,
         Type["pydantic.BaseModel"],
         "pydantic.TypeAdapter",
@@ -1005,6 +1006,7 @@ def json(
     schema : Union[None, Mapping[str, Any], Type[pydantic.BaseModel], pydantic.TypeAdapter]
         One of:
             - None, in which case any valid JSON will be generated
+            - A string representing a JSON schema which will be parsed using ``json.loads()``
             - A JSON schema object. This is a JSON schema string which has been passed to ``json.loads()``
             - A subclass of ``pydantic.BaseModel``
             - An instance of ``pydantic.TypeAdapter``
@@ -1018,7 +1020,9 @@ def json(
         # Default schema is empty, "anything goes" schema
         # TODO: consider default being `{"type": "object"}`
         schema = {}
-    elif isinstance(schema, (Mapping, bool)):
+    elif isinstance(schema, (Mapping, bool, str)):
+        if isinstance(schema, str):
+            schema = cast(JSONSchema, json_loads(schema))
         # Raises jsonschema.exceptions.SchemaError or ValueError
         # if schema is not valid
         jsonschema.validators.Draft202012Validator.check_schema(schema)
