@@ -17,7 +17,10 @@ from ...utils import generate_and_check as _generate_and_check
 
 
 def generate_and_check(
-    target_obj: Any, schema_obj, desired_temperature: Optional[float] = None
+    target_obj: Any,
+    schema_obj,
+    desired_temperature: Optional[float] = None,
+    strict_properties: bool = False,
 ):
     # Sanity check what we're being asked
     validate(instance=target_obj, schema=schema_obj)
@@ -28,16 +31,17 @@ def generate_and_check(
     # We partial in the grammar_callable
     if desired_temperature is not None:
         grammar_callable = partial(
-            gen_json, schema=schema_obj, temperature=desired_temperature
+            gen_json, schema=schema_obj, temperature=desired_temperature, strict_properties=strict_properties
         )
     else:
-        grammar_callable = partial(gen_json, schema=schema_obj)
+        grammar_callable = partial(gen_json, schema=schema_obj, strict_properties=strict_properties)
 
     lm = _generate_and_check(
         grammar_callable,
         test_string=prepared_json,
     )
-    check_run_with_temperature(lm, desired_temperature)
+    if desired_temperature is not None:
+        check_run_with_temperature(lm, desired_temperature)
 
 
 def check_match_failure(
@@ -47,8 +51,9 @@ def check_match_failure(
     failure_byte: Optional[bytes] = None,
     allowed_bytes: Optional[Set[bytes]] = None,
     schema_obj: Dict[str, Any],
+    strict_properties: bool = False,
 ):
-    grammar = gen_json(schema=schema_obj)
+    grammar = gen_json(schema=schema_obj, strict_properties=strict_properties)
 
     _check_match_failure(
         bad_string=bad_string,
