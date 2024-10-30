@@ -965,11 +965,11 @@ class GenJson:
 
         if Keyword.ALLOF in json_schema and Keyword.ONEOF in json_schema:
             parent_schema = json_schema.copy()
-            oneof_list = parent_schema.pop(Keyword.ONEOF)
             allof_list = parent_schema.pop(Keyword.ALLOF)
+            oneof_list = parent_schema.pop(Keyword.ONEOF)
             # Reduce the problem to a oneOf of allOfs
             return lm + self.oneOf(
-                anyof_list=[
+                oneof_list=[
                     {"allOf": [one_item, *allof_list]}
                     for one_item in oneof_list
                 ]
@@ -977,12 +977,14 @@ class GenJson:
 
         if Keyword.ANYOF in json_schema and Keyword.ONEOF in json_schema:
             parent_schema = json_schema.copy()
-            oneof_list = parent_schema.pop(Keyword.ONEOF)
             anyof_list = parent_schema.pop(Keyword.ANYOF)
-            # Reduce the problem to a oneOf of anyOfs
+            oneof_list = parent_schema.pop(Keyword.ONEOF)
+            # Reduce the problem to a oneOf of allOfs
             return lm + self.oneOf(
                 oneof_list=[
-                    {"anyOf": anyof_list}
+                    {"allOf": [one_item, any_item]}
+                    for any_item in anyof_list
+                    for one_item in oneof_list
                 ]
             )
 
