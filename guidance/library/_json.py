@@ -16,6 +16,7 @@ from typing import (
 import warnings
 import referencing
 import contextlib
+from collections import defaultdict
 from urllib.parse import urljoin
 
 try:
@@ -743,7 +744,7 @@ class GenJson:
         parent_schema: JSONSchema,
     ):
         type = set(JSONType)
-        properties: dict[str, JSONSchema] = {}
+        properties: defaultdict[str, list[JSONSchema]] = defaultdict(list)
         required: set[str] = set()
         additional_properties_list: list[JSONSchema] = []
         items_list: list[JSONSchema] = []
@@ -789,11 +790,7 @@ class GenJson:
             elif key == ObjectKeywords.PROPERTIES:
                 value = cast(Mapping[str, JSONSchema], value)
                 for name, schema in value.items():
-                    if name in properties:
-                        # Will be recursively merged later
-                        properties[name] = {"allOf": [properties[name], schema]}
-                    else:
-                        properties[name] = schema
+                    properties[name].append(schema)
 
             elif key == ObjectKeywords.REQUIRED:
                 value = cast(Sequence[str], value)
@@ -838,7 +835,9 @@ class GenJson:
             Keyword.TYPE: type,
         }
         if properties:
-            combined_schema[ObjectKeywords.PROPERTIES] = properties
+            combined_schema[ObjectKeywords.PROPERTIES] = {}
+            for name, schemas in properties.items():
+                combined_schema[ObjectKeywords.PROPERTIES][name] = {"allOf": schemas}
         if required:
             combined_schema[ObjectKeywords.REQUIRED] = required
         if additional_properties_list:
