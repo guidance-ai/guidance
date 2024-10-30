@@ -743,10 +743,11 @@ class GenJson:
         parent_schema: JSONSchema,
     ):
         type = set(JSONType)
-        properties = {}
-        required = set()
-        additional_properties_list = []
-        other_data = {}
+        properties: dict[str, JSONSchema] = {}
+        required: set[str] = set()
+        additional_properties_list: list[JSONSchema] = []
+        items_list: list[JSONSchema] = []
+        other_data: dict[str, JSONValue] = {}
 
         resolver = self._resolver.lookup(self._base_uri).resolver
 
@@ -799,8 +800,14 @@ class GenJson:
                 required |= set(value)
 
             elif key == ObjectKeywords.ADDITIONAL_PROPERTIES:
+                # TODO: do the additionalProperties of one schema need to evaluate against the properties of another?
+                # TODO: unevaluatedProperties?
                 value = cast(JSONSchema, value)
                 additional_properties_list.append(value)
+
+            elif key == ArrayKeywords.ITEMS:
+                value = cast(JSONSchema, value)
+                items_list.append(value)
 
             elif key in set(Keyword):
                 # If we've done our job right, we should never hit this case...
@@ -837,6 +844,8 @@ class GenJson:
             combined_schema[ObjectKeywords.REQUIRED] = required
         if additional_properties_list:
             combined_schema[ObjectKeywords.ADDITIONAL_PROPERTIES] = {"allOf": additional_properties_list}
+        if items_list:
+            combined_schema[ArrayKeywords.ITEMS] = {"allOf": items_list}
 
         return lm + self.json(json_schema=combined_schema)
 
