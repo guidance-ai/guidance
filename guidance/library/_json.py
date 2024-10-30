@@ -747,12 +747,23 @@ class GenJson:
         additional_properties_list = []
         other_data = {}
 
+        resolver = self._resolver.lookup(self._base_uri).resolver
+
         def handle_keyword(key: str, value: Any):
             nonlocal type
             nonlocal required
+            nonlocal resolver
 
             if key == Keyword.REF:
-                raise NotImplementedError("allOf with $ref is not yet supported")
+                value = cast(str, value)
+                resolved = resolver.lookup(value)
+                # Some funky resolver scope to handle here... We have to pretend to be the original schema
+                # TODO: we have a totally separate REF implementation for when we have no sibling keys. Need to refactor.
+                # TODO: this will probably break if we have a recursive reference in an allOf
+                old_resolver = resolver
+                resolver = resolved.resolver
+                add_schema(resolved.contents)
+                resolver = old_resolver
 
             elif key == Keyword.TYPE:
                 # TODO: Need to handle type-narrowing correctly: if we have a "number" and an "integer", we should only keep "integer".
