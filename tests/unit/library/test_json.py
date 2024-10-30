@@ -1562,7 +1562,6 @@ class TestRefs:
             ({"foo": {"bar": "a"}, "bar": "a"}, True),
         ],
     )
-    @pytest.mark.xfail(reason="refs with sibling keywords are not yet supported")
     def test_refs_with_relative_uris_and_defs(self, test_object, valid):
         schema = {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1595,7 +1594,6 @@ class TestRefs:
             ({"foo": {"bar": "a"}, "bar": "a"}, True),
         ],
     )
-    @pytest.mark.xfail(reason="refs with sibling keywords are not yet supported")
     def test_relative_refs_with_absolute_uris_and_defs(self, test_object, valid):
         schema = {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
