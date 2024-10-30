@@ -767,8 +767,6 @@ class GenJson:
                 resolver = old_resolver
 
             elif key == Keyword.TYPE:
-                # TODO: Need to handle type-narrowing correctly: if we have a "number" and an "integer", we should only keep "integer".
-                # For now, we'll just intersect the types.
                 value = cast(Union[str, Sequence[str]], value)
                 if isinstance(value, str):
                     value_set = {value}
