@@ -944,7 +944,7 @@ class GenJson:
             return lm + self.oneOf(
                 oneof_list=[
                     {"anyOf": [
-                        {"allOf": [one_item, any_item, *allof_list]}
+                        {"allOf": [one_item, any_item, *allof_list], **parent_schema}
                         for any_item in anyof_list
                     ]}
                     for one_item in oneof_list
@@ -958,7 +958,7 @@ class GenJson:
             # Reduce the problem to an anyOf of allOfs
             return lm + self.anyOf(
                 anyof_list=[
-                    {"allOf": [any_item, *allof_list]}
+                    {"allOf": [any_item, *allof_list], **parent_schema}
                     for any_item in anyof_list
                 ]
             )
@@ -970,7 +970,7 @@ class GenJson:
             # Reduce the problem to a oneOf of allOfs
             return lm + self.oneOf(
                 oneof_list=[
-                    {"allOf": [one_item, *allof_list]}
+                    {"allOf": [one_item, *allof_list], **parent_schema}
                     for one_item in oneof_list
                 ]
             )
@@ -979,10 +979,11 @@ class GenJson:
             parent_schema = json_schema.copy()
             anyof_list = parent_schema.pop(Keyword.ANYOF)
             oneof_list = parent_schema.pop(Keyword.ONEOF)
+            assert Keyword.ALLOF not in parent_schema
             # Reduce the problem to a oneOf of allOfs
             return lm + self.oneOf(
                 oneof_list=[
-                    {"allOf": [one_item, any_item]}
+                    {"allOf": [one_item, any_item], **parent_schema}
                     for any_item in anyof_list
                     for one_item in oneof_list
                 ]
