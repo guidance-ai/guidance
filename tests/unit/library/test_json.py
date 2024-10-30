@@ -1273,7 +1273,6 @@ class TestRefs:
             ({"foo": "string"}, False),
         ],
     )
-    @pytest.mark.xfail(reason="sibling keywords to ref are not yet supported")
     def test_ref_applies_alongside_sibling_keywords(self, test_object, valid):
         schema = {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
