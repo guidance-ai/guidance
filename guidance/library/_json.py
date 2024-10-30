@@ -837,13 +837,22 @@ class GenJson:
         if properties:
             combined_schema[ObjectKeywords.PROPERTIES] = {}
             for name, schemas in properties.items():
-                combined_schema[ObjectKeywords.PROPERTIES][name] = {"allOf": schemas}
+                if len(schemas) == 1:
+                    combined_schema[ObjectKeywords.PROPERTIES][name] = schemas[0]
+                else:
+                    combined_schema[ObjectKeywords.PROPERTIES][name] = {"allOf": schemas}
         if required:
             combined_schema[ObjectKeywords.REQUIRED] = required
         if additional_properties_list:
-            combined_schema[ObjectKeywords.ADDITIONAL_PROPERTIES] = {"allOf": additional_properties_list}
+            if len(additional_properties_list) == 1:
+                combined_schema[ObjectKeywords.ADDITIONAL_PROPERTIES] = additional_properties_list[0]
+            else:
+                combined_schema[ObjectKeywords.ADDITIONAL_PROPERTIES] = {"allOf": additional_properties_list}
         if items_list:
-            combined_schema[ArrayKeywords.ITEMS] = {"allOf": items_list}
+            if len(items_list) == 1:
+                combined_schema[ArrayKeywords.ITEMS] = items_list[0]
+            else:
+                combined_schema[ArrayKeywords.ITEMS] = {"allOf": items_list}
 
         assert not set(combined_schema) & set(other_data)
         combined_schema.update(other_data)
