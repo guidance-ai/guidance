@@ -804,6 +804,9 @@ class GenJson:
                 return
             if schema is False:
                 raise ValueError("allOf contains a False schema")
+            # Validate the schema's keys (we have only validated the parent schema's keys so far)
+            # TODO: This will make us validate the parent twice... should probably be refactored
+            validate_json_node_keys(schema)
             for key, value in schema.items():
                 if key in IGNORED_KEYS:
                     continue
