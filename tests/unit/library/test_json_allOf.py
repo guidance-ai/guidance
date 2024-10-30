@@ -6,18 +6,18 @@ from jsonschema import ValidationError, validate
 from .test_json import check_match_failure, generate_and_check
 
 
-class TestDynamicRefs:
+class TestAllOf:
     @pytest.mark.parametrize(
         ["test_object", "valid"],
         [
             # allOf
-            ({"foo": "baz", "bar": 2}, True),
+            ({"bar": 2, "foo": "baz"}, True),
             # mismatch second
             ({"foo": "baz"}, False),
             # mismatch first
             ({"bar": 2}, False),
             # wrong type
-            ({"foo": "baz", "bar": "quux"}, False),
+            ({"bar": "quux", "foo": "baz"}, False),
         ],
     )
     def test_allOf(self, test_object, valid):
@@ -40,13 +40,13 @@ class TestDynamicRefs:
         ["test_object", "valid"],
         [
             # valid
-            ({"foo": "quux", "bar": 2, "baz": None}, True),
+            ({"bar": 2, "foo": "quux", "baz": None}, True),
             # mismatch base schema
             ({"foo": "quux", "baz": None}, False),
             # mismatch first allOf
             ({"bar": 2, "baz": None}, False),
             # mismatch second allOf
-            ({"foo": "quux", "bar": 2}, False),
+            ({"bar": 2, "foo": "quux"}, False),
             # mismatch both
             ({"bar": 2}, False),
         ],
