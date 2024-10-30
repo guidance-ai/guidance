@@ -771,9 +771,13 @@ class GenJson:
                 # For now, we'll just intersect the types.
                 value = cast(Union[str, Sequence[str]], value)
                 if isinstance(value, str):
-                    type = {value}
+                    value_set = {value}
                 else:
-                    type &= set(value)
+                    value_set = set(value)
+                if JSONType.NUMBER in value_set:
+                    # Number implies integer
+                    value_set.add(JSONType.INTEGER)
+                type &= value_set
                 # Throw an error early if we have conflicting types
                 if not type:
                     raise ValueError("allOf with conflicting types")
