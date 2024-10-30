@@ -996,21 +996,42 @@ class GenJson:
 
         if Keyword.ANYOF in json_schema:
             sibling_keys = get_sibling_keys(json_schema, Keyword.ANYOF)
-            if sibling_keys:
-                raise NotImplementedError(f"anyOf with sibling keys is not yet supported. Got {sibling_keys}")
-            return lm + self.anyOf(anyof_list=json_schema[Keyword.ANYOF])
+            if not sibling_keys:
+                return lm + self.anyOf(anyof_list=json_schema[Keyword.ANYOF])
+            # Let the allOf function handle anyOfs with sibling keys
+            parent_schema = json_schema.copy()
+            anyof_list = parent_schema.pop(Keyword.ANYOF)
+            return lm + self.anyOf(
+                anyof_list=[
+                    {"allOf": [any_item], **parent_schema}
+                    for any_item in anyof_list
+                ]
+            )
 
         if Keyword.ONEOF in json_schema:
             sibling_keys = get_sibling_keys(json_schema, Keyword.ONEOF)
-            if sibling_keys:
-                raise NotImplementedError(f"oneOf with sibling keys is not yet supported. Got {sibling_keys}")
-            return lm + self.oneOf(oneof_list=json_schema[Keyword.ONEOF])
+            if not sibling_keys:
+                return lm + self.oneOf(oneof_list=json_schema[Keyword.ONEOF])
+            # Let the allOf function handle oneOfs with sibling keys
+            parent_schema = json_schema.copy()
+            oneof_list = parent_schema.pop(Keyword.ONEOF)
+            assert Keyword.ALLOF not in parent_schema
+            return lm + self.oneOf(
+                oneof_list=[
+                    {"allOf": [one_item], **parent_schema}
+                    for one_item in oneof_list
+                ]
+            )
 
         if Keyword.REF in json_schema:
             sibling_keys = get_sibling_keys(json_schema, Keyword.REF)
-            if sibling_keys:
-                raise NotImplementedError(f"$ref with sibling keys is not yet supported. Got {sibling_keys}")
-            return lm + self.ref(reference=json_schema[Keyword.REF])
+            if not sibling_keys:
+                return lm + self.ref(reference=json_schema[Keyword.REF])
+            # Let the allOf function handle refs with sibling keys
+            parent_schema = json_schema.copy()
+            ref = parent_schema.pop(Keyword.REF)
+            assert Keyword.ALLOF not in parent_schema
+            return lm + self.allOf(parent_schema={"allOf": [{Keyword.REF: ref}], **parent_schema})
 
         if Keyword.CONST in json_schema:
             sibling_keys = get_sibling_keys(json_schema, Keyword.CONST) - {Keyword.TYPE, Keyword.ENUM}
