@@ -723,6 +723,29 @@ class GenJson:
         return lm + select(options)
 
     @guidance(stateless=True)
+    def oneOf(
+        self,
+        lm,
+        *,
+        oneof_list: Sequence[JSONSchema],
+    ):
+        if len(oneof_list) == 1:
+            return lm + self.json(json_schema=oneof_list[0])
+        warnings.warn("oneOf not fully supported, falling back to anyOf. This may cause validation errors in some cases.")
+        return lm + self.anyOf(anyof_list=oneof_list)
+
+    @guidance(stateless=True)
+    def allOf(
+        self,
+        lm,
+        *,
+        allof_list: Sequence[JSONSchema],
+    ):
+        if len(allof_list) != 1:
+            raise ValueError("Only support allOf with exactly one item")
+        return lm + self.json(json_schema=allof_list[0])
+
+    @guidance(stateless=True)
     def const(
         self,
         lm,
@@ -842,20 +865,13 @@ class GenJson:
             sibling_keys = get_sibling_keys(json_schema, Keyword.ALLOF)
             if sibling_keys:
                 raise NotImplementedError(f"allOf with sibling keys is not yet supported. Got {sibling_keys}")
-            allof_list = json_schema[Keyword.ALLOF]
-            if len(allof_list) != 1:
-                raise ValueError("Only support allOf with exactly one item")
-            return lm + self.json(json_schema=allof_list[0])
+            return lm + self.allOf(allof_list=json_schema[Keyword.ALLOF])
 
         if Keyword.ONEOF in json_schema:
             sibling_keys = get_sibling_keys(json_schema, Keyword.ONEOF)
             if sibling_keys:
                 raise NotImplementedError(f"oneOf with sibling keys is not yet supported. Got {sibling_keys}")
-            oneof_list = json_schema[Keyword.ONEOF]
-            if len(oneof_list) == 1:
-                return lm + self.json(json_schema=oneof_list[0])
-            warnings.warn("oneOf not fully supported, falling back to anyOf. This may cause validation errors in some cases.")
-            return lm + self.anyOf(anyof_list=oneof_list)
+            return lm + self.oneOf(oneof_list=json_schema[Keyword.ONEOF])
 
         if Keyword.REF in json_schema:
             sibling_keys = get_sibling_keys(json_schema, Keyword.REF)
