@@ -3,6 +3,7 @@ from json import dumps as json_dumps
 import pytest
 from jsonschema import ValidationError, validate
 
+from guidance import json as gen_json
 from .test_json import check_match_failure, generate_and_check
 
 
@@ -126,7 +127,9 @@ class TestAllOf:
         else:
             with pytest.raises(ValidationError):
                 validate(instance=test_object, schema=schema)
-            check_match_failure(bad_string=json_dumps(test_object), schema_obj=schema)
+            with pytest.raises(ValueError) as ve:
+                _ = gen_json(schema=schema)
+            assert ve.value.args[0] == "allOf contains a False schema"
 
     @pytest.mark.parametrize(
         ["test_object", "valid"],
@@ -146,7 +149,9 @@ class TestAllOf:
         else:
             with pytest.raises(ValidationError):
                 validate(instance=test_object, schema=schema)
-            check_match_failure(bad_string=json_dumps(test_object), schema_obj=schema)
+            with pytest.raises(ValueError) as ve:
+                _ = gen_json(schema=schema)
+            assert ve.value.args[0] == "allOf contains a False schema"
 
     @pytest.mark.parametrize(
         ["test_object", "valid"],
