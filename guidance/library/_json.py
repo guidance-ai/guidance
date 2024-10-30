@@ -15,9 +15,14 @@ from typing import (
 )
 import warnings
 import referencing
-import contextlib
 from collections import defaultdict
-from urllib.parse import urljoin
+import urllib.parse
+
+def urijoin(base: str, uri: str) -> str:
+    # Special case for fragment-only URIs
+    if uri.startswith("#"):
+        return f"{base}{uri}"
+    return urllib.parse.urljoin(base, uri)
 
 try:
     import jsonschema
@@ -131,6 +136,7 @@ class Keyword(str, Enum):
     ANYOF = "anyOf"
     ALLOF = "allOf" # Note: Partial support. Only supports exactly one item.
     ONEOF = "oneOf" # Note: Partial support. This is converted to anyOf.
+    ID = "$id"
     REF = "$ref"
     CONST = "const"
     ENUM = "enum"
@@ -171,7 +177,6 @@ IGNORED_KEYS = {
     "$anchor",
     "$defs",
     "$schema",
-    "$id",
     "id",
     "$comment",
     "title",
@@ -430,6 +435,7 @@ class GenJson:
         lm,
         *,
         reference: str,
+        base_uri: str,
     ):
         """
         Resolve a reference to another schema and return the grammar for that schema.
@@ -438,53 +444,24 @@ class GenJson:
         add it to the _defs cache. This allows us to avoid re-resolving the reference every time
         and to handle recursive references correctly.
         """
-        abspath = self._get_abspath(reference)
+        abspath = urijoin(base_uri, reference)
+
         if abspath not in self._defs:
             resolved = self._resolver.lookup(abspath)
             base_uri_of_resolved = resolved.resolver._base_uri
 
             @guidance(stateless=True, dedent=False, cache=True)
             def closure(lm):
-                with self._base_uri_context(base_uri_of_resolved):
-                    grammar = self.json(json_schema=resolved.contents)
+                grammar = self.json(json_schema=resolved.contents, base_uri=base_uri_of_resolved)
                 return lm + grammar
 
             self._defs[abspath] = closure
         return lm + self._defs[abspath]()
 
 
-    def _get_abspath(self, ref):
-        """
-        Convert a reference to an absolute path, resolving it against the base URI if necessary.
-        This will allow us to get a unique key for each reference and hit the _defs cache correctly.
-        """
-        if ref.startswith("#"):
-            # Special case for fragment-only references:
-            # for certain schemes (e.g. urn), urljoin may throw the base URI, but we need to keep them around
-            return f"{self._base_uri}{ref}"
-        return urljoin(self._base_uri, ref)
-
-
-    @contextlib.contextmanager
-    def _base_uri_context(self, base_uri: str):
-        """
-        Temporarily replace the base_uri for the duration of the context manager.
-        This allows refs with different base URIs to be resolved correctly without passing the resolver around.
-
-        Note: very much not thread-safe, but I don't expect instances of this class to be shared between threads.
-        TODO: ensure that the instance's hash depends on the base_uri before adding more caching to this class.
-        """
-        old_base_uri = self._base_uri
-        self._base_uri = base_uri
-        try:
-            yield
-        finally:
-            self._base_uri = old_base_uri
-
-
     @guidance(stateless=True)
     def root(self, lm):
-        return lm + self.json(json_schema=self.schema)
+        return lm + self.json(json_schema=self.schema, base_uri=self._base_uri)
 
 
     @classmethod
@@ -568,6 +545,7 @@ class GenJson:
         properties: Mapping[str, JSONSchema],
         additional_properties: JSONSchema,
         required: Sequence[str],
+        base_uri: str,
     ):
         # "required" keys will be validated against "properties" if they're present, otherwise against "additionalProperties".
         # If "additionalProperties" is False, then required keys must be in "properties".
@@ -588,7 +566,7 @@ class GenJson:
             # Identify if the key is required
             required_items.append(name in required)
             # Build the grammar we'll use for this property
-            grammars.append(f'{key}{self.key_separator}' + self.json(json_schema=properties.get(name, additional_properties)))
+            grammars.append(f'{key}{self.key_separator}' + self.json(json_schema=properties.get(name, additional_properties), base_uri=base_uri))
 
         if additional_properties is not False:
             # Key for additionalProperties is a json string, but we need to disallow any properties that are already defined
@@ -604,7 +582,7 @@ class GenJson:
             else:
                 additional_key_grammar = self.string()
 
-            additional_item_grammar = additional_key_grammar + self.key_separator + self.json(json_schema=additional_properties)
+            additional_item_grammar = additional_key_grammar + self.key_separator + self.json(json_schema=additional_properties, base_uri=base_uri)
             additional_items_grammar = sequence(additional_item_grammar + self.item_separator) + additional_item_grammar
             grammars.append(additional_items_grammar)
             required_items.append(False)
@@ -651,6 +629,7 @@ class GenJson:
         item_schema: JSONSchema,
         min_items: int,
         max_items: Optional[int],
+        base_uri: str,
     ):
         if len(prefix_items_schema) < min_items and item_schema is False:
             raise ValueError(
@@ -675,7 +654,7 @@ class GenJson:
                 assert i >= min_items
                 break
 
-            item = self.json(json_schema=schema)
+            item = self.json(json_schema=schema, base_uri=base_uri)
 
             if i < min_items:
                 required_items.append(item)
@@ -684,7 +663,7 @@ class GenJson:
 
         if max_items is None and item_schema is not False:
             # Add an infinite tail of items
-            item = self.json(json_schema=item_schema)
+            item = self.json(json_schema=item_schema, base_uri=base_uri)
             optional_items.append(item + sequence(self.item_separator + item))
 
         lm += "["
@@ -720,8 +699,9 @@ class GenJson:
         lm,
         *,
         anyof_list: Sequence[JSONSchema],
+        base_uri: str,
     ):
-        options = [self.json(json_schema=item) for item in anyof_list]
+        options = [self.json(json_schema=item, base_uri=base_uri) for item in anyof_list]
         return lm + select(options)
 
     @guidance(stateless=True)
@@ -730,11 +710,12 @@ class GenJson:
         lm,
         *,
         oneof_list: Sequence[JSONSchema],
+        base_uri: str,
     ):
         if len(oneof_list) == 1:
-            return lm + self.json(json_schema=oneof_list[0])
+            return lm + self.json(json_schema=oneof_list[0], base_uri=base_uri)
         warnings.warn("oneOf not fully supported, falling back to anyOf. This may cause validation errors in some cases.")
-        return lm + self.anyOf(anyof_list=oneof_list)
+        return lm + self.anyOf(anyof_list=oneof_list, base_uri=base_uri)
 
     @guidance(stateless=True)
     def allOf(
@@ -742,6 +723,7 @@ class GenJson:
         lm,
         *,
         parent_schema: JSONSchema,
+        base_uri: str,
     ):
         type = set(JSONType)
         properties: defaultdict[str, list[JSONSchema]] = defaultdict(list)
@@ -750,23 +732,15 @@ class GenJson:
         items_list: list[JSONSchema] = []
         other_data: dict[str, JSONValue] = {}
 
-        resolver = self._resolver.lookup(self._base_uri).resolver
-
-        def handle_keyword(key: str, value: JSONValue):
+        def handle_keyword(key: str, value: JSONValue, base_uri: str):
             nonlocal type
             nonlocal required
-            nonlocal resolver
 
             if key == Keyword.REF:
-                value = cast(str, value)
-                resolved = resolver.lookup(value)
-                # Some funky resolver scope to handle here... We have to pretend to be the original schema
-                # TODO: we have a totally separate REF implementation for when we have no sibling keys. Need to refactor.
-                # TODO: this will probably break if we have a recursive reference in an allOf
-                old_resolver = resolver
-                resolver = resolved.resolver
-                add_schema(resolved.contents)
-                resolver = old_resolver
+                ref = cast(str, value)
+                abspath = urijoin(base_uri, ref)
+                resolved = self._resolver.lookup(abspath)
+                add_schema(resolved.contents, base_uri=resolved.resolver._base_uri)
 
             elif key == Keyword.TYPE:
                 value = cast(Union[str, Sequence[str]], value)
@@ -785,11 +759,16 @@ class GenJson:
             elif key == Keyword.ALLOF:
                 value = cast(Sequence[JSONSchema], value)
                 for schema in value:
-                    add_schema(schema)
+                    add_schema(schema, base_uri)
 
             elif key == ObjectKeywords.PROPERTIES:
                 value = cast(Mapping[str, JSONSchema], value)
                 for name, schema in value.items():
+                    this_base_uri = schema.get(Keyword.ID, base_uri)
+                    if Keyword.REF in schema:
+                        # Make the ref absolute so that it can be resolved in the right scope later
+                        schema = schema.copy()
+                        schema[Keyword.REF] = urijoin(this_base_uri, schema[Keyword.REF])
                     properties[name].append(schema)
 
             elif key == ObjectKeywords.REQUIRED:
@@ -816,20 +795,28 @@ class GenJson:
             else:
                 other_data[key] = value
 
-        def add_schema(schema: JSONSchema):
+        def add_schema(schema: JSONSchema, base_uri: str):
             if schema is True:
                 return
             if schema is False:
                 raise ValueError("allOf contains a False schema")
+
             # Validate the schema's keys (we have only validated the parent schema's keys so far)
             # TODO: This will make us validate the parent twice... should probably be refactored
             validate_json_node_keys(schema)
+
+            # Set the base_uri for this schema
+            if Keyword.ID in schema:
+                # TODO: avoid copies if possible..?
+                schema = schema.copy()
+                base_uri = urijoin(base_uri, schema.pop(Keyword.ID))
+
             for key, value in schema.items():
                 if key in IGNORED_KEYS:
                     continue
-                handle_keyword(key, value)
+                handle_keyword(key, value, base_uri)
 
-        add_schema(parent_schema)
+        add_schema(parent_schema, base_uri)
 
         combined_schema = {
             Keyword.TYPE: type,
@@ -857,7 +844,7 @@ class GenJson:
         assert not set(combined_schema) & set(other_data)
         combined_schema.update(other_data)
 
-        return lm + self.json(json_schema=combined_schema)
+        return lm + self.json(json_schema=combined_schema, base_uri=base_uri)
 
 
     @guidance(stateless=True)
@@ -893,7 +880,8 @@ class GenJson:
                     "properties": {k: {"const": v} for k, v in dict(value).items()},
                     "required": list(value.keys()),
                     "additionalProperties": False,
-                }
+                },
+                base_uri="", # dummy value -- we don't need to resolve anything
             )
         if isinstance(value, Sequence):
             return lm + self.json(
@@ -903,7 +891,8 @@ class GenJson:
                     "minItems": len(value),
                     "maxItems": len(value),
                     "items": False,
-                }
+                },
+                base_uri="", # dummy value -- we don't need to resolve anything
             )
         raise TypeError(f"Unsupported value type: {type(value)} for value: {value!r}")
 
@@ -931,23 +920,26 @@ class GenJson:
     def any(self, lm):
         return lm + select(
             [
-                self.json(json_schema={"type": "null"}),
-                self.json(json_schema={"type": "boolean"}),
-                self.json(json_schema={"type": "integer"}),
-                self.json(json_schema={"type": "number"}),
-                self.json(json_schema={"type": "string"}),
+                # Dummy base uris ok since we're not resolving anything
+                self.json(json_schema={"type": "null"}, base_uri=""),
+                self.json(json_schema={"type": "boolean"}, base_uri=""),
+                self.json(json_schema={"type": "integer"}, base_uri=""),
+                self.json(json_schema={"type": "number"}, base_uri=""),
+                self.json(json_schema={"type": "string"}, base_uri=""),
                 # Recursive cases
                 self.json(
                     json_schema={
                         "type": "array",
                         "items": True,
                     },
+                    base_uri="",
                 ),
                 self.json(
                     json_schema={
                         "type": "object",
                         "additionalProperties": True,
                     },
+                    base_uri="",
                 ),
             ]
         )
@@ -959,6 +951,7 @@ class GenJson:
         lm,
         *,
         json_schema: JSONSchema,
+        base_uri: str,
     ):
         if json_schema is True:
             json_schema = {}
@@ -969,6 +962,10 @@ class GenJson:
             return lm + self.any()
 
         validate_json_node_keys(json_schema)
+
+        if Keyword.ID in json_schema:
+            # "cd" into the new base_uri
+            base_uri = urijoin(base_uri, json_schema[Keyword.ID])
 
         if Keyword.ALLOF in json_schema and Keyword.ANYOF in json_schema and Keyword.ONEOF in json_schema:
             parent_schema = json_schema.copy()
@@ -983,7 +980,8 @@ class GenJson:
                         for any_item in anyof_list
                     ]}
                     for one_item in oneof_list
-                ]
+                ],
+                base_uri=base_uri,
             )
 
         if Keyword.ALLOF in json_schema and Keyword.ANYOF in json_schema:
@@ -995,7 +993,8 @@ class GenJson:
                 anyof_list=[
                     {"allOf": [any_item, *allof_list], **parent_schema}
                     for any_item in anyof_list
-                ]
+                ],
+                base_uri=base_uri,
             )
 
         if Keyword.ALLOF in json_schema and Keyword.ONEOF in json_schema:
@@ -1007,7 +1006,8 @@ class GenJson:
                 oneof_list=[
                     {"allOf": [one_item, *allof_list], **parent_schema}
                     for one_item in oneof_list
-                ]
+                ],
+                base_uri=base_uri,
             )
 
         if Keyword.ANYOF in json_schema and Keyword.ONEOF in json_schema:
@@ -1021,16 +1021,17 @@ class GenJson:
                     {"allOf": [one_item, any_item], **parent_schema}
                     for any_item in anyof_list
                     for one_item in oneof_list
-                ]
+                ],
+                base_uri=base_uri,
             )
 
         if Keyword.ALLOF in json_schema:
-            return lm + self.allOf(parent_schema=json_schema)
+            return lm + self.allOf(parent_schema=json_schema, base_uri=base_uri)
 
         if Keyword.ANYOF in json_schema:
             sibling_keys = get_sibling_keys(json_schema, Keyword.ANYOF)
             if not sibling_keys:
-                return lm + self.anyOf(anyof_list=json_schema[Keyword.ANYOF])
+                return lm + self.anyOf(anyof_list=json_schema[Keyword.ANYOF], base_uri=base_uri)
             # Let the allOf function handle anyOfs with sibling keys
             parent_schema = json_schema.copy()
             anyof_list = parent_schema.pop(Keyword.ANYOF)
@@ -1038,13 +1039,14 @@ class GenJson:
                 anyof_list=[
                     {"allOf": [any_item], **parent_schema}
                     for any_item in anyof_list
-                ]
+                ],
+                base_uri=base_uri,
             )
 
         if Keyword.ONEOF in json_schema:
             sibling_keys = get_sibling_keys(json_schema, Keyword.ONEOF)
             if not sibling_keys:
-                return lm + self.oneOf(oneof_list=json_schema[Keyword.ONEOF])
+                return lm + self.oneOf(oneof_list=json_schema[Keyword.ONEOF], base_uri=base_uri)
             # Let the allOf function handle oneOfs with sibling keys
             parent_schema = json_schema.copy()
             oneof_list = parent_schema.pop(Keyword.ONEOF)
@@ -1053,18 +1055,19 @@ class GenJson:
                 oneof_list=[
                     {"allOf": [one_item], **parent_schema}
                     for one_item in oneof_list
-                ]
+                ],
+                base_uri=base_uri,
             )
 
         if Keyword.REF in json_schema:
             sibling_keys = get_sibling_keys(json_schema, Keyword.REF)
             if not sibling_keys:
-                return lm + self.ref(reference=json_schema[Keyword.REF])
+                return lm + self.ref(reference=json_schema[Keyword.REF], base_uri=base_uri)
             # Let the allOf function handle refs with sibling keys
             parent_schema = json_schema.copy()
             ref = parent_schema.pop(Keyword.REF)
             assert Keyword.ALLOF not in parent_schema
-            return lm + self.allOf(parent_schema={"allOf": [{Keyword.REF: ref}], **parent_schema})
+            return lm + self.allOf(parent_schema={"allOf": [{Keyword.REF: ref}], **parent_schema}, base_uri=base_uri)
 
         if Keyword.CONST in json_schema:
             sibling_keys = get_sibling_keys(json_schema, Keyword.CONST) - {Keyword.TYPE, Keyword.ENUM}
@@ -1139,12 +1142,14 @@ class GenJson:
                     item_schema=json_schema.get(ArrayKeywords.ITEMS, True),
                     min_items=json_schema.get(ArrayKeywords.MIN_ITEMS, 0),
                     max_items=json_schema.get(ArrayKeywords.MAX_ITEMS, None),
+                    base_uri=base_uri,
                 )
             elif target_type == JSONType.OBJECT:
                 option = self.object(
                     properties=json_schema.get(ObjectKeywords.PROPERTIES, {}),
                     additional_properties=json_schema.get(ObjectKeywords.ADDITIONAL_PROPERTIES, True),
                     required=json_schema.get(ObjectKeywords.REQUIRED, set()),
+                    base_uri=base_uri,
                 )
             else:
                 raise ValueError(f"Unsupported type in schema: {target_type}")
