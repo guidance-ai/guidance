@@ -739,11 +739,91 @@ class GenJson:
         self,
         lm,
         *,
-        allof_list: Sequence[JSONSchema],
+        parent_schema: JSONSchema,
     ):
-        if len(allof_list) != 1:
-            raise ValueError("Only support allOf with exactly one item")
-        return lm + self.json(json_schema=allof_list[0])
+        type = set(JSONType)
+        properties = {}
+        required = set()
+        additional_properties_list = []
+        other_data = {}
+
+        def handle_keyword(key: str, value: Any):
+            nonlocal type
+            nonlocal required
+
+            if key == Keyword.REF:
+                raise NotImplementedError("allOf with $ref is not yet supported")
+
+            elif key == Keyword.TYPE:
+                # TODO: Need to handle type-narrowing correctly: if we have a "number" and an "integer", we should only keep "integer".
+                # For now, we'll just intersect the types.
+                value = cast(Union[str, Sequence[str]], value)
+                if isinstance(value, str):
+                    type = {value}
+                else:
+                    type &= set(value)
+                # Throw an error early if we have conflicting types
+                if not type:
+                    raise ValueError("allOf with conflicting types")
+
+            elif key == Keyword.ALLOF:
+                value = cast(Sequence[JSONSchema], value)
+                for schema in value:
+                    add_schema(schema)
+
+            elif key == ObjectKeywords.PROPERTIES:
+                value = cast(Mapping[str, JSONSchema], value)
+                for name, schema in value.items():
+                    if name in properties:
+                        # Will be recursively merged later
+                        properties[name] = {"allOf": [properties[name], schema]}
+                    else:
+                        properties[name] = schema
+
+            elif key == ObjectKeywords.REQUIRED:
+                value = cast(Sequence[str], value)
+                required |= set(value)
+
+            elif key == ObjectKeywords.ADDITIONAL_PROPERTIES:
+                value = cast(JSONSchema, value)
+                additional_properties_list.append(value)
+
+            elif key in set(Keyword):
+                # If we've done our job right, we should never hit this case...
+                raise NotImplementedError(f"Don't yet know how to handle {key} in allOf")
+
+            elif key in other_data:
+                raise NotImplementedError(f"Don't yet know how to reduce multiple values of {key!r} in allOf")
+
+            else:
+                other_data[key] = value
+
+        def add_schema(schema: JSONSchema):
+            nonlocal type
+            if schema is True:
+                return
+            if schema is False:
+                raise ValueError("allOf contains a False schema")
+            for key, value in schema.items():
+                if key in IGNORED_KEYS:
+                    continue
+                handle_keyword(key, value)
+
+        add_schema(parent_schema)
+
+        combined_schema = {
+            Keyword.TYPE: type,
+            **other_data
+        }
+        if properties:
+            combined_schema[ObjectKeywords.PROPERTIES] = properties
+        if required:
+            combined_schema[ObjectKeywords.REQUIRED] = required
+        if additional_properties_list:
+            combined_schema[ObjectKeywords.ADDITIONAL_PROPERTIES] = {"allOf": additional_properties_list}
+
+        return lm + self.json(json_schema=combined_schema)
+
 
     @guidance(stateless=True)
     def const(
@@ -855,17 +935,65 @@ class GenJson:
 
         validate_json_node_keys(json_schema)
 
+        if Keyword.ALLOF in json_schema and Keyword.ANYOF in json_schema and Keyword.ONEOF in json_schema:
+            parent_schema = json_schema.copy()
+            anyof_list = parent_schema.pop(Keyword.ANYOF)
+            allof_list = parent_schema.pop(Keyword.ALLOF)
+            oneof_list = parent_schema.pop(Keyword.ONEOF)
+            # Reduce the problem to a oneOf of anyOfs of allOfs
+            return lm + self.oneOf(
+                oneof_list=[
+                    {"anyOf": [
+                        {"allOf": [one_item, any_item, *allof_list]}
+                        for any_item in anyof_list
+                    ]}
+                    for one_item in oneof_list
+                ]
+            )
+
+        if Keyword.ALLOF in json_schema and Keyword.ANYOF in json_schema:
+            parent_schema = json_schema.copy()
+            anyof_list = parent_schema.pop(Keyword.ANYOF)
+            allof_list = parent_schema.pop(Keyword.ALLOF)
+            # Reduce the problem to an anyOf of allOfs
+            return lm + self.anyOf(
+                anyof_list=[
+                    {"allOf": [any_item, *allof_list]}
+                    for any_item in anyof_list
+                ]
+            )
+
+        if Keyword.ALLOF in json_schema and Keyword.ONEOF in json_schema:
+            parent_schema = json_schema.copy()
+            oneof_list = parent_schema.pop(Keyword.ONEOF)
+            allof_list = parent_schema.pop(Keyword.ALLOF)
+            # Reduce the problem to a oneOf of allOfs
+            return lm + self.oneOf(
+                anyof_list=[
+                    {"allOf": [one_item, *allof_list]}
+                    for one_item in oneof_list
+                ]
+            )
+
+        if Keyword.ANYOF in json_schema and Keyword.ONEOF in json_schema:
+            parent_schema = json_schema.copy()
+            oneof_list = parent_schema.pop(Keyword.ONEOF)
+            anyof_list = parent_schema.pop(Keyword.ANYOF)
+            # Reduce the problem to a oneOf of anyOfs
+            return lm + self.oneOf(
+                oneof_list=[
+                    {"anyOf": anyof_list}
+                ]
+            )
+
+        if Keyword.ALLOF in json_schema:
+            return lm + self.allOf(parent_schema=json_schema)
+
         if Keyword.ANYOF in json_schema:
             sibling_keys = get_sibling_keys(json_schema, Keyword.ANYOF)
             if sibling_keys:
                 raise NotImplementedError(f"anyOf with sibling keys is not yet supported. Got {sibling_keys}")
             return lm + self.anyOf(anyof_list=json_schema[Keyword.ANYOF])
-
-        if Keyword.ALLOF in json_schema:
-            sibling_keys = get_sibling_keys(json_schema, Keyword.ALLOF)
-            if sibling_keys:
-                raise NotImplementedError(f"allOf with sibling keys is not yet supported. Got {sibling_keys}")
-            return lm + self.allOf(allof_list=json_schema[Keyword.ALLOF])
 
         if Keyword.ONEOF in json_schema:
             sibling_keys = get_sibling_keys(json_schema, Keyword.ONEOF)
