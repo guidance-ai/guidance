@@ -33,7 +33,8 @@ from .._grammar import GrammarFunction, select, capture, with_temperature, Not, 
 from ._pydantic import pydantic_to_json_schema
 from ._subgrammar import as_regular_grammar, lexeme, subgrammar
 
-JSONSchema = Union[bool, Mapping[str, Any]]
+JSONValue = Union[None, bool, int, float, str, Mapping[str, "JSONValue"], Sequence["JSONValue"]]
+JSONSchema = Union[bool, Mapping[str, JSONValue]]
 
 DRAFT202012_RESERVED_KEYWORDS = {
     # Anchors and References
@@ -749,7 +750,7 @@ class GenJson:
 
         resolver = self._resolver.lookup(self._base_uri).resolver
 
-        def handle_keyword(key: str, value: Any):
+        def handle_keyword(key: str, value: JSONValue):
             nonlocal type
             nonlocal required
             nonlocal resolver
