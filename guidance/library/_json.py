@@ -799,7 +799,6 @@ class GenJson:
                 other_data[key] = value
 
         def add_schema(schema: JSONSchema):
-            nonlocal type
             if schema is True:
                 return
             if schema is False:
