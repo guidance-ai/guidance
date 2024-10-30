@@ -836,7 +836,6 @@ class GenJson:
 
         combined_schema = {
             Keyword.TYPE: type,
-            **other_data
         }
         if properties:
             combined_schema[ObjectKeywords.PROPERTIES] = properties
@@ -846,6 +845,9 @@ class GenJson:
             combined_schema[ObjectKeywords.ADDITIONAL_PROPERTIES] = {"allOf": additional_properties_list}
         if items_list:
             combined_schema[ArrayKeywords.ITEMS] = {"allOf": items_list}
+
+        assert not set(combined_schema) & set(other_data)
+        combined_schema.update(other_data)
 
         return lm + self.json(json_schema=combined_schema)
 
