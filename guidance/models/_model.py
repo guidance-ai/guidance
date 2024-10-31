@@ -135,6 +135,10 @@ class Engine:
         token = None
         while True:
             tokens, mid_process_fut = parser.advance(token)
+
+            # Note that has_pending_stop implies that the response is a stop response,
+            # but the converse is not true. We can therefore avoid some (but not all)
+            # unnecessary calls to get_logits on the final iteration.
             has_pending_stop = parser.has_pending_stop()
 
             if has_get_logits and not has_pending_stop:
