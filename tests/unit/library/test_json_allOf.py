@@ -288,3 +288,60 @@ class TestAllOf:
             with pytest.raises(ValidationError):
                 validate(instance=test_object, schema=schema)
             check_match_failure(bad_string=json_dumps(test_object), schema_obj=schema)
+
+    @pytest.mark.parametrize(
+        "test_object, valid",
+        [
+            # valid: foo is integer and less than 4, bar is equal to 5, baz is integer greater than 5
+            ({"foo": 0, "bar": 5, "baz": 10}, True),
+            # valid: foo is null, bar is equal to 5, baz is null
+            ({"foo": None, "bar": 5, "baz": None}, True),
+            # valid: foo is integer and less than 4, bar is non-number, baz is integer greater than 5
+            ({"foo": 0, "bar": "quxx", "baz": 10}, True),
+            # invalid: foo is integer and greater than 4
+            ({"foo": 5, "bar": 5, "baz": 10}, False),
+            # invalid: foo is not an integer or None
+            ({"foo": "quxx", "bar": 5, "baz": 10}, False),
+            # invalid: bar is greater than 5
+            ({"foo": 0, "bar": 6, "baz": 10}, False),
+            # invalid: bar is less than 5
+            ({"foo": 0, "bar": 4, "baz": 10}, False),
+            # invalid: baz is less than 5
+            ({"foo": 0, "bar": 5, "baz": 4}, False),
+            # invalid: baz is not an integer or null
+            ({"foo": 0, "bar": 5, "baz": "quxx"}, False),
+        ]
+    )
+    @pytest.mark.parametrize(
+        "schema",
+        [
+            # The following are equivalent to this:
+            {
+                "properties": {"foo": {"type": ["integer", "null"], "maximum": 4}, "bar": {"minimum": 5, "maximum": 5}},
+                "additionalProperties": {"type": ["integer", "null"], "minimum": 5}
+            },
+            # additionalProperties in parent schema
+            {
+                "allOf": [
+                    {"properties": {"foo": {"maximum": 4}}, "additionalProperties": {"minimum": 5}}
+                ],
+                "properties": {"bar": {"maximum": 5}},
+                "additionalProperties": {"type": ["integer", "null"]}
+            },
+            # additionalProperties in allOf
+            {
+                "allOf": [
+                    {"properties": {"foo": {"maximum": 4}}, "additionalProperties": {"minimum": 5}},
+                    {"properties": {"bar": {"maximum": 5}}, "additionalProperties": {"type": ["integer", "null"]}}
+                ]
+            },
+        ]
+    )
+    def test_additionalProperties_in_allOf(self, schema, test_object, valid):
+        if valid:
+            validate(instance=test_object, schema=schema)
+            generate_and_check(test_object, schema)
+        else:
+            with pytest.raises(ValidationError):
+                validate(instance=test_object, schema=schema)
+            check_match_failure(bad_string=json_dumps(test_object), schema_obj=schema)
