@@ -733,7 +733,8 @@ class GenJson:
         properties: defaultdict[str, list[JSONSchema]] = defaultdict(list)
         required: set[str] = set()
         additional_properties_list: list[tuple[JSONSchema, set[str]]] = []
-        items_list: list[JSONSchema] = []
+        prefix_items: defaultdict[int, list[JSONSchema]] = defaultdict(list)
+        items_list: list[tuple[JSONSchema, set[int]]] = []
         other_data: dict[str, Any] = {}
         enum: Optional[list[Any]] = None
         const: Union[Unset, Any] = _unset
@@ -815,9 +816,22 @@ class GenJson:
                     (value, exempt_properties)
                 )
 
+            elif key == ArrayKeywords.PREFIX_ITEMS:
+                value = cast(Sequence[JSONSchema], value)
+                for i, schema in enumerate(value):
+                    prefix_items[i].append(schema)
+
             elif key == ArrayKeywords.ITEMS:
+                # TODO: unevaluatedItems?
                 value = cast(JSONSchema, value)
-                items_list.append(value)
+                # We need to keep track of which prefixItems are exempt from this additionalItems schema,
+                # i.e. the ones defined in the parent schema
+                exempt_prefix_items: set[int] = set()
+                if ArrayKeywords.PREFIX_ITEMS in parent_schema:
+                    exempt_prefix_items = set(range(len(parent_schema[ArrayKeywords.PREFIX_ITEMS])))
+                items_list.append(
+                    (value, exempt_prefix_items)
+                )
 
             elif key in set(Keyword):
                 # If we've done our job right, we should never hit this case...
@@ -862,6 +876,11 @@ class GenJson:
             for name in set(properties) - exempt_properties:
                 properties[name].append(additional_schema)
 
+        # Post-process items to make sure we apply the additional items of one schema to the prefix items of another schema
+        for additional_schema, exempt_prefix_items in items_list:
+            for i in set(prefix_items) - exempt_prefix_items:
+                prefix_items[i].append(additional_schema)
+
         if properties:
             combined_schema[ObjectKeywords.PROPERTIES] = {}
             for name, schemas in properties.items():
@@ -876,11 +895,19 @@ class GenJson:
                 combined_schema[ObjectKeywords.ADDITIONAL_PROPERTIES], _ = additional_properties_list[0]
             else:
                 combined_schema[ObjectKeywords.ADDITIONAL_PROPERTIES] = {"allOf": [schema for schema, _ in additional_properties_list]}
+        if prefix_items:
+            combined_schema[ArrayKeywords.PREFIX_ITEMS] = []
+            for i in range(len(prefix_items)):
+                schemas = prefix_items[i]
+                if len(schemas) == 1:
+                    combined_schema[ArrayKeywords.PREFIX_ITEMS].append(schemas[0])
+                else:
+                    combined_schema[ArrayKeywords.PREFIX_ITEMS].append({"allOf": schemas})
         if items_list:
             if len(items_list) == 1:
-                combined_schema[ArrayKeywords.ITEMS] = items_list[0]
+                combined_schema[ArrayKeywords.ITEMS], _ = items_list[0]
             else:
-                combined_schema[ArrayKeywords.ITEMS] = {"allOf": items_list}
+                combined_schema[ArrayKeywords.ITEMS] = {"allOf": [schema for schema, _ in items_list]}
         if enum is not None:
             combined_schema[Keyword.ENUM] = enum
         if const is not _unset:
