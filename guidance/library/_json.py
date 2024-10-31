@@ -42,6 +42,11 @@ from ._subgrammar import as_regular_grammar, lexeme, subgrammar
 JSONValue = Union[None, bool, int, float, str, Mapping[str, "JSONValue"], Sequence["JSONValue"]]
 JSONSchema = Union[bool, Mapping[str, JSONValue]]
 
+class Unset(Enum):
+    # https://peps.python.org/pep-0484/#support-for-singleton-types-in-unions
+    token = 0
+_unset = Unset.token
+
 DRAFT202012_RESERVED_KEYWORDS = {
     # Anchors and References
     '$anchor',
@@ -731,16 +736,40 @@ class GenJson:
         additional_properties_list: list[JSONSchema] = []
         items_list: list[JSONSchema] = []
         other_data: dict[str, JSONValue] = {}
+        enum: Optional[list[JSONValue]] = None
+        const: Union[Unset, JSONValue] = _unset
 
         def handle_keyword(key: str, value: JSONValue, base_uri: str):
             nonlocal type
             nonlocal required
+            nonlocal const
+            nonlocal enum
 
             if key == Keyword.REF:
                 ref = cast(str, value)
                 abspath = urijoin(base_uri, ref)
                 resolved = self._resolver.lookup(abspath)
                 add_schema(resolved.contents, base_uri=resolved.resolver._base_uri)
+
+            elif key == Keyword.CONST:
+                value = cast(JSONValue, value)
+                if const is not _unset and const != value:
+                    raise ValueError(f"allOf with multiple conflicting const values: {const!r} and {value!r}")
+                const = value
+
+            elif key == Keyword.ENUM:
+                value = cast(Sequence[JSONValue], value)
+                if enum is not None:
+                    try:
+                        enum = list(set(enum) & set(value))
+                    except TypeError:
+                        # Check on equality, not on hash
+                        # Yes, this is O(n^2).
+                        # Hope the items were unique.
+                        # ¯\_(ツ)_/¯
+                        enum = [a for a in enum if a == b for b in value]
+                else:
+                    enum = value
 
             elif key == Keyword.TYPE:
                 value = cast(Union[str, Sequence[str]], value)
@@ -819,7 +848,7 @@ class GenJson:
         add_schema(parent_schema, base_uri)
 
         combined_schema = {
-            Keyword.TYPE: type,
+            Keyword.TYPE: list(type),
         }
         if properties:
             combined_schema[ObjectKeywords.PROPERTIES] = {}
@@ -840,6 +869,10 @@ class GenJson:
                 combined_schema[ArrayKeywords.ITEMS] = items_list[0]
             else:
                 combined_schema[ArrayKeywords.ITEMS] = {"allOf": items_list}
+        if enum is not None:
+            combined_schema[Keyword.ENUM] = enum
+        if const is not _unset:
+            combined_schema[Keyword.CONST] = const
 
         assert not set(combined_schema) & set(other_data)
         combined_schema.update(other_data)
