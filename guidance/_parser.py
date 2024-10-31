@@ -55,6 +55,7 @@ class TokenParser:
         self._threadpool = ThreadPoolExecutor(max_workers=1)
         self._generator = self._parse(prompt, ensure_bos_token)
         self._done = False
+        self._has_pending_stop = False
 
     def is_accepting(self) -> bool:
         return self.ll_interpreter.is_accepting()
@@ -68,6 +69,9 @@ class TokenParser:
         if self.done():
             raise TokenParserException("Cannot advance on a done parser")
         return self._generator.send(token)
+
+    def has_pending_stop(self) -> bool:
+        return self._has_pending_stop
 
     def cleanup(self) -> None:
         self._generator.close()
@@ -102,6 +106,7 @@ class TokenParser:
         tokens = self._process_prompt(prompt=prompt, ensure_bos_token=ensure_bos_token)
 
         while True:
+            self._has_pending_stop = self.ll_interpreter.has_pending_stop()
             mid_process_future = self._threadpool.submit(self.ll_interpreter.mid_process)
             try:
                 token = yield (tokens, mid_process_future)

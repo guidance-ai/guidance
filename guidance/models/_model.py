@@ -135,7 +135,9 @@ class Engine:
         token = None
         while True:
             tokens, mid_process_fut = parser.advance(token)
-            if has_get_logits:
+            has_pending_stop = parser.has_pending_stop()
+
+            if has_get_logits and not has_pending_stop:
                 try:
                     logits = self.get_logits(token_ids=tokens)
                 except NotImplementedError:
@@ -159,6 +161,9 @@ class Engine:
                 parser.cleanup()
                 # Ensure we break AFTER yielding the final response
                 break
+
+            # If there was a pending stop, we should have broken out of the loop
+            assert not has_pending_stop
 
             # Help the type checker: assert that everything we need to get the next token is not None
             assert mask is not None
