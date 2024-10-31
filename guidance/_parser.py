@@ -73,9 +73,6 @@ class TokenParser:
     def has_pending_stop(self) -> bool:
         return self._has_pending_stop
 
-    def cleanup(self) -> None:
-        self._generator.close()
-
     def _process_prompt(self, prompt: bytes, ensure_bos_token: bool) -> list[int]:
         prompt_tokens = self.ll_interpreter.process_prompt(
             self.tokenizer.encode(prompt)
@@ -89,7 +86,6 @@ class TokenParser:
             prompt_tokens = [self.tokenizer.bos_token_id] + prompt_tokens
 
         return self.tokenizer.recode(prompt_tokens)
-
 
     def _parse(
         self,
@@ -108,11 +104,7 @@ class TokenParser:
         while True:
             self._has_pending_stop = self.ll_interpreter.has_pending_stop()
             mid_process_future = self._threadpool.submit(self.ll_interpreter.mid_process)
-            try:
-                token = yield (tokens, mid_process_future)
-            except GeneratorExit:
-                # Allow cleanup to happen
-                break
+            token = yield (tokens, mid_process_future)
 
             # Upstairs should have already waited on this future
             mask, _ = mid_process_future.result()
@@ -120,7 +112,7 @@ class TokenParser:
             if mask is None:
                 if token is not None:
                     raise TokenParserException(f"Expected None, got token {token}")
-                # We're done
+                self._done = True
                 break
 
             if token is None:
@@ -136,20 +128,19 @@ class TokenParser:
                 tokens = tokens[:-backtrack]
             tokens = tokens + ff_tokens
 
-        # Do some final cleanup
+    def cleanup(self):
+        if not self.done():
+            try:
+                self._generator.send(None)
+            except StopIteration:
+                pass
+        if not self.done():
+            raise TokenParserException("Tried to cleanup but parser is not done")
         stop_reason = self.ll_interpreter.stop_reason()
         if stop_reason not in {"NoExtension", "EndOfSentence"}:
             # Will raise if there is some "bad" stop reason (like hit token limit) OR we're NOT stopped.
             # TODO: raise specific exceptions for reasons such as MaxTokensTotal
             raise TokenParserException(f"Unexpected stop reason: {stop_reason}")
-        self._done = True
-
-    def __del__(self):
-        # Silence exceptions from generator cleanup so users don't get any unraisable exceptions during GC
-        try:
-            self.cleanup()
-        except TokenParserException:
-            pass
 
 class ByteParserException(Exception):
     def __init__(self, *args, **kwargs):
@@ -204,6 +195,7 @@ class ByteParser:
         mask, ll_response_string = mid_process_fut.result()
         ll_response = LLInterpreterResponse.model_validate_json(ll_response_string)
         if ll_response.stop:
+            assert mask is None
             self.token_parser.cleanup()
             self.gen_data = None
         else:
