@@ -39,8 +39,7 @@ from .._grammar import GrammarFunction, select, capture, with_temperature, Not, 
 from ._pydantic import pydantic_to_json_schema
 from ._subgrammar import as_regular_grammar, lexeme, subgrammar
 
-JSONValue = Union[None, bool, int, float, str, Mapping[str, "JSONValue"], Sequence["JSONValue"]]
-JSONSchema = Union[bool, Mapping[str, JSONValue]]
+JSONSchema = Union[bool, dict[str, Any]]
 
 class Unset(Enum):
     # https://peps.python.org/pep-0484/#support-for-singleton-types-in-unions
@@ -735,11 +734,11 @@ class GenJson:
         required: set[str] = set()
         additional_properties_list: list[JSONSchema] = []
         items_list: list[JSONSchema] = []
-        other_data: dict[str, JSONValue] = {}
-        enum: Optional[list[JSONValue]] = None
-        const: Union[Unset, JSONValue] = _unset
+        other_data: dict[str, Any] = {}
+        enum: Optional[list[Any]] = None
+        const: Union[Unset, Any] = _unset
 
-        def handle_keyword(key: str, value: JSONValue, base_uri: str):
+        def handle_keyword(key: str, value: Any, base_uri: str):
             nonlocal type
             nonlocal required
             nonlocal const
@@ -752,13 +751,12 @@ class GenJson:
                 add_schema(resolved.contents, base_uri=resolved.resolver._base_uri)
 
             elif key == Keyword.CONST:
-                value = cast(JSONValue, value)
                 if const is not _unset and const != value:
                     raise ValueError(f"allOf with multiple conflicting const values: {const!r} and {value!r}")
                 const = value
 
             elif key == Keyword.ENUM:
-                value = cast(Sequence[JSONValue], value)
+                value = cast(list[Any], value)
                 if enum is not None:
                     try:
                         enum = list(set(enum) & set(value))
@@ -767,12 +765,12 @@ class GenJson:
                         # Yes, this is O(n^2).
                         # Hope the items were unique.
                         # ¯\_(ツ)_/¯
-                        enum = [a for a in enum if a == b for b in value]
+                        enum = [a for a in enum for b in value if a == b]
                 else:
                     enum = value
 
             elif key == Keyword.TYPE:
-                value = cast(Union[str, Sequence[str]], value)
+                value = cast(Union[str, list[str]], value)
                 if isinstance(value, str):
                     value_set = {value}
                 else:
@@ -791,13 +789,14 @@ class GenJson:
                     add_schema(schema, base_uri)
 
             elif key == ObjectKeywords.PROPERTIES:
-                value = cast(Mapping[str, JSONSchema], value)
+                value = cast(dict[str, JSONSchema], value)
                 for name, schema in value.items():
-                    this_base_uri = schema.get(Keyword.ID, base_uri)
-                    if Keyword.REF in schema:
-                        # Make the ref absolute so that it can be resolved in the right scope later
-                        schema = schema.copy()
-                        schema[Keyword.REF] = urijoin(this_base_uri, schema[Keyword.REF])
+                    if isinstance(schema, dict):
+                        this_base_uri = schema.get(Keyword.ID, base_uri)
+                        if Keyword.REF in schema:
+                            # Make the ref absolute so that it can be resolved in the right scope later
+                            schema = schema.copy()
+                            schema[Keyword.REF] = urijoin(this_base_uri, schema[Keyword.REF])
                     properties[name].append(schema)
 
             elif key == ObjectKeywords.REQUIRED:
@@ -847,7 +846,7 @@ class GenJson:
 
         add_schema(parent_schema, base_uri)
 
-        combined_schema = {
+        combined_schema: dict[str, Any] = {
             Keyword.TYPE: list(type),
         }
         if properties:
