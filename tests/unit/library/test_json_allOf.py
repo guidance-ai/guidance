@@ -277,9 +277,9 @@ class TestAllOf:
     def test_allOf_combined_with_anyOf_oneOf(self, test_object, valid):
         schema = {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "allOf": [{"multipleOf": 2}],
-            "anyOf": [{"multipleOf": 3}],
-            "oneOf": [{"multipleOf": 5}],
+            "allOf": [{"enum": [2, 6, 10, 30]}],
+            "anyOf": [{"enum": [3, 6, 15, 30]}],
+            "oneOf": [{"enum": [5, 10, 15, 30]}],
         }
         if valid:
             validate(instance=test_object, schema=schema)
