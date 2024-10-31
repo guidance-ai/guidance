@@ -731,7 +731,7 @@ class GenJson:
     ):
         type = set(JSONType)
         properties: defaultdict[str, list[JSONSchema]] = defaultdict(list)
-        required: set[str] = set()
+        required: dict[str, None] = dict() # use a dict for ordered-set behavior
         additional_properties_list: list[tuple[JSONSchema, set[str]]] = []
         prefix_items: defaultdict[int, list[JSONSchema]] = defaultdict(list)
         items_list: list[tuple[JSONSchema, set[int]]] = []
@@ -802,7 +802,7 @@ class GenJson:
 
             elif key == ObjectKeywords.REQUIRED:
                 value = cast(Sequence[str], value)
-                required |= set(value)
+                required.update({name: None for name in value})
 
             elif key == ObjectKeywords.ADDITIONAL_PROPERTIES:
                 # TODO: unevaluatedProperties?
@@ -900,7 +900,7 @@ class GenJson:
                 else:
                     combined_schema[ObjectKeywords.PROPERTIES][name] = {"allOf": schemas}
         if required:
-            combined_schema[ObjectKeywords.REQUIRED] = required
+            combined_schema[ObjectKeywords.REQUIRED] = list(required.keys())
         if additional_properties_list:
             if len(additional_properties_list) == 1:
                 combined_schema[ObjectKeywords.ADDITIONAL_PROPERTIES], _ = additional_properties_list[0]
