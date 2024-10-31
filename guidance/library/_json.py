@@ -1000,23 +1000,6 @@ class GenJson:
             # "cd" into the new base_uri
             base_uri = urijoin(base_uri, json_schema[Keyword.ID])
 
-        if Keyword.ALLOF in json_schema and Keyword.ANYOF in json_schema and Keyword.ONEOF in json_schema:
-            parent_schema = json_schema.copy()
-            anyof_list = parent_schema.pop(Keyword.ANYOF)
-            allof_list = parent_schema.pop(Keyword.ALLOF)
-            oneof_list = parent_schema.pop(Keyword.ONEOF)
-            # Reduce the problem to a oneOf of anyOfs of allOfs
-            return lm + self.oneOf(
-                oneof_list=[
-                    {"anyOf": [
-                        {"allOf": [one_item, any_item, *allof_list], **parent_schema}
-                        for any_item in anyof_list
-                    ]}
-                    for one_item in oneof_list
-                ],
-                base_uri=base_uri,
-            )
-
         if Keyword.ALLOF in json_schema and Keyword.ANYOF in json_schema:
             parent_schema = json_schema.copy()
             anyof_list = parent_schema.pop(Keyword.ANYOF)
