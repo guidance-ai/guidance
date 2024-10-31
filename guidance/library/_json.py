@@ -838,7 +838,18 @@ class GenJson:
                 raise NotImplementedError(f"Don't yet know how to handle {key} in allOf")
 
             elif key in other_data:
-                raise NotImplementedError(f"Don't yet know how to reduce multiple values of {key!r} in allOf")
+                if key in {
+                    NumberKeywords.MINIMUM, NumberKeywords.EXCLUSIVE_MINIMUM,
+                    StringKeywords.MIN_LENGTH, ArrayKeywords.MIN_ITEMS
+                }:
+                    other_data[key] = max(other_data[key], value)
+                elif key in {
+                    NumberKeywords.MAXIMUM, NumberKeywords.EXCLUSIVE_MAXIMUM,
+                    StringKeywords.MAX_LENGTH, ArrayKeywords.MAX_ITEMS
+                }:
+                    other_data[key] = min(other_data[key], value)
+                else:
+                    raise NotImplementedError(f"Don't yet know how to reduce multiple values of {key!r} in allOf")
 
             else:
                 other_data[key] = value
