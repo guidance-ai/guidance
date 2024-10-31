@@ -738,7 +738,7 @@ class GenJson:
         enum: Optional[list[Any]] = None
         const: Union[Unset, Any] = _unset
 
-        def handle_keyword(key: str, value: Any, parent_schema: JSONSchema, base_uri: str):
+        def handle_keyword(key: str, value: Any, parent_schema: dict[str, Any], base_uri: str):
             nonlocal type
             nonlocal required
             nonlocal const
