@@ -732,13 +732,13 @@ class GenJson:
         type = set(JSONType)
         properties: defaultdict[str, list[JSONSchema]] = defaultdict(list)
         required: set[str] = set()
-        additional_properties_list: list[JSONSchema] = []
+        additional_properties_list: list[tuple[JSONSchema, set[str]]] = []
         items_list: list[JSONSchema] = []
         other_data: dict[str, Any] = {}
         enum: Optional[list[Any]] = None
         const: Union[Unset, Any] = _unset
 
-        def handle_keyword(key: str, value: Any, base_uri: str):
+        def handle_keyword(key: str, value: Any, parent_schema: JSONSchema, base_uri: str):
             nonlocal type
             nonlocal required
             nonlocal const
@@ -804,10 +804,16 @@ class GenJson:
                 required |= set(value)
 
             elif key == ObjectKeywords.ADDITIONAL_PROPERTIES:
-                # TODO: do the additionalProperties of one schema need to evaluate against the properties of another?
                 # TODO: unevaluatedProperties?
                 value = cast(JSONSchema, value)
-                additional_properties_list.append(value)
+                # We need to keep track of which properties are exempt from this additionalProperties schema,
+                # i.e. the ones defined in the parent schema
+                exempt_properties: set[str] = set()
+                if ObjectKeywords.PROPERTIES in parent_schema:
+                    exempt_properties = set(parent_schema[ObjectKeywords.PROPERTIES])
+                additional_properties_list.append(
+                    (value, exempt_properties)
+                )
 
             elif key == ArrayKeywords.ITEMS:
                 value = cast(JSONSchema, value)
@@ -842,13 +848,20 @@ class GenJson:
             for key, value in schema.items():
                 if key in IGNORED_KEYS:
                     continue
-                handle_keyword(key, value, base_uri)
+                handle_keyword(key, value, schema, base_uri)
 
         add_schema(parent_schema, base_uri)
 
         combined_schema: dict[str, Any] = {
             Keyword.TYPE: list(type),
         }
+
+        # Post-process additional_properties to make sure we apply the additional properties of one
+        # schema to the properties of another schema
+        for additional_schema, exempt_properties in additional_properties_list:
+            for name in set(properties) - exempt_properties:
+                properties[name].append(additional_schema)
+
         if properties:
             combined_schema[ObjectKeywords.PROPERTIES] = {}
             for name, schemas in properties.items():
@@ -860,9 +873,9 @@ class GenJson:
             combined_schema[ObjectKeywords.REQUIRED] = required
         if additional_properties_list:
             if len(additional_properties_list) == 1:
-                combined_schema[ObjectKeywords.ADDITIONAL_PROPERTIES] = additional_properties_list[0]
+                combined_schema[ObjectKeywords.ADDITIONAL_PROPERTIES], _ = additional_properties_list[0]
             else:
-                combined_schema[ObjectKeywords.ADDITIONAL_PROPERTIES] = {"allOf": additional_properties_list}
+                combined_schema[ObjectKeywords.ADDITIONAL_PROPERTIES] = {"allOf": [schema for schema, _ in additional_properties_list]}
         if items_list:
             if len(items_list) == 1:
                 combined_schema[ArrayKeywords.ITEMS] = items_list[0]
