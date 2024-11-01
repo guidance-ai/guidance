@@ -2,6 +2,7 @@ import json
 from json import dumps as json_dumps
 
 import pytest
+import re
 from jsonschema import ValidationError, validate
 
 from guidance import json as gen_json
@@ -76,6 +77,21 @@ class TestInteger:
             schema_obj=schema_obj,
         )
 
+    @pytest.mark.parametrize(
+        "schema",
+        [
+            {"type": "integer", "minimum": 5, "maximum": 4},
+            {"type": "integer", "minimum": 5, "exclusiveMaximum": 5},
+            {"type": "integer", "exclusiveMinimum": 5, "maximum": 5},
+        ]
+    )
+    def test_unsatisfiable_min_max(self, schema):
+        with pytest.raises(ValueError) as ve:
+            _ = gen_json(schema=schema)
+        assert re.fullmatch(
+            r"(exclusiveMinimum|minimum) \(5\) is (greater than|equal to) (exclusiveMaximum|maximum) \((4|5)\)",
+            ve.value.args[0]
+        )
 
 class TestNumber:
     schema = """{"type": "number" }"""

@@ -414,11 +414,11 @@ def get_sibling_keys(node: Mapping[str, Any], key: str) -> set[str]:
 def check_number_bounds(minimum: Union[float, int, None], maximum: Union[float, int, None], exclusiveMinimum: bool, exclusiveMaximum: bool):
     if minimum is not None and maximum is not None:
         if minimum > maximum:
-            raise UnsatisfiableSchemaError(f"Number minimum ({minimum}) is greater than maximum ({maximum})")
+            raise UnsatisfiableSchemaError(f"minimum ({minimum}) is greater than maximum ({maximum})")
         if minimum == maximum and (exclusiveMinimum or exclusiveMaximum):
             minimum_repr = f"exclusiveMinimum ({minimum})" if exclusiveMinimum else f"minimum ({minimum})"
             maximum_repr = f"exclusiveMaximum ({maximum})" if exclusiveMaximum else f"maximum ({maximum})"
-            raise UnsatisfiableSchemaError(f"Number {minimum_repr} is equal to {maximum_repr}")
+            raise UnsatisfiableSchemaError(f"{minimum_repr} is equal to {maximum_repr}")
 
 
 class UnsatisfiableSchemaError(ValueError):
