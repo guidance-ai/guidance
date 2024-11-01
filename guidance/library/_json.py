@@ -4,7 +4,6 @@ import math
 from typing import (
     Any,
     Callable,
-    Dict,
     Mapping,
     Optional,
     Sequence,
@@ -32,10 +31,10 @@ except ImportError:
         raise
 
 from .._guidance import guidance
-from ..library import char_range, gen, one_or_more, optional, sequence
+from ..library import optional, sequence
 from ..library._regex_utils import rx_int_range, rx_float_range
 
-from .._grammar import GrammarFunction, select, capture, with_temperature, Not, And, quote_regex
+from .._grammar import GrammarFunction, select, with_temperature, Not, And, quote_regex
 from ._pydantic import pydantic_to_json_schema
 from ._subgrammar import as_regular_grammar, lexeme, subgrammar
 
