@@ -2,7 +2,9 @@
 
 import pytest
 import json
-from .test_json import generate_and_check, check_match_failure
+
+from .utils import generate_and_check
+from .utils import check_match_failure
 
 
 class TestDate:

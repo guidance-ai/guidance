@@ -1,10 +1,13 @@
+"""Adapted from https://github.com/json-schema-org/JSON-Schema-Test-Suite/tree/9fc880bfb6d8ccd093bc82431f17d13681ffae8e/tests/draft2020-12/allOf.json"""
+
 from json import dumps as json_dumps
 
 import pytest
 from jsonschema import ValidationError, validate
 
 from guidance import json as gen_json
-from .test_json import check_match_failure, generate_and_check
+from .utils import generate_and_check
+from .utils import check_match_failure
 
 
 class TestAllOf:
