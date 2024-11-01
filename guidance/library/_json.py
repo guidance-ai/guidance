@@ -1058,7 +1058,7 @@ class GenJson:
         if json_schema is True:
             json_schema = {}
         elif json_schema is False:
-            raise ValueError("No valid JSON can be generated from a schema of `False`")
+            raise UnsatisfiableSchemaError("No valid JSON can be generated from a schema of `false`")
 
         if json_schema == {}:
             return lm + self.any()
