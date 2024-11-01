@@ -2,7 +2,7 @@ import json
 from functools import partial
 from json import dumps as json_dumps
 from json import loads as json_loads
-from typing import Any, Optional, Set, Union
+from typing import Any, Optional, Union
 
 from jsonschema import validate
 
@@ -46,7 +46,7 @@ def check_match_failure(
     bad_string: str,
     good_bytes: Optional[bytes] = None,
     failure_byte: Optional[bytes] = None,
-    allowed_bytes: Optional[Set[bytes]] = None,
+    allowed_bytes: Optional[set[bytes]] = None,
     schema_obj: Union[str, JSONSchema],
 ):
     grammar = gen_json(schema=schema_obj)
