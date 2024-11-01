@@ -749,6 +749,8 @@ class GenJson:
         anyof_list: Sequence[JSONSchema],
         base_uri: str,
     ):
+        if not anyof_list:
+            raise UnsatisfiableSchemaError("anyOf has no schemas")
         options = [self.json(json_schema=item, base_uri=base_uri) for item in anyof_list]
         return lm + select(options)
 
@@ -760,6 +762,8 @@ class GenJson:
         oneof_list: Sequence[JSONSchema],
         base_uri: str,
     ):
+        if not oneof_list:
+            raise UnsatisfiableSchemaError("oneOf has no schemas")
         if len(oneof_list) == 1:
             return lm + self.json(json_schema=oneof_list[0], base_uri=base_uri)
         warnings.warn("oneOf not fully supported, falling back to anyOf. This may cause validation errors in some cases.")
