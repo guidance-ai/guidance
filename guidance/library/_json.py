@@ -577,7 +577,9 @@ class GenJson:
                 # We get here if the schema is a literal False or is otherwise determined to be unsatisfiable
                 if name in required:
                     raise UnsatisfiableSchemaError(f"Required property {name!r} is unsatisfiable") from e
-                illegal_keys.add(name)
+                # Use json_dumps to properly quote / escape the key
+                key = json_dumps(name)
+                illegal_keys.add(key)
 
         additional_properties_grammar: Optional[GrammarFunction] = None
         try:
@@ -611,7 +613,7 @@ class GenJson:
                 additional_key_grammar = as_regular_grammar(
                     And([
                         lexeme(r'"([^"\\]|\\["\\/bfnrt]|\\u[0-9a-fA-F]{4})*"'),
-                        Not(lexeme('|'.join(map(quote_regex, keys)))),
+                        Not(lexeme('|'.join(map(quote_regex, (*keys, *illegal_keys))))),
                     ]),
                     lexeme = True,
                 )
@@ -676,9 +678,6 @@ class GenJson:
                 f"PrefixItems has too few elements ({len(prefix_items_schema)}) to"
                 f" satisfy minItems ({min_items}) but no extra items were allowed"
             )
-
-        if max_items is not None and max_items < min_items:
-            raise ValueError(f"maxItems ({max_items}) can't be less than minItems ({min_items})")
 
         required_items = []
         optional_items = []
