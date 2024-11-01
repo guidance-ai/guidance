@@ -411,6 +411,16 @@ def get_sibling_keys(node: Mapping[str, Any], key: str) -> set[str]:
     return set(node.keys()) & VALID_KEYS - set(IGNORED_KEYS) - {key}
 
 
+def check_number_bounds(minimum: Union[float, int, None], maximum: Union[float, int, None], exclusiveMinimum: bool, exclusiveMaximum: bool):
+    if minimum is not None and maximum is not None:
+        if minimum > maximum:
+            raise UnsatisfiableSchemaError(f"Number minimum ({minimum}) is greater than maximum ({maximum})")
+        if minimum == maximum and (exclusiveMinimum or exclusiveMaximum):
+            minimum_repr = f"exclusiveMinimum {minimum}" if exclusiveMinimum else f"minimum {minimum}"
+            maximum_repr = f"exclusiveMaximum {maximum}" if exclusiveMaximum else f"maximum {maximum}"
+            raise UnsatisfiableSchemaError(f"Number {minimum_repr} is equal to {maximum_repr}")
+
+
 class UnsatisfiableSchemaError(ValueError):
     pass
 
@@ -471,6 +481,8 @@ class GenJson:
     @classmethod
     @guidance(stateless=True)
     def integer(cls, lm, minimum: Union[float, int, None] = None, maximum: Union[float, int, None] = None, exclusiveMinimum: bool = False, exclusiveMaximum: bool = False):
+        check_number_bounds(minimum, maximum, exclusiveMinimum, exclusiveMaximum)
+
         if minimum is not None:
             if exclusiveMinimum:
                 if minimum != int(minimum):
@@ -496,6 +508,8 @@ class GenJson:
     @classmethod
     @guidance(stateless=True)
     def number(cls, lm, minimum: Optional[float] = None, maximum: Optional[float] = None, exclusiveMinimum: bool = False, exclusiveMaximum: bool = False):
+        check_number_bounds(minimum, maximum, exclusiveMinimum, exclusiveMaximum)
+
         return lm + lexeme(
             rx_float_range(
                 minimum, maximum,
@@ -517,6 +531,9 @@ class GenJson:
         regex: Union[str, None] = None,
         format: Union[str, None] = None,
     ):
+        if min_length is not None and max_length is not None and min_length > max_length:
+            raise UnsatisfiableSchemaError(f"String minLength ({min_length}) is greater than maxLength ({max_length})")
+
         if (regex is not None or format is not None) and (min_length > 0 or max_length is not None):
             raise ValueError(
                 "If a pattern or format is specified for a JSON string, minLength and maxLength must be left unspecified."
@@ -651,6 +668,9 @@ class GenJson:
         max_items: Optional[int],
         base_uri: str,
     ):
+        if max_items is not None and min_items > max_items:
+            raise UnsatisfiableSchemaError(f"minItems ({min_items}) is greater than maxItems ({max_items})")
+
         if len(prefix_items_schema) < min_items and item_schema is False:
             raise ValueError(
                 f"PrefixItems has too few elements ({len(prefix_items_schema)}) to"
