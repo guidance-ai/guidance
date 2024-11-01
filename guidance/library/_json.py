@@ -16,19 +16,7 @@ import warnings
 import referencing
 from collections import defaultdict
 import urllib.parse
-
-def urijoin(base: str, uri: str) -> str:
-    # Special case for fragment-only URIs
-    if uri.startswith("#"):
-        return f"{base}{uri}"
-    return urllib.parse.urljoin(base, uri)
-
-try:
-    import jsonschema
-    import pydantic
-except ImportError:
-    if TYPE_CHECKING:
-        raise
+import functools
 
 from .._guidance import guidance
 from ..library import optional, sequence
@@ -38,12 +26,14 @@ from .._grammar import GrammarFunction, select, with_temperature, Not, And, quot
 from ._pydantic import pydantic_to_json_schema
 from ._subgrammar import as_regular_grammar, lexeme, subgrammar
 
-JSONSchema = Union[bool, dict[str, Any]]
+try:
+    import jsonschema
+    import pydantic
+except ImportError:
+    if TYPE_CHECKING:
+        raise
 
-class Unset(Enum):
-    # https://peps.python.org/pep-0484/#support-for-singleton-types-in-unions
-    token = 0
-_unset = Unset.token
+JSONSchema = Union[bool, dict[str, Any]]
 
 DRAFT202012_RESERVED_KEYWORDS = {
     # Anchors and References
@@ -388,6 +378,14 @@ FORMAT_PATTERNS: dict[str, Optional[str]] = {
     "unknown": r"(?s:.*)",
 }
 
+
+def urijoin(base: str, uri: str) -> str:
+    # Special case for fragment-only URIs
+    if uri.startswith("#"):
+        return f"{base}{uri}"
+    return urllib.parse.urljoin(base, uri)
+
+
 def _get_format_pattern(format: str) -> str:
     try:
         pattern = FORMAT_PATTERNS[format]
@@ -412,6 +410,9 @@ def get_sibling_keys(node: Mapping[str, Any], key: str) -> set[str]:
     # Get the set of functional (non-ignored) keys that are siblings of the given key
     return set(node.keys()) & VALID_KEYS - set(IGNORED_KEYS) - {key}
 
+
+class UnsatisfiableSchemaError(ValueError):
+    pass
 
 class GenJson:
     item_separator = ", "
@@ -728,22 +729,17 @@ class GenJson:
         parent_schema: JSONSchema,
         base_uri: str,
     ):
-        type = set(JSONType)
+        types: list[set[JSONType]] = []
         properties: defaultdict[str, list[JSONSchema]] = defaultdict(list)
         required: dict[str, None] = dict() # use a dict for ordered-set behavior
         additional_properties_list: list[tuple[JSONSchema, set[str]]] = []
         prefix_items: defaultdict[int, list[JSONSchema]] = defaultdict(list)
         items_list: list[tuple[JSONSchema, set[int]]] = []
         other_data: dict[str, Any] = {}
-        enum: Optional[list[Any]] = None
-        const: Union[Unset, Any] = _unset
+        enums: list[Sequence[Any]] = []
+        consts: list[Any] = []
 
         def handle_keyword(key: str, value: Any, parent_schema: dict[str, Any], base_uri: str):
-            nonlocal type
-            nonlocal required
-            nonlocal const
-            nonlocal enum
-
             if key == Keyword.REF:
                 ref = cast(str, value)
                 abspath = urijoin(base_uri, ref)
@@ -751,37 +747,19 @@ class GenJson:
                 add_schema(resolved.contents, base_uri=resolved.resolver._base_uri)
 
             elif key == Keyword.CONST:
-                if const is not _unset and const != value:
-                    raise ValueError(f"allOf with multiple conflicting const values: {const!r} and {value!r}")
-                const = value
+                consts.append(value)
 
             elif key == Keyword.ENUM:
                 value = cast(list[Any], value)
-                if enum is not None:
-                    try:
-                        enum = list(set(enum) & set(value))
-                    except TypeError:
-                        # Check on equality, not on hash
-                        # Yes, this is O(n^2).
-                        # Hope the items were unique.
-                        # ¯\_(ツ)_/¯
-                        enum = [a for a in enum for b in value if a == b]
-                else:
-                    enum = value
+                enums.append(value)
 
             elif key == Keyword.TYPE:
-                value = cast(Union[str, list[str]], value)
+                value = cast(Union[str, Sequence[str]], value)
                 if isinstance(value, str):
                     value_set = {value}
                 else:
                     value_set = set(value)
-                if JSONType.NUMBER in value_set:
-                    # Number implies integer
-                    value_set.add(JSONType.INTEGER)
-                type &= value_set
-                # Throw an error early if we have conflicting types
-                if not type:
-                    raise ValueError("allOf with conflicting types")
+                types.append(value_set)
 
             elif key == Keyword.ALLOF:
                 value = cast(Sequence[JSONSchema], value)
@@ -857,7 +835,7 @@ class GenJson:
             if schema is True:
                 return
             if schema is False:
-                raise ValueError("allOf contains a False schema")
+                raise UnsatisfiableSchemaError("allOf contains a 'false' schema")
 
             # Validate the schema's keys (we have only validated the parent schema's keys so far)
             # TODO: This will make us validate the parent twice... should probably be refactored
@@ -876,9 +854,7 @@ class GenJson:
 
         add_schema(parent_schema, base_uri)
 
-        combined_schema: dict[str, Any] = {
-            Keyword.TYPE: list(type),
-        }
+        combined_schema: dict[str, Any] = {}
 
         # Post-process additional_properties to make sure we apply the additional properties of one
         # schema to the properties of another schema
@@ -898,13 +874,16 @@ class GenJson:
                     combined_schema[ObjectKeywords.PROPERTIES][name] = schemas[0]
                 else:
                     combined_schema[ObjectKeywords.PROPERTIES][name] = {"allOf": schemas}
+
         if required:
             combined_schema[ObjectKeywords.REQUIRED] = list(required.keys())
+
         if additional_properties_list:
             if len(additional_properties_list) == 1:
                 combined_schema[ObjectKeywords.ADDITIONAL_PROPERTIES], _ = additional_properties_list[0]
             else:
                 combined_schema[ObjectKeywords.ADDITIONAL_PROPERTIES] = {"allOf": [schema for schema, _ in additional_properties_list]}
+
         if prefix_items:
             combined_schema[ArrayKeywords.PREFIX_ITEMS] = []
             for i in range(len(prefix_items)):
@@ -913,15 +892,56 @@ class GenJson:
                     combined_schema[ArrayKeywords.PREFIX_ITEMS].append(schemas[0])
                 else:
                     combined_schema[ArrayKeywords.PREFIX_ITEMS].append({"allOf": schemas})
+
         if items_list:
             if len(items_list) == 1:
                 combined_schema[ArrayKeywords.ITEMS], _ = items_list[0]
             else:
                 combined_schema[ArrayKeywords.ITEMS] = {"allOf": [schema for schema, _ in items_list]}
-        if enum is not None:
+
+        if enums:
+            if len(enums) == 1:
+                enum = enums[0]
+            else:
+                def reduce_enums(enum_a, enum_b):
+                    try:
+                        enum = list(set(enum_a) & set(enum_b))
+                    except TypeError:
+                        # Check on equality, not on hash
+                        # Yes, this is O(n^2).
+                        # Hope the items were unique.
+                        # ¯\_(ツ)_/¯
+                        enum = [a for a in enum_a for b in enum_b if a == b]
+                    return enum
+                enum = functools.reduce(reduce_enums, enums[1:], enums[0])
+            if not enum:
+                raise UnsatisfiableSchemaError(f"allOf has enums with no common values: {enums}")
             combined_schema[Keyword.ENUM] = enum
-        if const is not _unset:
+
+        if consts:
+            const, *rest = consts
+            for c in rest:
+                if c != const:
+                    raise UnsatisfiableSchemaError(f"allOf has consts with different values: {consts}")
             combined_schema[Keyword.CONST] = const
+
+        if types:
+            if len(types) == 1:
+                type = list(types[0])
+            else:
+                def reduce_types(type_a: set[JSONType], type_b: set[JSONType]) -> set[JSONType]:
+                    common_types = type_a & type_b
+                    # Integer is a "subtype" of number, so ensure we keep integer if we have "number" in one and "integer" in the other
+                    if JSONType.INTEGER not in common_types and (
+                        (JSONType.NUMBER in type_a and JSONType.INTEGER in type_b) or
+                        (JSONType.INTEGER in type_a and JSONType.NUMBER in type_b)
+                    ):
+                        common_types.add(JSONType.INTEGER)
+                    return common_types
+                type = list(functools.reduce(reduce_types, types[1:], types[0]))
+                if not type:
+                    raise UnsatisfiableSchemaError(f"allOf has conflicting types: {types}")
+            combined_schema[Keyword.TYPE] = type
 
         assert not set(combined_schema) & set(other_data)
         combined_schema.update(other_data)
