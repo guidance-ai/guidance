@@ -39,7 +39,8 @@ from ..visual import (
     ExecutionCompletedMessage,
     TokensMessage,
     MetricMessage,
-    OutputRequestMessage, JupyterWidgetRenderer,
+    OutputRequestMessage,
+    JupyterWidgetRenderer,
 )
 from ..visual._async import run_async_coroutine, async_task
 
@@ -178,6 +179,7 @@ def _engine_cleanup(renderer: Renderer, msg_recv: Callable[[GuidanceMessage], No
 def _wrapped_msg_recv(engine_weak_ref: weakref.ref) -> Callable[[GuidanceMessage], None]:
     def closure(message):
         return _msg_recv(engine_weak_ref, message)
+
     return closure
 
 
@@ -261,7 +263,6 @@ class Engine:
 
         weakref.finalize(self, _engine_cleanup, self.renderer, msg_recv, f"engine({id(self)})")
         log_init(f"engine({id(self)})")
-
 
     def get_chat_template(
         self,
@@ -601,7 +602,9 @@ class Model:
         )
         self._event_parent = None
         self._last_display = 0  # used to track the last display call to enable throttling
-        self._last_event_stream = 0  # used to track the last event streaming call to enable throttling
+        self._last_event_stream = (
+            0  # used to track the last event streaming call to enable throttling
+        )
         self._last_event_stream = (
             0  # used to track the last event streaming call to enable throttling
         )
@@ -615,7 +618,7 @@ class Model:
         self.engine.model_dict[self._id] = self
         self.metrics = GuidanceEngineMetrics()
 
-        weakref.finalize(self, log_cleanup, f'model({id(self)})')
+        weakref.finalize(self, log_cleanup, f"model({id(self)})")
         log_init(f"model({id(self)})")
 
     @classmethod
@@ -702,7 +705,7 @@ class Model:
         new_lm._parent = self
         new_lm.metrics = self.metrics.model_copy(deep=True)
 
-        weakref.finalize(new_lm, log_cleanup, f'model({id(self)})')
+        weakref.finalize(new_lm, log_cleanup, f"model({id(self)})")
         log_copy(f"model({id(self)})")
         return new_lm
 
@@ -1351,7 +1354,22 @@ class Model:
 
         # NOTE (loc): Not all engines support the get_logits method
         try:
+            # make sure token_ids start with BOS token if needed
+            prev_token_ids_len = len(token_ids)
+            if (
+                len(token_ids) > 0
+                and self.engine.tokenizer.bos_token_id != None
+                and token_ids[0] != self.engine.tokenizer.bos_token_id
+            ):
+                token_ids = [self.engine.tokenizer.bos_token_id] + token_ids
+
             tokens_with_topk = self.engine.get_per_token_topk_probs(token_ids)
+
+            # remove the BOS token
+            if prev_token_ids_len != len(token_ids):
+                token_ids = token_ids[1:]
+                token_texts = token_texts[1:]
+
         except Exception as e:
             logger.warning(
                 f"Failed to get the top k probabilities for the tokens {token_ids}. Error: {e}"
