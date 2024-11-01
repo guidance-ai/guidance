@@ -419,21 +419,14 @@ class TestAllOf:
                 {"additionalProperties": {"type": "string"}},
             ],
         }
-        try:
-            if valid:
+        if valid:
+            validate(instance=test_object, schema=schema)
+            generate_and_check(test_object, schema)
+        else:
+            with pytest.raises(ValidationError):
                 validate(instance=test_object, schema=schema)
-                generate_and_check(test_object, schema)
-            else:
-                with pytest.raises(ValidationError):
-                    validate(instance=test_object, schema=schema)
-                check_match_failure(bad_string=json_dumps(test_object), schema_obj=schema)
-        except ValueError as ve:
-            if ve.args[0] == "allOf with conflicting types":
-                pytest.xfail(
-                    reason="We should be returning a False schema from allOf if there is a conflict, but we currently raise an error"
-                )
-            else:
-                raise
+            check_match_failure(bad_string=json_dumps(test_object), schema_obj=schema)
+
 
     @pytest.mark.parametrize(
         "test_object, valid",
