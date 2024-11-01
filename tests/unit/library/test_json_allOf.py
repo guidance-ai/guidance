@@ -95,6 +95,51 @@ class TestAllOf:
     @pytest.mark.parametrize(
         ["test_object", "valid"],
         [
+            # mismatch one
+            (25, False),
+            # valid
+            (35, True),
+        ],
+    )
+    def test_allOf_simple_minimum(self, test_object, valid):
+        schema = {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "allOf": [{"minimum": 30}, {"minimum": 20}],
+        }
+        if valid:
+            validate(instance=test_object, schema=schema)
+            generate_and_check(test_object, schema)
+        else:
+            with pytest.raises(ValidationError):
+                validate(instance=test_object, schema=schema)
+            check_match_failure(bad_string=json_dumps(test_object), schema_obj=schema)
+
+    @pytest.mark.parametrize(
+        ["test_object", "valid"],
+        [
+            # mismatch one
+            (25, False),
+            # valid
+            (15, True),
+        ],
+    )
+    def test_allOf_simple_maximum(self, test_object, valid):
+        schema = {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "allOf": [{"maximum": 30}, {"maximum": 20}],
+        }
+        if valid:
+            validate(instance=test_object, schema=schema)
+            generate_and_check(test_object, schema)
+        else:
+            with pytest.raises(ValidationError):
+                validate(instance=test_object, schema=schema)
+            check_match_failure(bad_string=json_dumps(test_object), schema_obj=schema)
+
+
+    @pytest.mark.parametrize(
+        ["test_object", "valid"],
+        [
             # any value is valid
             ("foo", True)
         ],
