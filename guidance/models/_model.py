@@ -1368,7 +1368,7 @@ class Model:
             # remove the BOS token
             if prev_token_ids_len != len(token_ids):
                 token_ids = token_ids[1:]
-                token_texts = token_texts[1:]
+                tokens_with_topk = tokens_with_topk[1:]
 
         except Exception as e:
             logger.warning(
