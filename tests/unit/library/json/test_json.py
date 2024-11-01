@@ -571,6 +571,12 @@ class TestString:
             schema_obj=schema_obj,
         )
 
+    def test_unsatisfiable_length(self):
+        schema = {"type": "string", "minLength": 10, "maxLength": 5}
+        with pytest.raises(ValueError) as ve:
+            _ = gen_json(schema=schema)
+        assert ve.value.args[0] == "String minLength (10) is greater than maxLength (5)"
+
 
 class TestSimpleObject:
     # These are objects without cross references
