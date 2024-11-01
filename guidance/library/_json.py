@@ -597,7 +597,7 @@ class GenJson:
         required_items: list[bool] = []
         item_grammars: list[GrammarFunction] = []
         # First iterate over the properties in order, then iterate over any missing required keys, using additional_properties as the schema
-        for name in (*properties, *(r for r in required if r not in properties)):
+        for name in (*property_grammars.keys(), *(r for r in required if r not in properties)):
             # Use json_dumps to properly quote / escape the key
             key = json_dumps(name)
             keys.append(key)

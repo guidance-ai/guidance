@@ -708,6 +708,44 @@ class TestSimpleObject:
             schema_obj=schema_obj,
         )
 
+    def test_unsatisfiable_properties_ok(self):
+        schema = {
+            "type": "object",
+            "properties": {"a": {"type": "integer"}, "b": False},
+            "additionalProperties": False,
+        }
+        generate_and_check({"a": 42}, schema)
+        check_match_failure(
+            bad_string=json_dumps({"a": 42, "b": 43}),
+            good_bytes=b'{"a": 42',
+            failure_byte=b",",
+            allowed_bytes={b"}"} | INTEGER_FOLLOWING,
+            schema_obj=schema,
+        )
+
+    def test_unsatisfiable_properties_raises(self):
+        schema = {
+            "type": "object",
+            "properties": {"a": {"type": "integer"}, "b": False},
+            "required": ["b"],
+            "additionalProperties": False,
+        }
+        with pytest.raises(ValueError) as ve:
+            _ = gen_json(schema=schema)
+        assert ve.value.args[0] == "Required property 'b' is unsatisfiable"
+        assert ve.value.__cause__.args[0] == "No valid JSON can be generated from a schema of `false`"
+
+    def test_unsatisfiable_additional_properties_raises(self):
+        schema = {
+            "type": "object",
+            "properties": {"a": {"type": "integer"}},
+            "required": ["a", "b"],
+            "additionalProperties": False,
+        }
+        with pytest.raises(ValueError) as ve:
+            _ = gen_json(schema=schema)
+        assert ve.value.args[0] == "Required properties not in properties but additionalProperties is unsatisfiable. Missing required properties: ['b']"
+        assert ve.value.__cause__.args[0] == "No valid JSON can be generated from a schema of `false`"
 
 class TestObjectWithMissingRequired:
     def test_required_is_required(self):
