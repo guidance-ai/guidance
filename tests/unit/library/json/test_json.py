@@ -836,6 +836,57 @@ class TestSimpleArray:
             schema_obj=schema_obj,
         )
 
+    def test_unsatisfiable_prefixItem_ok(self):
+        schema = {
+            "type": "array",
+            "prefixItems": [{"type": "integer"}, False]
+        }
+        generate_and_check([42], schema)
+        check_match_failure(
+            bad_string="[42, 43]",
+            good_bytes=b"[42",
+            failure_byte=b",",
+            allowed_bytes={b"]"} | INTEGER_FOLLOWING,
+            schema_obj=schema
+        )
+
+    def test_unsatisfiable_prefixItem_raises(self):
+        schema = {
+            "type": "array",
+            "prefixItems": [{"type": "integer"}, False],
+            "minItems": 2,
+        }
+        with pytest.raises(ValueError) as ve:
+            _ = gen_json(schema=schema)
+        assert ve.value.args[0] == "prefixItems[1] is unsatisfiable but min_items is 2"
+        assert ve.value.__cause__.args[0] == "No valid JSON can be generated from a schema of `false`"
+
+    def test_unsatisfiable_items_ok(self):
+        schema = {
+            "type": "array",
+            "prefixItems": [{"type": "integer"}],
+            "items": {"allOf": [{"type": "integer"}, False]}
+        }
+        generate_and_check([42], schema)
+        check_match_failure(
+            bad_string="[42, 43]",
+            good_bytes=b"[42",
+            failure_byte=b",",
+            allowed_bytes={b"]"} | INTEGER_FOLLOWING,
+            schema_obj=schema
+        )
+
+    def test_unsatisfiable_items_raises(self):
+        schema = {
+            "type": "array",
+            "prefixItems": [{"type": "integer"}],
+            "items": {"allOf": [{"type": "integer"}, False]},
+            "minItems": 2,
+        }
+        with pytest.raises(ValueError) as ve:
+            _ = gen_json(schema=schema)
+        assert ve.value.args[0] == "prefixItems has too few elements (1) to satisfy minItems (2) but item schema is unsatisfiable"
+        assert ve.value.__cause__.args[0] == "allOf contains a 'false' schema"
 
 class TestArrayWithLengthConstraints:
     prefix_schema_obj = [{"type": "integer"}, {"type": "boolean"}]
@@ -1119,6 +1170,12 @@ class TestArrayWithLengthConstraints:
             allowed_bytes=allowed_bytes,
             schema_obj=schema_obj,
         )
+
+    def test_unsatisfiable_length(self):
+        schema = {"type": "array", "minItems": 10, "maxItems": 5}
+        with pytest.raises(ValueError) as ve:
+            _ = gen_json(schema=schema)
+        assert ve.value.args[0] == "minItems (10) is greater than maxItems (5)"
 
 
 class TestAnyOf:
