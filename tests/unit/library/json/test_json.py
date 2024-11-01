@@ -707,8 +707,9 @@ class TestObjectWithMissingRequired:
             _ = gen_json(schema=schema)
         assert (
             ve.value.args[0]
-            == "Required properties not in properties but additionalProperties is False. Missing required properties: ['b', 'c']"
+            == "Required properties not in properties but additionalProperties is unsatisfiable. Missing required properties: ['b', 'c']"
         )
+        assert ve.value.__cause__.args[0] == "No valid JSON can be generated from a schema of `false`"
 
 
 class TestSimpleArray:
@@ -1227,7 +1228,7 @@ class TestAllOf:
         schema = {"allOf": [{"type": "integer"}, {"type": "string"}]}
         with pytest.raises(ValueError) as ve:
             _ = gen_json(schema=schema)
-        assert ve.value.args[0] == "allOf with conflicting types"
+        assert ve.value.args[0] == "allOf has conflicting types: [{'integer'}, {'string'}]"
 
 
 class TestOneOf:
@@ -2143,18 +2144,18 @@ class TestBooleanSchema:
         schema_obj = True
         generate_and_check(target_obj, schema_obj)
 
-    @pytest.mark.parametrize(
-        "schema_obj",
-        [
-            False,
-            {"type": "object", "properties": {"a": False}, "required": ["a"]},
-        ],
-    )
-    def test_false_schema(self, schema_obj):
+    def test_false_schema(self):
+        schema_obj = False
         with pytest.raises(ValueError) as ve:
             gen_json(schema=schema_obj)
-        assert ve.value.args[0] == "No valid JSON can be generated from a schema of `False`"
+        assert ve.value.args[0] == "No valid JSON can be generated from a schema of `false`"
 
+    def test_false_required_property(self):
+        schema_obj = {"type": "object", "properties": {"a": False}, "required": ["a"]}
+        with pytest.raises(ValueError) as ve:
+            gen_json(schema=schema_obj)
+        assert ve.value.args[0] == "Required property 'a' is unsatisfiable"
+        assert ve.value.__cause__.args[0] == "No valid JSON can be generated from a schema of `false`"
 
 class TestWhitespace:
     seps = [

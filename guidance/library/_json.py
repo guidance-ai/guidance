@@ -551,17 +551,32 @@ class GenJson:
         required: Sequence[str],
         base_uri: str,
     ):
-        # "required" keys will be validated against "properties" if they're present, otherwise against "additionalProperties".
-        # If "additionalProperties" is False, then required keys must be in "properties".
-        if any(k not in properties for k in required) and additional_properties is False:
-            raise ValueError(
-                f"Required properties not in properties but additionalProperties is False."
-                f" Missing required properties: {list(r for r in required if r not in properties)}"
-            )
+        illegal_keys = set()
+        property_grammars: dict[str, GrammarFunction] = {}
+        for name, schema in properties.items():
+            try:
+                property_grammars[name] = self.json(json_schema=schema, base_uri=base_uri)
+            except UnsatisfiableSchemaError as e:
+                # We get here if the schema is a literal False or is otherwise determined to be unsatisfiable
+                if name in required:
+                    raise UnsatisfiableSchemaError(f"Required property {name!r} is unsatisfiable") from e
+                illegal_keys.add(name)
+
+        additional_properties_grammar: Optional[GrammarFunction] = None
+        try:
+            additional_properties_grammar = self.json(json_schema=additional_properties, base_uri=base_uri)
+        except UnsatisfiableSchemaError as e:
+            if any(k not in properties for k in required):
+                # "required" keys will be validated against "properties" if they're present, otherwise against "additionalProperties".
+                # If "additionalProperties" is unsatisfiable, then required keys must be in "properties".
+                raise UnsatisfiableSchemaError(
+                    f"Required properties not in properties but additionalProperties is unsatisfiable."
+                    f" Missing required properties: {list(r for r in required if r not in properties)}"
+                ) from e
 
         keys: list[str] = []
         required_items: list[bool] = []
-        grammars: list[GrammarFunction] = []
+        item_grammars: list[GrammarFunction] = []
         # First iterate over the properties in order, then iterate over any missing required keys, using additional_properties as the schema
         for name in (*properties, *(r for r in required if r not in properties)):
             # Use json_dumps to properly quote / escape the key
@@ -570,7 +585,7 @@ class GenJson:
             # Identify if the key is required
             required_items.append(name in required)
             # Build the grammar we'll use for this property
-            grammars.append(f'{key}{self.key_separator}' + self.json(json_schema=properties.get(name, additional_properties), base_uri=base_uri))
+            item_grammars.append(f'{key}{self.key_separator}' + property_grammars.get(name, additional_properties_grammar))
 
         if additional_properties is not False:
             # Key for additionalProperties is a json string, but we need to disallow any properties that are already defined
@@ -586,13 +601,14 @@ class GenJson:
             else:
                 additional_key_grammar = self.string()
 
-            additional_item_grammar = additional_key_grammar + self.key_separator + self.json(json_schema=additional_properties, base_uri=base_uri)
-            additional_items_grammar = sequence(additional_item_grammar + self.item_separator) + additional_item_grammar
-            grammars.append(additional_items_grammar)
-            required_items.append(False)
+            if additional_properties_grammar is not None:
+                additional_item_grammar = additional_key_grammar + self.key_separator + additional_properties_grammar
+                additional_items_grammar = sequence(additional_item_grammar + self.item_separator) + additional_item_grammar
+                item_grammars.append(additional_items_grammar)
+                required_items.append(False)
 
         return lm + "{" + self._join(
-            elements = tuple(grammars),
+            elements = tuple(item_grammars),
             required = tuple(required_items),
         ) + "}"
 
