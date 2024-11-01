@@ -378,3 +378,61 @@ class TestAllOf:
                 )
             else:
                 raise
+
+    @pytest.mark.parametrize(
+        "test_object, valid",
+        [
+            # valid: foo is integer and less than 4, bar is equal to 5, baz is integer greater than 5
+            ([0, 5, 10], True),
+            # valid: foo is null, bar is equal to 5, baz is null
+            ([None, 5, None], True),
+            # valid: foo is integer and less than 4, bar is non-number, baz is integer greater than 5
+            ([0, "quxx", 10], True),
+            # invalid: foo is integer and greater than 4
+            ([5, 5, 10], False),
+            # invalid: foo is not an integer or None
+            (["quxx", 5, 10], False),
+            # invalid: bar is greater than 5
+            ([0, 6, 10], False),
+            # invalid: bar is less than 5
+            ([0, 4, 10], False),
+            # invalid: baz is less than 5
+            ([0, 5, 4], False),
+            # invalid: baz is not an integer or null
+            ([0, 5, "quxx"], False),
+        ]
+    )
+    @pytest.mark.parametrize(
+        "schema",
+        [
+            # The following are equivalent to this:
+            {
+                "prefixItems": [{"type": ["integer", "null"], "maximum": 4}, {"minimum": 5, "maximum": 5}],
+                "items": {"type": ["integer", "null"], "minimum": 5}
+            },
+            # items in parent schema
+            {
+                "allOf": [
+                    {"prefixItems": [{"maximum": 4}], "items": {"minimum": 5}},
+                ],
+                "prefixItems": [{"type": ["integer", "null"]}, {"maximum": 5}],
+                "items": {"type": ["integer", "null"]}
+
+            },
+            # items in allOf
+            {
+                "allOf": [
+                    {"prefixItems": [{"maximum": 4}], "items": {"minimum": 5}},
+                    {"prefixItems": [{"type": ["integer", "null"]}, {"maximum": 5}], "items": {"type": ["integer", "null"]}}
+                ]
+            },
+        ]
+    )
+    def test_items_and_prefixitems_in_allOf(self, schema, test_object, valid):
+        if valid:
+            validate(instance=test_object, schema=schema)
+            generate_and_check(test_object, schema)
+        else:
+            with pytest.raises(ValidationError):
+                validate(instance=test_object, schema=schema)
+            check_match_failure(bad_string=json_dumps(test_object), schema_obj=schema)
