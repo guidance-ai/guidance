@@ -604,7 +604,7 @@ class GenJson:
             # Identify if the key is required
             required_items.append(name in required)
             # Build the grammar we'll use for this property
-            item_grammars.append(f'{key}{self.key_separator}' + property_grammars.get(name, additional_properties_grammar))
+            item_grammars.append(f'{key}{self.key_separator}' + property_grammars.get(name, cast(GrammarFunction, additional_properties_grammar)))
 
         if additional_properties is not False:
             # Key for additionalProperties is a json string, but we need to disallow any properties that are already defined
@@ -764,7 +764,7 @@ class GenJson:
         parent_schema: JSONSchema,
         base_uri: str,
     ):
-        types: list[set[JSONType]] = []
+        types: list[set[str]] = []
         properties: defaultdict[str, list[JSONSchema]] = defaultdict(list)
         required: dict[str, None] = dict() # use a dict for ordered-set behavior
         additional_properties_list: list[tuple[JSONSchema, set[str]]] = []
@@ -948,7 +948,7 @@ class GenJson:
                         # ¯\_(ツ)_/¯
                         enum = [a for a in enum_a for b in enum_b if a == b]
                     return enum
-                enum = functools.reduce(reduce_enums, enums[1:], enums[0])
+                enum = functools.reduce(reduce_enums, enums)
             if not enum:
                 raise UnsatisfiableSchemaError(f"allOf has enums with no common values: {enums}")
             combined_schema[Keyword.ENUM] = enum
@@ -964,7 +964,7 @@ class GenJson:
             if len(types) == 1:
                 type = list(types[0])
             else:
-                def reduce_types(type_a: set[JSONType], type_b: set[JSONType]) -> set[JSONType]:
+                def reduce_types(type_a: set[str], type_b: set[str]) -> set[str]:
                     common_types = type_a & type_b
                     # Integer is a "subtype" of number, so ensure we keep integer if we have "number" in one and "integer" in the other
                     if JSONType.INTEGER not in common_types and (
@@ -973,7 +973,7 @@ class GenJson:
                     ):
                         common_types.add(JSONType.INTEGER)
                     return common_types
-                type = list(functools.reduce(reduce_types, types[1:], types[0]))
+                type = list(functools.reduce(reduce_types, types)) # type: ignore[arg-type]
                 if not type:
                     raise UnsatisfiableSchemaError(f"allOf has conflicting types: {types}")
             combined_schema[Keyword.TYPE] = type
