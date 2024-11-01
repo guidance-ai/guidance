@@ -673,11 +673,15 @@ class GenJson:
         if max_items is not None and min_items > max_items:
             raise UnsatisfiableSchemaError(f"minItems ({min_items}) is greater than maxItems ({max_items})")
 
-        if len(prefix_items_schema) < min_items and item_schema is False:
-            raise ValueError(
-                f"PrefixItems has too few elements ({len(prefix_items_schema)}) to"
-                f" satisfy minItems ({min_items}) but no extra items were allowed"
-            )
+        items_grammar: Optional[GrammarFunction] = None
+        try:
+            items_grammar = self.json(json_schema=item_schema, base_uri=base_uri)
+        except UnsatisfiableSchemaError as e:
+            if len(prefix_items_schema) < min_items:
+                raise UnsatisfiableSchemaError(
+                    f"prefixItems has too few elements ({len(prefix_items_schema)}) to satisfy minItems ({min_items})"
+                    f" but item schema is unsatisfiable"
+                ) from e
 
         required_items = []
         optional_items = []
@@ -686,24 +690,29 @@ class GenJson:
         n_to_add = max(len(prefix_items_schema), min_items) if max_items is None else max_items
         for i in range(n_to_add):
             if i < len(prefix_items_schema):
-                schema = prefix_items_schema[i]
-            elif item_schema is not False:
-                schema = item_schema
+                try:
+                    item = self.json(json_schema=prefix_items_schema[i], base_uri=base_uri)
+                except UnsatisfiableSchemaError as e:
+                    # i corresponds to the number of items we've already satisfied
+                    if i < min_items:
+                        raise UnsatisfiableSchemaError(f"prefixItems[{i}] is unsatisfiable but min_items is {min_items}") from e
+                    # Having an unsatisfiable prefix item is fine if we've already satisfied min_items, but this effectively sets max_items to i
+                    max_items = i
+                    break
+            elif items_grammar is not None:
+                item = items_grammar
             else:
                 assert i >= min_items
                 break
-
-            item = self.json(json_schema=schema, base_uri=base_uri)
 
             if i < min_items:
                 required_items.append(item)
             else:
                 optional_items.append(item)
 
-        if max_items is None and item_schema is not False:
+        if max_items is None and items_grammar is not None:
             # Add an infinite tail of items
-            item = self.json(json_schema=item_schema, base_uri=base_uri)
-            optional_items.append(item + sequence(self.item_separator + item))
+            optional_items.append(items_grammar + sequence(self.item_separator + items_grammar))
 
         lm += "["
 
