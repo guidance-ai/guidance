@@ -416,8 +416,8 @@ def check_number_bounds(minimum: Union[float, int, None], maximum: Union[float, 
         if minimum > maximum:
             raise UnsatisfiableSchemaError(f"Number minimum ({minimum}) is greater than maximum ({maximum})")
         if minimum == maximum and (exclusiveMinimum or exclusiveMaximum):
-            minimum_repr = f"exclusiveMinimum {minimum}" if exclusiveMinimum else f"minimum {minimum}"
-            maximum_repr = f"exclusiveMaximum {maximum}" if exclusiveMaximum else f"maximum {maximum}"
+            minimum_repr = f"exclusiveMinimum ({minimum})" if exclusiveMinimum else f"minimum ({minimum})"
+            maximum_repr = f"exclusiveMaximum ({maximum})" if exclusiveMaximum else f"maximum ({maximum})"
             raise UnsatisfiableSchemaError(f"Number {minimum_repr} is equal to {maximum_repr}")
 
 
