@@ -1299,6 +1299,19 @@ class TestAnyOf:
         # The actual check
         generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
 
+    def test_anyOf_unsatisfiable_ok(self):
+        schema = {
+            "anyOf": [{"type": "integer"}, False]
+        }
+        generate_and_check(3, schema)
+
+    def test_anyOf_unsatisfiable_raises(self):
+        schema = {
+            "anyOf": [{"type": "integer", "minimum": 10, "maximum": 0}, False],
+        }
+        with pytest.raises(ValueError) as ve:
+            _ = gen_json(schema=schema)
+        assert ve.value.args[0] == 'all anyOf schemas are unsatisfiable: [{"type": "integer", "minimum": 10, "maximum": 0}, false]'
 
 class TestAllOf:
     @pytest.mark.parametrize(
