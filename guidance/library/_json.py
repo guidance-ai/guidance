@@ -751,7 +751,16 @@ class GenJson:
     ):
         if not anyof_list:
             raise UnsatisfiableSchemaError("anyOf has no schemas")
-        options = [self.json(json_schema=item, base_uri=base_uri) for item in anyof_list]
+
+        options: list[GrammarFunction] = []
+        for item in anyof_list:
+            try:
+                options.append(self.json(json_schema=item, base_uri=base_uri))
+            except UnsatisfiableSchemaError:
+                pass
+        if not options:
+            # Can't really point to any one schema that's unsatisfiable, so let's include all the schemas in the error message
+            raise UnsatisfiableSchemaError("all anyOf schemas are unsatisfiable: " + json_dumps(anyof_list))
         return lm + select(options)
 
     @guidance(stateless=True)
