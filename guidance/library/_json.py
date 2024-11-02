@@ -1223,20 +1223,12 @@ class GenJson:
                 raise NotImplementedError(f"enum with sibling keys is not yet supported. Got {sibling_keys}")
             return lm + self.enum(options=json_schema[Keyword.ENUM], instance_type=json_schema.get(Keyword.TYPE, None))
 
-        if Keyword.TYPE in json_schema:
-            target_types = cast(Union[str, Sequence[str]], json_schema[Keyword.TYPE])
-            if isinstance(target_types, str):
-                target_types = [target_types]
-        else:
-            target_types = list(JSONType)
-
-        options: list[Union[str, GrammarFunction]] = []
-        option: Union[str, GrammarFunction]
-        for target_type in target_types:
+        if Keyword.TYPE in json_schema and isinstance(json_schema[Keyword.TYPE], str):
+            target_type = json_schema[Keyword.TYPE]
             if target_type == JSONType.NULL:
-                option = "null"
+                return  lm + "null"
             elif target_type == JSONType.BOOLEAN:
-                option = select(["true", "false"])
+                return lm + select(["true", "false"])
             elif target_type in {JSONType.INTEGER, JSONType.NUMBER}:
                 minimum = cast(Union[int, float, None], json_schema.get(NumberKeywords.MINIMUM, None))
                 maximum = cast(Union[int, float, None], json_schema.get(NumberKeywords.MAXIMUM, None))
@@ -1258,28 +1250,28 @@ class GenJson:
                         exclusive_maximum_flag = True
 
                 if target_type == JSONType.INTEGER:
-                    option = self.integer(
+                    return lm + self.integer(
                         minimum=minimum,
                         maximum=maximum,
                         exclusiveMinimum=exclusive_minimum_flag,
                         exclusiveMaximum=exclusive_maximum_flag,
                     )
                 else:
-                    option = self.number(
+                    return lm + self.number(
                         minimum=minimum,
                         maximum=maximum,
                         exclusiveMinimum=exclusive_minimum_flag,
                         exclusiveMaximum=exclusive_maximum_flag,
                     )
             elif target_type == JSONType.STRING:
-                option = self.string(
+                return lm + self.string(
                     regex=json_schema.get(StringKeywords.PATTERN, None),
                     format=json_schema.get(StringKeywords.FORMAT, None),
                     min_length=json_schema.get(StringKeywords.MIN_LENGTH, 0),
                     max_length=json_schema.get(StringKeywords.MAX_LENGTH, None),
                 )
             elif target_type == JSONType.ARRAY:
-                option = self.array(
+                return lm + self.array(
                     prefix_items_schema=json_schema.get(ArrayKeywords.PREFIX_ITEMS, []),
                     item_schema=json_schema.get(ArrayKeywords.ITEMS, True),
                     min_items=json_schema.get(ArrayKeywords.MIN_ITEMS, 0),
@@ -1287,7 +1279,7 @@ class GenJson:
                     base_uri=base_uri,
                 )
             elif target_type == JSONType.OBJECT:
-                option = self.object(
+                return lm + self.object(
                     properties=json_schema.get(ObjectKeywords.PROPERTIES, {}),
                     additional_properties=json_schema.get(ObjectKeywords.ADDITIONAL_PROPERTIES, True),
                     required=json_schema.get(ObjectKeywords.REQUIRED, set()),
@@ -1295,9 +1287,21 @@ class GenJson:
                 )
             else:
                 raise ValueError(f"Unsupported type in schema: {target_type}")
-            options.append(option)
 
-        return lm + select(options)
+        if Keyword.TYPE in json_schema:
+            json_schema = json_schema.copy()
+            target_types = cast(Sequence[JSONType], json_schema.pop(Keyword.TYPE))
+        else:
+            target_types = list(JSONType)
+
+        assert Keyword.TYPE not in json_schema
+        # Punt to anyOf if we have multiple types so that it can ignore an unsatisfiable subset
+        return lm + self.anyOf(
+            anyof_list = [
+                {"type": target_type, **json_schema} for target_type in target_types
+            ],
+            base_uri=base_uri,
+        )
 
 
 @guidance(stateless=True)
