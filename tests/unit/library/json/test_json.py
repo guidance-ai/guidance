@@ -1590,8 +1590,9 @@ class TestConst:
             "const": 1,
             "type": "boolean"
         }
-        with pytest.raises(ValidationError):
+        with pytest.raises(ValueError) as ve:
             gen_json(schema=schema_obj)
+        assert ve.value.args[0] == "const 1 does not match schema {'type': 'boolean'}"
 
     def test_valid_enum_const(self):
         schema_obj = {
@@ -1607,8 +1608,9 @@ class TestConst:
             "const": 1,
             "enum": [2, 3]
         }
-        with pytest.raises(ValidationError):
+        with pytest.raises(ValueError) as ve:
             gen_json(schema=schema_obj)
+        assert ve.value.args[0] == "const 1 does not match schema {'enum': [2, 3]}"
 
     def test_valid_typed_enum_const(self):
         schema_obj = {
@@ -1634,8 +1636,9 @@ class TestConst:
             "enum": [1, "2", 3],
             "type": "integer"
         }
-        with pytest.raises(ValidationError):
+        with pytest.raises(ValueError) as ve:
             gen_json(schema=schema_obj)
+        assert ve.value.args[0] == f"const {const!r} does not match schema {{'type': 'integer', 'enum': [1, '2', 3]}}"
 
 
 class TestAdditionalProperties:

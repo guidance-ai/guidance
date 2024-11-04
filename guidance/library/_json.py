@@ -1022,10 +1022,13 @@ class GenJson:
             schema_to_validate_against["enum"] = enum
         if schema_to_validate_against:
             # Raise a validation error if the value doesn't match the type
-            jsonschema.validate(
-                instance=value,
-                schema=schema_to_validate_against,
-            )
+            try:
+                jsonschema.validate(
+                    instance=value,
+                    schema=schema_to_validate_against,
+                )
+            except jsonschema.ValidationError as e:
+                raise UnsatisfiableSchemaError(f"const {value!r} does not match schema {schema_to_validate_against}") from e
         # Base case
         if isinstance(value, (type(None), bool, int, float, str)):
             return lm + json_dumps(value)
@@ -1063,11 +1066,13 @@ class GenJson:
         options: Sequence[Union[None, bool, int, float, str, Mapping, Sequence]],
         instance_type: Optional[Union[str, Sequence[str]]] = None,
     ):
+        if not options:
+            raise UnsatisfiableSchemaError("enum has no options")
         all_opts: list[GrammarFunction] = []
         for instance in options:
             try:
                 grm = self.const(value=instance, instance_type=instance_type)
-            except jsonschema.ValidationError:
+            except UnsatisfiableSchemaError:
                 continue
             all_opts.append(grm)
         if not all_opts:
