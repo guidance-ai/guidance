@@ -6,7 +6,6 @@ import pytest
 from jsonschema import ValidationError, validate
 
 from guidance import json as gen_json
-
 from .utils import check_match_failure, generate_and_check
 
 
@@ -138,6 +137,7 @@ class TestAllOf:
             with pytest.raises(ValidationError):
                 validate(instance=test_object, schema=schema)
             check_match_failure(bad_string=json_dumps(test_object), schema_obj=schema)
+
 
     @pytest.mark.parametrize(
         ["test_object", "valid"],
@@ -357,18 +357,15 @@ class TestAllOf:
             ({"foo": 0, "bar": 5, "baz": 4}, False),
             # invalid: baz is not an integer or null
             ({"foo": 0, "bar": 5, "baz": "quxx"}, False),
-        ],
+        ]
     )
     @pytest.mark.parametrize(
         "schema",
         [
             # The following are equivalent to this:
             {
-                "properties": {
-                    "foo": {"type": ["integer", "null"], "maximum": 4},
-                    "bar": {"minimum": 5, "maximum": 5},
-                },
-                "additionalProperties": {"type": ["integer", "null"], "minimum": 5},
+                "properties": {"foo": {"type": ["integer", "null"], "maximum": 4}, "bar": {"minimum": 5, "maximum": 5}},
+                "additionalProperties": {"type": ["integer", "null"], "minimum": 5}
             },
             # additionalProperties in parent schema
             {
@@ -376,22 +373,16 @@ class TestAllOf:
                     {"properties": {"foo": {"maximum": 4}}, "additionalProperties": {"minimum": 5}}
                 ],
                 "properties": {"bar": {"maximum": 5}},
-                "additionalProperties": {"type": ["integer", "null"]},
+                "additionalProperties": {"type": ["integer", "null"]}
             },
             # additionalProperties in allOf
             {
                 "allOf": [
-                    {
-                        "properties": {"foo": {"maximum": 4}},
-                        "additionalProperties": {"minimum": 5},
-                    },
-                    {
-                        "properties": {"bar": {"maximum": 5}},
-                        "additionalProperties": {"type": ["integer", "null"]},
-                    },
+                    {"properties": {"foo": {"maximum": 4}}, "additionalProperties": {"minimum": 5}},
+                    {"properties": {"bar": {"maximum": 5}}, "additionalProperties": {"type": ["integer", "null"]}}
                 ]
             },
-        ],
+        ]
     )
     def test_additionalProperties_in_allOf(self, schema, test_object, valid):
         if valid:
@@ -405,19 +396,19 @@ class TestAllOf:
     @pytest.mark.parametrize(
         "test_object, valid",
         [
-            ({}, True),  # empty object is valid
-            ({"foo": 1}, False),  # foo is not a string
-            ({"foo": "x"}, False),  # foo is not an integer
-            ({"foo": True}, False),  # foo is not a string or an integer
-        ],
+            ({}, True), # empty object is valid
+            ({"foo": 1}, False), # foo is not a string
+            ({"foo": "x"}, False), # foo is not an integer
+            ({"foo": True}, False), # foo is not a string or an integer
+        ]
     )
     def test_inconsistent_additionalProperties_in_allOf(self, test_object, valid):
         schema = {
             "type": "object",
             "allOf": [
                 {"additionalProperties": {"type": "integer"}},
-                {"additionalProperties": {"type": "string"}},
-            ],
+                {"additionalProperties": {"type": "string"}}
+            ]
         }
         if valid:
             validate(instance=test_object, schema=schema)
@@ -449,18 +440,15 @@ class TestAllOf:
             ([0, 5, 4], False),
             # invalid: baz is not an integer or null
             ([0, 5, "quxx"], False),
-        ],
+        ]
     )
     @pytest.mark.parametrize(
         "schema",
         [
             # The following are equivalent to this:
             {
-                "prefixItems": [
-                    {"type": ["integer", "null"], "maximum": 4},
-                    {"minimum": 5, "maximum": 5},
-                ],
-                "items": {"type": ["integer", "null"], "minimum": 5},
+                "prefixItems": [{"type": ["integer", "null"], "maximum": 4}, {"minimum": 5, "maximum": 5}],
+                "items": {"type": ["integer", "null"], "minimum": 5}
             },
             # items in parent schema
             {
@@ -468,19 +456,17 @@ class TestAllOf:
                     {"prefixItems": [{"maximum": 4}], "items": {"minimum": 5}},
                 ],
                 "prefixItems": [{"type": ["integer", "null"]}, {"maximum": 5}],
-                "items": {"type": ["integer", "null"]},
+                "items": {"type": ["integer", "null"]}
+
             },
             # items in allOf
             {
                 "allOf": [
                     {"prefixItems": [{"maximum": 4}], "items": {"minimum": 5}},
-                    {
-                        "prefixItems": [{"type": ["integer", "null"]}, {"maximum": 5}],
-                        "items": {"type": ["integer", "null"]},
-                    },
+                    {"prefixItems": [{"type": ["integer", "null"]}, {"maximum": 5}], "items": {"type": ["integer", "null"]}}
                 ]
             },
-        ],
+        ]
     )
     def test_items_and_prefixitems_in_allOf(self, schema, test_object, valid):
         if valid:
