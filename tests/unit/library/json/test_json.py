@@ -1393,6 +1393,7 @@ class TestAllOf:
         assert ve.value.args[0] == "allOf has conflicting types: [{'integer'}, {'string'}]"
 
 
+
 class TestOneOf:
     @pytest.mark.parametrize("target_obj", [123, 42])
     def test_oneOf_simple(self, target_obj):
@@ -2326,6 +2327,7 @@ class TestBooleanSchema:
         assert (
             ve.value.__cause__.args[0] == "No valid JSON can be generated from a schema of `false`"
         )
+
 
 
 class TestWhitespace:
