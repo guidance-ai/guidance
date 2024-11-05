@@ -15,6 +15,8 @@ from typing import Any, Dict, Iterator, List, Optional, Union, TYPE_CHECKING
 
 import numpy as np
 
+from ..visual import Environment
+
 try:
     from IPython.display import clear_output, display, HTML
 
@@ -226,7 +228,14 @@ class Model:
 
         self.engine = engine
         self.chat_template = engine.get_chat_template() # TODO [HN]: Should this be a method or attr?
-        self.echo = echo
+
+        # HOTFIX(nopdive): Temporary until visualization overhaul is merged.
+        environment = Environment()
+        if environment.is_terminal():
+            self.echo = False
+        else:
+            self.echo = echo
+
         self.token_count = 0  # tracks how many tokens our byte state represents
         self.max_display_rate = 0.2  # this controls how frequently we are allowed to redraw the display (in seconds)
         self.opened_blocks = {}  # what context blocks have been opened but not closed
