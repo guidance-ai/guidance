@@ -437,14 +437,14 @@ class TestRefs:
         ["test_object", "valid"],
         [
             # invalid on inner field
-            ({"bar": "a", "foo": {"bar": 1}}, False),
+            ({"foo": {"bar": 1}, "bar": "a"}, False),
             # invalid on outer field
-            ({"bar": 1, "foo": {"bar": "a"}}, False),
+            ({"foo": {"bar": "a"}, "bar": 1}, False),
             # valid on both fields
             (
                 {
-                    "bar": "a",
                     "foo": {"bar": "a"},
+                    "bar": "a",
                 },
                 True,
             ),
@@ -475,11 +475,11 @@ class TestRefs:
         ["test_object", "valid"],
         [
             # invalid on inner field
-            ({"bar": "a", "foo": {"bar": 1}}, False),
+            ({"foo": {"bar": 1}, "bar": "a"}, False),
             # invalid on outer field
-            ({"bar": 1, "foo": {"bar": "a"}}, False),
+            ({"foo": {"bar": "a"}, "bar": 1}, False),
             # valid on both fields
-            ({"bar": "a", "foo": {"bar": "a"}}, True),
+            ({"foo": {"bar": "a"}, "bar": "a"}, True),
         ],
     )
     def test_relative_refs_with_absolute_uris_and_defs(self, test_object, valid):
