@@ -1,6 +1,7 @@
 import json
 from functools import partial
-from json import loads as json_loads, dumps as json_dumps
+from json import dumps as json_dumps
+from json import loads as json_loads
 from typing import Any, Optional, Union
 
 from jsonschema import validate
@@ -8,18 +9,15 @@ from jsonschema import validate
 from guidance import json as gen_json
 from guidance.library._json import JSONSchema
 
-from ....utils import check_match_failure as _check_match_failure, check_run_with_temperature, generate_and_check as _generate_and_check
-
-from jsonschema import validate
-
-
-import json
-from functools import partial
-from json import dumps as json_dumps, loads as json_loads
+from ....utils import check_match_failure as _check_match_failure
+from ....utils import check_run_with_temperature
+from ....utils import generate_and_check as _generate_and_check
 
 
 def generate_and_check(
-    target_obj: Any, schema_obj: Union[str, JSONSchema], desired_temperature: Optional[float] = None
+    target_obj: Any,
+    schema_obj: Union[str, JSONSchema],
+    desired_temperature: Optional[float] = None,
 ):
     if isinstance(schema_obj, str):
         schema_obj = json_loads(schema_obj)
@@ -32,9 +30,7 @@ def generate_and_check(
     # Now test that the grammar can recognize and generate prepared_json
     # We partial in the grammar_callable
     if desired_temperature is not None:
-        grammar_callable = partial(
-            gen_json, schema=schema_obj, temperature=desired_temperature
-        )
+        grammar_callable = partial(gen_json, schema=schema_obj, temperature=desired_temperature)
     else:
         grammar_callable = partial(gen_json, schema=schema_obj)
 

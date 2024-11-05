@@ -1,21 +1,21 @@
 import json
+import re
+from json import dumps as json_dumps
 
 import pytest
-import re
 from jsonschema import ValidationError, validate
-from json import dumps as json_dumps
 
 from guidance import json as gen_json
 from guidance import models
-
 from guidance.library._json import IGNORED_KEYS
-from .utils import check_match_failure, generate_and_check
 
+from .utils import check_match_failure, generate_and_check
 
 # Common sets of allowed_bytes
 INTEGER_LEADING = {b"-", b"0", *{bytes([i]) for i in range(ord("1"), ord("9") + 1)}}
 INTEGER_FOLLOWING = {bytes([i]) for i in range(ord("0"), ord("9") + 1)}
 A_to_Z = {bytes([i]) for i in range(ord("A"), ord("Z") + 1)}
+
 
 def test_null():
     schema = """{"type": "null" }"""
@@ -83,15 +83,16 @@ class TestInteger:
             {"type": "integer", "minimum": 5, "maximum": 4},
             {"type": "integer", "minimum": 5, "exclusiveMaximum": 5},
             {"type": "integer", "exclusiveMinimum": 5, "maximum": 5},
-        ]
+        ],
     )
     def test_unsatisfiable_min_max(self, schema):
         with pytest.raises(ValueError) as ve:
             _ = gen_json(schema=schema)
         assert re.fullmatch(
             r"(exclusiveMinimum|minimum) \(5\) is (greater than|equal to) (exclusiveMaximum|maximum) \((4|5)\)",
-            ve.value.args[0]
+            ve.value.args[0],
         )
+
 
 class TestNumber:
     schema = """{"type": "number" }"""
@@ -152,15 +153,16 @@ class TestNumber:
             {"type": "integer", "minimum": 5, "maximum": 4},
             {"type": "integer", "minimum": 5, "exclusiveMaximum": 5},
             {"type": "integer", "exclusiveMinimum": 5, "maximum": 5},
-        ]
+        ],
     )
     def test_unsatisfiable_min_max(self, schema):
         with pytest.raises(ValueError) as ve:
             _ = gen_json(schema=schema)
         assert re.fullmatch(
             r"(exclusiveMinimum|minimum) \(5\) is (greater than|equal to) (exclusiveMaximum|maximum) \((4|5)\)",
-            ve.value.args[0]
+            ve.value.args[0],
         )
+
 
 class TestBoundedNumeric:
     @pytest.mark.parametrize(
@@ -171,11 +173,15 @@ class TestBoundedNumeric:
             (-5, {"type": "integer", "minimum": -5}, True),
             pytest.param(
                 *(5.0, {"type": "integer", "minimum": 5}, True),
-                marks=pytest.mark.xfail(reason="JSON technically allows trailing zeroes, but we currently don't")
+                marks=pytest.mark.xfail(
+                    reason="JSON technically allows trailing zeroes, but we currently don't"
+                ),
             ),
             pytest.param(
                 *(-5.0, {"type": "integer", "minimum": -5}, True),
-                marks=pytest.mark.xfail(reason="JSON technically allows trailing zeroes, but we currently don't")
+                marks=pytest.mark.xfail(
+                    reason="JSON technically allows trailing zeroes, but we currently don't"
+                ),
             ),
             (5.1, {"type": "integer", "minimum": 5}, False),
             (-5.1, {"type": "integer", "minimum": -5}, False),
@@ -235,7 +241,11 @@ class TestBoundedNumeric:
             (5.1, {"type": "number", "exclusiveMinimum": 5.0, "exclusiveMaximum": 10.0}, True),
             (-9.9, {"type": "number", "exclusiveMinimum": -10.0, "exclusiveMaximum": -5.0}, True),
             (5.0, {"type": "number", "exclusiveMinimum": 5.0, "exclusiveMaximum": 10.0}, False),
-            (-10.0, {"type": "number", "exclusiveMinimum": -10.0, "exclusiveMaximum": -5.0}, False),
+            (
+                -10.0,
+                {"type": "number", "exclusiveMinimum": -10.0, "exclusiveMaximum": -5.0},
+                False,
+            ),
             (9.9, {"type": "number", "exclusiveMinimum": 5.0, "exclusiveMaximum": 10.0}, True),
             (-5.1, {"type": "number", "exclusiveMinimum": -10.0, "exclusiveMaximum": -5.0}, True),
             # --- Edge cases ---
@@ -276,10 +286,10 @@ class TestBoundedNumeric:
             (0.2999, {"type": "number", "minimum": 0.1, "maximum": 0.3}, True),
             (-0.2999, {"type": "number", "minimum": -0.3, "maximum": -0.1}, True),
             (0.0999, {"type": "number", "minimum": 0.1, "maximum": 0.3}, False),
-            (-0.0999, {"type": "number", "minimum": -.3, "maximum": -0.1}, False),
+            (-0.0999, {"type": "number", "minimum": -0.3, "maximum": -0.1}, False),
             (0.3001, {"type": "number", "minimum": 0.1, "maximum": 0.3}, False),
             (-0.3001, {"type": "number", "minimum": -0.3, "maximum": -0.1}, False),
-        ]
+        ],
     )
     def test_numeric_validation(self, instance, schema, should_pass):
         # Sanity check
@@ -289,10 +299,7 @@ class TestBoundedNumeric:
         else:
             with pytest.raises(ValidationError):
                 validate(instance, schema=schema)
-            check_match_failure(
-                bad_string=json_dumps(instance),
-                schema_obj=schema
-            )
+            check_match_failure(bad_string=json_dumps(instance), schema_obj=schema)
 
 
 class TestString:
@@ -373,9 +380,7 @@ class TestString:
             schema_obj=schema_obj,
         )
 
-    @pytest.mark.parametrize(
-        "string", ["aA\u001f", '"""']
-    )
+    @pytest.mark.parametrize("string", ["aA\u001f", '"""'])
     def test_regex_properly_escaped_good(self, string):
         schema_obj = {"type": "string", "pattern": r".{3}"}
         # First sanity check what we're setting up
@@ -388,13 +393,15 @@ class TestString:
         [
             (
                 '"\\u001f\\u001f\u001f',
-                b'"\\u001f\\u001f', # able to match the first two stringified bytes
-                '\u001f'.encode(), # fails on a literal \x1f byte
-                None # hard to write a set of allowed bytes here
+                b'"\\u001f\\u001f',  # able to match the first two stringified bytes
+                "\u001f".encode(),  # fails on a literal \x1f byte
+                None,  # hard to write a set of allowed bytes here
             ),
         ],
     )
-    def test_regex_properly_escaped_bad(self, bad_string: str, good_bytes, failure_byte, allowed_bytes):
+    def test_regex_properly_escaped_bad(
+        self, bad_string: str, good_bytes, failure_byte, allowed_bytes
+    ):
         # Note that the strings being fed in include the double quotes required
         # to make them JSON strings
         schema_obj = {"type": "string", "pattern": r".{3}"}
@@ -405,7 +412,6 @@ class TestString:
             allowed_bytes=allowed_bytes,
             schema_obj=schema_obj,
         )
-
 
     @pytest.mark.parametrize(
         "my_string", ["a", "bb", "ccc", "150", ",?", ".\t\n", "(){", "aA7", "\\9O"]
@@ -729,7 +735,9 @@ class TestSimpleObject:
         with pytest.raises(ValueError) as ve:
             _ = gen_json(schema=schema)
         assert ve.value.args[0] == "Required property 'b' is unsatisfiable"
-        assert ve.value.__cause__.args[0] == "No valid JSON can be generated from a schema of `false`"
+        assert (
+            ve.value.__cause__.args[0] == "No valid JSON can be generated from a schema of `false`"
+        )
 
     def test_unsatisfiable_additional_properties_raises(self):
         schema = {
@@ -740,8 +748,14 @@ class TestSimpleObject:
         }
         with pytest.raises(ValueError) as ve:
             _ = gen_json(schema=schema)
-        assert ve.value.args[0] == "Required properties not in properties but additionalProperties is unsatisfiable. Missing required properties: ['b']"
-        assert ve.value.__cause__.args[0] == "No valid JSON can be generated from a schema of `false`"
+        assert (
+            ve.value.args[0]
+            == "Required properties not in properties but additionalProperties is unsatisfiable. Missing required properties: ['b']"
+        )
+        assert (
+            ve.value.__cause__.args[0] == "No valid JSON can be generated from a schema of `false`"
+        )
+
 
 class TestObjectWithMissingRequired:
     def test_required_is_required(self):
@@ -749,32 +763,40 @@ class TestObjectWithMissingRequired:
         generate_and_check({"b": 1}, schema)
         generate_and_check({"a": 1, "b": "xyz"}, schema)
         check_match_failure(
-            bad_string=json_dumps(
-                {"a": 1}
-            ),
+            bad_string=json_dumps({"a": 1}),
             schema_obj=schema,
         )
 
     def test_validated_against_additionalProperties(self):
-        schema = {"type": "object", "properties": {"a": {"type": "integer"}}, "required": ["b"], "additionalProperties": {"type": "integer"}}
+        schema = {
+            "type": "object",
+            "properties": {"a": {"type": "integer"}},
+            "required": ["b"],
+            "additionalProperties": {"type": "integer"},
+        }
         generate_and_check({"b": 1}, schema)
         generate_and_check({"a": 1, "b": 42}, schema)
         check_match_failure(
-            bad_string=json_dumps(
-                {"a": 1, "b": "string"}
-            ),
+            bad_string=json_dumps({"a": 1, "b": "string"}),
             schema_obj=schema,
         )
 
     def test_false_additionalProperties_fails(self):
-        schema = {"type": "object", "properties": {"a": {"type": "integer"}}, "required": ["b", "c"], "additionalProperties": False}
+        schema = {
+            "type": "object",
+            "properties": {"a": {"type": "integer"}},
+            "required": ["b", "c"],
+            "additionalProperties": False,
+        }
         with pytest.raises(ValueError) as ve:
             _ = gen_json(schema=schema)
         assert (
             ve.value.args[0]
             == "Required properties not in properties but additionalProperties is unsatisfiable. Missing required properties: ['b', 'c']"
         )
-        assert ve.value.__cause__.args[0] == "No valid JSON can be generated from a schema of `false`"
+        assert (
+            ve.value.__cause__.args[0] == "No valid JSON can be generated from a schema of `false`"
+        )
 
 
 class TestSimpleArray:
@@ -840,7 +862,6 @@ class TestSimpleArray:
         # The actual check
         generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
 
-
     @pytest.mark.parametrize(
         ["bad_string", "good_bytes", "failure_byte", "allowed_bytes"],
         [
@@ -866,17 +887,14 @@ class TestSimpleArray:
         )
 
     def test_unsatisfiable_prefixItem_ok(self):
-        schema = {
-            "type": "array",
-            "prefixItems": [{"type": "integer"}, False]
-        }
+        schema = {"type": "array", "prefixItems": [{"type": "integer"}, False]}
         generate_and_check([42], schema)
         check_match_failure(
             bad_string="[42, 43]",
             good_bytes=b"[42",
             failure_byte=b",",
             allowed_bytes={b"]"} | INTEGER_FOLLOWING,
-            schema_obj=schema
+            schema_obj=schema,
         )
 
     def test_unsatisfiable_prefixItem_raises(self):
@@ -888,13 +906,15 @@ class TestSimpleArray:
         with pytest.raises(ValueError) as ve:
             _ = gen_json(schema=schema)
         assert ve.value.args[0] == "prefixItems[1] is unsatisfiable but min_items is 2"
-        assert ve.value.__cause__.args[0] == "No valid JSON can be generated from a schema of `false`"
+        assert (
+            ve.value.__cause__.args[0] == "No valid JSON can be generated from a schema of `false`"
+        )
 
     def test_unsatisfiable_items_ok(self):
         schema = {
             "type": "array",
             "prefixItems": [{"type": "integer"}],
-            "items": {"allOf": [{"type": "integer"}, False]}
+            "items": {"allOf": [{"type": "integer"}, False]},
         }
         generate_and_check([42], schema)
         check_match_failure(
@@ -902,7 +922,7 @@ class TestSimpleArray:
             good_bytes=b"[42",
             failure_byte=b",",
             allowed_bytes={b"]"} | INTEGER_FOLLOWING,
-            schema_obj=schema
+            schema_obj=schema,
         )
 
     def test_unsatisfiable_items_raises(self):
@@ -914,8 +934,12 @@ class TestSimpleArray:
         }
         with pytest.raises(ValueError) as ve:
             _ = gen_json(schema=schema)
-        assert ve.value.args[0] == "prefixItems has too few elements (1) to satisfy minItems (2) but item schema is unsatisfiable"
+        assert (
+            ve.value.args[0]
+            == "prefixItems has too few elements (1) to satisfy minItems (2) but item schema is unsatisfiable"
+        )
         assert ve.value.__cause__.args[0] == "allOf contains a 'false' schema"
+
 
 class TestArrayWithLengthConstraints:
     prefix_schema_obj = [{"type": "integer"}, {"type": "boolean"}]
@@ -1001,7 +1025,6 @@ class TestArrayWithLengthConstraints:
         }
         generate_and_check(target_obj, schema_obj)
 
-
     @pytest.mark.parametrize(
         "min_items, max_items, bad_obj, good_bytes, failure_byte, allowed_bytes",
         [
@@ -1082,7 +1105,6 @@ class TestArrayWithLengthConstraints:
             schema_obj=schema_obj,
         )
 
-
     @pytest.mark.parametrize(
         "min_items, max_items, bad_obj, good_bytes, failure_byte, allowed_bytes",
         [
@@ -1146,7 +1168,6 @@ class TestArrayWithLengthConstraints:
             allowed_bytes=allowed_bytes,
             schema_obj=schema_obj,
         )
-
 
     @pytest.mark.parametrize(
         "min_items, max_items, bad_obj, good_bytes, failure_byte, allowed_bytes",
@@ -1294,9 +1315,7 @@ class TestAnyOf:
         generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
 
     def test_anyOf_unsatisfiable_ok(self):
-        schema = {
-            "anyOf": [{"type": "integer"}, False]
-        }
+        schema = {"anyOf": [{"type": "integer"}, False]}
         generate_and_check(3, schema)
 
     def test_anyOf_unsatisfiable_raises(self):
@@ -1305,7 +1324,11 @@ class TestAnyOf:
         }
         with pytest.raises(ValueError) as ve:
             _ = gen_json(schema=schema)
-        assert ve.value.args[0] == 'all anyOf schemas are unsatisfiable: [{"type": "integer", "minimum": 10, "maximum": 0}, false]'
+        assert (
+            ve.value.args[0]
+            == 'all anyOf schemas are unsatisfiable: [{"type": "integer", "minimum": 10, "maximum": 0}, false]'
+        )
+
 
 class TestAllOf:
     @pytest.mark.parametrize(
@@ -1364,12 +1387,11 @@ class TestAllOf:
         generate_and_check(target_obj, schema_obj)
 
     def test_allOf_bad_schema(self):
-        schema = {
-            "allOf" : [{ "type": "integer" }, { "type": "string" }]
-        }
+        schema = {"allOf": [{"type": "integer"}, {"type": "string"}]}
         with pytest.raises(ValueError) as ve:
             _ = gen_json(schema=schema)
         assert ve.value.args[0] == "allOf has conflicting types: [{'integer'}, {'string'}]"
+
 
 class TestOneOf:
     @pytest.mark.parametrize("target_obj", [123, 42])
@@ -1384,7 +1406,6 @@ class TestOneOf:
 
         # The actual check
         generate_and_check(target_obj, schema_obj)
-
 
     @pytest.mark.parametrize("target_obj", [123, True])
     def test_oneOf_compound(self, target_obj):
@@ -1423,7 +1444,6 @@ class TestEnum:
         # The actual check
         generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
 
-
     @pytest.mark.parametrize(
         "bad_obj, good_bytes, failure_byte, allowed_bytes",
         [
@@ -1442,7 +1462,6 @@ class TestEnum:
             allowed_bytes=allowed_bytes,
             schema_obj=schema_obj,
         )
-
 
     @pytest.mark.parametrize(
         "bad_obj, good_bytes, failure_byte, allowed_bytes",
@@ -1471,13 +1490,10 @@ class TestEnum:
             ("2", False),
             ("1", False),
             (True, False),
-        ]
+        ],
     )
     def test_typed_enum_single_type(self, obj, valid):
-        schema_obj = {
-            "enum": [1, "2", True],
-            "type": "integer"
-        }
+        schema_obj = {"enum": [1, "2", True], "type": "integer"}
         if valid:
             validate(instance=obj, schema=schema_obj)
             generate_and_check(obj, schema_obj)
@@ -1494,13 +1510,10 @@ class TestEnum:
             ("2", True),
             ("1", False),
             (True, False),
-        ]
+        ],
     )
     def test_typed_enum_multiple_types(self, obj, valid):
-        schema_obj = {
-            "enum": [1, "2", True],
-            "type": ["integer", "string"]
-        }
+        schema_obj = {"enum": [1, "2", True], "type": ["integer", "string"]}
         if valid:
             validate(instance=obj, schema=schema_obj)
             generate_and_check(obj, schema_obj)
@@ -1510,13 +1523,11 @@ class TestEnum:
             check_match_failure(bad_string=json_dumps(obj), schema_obj=schema_obj)
 
     def test_invalid_typed_enum(self):
-        schema_obj = {
-            "enum": [1, "2"],
-            "type": "boolean"
-        }
+        schema_obj = {"enum": [1, "2"], "type": "boolean"}
         with pytest.raises(ValueError) as ve:
             gen_json(schema=schema_obj)
         assert ve.value.args[0] == "No valid options found for enum with type 'boolean': [1, '2']"
+
 
 class TestConst:
     def test_constant_int(self):
@@ -1577,47 +1588,31 @@ class TestConst:
         )
 
     def test_valid_typed_const(self):
-        schema_obj = {
-            "const": 1,
-            "type": "integer"
-        }
+        schema_obj = {"const": 1, "type": "integer"}
         target_obj = 1
         validate(instance=target_obj, schema=schema_obj)
         generate_and_check(target_obj, schema_obj)
 
     def test_invalid_typed_const(self):
-        schema_obj = {
-            "const": 1,
-            "type": "boolean"
-        }
+        schema_obj = {"const": 1, "type": "boolean"}
         with pytest.raises(ValueError) as ve:
             gen_json(schema=schema_obj)
         assert ve.value.args[0] == "const 1 does not match schema {'type': 'boolean'}"
 
     def test_valid_enum_const(self):
-        schema_obj = {
-            "const": 1,
-            "enum": [1, 2, 3]
-        }
+        schema_obj = {"const": 1, "enum": [1, 2, 3]}
         target_obj = 1
         validate(instance=target_obj, schema=schema_obj)
         generate_and_check(target_obj, schema_obj)
 
     def test_invalid_enum_const(self):
-        schema_obj = {
-            "const": 1,
-            "enum": [2, 3]
-        }
+        schema_obj = {"const": 1, "enum": [2, 3]}
         with pytest.raises(ValueError) as ve:
             gen_json(schema=schema_obj)
         assert ve.value.args[0] == "const 1 does not match schema {'enum': [2, 3]}"
 
     def test_valid_typed_enum_const(self):
-        schema_obj = {
-            "const": 1,
-            "enum": [1, "2", 3],
-            "type": "integer"
-        }
+        schema_obj = {"const": 1, "enum": [1, "2", 3], "type": "integer"}
         target_obj = 1
         validate(instance=target_obj, schema=schema_obj)
         generate_and_check(target_obj, schema_obj)
@@ -1625,20 +1620,19 @@ class TestConst:
     @pytest.mark.parametrize(
         "const",
         [
-            "2", # right enum, wrong type
-            2, # wrong enum, right type
-            "3", # wrong enum, wrong type
-        ]
+            "2",  # right enum, wrong type
+            2,  # wrong enum, right type
+            "3",  # wrong enum, wrong type
+        ],
     )
     def test_invalid_typed_enum_const(self, const):
-        schema_obj = {
-            "const": const,
-            "enum": [1, "2", 3],
-            "type": "integer"
-        }
+        schema_obj = {"const": const, "enum": [1, "2", 3], "type": "integer"}
         with pytest.raises(ValueError) as ve:
             gen_json(schema=schema_obj)
-        assert ve.value.args[0] == f"const {const!r} does not match schema {{'type': 'integer', 'enum': [1, '2', 3]}}"
+        assert (
+            ve.value.args[0]
+            == f"const {const!r} does not match schema {{'type': 'integer', 'enum': [1, '2', 3]}}"
+        )
 
 
 class TestAdditionalProperties:
@@ -1684,11 +1678,15 @@ class TestAdditionalProperties:
         # The actual check
         generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
 
-
     @pytest.mark.parametrize(
         "bad_obj, good_bytes, failure_byte, allowed_bytes",
         [
-            ({"a": "1"}, b'{"a": ', b'"', INTEGER_LEADING, ),
+            (
+                {"a": "1"},
+                b'{"a": ',
+                b'"',
+                INTEGER_LEADING,
+            ),
             (
                 {"a": 1, "b": 1.5},
                 b'{"a": 1, "b": 1',
@@ -1708,9 +1706,7 @@ class TestAdditionalProperties:
             schema_obj=schema_obj,
         )
 
-    @pytest.mark.parametrize(
-        "target_obj", [{}, {"a": 1}, {"a": "2"}, {"a": 1, "b": "2"}]
-    )
+    @pytest.mark.parametrize("target_obj", [{}, {"a": 1}, {"a": "2"}, {"a": 1, "b": "2"}])
     def test_anyOf_additional_properties(self, target_obj):
         # First sanity check what we're setting up
         schema_obj = json.loads(self.anyOf_schema)
@@ -1718,7 +1714,6 @@ class TestAdditionalProperties:
 
         # The actual check
         generate_and_check(target_obj, schema_obj)
-
 
     @pytest.mark.parametrize(
         "bad_obj, good_bytes, failure_byte, allowed_bytes",
@@ -1761,7 +1756,6 @@ class TestAdditionalProperties:
         # The actual check
         generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
 
-
     @pytest.mark.parametrize(
         "bad_obj, good_bytes, failure_byte, allowed_bytes",
         [
@@ -1770,9 +1764,7 @@ class TestAdditionalProperties:
             ({"a": 1, "b": 2}, b'{"', b"a", {b"m"}),
         ],
     )
-    def test_combined_missing_properties(
-        self, bad_obj, good_bytes, failure_byte, allowed_bytes
-    ):
+    def test_combined_missing_properties(self, bad_obj, good_bytes, failure_byte, allowed_bytes):
         schema_obj = json.loads(self.combined_schema)
         bad_string = json_dumps(bad_obj)
         check_match_failure(
@@ -1782,7 +1774,6 @@ class TestAdditionalProperties:
             allowed_bytes=allowed_bytes,
             schema_obj=schema_obj,
         )
-
 
     @pytest.mark.parametrize(
         "bad_obj, good_bytes, failure_byte, allowed_bytes",
@@ -1912,7 +1903,6 @@ class TestEmptySchemas:
         # The actual check
         generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
 
-
     @pytest.mark.parametrize(
         "bad_string, good_bytes, failure_byte, allowed_bytes",
         [
@@ -1941,9 +1931,7 @@ class TestEmptySchemas:
             ),
         ],
     )
-    def test_bad_empty_schema(
-        self, bad_string, good_bytes, failure_byte, allowed_bytes
-    ):
+    def test_bad_empty_schema(self, bad_string, good_bytes, failure_byte, allowed_bytes):
         schema_obj = json.loads(self.empty_schema)
         check_match_failure(
             bad_string=bad_string,
@@ -1959,7 +1947,12 @@ class TestEmptySchemas:
             # Empty property
             {"type": "object", "properties": {"a": {}}, "required": ["a"]},
             # Empty reference
-            {"type": "object", "properties": {"a": {"$ref": "#/$defs/A"}}, "$defs": {"A": {}}, "required": ["a"]},
+            {
+                "type": "object",
+                "properties": {"a": {"$ref": "#/$defs/A"}},
+                "$defs": {"A": {}},
+                "required": ["a"],
+            },
         ],
     )
     @pytest.mark.parametrize(
@@ -1990,10 +1983,14 @@ class TestEmptySchemas:
             # Empty property
             {"type": "object", "properties": {"a": {}}, "required": ["a"]},
             # Empty reference
-            {"type": "object", "properties": {"a": {"$ref": "#/$defs/A"}}, "$defs": {"A": {}}, "required": ["a"]},
+            {
+                "type": "object",
+                "properties": {"a": {"$ref": "#/$defs/A"}},
+                "$defs": {"A": {}},
+                "required": ["a"],
+            },
         ],
     )
-
     @pytest.mark.parametrize(
         "bad_obj, good_bytes, failure_byte, allowed_bytes",
         [
@@ -2036,7 +2033,6 @@ class TestEmptySchemas:
         # The actual check
         generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
 
-
     @pytest.mark.parametrize(
         "bad_obj, good_bytes, failure_byte, allowed_bytes",
         [
@@ -2071,7 +2067,6 @@ class TestEmptySchemas:
             [1, 0.4, "hello", False, None, {"a": 42}, [1, 2, 3, "four"]], schema_obj
         )
 
-
     def test_no_items(self):
         schema_obj = {"type": "array", "items": False}
         check_match_failure(
@@ -2104,7 +2099,6 @@ class TestEmptySchemas:
             schema_obj,
         )
 
-
     def test_no_additionalProperties(self):
         schema_obj = {"type": "object", "additionalProperties": False}
         check_match_failure(
@@ -2115,16 +2109,16 @@ class TestEmptySchemas:
             schema_obj=schema_obj,
         )
 
+
 def test_ignored_keys_allowed_as_properties():
     schema_obj = {
         "type": "object",
-        "properties": {
-            key: {"type": "string"} for key in IGNORED_KEYS
-        },
+        "properties": {key: {"type": "string"} for key in IGNORED_KEYS},
         "required": list(IGNORED_KEYS),
     }
     target_obj = {key: "value" for key in IGNORED_KEYS}
     generate_and_check(target_obj, schema_obj)
+
 
 class TestRequiredProperties:
     schema_obj = {
@@ -2134,10 +2128,19 @@ class TestRequiredProperties:
             "b": {"type": "number"},
             "c": {"type": "boolean"},
         },
-        "additionalProperties": True
+        "additionalProperties": True,
     }
     ALL_REQUIRED = ["a", "b", "c"]
-    SOME_REQUIRED_SUBSETS = [[], ["a"], ["b"], ["c"], ["a", "b"], ["a", "c"], ["b", "c"], ["a", "b", "c"]]
+    SOME_REQUIRED_SUBSETS = [
+        [],
+        ["a"],
+        ["b"],
+        ["c"],
+        ["a", "b"],
+        ["a", "c"],
+        ["b", "c"],
+        ["a", "b", "c"],
+    ]
     NONE_REQUIRED: list[str] = []
 
     @pytest.mark.parametrize(
@@ -2146,7 +2149,7 @@ class TestRequiredProperties:
             {},
             {"d": "hello"},
             {"d": 42, "e": True},
-        ]
+        ],
     )
     def test_all_required_good(self, extra_items):
         schema_obj = {**self.schema_obj, "required": self.ALL_REQUIRED}
@@ -2166,7 +2169,7 @@ class TestRequiredProperties:
             ({"c": True}),
             # Missing all
             ({}),
-        ]
+        ],
     )
     def test_all_required_bad(self, bad_obj):
         schema_obj = {**self.schema_obj, "required": self.ALL_REQUIRED}
@@ -2181,7 +2184,7 @@ class TestRequiredProperties:
             {},
             {"d": "hello"},
             {"d": 42, "e": True},
-        ]
+        ],
     )
     @pytest.mark.parametrize(
         "required",
@@ -2219,7 +2222,7 @@ class TestRequiredProperties:
             {},
             {"d": "hello"},
             {"d": 42, "e": True},
-        ]
+        ],
     )
     @pytest.mark.parametrize(
         "target_obj",
@@ -2232,55 +2235,48 @@ class TestRequiredProperties:
             {"a": "hello", "c": True},
             {"b": 42, "c": True},
             {"a": "hello", "b": 42, "c": True},
-        ]
+        ],
     )
     def test_none_required(self, target_obj, extra_items):
         schema_obj = {**self.schema_obj, "required": self.NONE_REQUIRED}
         generate_and_check({**target_obj, **extra_items}, schema_obj)
 
+
 class TestRequiredPropertiesScaling:
-    @pytest.mark.parametrize(
-        "num_properties",
-        [1, 2, 3, 4, 5, 10, 20, 50, 100]
-    )
+    @pytest.mark.parametrize("num_properties", [1, 2, 3, 4, 5, 10, 20, 50, 100])
     def test_many_optional_properties_doesnt_blow_up(self, num_properties):
         schema_obj = {
             "type": "object",
-            "properties": {
-                f"prop_{i}": {"type": "string"} for i in range(num_properties)
-            },
-            "required": [] # Empty should be worst-case scenario
+            "properties": {f"prop_{i}": {"type": "string"} for i in range(num_properties)},
+            "required": [],  # Empty should be worst-case scenario
         }
         from guidance.library._json import GenJson
+
         genjson = GenJson(schema=schema_obj)
         genjson._join.__wrapped__.cache_clear()
         _ = genjson.root()
         cache_info = genjson._join.__wrapped__.cache_info()
 
         # Theoretical number of cache misses under the current implementation
-        expected_misses = 2*num_properties - 1
-        MISSES_MAGIC_NUMBER = 5 # Where in the world is this coming from?
+        expected_misses = 2 * num_properties - 1
+        MISSES_MAGIC_NUMBER = 5  # Where in the world is this coming from?
         assert 0 < cache_info.misses <= expected_misses + MISSES_MAGIC_NUMBER
         # NOTE: that if the cache maxsize is hit, the number of misses will be more than expected
 
         # Theoretical number of total calls under the current implementation
-        expected_calls = num_properties*(num_properties - 1) // 2
-        CALLS_MAGIC_NUMBER = 12 # Where in the world is this coming from?
+        expected_calls = num_properties * (num_properties - 1) // 2
+        CALLS_MAGIC_NUMBER = 12  # Where in the world is this coming from?
         assert 0 < cache_info.hits + cache_info.misses <= expected_calls + CALLS_MAGIC_NUMBER
 
-    @pytest.mark.parametrize(
-        "num_properties",
-        [1, 2, 3, 4, 5, 10, 20, 50, 100]
-    )
+    @pytest.mark.parametrize("num_properties", [1, 2, 3, 4, 5, 10, 20, 50, 100])
     def test_all_required_properties_doesnt_blow_up(self, num_properties):
         schema_obj = {
             "type": "object",
-            "properties": {
-                f"prop_{i}": {"type": "string"} for i in range(num_properties)
-            },
-            "required": [f"prop_{i}" for i in range(num_properties)]
+            "properties": {f"prop_{i}": {"type": "string"} for i in range(num_properties)},
+            "required": [f"prop_{i}" for i in range(num_properties)],
         }
         from guidance.library._json import GenJson
+
         genjson = GenJson(schema=schema_obj)
         genjson._join.__wrapped__.cache_clear()
         _ = genjson.root()
@@ -2308,7 +2304,7 @@ class TestBooleanSchema:
             {"a": [1, 2, 3]},
             {"a": {"b": 1}},
             False,
-            True
+            True,
         ],
     )
     def test_true_schema(self, target_obj):
@@ -2327,7 +2323,10 @@ class TestBooleanSchema:
         with pytest.raises(ValueError) as ve:
             gen_json(schema=schema_obj)
         assert ve.value.args[0] == "Required property 'a' is unsatisfiable"
-        assert ve.value.__cause__.args[0] == "No valid JSON can be generated from a schema of `false`"
+        assert (
+            ve.value.__cause__.args[0] == "No valid JSON can be generated from a schema of `false`"
+        )
+
 
 class TestWhitespace:
     seps = [
@@ -2346,7 +2345,7 @@ class TestWhitespace:
             ({"enum": [{"a": 1, "b": 2, "c": [1, 2, 3]}]}, {"a": 1, "b": 2, "c": [1, 2, 3]}),
             # Static object: const (both item and key seps)
             ({"const": {"a": 1, "b": 2, "c": [1, 2, 3]}}, {"a": 1, "b": 2, "c": [1, 2, 3]}),
-        ]
+        ],
     )
     @pytest.mark.parametrize(
         "separators",
@@ -2372,7 +2371,7 @@ class TestWhitespace:
             ({"enum": [{"a": 1, "b": 2, "c": [1, 2, 3]}]}, {"a": 1, "b": 2, "c": [1, 2, 3]}),
             # Static object: const (both item and key seps)
             ({"const": {"a": 1, "b": 2, "c": [1, 2, 3]}}, {"a": 1, "b": 2, "c": [1, 2, 3]}),
-        ]
+        ],
     )
     @pytest.mark.parametrize(
         "separators",

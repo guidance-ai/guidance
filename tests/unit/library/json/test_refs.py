@@ -1,9 +1,10 @@
+from json import dumps as json_dumps
+
 import pytest
 from jsonschema import ValidationError, validate
 
-from json import dumps as json_dumps
-
 from .utils import check_match_failure, generate_and_check
+
 
 class TestRefs:
     @pytest.mark.parametrize(
@@ -438,9 +439,15 @@ class TestRefs:
             # invalid on inner field
             ({"bar": "a", "foo": {"bar": 1}}, False),
             # invalid on outer field
-            ({ "bar": 1, "foo": {"bar": "a"}}, False),
+            ({"bar": 1, "foo": {"bar": "a"}}, False),
             # valid on both fields
-            ({"bar": "a", "foo": {"bar": "a"}, }, True),
+            (
+                {
+                    "bar": "a",
+                    "foo": {"bar": "a"},
+                },
+                True,
+            ),
         ],
     )
     def test_refs_with_relative_uris_and_defs(self, test_object, valid):
