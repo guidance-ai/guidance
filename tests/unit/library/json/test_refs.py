@@ -1,9 +1,9 @@
-from .utils import check_match_failure, generate_and_check
+from json import dumps as json_dumps
 
 import pytest
 from jsonschema import ValidationError, validate
 
-from json import dumps as json_dumps
+from .utils import check_match_failure, generate_and_check
 
 
 class TestRefs:
