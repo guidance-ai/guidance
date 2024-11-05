@@ -1183,9 +1183,6 @@ class GenJson:
         if json_schema == {}:
             return lm + self.any()
 
-        if Keyword.ID in json_schema:
-            # "cd" into the new base_uri
-            base_uri = urijoin(base_uri, json_schema[Keyword.ID])
 
         validate_json_node_keys(json_schema)
         json_schema = self.push_sibling_keys(json_schema)
