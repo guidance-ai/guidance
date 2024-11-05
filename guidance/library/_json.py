@@ -778,14 +778,8 @@ class GenJson:
         warnings.warn("oneOf not fully supported, falling back to anyOf. This may cause validation errors in some cases.")
         return lm + self.anyOf(anyof_list=oneof_list, base_uri=base_uri)
 
-    @guidance(stateless=True)
-    def allOf(
-        self,
-        lm,
-        *,
-        parent_schema: JSONSchema,
-        base_uri: str,
-    ):
+
+    def reduce_schema(self, orig_schema: dict[str, Any], base_uri: str) -> dict[str, Any]:
         types: list[set[str]] = []
         properties: defaultdict[str, list[JSONSchema]] = defaultdict(list)
         required: dict[str, None] = dict() # use a dict for ordered-set behavior
@@ -909,7 +903,7 @@ class GenJson:
                     continue
                 handle_keyword(key, value, schema, base_uri)
 
-        add_schema(parent_schema, base_uri)
+        add_schema(orig_schema, base_uri)
 
         combined_schema: dict[str, Any] = {}
 
@@ -1002,8 +996,19 @@ class GenJson:
 
         assert not set(combined_schema) & set(other_data)
         combined_schema.update(other_data)
+        return combined_schema
 
-        return lm + self.json(json_schema=combined_schema, base_uri=base_uri)
+
+    @guidance(stateless=True)
+    def allOf(
+        self,
+        lm,
+        *,
+        parent_schema: JSONSchema,
+        base_uri: str,
+    ):
+        reduced_schema = self.reduce_schema(parent_schema, base_uri)
+        return lm + self.json(json_schema=reduced_schema, base_uri=base_uri)
 
 
     @guidance(stateless=True)
