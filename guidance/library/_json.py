@@ -778,6 +778,59 @@ class GenJson:
         warnings.warn("oneOf not fully supported, falling back to anyOf. This may cause validation errors in some cases.")
         return lm + self.anyOf(anyof_list=oneof_list, base_uri=base_uri)
 
+    def push_sibling_keys(self, json_schema: JSONSchema) -> JSONSchema:
+        """
+        If sibling keys are present next to anyOf, oneOf, or $ref, we push them down into an allOf.
+        """
+        parent_schema = json_schema.copy()
+        anyof_list = parent_schema.pop(Keyword.ANYOF, [])
+        oneof_list = parent_schema.pop(Keyword.ONEOF, [])
+        allof_list = parent_schema.pop(Keyword.ALLOF, [])
+        ref = parent_schema.pop(Keyword.REF, None)
+
+        common = []
+        if VALID_KEYS.intersection(parent_schema) - set(IGNORED_KEYS):
+            # If there are any sibling keys, we need to push them down into an allOf
+            common.append(parent_schema)
+        if allof_list:
+            common.extend(allof_list)
+        if ref:
+            # TODO: $id / base_uri?
+            common.append({Keyword.REF: ref})
+
+        if anyof_list and oneof_list:
+            return {
+                "oneOf": [
+                    {"allOf": common + [one_item, any_item]}
+                    for one_item in oneof_list
+                    for any_item in anyof_list
+                ],
+            }
+
+        if oneof_list:
+            if not common:
+                return {"oneOf": oneof_list}
+            return {
+                "oneOf": [
+                    {"allOf": common + [one_item]}
+                    for one_item in oneof_list
+                ],
+            }
+
+        if anyof_list:
+            if not common:
+                return {"anyOf": anyof_list}
+            return {
+                "anyOf": [
+                    {"allOf": common + [any_item]}
+                    for any_item in anyof_list
+                ],
+            }
+
+        if len(common) == 1:
+            return common[0]
+
+        return {"allOf": common}
 
     def reduce_schema(self, orig_schema: dict[str, Any], base_uri: str) -> dict[str, Any]:
         types: list[set[str]] = []
@@ -1130,96 +1183,32 @@ class GenJson:
         if json_schema == {}:
             return lm + self.any()
 
-        validate_json_node_keys(json_schema)
-
         if Keyword.ID in json_schema:
             # "cd" into the new base_uri
             base_uri = urijoin(base_uri, json_schema[Keyword.ID])
 
-        if Keyword.ALLOF in json_schema and Keyword.ANYOF in json_schema:
-            parent_schema = json_schema.copy()
-            anyof_list = parent_schema.pop(Keyword.ANYOF)
-            allof_list = parent_schema.pop(Keyword.ALLOF)
-            # Reduce the problem to an anyOf of allOfs
-            return lm + self.anyOf(
-                anyof_list=[
-                    {"allOf": [any_item, *allof_list], **parent_schema}
-                    for any_item in anyof_list
-                ],
-                base_uri=base_uri,
-            )
-
-        if Keyword.ALLOF in json_schema and Keyword.ONEOF in json_schema:
-            parent_schema = json_schema.copy()
-            allof_list = parent_schema.pop(Keyword.ALLOF)
-            oneof_list = parent_schema.pop(Keyword.ONEOF)
-            # Reduce the problem to a oneOf of allOfs
-            return lm + self.oneOf(
-                oneof_list=[
-                    {"allOf": [one_item, *allof_list], **parent_schema}
-                    for one_item in oneof_list
-                ],
-                base_uri=base_uri,
-            )
-
-        if Keyword.ANYOF in json_schema and Keyword.ONEOF in json_schema:
-            parent_schema = json_schema.copy()
-            anyof_list = parent_schema.pop(Keyword.ANYOF)
-            oneof_list = parent_schema.pop(Keyword.ONEOF)
-            assert Keyword.ALLOF not in parent_schema
-            # Reduce the problem to a oneOf of allOfs
-            return lm + self.oneOf(
-                oneof_list=[
-                    {"allOf": [one_item, any_item], **parent_schema}
-                    for any_item in anyof_list
-                    for one_item in oneof_list
-                ],
-                base_uri=base_uri,
-            )
+        validate_json_node_keys(json_schema)
+        json_schema = self.push_sibling_keys(json_schema)
 
         if Keyword.ALLOF in json_schema:
+            sibling_keys = get_sibling_keys(json_schema, Keyword.ALLOF)
+            assert not sibling_keys
             return lm + self.allOf(parent_schema=json_schema, base_uri=base_uri)
 
         if Keyword.ANYOF in json_schema:
             sibling_keys = get_sibling_keys(json_schema, Keyword.ANYOF)
-            if not sibling_keys:
-                return lm + self.anyOf(anyof_list=json_schema[Keyword.ANYOF], base_uri=base_uri)
-            # Let the allOf function handle anyOfs with sibling keys
-            parent_schema = json_schema.copy()
-            anyof_list = parent_schema.pop(Keyword.ANYOF)
-            return lm + self.anyOf(
-                anyof_list=[
-                    {"allOf": [any_item], **parent_schema}
-                    for any_item in anyof_list
-                ],
-                base_uri=base_uri,
-            )
+            assert not sibling_keys
+            return lm + self.anyOf(anyof_list=json_schema[Keyword.ANYOF], base_uri=base_uri)
 
         if Keyword.ONEOF in json_schema:
             sibling_keys = get_sibling_keys(json_schema, Keyword.ONEOF)
-            if not sibling_keys:
-                return lm + self.oneOf(oneof_list=json_schema[Keyword.ONEOF], base_uri=base_uri)
-            # Let the allOf function handle oneOfs with sibling keys
-            parent_schema = json_schema.copy()
-            oneof_list = parent_schema.pop(Keyword.ONEOF)
-            assert Keyword.ALLOF not in parent_schema
-            return lm + self.oneOf(
-                oneof_list=[
-                    {"allOf": [one_item], **parent_schema}
-                    for one_item in oneof_list
-                ],
-                base_uri=base_uri,
-            )
+            assert not sibling_keys
+            return lm + self.oneOf(oneof_list=json_schema[Keyword.ONEOF], base_uri=base_uri)
 
         if Keyword.REF in json_schema:
             sibling_keys = get_sibling_keys(json_schema, Keyword.REF)
-            if not sibling_keys:
-                return lm + self.ref(reference=json_schema[Keyword.REF], base_uri=base_uri)
-            # Let the allOf function handle refs with sibling keys
-            parent_schema = json_schema.copy()
-            ref = parent_schema.pop(Keyword.REF)
-            assert Keyword.ALLOF not in parent_schema
-            return lm + self.allOf(parent_schema={"allOf": [{Keyword.REF: ref}], **parent_schema}, base_uri=base_uri)
+            assert not sibling_keys
+            return lm + self.ref(reference=json_schema[Keyword.REF], base_uri=base_uri)
 
         if Keyword.CONST in json_schema:
             sibling_keys = get_sibling_keys(json_schema, Keyword.CONST) - {Keyword.TYPE, Keyword.ENUM}
