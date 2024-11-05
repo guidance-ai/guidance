@@ -24,7 +24,7 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-from .._schema import EngineCallResponse, GuidanceEngineMetrics, LLInterpreterResponse
+from .._schema import EngineCallResponse, GuidanceEngineMetrics
 from .._utils import softmax, CaptureEvents
 from .._parser import TokenParser
 from .._grammar import (
@@ -153,8 +153,7 @@ class Engine:
 
             # Important: don't wait on this future until after getting the logits;
             # this allows the mask to be built concurrently with model inference
-            mask, ll_response_str = mid_process_fut.result()
-            ll_response = LLInterpreterResponse.model_validate_json(ll_response_str)
+            mask, ll_response = mid_process_fut.result()
 
             engine_response = ll_response.progress.to_engine_call_response()
             yield engine_response

@@ -65,7 +65,7 @@ class TokenParser:
 
     def advance(
         self, token: Optional[int]
-    ) -> tuple[list[int], Future[tuple[Optional[bytes], str]]]:
+    ) -> tuple[list[int], Future[tuple[Optional[bytes], LLInterpreterResponse]]]:
         if self.done():
             raise TokenParserException("Cannot advance on a done parser")
         return self._generator.send(token)
@@ -87,6 +87,11 @@ class TokenParser:
 
         return self.tokenizer.recode(prompt_tokens)
 
+    def mid_process(self) -> tuple[Optional[bytes], LLInterpreterResponse]:
+        mask, ll_response_string = self.ll_interpreter.mid_process()
+        ll_response = LLInterpreterResponse.model_validate_json(ll_response_string)
+        return mask, ll_response
+
     def _parse(
         self,
         prompt: bytes,
@@ -94,7 +99,7 @@ class TokenParser:
     ) -> Generator[
             tuple[
                 list[int],
-                Future[tuple[Optional[bytes], str]],
+                Future[tuple[Optional[bytes], LLInterpreterResponse]],
             ],
             Optional[int],
             None
@@ -103,18 +108,21 @@ class TokenParser:
 
         while True:
             self._has_pending_stop = self.ll_interpreter.has_pending_stop()
-            mid_process_future = self._threadpool.submit(self.ll_interpreter.mid_process)
+            mid_process_future = self._threadpool.submit(self.mid_process)
             token = yield (tokens, mid_process_future)
 
             # Upstairs should have already waited on this future
-            mask, _ = mid_process_future.result()
+            mask, ll_response = mid_process_future.result()
 
-            if mask is None:
+            if ll_response.stop:
+                # This is the only case in which the mask is None
+                assert mask is None
                 if token is not None:
                     raise TokenParserException(f"Expected None, got token {token}")
                 self._done = True
                 break
 
+            assert mask is not None
             if token is None:
                 raise TokenParserException("Expected token, got None")
             if not mask[token]:
@@ -192,8 +200,7 @@ class ByteParser:
 
     def _advance(self, token: Optional[int]) -> None:
         tokens, mid_process_fut = self.token_parser.advance(token)
-        mask, ll_response_string = mid_process_fut.result()
-        ll_response = LLInterpreterResponse.model_validate_json(ll_response_string)
+        mask, ll_response = mid_process_fut.result()
         if ll_response.stop:
             assert mask is None
             self.token_parser.cleanup()
