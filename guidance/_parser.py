@@ -107,6 +107,8 @@ class TokenParser:
         tokens = self._process_prompt(prompt=prompt, ensure_bos_token=ensure_bos_token)
 
         while True:
+            # Note: need to call/set has_pending_stop before spinning up the mid_process future
+            # as the two methods cannot be called concurrently
             self._has_pending_stop = self.ll_interpreter.has_pending_stop()
             mid_process_future = self._threadpool.submit(self.mid_process)
             token = yield (tokens, mid_process_future)
@@ -117,6 +119,7 @@ class TokenParser:
             if ll_response.stop:
                 # This is the only case in which the mask is None
                 assert mask is None
+                # If we're done, our caller should NOT send us a token
                 if token is not None:
                     raise TokenParserException(f"Expected None, got token {token}")
                 self._done = True
@@ -137,6 +140,9 @@ class TokenParser:
             tokens = tokens + ff_tokens
 
     def cleanup(self):
+        # Rather than having our caller send us None at the end, we'll handle that internally
+        # so we can (1) verify that the generator actually stops and (2) check the stop reason
+        # and raise if needed
         if not self.done():
             try:
                 self._generator.send(None)
