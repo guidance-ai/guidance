@@ -1,71 +1,20 @@
 import json
-from functools import partial
-from typing import Any, Set, Union, Optional
+from json import dumps as json_dumps
 
 import pytest
-from jsonschema import validate, ValidationError
-from json import dumps as json_dumps, loads as json_loads
+from jsonschema import ValidationError, validate
 
 from guidance import json as gen_json
 from guidance import models
+from guidance.library._json import IGNORED_KEYS
 
-from guidance.library._json import IGNORED_KEYS, JSONSchema
-
-from ...utils import check_match_failure as _check_match_failure
-from ...utils import check_run_with_temperature
-from ...utils import generate_and_check as _generate_and_check
-
-
-def generate_and_check(
-    target_obj: Any, schema_obj: Union[str, JSONSchema], desired_temperature: Optional[float] = None
-):
-    if isinstance(schema_obj, str):
-        schema_obj = json_loads(schema_obj)
-
-    # Sanity check what we're being asked
-    validate(instance=target_obj, schema=schema_obj)
-    prepared_json = json_dumps(target_obj)
-    assert json.loads(prepared_json) == target_obj
-
-    # Now test that the grammar can recognize and generate prepared_json
-    # We partial in the grammar_callable
-    if desired_temperature is not None:
-        grammar_callable = partial(
-            gen_json, schema=schema_obj, temperature=desired_temperature
-        )
-    else:
-        grammar_callable = partial(gen_json, schema=schema_obj)
-
-    lm = _generate_and_check(
-        grammar_callable,
-        test_string=prepared_json,
-    )
-    check_run_with_temperature(lm, desired_temperature)
-
-
-def check_match_failure(
-    *,
-    bad_string: str,
-    good_bytes: Optional[bytes] = None,
-    failure_byte: Optional[bytes] = None,
-    allowed_bytes: Optional[Set[bytes]] = None,
-    schema_obj: Union[str, JSONSchema],
-):
-    grammar = gen_json(schema=schema_obj)
-
-    _check_match_failure(
-        bad_string=bad_string,
-        good_bytes=good_bytes,
-        failure_byte=failure_byte,
-        allowed_bytes=allowed_bytes,
-        grammar=grammar,
-    )
-
+from .utils import check_match_failure, generate_and_check
 
 # Common sets of allowed_bytes
 INTEGER_LEADING = {b"-", b"0", *{bytes([i]) for i in range(ord("1"), ord("9") + 1)}}
 INTEGER_FOLLOWING = {bytes([i]) for i in range(ord("0"), ord("9") + 1)}
 A_to_Z = {bytes([i]) for i in range(ord("A"), ord("Z") + 1)}
+
 
 def test_null():
     schema = """{"type": "null" }"""
@@ -181,6 +130,7 @@ class TestNumber:
             schema_obj=schema_obj,
         )
 
+
 class TestBoundedNumeric:
     @pytest.mark.parametrize(
         "instance, schema, should_pass",
@@ -190,11 +140,15 @@ class TestBoundedNumeric:
             (-5, {"type": "integer", "minimum": -5}, True),
             pytest.param(
                 *(5.0, {"type": "integer", "minimum": 5}, True),
-                marks=pytest.mark.xfail(reason="JSON technically allows trailing zeroes, but we currently don't")
+                marks=pytest.mark.xfail(
+                    reason="JSON technically allows trailing zeroes, but we currently don't"
+                ),
             ),
             pytest.param(
                 *(-5.0, {"type": "integer", "minimum": -5}, True),
-                marks=pytest.mark.xfail(reason="JSON technically allows trailing zeroes, but we currently don't")
+                marks=pytest.mark.xfail(
+                    reason="JSON technically allows trailing zeroes, but we currently don't"
+                ),
             ),
             (5.1, {"type": "integer", "minimum": 5}, False),
             (-5.1, {"type": "integer", "minimum": -5}, False),
@@ -254,7 +208,11 @@ class TestBoundedNumeric:
             (5.1, {"type": "number", "exclusiveMinimum": 5.0, "exclusiveMaximum": 10.0}, True),
             (-9.9, {"type": "number", "exclusiveMinimum": -10.0, "exclusiveMaximum": -5.0}, True),
             (5.0, {"type": "number", "exclusiveMinimum": 5.0, "exclusiveMaximum": 10.0}, False),
-            (-10.0, {"type": "number", "exclusiveMinimum": -10.0, "exclusiveMaximum": -5.0}, False),
+            (
+                -10.0,
+                {"type": "number", "exclusiveMinimum": -10.0, "exclusiveMaximum": -5.0},
+                False,
+            ),
             (9.9, {"type": "number", "exclusiveMinimum": 5.0, "exclusiveMaximum": 10.0}, True),
             (-5.1, {"type": "number", "exclusiveMinimum": -10.0, "exclusiveMaximum": -5.0}, True),
             # --- Edge cases ---
@@ -295,10 +253,10 @@ class TestBoundedNumeric:
             (0.2999, {"type": "number", "minimum": 0.1, "maximum": 0.3}, True),
             (-0.2999, {"type": "number", "minimum": -0.3, "maximum": -0.1}, True),
             (0.0999, {"type": "number", "minimum": 0.1, "maximum": 0.3}, False),
-            (-0.0999, {"type": "number", "minimum": -.3, "maximum": -0.1}, False),
+            (-0.0999, {"type": "number", "minimum": -0.3, "maximum": -0.1}, False),
             (0.3001, {"type": "number", "minimum": 0.1, "maximum": 0.3}, False),
             (-0.3001, {"type": "number", "minimum": -0.3, "maximum": -0.1}, False),
-        ]
+        ],
     )
     def test_numeric_validation(self, instance, schema, should_pass):
         # Sanity check
@@ -308,10 +266,7 @@ class TestBoundedNumeric:
         else:
             with pytest.raises(ValidationError):
                 validate(instance, schema=schema)
-            check_match_failure(
-                bad_string=json_dumps(instance),
-                schema_obj=schema
-            )
+            check_match_failure(bad_string=json_dumps(instance), schema_obj=schema)
 
 
 class TestString:
@@ -392,9 +347,7 @@ class TestString:
             schema_obj=schema_obj,
         )
 
-    @pytest.mark.parametrize(
-        "string", ["aA\u001f", '"""']
-    )
+    @pytest.mark.parametrize("string", ["aA\u001f", '"""'])
     def test_regex_properly_escaped_good(self, string):
         schema_obj = {"type": "string", "pattern": r".{3}"}
         # First sanity check what we're setting up
@@ -407,13 +360,15 @@ class TestString:
         [
             (
                 '"\\u001f\\u001f\u001f',
-                b'"\\u001f\\u001f', # able to match the first two stringified bytes
-                '\u001f'.encode(), # fails on a literal \x1f byte
-                None # hard to write a set of allowed bytes here
+                b'"\\u001f\\u001f',  # able to match the first two stringified bytes
+                "\u001f".encode(),  # fails on a literal \x1f byte
+                None,  # hard to write a set of allowed bytes here
             ),
         ],
     )
-    def test_regex_properly_escaped_bad(self, bad_string: str, good_bytes, failure_byte, allowed_bytes):
+    def test_regex_properly_escaped_bad(
+        self, bad_string: str, good_bytes, failure_byte, allowed_bytes
+    ):
         # Note that the strings being fed in include the double quotes required
         # to make them JSON strings
         schema_obj = {"type": "string", "pattern": r".{3}"}
@@ -424,7 +379,6 @@ class TestString:
             allowed_bytes=allowed_bytes,
             schema_obj=schema_obj,
         )
-
 
     @pytest.mark.parametrize(
         "my_string", ["a", "bb", "ccc", "150", ",?", ".\t\n", "(){", "aA7", "\\9O"]
@@ -724,28 +678,37 @@ class TestObjectWithMissingRequired:
         generate_and_check({"b": 1}, schema)
         generate_and_check({"a": 1, "b": "xyz"}, schema)
         check_match_failure(
-            bad_string=json_dumps(
-                {"a": 1}
-            ),
+            bad_string=json_dumps({"a": 1}),
             schema_obj=schema,
         )
 
     def test_validated_against_additionalProperties(self):
-        schema = {"type": "object", "properties": {"a": {"type": "integer"}}, "required": ["b"], "additionalProperties": {"type": "integer"}}
+        schema = {
+            "type": "object",
+            "properties": {"a": {"type": "integer"}},
+            "required": ["b"],
+            "additionalProperties": {"type": "integer"},
+        }
         generate_and_check({"b": 1}, schema)
         generate_and_check({"a": 1, "b": 42}, schema)
         check_match_failure(
-            bad_string=json_dumps(
-                {"a": 1, "b": "string"}
-            ),
+            bad_string=json_dumps({"a": 1, "b": "string"}),
             schema_obj=schema,
         )
 
     def test_false_additionalProperties_fails(self):
-        schema = {"type": "object", "properties": {"a": {"type": "integer"}}, "required": ["b", "c"], "additionalProperties": False}
+        schema = {
+            "type": "object",
+            "properties": {"a": {"type": "integer"}},
+            "required": ["b", "c"],
+            "additionalProperties": False,
+        }
         with pytest.raises(ValueError) as ve:
             _ = gen_json(schema=schema)
-        assert ve.value.args[0] == "Required properties not in properties but additionalProperties is False. Missing required properties: ['b', 'c']"
+        assert (
+            ve.value.args[0]
+            == "Required properties not in properties but additionalProperties is False. Missing required properties: ['b', 'c']"
+        )
 
 
 class TestSimpleArray:
@@ -810,7 +773,6 @@ class TestSimpleArray:
 
         # The actual check
         generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
-
 
     @pytest.mark.parametrize(
         ["bad_string", "good_bytes", "failure_byte", "allowed_bytes"],
@@ -921,7 +883,6 @@ class TestArrayWithLengthConstraints:
         }
         generate_and_check(target_obj, schema_obj)
 
-
     @pytest.mark.parametrize(
         "min_items, max_items, bad_obj, good_bytes, failure_byte, allowed_bytes",
         [
@@ -1002,7 +963,6 @@ class TestArrayWithLengthConstraints:
             schema_obj=schema_obj,
         )
 
-
     @pytest.mark.parametrize(
         "min_items, max_items, bad_obj, good_bytes, failure_byte, allowed_bytes",
         [
@@ -1067,7 +1027,6 @@ class TestArrayWithLengthConstraints:
             schema_obj=schema_obj,
         )
 
-
     @pytest.mark.parametrize(
         "min_items, max_items, bad_obj, good_bytes, failure_byte, allowed_bytes",
         [
@@ -1122,981 +1081,6 @@ class TestArrayWithLengthConstraints:
             allowed_bytes=allowed_bytes,
             schema_obj=schema_obj,
         )
-
-
-class TestRefs:
-    @pytest.mark.parametrize(
-        ["test_object", "valid"],
-        [
-            # match
-            ({"foo": False}, True),
-            # recursive match
-            ({"foo": {"foo": False}}, True),
-            # mismatch
-            ({"bar": False}, False),
-            # recursive mismatch
-            ({"foo": {"bar": False}}, False),
-        ],
-    )
-    def test_root_pointer_ref(self, test_object, valid):
-        schema = {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "properties": {"foo": {"$ref": "#"}},
-            "additionalProperties": False,
-        }
-        if valid:
-            validate(instance=test_object, schema=schema)
-            generate_and_check(test_object, schema)
-        else:
-            with pytest.raises(ValidationError):
-                validate(instance=test_object, schema=schema)
-            check_match_failure(bad_string=json_dumps(test_object), schema_obj=schema)
-
-    @pytest.mark.parametrize(
-        ["test_object", "valid"],
-        [
-            # match
-            ({"bar": 3}, True),
-            # mismatch
-            ({"bar": True}, False),
-        ],
-    )
-    def test_relative_pointer_ref_to_object(self, test_object, valid):
-        schema = {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "properties": {"foo": {"type": "integer"}, "bar": {"$ref": "#/properties/foo"}},
-        }
-        if valid:
-            validate(instance=test_object, schema=schema)
-            generate_and_check(test_object, schema)
-        else:
-            with pytest.raises(ValidationError):
-                validate(instance=test_object, schema=schema)
-            check_match_failure(bad_string=json_dumps(test_object), schema_obj=schema)
-
-    @pytest.mark.parametrize(
-        ["test_object", "valid"],
-        [
-            # match array
-            ([1, 2], True),
-            # mismatch array
-            ([1, "foo"], False),
-        ],
-    )
-    def test_relative_pointer_ref_to_array(self, test_object, valid):
-        schema = {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "prefixItems": [{"type": "integer"}, {"$ref": "#/prefixItems/0"}],
-        }
-        if valid:
-            validate(instance=test_object, schema=schema)
-            generate_and_check(test_object, schema)
-        else:
-            with pytest.raises(ValidationError):
-                validate(instance=test_object, schema=schema)
-            check_match_failure(bad_string=json_dumps(test_object), schema_obj=schema)
-
-    @pytest.mark.parametrize(
-        ["test_object", "valid"],
-        [
-            # slash invalid
-            ({"slash": "aoeu"}, False),
-            # tilde invalid
-            ({"tilde": "aoeu"}, False),
-            # percent invalid
-            ({"percent": "aoeu"}, False),
-            # slash valid
-            ({"slash": 123}, True),
-            # tilde valid
-            ({"tilde": 123}, True),
-            # percent valid
-            ({"percent": 123}, True),
-        ],
-    )
-    def test_escaped_pointer_ref(self, test_object, valid):
-        schema = {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "$defs": {
-                "tilde~field": {"type": "integer"},
-                "slash/field": {"type": "integer"},
-                "percent%field": {"type": "integer"},
-            },
-            "properties": {
-                "tilde": {"$ref": "#/$defs/tilde~0field"},
-                "slash": {"$ref": "#/$defs/slash~1field"},
-                "percent": {"$ref": "#/$defs/percent%25field"},
-            },
-        }
-        if valid:
-            validate(instance=test_object, schema=schema)
-            generate_and_check(test_object, schema)
-        else:
-            with pytest.raises(ValidationError):
-                validate(instance=test_object, schema=schema)
-            check_match_failure(bad_string=json_dumps(test_object), schema_obj=schema)
-
-    @pytest.mark.parametrize(
-        ["test_object", "valid"],
-        [
-            # nested ref valid
-            (5, True),
-            # nested ref invalid
-            ("a", False),
-        ],
-    )
-    def test_nested_refs(self, test_object, valid):
-        schema = {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "$defs": {
-                "a": {"type": "integer"},
-                "b": {"$ref": "#/$defs/a"},
-                "c": {"$ref": "#/$defs/b"},
-            },
-            "$ref": "#/$defs/c",
-        }
-        if valid:
-            validate(instance=test_object, schema=schema)
-            generate_and_check(test_object, schema)
-        else:
-            with pytest.raises(ValidationError):
-                validate(instance=test_object, schema=schema)
-            check_match_failure(bad_string=json_dumps(test_object), schema_obj=schema)
-
-    @pytest.mark.parametrize(
-        ["test_object", "valid"],
-        [
-            # ref valid, maxItems valid
-            ({"foo": []}, True),
-            # ref valid, maxItems invalid
-            ({"foo": [1, 2, 3]}, False),
-            # ref invalid
-            ({"foo": "string"}, False),
-        ],
-    )
-    @pytest.mark.xfail(reason="sibling keywords to ref are not yet supported")
-    def test_ref_applies_alongside_sibling_keywords(self, test_object, valid):
-        schema = {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "$defs": {"reffed": {"type": "array"}},
-            "properties": {"foo": {"$ref": "#/$defs/reffed", "maxItems": 2}},
-        }
-        if valid:
-            validate(instance=test_object, schema=schema)
-            generate_and_check(test_object, schema)
-        else:
-            with pytest.raises(ValidationError):
-                validate(instance=test_object, schema=schema)
-            check_match_failure(bad_string=json_dumps(test_object), schema_obj=schema)
-
-    @pytest.mark.parametrize(
-        ["test_object", "valid"],
-        [
-            # remote ref valid
-            ({"minLength": 1}, True),
-            # remote ref invalid
-            ({"minLength": -1}, False),
-        ],
-    )
-    @pytest.mark.xfail(reason="Remote refs are not supported")
-    def test_remote_ref_containing_refs_itself(self, test_object, valid):
-        schema = {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "$ref": "https://json-schema.org/draft/2020-12/schema",
-        }
-        if valid:
-            validate(instance=test_object, schema=schema)
-            generate_and_check(test_object, schema)
-        else:
-            with pytest.raises(ValidationError):
-                validate(instance=test_object, schema=schema)
-            check_match_failure(bad_string=json_dumps(test_object), schema_obj=schema)
-
-    @pytest.mark.parametrize(
-        ["test_object", "valid"],
-        [
-            # property named $ref valid
-            ({"$ref": "a"}, True),
-            # property named $ref invalid
-            ({"$ref": 2}, False),
-        ],
-    )
-    def test_property_named_ref_that_is_not_a_reference(self, test_object, valid):
-        schema = {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "properties": {"$ref": {"type": "string"}},
-        }
-        if valid:
-            validate(instance=test_object, schema=schema)
-            generate_and_check(test_object, schema)
-        else:
-            with pytest.raises(ValidationError):
-                validate(instance=test_object, schema=schema)
-            check_match_failure(bad_string=json_dumps(test_object), schema_obj=schema)
-
-    @pytest.mark.parametrize(
-        ["test_object", "valid"],
-        [
-            # property named $ref valid
-            ({"$ref": "a"}, True),
-            # property named $ref invalid
-            ({"$ref": 2}, False),
-        ],
-    )
-    def test_property_named_ref_containing_an_actual_ref(self, test_object, valid):
-        schema = {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "properties": {"$ref": {"$ref": "#/$defs/is-string"}},
-            "$defs": {"is-string": {"type": "string"}},
-        }
-        if valid:
-            validate(instance=test_object, schema=schema)
-            generate_and_check(test_object, schema)
-        else:
-            with pytest.raises(ValidationError):
-                validate(instance=test_object, schema=schema)
-            check_match_failure(bad_string=json_dumps(test_object), schema_obj=schema)
-
-    @pytest.mark.parametrize(
-        ["test_object", "valid"],
-        [
-            # any value is valid
-            ("foo", True)
-        ],
-    )
-    def test_ref_to_boolean_schema_true(self, test_object, valid):
-        schema = {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "$ref": "#/$defs/bool",
-            "$defs": {"bool": True},
-        }
-        if valid:
-            validate(instance=test_object, schema=schema)
-            generate_and_check(test_object, schema)
-        else:
-            with pytest.raises(ValidationError):
-                validate(instance=test_object, schema=schema)
-            check_match_failure(bad_string=json_dumps(test_object), schema_obj=schema)
-
-    @pytest.mark.parametrize(
-        ["test_object", "valid"],
-        [
-            # any value is invalid
-            ("foo", False)
-        ],
-    )
-    @pytest.mark.xfail(reason="false schema is not implemented")
-    def test_ref_to_boolean_schema_false(self, test_object, valid):
-        schema = {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "$ref": "#/$defs/bool",
-            "$defs": {"bool": False},
-        }
-        if valid:
-            validate(instance=test_object, schema=schema)
-            generate_and_check(test_object, schema)
-        else:
-            with pytest.raises(ValidationError):
-                validate(instance=test_object, schema=schema)
-            check_match_failure(bad_string=json_dumps(test_object), schema_obj=schema)
-
-    @pytest.mark.parametrize(
-        ["test_object", "valid"],
-        [
-            # valid tree
-            (
-                {
-                    "meta": "root",
-                    "nodes": [
-                        {
-                            "value": 1,
-                            "subtree": {
-                                "meta": "child",
-                                "nodes": [{"value": 1.1}, {"value": 1.2}],
-                            },
-                        },
-                        {
-                            "value": 2,
-                            "subtree": {
-                                "meta": "child",
-                                "nodes": [{"value": 2.1}, {"value": 2.2}],
-                            },
-                        },
-                    ],
-                },
-                True,
-            ),
-            # invalid tree
-            (
-                {
-                    "meta": "root",
-                    "nodes": [
-                        {
-                            "value": 1,
-                            "subtree": {
-                                "meta": "child",
-                                "nodes": [{"value": "string is invalid"}, {"value": 1.2}],
-                            },
-                        },
-                        {
-                            "value": 2,
-                            "subtree": {
-                                "meta": "child",
-                                "nodes": [{"value": 2.1}, {"value": 2.2}],
-                            },
-                        },
-                    ],
-                },
-                False,
-            ),
-        ],
-    )
-    def test_Recursive_references_between_schemas(self, test_object, valid):
-        schema = {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "$id": "http://localhost:1234/draft2020-12/tree",
-            "description": "tree of nodes",
-            "type": "object",
-            "properties": {
-                "meta": {"type": "string"},
-                "nodes": {"type": "array", "items": {"$ref": "node"}},
-            },
-            "required": ["meta", "nodes"],
-            "$defs": {
-                "node": {
-                    "$id": "http://localhost:1234/draft2020-12/node",
-                    "description": "node",
-                    "type": "object",
-                    "properties": {"value": {"type": "number"}, "subtree": {"$ref": "tree"}},
-                    "required": ["value"],
-                }
-            },
-        }
-        if valid:
-            validate(instance=test_object, schema=schema)
-            generate_and_check(test_object, schema)
-        else:
-            with pytest.raises(ValidationError):
-                validate(instance=test_object, schema=schema)
-            check_match_failure(bad_string=json_dumps(test_object), schema_obj=schema)
-
-    @pytest.mark.parametrize(
-        ["test_object", "valid"],
-        [
-            # object with numbers is valid
-            ({'foo"bar': 1}, True),
-            # object with strings is invalid
-            ({'foo"bar': "1"}, False),
-        ],
-    )
-    def test_refs_with_quote(self, test_object, valid):
-        schema = {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "properties": {'foo"bar': {"$ref": "#/$defs/foo%22bar"}},
-            "$defs": {'foo"bar': {"type": "number"}},
-        }
-        if valid:
-            validate(instance=test_object, schema=schema)
-            generate_and_check(test_object, schema)
-        else:
-            with pytest.raises(ValidationError):
-                validate(instance=test_object, schema=schema)
-            check_match_failure(bad_string=json_dumps(test_object), schema_obj=schema)
-
-    @pytest.mark.parametrize(
-        ["test_object", "valid"],
-        [
-            # referenced subschema doesn't see annotations from properties
-            ({"prop1": "match"}, False)
-        ],
-    )
-    @pytest.mark.xfail(reason="unevaluatedProperties is not implemented")
-    def test_ref_creates_new_scope_when_adjacent_to_keywords(self, test_object, valid):
-        schema = {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "$defs": {"A": {"unevaluatedProperties": False}},
-            "properties": {"prop1": {"type": "string"}},
-            "$ref": "#/$defs/A",
-        }
-        if valid:
-            validate(instance=test_object, schema=schema)
-            generate_and_check(test_object, schema)
-        else:
-            with pytest.raises(ValidationError):
-                validate(instance=test_object, schema=schema)
-            check_match_failure(bad_string=json_dumps(test_object), schema_obj=schema)
-
-    @pytest.mark.parametrize(
-        ["test_object", "valid"],
-        [
-            # do not evaluate the $ref inside the enum, matching any string
-            ("this is a string", False),
-            # do not evaluate the $ref inside the enum, definition exact match
-            ({"type": "string"}, False),
-            # match the enum exactly
-            ({"$ref": "#/$defs/a_string"}, True),
-        ],
-    )
-    def test_naive_replacement_of_ref_with_its_destination_is_not_correct(
-        self, test_object, valid
-    ):
-        schema = {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "$defs": {"a_string": {"type": "string"}},
-            "enum": [{"$ref": "#/$defs/a_string"}],
-        }
-        if valid:
-            validate(instance=test_object, schema=schema)
-            generate_and_check(test_object, schema)
-        else:
-            with pytest.raises(ValidationError):
-                validate(instance=test_object, schema=schema)
-            check_match_failure(bad_string=json_dumps(test_object), schema_obj=schema)
-
-    @pytest.mark.parametrize(
-        ["test_object", "valid"],
-        [
-            # invalid on inner field
-            ({"foo": {"bar": 1}, "bar": "a"}, False),
-            # invalid on outer field
-            ({"foo": {"bar": "a"}, "bar": 1}, False),
-            # valid on both fields
-            ({"foo": {"bar": "a"}, "bar": "a"}, True),
-        ],
-    )
-    @pytest.mark.xfail(reason="refs with sibling keywords are not yet supported")
-    def test_refs_with_relative_uris_and_defs(self, test_object, valid):
-        schema = {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "$id": "http://example.com/schema-relative-uri-defs1.json",
-            "properties": {
-                "foo": {
-                    "$id": "schema-relative-uri-defs2.json",
-                    "$defs": {"inner": {"properties": {"bar": {"type": "string"}}}},
-                    "$ref": "#/$defs/inner",
-                }
-            },
-            "$ref": "schema-relative-uri-defs2.json",
-        }
-        if valid:
-            validate(instance=test_object, schema=schema)
-            generate_and_check(test_object, schema)
-        else:
-            with pytest.raises(ValidationError):
-                validate(instance=test_object, schema=schema)
-            check_match_failure(bad_string=json_dumps(test_object), schema_obj=schema)
-
-    @pytest.mark.parametrize(
-        ["test_object", "valid"],
-        [
-            # invalid on inner field
-            ({"foo": {"bar": 1}, "bar": "a"}, False),
-            # invalid on outer field
-            ({"foo": {"bar": "a"}, "bar": 1}, False),
-            # valid on both fields
-            ({"foo": {"bar": "a"}, "bar": "a"}, True),
-        ],
-    )
-    @pytest.mark.xfail(reason="refs with sibling keywords are not yet supported")
-    def test_relative_refs_with_absolute_uris_and_defs(self, test_object, valid):
-        schema = {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "$id": "http://example.com/schema-refs-absolute-uris-defs1.json",
-            "properties": {
-                "foo": {
-                    "$id": "http://example.com/schema-refs-absolute-uris-defs2.json",
-                    "$defs": {"inner": {"properties": {"bar": {"type": "string"}}}},
-                    "$ref": "#/$defs/inner",
-                }
-            },
-            "$ref": "schema-refs-absolute-uris-defs2.json",
-        }
-        if valid:
-            validate(instance=test_object, schema=schema)
-            generate_and_check(test_object, schema)
-        else:
-            with pytest.raises(ValidationError):
-                validate(instance=test_object, schema=schema)
-            check_match_failure(bad_string=json_dumps(test_object), schema_obj=schema)
-
-    @pytest.mark.parametrize(
-        ["test_object", "valid"],
-        [
-            # number is valid
-            (1, True),
-            # non-number is invalid
-            ("a", False),
-        ],
-    )
-    def test_id_must_be_resolved_against_nearest_parent_not_just_immediate_parent(
-        self, test_object, valid
-    ):
-        schema = {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "$id": "http://example.com/a.json",
-            "$defs": {
-                "x": {
-                    "$id": "http://example.com/b/c.json",
-                    "not": {"$defs": {"y": {"$id": "d.json", "type": "number"}}},
-                }
-            },
-            "allOf": [{"$ref": "http://example.com/b/d.json"}],
-        }
-        if valid:
-            validate(instance=test_object, schema=schema)
-            generate_and_check(test_object, schema)
-        else:
-            with pytest.raises(ValidationError):
-                validate(instance=test_object, schema=schema)
-            check_match_failure(bad_string=json_dumps(test_object), schema_obj=schema)
-
-    @pytest.mark.parametrize(
-        ["test_object", "valid"],
-        [
-            # data is valid against first definition
-            (5, True),
-            # data is invalid against first definition
-            (50, False),
-        ],
-    )
-    def test_order_of_evaluation_id_and_ref(self, test_object, valid):
-        schema = {
-            "$comment": "$id must be evaluated before $ref to get the proper $ref destination",
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "$id": "https://example.com/draft2020-12/ref-and-id1/base.json",
-            "$ref": "int.json",
-            "$defs": {
-                "bigint": {
-                    "$comment": "canonical uri: https://example.com/ref-and-id1/int.json",
-                    "$id": "int.json",
-                    "maximum": 10,
-                },
-                "smallint": {
-                    "$comment": "canonical uri: https://example.com/ref-and-id1-int.json",
-                    "$id": "/draft2020-12/ref-and-id1-int.json",
-                    "maximum": 2,
-                },
-            },
-        }
-        if valid:
-            validate(instance=test_object, schema=schema)
-            generate_and_check(test_object, schema)
-        else:
-            with pytest.raises(ValidationError):
-                validate(instance=test_object, schema=schema)
-            check_match_failure(bad_string=json_dumps(test_object), schema_obj=schema)
-
-    @pytest.mark.parametrize(
-        ["test_object", "valid"],
-        [
-            # data is valid against first definition
-            (5, True),
-            # data is invalid against first definition
-            (50, False),
-        ],
-    )
-    def test_order_of_evaluation_id_and_anchor_and_ref(self, test_object, valid):
-        schema = {
-            "$comment": "$id must be evaluated before $ref to get the proper $ref destination",
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "$id": "https://example.com/draft2020-12/ref-and-id2/base.json",
-            "$ref": "#bigint",
-            "$defs": {
-                "bigint": {
-                    "$comment": "canonical uri: /ref-and-id2/base.json#/$defs/bigint; another valid uri for this location: /ref-and-id2/base.json#bigint",
-                    "$anchor": "bigint",
-                    "maximum": 10,
-                },
-                "smallint": {
-                    "$comment": "canonical uri: https://example.com/ref-and-id2#/$defs/smallint; another valid uri for this location: https://example.com/ref-and-id2/#bigint",
-                    "$id": "https://example.com/draft2020-12/ref-and-id2/",
-                    "$anchor": "bigint",
-                    "maximum": 2,
-                },
-            },
-        }
-        if valid:
-            validate(instance=test_object, schema=schema)
-            generate_and_check(test_object, schema)
-        else:
-            with pytest.raises(ValidationError):
-                validate(instance=test_object, schema=schema)
-            check_match_failure(bad_string=json_dumps(test_object), schema_obj=schema)
-
-    @pytest.mark.parametrize(
-        ["test_object", "valid"],
-        [
-            # valid under the URN IDed schema
-            ({"foo": 37}, True),
-            # invalid under the URN IDed schema
-            ({"foo": 12}, False),
-        ],
-    )
-    def test_simple_URN_base_URI_with_ref_via_the_URN(self, test_object, valid):
-        schema = {
-            "$comment": "URIs do not have to have HTTP(s) schemes",
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "$id": "urn:uuid:deadbeef-1234-ffff-ffff-4321feebdaed",
-            "minimum": 30,
-            "properties": {"foo": {"$ref": "urn:uuid:deadbeef-1234-ffff-ffff-4321feebdaed"}},
-        }
-        if valid:
-            validate(instance=test_object, schema=schema)
-            generate_and_check(test_object, schema)
-        else:
-            with pytest.raises(ValidationError):
-                validate(instance=test_object, schema=schema)
-            check_match_failure(bad_string=json_dumps(test_object), schema_obj=schema)
-
-    @pytest.mark.parametrize(
-        ["test_object", "valid"],
-        [
-            # a string is valid
-            ({"foo": "bar"}, True),
-            # a non-string is invalid
-            ({"foo": 12}, False),
-        ],
-    )
-    def test_simple_URN_base_URI_with_JSON_pointer(self, test_object, valid):
-        schema = {
-            "$comment": "URIs do not have to have HTTP(s) schemes",
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "$id": "urn:uuid:deadbeef-1234-00ff-ff00-4321feebdaed",
-            "properties": {"foo": {"$ref": "#/$defs/bar"}},
-            "$defs": {"bar": {"type": "string"}},
-        }
-        if valid:
-            validate(instance=test_object, schema=schema)
-            generate_and_check(test_object, schema)
-        else:
-            with pytest.raises(ValidationError):
-                validate(instance=test_object, schema=schema)
-            check_match_failure(bad_string=json_dumps(test_object), schema_obj=schema)
-
-    @pytest.mark.parametrize(
-        ["test_object", "valid"],
-        [
-            # a string is valid
-            ({"foo": "bar"}, True),
-            # a non-string is invalid
-            ({"foo": 12}, False),
-        ],
-    )
-    def test_URN_base_URI_with_NSS(self, test_object, valid):
-        schema = {
-            "$comment": "RFC 8141 §2.2",
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "$id": "urn:example:1/406/47452/2",
-            "properties": {"foo": {"$ref": "#/$defs/bar"}},
-            "$defs": {"bar": {"type": "string"}},
-        }
-        if valid:
-            validate(instance=test_object, schema=schema)
-            generate_and_check(test_object, schema)
-        else:
-            with pytest.raises(ValidationError):
-                validate(instance=test_object, schema=schema)
-            check_match_failure(bad_string=json_dumps(test_object), schema_obj=schema)
-
-    @pytest.mark.parametrize(
-        ["test_object", "valid"],
-        [
-            # a string is valid
-            ({"foo": "bar"}, True),
-            # a non-string is invalid
-            ({"foo": 12}, False),
-        ],
-    )
-    def test_URN_base_URI_with_r_component(self, test_object, valid):
-        schema = {
-            "$comment": "RFC 8141 §2.3.1",
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "$id": "urn:example:foo-bar-baz-qux?+CCResolve:cc=uk",
-            "properties": {"foo": {"$ref": "#/$defs/bar"}},
-            "$defs": {"bar": {"type": "string"}},
-        }
-        if valid:
-            validate(instance=test_object, schema=schema)
-            generate_and_check(test_object, schema)
-        else:
-            with pytest.raises(ValidationError):
-                validate(instance=test_object, schema=schema)
-            check_match_failure(bad_string=json_dumps(test_object), schema_obj=schema)
-
-    @pytest.mark.parametrize(
-        ["test_object", "valid"],
-        [
-            # a string is valid
-            ({"foo": "bar"}, True),
-            # a non-string is invalid
-            ({"foo": 12}, False),
-        ],
-    )
-    def test_URN_base_URI_with_q_component(self, test_object, valid):
-        schema = {
-            "$comment": "RFC 8141 §2.3.2",
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "$id": "urn:example:weather?=op=map&lat=39.56&lon=-104.85&datetime=1969-07-21T02:56:15Z",
-            "properties": {"foo": {"$ref": "#/$defs/bar"}},
-            "$defs": {"bar": {"type": "string"}},
-        }
-        if valid:
-            validate(instance=test_object, schema=schema)
-            generate_and_check(test_object, schema)
-        else:
-            with pytest.raises(ValidationError):
-                validate(instance=test_object, schema=schema)
-            check_match_failure(bad_string=json_dumps(test_object), schema_obj=schema)
-
-    @pytest.mark.parametrize(
-        ["test_object", "valid"],
-        [
-            # a string is valid
-            ({"foo": "bar"}, True),
-            # a non-string is invalid
-            ({"foo": 12}, False),
-        ],
-    )
-    def test_URN_base_URI_with_URN_and_JSON_pointer_ref(self, test_object, valid):
-        schema = {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "$id": "urn:uuid:deadbeef-1234-0000-0000-4321feebdaed",
-            "properties": {
-                "foo": {"$ref": "urn:uuid:deadbeef-1234-0000-0000-4321feebdaed#/$defs/bar"}
-            },
-            "$defs": {"bar": {"type": "string"}},
-        }
-        if valid:
-            validate(instance=test_object, schema=schema)
-            generate_and_check(test_object, schema)
-        else:
-            with pytest.raises(ValidationError):
-                validate(instance=test_object, schema=schema)
-            check_match_failure(bad_string=json_dumps(test_object), schema_obj=schema)
-
-    @pytest.mark.parametrize(
-        ["test_object", "valid"],
-        [
-            # a string is valid
-            ({"foo": "bar"}, True),
-            # a non-string is invalid
-            ({"foo": 12}, False),
-        ],
-    )
-    def test_URN_base_URI_with_URN_and_anchor_ref(self, test_object, valid):
-        schema = {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "$id": "urn:uuid:deadbeef-1234-ff00-00ff-4321feebdaed",
-            "properties": {
-                "foo": {"$ref": "urn:uuid:deadbeef-1234-ff00-00ff-4321feebdaed#something"}
-            },
-            "$defs": {"bar": {"$anchor": "something", "type": "string"}},
-        }
-        if valid:
-            validate(instance=test_object, schema=schema)
-            generate_and_check(test_object, schema)
-        else:
-            with pytest.raises(ValidationError):
-                validate(instance=test_object, schema=schema)
-            check_match_failure(bad_string=json_dumps(test_object), schema_obj=schema)
-
-    @pytest.mark.parametrize(
-        ["test_object", "valid"],
-        [
-            # a string is valid
-            ("bar", True),
-            # a non-string is invalid
-            (12, False),
-        ],
-    )
-    def test_URN_ref_with_nested_pointer_ref(self, test_object, valid):
-        schema = {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "$ref": "urn:uuid:deadbeef-4321-ffff-ffff-1234feebdaed",
-            "$defs": {
-                "foo": {
-                    "$id": "urn:uuid:deadbeef-4321-ffff-ffff-1234feebdaed",
-                    "$defs": {"bar": {"type": "string"}},
-                    "$ref": "#/$defs/bar",
-                }
-            },
-        }
-        if valid:
-            validate(instance=test_object, schema=schema)
-            generate_and_check(test_object, schema)
-        else:
-            with pytest.raises(ValidationError):
-                validate(instance=test_object, schema=schema)
-            check_match_failure(bad_string=json_dumps(test_object), schema_obj=schema)
-
-    @pytest.mark.parametrize(
-        ["test_object", "valid"],
-        [
-            # a non-integer is invalid due to the $ref
-            ("foo", False),
-            # an integer is valid
-            (12, True),
-        ],
-    )
-    @pytest.mark.xfail(reason="if not implemented")
-    def test_ref_to_if(self, test_object, valid):
-        schema = {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "$ref": "http://example.com/ref/if",
-            "if": {"$id": "http://example.com/ref/if", "type": "integer"},
-        }
-        if valid:
-            validate(instance=test_object, schema=schema)
-            generate_and_check(test_object, schema)
-        else:
-            with pytest.raises(ValidationError):
-                validate(instance=test_object, schema=schema)
-            check_match_failure(bad_string=json_dumps(test_object), schema_obj=schema)
-
-    @pytest.mark.parametrize(
-        ["test_object", "valid"],
-        [
-            # a non-integer is invalid due to the $ref
-            ("foo", False),
-            # an integer is valid
-            (12, True),
-        ],
-    )
-    @pytest.mark.xfail(reason="then not implemented")
-    def test_ref_to_then(self, test_object, valid):
-        schema = {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "$ref": "http://example.com/ref/then",
-            "then": {"$id": "http://example.com/ref/then", "type": "integer"},
-        }
-        if valid:
-            validate(instance=test_object, schema=schema)
-            generate_and_check(test_object, schema)
-        else:
-            with pytest.raises(ValidationError):
-                validate(instance=test_object, schema=schema)
-            check_match_failure(bad_string=json_dumps(test_object), schema_obj=schema)
-
-    @pytest.mark.parametrize(
-        ["test_object", "valid"],
-        [
-            # a non-integer is invalid due to the $ref
-            ("foo", False),
-            # an integer is valid
-            (12, True),
-        ],
-    )
-    @pytest.mark.xfail(reason="else not implemented")
-    def test_ref_to_else(self, test_object, valid):
-        schema = {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "$ref": "http://example.com/ref/else",
-            "else": {"$id": "http://example.com/ref/else", "type": "integer"},
-        }
-        if valid:
-            validate(instance=test_object, schema=schema)
-            generate_and_check(test_object, schema)
-        else:
-            with pytest.raises(ValidationError):
-                validate(instance=test_object, schema=schema)
-            check_match_failure(bad_string=json_dumps(test_object), schema_obj=schema)
-
-    @pytest.mark.parametrize(
-        ["test_object", "valid"],
-        [
-            # a string is valid
-            ("foo", True),
-            # an integer is invalid
-            (12, False),
-        ],
-    )
-    def test_ref_with_absolute_path_reference(self, test_object, valid):
-        schema = {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "$id": "http://example.com/ref/absref.json",
-            "$defs": {
-                "a": {"$id": "http://example.com/ref/absref/foobar.json", "type": "number"},
-                "b": {"$id": "http://example.com/absref/foobar.json", "type": "string"},
-            },
-            "$ref": "/absref/foobar.json",
-        }
-        if valid:
-            validate(instance=test_object, schema=schema)
-            generate_and_check(test_object, schema)
-        else:
-            with pytest.raises(ValidationError):
-                validate(instance=test_object, schema=schema)
-            check_match_failure(bad_string=json_dumps(test_object), schema_obj=schema)
-
-    @pytest.mark.parametrize(
-        ["test_object", "valid"],
-        [
-            # number is valid
-            (1, True),
-            # non-number is invalid
-            ("a", False),
-        ],
-    )
-    def test_id_with_file_URI_still_resolves_pointers___nix(self, test_object, valid):
-        schema = {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "$id": "file:///folder/file.json",
-            "$defs": {"foo": {"type": "number"}},
-            "$ref": "#/$defs/foo",
-        }
-        if valid:
-            validate(instance=test_object, schema=schema)
-            generate_and_check(test_object, schema)
-        else:
-            with pytest.raises(ValidationError):
-                validate(instance=test_object, schema=schema)
-            check_match_failure(bad_string=json_dumps(test_object), schema_obj=schema)
-
-    @pytest.mark.parametrize(
-        ["test_object", "valid"],
-        [
-            # number is valid
-            (1, True),
-            # non-number is invalid
-            ("a", False),
-        ],
-    )
-    def test_id_with_file_URI_still_resolves_pointers___windows(self, test_object, valid):
-        schema = {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "$id": "file:///c:/folder/file.json",
-            "$defs": {"foo": {"type": "number"}},
-            "$ref": "#/$defs/foo",
-        }
-        if valid:
-            validate(instance=test_object, schema=schema)
-            generate_and_check(test_object, schema)
-        else:
-            with pytest.raises(ValidationError):
-                validate(instance=test_object, schema=schema)
-            check_match_failure(bad_string=json_dumps(test_object), schema_obj=schema)
-
-    @pytest.mark.parametrize(
-        ["test_object", "valid"],
-        [
-            # number is valid
-            (1, True),
-            # non-number is invalid
-            ("a", False),
-        ],
-    )
-    def test_empty_tokens_in_ref_json_pointer(self, test_object, valid):
-        schema = {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "$defs": {"": {"$defs": {"": {"type": "number"}}}},
-            "allOf": [{"$ref": "#/$defs//$defs/"}],
-        }
-        if valid:
-            validate(instance=test_object, schema=schema)
-            generate_and_check(test_object, schema)
-        else:
-            with pytest.raises(ValidationError):
-                validate(instance=test_object, schema=schema)
-            check_match_failure(bad_string=json_dumps(test_object), schema_obj=schema)
 
 
 class TestAnyOf:
@@ -2259,6 +1243,7 @@ class TestAllOf:
             lm += gen_json(name=CAPTURE_KEY, schema=schema_obj)
         assert ve.value.args[0] == "Only support allOf with exactly one item"
 
+
 class TestOneOf:
     @pytest.mark.parametrize("target_obj", [123, 42])
     def test_oneOf_simple(self, target_obj):
@@ -2272,7 +1257,6 @@ class TestOneOf:
 
         # The actual check
         generate_and_check(target_obj, schema_obj)
-
 
     @pytest.mark.parametrize("target_obj", [123, True])
     def test_oneOf_compound(self, target_obj):
@@ -2311,7 +1295,6 @@ class TestEnum:
         # The actual check
         generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
 
-
     @pytest.mark.parametrize(
         "bad_obj, good_bytes, failure_byte, allowed_bytes",
         [
@@ -2330,7 +1313,6 @@ class TestEnum:
             allowed_bytes=allowed_bytes,
             schema_obj=schema_obj,
         )
-
 
     @pytest.mark.parametrize(
         "bad_obj, good_bytes, failure_byte, allowed_bytes",
@@ -2359,13 +1341,10 @@ class TestEnum:
             ("2", False),
             ("1", False),
             (True, False),
-        ]
+        ],
     )
     def test_typed_enum_single_type(self, obj, valid):
-        schema_obj = {
-            "enum": [1, "2", True],
-            "type": "integer"
-        }
+        schema_obj = {"enum": [1, "2", True], "type": "integer"}
         if valid:
             validate(instance=obj, schema=schema_obj)
             generate_and_check(obj, schema_obj)
@@ -2382,13 +1361,10 @@ class TestEnum:
             ("2", True),
             ("1", False),
             (True, False),
-        ]
+        ],
     )
     def test_typed_enum_multiple_types(self, obj, valid):
-        schema_obj = {
-            "enum": [1, "2", True],
-            "type": ["integer", "string"]
-        }
+        schema_obj = {"enum": [1, "2", True], "type": ["integer", "string"]}
         if valid:
             validate(instance=obj, schema=schema_obj)
             generate_and_check(obj, schema_obj)
@@ -2398,13 +1374,11 @@ class TestEnum:
             check_match_failure(bad_string=json_dumps(obj), schema_obj=schema_obj)
 
     def test_invalid_typed_enum(self):
-        schema_obj = {
-            "enum": [1, "2"],
-            "type": "boolean"
-        }
+        schema_obj = {"enum": [1, "2"], "type": "boolean"}
         with pytest.raises(ValueError) as ve:
             gen_json(schema=schema_obj)
         assert ve.value.args[0] == "No valid options found for enum with type 'boolean': [1, '2']"
+
 
 class TestConst:
     def test_constant_int(self):
@@ -2465,45 +1439,29 @@ class TestConst:
         )
 
     def test_valid_typed_const(self):
-        schema_obj = {
-            "const": 1,
-            "type": "integer"
-        }
+        schema_obj = {"const": 1, "type": "integer"}
         target_obj = 1
         validate(instance=target_obj, schema=schema_obj)
         generate_and_check(target_obj, schema_obj)
 
     def test_invalid_typed_const(self):
-        schema_obj = {
-            "const": 1,
-            "type": "boolean"
-        }
+        schema_obj = {"const": 1, "type": "boolean"}
         with pytest.raises(ValidationError):
             gen_json(schema=schema_obj)
 
     def test_valid_enum_const(self):
-        schema_obj = {
-            "const": 1,
-            "enum": [1, 2, 3]
-        }
+        schema_obj = {"const": 1, "enum": [1, 2, 3]}
         target_obj = 1
         validate(instance=target_obj, schema=schema_obj)
         generate_and_check(target_obj, schema_obj)
 
     def test_invalid_enum_const(self):
-        schema_obj = {
-            "const": 1,
-            "enum": [2, 3]
-        }
+        schema_obj = {"const": 1, "enum": [2, 3]}
         with pytest.raises(ValidationError):
             gen_json(schema=schema_obj)
 
     def test_valid_typed_enum_const(self):
-        schema_obj = {
-            "const": 1,
-            "enum": [1, "2", 3],
-            "type": "integer"
-        }
+        schema_obj = {"const": 1, "enum": [1, "2", 3], "type": "integer"}
         target_obj = 1
         validate(instance=target_obj, schema=schema_obj)
         generate_and_check(target_obj, schema_obj)
@@ -2511,17 +1469,13 @@ class TestConst:
     @pytest.mark.parametrize(
         "const",
         [
-            "2", # right enum, wrong type
-            2, # wrong enum, right type
-            "3", # wrong enum, wrong type
-        ]
+            "2",  # right enum, wrong type
+            2,  # wrong enum, right type
+            "3",  # wrong enum, wrong type
+        ],
     )
     def test_invalid_typed_enum_const(self, const):
-        schema_obj = {
-            "const": const,
-            "enum": [1, "2", 3],
-            "type": "integer"
-        }
+        schema_obj = {"const": const, "enum": [1, "2", 3], "type": "integer"}
         with pytest.raises(ValidationError):
             gen_json(schema=schema_obj)
 
@@ -2569,11 +1523,15 @@ class TestAdditionalProperties:
         # The actual check
         generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
 
-
     @pytest.mark.parametrize(
         "bad_obj, good_bytes, failure_byte, allowed_bytes",
         [
-            ({"a": "1"}, b'{"a": ', b'"', INTEGER_LEADING, ),
+            (
+                {"a": "1"},
+                b'{"a": ',
+                b'"',
+                INTEGER_LEADING,
+            ),
             (
                 {"a": 1, "b": 1.5},
                 b'{"a": 1, "b": 1',
@@ -2593,9 +1551,7 @@ class TestAdditionalProperties:
             schema_obj=schema_obj,
         )
 
-    @pytest.mark.parametrize(
-        "target_obj", [{}, {"a": 1}, {"a": "2"}, {"a": 1, "b": "2"}]
-    )
+    @pytest.mark.parametrize("target_obj", [{}, {"a": 1}, {"a": "2"}, {"a": 1, "b": "2"}])
     def test_anyOf_additional_properties(self, target_obj):
         # First sanity check what we're setting up
         schema_obj = json.loads(self.anyOf_schema)
@@ -2603,7 +1559,6 @@ class TestAdditionalProperties:
 
         # The actual check
         generate_and_check(target_obj, schema_obj)
-
 
     @pytest.mark.parametrize(
         "bad_obj, good_bytes, failure_byte, allowed_bytes",
@@ -2646,7 +1601,6 @@ class TestAdditionalProperties:
         # The actual check
         generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
 
-
     @pytest.mark.parametrize(
         "bad_obj, good_bytes, failure_byte, allowed_bytes",
         [
@@ -2655,9 +1609,7 @@ class TestAdditionalProperties:
             ({"a": 1, "b": 2}, b'{"', b"a", {b"m"}),
         ],
     )
-    def test_combined_missing_properties(
-        self, bad_obj, good_bytes, failure_byte, allowed_bytes
-    ):
+    def test_combined_missing_properties(self, bad_obj, good_bytes, failure_byte, allowed_bytes):
         schema_obj = json.loads(self.combined_schema)
         bad_string = json_dumps(bad_obj)
         check_match_failure(
@@ -2667,7 +1619,6 @@ class TestAdditionalProperties:
             allowed_bytes=allowed_bytes,
             schema_obj=schema_obj,
         )
-
 
     @pytest.mark.parametrize(
         "bad_obj, good_bytes, failure_byte, allowed_bytes",
@@ -2797,7 +1748,6 @@ class TestEmptySchemas:
         # The actual check
         generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
 
-
     @pytest.mark.parametrize(
         "bad_string, good_bytes, failure_byte, allowed_bytes",
         [
@@ -2826,9 +1776,7 @@ class TestEmptySchemas:
             ),
         ],
     )
-    def test_bad_empty_schema(
-        self, bad_string, good_bytes, failure_byte, allowed_bytes
-    ):
+    def test_bad_empty_schema(self, bad_string, good_bytes, failure_byte, allowed_bytes):
         schema_obj = json.loads(self.empty_schema)
         check_match_failure(
             bad_string=bad_string,
@@ -2844,7 +1792,12 @@ class TestEmptySchemas:
             # Empty property
             {"type": "object", "properties": {"a": {}}, "required": ["a"]},
             # Empty reference
-            {"type": "object", "properties": {"a": {"$ref": "#/$defs/A"}}, "$defs": {"A": {}}, "required": ["a"]},
+            {
+                "type": "object",
+                "properties": {"a": {"$ref": "#/$defs/A"}},
+                "$defs": {"A": {}},
+                "required": ["a"],
+            },
         ],
     )
     @pytest.mark.parametrize(
@@ -2875,10 +1828,14 @@ class TestEmptySchemas:
             # Empty property
             {"type": "object", "properties": {"a": {}}, "required": ["a"]},
             # Empty reference
-            {"type": "object", "properties": {"a": {"$ref": "#/$defs/A"}}, "$defs": {"A": {}}, "required": ["a"]},
+            {
+                "type": "object",
+                "properties": {"a": {"$ref": "#/$defs/A"}},
+                "$defs": {"A": {}},
+                "required": ["a"],
+            },
         ],
     )
-
     @pytest.mark.parametrize(
         "bad_obj, good_bytes, failure_byte, allowed_bytes",
         [
@@ -2921,7 +1878,6 @@ class TestEmptySchemas:
         # The actual check
         generate_and_check(target_obj, schema_obj, desired_temperature=temperature)
 
-
     @pytest.mark.parametrize(
         "bad_obj, good_bytes, failure_byte, allowed_bytes",
         [
@@ -2956,7 +1912,6 @@ class TestEmptySchemas:
             [1, 0.4, "hello", False, None, {"a": 42}, [1, 2, 3, "four"]], schema_obj
         )
 
-
     def test_no_items(self):
         schema_obj = {"type": "array", "items": False}
         check_match_failure(
@@ -2989,7 +1944,6 @@ class TestEmptySchemas:
             schema_obj,
         )
 
-
     def test_no_additionalProperties(self):
         schema_obj = {"type": "object", "additionalProperties": False}
         check_match_failure(
@@ -3000,16 +1954,16 @@ class TestEmptySchemas:
             schema_obj=schema_obj,
         )
 
+
 def test_ignored_keys_allowed_as_properties():
     schema_obj = {
         "type": "object",
-        "properties": {
-            key: {"type": "string"} for key in IGNORED_KEYS
-        },
+        "properties": {key: {"type": "string"} for key in IGNORED_KEYS},
         "required": list(IGNORED_KEYS),
     }
     target_obj = {key: "value" for key in IGNORED_KEYS}
     generate_and_check(target_obj, schema_obj)
+
 
 class TestRequiredProperties:
     schema_obj = {
@@ -3019,10 +1973,19 @@ class TestRequiredProperties:
             "b": {"type": "number"},
             "c": {"type": "boolean"},
         },
-        "additionalProperties": True
+        "additionalProperties": True,
     }
     ALL_REQUIRED = ["a", "b", "c"]
-    SOME_REQUIRED_SUBSETS = [[], ["a"], ["b"], ["c"], ["a", "b"], ["a", "c"], ["b", "c"], ["a", "b", "c"]]
+    SOME_REQUIRED_SUBSETS = [
+        [],
+        ["a"],
+        ["b"],
+        ["c"],
+        ["a", "b"],
+        ["a", "c"],
+        ["b", "c"],
+        ["a", "b", "c"],
+    ]
     NONE_REQUIRED: list[str] = []
 
     @pytest.mark.parametrize(
@@ -3031,7 +1994,7 @@ class TestRequiredProperties:
             {},
             {"d": "hello"},
             {"d": 42, "e": True},
-        ]
+        ],
     )
     def test_all_required_good(self, extra_items):
         schema_obj = {**self.schema_obj, "required": self.ALL_REQUIRED}
@@ -3051,7 +2014,7 @@ class TestRequiredProperties:
             ({"c": True}),
             # Missing all
             ({}),
-        ]
+        ],
     )
     def test_all_required_bad(self, bad_obj):
         schema_obj = {**self.schema_obj, "required": self.ALL_REQUIRED}
@@ -3066,7 +2029,7 @@ class TestRequiredProperties:
             {},
             {"d": "hello"},
             {"d": 42, "e": True},
-        ]
+        ],
     )
     @pytest.mark.parametrize(
         "required",
@@ -3104,7 +2067,7 @@ class TestRequiredProperties:
             {},
             {"d": "hello"},
             {"d": 42, "e": True},
-        ]
+        ],
     )
     @pytest.mark.parametrize(
         "target_obj",
@@ -3117,55 +2080,48 @@ class TestRequiredProperties:
             {"a": "hello", "c": True},
             {"b": 42, "c": True},
             {"a": "hello", "b": 42, "c": True},
-        ]
+        ],
     )
     def test_none_required(self, target_obj, extra_items):
         schema_obj = {**self.schema_obj, "required": self.NONE_REQUIRED}
         generate_and_check({**target_obj, **extra_items}, schema_obj)
 
+
 class TestRequiredPropertiesScaling:
-    @pytest.mark.parametrize(
-        "num_properties",
-        [1, 2, 3, 4, 5, 10, 20, 50, 100]
-    )
+    @pytest.mark.parametrize("num_properties", [1, 2, 3, 4, 5, 10, 20, 50, 100])
     def test_many_optional_properties_doesnt_blow_up(self, num_properties):
         schema_obj = {
             "type": "object",
-            "properties": {
-                f"prop_{i}": {"type": "string"} for i in range(num_properties)
-            },
-            "required": [] # Empty should be worst-case scenario
+            "properties": {f"prop_{i}": {"type": "string"} for i in range(num_properties)},
+            "required": [],  # Empty should be worst-case scenario
         }
         from guidance.library._json import GenJson
+
         genjson = GenJson(schema=schema_obj)
         genjson._join.__wrapped__.cache_clear()
         _ = genjson.root()
         cache_info = genjson._join.__wrapped__.cache_info()
 
         # Theoretical number of cache misses under the current implementation
-        expected_misses = 2*num_properties - 1
-        MISSES_MAGIC_NUMBER = 5 # Where in the world is this coming from?
+        expected_misses = 2 * num_properties - 1
+        MISSES_MAGIC_NUMBER = 5  # Where in the world is this coming from?
         assert 0 < cache_info.misses <= expected_misses + MISSES_MAGIC_NUMBER
         # NOTE: that if the cache maxsize is hit, the number of misses will be more than expected
 
         # Theoretical number of total calls under the current implementation
-        expected_calls = num_properties*(num_properties - 1) // 2
-        CALLS_MAGIC_NUMBER = 12 # Where in the world is this coming from?
+        expected_calls = num_properties * (num_properties - 1) // 2
+        CALLS_MAGIC_NUMBER = 12  # Where in the world is this coming from?
         assert 0 < cache_info.hits + cache_info.misses <= expected_calls + CALLS_MAGIC_NUMBER
 
-    @pytest.mark.parametrize(
-        "num_properties",
-        [1, 2, 3, 4, 5, 10, 20, 50, 100]
-    )
+    @pytest.mark.parametrize("num_properties", [1, 2, 3, 4, 5, 10, 20, 50, 100])
     def test_all_required_properties_doesnt_blow_up(self, num_properties):
         schema_obj = {
             "type": "object",
-            "properties": {
-                f"prop_{i}": {"type": "string"} for i in range(num_properties)
-            },
-            "required": [f"prop_{i}" for i in range(num_properties)]
+            "properties": {f"prop_{i}": {"type": "string"} for i in range(num_properties)},
+            "required": [f"prop_{i}" for i in range(num_properties)],
         }
         from guidance.library._json import GenJson
+
         genjson = GenJson(schema=schema_obj)
         genjson._join.__wrapped__.cache_clear()
         _ = genjson.root()
@@ -3193,7 +2149,7 @@ class TestBooleanSchema:
             {"a": [1, 2, 3]},
             {"a": {"b": 1}},
             False,
-            True
+            True,
         ],
     )
     def test_true_schema(self, target_obj):
@@ -3206,12 +2162,13 @@ class TestBooleanSchema:
         [
             False,
             {"type": "object", "properties": {"a": False}, "required": ["a"]},
-        ]
+        ],
     )
     def test_false_schema(self, schema_obj):
         with pytest.raises(ValueError) as ve:
             gen_json(schema=schema_obj)
         assert ve.value.args[0] == "No valid JSON can be generated from a schema of `False`"
+
 
 class TestWhitespace:
     seps = [
@@ -3230,7 +2187,7 @@ class TestWhitespace:
             ({"enum": [{"a": 1, "b": 2, "c": [1, 2, 3]}]}, {"a": 1, "b": 2, "c": [1, 2, 3]}),
             # Static object: const (both item and key seps)
             ({"const": {"a": 1, "b": 2, "c": [1, 2, 3]}}, {"a": 1, "b": 2, "c": [1, 2, 3]}),
-        ]
+        ],
     )
     @pytest.mark.parametrize(
         "separators",
@@ -3256,7 +2213,7 @@ class TestWhitespace:
             ({"enum": [{"a": 1, "b": 2, "c": [1, 2, 3]}]}, {"a": 1, "b": 2, "c": [1, 2, 3]}),
             # Static object: const (both item and key seps)
             ({"const": {"a": 1, "b": 2, "c": [1, 2, 3]}}, {"a": 1, "b": 2, "c": [1, 2, 3]}),
-        ]
+        ],
     )
     @pytest.mark.parametrize(
         "separators",
