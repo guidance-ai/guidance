@@ -131,8 +131,11 @@ class TokenParser:
             if not mask[token]:
                 # Note: we could punt this probem to ll_interpreter.post_process,
                 # but it's a bit clearer to handle it here
-                # TODO: send valid tokens rather than mask?
-                raise InvalidTokenException(token, mask, tokens)
+                raise InvalidTokenException(
+                    token=token,
+                    valid_tokens=[i for i in range(len(mask)) if mask[i]],
+                    prompt_tokens=tokens
+                )
 
             backtrack, ff_tokens = self.ll_interpreter.post_process(token)
             if backtrack:
