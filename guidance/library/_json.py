@@ -4,7 +4,6 @@ import math
 from typing import (
     Any,
     Callable,
-    Dict,
     Mapping,
     Optional,
     Sequence,
@@ -15,8 +14,17 @@ from typing import (
 )
 import warnings
 import referencing
-import contextlib
-from urllib.parse import urljoin
+from collections import defaultdict
+import urllib.parse
+import functools
+
+from .._guidance import guidance
+from ..library import optional, sequence
+from ..library._regex_utils import rx_int_range, rx_float_range
+
+from .._grammar import GrammarFunction, select, with_temperature, Not, And, quote_regex
+from ._pydantic import pydantic_to_json_schema
+from ._subgrammar import as_regular_grammar, lexeme, subgrammar
 
 try:
     import jsonschema
@@ -25,15 +33,7 @@ except ImportError:
     if TYPE_CHECKING:
         raise
 
-from .._guidance import guidance
-from ..library import char_range, gen, one_or_more, optional, sequence
-from ..library._regex_utils import rx_int_range, rx_float_range
-
-from .._grammar import GrammarFunction, select, capture, with_temperature, Not, And, quote_regex
-from ._pydantic import pydantic_to_json_schema
-from ._subgrammar import as_regular_grammar, lexeme, subgrammar
-
-JSONSchema = Union[bool, Mapping[str, Any]]
+JSONSchema = Union[bool, dict[str, Any]]
 
 DRAFT202012_RESERVED_KEYWORDS = {
     # Anchors and References
@@ -129,6 +129,7 @@ class Keyword(str, Enum):
     ANYOF = "anyOf"
     ALLOF = "allOf" # Note: Partial support. Only supports exactly one item.
     ONEOF = "oneOf" # Note: Partial support. This is converted to anyOf.
+    ID = "$id"
     REF = "$ref"
     CONST = "const"
     ENUM = "enum"
@@ -169,7 +170,6 @@ IGNORED_KEYS = {
     "$anchor",
     "$defs",
     "$schema",
-    "$id",
     "id",
     "$comment",
     "title",
@@ -378,6 +378,14 @@ FORMAT_PATTERNS: dict[str, Optional[str]] = {
     "unknown": r"(?s:.*)",
 }
 
+
+def urijoin(base: str, uri: str) -> str:
+    # Special case for fragment-only URIs
+    if uri.startswith("#"):
+        return f"{base}{uri}"
+    return urllib.parse.urljoin(base, uri)
+
+
 def _get_format_pattern(format: str) -> str:
     try:
         pattern = FORMAT_PATTERNS[format]
@@ -402,6 +410,19 @@ def get_sibling_keys(node: Mapping[str, Any], key: str) -> set[str]:
     # Get the set of functional (non-ignored) keys that are siblings of the given key
     return set(node.keys()) & VALID_KEYS - set(IGNORED_KEYS) - {key}
 
+
+def check_number_bounds(minimum: Union[float, int, None], maximum: Union[float, int, None], exclusiveMinimum: bool, exclusiveMaximum: bool):
+    if minimum is not None and maximum is not None:
+        if minimum > maximum:
+            raise UnsatisfiableSchemaError(f"minimum ({minimum}) is greater than maximum ({maximum})")
+        if minimum == maximum and (exclusiveMinimum or exclusiveMaximum):
+            minimum_repr = f"exclusiveMinimum ({minimum})" if exclusiveMinimum else f"minimum ({minimum})"
+            maximum_repr = f"exclusiveMaximum ({maximum})" if exclusiveMaximum else f"maximum ({maximum})"
+            raise UnsatisfiableSchemaError(f"{minimum_repr} is equal to {maximum_repr}")
+
+
+class UnsatisfiableSchemaError(ValueError):
+    pass
 
 class GenJson:
     item_separator = ", "
@@ -428,6 +449,7 @@ class GenJson:
         lm,
         *,
         reference: str,
+        base_uri: str,
     ):
         """
         Resolve a reference to another schema and return the grammar for that schema.
@@ -436,58 +458,31 @@ class GenJson:
         add it to the _defs cache. This allows us to avoid re-resolving the reference every time
         and to handle recursive references correctly.
         """
-        abspath = self._get_abspath(reference)
+        abspath = urijoin(base_uri, reference)
+
         if abspath not in self._defs:
             resolved = self._resolver.lookup(abspath)
             base_uri_of_resolved = resolved.resolver._base_uri
 
             @guidance(stateless=True, dedent=False, cache=True)
             def closure(lm):
-                with self._base_uri_context(base_uri_of_resolved):
-                    grammar = self.json(json_schema=resolved.contents)
+                grammar = self.json(json_schema=resolved.contents, base_uri=base_uri_of_resolved)
                 return lm + grammar
 
             self._defs[abspath] = closure
         return lm + self._defs[abspath]()
 
 
-    def _get_abspath(self, ref):
-        """
-        Convert a reference to an absolute path, resolving it against the base URI if necessary.
-        This will allow us to get a unique key for each reference and hit the _defs cache correctly.
-        """
-        if ref.startswith("#"):
-            # Special case for fragment-only references:
-            # for certain schemes (e.g. urn), urljoin may throw the base URI, but we need to keep them around
-            return f"{self._base_uri}{ref}"
-        return urljoin(self._base_uri, ref)
-
-
-    @contextlib.contextmanager
-    def _base_uri_context(self, base_uri: str):
-        """
-        Temporarily replace the base_uri for the duration of the context manager.
-        This allows refs with different base URIs to be resolved correctly without passing the resolver around.
-
-        Note: very much not thread-safe, but I don't expect instances of this class to be shared between threads.
-        TODO: ensure that the instance's hash depends on the base_uri before adding more caching to this class.
-        """
-        old_base_uri = self._base_uri
-        self._base_uri = base_uri
-        try:
-            yield
-        finally:
-            self._base_uri = old_base_uri
-
-
     @guidance(stateless=True)
     def root(self, lm):
-        return lm + self.json(json_schema=self.schema)
+        return lm + self.json(json_schema=self.schema, base_uri=self._base_uri)
 
 
     @classmethod
     @guidance(stateless=True)
     def integer(cls, lm, minimum: Union[float, int, None] = None, maximum: Union[float, int, None] = None, exclusiveMinimum: bool = False, exclusiveMaximum: bool = False):
+        check_number_bounds(minimum, maximum, exclusiveMinimum, exclusiveMaximum)
+
         if minimum is not None:
             if exclusiveMinimum:
                 if minimum != int(minimum):
@@ -513,6 +508,8 @@ class GenJson:
     @classmethod
     @guidance(stateless=True)
     def number(cls, lm, minimum: Optional[float] = None, maximum: Optional[float] = None, exclusiveMinimum: bool = False, exclusiveMaximum: bool = False):
+        check_number_bounds(minimum, maximum, exclusiveMinimum, exclusiveMaximum)
+
         return lm + lexeme(
             rx_float_range(
                 minimum, maximum,
@@ -534,6 +531,9 @@ class GenJson:
         regex: Union[str, None] = None,
         format: Union[str, None] = None,
     ):
+        if min_length is not None and max_length is not None and min_length > max_length:
+            raise UnsatisfiableSchemaError(f"String minLength ({min_length}) is greater than maxLength ({max_length})")
+
         if (regex is not None or format is not None) and (min_length > 0 or max_length is not None):
             raise ValueError(
                 "If a pattern or format is specified for a JSON string, minLength and maxLength must be left unspecified."
@@ -566,27 +566,51 @@ class GenJson:
         properties: Mapping[str, JSONSchema],
         additional_properties: JSONSchema,
         required: Sequence[str],
+        base_uri: str,
     ):
-        # "required" keys will be validated against "properties" if they're present, otherwise against "additionalProperties".
-        # If "additionalProperties" is False, then required keys must be in "properties".
-        if any(k not in properties for k in required) and additional_properties is False:
-            raise ValueError(
-                f"Required properties not in properties but additionalProperties is False."
-                f" Missing required properties: {list(r for r in required if r not in properties)}"
-            )
+        illegal_keys = set()
+        property_grammars: dict[str, GrammarFunction] = {}
+        for name, schema in properties.items():
+            try:
+                property_grammars[name] = self.json(json_schema=schema, base_uri=base_uri)
+            except UnsatisfiableSchemaError as e:
+                # We get here if the schema is a literal False or is otherwise determined to be unsatisfiable
+                if name in required:
+                    raise UnsatisfiableSchemaError(f"Required property {name!r} is unsatisfiable") from e
+                # If the property is not required, we will just "blacklist" this key (e.g. if the schema was False)
+                # Note that we're just dropping this exception.
+                # Use json_dumps to properly quote / escape the key before adding it to the blacklist
+                key = json_dumps(name)
+                illegal_keys.add(key)
+
+        additional_properties_grammar: Optional[GrammarFunction] = None
+        try:
+            additional_properties_grammar = self.json(json_schema=additional_properties, base_uri=base_uri)
+        except UnsatisfiableSchemaError as e:
+            if any(k not in properties for k in required):
+                # "required" keys will be validated against "properties" if they're present, otherwise against "additionalProperties".
+                # If "additionalProperties" is unsatisfiable, then required keys must be in "properties".
+                raise UnsatisfiableSchemaError(
+                    f"Required properties not in properties but additionalProperties is unsatisfiable."
+                    f" Missing required properties: {list(r for r in required if r not in properties)}"
+                ) from e
+            else:
+                # If "additionalProperties" is unsatisfiable but there are no required properties that need to be validated against it,
+                # then we can safely ignore it. Note that this means that we are just going to drop this exception.
+                pass
 
         keys: list[str] = []
         required_items: list[bool] = []
-        grammars: list[GrammarFunction] = []
+        item_grammars: list[GrammarFunction] = []
         # First iterate over the properties in order, then iterate over any missing required keys, using additional_properties as the schema
-        for name in (*properties, *(r for r in required if r not in properties)):
+        for name in (*property_grammars.keys(), *(r for r in required if r not in properties)):
             # Use json_dumps to properly quote / escape the key
             key = json_dumps(name)
             keys.append(key)
             # Identify if the key is required
             required_items.append(name in required)
             # Build the grammar we'll use for this property
-            grammars.append(f'{key}{self.key_separator}' + self.json(json_schema=properties.get(name, additional_properties)))
+            item_grammars.append(f'{key}{self.key_separator}' + property_grammars.get(name, cast(GrammarFunction, additional_properties_grammar)))
 
         if additional_properties is not False:
             # Key for additionalProperties is a json string, but we need to disallow any properties that are already defined
@@ -595,20 +619,21 @@ class GenJson:
                 additional_key_grammar = as_regular_grammar(
                     And([
                         lexeme(r'"([^"\\]|\\["\\/bfnrt]|\\u[0-9a-fA-F]{4})*"'),
-                        Not(lexeme('|'.join(map(quote_regex, keys)))),
+                        Not(lexeme('|'.join(map(quote_regex, (*keys, *illegal_keys))))),
                     ]),
                     lexeme = True,
                 )
             else:
                 additional_key_grammar = self.string()
 
-            additional_item_grammar = additional_key_grammar + self.key_separator + self.json(json_schema=additional_properties)
-            additional_items_grammar = sequence(additional_item_grammar + self.item_separator) + additional_item_grammar
-            grammars.append(additional_items_grammar)
-            required_items.append(False)
+            if additional_properties_grammar is not None:
+                additional_item_grammar = additional_key_grammar + self.key_separator + additional_properties_grammar
+                additional_items_grammar = sequence(additional_item_grammar + self.item_separator) + additional_item_grammar
+                item_grammars.append(additional_items_grammar)
+                required_items.append(False)
 
         return lm + "{" + self._join(
-            elements = tuple(grammars),
+            elements = tuple(item_grammars),
             required = tuple(required_items),
         ) + "}"
 
@@ -649,15 +674,25 @@ class GenJson:
         item_schema: JSONSchema,
         min_items: int,
         max_items: Optional[int],
+        base_uri: str,
     ):
-        if len(prefix_items_schema) < min_items and item_schema is False:
-            raise ValueError(
-                f"PrefixItems has too few elements ({len(prefix_items_schema)}) to"
-                f" satisfy minItems ({min_items}) but no extra items were allowed"
-            )
+        if max_items is not None and min_items > max_items:
+            raise UnsatisfiableSchemaError(f"minItems ({min_items}) is greater than maxItems ({max_items})")
 
-        if max_items is not None and max_items < min_items:
-            raise ValueError(f"maxItems ({max_items}) can't be less than minItems ({min_items})")
+        items_grammar: Optional[GrammarFunction] = None
+        try:
+            items_grammar = self.json(json_schema=item_schema, base_uri=base_uri)
+        except UnsatisfiableSchemaError as e:
+            if len(prefix_items_schema) < min_items:
+                raise UnsatisfiableSchemaError(
+                    f"prefixItems has too few elements ({len(prefix_items_schema)}) to satisfy minItems ({min_items})"
+                    f" but item schema is unsatisfiable"
+                ) from e
+            else:
+                # If we've already satisfied min_items, we can just ignore the unsatisfiable item schema. This just means
+                # that we can't generate any more items after the prefix items.
+                # Note that this means that we are just going to drop this exception.
+                pass
 
         required_items = []
         optional_items = []
@@ -666,24 +701,31 @@ class GenJson:
         n_to_add = max(len(prefix_items_schema), min_items) if max_items is None else max_items
         for i in range(n_to_add):
             if i < len(prefix_items_schema):
-                schema = prefix_items_schema[i]
-            elif item_schema is not False:
-                schema = item_schema
+                try:
+                    item = self.json(json_schema=prefix_items_schema[i], base_uri=base_uri)
+                except UnsatisfiableSchemaError as e:
+                    # i corresponds to the number of items we've already satisfied
+                    if i < min_items:
+                        raise UnsatisfiableSchemaError(f"prefixItems[{i}] is unsatisfiable but min_items is {min_items}") from e
+                    # Having an unsatisfiable prefix item is fine if we've already satisfied min_items, but this effectively sets max_items to i
+                    # Note that this means that we are just going to drop this exception.
+                    max_items = i
+                    break
+
+            elif items_grammar is not None:
+                item = items_grammar
             else:
                 assert i >= min_items
                 break
-
-            item = self.json(json_schema=schema)
 
             if i < min_items:
                 required_items.append(item)
             else:
                 optional_items.append(item)
 
-        if max_items is None and item_schema is not False:
+        if max_items is None and items_grammar is not None:
             # Add an infinite tail of items
-            item = self.json(json_schema=item_schema)
-            optional_items.append(item + sequence(self.item_separator + item))
+            optional_items.append(items_grammar + sequence(self.item_separator + items_grammar))
 
         lm += "["
 
@@ -718,9 +760,326 @@ class GenJson:
         lm,
         *,
         anyof_list: Sequence[JSONSchema],
+        base_uri: str,
     ):
-        options = [self.json(json_schema=item) for item in anyof_list]
+        if not anyof_list:
+            raise UnsatisfiableSchemaError("anyOf has no schemas")
+
+        options: list[GrammarFunction] = []
+        for item in anyof_list:
+            try:
+                options.append(self.json(json_schema=item, base_uri=base_uri))
+            except UnsatisfiableSchemaError:
+                # No need to raise an error if one of the schemas is unsatisfiable. We'll check again at the end and raise if ALL
+                # schemas are unsatisfiable. Note that this means that we are just going to drop this exception.
+                pass
+        if not options:
+            # Can't really point to any one schema that's unsatisfiable, so let's include all the schemas in the error message
+            raise UnsatisfiableSchemaError("all anyOf schemas are unsatisfiable: " + json_dumps(anyof_list))
         return lm + select(options)
+
+    @guidance(stateless=True)
+    def oneOf(
+        self,
+        lm,
+        *,
+        oneof_list: Sequence[JSONSchema],
+        base_uri: str,
+    ):
+        if not oneof_list:
+            raise UnsatisfiableSchemaError("oneOf has no schemas")
+        if len(oneof_list) == 1:
+            return lm + self.json(json_schema=oneof_list[0], base_uri=base_uri)
+        warnings.warn("oneOf not fully supported, falling back to anyOf. This may cause validation errors in some cases.")
+        return lm + self.anyOf(anyof_list=oneof_list, base_uri=base_uri)
+
+    def push_sibling_keys(self, json_schema: dict[str, Any]) -> dict[str, Any]:
+        """
+        If sibling keys are present next to anyOf, oneOf, or $ref, we push them down into an allOf.
+        """
+        parent_schema = json_schema.copy()
+        anyof_list = parent_schema.pop(Keyword.ANYOF, [])
+        oneof_list = parent_schema.pop(Keyword.ONEOF, [])
+        allof_list = parent_schema.pop(Keyword.ALLOF, [])
+        ref = parent_schema.pop(Keyword.REF, None)
+
+        common = []
+        if VALID_KEYS.intersection(parent_schema) - set(IGNORED_KEYS):
+            # If there are any sibling keys, we need to push them down into an allOf
+            common.append(parent_schema)
+        if allof_list:
+            common.extend(allof_list)
+        if ref:
+            # TODO: $id / base_uri?
+            common.append({Keyword.REF: ref})
+
+        if anyof_list and oneof_list:
+            return {
+                "oneOf": [
+                    {"allOf": common + [one_item, any_item]}
+                    for one_item in oneof_list
+                    for any_item in anyof_list
+                ],
+            }
+
+        if oneof_list:
+            if not common:
+                return {"oneOf": oneof_list}
+            return {
+                "oneOf": [
+                    {"allOf": common + [one_item]}
+                    for one_item in oneof_list
+                ],
+            }
+
+        if anyof_list:
+            if not common:
+                return {"anyOf": anyof_list}
+            return {
+                "anyOf": [
+                    {"allOf": common + [any_item]}
+                    for any_item in anyof_list
+                ],
+            }
+
+        if len(common) == 1:
+            return common[0]
+
+        return {"allOf": common}
+
+    def reduce_schema(self, orig_schema: dict[str, Any], base_uri: str) -> dict[str, Any]:
+        types: list[set[str]] = []
+        properties: defaultdict[str, list[JSONSchema]] = defaultdict(list)
+        required: dict[str, None] = dict() # use a dict for ordered-set behavior
+        additional_properties_list: list[tuple[JSONSchema, set[str]]] = []
+        prefix_items: defaultdict[int, list[JSONSchema]] = defaultdict(list)
+        items_list: list[tuple[JSONSchema, set[int]]] = []
+        other_data: dict[str, Any] = {}
+        enums: list[Sequence[Any]] = []
+        consts: list[Any] = []
+
+        def handle_keyword(key: str, value: Any, parent_schema: dict[str, Any], base_uri: str):
+            if key == Keyword.ANYOF:
+                raise NotImplementedError("anyOf in allOf not yet supported")
+
+            elif key == Keyword.ONEOF:
+                raise NotImplementedError("oneOf in allOf not yet supported")
+
+            elif key == Keyword.ALLOF:
+                value = cast(Sequence[JSONSchema], value)
+                for schema in value:
+                    add_schema(schema, base_uri)
+
+            elif key == Keyword.REF:
+                ref = cast(str, value)
+                abspath = urijoin(base_uri, ref)
+                resolved = self._resolver.lookup(abspath)
+                add_schema(resolved.contents, base_uri=resolved.resolver._base_uri)
+
+            elif key == Keyword.CONST:
+                consts.append(value)
+
+            elif key == Keyword.ENUM:
+                value = cast(list[Any], value)
+                enums.append(value)
+
+            elif key == Keyword.TYPE:
+                value = cast(Union[str, Sequence[str]], value)
+                if isinstance(value, str):
+                    value_set = {value}
+                else:
+                    value_set = set(value)
+                types.append(value_set)
+
+            elif key == ObjectKeywords.PROPERTIES:
+                value = cast(dict[str, JSONSchema], value)
+                for name, schema in value.items():
+                    if isinstance(schema, dict):
+                        this_base_uri = schema.get(Keyword.ID, base_uri)
+                        if Keyword.REF in schema:
+                            # Make the ref absolute so that it can be resolved in the right scope later
+                            schema = schema.copy()
+                            schema[Keyword.REF] = urijoin(this_base_uri, schema[Keyword.REF])
+                    properties[name].append(schema)
+
+            elif key == ObjectKeywords.REQUIRED:
+                value = cast(Sequence[str], value)
+                required.update({name: None for name in value})
+
+            elif key == ObjectKeywords.ADDITIONAL_PROPERTIES:
+                # TODO: unevaluatedProperties?
+                value = cast(JSONSchema, value)
+                # We need to keep track of which properties are exempt from this additionalProperties schema,
+                # i.e. the ones defined in the parent schema
+                exempt_properties: set[str] = set()
+                if ObjectKeywords.PROPERTIES in parent_schema:
+                    exempt_properties = set(parent_schema[ObjectKeywords.PROPERTIES])
+                additional_properties_list.append(
+                    (value, exempt_properties)
+                )
+
+            elif key == ArrayKeywords.PREFIX_ITEMS:
+                value = cast(Sequence[JSONSchema], value)
+                for i, schema in enumerate(value):
+                    prefix_items[i].append(schema)
+
+            elif key == ArrayKeywords.ITEMS:
+                # TODO: unevaluatedItems?
+                value = cast(JSONSchema, value)
+                # We need to keep track of which prefixItems are exempt from this additionalItems schema,
+                # i.e. the ones defined in the parent schema
+                exempt_prefix_items: set[int] = set()
+                if ArrayKeywords.PREFIX_ITEMS in parent_schema:
+                    exempt_prefix_items = set(range(len(parent_schema[ArrayKeywords.PREFIX_ITEMS])))
+                items_list.append(
+                    (value, exempt_prefix_items)
+                )
+
+            elif key in other_data:
+                if key in {
+                    NumberKeywords.MINIMUM, NumberKeywords.EXCLUSIVE_MINIMUM,
+                    StringKeywords.MIN_LENGTH, ArrayKeywords.MIN_ITEMS
+                }:
+                    other_data[key] = max(other_data[key], value)
+                elif key in {
+                    NumberKeywords.MAXIMUM, NumberKeywords.EXCLUSIVE_MAXIMUM,
+                    StringKeywords.MAX_LENGTH, ArrayKeywords.MAX_ITEMS
+                }:
+                    other_data[key] = min(other_data[key], value)
+                else:
+                    raise NotImplementedError(f"Don't yet know how to reduce multiple values of {key!r} in allOf")
+
+            else:
+                other_data[key] = value
+
+        def add_schema(schema: JSONSchema, base_uri: str):
+            if schema is True:
+                return
+            if schema is False:
+                raise UnsatisfiableSchemaError("allOf contains a 'false' schema")
+
+            # Validate the schema's keys (we have only validated the parent schema's keys so far)
+            # TODO: This will make us validate the parent twice... should probably be refactored
+            validate_json_node_keys(schema)
+
+            # Set the base_uri for this schema
+            if Keyword.ID in schema:
+                # TODO: avoid copies if possible..?
+                schema = schema.copy()
+                base_uri = urijoin(base_uri, schema.pop(Keyword.ID))
+
+            for key, value in schema.items():
+                if key in IGNORED_KEYS:
+                    continue
+                handle_keyword(key, value, schema, base_uri)
+
+        add_schema(orig_schema, base_uri)
+
+        combined_schema: dict[str, Any] = {}
+
+        # Post-process additional_properties to make sure we apply the additional properties of one
+        # schema to the properties of another schema
+        for additional_schema, exempt_properties in additional_properties_list:
+            for name in set(properties) - exempt_properties:
+                properties[name].append(additional_schema)
+
+        # Post-process items to make sure we apply the additional items of one schema to the prefix items of another schema
+        for additional_schema, exempt_prefix_items in items_list:
+            for i in set(prefix_items) - exempt_prefix_items:
+                prefix_items[i].append(additional_schema)
+
+        if properties:
+            combined_schema[ObjectKeywords.PROPERTIES] = {}
+            for name, schemas in properties.items():
+                if len(schemas) == 1:
+                    combined_schema[ObjectKeywords.PROPERTIES][name] = schemas[0]
+                else:
+                    combined_schema[ObjectKeywords.PROPERTIES][name] = {"allOf": schemas}
+
+        if required:
+            combined_schema[ObjectKeywords.REQUIRED] = list(required.keys())
+
+        if additional_properties_list:
+            if len(additional_properties_list) == 1:
+                combined_schema[ObjectKeywords.ADDITIONAL_PROPERTIES], _ = additional_properties_list[0]
+            else:
+                combined_schema[ObjectKeywords.ADDITIONAL_PROPERTIES] = {"allOf": [schema for schema, _ in additional_properties_list]}
+
+        if prefix_items:
+            combined_schema[ArrayKeywords.PREFIX_ITEMS] = []
+            for i in range(len(prefix_items)):
+                schemas = prefix_items[i]
+                if len(schemas) == 1:
+                    combined_schema[ArrayKeywords.PREFIX_ITEMS].append(schemas[0])
+                else:
+                    combined_schema[ArrayKeywords.PREFIX_ITEMS].append({"allOf": schemas})
+
+        if items_list:
+            if len(items_list) == 1:
+                combined_schema[ArrayKeywords.ITEMS], _ = items_list[0]
+            else:
+                combined_schema[ArrayKeywords.ITEMS] = {"allOf": [schema for schema, _ in items_list]}
+
+        if enums:
+            if len(enums) == 1:
+                enum = enums[0]
+            else:
+                def reduce_enums(enum_a, enum_b):
+                    try:
+                        enum = list(set(enum_a) & set(enum_b))
+                    except TypeError:
+                        # Check on equality, not on hash
+                        # Yes, this is O(n^2).
+                        # Hope the items were unique.
+                        # ¯\_(ツ)_/¯
+                        enum = [a for a in enum_a for b in enum_b if a == b]
+                    return enum
+                enum = functools.reduce(reduce_enums, enums)
+            if not enum:
+                raise UnsatisfiableSchemaError(f"allOf has enums with no common values: {enums}")
+            combined_schema[Keyword.ENUM] = enum
+
+        if consts:
+            const, *rest = consts
+            for c in rest:
+                if c != const:
+                    raise UnsatisfiableSchemaError(f"allOf has consts with different values: {consts}")
+            combined_schema[Keyword.CONST] = const
+
+        if types:
+            if len(types) == 1:
+                type = list(types[0])
+            else:
+                def reduce_types(type_a: set[str], type_b: set[str]) -> set[str]:
+                    common_types = type_a & type_b
+                    # Integer is a "subtype" of number, so ensure we keep integer if we have "number" in one and "integer" in the other
+                    if JSONType.INTEGER not in common_types and (
+                        (JSONType.NUMBER in type_a and JSONType.INTEGER in type_b) or
+                        (JSONType.INTEGER in type_a and JSONType.NUMBER in type_b)
+                    ):
+                        common_types.add(JSONType.INTEGER)
+                    return common_types
+                type = list(functools.reduce(reduce_types, types)) # type: ignore[arg-type]
+                if not type:
+                    raise UnsatisfiableSchemaError(f"allOf has conflicting types: {types}")
+            combined_schema[Keyword.TYPE] = type
+
+        assert not set(combined_schema) & set(other_data)
+        combined_schema.update(other_data)
+        return combined_schema
+
+
+    @guidance(stateless=True)
+    def allOf(
+        self,
+        lm,
+        *,
+        parent_schema: dict[str, Any],
+        base_uri: str,
+    ):
+        reduced_schema = self.reduce_schema(parent_schema, base_uri)
+        return lm + self.json(json_schema=reduced_schema, base_uri=base_uri)
+
 
     @guidance(stateless=True)
     def const(
@@ -728,20 +1087,15 @@ class GenJson:
         lm,
         *,
         value: Union[None, bool, int, float, str, Mapping, Sequence],
-        instance_type: Optional[Union[str, Sequence[str]]] = None,
-        enum: Optional[Sequence[Union[None, bool, int, float, str, Mapping, Sequence]]] = None,
+        parent_schema: JSONSchema,
     ):
-        schema_to_validate_against: dict[str, Any] = {}
-        if instance_type is not None:
-            schema_to_validate_against["type"] = instance_type
-        if enum is not None:
-            schema_to_validate_against["enum"] = enum
-        if schema_to_validate_against:
-            # Raise a validation error if the value doesn't match the type
+        try:
             jsonschema.validate(
                 instance=value,
-                schema=schema_to_validate_against,
+                schema=parent_schema,
             )
+        except jsonschema.ValidationError as e:
+            raise UnsatisfiableSchemaError(f"const {value!r} is inconsistent with parent schema: {parent_schema}") from e
         # Base case
         if isinstance(value, (type(None), bool, int, float, str)):
             return lm + json_dumps(value)
@@ -755,7 +1109,8 @@ class GenJson:
                     "properties": {k: {"const": v} for k, v in dict(value).items()},
                     "required": list(value.keys()),
                     "additionalProperties": False,
-                }
+                },
+                base_uri="", # dummy value -- we don't need to resolve anything
             )
         if isinstance(value, Sequence):
             return lm + self.json(
@@ -765,7 +1120,8 @@ class GenJson:
                     "minItems": len(value),
                     "maxItems": len(value),
                     "items": False,
-                }
+                },
+                base_uri="", # dummy value -- we don't need to resolve anything
             )
         raise TypeError(f"Unsupported value type: {type(value)} for value: {value!r}")
 
@@ -775,17 +1131,21 @@ class GenJson:
         lm,
         *,
         options: Sequence[Union[None, bool, int, float, str, Mapping, Sequence]],
-        instance_type: Optional[Union[str, Sequence[str]]] = None,
+        parent_schema: JSONSchema,
     ):
+        if not options:
+            raise UnsatisfiableSchemaError("enum has no options")
         all_opts: list[GrammarFunction] = []
         for instance in options:
             try:
-                grm = self.const(value=instance, instance_type=instance_type)
-            except jsonschema.ValidationError:
+                grm = self.const(value=instance, parent_schema=parent_schema)
+            except UnsatisfiableSchemaError:
+                # Like anyOf, we don't want to raise an error if one of the options is unsatisfiable. We'll check again at the end
+                # and raise if ALL options are unsatisfiable. Note that this means that we are just going to drop this exception.
                 continue
             all_opts.append(grm)
         if not all_opts:
-            raise ValueError(f"No valid options found for enum with type {instance_type!r}: {options}")
+            raise UnsatisfiableSchemaError(f"All enum options {options} are inconsistent with parent schema: {parent_schema}")
         return lm + select(options=all_opts)
 
 
@@ -793,23 +1153,26 @@ class GenJson:
     def any(self, lm):
         return lm + select(
             [
-                self.json(json_schema={"type": "null"}),
-                self.json(json_schema={"type": "boolean"}),
-                self.json(json_schema={"type": "integer"}),
-                self.json(json_schema={"type": "number"}),
-                self.json(json_schema={"type": "string"}),
+                # Dummy base uris ok since we're not resolving anything
+                self.json(json_schema={"type": "null"}, base_uri=""),
+                self.json(json_schema={"type": "boolean"}, base_uri=""),
+                self.json(json_schema={"type": "integer"}, base_uri=""),
+                self.json(json_schema={"type": "number"}, base_uri=""),
+                self.json(json_schema={"type": "string"}, base_uri=""),
                 # Recursive cases
                 self.json(
                     json_schema={
                         "type": "array",
                         "items": True,
                     },
+                    base_uri="",
                 ),
                 self.json(
                     json_schema={
                         "type": "object",
                         "additionalProperties": True,
                     },
+                    base_uri="",
                 ),
             ]
         )
@@ -821,74 +1184,53 @@ class GenJson:
         lm,
         *,
         json_schema: JSONSchema,
+        base_uri: str,
     ):
         if json_schema is True:
             json_schema = {}
         elif json_schema is False:
-            raise ValueError("No valid JSON can be generated from a schema of `False`")
+            raise UnsatisfiableSchemaError("No valid JSON can be generated from a schema of `false`")
 
         if json_schema == {}:
             return lm + self.any()
 
-        validate_json_node_keys(json_schema)
+        # Early exit for simple cases
+        if Keyword.CONST in json_schema:
+            return lm + self.const(value=json_schema[Keyword.CONST], parent_schema=json_schema)
 
-        if Keyword.ANYOF in json_schema:
-            sibling_keys = get_sibling_keys(json_schema, Keyword.ANYOF)
-            if sibling_keys:
-                raise NotImplementedError(f"anyOf with sibling keys is not yet supported. Got {sibling_keys}")
-            return lm + self.anyOf(anyof_list=json_schema[Keyword.ANYOF])
+        if Keyword.ENUM in json_schema:
+            return lm + self.enum(options=json_schema[Keyword.ENUM], parent_schema=json_schema)
+
+        # More complex cases; validation needed
+        validate_json_node_keys(json_schema)
+        json_schema = self.push_sibling_keys(json_schema)
 
         if Keyword.ALLOF in json_schema:
             sibling_keys = get_sibling_keys(json_schema, Keyword.ALLOF)
-            if sibling_keys:
-                raise NotImplementedError(f"allOf with sibling keys is not yet supported. Got {sibling_keys}")
-            allof_list = json_schema[Keyword.ALLOF]
-            if len(allof_list) != 1:
-                raise ValueError("Only support allOf with exactly one item")
-            return lm + self.json(json_schema=allof_list[0])
+            assert not sibling_keys
+            return lm + self.allOf(parent_schema=json_schema, base_uri=base_uri)
+
+        if Keyword.ANYOF in json_schema:
+            sibling_keys = get_sibling_keys(json_schema, Keyword.ANYOF)
+            assert not sibling_keys
+            return lm + self.anyOf(anyof_list=json_schema[Keyword.ANYOF], base_uri=base_uri)
 
         if Keyword.ONEOF in json_schema:
             sibling_keys = get_sibling_keys(json_schema, Keyword.ONEOF)
-            if sibling_keys:
-                raise NotImplementedError(f"oneOf with sibling keys is not yet supported. Got {sibling_keys}")
-            oneof_list = json_schema[Keyword.ONEOF]
-            if len(oneof_list) == 1:
-                return lm + self.json(json_schema=oneof_list[0])
-            warnings.warn("oneOf not fully supported, falling back to anyOf. This may cause validation errors in some cases.")
-            return lm + self.anyOf(anyof_list=oneof_list)
+            assert not sibling_keys
+            return lm + self.oneOf(oneof_list=json_schema[Keyword.ONEOF], base_uri=base_uri)
 
         if Keyword.REF in json_schema:
             sibling_keys = get_sibling_keys(json_schema, Keyword.REF)
-            if sibling_keys:
-                raise NotImplementedError(f"$ref with sibling keys is not yet supported. Got {sibling_keys}")
-            return lm + self.ref(reference=json_schema[Keyword.REF])
+            assert not sibling_keys
+            return lm + self.ref(reference=json_schema[Keyword.REF], base_uri=base_uri)
 
-        if Keyword.CONST in json_schema:
-            sibling_keys = get_sibling_keys(json_schema, Keyword.CONST) - {Keyword.TYPE, Keyword.ENUM}
-            if sibling_keys:
-                raise NotImplementedError(f"const with sibling keys is not yet supported. Got {sibling_keys}")
-            return lm + self.const(value=json_schema[Keyword.CONST], instance_type=json_schema.get(Keyword.TYPE, None), enum=json_schema.get(Keyword.ENUM, None))
-
-        if Keyword.ENUM in json_schema:
-            sibling_keys = get_sibling_keys(json_schema, Keyword.ENUM) - {Keyword.TYPE}
-            if sibling_keys:
-                raise NotImplementedError(f"enum with sibling keys is not yet supported. Got {sibling_keys}")
-            return lm + self.enum(options=json_schema[Keyword.ENUM], instance_type=json_schema.get(Keyword.TYPE, None))
-
-        if Keyword.TYPE in json_schema:
-            target_types = cast(Union[str, Sequence[str]], json_schema[Keyword.TYPE])
-            if isinstance(target_types, str):
-                target_types = [target_types]
-        else:
-            target_types = list(JSONType)
-
-        options: list[Union[str, GrammarFunction]] = []
-        option: Union[str, GrammarFunction]
-        for target_type in target_types:
+        if Keyword.TYPE in json_schema and isinstance(json_schema[Keyword.TYPE], str):
+            target_type = json_schema[Keyword.TYPE]
             if target_type == JSONType.NULL:
-                option = "null"
+                return  lm + "null"
             elif target_type == JSONType.BOOLEAN:
-                option = select(["true", "false"])
+                return lm + select(["true", "false"])
             elif target_type in {JSONType.INTEGER, JSONType.NUMBER}:
                 minimum = cast(Union[int, float, None], json_schema.get(NumberKeywords.MINIMUM, None))
                 maximum = cast(Union[int, float, None], json_schema.get(NumberKeywords.MAXIMUM, None))
@@ -910,44 +1252,58 @@ class GenJson:
                         exclusive_maximum_flag = True
 
                 if target_type == JSONType.INTEGER:
-                    option = self.integer(
+                    return lm + self.integer(
                         minimum=minimum,
                         maximum=maximum,
                         exclusiveMinimum=exclusive_minimum_flag,
                         exclusiveMaximum=exclusive_maximum_flag,
                     )
                 else:
-                    option = self.number(
+                    return lm + self.number(
                         minimum=minimum,
                         maximum=maximum,
                         exclusiveMinimum=exclusive_minimum_flag,
                         exclusiveMaximum=exclusive_maximum_flag,
                     )
             elif target_type == JSONType.STRING:
-                option = self.string(
+                return lm + self.string(
                     regex=json_schema.get(StringKeywords.PATTERN, None),
                     format=json_schema.get(StringKeywords.FORMAT, None),
                     min_length=json_schema.get(StringKeywords.MIN_LENGTH, 0),
                     max_length=json_schema.get(StringKeywords.MAX_LENGTH, None),
                 )
             elif target_type == JSONType.ARRAY:
-                option = self.array(
+                return lm + self.array(
                     prefix_items_schema=json_schema.get(ArrayKeywords.PREFIX_ITEMS, []),
                     item_schema=json_schema.get(ArrayKeywords.ITEMS, True),
                     min_items=json_schema.get(ArrayKeywords.MIN_ITEMS, 0),
                     max_items=json_schema.get(ArrayKeywords.MAX_ITEMS, None),
+                    base_uri=base_uri,
                 )
             elif target_type == JSONType.OBJECT:
-                option = self.object(
+                return lm + self.object(
                     properties=json_schema.get(ObjectKeywords.PROPERTIES, {}),
                     additional_properties=json_schema.get(ObjectKeywords.ADDITIONAL_PROPERTIES, True),
                     required=json_schema.get(ObjectKeywords.REQUIRED, set()),
+                    base_uri=base_uri,
                 )
             else:
                 raise ValueError(f"Unsupported type in schema: {target_type}")
-            options.append(option)
 
-        return lm + select(options)
+        if Keyword.TYPE in json_schema:
+            json_schema = json_schema.copy()
+            target_types = cast(Sequence[JSONType], json_schema.pop(Keyword.TYPE))
+        else:
+            target_types = list(JSONType)
+
+        assert Keyword.TYPE not in json_schema
+        # Punt to anyOf if we have multiple types so that it can ignore an unsatisfiable subset
+        return lm + self.anyOf(
+            anyof_list = [
+                {"type": target_type, **json_schema} for target_type in target_types
+            ],
+            base_uri=base_uri,
+        )
 
 
 @guidance(stateless=True)

@@ -155,7 +155,6 @@ class TestRefs:
             ({"foo": "string"}, False),
         ],
     )
-    @pytest.mark.xfail(reason="sibling keywords to ref are not yet supported")
     def test_ref_applies_alongside_sibling_keywords(self, test_object, valid):
         schema = {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -442,10 +441,15 @@ class TestRefs:
             # invalid on outer field
             ({"foo": {"bar": "a"}, "bar": 1}, False),
             # valid on both fields
-            ({"foo": {"bar": "a"}, "bar": "a"}, True),
+            (
+                {
+                    "foo": {"bar": "a"},
+                    "bar": "a",
+                },
+                True,
+            ),
         ],
     )
-    @pytest.mark.xfail(reason="refs with sibling keywords are not yet supported")
     def test_refs_with_relative_uris_and_defs(self, test_object, valid):
         schema = {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -478,7 +482,6 @@ class TestRefs:
             ({"foo": {"bar": "a"}, "bar": "a"}, True),
         ],
     )
-    @pytest.mark.xfail(reason="refs with sibling keywords are not yet supported")
     def test_relative_refs_with_absolute_uris_and_defs(self, test_object, valid):
         schema = {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
