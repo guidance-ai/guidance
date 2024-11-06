@@ -1070,23 +1070,15 @@ class GenJson:
         lm,
         *,
         value: Union[None, bool, int, float, str, Mapping, Sequence],
-        instance_type: Optional[Union[str, Sequence[str]]] = None,
-        enum: Optional[Sequence[Union[None, bool, int, float, str, Mapping, Sequence]]] = None,
+        parent_schema: JSONSchema,
     ):
-        schema_to_validate_against: dict[str, Any] = {}
-        if instance_type is not None:
-            schema_to_validate_against["type"] = instance_type
-        if enum is not None:
-            schema_to_validate_against["enum"] = enum
-        if schema_to_validate_against:
-            # Raise a validation error if the value doesn't match the type
-            try:
-                jsonschema.validate(
-                    instance=value,
-                    schema=schema_to_validate_against,
-                )
-            except jsonschema.ValidationError as e:
-                raise UnsatisfiableSchemaError(f"const {value!r} does not match schema {schema_to_validate_against}") from e
+        try:
+            jsonschema.validate(
+                instance=value,
+                schema=parent_schema,
+            )
+        except jsonschema.ValidationError as e:
+            raise UnsatisfiableSchemaError(f"const {value!r} is inconsistent with parent schema: {parent_schema}") from e
         # Base case
         if isinstance(value, (type(None), bool, int, float, str)):
             return lm + json_dumps(value)
@@ -1122,19 +1114,19 @@ class GenJson:
         lm,
         *,
         options: Sequence[Union[None, bool, int, float, str, Mapping, Sequence]],
-        instance_type: Optional[Union[str, Sequence[str]]] = None,
+        parent_schema: JSONSchema,
     ):
         if not options:
             raise UnsatisfiableSchemaError("enum has no options")
         all_opts: list[GrammarFunction] = []
         for instance in options:
             try:
-                grm = self.const(value=instance, instance_type=instance_type)
+                grm = self.const(value=instance, parent_schema=parent_schema)
             except UnsatisfiableSchemaError:
                 continue
             all_opts.append(grm)
         if not all_opts:
-            raise ValueError(f"No valid options found for enum with type {instance_type!r}: {options}")
+            raise UnsatisfiableSchemaError(f"All enum options {options} are inconsistent with parent schema: {parent_schema}")
         return lm + select(options=all_opts)
 
 
@@ -1183,7 +1175,14 @@ class GenJson:
         if json_schema == {}:
             return lm + self.any()
 
+        # Early exit for simple cases
+        if Keyword.CONST in json_schema:
+            return lm + self.const(value=json_schema[Keyword.CONST], parent_schema=json_schema)
 
+        if Keyword.ENUM in json_schema:
+            return lm + self.enum(options=json_schema[Keyword.ENUM], parent_schema=json_schema)
+
+        # More complex cases; validation needed
         validate_json_node_keys(json_schema)
         json_schema = self.push_sibling_keys(json_schema)
 
@@ -1206,18 +1205,6 @@ class GenJson:
             sibling_keys = get_sibling_keys(json_schema, Keyword.REF)
             assert not sibling_keys
             return lm + self.ref(reference=json_schema[Keyword.REF], base_uri=base_uri)
-
-        if Keyword.CONST in json_schema:
-            sibling_keys = get_sibling_keys(json_schema, Keyword.CONST) - {Keyword.TYPE, Keyword.ENUM}
-            if sibling_keys:
-                raise NotImplementedError(f"const with sibling keys is not yet supported. Got {sibling_keys}")
-            return lm + self.const(value=json_schema[Keyword.CONST], instance_type=json_schema.get(Keyword.TYPE, None), enum=json_schema.get(Keyword.ENUM, None))
-
-        if Keyword.ENUM in json_schema:
-            sibling_keys = get_sibling_keys(json_schema, Keyword.ENUM) - {Keyword.TYPE}
-            if sibling_keys:
-                raise NotImplementedError(f"enum with sibling keys is not yet supported. Got {sibling_keys}")
-            return lm + self.enum(options=json_schema[Keyword.ENUM], instance_type=json_schema.get(Keyword.TYPE, None))
 
         if Keyword.TYPE in json_schema and isinstance(json_schema[Keyword.TYPE], str):
             target_type = json_schema[Keyword.TYPE]

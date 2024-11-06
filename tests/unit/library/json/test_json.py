@@ -1527,7 +1527,7 @@ class TestEnum:
         schema_obj = {"enum": [1, "2"], "type": "boolean"}
         with pytest.raises(ValueError) as ve:
             gen_json(schema=schema_obj)
-        assert ve.value.args[0] == "No valid options found for enum with type 'boolean': [1, '2']"
+        assert ve.value.args[0] == f"All enum options {[1, '2']} are inconsistent with parent schema: {schema_obj}"
 
 
 class TestConst:
@@ -1598,7 +1598,7 @@ class TestConst:
         schema_obj = {"const": 1, "type": "boolean"}
         with pytest.raises(ValueError) as ve:
             gen_json(schema=schema_obj)
-        assert ve.value.args[0] == "const 1 does not match schema {'type': 'boolean'}"
+        assert ve.value.args[0] == f"const {1!r} is inconsistent with parent schema: {schema_obj}"
 
     def test_valid_enum_const(self):
         schema_obj = {"const": 1, "enum": [1, 2, 3]}
@@ -1610,7 +1610,7 @@ class TestConst:
         schema_obj = {"const": 1, "enum": [2, 3]}
         with pytest.raises(ValueError) as ve:
             gen_json(schema=schema_obj)
-        assert ve.value.args[0] == "const 1 does not match schema {'enum': [2, 3]}"
+        assert ve.value.args[0] == f"const {1!r} is inconsistent with parent schema: {schema_obj}"
 
     def test_valid_typed_enum_const(self):
         schema_obj = {"const": 1, "enum": [1, "2", 3], "type": "integer"}
@@ -1632,7 +1632,7 @@ class TestConst:
             gen_json(schema=schema_obj)
         assert (
             ve.value.args[0]
-            == f"const {const!r} does not match schema {{'type': 'integer', 'enum': [1, '2', 3]}}"
+            == f"const {const!r} is inconsistent with parent schema: {schema_obj}"
         )
 
 
