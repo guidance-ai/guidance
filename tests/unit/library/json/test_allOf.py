@@ -80,6 +80,8 @@ class TestAllOf:
             (25, True),
             # mismatch one
             (35, False),
+            # mismatch other
+            (15, False),
         ],
     )
     def test_allOf_simple_types(self, test_object, valid):
@@ -98,6 +100,8 @@ class TestAllOf:
     @pytest.mark.parametrize(
         ["test_object", "valid"],
         [
+            # mismatch both
+            (15, False),
             # mismatch one
             (25, False),
             # valid
@@ -120,6 +124,8 @@ class TestAllOf:
     @pytest.mark.parametrize(
         ["test_object", "valid"],
         [
+            # mismatch both
+            (35, False),
             # mismatch one
             (25, False),
             # valid
