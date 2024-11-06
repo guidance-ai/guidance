@@ -577,7 +577,9 @@ class GenJson:
                 # We get here if the schema is a literal False or is otherwise determined to be unsatisfiable
                 if name in required:
                     raise UnsatisfiableSchemaError(f"Required property {name!r} is unsatisfiable") from e
-                # Use json_dumps to properly quote / escape the key
+                # If the property is not required, we will just "blacklist" this key (e.g. if the schema was False)
+                # Note that we're just dropping this exception.
+                # Use json_dumps to properly quote / escape the key before adding it to the blacklist
                 key = json_dumps(name)
                 illegal_keys.add(key)
 
@@ -592,6 +594,10 @@ class GenJson:
                     f"Required properties not in properties but additionalProperties is unsatisfiable."
                     f" Missing required properties: {list(r for r in required if r not in properties)}"
                 ) from e
+            else:
+                # If "additionalProperties" is unsatisfiable but there are no required properties that need to be validated against it,
+                # then we can safely ignore it. Note that this means that we are just going to drop this exception.
+                pass
 
         keys: list[str] = []
         required_items: list[bool] = []
@@ -682,6 +688,11 @@ class GenJson:
                     f"prefixItems has too few elements ({len(prefix_items_schema)}) to satisfy minItems ({min_items})"
                     f" but item schema is unsatisfiable"
                 ) from e
+            else:
+                # If we've already satisfied min_items, we can just ignore the unsatisfiable item schema. This just means
+                # that we can't generate any more items after the prefix items.
+                # Note that this means that we are just going to drop this exception.
+                pass
 
         required_items = []
         optional_items = []
@@ -697,8 +708,10 @@ class GenJson:
                     if i < min_items:
                         raise UnsatisfiableSchemaError(f"prefixItems[{i}] is unsatisfiable but min_items is {min_items}") from e
                     # Having an unsatisfiable prefix item is fine if we've already satisfied min_items, but this effectively sets max_items to i
+                    # Note that this means that we are just going to drop this exception.
                     max_items = i
                     break
+
             elif items_grammar is not None:
                 item = items_grammar
             else:
@@ -757,6 +770,8 @@ class GenJson:
             try:
                 options.append(self.json(json_schema=item, base_uri=base_uri))
             except UnsatisfiableSchemaError:
+                # No need to raise an error if one of the schemas is unsatisfiable. We'll check again at the end and raise if ALL
+                # schemas are unsatisfiable. Note that this means that we are just going to drop this exception.
                 pass
         if not options:
             # Can't really point to any one schema that's unsatisfiable, so let's include all the schemas in the error message
@@ -1125,6 +1140,8 @@ class GenJson:
             try:
                 grm = self.const(value=instance, parent_schema=parent_schema)
             except UnsatisfiableSchemaError:
+                # Like anyOf, we don't want to raise an error if one of the options is unsatisfiable. We'll check again at the end
+                # and raise if ALL options are unsatisfiable. Note that this means that we are just going to drop this exception.
                 continue
             all_opts.append(grm)
         if not all_opts:
