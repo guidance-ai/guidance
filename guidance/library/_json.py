@@ -844,7 +844,18 @@ class GenJson:
         consts: list[Any] = []
 
         def handle_keyword(key: str, value: Any, parent_schema: dict[str, Any], base_uri: str):
-            if key == Keyword.REF:
+            if key == Keyword.ANYOF:
+                raise NotImplementedError("anyOf in allOf not yet supported")
+
+            elif key == Keyword.ONEOF:
+                raise NotImplementedError("oneOf in allOf not yet supported")
+
+            elif key == Keyword.ALLOF:
+                value = cast(Sequence[JSONSchema], value)
+                for schema in value:
+                    add_schema(schema, base_uri)
+
+            elif key == Keyword.REF:
                 ref = cast(str, value)
                 abspath = urijoin(base_uri, ref)
                 resolved = self._resolver.lookup(abspath)
@@ -864,11 +875,6 @@ class GenJson:
                 else:
                     value_set = set(value)
                 types.append(value_set)
-
-            elif key == Keyword.ALLOF:
-                value = cast(Sequence[JSONSchema], value)
-                for schema in value:
-                    add_schema(schema, base_uri)
 
             elif key == ObjectKeywords.PROPERTIES:
                 value = cast(dict[str, JSONSchema], value)
@@ -913,10 +919,6 @@ class GenJson:
                 items_list.append(
                     (value, exempt_prefix_items)
                 )
-
-            elif key in set(Keyword):
-                # If we've done our job right, we should never hit this case...
-                raise NotImplementedError(f"Don't yet know how to handle {key} in allOf")
 
             elif key in other_data:
                 if key in {
