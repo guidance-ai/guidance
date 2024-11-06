@@ -1,8 +1,10 @@
 """Adapted from https://github.com/json-schema-org/JSON-Schema-Test-Suite/tree/9fc880bfb6d8ccd093bc82431f17d13681ffae8e/tests/draft2020-12/optional/format"""
 
-import pytest
 import json
-from .test_json import generate_and_check, check_match_failure
+
+import pytest
+
+from .utils import check_match_failure, generate_and_check
 
 
 class TestDate:
@@ -43,17 +45,35 @@ class TestDate:
         "bad_str",
         [
             '"2020-01-32"',  # a invalid date string with 32 days in January
-            pytest.param('"2021-02-29"', marks=pytest.mark.xfail(reason="number of days not yet tied to month")),  # a invalid date string with 29 days in February (normal)
-            pytest.param('"2020-02-30"', marks=pytest.mark.xfail(reason="number of days not yet tied to month")),  # a invalid date string with 30 days in February (leap)
+            pytest.param(
+                '"2021-02-29"',
+                marks=pytest.mark.xfail(reason="number of days not yet tied to month"),
+            ),  # a invalid date string with 29 days in February (normal)
+            pytest.param(
+                '"2020-02-30"',
+                marks=pytest.mark.xfail(reason="number of days not yet tied to month"),
+            ),  # a invalid date string with 30 days in February (leap)
             '"2020-03-32"',  # a invalid date string with 32 days in March
-            pytest.param('"2020-04-31"', marks=pytest.mark.xfail(reason="number of days not yet tied to month")),  # a invalid date string with 31 days in April
+            pytest.param(
+                '"2020-04-31"',
+                marks=pytest.mark.xfail(reason="number of days not yet tied to month"),
+            ),  # a invalid date string with 31 days in April
             '"2020-05-32"',  # a invalid date string with 32 days in May
-            pytest.param('"2020-06-31"', marks=pytest.mark.xfail(reason="number of days not yet tied to month")),  # a invalid date string with 31 days in June
+            pytest.param(
+                '"2020-06-31"',
+                marks=pytest.mark.xfail(reason="number of days not yet tied to month"),
+            ),  # a invalid date string with 31 days in June
             '"2020-07-32"',  # a invalid date string with 32 days in July
             '"2020-08-32"',  # a invalid date string with 32 days in August
-            pytest.param('"2020-09-31"', marks=pytest.mark.xfail(reason="number of days not yet tied to month")),  # a invalid date string with 31 days in September
+            pytest.param(
+                '"2020-09-31"',
+                marks=pytest.mark.xfail(reason="number of days not yet tied to month"),
+            ),  # a invalid date string with 31 days in September
             '"2020-10-32"',  # a invalid date string with 32 days in October
-            pytest.param('"2020-11-31"', marks=pytest.mark.xfail(reason="number of days not yet tied to month")),  # a invalid date string with 31 days in November
+            pytest.param(
+                '"2020-11-31"',
+                marks=pytest.mark.xfail(reason="number of days not yet tied to month"),
+            ),  # a invalid date string with 31 days in November
             '"2020-12-32"',  # a invalid date string with 32 days in December
             '"2020-13-01"',  # a invalid date string with invalid month
             '"06/19/1963"',  # an invalid date string
@@ -61,8 +81,13 @@ class TestDate:
             '"1998-1-20"',  # non-padded month dates are not valid
             '"1998-01-1"',  # non-padded day dates are not valid
             '"1998-13-01"',  # invalid month
-            pytest.param('"1998-04-31"', marks=pytest.mark.xfail(reason="number of days not yet tied to month")),  # invalid month-day combination
-            pytest.param('"2021-02-29"', marks=pytest.mark.xfail(reason="leap days are hard")),  # 2021 is not a leap year
+            pytest.param(
+                '"1998-04-31"',
+                marks=pytest.mark.xfail(reason="number of days not yet tied to month"),
+            ),  # invalid month-day combination
+            pytest.param(
+                '"2021-02-29"', marks=pytest.mark.xfail(reason="leap days are hard")
+            ),  # 2021 is not a leap year
             '"1963-06-1\\u09ea"',  # invalid non-ASCII '৪' (a Bengali 4)
             '"20230328"',  # ISO8601 / non-RFC3339: YYYYMMDD without dashes (2023-03-28)
             '"2023-W01"',  # ISO8601 / non-RFC3339: week number implicit day of week (2023-01-02)
@@ -135,6 +160,7 @@ class TestJsonPointer:
     def test_bad(self, bad_str):
         schema_obj = json.loads(self.schema)
         check_match_failure(bad_string=bad_str, schema_obj=schema_obj)
+
 
 @pytest.mark.xfail(reason="idn-hostname format not implemented")
 class TestIdnHostname:
@@ -298,6 +324,7 @@ class TestUriTemplate:
     def test_bad(self, bad_str):
         schema_obj = json.loads(self.schema)
         check_match_failure(bad_string=bad_str, schema_obj=schema_obj)
+
 
 @pytest.mark.xfail(reason="iri-reference format is not yet implemented")
 class TestIriReference:
@@ -488,20 +515,40 @@ class TestTime:
             '"008:030:006Z"',  # invalid time string with extra leading zeros
             '"8:3:6Z"',  # invalid time string with no leading zero for single digit
             '"8:0030:6Z"',  # hour, minute, second must be two digits
-            pytest.param('"22:59:60Z"', marks=pytest.mark.xfail(reason="leap seconds are hard")),  # invalid leap second, Zulu (wrong hour)
-            pytest.param('"23:58:60Z"', marks=pytest.mark.xfail(reason="leap seconds are hard")),  # invalid leap second, Zulu (wrong minute)
-            pytest.param('"22:59:60+00:00"', marks=pytest.mark.xfail(reason="leap seconds are hard")),  # invalid leap second, zero time-offset (wrong hour)
-            pytest.param('"23:58:60+00:00"', marks=pytest.mark.xfail(reason="leap seconds are hard")),  # invalid leap second, zero time-offset (wrong minute)
-            pytest.param('"23:59:60+01:00"', marks=pytest.mark.xfail(reason="leap seconds are hard")),  # invalid leap second, positive time-offset (wrong hour)
-            pytest.param('"23:59:60+00:30"', marks=pytest.mark.xfail(reason="leap seconds are hard")),  # invalid leap second, positive time-offset (wrong minute)
-            pytest.param('"23:59:60-01:00"', marks=pytest.mark.xfail(reason="leap seconds are hard")),  # invalid leap second, negative time-offset (wrong hour)
-            pytest.param('"23:59:60-00:30"', marks=pytest.mark.xfail(reason="leap seconds are hard")),  # invalid leap second, negative time-offset (wrong minute)
+            pytest.param(
+                '"22:59:60Z"', marks=pytest.mark.xfail(reason="leap seconds are hard")
+            ),  # invalid leap second, Zulu (wrong hour)
+            pytest.param(
+                '"23:58:60Z"', marks=pytest.mark.xfail(reason="leap seconds are hard")
+            ),  # invalid leap second, Zulu (wrong minute)
+            pytest.param(
+                '"22:59:60+00:00"', marks=pytest.mark.xfail(reason="leap seconds are hard")
+            ),  # invalid leap second, zero time-offset (wrong hour)
+            pytest.param(
+                '"23:58:60+00:00"', marks=pytest.mark.xfail(reason="leap seconds are hard")
+            ),  # invalid leap second, zero time-offset (wrong minute)
+            pytest.param(
+                '"23:59:60+01:00"', marks=pytest.mark.xfail(reason="leap seconds are hard")
+            ),  # invalid leap second, positive time-offset (wrong hour)
+            pytest.param(
+                '"23:59:60+00:30"', marks=pytest.mark.xfail(reason="leap seconds are hard")
+            ),  # invalid leap second, positive time-offset (wrong minute)
+            pytest.param(
+                '"23:59:60-01:00"', marks=pytest.mark.xfail(reason="leap seconds are hard")
+            ),  # invalid leap second, negative time-offset (wrong hour)
+            pytest.param(
+                '"23:59:60-00:30"', marks=pytest.mark.xfail(reason="leap seconds are hard")
+            ),  # invalid leap second, negative time-offset (wrong minute)
             '"08:30:06-8:000"',  # hour, minute in time-offset must be two digits
             '"24:00:00Z"',  # an invalid time string with invalid hour
             '"00:60:00Z"',  # an invalid time string with invalid minute
             '"00:00:61Z"',  # an invalid time string with invalid second
-            pytest.param('"22:59:60Z"', marks=pytest.mark.xfail(reason="leap seconds are hard")),  # an invalid time string with invalid leap second (wrong hour)
-            pytest.param('"23:58:60Z"', marks=pytest.mark.xfail(reason="leap seconds are hard")),  # an invalid time string with invalid leap second (wrong minute)
+            pytest.param(
+                '"22:59:60Z"', marks=pytest.mark.xfail(reason="leap seconds are hard")
+            ),  # an invalid time string with invalid leap second (wrong hour)
+            pytest.param(
+                '"23:58:60Z"', marks=pytest.mark.xfail(reason="leap seconds are hard")
+            ),  # an invalid time string with invalid leap second (wrong minute)
             '"01:02:03+24:00"',  # an invalid time string with invalid time numoffset hour
             '"01:02:03+00:60"',  # an invalid time string with invalid time numoffset minute
             '"01:02:03Z+00:30"',  # an invalid time string with invalid time with both Z and numoffset
@@ -537,11 +584,23 @@ class TestIpv6:
             '"::42:ff:1"',  # leading colons is valid
             '"d6::"',  # trailing colons is valid
             '"1:d6::42"',  # single set of double colons in the middle is valid
-            pytest.param('"1::d6:192.168.0.1"', marks=pytest.mark.xfail(reason="Mixed format IPv6 not implemented")),  # mixed format with the ipv4 section as decimal octets
-            pytest.param('"1:2::192.168.0.1"', marks=pytest.mark.xfail(reason="Mixed format IPv6 not implemented")),  # mixed format with double colons between the sections
-            pytest.param('"::ffff:192.168.0.1"', marks=pytest.mark.xfail(reason="Mixed format IPv6 not implemented")),  # mixed format with leading double colons (ipv4-mapped ipv6 address)
+            pytest.param(
+                '"1::d6:192.168.0.1"',
+                marks=pytest.mark.xfail(reason="Mixed format IPv6 not implemented"),
+            ),  # mixed format with the ipv4 section as decimal octets
+            pytest.param(
+                '"1:2::192.168.0.1"',
+                marks=pytest.mark.xfail(reason="Mixed format IPv6 not implemented"),
+            ),  # mixed format with double colons between the sections
+            pytest.param(
+                '"::ffff:192.168.0.1"',
+                marks=pytest.mark.xfail(reason="Mixed format IPv6 not implemented"),
+            ),  # mixed format with leading double colons (ipv4-mapped ipv6 address)
             '"1:2:3:4:5:6:7:8"',  # 8 octets
-            pytest.param('"1000:1000:1000:1000:1000:1000:255.255.255.255"', marks=pytest.mark.xfail(reason="Mixed format IPv6 not implemented")),  # a long valid ipv6
+            pytest.param(
+                '"1000:1000:1000:1000:1000:1000:255.255.255.255"',
+                marks=pytest.mark.xfail(reason="Mixed format IPv6 not implemented"),
+            ),  # a long valid ipv6
         ],
     )
     def test_good(self, target_str):
@@ -709,11 +768,22 @@ class TestEmail:
             '"te~st@example.com"',  # tilde in local part is valid
             '"~test@example.com"',  # tilde before local part is valid
             '"test~@example.com"',  # tilde after local part is valid
-            pytest.param('"\\"joe bloggs\\"@example.com"', marks=pytest.mark.xfail(reason="Quoted strings not yet implemented in local part")),  # a quoted string with a space in the local part is valid
-            pytest.param('"\\"joe..bloggs\\"@example.com"', marks=pytest.mark.xfail(reason="Quoted strings not yet implemented in local part")),  # a quoted string with a double dot in the local part is valid
-            pytest.param('"\\"joe@bloggs\\"@example.com"', marks=pytest.mark.xfail(reason="Quoted strings not yet implemented in local part")),  # a quoted string with a @ in the local part is valid
+            pytest.param(
+                '"\\"joe bloggs\\"@example.com"',
+                marks=pytest.mark.xfail(reason="Quoted strings not yet implemented in local part"),
+            ),  # a quoted string with a space in the local part is valid
+            pytest.param(
+                '"\\"joe..bloggs\\"@example.com"',
+                marks=pytest.mark.xfail(reason="Quoted strings not yet implemented in local part"),
+            ),  # a quoted string with a double dot in the local part is valid
+            pytest.param(
+                '"\\"joe@bloggs\\"@example.com"',
+                marks=pytest.mark.xfail(reason="Quoted strings not yet implemented in local part"),
+            ),  # a quoted string with a @ in the local part is valid
             '"joe.bloggs@[127.0.0.1]"',  # an IPv4-address-literal after the @ is valid
-            pytest.param('"joe.bloggs@[IPv6:::1]"', marks=pytest.mark.xfail(reason="IPv6 is hard")),  # an IPv6-address-literal after the @ is valid
+            pytest.param(
+                '"joe.bloggs@[IPv6:::1]"', marks=pytest.mark.xfail(reason="IPv6 is hard")
+            ),  # an IPv6-address-literal after the @ is valid
             '"te.s.t@example.com"',  # two separated dots inside local part are valid
             '"riedgar+guidance@example.com"',  # plus sign in local part is valid
         ],
@@ -859,9 +929,16 @@ class TestDateTime:
         "bad_str",
         [
             '"1998-12-31T23:59:61Z"',  # an invalid date-time past leap second, UTC
-            pytest.param('"1998-12-31T23:58:60Z"', marks=pytest.mark.xfail(reason="leap seconds are hard")),  # an invalid date-time with leap second on a wrong minute, UTC
-            pytest.param('"1998-12-31T22:59:60Z"', marks=pytest.mark.xfail(reason="leap seconds are hard")),  # an invalid date-time with leap second on a wrong hour, UTC
-            pytest.param('"1990-02-31T15:59:59.123-08:00"', marks=pytest.mark.xfail(reason="valid days not yet tied to month")),  # an invalid day in date-time string
+            pytest.param(
+                '"1998-12-31T23:58:60Z"', marks=pytest.mark.xfail(reason="leap seconds are hard")
+            ),  # an invalid date-time with leap second on a wrong minute, UTC
+            pytest.param(
+                '"1998-12-31T22:59:60Z"', marks=pytest.mark.xfail(reason="leap seconds are hard")
+            ),  # an invalid date-time with leap second on a wrong hour, UTC
+            pytest.param(
+                '"1990-02-31T15:59:59.123-08:00"',
+                marks=pytest.mark.xfail(reason="valid days not yet tied to month"),
+            ),  # an invalid day in date-time string
             '"1990-12-31T15:59:59-24:00"',  # an invalid offset in date-time string
             '"1963-06-19T08:30:06.28123+01:00Z"',  # an invalid closing Z after time-zone offset
             '"06/19/1963 08:30:06 PST"',  # an invalid date-time string
@@ -875,6 +952,7 @@ class TestDateTime:
     def test_bad(self, bad_str):
         schema_obj = json.loads(self.schema)
         check_match_failure(bad_string=bad_str, schema_obj=schema_obj)
+
 
 @pytest.mark.xfail(reason="regex format not implemented")
 class TestRegex:
