@@ -778,7 +778,7 @@ class GenJson:
         warnings.warn("oneOf not fully supported, falling back to anyOf. This may cause validation errors in some cases.")
         return lm + self.anyOf(anyof_list=oneof_list, base_uri=base_uri)
 
-    def push_sibling_keys(self, json_schema: JSONSchema) -> JSONSchema:
+    def push_sibling_keys(self, json_schema: dict[str, Any]) -> dict[str, Any]:
         """
         If sibling keys are present next to anyOf, oneOf, or $ref, we push them down into an allOf.
         """
@@ -1057,7 +1057,7 @@ class GenJson:
         self,
         lm,
         *,
-        parent_schema: JSONSchema,
+        parent_schema: dict[str, Any],
         base_uri: str,
     ):
         reduced_schema = self.reduce_schema(parent_schema, base_uri)
