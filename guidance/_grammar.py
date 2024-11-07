@@ -671,6 +671,12 @@ class Select(GrammarFunction):
                 s += v.__repr__(indent, done)
         return s
 
+class LLGrammar(Terminal):
+    __slots__ = ("llgrammar",)
+    def __init__(self, llgrammar: dict[str, Any], temperature: float = -1, max_tokens: int = 100000000):
+        super().__init__(temperature=temperature, capture_name=None)
+        self.llgrammar = llgrammar
+        self.max_tokens = max_tokens
 
 def string(value: Union[str, bytes]) -> Union[Null, Join]:
     if isinstance(value, str):
@@ -1077,6 +1083,16 @@ class LLSerializer:
         self.grammar_todo.append(grammar)
         return id
 
+    def llgrammar(self, llgrammar: LLGrammar) -> int:
+        if llgrammar in self.grammar_id_cache:
+            return self.grammar_id_cache[llgrammar]
+        id = len(self.grammars)
+        self.grammar_id_cache[llgrammar] = id
+        self.grammars.append(
+            llgrammar.llgrammar
+        )
+        return id
+
     def node(self, node: GrammarFunction) -> int:
         if node in self.node_id_cache:
             return self.node_id_cache[node]
@@ -1182,6 +1198,15 @@ class LLSerializer:
             obj = {
                 "Join": {
                     "sequence": [self.node(node.value)],
+                }
+            }
+        elif isinstance(node, LLGrammar):
+            obj = {
+                "GenGrammar": {
+                    "grammar": self.llgrammar(node),
+                    # "stop_rx": node.stop_regex,
+                    # "no_initial_skip": node.no_initial_skip,
+                    # "temperature": node.temperature if node.temperature >= 0 else None,
                 }
             }
         else:
