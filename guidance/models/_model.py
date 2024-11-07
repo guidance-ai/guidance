@@ -378,6 +378,7 @@ class Model:
             If we should clear all the model object's variables in addition to reseting the byte state.
         """
         self._state = self._state[:0]
+        self.opened_blocks = {}
         if clear_variables:
             self._variables = {}
             self._variables_log_probs = {}
