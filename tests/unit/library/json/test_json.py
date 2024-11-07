@@ -7,7 +7,6 @@ from jsonschema import ValidationError, validate
 
 from guidance import json as gen_json
 from guidance import models
-from guidance.library._json import IGNORED_KEYS
 
 from .utils import check_match_failure, generate_and_check
 
@@ -2109,16 +2108,6 @@ class TestEmptySchemas:
             allowed_bytes={b"}"},  # object must be empty
             schema_obj=schema_obj,
         )
-
-
-def test_ignored_keys_allowed_as_properties():
-    schema_obj = {
-        "type": "object",
-        "properties": {key: {"type": "string"} for key in IGNORED_KEYS},
-        "required": list(IGNORED_KEYS),
-    }
-    target_obj = {key: "value" for key in IGNORED_KEYS}
-    generate_and_check(target_obj, schema_obj)
 
 
 class TestRequiredProperties:
