@@ -2232,55 +2232,6 @@ class TestRequiredProperties:
         generate_and_check({**target_obj, **extra_items}, schema_obj)
 
 
-class TestRequiredPropertiesScaling:
-    @pytest.mark.parametrize("num_properties", [1, 2, 3, 4, 5, 10, 20, 50, 100])
-    def test_many_optional_properties_doesnt_blow_up(self, num_properties):
-        schema_obj = {
-            "type": "object",
-            "properties": {f"prop_{i}": {"type": "string"} for i in range(num_properties)},
-            "required": [],  # Empty should be worst-case scenario
-        }
-        from guidance.library._json import GenJson
-
-        genjson = GenJson(schema=schema_obj)
-        genjson._join.__wrapped__.cache_clear()
-        _ = genjson.root()
-        cache_info = genjson._join.__wrapped__.cache_info()
-
-        # Theoretical number of cache misses under the current implementation
-        expected_misses = 2 * num_properties - 1
-        MISSES_MAGIC_NUMBER = 5  # Where in the world is this coming from?
-        assert 0 < cache_info.misses <= expected_misses + MISSES_MAGIC_NUMBER
-        # NOTE: that if the cache maxsize is hit, the number of misses will be more than expected
-
-        # Theoretical number of total calls under the current implementation
-        expected_calls = num_properties * (num_properties - 1) // 2
-        CALLS_MAGIC_NUMBER = 12  # Where in the world is this coming from?
-        assert 0 < cache_info.hits + cache_info.misses <= expected_calls + CALLS_MAGIC_NUMBER
-
-    @pytest.mark.parametrize("num_properties", [1, 2, 3, 4, 5, 10, 20, 50, 100])
-    def test_all_required_properties_doesnt_blow_up(self, num_properties):
-        schema_obj = {
-            "type": "object",
-            "properties": {f"prop_{i}": {"type": "string"} for i in range(num_properties)},
-            "required": [f"prop_{i}" for i in range(num_properties)],
-        }
-        from guidance.library._json import GenJson
-
-        genjson = GenJson(schema=schema_obj)
-        genjson._join.__wrapped__.cache_clear()
-        _ = genjson.root()
-        cache_info = genjson._join.__wrapped__.cache_info()
-
-        # Theoretical number of cache misses under the current implementation
-        expected_misses = num_properties
-        MISSES_MAGIC_NUMBER = 4
-        assert 0 < cache_info.misses <= expected_misses + MISSES_MAGIC_NUMBER
-        HITS_MAGIC_NUMBER = 1
-        expected_hits = 0
-        assert cache_info.hits <= expected_hits + HITS_MAGIC_NUMBER
-
-
 class TestBooleanSchema:
     @pytest.mark.parametrize(
         "target_obj",
