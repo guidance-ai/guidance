@@ -103,17 +103,10 @@ def json(
     else:
         raise TypeError(f"Unsupported schema type: {type(schema)}")
 
-    if whitespace_flexible:
-        if separators is None:
-            separators = (",", ":")
-        skip_regex = r"[\x20\x0A\x0D\x09]+"
-    else:
-        skip_regex = None
-
-    if separators is None:
-        separators = (", ", ": ")
-
-    compiler = JsonCompiler(compact=False)
+    compiler = JsonCompiler(
+        separators=separators,
+        whitespace_flexible=whitespace_flexible,
+    )
     
     g = LLGrammar(
         json_loads(compiler.compile(json_dumps(schema))),
