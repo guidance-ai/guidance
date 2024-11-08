@@ -1206,7 +1206,7 @@ class LLSerializer:
                     "grammar": self.llgrammar(node),
                     # "stop_rx": node.stop_regex,
                     # "no_initial_skip": node.no_initial_skip,
-                    # "temperature": node.temperature if node.temperature >= 0 else None,
+                    "temperature": node.temperature if node.temperature >= 0 else None,
                 }
             }
         else:
