@@ -100,6 +100,21 @@ _PHI_3 = {
     ),
 }
 
+_QWEN2DOT5 = {
+    "transformers_qwen2dot5_0dot5b_cpu": dict(
+        name="transformers:Qwen/Qwen2.5-0.5B", kwargs=dict()
+    ),
+    "transformers_qwen2dot5_0dot5b_gpu": dict(
+        name="transformers:Qwen/Qwen2.5-0.5B", kwargs={"device_map": "cuda:0"}
+    ),
+    "transformers_qwen2dot5_0dot5b_instruct_cpu": dict(
+        name="transformers:Qwen/Qwen2.5-0.5B-Instruct", kwargs=dict()
+    ),
+    "transformers_qwen2dot5_0dot5b_instruct_gpu": dict(
+        name="transformers:Qwen/Qwen2.5-0.5B-Instruct", kwargs={"device_map": "cuda:0"}
+    ),
+}
+
 AVAILABLE_MODELS = {
     "azure_guidance": dict(
         name="azure_guidance:",
@@ -115,3 +130,4 @@ AVAILABLE_MODELS.update(_LLAMA_3)
 AVAILABLE_MODELS.update(_MISTRAL)
 AVAILABLE_MODELS.update(_PHI_2)
 AVAILABLE_MODELS.update(_PHI_3)
+AVAILABLE_MODELS.update(_QWEN2DOT5)
