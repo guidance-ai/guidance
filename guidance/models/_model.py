@@ -133,42 +133,86 @@ class Engine:
         """
         parser = self.start(prompt, grammar, ensure_bos_token)
 
+        has_get_logits = True
         token = None
-        while not parser.done():
-            gen_data, response = parser.advance(token)
+        while True:
+            tokens, mid_process_fut = parser.advance(token)
 
-            if gen_data is not None:
-                if parser.is_accepting() and self.tokenizer.eos_token_id is not None:
-                    # Whenever we are in an accepting state, we will allow the model to generate whatever it wants
-                    # but we will treat any "illegal" tokens as EOS, allowing the model to finish gracefully.
-                    assert gen_data.mask[self.tokenizer.eos_token_id]
-                    token = self.get_next_token(
-                        token_ids=gen_data.tokens,
-                        mask=None,
-                        temperature=gen_data.temperature
-                    )
-                    if not gen_data.mask[token]:
-                        token = self.tokenizer.eos_token_id
-                else:
-                    token = self.get_next_token(
-                        token_ids=gen_data.tokens,
-                        mask=gen_data.mask,
-                        temperature=gen_data.temperature
-                    )
+            # Note that has_pending_stop implies that the response is a stop response,
+            # but the converse is not true. We can therefore avoid some (but not all)
+            # unnecessary calls to get_logits on the final iteration.
+            has_pending_stop = parser.has_pending_stop()
+
+            if has_get_logits and not has_pending_stop:
+                try:
+                    logits = self.get_logits(token_ids=tokens)
+                except NotImplementedError:
+                    # Permanently fall-back to get_next_token if get_logits is not implemented
+                    has_get_logits = False
+                    logits = None
             else:
-                token = None
+                logits = None
 
-            yield response
+            # Important: don't wait on this future until after getting the logits;
+            # this allows the mask to be built concurrently with model inference
+            mask, ll_response = mid_process_fut.result()
+
+            engine_response = ll_response.progress.to_engine_call_response()
+            yield engine_response
+
+            if ll_response.stop:
+                assert mask is None
+                # May raise an exception if the parser is in an bad state!
+                parser.cleanup()
+                # Ensure we break AFTER yielding the final response
+                break
+
+            # If there was a pending stop, we should have broken out of the loop
+            assert not has_pending_stop
+
+            # Help the type checker: assert that everything we need to get the next token is not None
+            assert mask is not None
+            assert ll_response.temperature is not None
+
+            can_finish_early = parser.is_accepting() and self.tokenizer.eos_token_id is not None
+
+            if can_finish_early:
+                # Type checker needs some help
+                assert self.tokenizer.eos_token_id is not None
+                # Should be equivalent to parser.is_accepting()
+                assert mask[self.tokenizer.eos_token_id]
+                # Whenever we are in an accepting state, we will allow the model to generate whatever it wants
+                # but we will treat any "illegal" tokens as EOS, allowing the model to finish gracefully.
+                # Hence, mask must be None
+                mask_for_sampling = None
+            else:
+                mask_for_sampling = mask
+
+            if logits is not None:
+                token = self.sample_with_temperature(
+                    logits=logits,
+                    mask=mask_for_sampling,
+                    temperature=ll_response.temperature,
+                )
+            else:
+                token = self.get_next_token(
+                    tokens,
+                    mask_for_sampling,
+                    ll_response.temperature
+                )
+
+            if can_finish_early and not mask[token]:
+                # Type checker needs some help
+                assert self.tokenizer.eos_token_id is not None
+                token = self.tokenizer.eos_token_id
+
 
     def get_next_token(self, token_ids: list[int], mask: Optional[bytes], temperature: float) -> int:
-        """Base implementation for getting the next token from the model which calls get_logits and sample_with_temperature.
-        Subclasses may override this method, e.g. if they use external APIs that do not support getting logits directly.
-        """
-        logits = self.get_logits(token_ids)
-        token = self.sample_with_temperature(logits, mask, temperature)
-        return token
+        # Prefer to implement get_logits over get_next_token as it allows for concurrent mask computation
+        raise NotImplementedError
 
     def get_logits(self, token_ids: list[int]) -> np.ndarray:
+        # Prefer to implement get_logits over get_next_token as it allows for concurrent mask computation
         raise NotImplementedError
 
     def sample_with_temperature(self, logits: np.ndarray, mask: Optional[bytes], temperature: float) -> int:
