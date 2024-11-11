@@ -102,9 +102,7 @@ def _detect_ipython(flags: EnvFlags) -> bool:
     try:
         from IPython import get_ipython
         found = get_ipython() is not None
-    except NameError:  # pragma: no cover
-        pass
-    except ImportError:  # pragma: no cover
+    except (NameError, ImportError):  # pragma: no cover
         pass
     return found
 
@@ -131,9 +129,7 @@ def _detect_ipython_zmq(flags: EnvFlags) -> bool:
             found = False  # Terminal running IPython
         else:
             found = False  # Other type (?)
-    except NameError:  # pragma: no cover
-        found = False  # Probably standard Python interpreter
-    except ImportError:  # pragma: no cover
+    except (NameError, ImportError):  # pragma: no cover
         found = False  # Probably standard Python interpreter
 
     flags.is_notebook |= found
