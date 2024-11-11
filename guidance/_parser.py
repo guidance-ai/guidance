@@ -34,6 +34,8 @@ class TokenParser:
         tokenizer: Tokenizer,
         prompt: bytes = b"",
         ensure_bos_token: bool = True,
+        enable_backtrack: bool = True,
+        enable_ff_tokens: bool = True,
     ):
         if isinstance(grammar, GrammarFunction):
             # we can't have a terminal as the root
@@ -50,6 +52,8 @@ class TokenParser:
         self.ll_interpreter = llguidance.LLInterpreter(
             self.ll_tokenizer,
             serialized_grammar,
+            enable_backtrack,
+            enable_ff_tokens,
             log_level=int(os.environ.get("LLGUIDANCE_LOG_LEVEL", "1")),
         )
         self._threadpool = ThreadPoolExecutor(max_workers=1)
