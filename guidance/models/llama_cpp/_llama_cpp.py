@@ -100,7 +100,7 @@ class LlamaCppTokenizer(Tokenizer):
 class LlamaCppEngine(Engine):
     """The core class that runs inference using llama.cpp."""
 
-    def __init__(self, model, compute_log_probs, chat_template=None, **kwargs):
+    def __init__(self, model, compute_log_probs, chat_template=None, enable_backtrack=True, enable_ff_tokens=True, **kwargs):
         if not is_llama_cpp:
             raise Exception(
                 "Please install llama-cpp-python with `pip install llama-cpp-python` in order to use guidance.models.LlamaCpp!"
@@ -149,6 +149,8 @@ class LlamaCppEngine(Engine):
         super().__init__(
             LlamaCppTokenizer(self.model_obj, chat_template=chat_template),
             compute_log_probs=compute_log_probs,
+            enable_backtrack=enable_backtrack,
+            enable_ff_tokens=enable_ff_tokens,
         )
 
         self._n_vocab = len(self.tokenizer.tokens)
@@ -226,6 +228,8 @@ class LlamaCpp(Model):
         compute_log_probs=False,
         api_key=None,
         chat_template=None,
+        enable_backtrack=True,
+        enable_ff_tokens=True,
         **llama_cpp_kwargs,
     ):
         """Build a new LlamaCpp model object that represents a model in a given state."""
@@ -237,6 +241,8 @@ class LlamaCpp(Model):
                 model,
                 compute_log_probs=compute_log_probs,
                 chat_template=chat_template,
+                enable_backtrack=enable_backtrack,
+                enable_ff_tokens=enable_ff_tokens,
                 **llama_cpp_kwargs,
             )
 

@@ -30,6 +30,7 @@ from .._schema import EngineCallResponse, GuidanceEngineMetrics
 from .._utils import softmax, CaptureEvents
 from .._parser import TokenParser
 from .._grammar import (
+    Function, # for da types, just for you Hudson <3 
     GrammarFunction,
     string,
     _call_pool,
@@ -63,10 +64,21 @@ class Engine:
     Server so a single server can serve many clients' model objects through a single Engine object.
     """
 
-    def __init__(self, tokenizer: Tokenizer, compute_log_probs=False):
+    def __init__(self, tokenizer: Tokenizer, compute_log_probs=False, enable_backtrack=True, enable_ff_tokens=True):
         self.tokenizer = tokenizer
         self.compute_log_probs = compute_log_probs
+        self._enable_backtrack = enable_backtrack
+        self._enable_ff_tokens = enable_ff_tokens
         self.metrics = GuidanceEngineMetrics()
+
+    # These need to be properties because once an Engine is started, you can't change their behavior.
+    @property
+    def enable_backtrack(self):
+        return self._enable_backtrack
+    
+    @property
+    def enable_ff_tokens(self):
+        return self._enable_ff_tokens
 
     def get_chat_template(self): # TODO [HN]: Add more logic here...should we instantiate class here? do we even need to?
         return self.tokenizer.chat_template() # Instantiate the class before returning to client for now
@@ -75,19 +87,6 @@ class Engine:
         self.metrics = GuidanceEngineMetrics()
 
     def start(self, prompt, grammar, ensure_bos_token=True) -> TokenParser:
-        """Start processing parser state executed through the grammar.
-
-        Parameters
-        ----------
-        prompt : str or Parser
-            This is represents the current state of a guidance parser that will be extended
-            using the passed grammar. If a string is given then we assume the previous parser
-            state is just a fixed string prompt, if a full Parser is given then we extend that
-            parser by appending the new grammar to the parser's current grammar and then
-            inferencing the model. (TODO: implement full parser extension support)
-        grammar: Grammar
-            This is the grammar we are extending the prompt with.
-        """
         # def __call__(self, grammar, max_tokens=1000000, n=1, top_p=1, temperature=0.0, ensure_bos_token=True):
         # assert n == 1, "Still need to add support for n > 1!"
 
@@ -113,10 +112,17 @@ class Engine:
             grammar=grammar,
             tokenizer=self.tokenizer,
             prompt=prompt,
-            ensure_bos_token=ensure_bos_token
+            ensure_bos_token=ensure_bos_token,
+            enable_backtrack=self.enable_backtrack,
+            enable_ff_tokens=self.enable_ff_tokens,
         )
 
-    def __call__(self, prompt, grammar, ensure_bos_token=True) -> Iterator[EngineCallResponse]:
+    def __call__(
+            self, 
+            prompt: Union[str, TokenParser], 
+            grammar: Function,
+            ensure_bos_token: bool = True, 
+        ) -> Iterator[EngineCallResponse]:
         """Main entry point for the inference-parser loop. Yields EngineCallResponse objects as
         the parser advances through the grammar.
 
@@ -128,8 +134,10 @@ class Engine:
             state is just a fixed string prompt, if a full Parser is given then we extend that
             parser by appending the new grammar to the parser's current grammar and then
             inferencing the model. (TODO: implement full parser extension support)
-        grammar: Grammar
-            This is the grammar we are extending the prompt with.
+        grammar: Function
+            Grammar (RawFunction or GrammarFunction) used to extend the prompt.
+        ensure_bos_token: bool
+            Ensures that the prompt ends with the BOS token.
         """
         parser = self.start(prompt, grammar, ensure_bos_token)
 
