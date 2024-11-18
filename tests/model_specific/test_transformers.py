@@ -1,6 +1,6 @@
 import pytest
 
-from guidance import gen, select, models, assistant, system, user
+from guidance import gen, select, models, assistant, system, user, guidance
 
 from ..utils import get_model
 
@@ -26,6 +26,38 @@ def test_gpt2():
     lm = gpt2 + "this is a test" + gen("test", max_tokens=10)
 
     assert len(str(lm)) > len("this is a test")
+
+def test_gpt2_fastforward(): # TODO [HN]: figure out how all the get_model and fixture stuff works
+    @guidance
+    def ff_prompt(lm):
+        big_opts = [
+            "Lorem ipsum dolor sit amet",
+            "Duis aute irure dolor "
+        ]
+        lm += "Example text: " + select(big_opts, name="choice")
+        return lm
+
+    # We should have significantly less output tokens in the fast-forwarded version (1 output)
+
+    gpt2_noff = models.Transformers("gpt2", enable_ff_tokens=False)
+    gpt2_noff += ff_prompt()
+    noff_count = gpt2_noff.engine.metrics.engine_output_tokens
+
+    gpt2_nobt = models.Transformers("gpt2", enable_backtrack=False)
+    gpt2_nobt += ff_prompt()
+    nobt_count = gpt2_nobt.engine.metrics.engine_output_tokens
+
+    gpt2_ff = models.Transformers("gpt2")
+    gpt2_ff += ff_prompt()
+    ff_count = gpt2_ff.engine.metrics.engine_output_tokens
+
+    assert nobt_count == 3
+    assert ff_count == 3
+    assert noff_count > ff_count
+
+
+
+
 
 
 def test_recursion_error():

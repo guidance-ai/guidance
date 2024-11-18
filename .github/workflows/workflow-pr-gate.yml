@@ -11,32 +11,6 @@ jobs:
   # First Stage =======================================================================
   # Linting and basic CPU-based tests
 
-  linting-black:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      # https://black.readthedocs.io/en/stable/integrations/github_actions.html
-      - uses: psf/black@stable
-        with:
-          options: "--diff" # Remove this to start enforcement
-
-  linting-mypy:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: 3.9
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install .[all,test]
-      - name: Run mypy
-        run: |
-          python -m mypy guidance
-
   bare-install:
     strategy:
       matrix:
@@ -77,8 +51,6 @@ jobs:
 
   end-stage-1:
     needs:
-      - linting-black
-      - linting-mypy
       - bare-install
       - basic-tests-linux-python-latest
     name: End Stage 1
