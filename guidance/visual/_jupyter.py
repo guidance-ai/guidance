@@ -18,8 +18,13 @@ IPythonCallback = Callable[[Any], None]
 
 def ipy_handle_event_once(cb: IPythonCallback, event_name: str) -> IPythonCallback:
     ipy = get_ipython()
+
+    if ipy is None:
+        return None
+    
     def cb_closure(msg):
         cb(msg)
         ipy.events.unregister(event_name, cb_closure)
     ipy.events.register(event_name, cb_closure)
+    
     return cb_closure
