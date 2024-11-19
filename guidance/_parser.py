@@ -233,7 +233,7 @@ class ByteParser:
         return mask
 
     def _advance(self, token: Optional[int]) -> None:
-        tokens, mid_process_fut = self.token_parser.advance(token)
+        tokens, mid_process_fut, _ = self.token_parser.advance(token)
         mask, ll_response = mid_process_fut.result()
         if ll_response.stop:
             assert mask is None
@@ -294,7 +294,7 @@ class ByteParser:
                 )
             # Byte was good, have ll_parser consume it so we can advance further
             fake_engine_output = self.fake_engine_output(b)
-            self.gen_data, response = self.token_parser.advance(fake_engine_output)
+            self.gen_data, response, _ = self.token_parser.advance(fake_engine_output)
             self._update_capture(response)
             self.bytes += response.new_bytes
 
@@ -308,7 +308,7 @@ class ByteParser:
             return
 
         fake_engine_output = self.fake_engine_output(self.tokenizer.eos_token_id)
-        self.gen_data, response = self.token_parser.advance(fake_engine_output)
+        self.gen_data, response, _ = self.token_parser.advance(fake_engine_output)
         self._update_capture(response)
         self.bytes += response.new_bytes
         if not self.token_parser.done() or not self.matched():
