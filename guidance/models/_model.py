@@ -503,7 +503,7 @@ class Engine:
             The output from the model.
         """
 
-        if logits is not None:
+        if logits is None:
             t0 = time.time()
             try:
                 logits = self.get_logits(token_ids)
