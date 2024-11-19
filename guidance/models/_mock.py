@@ -142,6 +142,11 @@ class MockEngine(Engine):
         result_list = []
         if len(token_ids) == 0:
             return result_list
+        
+        added_bos = False
+        if self.tokenizer.bos_token is not None and token_ids[0] != self.tokenizer.bos_token_id:
+            token_ids = [self.tokenizer.bos_token_id] + token_ids
+            added_bos = True
 
         # assume the first token has probability 1.0 because it is the input token
         result_list.append(
@@ -187,6 +192,9 @@ class MockEngine(Engine):
                     top_k=top_k_result,
                 )
             )
+
+        if added_bos:
+            result_list = result_list[1:]
 
         return result_list
 
