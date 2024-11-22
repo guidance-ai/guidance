@@ -111,8 +111,8 @@ class TokenParser:
         tokens = self._process_prompt(prompt=prompt, ensure_bos_token=ensure_bos_token)
 
         while True:
-            # Note: need to call/set has_pending_stop before spinning up the mask future
-            # as the two methods cannot be called concurrently
+            # Note: need to call/set has_pending_stop before spinning up the compute mask 
+            # future as the two methods cannot be called concurrently
             self._has_pending_stop = self.ll_interpreter.has_pending_stop()
             mask_future = self._threadpool.submit(self.compute_mask)
             token = yield (tokens, mask_future)
