@@ -1089,7 +1089,7 @@ class LLSerializer:
         id = len(self.grammars)
         self.grammar_id_cache[llgrammar] = id
         self.grammars.append(
-            llgrammar.llgrammar
+            llgrammar.llgrammar["grammars"][0]
         )
         return id
 
