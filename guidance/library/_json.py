@@ -106,10 +106,27 @@ def json(
     compiler = JsonCompiler(
         separators=separators,
         whitespace_flexible=whitespace_flexible,
+        coerce_one_of=False,
     )
+
+    schema_string = json_dumps(schema)
+    try:
+        llg = compiler.compile(schema_string)
+    except ValueError as e:
+        if e.args[0] == "oneOf constraints are not supported. Enable 'coerce_one_of' option to coerce oneOf to anyOf":
+            warnings.warn("oneOf not fully supported, falling back to anyOf. This may cause validation errors in some cases.")
+            compiler = JsonCompiler(
+                separators=separators,
+                whitespace_flexible=whitespace_flexible,
+                coerce_one_of=True,
+            )
+            llg = compiler.compile(schema_string)
+        else:
+            raise
+
     
     g = LLGrammar(
-        json_loads(compiler.compile(json_dumps(schema))),
+        json_loads(llg),
         max_tokens=max_tokens,
     )
     if name is not None:
