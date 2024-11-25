@@ -91,8 +91,8 @@ class TokenParser:
 
         return self.tokenizer.recode(prompt_tokens)
 
-    def mid_process(self) -> tuple[Optional[bytes], LLInterpreterResponse]:
-        mask, ll_response_string = self.ll_interpreter.mid_process()
+    def compute_mask(self) -> tuple[Optional[bytes], LLInterpreterResponse]:
+        mask, ll_response_string = self.ll_interpreter.compute_mask()
         ll_response = LLInterpreterResponse.model_validate_json(ll_response_string)
         return mask, ll_response
 
@@ -111,14 +111,14 @@ class TokenParser:
         tokens = self._process_prompt(prompt=prompt, ensure_bos_token=ensure_bos_token)
 
         while True:
-            # Note: need to call/set has_pending_stop before spinning up the mid_process future
-            # as the two methods cannot be called concurrently
+            # Note: need to call/set has_pending_stop before spinning up the compute mask 
+            # future as the two methods cannot be called concurrently
             self._has_pending_stop = self.ll_interpreter.has_pending_stop()
-            mid_process_future = self._threadpool.submit(self.mid_process)
-            token = yield (tokens, mid_process_future)
+            mask_future = self._threadpool.submit(self.compute_mask)
+            token = yield (tokens, mask_future)
 
             # Upstairs should have already waited on this future
-            mask, ll_response = mid_process_future.result()
+            mask, ll_response = mask_future.result()
 
             if ll_response.stop:
                 # This is the only case in which the mask is None
@@ -141,7 +141,7 @@ class TokenParser:
                     prompt_tokens=tokens
                 )
 
-            backtrack, ff_tokens = self.ll_interpreter.post_process(token)
+            backtrack, ff_tokens = self.ll_interpreter.commit_token(token)
             if backtrack:
                 tokens = tokens[:-backtrack]
             tokens = tokens + ff_tokens
@@ -212,8 +212,8 @@ class ByteParser:
         return mask
 
     def _advance(self, token: Optional[int]) -> None:
-        tokens, mid_process_fut = self.token_parser.advance(token)
-        mask, ll_response = mid_process_fut.result()
+        tokens, mask_fut = self.token_parser.advance(token)
+        mask, ll_response = mask_fut.result()
         if ll_response.stop:
             assert mask is None
             self.token_parser.cleanup()
