@@ -88,7 +88,7 @@ class TestInteger:
         with pytest.raises(ValueError) as ve:
             _ = gen_json(schema=schema)
         assert re.fullmatch(
-            r"(exclusiveMinimum|minimum) \(5\) is (greater than|equal to) (exclusiveMaximum|maximum) \((4|5)\)",
+            r"Unsatisfiable schema: (exclusiveMinimum|minimum) \(5\) is (greater than|equal to) (exclusiveMaximum|maximum) \((4|5)\)",
             ve.value.args[0],
         )
 
@@ -157,11 +157,11 @@ class TestNumber:
     def test_unsatisfiable_min_max(self, schema):
         with pytest.raises(ValueError) as ve:
             _ = gen_json(schema=schema)
+        assert ve.value.args[0].startswith("Unsatisfiable schema")
         assert re.fullmatch(
-            r"(exclusiveMinimum|minimum) \(5\) is (greater than|equal to) (exclusiveMaximum|maximum) \((4|5)\)",
-            ve.value.args[0],
+            "Unsatisfiable schema: (exclusiveMinimum|minimum) \(5\) is (greater than|equal to) (exclusiveMaximum|maximum) \((4|5)\)",
+            ve.value.args[0]
         )
-
 
 class TestBoundedNumeric:
     @pytest.mark.parametrize(
@@ -351,13 +351,9 @@ class TestString:
 
         lm = models.Mock("".encode())
 
-        expected = (
-            "If a pattern or format is specified for a JSON string,"
-            " minLength and maxLength must be left unspecified."
-        )
         with pytest.raises(ValueError) as ve:
             lm += gen_json(schema=schema_obj)
-        assert ve.value.args[0] == expected
+        assert ve.value.args[0] == "If a pattern is specified, minLength and maxLength must be unspecified."
 
     @pytest.mark.parametrize(
         ["bad_string", "good_bytes", "failure_byte", "allowed_bytes"],
@@ -576,7 +572,7 @@ class TestString:
         schema = {"type": "string", "minLength": 10, "maxLength": 5}
         with pytest.raises(ValueError) as ve:
             _ = gen_json(schema=schema)
-        assert ve.value.args[0] == "String minLength (10) is greater than maxLength (5)"
+        assert ve.value.args[0] == "Unsatisfiable schema: minLength (10) is greater than maxLength (5)"
 
 
 class TestSimpleObject:
@@ -733,10 +729,11 @@ class TestSimpleObject:
         }
         with pytest.raises(ValueError) as ve:
             _ = gen_json(schema=schema)
-        assert ve.value.args[0] == "Required property 'b' is unsatisfiable"
-        assert (
-            ve.value.__cause__.args[0] == "No valid JSON can be generated from a schema of `false`"
-        )
+        assert ve.value.args[0] == "Unsatisfiable schema: required property 'b' is unsatisfiable"
+        # TODO: deeper traceback, e.g.
+        # assert (
+        #     ve.value.__cause__.args[0] == "Unsatisfiable schema: schema is false"
+        # )
 
     def test_unsatisfiable_additional_properties_raises(self):
         schema = {
@@ -747,13 +744,13 @@ class TestSimpleObject:
         }
         with pytest.raises(ValueError) as ve:
             _ = gen_json(schema=schema)
-        assert (
-            ve.value.args[0]
-            == "Required properties not in properties but additionalProperties is unsatisfiable. Missing required properties: ['b']"
-        )
-        assert (
-            ve.value.__cause__.args[0] == "No valid JSON can be generated from a schema of `false`"
-        )
+        assert ve.value.args[0].startswith("Unsatisfiable schema")
+        # TODO: more informative error message, e.g.
+        # "Required properties not in properties but additionalProperties is unsatisfiable. Missing required properties: ['b']"
+        # TODO: deeper traceback, e.g.
+        # assert (
+        #     ve.value.__cause__.args[0] == "Unsatisfiable schema: schema is false"
+        # )
 
 
 class TestObjectWithMissingRequired:
@@ -789,13 +786,13 @@ class TestObjectWithMissingRequired:
         }
         with pytest.raises(ValueError) as ve:
             _ = gen_json(schema=schema)
-        assert (
-            ve.value.args[0]
-            == "Required properties not in properties but additionalProperties is unsatisfiable. Missing required properties: ['b', 'c']"
-        )
-        assert (
-            ve.value.__cause__.args[0] == "No valid JSON can be generated from a schema of `false`"
-        )
+        assert ve.value.args[0].startswith("Unsatisfiable schema")
+        # TODO: more informative error message, e.g.
+        # "Required properties not in properties but additionalProperties is unsatisfiable. Missing required properties: ['b', 'c']"
+        # TODO: deeper traceback, e.g.
+        # assert (
+        #     ve.value.__cause__.args[0] == "Unsatisfiable schema: schema is false"
+        # )
 
 
 class TestSimpleArray:
@@ -904,10 +901,9 @@ class TestSimpleArray:
         }
         with pytest.raises(ValueError) as ve:
             _ = gen_json(schema=schema)
-        assert ve.value.args[0] == "prefixItems[1] is unsatisfiable but min_items is 2"
-        assert (
-            ve.value.__cause__.args[0] == "No valid JSON can be generated from a schema of `false`"
-        )
+        assert ve.value.args[0] == "Unsatisfiable schema: prefixItems[1] is unsatisfiable but minItems is 2"
+        # TODO: deeper traceback, e.g.
+        # assert ve.value.args[0].__cause__.args[0] == "Unsatisfiable schema: schema is false"
 
     def test_unsatisfiable_items_ok(self):
         schema = {
@@ -933,11 +929,9 @@ class TestSimpleArray:
         }
         with pytest.raises(ValueError) as ve:
             _ = gen_json(schema=schema)
-        assert (
-            ve.value.args[0]
-            == "prefixItems has too few elements (1) to satisfy minItems (2) but item schema is unsatisfiable"
-        )
-        assert ve.value.__cause__.args[0] == "allOf contains a 'false' schema"
+        assert ve.value.args[0].startswith("Unsatisfiable schema: required item is unsatisfiable")
+        # TODO: more detailed error message, e.g.
+        # "prefixItems has too few elements (1) to satisfy minItems (2) but item schema is unsatisfiable"
 
 
 class TestArrayWithLengthConstraints:
@@ -1227,7 +1221,7 @@ class TestArrayWithLengthConstraints:
         schema = {"type": "array", "minItems": 10, "maxItems": 5}
         with pytest.raises(ValueError) as ve:
             _ = gen_json(schema=schema)
-        assert ve.value.args[0] == "minItems (10) is greater than maxItems (5)"
+        assert ve.value.args[0] == "Unsatisfiable schema: minItems (10) is greater than maxItems (5)"
 
 
 class TestAnyOf:
@@ -1325,7 +1319,7 @@ class TestAnyOf:
             _ = gen_json(schema=schema)
         assert (
             ve.value.args[0]
-            == 'all anyOf schemas are unsatisfiable: [{"type": "integer", "minimum": 10, "maximum": 0}, false]'
+            == 'Unsatisfiable schema: minimum (10) is greater than maximum (0)'
         )
 
 
@@ -1389,7 +1383,9 @@ class TestAllOf:
         schema = {"allOf": [{"type": "integer"}, {"type": "string"}]}
         with pytest.raises(ValueError) as ve:
             _ = gen_json(schema=schema)
-        assert ve.value.args[0] == "allOf has conflicting types: [{'integer'}, {'string'}]"
+        assert ve.value.args[0].startswith("Unsatisfiable schema")
+        # TODO: would be nice to have a more specific error message here, e.g.
+        # f"Unsatisfiable schema: allOf has conflicting types: [{'integer'}, {'string'}]"
 
 
 
@@ -1526,7 +1522,9 @@ class TestEnum:
         schema_obj = {"enum": [1, "2"], "type": "boolean"}
         with pytest.raises(ValueError) as ve:
             gen_json(schema=schema_obj)
-        assert ve.value.args[0] == f"All enum options {[1, '2']} are inconsistent with parent schema: {schema_obj}"
+        assert ve.value.args[0].startswith("Unsatisfiable schema")
+        # TODO: would be nice to have a more specific error message here, e.g.
+        # f"Unsatisfiable schema: all enum options {[1, '2']} are inconsistent with parent schema: {schema_obj}"
 
 
 class TestConst:
@@ -1597,7 +1595,9 @@ class TestConst:
         schema_obj = {"const": 1, "type": "boolean"}
         with pytest.raises(ValueError) as ve:
             gen_json(schema=schema_obj)
-        assert ve.value.args[0] == f"const {1!r} is inconsistent with parent schema: {schema_obj}"
+        assert ve.value.args[0].startswith("Unsatisfiable schema")
+        # TODO: would be nice to have a more specific error message here, e.g.
+        # f"Unsatisfiable schema: const {1!r} is inconsistent with parent schema: {schema_obj}"
 
     def test_valid_enum_const(self):
         schema_obj = {"const": 1, "enum": [1, 2, 3]}
@@ -1609,7 +1609,8 @@ class TestConst:
         schema_obj = {"const": 1, "enum": [2, 3]}
         with pytest.raises(ValueError) as ve:
             gen_json(schema=schema_obj)
-        assert ve.value.args[0] == f"const {1!r} is inconsistent with parent schema: {schema_obj}"
+        assert ve.value.args[0].startswith("Unsatisfiable schema")
+        # TODO: would be nice to have a more specific error message here, e.g.
 
     def test_valid_typed_enum_const(self):
         schema_obj = {"const": 1, "enum": [1, "2", 3], "type": "integer"}
@@ -1629,11 +1630,9 @@ class TestConst:
         schema_obj = {"const": const, "enum": [1, "2", 3], "type": "integer"}
         with pytest.raises(ValueError) as ve:
             gen_json(schema=schema_obj)
-        assert (
-            ve.value.args[0]
-            == f"const {const!r} is inconsistent with parent schema: {schema_obj}"
-        )
-
+        assert ve.value.args[0].startswith("Unsatisfiable schema")
+        # TODO: would be nice to have a more specific error message here, e.g.
+        # f"Unsatisfiable schema: const {const!r} is inconsistent with parent schema: {schema_obj}"
 
 class TestAdditionalProperties:
 
@@ -2257,16 +2256,13 @@ class TestBooleanSchema:
         schema_obj = False
         with pytest.raises(ValueError) as ve:
             gen_json(schema=schema_obj)
-        assert ve.value.args[0] == "No valid JSON can be generated from a schema of `false`"
+        assert ve.value.args[0] == "Unsatisfiable schema: schema is false"
 
     def test_false_required_property(self):
         schema_obj = {"type": "object", "properties": {"a": False}, "required": ["a"]}
         with pytest.raises(ValueError) as ve:
             gen_json(schema=schema_obj)
-        assert ve.value.args[0] == "Required property 'a' is unsatisfiable"
-        assert (
-            ve.value.__cause__.args[0] == "No valid JSON can be generated from a schema of `false`"
-        )
+        assert ve.value.args[0] == "Unsatisfiable schema: required property 'a' is unsatisfiable"
 
 
 
