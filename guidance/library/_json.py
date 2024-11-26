@@ -9,17 +9,12 @@ from typing import (
     cast,
 )
 import warnings
+import pydantic
 
 from llguidance import JsonCompiler
 
 from .._grammar import LLGrammar, with_temperature, capture
 from ._pydantic import pydantic_to_json_schema
-
-try:
-    import pydantic
-except ImportError:
-    if TYPE_CHECKING:
-        raise
 
 JSONSchema = Mapping[str, Any]
 
@@ -30,8 +25,8 @@ def json(
         None,
         str,
         JSONSchema,
-        Type["pydantic.BaseModel"],
-        "pydantic.TypeAdapter",
+        Type[pydantic.BaseModel],
+        pydantic.TypeAdapter,
     ] = None,
     temperature: float = 0.0,
     max_tokens: int = 100000000,
