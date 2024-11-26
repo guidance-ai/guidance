@@ -16,7 +16,6 @@ from .._grammar import LLGrammar, with_temperature, capture
 from ._pydantic import pydantic_to_json_schema
 
 try:
-    import jsonschema
     import pydantic
 except ImportError:
     if TYPE_CHECKING:
@@ -95,9 +94,6 @@ def json(
     elif isinstance(schema, (Mapping, bool, str)):
         if isinstance(schema, str):
             schema = cast(JSONSchema, json_loads(schema))
-        # Raises jsonschema.exceptions.SchemaError or ValueError
-        # if schema is not valid
-        jsonschema.validators.Draft202012Validator.check_schema(schema)
     elif isinstance(schema, pydantic.TypeAdapter) or (isinstance(schema, type) and issubclass(schema, pydantic.BaseModel)):
         schema = pydantic_to_json_schema(schema)
     else:
