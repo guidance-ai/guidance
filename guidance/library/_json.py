@@ -117,7 +117,7 @@ def json(
 
     
     g = LLGrammar(
-        json_loads(llg),
+        json_loads(llg)["grammars"][0],
         max_tokens=max_tokens,
     )
     if name is not None:

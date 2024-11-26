@@ -672,10 +672,10 @@ class Select(GrammarFunction):
         return s
 
 class LLGrammar(Terminal):
-    __slots__ = ("llgrammar",)
-    def __init__(self, llgrammar: dict[str, Any], temperature: float = -1, max_tokens: int = 100000000):
+    __slots__ = ("grammar_with_lexer",)
+    def __init__(self, grammar_with_lexer: dict[str, Any], temperature: float = -1, max_tokens: int = 100000000):
         super().__init__(temperature=temperature, capture_name=None)
-        self.llgrammar = llgrammar
+        self.grammar_with_lexer = grammar_with_lexer
         self.max_tokens = max_tokens
 
 def string(value: Union[str, bytes]) -> Union[Null, Join]:
@@ -1089,7 +1089,7 @@ class LLSerializer:
         id = len(self.grammars)
         self.grammar_id_cache[llgrammar] = id
         self.grammars.append(
-            llgrammar.llgrammar["grammars"][0]
+            llgrammar.grammar_with_lexer
         )
         return id
 
