@@ -19,9 +19,15 @@ class TestAuthenticatedTransformerTokenizers(BaseTestTransformerTokenizers):
         TRANSFORMER_MODELS,
     )
     def test_smoke(self, model_name: str):
-        self.base_smoke(model_name)
+        try:
+            self.base_smoke(model_name)
+        except OSError:
+            pytest.skip("HuggingFace raises OSError if user is not authenticated.")
 
     @pytest.mark.parametrize("model_name", TRANSFORMER_MODELS)
     @pytest.mark.parametrize("target_string", TOKENIZER_ROUND_TRIP_STRINGS)
     def test_string_roundtrip(self, model_name: str, target_string: str):
-        self.base_string_roundtrip(model_name, target_string)
+        try:
+            self.base_string_roundtrip(model_name, target_string)
+        except OSError:
+            pytest.skip("HuggingFace raises OSError if user is not authenticated.")

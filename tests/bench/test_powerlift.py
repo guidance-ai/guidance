@@ -11,7 +11,6 @@ def test_retrieve_langchain_err(monkeypatch):
         _ = list(gen)
 
 @pytest.mark.skip("Waiting on CI upgrades. Need access to env var LANGCHAIN_API_KEY.")
-# @pytest.mark.needs_credentials
 def test_retrieve_langchain_basic():
     with tempfile.TemporaryDirectory() as tmp_dir:
         # Run once
