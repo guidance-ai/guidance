@@ -113,7 +113,7 @@ def json(
     try:
         llg = compiler.compile(schema_string)
     except ValueError as e:
-        if e.args[0] == "oneOf constraints are not supported. Enable 'coerce_one_of' option to coerce oneOf to anyOf":
+        if e.args[0] == "oneOf constraints are not supported. Enable 'coerce_one_of' option to approximate oneOf with anyOf":
             warnings.warn("oneOf not fully supported, falling back to anyOf. This may cause validation errors in some cases.")
             compiler = JsonCompiler(
                 separators=separators,
