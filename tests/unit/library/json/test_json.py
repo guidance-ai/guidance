@@ -159,7 +159,7 @@ class TestNumber:
             _ = gen_json(schema=schema)
         assert ve.value.args[0].startswith("Unsatisfiable schema")
         assert re.fullmatch(
-            "Unsatisfiable schema: (exclusiveMinimum|minimum) \(5\) is (greater than|equal to) (exclusiveMaximum|maximum) \((4|5)\)",
+            r"Unsatisfiable schema: (exclusiveMinimum|minimum) \(5\) is (greater than|equal to) (exclusiveMaximum|maximum) \((4|5)\)",
             ve.value.args[0]
         )
 
