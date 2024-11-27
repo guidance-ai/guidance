@@ -9,4 +9,3 @@ from ._message import ExecutionStartedMessage
 from ._renderer import AutoRenderer, LegacyHtmlRenderer, JupyterWidgetRenderer, Renderer, legacy_mode
 from ._message import serialize_message, deserialize_message
 from ._trace import trace_node_to_str, display_trace_tree, trace_node_to_html
-from ._environment import Environment

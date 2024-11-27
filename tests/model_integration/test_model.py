@@ -74,18 +74,18 @@ def test_associativity(selected_model: models.Model):
     REMOTE_MODELS = [models.AzureGuidance]
     for rm in REMOTE_MODELS:
         if isinstance(selected_model, rm):
-            pytest.skip("Method get_next_token not available for remote models")
+            pytest.skip("Method get_logits not available for remote models")
     prompt = "pi = "
     grammar = gen("number", regex=r"\d")
     engine = selected_model.engine
 
-    with patch.object(engine, "get_next_token", side_effect=engine.get_next_token) as get_next_token_1:
+    with patch.object(engine, "get_logits", side_effect=engine.get_logits) as get_logits_1:
         _ = selected_model + (prompt + grammar)
-    prompt_tokens_1 = get_next_token_1.call_args.kwargs["token_ids"]
+    prompt_tokens_1 = get_logits_1.call_args_list[0].kwargs["token_ids"]
 
-    with patch.object(engine, "get_next_token", side_effect=engine.get_next_token) as get_next_token_2:
+    with patch.object(engine, "get_logits", side_effect=engine.get_logits) as get_logits_2:
         _ = (selected_model + prompt) + grammar
-    prompt_tokens_2 = get_next_token_2.call_args.kwargs["token_ids"]
+    prompt_tokens_2 = get_logits_2.call_args_list[0].kwargs["token_ids"]
 
     # Main assertion: the prompt tokens should be the same
     assert prompt_tokens_1 == prompt_tokens_2

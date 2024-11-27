@@ -26,10 +26,11 @@ install_requires = [
     "ordered_set",
     "platformdirs",
     "pydantic",
+    "referencing",
     "requests",
     "psutil",
     "tiktoken>=0.3",
-    "llguidance>=0.1.7",
+    "llguidance>=0.3.0",
 ]
 
 # Our basic list of 'extras'

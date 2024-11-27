@@ -74,6 +74,14 @@ class Environment:
 
 
 def _detect_vscode(flags: EnvFlags) -> bool:
+    """Detects if called in a vscode process.
+
+    Args:
+        flags: Inplace flags to be set.
+
+    Returns:
+        True if in vscode environment.
+    """
     # NOTE: We don't flag is_notebook since this will be picked up by ipython-zmq here.
     found = "VSCODE_PID" in os.environ
     return found
@@ -84,6 +92,9 @@ def _detect_ipython(flags: EnvFlags) -> bool:
     Mostly derived from stackoverflow below:
     https://stackoverflow.com/questions/15411967/how-can-i-check-if-code-is-executed-in-the-ipython-notebook
 
+    Args:
+        flags: Inplace flags to be set.
+
     Returns:
         True if in IPython environment.
     """
@@ -91,7 +102,7 @@ def _detect_ipython(flags: EnvFlags) -> bool:
     try:
         from IPython import get_ipython
         found = get_ipython() is not None
-    except NameError:  # pragma: no cover
+    except (NameError, ImportError):  # pragma: no cover
         pass
     return found
 
@@ -102,10 +113,12 @@ def _detect_ipython_zmq(flags: EnvFlags) -> bool:
     Mostly derived from stackoverflow below:
     https://stackoverflow.com/questions/15411967/how-can-i-check-if-code-is-executed-in-the-ipython-notebook/24937408
 
+    Args:
+        flags: Inplace flags to be set.
+
     Returns:
         True if called in IPython notebook or qtconsole.
     """
-    found = False
     try:
         from IPython import get_ipython
 
@@ -116,7 +129,7 @@ def _detect_ipython_zmq(flags: EnvFlags) -> bool:
             found = False  # Terminal running IPython
         else:
             found = False  # Other type (?)
-    except NameError:  # pragma: no cover
+    except (NameError, ImportError):  # pragma: no cover
         found = False  # Probably standard Python interpreter
 
     flags.is_notebook |= found
