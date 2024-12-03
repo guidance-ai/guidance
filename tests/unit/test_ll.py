@@ -115,7 +115,7 @@ def check_grammar(grm: GrammarFunction, output: List[str]):
     idx = 1
     gen_tokens = tokenize_trace(output[idx])
     for _ in range(200):
-        mask, cmd = interp.mid_process()
+        mask, cmd = interp.compute_mask()
         cmd = json.loads(cmd)
         if log_level >= 1:
             print(mask is not None, cmd)
@@ -129,7 +129,7 @@ def check_grammar(grm: GrammarFunction, output: List[str]):
             tok = gen_tokens[0]
             del gen_tokens[0:1]
             assert mask[tok] > 0, f"Token {tok} not allowed"
-            bt, toks = interp.post_process(tok)
+            bt, toks = interp.commit_token(tok)
             if not toks or toks[0] != tok:
                 if output[idx + 1].startswith("1↶"):
                     # fast-forward with fake backtrack
@@ -149,7 +149,7 @@ def check_grammar(grm: GrammarFunction, output: List[str]):
                 assert len(toks) == 1
                 continue  # normal path
         else:
-            bt, toks = interp.post_process(None)
+            bt, toks = interp.commit_token(None)
 
         # forced byte checking
         assert not gen_tokens, "Expected more tokens to generate"
