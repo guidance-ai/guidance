@@ -30,7 +30,7 @@ install_requires = [
     "requests",
     "psutil",
     "tiktoken>=0.3",
-    "llguidance>=0.3.0",
+    "llguidance>=0.4.1,<0.5.0",
 ]
 
 # Our basic list of 'extras'

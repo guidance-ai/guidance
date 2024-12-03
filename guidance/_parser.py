@@ -92,9 +92,9 @@ class TokenParser:
             prompt_tokens = [self.tokenizer.bos_token_id] + prompt_tokens
 
         return self.tokenizer.recode(prompt_tokens)
-    
-    def mid_process(self) -> tuple[Optional[bytes], LLInterpreterResponse]:
-        mask, ll_response_string = self.ll_interpreter.mid_process()
+
+    def compute_mask(self) -> tuple[Optional[bytes], LLInterpreterResponse]:
+        mask, ll_response_string = self.ll_interpreter.compute_mask()
         ll_response = LLInterpreterResponse.model_validate_json(ll_response_string)
         return mask, ll_response
 
@@ -115,16 +115,16 @@ class TokenParser:
         engine_output = None
         ff_tokens = []
         while True:
-            # Note: need to call/set has_pending_stop before spinning up the mid_process future
-            # as the two methods cannot be called concurrently
+            # Note: need to call/set has_pending_stop before spinning up the compute mask 
+            # future as the two methods cannot be called concurrently
             self._has_pending_stop = self.ll_interpreter.has_pending_stop()
-            mid_process_future = self._threadpool.submit(self.mid_process)
+            compute_mask_future = self._threadpool.submit(self.compute_mask)
 
             # Send caller the mask and response; wait for token
-            engine_output = yield (tokens, mid_process_future, backtrack)
+            engine_output = yield (tokens, compute_mask_future, backtrack)
 
             # Upstairs should have already waited on this future
-            mask, r = mid_process_future.result()
+            mask, r = compute_mask_future.result()
 
             if r.stop:
                 # This is the only case in which the mask is None
@@ -162,7 +162,7 @@ class TokenParser:
                     prompt_tokens=tokens
                 )
 
-            backtrack, ff_tokens = self.ll_interpreter.post_process(
+            backtrack, ff_tokens = self.ll_interpreter.commit_token(
                 engine_output.issued_token.token_id
             )
             if backtrack:
@@ -233,8 +233,8 @@ class ByteParser:
         return mask
 
     def _advance(self, token: Optional[int]) -> None:
-        tokens, mid_process_fut, _ = self.token_parser.advance(token)
-        mask, ll_response = mid_process_fut.result()
+        tokens, compute_mask_future, _ = self.token_parser.advance(token)
+        mask, ll_response = compute_mask_future.result()
         if ll_response.stop:
             assert mask is None
             self.token_parser.cleanup()

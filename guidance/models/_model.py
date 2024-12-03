@@ -344,7 +344,7 @@ class Engine:
         while not parser.done():
             t0 = time.time()
 
-            tokens, mid_process_fut, backtrack = parser.advance(engine_output)
+            tokens, mask_fut, backtrack = parser.advance(engine_output)
 
             # Note that has_pending_stop implies that the response is a stop response,
             # but the converse is not true. We can therefore avoid some (but not all)
@@ -366,7 +366,7 @@ class Engine:
 
             # Important: don't wait on this future until after getting the logits;
             # this allows the mask to be built concurrently with model inference
-            mask, ll_response = mid_process_fut.result()
+            mask, ll_response = mask_fut.result()
 
             engine_response = ll_response.progress.to_engine_call_response()
             engine_response.backtrack = backtrack
