@@ -150,18 +150,6 @@ class TokenParser:
                     prompt_tokens=tokens
                 )            
 
-            if engine_output is None:
-                raise TokenParserException("Expected EngineOutput, got None")
-            
-            if not mask[engine_output.issued_token.token_id]:
-                # Note: we could punt this probem to ll_interpreter.post_process,
-                # but it's a bit clearer to handle it here
-                raise InvalidTokenException(
-                    token=engine_output.issued_token.token_id,
-                    valid_tokens=[i for i in range(len(mask)) if mask[i]],
-                    prompt_tokens=tokens
-                )
-
             backtrack, ff_tokens = self.ll_interpreter.commit_token(
                 engine_output.issued_token.token_id
             )
