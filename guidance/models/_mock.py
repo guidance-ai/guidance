@@ -93,23 +93,15 @@ class MockEngine(Engine):
 
     def get_next_token_with_top_k(
         self,
+        logits: Optional[np.ndarray],
+        logits_lat_ms: Optional[float],
         token_ids: list[int],
         mask: Optional[bytes],
         temperature: float,
         k: int = 5,
     ) -> EngineOutput:
         self.called_temperatures.append(temperature)
-        return super().get_next_token_with_top_k(token_ids, mask, temperature, k)
-
-    def get_next_token_with_top_k(
-        self,
-        token_ids: list[int],
-        mask: Optional[bytes],
-        temperature: float,
-        k: int = 5,
-    ) -> EngineOutput:
-        self.called_temperatures.append(temperature)
-        return super().get_next_token_with_top_k(token_ids, mask, temperature, k)
+        return super().get_next_token_with_top_k(logits, logits_lat_ms, token_ids, mask, temperature, k)
 
     def get_logits(self, token_ids: list[int]) -> np.ndarray:
         """Pretends to compute the logits for the given token state."""
