@@ -693,6 +693,7 @@ class Model:
         # private attributes
         self._variables = {}  # these are the state variables stored with the model
         self._variables_log_probs = {}  # these are the state variables stored with the model
+        self._variables_positions = {}  # these are the state variables stored with the model
         self._cache_state = {}  # mutable caching state used to save computation
         self._state = ""  # the current bytes that represent the state of the model
         self._trace_nodes = set()  # keep trace node reference for pinning
@@ -784,6 +785,7 @@ class Model:
         # then copy a few things we need deeper copies of
         new_lm._variables = self._variables.copy()
         new_lm._variables_log_probs = self._variables_log_probs.copy()
+        new_lm._variables_positions = self._variables_positions.copy()
         new_lm.opened_blocks = self.opened_blocks.copy()
 
         # create a new clean event queue
@@ -848,6 +850,7 @@ class Model:
         if clear_variables:
             self._variables = {}
             self._variables_log_probs = {}
+            self._variables_positions = {}
         return self
 
     def role_opener(self, role_name, **kwargs):
@@ -942,6 +945,7 @@ class Model:
                 # TODO(nopdive): Replace with trace traversal.
                 v = format_pattern.sub("", lm._state[pos:])
                 lm._variables[context.name] = v
+                lm._variables_positions[context.name] = pos
                 lm._update_trace_node(
                     lm._id, lm._parent_id, CaptureOutput(name=context.name, value=v)
                 )
@@ -979,6 +983,8 @@ class Model:
                     del lm._variables[context.name]
                     if context.name in lm._variables_log_probs:
                         del lm._variables_log_probs[context.name]
+                    if context.name in lm._variables_positions:
+                        del lm._variables_positions[context.name]
 
         if isinstance(value, TextOutput):
             lm._inplace_append(value.value)
@@ -1349,6 +1355,8 @@ class Model:
                                     lm._variables_log_probs[k], list
                                 ):
                                     lm._variables_log_probs[k] = []
+                                if k not in lm._variables_positions:
+                                    lm._variables_positions[k] = len(lm._state)
 
                                 lm._variables[k].append(inner_v)
                                 lm._variables_log_probs[k].append(
@@ -1371,6 +1379,7 @@ class Model:
                                 pass
 
                             lm._variables[k] = v
+                            lm._variables_positions[k] = len(lm._state) - len(v)
                             lm._variables_log_probs[k] = chunk.capture_group_log_probs[k]
                             lm += CaptureOutput(
                                 name=k,
@@ -1497,7 +1506,7 @@ class Model:
         start_pos = 0
         remainder = ""
 
-        processed_gen_tokens = []
+        processed_gen_tokens: list[GenTokenExtra] = []
         # Map token back to generated chunk to extract correct info (is_generated, latency, etc.)
         for vis_chunk_idx, vis_chunk in enumerate(vis_chunks):
             vis_text = vis_chunk.bytes.decode("utf-8")
@@ -1648,6 +1657,62 @@ class Model:
 
             start_pos = 0
             remainder = ""
+
+        if not self._variables:
+            return processed_gen_tokens
+        
+        def find_start_and_end_positions(chunk: str, start_idx: int, end_idx: int) -> tuple[int, int]:
+            s = "".join(gen_token.text for gen_token in processed_gen_tokens[start_idx:end_idx+1])
+            if chunk not in s:
+                # chunk is not in the string
+                return (-1, -1)
+            
+            i = start_idx + (end_idx - start_idx) // 2
+            traversed = []
+            while True:
+                if i in traversed:
+                    break
+
+                s = "".join(gen_token.text for gen_token in processed_gen_tokens[i:end_idx+1])
+                traversed.append(i)
+
+                if chunk in s:
+                    start_idx = i
+                    # shift the start position to the right
+                    i += (end_idx - i) // 2
+                else:
+                    # shift the start position to the left
+                    i -= (i - start_idx) // 2
+
+            j = end_idx
+            traversed = []
+            while True:
+                if j in traversed:
+                    break
+
+                s = "".join(gen_token.text for gen_token in processed_gen_tokens[start_idx:j+1])
+                traversed.append(j)
+
+                if chunk in s:
+                    end_idx = j
+                    # shift the end position to the left
+                    j -= (j - start_idx) // 2
+                else:
+                    # shift the end position to the right
+                    j += (end_idx - j) // 2
+
+            return (start_idx, end_idx)
+
+        for k in self._variables:
+            chunk = self._variables[k]
+            chunk_start_pos = self._variables_positions[k]
+            # find the start of this capture in case we have multiple similar captures
+            _, start_idx = find_start_and_end_positions(self._state[:chunk_start_pos+1], 0, len(processed_gen_tokens)-1)
+            start_idx, end_idx = find_start_and_end_positions(chunk, start_idx, len(processed_gen_tokens)-1)
+            if start_idx == -1:
+                continue
+
+            self._variables_log_probs[k] = [np.log(token.prob) for token in processed_gen_tokens[start_idx:end_idx+1]]
 
         return processed_gen_tokens
 
