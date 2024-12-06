@@ -174,6 +174,13 @@ class PostExecMetrics:
 
 def _engine_cleanup(renderer: Renderer, msg_recv: Callable[[GuidanceMessage], None], log_msg: str):
     renderer.unsubscribe(msg_recv)
+    try:
+        # force renderer cleanup
+        # TODO: figure out why in some cases _recv_task and _send_task are not stopped
+        from ..visual._renderer import _cleanup
+        _cleanup(renderer._recv_queue, renderer._send_queue, f"renderer({id(renderer)})")
+    except Exception as e:
+        logger.error(f"Failed to force-cleanup renderer: {e}")
     log_cleanup(log_msg)
 
 
