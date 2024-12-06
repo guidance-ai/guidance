@@ -365,7 +365,7 @@ class TestString:
     def test_regex_bad(self, bad_string: str, good_bytes, failure_byte, allowed_bytes):
         # Note that the strings being fed in include the double quotes required
         # to make them JSON strings
-        schema = """{ "type": "string", "pattern": "a[A-Z]"}"""
+        schema = """{ "type": "string", "pattern": "^a[A-Z]$"}"""
         schema_obj = json.loads(schema)
         check_match_failure(
             bad_string=bad_string,
@@ -377,7 +377,7 @@ class TestString:
 
     @pytest.mark.parametrize("string", ["aA\u001f", '"""'])
     def test_regex_properly_escaped_good(self, string):
-        schema_obj = {"type": "string", "pattern": r".{3}"}
+        schema_obj = {"type": "string", "pattern": r"^.{3}$"}
         # First sanity check what we're setting up
         validate(instance=string, schema=schema_obj)
         # The actual check
