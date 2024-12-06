@@ -30,3 +30,6 @@ sys.modules[__name__].__class__ = _Guidance
 
 # we expose all the library functions at the top level of the module
 from .library import *
+
+# expose legacy mode for visualization
+from .visual import legacy_mode
