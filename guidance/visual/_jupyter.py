@@ -23,7 +23,7 @@ def ipy_handle_event_once(cb: IPythonCallback, event_name: str) -> IPythonCallba
         return None
     
     def cb_closure(msg):
-        cb(msg)
+        cb(info=msg)
         ipy.events.unregister(event_name, cb_closure)
     ipy.events.register(event_name, cb_closure)
     

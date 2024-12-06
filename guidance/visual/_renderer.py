@@ -10,6 +10,7 @@ import logging
 import weakref
 from typing import Optional, Callable, Tuple, Any
 from asyncio import Queue
+from functools import partial
 
 from . import MetricMessage, TokensMessage
 from ._environment import Environment
@@ -137,9 +138,11 @@ async def _create_queue() -> Queue:
     return Queue()
 
 
-def _on_stitch_clientmsg(recv_queue: Queue, change: dict) -> None:
+def _on_stitch_clientmsg(recv_queue_weakref: weakref.ReferenceType["Queue"], change: dict) -> None:
     # NOTE(nopdive): Widget callbacks do not print to stdout/stderr nor module log.
-    call_soon_threadsafe(recv_queue.put_nowait, change['new'])
+    recv_queue = recv_queue_weakref()
+    if recv_queue is not None:
+        call_soon_threadsafe(recv_queue.put_nowait, change['new'])
 
 
 def _on_cell_completion(renderer_weakref: weakref.ReferenceType["Renderer"], info) -> None:
@@ -341,7 +344,7 @@ class JupyterWidgetRenderer(Renderer):
             out_messages.append(MetricMessage(name="status", value='⟳'))
 
             ipy_handle_event_once(
-                lambda x: _on_cell_completion(weakref.ref(self), x),
+                partial(_on_cell_completion, weakref.ref(self)),
                 'post_run_cell'
             )
             self._need_reset = True
@@ -366,7 +369,7 @@ class JupyterWidgetRenderer(Renderer):
                 self._stitch_widget.unobserve(self._stitch_on_clientmsg, names='clientmsg')
 
             self._stitch_widget = _create_stitch_widget()
-            self._stitch_on_clientmsg = lambda x: _on_stitch_clientmsg(self._recv_queue, x)
+            self._stitch_on_clientmsg = partial(_on_stitch_clientmsg, weakref.ref(self._recv_queue))
             self._stitch_widget.observe(self._stitch_on_clientmsg, names='clientmsg')
 
             # Redraw
