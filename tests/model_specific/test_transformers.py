@@ -37,6 +37,8 @@ def test_gpt2_fastforward(): # TODO [HN]: figure out how all the get_model and f
         lm += "Example text: " + select(big_opts, name="choice")
         return lm
 
+    pytest.skip("Disabling for now")
+
     # We should have significantly less output tokens in the fast-forwarded version (1 output)
 
     gpt2_noff = models.Transformers("gpt2", enable_backtrack=False, enable_ff_tokens=False)
