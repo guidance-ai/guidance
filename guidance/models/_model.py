@@ -41,6 +41,7 @@ from ..visual import (
     MetricMessage,
     OutputRequestMessage,
     JupyterWidgetRenderer,
+    LegacyHtmlRenderer
 )
 from ..visual._async import run_async_coroutine, async_task
 
@@ -279,8 +280,12 @@ class Engine:
         self.disable_monitoring = kwargs.get("disable_monitoring", False)
 
         if renderer is None:
-            # self.renderer = AutoRenderer(self.trace_handler)
-            self.renderer = JupyterWidgetRenderer(self.trace_handler)
+            use_legacy_ui = kwargs.get("use_legacy_ui", False)
+            if use_legacy_ui:
+                self.renderer = LegacyHtmlRenderer(self.trace_handler)
+            else:
+                # self.renderer = AutoRenderer(self.trace_handler)
+                self.renderer = JupyterWidgetRenderer(self.trace_handler)
 
         msg_recv = _wrapped_msg_recv(weakref.ref(self))
         self.renderer.subscribe(msg_recv)

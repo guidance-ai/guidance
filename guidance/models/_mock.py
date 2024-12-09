@@ -61,7 +61,7 @@ class MockTokenizer(Tokenizer):
 
 class MockEngine(Engine):
     def __init__(self, tokenizer, byte_patterns, compute_log_probs, force):
-        super().__init__(tokenizer, compute_log_probs=compute_log_probs, disable_monitoring=True)
+        super().__init__(tokenizer, compute_log_probs=compute_log_probs, disable_monitoring=True, use_legacy_ui=True)
 
         self._valid_mask = np.zeros(len(tokenizer.tokens))
         for i, t in enumerate(tokenizer.tokens):
@@ -98,7 +98,7 @@ class MockEngine(Engine):
         token_ids: list[int],
         mask: Optional[bytes],
         temperature: float,
-        k: int = 5,
+        k: int = 1,
     ) -> EngineOutput:
         self.called_temperatures.append(temperature)
         return super().get_next_token_with_top_k(logits, logits_lat_ms, token_ids, mask, temperature, k)
