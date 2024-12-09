@@ -90,6 +90,7 @@ class PeriodicMetricsGenerator:
         self._monitor = monitor
         self._sleep_sec = sleep_sec
         self._task = None
+        self._task_cancelled = False
         run_async_coroutine(self._emit())
 
     def start(self):
@@ -98,13 +99,15 @@ class PeriodicMetricsGenerator:
     def stop(self):
         if self._task is not None:
             self._task.cancel()
+            # TODO: it seems _task.cancel() is not working, use a flag to stop the task
+            self._task_cancelled = True
 
     async def _emit(self):
         import asyncio
         import time
 
         time_start = time.time()
-        while True:
+        while not self._task_cancelled:
             try:
                 await asyncio.sleep(self._sleep_sec)
 
@@ -147,6 +150,8 @@ class PeriodicMetricsGenerator:
                 logger.debug(f"METRICGEN: {repr(e)}")
                 break
 
+        logger.debug("METRICGEN:exiting")
+
 
 class PostExecMetrics:
     def __init__(self, renderer: Renderer, monitor: "Monitor"):
@@ -172,8 +177,12 @@ class PostExecMetrics:
             self._renderer.update(MetricMessage(name="avg latency", value=avg_latency))
 
 
-def _engine_cleanup(renderer: Renderer, msg_recv: Callable[[GuidanceMessage], None], log_msg: str):
+def _engine_cleanup(renderer: Renderer, msg_recv: Callable[[GuidanceMessage], None], 
+                    monitor: Optional['Monitor'],  
+                    periodic_metrics_generator: Optional[PeriodicMetricsGenerator],
+                    log_msg: str):
     renderer.unsubscribe(msg_recv)
+
     try:
         # force renderer cleanup
         # TODO: figure out why in some cases _recv_task and _send_task are not stopped
@@ -181,6 +190,19 @@ def _engine_cleanup(renderer: Renderer, msg_recv: Callable[[GuidanceMessage], No
         _cleanup(renderer._recv_queue, renderer._send_queue, f"renderer({id(renderer)})")
     except Exception as e:
         logger.error(f"Failed to force-cleanup renderer: {e}")
+
+    if periodic_metrics_generator is not None:
+        try:
+            periodic_metrics_generator.stop()
+        except Exception as e:
+            logger.error(f"Failed to stop periodic metrics generator: {e}")
+
+    if monitor is not None:
+        try:
+            monitor.stop()
+        except Exception as e:
+            logger.error(f"Failed to stop monitor: {e}")
+
     log_cleanup(log_msg)
 
 
@@ -263,14 +285,15 @@ class Engine:
 
         self.model_dict: weakref.WeakValueDictionary[int, Model] = weakref.WeakValueDictionary()
 
-        # self.monitor = Monitor(self)
+        self.monitor = None
+        # self.monitor = Monitor(self.metrics)
         # self.monitor.start()
 
         # self.periodic_metrics_generator = PeriodicMetricsGenerator(self.renderer, self.monitor)
         # self.periodic_metrics_generator.start()
         # self.post_exec_metrics = PostExecMetrics(self.renderer, self.monitor)
 
-        weakref.finalize(self, _engine_cleanup, self.renderer, msg_recv, f"engine({id(self)})")
+        weakref.finalize(self, _engine_cleanup, self.renderer, msg_recv, self.monitor, self.periodic_metrics_generator, f"engine({id(self)})")
         log_init(f"engine({id(self)})")
 
     # These need to be properties because once an Engine is started, you can't change their behavior.
@@ -1948,8 +1971,8 @@ def _monitor_fn(
 class Monitor:
     """Monitoring service to collect necessary metrics for visualization"""
 
-    def __init__(self, engine: Engine, **kwargs):
-        self.engine = engine
+    def __init__(self, engine_metrics: GuidanceEngineMetrics, **kwargs):
+        self.engine_metrics = engine_metrics
         self.mp_manager = Manager()
 
         # use list instead of queue for easily accessing each item, e.g., last item
@@ -1973,14 +1996,16 @@ class Monitor:
             target=_monitor_fn, args=(self.stop_flag, self.metrics_dict, self.max_size)
         )
         self.process.start()
+        logger.debug("Monitor:start")
 
     def stop(self):
         if self.process:
             self.stop_flag.value = True
-            self.process.join()
+            self.process.terminate()
 
             for metrics in self.metrics_dict.values():
                 metrics[:] = []  # NOTE(nopdive): ListProxy does not have .clear method.
+        logger.debug("Monitor:stop")
 
     def reset(self):
         self.stop()
@@ -1989,6 +2014,7 @@ class Monitor:
             metrics.clear()
 
         self.start()
+        logger.debug("Monitor:reset")
 
     def get_metrics(
         self, metrics=None, lm: Union[Model, None] = None
@@ -2009,11 +2035,11 @@ class Monitor:
                     self.metrics_dict[metric][-1] if len(self.metrics_dict[metric]) > 0 else None
                 )
             elif metric == MonitoringMetric.INPUT_TOKENS:
-                result[metric] = self.engine.metrics.engine_input_tokens
+                result[metric] = self.engine_metrics.engine_input_tokens
             elif metric == MonitoringMetric.OUTPUT_TOKENS:
-                result[metric] = self.engine.metrics.engine_output_tokens
+                result[metric] = self.engine_metrics.engine_output_tokens
             elif metric == MonitoringMetric.BACKTRACK_TOKENS:
-                result[metric] = self.engine.metrics.engine_backtrack_tokens
+                result[metric] = self.engine_metrics.engine_backtrack_tokens
             elif metric == MonitoringMetric.TOKEN_COUNT:
                 result[metric] = lm.token_count if lm is not None else None
             elif metric == MonitoringMetric.TOKEN_REDUCTION:
