@@ -1753,16 +1753,18 @@ class Model:
 
             return (start_idx, end_idx)
 
-        for k in self._variables:
-            chunk = self._variables[k]
-            chunk_start_pos = self._variables_positions[k]
-            # find the start of this capture in case we have multiple similar captures
-            _, start_idx = find_start_and_end_positions(self._state[:chunk_start_pos+1], 0, len(processed_gen_tokens)-1)
-            start_idx, end_idx = find_start_and_end_positions(chunk, start_idx, len(processed_gen_tokens)-1)
-            if start_idx == -1:
-                continue
+        if self.engine.compute_log_probs:
+            for k in self._variables:
+                chunk = self._variables[k]
+                chunk_start_pos = self._variables_positions[k]
+                # find the start of this capture in case we have multiple similar captures
+                _, start_idx = find_start_and_end_positions(self._state[:chunk_start_pos+1], 0, len(processed_gen_tokens)-1)
+                start_idx, end_idx = find_start_and_end_positions(chunk, start_idx, len(processed_gen_tokens)-1)
+                if start_idx == -1:
+                    continue
 
-            self._variables_log_probs[k] = [np.log(token.prob) for token in processed_gen_tokens[start_idx:end_idx+1]]
+                self._variables_log_probs[k] = [{"token" : token.text, "token_id" : token.token_id, "logprob" : np.log(token.prob)} 
+                                                for token in processed_gen_tokens[start_idx:end_idx+1]]
 
         return processed_gen_tokens
 
