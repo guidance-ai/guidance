@@ -427,7 +427,8 @@ class TransformersEngine(Engine):
             my_tokenizer,
             compute_log_probs=compute_log_probs,
             enable_backtrack=enable_backtrack,
-            enable_ff_tokens=enable_ff_tokens
+            enable_ff_tokens=enable_ff_tokens,
+            **kwargs,
         )
 
     def _model(self, model, **kwargs):

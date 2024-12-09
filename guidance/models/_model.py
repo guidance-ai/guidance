@@ -281,6 +281,7 @@ class Engine:
         self._enable_backtrack = enable_backtrack
         self._enable_ff_tokens = enable_ff_tokens
         self._enable_monitoring = enable_monitoring
+        self._top_k = kwargs.get("top_k", 5)
         self.metrics = GuidanceEngineMetrics()
 
         if renderer is None:
@@ -510,6 +511,7 @@ class Engine:
                 token_ids=tokens,
                 mask=mask_for_sampling,
                 temperature=ll_response.temperature,
+                k=self._top_k
             )
 
             if can_finish_early and not mask[engine_output.issued_token.token_id]:
@@ -1524,7 +1526,7 @@ class Model:
             ):
                 token_ids = [self.engine.tokenizer.bos_token_id] + token_ids
 
-            tokens_with_topk = self.engine.get_per_token_topk_probs(token_ids)
+            tokens_with_topk = self.engine.get_per_token_topk_probs(token_ids, top_k=self.engine._top_k)
 
             # remove the BOS token
             if prev_token_ids_len != len(token_ids):
