@@ -10,6 +10,9 @@ from ._model import Engine, Model, Chat
 from ._remote import RemoteEngine
 from ._tokenizer import Tokenizer
 
+from ..visual._renderer import DoNothingRenderer
+from ..trace import TraceHandler
+
 logger = logging.getLogger(__name__)
 
 # TODO: this import pattern happens in a few places, should be cleaned up
@@ -61,7 +64,8 @@ class MockTokenizer(Tokenizer):
 
 class MockEngine(Engine):
     def __init__(self, tokenizer, byte_patterns, compute_log_probs, force):
-        super().__init__(tokenizer, compute_log_probs=compute_log_probs, disable_monitoring=True, use_legacy_ui=True)
+        renderer = DoNothingRenderer(trace_handler=TraceHandler())
+        super().__init__(tokenizer, compute_log_probs=compute_log_probs, disable_monitoring=True, renderer=renderer)
 
         self._valid_mask = np.zeros(len(tokenizer.tokens))
         for i, t in enumerate(tokenizer.tokens):
