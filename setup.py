@@ -29,7 +29,7 @@ install_requires = [
     "referencing",
     "requests",
     "tiktoken>=0.3",
-    "llguidance==0.4.2rc2",
+    "llguidance==0.5.0",
 ]
 
 # Our basic list of 'extras'
