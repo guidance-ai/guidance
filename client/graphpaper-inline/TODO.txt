@@ -1,0 +1,3 @@
+- Remove CDN font links (googlefonts)
+- Image integration
+- Testing

@@ -8,8 +8,11 @@ import textwrap
 import types
 import weakref
 import functools
-
 import numpy as np
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class _Rewrite(ast.NodeTransformer):
     def __init__(self, source_lines):
@@ -258,3 +261,52 @@ def softmax(array: np.ndarray, axis: int = -1) -> np.ndarray:
     array_maxs = np.amax(array, axis=axis, keepdims=True)
     exp_x_shifted = np.exp(array - array_maxs)
     return exp_x_shifted / np.sum(exp_x_shifted, axis=axis, keepdims=True)
+
+
+def pydantic_no_default_repr(obj, target_fields=None):
+    if target_fields is None:
+        records = (
+            f'{getattr(obj, name)!r}'
+            for name, field in obj.model_fields.items()
+            if getattr(obj, name) != field.default and not field.exclude
+        )
+    else:
+        records = (
+            f'{getattr(obj, name)!r}'
+            for name, field in obj.model_fields.items()
+            if getattr(obj, name) != field.default and not field.exclude and name in target_fields
+        )
+    out = f'{type(obj).__name__}:{":".join(records)}'
+    return out
+
+
+def pydantic_no_default_str(obj, target_fields=None):
+    if target_fields is None:
+        records = (
+            f'{getattr(obj, name)!s}'
+            for name, field in obj.model_fields.items()
+            if getattr(obj, name) != field.default and not field.exclude
+        )
+    else:
+        records = (
+            f'{getattr(obj, name)!s}'
+            for name, field in obj.model_fields.items()
+            if getattr(obj, name) != field.default and not field.exclude and name in target_fields
+        )
+    out = "\n".join(records)
+    return out
+
+
+def log_init(s: str):
+    logger.debug(f"INIT:{s}")
+    pass
+
+
+def log_copy(s: str):
+    logger.debug(f"COPY:{s}")
+    pass
+
+
+def log_cleanup(s: str):
+    logger.debug(f"CLEANUP:{s}")
+    pass
