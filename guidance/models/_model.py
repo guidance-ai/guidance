@@ -289,6 +289,7 @@ class Engine:
         # self.monitor = Monitor(self.metrics)
         # self.monitor.start()
 
+        self.periodic_metrics_generator = None
         # self.periodic_metrics_generator = PeriodicMetricsGenerator(self.renderer, self.monitor)
         # self.periodic_metrics_generator.start()
         # self.post_exec_metrics = PostExecMetrics(self.renderer, self.monitor)
