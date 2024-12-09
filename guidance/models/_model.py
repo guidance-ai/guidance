@@ -268,14 +268,20 @@ class Engine:
     Server so a single server can serve many clients' model objects through a single Engine object.
     """
 
-    def __init__(self, tokenizer: Tokenizer, compute_log_probs=False, enable_backtrack=True, enable_ff_tokens=True, renderer=None, **kwargs):
+    def __init__(self, tokenizer: Tokenizer, 
+                 compute_log_probs=False, 
+                 enable_backtrack=True, 
+                 enable_ff_tokens=True, 
+                 renderer=None, 
+                 enable_monitoring=True,
+                 **kwargs):
         # TODO(nopdive): Hook up renderer keyword to all engines.
         self.tokenizer = tokenizer
         self.compute_log_probs = compute_log_probs
         self._enable_backtrack = enable_backtrack
         self._enable_ff_tokens = enable_ff_tokens
-        self.metrics = GuidanceEngineMetrics()        
-        self.disable_monitoring = kwargs.get("disable_monitoring", False)
+        self._enable_monitoring = enable_monitoring
+        self.metrics = GuidanceEngineMetrics()
 
         if renderer is None:
             self.trace_handler = TraceHandler()
@@ -293,7 +299,7 @@ class Engine:
         self.monitor = None
         self.periodic_metrics_generator = None
         self.post_exec_metrics = None
-        if not self.disable_monitoring:
+        if self._enable_monitoring:
             self.monitor = Monitor(self.metrics)
             self.monitor.start()
 
@@ -312,6 +318,10 @@ class Engine:
     @property
     def enable_ff_tokens(self):
         return self._enable_ff_tokens
+    
+    @property
+    def enable_monitoring(self):
+        return self._enable_monitoring
 
     def get_chat_template(
         self,
