@@ -14,7 +14,7 @@ jobs:
   bare-install:
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-12]
+        os: [ubuntu-latest, windows-latest, macos-14]
         python-version: ["3.9", "3.10", "3.11", "3.12"]
     runs-on: ${{ matrix.os }}
     steps:
@@ -130,7 +130,7 @@ jobs:
           - "llamacpp_phi3_mini_4k_instruct_cpu"
     uses: ./.github/workflows/action_plain_basic_tests.yml
     with:
-      os: macos-12
+      os: macos-14
       python-version: ${{ matrix.python-version }}
       model: ${{ matrix.model }}
 

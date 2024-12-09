@@ -39,7 +39,7 @@ def test_gpt2_fastforward(): # TODO [HN]: figure out how all the get_model and f
 
     # We should have significantly less output tokens in the fast-forwarded version (1 output)
 
-    gpt2_noff = models.Transformers("gpt2", enable_ff_tokens=False)
+    gpt2_noff = models.Transformers("gpt2", enable_backtrack=False, enable_ff_tokens=False)
     gpt2_noff += ff_prompt()
     noff_count = gpt2_noff.engine.metrics.engine_output_tokens
 
@@ -51,8 +51,8 @@ def test_gpt2_fastforward(): # TODO [HN]: figure out how all the get_model and f
     gpt2_ff += ff_prompt()
     ff_count = gpt2_ff.engine.metrics.engine_output_tokens
 
-    assert nobt_count == 3
-    assert ff_count == 3
+    assert nobt_count == 2
+    assert ff_count == 2
     assert noff_count > ff_count
 
 
