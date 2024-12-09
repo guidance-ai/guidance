@@ -61,7 +61,7 @@ class MockTokenizer(Tokenizer):
 
 class MockEngine(Engine):
     def __init__(self, tokenizer, byte_patterns, compute_log_probs, force):
-        super().__init__(tokenizer, compute_log_probs=compute_log_probs)
+        super().__init__(tokenizer, compute_log_probs=compute_log_probs, disable_monitoring=True)
 
         self._valid_mask = np.zeros(len(tokenizer.tokens))
         for i, t in enumerate(tokenizer.tokens):

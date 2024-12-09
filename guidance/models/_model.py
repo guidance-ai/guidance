@@ -276,6 +276,8 @@ class Engine:
         self._enable_ff_tokens = enable_ff_tokens
         self.metrics = GuidanceEngineMetrics()
         self.trace_handler = TraceHandler()
+        self.disable_monitoring = kwargs.get("disable_monitoring", False)
+
         if renderer is None:
             # self.renderer = AutoRenderer(self.trace_handler)
             self.renderer = JupyterWidgetRenderer(self.trace_handler)
@@ -286,13 +288,15 @@ class Engine:
         self.model_dict: weakref.WeakValueDictionary[int, Model] = weakref.WeakValueDictionary()
 
         self.monitor = None
-        # self.monitor = Monitor(self.metrics)
-        # self.monitor.start()
-
         self.periodic_metrics_generator = None
-        # self.periodic_metrics_generator = PeriodicMetricsGenerator(self.renderer, self.monitor)
-        # self.periodic_metrics_generator.start()
-        # self.post_exec_metrics = PostExecMetrics(self.renderer, self.monitor)
+        self.post_exec_metrics = None
+        if not self.disable_monitoring:
+            self.monitor = Monitor(self.metrics)
+            self.monitor.start()
+
+            self.periodic_metrics_generator = PeriodicMetricsGenerator(self.renderer, self.monitor)
+            self.periodic_metrics_generator.start()
+            self.post_exec_metrics = PostExecMetrics(self.renderer, self.monitor)
 
         weakref.finalize(self, _engine_cleanup, self.renderer, msg_recv, self.monitor, self.periodic_metrics_generator, f"engine({id(self)})")
         log_init(f"engine({id(self)})")
