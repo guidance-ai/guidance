@@ -523,7 +523,7 @@ class TransformersEngine(Engine):
             cache_token_ids.extend(new_token_ids)
             # Need to add special truncating logic here for weird models that have a different output size than tokenizer vocab
             self._cached_logits = (
-                model_out.logits[0, -1, : len(self.tokenizer.tokens)].cpu().numpy()
+                model_out.logits[0, -1, : len(self.tokenizer.tokens)].float().cpu().numpy()
             )
             self.metrics.engine_input_tokens += len(new_token_ids)
             self.metrics.engine_output_tokens += 1
