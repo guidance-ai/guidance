@@ -9,13 +9,13 @@ from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 from guidance import assistant, gen, models, system, user
 
 from ..model_specific import common_chat_testing
-from ..utils import env_or_fail
+from ..utils import env_or_skip
 
 
 @pytest.fixture(scope="function")
 def azureai_chat_model(rate_limiter):
-    azureai_endpoint = env_or_fail("AZUREAI_CHAT_ENDPOINT")
-    model = env_or_fail("AZUREAI_CHAT_MODEL")
+    azureai_endpoint = env_or_skip("AZUREAI_CHAT_ENDPOINT")
+    model = env_or_skip("AZUREAI_CHAT_MODEL")
 
     print(f"{azureai_endpoint=}")
     print(f"{model=}")
@@ -46,8 +46,8 @@ def test_azureai_openai_chat_longer_2(azureai_chat_model):
 
 
 def test_azureai_openai_chat_alt_args(rate_limiter):
-    azureai_endpoint = env_or_fail("AZUREAI_CHAT_ENDPOINT")
-    model = env_or_fail("AZUREAI_CHAT_MODEL")
+    azureai_endpoint = env_or_skip("AZUREAI_CHAT_ENDPOINT")
+    model = env_or_skip("AZUREAI_CHAT_MODEL")
 
     parsed_url = urlparse(azureai_endpoint)
     parsed_query = parse_qs(parsed_url.query)
@@ -71,8 +71,8 @@ def test_azureai_openai_chat_alt_args(rate_limiter):
 
 
 def test_azureai_openai_completion_smoke(rate_limiter):
-    azureai_endpoint = env_or_fail("AZUREAI_COMPLETION_ENDPOINT")
-    model = env_or_fail("AZUREAI_COMPLETION_MODEL")
+    azureai_endpoint = env_or_skip("AZUREAI_COMPLETION_ENDPOINT")
+    model = env_or_skip("AZUREAI_COMPLETION_MODEL")
 
     print(f"endpoint: {' '.join(azureai_endpoint)}")
     print(f"model: {' '.join(model)}")
@@ -95,8 +95,8 @@ def test_azureai_openai_completion_smoke(rate_limiter):
 
 
 def test_azureai_openai_completion_alt_args(rate_limiter):
-    azureai_endpoint = env_or_fail("AZUREAI_COMPLETION_ENDPOINT")
-    model = env_or_fail("AZUREAI_COMPLETION_MODEL")
+    azureai_endpoint = env_or_skip("AZUREAI_COMPLETION_ENDPOINT")
+    model = env_or_skip("AZUREAI_COMPLETION_MODEL")
 
     parsed_url = urlparse(azureai_endpoint)
     parsed_query = parse_qs(parsed_url.query)

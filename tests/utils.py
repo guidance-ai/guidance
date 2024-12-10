@@ -15,8 +15,14 @@ opanai_model_cache = {}
 def env_or_fail(var_name: str) -> str:
     env_value = os.getenv(var_name, None)
 
-    assert env_value is not None, f"Env '{var_name}' not found"
+    assert env_value is not None, f"Env '{var_name}' not found."
 
+    return env_value
+
+def env_or_skip(var_name: str) -> str:
+    env_value = os.getenv(var_name, None)
+    if env_value is None:
+        pytest.skip(f"Env '{var_name}' not found.")
     return env_value
 
 
