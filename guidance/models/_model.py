@@ -90,6 +90,7 @@ class PeriodicMetricsGenerator:
         self._monitor = monitor
         self._sleep_sec = sleep_sec
         self._task = None
+        self._task_cancelled = False
         run_async_coroutine(self._emit())
 
     def start(self):
@@ -98,13 +99,15 @@ class PeriodicMetricsGenerator:
     def stop(self):
         if self._task is not None:
             self._task.cancel()
+            # TODO: it seems _task.cancel() is not working, use a flag to stop the task
+            self._task_cancelled = True
 
     async def _emit(self):
         import asyncio
         import time
 
         time_start = time.time()
-        while True:
+        while not self._task_cancelled:
             try:
                 await asyncio.sleep(self._sleep_sec)
 
@@ -147,6 +150,8 @@ class PeriodicMetricsGenerator:
                 logger.debug(f"METRICGEN: {repr(e)}")
                 break
 
+        logger.debug("METRICGEN:exiting")
+
 
 class PostExecMetrics:
     def __init__(self, renderer: Renderer, monitor: "Monitor"):
@@ -172,8 +177,32 @@ class PostExecMetrics:
             self._renderer.update(MetricMessage(name="avg latency", value=avg_latency))
 
 
-def _engine_cleanup(renderer: Renderer, msg_recv: Callable[[GuidanceMessage], None], log_msg: str):
+def _engine_cleanup(renderer: Renderer, msg_recv: Callable[[GuidanceMessage], None], 
+                    monitor: Optional['Monitor'],  
+                    periodic_metrics_generator: Optional[PeriodicMetricsGenerator],
+                    log_msg: str):
     renderer.unsubscribe(msg_recv)
+
+    try:
+        # force renderer cleanup
+        # TODO: figure out why in some cases _recv_task and _send_task are not stopped
+        from ..visual._renderer import _cleanup
+        _cleanup(renderer._recv_queue, renderer._send_queue, f"renderer({id(renderer)})")
+    except Exception as e:
+        logger.error(f"Failed to force-cleanup renderer: {e}")
+
+    if periodic_metrics_generator is not None:
+        try:
+            periodic_metrics_generator.stop()
+        except Exception as e:
+            logger.error(f"Failed to stop periodic metrics generator: {e}")
+
+    if monitor is not None:
+        try:
+            monitor.stop()
+        except Exception as e:
+            logger.error(f"Failed to stop monitor: {e}")
+
     log_cleanup(log_msg)
 
 
@@ -239,31 +268,47 @@ class Engine:
     Server so a single server can serve many clients' model objects through a single Engine object.
     """
 
-    def __init__(self, tokenizer: Tokenizer, compute_log_probs=False, enable_backtrack=True, enable_ff_tokens=True, renderer=None, **kwargs):
+    def __init__(self, tokenizer: Tokenizer, 
+                 compute_log_probs=False, 
+                 enable_backtrack=True, 
+                 enable_ff_tokens=True, 
+                 renderer=None, 
+                 enable_monitoring=True,
+                 **kwargs):
         # TODO(nopdive): Hook up renderer keyword to all engines.
         self.tokenizer = tokenizer
         self.compute_log_probs = compute_log_probs
         self._enable_backtrack = enable_backtrack
         self._enable_ff_tokens = enable_ff_tokens
+        self._enable_monitoring = enable_monitoring
+        self._top_k = kwargs.get("top_k", 5)
         self.metrics = GuidanceEngineMetrics()
-        self.trace_handler = TraceHandler()
+
         if renderer is None:
+            self.trace_handler = TraceHandler()
             # self.renderer = AutoRenderer(self.trace_handler)
             self.renderer = JupyterWidgetRenderer(self.trace_handler)
+        else:
+            self.renderer = renderer
+            self.trace_handler = renderer._trace_handler
 
         msg_recv = _wrapped_msg_recv(weakref.ref(self))
         self.renderer.subscribe(msg_recv)
 
         self.model_dict: weakref.WeakValueDictionary[int, Model] = weakref.WeakValueDictionary()
 
-        # self.monitor = Monitor(self)
-        # self.monitor.start()
+        self.monitor = None
+        self.periodic_metrics_generator = None
+        self.post_exec_metrics = None
+        if self._enable_monitoring:
+            self.monitor = Monitor(self.metrics)
+            self.monitor.start()
 
-        # self.periodic_metrics_generator = PeriodicMetricsGenerator(self.renderer, self.monitor)
-        # self.periodic_metrics_generator.start()
-        # self.post_exec_metrics = PostExecMetrics(self.renderer, self.monitor)
+            self.periodic_metrics_generator = PeriodicMetricsGenerator(self.renderer, self.monitor)
+            self.periodic_metrics_generator.start()
+            self.post_exec_metrics = PostExecMetrics(self.renderer, self.monitor)
 
-        weakref.finalize(self, _engine_cleanup, self.renderer, msg_recv, f"engine({id(self)})")
+        weakref.finalize(self, _engine_cleanup, self.renderer, msg_recv, self.monitor, self.periodic_metrics_generator, f"engine({id(self)})")
         log_init(f"engine({id(self)})")
 
     # These need to be properties because once an Engine is started, you can't change their behavior.
@@ -274,6 +319,10 @@ class Engine:
     @property
     def enable_ff_tokens(self):
         return self._enable_ff_tokens
+    
+    @property
+    def enable_monitoring(self):
+        return self._enable_monitoring
 
     def get_chat_template(
         self,
@@ -462,6 +511,7 @@ class Engine:
                 token_ids=tokens,
                 mask=mask_for_sampling,
                 temperature=ll_response.temperature,
+                k=self._top_k
             )
 
             if can_finish_early and not mask[engine_output.issued_token.token_id]:
@@ -693,6 +743,7 @@ class Model:
         # private attributes
         self._variables = {}  # these are the state variables stored with the model
         self._variables_log_probs = {}  # these are the state variables stored with the model
+        self._variables_positions = {}  # these are the state variables stored with the model
         self._cache_state = {}  # mutable caching state used to save computation
         self._state = ""  # the current bytes that represent the state of the model
         self._trace_nodes = set()  # keep trace node reference for pinning
@@ -784,6 +835,7 @@ class Model:
         # then copy a few things we need deeper copies of
         new_lm._variables = self._variables.copy()
         new_lm._variables_log_probs = self._variables_log_probs.copy()
+        new_lm._variables_positions = self._variables_positions.copy()
         new_lm.opened_blocks = self.opened_blocks.copy()
 
         # create a new clean event queue
@@ -848,6 +900,7 @@ class Model:
         if clear_variables:
             self._variables = {}
             self._variables_log_probs = {}
+            self._variables_positions = {}
         return self
 
     def role_opener(self, role_name, **kwargs):
@@ -942,6 +995,7 @@ class Model:
                 # TODO(nopdive): Replace with trace traversal.
                 v = format_pattern.sub("", lm._state[pos:])
                 lm._variables[context.name] = v
+                lm._variables_positions[context.name] = pos
                 lm._update_trace_node(
                     lm._id, lm._parent_id, CaptureOutput(name=context.name, value=v)
                 )
@@ -979,6 +1033,8 @@ class Model:
                     del lm._variables[context.name]
                     if context.name in lm._variables_log_probs:
                         del lm._variables_log_probs[context.name]
+                    if context.name in lm._variables_positions:
+                        del lm._variables_positions[context.name]
 
         if isinstance(value, TextOutput):
             lm._inplace_append(value.value)
@@ -1349,6 +1405,8 @@ class Model:
                                     lm._variables_log_probs[k], list
                                 ):
                                     lm._variables_log_probs[k] = []
+                                if k not in lm._variables_positions:
+                                    lm._variables_positions[k] = len(lm._state)
 
                                 lm._variables[k].append(inner_v)
                                 lm._variables_log_probs[k].append(
@@ -1371,6 +1429,7 @@ class Model:
                                 pass
 
                             lm._variables[k] = v
+                            lm._variables_positions[k] = len(lm._state) - len(v)
                             lm._variables_log_probs[k] = chunk.capture_group_log_probs[k]
                             lm += CaptureOutput(
                                 name=k,
@@ -1467,7 +1526,7 @@ class Model:
             ):
                 token_ids = [self.engine.tokenizer.bos_token_id] + token_ids
 
-            tokens_with_topk = self.engine.get_per_token_topk_probs(token_ids)
+            tokens_with_topk = self.engine.get_per_token_topk_probs(token_ids, top_k=self.engine._top_k)
 
             # remove the BOS token
             if prev_token_ids_len != len(token_ids):
@@ -1497,7 +1556,7 @@ class Model:
         start_pos = 0
         remainder = ""
 
-        processed_gen_tokens = []
+        processed_gen_tokens: list[GenTokenExtra] = []
         # Map token back to generated chunk to extract correct info (is_generated, latency, etc.)
         for vis_chunk_idx, vis_chunk in enumerate(vis_chunks):
             vis_text = vis_chunk.bytes.decode("utf-8")
@@ -1648,6 +1707,64 @@ class Model:
 
             start_pos = 0
             remainder = ""
+
+        if not self._variables:
+            return processed_gen_tokens
+        
+        def find_start_and_end_positions(chunk: str, start_idx: int, end_idx: int) -> tuple[int, int]:
+            s = "".join(gen_token.text for gen_token in processed_gen_tokens[start_idx:end_idx+1])
+            if chunk not in s:
+                # chunk is not in the string
+                return (-1, -1)
+            
+            i = start_idx + (end_idx - start_idx) // 2
+            traversed = []
+            while True:
+                if i in traversed:
+                    break
+
+                s = "".join(gen_token.text for gen_token in processed_gen_tokens[i:end_idx+1])
+                traversed.append(i)
+
+                if chunk in s:
+                    start_idx = i
+                    # shift the start position to the right
+                    i += (end_idx - i) // 2
+                else:
+                    # shift the start position to the left
+                    i -= (i - start_idx) // 2
+
+            j = end_idx
+            traversed = []
+            while True:
+                if j in traversed:
+                    break
+
+                s = "".join(gen_token.text for gen_token in processed_gen_tokens[start_idx:j+1])
+                traversed.append(j)
+
+                if chunk in s:
+                    end_idx = j
+                    # shift the end position to the left
+                    j -= (j - start_idx) // 2
+                else:
+                    # shift the end position to the right
+                    j += (end_idx - j) // 2
+
+            return (start_idx, end_idx)
+
+        if self.engine.compute_log_probs:
+            for k in self._variables:
+                chunk = self._variables[k]
+                chunk_start_pos = self._variables_positions[k]
+                # find the start of this capture in case we have multiple similar captures
+                _, start_idx = find_start_and_end_positions(self._state[:chunk_start_pos+1], 0, len(processed_gen_tokens)-1)
+                start_idx, end_idx = find_start_and_end_positions(chunk, start_idx, len(processed_gen_tokens)-1)
+                if start_idx == -1:
+                    continue
+
+                self._variables_log_probs[k] = [{"token" : token.text, "token_id" : token.token_id, "logprob" : np.log(token.prob)} 
+                                                for token in processed_gen_tokens[start_idx:end_idx+1]]
 
         return processed_gen_tokens
 
@@ -1876,8 +1993,8 @@ def _monitor_fn(
 class Monitor:
     """Monitoring service to collect necessary metrics for visualization"""
 
-    def __init__(self, engine: Engine, **kwargs):
-        self.engine = engine
+    def __init__(self, engine_metrics: GuidanceEngineMetrics, **kwargs):
+        self.engine_metrics = engine_metrics
         self.mp_manager = Manager()
 
         # use list instead of queue for easily accessing each item, e.g., last item
@@ -1901,14 +2018,16 @@ class Monitor:
             target=_monitor_fn, args=(self.stop_flag, self.metrics_dict, self.max_size)
         )
         self.process.start()
+        logger.debug("Monitor:start")
 
     def stop(self):
         if self.process:
             self.stop_flag.value = True
-            self.process.join()
+            self.process.terminate()
 
             for metrics in self.metrics_dict.values():
                 metrics[:] = []  # NOTE(nopdive): ListProxy does not have .clear method.
+        logger.debug("Monitor:stop")
 
     def reset(self):
         self.stop()
@@ -1917,6 +2036,7 @@ class Monitor:
             metrics.clear()
 
         self.start()
+        logger.debug("Monitor:reset")
 
     def get_metrics(
         self, metrics=None, lm: Union[Model, None] = None
@@ -1937,11 +2057,11 @@ class Monitor:
                     self.metrics_dict[metric][-1] if len(self.metrics_dict[metric]) > 0 else None
                 )
             elif metric == MonitoringMetric.INPUT_TOKENS:
-                result[metric] = self.engine.metrics.engine_input_tokens
+                result[metric] = self.engine_metrics.engine_input_tokens
             elif metric == MonitoringMetric.OUTPUT_TOKENS:
-                result[metric] = self.engine.metrics.engine_output_tokens
+                result[metric] = self.engine_metrics.engine_output_tokens
             elif metric == MonitoringMetric.BACKTRACK_TOKENS:
-                result[metric] = self.engine.metrics.engine_backtrack_tokens
+                result[metric] = self.engine_metrics.engine_backtrack_tokens
             elif metric == MonitoringMetric.TOKEN_COUNT:
                 result[metric] = lm.token_count if lm is not None else None
             elif metric == MonitoringMetric.TOKEN_REDUCTION:

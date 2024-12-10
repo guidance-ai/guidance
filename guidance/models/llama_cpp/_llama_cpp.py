@@ -153,6 +153,7 @@ class LlamaCppEngine(Engine):
             compute_log_probs=compute_log_probs,
             enable_backtrack=enable_backtrack,
             enable_ff_tokens=enable_ff_tokens,
+            **kwargs,
         )
 
         self._n_vocab = len(self.tokenizer.tokens)
@@ -283,7 +284,7 @@ class LlamaCppEngine(Engine):
             _probs = softmax(logits)
 
             # get the top k indices
-            top_k_ids, top_k_probs = self._top_k(_probs.copy(), top_k, ascending=False)
+            top_k_ids, top_k_probs = self._get_top_k(_probs.copy(), top_k, ascending=False)
             if token_id not in top_k_ids:
                 top_k_ids = np.append(top_k_ids, token_id)
                 top_k_probs = np.append(top_k_probs, _probs[token_id])
@@ -312,7 +313,7 @@ class LlamaCppEngine(Engine):
 
         return text_sequence
 
-    def _top_k(self, probs: np.ndarray, k: int, axis: int = None, ascending: bool = True):
+    def _get_top_k(self, probs: np.ndarray, k: int, axis: int = None, ascending: bool = True):
         if not ascending:
             probs *= -1
         ind = np.argpartition(probs, k, axis=axis)

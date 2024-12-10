@@ -10,6 +10,9 @@ from ._model import Engine, Model, Chat
 from ._remote import RemoteEngine
 from ._tokenizer import Tokenizer
 
+from ..visual._renderer import DoNothingRenderer
+from ..trace import TraceHandler
+
 logger = logging.getLogger(__name__)
 
 # TODO: this import pattern happens in a few places, should be cleaned up
@@ -61,7 +64,8 @@ class MockTokenizer(Tokenizer):
 
 class MockEngine(Engine):
     def __init__(self, tokenizer, byte_patterns, compute_log_probs, force):
-        super().__init__(tokenizer, compute_log_probs=compute_log_probs)
+        renderer = DoNothingRenderer(trace_handler=TraceHandler())
+        super().__init__(tokenizer, compute_log_probs=compute_log_probs, enable_monitoring=False, renderer=renderer)
 
         self._valid_mask = np.zeros(len(tokenizer.tokens))
         for i, t in enumerate(tokenizer.tokens):
@@ -93,23 +97,15 @@ class MockEngine(Engine):
 
     def get_next_token_with_top_k(
         self,
+        logits: Optional[np.ndarray],
+        logits_lat_ms: Optional[float],
         token_ids: list[int],
         mask: Optional[bytes],
         temperature: float,
-        k: int = 5,
+        k: int = 1,
     ) -> EngineOutput:
         self.called_temperatures.append(temperature)
-        return super().get_next_token_with_top_k(token_ids, mask, temperature, k)
-
-    def get_next_token_with_top_k(
-        self,
-        token_ids: list[int],
-        mask: Optional[bytes],
-        temperature: float,
-        k: int = 5,
-    ) -> EngineOutput:
-        self.called_temperatures.append(temperature)
-        return super().get_next_token_with_top_k(token_ids, mask, temperature, k)
+        return super().get_next_token_with_top_k(logits, logits_lat_ms, token_ids, mask, temperature, k)
 
     def get_logits(self, token_ids: list[int]) -> np.ndarray:
         """Pretends to compute the logits for the given token state."""

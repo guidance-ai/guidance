@@ -150,18 +150,6 @@ class TokenParser:
                     prompt_tokens=tokens
                 )            
 
-            if engine_output is None:
-                raise TokenParserException("Expected EngineOutput, got None")
-            
-            if not mask[engine_output.issued_token.token_id]:
-                # Note: we could punt this probem to ll_interpreter.post_process,
-                # but it's a bit clearer to handle it here
-                raise InvalidTokenException(
-                    token=engine_output.issued_token.token_id,
-                    valid_tokens=[i for i in range(len(mask)) if mask[i]],
-                    prompt_tokens=tokens
-                )
-
             backtrack, ff_tokens = self.ll_interpreter.commit_token(
                 engine_output.issued_token.token_id
             )
@@ -232,8 +220,8 @@ class ByteParser:
             mask[t[0]] = 1
         return mask
 
-    def _advance(self, token: Optional[int]) -> None:
-        tokens, compute_mask_future, _ = self.token_parser.advance(token)
+    def _advance(self, engine_output: Optional[EngineOutput]) -> None:
+        tokens, compute_mask_future, _ = self.token_parser.advance(engine_output)
         mask, ll_response = compute_mask_future.result()
         if ll_response.stop:
             assert mask is None
@@ -294,9 +282,7 @@ class ByteParser:
                 )
             # Byte was good, have ll_parser consume it so we can advance further
             fake_engine_output = self.fake_engine_output(b)
-            self.gen_data, response, _ = self.token_parser.advance(fake_engine_output)
-            self._update_capture(response)
-            self.bytes += response.new_bytes
+            self._advance(fake_engine_output)
 
             # Run consume_bytes to advance ll_parser and consume the next byte
             self.consume_bytes(bts)
@@ -308,9 +294,7 @@ class ByteParser:
             return
 
         fake_engine_output = self.fake_engine_output(self.tokenizer.eos_token_id)
-        self.gen_data, response, _ = self.token_parser.advance(fake_engine_output)
-        self._update_capture(response)
-        self.bytes += response.new_bytes
+        self._advance(fake_engine_output)
         if not self.token_parser.done() or not self.matched():
             raise ByteParserException("Hit end of input before reaching a valid state")
 
