@@ -95,6 +95,7 @@ model_registry: Dict[str, type(GuidanceMessage)] = {
     'ClientReadyAckMessage': ClientReadyAckMessage,
     'OutputRequestMessage': OutputRequestMessage,
     'MetricMessage': MetricMessage,
+    'TokensMessage': TokensMessage,
 }
 
 
