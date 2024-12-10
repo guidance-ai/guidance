@@ -6,7 +6,7 @@ from guidance.visual import TraceMessage, MetricMessage, ExecutionCompletedMessa
     ClientReadyAckMessage, trace_node_to_html, display_trace_tree, trace_node_to_str
 from guidance.visual import serialize_message, deserialize_message
 from guidance.visual._async import async_loop, async_task, run_async_coroutine
-from guidance.visual import Environment
+from guidance.visual._environment import Environment
 import asyncio
 
 
