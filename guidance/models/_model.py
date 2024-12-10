@@ -187,7 +187,8 @@ def _engine_cleanup(renderer: Renderer, msg_recv: Callable[[GuidanceMessage], No
         # force renderer cleanup
         # TODO: figure out why in some cases _recv_task and _send_task are not stopped
         from ..visual._renderer import _cleanup
-        _cleanup(renderer._recv_queue, renderer._send_queue, f"renderer({id(renderer)})")
+        if isinstance(renderer._renderer, JupyterWidgetRenderer):
+            _cleanup(renderer._renderer._recv_queue, renderer._renderer._send_queue, f"renderer({id(renderer)})")
     except Exception as e:
         logger.error(f"Failed to force-cleanup renderer: {e}")
 
