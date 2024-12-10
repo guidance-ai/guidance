@@ -286,8 +286,8 @@ class Engine:
 
         if renderer is None:
             self.trace_handler = TraceHandler()
-            # self.renderer = AutoRenderer(self.trace_handler)
-            self.renderer = JupyterWidgetRenderer(self.trace_handler)
+            self.renderer = AutoRenderer(self.trace_handler)
+            # self.renderer = JupyterWidgetRenderer(self.trace_handler)
         else:
             self.renderer = renderer
             self.trace_handler = renderer._trace_handler
