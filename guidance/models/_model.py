@@ -1306,8 +1306,9 @@ class Model:
 
         # we will return a new extended version of ourselves, which we track as `lm`
         lm = self
-
-        lm.engine.metrics = lm.metrics.model_copy(deep=True)
+        lm.engine.metrics.engine_backtrack_tokens = lm.metrics.engine_backtrack_tokens
+        lm.engine.metrics.engine_input_tokens = lm.metrics.engine_input_tokens
+        lm.engine.metrics.engine_output_tokens = lm.metrics.engine_output_tokens
 
         # single generation
         if n == 1:
