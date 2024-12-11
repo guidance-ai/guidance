@@ -174,7 +174,7 @@ def gen(
                     break
         return lm
 
-    pattern = Gen(body_regex=regex, stop_regex=gen_stop, save_stop_text=save_stop_text, name=tagged_name, max_tokens=max_tokens)
+    pattern = Gen(body_regex=regex, stop_regex=gen_stop, save_stop_text=save_stop_text, capture_name=tagged_name, max_tokens=max_tokens)
 
     # define any capture group for non-tool calls
     if name is not None and tools is None:
