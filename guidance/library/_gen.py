@@ -16,7 +16,7 @@ def gen(
     lm,
     name=None,
     *,
-    max_tokens=1e10,
+    max_tokens=None,
     list_append=False,
     regex=None,
     tools=None,
