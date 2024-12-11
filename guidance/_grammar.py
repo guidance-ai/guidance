@@ -650,12 +650,13 @@ class Select(GrammarFunction):
                 s += v.__repr__(indent, done)
         return s
 
-class LLGrammar(Terminal):
+
+class LLGrammar(WithMaxTokens):
     __slots__ = ("grammar_with_lexer",)
-    def __init__(self, grammar_with_lexer: dict[str, Any], temperature: float = -1, max_tokens: int = 100000000):
-        super().__init__(temperature=temperature, capture_name=None)
+    def __init__(self, grammar_with_lexer: dict[str, Any], *, capture_name: Optional[float] = None, temperature: Optional[float] = None, max_tokens: Optional[int] = None):
+        super().__init__(capture_name=capture_name, temperature=temperature, max_tokens=max_tokens)
         self.grammar_with_lexer = grammar_with_lexer
-        self.max_tokens = max_tokens
+
 
 def string(value: Union[str, bytes]) -> Union[Null, Join]:
     if isinstance(value, str):
@@ -1198,9 +1199,9 @@ class LLSerializer:
             obj = {
                 "GenGrammar": {
                     "grammar": self.llgrammar(node),
-                    # "stop_rx": node.stop_regex,
-                    # "no_initial_skip": node.no_initial_skip,
-                    "temperature": node.temperature if node.temperature >= 0 else None,
+                    "capture_name": node.capture_name,
+                    "max_tokens": node.max_tokens,
+                    "temperature": node.temperature
                 }
             }
         else:

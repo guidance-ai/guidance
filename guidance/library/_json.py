@@ -115,11 +115,9 @@ def json(
         else:
             raise
 
-    
-    g = LLGrammar(
+    return LLGrammar(
         json_loads(llg)["grammars"][0],
+        capture_name=name,
         max_tokens=max_tokens,
+        temperature=temperature,
     )
-    if name is not None:
-        g = capture(g, name)
-    return with_temperature(g, temperature)
