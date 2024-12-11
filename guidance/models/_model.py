@@ -61,7 +61,7 @@ from .._schema import (
     VisBytesChunk,
     GenTokenExtra,
 )
-from .._utils import softmax, CaptureEvents, log_cleanup, log_init, log_copy
+from .._utils import softmax, CaptureEvents, log_cleanup, log_init, log_copy, to_utf8_or_bytes_string
 from .._parser import TokenParser
 from .._grammar import (
     Function, # for da types, just for you Hudson <3 
@@ -440,10 +440,8 @@ class Engine:
                     engine_response.generated_tokens.append(engine_output.issued_token)
                 else:
                     # check if the first byte contains the generated token
-                    generated = parser.tokenizer.decode(
-                        [engine_output.issued_token.token_id]
-                    ).decode("utf-8")
-                    force_forwarded = parser.tokenizer.decode([_tokens[0]]).decode("utf-8")
+                    generated = to_utf8_or_bytes_string(parser.tokenizer.decode([engine_output.issued_token.token_id]))
+                    force_forwarded = to_utf8_or_bytes_string(parser.tokenizer.decode([_tokens[0]]))
 
                     if force_forwarded.startswith(generated):
                         # this is marked as generated
@@ -453,7 +451,7 @@ class Engine:
                             GenToken(
                                 token_id=_tokens[0],
                                 prob=1.0,
-                                text=engine_response.generated_bytes.decode("utf-8"),
+                                text=to_utf8_or_bytes_string(engine_response.generated_bytes),
                                 latency_ms=engine_output.issued_token.latency_ms,
                                 is_generated=True,
                             )
@@ -470,7 +468,7 @@ class Engine:
                             GenToken(
                                 token_id=_token,
                                 prob=1.0,
-                                text=parser.tokenizer.decode([_token]).decode("utf-8"),
+                                text=to_utf8_or_bytes_string(parser.tokenizer.decode([_token])),
                                 latency_ms=0,
                                 is_force_forwarded=True,
                             )
@@ -580,7 +578,7 @@ class Engine:
                 _issued_token = GenToken(
                     token_id=token_id,
                     prob=1.0,
-                    text=self.tokenizer.decode([token_id]).decode("utf-8"),
+                    text=to_utf8_or_bytes_string(self.tokenizer.decode([token_id])),
                     latency_ms=_lat,
                     is_generated=True,
                 )
@@ -602,7 +600,7 @@ class Engine:
                 GenToken(
                     token_id=token,
                     prob=prob,
-                    text=self.tokenizer.decode([token]).decode("utf-8"),
+                    text=to_utf8_or_bytes_string(self.tokenizer.decode([token])),
                     latency_ms=lat_ms,
                     is_generated=True,
                 )
@@ -652,7 +650,7 @@ class Engine:
             issued_token = GenToken(
                 token_id=sampled_index,
                 prob=sampled_prob,
-                text=self.tokenizer.decode([sampled_index]).decode("utf-8"),
+                text=to_utf8_or_bytes_string(self.tokenizer.decode([sampled_index])),
                 latency_ms=lat_ms,
                 is_generated=True,
             )
@@ -1085,7 +1083,7 @@ class Model:
                             GenToken(
                                 token_id=_token,
                                 prob=1.0,
-                                text=out.engine.tokenizer.decode([_token]).decode("utf-8"),
+                                text=to_utf8_or_bytes_string(out.engine.tokenizer.decode([_token])),
                                 latency_ms=0,
                                 is_generated=False,
                                 is_force_forwarded=False,
