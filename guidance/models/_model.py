@@ -362,6 +362,8 @@ class Engine:
             tokenizer=self.tokenizer,
             prompt=prompt,
             ensure_bos_token=ensure_bos_token,
+            enable_backtrack=self.enable_backtrack,
+            enable_ff_tokens=self.enable_ff_tokens,
         )
 
     def __call__(
