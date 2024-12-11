@@ -25,7 +25,8 @@ def test_grammar_opener():
     assert str(model) == "open texta"
 
 
-@pytest.mark.skip(reason="not supporting block grammar definitions for this release")
+# TODO(nopdive): Review this exception later -- how should we be going about grammars in blocks overall.
+@pytest.mark.skip(reason="requires review")
 def test_grammar_closer():
     model = models.Mock(["<s>aclose text", "<s>close text"])
     model += "<s>"
