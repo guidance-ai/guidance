@@ -1,4 +1,5 @@
 from guidance import any_char, block, models
+import pytest
 
 
 def test_text_opener():
@@ -9,11 +10,12 @@ def test_text_opener():
 
 
 def test_text_closer():
-    model = models.Mock("<s>aclose text")
+    # NOTE(nopdive): Behavioral change, no longer need closer for str call.
+    model = models.Mock("<s>a")
     model += "<s>"
     with block(closer="close text"):
         model += any_char()
-    assert str(model) == "<s>aclose text"
+    assert str(model) == "<s>a"
 
 
 def test_grammar_opener():
@@ -23,6 +25,7 @@ def test_grammar_opener():
     assert str(model) == "open texta"
 
 
+@pytest.mark.skip(reason="not supporting block grammar definitions for this release")
 def test_grammar_closer():
     model = models.Mock(["<s>aclose text", "<s>close text"])
     model += "<s>"
