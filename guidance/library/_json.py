@@ -29,7 +29,7 @@ def json(
         pydantic.TypeAdapter,
     ] = None,
     temperature: float = 0.0,
-    max_tokens: int = 100000000,
+    max_tokens: Optional[int] = None,
     separators: Optional[tuple[str, str]] = None,
     whitespace_flexible: bool = False,
     **kwargs,
