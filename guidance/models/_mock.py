@@ -103,9 +103,10 @@ class MockEngine(Engine):
         mask: Optional[bytes],
         temperature: float,
         k: int = 1,
+        force_return_unmasked_probs: bool = False,
     ) -> EngineOutput:
         self.called_temperatures.append(temperature)
-        return super().get_next_token_with_top_k(logits, logits_lat_ms, token_ids, mask, temperature, k)
+        return super().get_next_token_with_top_k(logits, logits_lat_ms, token_ids, mask, temperature, k, force_return_unmasked_probs)
 
     def get_logits(self, token_ids: list[int]) -> np.ndarray:
         """Pretends to compute the logits for the given token state."""
@@ -213,7 +214,7 @@ class Mock(Model):
     def __init__(
         self,
         byte_patterns=[],
-        echo=True,
+        echo=False,
         compute_log_probs=False,
         force=False,
         **kwargs,

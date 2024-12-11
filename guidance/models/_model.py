@@ -517,7 +517,8 @@ class Engine:
                 token_ids=tokens,
                 mask=mask_for_sampling,
                 temperature=ll_response.temperature,
-                k=self._top_k
+                k=self._top_k,
+                force_return_unmasked_probs=echo
             )
 
             if can_finish_early and not mask[engine_output.issued_token.token_id]:
@@ -533,6 +534,7 @@ class Engine:
         mask: Optional[bytes],
         temperature: float,
         k: int = 5,
+        force_return_unmasked_probs: bool = False,
     ) -> EngineOutput:
         """Get the next token and associated top-k tokens from the engine.
 
@@ -552,6 +554,8 @@ class Engine:
             The temperature to apply to the logits.
         k : int
             The number of top-k tokens to return.
+        force_return_unmasked_probs: bool
+            If True, the top-k unmasked probabilities will be returned.
 
         Returns
         -------
@@ -613,7 +617,9 @@ class Engine:
             else softmax(np.array(logits) / temperature)
         )
 
-        top_k: list[GenToken] = get_top_k(probs, k)
+        top_k: list[GenToken] = []
+        if force_return_unmasked_probs:
+            top_k = get_top_k(probs, k)
 
         # compute top-k with masking
         masked_top_k: list[GenToken] = []
@@ -628,7 +634,12 @@ class Engine:
             masked_top_k = get_top_k(masked_probs, k)
 
         if temperature < 0.0001:
-            issued_token = masked_top_k[0] if len(masked_top_k) > 0 else top_k[0]
+            if len(masked_top_k) > 0:
+                issued_token = masked_top_k[0]
+            else:
+                if len(top_k) == 0:
+                    top_k = get_top_k(probs, k)
+                issued_token = top_k[0]
         else:
             # we need to sample from the probabilities
             if mask is None:
@@ -1063,29 +1074,32 @@ class Model:
                 out = lm
 
                 # generate VisBytesChunk so we know this chunk is input
-                _bytes = value.encode("utf-8")
-                _tokens = out.engine.tokenizer.encode(_bytes)
-                out.vis_chunk = VisBytesChunk(
-                    bytes=_bytes,
-                    is_input=True,
-                    input_tokens=[
-                        GenToken(
-                            token_id=_token,
-                            prob=1.0,
-                            text=out.engine.tokenizer.decode([_token]).decode("utf-8"),
-                            latency_ms=0,
-                            is_generated=False,
-                            is_force_forwarded=False,
-                            is_input=True,
-                        )
-                        for _token in _tokens
-                    ],
-                )
+                input_tokens = []
+                if self.echo:
+                    _bytes = value.encode("utf-8")
+                    _tokens = out.engine.tokenizer.encode(_bytes)
+                    out.vis_chunk = VisBytesChunk(
+                        bytes=_bytes,
+                        is_input=True,
+                        input_tokens=[
+                            GenToken(
+                                token_id=_token,
+                                prob=1.0,
+                                text=out.engine.tokenizer.decode([_token]).decode("utf-8"),
+                                latency_ms=0,
+                                is_generated=False,
+                                is_force_forwarded=False,
+                                is_input=True,
+                            )
+                            for _token in _tokens
+                        ],
+                    )
+                    input_tokens = out.vis_chunk.input_tokens
 
                 out._update_trace_node(
                     out._id,
                     out._parent_id,
-                    TextOutput(value=value, is_input=True, tokens=out.vis_chunk.input_tokens),
+                    TextOutput(value=value, is_input=True, tokens=input_tokens),
                 )
 
             # if we have embedded objects we have to convert the string to a grammar tree
@@ -1370,21 +1384,22 @@ class Model:
                 else:
                     new_lm_created = False
 
-                if not lm.vis_chunk or new_lm_created:
-                    lm.vis_chunk = VisBytesChunk(
-                        bytes=chunk.new_bytes,
-                        is_input=False,
-                        # generated_bytes=chunk.generated_bytes,
-                        generated_tokens=chunk.generated_tokens,
-                        force_forwarded_tokens=chunk.force_forwarded_tokens,
-                        backtrack=chunk.backtrack,
-                        engine_outputs=chunk.engine_outputs,
-                    )
-                else:
-                    # append to existing VisBytesChunk
-                    lm.vis_chunk.bytes += chunk.new_bytes
-                    lm.vis_chunk.backtrack += chunk.backtrack
-                    lm.vis_chunk.engine_outputs += chunk.engine_outputs
+                if self.echo:
+                    if not lm.vis_chunk or new_lm_created:
+                        lm.vis_chunk = VisBytesChunk(
+                            bytes=chunk.new_bytes,
+                            is_input=False,
+                            # generated_bytes=chunk.generated_bytes,
+                            generated_tokens=chunk.generated_tokens,
+                            force_forwarded_tokens=chunk.force_forwarded_tokens,
+                            backtrack=chunk.backtrack,
+                            engine_outputs=chunk.engine_outputs,
+                        )
+                    else:
+                        # append to existing VisBytesChunk
+                        lm.vis_chunk.bytes += chunk.new_bytes
+                        lm.vis_chunk.backtrack += chunk.backtrack
+                        lm.vis_chunk.engine_outputs += chunk.engine_outputs
 
                 # last_is_generated = chunk.is_generated
                 if len(chunk.capture_groups) > 0:
