@@ -491,7 +491,7 @@ class Gen(WithMaxTokens):
         super().__init__(capture_name=capture_name, temperature=temperature, max_tokens=max_tokens)
         self.body_regex = body_regex
         self.stop_regex = stop_regex
-        self.save_stop_text = save_stop_text # TODO: ??
+        self.save_stop_text = save_stop_text
 
     def __repr__(self, indent="", done=None, lbl="Gen"):
         if done is None:
