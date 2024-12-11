@@ -182,7 +182,8 @@ class TestAllOf:
                 validate(instance=test_object, schema=schema)
             with pytest.raises(ValueError) as ve:
                 _ = gen_json(schema=schema)
-            assert ve.value.args[0] == "allOf contains a 'false' schema"
+            assert ve.value.args[0] == "Unsatisfiable schema: schema is false"
+            # TODO: more informative error message, e.g. "allOf contains a 'false' schema"
 
     @pytest.mark.parametrize(
         ["test_object", "valid"],
@@ -204,7 +205,8 @@ class TestAllOf:
                 validate(instance=test_object, schema=schema)
             with pytest.raises(ValueError) as ve:
                 _ = gen_json(schema=schema)
-            assert ve.value.args[0] == "allOf contains a 'false' schema"
+            assert ve.value.args[0] == "Unsatisfiable schema: schema is false"
+            # TODO: more informative error message, e.g. "allOf contains a 'false' schema"
 
     @pytest.mark.parametrize(
         ["test_object", "valid"],
