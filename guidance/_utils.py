@@ -310,3 +310,9 @@ def log_copy(s: str):
 def log_cleanup(s: str):
     logger.debug(f"CLEANUP:{s}")
     pass
+
+def to_utf8_or_bytes_string(_bytes: bytes) -> str:
+    try:
+        return _bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        return str(_bytes)
