@@ -368,7 +368,8 @@ class Engine:
             self, 
             prompt: Union[str, TokenParser], 
             grammar: Function,
-            ensure_bos_token: bool = True, 
+            ensure_bos_token: bool = True,
+            echo: bool = True,
         ) -> Iterator[EngineCallResponse]:
         """Main entry point for the inference-parser loop. Yields EngineCallResponse objects as
         the parser advances through the grammar.
@@ -426,7 +427,7 @@ class Engine:
             # NOTE (loc): Temporary solution to quickly check which segments are generated and which are force-forwarded to animate visualizations on the UI
             # These tokens in chunk will not be used for final visualization
             # TODO: This should be handled by the interpreter
-            if engine_response.new_bytes:
+            if echo and engine_response.new_bytes:
                 _tokens = parser.tokenizer.encode(engine_response.new_bytes)
 
                 ff_token_start_idx = 1
@@ -474,6 +475,10 @@ class Engine:
                                 is_force_forwarded=True,
                             )
                         )
+            elif not echo and engine_response.new_bytes:
+                # do not collect tokens-metrics if echo is disabled
+                engine_response.generated_bytes = engine_response.new_bytes
+                engine_response.generated_tokens.clear()
 
             # process engine_response
             yield engine_response
@@ -1303,7 +1308,7 @@ class Model:
         replacements = replace_model_variables(stateless_function, self)
 
         # start the generation stream
-        gen_obj = self.engine(self._current_prompt(), stateless_function)
+        gen_obj = self.engine(self._current_prompt(), stateless_function, echo=self.echo)
 
         # we will return a new extended version of ourselves, which we track as `lm`
         lm = self
