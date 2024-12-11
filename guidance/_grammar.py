@@ -1125,7 +1125,7 @@ class LLSerializer:
                     "Gen": {
                         "body_rx": self.regex(node.grammar),
                         "stop_rx": "",
-                        "lazy": True,
+                        "lazy": False, # TODO: false needed to support substring, but it should maybe be true?
                         "capture_name": node.capture_name,
                         "max_tokens": node.max_tokens,
                         "temperature": node.temperature,
