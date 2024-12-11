@@ -32,6 +32,9 @@ class Function:
     """
     __slots__ = ("name",)
 
+    def __init__(self, name):
+        self.name = name
+
     def __str__(self):
         """Creates a string tag that can be used to retrieve this object."""
 
@@ -48,6 +51,7 @@ class RawFunction(Function):
     __slots__ = ("f", "args", "kwargs")
 
     def __init__(self, f, args, kwargs):
+        super().__init__(f.__name__)
         self.f = f
         self.args = args
         self.kwargs = kwargs
@@ -119,13 +123,12 @@ class Match:
 
 
 class GrammarFunction(Function):
-    __slots__ = ("name", "capture_name", "max_tokens")
+    __slots__ = ("capture_name",)
     num_used_names = 0
 
-    def __init__(self, *, capture_name: Optional[str] = None, max_tokens: Optional[int] = None):
-        self.name = capture_name or __class__._new_name()
+    def __init__(self, *, name: Optional[str] = None, capture_name: Optional[str] = None):
+        super().__init__(name or capture_name or self._new_name())
         self.capture_name = capture_name
-        self.max_tokens = max_tokens
 
     def __add__(self, value):
         # see if we have a string with calls or a simple string
@@ -232,8 +235,8 @@ ComposableGrammar = Union[GrammarFunction, str, bytes]
 class Terminal(GrammarFunction):
     __slots__ = ("temperature",)
 
-    def __init__(self, *, capture_name: Optional[str] = None, max_tokens: Optional[int] = None, temperature: Optional[float] = None):
-        super().__init__(capture_name=capture_name, max_tokens=max_tokens)
+    def __init__(self, *, name: Optional[str] = None, capture_name: Optional[str] = None, temperature: Optional[float] = None):
+        super().__init__(name=name, capture_name=capture_name)
         self.temperature = temperature
 
     def match_byte(self, byte):
@@ -267,14 +270,10 @@ class Byte(Terminal):
     __slots__ = ("byte",)
 
     def __init__(self, byte: bytes):
-        super().__init__()
         assert isinstance(byte, bytes)
         assert len(byte) == 1
+        super().__init__(name=str(byte))
         self.byte = byte
-
-    @property
-    def name(self) -> str:
-        return str(self.byte)
 
     def __hash__(self):
         return self.byte[0]
@@ -296,21 +295,13 @@ class ByteRange(Terminal):
     __slots__ = ("byte_range",)
 
     def __init__(self, byte_range: bytes):
-        super().__init__()
         assert isinstance(byte_range, bytes)
         assert len(byte_range) == 2
+        super().__init__(name=str(byte_range))
         self.byte_range = byte_range
 
     def match_byte(self, byte: bytes) -> bool:
         return self.byte_range[0] <= byte[0] <= self.byte_range[1]
-
-    @property
-    def name(self) -> str:
-        return str(self.byte_range)
-
-    @name.setter
-    def name(self, value):
-        pass  # we ignore name changes
 
     def __hash__(self):
         return self.byte_range[0] + 256 * self.byte_range[1]
@@ -331,8 +322,7 @@ class ByteRange(Terminal):
 
 class Null(Terminal):
     def __init__(self):
-        super().__init__()
-        self.name = "ε"
+        super().__init__(name="ε")
 
     def __add__(self, other):
         # see if we have a string with calls or a simple string
@@ -357,9 +347,7 @@ class ModelVariable(GrammarFunction):
     will get replaced with.
     """
     def __init__(self, name):
-        super().__init__()
-        self.name = name
-
+        super().__init__(name=name)
 
 def replace_model_variables(grammar, model, allowed_vars=None):
     """Replace all the ModelVariable nodes with their values in an iterative manner."""
@@ -441,12 +429,12 @@ class Join(GrammarFunction):
 
     def __init__(
         self,
-        *,
         values: Sequence[ComposableGrammar],
+        *,
+        name: Optional[str] = None,
         capture_name: Optional[str] = None,
-        max_tokens: Optional[int] = None,
     ) -> None:
-        super().__init__(capture_name=capture_name, max_tokens=max_tokens)
+        super().__init__(name=name, capture_name=capture_name)
         # wrap raw strings
         converted_values = [string(v) if isinstance(v, (str, bytes)) else v for v in values]
         self.values: list[GrammarFunction] = [
@@ -475,7 +463,15 @@ def quote_regex(value: str) -> str:
     return re.sub(r"([\\+*?^$(){}\[\]\.|])", r"\\\1", value)
 
 
-class Gen(Terminal):
+class WithMaxTokens(Terminal):
+    __slots__ = ("max_tokens",)
+
+    def __init__(self, *, name: Optional[str] = None, capture_name: Optional[str] = None, temperature: Optional[float] = None, max_tokens: Optional[int] = None):
+        super().__init__(name=name, capture_name=capture_name, temperature=temperature)
+        self.max_tokens = max_tokens
+
+
+class Gen(WithMaxTokens):
     __slots__ = (
         "body_regex",
         "stop_regex",
@@ -484,18 +480,18 @@ class Gen(Terminal):
 
     def __init__(
         self,
-        *,
         body_regex: str,
         stop_regex: str,
         save_stop_text: Optional[str] = None,
+        *,
         capture_name: Union[str, None] = None,
         max_tokens: Optional[int] = None,
         temperature: Optional[float] = None,
     ) -> None:
-        super().__init__(capture_name=capture_name, max_tokens=max_tokens, temperature=temperature)
+        super().__init__(capture_name=capture_name, temperature=temperature, max_tokens=max_tokens)
         self.body_regex = body_regex
         self.stop_regex = stop_regex
-        self.save_stop_text = save_stop_text
+        self.save_stop_text = save_stop_text # TODO: ??
 
     def __repr__(self, indent="", done=None, lbl="Gen"):
         if done is None:
@@ -519,21 +515,21 @@ class Gen(Terminal):
         return s
 
 
-class Lexeme(Gen):
-    __slots__ = ("contextual", "json_string")
+class Lexeme(WithMaxTokens):
+    __slots__ = ("rx", "contextual", "json_string")
 
     def __init__(
         self,
-        *,
-        body_regex: str,
+        rx: str,
         contextual: bool = False,
         json_string: bool = False,
+        *,
         capture_name: Optional[str] = None,
         max_tokens: Optional[int] = None,
         temperature: Optional[float] = None,
     ) -> None:
-        super().__init__(body_regex=body_regex, stop_regex="", capture_name=capture_name, max_tokens=max_tokens, temperature=temperature)
-        self.body_regex = body_regex
+        super().__init__(capture_name=capture_name, temperature=temperature, max_tokens=max_tokens)
+        self.rx = rx
         self.contextual = contextual
         self.json_string = json_string
 
@@ -541,14 +537,14 @@ class Lexeme(Gen):
         return super().__repr__(indent, done, "Lex")
 
 
-class RegularGrammar(Terminal):
+class RegularGrammar(WithMaxTokens):
     __slots__ = ("grammar", "lexeme")
 
     def __init__(
         self,
-        *,
         grammar: GrammarFunction,
         lexeme: bool = False,
+        *,
         capture_name: Optional[str] = None,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
@@ -584,7 +580,7 @@ class Not(Terminal):
         self.value = value
 
 
-class Subgrammar(Terminal):
+class Subgrammar(WithMaxTokens):
     __slots__ = (
         "body",
         "skip_regex",
@@ -593,18 +589,18 @@ class Subgrammar(Terminal):
 
     def __init__(
         self,
-        *,
         body: GrammarFunction,
         skip_regex: Optional[str] = None,
         no_initial_skip: bool = False,
+        *,
         capture_name: Optional[str] = None,
         max_tokens: Optional[int] = None,
         temperature: Optional[float] = None,
     ) -> None:
         super().__init__(
             capture_name=capture_name,
-            max_tokens=max_tokens,
             temperature=temperature,
+            max_tokens=max_tokens,
         )
         self.body = body
         self.skip_regex = skip_regex
@@ -622,15 +618,13 @@ class Select(GrammarFunction):
 
     def __init__(
         self,
-        *,
         values: Sequence[GrammarFunction],
         recursive: bool = False,
+        *,
         capture_name: Union[str, None] = None,
-        max_tokens: Optional[int] = None,
     ) -> None:
-        super().__init__(capture_name=capture_name, max_tokens=max_tokens)
+        super().__init__(capture_name=capture_name)
         self.values: list[GrammarFunction] = values
-        self.max_tokens = max_tokens
         self.recursive = recursive
 
     @property
@@ -773,24 +767,14 @@ def capture(value: GrammarFunction, name: str) -> GrammarFunction:
 
 
 def token_limit(value: GrammarFunction, max_tokens: int):
-    _rec_token_limit(value, max_tokens)
+    if isinstance(value, WithMaxTokens):
+        value.max_tokens = max_tokens
+    else:
+        return Subgrammar(
+            body=value,
+            max_tokens=max_tokens,
+        )
     return value
-
-
-def _rec_token_limit(grammar: GrammarFunction, max_tokens: int):
-    if grammar.max_tokens > max_tokens and not isinstance(grammar, Terminal):
-        if getattr(
-            grammar, "recursive", False
-        ):  # only restrict recursive selects, otherwise we would block all ways to complete the grammar
-            grammar.max_tokens = max_tokens
-            for value in getattr(
-                grammar, "values", []
-            ):  # restrict recursive selects recursive nodes
-                if not isinstance(value, Terminal):
-                    value.max_tokens = max_tokens
-        if hasattr(grammar, "values"):
-            for g in grammar.values:
-                _rec_token_limit(g, max_tokens)
 
 
 def with_temperature(value: GrammarFunction, temperature: float):
@@ -958,7 +942,7 @@ class LLSerializer:
                 raise ValueError(
                     f"Regex serialization does not support captures. Node: {node.__repr__()}"
                 )
-            if getattr(node, "temperature", -1) >= 0:
+            if getattr(node, "temperature", None):
                 raise ValueError(
                     f"Regex serialization does not support temperature. Node: {node.__repr__()}"
                 )
@@ -1027,7 +1011,7 @@ class LLSerializer:
             elif isinstance(node, Lexeme):
                 if node.json_string:
                     raise ValueError("Cannot serialize lexeme with `json_string=True` as regex: " + node.__repr__())
-                res = self._add_regex("Regex", node.body_regex)
+                res = self._add_regex("Regex", node.rx)
             elif isinstance(node, And):
                 if not all_finished(node.values):
                     add_todo(node)
@@ -1081,31 +1065,32 @@ class LLSerializer:
             obj = {
                 "Select": {
                     "among": [self.node(v) for v in node.values],
-                    "max_tokens": node.max_tokens,
                     "capture_name": node.capture_name,
                 }
             }
         elif isinstance(node, Join):
             if all(isinstance(v, Byte) for v in node.values):
-                literal = b"".join(cast(Byte, v).byte for v in node.values)
+                byte_values = [cast(Byte, v) for v in node.values]
+                literal = b"".join([b.byte for b in byte_values])
+                # TODO: split up into multiple strings if temperature isn't homogeneous?
+                temperature = max((b.temperature for b in byte_values if b.temperature is not None), default=None)
                 obj = {
                     "String": {
                         "literal": literal.decode("utf-8", errors="strict"),
-                        # TODO: temperature
+                        "temperature": temperature,
                     }
                 }
             else:
                 obj = {
                     "Join": {
                         "sequence": [self.node(v) for v in node.values],
-                        "max_tokens": node.max_tokens,
                         "capture_name": node.capture_name,
                     }
                 }
         elif isinstance(node, Lexeme):
             obj = {
                 "Lexeme": {
-                    "rx": node.body_regex,
+                    "rx": node.rx,
                     "contextual": node.contextual,
                     "json_string": node.json_string,
                     "capture_name": node.capture_name,
@@ -1140,7 +1125,7 @@ class LLSerializer:
                     "Gen": {
                         "body_rx": self.regex(node.grammar),
                         "stop_rx": "",
-                        "lazy": False,  # TODO this should be True
+                        "lazy": True,
                         "capture_name": node.capture_name,
                         "max_tokens": node.max_tokens,
                         "temperature": node.temperature,
@@ -1159,14 +1144,14 @@ class LLSerializer:
                 }
             }
         elif isinstance(node, ByteRange):
-            # TODO: maybe raise a warning in this case, as user should probably be using a larger
-            # GenCommitPoint?
+            # TODO: maybe raise a warning in this case, as user should probably be using a larger RegularGrammar?
             obj = {
                 "Gen": {
                     "body_rx": self.regex(node),
                     "stop_rx": "",
                     "lazy": True,
                     "temperature": node.temperature,
+                    "capture_name": node.capture_name,
                 }
             }
         elif isinstance(node, Byte):
@@ -1174,6 +1159,7 @@ class LLSerializer:
                 "String": {
                     "literal": node.byte.decode("utf-8", errors="strict"),
                     "temperature": node.temperature,
+                    "capture_name": node.capture_name,
                 }
             }
         elif isinstance(node, Null):
@@ -1181,6 +1167,7 @@ class LLSerializer:
                 "String": {
                     "literal": "",
                     "temperature": node.temperature,
+                    "capture_name": node.capture_name,
                 }
             }
         elif isinstance(node, DeferredReference):
@@ -1200,7 +1187,7 @@ class LLSerializer:
         # Names on nodes are mostly useless
         # if getattr(node, "name", None):
         #     inner["name"] = node.name
-        if (max_tokens := getattr(node, "max_tokens")) and max_tokens < 1000000:
+        if (max_tokens := getattr(node, "max_tokens", None)) and max_tokens < 1000000:
             inner["max_tokens"] = max_tokens
         self.nodes[self.node(node)] = obj
 

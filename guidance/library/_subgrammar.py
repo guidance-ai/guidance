@@ -21,7 +21,7 @@ def lexeme(
         For example, /[a-z"]+/ will be quoted as /([a-z]|\\")+/.
         Defaults to False.
     """
-    return Lexeme(body_regex=body_regex, contextual=contextual, json_string=json_string)
+    return Lexeme(rx=body_regex, contextual=contextual, json_string=json_string)
 
 
 def subgrammar(
