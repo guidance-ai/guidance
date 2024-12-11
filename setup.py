@@ -28,6 +28,7 @@ install_requires = [
     "pydantic",
     "referencing",
     "requests",
+    "psutil",
     "tiktoken>=0.3",
     "llguidance>=0.4.1,<0.5.0",
 ]
@@ -38,6 +39,7 @@ extras_requires = {
     "openai": ["openai>=1.0"],
     "schemas": ["jsonschema"],
     "server": ["fastapi-slim", "uvicorn"],
+    "visual": ["stitch"],  # TODO(nopdive): Shouldn't this be a core requirement?
 }
 
 # Create the union of all our requirements
@@ -71,6 +73,7 @@ test_requires = [
     "types-regex",
     "types-requests",
     "types-jsonschema",
+    "anytree"
 ]
 bench_requires = [
     "pandas",
