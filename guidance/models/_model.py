@@ -538,6 +538,8 @@ class Engine:
                 engine_response.generated_tokens.clear()
 
             # process engine_response
+            # NOTE (loc): We should not yield the engine_response if new_bytes are invalid utf-8 bytes
+            # delayed bytes should be handled here in the engine
             yield engine_response
 
             if ll_response.stop:
