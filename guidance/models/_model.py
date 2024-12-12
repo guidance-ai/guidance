@@ -1086,8 +1086,9 @@ class Model:
         # start any entering blocks
         for context in enter_blocks:
             # add opener
-            opener_text = self.role_opener(context.name)
-            closer_text = self.role_closer(context.name)
+            opener_text = context.opener
+            closer_text = context.closer
+
             lm._update_trace_node(
                 lm._id,
                 lm._parent_id,
