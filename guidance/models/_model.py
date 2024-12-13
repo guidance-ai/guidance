@@ -453,7 +453,8 @@ class Engine:
                         engine_response.generated_bytes = parser.tokenizer.decode([_tokens[0]])
                         engine_output.issued_token.is_generated = True
                         engine_response.generated_tokens.append(engine_output.issued_token)
-                    elif len(delayed_engine_outputs) > 0:
+                    # elif len(delayed_engine_outputs) > 0:
+                    else:
                         # handle delayed bytes
                         engine_outputs = delayed_engine_outputs + [engine_output] if engine_output else []
                         engine_output_tokens = [e.issued_token.token_id for e in engine_outputs]
@@ -495,26 +496,26 @@ class Engine:
                                 ff_token_start_idx = _idx
                         else:
                             ff_token_start_idx = 0
-                    else:
-                        # check if the first byte contains the generated token
-                        generated = to_utf8_or_bytes_string(parser.tokenizer.decode([engine_output.issued_token.token_id]))
-                        force_forwarded = to_utf8_or_bytes_string(parser.tokenizer.decode([_tokens[0]]))
+                    # else:
+                    #     # check if the first byte contains the generated token
+                    #     generated = to_utf8_or_bytes_string(parser.tokenizer.decode([engine_output.issued_token.token_id]))
+                    #     force_forwarded = to_utf8_or_bytes_string(parser.tokenizer.decode([_tokens[0]]))
 
-                        if force_forwarded.startswith(generated):
-                            # this is marked as generated
-                            # Example: engine generates token "pl" and parser decides to backtrack and generate a new token "plate"
-                            engine_response.generated_bytes = parser.tokenizer.decode([_tokens[0]])
-                            engine_response.generated_tokens.append(
-                                GenToken(
-                                    token_id=_tokens[0],
-                                    prob=1.0,
-                                    text=to_utf8_or_bytes_string(engine_response.generated_bytes),
-                                    latency_ms=engine_output.issued_token.latency_ms,
-                                    is_generated=True,
-                                )
-                            )
-                        else:
-                            ff_token_start_idx = 0
+                    #     if force_forwarded.startswith(generated):
+                    #         # this is marked as generated
+                    #         # Example: engine generates token "pl" and parser decides to backtrack and generate a new token "plate"
+                    #         engine_response.generated_bytes = parser.tokenizer.decode([_tokens[0]])
+                    #         engine_response.generated_tokens.append(
+                    #             GenToken(
+                    #                 token_id=_tokens[0],
+                    #                 prob=1.0,
+                    #                 text=to_utf8_or_bytes_string(engine_response.generated_bytes),
+                    #                 latency_ms=engine_output.issued_token.latency_ms,
+                    #                 is_generated=True,
+                    #             )
+                    #         )
+                    #     else:
+                    #         ff_token_start_idx = 0
 
                     if len(_tokens[ff_token_start_idx:]):
                         engine_response.force_forwarded_bytes = parser.tokenizer.decode(
@@ -1836,16 +1837,25 @@ class Model:
 
         if self.engine.compute_log_probs:
             for k in self._variables:
-                chunk = self._variables[k]
-                chunk_start_pos = self._variables_positions[k]
-                # find the start of this capture in case we have multiple similar captures
-                _, start_idx = find_start_and_end_positions(self._state[:chunk_start_pos+1], 0, len(processed_gen_tokens)-1)
-                start_idx, end_idx = find_start_and_end_positions(chunk, start_idx, len(processed_gen_tokens)-1)
-                if start_idx == -1:
-                    continue
+                try:
+                    chunk = self._variables[k]
+                    chunk_start_pos = self._variables_positions[k]
+                    # find the start of this capture in case we have multiple similar captures
+                    _, start_idx = find_start_and_end_positions(self._state[:chunk_start_pos+1], 0, len(processed_gen_tokens)-1)
+                    start_idx, end_idx = find_start_and_end_positions(chunk, start_idx, len(processed_gen_tokens)-1)
+                    if start_idx == -1:
+                        continue
 
-                self._variables_log_probs[k] = [{"token" : token.text, "token_id" : token.token_id, "logprob" : np.log(token.prob)} 
-                                                for token in processed_gen_tokens[start_idx:end_idx+1]]
+                    self._variables_log_probs[k] = [
+                        {
+                            "token": token.text,
+                            "token_id": token.token_id,
+                            "logprob": np.log(token.prob).item()
+                        }
+                        for token in processed_gen_tokens[start_idx:end_idx+1]
+                    ]
+                except:
+                    pass
 
         return processed_gen_tokens
 
