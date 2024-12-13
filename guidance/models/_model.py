@@ -36,11 +36,12 @@ from ..visual import (
     trace_node_to_html,
     GuidanceMessage,
     Renderer,
+    ExecutionStartedMessage,
     ExecutionCompletedMessage,
     TokensMessage,
     MetricMessage,
     OutputRequestMessage,
-    JupyterWidgetRenderer, ExecutionStartedMessage,
+    JupyterWidgetRenderer,
 )
 from ..visual._async import run_async_coroutine, async_task
 
@@ -91,6 +92,7 @@ class PeriodicMetricsGenerator:
         self._sleep_sec = sleep_sec
         self._task = None
         self._task_cancelled = False
+        self._is_paused = False
         run_async_coroutine(self._emit())
 
     def start(self):
@@ -101,6 +103,22 @@ class PeriodicMetricsGenerator:
             self._task.cancel()
             # TODO: it seems _task.cancel() is not working, use a flag to stop the task
             self._task_cancelled = True
+
+    def pause(self):
+        """
+        Pauses the model by setting the internal _is_paused flag to True.
+        
+        This method can be used to temporarily halt the model's operations.
+        """
+        self._is_paused = True
+
+    def resume(self):
+        """
+        Resume the model's operation by setting the paused state to False.
+
+        This method changes the internal state of the model to indicate that it is no longer paused.
+        """
+        self._is_paused = False
 
     async def _emit(self):
         import asyncio
@@ -134,15 +152,13 @@ class PeriodicMetricsGenerator:
 
                 time_end = time.time()
                 time_elapsed = time_end - time_start
-                self._renderer.update(MetricMessage(name="wall time", value=time_elapsed))
 
-                self._renderer.update(MetricMessage(name="cpu", value=cpu_percent))
-
-                self._renderer.update(MetricMessage(name="ram", value=mem_percent))
-
-                self._renderer.update(MetricMessage(name="gpu", value=gpu_percent))
-
-                self._renderer.update(MetricMessage(name="vram", value=gpu_used_vram))
+                if not self._is_paused:
+                    self._renderer.update(MetricMessage(name="wall time", value=time_elapsed))
+                    self._renderer.update(MetricMessage(name="cpu", value=cpu_percent))
+                    self._renderer.update(MetricMessage(name="ram", value=mem_percent))
+                    self._renderer.update(MetricMessage(name="gpu", value=gpu_percent))
+                    self._renderer.update(MetricMessage(name="vram", value=gpu_used_vram))
             except CancelledError:
                 logger.debug("METRICGEN:canceling")
                 break
@@ -224,6 +240,8 @@ def _msg_recv(engine_weakref: weakref.ReferenceType, message: GuidanceMessage) -
     if isinstance(message, ExecutionStartedMessage):
         # TODO(nopdive): Start execution logic here.
         logger.debug(f"ENGINE:msg_recv:START STUB")
+        if engine.periodic_metrics_generator is not None:
+            engine.periodic_metrics_generator.resume()
     elif isinstance(message, ExecutionCompletedMessage) and message.is_err:
         pass
     elif isinstance(message, (ExecutionCompletedMessage, OutputRequestMessage)):
@@ -261,6 +279,9 @@ def _msg_recv(engine_weakref: weakref.ReferenceType, message: GuidanceMessage) -
             engine.renderer.update(MetricMessage(name="status", value="✓"))
         else:
             engine.renderer.update(MetricMessage(name="status", value="⚠"))
+
+        if engine.periodic_metrics_generator is not None:
+            engine.periodic_metrics_generator.pause()
 
 
 class Engine:
