@@ -341,9 +341,6 @@ class JupyterWidgetRenderer(Renderer):
             out_messages.append(started_msg)
             out_messages.append(MetricMessage(name="status", value='⟳'))
 
-            # TODO(nopdive): Fire off execution immediately to renderer subscribers. Review later.
-            call_soon_threadsafe(self._recv_queue.put_nowait, serialize_message(started_msg))
-
             ipy_handle_event_once(
                 partial(_on_cell_completion, weakref.ref(self)),
                 'post_run_cell'
@@ -351,6 +348,9 @@ class JupyterWidgetRenderer(Renderer):
             self._need_reset = True
             self._running = True
             self._completed = False
+
+            # TODO(nopdive): Fire off execution immediately to renderer subscribers. Review later.
+            call_soon_threadsafe(self._recv_queue.put_nowait, serialize_message(started_msg))
 
         # Check if message has diverged from prev messages
         diverged, shared_ancestor_idx = self.has_divergence(message)
