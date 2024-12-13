@@ -1076,7 +1076,7 @@ class Model:
 
             # add closer
             # TODO(nopdive): Consider removing context closer/opener on confirmation.
-            closer_text = self.role_closer(context.name)
+            closer_text = context.closer if isinstance(context.closer, str) else ""
             lm._update_trace_node(
                 lm._id, lm._parent_id, RoleCloserInput(name=context.name, text=closer_text)
             )
@@ -1086,8 +1086,8 @@ class Model:
         # start any entering blocks
         for context in enter_blocks:
             # add opener
-            opener_text = context.opener
-            closer_text = context.closer
+            opener_text = context.opener if isinstance(context.opener, str) else ""
+            closer_text = context.closer if isinstance(context.closer, str) else ""
 
             lm._update_trace_node(
                 lm._id,
