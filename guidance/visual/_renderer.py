@@ -232,9 +232,6 @@ async def _handle_send_messages(renderer_weakref: weakref.ReferenceType["Rendere
             logger.error(f"SEND:err:{repr(e)}")
 
 
-
-
-
 class JupyterWidgetRenderer(Renderer):
     """Jupyter widget renderer that is implemented via stitch package."""
 
@@ -340,8 +337,12 @@ class JupyterWidgetRenderer(Renderer):
 
         if not self._running and isinstance(message, TraceMessage):
             logger.debug("RENDERER:execution start")
-            out_messages.append(ExecutionStartedMessage())
+            started_msg = ExecutionStartedMessage()
+            out_messages.append(started_msg)
             out_messages.append(MetricMessage(name="status", value='⟳'))
+
+            # TODO(nopdive): Fire off execution immediately to renderer subscribers. Review later.
+            call_soon_threadsafe(self._recv_queue.put_nowait, serialize_message(started_msg))
 
             ipy_handle_event_once(
                 partial(_on_cell_completion, weakref.ref(self)),

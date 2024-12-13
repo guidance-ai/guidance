@@ -40,7 +40,7 @@ from ..visual import (
     TokensMessage,
     MetricMessage,
     OutputRequestMessage,
-    JupyterWidgetRenderer,
+    JupyterWidgetRenderer, ExecutionStartedMessage,
 )
 from ..visual._async import run_async_coroutine, async_task
 
@@ -187,7 +187,7 @@ def _engine_cleanup(renderer: Renderer, msg_recv: Callable[[GuidanceMessage], No
         # force renderer cleanup
         # TODO: figure out why in some cases _recv_task and _send_task are not stopped
         from ..visual._renderer import _cleanup
-        if isinstance(renderer._renderer, JupyterWidgetRenderer):
+        if isinstance(renderer, AutoRenderer) and isinstance(renderer._renderer, JupyterWidgetRenderer):
             _cleanup(renderer._renderer._recv_queue, renderer._renderer._send_queue, f"renderer({id(renderer)})")
     except Exception as e:
         logger.error(f"Failed to force-cleanup renderer: {e}")
@@ -221,7 +221,10 @@ def _msg_recv(engine_weakref: weakref.ReferenceType, message: GuidanceMessage) -
 
     # NOTE(nopdive): This is usually run on a background thread.
     logger.debug(f"ENGINE:msg_recv:{message}")
-    if isinstance(message, ExecutionCompletedMessage) and message.is_err:
+    if isinstance(message, ExecutionStartedMessage):
+        # TODO(nopdive): Start execution logic here.
+        logger.debug(f"ENGINE:msg_recv:START STUB")
+    elif isinstance(message, ExecutionCompletedMessage) and message.is_err:
         pass
     elif isinstance(message, (ExecutionCompletedMessage, OutputRequestMessage)):
         # print("last_state")
