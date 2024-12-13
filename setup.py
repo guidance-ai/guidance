@@ -39,7 +39,7 @@ extras_requires = {
     "openai": ["openai>=1.0"],
     "schemas": ["jsonschema"],
     "server": ["fastapi-slim", "uvicorn"],
-    "visual": ["stitch"],  # TODO(nopdive): Shouldn't this be a core requirement?
+    # "visual": ["stitch"],  # TODO(nopdive): Shouldn't this be a core requirement?
 }
 
 # Create the union of all our requirements
