@@ -253,9 +253,6 @@ def _msg_recv(engine_weakref: weakref.ReferenceType, message: GuidanceMessage) -
             last_model = list(engine.model_dict.values())[-1]
             last_trace_id = last_model._id
 
-        # send stats to the renderer
-        # self.post_exec_metrics.emit_messages(last_model)
-
         failed = False
         processed_gen_tokens: list[GenTokenExtra] = []  # suppress IDE warnings by definition
         try:
@@ -282,6 +279,13 @@ def _msg_recv(engine_weakref: weakref.ReferenceType, message: GuidanceMessage) -
 
         if engine.periodic_metrics_generator is not None:
             engine.periodic_metrics_generator.pause()
+
+        # sending extra metrics
+        try:
+            # send stats to the renderer
+            engine.post_exec_metrics.emit_messages(last_model)
+        except:
+            pass
 
 
 class Engine:
