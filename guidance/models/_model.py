@@ -481,7 +481,6 @@ class Engine:
                         engine_response.generated_bytes = parser.tokenizer.decode([_tokens[0]])
                         engine_output.issued_token.is_generated = True
                         engine_response.generated_tokens.append(engine_output.issued_token)
-                    # elif len(delayed_engine_outputs) > 0:
                     else:
                         # handle delayed bytes
                         engine_outputs = delayed_engine_outputs + [engine_output] if engine_output else []
@@ -524,26 +523,6 @@ class Engine:
                                 ff_token_start_idx = _idx
                         else:
                             ff_token_start_idx = 0
-                    # else:
-                    #     # check if the first byte contains the generated token
-                    #     generated = to_utf8_or_bytes_string(parser.tokenizer.decode([engine_output.issued_token.token_id]))
-                    #     force_forwarded = to_utf8_or_bytes_string(parser.tokenizer.decode([_tokens[0]]))
-
-                    #     if force_forwarded.startswith(generated):
-                    #         # this is marked as generated
-                    #         # Example: engine generates token "pl" and parser decides to backtrack and generate a new token "plate"
-                    #         engine_response.generated_bytes = parser.tokenizer.decode([_tokens[0]])
-                    #         engine_response.generated_tokens.append(
-                    #             GenToken(
-                    #                 token_id=_tokens[0],
-                    #                 prob=1.0,
-                    #                 text=to_utf8_or_bytes_string(engine_response.generated_bytes),
-                    #                 latency_ms=engine_output.issued_token.latency_ms,
-                    #                 is_generated=True,
-                    #             )
-                    #         )
-                    #     else:
-                    #         ff_token_start_idx = 0
 
                     if len(_tokens[ff_token_start_idx:]):
                         engine_response.force_forwarded_bytes = parser.tokenizer.decode(
