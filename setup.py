@@ -30,14 +30,13 @@ install_requires = [
     "requests",
     "psutil",
     "tiktoken>=0.3",
-    "llguidance>=0.4.1,<0.5.0",
+    "llguidance==0.5.0",
 ]
 
 # Our basic list of 'extras'
 extras_requires = {
     "azureai": ["openai>=1.0"],
     "openai": ["openai>=1.0"],
-    "schemas": ["jsonschema"],
     "server": ["fastapi-slim", "uvicorn"],
     # "visual": ["stitch"],  # TODO(nopdive): Shouldn't this be a core requirement?
 }
