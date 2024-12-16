@@ -831,10 +831,6 @@ class Model:
         self._cache_state = {}  # mutable caching state used to save computation
         self._state = ""  # the current bytes that represent the state of the model
         self._trace_nodes = set()  # keep trace node reference for pinning
-        if self.echo:
-            self._renderer = engine.renderer  # renderer for display
-        else:
-            self._renderer = None  # no renderer if echo is false
         self._event_queue = (
             None  # TODO: these are for streaming results in code, but that needs implemented
         )
@@ -858,6 +854,13 @@ class Model:
 
         weakref.finalize(self, log_cleanup, f"model({id(self)})")
         log_init(f"model({id(self)})")
+
+    @property
+    def renderer(self):
+        if self.echo:
+            return self.engine.renderer
+        else:
+            return None
 
     @classmethod
     def gen_id(cls):
@@ -1028,8 +1031,8 @@ class Model:
         trace_node = self.engine.trace_handler.update_node(identifier, parent_id, node_attr)
         self._trace_nodes.add(trace_node)
 
-        if self._renderer is not None:
-            self._renderer.update(
+        if self.renderer is not None:
+            self.renderer.update(
                 TraceMessage(
                     trace_id=identifier,
                     parent_trace_id=parent_id,
