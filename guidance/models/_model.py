@@ -264,6 +264,8 @@ def _msg_recv(engine_weakref: weakref.ReferenceType, message: GuidanceMessage) -
         if not failed:
             final_text = "".join([gen_token.text for gen_token in processed_gen_tokens])
             logger.debug(f"ENGINE:final_text:{final_text}")
+            logger.debug(f"ENGINE:model_state:{last_model._state}")
+            logger.debug(f"ENGINE:final_text == _state:{final_text == last_model._state}")
 
             tokens = [gen_token.token_id for gen_token in processed_gen_tokens]
             engine.renderer.update(
@@ -280,7 +282,6 @@ def _msg_recv(engine_weakref: weakref.ReferenceType, message: GuidanceMessage) -
         if engine.periodic_metrics_generator is not None:
             engine.periodic_metrics_generator.pause()
 
-        # sending extra metrics
         try:
             # send stats to the renderer
             engine.post_exec_metrics.emit_messages(last_model)
@@ -1406,7 +1407,6 @@ class Model:
             delayed_bytes = b""
             # last_is_generated = False
 
-            new_lm_created = True
             for chunk in gen_obj:
 
                 # we make everything full probability if we are not computing uncertainty
@@ -1448,26 +1448,16 @@ class Model:
                             tokens=chunk.force_forwarded_tokens,
                         )
 
-                    new_lm_created = True
-                else:
-                    new_lm_created = False
-
                 if self.echo:
-                    if not lm.vis_chunk or new_lm_created:
-                        lm.vis_chunk = VisBytesChunk(
-                            bytes=chunk.new_bytes,
-                            is_input=False,
-                            # generated_bytes=chunk.generated_bytes,
-                            generated_tokens=chunk.generated_tokens,
-                            force_forwarded_tokens=chunk.force_forwarded_tokens,
-                            backtrack=chunk.backtrack,
-                            engine_outputs=chunk.engine_outputs,
-                        )
-                    else:
-                        # append to existing VisBytesChunk
-                        lm.vis_chunk.bytes += chunk.new_bytes
-                        lm.vis_chunk.backtrack += chunk.backtrack
-                        lm.vis_chunk.engine_outputs += chunk.engine_outputs
+                    lm.vis_chunk = VisBytesChunk(
+                        bytes=chunk.new_bytes,
+                        is_input=False,
+                        # generated_bytes=chunk.generated_bytes,
+                        generated_tokens=chunk.generated_tokens,
+                        force_forwarded_tokens=chunk.force_forwarded_tokens,
+                        backtrack=chunk.backtrack,
+                        engine_outputs=chunk.engine_outputs,
+                    )
 
                 # last_is_generated = chunk.is_generated
                 if len(chunk.capture_groups) > 0:
@@ -1577,7 +1567,8 @@ class Model:
         token_ids = self.engine.tokenizer.encode(text.encode("utf-8"))
 
         # verify if text == encode(decode(text))
-        decoded_text = self.engine.tokenizer.decode(token_ids).decode("utf-8")
+        # decoded_text = self.engine.tokenizer.decode(token_ids).decode("utf-8")
+        decoded_text = "".join(self.engine.tokenizer.decode([_token]).decode("utf-8") for _token in token_ids)
 
         token_texts: list[str] = []
         if text == decoded_text:
@@ -1587,7 +1578,7 @@ class Model:
             # Some models like phi-3 removes spaces and line breaks
             # Scan through the text and find the missing chunks so we can map the token back into generated chunks by the parser later on
             ptr_idx = 0
-            for token_id in token_ids:
+            for _idx, token_id in enumerate(token_ids):
                 missing_chunk = ""
                 decoded = self.engine.tokenizer.decode([token_id]).decode("utf-8")
                 if not text[ptr_idx:].startswith(decoded):
@@ -1604,6 +1595,14 @@ class Model:
 
                 token_texts.append(missing_chunk + decoded)
                 ptr_idx += len(missing_chunk + decoded)
+
+            # verify
+            _decoded_text = "".join(token_texts)
+            assert _decoded_text in text, f"Failed to decode the text {text} into {_decoded_text}"
+            if _decoded_text in text and len(_decoded_text) < len(text):
+                # there are some missing chunks (probably empty spaces/ end lines removed by the tokenizer)
+                missing_chunk = text[len(_decoded_text):]
+                token_texts[-1] += missing_chunk
 
         # NOTE (loc): Not all engines support the get_logits method
         try:
