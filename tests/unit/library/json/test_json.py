@@ -1,6 +1,7 @@
 import json
 import re
 from json import dumps as json_dumps
+import warnings
 
 import pytest
 from jsonschema import ValidationError, validate
@@ -1403,22 +1404,69 @@ class TestOneOf:
         # The actual check
         generate_and_check(target_obj, schema_obj)
 
-    @pytest.mark.parametrize("target_obj", [123, True])
-    def test_oneOf_compound(self, target_obj):
-        schema = """{
-        "oneOf" : [{ "type": "integer" }, { "type": "boolean" }]
-        }
-        """
-        # First sanity check what we're setting up
-        schema_obj = json.loads(schema)
-        validate(instance=target_obj, schema=schema_obj)
+    @pytest.mark.parametrize(
+        "schema, instances",
+        [
+            # Simple case, disjoint types
+            ({"oneOf": [{"type": "integer"}, {"type": "boolean"}]}, [123, True]),
+            # Simple case, disjoint enums
+            ({"oneOf": [{"enum": ["a", "b", "c"]}, {"enum": [1,2,3]}]}, ["a", "b", "c", 1, 2, 3]),
+            # More complex case, discriminated union
+            (
+                {
+                    "oneOf": [
+                        # Only one of them needs the prop key to be required
+                        {"type": "object", "properties": {"prop": {"const": "foo"}}, "required": ["prop"]},
+                        {"type": "object", "properties": {"prop": {"const": "bar"}}}
+                    ]
+                },
+                [{"prop": "foo"}, {"prop": "bar"}]
+            ),
+            # Enums made disjoint by type
+            (
+                {"oneOf": [{"enum": [1,2,"foo"]}, {"enum": [2,3,"bar"]}], "type": "string"},
+                ["foo", "bar"]
+            ),
+        ]
+    )
+    def test_oneOf_disjoint(self, schema, instances):
+        for instance in instances:
+            # First sanity check what we're setting up
+            validate(instance=instance, schema=schema)
 
-        # The actual check; we expect a warning here because oneOf is not fully supported
-        with pytest.warns() as record:
-            generate_and_check(target_obj, schema_obj)
-        assert len(record) == 1
-        assert record[0].message.args[0].startswith("oneOf not fully supported")
+            # The actual check; we assert NO warning here because oneOf is disjoint
+            with warnings.catch_warnings():
+                warnings.simplefilter("error")
+                generate_and_check(instance, schema)
 
+    @pytest.mark.parametrize(
+        "schema, instances",
+        [
+            # Overlapping enums
+            ({"oneOf": [{"enum": ["a", "b", "c"]}, {"enum": ["c", 2, 3]}]}, ["a", "b", 2, 3]),
+            # More complex case, object without proper discriminator
+            (
+                {
+                    "oneOf": [
+                        # Only one of them needs the prop key to be required
+                        {"type": "object", "properties": {"prop": {"const": "foo"}}},
+                        {"type": "object", "properties": {"prop": {"const": "bar"}}}
+                    ]
+                },
+                [{"prop": "foo"}, {"prop": "bar"}]
+            )
+        ]
+    )
+    def test_oneOf_overlap(self, schema, instances):
+        for instance in instances:
+            # First sanity check what we're setting up
+            validate(instance=instance, schema=schema)
+
+            # The actual check; assert a warning here because oneOf is not disjoint and we can't guarantee correctness
+            with pytest.warns() as record:
+                generate_and_check(instance, schema)
+            assert len(record) == 1
+            assert record[0].message.args[0] == "oneOf not fully supported, falling back to anyOf. This may cause validation errors in some cases."
 
 class TestEnum:
     simple_schema = """{
