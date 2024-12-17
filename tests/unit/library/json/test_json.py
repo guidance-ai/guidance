@@ -346,16 +346,6 @@ class TestString:
         # The actual check
         generate_and_check(my_string, schema_obj)
 
-    def test_regex_no_min_max_length(self):
-        schema = """{ "type": "string", "pattern": "a[A-Z]", "minLength": 1 }"""
-        schema_obj = json.loads(schema)
-
-        lm = models.Mock("".encode())
-
-        with pytest.raises(ValueError) as ve:
-            lm += gen_json(schema=schema_obj)
-        assert ve.value.args[0] == "If a pattern is specified, minLength and maxLength must be unspecified."
-
     @pytest.mark.parametrize(
         ["bad_string", "good_bytes", "failure_byte", "allowed_bytes"],
         [
@@ -575,6 +565,20 @@ class TestString:
             _ = gen_json(schema=schema)
         assert ve.value.args[0] == "Unsatisfiable schema: minLength (10) is greater than maxLength (5)"
 
+    @pytest.mark.parametrize("length", range(2, 7))
+    @pytest.mark.parametrize("character", ["a", "b"])
+    def test_pattern_length_intersection(self, length, character):
+        schema = {"type": "string", "minLength": 3, "maxLength": 5, "pattern": "^a+$"}
+        string = character * length
+        if length < 3 or length > 5 or character != "a":
+            with pytest.raises(ValidationError):
+                # Sanity check
+                validate(instance=string, schema=schema)
+            check_match_failure(bad_string=json_dumps(string), schema_obj=schema)
+        else:
+            # Sanity check
+            validate(instance=string, schema=schema)
+            generate_and_check(string, schema)
 
 class TestSimpleObject:
     # These are objects without cross references
