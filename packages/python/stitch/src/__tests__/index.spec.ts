@@ -1,26 +1,33 @@
+/** @jest-environment jsdom */
 // Copyright (c) Jupyter Development Team.
 // Distributed under the terms of the Modified BSD License.
 
 // Add any needed widget imports here (or from controls)
 // import {} from '@jupyter-widgets/base';
 
-import { createTestModel } from './utils';
+// NOTE(nopdive): Workaround for jsdom drag event failure.
+Object.defineProperty(window, 'DragEvent', {
+  value: class DragEvent {},
+});
 
-import { ExampleModel } from '..';
+import { createTestModel } from './utils';
+import { StitchModel } from '..';
 
 describe('Example', () => {
-  describe('ExampleModel', () => {
+  describe('StitchModel', () => {
     it('should be createable', () => {
-      const model = createTestModel(ExampleModel);
-      expect(model).toBeInstanceOf(ExampleModel);
-      expect(model.get('value')).toEqual('Hello World');
+      const model = createTestModel(StitchModel);
+      expect(model).toBeInstanceOf(StitchModel);
+      expect(model.get('srcdoc')).toEqual(
+        '<p>srcdoc should be defined by the user</p>',
+      );
     });
 
     it('should be createable with a value', () => {
-      const state = { value: 'Foo Bar!' };
-      const model = createTestModel(ExampleModel, state);
-      expect(model).toBeInstanceOf(ExampleModel);
-      expect(model.get('value')).toEqual('Foo Bar!');
+      const state = { srcdoc: 'it is alright' };
+      const model = createTestModel(StitchModel, state);
+      expect(model).toBeInstanceOf(StitchModel);
+      expect(model.get('srcdoc')).toEqual('it is alright');
     });
   });
 });

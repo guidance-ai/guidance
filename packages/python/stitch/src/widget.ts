@@ -27,7 +27,7 @@ export class StitchModel extends DOMWidgetModel {
       srcdoc: '<p>srcdoc should be defined by the user</p>',
       initial_height: '1px',
       initial_width: '1px',
-      initial_border: "0",
+      initial_border: '0',
     };
   }
 
@@ -50,12 +50,12 @@ export class StitchView extends DOMWidgetView {
   render() {
     // Create sandboxed frame
     const iframe = document.createElement('iframe');
-    iframe.sandbox.add("allow-scripts");
-    iframe.srcdoc = this.model.get("srcdoc");
-    iframe.style.height = this.model.get("initial_height");
-    iframe.style.width = this.model.get("initial_width");
-    iframe.style.border = this.model.get("initial_border");
-    iframe.style.display = "block";
+    iframe.sandbox.add('allow-scripts');
+    iframe.srcdoc = this.model.get('srcdoc');
+    iframe.style.height = this.model.get('initial_height');
+    iframe.style.width = this.model.get('initial_width');
+    iframe.style.border = this.model.get('initial_border');
+    iframe.style.display = 'block';
     this._iframe = iframe;
 
     // Send first kernelmsg on load.
@@ -73,10 +73,10 @@ export class StitchView extends DOMWidgetView {
     const model = this.model;
     const recvFromClient = (event: any) => {
       const win = iframe.contentWindow;
-      if (win === event.source && event.data.type === "clientmsg") {
+      if (win === event.source && event.data.type === 'clientmsg') {
         model.set('clientmsg', event.data.content);
         model.save_changes();
-      } else if (win === event.source && event.data.type === "resize") {
+      } else if (win === event.source && event.data.type === 'resize') {
         iframe.style.height = event.data.content.height;
         iframe.style.width = event.data.content.width;
       }
@@ -97,8 +97,8 @@ export class StitchView extends DOMWidgetView {
     // Forward message from kernel to client
     const kernelmsg = this.model.get('kernelmsg');
     const winmsg = {
-      'type': 'kernelmsg',
-      'content': kernelmsg
+      type: 'kernelmsg',
+      content: kernelmsg,
     };
     this._iframe.contentWindow?.postMessage(winmsg, '*');
   }
