@@ -30,8 +30,8 @@ install_requires = [
     "requests",
     "psutil",
     "tiktoken>=0.3",
-    "llguidance==0.5.0",
     "guidance-stitch",
+    "llguidance==0.5.1",
 ]
 
 # Our basic list of 'extras'
