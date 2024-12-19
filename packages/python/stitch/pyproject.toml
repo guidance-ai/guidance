@@ -7,7 +7,7 @@ requires = [
 build-backend = "hatchling.build"
 
 [project]
-name = "stitch"
+name = "guidance-stitch"
 description = "Bidirectional comms for Jupyter and JavaScript."
 readme = "README.md"
 license = { file = "LICENSE.txt" }
