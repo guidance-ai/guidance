@@ -28,7 +28,9 @@ install_requires = [
     "pydantic",
     "referencing",
     "requests",
+    "psutil",
     "tiktoken>=0.3",
+    "guidance-stitch",
     "llguidance==0.5.1",
 ]
 
@@ -70,6 +72,7 @@ test_requires = [
     "types-regex",
     "types-requests",
     "types-jsonschema",
+    "anytree"
 ]
 bench_requires = [
     "pandas",

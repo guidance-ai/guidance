@@ -8,7 +8,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from ._grammar import GrammarFunction, Join, Terminal
-from ._schema import GenData, EngineCallResponse, LLInterpreterResponse
+from ._schema import EngineOutput, GenData, EngineCallResponse, GenToken, LLInterpreterResponse
 from .models._byte_tokenizer import ByteTokenizer
 from .models._tokenizer import Tokenizer
 
@@ -46,9 +46,7 @@ class TokenParser:
             serialized_grammar = grammar
 
         self.tokenizer = tokenizer
-        self.ll_tokenizer = llguidance.LLTokenizer(
-            llguidance.TokenizerWrapper(tokenizer)
-        )
+        self.ll_tokenizer = llguidance.LLTokenizer(llguidance.TokenizerWrapper(tokenizer))
         self.ll_interpreter = llguidance.LLInterpreter(
             self.ll_tokenizer,
             serialized_grammar,
@@ -68,19 +66,23 @@ class TokenParser:
         return self._done
 
     def advance(
-        self, token: Optional[int]
-    ) -> tuple[list[int], Future[tuple[Optional[bytes], LLInterpreterResponse]]]:
+        self, engine_output: Optional[EngineOutput]
+    ) -> tuple[
+        list[int], 
+        Future[tuple[Optional[bytes], LLInterpreterResponse]], 
+        int
+    ]:
         if self.done():
             raise TokenParserException("Cannot advance on a done parser")
-        return self._generator.send(token)
-
+        
+        return self._generator.send(engine_output)
+    
     def has_pending_stop(self) -> bool:
         return self._has_pending_stop
 
-    def _process_prompt(self, prompt: bytes, ensure_bos_token: bool) -> list[int]:
-        prompt_tokens = self.ll_interpreter.process_prompt(
-            self.tokenizer.encode(prompt)
-        )
+    def _process_prompt(self, prompt: bytes, ensure_bos_token: bool) -> tuple[list[int], int]:
+        _prompt_tokens = self.tokenizer.encode(prompt)
+        prompt_tokens = self.ll_interpreter.process_prompt(_prompt_tokens)
         if (
             ensure_bos_token
             and self.tokenizer.bos_token is not None
@@ -101,47 +103,56 @@ class TokenParser:
         prompt: bytes,
         ensure_bos_token: bool,
     ) -> Generator[
-            tuple[
-                list[int],
-                Future[tuple[Optional[bytes], LLInterpreterResponse]],
-            ],
-            Optional[int],
-            None
-        ]:
+        tuple[
+            list[int], 
+            Future[tuple[Optional[bytes], LLInterpreterResponse]],
+            int
+        ], Optional[EngineOutput], None
+    ]:
         tokens = self._process_prompt(prompt=prompt, ensure_bos_token=ensure_bos_token)
 
+        backtrack = 0
+        engine_output = None
+        ff_tokens = []
         while True:
             # Note: need to call/set has_pending_stop before spinning up the compute mask 
             # future as the two methods cannot be called concurrently
             self._has_pending_stop = self.ll_interpreter.has_pending_stop()
-            mask_future = self._threadpool.submit(self.compute_mask)
-            token = yield (tokens, mask_future)
+            compute_mask_future = self._threadpool.submit(self.compute_mask)
+
+            # Send caller the mask and response; wait for token
+            engine_output = yield (tokens, compute_mask_future, backtrack)
 
             # Upstairs should have already waited on this future
-            mask, ll_response = mask_future.result()
+            mask, r = compute_mask_future.result()
 
-            if ll_response.stop:
+            if r.stop:
                 # This is the only case in which the mask is None
                 assert mask is None
                 # If we're done, our caller should NOT send us a token
-                if token is not None:
-                    raise TokenParserException(f"Expected None, got token {token}")
+                if engine_output is not None:
+                    raise TokenParserException(f"Expected None, got token {engine_output.issued_token.token_id}")
                 self._done = True
                 break
 
             assert mask is not None
-            if token is None:
+            assert r.temperature is not None
+
+            if engine_output is None:
                 raise TokenParserException("Expected token, got None")
-            if not mask[token]:
+            
+            if not mask[engine_output.issued_token.token_id]:
                 # Note: we could punt this probem to ll_interpreter.post_process,
                 # but it's a bit clearer to handle it here
                 raise InvalidTokenException(
-                    token=token,
+                    token=engine_output.issued_token.token_id,
                     valid_tokens=[i for i in range(len(mask)) if mask[i]],
                     prompt_tokens=tokens
-                )
+                )            
 
-            backtrack, ff_tokens = self.ll_interpreter.commit_token(token)
+            backtrack, ff_tokens = self.ll_interpreter.commit_token(
+                engine_output.issued_token.token_id
+            )
             if backtrack:
                 tokens = tokens[:-backtrack]
             tokens = tokens + ff_tokens
@@ -200,9 +211,7 @@ class ByteParser:
         if self.gen_data is None:
             return set()
         return {
-            bytes([t])
-            for t in self.gen_data.valid_next_tokens
-            if t != self.tokenizer.eos_token_id
+            bytes([t]) for t in self.gen_data.valid_next_tokens if t != self.tokenizer.eos_token_id
         }
 
     def next_byte_mask(self) -> NDArray[np.uint8]:
@@ -211,9 +220,9 @@ class ByteParser:
             mask[t[0]] = 1
         return mask
 
-    def _advance(self, token: Optional[int]) -> None:
-        tokens, mask_fut = self.token_parser.advance(token)
-        mask, ll_response = mask_fut.result()
+    def _advance(self, engine_output: Optional[EngineOutput]) -> None:
+        tokens, compute_mask_future, _ = self.token_parser.advance(engine_output)
+        mask, ll_response = compute_mask_future.result()
         if ll_response.stop:
             assert mask is None
             self.token_parser.cleanup()
@@ -272,7 +281,8 @@ class ByteParser:
                     consumed_bytes=self.bytes[: self.pos],
                 )
             # Byte was good, have ll_parser consume it so we can advance further
-            self._advance(b)
+            fake_engine_output = self.fake_engine_output(b)
+            self._advance(fake_engine_output)
 
             # Run consume_bytes to advance ll_parser and consume the next byte
             self.consume_bytes(bts)
@@ -283,7 +293,8 @@ class ByteParser:
         if self.token_parser.done():
             return
 
-        self._advance(self.tokenizer.eos_token_id)
+        fake_engine_output = self.fake_engine_output(self.tokenizer.eos_token_id)
+        self._advance(fake_engine_output)
         if not self.token_parser.done() or not self.matched():
             raise ByteParserException("Hit end of input before reaching a valid state")
 
@@ -301,23 +312,15 @@ class ByteParser:
                     # convert to a string if possible
                     # TODO: will need to not just always do this once we support images etc.
                     try:
-                        inner_v = (
-                            inner_v.decode("utf8")
-                            if isinstance(inner_v, bytes)
-                            else inner_v
-                        )
+                        inner_v = inner_v.decode("utf8") if isinstance(inner_v, bytes) else inner_v
                     except UnicodeDecodeError:
                         pass
 
-                    if k not in self._variables or not isinstance(
-                        self._variables[k], list
-                    ):
+                    if k not in self._variables or not isinstance(self._variables[k], list):
                         self._variables[k] = []
                         self._variables_log_probs[k] = []
                     self._variables[k].append(inner_v)
-                    self._variables_log_probs[k].append(
-                        response.capture_group_log_probs[k][i]
-                    )
+                    self._variables_log_probs[k].append(response.capture_group_log_probs[k][i])
 
             # ...or standard assignment mode
             else:
@@ -329,3 +332,18 @@ class ByteParser:
                     pass
                 self._variables[k] = v
                 self._variables_log_probs[k] = response.capture_group_log_probs[k]
+
+    def fake_engine_output(self, token_id: int) -> EngineOutput:
+        fake_issued_token = GenToken(
+            token_id=token_id,
+            prob=1.0,
+            text=self.tokenizer.decode([token_id]).decode("utf-8"),
+            latency_ms=0,
+            is_generated=True,
+        )
+        fake_engine_output = EngineOutput(
+            issued_token=fake_issued_token,
+            top_k=None,
+            masked_top_k=None,
+        )
+        return fake_engine_output

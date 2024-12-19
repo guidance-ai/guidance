@@ -29,7 +29,7 @@ class RemoteEngine(Engine):
         # build the Engine
         super().__init__(tokenizer=tokenizer, compute_log_probs=False)
 
-    def __call__(self, parser, grammar, ensure_bos_token=True):
+    def __call__(self, parser, grammar, ensure_bos_token=True, echo: bool = False):
         # Prepare the request data
         data = {
             "parser": parser,
