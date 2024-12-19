@@ -37,7 +37,7 @@ classifiers = [
 dependencies = [
     "ipywidgets>=8.0.0",
 ]
-version = "0.1.0.dev0"
+version = "0.1.0"
 
 [project.optional-dependencies]
 docs = [
@@ -69,6 +69,9 @@ artifacts = [
     "stitch/labextension/*.tgz",
     "stitch/labextension",
 ]
+
+[tool.hatch.build.targets.wheel]
+packages = ["stitch"]
 
 [tool.hatch.build.targets.wheel.shared-data]
 "stitch/nbextension" = "share/jupyter/nbextensions/stitch"

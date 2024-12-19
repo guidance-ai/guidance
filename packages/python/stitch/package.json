@@ -13,9 +13,9 @@
     "dist/*.js",
     "css/*.css"
   ],
-  "homepage": "https://github.com/guidance-ai/stitch",
+  "homepage": "https://github.com/guidance-ai/guidance",
   "bugs": {
-    "url": "https://github.com/guidance-ai/stitch/issues"
+    "url": "https://github.com/guidance-ai/guidance/issues"
   },
   "license": "BSD-3-Clause",
   "author": {
@@ -26,7 +26,7 @@
   "types": "./lib/index.d.ts",
   "repository": {
     "type": "git",
-    "url": "https://github.com/guidance-ai/stitch"
+    "url": "https://github.com/guidance-ai/guidance"
   },
   "scripts": {
     "build": "jlpm run build:lib && jlpm run build:nbextension && jlpm run build:labextension:dev",
