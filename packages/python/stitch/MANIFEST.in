@@ -1,0 +1,41 @@
+include LICENSE.txt
+include README.md
+
+include setup.py
+include pyproject.toml
+include pytest.ini
+include .coverage.rc
+
+include tsconfig.json
+include package.json
+include webpack.config.js
+include stitch/labextension/*.tgz
+
+# Documentation
+graft docs
+exclude docs/\#*
+prune docs/build
+prune docs/gh-pages
+prune docs/dist
+
+# Examples
+graft examples
+
+# Tests
+graft tests
+prune tests/build
+
+# Javascript files
+graft stitch/nbextension
+graft src
+graft css
+prune **/node_modules
+prune coverage
+prune lib
+
+# Patterns to exclude from any directory
+global-exclude *~
+global-exclude *.pyc
+global-exclude *.pyo
+global-exclude .git
+global-exclude .ipynb_checkpoints
