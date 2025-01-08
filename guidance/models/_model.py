@@ -1405,8 +1405,6 @@ class Model:
         # single generation
         if n == 1:
             # logprobs_out = []
-            # last_is_generated = False
-
             for chunk in gen_obj:
                 # we make everything full probability if we are not computing uncertainty
                 # if not self.engine.compute_log_probs:
@@ -1448,7 +1446,6 @@ class Model:
                         engine_outputs=chunk.engine_outputs,
                     )
 
-                # last_is_generated = chunk.is_generated
                 if len(chunk.capture_groups) > 0:
                     for k in chunk.capture_groups:
                         v = chunk.capture_groups[k]
