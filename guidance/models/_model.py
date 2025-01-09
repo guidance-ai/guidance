@@ -543,13 +543,19 @@ class Engine:
                     delayed_engine_outputs = []
             elif not echo and engine_response.new_bytes:
                 # do not collect tokens-metrics if echo is disabled
-                engine_response.generated_bytes = engine_response.new_bytes
-                engine_response.generated_tokens.clear()
+                try:
+                    _ = (delayed_bytes + engine_response.new_bytes).decode("utf-8")
+                    engine_response.generated_bytes = delayed_bytes + engine_response.new_bytes
+                    delayed_bytes = b""
+                    engine_response.generated_tokens.clear()
+                except UnicodeDecodeError:
+                    delayed_bytes += engine_response.new_bytes
 
             # process engine_response
             # NOTE (loc): We should not yield the engine_response if new_bytes are invalid utf-8 bytes
             # delayed bytes should be handled here in the engine
-            yield engine_response
+            if delayed_bytes == b"":
+                yield engine_response
 
             if ll_response.stop:
                 assert mask is None
