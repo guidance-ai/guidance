@@ -62,7 +62,7 @@ jobs:
           pip install accelerate
           echo "=============================="
           pip uninstall -y llama-cpp-python
-          CMAKE_ARGS="-DGGML_CUDA=on" pip install "llama-cpp-python!=0.2.58,!=0.2.75,!=0.2.84"
+          CMAKE_ARGS="-DGGML_CUDA=on" pip install "llama-cpp-python!=0.2.58,!=0.2.75,!=0.2.84,!=0.3.6"
       - name: Check GPU available
         run: |
           python -c "import torch; assert torch.cuda.is_available()"
