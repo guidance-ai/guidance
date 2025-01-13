@@ -5,7 +5,7 @@ import guidance
 
 from guidance.chat import CHAT_TEMPLATE_CACHE
 
-from ..utils import env_or_fail
+from ..utils import env_or_skip
 
 
 @pytest.mark.parametrize(
@@ -19,12 +19,14 @@ from ..utils import env_or_fail
         ("mistralai/Mistral-7B-Instruct-v0.2", True),  # Mistral-7B-Instruct-v0.2
         ("google/gemma-2-9b-it", True),  # Gemma2
         ("HuggingFaceH4/zephyr-7b-beta", False),  # Have a test for model not in cache
+        ("Qwen/Qwen2.5-0.5B", True),  # Qwen2.5-0.5B
+        ("Qwen2.5-0.5B-Instruct", True),  # Qwen2.5-0.5B-Instruct
     ],
 )
 def test_popular_models_in_cache(model_id: str, should_pass: bool):
     # This test simply checks to make sure the chat_templates haven't changed, and that they're still in our cache.
     # If this fails, the models have had their templates updated, and we need to fix the cache manually.
-    hf_token = env_or_fail("HF_TOKEN")
+    hf_token = env_or_skip("HF_TOKEN")
 
     tokenizer = transformers.AutoTokenizer.from_pretrained(
         model_id, token=hf_token, trust_remote_code=True
@@ -54,7 +56,7 @@ def test_popular_models_in_cache(model_id: str, should_pass: bool):
     ],
 )
 def test_chat_format_smoke(model_id: str):
-    hf_token = env_or_fail("HF_TOKEN")
+    hf_token = env_or_skip("HF_TOKEN")
 
     tokenizer = transformers.AutoTokenizer.from_pretrained(
         model_id, token=hf_token, trust_remote_code=True
@@ -83,6 +85,8 @@ def test_chat_format_smoke(model_id: str):
     [
         "microsoft/Phi-3-mini-4k-instruct",
         "meta-llama/Meta-Llama-3-8B-Instruct",
+        "Qwen/Qwen2.5-0.5B",
+        "Qwen2.5-0.5B-Instruct",
         pytest.param(
             "meta-llama/Llama-2-7b-chat-hf",
             marks=pytest.mark.xfail(
@@ -93,7 +97,7 @@ def test_chat_format_smoke(model_id: str):
     ],
 )
 def test_chat_format_smoke_with_system(model_id: str):
-    hf_token = env_or_fail("HF_TOKEN")
+    hf_token = env_or_skip("HF_TOKEN")
 
     tokenizer = transformers.AutoTokenizer.from_pretrained(
         model_id, token=hf_token, trust_remote_code=True

@@ -11,10 +11,12 @@ from pathlib import Path
 
 import numpy as np
 
+from guidance._schema import GenToken, GenTokenExtra
+
 from .._model import Engine, Model, Chat
 from .._remote import RemoteEngine
 from .._tokenizer import Tokenizer
-from ..._utils import normalize_notebook_stdout_stderr
+from ..._utils import normalize_notebook_stdout_stderr, softmax
 
 try:
     import llama_cpp
@@ -100,7 +102,14 @@ class LlamaCppTokenizer(Tokenizer):
 class LlamaCppEngine(Engine):
     """The core class that runs inference using llama.cpp."""
 
-    def __init__(self, model, compute_log_probs, chat_template=None, **kwargs):
+    def __init__(self, 
+                 model, 
+                 compute_log_probs, 
+                 chat_template=None, 
+                 enable_backtrack=True, 
+                 enable_ff_tokens=True, 
+                 enable_monitoring=True, 
+                 **kwargs):
         if not is_llama_cpp:
             raise Exception(
                 "Please install llama-cpp-python with `pip install llama-cpp-python` in order to use guidance.models.LlamaCpp!"
@@ -149,6 +158,10 @@ class LlamaCppEngine(Engine):
         super().__init__(
             LlamaCppTokenizer(self.model_obj, chat_template=chat_template),
             compute_log_probs=compute_log_probs,
+            enable_backtrack=enable_backtrack,
+            enable_ff_tokens=enable_ff_tokens,
+            enable_monitoring=enable_monitoring,
+            **kwargs,
         )
 
         self._n_vocab = len(self.tokenizer.tokens)
@@ -217,6 +230,112 @@ class LlamaCppEngine(Engine):
 
         return logits
 
+    def get_per_token_topk_probs(self, token_ids: list[int], top_k: int = 5) -> list[GenTokenExtra]:
+        if len(token_ids) == 0:
+            return []
+
+        # clear kv-cache
+        llama_cpp.llama_kv_cache_seq_rm(self.model_obj.ctx, -1, 0, -1)
+
+        # create new context
+        context = self._context
+        n_batch = self.model_obj.n_batch
+        batch = context.batch
+
+        logits_batch = []
+        for i in range(0, len(token_ids), n_batch):
+            n_tokens = min(i + n_batch, len(token_ids)) - i
+            batch.n_tokens = n_tokens
+
+            for j in range(n_tokens):
+                batch.token[j] = token_ids[i + j]
+                batch.pos[j] = i + j
+                batch.seq_id[j][0] = 0
+                batch.n_seq_id[j] = 1
+                batch.logits[j] = True
+
+            ret = llama_cpp.llama_decode(self.model_obj.ctx, batch)
+            if ret != 0:
+                raise Exception(f"Call to llama_cpp.llama_decode returned {ret}.")
+
+            # get all the logits
+            if llama_cpp.__version__ < "0.2.58":
+                logits = llama_cpp.llama_get_logits(self.model_obj.ctx)
+                logits = logits.reshape((-1, self._n_vocab))
+                logits_batch.extend(logits)
+            else:
+                for j in range(n_tokens):
+                    logits = llama_cpp.llama_get_logits_ith(self.model_obj.ctx, j)
+                    logits = np.ctypeslib.as_array(logits, shape=(self._n_vocab,)).copy()
+                    logits_batch.append(logits)
+
+        # process each token's logits
+        text_sequence = []
+
+        # add 1st token
+        _bytes = self.tokenizer.decode([token_ids[0]])
+        try:
+            _text = _bytes.decode("utf-8")
+        except Exception as e:
+            _text = str(_bytes)
+            print(f"Failed to decode token: {token_ids[0]}, error: {e}, _bytes: {str(_bytes)}")
+        text_sequence.append(
+            GenTokenExtra(
+                token_id=token_ids[0],
+                prob=1.0,
+                text=_text,
+                top_k=[GenToken(token_id=token_ids[0], prob=1.0, text=_text)],
+            )
+        )
+
+        for token_id, logits in zip(token_ids[1:], logits_batch[:-1]):
+            _probs = softmax(logits)
+
+            # get the top k indices
+            top_k_ids, top_k_probs = self._get_top_k(_probs.copy(), top_k, ascending=False)
+            if token_id not in top_k_ids:
+                top_k_ids = np.append(top_k_ids, token_id)
+                top_k_probs = np.append(top_k_probs, _probs[token_id])
+
+            top_k_list = []
+            for _token_id, _prob in zip(top_k_ids, top_k_probs):
+                _text = ""
+                try:
+                    _text = self.tokenizer.decode([_token_id]).decode("utf-8")
+                except Exception as e:
+                    _bytes = self.tokenizer.decode([_token_id])
+                    _text = str(_bytes)
+                    print(
+                        f"Failed to decode token: {_token_id}, error: {e}, _bytes: {str(_bytes)}"
+                    )
+                top_k_list.append(GenToken(token_id=_token_id, prob=_prob, text=_text))
+
+            text_sequence.append(
+                GenTokenExtra(
+                    token_id=token_id,
+                    prob=_probs[token_id],
+                    text=self.tokenizer.decode([token_id]).decode("utf-8"),
+                    top_k=top_k_list,
+                )
+            )
+
+        return text_sequence
+
+    def _get_top_k(self, probs: np.ndarray, k: int, axis: int = None, ascending: bool = True):
+        if not ascending:
+            probs *= -1
+        ind = np.argpartition(probs, k, axis=axis)
+        ind = np.take(ind, np.arange(k), axis=axis)  # k non-sorted indices
+        probs = np.take_along_axis(probs, ind, axis=axis)  # k non-sorted values
+
+        # sort within k elements
+        ind_part = np.argsort(probs, axis=axis)
+        ind = np.take_along_axis(ind, ind_part, axis=axis)
+        if not ascending:
+            probs *= -1
+        val = np.take_along_axis(probs, ind_part, axis=axis)
+        return ind, val
+
 
 class LlamaCpp(Model):
     def __init__(
@@ -226,6 +345,9 @@ class LlamaCpp(Model):
         compute_log_probs=False,
         api_key=None,
         chat_template=None,
+        enable_backtrack=True,
+        enable_ff_tokens=True,
+        enable_monitoring=True,
         **llama_cpp_kwargs,
     ):
         """Build a new LlamaCpp model object that represents a model in a given state."""
@@ -237,6 +359,9 @@ class LlamaCpp(Model):
                 model,
                 compute_log_probs=compute_log_probs,
                 chat_template=chat_template,
+                enable_backtrack=enable_backtrack,
+                enable_ff_tokens=enable_ff_tokens,
+                enable_monitoring=enable_monitoring,
                 **llama_cpp_kwargs,
             )
 

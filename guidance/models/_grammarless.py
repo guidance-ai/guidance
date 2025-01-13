@@ -171,7 +171,7 @@ class GrammarlessEngine(Engine):
                     Using a transformers, tiktoken, or guidance.GrammarlessTokenizer directly will solve this issue."
             )
         # build the Engine
-        super().__init__(tokenizer=tokenizer, compute_log_probs=compute_log_probs)
+        super().__init__(tokenizer=tokenizer, compute_log_probs=compute_log_probs, enable_backtrack=False, enable_ff_tokens=False)
 
         # build a prefix tree of the tokens
         self._token_trie = cpp.ByteTrie(
