@@ -14,7 +14,7 @@ jobs:
   bare-install:
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-14]
+        os: [ubuntu-latest, windows-latest, macos-latest]
         python-version: ["3.9", "3.10", "3.11", "3.12"]
     runs-on: ${{ matrix.os }}
     steps:
@@ -113,28 +113,8 @@ jobs:
 
 # Third Stage ==============================================================
 # Windows and MacOS, plus other GPU Linux tests
-  
-  basic-tests-mac-x86:
-    needs: end-stage-2
-    strategy:
-      fail-fast: false # Don't cancel all on first failure
-      matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12"]
-        model:
-          - "transformers_gpt2_cpu"
-          - "transformers_phi2_cpu"
-          # - "transformers_mistral_7b_cpu" See Issue 713
-          - "llamacpp_llama2_7b_cpu"
-          - "llamacpp_mistral_7b_cpu"
-          # - "transformers_phi3_mini_4k_instruct_cpu" Gives trouble on MacOS
-          - "llamacpp_phi3_mini_4k_instruct_cpu"
-    uses: ./.github/workflows/action_plain_basic_tests.yml
-    with:
-      os: macos-14
-      python-version: ${{ matrix.python-version }}
-      model: ${{ matrix.model }}
 
-  basic-tests-mac-arm:
+  basic-tests-mac:
     needs: end-stage-2
     strategy:
       fail-fast: false # Don't cancel all on first failure
