@@ -40,7 +40,6 @@ def bytes_from(src: Union[str, pathlib.Path, bytes], allow_local: bool) -> bytes
     return bytes_data
 
 
-
 class _Rewrite(ast.NodeTransformer):
     def __init__(self, source_lines):
         self.source_lines = source_lines

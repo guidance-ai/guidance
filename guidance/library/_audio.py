@@ -13,3 +13,9 @@ def audio(lm, src: typing.Union[str, pathlib.Path, bytes], allow_local: bool = T
     # Add audio to LM.
     # lm += ...
     return lm
+
+
+@guidance
+def gen_audio(lm):
+    # TODO(nopdive): Mock for testing.
+    raise NotImplementedError

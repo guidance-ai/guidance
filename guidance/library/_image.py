@@ -14,3 +14,9 @@ def image(lm, src: typing.Union[str, pathlib.Path, bytes], allow_local: bool = T
     lm = lm.set(bytes_id, bytes_data)
     lm += f"<|_image:{bytes_id}|>"
     return lm
+
+
+@guidance
+def gen_image(lm):
+    # TODO(nopdive): Mock for testing.
+    raise NotImplementedError
