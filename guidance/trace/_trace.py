@@ -1,6 +1,5 @@
 # TODO(nopdive): Consider integrating token operations into trace nodes (handles token healing cleaner).
 # TODO(nopdive): Benchmark (expected heap fragmentation issue). Likely need memory pooling (via rust/ctypes/Cython).
-# TODO(nopdive): Integrate images when PR for multimodal is in.
 import weakref
 from itertools import count
 from typing import Any, Optional, Generator, Dict
@@ -73,6 +72,16 @@ class ImageInput(InputAttr):
     value: bytes
 
 
+class AudioInput(InputAttr):
+    """Audio input."""
+    value: bytes
+
+
+class VideoInput(InputAttr):
+    """Video input."""
+    value: bytes
+
+
 class EmbeddedInput(InputAttr):
     """Text string with embedded guidance input."""
 
@@ -98,6 +107,16 @@ class RoleCloserInput(InputAttr):
 
     name: Optional[str] = None
     text: Optional[str] = None
+
+
+class AudioOutput(OutputAttr):
+    """Audio output."""
+    value: bytes
+
+
+class VideoOutput(OutputAttr):
+    """Video output."""
+    value: bytes
 
 
 class TextOutput(OutputAttr):
