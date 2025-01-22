@@ -5,6 +5,8 @@ import warnings
 
 from typing import Sequence, Union
 
+from guidance._schema import GenToken, GenTokenExtra
+
 try:
     import torch
 except ModuleNotFoundError:
@@ -35,11 +37,14 @@ _COMMON_TRANSFORMERS_KWARGS = [
     "trust_remote_code",
 ]
 
+
 class ByteDecoderError(Exception):
     pass
 
+
 class ByteTokensError(Exception):
     pass
+
 
 class TransformersTokenizer(Tokenizer):
     def __init__(
@@ -104,10 +109,14 @@ class TransformersTokenizer(Tokenizer):
             raise
         except ByteTokensError as e:
             # Give a specific warning for ByteTokensError and fall back to fast tokenizer
-            warnings.warn(f"Falling back to fast tokenizer. Could not build byte tokens for model {model!r} due to exception {e.__class__.__name__}: {e}")
+            warnings.warn(
+                f"Falling back to fast tokenizer. Could not build byte tokens for model {model!r} due to exception {e.__class__.__name__}: {e}"
+            )
         except Exception as e:
             # Fall back for other exceptions
-            warnings.warn(f"Falling back to fast tokenizer. Could not load tokenizer for model {model!r} due to exception {e.__class__.__name__}: {e}")
+            warnings.warn(
+                f"Falling back to fast tokenizer. Could not load tokenizer for model {model!r} due to exception {e.__class__.__name__}: {e}"
+            )
         else:
             return tokenizer, byte_tokens
 
@@ -139,7 +148,9 @@ class TransformersTokenizer(Tokenizer):
                 )
                 pass
             else:
-                return self._byte_tokens_from_byte_decoder(transformers_tokenizer.byte_decoder, transformers_tokenizer)
+                return self._byte_tokens_from_byte_decoder(
+                    transformers_tokenizer.byte_decoder, transformers_tokenizer
+                )
 
         if hasattr(transformers_tokenizer, "sp_model"):
             return self._byte_tokens_from_sp_model(transformers_tokenizer)
@@ -154,9 +165,7 @@ class TransformersTokenizer(Tokenizer):
 
         fallback_byte_decoder = self._fallback_byte_decoder()
         try:
-            self._check_byte_decoder(
-                fallback_byte_decoder, transformers_tokenizer
-            )
+            self._check_byte_decoder(fallback_byte_decoder, transformers_tokenizer)
         except ByteDecoderError as e:
             # Should be the only exception that is raised in _byte_tokens
             raise ByteTokensError(
@@ -230,7 +239,9 @@ class TransformersTokenizer(Tokenizer):
                         token_str = transformers_tokenizer.convert_tokens_to_string([token])
                         encoded_str = transformers_tokenizer.encode(token_str)
                         if len(encoded_str) != 1:
-                            raise ValueError(f"Round-trip encoding of tokens [{token}] failed! Got {encoded_str}")
+                            raise ValueError(
+                                f"Round-trip encoding of tokens [{token}] failed! Got {encoded_str}"
+                            )
                         roundtrip_id = encoded_str[0]
                         if roundtrip_id == i:
                             byte_coded = token_str.encode()
@@ -246,7 +257,7 @@ class TransformersTokenizer(Tokenizer):
     def _fallback_byte_decoder(self) -> dict[str, int]:
         byte_decoder = transformers_package.AutoTokenizer.from_pretrained(
             "gpt2", use_fast=False
-        ).byte_decoder # fall back to gpt2 mapping
+        ).byte_decoder  # fall back to gpt2 mapping
 
         # some special tokens may not have their whitespace encoded...
         byte_decoder[" "] = 32
@@ -293,8 +304,10 @@ class TransformersTokenizer(Tokenizer):
                 # if it's at the start of the reconstructed bytes
                 # Some tokenizers add this automatically as part of the call function, so
                 # we need to remove it to compare
-                if hasattr(transformers_tokenizer, "bos_token") and transformers_tokenizer.bos_token and reconstructed.startswith(
-                    transformers_tokenizer.bos_token.encode()
+                if (
+                    hasattr(transformers_tokenizer, "bos_token")
+                    and transformers_tokenizer.bos_token
+                    and reconstructed.startswith(transformers_tokenizer.bos_token.encode())
                 ):
                     reconstructed = reconstructed[len(transformers_tokenizer.bos_token) :]
             # TODO: can we narrow this exception?
@@ -371,7 +384,15 @@ class TransformersTokenizer(Tokenizer):
 
 
 class TransformersEngine(Engine):
-    def __init__(self, model, tokenizer, compute_log_probs: bool, chat_template=None, enable_backtrack=True, enable_ff_tokens=True, **kwargs):
+    def __init__(self, 
+                 model, 
+                 tokenizer, 
+                 compute_log_probs: bool, 
+                 chat_template=None, 
+                 enable_backtrack=True, 
+                 enable_ff_tokens=True, 
+                 enable_monitoring=True, 
+                 **kwargs):
         # fill in default model value
         if model is None:
             model = os.environ.get("TRANSFORMERS_MODEL", None)
@@ -388,7 +409,7 @@ class TransformersEngine(Engine):
             self.model = model.__class__.__name__
         self.device = self.model_obj.device  # otherwise note the current device
 
-        self._past_key_values = None
+        self._past_key_values: Union[transformers_package.Cache, tuple[tuple[torch.Tensor, ...], tuple[torch.Tensor, ...]], None] = None
         self._cached_logits = None
         self._cached_token_ids: list[int] = []
 
@@ -414,7 +435,9 @@ class TransformersEngine(Engine):
             my_tokenizer,
             compute_log_probs=compute_log_probs,
             enable_backtrack=enable_backtrack,
-            enable_ff_tokens=enable_ff_tokens
+            enable_ff_tokens=enable_ff_tokens,
+            enable_monitoring=enable_monitoring,
+            **kwargs,
         )
 
     def _model(self, model, **kwargs):
@@ -456,13 +479,66 @@ class TransformersEngine(Engine):
 
         # reset the cache length according to that number of positions
         past_key_values = self._past_key_values
-        past_length = past_key_values[0][0].size(-2) if past_key_values is not None else 0
-        if past_length > num_cached:
-            # note we recompute the last token because we don't bother to handle the special case of just computing logits
+        max_cache_shape = None
+        if past_key_values is None:
+            past_length = 0
+        elif isinstance(past_key_values, tuple):
+            past_length = past_key_values[0][0].size(-2)
+        elif isinstance(past_key_values, transformers_package.Cache):
+            # TODO: use model's `cache_position` as this may be deprecated in a future version
+            # https://github.com/huggingface/transformers/blob/70b07d97cf2c5f61fff55700b65528a1b6845cd2/src/transformers/cache_utils.py#L64
+            past_length = past_key_values.get_seq_length()
+            # TODO: use `get_max_cache_shape` as `get_max_length` will be deprecated in a future version
+            # (`get_max_cache_shape` is not yet available so we can't use it yet)
+            # https://github.com/huggingface/transformers/blob/70b07d97cf2c5f61fff55700b65528a1b6845cd2/src/transformers/cache_utils.py#L67
+            max_cache_shape = past_key_values.get_max_length()
+        else:
+            raise TypeError(f"Unknown type of past_key_values: {type(past_key_values)}")
+
+        if max_cache_shape is not None and len(token_ids) > max_cache_shape:
+            # TODO: this seems to get set to the length of the first sequence we pass for models using
+            # StaticCache or HybridCache. We need to initialize our own cache with a large enough size
+            # if we want to continue generation with the same cache.
+            if isinstance(past_key_values, (transformers_package.StaticCache, transformers_package.HybridCache)):
+                # The __init__ API isn't consistent between different cache types, but there seems to be consistency
+                # between these two types, so we can use the same logic for both.
+                warnings.warn("Cache is too small. Re-initializing cache with larger size.")
+                cache_type = type(past_key_values)
+                config = self.model_obj.config
+                device = self.model_obj.device
+                hf_device_map = getattr(self.model_obj, "hf_device_map", {})
+                # hf_device_map is not always a complete mapping of layers to devices...
+                layer_device_map = {k: hf_device_map.get(k, device) for k in range(config.num_hidden_layers)}
+                self._past_key_values = cache_type(
+                    config=config,
+                    batch_size=past_key_values.batch_size,
+                    # Double the cache size to be safe
+                    max_cache_len=len(token_ids)*2,
+                    dtype=past_key_values.dtype,
+                    layer_device_map=layer_device_map,
+                )
+            else:
+                warnings.warn(f"Cache is too small. Resetting cache (no method implemented to resize cache for type {type(past_key_values)}).")
+                self._past_key_values = None
+            past_length = 0
+        elif past_length > num_cached:
             past_length = max(0, num_cached - 1)
-            self._past_key_values = tuple(
-                tuple(p[..., :past_length, :] for p in v) for v in past_key_values
-            )
+            if isinstance(past_key_values, tuple):
+                self._past_key_values = tuple(
+                    tuple(p[..., :past_length, :] for p in v) for v in past_key_values
+                )
+            else:
+                if hasattr(past_key_values, "crop"):
+                    self._past_key_values.crop(past_length)
+                else:
+                    warnings.warn(f"Cropping unsupported for cache type: {type(self._past_key_values)}. Resetting cache.")
+                    if hasattr(self._past_key_values, "reset"):
+                        # Use built-in reset method if available to avoid constructing/allocating a new cache
+                        self._past_key_values.reset()
+                    else:
+                        self._past_key_values = None
+                    past_length = 0
+
         cache_token_ids[past_length:] = []
 
         # call the model
@@ -517,6 +593,62 @@ class TransformersEngine(Engine):
 
         return self._cached_logits
 
+    def get_per_token_topk_probs(self, token_ids: list[int], top_k: int = 5) -> list[GenTokenExtra]:
+        tokenizer = self.tokenizer._orig_tokenizer
+
+        # NOTE (loc) - assume batch size of 1
+        input_ids = torch.tensor(token_ids).unsqueeze(0).long().to(self.device)
+
+        outputs = self.model_obj(input_ids)
+        probs = torch.softmax(outputs.logits, dim=-1).detach()
+
+        # append "1" to probs to account for the 1st token in the input_ids
+        probs = torch.cat([torch.ones_like(probs[:, :1, :]), probs], dim=1)
+
+        # collect the probability of the generated token
+        probs = probs[:, :-1, :]
+
+        batch = []
+        for input_sentence, input_probs in zip(input_ids, probs):
+            text_sequence = []
+
+            for _token_id, _probs in zip(input_sentence, input_probs):
+                _token = tokenizer.decode(_token_id)
+
+                if len(text_sequence) == 0:
+                    token = GenTokenExtra(
+                        token_id=_token_id.item(),
+                        prob=1.0,
+                        text=tokenizer.decode([_token_id]),
+                        top_k=[
+                            GenToken(token_id=_token_id.item(), prob=1.0, text=_token),
+                        ],
+                    )
+                    text_sequence.append(token)
+                    continue
+
+                # get the top k indices
+                top_k_indices = torch.topk(_probs, top_k).indices.tolist()
+                if _token_id not in top_k_indices:
+                    top_k_indices.append(_token_id.item())
+
+                top_k_probs = [_probs[i].item() for i in top_k_indices]
+                top_k_list = []
+                for t, p in zip(top_k_indices, top_k_probs):
+                    top_k_list.append(GenToken(token_id=t, prob=p, text=tokenizer.decode([t])))
+
+                token = GenTokenExtra(
+                    token_id=_token_id.item(),
+                    prob=_probs[_token_id].item(),
+                    text=_token,
+                    top_k=top_k_list,
+                )
+                text_sequence.append(token)
+
+            batch.append(text_sequence)
+
+        return batch[0]
+
 
 class Transformers(Model):
     def __init__(
@@ -528,6 +660,7 @@ class Transformers(Model):
         chat_template=None,
         enable_backtrack=True,
         enable_ff_tokens=True,
+        enable_monitoring=True,
         **kwargs,
     ):
         """Build a new Transformers model object that represents a model in a given state."""
@@ -539,6 +672,7 @@ class Transformers(Model):
                 chat_template=chat_template,
                 enable_backtrack=enable_backtrack,
                 enable_ff_tokens=enable_ff_tokens,
+                enable_monitoring=enable_monitoring,
                 **kwargs,
             ),
             echo=echo,
