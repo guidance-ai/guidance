@@ -143,6 +143,21 @@ export function isTextOutput(o: NodeAttr | undefined | null): o is TextOutput {
     return o.class_name === "TextOutput";
 }
 
+export function isImageOutput(o: NodeAttr | undefined | null): o is ImageOutput {
+    if (o === undefined || o === null) return false;
+    return o.class_name === "ImageOutput";
+}
+
+export function isAudioOutput(o: NodeAttr | undefined | null): o is AudioOutput {
+    if (o === undefined || o === null) return false;
+    return o.class_name === "AudioOutput";
+}
+
+export function isVideoOutput(o: NodeAttr | undefined | null): o is VideoOutput {
+    if (o === undefined || o === null) return false;
+    return o.class_name === "VideoOutput";
+}
+
 export function isResetDisplayMessage(o: GuidanceMessage | undefined | null): o is ResetDisplayMessage {
     if (o === undefined || o === null) return false;
     return o.class_name === "ResetDisplayMessage";

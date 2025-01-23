@@ -7,23 +7,23 @@ For upcoming features, we won't be able to send all details over the wire, and w
     import './main.css';
     import TokenGrid from './TokenGrid.svelte';
     import ResizeListener from './ResizeListener.svelte';
-	import {
-		kernelmsg,
-		clientmsg,
-		type StitchMessage,
-		type NodeAttr,
-		type GenTokenExtra,
-		isTraceMessage,
-		isTextOutput,
-		isRoleOpenerInput,
-		isRoleCloserInput,
-		isResetDisplayMessage,
-		isMetricMessage,
-		isExecutionCompletedMessage,
-		isTokensMessage,
-		isClientReadyAckMessage,
-		isExecutionStartedMessage,
-	} from './stitch';
+		import {
+			kernelmsg,
+			clientmsg,
+			type StitchMessage,
+			type NodeAttr,
+			type GenTokenExtra,
+			isTraceMessage,
+			isTextOutput,
+			isRoleOpenerInput,
+			isRoleCloserInput,
+			isResetDisplayMessage,
+			isMetricMessage,
+			isExecutionCompletedMessage,
+			isTokensMessage,
+			isClientReadyAckMessage,
+			isExecutionStartedMessage, isImageOutput, isAudioOutput, isVideoOutput
+		} from './stitch';
     import StitchHandler from './StitchHandler.svelte';
 	import {onMount} from "svelte";
 	import {type MetricDef, type MetricVal} from "./interfaces";
@@ -55,6 +55,14 @@ For upcoming features, we won't be able to send all details over the wire, and w
 					textComponents.push(msg.node_attr)
 				} else if (isRoleCloserInput(msg.node_attr)) {
 					textComponents.push(msg.node_attr)
+				} else if (isAudioOutput(msg.node_attr)) {
+					// TODO: Fill.
+					console.log("Audio available.")
+					;
+				} else if (isVideoOutput(msg.node_attr)) {
+					// TODO: Fill.
+					console.log("Video available.")
+					;
 				}
 			} else if (isExecutionStartedMessage(msg)) {
 				requireFullReplay = false;
