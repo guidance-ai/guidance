@@ -65,21 +65,20 @@ class LiteralInput(InputAttr):
     value: str
 
 
-# NOTE(nopdive): Placeholder, needs to be filled once multimodal PR is in.
 class ImageInput(InputAttr):
     """Image input."""
 
-    value: bytes
+    value: str
 
 
 class AudioInput(InputAttr):
     """Audio input."""
-    value: bytes
+    value: str
 
 
 class VideoInput(InputAttr):
     """Video input."""
-    value: bytes
+    value: str
 
 
 class EmbeddedInput(InputAttr):
@@ -111,12 +110,21 @@ class RoleCloserInput(InputAttr):
 
 class AudioOutput(OutputAttr):
     """Audio output."""
-    value: bytes
+    value: str
+    is_input: bool = False
 
 
 class VideoOutput(OutputAttr):
     """Video output."""
-    value: bytes
+    value: str
+    is_input: bool = False
+
+
+class ImageOutput(OutputAttr):
+    """Image output."""
+
+    value: str
+    is_input: bool = False
 
 
 class TextOutput(OutputAttr):
@@ -134,14 +142,6 @@ class TextOutput(OutputAttr):
 
     def __str__(self):
         return self.value
-
-
-# NOTE(nopdive): Placeholder, needs to be filled once multimodal PR is in.
-class ImageOutput(OutputAttr):
-    """Image as bytes."""
-
-    value: bytes
-
 
 class CaptureOutput(OutputAttr):
     """Capture variable output as a string.
