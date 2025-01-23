@@ -56,13 +56,11 @@ For upcoming features, we won't be able to send all details over the wire, and w
         } else if (isRoleCloserInput(msg.node_attr)) {
           textComponents.push(msg.node_attr);
         } else if (isAudioOutput(msg.node_attr)) {
-          // TODO: Fill.
           console.log('Audio available.')
-          ;
+          textComponents.push(msg.node_attr);
         } else if (isVideoOutput(msg.node_attr)) {
-          // TODO: Fill.
           console.log('Video available.')
-          ;
+          textComponents.push(msg.node_attr);
         }
       } else if (isExecutionStartedMessage(msg)) {
         requireFullReplay = false;
