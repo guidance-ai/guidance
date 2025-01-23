@@ -5,7 +5,7 @@ import base64
 
 from .._guidance import guidance
 from .._utils import bytes_from
-# from ..trace._trace import VideoInput, VideoOutput
+# from ..trace._trace import VideoInput
 from ..trace._trace import VideoOutput
 
 
