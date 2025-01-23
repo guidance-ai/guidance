@@ -1,1 +1,3 @@
 include resources/graphpaper-inline.html
+include resources/sample_audio.wav
+include resources/sample_video.mp4
