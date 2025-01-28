@@ -63,6 +63,7 @@ babytest = [
     "types-regex",
     "types-requests",
     "types-jsonschema",
+    "requests",
 ]
 test_requires = [
     "azure-identity",
