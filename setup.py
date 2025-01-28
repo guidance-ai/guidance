@@ -57,23 +57,26 @@ doc_requires = [
     "huggingface_hub",
     "llama-cpp-python",
 ]
+babytest = [
+    "pytest", # baby
+    "pytest-cov",
+    "types-regex",
+    "types-requests",
+    "types-jsonschema",
+]
 test_requires = [
     "azure-identity",
     "bitsandbytes",
     "jupyter",
     "papermill",
     "protobuf",
-    "pytest",
-    "pytest-cov",
     "sentencepiece",
     "torch",
     "transformers",
     "mypy==1.9.0",
-    "types-regex",
-    "types-requests",
-    "types-jsonschema",
     "anytree"
-]
+] + babytest # baby
+
 bench_requires = [
     "pandas",
     "huggingface_hub",
@@ -121,6 +124,7 @@ setup(
     extras_require={
         "all": all_requires,
         "docs": doc_requires,
+        "babytest": babytest,
         "test": test_requires,
         "bench": bench_requires,
         **extras_requires,
