@@ -2,7 +2,6 @@ import os
 from typing import Set, Optional, Protocol
 
 import pytest
-from huggingface_hub import hf_hub_download
 
 import guidance
 from guidance import models
@@ -61,6 +60,7 @@ def get_openai_model(model_name, caching=False, **kwargs):
 
 
 def get_llama_hugging_face_model(repo_id: str, filename: str, **kwargs):
+    from huggingface_hub import hf_hub_download
     downloaded_file = hf_hub_download(repo_id=repo_id, filename=filename)
     lm = guidance.models.LlamaCpp(downloaded_file, **kwargs)
     return lm

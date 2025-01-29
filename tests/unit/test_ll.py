@@ -1,5 +1,4 @@
 from typing import Any, List
-import tokenizers
 import llguidance
 import json
 import textwrap
@@ -43,6 +42,7 @@ class PhiTokenizer:
         return self.hf_tokenizer.encode(s).ids
 
     def __init__(self) -> None:
+        import tokenizers
         self.hf_tokenizer: tokenizers.Tokenizer = tokenizers.Tokenizer.from_pretrained(
             "microsoft/Phi-3-mini-128k-instruct"
         )

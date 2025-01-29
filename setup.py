@@ -58,6 +58,7 @@ doc_requires = [
     "llama-cpp-python",
 ]
 babytest = [
+    "jsonschema",
     "pytest", # baby
     "pytest-cov",
     "types-regex",

@@ -6,7 +6,6 @@ from typing import Tuple
 
 import numpy as np
 import pytest
-import torch
 
 from guidance import _utils
 
@@ -26,6 +25,7 @@ def atol() -> float:
 )
 class TestLogitsTransforms:
     def test_log_softmax(self, size_and_axis, atol: float):
+        import torch
         size, axis = size_and_axis
         logits: np.ndarray = -np.random.uniform(low=0, high=60, size=size)
         log_probs = _utils.log_softmax(logits, axis=axis)
@@ -33,6 +33,7 @@ class TestLogitsTransforms:
         assert np.allclose(log_probs, log_probs_correct, atol=atol)
 
     def test_softmax(self, size_and_axis, atol: float):
+        import torch
         size, axis = size_and_axis
         logits: np.ndarray = -np.random.uniform(low=0, high=60, size=size)
         probs = _utils.softmax(logits, axis=axis)
