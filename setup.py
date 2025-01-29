@@ -58,13 +58,14 @@ doc_requires = [
     "llama-cpp-python",
 ]
 babytest = [
+    "anytree",
     "jsonschema",
     "pytest", # baby
     "pytest-cov",
+      "tokenizers",
     "types-regex",
     "types-requests",
     "types-jsonschema",
-    "tokenizers",
     "requests",
 ]
 test_requires = [
@@ -77,7 +78,6 @@ test_requires = [
     "torch",
     "transformers",
     "mypy==1.9.0",
-    "anytree"
 ] + babytest # baby
 
 bench_requires = [
