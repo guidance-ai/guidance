@@ -64,6 +64,7 @@ babytest = [
     "types-regex",
     "types-requests",
     "types-jsonschema",
+    "tokenizers",
     "requests",
 ]
 test_requires = [
