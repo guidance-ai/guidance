@@ -66,6 +66,7 @@ class LlamaCppTokenizer(Tokenizer):
         )
 
         tokenizer = llama_cpp.LlamaTokenizer(model_obj)
+        vocab = llama_cpp.llama_model_get_vocab(model_obj.model)
         if not hasattr(tokenizer, "llama"):
             tokenizer.llama = tokenizer._model
 
@@ -75,7 +76,7 @@ class LlamaCppTokenizer(Tokenizer):
             tok = tokenizer.llama.detokenize([i])  # note that detokenize returns bytes directly
             if tok == b"":
                 # get text rep of special tokens
-                tok = llama_cpp.llama_token_get_text(model_obj.model, i)
+                tok = llama_cpp.llama_vocab_get_text(vocab, i)
             tokens.append(tok)
 
         # Chat Template logic
