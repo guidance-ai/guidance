@@ -10,6 +10,16 @@ on:
       python-version:
         required: true
         type: string
+  workflow_dispatch:
+    inputs:
+      os:
+        required: false
+        type: string
+        default: ubuntu-latest
+      python-version:
+        required: false
+        type: string
+        default: "3.12"
 
 jobs:
   server-tests:

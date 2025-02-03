@@ -12,7 +12,21 @@ on:
       model:
         required: true
         type: string
-
+  workflow_dispatch:
+    inputs:
+      os:
+        required: false
+        type: string
+        default: Large_Linux # can instead use Large_Windows or the default OSes like macos-latest
+      python-version:
+        required: false
+        type: string
+        default: "3.12"
+      model:
+        required: false
+        type: string
+        default: "transformers_gpt2_cpu"
+      
 
 jobs:
   run-plain-basic-tests:
