@@ -20,12 +20,19 @@ on:
         required: false
         type: string
         default: "3.12"
+      commit_id:
+        description: 'Branch or Commit ID (optional)'
+        required: false
+        type: string
 
 jobs:
   server-tests:
     runs-on: ${{ inputs.os }}
     steps:
-      - uses: actions/checkout@v4
+      - name: checkout repo
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
       - name: Set up Python ${{ inputs.python-version }}
         uses: actions/setup-python@v5
         with:

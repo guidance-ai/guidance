@@ -26,12 +26,19 @@ on:
         required: false
         type: string
         default: "transformers_gpt2_gpu" # also try "transformers_phi2_gpu", "llamacpp_llama2_7b_gpu", etc
+      commit_id:
+        description: 'Branch or Commit ID (optional)'
+        required: false
+        type: string
 
 jobs:
   basic-tests-on-gpu:
     runs-on: ${{ inputs.os }}
     steps:
-      - uses: actions/checkout@v4
+      - name: checkout repo
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
       - name: Install Rust
         shell: bash
         run: |

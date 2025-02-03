@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       commit_id:
-        description: 'Commit ID (optional)'
+        description: 'Branch or Commit ID (optional)'
         required: false
   schedule:
     - cron: "0 12 * * *"
