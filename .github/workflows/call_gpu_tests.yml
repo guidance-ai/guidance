@@ -9,6 +9,9 @@ on:
       python-version:
         required: true
         type: string
+      model:
+        required: true
+        type: string
   workflow_dispatch:
     inputs:
       os:
@@ -19,19 +22,14 @@ on:
         required: false
         type: string
         default: "3.12"
+      model:
+        required: false
+        type: string
+        default: "transformers_gpt2_gpu" # also try "transformers_phi2_gpu", "llamacpp_llama2_7b_gpu", etc
 
 jobs:
   basic-tests-on-gpu:
-    strategy:
-      fail-fast: false # Don't cancel all on first failure
-      matrix:
-        model:
-          - "transformers_gpt2_gpu"
-          - "transformers_phi2_gpu"
-          # - "transformers_phi3_small_8k_instruct_gpu" Does not run on tesla t4
-          # - "llamacpp_llama2_7b_gpu" Keeps causing intermittent segfaults
     runs-on: ${{ inputs.os }}
-
     steps:
       - uses: actions/checkout@v4
       - name: Install Rust
@@ -76,10 +74,10 @@ jobs:
       - name: Check GPU available
         run: |
           python -c "import torch; assert torch.cuda.is_available()"
-      - name: Run tests (except server) for ${{ matrix.model }}
+      - name: Run tests (except server) for ${{ inputs.model }}
         run: |
           pytest -vv --cov=guidance --cov-report=xml --cov-report=term-missing \
-            --selected_model ${{ matrix.model }} \
+            --selected_model ${{ inputs.model }} \
             ./tests/unit ./tests/model_integration ./tests/model_specific
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4

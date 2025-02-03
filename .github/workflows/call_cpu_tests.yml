@@ -25,8 +25,7 @@ on:
       model:
         required: false
         type: string
-        default: "transformers_gpt2_cpu"
-      
+        default: "transformers_gpt2_cpu" # also try "llamacpp_llama2_7b_cpu", etc
 
 jobs:
   run-plain-basic-tests:
