@@ -1,4 +1,4 @@
-name: Server tests
+name: call_server_tests
 
 on:
   workflow_call:

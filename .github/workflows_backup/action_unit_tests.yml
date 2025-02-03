@@ -1,4 +1,4 @@
-name: unit-tests-template
+name: call_unit_tests
 
 on:
   workflow_call:

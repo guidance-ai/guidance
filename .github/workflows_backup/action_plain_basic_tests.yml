@@ -1,4 +1,4 @@
-name: plain-unit-tests
+name: call_cpu_tests
 
 on:
   workflow_call:
