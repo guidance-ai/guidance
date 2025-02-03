@@ -35,7 +35,7 @@ jobs:
   run-plain-basic-tests:
     runs-on: ${{ inputs.os }}
     steps:
-      - name: checkout repo
+      - name: checkout repo ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
