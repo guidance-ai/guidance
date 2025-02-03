@@ -21,10 +21,6 @@ Guidance is available through PyPI and supports a variety of backends (Transform
 pip install guidance
 ```
 
-_Note: To use Guidance with our new accelerated Rust-based parser, please install the release-candidate v0.2.0 guidance package_:
-```bash
-pip install guidance --pre
-```
 <!-- For a detailed walkthrough of using Guidance on hosted Phi models, check the [Azure AI specific loading instructions.](#azure-ai) and the [Phi-3 + Guidance cookbook](https://github.com/microsoft/Phi-3CookBook/blob/main/code/01.Introduce/guidance.ipynb). -->
 
 <!-- <a href="https://www.youtube.com/watch?v=9oXjP5IIMzQ"  aria-label="Watch demo"><img alt="Watch demo" src="docs/figures/watch_demo_button.png" width="120"></a> <a href="#get-started" aria-label="Get started"><img alt="Watch demo" src="docs/figures/get_started_button.png" width="120"></a> -->
@@ -200,7 +196,7 @@ An `lm` object is immutable, so you change it by creating new copies of it. By d
 from guidance import models, gen, select
 llama2 = models.LlamaCpp(model)
 
-# llama2 is not modified, `lm` is a copy of `llama2` with 'This is a prompt' appended to its state
+# llama2 is not modified, `lm` is a copy of `llama2` with 'This is a propmt' appended to its state
 lm = llama2 + 'This is a prompt'
 ```
 <img width="124" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/c1e96b2b-8f4a-44ee-a8f4-a694a8d7784b"><br>
