@@ -13,7 +13,7 @@ on:
     - cron: "0 11 * * *"
 
 jobs:
-  unit-tests:
+  unit_tests:
     strategy:
       fail-fast: false # Don't cancel all on first failure
       matrix:
@@ -43,12 +43,22 @@ jobs:
         run: |
           pytest -vv ./tests/unit
 
-  cpu_tests:
-    uses: ./.github/workflows/call_cpu_tests.yml
+  server_tests:
     strategy:
       fail-fast: false # Don't cancel all on first failure
       matrix:
-        os: ["Large_Linux", "Large_Windows"]  # also try "macos-latest"
+        os: ["ubuntu-latest"]
+        python-version: ["3.12"]
+    uses: ./.github/workflows/call_server_tests.yml
+    with:
+      os: ${{ matrix.os }}
+      python-version: ${{ matrix.python-version }}
+
+  cpu_tests:
+    strategy:
+      fail-fast: false # Don't cancel all on first failure
+      matrix:
+        os: ["Large_Linux", "Large_Windows", "macos-latest"]
         python-version: ["3.11", "3.12"]
         model:
           - "transformers_gpt2_cpu"
@@ -58,13 +68,13 @@ jobs:
           # - "llamacpp_llama2_7b_cpu" Getting stuck with llama-cpp-python 0.2.77
           # - "llamacpp_mistral_7b_cpu"
           # - "transformers_phi3_mini_4k_instruct_cpu" Gives trouble on MacOS
+    uses: ./.github/workflows/call_cpu_tests.yml
     with:
       os: ${{ matrix.os }}
       python-version: ${{ matrix.python-version }}
       model: ${{ matrix.model }}
 
   gpu_tests:
-    uses: ./.github/workflows/call_gpu_tests.yml
     strategy:
       fail-fast: false # Don't cancel all on first failure
       matrix:
@@ -75,6 +85,7 @@ jobs:
           - "transformers_phi2_gpu"
           # - "transformers_phi3_small_8k_instruct_gpu" Does not run on tesla t4
           # - "llamacpp_llama2_7b_gpu" Keeps causing intermittent segfaults
+    uses: ./.github/workflows/call_gpu_tests.yml
     with:
       os: ${{ matrix.os }}
       python-version: ${{ matrix.python-version }}
