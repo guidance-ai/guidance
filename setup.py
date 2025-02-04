@@ -20,6 +20,9 @@ from pybind11.setup_helpers import Pybind11Extension, build_ext
 
 here = os.path.abspath(os.path.dirname(__file__))
 
+llamacpp_requires = ["llama-cpp-python==0.3.7"]
+transformers_requires = ["transformers==4.48.2"]
+
 install_requires = [
     "diskcache",
     "numpy",
@@ -57,18 +60,18 @@ doc_requires = [
     "huggingface_hub",
     "llama-cpp-python",
 ]
-babytest = [
+unittest_requires = [
     "anytree",
     "jsonschema",
-    "pytest", # baby
+    "pytest",
     "pytest-cov",
-      "tokenizers",
+    "tokenizers",
+]
+test_requires = [
     "types-regex",
     "types-requests",
     "types-jsonschema",
     "requests",
-]
-test_requires = [
     "azure-identity",
     "bitsandbytes",
     "jupyter",
@@ -78,7 +81,7 @@ test_requires = [
     "torch",
     "transformers",
     "mypy==1.9.0",
-] + babytest # baby
+] + unittest_requires
 
 bench_requires = [
     "pandas",
@@ -126,9 +129,11 @@ setup(
     install_requires=install_requires,
     extras_require={
         "all": all_requires,
-        "docs": doc_requires,
-        "babytest": babytest,
+        "unittest": unittest_requires,
+        "llamacpp": llamacpp_requires,
+        "transformers": transformers_requires,
         "test": test_requires,
+        "docs": doc_requires,
         "bench": bench_requires,
         **extras_requires,
     },
