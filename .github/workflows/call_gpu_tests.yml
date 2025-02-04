@@ -25,7 +25,7 @@ on:
       model:
         required: false
         type: string
-        default: "transformers_gpt2_gpu" # also try "transformers_phi2_gpu", "llamacpp_llama2_7b_gpu", etc
+        default: "llamacpp_llama2_7b_gpu" # also try "transformers_gpt2_gpu", "transformers_phi2_gpu", etc
       commit_id:
         description: 'Branch or Commit ID (optional)'
         required: false
@@ -57,7 +57,7 @@ jobs:
           sudo apt-get -y upgrade
       - name: Ensure NVIDIA SDK available
         run: |
-          sudo apt-get -y install cuda-toolkit
+          sudo apt-get -y install cuda-toolkit-12.6
           echo "/usr/local/cuda-12.6/bin" >> $GITHUB_PATH
       - name: Install dependencies
         shell: bash
@@ -66,18 +66,14 @@ jobs:
           pip install pytest
           pip install -e .[schemas,test,bench]
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-      - name: Other dependencies
-        run: |
-          pip install sentencepiece
-          echo "=============================="
-          pip uninstall -y transformers
-          pip install "transformers!=4.43.0,!=4.43.1,!=4.43.2,!=4.43.3" # Issue 965
       - name: GPU pip installs
         run: |
+          pip install sentencepiece
           pip install accelerate
           echo "=============================="
+          pip uninstall -y transformers
           pip uninstall -y llama-cpp-python
-          CMAKE_ARGS="-DGGML_CUDA=on" pip install "llama-cpp-python!=0.2.58,!=0.2.75,!=0.2.84,!=0.3.6"
+          CMAKE_ARGS="-DGGML_CUDA=on" pip install -e .[llamacpp,transformers]
       - name: Check GPU available
         run: |
           python -c "import torch; assert torch.cuda.is_available()"
@@ -85,7 +81,7 @@ jobs:
         run: |
           pytest -vv --cov=guidance --cov-report=xml --cov-report=term-missing \
             --selected_model ${{ inputs.model }} \
-            ./tests/unit ./tests/model_integration ./tests/model_specific
+            ./tests/model_integration ./tests/model_specific
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4
         with:
