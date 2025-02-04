@@ -20,7 +20,7 @@ from pybind11.setup_helpers import Pybind11Extension, build_ext
 
 here = os.path.abspath(os.path.dirname(__file__))
 
-llamacpp_requires = ["llama-cpp-python==0.3.7"]
+llamacpp_requires = ["llama-cpp-python==0.3.5"]
 transformers_requires = ["transformers==4.48.2"]
 
 install_requires = [
