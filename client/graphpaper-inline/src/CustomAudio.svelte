@@ -1,5 +1,6 @@
 <script>
-  export let audioData; // Receiving base64 data from parent
+  import { onMount } from "svelte";
+  export let audioData; // Base64 data (without the data URL header)
 
   let audio;
   let isPlaying = false;
@@ -7,6 +8,7 @@
   let duration = 0;
   let currentTime = 0;
   let volume = 1;
+  let waveformCanvas;
 
   function togglePlay() {
     if (audio.paused) {
@@ -42,114 +44,158 @@
     const sec = Math.floor(seconds % 60);
     return `${min}:${sec < 10 ? "0" : ""}${sec}`;
   }
+
+  // When audio finishes, reset the play state
+  function handleEnded() {
+    isPlaying = false;
+    progress = 0;
+    currentTime = 0;
+  }
+
+  // Helper: convert base64 string to ArrayBuffer
+  function base64ToArrayBuffer(base64) {
+    const binaryString = atob(base64);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    return bytes.buffer;
+  }
+
+  // Decode the audio, downsample it, and draw the waveform onto the canvas.
+  async function drawWaveform() {
+    if (!audioData || !waveformCanvas) return;
+    const audioContext = new AudioContext();
+    const arrayBuffer = base64ToArrayBuffer(audioData);
+    try {
+      const decodedData = await audioContext.decodeAudioData(arrayBuffer);
+      const rawData = decodedData.getChannelData(0); // use first channel
+
+      // Ensure the canvas has the proper pixel dimensions.
+      const canvas = waveformCanvas;
+      // (Since we're using Tailwind for styling, we get the actual size from the element)
+      canvas.width = canvas.clientWidth;
+      canvas.height = canvas.clientHeight;
+      const width = canvas.width;
+      const height = canvas.height;
+
+      sampleWindow = 10;
+      const samples = width / sampleWindow;
+      const blockSize = Math.floor(rawData.length / samples);
+      const waveform = new Array(samples);
+      for (let i = 0; i < samples; i++) {
+        let sum = 0;
+        for (let j = 0; j < blockSize; j++) {
+          sum += Math.abs(rawData[i * blockSize + j]);
+        }
+        waveform[i] = sum / blockSize;
+      }
+
+      // Draw the waveform: each pixel column gets a vertical bar.
+      const ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = "#2979ff"; // same blue as your seek bar
+      for (let i = 0; i < samples; i++) {
+        // Map the normalized amplitude [0,1] to a bar height.
+        const barHeight = waveform[i] * height;
+        const barWidth = sampleWindow; // width of each bar
+        // Center the bar vertically.
+        const x = i*sampleWindow;
+        const y = (height - barHeight) / 2;
+        ctx.fillRect(x, y, sampleWindow, barHeight);
+      }
+    } catch (error) {
+      console.error("Error decoding audio for waveform:", error);
+    }
+  }
+
+  onMount(() => {
+    drawWaveform();
+  });
 </script>
 
-<div class="audio-container">
-  <div class="play-button" on:click={togglePlay}>
-    {#if isPlaying}
-      <svg viewBox="0 0 24 24"
-        ><rect x="6" y="5" width="4" height="14"></rect><rect
-          x="14"
-          y="5"
-          width="4"
-          height="14"
-        ></rect></svg
+<!--
+  New layout: We wrap the waveform canvas and seek bar in a flex-col so that
+  the waveform sits directly above the seek bar.
+-->
+<div class="rounded-[10px] border border-gray-400 bg-white p-[10px] w-[400px]">
+  <div class="flex items-center gap-[10px]">
+    <!-- Play Button -->
+    <div
+      class="w-[40px] h-[40px] rounded-full bg-[#6c7a89] flex items-center justify-center cursor-pointer"
+      on:click={togglePlay}
+      on:keydown={togglePlay}
+      role="button"
+      tabindex="0"
+      aria-label="Toggle playback"
+    >
+      {#if isPlaying}
+        <svg class="fill-white w-[20px] h-[20px]" viewBox="0 0 24 24">
+          <rect x="6" y="5" width="4" height="14" />
+          <rect x="14" y="5" width="4" height="14" />
+        </svg>
+      {:else}
+        <svg class="fill-white w-[20px] h-[20px]" viewBox="0 0 24 24">
+          <polygon points="5,3 19,12 5,21" />
+        </svg>
+      {/if}
+    </div>
+
+    <!-- Waveform and Seek Bar Column -->
+    <div class="flex flex-col flex-grow gap-1">
+      <!-- Waveform Canvas -->
+      <canvas bind:this={waveformCanvas} class="w-full h-12"></canvas>
+
+      <!-- Seek Bar -->
+      <div
+        class="h-[6px] bg-[#ddd] rounded-[3px] cursor-pointer relative"
+        on:click={seek}
+        on:keydown={seek}
+        role="slider"
+        tabindex="0"
+        aria-label="Seek"
+        aria-valuemin="0"
+        aria-valuemax="100"
+        aria-valuenow={progress}
       >
-    {:else}
-      <svg viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"></polygon></svg>
-    {/if}
+        <div
+          class="h-full bg-[#2979ff] rounded-[3px] absolute"
+          style="width: {progress}%"
+        ></div>
+      </div>
+    </div>
+
+    <!-- Time Display -->
+    <div class="text-sm text-[#555] min-w-[50px]">
+      {formatTime(currentTime)} / {formatTime(duration)}
+    </div>
+
+    <!-- Volume Control -->
+    <div class="flex items-center gap-[5px]">
+      <svg class="w-[20px] h-[20px]" viewBox="0 0 24 24">
+        <path
+          d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.07c1.48-.74 2.5-2.26 2.5-4.04z"
+        ></path>
+      </svg>
+      <input
+        type="range"
+        min="0"
+        max="1"
+        step="0.01"
+        bind:value={volume}
+        on:input={changeVolume}
+        class="w-[60px]"
+      />
+    </div>
   </div>
 
-  <div class="seek-bar-container" on:click={seek}>
-    <div class="seek-bar" style="width: {progress}%"></div>
-  </div>
-
-  <div class="time-display">
-    {formatTime(currentTime)} / {formatTime(duration)}
-  </div>
-
-  <div class="volume-control">
-    <svg viewBox="0 0 24 24" width="20" height="20">
-      <path
-        d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.07c1.48-.74 2.5-2.26 2.5-4.04z"
-      ></path>
-    </svg>
-    <input
-      type="range"
-      min="0"
-      max="1"
-      step="0.01"
-      bind:value={volume}
-      on:input={changeVolume}
-    />
-  </div>
-
+  <!-- Audio Element (hidden) -->
   <audio
     bind:this={audio}
     on:timeupdate={updateProgress}
+    on:ended={handleEnded}
     src={"data:audio/wav;base64," + audioData}
+    class="hidden"
   ></audio>
 </div>
-
-<style>
-  .audio-container {
-    border-radius: 10px;
-    border: 1px solid gray;
-    background: white;
-    padding: 10px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    width: 400px;
-  }
-
-  .play-button {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background-color: #6c7a89;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-  }
-
-  .play-button svg {
-    fill: white;
-    width: 20px;
-    height: 20px;
-  }
-
-  .seek-bar-container {
-    flex-grow: 1;
-    height: 6px;
-    background: #ddd;
-    border-radius: 3px;
-    cursor: pointer;
-    position: relative;
-  }
-
-  .seek-bar {
-    height: 100%;
-    background: #2979ff;
-    border-radius: 3px;
-    width: 0%;
-    position: absolute;
-  }
-
-  .time-display {
-    font-size: 14px;
-    color: #555;
-    min-width: 50px;
-  }
-
-  .volume-control {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-  }
-
-  .volume-control input {
-    width: 60px;
-  }
-</style>
