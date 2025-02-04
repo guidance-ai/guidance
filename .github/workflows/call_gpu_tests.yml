@@ -17,7 +17,7 @@ on:
       os:
         required: false
         type: string
-        default: gpu-runner
+        default: "gpu-runner"
       python-version:
         required: false
         type: string

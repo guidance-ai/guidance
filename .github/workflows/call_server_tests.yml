@@ -15,7 +15,7 @@ on:
       os:
         required: false
         type: string
-        default: ubuntu-latest
+        default: "ubuntu-latest"
       python-version:
         required: false
         type: string

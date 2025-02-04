@@ -17,7 +17,7 @@ on:
       os:
         required: false
         type: string
-        default: Large_Linux # can instead use Large_Windows or the default OSes like macos-latest
+        default: "Large_Linux" # can instead use "Large_Windows" or the default OSes like "macos-latest"
       python-version:
         required: false
         type: string
