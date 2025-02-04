@@ -35,7 +35,7 @@ jobs:
   cpu_tests:
     runs-on: ${{ inputs.os }}
     steps:
-      - name: checkout repo ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
+      - name: Checkout repo at ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
@@ -43,14 +43,17 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ inputs.python-version }}
-      - name: cpu_tests
+      - name: Setup environment in ${{ inputs.os }}
         shell: bash
         run: |
           curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.75.0
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
           pip install --upgrade pip
           pip install -e .[llamacpp,transformers,test]
-          pytest --cov=guidance --cov-report=xml --cov-report=term-missing \
+      - name: cpu_tests for ${{ inputs.model }}
+        shell: bash
+        run: |
+          pytest -vv --cov=guidance --cov-report=xml --cov-report=term-missing \
             --selected_model ${{ inputs.model }} \
             ./tests/model_integration ./tests/model_specific
       - name: Upload coverage reports to Codecov
