@@ -74,14 +74,13 @@
 
       // Ensure the canvas has the proper pixel dimensions.
       const canvas = waveformCanvas;
-      // (Since we're using Tailwind for styling, we get the actual size from the element)
       canvas.width = canvas.clientWidth;
       canvas.height = canvas.clientHeight;
       const width = canvas.width;
       const height = canvas.height;
 
-      sampleWindow = 10;
-      const samples = width / sampleWindow;
+      // Downsample the raw data to one value per pixel.
+      const samples = width;
       const blockSize = Math.floor(rawData.length / samples);
       const waveform = new Array(samples);
       for (let i = 0; i < samples; i++) {
@@ -92,18 +91,23 @@
         waveform[i] = sum / blockSize;
       }
 
+      // Normalize the waveform data so that the maximum amplitude maps to the full canvas height.
+      const maxAmp = Math.max(...waveform);
+      // Prevent division by zero
+      const scale = maxAmp > 0 ? 1 / maxAmp : 1;
+
       // Draw the waveform: each pixel column gets a vertical bar.
       const ctx = canvas.getContext("2d");
       ctx.clearRect(0, 0, width, height);
       ctx.fillStyle = "#2979ff"; // same blue as your seek bar
       for (let i = 0; i < samples; i++) {
-        // Map the normalized amplitude [0,1] to a bar height.
-        const barHeight = waveform[i] * height;
-        const barWidth = sampleWindow; // width of each bar
+        const x = i;
+        // Normalize the amplitude and then scale to the canvas height.
+        const normalizedAmp = waveform[i] * scale;
+        const barHeight = normalizedAmp * height;
         // Center the bar vertically.
-        const x = i*sampleWindow;
         const y = (height - barHeight) / 2;
-        ctx.fillRect(x, y, sampleWindow, barHeight);
+        ctx.fillRect(x, y, 1, barHeight);
       }
     } catch (error) {
       console.error("Error decoding audio for waveform:", error);
