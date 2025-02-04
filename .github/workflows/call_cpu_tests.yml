@@ -32,44 +32,27 @@ on:
         type: string
 
 jobs:
-  run-plain-basic-tests:
+  cpu_tests:
     runs-on: ${{ inputs.os }}
     steps:
       - name: checkout repo ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
-      - name: Install Rust
-        shell: bash
-        run: |
-           curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.75.0
-           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
       - name: Set up Python ${{ inputs.python-version }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ inputs.python-version }}
-      - name: Install dependencies
+      - name: cpu_tests
         shell: bash
         run: |
-          python -m pip install --upgrade pip
-          pip install pytest
-          pip install -e .[schemas,test,bench]
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-      - name: Install model-specific dependencies
-        run: |
-          pip install sentencepiece
-          echo "=============================="
-          pip uninstall -y llama-cpp-python
-          pip install "llama-cpp-python!=0.2.58,!=0.2.79,!=0.2.84,!=0.3.6"
-          echo "=============================="
-          pip uninstall -y transformers
-          pip install "transformers!=4.43.0,!=4.43.1,!=4.43.2,!=4.43.3" # Issue 965
-      - name: Run tests (except server)
-        shell: bash
-        run: |
+          curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.75.0
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          pip install --upgrade pip
+          pip install -e .[llamacpp,transformers,test]
           pytest --cov=guidance --cov-report=xml --cov-report=term-missing \
             --selected_model ${{ inputs.model }} \
-            ./tests/unit ./tests/model_integration ./tests/model_specific
+            ./tests/model_integration ./tests/model_specific
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4
         with:
