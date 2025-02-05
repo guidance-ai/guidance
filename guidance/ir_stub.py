@@ -31,8 +31,9 @@ C = TypeVar("C", bound=MessageChunk)
 class Stream(Generic[C]):
     chunks: list[C] = field(default_factory=list)
 
-    def apply_chunk(self, chunk: C) -> None:
+    def apply_chunk(self, chunk: C) -> C:
         self.chunks.append(chunk)
+        return chunk
 
 
 class CompletionStream(Stream[ContentChunk]):
@@ -43,7 +44,7 @@ class CompletionStream(Stream[ContentChunk]):
 class MessageStream(Stream[MessageChunk]):
     active_role: Optional[RoleStart] = None
 
-    def apply_chunk(self, chunk: MessageChunk) -> None:
+    def apply_chunk(self, chunk: C) -> C:
         match chunk:
             case RoleStart(role, id):
                 if self.active_role is not None:
@@ -61,15 +62,13 @@ class MessageStream(Stream[MessageChunk]):
                 if self.active_role is None:
                     raise ValueError("Cannot apply node without active role")
         self.chunks.append(chunk)
+        return chunk
 
     def open_role(self, role: str) -> RoleStart:
-        id = uuid4()
-        role_start = RoleStart(role, id)
-        self.apply_chunk(role_start)
-        return role_start
+        return self.apply_chunk(RoleStart(role, uuid4()))
 
-    def close_role(self, id: UUID) -> None:
-        self.apply_chunk(RoleEnd(id))
+    def close_role(self, id: UUID) -> RoleEnd:
+        return self.apply_chunk(RoleEnd(id))
 
 
 S = TypeVar("S", bound=Stream)
