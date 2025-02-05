@@ -1,0 +1,65 @@
+name: call_cpu_tests
+
+on:
+  workflow_call:
+    inputs:
+      os:
+        required: true
+        type: string
+      python-version:
+        required: true
+        type: string
+      model:
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      os:
+        required: false
+        type: string
+        default: "Large_Linux" # can instead use "Large_Windows" or the default OSes like "macos-latest"
+      python-version:
+        required: false
+        type: string
+        default: "3.12"
+      model:
+        required: false
+        type: string
+        default: "transformers_gpt2_cpu" # also try "llamacpp_llama2_7b_cpu", etc
+      commit_id:
+        description: 'Branch or Commit ID (optional)'
+        required: false
+        type: string
+
+jobs:
+  cpu_tests:
+    runs-on: ${{ inputs.os }}
+    steps:
+      - name: Checkout repo at ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
+      - name: Set up Python ${{ inputs.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+      - name: Install Rust
+        shell: bash
+        run: |
+           curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.75.0
+           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      - name: Install guidance in ${{ inputs.os }}
+        shell: bash
+        run: |
+          pip install --upgrade pip
+          pip install -e .[llamacpp,transformers,test]
+      - name: cpu_tests for ${{ inputs.model }}
+        shell: bash
+        run: |
+          pytest -vv --cov=guidance --cov-report=xml --cov-report=term-missing \
+            --selected_model ${{ inputs.model }} \
+            ./tests/model_integration ./tests/model_specific
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}

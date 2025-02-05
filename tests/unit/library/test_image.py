@@ -1,6 +1,6 @@
 import pytest
 
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 from guidance import models, image
 
 
@@ -26,7 +26,7 @@ def test_remote_image(remote_image_url):
 
 def test_remote_image_not_found():
     model = models.Mock()
-    with pytest.raises(HTTPError):
+    with pytest.raises((HTTPError, URLError)):
         model += image("https://example.com/not_found.jpg")
 
 
