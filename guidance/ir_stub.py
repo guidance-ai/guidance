@@ -98,12 +98,12 @@ class Model(Generic[S]):
 
 
 class CompletionModel(Model[CompletionStream]):
-    def __init__(self, client: Client) -> None:
+    def __init__(self, client: Client[CompletionStream]) -> None:
         super().__init__(client, CompletionStream())
 
 
 class ChatModel(Model[MessageStream]):
-    def __init__(self, client: Client) -> None:
+    def __init__(self, client: Client[MessageStream]) -> None:
         super().__init__(client, MessageStream())
 
     def _apply_node(self, node: Node) -> None:
