@@ -3,9 +3,7 @@ name: Build wheels
 on:
   release:
     types: [published]
-
-  # Enable manual run
-  workflow_dispatch:
+  workflow_dispatch:  # Enable manual run
 
 jobs:
   generate-wheels-matrix:

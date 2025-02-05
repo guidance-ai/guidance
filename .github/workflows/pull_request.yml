@@ -10,7 +10,8 @@ on:
         required: false
         type: string
   schedule:
-    - cron: "0 11 * * *"
+    # Run at 11:00 UTC every day
+    - cron: "00 11 * * *"
 
 jobs:
   unit_tests:

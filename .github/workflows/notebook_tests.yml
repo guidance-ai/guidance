@@ -1,20 +1,15 @@
-# Notebook Tests
-
 # These should only be run on main, because they access secrets
 # Not part of the regular CI run, since notebook tests seem
 # particularly flaky
 
 name: Notebook Tests
 
-
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
   schedule:
     # * is a special character in YAML so we quote this string
-    # Run at 0830 UTC every day
-    - cron:  '30 08 * * *'
+    # Run at 10:00 UTC every day
+    - cron:  '00 10 * * *'
 
 permissions:
   id-token: write
