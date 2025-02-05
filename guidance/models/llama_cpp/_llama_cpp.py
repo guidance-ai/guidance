@@ -67,6 +67,9 @@ class LlamaCppTokenizer(Tokenizer):
 
         tokenizer = llama_cpp.LlamaTokenizer(model_obj)
         vocab = llama_cpp.llama_model_get_vocab(model_obj.model)
+        if vocab is None:
+            raise Exception("call to llama_cpp.llama_model_get_vocab returned NULL.")
+
         if not hasattr(tokenizer, "llama"):
             tokenizer.llama = tokenizer._model
 
