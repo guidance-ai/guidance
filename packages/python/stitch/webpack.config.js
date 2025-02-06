@@ -55,8 +55,8 @@ module.exports = [
         filename: 'index.js',
         path: path.resolve(__dirname, 'dist'),
         libraryTarget: 'amd',
-        library: "stitch",
-        publicPath: 'https://unpkg.com/stitch@' + version + '/dist/'
+        library: "@guidance-ai/stitch",
+        publicPath: 'https://unpkg.com/@guidance-ai/stitch@' + version + '/dist/'
     },
     devtool: 'source-map',
     module: {
