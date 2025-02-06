@@ -129,7 +129,7 @@ class Model:
         raise TypeError("Use += to add nodes")
 
     def _apply_node(self, node: Node) -> None:
-        for chunk in self.client.run(self._stream, node):
+        for chunk in self.client.run(self._stream_adapter, node):
             self._apply_chunk(chunk)
 
     def _apply_chunk(self, chunk: MessageChunk) -> None:
