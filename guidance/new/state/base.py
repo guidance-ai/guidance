@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Generic, Optional, TypedDict, TypeVar
 
-from typing_extensions import assert_never
+from typing_extensions import Self, assert_never
 
 from ..ast import ContentChunk, MessageChunk, RoleEnd, RoleStart
 
@@ -74,6 +74,13 @@ class InternalState(BaseState[list[MessageChunk]]):
 
 
 class APIState(BaseState[R], ABC):
+    @classmethod
+    def from_internal_state(cls, internal_state: InternalState) -> Self:
+        self = cls()
+        for chunk in internal_state.get_state():
+            self.apply_chunk(chunk)
+        return self
+
     def apply_content_chunk(self, chunk: ContentChunk) -> None:
         match chunk:
             case str(text):
