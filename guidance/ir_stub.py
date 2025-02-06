@@ -3,6 +3,7 @@ from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass, field
 from typing import (
     TYPE_CHECKING,
+    Any,
     Generic,
     Iterable,
     Iterator,
@@ -218,11 +219,6 @@ class ChatStreamHandler(BaseStreamHandler[CS, R], ABC):
         ):  # TODO: should we assert that it actually is NOT None?
             # Bit of a hack to ensure we get the active message
             state = self.finalize_message(state)
-        if state["active_role"] is not None:
-            # Bad implementation of finalize_message
-            raise ValueError(
-                f"{self.__class__.__name__}.finalize_message did not close the active role"
-            )
         return self.finalize(state)
 
 
@@ -294,22 +290,96 @@ class OpenAIClient(Client):
         self.stream_handler = OpenAIStreamHandler()
 
     def run(self, stream: Stream, node: Node) -> Iterable[ContentChunk]:
-        messages = self.stream_handler.process_stream(stream)
         if isinstance(node, str):
             yield node
         else:
             raise NotImplementedError("Node must be a string")
 
 
+# Some transformers models want a string, some want a list of dicts...
+TC = TypeVar("TC", bound=Union[str, list[dict]])
+
+
+class TransformersMessage(TypedDict, Generic[TC]):
+    role: str
+    content: TC
+
+
+class TransformersState(TypedDict, Generic[TC]):
+    active_role: Optional[RoleStart]
+    messages: list[TransformersMessage[TC]]
+    content: NotRequired[TC]
+    images: NotRequired[list[Any]]
+    audio: NotRequired[list[Any]]
+    videos: NotRequired[list[Any]]
+
+
+class TransformersStreamReturn(TypedDict, Generic[TC]):
+    messages: list[TransformersMessage[TC]]
+    images: list[Any]
+    audio: list[Any]
+    videos: list[Any]
+
+
+class BaseTransformersChatStreamHandler(
+    ChatStreamHandler[TransformersState[TC], TransformersStreamReturn[TC]]
+):
+    def finalize_message(self, state: TransformersState[TC]) -> TransformersState[TC]:
+        if state["active_role"] is None:
+            raise ValueError("Cannot finalize message without active role")
+        content = state.get("content")
+        if content is not None:
+            message = TransformersMessage({"role": state["active_role"].role, "content": content})
+            state["messages"].append(message)
+            del state["content"]
+        return state
+
+    def finalize(self, state: TransformersState[TC]) -> TransformersStreamReturn[TC]:
+        return {
+            "messages": state["messages"],
+            "images": state.get("images", []),
+            "audio": state.get("audio", []),
+            "videos": state.get("videos", []),
+        }
+
+
+class DefaultTransformersStreamHandler(BaseTransformersChatStreamHandler[str]):
+    def process_text(self, text: str, state: TransformersState[str]) -> TransformersState[str]:
+        try:
+            state["content"] += text
+        except KeyError:
+            state["content"] = text
+        return state
+
+
+class DefaultTransformersChatClient(Client):
+    def __init__(self) -> None:
+        self.stream_handler = DefaultTransformersStreamHandler()
+
+    def run(self, stream: Stream, node: Node) -> Iterable[ContentChunk]:
+        if isinstance(node, str):
+            yield node
+        else:
+            raise NotImplementedError("Node must be a string")
+
+
+class Llama3TransformersStreamHandler(BaseTransformersChatStreamHandler[list[dict]]):
+    def process_text(
+        self, text: str, state: TransformersState[list[dict]]
+    ) -> TransformersState[list[dict]]:
+        state.setdefault("content", []).append({"type": "text", "text": text})
+        return state
+
+
 def chat():
-    client = OpenAIClient()
+    client = DefaultTransformersChatClient()
     stream = ChatStream()
     model = Model(client, stream)
     with model.system():
         model += "Talk like a pirate!"
     with model.user():
         model += "Hello, model!"
-        model += "How are you?"
+        model += "\nHow are you?"
     with model.assistant():
         model += "I'm doing well, thank you!"
-    return list(client.stream_handler.process_stream(stream))
+    return client.stream_handler.process_stream(stream)
