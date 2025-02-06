@@ -38,7 +38,7 @@ MessageChunk = Union[ContentChunk, RoleStart, RoleEnd]
 R = TypeVar("R")
 
 
-class BaseStream(Generic[R], ABC):
+class BaseState(Generic[R], ABC):
     def __init__(self) -> None:
         self.active_role: Optional[RoleStart] = None
 
@@ -74,7 +74,28 @@ class BaseStream(Generic[R], ABC):
         pass
 
 
-class BaseStreamAdapter(BaseStream[R]):
+class InternalState(BaseState[list[MessageChunk]]):
+    def __init__(self) -> None:
+        self.chunks: list[MessageChunk] = []
+        self.active_role: Optional[RoleStart] = None
+
+    def apply_content_chunk(self, chunk: str) -> None:
+        super().apply_content_chunk(chunk)
+        self.chunks.append(chunk)
+
+    def apply_role_start(self, role_start: RoleStart) -> None:
+        super().apply_role_start(role_start)
+        self.chunks.append(role_start)
+
+    def apply_role_end(self, role_end: RoleEnd) -> None:
+        super().apply_role_end(role_end)
+        self.chunks.append(role_end)
+
+    def get_state(self) -> list[MessageChunk]:
+        return self.chunks
+
+
+class APIState(BaseState[R]):
     def apply_content_chunk(self, chunk: ContentChunk) -> None:
         match chunk:
             case str(text):
@@ -89,37 +110,22 @@ class BaseStreamAdapter(BaseStream[R]):
         pass
 
 
-class Stream(BaseStream[list[MessageChunk]]):
-    def __init__(self) -> None:
-        self.chunks: list[MessageChunk] = []
-        self.active_role: Optional[RoleStart] = None
-
-    def apply_content_chunk(self, chunk: str) -> None:
-        self.chunks.append(chunk)
-
-    def apply_role_start(self, role_start: RoleStart) -> None:
-        self.chunks.append(role_start)
-
-    def apply_role_end(self, role_end: RoleEnd) -> None:
-        self.chunks.append(role_end)
-
-    def get_state(self) -> list[MessageChunk]:
-        return self.chunks
-
-
 class Client(ABC):
     @abstractmethod
-    def run(self, stream: Stream, node: Node) -> Iterable[ContentChunk]:
+    def run(self, state: APIState, node: Node) -> Iterable[ContentChunk]:
         pass
 
 
 class Model:
     def __init__(
-        self, client: Client, stream: Stream, stream_adapter: "BaseStreamAdapter"
+        self,
+        client: Client,
+        internal_state: InternalState,
+        api_state: APIState,
     ) -> None:
         self.client = client
-        self._stream = stream
-        self._stream_adapter = stream_adapter
+        self._internal_state = internal_state
+        self._api_state = api_state
 
     def __iadd__(self, other: Node) -> Self:
         self._apply_node(other)
@@ -129,17 +135,17 @@ class Model:
         raise TypeError("Use += to add nodes")
 
     def _apply_node(self, node: Node) -> None:
-        for chunk in self.client.run(self._stream_adapter, node):
+        for chunk in self.client.run(self._api_state, node):
             self._apply_chunk(chunk)
 
     def _apply_chunk(self, chunk: MessageChunk) -> None:
-        # Apply to stream adapter first, so that it can raise an exception if the chunk is not supported
-        self._stream_adapter.apply_chunk(chunk)
-        self._stream.apply_chunk(chunk)
+        # Apply to _api_state first, so that it can raise an exception if the chunk is not supported
+        self._api_state.apply_chunk(chunk)
+        self._internal_state.apply_chunk(chunk)
 
     @contextmanager
     def role(self, role: str) -> Iterator[None]:
-        # Stream adapter will handle raising an exception if roles are not supported
+        # _apply_chunk will raise an exception via _api_state.apply_chunk if roles are not supported
         role_start = RoleStart(role, uuid4())
         self._apply_chunk(role_start)
         try:
@@ -165,7 +171,7 @@ class BaseChatMessage(TypedDict):
 M = TypeVar("M", bound=BaseChatMessage)
 
 
-class ChatStreamAdapter(Generic[M, R], BaseStreamAdapter[R], ABC):
+class ChatState(Generic[M, R], APIState[R], ABC):
     def __init__(self) -> None:
         self.active_role: Optional[RoleStart] = None
         self.messages: list[M] = []
@@ -194,7 +200,7 @@ class ChatStreamAdapter(Generic[M, R], BaseStreamAdapter[R], ABC):
         pass
 
 
-class CompletionStreamAdapter(BaseStreamAdapter[str]):
+class CompletionState(APIState[str]):
     def __init__(self) -> None:
         self.state = ""
 
@@ -224,7 +230,7 @@ class OpenAIAudioMessage(TypedDict):
 OpenAIMessage = Union[OpenAIContentMessage, OpenAIAudioMessage]
 
 
-class OpenAIStreamAdapter(ChatStreamAdapter[OpenAIMessage, list[OpenAIMessage]]):
+class OpenAIState(ChatState[OpenAIMessage, list[OpenAIMessage]]):
     def __init__(self) -> None:
         super().__init__()
         self.content: list[dict] = []
@@ -261,16 +267,14 @@ class TransformersMessage(TypedDict, Generic[TC]):
     content: TC
 
 
-class TransformersStreamReturn(TypedDict, Generic[TC]):
+class TransformersChatObj(TypedDict, Generic[TC]):
     messages: list[TransformersMessage[TC]]
     images: list[Any]
     audio: list[Any]
     videos: list[Any]
 
 
-class BaseTransformersChatStreamAdapter(
-    ChatStreamAdapter[TransformersMessage[TC], TransformersStreamReturn[TC]]
-):
+class BaseTransformersChatState(ChatState[TransformersMessage[TC], TransformersChatObj[TC]]):
     def __init__(self) -> None:
         super().__init__()
         self.content: TC = self._default_content_factory()
@@ -284,7 +288,7 @@ class BaseTransformersChatStreamAdapter(
 
         return TransformersMessage({"role": self.active_role.role, "content": self.content})
 
-    def get_state(self) -> TransformersStreamReturn[TC]:
+    def get_state(self) -> TransformersChatObj[TC]:
         return {
             "messages": self.messages,
             "images": self.images,
@@ -302,12 +306,12 @@ class BaseTransformersChatStreamAdapter(
         pass
 
 
-class TransformersStructuredStreamAdapter(BaseTransformersChatStreamAdapter[list[dict]]):
+class TransformersStructuredState(BaseTransformersChatState[list[dict]]):
     def _default_content_factory(self) -> list[dict]:
         return []
 
 
-class TransformersUnstructuredStreamAdapter(BaseTransformersChatStreamAdapter[str]):
+class TransformersUnstructuredState(BaseTransformersChatState[str]):
     def _default_content_factory(self) -> str:
         return ""
 
@@ -317,7 +321,7 @@ class TransformersUnstructuredStreamAdapter(BaseTransformersChatStreamAdapter[st
         self.content += text
 
 
-class Llama3TransformersStreamAdapter(TransformersStructuredStreamAdapter):
+class Llama3TransformersState(TransformersStructuredState):
     def apply_text(self, text: str) -> None:
         if self.content is None:
             self.content = []
@@ -325,7 +329,7 @@ class Llama3TransformersStreamAdapter(TransformersStructuredStreamAdapter):
 
 
 class DummyClient(Client):
-    def run(self, stream: Stream, node: Node) -> Iterable[ContentChunk]:
+    def run(self, state: APIState, node: Node) -> Iterable[ContentChunk]:
         if isinstance(node, str):
             yield node
         else:
@@ -335,12 +339,12 @@ class DummyClient(Client):
 def chat():
     import json
 
-    for sa in [
-        OpenAIStreamAdapter,
-        TransformersUnstructuredStreamAdapter,
-        Llama3TransformersStreamAdapter,
+    for s in [
+        OpenAIState,
+        TransformersUnstructuredState,
+        Llama3TransformersState,
     ]:
-        model = Model(DummyClient(), Stream(), sa())
+        model = Model(DummyClient(), InternalState(), s())
         with model.system():
             model += "Talk like a pirate!"
         with model.user():
@@ -349,21 +353,21 @@ def chat():
         with model.assistant():
             model += "I'm doing well, thank you!"
         print("-" * 80)
-        print(sa.__name__)
+        print(s.__name__)
         print("-" * 80)
-        print(json.dumps(model._stream_adapter.get_state(), indent=2))
+        print(json.dumps(model._api_state.get_state(), indent=2))
 
 
 def completion():
-    for sa in [
-        CompletionStreamAdapter,
+    for s in [
+        CompletionState,
     ]:
-        model = Model(DummyClient(), Stream(), sa())
+        model = Model(DummyClient(), InternalState(), s())
         model += "<|system|>\nTalk like a pirate!\n<|end_of_turn|>\n"
         model += "<|user|>\nHello, model!\n<|end_of_turn|>\n"
         model += "<|user|>\nHow are you?\n<|end_of_turn|>\n"
         model += "<|assistant|>\nI'm doing well, thank you!\n<|end_of_turn|>\n"
         print("-" * 80)
-        print(sa.__name__)
+        print(s.__name__)
         print("-" * 80)
-        print(model._stream_adapter.get_state())
+        print(model._api_state.get_state())
