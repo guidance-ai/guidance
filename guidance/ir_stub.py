@@ -10,6 +10,7 @@ from typing import (
     TypedDict,
     TypeVar,
     Union,
+    cast,
 )
 from uuid import UUID, uuid4
 
@@ -168,11 +169,29 @@ class BaseStreamHandler(Generic[S, R], ABC):
         raise NotImplementedError("No default text processing implementation")
 
 
-class ChatStreamHandler(BaseStreamHandler[dict, R], ABC):
-    def initialize(self) -> dict:
-        return {"active_role": None, "messages": []}
+class BaseChatMessage(TypedDict):
+    role: str
 
-    def process_role_start(self, role_start: RoleStart, state: dict) -> dict:
+
+M = TypeVar("M", bound=BaseChatMessage)
+
+
+class BaseChatState(TypedDict, Generic[M]):
+    active_role: Optional[RoleStart]
+    messages: list[M]
+
+
+CS = TypeVar("CS", bound=BaseChatState)
+
+
+class ChatStreamHandler(BaseStreamHandler[CS, R], ABC):
+    def initialize(self) -> CS:
+        # We can't actually guarantee that BaseChatState is compatible with CS, so this cast is a bit unsafe.
+        # So long as sub-classers are careful to not assume that additionally defined fields are present in the
+        # state, it should be fine. Having a reasonable default implementation of initialize is probably worth it.
+        return cast(CS, {"active_role": None, "messages": []})
+
+    def process_role_start(self, role_start: RoleStart, state: CS) -> CS:
         if state["active_role"] is not None:
             raise ValueError(
                 f"Cannot open role {role_start.role!r}: {state['active_role'].role!r} is already open."
@@ -180,7 +199,7 @@ class ChatStreamHandler(BaseStreamHandler[dict, R], ABC):
         state["active_role"] = role_start
         return state
 
-    def process_role_end(self, role_end: RoleEnd, state: dict) -> dict:
+    def process_role_end(self, role_end: RoleEnd, state: CS) -> CS:
         if state["active_role"] is None:
             raise ValueError("Cannot close role without active role")
         if state["active_role"].id != role_end.id:
@@ -190,13 +209,20 @@ class ChatStreamHandler(BaseStreamHandler[dict, R], ABC):
         return state
 
     @abstractmethod
-    def finalize_message(self, state: dict) -> dict:
+    def finalize_message(self, state: CS) -> CS:
         pass
 
-    def _finalize(self, state: dict) -> R:
-        if state["active_role"] is not None:
-            # Fictitious role end to close the last message
+    def _finalize(self, state: CS) -> R:
+        if (
+            state["active_role"] is not None
+        ):  # TODO: should we assert that it actually is NOT None?
+            # Bit of a hack to ensure we get the active message
             state = self.finalize_message(state)
+        if state["active_role"] is not None:
+            # Bad implementation of finalize_message
+            raise ValueError(
+                f"{self.__class__.__name__}.finalize_message did not close the active role"
+            )
         return self.finalize(state)
 
 
@@ -211,29 +237,54 @@ class CompletionStreamHandler(BaseStreamHandler[str, str]):
         return state
 
 
-class OpenAIStreamHandler(ChatStreamHandler[list[dict]]):
-    def finalize_message(self, state: dict) -> dict:
+class OpenAIContentMessage(TypedDict):
+    role: str
+    content: list[dict]
+
+
+class OpenAIAudioMessage(TypedDict):
+    role: str
+    audio: dict
+
+
+OpenAIMessage = Union[OpenAIContentMessage, OpenAIAudioMessage]
+
+
+class OpenAIState(TypedDict):
+    active_role: Optional[RoleStart]
+    messages: list[OpenAIMessage]
+    content: NotRequired[list[dict]]
+    audio: NotRequired[dict]
+
+
+class OpenAIStreamHandler(ChatStreamHandler[OpenAIState, list[OpenAIMessage]]):
+    def finalize_message(self, state: OpenAIState) -> OpenAIState:
+        if state["active_role"] is None:
+            raise ValueError("Cannot finalize message without active role")
+
         content = state.get("content")
         audio = state.get("audio")
         if content is not None and audio is not None:
             raise ValueError("OpenAI expects either content or audio, not both")
 
         if content is not None:
-            message = {"role": state["active_role"].role, "content": content}
-            state["messages"].append(message)
+            content_message = OpenAIContentMessage(
+                {"role": state["active_role"].role, "content": content}
+            )
+            state["messages"].append(content_message)
             del state["content"]
 
         elif audio is not None:
-            message = {"role": state["active_role"].role, "audio": audio}
-            state["messages"].append(message)
+            audio_message = OpenAIAudioMessage({"role": state["active_role"].role, "audio": audio})
+            state["messages"].append(audio_message)
             del state["audio"]
 
         return state
 
-    def finalize(self, state: dict) -> list[dict]:
+    def finalize(self, state: OpenAIState) -> list[OpenAIMessage]:
         return state["messages"]
 
-    def process_text(self, text: str, state: dict) -> dict:
+    def process_text(self, text: str, state: OpenAIState) -> OpenAIState:
         state.setdefault("content", []).append({"type": "text", "value": text})
         return state
 
