@@ -515,17 +515,18 @@
                 <TokenGridItem token={token} index={i} underlineStyle={underline(token)} bgStyle={bg(token)}/>
             {/each}
 
-            {#if audioNode !== null}
-                <div class="mx-4">
-                    <CustomAudio audioData={audioNode.value} />
-                </div>
-            {/if}
-
             {#if isCompleted === false}
                 <span class="inline-block mt-2 border-b-2 border-white bg-gray-700 animate-cpulse">
                     &nbsp;
                 </span>
             {/if}
         </span>
+
+        {#if audioNode !== null}
+            <div class="my-3">
+                <CustomAudio audioData={audioNode.value} />
+            </div>
+        {/if}
+
     </div>
 </div>
