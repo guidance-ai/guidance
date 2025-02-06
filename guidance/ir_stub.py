@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from contextlib import AbstractContextManager, contextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -11,11 +11,10 @@ from typing import (
     TypedDict,
     TypeVar,
     Union,
-    cast,
 )
 from uuid import UUID, uuid4
 
-from typing_extensions import NotRequired, Self, assert_never
+from typing_extensions import Self, assert_never
 
 # TODO
 Node = str
@@ -36,23 +35,50 @@ ContentChunk = str
 MessageChunk = Union[ContentChunk, RoleStart, RoleEnd]
 
 
-@dataclass(slots=True)
-class Stream:
-    chunks: list[MessageChunk] = field(default_factory=list)
-
-    def apply_chunk(self, chunk: ContentChunk) -> None:
-        self.chunks.append(chunk)
-
-    def open_role(self, role: str) -> RoleStart:
-        raise TypeError("Roles not supported for completion models")
-
-    def close_role(self, id: UUID) -> None:
-        raise TypeError("Roles not supported for completion models")
+R = TypeVar("R")
 
 
-@dataclass(slots=True)
-class ChatStream(Stream):
-    active_role: Optional[RoleStart] = None
+class BaseStream(Generic[R], ABC):
+    @abstractmethod
+    def apply_chunk(self, chunk: MessageChunk) -> None:
+        pass
+
+    @abstractmethod
+    def get_state(self) -> R:
+        pass
+
+
+class BaseStreamAdapter(BaseStream[R]):
+    def apply_chunk(self, chunk: MessageChunk) -> None:
+        match chunk:
+            case RoleStart(_, _) as role_start:
+                self.apply_role_start(role_start)
+            case RoleEnd(_) as role_end:
+                self.apply_role_end(role_end)
+            case str(text):
+                self.apply_text(text)
+            case _:
+                if TYPE_CHECKING:
+                    assert_never(chunk)
+                raise NotImplementedError(f"Chunk type {type(chunk)} not supported")
+
+    @abstractmethod
+    def apply_role_start(self, role_start: RoleStart) -> None:
+        pass
+
+    @abstractmethod
+    def apply_role_end(self, role_end: RoleEnd) -> None:
+        pass
+
+    @abstractmethod
+    def apply_text(self, text: str) -> None:
+        pass
+
+
+class Stream(BaseStream[list[MessageChunk]]):
+    def __init__(self) -> None:
+        self.chunks: list[MessageChunk] = []
+        self.active_role: Optional[RoleStart] = None
 
     def apply_chunk(self, chunk: MessageChunk) -> None:
         match chunk:
@@ -73,13 +99,8 @@ class ChatStream(Stream):
                     raise ValueError("Cannot apply node without active role")
         self.chunks.append(chunk)
 
-    def open_role(self, role: str) -> RoleStart:
-        role_start = RoleStart(role, uuid4())
-        self.apply_chunk(role_start)
-        return role_start
-
-    def close_role(self, id: UUID) -> None:
-        self.apply_chunk(RoleEnd(id))
+    def get_state(self) -> list[MessageChunk]:
+        return self.chunks
 
 
 class Client(ABC):
@@ -88,10 +109,14 @@ class Client(ABC):
         pass
 
 
-class Model:
-    def __init__(self, client: Client, stream: Stream) -> None:
+SA = TypeVar("SA", bound="BaseStreamAdapter")
+
+
+class BaseModel(Generic[SA]):
+    def __init__(self, client: Client, stream: Stream, stream_adapter: SA) -> None:
         self.client = client
         self._stream = stream
+        self._stream_adapter = stream_adapter
 
     def __iadd__(self, other: Node) -> Self:
         self._apply_node(other)
@@ -102,16 +127,28 @@ class Model:
 
     def _apply_node(self, node: Node) -> None:
         for chunk in self.client.run(self._stream, node):
-            self._stream.apply_chunk(chunk)
+            self._apply_chunk(chunk)
 
+    def _apply_chunk(self, chunk: MessageChunk) -> None:
+        self._stream.apply_chunk(chunk)
+        self._stream_adapter.apply_chunk(chunk)
+
+
+class CompletionModel(BaseModel["CompletionStreamAdapter"]):
+    pass
+
+
+class ChatModel(BaseModel["ChatStreamAdapter"]):
     @contextmanager
     def role(self, role: str) -> Iterator[None]:
         # Stream will handle raising an exception if roles are not supported
-        role_start = self._stream.open_role(role)
+        role_start = RoleStart(role, uuid4())
+        self._apply_chunk(role_start)
         try:
             yield
         finally:
-            self._stream.close_role(role_start.id)
+            role_end = RoleEnd(role_start.id)
+            self._apply_chunk(role_end)
 
     def system(self) -> AbstractContextManager[None]:
         return self.role("system")
@@ -123,55 +160,6 @@ class Model:
         return self.role("assistant")
 
 
-S = TypeVar("S")
-R = TypeVar("R")
-
-
-class BaseStreamHandler(Generic[S, R], ABC):
-    # TODO: some kind of prefix caching would be nice, especially if we guarantee
-    # that a stream handler will be repeatedly called with an append-only stream
-    # Alternatively, make this stateful and replace S with self and require
-    # append-only + a reset method
-    def process_stream(self, stream: Stream) -> R:
-        state = self.initialize()
-        for chunk in stream.chunks:
-            state = self.process_chunk(chunk, state)
-        return self._finalize(state)
-
-    def process_chunk(self, chunk: MessageChunk, state: S) -> S:
-        match chunk:
-            case RoleStart(_, _) as role_start:
-                return self.process_role_start(role_start, state)
-            case RoleEnd(_) as role_end:
-                return self.process_role_end(role_end, state)
-            case str(text):
-                return self.process_text(text, state)
-            case _:
-                if TYPE_CHECKING:
-                    assert_never(chunk)
-                raise NotImplementedError(f"Chunk type {type(chunk)} not supported")
-
-    @abstractmethod
-    def initialize(self) -> S:
-        pass
-
-    @abstractmethod
-    def finalize(self, state: S) -> R:
-        pass
-
-    def _finalize(self, state: S) -> R:
-        return self.finalize(state)
-
-    def process_role_start(self, role_start: RoleStart, state: S) -> S:
-        raise TypeError("Roles not supported for completion models")
-
-    def process_role_end(self, role_end: RoleEnd, state: S) -> S:
-        raise TypeError("Roles not supported for completion models")
-
-    def process_text(self, text: str, state: S) -> S:
-        raise NotImplementedError("No default text processing implementation")
-
-
 class BaseChatMessage(TypedDict):
     role: str
 
@@ -179,64 +167,50 @@ class BaseChatMessage(TypedDict):
 M = TypeVar("M", bound=BaseChatMessage)
 
 
-class BaseChatState(TypedDict, Generic[M]):
-    active_role: Optional[RoleStart]
-    messages: list[M]
+class ChatStreamAdapter(Generic[M, R], BaseStreamAdapter[R], ABC):
+    def __init__(self) -> None:
+        self.active_role: Optional[RoleStart] = None
+        self.messages: list[M] = []
 
-
-CS = TypeVar("CS", bound=BaseChatState)
-
-
-class ChatStreamHandler(BaseStreamHandler[CS, R], ABC):
-    def initialize(self) -> CS:
-        # We can't actually guarantee that BaseChatState is compatible with CS, so this cast is a bit unsafe.
-        # So long as sub-classers are careful to not assume that additionally defined fields are present in the
-        # state, it should be fine. Having a reasonable default implementation of initialize is probably worth it.
-        return cast(CS, {"active_role": None, "messages": []})
-
-    def process_role_start(self, role_start: RoleStart, state: CS) -> CS:
-        if state["active_role"] is not None:
+    def apply_role_start(self, role_start: RoleStart) -> None:
+        if self.active_role is not None:
             raise ValueError(
-                f"Cannot open role {role_start.role!r}: {state['active_role'].role!r} is already open."
+                f"Cannot open role {role_start.role!r}: {self.active_role.role!r} is already open."
             )
-        state["active_role"] = role_start
-        return state
+        self.active_role = role_start
 
-    def process_role_end(self, role_end: RoleEnd, state: CS) -> CS:
-        if state["active_role"] is None:
+    def apply_role_end(self, role_end: RoleEnd) -> None:
+        if self.active_role is None:
             raise ValueError("Cannot close role without active role")
-        if state["active_role"].id != role_end.id:
+        if self.active_role.id != role_end.id:
             raise ValueError("RoleEnd does not match active role")
-        state = self.build_message(state)
-        state = self.cleanup_message(state)
-        return state
+        active_message = self.get_active_message()
+        self.messages.append(active_message)
+        self.reset_active_message()
+
+    def reset_active_message(self) -> None:
+        self.active_role = None
 
     @abstractmethod
-    def build_message(self, state: CS) -> CS:
+    def get_active_message(self) -> M:
         pass
 
-    def cleanup_message(self, state: CS) -> CS:
-        state["active_role"] = None
-        return state
 
-    def _finalize(self, state: CS) -> R:
-        if (
-            state["active_role"] is not None
-        ):  # TODO: should we assert that it actually is NOT None?
-            # Bit of a hack to ensure we get the active message
-            state = self.build_message(state)
-        return self.finalize(state)
+class CompletionStreamAdapter(BaseStreamAdapter[str]):
+    def __init__(self) -> None:
+        self.state = ""
 
+    def apply_role_start(self, role_start: RoleStart) -> None:
+        raise TypeError("Roles not supported for completion models")
 
-class CompletionStreamHandler(BaseStreamHandler[str, str]):
-    def initialize(self) -> str:
-        return ""
+    def apply_role_end(self, role_end: RoleEnd) -> None:
+        raise TypeError("Roles not supported for completion models")
 
-    def process_text(self, text: str, state: str) -> str:
-        return state + text
+    def apply_text(self, text: str) -> None:
+        self.state += text
 
-    def finalize(self, state: str) -> str:
-        return state
+    def get_state(self) -> str:
+        return self.state
 
 
 class OpenAIContentMessage(TypedDict):
@@ -252,75 +226,41 @@ class OpenAIAudioMessage(TypedDict):
 OpenAIMessage = Union[OpenAIContentMessage, OpenAIAudioMessage]
 
 
-class OpenAIState(TypedDict):
-    active_role: Optional[RoleStart]
-    messages: list[OpenAIMessage]
-    content: NotRequired[list[dict]]
-    audio: NotRequired[dict]
-
-
-class OpenAIStreamHandler(ChatStreamHandler[OpenAIState, list[OpenAIMessage]]):
-    def build_message(self, state: OpenAIState) -> OpenAIState:
-        if state["active_role"] is None:
-            raise ValueError("Cannot finalize message without active role")
-
-        content = state.get("content")
-        audio = state.get("audio")
-        if content is not None and audio is not None:
-            raise ValueError("OpenAI expects either content or audio, not both")
-
-        if content is not None:
-            content_message = OpenAIContentMessage(
-                {"role": state["active_role"].role, "content": content}
-            )
-            state["messages"].append(content_message)
-
-        elif audio is not None:
-            audio_message = OpenAIAudioMessage({"role": state["active_role"].role, "audio": audio})
-            state["messages"].append(audio_message)
-
-        return state
-
-    def cleanup_message(self, state: OpenAIState) -> OpenAIState:
-        state.pop("content", None)
-        state.pop("audio", None)
-        return super().cleanup_message(state)
-
-    def finalize(self, state: OpenAIState) -> list[OpenAIMessage]:
-        return state["messages"]
-
-    def process_text(self, text: str, state: OpenAIState) -> OpenAIState:
-        state.setdefault("content", []).append({"type": "text", "value": text})
-        return state
-
-
-class OpenAIClient(Client):
+class OpenAIStreamAdapter(ChatStreamAdapter[OpenAIMessage, list[OpenAIMessage]]):
     def __init__(self) -> None:
-        self.stream_handler = OpenAIStreamHandler()
+        super().__init__()
+        self.content: list[dict] = []
+        self.audio: Optional[dict] = None
 
-    def run(self, stream: Stream, node: Node) -> Iterable[ContentChunk]:
-        if isinstance(node, str):
-            yield node
-        else:
-            raise NotImplementedError("Node must be a string")
+    def get_active_message(self) -> OpenAIMessage:
+        if self.active_role is None:
+            raise ValueError("Cannot build message without active role")
+
+        if self.audio:
+            if self.content:
+                raise ValueError("Expected either content or audio in OpenAI message, not both")
+            return OpenAIAudioMessage({"role": self.active_role.role, "audio": self.audio})
+
+        return OpenAIContentMessage({"role": self.active_role.role, "content": self.content})
+
+    def reset_active_message(self) -> None:
+        self.content = []
+        self.audio = None
+        super().reset_active_message()
+
+    def apply_text(self, text: str) -> None:
+        self.content.append({"type": "text", "text": text})
+
+    def get_state(self) -> list[OpenAIMessage]:
+        return self.messages
 
 
-# Some transformers models want a string, some want a list of dicts...
-TC = TypeVar("TC", bound=Union[str, list[dict]])
+TC = TypeVar("TC")
 
 
 class TransformersMessage(TypedDict, Generic[TC]):
     role: str
     content: TC
-
-
-class TransformersState(TypedDict, Generic[TC]):
-    active_role: Optional[RoleStart]
-    messages: list[TransformersMessage[TC]]
-    content: NotRequired[TC]
-    images: NotRequired[list[Any]]
-    audio: NotRequired[list[Any]]
-    videos: NotRequired[list[Any]]
 
 
 class TransformersStreamReturn(TypedDict, Generic[TC]):
@@ -330,45 +270,74 @@ class TransformersStreamReturn(TypedDict, Generic[TC]):
     videos: list[Any]
 
 
-class BaseTransformersChatStreamHandler(
-    ChatStreamHandler[TransformersState[TC], TransformersStreamReturn[TC]]
+class BaseTransformersChatStreamAdapter(
+    ChatStreamAdapter[TransformersMessage[TC], TransformersStreamReturn[TC]]
 ):
-    def build_message(self, state: TransformersState[TC]) -> TransformersState[TC]:
-        if state["active_role"] is None:
-            raise ValueError("Cannot finalize message without active role")
-        content = state.get("content")
-        if content is not None:
-            message = TransformersMessage({"role": state["active_role"].role, "content": content})
-            state["messages"].append(message)
-        return state
+    content: TC
+    images: list[Any]
+    audio: list[Any]
+    videos: list[Any]
 
-    def cleanup_message(self, state: TransformersState[TC]) -> TransformersState[TC]:
-        state.pop("content", None)
-        # Don't delete images, audio, or videos, as they are not part of the message
-        return super().cleanup_message(state)
+    def get_active_message(self) -> TransformersMessage[TC]:
+        if self.active_role is None:
+            raise ValueError("Cannot build message without active role")
 
-    def finalize(self, state: TransformersState[TC]) -> TransformersStreamReturn[TC]:
+        return TransformersMessage({"role": self.active_role.role, "content": self.content})
+
+    def get_state(self) -> TransformersStreamReturn[TC]:
         return {
-            "messages": state["messages"],
-            "images": state.get("images", []),
-            "audio": state.get("audio", []),
-            "videos": state.get("videos", []),
+            "messages": self.messages,
+            "images": self.images,
+            "audio": self.audio,
+            "videos": self.videos,
         }
 
 
-class DefaultTransformersStreamHandler(BaseTransformersChatStreamHandler[str]):
-    def process_text(self, text: str, state: TransformersState[str]) -> TransformersState[str]:
-        try:
-            state["content"] += text
-        except KeyError:
-            state["content"] = text
-        return state
-
-
-class DefaultTransformersChatClient(Client):
+class TransformersStructuredStreamAdapter(BaseTransformersChatStreamAdapter[list[dict]]):
     def __init__(self) -> None:
-        self.stream_handler = DefaultTransformersStreamHandler()
+        super().__init__()
+        self.content = []
+        self.images = []
+        self.audio = []
+        self.videos = []
 
+    def reset_active_message(self) -> None:
+        self.content = []
+        # Don't delete images, audio, or videos, as they are not part of the message
+        super().reset_active_message()
+
+
+class TransformersUnstructuredStreamAdapter(BaseTransformersChatStreamAdapter[str]):
+    def __init__(self) -> None:
+        super().__init__()
+        self.content = ""
+        self.images = []
+        self.audio = []
+        self.videos = []
+
+    def reset_active_message(self) -> None:
+        self.content = ""
+        # Don't delete images, audio, or videos, as they are not part of the message
+        super().reset_active_message()
+
+    def apply_text(self, text: str) -> None:
+        if self.content is None:
+            self.content = ""
+        self.content += text
+
+
+class Llama3TransformersStreamAdapter(TransformersStructuredStreamAdapter):
+    def __init__(self) -> None:
+        super().__init__()
+        self.content = []
+
+    def apply_text(self, text: str) -> None:
+        if self.content is None:
+            self.content = []
+        self.content.append({"type": "text", "text": text})
+
+
+class DummyClient(Client):
     def run(self, stream: Stream, node: Node) -> Iterable[ContentChunk]:
         if isinstance(node, str):
             yield node
@@ -376,23 +345,22 @@ class DefaultTransformersChatClient(Client):
             raise NotImplementedError("Node must be a string")
 
 
-class Llama3TransformersStreamHandler(BaseTransformersChatStreamHandler[list[dict]]):
-    def process_text(
-        self, text: str, state: TransformersState[list[dict]]
-    ) -> TransformersState[list[dict]]:
-        state.setdefault("content", []).append({"type": "text", "text": text})
-        return state
-
-
 def chat():
-    client = DefaultTransformersChatClient()
-    stream = ChatStream()
-    model = Model(client, stream)
-    with model.system():
-        model += "Talk like a pirate!"
-    with model.user():
-        model += "Hello, model!"
-        model += "\nHow are you?"
-    with model.assistant():
-        model += "I'm doing well, thank you!"
-    return client.stream_handler.process_stream(stream)
+    import json
+
+    for sa in [
+        OpenAIStreamAdapter,
+        TransformersUnstructuredStreamAdapter,
+        Llama3TransformersStreamAdapter,
+    ]:
+        model = ChatModel(DummyClient(), Stream(), sa())
+        with model.system():
+            model += "Talk like a pirate!"
+        with model.user():
+            model += "Hello, model!"
+            model += "\nHow are you?"
+        with model.assistant():
+            model += "I'm doing well, thank you!"
+        print("-" * 80)
+        print(sa.__name__)
+        print(json.dumps(model._stream_adapter.get_state(), indent=2))
