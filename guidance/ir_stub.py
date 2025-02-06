@@ -130,6 +130,8 @@ R = TypeVar("R")
 class BaseStreamHandler(Generic[S, R], ABC):
     # TODO: some kind of prefix caching would be nice, especially if we guarantee
     # that a stream handler will be repeatedly called with an append-only stream
+    # Alternatively, make this stateful and replace S with self and require
+    # append-only + a reset method
     def process_stream(self, stream: Stream) -> R:
         state = self.initialize()
         for chunk in stream.chunks:
