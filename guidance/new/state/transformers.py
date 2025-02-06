@@ -3,6 +3,7 @@ from typing import Any, Generic, TypedDict, TypeVar
 
 from .base import ChatState
 
+# Type of content in a message
 TC = TypeVar("TC")
 
 
