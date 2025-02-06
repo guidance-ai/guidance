@@ -338,7 +338,6 @@ class BaseTransformersChatStreamHandler(
         if content is not None:
             message = TransformersMessage({"role": state["active_role"].role, "content": content})
             state["messages"].append(message)
-            del state["content"]
         return state
 
     def cleanup_message(self, state: TransformersState[TC]) -> TransformersState[TC]:
