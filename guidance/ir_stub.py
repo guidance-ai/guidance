@@ -39,36 +39,50 @@ R = TypeVar("R")
 
 
 class BaseStream(Generic[R], ABC):
-    @abstractmethod
-    def apply_chunk(self, chunk: MessageChunk) -> None:
-        pass
+    def __init__(self) -> None:
+        self.active_role: Optional[RoleStart] = None
 
-    @abstractmethod
-    def get_state(self) -> R:
-        pass
-
-
-class BaseStreamAdapter(BaseStream[R]):
     def apply_chunk(self, chunk: MessageChunk) -> None:
         match chunk:
             case RoleStart(_, _) as role_start:
                 self.apply_role_start(role_start)
             case RoleEnd(_) as role_end:
                 self.apply_role_end(role_end)
+            case _:
+                self.apply_content_chunk(chunk)
+
+    def apply_role_start(self, role_start: RoleStart) -> None:
+        if self.active_role is not None:
+            raise ValueError(
+                f"Cannot open role {role_start.role!r}: {self.active_role.role!r} is already open."
+            )
+        self.active_role = role_start
+
+    def apply_role_end(self, role_end: RoleEnd) -> None:
+        if self.active_role is None:
+            raise ValueError("Cannot close role without active role")
+        if self.active_role.id != role_end.id:
+            raise ValueError("RoleEnd does not match active role")
+        self.active_role = None
+
+    @abstractmethod
+    def get_state(self) -> R:
+        pass
+
+    @abstractmethod
+    def apply_content_chunk(self, chunk: ContentChunk) -> None:
+        pass
+
+
+class BaseStreamAdapter(BaseStream[R]):
+    def apply_content_chunk(self, chunk: ContentChunk) -> None:
+        match chunk:
             case str(text):
                 self.apply_text(text)
             case _:
                 if TYPE_CHECKING:
                     assert_never(chunk)
                 raise NotImplementedError(f"Chunk type {type(chunk)} not supported")
-
-    @abstractmethod
-    def apply_role_start(self, role_start: RoleStart) -> None:
-        pass
-
-    @abstractmethod
-    def apply_role_end(self, role_end: RoleEnd) -> None:
-        pass
 
     @abstractmethod
     def apply_text(self, text: str) -> None:
@@ -80,24 +94,14 @@ class Stream(BaseStream[list[MessageChunk]]):
         self.chunks: list[MessageChunk] = []
         self.active_role: Optional[RoleStart] = None
 
-    def apply_chunk(self, chunk: MessageChunk) -> None:
-        match chunk:
-            case RoleStart(role, id):
-                if self.active_role is not None:
-                    raise ValueError(
-                        f"Cannot open role {role!r}: {self.active_role.role!r} is already open."
-                    )
-                self.active_role = RoleStart(role, id)
-            case RoleEnd(id):
-                if self.active_role is None:
-                    raise ValueError("Cannot close role without active role")
-                if self.active_role.id != id:
-                    raise ValueError("RoleEnd does not match active role")
-                self.active_role = None
-            case _:
-                if self.active_role is None:
-                    raise ValueError("Cannot apply node without active role")
+    def apply_content_chunk(self, chunk: str) -> None:
         self.chunks.append(chunk)
+
+    def apply_role_start(self, role_start: RoleStart) -> None:
+        self.chunks.append(role_start)
+
+    def apply_role_end(self, role_end: RoleEnd) -> None:
+        self.chunks.append(role_end)
 
     def get_state(self) -> list[MessageChunk]:
         return self.chunks
@@ -109,11 +113,10 @@ class Client(ABC):
         pass
 
 
-SA = TypeVar("SA", bound="BaseStreamAdapter")
-
-
-class BaseModel(Generic[SA]):
-    def __init__(self, client: Client, stream: Stream, stream_adapter: SA) -> None:
+class Model:
+    def __init__(
+        self, client: Client, stream: Stream, stream_adapter: "BaseStreamAdapter"
+    ) -> None:
         self.client = client
         self._stream = stream
         self._stream_adapter = stream_adapter
@@ -130,18 +133,13 @@ class BaseModel(Generic[SA]):
             self._apply_chunk(chunk)
 
     def _apply_chunk(self, chunk: MessageChunk) -> None:
-        self._stream.apply_chunk(chunk)
+        # Apply to stream adapter first, so that it can raise an exception if the chunk is not supported
         self._stream_adapter.apply_chunk(chunk)
+        self._stream.apply_chunk(chunk)
 
-
-class CompletionModel(BaseModel["CompletionStreamAdapter"]):
-    pass
-
-
-class ChatModel(BaseModel["ChatStreamAdapter"]):
     @contextmanager
     def role(self, role: str) -> Iterator[None]:
-        # Stream will handle raising an exception if roles are not supported
+        # Stream adapter will handle raising an exception if roles are not supported
         role_start = RoleStart(role, uuid4())
         self._apply_chunk(role_start)
         try:
@@ -172,24 +170,24 @@ class ChatStreamAdapter(Generic[M, R], BaseStreamAdapter[R], ABC):
         self.active_role: Optional[RoleStart] = None
         self.messages: list[M] = []
 
-    def apply_role_start(self, role_start: RoleStart) -> None:
-        if self.active_role is not None:
+    def apply_content_chunk(self, chunk: ContentChunk) -> None:
+        if self.active_role is None:
             raise ValueError(
-                f"Cannot open role {role_start.role!r}: {self.active_role.role!r} is already open."
+                "Cannot add to chat model outside of a role block (use model.system(), model.user(), or model.assistant() context managers)"
             )
-        self.active_role = role_start
+        super().apply_content_chunk(chunk)
 
     def apply_role_end(self, role_end: RoleEnd) -> None:
-        if self.active_role is None:
-            raise ValueError("Cannot close role without active role")
-        if self.active_role.id != role_end.id:
-            raise ValueError("RoleEnd does not match active role")
+        # Get active message before closing it with apply_role_end and reset_active_message
         active_message = self.get_active_message()
+        # Use apply_role_end to hit any exceptions before other state mutations
+        super().apply_role_end(role_end)
         self.messages.append(active_message)
         self.reset_active_message()
 
+    @abstractmethod
     def reset_active_message(self) -> None:
-        self.active_role = None
+        pass
 
     @abstractmethod
     def get_active_message(self) -> M:
@@ -201,10 +199,10 @@ class CompletionStreamAdapter(BaseStreamAdapter[str]):
         self.state = ""
 
     def apply_role_start(self, role_start: RoleStart) -> None:
-        raise TypeError("Roles not supported for completion models")
+        raise TypeError("Role blocks not supported for completion models")
 
     def apply_role_end(self, role_end: RoleEnd) -> None:
-        raise TypeError("Roles not supported for completion models")
+        raise TypeError("Role blocks not supported for completion models")
 
     def apply_text(self, text: str) -> None:
         self.state += text
@@ -244,9 +242,9 @@ class OpenAIStreamAdapter(ChatStreamAdapter[OpenAIMessage, list[OpenAIMessage]])
         return OpenAIContentMessage({"role": self.active_role.role, "content": self.content})
 
     def reset_active_message(self) -> None:
+        super().reset_active_message()
         self.content = []
         self.audio = None
-        super().reset_active_message()
 
     def apply_text(self, text: str) -> None:
         self.content.append({"type": "text", "text": text})
@@ -273,10 +271,12 @@ class TransformersStreamReturn(TypedDict, Generic[TC]):
 class BaseTransformersChatStreamAdapter(
     ChatStreamAdapter[TransformersMessage[TC], TransformersStreamReturn[TC]]
 ):
-    content: TC
-    images: list[Any]
-    audio: list[Any]
-    videos: list[Any]
+    def __init__(self) -> None:
+        super().__init__()
+        self.content: TC = self._default_content_factory()
+        self.images: list[Any] = []
+        self.audio: list[Any] = []
+        self.videos: list[Any] = []
 
     def get_active_message(self) -> TransformersMessage[TC]:
         if self.active_role is None:
@@ -292,33 +292,24 @@ class BaseTransformersChatStreamAdapter(
             "videos": self.videos,
         }
 
+    def reset_active_message(self) -> None:
+        super().reset_active_message()
+        # Don't delete images, audio, or videos, as they are not part of the message
+        self.content = self._default_content_factory()
+
+    @abstractmethod
+    def _default_content_factory(self) -> TC:
+        pass
+
 
 class TransformersStructuredStreamAdapter(BaseTransformersChatStreamAdapter[list[dict]]):
-    def __init__(self) -> None:
-        super().__init__()
-        self.content = []
-        self.images = []
-        self.audio = []
-        self.videos = []
-
-    def reset_active_message(self) -> None:
-        self.content = []
-        # Don't delete images, audio, or videos, as they are not part of the message
-        super().reset_active_message()
+    def _default_content_factory(self) -> list[dict]:
+        return []
 
 
 class TransformersUnstructuredStreamAdapter(BaseTransformersChatStreamAdapter[str]):
-    def __init__(self) -> None:
-        super().__init__()
-        self.content = ""
-        self.images = []
-        self.audio = []
-        self.videos = []
-
-    def reset_active_message(self) -> None:
-        self.content = ""
-        # Don't delete images, audio, or videos, as they are not part of the message
-        super().reset_active_message()
+    def _default_content_factory(self) -> str:
+        return ""
 
     def apply_text(self, text: str) -> None:
         if self.content is None:
@@ -327,10 +318,6 @@ class TransformersUnstructuredStreamAdapter(BaseTransformersChatStreamAdapter[st
 
 
 class Llama3TransformersStreamAdapter(TransformersStructuredStreamAdapter):
-    def __init__(self) -> None:
-        super().__init__()
-        self.content = []
-
     def apply_text(self, text: str) -> None:
         if self.content is None:
             self.content = []
@@ -353,7 +340,7 @@ def chat():
         TransformersUnstructuredStreamAdapter,
         Llama3TransformersStreamAdapter,
     ]:
-        model = ChatModel(DummyClient(), Stream(), sa())
+        model = Model(DummyClient(), Stream(), sa())
         with model.system():
             model += "Talk like a pirate!"
         with model.user():
@@ -363,4 +350,20 @@ def chat():
             model += "I'm doing well, thank you!"
         print("-" * 80)
         print(sa.__name__)
+        print("-" * 80)
         print(json.dumps(model._stream_adapter.get_state(), indent=2))
+
+
+def completion():
+    for sa in [
+        CompletionStreamAdapter,
+    ]:
+        model = Model(DummyClient(), Stream(), sa())
+        model += "<|system|>\nTalk like a pirate!\n<|end_of_turn|>\n"
+        model += "<|user|>\nHello, model!\n<|end_of_turn|>\n"
+        model += "<|user|>\nHow are you?\n<|end_of_turn|>\n"
+        model += "<|assistant|>\nI'm doing well, thank you!\n<|end_of_turn|>\n"
+        print("-" * 80)
+        print(sa.__name__)
+        print("-" * 80)
+        print(model._stream_adapter.get_state())
