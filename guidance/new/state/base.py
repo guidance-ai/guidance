@@ -57,7 +57,7 @@ class InternalState(BaseState[list[MessageChunk]]):
         self.chunks: list[MessageChunk] = []
         self.active_role: Optional[RoleStart] = None
 
-    def apply_content_chunk(self, chunk: str) -> None:
+    def apply_content_chunk(self, chunk: ContentChunk) -> None:
         super().apply_content_chunk(chunk)
         self.chunks.append(chunk)
 
