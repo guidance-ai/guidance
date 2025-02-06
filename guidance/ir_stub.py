@@ -3,17 +3,17 @@ from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass, field
 from typing import (
     TYPE_CHECKING,
-    Any,
     Generic,
     Iterable,
     Iterator,
     Optional,
+    TypedDict,
     TypeVar,
     Union,
 )
 from uuid import UUID, uuid4
 
-from typing_extensions import Self, assert_never
+from typing_extensions import NotRequired, Self, assert_never
 
 # TODO
 Node = str
@@ -33,27 +33,26 @@ class RoleEnd:
 ContentChunk = str
 MessageChunk = Union[ContentChunk, RoleStart, RoleEnd]
 
-C = TypeVar("C", bound=MessageChunk)
-
 
 @dataclass(slots=True)
-class Stream(Generic[C]):
-    chunks: list[C] = field(default_factory=list)
+class Stream:
+    chunks: list[MessageChunk] = field(default_factory=list)
 
-    def apply_chunk(self, chunk: C) -> C:
+    def apply_chunk(self, chunk: ContentChunk) -> None:
         self.chunks.append(chunk)
-        return chunk
 
+    def open_role(self, role: str) -> RoleStart:
+        raise TypeError("Roles not supported for completion models")
 
-class CompletionStream(Stream[ContentChunk]):
-    pass
+    def close_role(self, id: UUID) -> None:
+        raise TypeError("Roles not supported for completion models")
 
 
 @dataclass(slots=True)
-class MessageStream(Stream[MessageChunk]):
+class ChatStream(Stream):
     active_role: Optional[RoleStart] = None
 
-    def apply_chunk(self, chunk: C) -> C:
+    def apply_chunk(self, chunk: MessageChunk) -> None:
         match chunk:
             case RoleStart(role, id):
                 if self.active_role is not None:
@@ -71,32 +70,26 @@ class MessageStream(Stream[MessageChunk]):
                 if self.active_role is None:
                     raise ValueError("Cannot apply node without active role")
         self.chunks.append(chunk)
-        return chunk
 
     def open_role(self, role: str) -> RoleStart:
-        return self.apply_chunk(RoleStart(role, uuid4()))
+        role_start = RoleStart(role, uuid4())
+        self.apply_chunk(role_start)
+        return role_start
 
-    def close_role(self, id: UUID) -> RoleEnd:
-        return self.apply_chunk(RoleEnd(id))
+    def close_role(self, id: UUID) -> None:
+        self.apply_chunk(RoleEnd(id))
 
 
-S = TypeVar("S", bound=Stream)
-
-
-class Client(Generic[S], ABC):
+class Client(ABC):
     @abstractmethod
-    def run(self, stream: S, node: Node) -> Iterable[ContentChunk]:
+    def run(self, stream: Stream, node: Node) -> Iterable[ContentChunk]:
         pass
 
 
-class Model(Generic[S]):
-    def __init__(self, client: Client[S], stream: S) -> None:
+class Model:
+    def __init__(self, client: Client, stream: Stream) -> None:
         self.client = client
         self._stream = stream
-
-    def _apply_node(self, node: Node) -> None:
-        for chunk in self.client.run(self._stream, node):
-            self._stream.apply_chunk(chunk)
 
     def __iadd__(self, other: Node) -> Self:
         self._apply_node(other)
@@ -105,23 +98,13 @@ class Model(Generic[S]):
     def __add__(self, other: Node) -> None:
         raise TypeError("Use += to add nodes")
 
-
-class CompletionModel(Model[CompletionStream]):
-    def __init__(self, client: Client[CompletionStream]) -> None:
-        super().__init__(client, CompletionStream())
-
-
-class ChatModel(Model[MessageStream]):
-    def __init__(self, client: Client[MessageStream]) -> None:
-        super().__init__(client, MessageStream())
-
     def _apply_node(self, node: Node) -> None:
-        if self._stream.active_role is None:
-            raise ValueError(f"Cannot apply node to chat model without active role: {node!r}")
-        return super()._apply_node(node)
+        for chunk in self.client.run(self._stream, node):
+            self._stream.apply_chunk(chunk)
 
     @contextmanager
     def role(self, role: str) -> Iterator[None]:
+        # Stream will handle raising an exception if roles are not supported
         role_start = self._stream.open_role(role)
         try:
             yield
@@ -138,80 +121,128 @@ class ChatModel(Model[MessageStream]):
         return self.role("assistant")
 
 
-class StreamHandler(Generic[S], ABC):
-    @abstractmethod
-    def process_stream(self, stream: S) -> Any:
-        pass
+S = TypeVar("S")
+R = TypeVar("R")
 
-    def process_chunk(self, chunk: ContentChunk) -> Any:
+
+class BaseStreamHandler(Generic[S, R], ABC):
+    # TODO: some kind of prefix caching would be nice, especially if we guarantee
+    # that a stream handler will be repeatedly called with an append-only stream
+    def process_stream(self, stream: Stream) -> R:
+        state = self.initialize()
+        for chunk in stream.chunks:
+            state = self.process_chunk(chunk, state)
+        return self._finalize(state)
+
+    def process_chunk(self, chunk: MessageChunk, state: S) -> S:
         match chunk:
+            case RoleStart(_, _) as role_start:
+                return self.process_role_start(role_start, state)
+            case RoleEnd(_) as role_end:
+                return self.process_role_end(role_end, state)
             case str(text):
-                return self.process_text(text)
+                return self.process_text(text, state)
             case _:
                 if TYPE_CHECKING:
                     assert_never(chunk)
                 raise NotImplementedError(f"Chunk type {type(chunk)} not supported")
 
-    def process_text(self, text: str) -> Any:
-        raise NotImplementedError("Text processing not supported")
+    @abstractmethod
+    def initialize(self) -> S:
+        pass
+
+    @abstractmethod
+    def finalize(self, state: S) -> R:
+        pass
+
+    def _finalize(self, state: S) -> R:
+        return self.finalize(state)
+
+    def process_role_start(self, role_start: RoleStart, state: S) -> S:
+        raise TypeError("Roles not supported for completion models")
+
+    def process_role_end(self, role_end: RoleEnd, state: S) -> S:
+        raise TypeError("Roles not supported for completion models")
+
+    def process_text(self, text: str, state: S) -> S:
+        raise NotImplementedError("No default text processing implementation")
 
 
-class CompletionStreamHandler(StreamHandler[CompletionStream]):
-    def process_stream(self, stream: CompletionStream) -> Iterable[Any]:
-        for chunk in stream.chunks:
-            yield self.process_chunk(chunk)
+class ChatStreamHandler(BaseStreamHandler[dict, R], ABC):
+    def initialize(self) -> dict:
+        return {"active_role": None, "messages": []}
+
+    def process_role_start(self, role_start: RoleStart, state: dict) -> dict:
+        if state["active_role"] is not None:
+            raise ValueError(
+                f"Cannot open role {role_start.role!r}: {state['active_role'].role!r} is already open."
+            )
+        state["active_role"] = role_start
+        return state
+
+    def process_role_end(self, role_end: RoleEnd, state: dict) -> dict:
+        if state["active_role"] is None:
+            raise ValueError("Cannot close role without active role")
+        if state["active_role"].id != role_end.id:
+            raise ValueError("RoleEnd does not match active role")
+        state = self.finalize_message(state)
+        state["active_role"] = None
+        return state
+
+    @abstractmethod
+    def finalize_message(self, state: dict) -> dict:
+        pass
+
+    def _finalize(self, state: dict) -> R:
+        if state["active_role"] is not None:
+            # Fictitious role end to close the last message
+            state = self.finalize_message(state)
+        return self.finalize(state)
 
 
-@dataclass(frozen=True, slots=True)
-class Message:
-    role: str
-    content: tuple[Any, ...]
+class CompletionStreamHandler(BaseStreamHandler[str, str]):
+    def initialize(self) -> str:
+        return ""
+
+    def process_text(self, text: str, state: str) -> str:
+        return state + text
+
+    def finalize(self, state: str) -> str:
+        return state
 
 
-class ChatStreamHandler(StreamHandler[MessageStream]):
-    def process_stream(self, stream: MessageStream) -> Iterable[Message]:
-        # TODO: add a prefix cache?
-        active_role: Optional[RoleStart] = None
-        active_content: list[Any] = []
-        for chunk in stream.chunks:
-            if active_role is None:
-                if isinstance(chunk, RoleStart):
-                    active_role = chunk
-                else:
-                    raise ValueError("Cannot apply node without active role")
-            elif isinstance(chunk, RoleStart):
-                raise ValueError("Cannot open role without closing active role")
-            elif isinstance(chunk, RoleEnd):
-                if active_role.id != chunk.id:
-                    raise ValueError("RoleEnd does not match active role")
-                yield Message(active_role.role, tuple(active_content))
-                active_role = None
-                active_content.clear()
-            else:
-                active_content.append(self.process_chunk(chunk))
+class OpenAIStreamHandler(ChatStreamHandler[list[dict]]):
+    def finalize_message(self, state: dict) -> dict:
+        content = state.get("content")
+        audio = state.get("audio")
+        if content is not None and audio is not None:
+            raise ValueError("OpenAI expects either content or audio, not both")
 
-        if active_role is not None:
-            yield Message(active_role.role, tuple(active_content))
+        if content is not None:
+            message = {"role": state["active_role"].role, "content": content}
+            state["messages"].append(message)
+            del state["content"]
 
+        elif audio is not None:
+            message = {"role": state["active_role"].role, "audio": audio}
+            state["messages"].append(message)
+            del state["audio"]
 
-class OpenAIStreamHandler(StreamHandler):
-    def process_text(self, text: str) -> Any:
-        return {"type": "text", "text": text}
+        return state
+
+    def finalize(self, state: dict) -> list[dict]:
+        return state["messages"]
+
+    def process_text(self, text: str, state: dict) -> dict:
+        state.setdefault("content", []).append({"type": "text", "value": text})
+        return state
 
 
-class OpenAIChatStreamHandler(OpenAIStreamHandler, ChatStreamHandler):
-    pass
+class OpenAIClient(Client):
+    def __init__(self) -> None:
+        self.stream_handler = OpenAIStreamHandler()
 
-
-class OpenAICompletionStreamHandler(OpenAIStreamHandler, CompletionStreamHandler):
-    pass
-
-
-class ChatClient(Client[MessageStream]):
-    def __init__(self, stream_handler: ChatStreamHandler) -> None:
-        self.stream_handler = stream_handler
-
-    def run(self, stream: MessageStream, node: Node) -> Iterable[ContentChunk]:
+    def run(self, stream: Stream, node: Node) -> Iterable[ContentChunk]:
         messages = self.stream_handler.process_stream(stream)
         if isinstance(node, str):
             yield node
@@ -219,36 +250,15 @@ class ChatClient(Client[MessageStream]):
             raise NotImplementedError("Node must be a string")
 
 
-class CompletionClient(Client[CompletionStream]):
-    def __init__(self, stream_handler: StreamHandler[CompletionStream]) -> None:
-        self.stream_handler = stream_handler
-
-    def run(self, stream: CompletionStream, node: Node) -> Iterable[ContentChunk]:
-        if isinstance(node, str):
-            yield node
-        else:
-            raise NotImplementedError("Node must be a string")
-
-
 def chat():
-    stream_handler = OpenAIChatStreamHandler()
-    chat_client = ChatClient(stream_handler)
-    chat_model = ChatModel(chat_client)
-    with chat_model.system():
-        chat_model += "Talk like a pirate!"
-    with chat_model.user():
-        chat_model += "Hello, model!"
-        chat_model += "How are you?"
-    with chat_model.assistant():
-        chat_model += "I'm doing well, thank you!"
-    return list(stream_handler.process_stream(chat_model._stream))
-
-
-def completion():
-    stream_handler = OpenAICompletionStreamHandler()
-    completion_client = CompletionClient(stream_handler)
-    completion_model = CompletionModel(completion_client)
-    completion_model += "Complete this sentence: "
-    completion_model += "The quick brown fox jumps over the"
-    completion_model += "lazy dog."
-    return list(stream_handler.process_stream(completion_model._stream))
+    client = OpenAIClient()
+    stream = ChatStream()
+    model = Model(client, stream)
+    with model.system():
+        model += "Talk like a pirate!"
+    with model.user():
+        model += "Hello, model!"
+        model += "How are you?"
+    with model.assistant():
+        model += "I'm doing well, thank you!"
+    return list(client.stream_handler.process_stream(stream))
