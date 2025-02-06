@@ -205,20 +205,24 @@ class ChatStreamHandler(BaseStreamHandler[CS, R], ABC):
             raise ValueError("Cannot close role without active role")
         if state["active_role"].id != role_end.id:
             raise ValueError("RoleEnd does not match active role")
-        state = self.finalize_message(state)
-        state["active_role"] = None
+        state = self.build_message(state)
+        state = self.cleanup_message(state)
         return state
 
     @abstractmethod
-    def finalize_message(self, state: CS) -> CS:
+    def build_message(self, state: CS) -> CS:
         pass
+
+    def cleanup_message(self, state: CS) -> CS:
+        state["active_role"] = None
+        return state
 
     def _finalize(self, state: CS) -> R:
         if (
             state["active_role"] is not None
         ):  # TODO: should we assert that it actually is NOT None?
             # Bit of a hack to ensure we get the active message
-            state = self.finalize_message(state)
+            state = self.build_message(state)
         return self.finalize(state)
 
 
@@ -254,7 +258,7 @@ class OpenAIState(TypedDict):
 
 
 class OpenAIStreamHandler(ChatStreamHandler[OpenAIState, list[OpenAIMessage]]):
-    def finalize_message(self, state: OpenAIState) -> OpenAIState:
+    def build_message(self, state: OpenAIState) -> OpenAIState:
         if state["active_role"] is None:
             raise ValueError("Cannot finalize message without active role")
 
@@ -268,14 +272,17 @@ class OpenAIStreamHandler(ChatStreamHandler[OpenAIState, list[OpenAIMessage]]):
                 {"role": state["active_role"].role, "content": content}
             )
             state["messages"].append(content_message)
-            del state["content"]
 
         elif audio is not None:
             audio_message = OpenAIAudioMessage({"role": state["active_role"].role, "audio": audio})
             state["messages"].append(audio_message)
-            del state["audio"]
 
         return state
+
+    def cleanup_message(self, state: OpenAIState) -> OpenAIState:
+        state.pop("content", None)
+        state.pop("audio", None)
+        return super().cleanup_message(state)
 
     def finalize(self, state: OpenAIState) -> list[OpenAIMessage]:
         return state["messages"]
@@ -324,7 +331,7 @@ class TransformersStreamReturn(TypedDict, Generic[TC]):
 class BaseTransformersChatStreamHandler(
     ChatStreamHandler[TransformersState[TC], TransformersStreamReturn[TC]]
 ):
-    def finalize_message(self, state: TransformersState[TC]) -> TransformersState[TC]:
+    def build_message(self, state: TransformersState[TC]) -> TransformersState[TC]:
         if state["active_role"] is None:
             raise ValueError("Cannot finalize message without active role")
         content = state.get("content")
@@ -333,6 +340,11 @@ class BaseTransformersChatStreamHandler(
             state["messages"].append(message)
             del state["content"]
         return state
+
+    def cleanup_message(self, state: TransformersState[TC]) -> TransformersState[TC]:
+        state.pop("content", None)
+        # Don't delete images, audio, or videos, as they are not part of the message
+        return super().cleanup_message(state)
 
     def finalize(self, state: TransformersState[TC]) -> TransformersStreamReturn[TC]:
         return {
