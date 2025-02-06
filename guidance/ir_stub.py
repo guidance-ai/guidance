@@ -120,12 +120,11 @@ class Model:
     def __init__(
         self,
         client: Client,
-        internal_state: InternalState,
         api_state: APIState,
     ) -> None:
         self.client = client
-        self._internal_state = internal_state
         self._api_state = api_state
+        self._internal_state = InternalState()
 
     def __iadd__(self, other: Node) -> Self:
         self._apply_node(other)
@@ -344,7 +343,7 @@ def chat():
         TransformersUnstructuredState,
         Llama3TransformersState,
     ]:
-        model = Model(DummyClient(), InternalState(), s())
+        model = Model(DummyClient(), s())
         with model.system():
             model += "Talk like a pirate!"
         with model.user():
@@ -362,7 +361,7 @@ def completion():
     for s in [
         CompletionState,
     ]:
-        model = Model(DummyClient(), InternalState(), s())
+        model = Model(DummyClient(), s())
         model += "<|system|>\nTalk like a pirate!\n<|end_of_turn|>\n"
         model += "<|user|>\nHello, model!\n<|end_of_turn|>\n"
         model += "<|user|>\nHow are you?\n<|end_of_turn|>\n"
