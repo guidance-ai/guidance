@@ -1,10 +1,19 @@
 from abc import ABC, abstractmethod
 from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass, field
-from typing import Any, Generic, Iterable, Iterator, Optional, TypeVar, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Generic,
+    Iterable,
+    Iterator,
+    Optional,
+    TypeVar,
+    Union,
+)
 from uuid import UUID, uuid4
 
-from typing_extensions import Self
+from typing_extensions import Self, assert_never
 
 # TODO
 Node = str
@@ -134,18 +143,36 @@ class StreamHandler(Generic[S], ABC):
     def process_stream(self, stream: S) -> Any:
         pass
 
+    def process_chunk(self, chunk: ContentChunk) -> Any:
+        match chunk:
+            case str(text):
+                return self.process_text(text)
+            case _:
+                if TYPE_CHECKING:
+                    assert_never(chunk)
+                raise NotImplementedError(f"Chunk type {type(chunk)} not supported")
+
+    def process_text(self, text: str) -> Any:
+        raise NotImplementedError("Text processing not supported")
+
+
+class CompletionStreamHandler(StreamHandler[CompletionStream]):
+    def process_stream(self, stream: CompletionStream) -> Iterable[Any]:
+        for chunk in stream.chunks:
+            yield self.process_chunk(chunk)
+
 
 @dataclass(frozen=True, slots=True)
 class Message:
     role: str
-    content: tuple[str, ...]
+    content: tuple[Any, ...]
 
 
 class ChatStreamHandler(StreamHandler[MessageStream]):
-    def process_stream(self, stream: Stream) -> Iterable[Message]:
+    def process_stream(self, stream: MessageStream) -> Iterable[Message]:
         # TODO: add a prefix cache?
         active_role: Optional[RoleStart] = None
-        active_content: list[str] = []
+        active_content: list[Any] = []
         for chunk in stream.chunks:
             if active_role is None:
                 if isinstance(chunk, RoleStart):
@@ -161,7 +188,8 @@ class ChatStreamHandler(StreamHandler[MessageStream]):
                 active_role = None
                 active_content.clear()
             else:
-                active_content.append(chunk)
+                active_content.append(self.process_chunk(chunk))
+
         if active_role is not None:
             yield Message(active_role.role, tuple(active_content))
 
@@ -172,6 +200,17 @@ class ChatClient(Client[MessageStream]):
 
     def run(self, stream: MessageStream, node: Node) -> Iterable[ContentChunk]:
         messages = self.stream_handler.process_stream(stream)
+        if isinstance(node, str):
+            yield node
+        else:
+            raise NotImplementedError("Node must be a string")
+
+
+class CompletionClient(Client[CompletionStream]):
+    def __init__(self, stream_handler: StreamHandler[CompletionStream]) -> None:
+        self.stream_handler = stream_handler
+
+    def run(self, stream: CompletionStream, node: Node) -> Iterable[ContentChunk]:
         if isinstance(node, str):
             yield node
         else:
