@@ -194,6 +194,19 @@ class ChatStreamHandler(StreamHandler[MessageStream]):
             yield Message(active_role.role, tuple(active_content))
 
 
+class OpenAIStreamHandler(StreamHandler):
+    def process_text(self, text: str) -> Any:
+        return {"type": "text", "text": text}
+
+
+class OpenAIChatStreamHandler(OpenAIStreamHandler, ChatStreamHandler):
+    pass
+
+
+class OpenAICompletionStreamHandler(OpenAIStreamHandler, CompletionStreamHandler):
+    pass
+
+
 class ChatClient(Client[MessageStream]):
     def __init__(self, stream_handler: ChatStreamHandler) -> None:
         self.stream_handler = stream_handler
@@ -217,8 +230,9 @@ class CompletionClient(Client[CompletionStream]):
             raise NotImplementedError("Node must be a string")
 
 
-def main() -> Model:
-    chat_client = ChatClient(ChatStreamHandler())
+def chat():
+    stream_handler = OpenAIChatStreamHandler()
+    chat_client = ChatClient(stream_handler)
     chat_model = ChatModel(chat_client)
     with chat_model.system():
         chat_model += "Talk like a pirate!"
@@ -227,4 +241,14 @@ def main() -> Model:
         chat_model += "How are you?"
     with chat_model.assistant():
         chat_model += "I'm doing well, thank you!"
-    return chat_model
+    return list(stream_handler.process_stream(chat_model._stream))
+
+
+def completion():
+    stream_handler = OpenAICompletionStreamHandler()
+    completion_client = CompletionClient(stream_handler)
+    completion_model = CompletionModel(completion_client)
+    completion_model += "Complete this sentence: "
+    completion_model += "The quick brown fox jumps over the"
+    completion_model += "lazy dog."
+    return list(stream_handler.process_stream(completion_model._stream))
