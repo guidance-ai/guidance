@@ -53,3 +53,6 @@ class Model:
 
     def assistant(self) -> AbstractContextManager[None]:
         return self.role("assistant")
+
+    def __str__(self) -> str:
+        return self.client.format_state(self._api_state)

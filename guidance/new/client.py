@@ -1,3 +1,4 @@
+import json
 from abc import ABC, abstractmethod
 from typing import Iterable
 
@@ -11,6 +12,9 @@ class Client(ABC):
     @abstractmethod
     def run(self, state: APIState, node: Node) -> Iterable[ContentChunk]:
         pass
+
+    def format_state(self, state: APIState) -> str:
+        return json.dumps(state.get_state(), indent=2)
 
 
 class TransformersClient(Client):
@@ -36,6 +40,13 @@ class TransformersClient(Client):
             for response in engine_gen:
                 # breakpoint()
                 yield response.new_bytes.decode("utf-8")
+
+    def format_state(self, state: APIState) -> str:
+        state_dict = state.get_state()
+        prompt = apply_chat_template(
+            state_dict["messages"], None, None, None, self.engine.tokenizer._orig_tokenizer
+        )
+        return prompt
 
 
 from typing import Any, Optional
