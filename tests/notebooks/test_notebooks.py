@@ -24,6 +24,7 @@ def run_notebook(notebook_path: pathlib.Path, params: Optional[Dict[str, Any]] =
 class TestTutorials:
     BASE_TUTORIAL_PATH = BASE_NB_PATH / "tutorials"
 
+    @pytest.mark.skip(reason="resource has been temporarily blocked")
     def test_chat(self, rate_limiter):
         azureai_endpoint = env_or_skip("AZUREAI_CHAT_ENDPOINT")
 
