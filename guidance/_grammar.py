@@ -60,21 +60,14 @@ class RawFunction(Function):
         return self.f(model, *self.args, **self.kwargs)
 
     def __add__(self, other):
-
-        # if we are joining with a string we use the string representation for ourselves
-        if isinstance(other, str):
-            return str(self) + other
-
         def __add__(model):
             model = self(model)
             if model is None:
                 raise Exception(
                     f"The guidance function `{self.f.__name__}` did not return a model object! You need to return an updated model object at the end of your guidance function."
                 )
-            if isinstance(other, GrammarFunction):
-                return model + other
-            else:
-                return other(model)
+            model += other
+            return model
 
         return RawFunction(__add__, [], {})
 
