@@ -3,9 +3,12 @@ name: Build wheels
 on:
   release:
     types: [published]
-
-  # Enable manual run
-  workflow_dispatch:
+  workflow_dispatch:  # Enable manual run
+    inputs:
+      commit_id:
+        description: 'Branch or Commit ID (optional)'
+        required: false
+        type: string
 
 jobs:
   generate-wheels-matrix:
@@ -21,7 +24,10 @@ jobs:
       CIBW_SKIP: pp*
       
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repo at ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
       - name: Install cibuildwheel
       # Nb. keep cibuildwheel version pin consistent with job below
         run: pipx install cibuildwheel==2.17.0
@@ -55,9 +61,10 @@ jobs:
       CIBW_SKIP: pp*
 
     steps:
-      - name: Check out the repo
+      - name: Checkout repo at ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
         uses: actions/checkout@v4
-
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
       - name: Install Rust
         shell: bash
         run: |
@@ -84,9 +91,10 @@ jobs:
     name: Build source distribution
     runs-on: ubuntu-20.04
     steps:
-      - name: Check out the repo
+      - name: Checkout repo at ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
         uses: actions/checkout@v4
-
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:

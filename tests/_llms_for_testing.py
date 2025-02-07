@@ -115,12 +115,7 @@ _QWEN2DOT5 = {
     ),
 }
 
-AVAILABLE_MODELS = {
-    "azure_guidance": dict(
-        name="azure_guidance:",
-        kwargs={},
-    ),
-}
+AVAILABLE_MODELS = {}
 
 # Add in all the other models
 AVAILABLE_MODELS.update(_GEMMA_2)
