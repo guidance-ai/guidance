@@ -19,6 +19,7 @@ on:
 jobs:
   notebook_tests:
     runs-on: "Large_Linux"
+    environment: test
     strategy:
       fail-fast: false # Don't cancel all on first failure
       matrix:
@@ -40,6 +41,7 @@ jobs:
            curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.75.0
            echo "$HOME/.cargo/bin" >> $GITHUB_PATH
       - name: Install guidance
+        shell: bash
         run: |
           pip install --upgrade pip
           pip install -e .[all,llamacpp,test]
@@ -50,10 +52,12 @@ jobs:
             tenant-id: ${{ secrets.AZURE_TENANT_ID }}
             subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       - name: 'Run Azure CLI commands'
+        shell: bash
         run: |
             az account show
             az group list
       - name: Notebook tests
+        shell: bash
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           # Configure endpoints for Azure OpenAI
