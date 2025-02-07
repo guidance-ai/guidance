@@ -56,6 +56,7 @@ class TestTutorials:
 class TestModels:
     BASE_MODEL_PATH = BASE_NB_PATH / "api_examples" / "models"
 
+    @pytest.mark.skip(reason="resource has been temporarily blocked")
     def test_azure_openai(self, rate_limiter):
         azureai_endpoint = env_or_skip("AZUREAI_CHAT_ENDPOINT")
 
