@@ -54,7 +54,7 @@ class OpenAIClient(Client[OpenAIState]):
 
             responses = self.client.chat.completions.create(
                 model=self.model,
-                messages=messages,
+                messages=messages, # type: ignore[arg-type]
                 max_tokens=node.max_tokens,
                 temperature=node.temperature,
                 logprobs=True,
