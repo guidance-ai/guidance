@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, Generic, Optional, Sequence, TypedDict, TypeVar
 
+from ..ast import ImageBlob
 from .base import ChatState
 
 # Type of content in a message
@@ -71,3 +72,17 @@ class TransformersUnstructuredState(BaseTransformersChatState[str]):
 class Llama3TransformersState(TransformersStructuredState):
     def apply_text(self, text: str) -> None:
         self.content.append({"type": "text", "text": text})
+
+    def apply_image(self, image: ImageBlob) -> None:
+        self.images.append(image.image)
+        self.content.append({"type": "image", "image": "image"})
+
+
+class Phi3VisionState(TransformersUnstructuredState):
+    def apply_image(self, image: ImageBlob) -> None:
+        pil_image = image.image
+        if pil_image in self.images:
+            self.content += f"<|image_{self.images.index(pil_image) + 1}|>"
+        else:
+            self.images.append(image.image)
+            self.content += f"<|image_{len(self.images)}|>"

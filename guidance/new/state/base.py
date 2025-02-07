@@ -42,6 +42,8 @@ class BaseState(Generic[R], ABC):
         match chunk:
             case str(text):
                 self.apply_text(text)
+            case ImageBlob(_) as image:
+                self.apply_image(image)
             case _:
                 if TYPE_CHECKING:
                     assert_never(chunk)
@@ -63,6 +65,10 @@ class BaseState(Generic[R], ABC):
     def apply_text(self, text: str) -> None:
         pass
 
+    def apply_image(self, image: ImageBlob) -> None:
+        # TODO: raise custom exception so we can catch it and raise a better error
+        # where we have the model's name, etc.
+        raise TypeError(f"Image blobs not supported by {self.__class__.__name__}")
 
 
 class BaseCompletionStateObj(TypedDict):
