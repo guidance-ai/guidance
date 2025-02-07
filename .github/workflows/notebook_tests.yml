@@ -16,58 +16,34 @@ on:
     # Run at 10:00 UTC every day
     - cron:  '00 10 * * *'
 
-permissions:
-  id-token: write
-  contents: read
-
 jobs:
-  build:
-
-    runs-on: gpu-runner
+  notebook_tests:
+    runs-on: "Large_Linux"
     strategy:
       fail-fast: false # Don't cancel all on first failure
       matrix:
         python-version: ["3.9", "3.10", "3.11", "3.12"]
-
+    permissions:
+      id-token: write  # for Azure CLI login
     steps:
       - name: Checkout repo at ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
       - name: Install Rust
         shell: bash
         run: |
            curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.75.0
            echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-      - name: Show GPUs
+      - name: Install guidance
         run: |
-          nvidia-smi
-      - name: Update Ubuntu
-        run: |
-          sudo apt-get update
-          sudo apt-get -y upgrade
-      - name: Ensure NVIDIA SDK available
-        run: |
-          sudo apt-get -y install cuda-toolkit
-          echo "/usr/local/cuda-12.6/bin" >> $GITHUB_PATH
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install pytest
-          pip install -e .[all,test]
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-      - name: GPU pip installs
-        run: |
-          pip install accelerate
-          CMAKE_ARGS="-DGGML_CUDA=on" pip install "llama-cpp-python!=0.2.58,!=0.2.75,!=0.2.84,!=0.3.6"
-      - name: Check GPU available
-        run: |
-          python -c "import torch; assert torch.cuda.is_available()"
-      - name: 'Az CLI login'
+          pip install --upgrade pip
+          pip install -e .[all,llamacpp,test]
+      - name: Azure login
         uses: azure/login@v2
         with:
             client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -77,7 +53,7 @@ jobs:
         run: |
             az account show
             az group list
-      - name: Test with pytest
+      - name: Notebook tests
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           # Configure endpoints for Azure OpenAI
@@ -96,8 +72,7 @@ jobs:
           AZURE_AI_STUDIO_LLAMA3_CHAT_DEPLOYMENT: ${{ vars.AZURE_AI_STUDIO_LLAMA3_CHAT_DEPLOYMENT }}
           AZURE_AI_STUDIO_LLAMA3_CHAT_KEY: ${{ secrets.AZURE_AI_STUDIO_LLAMA3_CHAT_KEY }}
         run: |
-          pytest --cov=guidance --cov-report=xml --cov-report=term-missing \
-            -vv \
+          pytest -vv --cov=guidance --cov-report=xml --cov-report=term-missing \
             ./tests/notebooks
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4
