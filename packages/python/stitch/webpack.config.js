@@ -40,7 +40,7 @@ module.exports = [
   },
 
   /**
-   * Embeddable stitch bundle
+   * Embeddable @guidance-ai/stitch bundle
    *
    * This bundle is almost identical to the notebook extension bundle. The only
    * difference is in the configuration of the webpack public path for the
