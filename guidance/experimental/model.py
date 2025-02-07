@@ -1,6 +1,7 @@
 import re
 from contextlib import AbstractContextManager, contextmanager
-from typing import Iterator
+from contextvars import ContextVar
+from typing import Iterator, Optional
 
 from typing_extensions import Self
 
@@ -8,6 +9,8 @@ from guidance._grammar import Null, RawFunction, _call_pool, _tag_pattern
 
 from .ast import MessageChunk, Node, RoleEnd, RoleStart
 from .client import Client
+
+_active_role: ContextVar[Optional["RoleStart"]] = ContextVar("active_role", default=None)
 
 
 class Model:
@@ -17,8 +20,10 @@ class Model:
     ) -> None:
         self.client = client
         self._state = client.initial_state()
+        self._active_role: Optional["RoleStart"] = None
 
     def __iadd__(self, other: Node) -> Self:
+        self._apply_role_changes()
         if isinstance(other, str):
             if other == "":
                 return self
@@ -42,12 +47,20 @@ class Model:
     def role(self, role: str) -> Iterator[None]:
         # _apply_chunk will raise an exception via _api_state.apply_chunk if roles are not supported
         role_start = RoleStart(role)
-        self._apply_chunk(role_start)
+        token = _active_role.set(role_start)
         try:
             yield
         finally:
-            role_end = RoleEnd(role_start.id)
-            self._apply_chunk(role_end)
+            _active_role.reset(token)
+
+    def _apply_role_changes(self) -> None:
+        active_role = _active_role.get()
+        if self._active_role != active_role:
+            if self._active_role is not None:
+                self._apply_chunk(RoleEnd(self._active_role.id))
+            if active_role is not None:
+                self._apply_chunk(active_role)
+            self._active_role = active_role
 
     def system(self) -> AbstractContextManager[None]:
         return self.role("system")
