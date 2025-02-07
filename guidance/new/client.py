@@ -92,6 +92,12 @@ class TransformersClient(Client):
         else:
             if isinstance(state, ChatState):
                 chat_state = state.get_state()
+                prefill = chat_state["prefill"]
+                if prefill is None:
+                    role = chat_state["active_role"]
+                    if role is None:
+                        raise ValueError("Can't generate with no active role")
+                    prefill = {"role": "user", "content": ""}
                 prompt = apply_chat_template(
                     chat_state["messages"],
                     chat_state["prefill"],
