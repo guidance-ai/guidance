@@ -66,7 +66,7 @@ def completion():
 def transformers():
     from guidance import gen
 
-    model = Model(TransformersClient(), TransformersUnstructuredState())
+    model = Model(TransformersClient())
     with model.system():
         model += "Talk like a pirate!"
     with model.user():

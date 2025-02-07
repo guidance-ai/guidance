@@ -2,7 +2,11 @@ from typing import Union
 
 from .base import ChatState, CompletionState, RoleEnd, RoleStart
 from .openai import OpenAIState
-from .transformers import Llama3TransformersState, TransformersUnstructuredState
+from .transformers import (
+    BaseTransformersChatState,
+    Llama3TransformersState,
+    TransformersUnstructuredState,
+)
 
 State = Union[ChatState, CompletionState]
 
@@ -15,4 +19,5 @@ __all__ = [
     "OpenAIState",
     "TransformersUnstructuredState",
     "Llama3TransformersState",
+    "BaseTransformersChatState",
 ]

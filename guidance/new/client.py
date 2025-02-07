@@ -1,15 +1,22 @@
 import json
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Generic, Iterable, Optional, TypeVar
+from typing import TYPE_CHECKING, Generic, Iterable, Optional, TypeVar, Union
 
 from openai import OpenAI
 from typing_extensions import assert_never
 
-from guidance._grammar import Gen
+from guidance._grammar import Function, Gen
 from guidance.models import Transformers
+from guidance.models._model import Engine
 
 from .ast import ContentChunk, Node
-from .state import ChatState, CompletionState, State
+from .state import (
+    BaseTransformersChatState,
+    ChatState,
+    CompletionState,
+    State,
+    TransformersUnstructuredState,
+)
 from .state.openai import OpenAIState
 
 S = TypeVar("S", bound=State)
@@ -81,38 +88,21 @@ class OpenAIClient(Client[OpenAIState]):
             raise NotImplementedError(f"Unknown node: {node}")
 
 
-class TransformersClient(Client):
-    def __init__(self, model_id: str = "microsoft/Phi-3-mini-4k-instruct"):
-        guidance_model = Transformers(model_id)
-        self.engine = guidance_model.engine
+class GuidanceClient(Client[S], ABC):
+    def __init__(self, engine: Engine):
+        self.engine = engine
 
-    def run(self, state: State, node: Node) -> Iterable[ContentChunk]:
+    @abstractmethod
+    def build_prompt(self, state: S) -> str:
+        pass
+
+    def run(self, state: S, node: Node) -> Iterable[ContentChunk]:
         if isinstance(node, str):
             yield node
-        else:
-            if isinstance(state, ChatState):
-                chat_state = state.get_state()
-                prefill = chat_state["prefill"]
-                if prefill is None:
-                    role = chat_state["active_role"]
-                    if role is None:
-                        raise ValueError("Can't generate with no active role")
-                    prefill = {"role": "user", "content": ""}
-                prompt = apply_chat_template(
-                    chat_state["messages"],
-                    chat_state["prefill"],
-                    None,
-                    None,
-                    self.engine.tokenizer._orig_tokenizer,
-                )
-            elif isinstance(state, CompletionState):
-                completion_state = state.get_state()
-                prompt = completion_state["prompt"]
-            else:
-                if TYPE_CHECKING:
-                    assert_never(state)
-                raise TypeError(f"Expected ChatState or CompletionState, got {type(state)}")
+            return
 
+        if isinstance(node, Function):
+            prompt = self.build_prompt(state)
             engine_gen = self.engine(
                 prompt,
                 node,
@@ -122,6 +112,45 @@ class TransformersClient(Client):
             for response in engine_gen:
                 # breakpoint()
                 yield response.new_bytes.decode("utf-8")
+            return
+
+        raise NotImplementedError(f"Unknown node: {node}")
+
+
+class TransformersClient(GuidanceClient[Union[CompletionState, BaseTransformersChatState]]):
+    def __init__(self, model_id: str = "microsoft/Phi-3-mini-4k-instruct"):
+        guidance_model = Transformers(model_id)
+        super().__init__(guidance_model.engine)
+
+    def initial_state(self) -> Union[CompletionState, BaseTransformersChatState]:
+        # TODO: make this configurable / depend on the model id
+        return TransformersUnstructuredState()
+
+    def build_prompt(self, state: Union[CompletionState, BaseTransformersChatState]) -> str:
+        if isinstance(state, ChatState):
+            chat_state = state.get_state()
+            prefill = chat_state["prefill"]
+            if prefill is None:
+                role = chat_state["active_role"]
+                if role is None:
+                    raise ValueError("Can't generate with no active role")
+                prefill = {"role": "user", "content": ""}
+            prompt = apply_chat_template(
+                chat_state["messages"],
+                chat_state["prefill"],
+                None,
+                None,
+                self.engine.tokenizer._orig_tokenizer,
+            )
+        elif isinstance(state, CompletionState):
+            completion_state = state.get_state()
+            prompt = completion_state["prompt"]
+        else:
+            if TYPE_CHECKING:
+                assert_never(state)
+            raise TypeError(f"Expected ChatState or CompletionState, got {type(state)}")
+
+        return prompt
 
 
 from typing import Any, Optional
