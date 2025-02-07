@@ -8,18 +8,17 @@ from guidance._grammar import Null, RawFunction, _call_pool, _tag_pattern
 
 from .ast import MessageChunk, Node, RoleEnd, RoleStart
 from .client import Client
-from .state import APIState, InternalState
+from .state import State
 
 
 class Model:
     def __init__(
         self,
         client: Client,
-        api_state: APIState,
+        state: State,
     ) -> None:
         self.client = client
-        self._api_state = api_state
-        self._internal_state = InternalState()
+        self._state = state
 
     def __iadd__(self, other: Node) -> Self:
         if isinstance(other, str):
@@ -35,13 +34,11 @@ class Model:
         raise TypeError("Use += to add nodes")
 
     def _apply_node(self, node: Node) -> None:
-        for chunk in self.client.run(self._api_state, node):
+        for chunk in self.client.run(self._state, node):
             self._apply_chunk(chunk)
 
     def _apply_chunk(self, chunk: MessageChunk) -> None:
-        # Apply to _api_state first, so that it can raise an exception if the chunk is not supported
-        self._api_state.apply_chunk(chunk)
-        self._internal_state.apply_chunk(chunk)
+        self._state.apply_chunk(chunk)
 
     @contextmanager
     def role(self, role: str) -> Iterator[None]:
@@ -64,7 +61,7 @@ class Model:
         return self.role("assistant")
 
     def __str__(self) -> str:
-        return self.client.format_state(self._api_state)
+        return self.client.format_state(self._state)
 
 
 def extract_embedded_nodes(value: str) -> Node:

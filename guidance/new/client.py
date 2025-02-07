@@ -1,19 +1,21 @@
 import json
 from abc import ABC, abstractmethod
-from typing import Iterable
+from typing import TYPE_CHECKING, Iterable
+
+from typing_extensions import assert_never
 
 from guidance.models import Transformers
 
 from .ast import ContentChunk, Node
-from .state import APIState
+from .state import ChatState, CompletionState, State
 
 
 class Client(ABC):
     @abstractmethod
-    def run(self, state: APIState, node: Node) -> Iterable[ContentChunk]:
+    def run(self, state: State, node: Node) -> Iterable[ContentChunk]:
         pass
 
-    def format_state(self, state: APIState) -> str:
+    def format_state(self, state: State) -> str:
         return json.dumps(state.get_state(), indent=2)
 
 
@@ -22,15 +24,27 @@ class TransformersClient(Client):
         guidance_model = Transformers(model_id)
         self.engine = guidance_model.engine
 
-    def run(self, state: APIState, node: Node) -> Iterable[ContentChunk]:
+    def run(self, state: State, node: Node) -> Iterable[ContentChunk]:
         if isinstance(node, str):
             yield node
         else:
-            state_dict = state.get_state()
-            prefill = state.get_active_message()
-            prompt = apply_chat_template(
-                state_dict["messages"], prefill, None, None, self.engine.tokenizer._orig_tokenizer
-            )
+            if isinstance(state, ChatState):
+                chat_state = state.get_state()
+                prompt = apply_chat_template(
+                    chat_state["messages"],
+                    chat_state["prefill"],
+                    None,
+                    None,
+                    self.engine.tokenizer._orig_tokenizer,
+                )
+            elif isinstance(state, CompletionState):
+                completion_state = state.get_state()
+                prompt = completion_state["prompt"]
+            else:
+                if TYPE_CHECKING:
+                    assert_never(state)
+                raise TypeError(f"Expected ChatState or CompletionState, got {type(state)}")
+
             engine_gen = self.engine(
                 prompt,
                 node,
@@ -40,13 +54,6 @@ class TransformersClient(Client):
             for response in engine_gen:
                 # breakpoint()
                 yield response.new_bytes.decode("utf-8")
-
-    def format_state(self, state: APIState) -> str:
-        state_dict = state.get_state()
-        prompt = apply_chat_template(
-            state_dict["messages"], None, None, None, self.engine.tokenizer._orig_tokenizer
-        )
-        return prompt
 
 
 from typing import Any, Optional

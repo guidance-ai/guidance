@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Generic, TypedDict, TypeVar
+from typing import Any, Generic, Optional, Sequence, TypedDict, TypeVar
 
 from .base import ChatState
 
@@ -13,13 +13,15 @@ class TransformersMessage(TypedDict, Generic[TC]):
 
 
 class TransformersChatObj(TypedDict, Generic[TC]):
-    messages: list[TransformersMessage[TC]]
+    messages: Sequence[TransformersMessage[TC]]
+    prefill: Optional[TransformersMessage[TC]]
+    active_role: Optional[str]
     images: list[Any]
     audio: list[Any]
     videos: list[Any]
 
 
-class BaseTransformersChatState(ChatState[TransformersMessage[TC], TransformersChatObj[TC]], ABC):
+class BaseTransformersChatState(ChatState[TransformersMessage[TC]], ABC):
     def __init__(self) -> None:
         super().__init__()
         self.content: TC = self._default_content_factory()
@@ -27,15 +29,17 @@ class BaseTransformersChatState(ChatState[TransformersMessage[TC], TransformersC
         self.audio: list[Any] = []
         self.videos: list[Any] = []
 
-    def get_active_message(self) -> TransformersMessage[TC]:
+    def get_active_message(self) -> Optional[TransformersMessage[TC]]:
         if self.active_role is None:
-            raise ValueError("Cannot build message without active role")
+            return None
 
         return TransformersMessage({"role": self.active_role.role, "content": self.content})
 
     def get_state(self) -> TransformersChatObj[TC]:
         return {
             "messages": self.messages,
+            "prefill": self.get_active_message(),
+            "active_role": self.get_active_role(),
             "images": self.images,
             "audio": self.audio,
             "videos": self.videos,
@@ -61,13 +65,9 @@ class TransformersUnstructuredState(BaseTransformersChatState[str]):
         return ""
 
     def apply_text(self, text: str) -> None:
-        if self.content is None:
-            self.content = ""
         self.content += text
 
 
 class Llama3TransformersState(TransformersStructuredState):
     def apply_text(self, text: str) -> None:
-        if self.content is None:
-            self.content = []
         self.content.append({"type": "text", "text": text})

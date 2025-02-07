@@ -1,17 +1,13 @@
-from .base import (
-    APIState,
-    ChatState,
-    CompletionState,
-    InternalState,
-    RoleEnd,
-    RoleStart,
-)
+from typing import Union
+
+from .base import ChatState, CompletionState, RoleEnd, RoleStart
 from .openai import OpenAIState
 from .transformers import Llama3TransformersState, TransformersUnstructuredState
 
+State = Union[ChatState, CompletionState]
+
 __all__ = [
-    "InternalState",
-    "APIState",
+    "State",
     "ChatState",
     "CompletionState",
     "RoleEnd",

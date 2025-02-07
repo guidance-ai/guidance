@@ -4,25 +4,20 @@ from .ast import ContentChunk, Node
 from .client import Client, TransformersClient
 from .model import Model
 from .state import (
-    APIState,
     CompletionState,
     Llama3TransformersState,
     OpenAIState,
+    State,
     TransformersUnstructuredState,
 )
 
 
 class DummyClient(Client):
-    def run(self, state: APIState, node: Node) -> Iterable[ContentChunk]:
+    def run(self, state: State, node: Node) -> Iterable[ContentChunk]:
         if isinstance(node, str):
             yield node
         else:
             raise NotImplementedError("Node must be a string")
-
-
-class DummyCompletionState(CompletionState[str]):
-    def get_state(self) -> str:
-        return self.prompt
 
 
 def chat():
@@ -44,12 +39,12 @@ def chat():
         print("-" * 80)
         print(s.__name__)
         print("-" * 80)
-        print(json.dumps(model._api_state.get_state(), indent=2))
+        print(json.dumps(model._state.get_state(), indent=2))
 
 
 def completion():
     for s in [
-        DummyCompletionState,
+        CompletionState,
     ]:
         model = Model(DummyClient(), s())
         model += "<|system|>\nTalk like a pirate!\n<|end_of_turn|>\n"
@@ -59,7 +54,7 @@ def completion():
         print("-" * 80)
         print(s.__name__)
         print("-" * 80)
-        print(model._api_state.get_state())
+        print(model._state.get_state())
 
 
 def transformers():
