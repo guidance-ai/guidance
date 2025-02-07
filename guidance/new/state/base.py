@@ -120,9 +120,8 @@ class ChatState(Generic[M], BaseState[BaseChatStateObj[M]], ABC):
         if self.active_role.id != role_end.id:
             raise ValueError("RoleEnd does not match active role")
         active_message = self.get_active_message()
-        if active_message is None:
-            raise ValueError("Cannot close role with no content")
-        self.messages.append(active_message)
+        if active_message is not None:
+            self.messages.append(active_message)
         self.reset_active_message()
 
     def apply_content_chunk(self, chunk: ContentChunk) -> None:

@@ -1,22 +1,77 @@
 import json
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Iterable
+from typing import TYPE_CHECKING, Generic, Iterable, Optional, TypeVar
 
+from openai import OpenAI
 from typing_extensions import assert_never
 
+from guidance._grammar import Gen
 from guidance.models import Transformers
 
 from .ast import ContentChunk, Node
 from .state import ChatState, CompletionState, State
+from .state.openai import OpenAIState
+
+S = TypeVar("S", bound=State)
 
 
-class Client(ABC):
+class Client(ABC, Generic[S]):
     @abstractmethod
-    def run(self, state: State, node: Node) -> Iterable[ContentChunk]:
+    def run(self, state: S, node: Node) -> Iterable[ContentChunk]:
         pass
 
-    def format_state(self, state: State) -> str:
+    def format_state(self, state: S) -> str:
         return json.dumps(state.get_state(), indent=2)
+
+
+class OpenAIClient(Client[OpenAIState]):
+    def __init__(self, model: str = "gpt-4o-mini", api_key: Optional[str] = None):
+        self.client = OpenAI(api_key=api_key)
+        self.model = model
+
+    def run(self, state: OpenAIState, node: Node) -> Iterable[ContentChunk]:
+        if isinstance(node, str):
+            yield node
+            return
+
+        oai_state = state.get_state()
+        if oai_state["prefill"] is not None:
+            raise ValueError("Prefill not supported for OpenAI")
+        if oai_state["active_role"] != "assistant":
+            raise ValueError("Active role must be assistant for OpenAI")
+
+        messages = oai_state["messages"]
+
+        if isinstance(node, Gen):
+            if node.capture_name:
+                raise NotImplementedError("Captures not yet supported for OpenAI")
+            if node.body_regex != "(?s:.*)":
+                raise ValueError("Body regex not supported for OpenAI")
+            if node.stop_regex:
+                raise ValueError("Stop regex not supported for OpenAI")
+            if node.save_stop_text:
+                raise ValueError("Save stop text not supported for OpenAI")
+
+            responses = self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                max_tokens=node.max_tokens,
+                temperature=node.temperature,
+                logprobs=True,
+                stream=True,
+            )
+            for response in responses:
+                choice = response.choices[0]
+                delta = choice.delta
+                if delta.content is not None:
+                    yield delta.content
+                    continue
+                if choice.finish_reason is not None:
+                    # TODO: handle finish_reason elegantly
+                    break
+                raise NotImplementedError(f"Unknown delta: {delta}")
+        else:
+            raise NotImplementedError(f"Unknown node: {node}")
 
 
 class TransformersClient(Client):
