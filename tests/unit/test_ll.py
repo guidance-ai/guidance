@@ -1,5 +1,4 @@
 from typing import Any, List
-import tokenizers
 import llguidance
 import json
 import textwrap
@@ -15,7 +14,7 @@ from guidance import (
     string,
     capture,
 )
-from guidance._grammar import as_regular_grammar
+from guidance.library._subgrammar import as_regular_grammar
 from guidance.library._subgrammar import subgrammar, lexeme
 
 log_level = 10
@@ -43,6 +42,7 @@ class PhiTokenizer:
         return self.hf_tokenizer.encode(s).ids
 
     def __init__(self) -> None:
+        import tokenizers
         self.hf_tokenizer: tokenizers.Tokenizer = tokenizers.Tokenizer.from_pretrained(
             "microsoft/Phi-3-mini-128k-instruct"
         )
@@ -115,7 +115,7 @@ def check_grammar(grm: GrammarFunction, output: List[str]):
     idx = 1
     gen_tokens = tokenize_trace(output[idx])
     for _ in range(200):
-        mask, cmd = interp.mid_process()
+        mask, cmd = interp.compute_mask()
         cmd = json.loads(cmd)
         if log_level >= 1:
             print(mask is not None, cmd)
@@ -129,7 +129,7 @@ def check_grammar(grm: GrammarFunction, output: List[str]):
             tok = gen_tokens[0]
             del gen_tokens[0:1]
             assert mask[tok] > 0, f"Token {tok} not allowed"
-            bt, toks = interp.post_process(tok)
+            bt, toks = interp.commit_token(tok)
             if not toks or toks[0] != tok:
                 if output[idx + 1].startswith("1↶"):
                     # fast-forward with fake backtrack
@@ -149,7 +149,7 @@ def check_grammar(grm: GrammarFunction, output: List[str]):
                 assert len(toks) == 1
                 continue  # normal path
         else:
-            bt, toks = interp.post_process(None)
+            bt, toks = interp.commit_token(None)
 
         # forced byte checking
         assert not gen_tokens, "Expected more tokens to generate"
@@ -379,33 +379,63 @@ def test_ll_fighter():
         return lm
 
     grm = character_maker2(1, "A nimble fighter", ["axe", "sword", "bow"])
-    check_grammar(
-        grm,
-        [
-            '{‧\n‧   ‧ "‧name‧":',
-            ' "‧John‧ Do‧e‧"',
-            ',‧\n‧   ‧ "‧age‧":‧ ',
-            "3‧0‧,",
-            '\n‧   ‧ "‧arm‧or‧":‧ "',
-            "chain",
-            'mail‧",‧\n‧   ‧ "‧we‧ap‧on‧":‧ "',
-            "s",
-            'word‧",‧\n‧   ‧ "‧class‧":',
-            ' "‧war‧rior‧"',
-            ',‧\n‧   ‧ "‧m‧ant‧ra‧":',
-            ' "‧I‧ am‧ the‧ storm‧,‧ I‧ am‧ the‧ light‧ning‧,‧ I‧ am‧ the‧ th‧under‧."',
-            ',‧\n‧   ‧ "‧str‧ength‧":‧ ',
-            "1‧0‧0‧,",
-            '\n‧   ‧ "‧items‧":‧ ["',
-            's‧word‧ of‧ light‧ning‧,‧ shield‧ of‧ th‧under‧,‧ hel‧met‧ of‧ storm‧."',
-            ",",
-            ' "‧s‧word‧ of‧ light‧ning‧,‧ shield‧ of‧ th‧under‧,‧ hel‧met‧ of‧ storm‧."',
-            ",",
-            ' "‧s‧word‧ of‧ light‧ning‧,‧ shield‧ of‧ th‧under‧,‧ hel‧met‧ of‧ storm‧."',
-            "]‧\n‧}",
-        ],
-    )
 
+    try:
+        # this is actually correct
+        check_grammar(
+            grm,
+            [
+                '{‧\n‧   ‧ "‧name‧":',
+                ' "‧John‧ Do‧e‧"',
+                ',‧\n‧   ‧ "‧age‧":‧ ',
+                "3‧0‧,",
+                '\n‧   ‧ "‧arm‧or‧":‧ "',
+                "chain",
+                'mail‧",‧\n‧   ‧ "‧we‧ap‧on‧":‧ "',
+                "s",
+                'word‧",‧\n‧   ‧ "‧class‧":',
+                ' "‧war‧rior‧"',
+                ',‧\n‧   ‧ "‧m‧ant‧ra‧":',
+                ' "‧I‧ am‧ the‧ storm‧,‧ I‧ am‧ the‧ light‧ning‧,‧ I‧ am‧ the‧ th‧under‧."',
+                ',‧\n‧   ‧ "‧str‧ength‧":‧ ',
+                "1‧0‧0‧,",
+                '\n‧   ‧ "‧items‧":', # [" should not be forced here (since eg. "" is a token)
+                ' ["‧s‧word‧ of‧ light‧ning‧,‧ shield‧ of‧ th‧under‧,‧ hel‧met‧ of‧ storm‧."',
+                ",",
+                ' "‧s‧word‧ of‧ light‧ning‧,‧ shield‧ of‧ th‧under‧,‧ hel‧met‧ of‧ storm‧."',
+                ",",
+                ' "‧s‧word‧ of‧ light‧ning‧,‧ shield‧ of‧ th‧under‧,‧ hel‧met‧ of‧ storm‧."',
+                "]‧\n‧}",
+            ],
+        )
+    except:
+        # this is what llg before 0.6.9 does
+        check_grammar(
+            grm,
+            [
+                '{‧\n‧   ‧ "‧name‧":',
+                ' "‧John‧ Do‧e‧"',
+                ',‧\n‧   ‧ "‧age‧":‧ ',
+                "3‧0‧,",
+                '\n‧   ‧ "‧arm‧or‧":‧ "',
+                "chain",
+                'mail‧",‧\n‧   ‧ "‧we‧ap‧on‧":‧ "',
+                "s",
+                'word‧",‧\n‧   ‧ "‧class‧":',
+                ' "‧war‧rior‧"',
+                ',‧\n‧   ‧ "‧m‧ant‧ra‧":',
+                ' "‧I‧ am‧ the‧ storm‧,‧ I‧ am‧ the‧ light‧ning‧,‧ I‧ am‧ the‧ th‧under‧."',
+                ',‧\n‧   ‧ "‧str‧ength‧":‧ ',
+                "1‧0‧0‧,",
+                '\n‧   ‧ "‧items‧":‧ ["', # this is incorrect
+                's‧word‧ of‧ light‧ning‧,‧ shield‧ of‧ th‧under‧,‧ hel‧met‧ of‧ storm‧."',
+                ",",
+                ' "‧s‧word‧ of‧ light‧ning‧,‧ shield‧ of‧ th‧under‧,‧ hel‧met‧ of‧ storm‧."',
+                ",",
+                ' "‧s‧word‧ of‧ light‧ning‧,‧ shield‧ of‧ th‧under‧,‧ hel‧met‧ of‧ storm‧."',
+                "]‧\n‧}",
+            ],
+        )
 
 if __name__ == "__main__":
     test_llparser()

@@ -12,7 +12,7 @@ We welcome contributions to `guidance`, and this document exists to provide usef
 
 The quickest way to get started is to run (in a fresh environment):
 ```bash
-pip install -e .[all,test]
+pip install -e .[all,test,bench]
 ```
 which should bring in all of the basic required dependencies.
 Note that if you want to use GPU acceleration, then you will need to do whatever is required to allow `torch` and `llama-cpp` to access your GPU too.
@@ -32,16 +32,16 @@ However, if you have your own means of installing Rust and CUDA, you should be a
 
 ## Running Tests
 
-Because we run tests on GPU-equipped machines and also tests which call LLM endpoints, approval is required before our GitHub workflows will run on external Pull Requests.
-To run a basic test suite locally, we suggest:
+To run a basic test suite locally:
 ```bash
-python -m pytest -m "not (needs_credentials or use_gpu or server)" ./tests/
+python -m pytest ./tests/
 ```
 which runs our basic test suite.
 Where an LLM is required, this will default to using GPT2 on the CPU.
+
 To change that default, run
 ```bash
-python -m pytest -m "not (needs_credentials or use_gpu or server)" --selected_model <MODELNAME> ./tests/
+python -m pytest --selected_model <MODELNAME> ./tests/
 ```
 where `<MODELNAME>` is taken from the `AVAILABLE_MODELS` dictionary defined in `_llms_for_testing.py`.
 
@@ -68,7 +68,6 @@ If your model requires credentials, then those will need to be added to our GitH
 The endpoint itself (and any other required information) should be configured as environment variables too.
 When the test runs, the environment variables will be set, and can then be used to configure the model as required.
 See `test_azureai_openai.py` for examples of this being done.
-The tests should also be marked as `needs_credentials` - if this is needed for the entire module, then `pytestmark` can be used - see `test_azureai_openai.py` again for this.
 
 The environment variables and secrets will also need to be configured in the `ci_tests.yml` file.
 

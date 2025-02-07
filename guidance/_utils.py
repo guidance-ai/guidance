@@ -6,8 +6,13 @@ import queue
 import sys
 import textwrap
 import types
-
+import weakref
+import functools
 import numpy as np
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class _Rewrite(ast.NodeTransformer):
     def __init__(self, source_lines):
@@ -113,7 +118,31 @@ def strip_multiline_string_indents(f):
         closure=f.__closure__,
     )
     new_f.__kwdefaults__ = f.__kwdefaults__
+    new_f.__qualname__ = f.__qualname__
+    new_f.__annotations__ = f.__annotations__
+    new_f.__doc__ = f.__doc__
+    new_f.__module__ = f.__module__
     return new_f
+
+def make_weak_bound_method(f, instance):
+    instance_ref = weakref.ref(instance)
+    instance_repr = repr(instance)
+    @functools.wraps(f) # ish
+    def weak_bound_f(*args, **kwargs):
+        instance = instance_ref()
+        if instance is None:
+            raise ReferenceError(f"Lost reference to {instance_repr} and cannot bind {f} to it.")
+        method = types.MethodType(f, instance)
+        return method(*args, **kwargs)
+
+    # remove the first argument from the wrapped function since it is now bound
+    weak_bound_f.__signature__ = signature_pop(inspect.signature(f), 0)
+    return weak_bound_f
+
+def signature_pop(signature, index):
+    params = list(signature.parameters.values())
+    params.pop(index)
+    return signature.replace(parameters=params)
 
 class CaptureEvents:
     """Creates a scope where all the events are captured in a queue.
@@ -232,3 +261,73 @@ def softmax(array: np.ndarray, axis: int = -1) -> np.ndarray:
     array_maxs = np.amax(array, axis=axis, keepdims=True)
     exp_x_shifted = np.exp(array - array_maxs)
     return exp_x_shifted / np.sum(exp_x_shifted, axis=axis, keepdims=True)
+
+
+def pydantic_no_default_repr(obj, target_fields=None):
+    if target_fields is None:
+        records = (
+            f'{getattr(obj, name)!r}'
+            for name, field in obj.model_fields.items()
+            if getattr(obj, name) != field.default and not field.exclude
+        )
+    else:
+        records = (
+            f'{getattr(obj, name)!r}'
+            for name, field in obj.model_fields.items()
+            if getattr(obj, name) != field.default and not field.exclude and name in target_fields
+        )
+    out = f'{type(obj).__name__}:{":".join(records)}'
+    return out
+
+
+def pydantic_no_default_str(obj, target_fields=None):
+    if target_fields is None:
+        records = (
+            f'{getattr(obj, name)!s}'
+            for name, field in obj.model_fields.items()
+            if getattr(obj, name) != field.default and not field.exclude
+        )
+    else:
+        records = (
+            f'{getattr(obj, name)!s}'
+            for name, field in obj.model_fields.items()
+            if getattr(obj, name) != field.default and not field.exclude and name in target_fields
+        )
+    out = "\n".join(records)
+    return out
+
+
+def log_init(s: str):
+    logger.debug(f"INIT:{s}")
+    pass
+
+
+def log_copy(s: str):
+    logger.debug(f"COPY:{s}")
+    pass
+
+
+def log_cleanup(s: str):
+    logger.debug(f"CLEANUP:{s}")
+    pass
+
+def to_utf8_or_bytes_string(_bytes: bytes) -> str:
+    """
+    Converts a byte sequence to a UTF-8 string if possible. If the byte sequence
+    cannot be decoded as UTF-8, it returns the string representation of the byte sequence.
+
+    Parameters
+    ----------
+    _bytes : bytes
+        The byte sequence to be converted.
+
+    Returns
+    -------
+    str
+        The decoded UTF-8 string or the string representation of the byte sequence
+        if UTF-8 decoding fails.
+    """
+    try:
+        return _bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        return str(_bytes)

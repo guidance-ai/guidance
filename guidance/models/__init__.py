@@ -29,6 +29,3 @@ from ._togetherai import (
     TogetherAIInstruct,
     TogetherAICompletion,
 )
-
-# server based grammar models
-from ._azure_guidance import AzureGuidance

@@ -1,0 +1,12 @@
+comment: off
+# show coverage in CI status, but never consider it a failure
+coverage:
+  status:
+    project:
+      default:
+        target: 0%
+    patch:
+      default:
+        target: 0%
+ignore:
+  - "stitch/tests"

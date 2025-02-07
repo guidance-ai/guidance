@@ -4,20 +4,21 @@ import random
 import tempfile
 import time
 import uuid
-
 import pytest
 import requests
-
 from guidance import models
 
 # Ensure that asserts from tests/utils.py are rewritten by pytest to show helpful messages
 pytest.register_assert_rewrite("tests.utils")
 
-from ._llms_for_testing import AVAILABLE_MODELS
-from .utils import get_model
+
+try:
+    from ._llms_for_testing import AVAILABLE_MODELS
+    from .utils import get_model
+except:
+    AVAILABLE_MODELS = {}
 
 SELECTED_MODEL_ENV_VARIABLE = "GUIDANCE_SELECTED_MODEL"
-
 
 def pytest_addoption(parser):
     default_model = os.getenv(SELECTED_MODEL_ENV_VARIABLE, "transformers_gpt2_cpu")

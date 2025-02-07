@@ -1,33 +1,34 @@
-# CI Tests
-# These should only be run on main, because they access secrets
+# These access secrets, so should only be run on local branches.
 
 name: CI Tests
 
-
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
+    inputs:
+      commit_id:
+        description: 'Branch or Commit ID (optional)'
+        required: false
+        type: string
   schedule:
     # * is a special character in YAML so we quote this string
-    # Run at 1030 UTC every day
-    - cron:  '30 10 * * *'
-
-permissions:
-  id-token: write
-  contents: read
+    # Run at 09:00 UTC every day
+    - cron:  '00 09 * * *'
 
 jobs:
-  general:
-
-    runs-on: gpu-runner
+  credentialed_tests:
+    runs-on: ubuntu-latest
+    environment: test
     strategy:
       fail-fast: false # Don't cancel all on first failure
       matrix:
         python-version: ["3.9", "3.10", "3.11", "3.12"]
-
+    permissions:
+      id-token: write  # for Azure CLI login
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repo at ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
@@ -37,31 +38,11 @@ jobs:
         run: |
            curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.75.0
            echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-      - name: Show GPUs
+      - name: Install guidance
         run: |
-          nvidia-smi
-      - name: Update Ubuntu
-        run: |
-          sudo apt-get update
-          sudo apt-get -y upgrade
-      - name: Ensure NVIDIA SDK available
-        run: |
-          sudo apt-get -y install cuda-toolkit
-          echo "/usr/local/cuda-12.6/bin" >> $GITHUB_PATH
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install pytest
+          pip install --upgrade pip
           pip install -e .[all,test]
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-      - name: GPU pip installs
-        run: |
-          pip install accelerate
-          CMAKE_ARGS="-DGGML_CUDA=on" pip install "llama-cpp-python!=0.2.58,!=0.2.75,!=0.2.84"
-      - name: Check GPU available
-        run: |
-          python -c "import torch; assert torch.cuda.is_available()"
-      - name: 'Az CLI login'
+      - name: Azure login
         uses: azure/login@v2
         with:
             client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -71,7 +52,7 @@ jobs:
         run: |
             az account show
             az group list
-      - name: Test with pytest
+      - name: Model tests
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           # Configure endpoints for Azure OpenAI
@@ -90,19 +71,18 @@ jobs:
           AZURE_AI_STUDIO_LLAMA3_CHAT_DEPLOYMENT: ${{ vars.AZURE_AI_STUDIO_LLAMA3_CHAT_DEPLOYMENT }}
           AZURE_AI_STUDIO_LLAMA3_CHAT_KEY: ${{ secrets.AZURE_AI_STUDIO_LLAMA3_CHAT_KEY }}
         run: |
-          pytest --cov=guidance --cov-report=xml --cov-report=term-missing \
-            -vv \
+          pytest -vv --cov=guidance --cov-report=xml --cov-report=term-missing \
             ./tests/need_credentials
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
 
-  minimal-model-specific-tests:
-    runs-on: gpu-runner
+  gpu_tests:
     strategy:
       fail-fast: false # Don't cancel all on first failure
       matrix:
+        os: ["gpu-runner"]
         python-version: ["3.9", "3.10", "3.11", "3.12"]
         model:
           - llamacpp_gemma2_9b_cpu
@@ -110,100 +90,10 @@ jobs:
           - transformers_gemma2_9b_gpu
           - transformers_llama3_8b_cpu
           # - transformers_llama3_8b_gpu Does not reliably work on GPU build machines
-
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install Rust
-        shell: bash
-        run: |
-           curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.75.0
-           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-      - name: Show GPUs
-        run: |
-          nvidia-smi
-      - name: Update Ubuntu
-        run: |
-          sudo apt-get update
-          sudo apt-get -y upgrade
-      - name: Ensure NVIDIA SDK available
-        run: |
-          sudo apt-get -y install cuda-toolkit
-          echo "/usr/local/cuda-12.6/bin" >> $GITHUB_PATH
-      - name: Install dependencies
-        shell: bash
-        run: |
-          python -m pip install --upgrade pip
-          pip install pytest
-          pip install -e .[schemas,test,bench]
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-      - name: Other dependencies
-        run: |
-          pip install sentencepiece
-          echo "=============================="
-          pip uninstall -y transformers
-          pip install "transformers!=4.43.0,!=4.43.1,!=4.43.2,!=4.43.3" # Issue 965
-      - name: GPU pip installs
-        run: |
-          pip install accelerate
-          pip uninstall -y llama-cpp-python
-          echo "======================"
-          nvcc --version
-          echo "======================"
-          CMAKE_ARGS="-DGGML_CUDA=on" pip install "llama-cpp-python!=0.2.58,!=0.2.75"
-      - name: Check GPU available
-        run: |
-          python -c "import torch; assert torch.cuda.is_available()"
-      # Note that we run a minimal set of tests here
-      - name: Run minimal tests for ${{ matrix.model }}
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: |
-          pytest -vv --cov=guidance --cov-report=xml --cov-report=term-missing \
-            --selected_model ${{ matrix.model }} \
-            ./tests/model_integration/test_model.py \
-            ./tests/model_specific/
-      - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v4
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-
-
-
-  remote-endpoint-tests-linux-python:
-    strategy:
-      fail-fast: false # Don't cancel all on first failure
-      matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12"]
-        model:
-          - "azure_guidance"
-    runs-on: Large_Linux
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-      - name: Install dependencies
-        shell: bash
-        run: |
-          python -m pip install --upgrade pip
-          pip install pytest
-          pip install -e .[test]
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-      - name: Run tests (except server)
-        shell: bash
-        env:
-          AZUREAI_GUIDANCE_ENABLED_URL: ${{ vars.AZUREAI_GUIDANCE_ENABLED_URL }}
-          AZUREAI_GUIDANCE_ENABLED_URL_KEY: ${{ secrets.AZUREAI_GUIDANCE_ENABLED_URL_KEY }}
-        run: |
-          pytest --cov=guidance --cov-report=xml --cov-report=term-missing \
-            --selected_model ${{ matrix.model }} \
-            ./tests/unit ./tests/model_integration ./tests/model_specific
-      - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v4
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
+    uses: ./.github/workflows/call_gpu_tests.yml
+    with:
+      os: ${{ matrix.os }}
+      python-version: ${{ matrix.python-version }}
+      model: ${{ matrix.model }}
+    secrets:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}

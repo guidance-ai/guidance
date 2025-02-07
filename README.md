@@ -21,11 +21,7 @@ Guidance is available through PyPI and supports a variety of backends (Transform
 pip install guidance
 ```
 
-_Note: To use Guidance on Phi models in Azure AI, or to use the new accelerated Rust-based parser, please install the release-candidate v0.2.0 guidance package_:
-```bash
-pip install guidance --pre
-```
-For a detailed walkthrough of using Guidance on hosted Phi models, check the [Azure AI specific loading instructions.](#azure-ai) and the [Phi-3 + Guidance cookbook](https://github.com/microsoft/Phi-3CookBook/blob/main/code/01.Introduce/guidance.ipynb).
+<!-- For a detailed walkthrough of using Guidance on hosted Phi models, check the [Azure AI specific loading instructions.](#azure-ai) and the [Phi-3 + Guidance cookbook](https://github.com/microsoft/Phi-3CookBook/blob/main/code/01.Introduce/guidance.ipynb). -->
 
 <!-- <a href="https://www.youtube.com/watch?v=9oXjP5IIMzQ"  aria-label="Watch demo"><img alt="Watch demo" src="docs/figures/watch_demo_button.png" width="120"></a> <a href="#get-started" aria-label="Get started"><img alt="Watch demo" src="docs/figures/get_started_button.png" width="120"></a> -->
 
@@ -200,7 +196,7 @@ An `lm` object is immutable, so you change it by creating new copies of it. By d
 from guidance import models, gen, select
 llama2 = models.LlamaCpp(model)
 
-# llama2 is not modified, `lm` is a copy of `llama2` with 'This is a prompt' appended to its state
+# llama2 is not modified, `lm` is a copy of `llama2` with 'This is a propmt' appended to its state
 lm = llama2 + 'This is a prompt'
 ```
 <img width="124" alt="image" src="https://github.com/guidance-ai/guidance/assets/3740613/c1e96b2b-8f4a-44ee-a8f4-a694a8d7784b"><br>
@@ -477,7 +473,7 @@ def calculator_call(lm):
 @guidance
 def calculator(lm):
     expression = lm['tool_args']
-    # You typically don't want to run eval directly for save reasons
+    # You typically don't want to run eval directly for security reasons
     # Here we are guaranteed to only have mathematical expressions
     lm += f' = {eval(expression)}'
     return lm
@@ -489,7 +485,7 @@ lm += gen(max_tokens=30, tools=[calculator_tool], stop='\n\n')
 
 
 ### Gsm8k example
-Notice that the calculator is just called seamlessly during generation. Here is a more realistic exampe of the model solving a gsm8k question:
+Notice that the calculator is just called seamlessly during generation. Here is a more realistic example of the model solving a gsm8k question:
 
 ```python
 @guidance
@@ -669,27 +665,6 @@ from guidance import models
 lm = models.Transformers(model_name_or_path)
 ```
 
-### Azure AI
-Azure AI is experimenting with a serverside Guidance integration, first available on the Phi-3.5-mini model. To use Guidance with AzureAI, you need to run the pre-release candidate of the `guidance` library (v0.2.0rc1).
-
-```bash
-pip install guidance --pre
-```
-
-For a detailed getting-started guide and more code examples, see the [Phi-3 + Guidance Cookbook]([Phi-3 + Guidance cookbook](https://github.com/microsoft/Phi-3CookBook/blob/main/code/01.Introduce/guidance.ipynb).)
-
-First, deploy a Phi-3.5-mini model using AzureAI Models-as-a-service (https://ai.azure.com/explore/models/Phi-3.5-mini-instruct/version/2/registry/azureml). Then, in your Guidance code, instantiate the `AzureGuidance` class:
-
-```python
-from guidance.models import AzureGuidance
-import os
-
-phi3_url = os.getenv("AZURE_PHI3_URL") # Get the URL and API KEY from your AzureAI deployment dashboard
-phi3_api_key = os.getenv("AZURE_PHI3_KEY")
-lm = AzureGuidance(f"{phi3_url}/guidance#auth={phi3_api_key}") # note the URL structure using the new /guidance endpoint
-```
-
-Pull the deployment URL and Key from the Azure deployment to instantiate the class. You can now attach _any_ stateless guidance function to the `AzureGuidance` lm, and have it execute in a single API call. Stateless guidance functions executing in the cloud benefit from many key guidance features the same way local models do, including token healing, guidance acceleration, and fine-grained model control. Considerable effort and resources went into preparing this experimental pre-release, so please let us know if you encounter any bugs or have helpful feedback!
 
 ```python
 @guidance(stateless=True) # Note the stateless=True flag in the decorator -- this enables maximal efficiency on the guidance program execution
@@ -714,7 +689,7 @@ character_lm = lm + character_maker(1, 'A nimble fighter', ['axe', 'sword', 'bow
 ```
 
 ### Vertex AI
-Remote endpoints that don't have explicit guidance integration are run "optimistically". This means that all the text that can be forced is given to the model as a prompt (or chat context) and then the model is run in streaming mode without hard constrants (since the remote API doesn't support them). If the model ever violates the contraints then the model stream is stopped and we optionally try it again at that point. This means that all the API-supported control work as expected, and more complex controls/parsing that is not supported by the API work if the model stays consistent with the program.
+Remote endpoints that don't have explicit guidance integration are run "optimistically". This means that all the text that can be forced is given to the model as a prompt (or chat context) and then the model is run in streaming mode without hard constraints (since the remote API doesn't support them). If the model ever violates the contraints then the model stream is stopped and we optionally try it again at that point. This means that all the API-supported control work as expected, and more complex controls/parsing that is not supported by the API work if the model stays consistent with the program.
 ```python
 palm2 = models.VertexAI("text-bison@001")
 
