@@ -13,6 +13,12 @@ from .state import (
 
 
 class DummyClient(Client):
+    def __init__(self, state_type: type[State]):
+        self.state_type = state_type
+
+    def initial_state(self) -> State:
+        return self.state_type()
+
     def run(self, state: State, node: Node) -> Iterable[ContentChunk]:
         if isinstance(node, str):
             yield node
@@ -28,7 +34,7 @@ def chat():
         TransformersUnstructuredState,
         Llama3TransformersState,
     ]:
-        model = Model(DummyClient(), s())
+        model = Model(DummyClient(s))
         with model.system():
             model += "Talk like a pirate!"
         with model.user():
@@ -46,7 +52,7 @@ def completion():
     for s in [
         CompletionState,
     ]:
-        model = Model(DummyClient(), s())
+        model = Model(DummyClient(s))
         model += "<|system|>\nTalk like a pirate!\n<|end_of_turn|>\n"
         model += "<|user|>\nHello, model!\n<|end_of_turn|>\n"
         model += "<|user|>\nHow are you?\n<|end_of_turn|>\n"

@@ -20,6 +20,10 @@ class Client(ABC, Generic[S]):
     def run(self, state: S, node: Node) -> Iterable[ContentChunk]:
         pass
 
+    @abstractmethod
+    def initial_state(self) -> S:
+        pass
+
     def format_state(self, state: S) -> str:
         return json.dumps(state.get_state(), indent=2)
 
@@ -28,6 +32,9 @@ class OpenAIClient(Client[OpenAIState]):
     def __init__(self, model: str = "gpt-4o-mini", api_key: Optional[str] = None):
         self.client = OpenAI(api_key=api_key)
         self.model = model
+
+    def initial_state(self) -> OpenAIState:
+        return OpenAIState()
 
     def run(self, state: OpenAIState, node: Node) -> Iterable[ContentChunk]:
         if isinstance(node, str):
@@ -54,7 +61,7 @@ class OpenAIClient(Client[OpenAIState]):
 
             responses = self.client.chat.completions.create(
                 model=self.model,
-                messages=messages, # type: ignore[arg-type]
+                messages=messages,  # type: ignore[arg-type]
                 max_tokens=node.max_tokens,
                 temperature=node.temperature,
                 logprobs=True,

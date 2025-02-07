@@ -8,17 +8,15 @@ from guidance._grammar import Null, RawFunction, _call_pool, _tag_pattern
 
 from .ast import MessageChunk, Node, RoleEnd, RoleStart
 from .client import Client
-from .state import State
 
 
 class Model:
     def __init__(
         self,
         client: Client,
-        state: State,
     ) -> None:
         self.client = client
-        self._state = state
+        self._state = client.initial_state()
 
     def __iadd__(self, other: Node) -> Self:
         if isinstance(other, str):
