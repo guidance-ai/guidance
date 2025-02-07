@@ -1,7 +1,10 @@
+import re
 from contextlib import AbstractContextManager, contextmanager
 from typing import Iterator
 
 from typing_extensions import Self
+
+from guidance._grammar import Null, RawFunction, _call_pool, _tag_pattern
 
 from .ast import MessageChunk, Node, RoleEnd, RoleStart
 from .client import Client
@@ -19,6 +22,12 @@ class Model:
         self._internal_state = InternalState()
 
     def __iadd__(self, other: Node) -> Self:
+        if isinstance(other, str):
+            if other == "":
+                return self
+            other = extract_embedded_nodes(other)
+        if isinstance(other, RawFunction):
+            return other(self)
         self._apply_node(other)
         return self
 
@@ -56,3 +65,21 @@ class Model:
 
     def __str__(self) -> str:
         return self.client.format_state(self._api_state)
+
+
+def extract_embedded_nodes(value: str) -> Node:
+    parts: list[str] = re.split(_tag_pattern, value)
+
+    if len(parts) == 1:
+        return value
+
+    is_id = False
+    grammar = Null()
+    for part in parts:
+        if is_id:
+            call = _call_pool[part]
+            grammar += call
+        else:
+            grammar += part
+        is_id = not is_id
+    return grammar
