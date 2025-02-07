@@ -4,6 +4,11 @@ name: CI Tests
 
 on:
   workflow_dispatch:
+    inputs:
+      commit_id:
+        description: 'Branch or Commit ID (optional)'
+        required: false
+        type: string
   schedule:
     # * is a special character in YAML so we quote this string
     # Run at 09:00 UTC every day
@@ -20,7 +25,10 @@ jobs:
     permissions:
       id-token: write  # for Azure CLI login
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repo at ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
