@@ -2,8 +2,10 @@ from dataclasses import dataclass, field
 from typing import Union
 from uuid import UUID, uuid4
 
+from guidance._grammar import GrammarFunction
+
 # TODO
-Node = str
+Node = Union[str, GrammarFunction]
 ContentChunk = str
 
 

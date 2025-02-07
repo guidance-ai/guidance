@@ -1,7 +1,7 @@
 from typing import Iterable
 
 from .ast import ContentChunk, Node
-from .client import Client
+from .client import Client, TransformersClient
 from .model import Model
 from .state import (
     APIState,
@@ -60,3 +60,16 @@ def completion():
         print(s.__name__)
         print("-" * 80)
         print(model._api_state.get_state())
+
+
+def transformers():
+    from guidance import gen
+
+    model = Model(TransformersClient(), TransformersUnstructuredState())
+    with model.system():
+        model += "Talk like a pirate!"
+    with model.user():
+        model += "Hello, model!"
+    with model.assistant():
+        model += gen()
+    return model
