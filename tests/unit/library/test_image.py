@@ -33,5 +33,5 @@ def test_remote_image_not_found():
 
 def test_image_from_bytes():
     model = models.Mock()
-    model += image(local_image_bytes())
+    model += image(local_image_bytes(local_image_path()))
     assert str(model).startswith("<|_image:")
