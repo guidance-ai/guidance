@@ -42,7 +42,7 @@ def local_image_path(remote_url):
             response = requests.get(remote_url)
             file.write(response.content)
         assert (td / filename).exists()
-        yield td / filename
+        return td / filename
 
 
 def local_image_bytes(img_path):
