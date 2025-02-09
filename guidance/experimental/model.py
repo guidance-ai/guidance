@@ -1,6 +1,7 @@
 import re
 from contextlib import AbstractContextManager, contextmanager
 from contextvars import ContextVar
+from copy import deepcopy
 from typing import Iterator, Optional
 
 from typing_extensions import Self
@@ -22,7 +23,8 @@ class Model:
         self._state = client.initial_state()
         self._active_role: Optional["RoleStart"] = None
 
-    def __iadd__(self, other: Node) -> Self:
+    def __add__(self, other: Node) -> None:
+        self = self.copy()
         self._apply_role_changes()
         if isinstance(other, str):
             if other == "":
@@ -32,9 +34,6 @@ class Model:
             return other(self)
         self._apply_node(other)
         return self
-
-    def __add__(self, other: Node) -> None:
-        raise TypeError("Use += to add nodes")
 
     def _apply_node(self, node: Node) -> None:
         for chunk in self.client.run(self._state, node):
@@ -73,6 +72,13 @@ class Model:
 
     def __str__(self) -> str:
         return self.client.format_state(self._state)
+
+    def copy(self) -> Self:
+        obj = object.__new__(self.__class__)
+        obj.client = self.client
+        obj._active_role = self._active_role
+        obj._state = deepcopy(self._state)
+        return obj
 
 
 def extract_embedded_nodes(value: str) -> Node:
