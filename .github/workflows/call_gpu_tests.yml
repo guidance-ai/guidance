@@ -61,9 +61,9 @@ jobs:
       - name: Install guidance in ${{ inputs.os }}
         shell: bash
         run: |
-          pip install --upgrade pip
-          pip install sentencepiece accelerate
-          CMAKE_ARGS="-DGGML_CUDA=on" pip install -e .[llamacpp,transformers,test]
+          python -m pip install --upgrade pip
+          python -m pip install sentencepiece accelerate
+          CMAKE_ARGS="-DGGML_CUDA=on" python -m pip install -e .[llamacpp,transformers,test]
       - name: Check GPU available
         shell: bash
         run: |
