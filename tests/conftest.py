@@ -19,7 +19,6 @@ def pytest_addoption(parser):
         action="store",
         default=default_model,
         type=str,
-        choices=AVAILABLE_MODELS.keys(),
         help=f"LLM to load when needed. Set default via environment variable {SELECTED_MODEL_ENV_VARIABLE}",
     )
 
