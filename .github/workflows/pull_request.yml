@@ -1,0 +1,93 @@
+name: pull_request
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      commit_id:
+        description: 'Branch or Commit ID (optional)'
+        required: false
+        type: string
+  schedule:
+    # Run at 11:00 UTC every day
+    - cron: "00 11 * * *"
+
+jobs:
+  unit_tests:
+    strategy:
+      fail-fast: false # Don't cancel all on first failure
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.10", "3.11", "3.12"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout repo at ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Minimal install
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+      - name: Attempt import
+        run: |
+          python -c "import guidance"
+      - name: Bigger install
+        run: |
+          python -m pip install -e .[unittest]
+      - name: Unit Tests
+        run: |
+          pytest -vv ./tests/unit
+
+  server_tests:
+    strategy:
+      fail-fast: false # Don't cancel all on first failure
+      matrix:
+        os: ["ubuntu-latest"]
+        python-version: ["3.12"]
+    uses: ./.github/workflows/call_server_tests.yml
+    with:
+      os: ${{ matrix.os }}
+      python-version: ${{ matrix.python-version }}
+
+  cpu_tests:
+    strategy:
+      fail-fast: false # Don't cancel all on first failure
+      matrix:
+        os: ["Large_Linux", "Large_Windows", "macos-latest"]
+        python-version: ["3.11", "3.12"]
+        model:
+          - "transformers_gpt2_cpu"
+          - "llamacpp_phi3_mini_4k_instruct_cpu"
+          # - "transformers_phi2_cpu" Seems to get stuck
+          # - "transformers_mistral_7b_cpu" See Issue 713
+          # - "llamacpp_llama2_7b_cpu" Getting stuck with llama-cpp-python 0.2.77
+          # - "llamacpp_mistral_7b_cpu"
+          # - "transformers_phi3_mini_4k_instruct_cpu" Gives trouble on MacOS
+    uses: ./.github/workflows/call_cpu_tests.yml
+    with:
+      os: ${{ matrix.os }}
+      python-version: ${{ matrix.python-version }}
+      model: ${{ matrix.model }}
+
+  gpu_tests:
+    strategy:
+      fail-fast: false # Don't cancel all on first failure
+      matrix:
+        os: ["gpu-runner"]
+        python-version: ["3.11", "3.12"]
+        model:
+          - "transformers_gpt2_gpu"
+          - "transformers_phi2_gpu"
+          # - "transformers_phi3_small_8k_instruct_gpu" Does not run on tesla t4
+          # - "llamacpp_llama2_7b_gpu" Keeps causing intermittent segfaults
+    uses: ./.github/workflows/call_gpu_tests.yml
+    with:
+      os: ${{ matrix.os }}
+      python-version: ${{ matrix.python-version }}
+      model: ${{ matrix.model }}
