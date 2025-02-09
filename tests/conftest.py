@@ -1,14 +1,7 @@
 import os
-import pathlib
-import random
-import tempfile
-import time
-import uuid
 import pytest
-import requests
 
 from guidance import models
-
 
 def pytest_addoption(parser):
     SELECTED_MODEL_ENV_VARIABLE = "GUIDANCE_SELECTED_MODEL"

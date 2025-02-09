@@ -1,4 +1,11 @@
 import os
+import pathlib
+import random
+import tempfile
+import time
+import uuid
+import requests
+
 from typing import Set, Optional, Protocol
 
 import pytest
@@ -7,8 +14,6 @@ import guidance
 from guidance import models
 from guidance._grammar import GrammarFunction, Join
 from guidance._parser import ByteParserException
-import random
-import time
 
 opanai_model_cache = {}
 
