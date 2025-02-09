@@ -34,19 +34,19 @@ def remote_image_url():
     return "https://picsum.photos/300/200"
 
 
-def local_image_path(remote_image_url):
+def local_image_path(remote_url):
     with tempfile.TemporaryDirectory() as temp_dir:
         td = pathlib.Path(temp_dir)
         filename = f"{str(uuid.uuid4())}.jpg"
         with open(td / filename, "wb") as file:
-            response = requests.get(remote_image_url)
+            response = requests.get(remote_url)
             file.write(response.content)
         assert (td / filename).exists()
         yield td / filename
 
 
-def local_image_bytes(local_image_path):
-    with open(local_image_path, "rb") as f:
+def local_image_bytes(img_path):
+    with open(img_path, "rb") as f:
         return f.read()
 
 
