@@ -7,8 +7,22 @@ import guidance
 from guidance import models
 from guidance._grammar import GrammarFunction, Join
 from guidance._parser import ByteParserException
+import random
+import time
 
 opanai_model_cache = {}
+
+def slowdown():
+    """Limit test execution rate
+
+    Any test using this fixture will have a
+    random delay inserted before the test runs.
+    It can be used as a crude rate limiter for
+    tests which call external APIs
+    """
+    delay_secs = random.randint(10, 30)
+    time.sleep(delay_secs)
+    return delay_secs
 
 
 def env_or_fail(var_name: str) -> str:
