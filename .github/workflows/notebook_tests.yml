@@ -43,8 +43,8 @@ jobs:
       - name: Install guidance
         shell: bash
         run: |
-          pip install --upgrade pip
-          pip install -e .[all,llamacpp,test]
+          python -m pip install --upgrade pip
+          python -m pip install -e .[all,llamacpp,test]
       - name: Azure login
         uses: azure/login@v2
         with:
