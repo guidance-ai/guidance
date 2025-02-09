@@ -6,7 +6,6 @@ import time
 import uuid
 import pytest
 import requests
-import importlib
 
 from guidance import models
 
@@ -51,8 +50,10 @@ def selected_model(selected_model_name: str) -> models.Model:
     # GEMMA 2
     if selected_model_name == "llamacpp_gemma2_9b_cpu":
         # Note that this model requires an appropriate HF_TOKEN environment variable
+        from huggingface_hub import hf_hub_download
+
         return models.LlamaCpp(
-            importlib.import_module("huggingface_hub").hf_hub_download(
+            hf_hub_download(
                 repo_id="bartowski/gemma-2-9b-it-GGUF", filename="gemma-2-9b-it-IQ2_XS.gguf"
             ),
             verbose=True,
@@ -60,20 +61,20 @@ def selected_model(selected_model_name: str) -> models.Model:
         )
     if selected_model_name == "transformers_gemma2_9b_cpu":
         # Note that this model requires an appropriate HF_TOKEN environment variable
+        from transformers import BitsAndBytesConfig
+
         return models.Transformers(
             "google/gemma-2-9b-it",
-            quantization_config=importlib.import_module("transformers").BitsAndBytesConfig(
-                load_in_8bit=True
-            ),
+            quantization_config=BitsAndBytesConfig(load_in_8bit=True),
         )
     if selected_model_name == "transformers_gemma2_9b_gpu":
         # Note that this model requires an appropriate HF_TOKEN environment variable
+        from transformers import BitsAndBytesConfig
+
         return models.Transformers(
             "google/gemma-2-9b-it",
             device_map="cuda:0",
-            quantization_config=importlib.import_module("transformers").BitsAndBytesConfig(
-                load_in_4bit=True
-            ),
+            quantization_config=BitsAndBytesConfig(load_in_4bit=True),
         )
 
     # GPT 2
@@ -84,18 +85,18 @@ def selected_model(selected_model_name: str) -> models.Model:
 
     # LLAMA 2
     if selected_model_name == "llamacpp_llama2_7b_cpu":
+        from huggingface_hub import hf_hub_download
+
         return models.LlamaCpp(
-            importlib.import_module("huggingface_hub").hf_hub_download(
-                repo_id="TheBloke/Llama-2-7B-GGUF", filename="llama-2-7b.Q5_K_M.gguf"
-            ),
+            hf_hub_download(repo_id="TheBloke/Llama-2-7B-GGUF", filename="llama-2-7b.Q5_K_M.gguf"),
             verbose=True,
             n_ctx=4096,
         )
     if selected_model_name == "llamacpp_llama2_7b_gpu":
+        from huggingface_hub import hf_hub_download
+
         return models.LlamaCpp(
-            importlib.import_module("huggingface_hub").hf_hub_download(
-                repo_id="TheBloke/Llama-2-7B-GGUF", filename="llama-2-7b.Q5_K_M.gguf"
-            ),
+            hf_hub_download(repo_id="TheBloke/Llama-2-7B-GGUF", filename="llama-2-7b.Q5_K_M.gguf"),
             verbose=True,
             n_ctx=4096,
             n_gpu_layers=-1,
@@ -104,17 +105,21 @@ def selected_model(selected_model_name: str) -> models.Model:
     # LLAMA 3
     if selected_model_name == "transformers_llama3_8b_cpu":
         # Note that this model requires an appropriate HF_TOKEN environment variable
+        from torch import bfloat16
+
         return models.Transformers(
             "meta-llama/Meta-Llama-3-8B-Instruct",
             trust_remote_code=True,
-            torch_dtype=importlib.import_module("torch").bfloat16,
+            torch_dtype=bfloat16,
         )
     if selected_model_name == "transformers_llama3_8b_gpu":
         # Note that this model requires an appropriate HF_TOKEN environment variable
+        from torch import bfloat16
+
         return models.Transformers(
             "meta-llama/Meta-Llama-3-8B-Instruct",
             trust_remote_code=True,
-            torch_dtype=importlib.import_module("torch").bfloat16,
+            torch_dtype=bfloat16,
             device_map="cuda:0",
         )
 
@@ -122,8 +127,10 @@ def selected_model(selected_model_name: str) -> models.Model:
     if selected_model_name == "transformers_mistral_7b_cpu":
         return models.Transformers("mistralai/Mistral-7B-v0.1")
     if selected_model_name == "llamacpp_mistral_7b_cpu":
+        from huggingface_hub import hf_hub_download
+
         return models.LlamaCpp(
-            importlib.import_module("huggingface_hub").hf_hub_download(
+            hf_hub_download(
                 repo_id="TheBloke/Mistral-7B-Instruct-v0.2-GGUF",
                 filename="mistral-7b-instruct-v0.2.Q8_0.gguf",
             ),
@@ -141,8 +148,10 @@ def selected_model(selected_model_name: str) -> models.Model:
     if selected_model_name == "transformers_phi3_mini_4k_instruct_cpu":
         return models.Transformers("microsoft/Phi-3-mini-4k-instruct", trust_remote_code=True)
     if selected_model_name == "llamacpp_phi3_mini_4k_instruct_cpu":
+        from huggingface_hub import hf_hub_download
+
         return models.LlamaCpp(
-            importlib.import_module("huggingface_hub").hf_hub_download(
+            hf_hub_download(
                 repo_id="microsoft/Phi-3-mini-4k-instruct-gguf",
                 filename="Phi-3-mini-4k-instruct-q4.gguf",
             ),
