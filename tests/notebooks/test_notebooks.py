@@ -26,7 +26,7 @@ class TestTutorials:
 
     @pytest.mark.skip(reason="resource has been temporarily blocked")
     def test_chat(self):
-        slowdown()
+        call_delay_secs = slowdown()
 
         azureai_endpoint = env_or_skip("AZUREAI_CHAT_ENDPOINT")
 
@@ -42,7 +42,7 @@ class TestTutorials:
         nb_path = TestTutorials.BASE_TUTORIAL_PATH / "chat.ipynb"
         run_notebook(
             nb_path,
-            params=dict(call_delay_secs=slowdown(), requested_log_level=logging.DEBUG),
+            params=dict(call_delay_secs=call_delay_secs, requested_log_level=logging.DEBUG),
         )
 
     @pytest.mark.xfail(reason="Issue #1004")
@@ -60,7 +60,7 @@ class TestModels:
 
     @pytest.mark.skip(reason="resource has been temporarily blocked")
     def test_azure_openai(self):
-        slowdown()
+        call_delay_secs = slowdown()
 
         azureai_endpoint = env_or_skip("AZUREAI_CHAT_ENDPOINT")
 
@@ -75,7 +75,7 @@ class TestModels:
         os.environ["AZUREAI_CHAT_DEPLOYMENT"] = azureai_deployment
 
         nb_path = TestModels.BASE_MODEL_PATH / "AzureOpenAI.ipynb"
-        run_notebook(nb_path, params=dict(call_delay_secs=slowdown()))
+        run_notebook(nb_path, params=dict(call_delay_secs=call_delay_secs))
 
 
 class TestArtOfPromptDesign:
@@ -96,7 +96,7 @@ class TestArtOfPromptDesign:
 
     @pytest.mark.xfail(reason="Issue #1004")
     def test_use_clear_syntax(self):
-        slowdown()
+        call_delay_secs = slowdown()
 
         azureai_endpoint = os.getenv("AZUREAI_CHAT_ENDPOINT", None)
 
@@ -110,4 +110,4 @@ class TestArtOfPromptDesign:
         os.environ["AZUREAI_CHAT_API_VERSION"] = version[0]
         os.environ["AZUREAI_CHAT_DEPLOYMENT"] = azureai_deployment
         nb_path = TestArtOfPromptDesign.BASE_APD_PATH / "use_clear_syntax.ipynb"
-        run_notebook(nb_path, params=dict(call_delay_secs=slowdown()))
+        run_notebook(nb_path, params=dict(call_delay_secs=call_delay_secs))
