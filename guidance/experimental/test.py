@@ -74,3 +74,45 @@ def transformers():
     with model.assistant():
         model += gen()
     return model
+
+
+def vision():
+    from io import BytesIO
+
+    import PIL.Image
+    import requests
+
+    from guidance import json
+    from guidance.experimental.ast import ImageBlob
+
+    model = Model(
+        TransformersClient(
+            model_id="microsoft/Phi-3-vision-128k-instruct", _attn_implementation="eager"
+        )
+    )
+    with model.system():
+        model += "Talk like a pirate!"
+    with model.user():
+        model += ImageBlob(
+            PIL.Image.open(
+                BytesIO(
+                    requests.get(
+                        "https://assets-c4akfrf5b4d3f4b7.z01.azurefd.net/assets/2024/04/BMDataViz_661fb89f3845e.png"
+                    ).content
+                )
+            )
+        )
+        model += "Can you describe the contents of this image?"
+    with model.assistant():
+        model += json(
+            schema={
+                "type": "object",
+                "properties": {
+                    "description": {
+                        "type": "string",
+                    },
+                },
+                "required": ["description"],
+            }
+        )
+    return model
