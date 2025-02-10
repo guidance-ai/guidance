@@ -16,7 +16,7 @@ opanai_model_cache = {}
 def slowdown():
     """Limit test execution rate
 
-    Any test using this fixture will have a
+    Any test calling this function will have a
     random delay inserted before the test runs.
     It can be used as a crude rate limiter for
     tests which call external APIs
