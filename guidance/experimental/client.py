@@ -1,8 +1,9 @@
 import json
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Generic, Iterable, Optional, TypeVar, Union
+from typing import TYPE_CHECKING, Generic, Iterable, Optional, TypeVar, Union, cast
 
 from openai import OpenAI
+from openai.types.chat import ChatCompletionChunk as OpenAIChatCompletionChunk
 from typing_extensions import assert_never
 
 from guidance._grammar import Function, Gen
@@ -68,7 +69,7 @@ class OpenAIClient(Client[OpenAIState]):
                 logprobs=True,
                 stream=True,
             )
-            for response in responses:
+            for response in cast(Iterable[OpenAIChatCompletionChunk], responses):
                 choice = response.choices[0]
                 delta = choice.delta
                 if delta.content is not None:
@@ -130,11 +131,11 @@ class TransformersClient(GuidanceClient[Union[CompletionState, BaseTransformersC
                     raise ValueError("Can't generate with no active role")
                 prefill = {"role": "user", "content": ""}
             prompt = apply_chat_template(
-                chat_state["messages"],
+                list(chat_state["messages"]),
                 chat_state["prefill"],
                 None,
                 None,
-                self.engine.tokenizer._orig_tokenizer,
+                self.engine.tokenizer._orig_tokenizer,  # type: ignore[attr-defined]
             )
         elif isinstance(state, CompletionState):
             completion_state = state.get_state()
