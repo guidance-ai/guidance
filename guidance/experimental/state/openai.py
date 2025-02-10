@@ -1,6 +1,9 @@
+from base64 import b64encode
+from io import BytesIO
 from typing import Optional, TypedDict, Union
 
-from .base import BaseChatStateObj, ChatState
+from ..ast import ImageBlob
+from .base import ChatState
 
 
 class OpenAIContentMessage(TypedDict):
@@ -43,3 +46,17 @@ class OpenAIState(ChatState[OpenAIMessage]):
 
     def apply_text(self, text: str) -> None:
         self.content.append({"type": "text", "text": text})
+
+    def apply_image(self, image: ImageBlob) -> None:
+        format = image.image.format
+        if format is None:
+            raise ValueError(f"Cannot upload image with unknown format: {image.image}")
+
+        with BytesIO() as buffer:
+            image.image.save(buffer, format=format)
+            b64_image = b64encode(buffer.getvalue()).decode("utf-8")
+
+        mime_type = f"image/{format.lower()}"
+        self.content.append(
+            {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{b64_image}"}}
+        )
