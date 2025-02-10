@@ -23,7 +23,7 @@ class Model:
         self._state = client.initial_state()
         self._active_role: Optional["RoleStart"] = None
 
-    def __add__(self, other: Node) -> None:
+    def __add__(self, other: Node) -> Self:
         self = self.copy()
         self._apply_role_changes()
         if isinstance(other, str):
