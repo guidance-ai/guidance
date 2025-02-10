@@ -10,13 +10,7 @@ from guidance.models import Transformers
 from guidance.models._model import Engine
 
 from .ast import ContentChunk, Node
-from .state import (
-    BaseTransformersChatState,
-    ChatState,
-    CompletionState,
-    State,
-    TransformersUnstructuredState,
-)
+from .state import BaseTransformersChatState, ChatState, CompletionState, State
 from .state.openai import OpenAIState
 
 S = TypeVar("S", bound=State)
@@ -41,7 +35,7 @@ class OpenAIClient(Client[OpenAIState]):
         self.model = model
 
     def initial_state(self) -> OpenAIState:
-        return OpenAIState()
+        return OpenAIState.from_openai_model(self.model)
 
     def run(self, state: OpenAIState, node: Node) -> Iterable[ContentChunk]:
         if isinstance(node, str):
@@ -119,12 +113,12 @@ class GuidanceClient(Client[S], ABC):
 
 class TransformersClient(GuidanceClient[Union[CompletionState, BaseTransformersChatState]]):
     def __init__(self, model_id: str = "microsoft/Phi-3-mini-4k-instruct"):
+        self.model_id = model_id
         guidance_model = Transformers(model_id)
         super().__init__(guidance_model.engine)
 
     def initial_state(self) -> Union[CompletionState, BaseTransformersChatState]:
-        # TODO: make this configurable / depend on the model id
-        return TransformersUnstructuredState()
+        return BaseTransformersChatState.from_model_id(self.model_id)
 
     def build_prompt(self, state: Union[CompletionState, BaseTransformersChatState]) -> str:
         if isinstance(state, ChatState):

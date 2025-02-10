@@ -1,3 +1,4 @@
+import re
 from abc import ABC, abstractmethod
 from typing import Any, Generic, Optional, Sequence, TypedDict, TypeVar
 
@@ -29,6 +30,15 @@ class BaseTransformersChatState(ChatState[TransformersMessage[TC]], ABC):
         self.images: list[Any] = []
         self.audio: list[Any] = []
         self.videos: list[Any] = []
+
+    @classmethod
+    def from_model_id(cls, model_id: str) -> "BaseTransformersChatState":
+        if "Phi-3-vision" in model_id:
+            return Phi3VisionState()
+        if re.search("Llama-3.*-Vision", model_id):
+            return Llama3TransformersState()
+        # Fallback to unstructured (string) state
+        return TransformersUnstructuredState()
 
     def get_active_message(self) -> Optional[TransformersMessage[TC]]:
         if self.active_role is None:
