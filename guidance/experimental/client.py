@@ -112,9 +112,9 @@ class GuidanceClient(Client[S], ABC):
 
 
 class TransformersClient(GuidanceClient[Union[CompletionState, BaseTransformersChatState]]):
-    def __init__(self, model_id: str = "microsoft/Phi-3-mini-4k-instruct"):
+    def __init__(self, model_id: str = "microsoft/Phi-3-mini-4k-instruct", **model_kwargs):
         self.model_id = model_id
-        guidance_model = Transformers(model_id)
+        guidance_model = Transformers(model_id, **model_kwargs)
         super().__init__(guidance_model.engine)
 
     def initial_state(self) -> Union[CompletionState, BaseTransformersChatState]:
