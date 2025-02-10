@@ -29,3 +29,8 @@ class StitchWidget(DOMWidget):
     initial_height = Unicode("1px").tag(sync=True)
     initial_width = Unicode("1px").tag(sync=True)
     initial_border = Unicode("0").tag(sync=True)
+
+    # State that should only be set in kernel, not shared with client.
+    kernel_state = Unicode("").tag(sync=False)
+    # State that should only be set in client, not shared with kernel.
+    client_state = Unicode("").tag(sync=False)

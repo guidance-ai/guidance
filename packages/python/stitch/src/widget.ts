@@ -28,6 +28,8 @@ export class StitchModel extends DOMWidgetModel {
       initial_height: '1px',
       initial_width: '1px',
       initial_border: '0',
+      kernel_state: '',
+      client_state: '',
     };
   }
 
@@ -58,16 +60,20 @@ export class StitchView extends DOMWidgetView {
     iframe.style.display = 'block';
     this._iframe = iframe;
 
-    // Send first kernelmsg on load.
+    // Initialization steps when model is ready.
     const refreshTimeMs = 100;
-    const sendKernelMsgOnReady = () => {
+    const initOnReady = () => {
       if (this.model.isNew()) {
-        window.setTimeout(sendKernelMsgOnReady, refreshTimeMs);
+        window.setTimeout(initOnReady, refreshTimeMs);
       } else {
+        // Send state to client if defined.
+        this.emit_state();
+
+        // Send first kernelmsg on load.
         this.kernelmsg_changed();
       }
     };
-    window.setTimeout(sendKernelMsgOnReady, refreshTimeMs);
+    window.setTimeout(initOnReady, refreshTimeMs);
 
     // Add callback for forwarding messages from client to kernel
     const model = this.model;
@@ -79,6 +85,9 @@ export class StitchView extends DOMWidgetView {
       } else if (win === event.source && event.data.type === 'resize') {
         iframe.style.height = event.data.content.height;
         iframe.style.width = event.data.content.width;
+      } else if (win === event.source && event.data.type === 'client_state') {
+        model.set('client_state', event.data.content);
+        model.save_changes();
       }
     };
     window.addEventListener('message', recvFromClient);
@@ -91,6 +100,18 @@ export class StitchView extends DOMWidgetView {
 
     // Connect callback for when kernel changes the srcdoc
     this.model.on('change:srcdoc', this.srcdoc_changed, this);
+  }
+
+  emit_state() {
+    const clientState = this.model.get('client_state');
+    if (clientState === '') {
+      return;
+    }
+    const winmsg = {
+      type: 'client_state',
+      content: clientState,
+    };
+    this._iframe.contentWindow?.postMessage(winmsg, '*');
   }
 
   kernelmsg_changed() {
