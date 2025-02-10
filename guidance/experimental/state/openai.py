@@ -25,6 +25,15 @@ class OpenAIState(ChatState[OpenAIMessage]):
         self.content: list[dict] = []
         self.audio: Optional[dict] = None
 
+    @classmethod
+    def from_openai_model(cls, model: str) -> "OpenAIState":
+        if "audio-preview" in model:
+            return OpenAIAudioState()
+        if model.startswith("gpt-4o") or model.startswith("o1"):
+            return OpenAIImageState()
+        else:
+            return OpenAIState()
+
     def get_active_message(self) -> Optional[OpenAIMessage]:
         if self.active_role is None:
             return None
@@ -47,6 +56,8 @@ class OpenAIState(ChatState[OpenAIMessage]):
     def apply_text(self, text: str) -> None:
         self.content.append({"type": "text", "text": text})
 
+
+class OpenAIImageState(OpenAIState):
     def apply_image(self, image: ImageBlob) -> None:
         format = image.image.format
         if format is None:
@@ -60,3 +71,8 @@ class OpenAIState(ChatState[OpenAIMessage]):
         self.content.append(
             {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{b64_image}"}}
         )
+
+
+class OpenAIAudioState(OpenAIState):
+    def __init__(self) -> None:
+        raise NotImplementedError("OpenAI audio not yet implemented")
