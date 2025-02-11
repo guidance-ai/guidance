@@ -247,7 +247,10 @@ class SelectNode(GrammarNode):
         return True
 
     def simplify(self) -> "GrammarNode":
+        nullable = any(alt.is_null for alt in self.alternatives)
         self.alternatives = [alt.simplify() for alt in self.alternatives if not alt.is_null]
+        if nullable:
+            self.alternatives.append(LiteralNode(""))
         if len(self.alternatives) == 1:
             return self.alternatives[0]
         return self
