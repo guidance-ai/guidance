@@ -84,7 +84,7 @@ class Function(Tagged):
 @dataclass(slots=True, eq=False)
 class GrammarNode(ABC, Tagged):
     @abstractmethod
-    def __repr__(self) -> str:
+    def lark_str(self, top: bool = False) -> str:
         pass
 
     @property
@@ -99,14 +99,14 @@ class GrammarNode(ABC, Tagged):
     def is_terminal(self) -> bool:
         return all(child.is_terminal for child in self.children())
 
-    def top_str(self) -> str:
-        return repr(self)
-
     def simplify(self) -> "GrammarNode":
         return self
 
     def children(self) -> list["GrammarNode"]:
         return []
+
+    def __repr__(self) -> str:
+        return self.lark_str()
 
     def __add__(self, other) -> "GrammarNode":
         if not isinstance(other, (str, GrammarNode)):
@@ -156,15 +156,16 @@ class RuleNode(GrammarNode):
     def children(self) -> list["GrammarNode"]:
         return [self.value]
 
-    def __repr__(self) -> str:
+    def lark_str(self, top: bool = False) -> str:
         rep = self.name
-        attrs = {}
-        for attr in ["temperature", "max_tokens", "capture_name"]:
-            if getattr(self, attr) is not None:
-                attrs[attr] = getattr(self, attr)
-        if attrs:
-            rep += f"[{', '.join(f'{k}={json.dumps(v)}' for k, v in attrs.items())}]"
-        rep += f": {self.value.top_str()}"
+        if top:
+            attrs = {}
+            for attr in ["temperature", "max_tokens", "capture_name"]:
+                if getattr(self, attr) is not None:
+                    attrs[attr] = getattr(self, attr)
+            if attrs:
+                rep += f"[{', '.join(f'{k}={json.dumps(v)}' for k, v in attrs.items())}]"
+            rep += f": {self.value.lark_str(top=not isinstance(self.value, RuleNode))}"
         return rep
 
 
@@ -179,12 +180,17 @@ class RuleRefNode(GrammarNode):
         else:
             return self.target.is_terminal
 
-    def __repr__(self) -> str:
+    def lark_str(self, top: bool = False) -> str:
         if self.target is None:
-            # Error in repr is bad. Maybe we shouldn't be using repr.
             raise ValueError("RuleRefNode has no target")
         else:
             return self.target.name
+
+    def __repr__(self) -> str:
+        try:
+            return self.lark_str()
+        except ValueError:
+            return super().__repr__()
 
 
 @dataclass(slots=True, eq=False)
@@ -195,7 +201,7 @@ class LiteralNode(GrammarNode):
     def is_null(self) -> bool:
         return self.value == ""
 
-    def __repr__(self) -> str:
+    def lark_str(self, top: bool = False) -> str:
         # TODO: escape?
         return f'"{self.value}"'
 
@@ -208,7 +214,7 @@ class RegexNode(GrammarNode):
     def is_null(self) -> bool:
         return self.regex == ""
 
-    def __repr__(self) -> str:
+    def lark_str(self, top: bool = False) -> str:
         return f"/{self.regex}/"
 
 
@@ -216,28 +222,24 @@ class RegexNode(GrammarNode):
 class SelectNode(GrammarNode):
     alternatives: list[GrammarNode]
 
-    def __post_init__(self):
-        self.alternatives = [
-            RuleRefNode(alt) if isinstance(alt, RuleNode) else alt for alt in self.alternatives
-        ]
-
     @property
     def is_null(self) -> bool:
         return all(alt.is_null for alt in self.alternatives)
 
-    def top_str(self) -> str:
+    def lark_str(self, top: bool = False) -> str:
         if self.is_null:
             return '""'
         else:
-            return "\n     | ".join(repr(alt) for alt in self.alternatives if not alt.is_null)
-
-    def __repr__(self) -> str:
-        if self.is_null:
-            return '""'
-        else:
-            return (
-                "(" + " | ".join(repr(alt) for alt in self.alternatives if not alt.is_null) + ")"
-            )
+            if top:
+                return "\n     | ".join(
+                    alt.lark_str() for alt in self.alternatives if not alt.is_null
+                )
+            else:
+                return (
+                    "("
+                    + " | ".join(alt.lark_str() for alt in self.alternatives if not alt.is_null)
+                    + ")"
+                )
 
     @property
     def is_atomic(self) -> bool:
@@ -258,18 +260,15 @@ class SelectNode(GrammarNode):
 class JoinNode(GrammarNode):
     nodes: list[GrammarNode]
 
-    def __post_init__(self):
-        self.nodes = [RuleRefNode(n) if isinstance(n, RuleNode) else n for n in self.nodes]
-
     @property
     def is_null(self) -> bool:
         return all(node.is_null for node in self.nodes)
 
-    def __repr__(self) -> str:
+    def lark_str(self, top: bool = False) -> str:
         if self.is_null:
             return '""'
         else:
-            return " ".join(repr(node) for node in self.nodes if not node.is_null)
+            return " ".join(node.lark_str() for node in self.nodes if not node.is_null)
 
     @property
     def is_atomic(self) -> bool:
@@ -300,7 +299,6 @@ class RepeatNode(GrammarNode):
             raise ValueError("min must be >= 0")
         if self.max is not None and self.max < self.min:
             raise ValueError("max must be >= min")
-        self.node = RuleRefNode(self.node) if isinstance(self.node, RuleNode) else self.node
 
     def children(self) -> list["GrammarNode"]:
         return [self.node]
@@ -309,8 +307,8 @@ class RepeatNode(GrammarNode):
         self.node = self.node.simplify()
         return self
 
-    def __repr__(self) -> str:
-        inner = repr(self.node)
+    def lark_str(self, top: bool = False) -> str:
+        inner = self.node.lark_str()
         if not self.node.is_atomic:
             inner = f"({inner})"
         match (self.min, self.max):
@@ -335,11 +333,12 @@ class JsonNode(GrammarNode):
     def is_terminal(self) -> bool:
         return False
 
-    def top_str(self) -> str:
-        return f"%json {json.dumps(self.schema, indent=2)}"
-
-    def __repr__(self) -> str:
-        return f"%json {json.dumps(self.schema)}"
+    def lark_str(self, top: bool = False) -> str:
+        if top:
+            indent = 2
+        else:
+            indent = None
+        return f"%json {json.dumps(self.schema, indent=indent)}"
 
 
 @dataclass(slots=True, eq=False)
@@ -351,11 +350,12 @@ class SubstringNode(GrammarNode):
         # TODO: true? technically a regex...
         return False
 
-    def top_str(self) -> str:
-        return f"%regex {json.dumps({'substring_chunks': self.chunks}, indent=2)}"
-
-    def __repr__(self) -> str:
-        return f'%regex {json.dumps({"substring_chunks": self.chunks})}'
+    def lark_str(self, top: bool = False) -> str:
+        if top:
+            indent = 2
+        else:
+            indent = None
+        return f'%regex {json.dumps({"substring_chunks": self.chunks}, indent=indent)}'
 
 
 def extract_tags(s: str) -> Union[GrammarNode, Function]:
@@ -472,19 +472,12 @@ def resolve(node: GrammarNode) -> dict[str, RuleNode]:
             add_node(n.target)
 
         for child in n.children():
-            if isinstance(child, RuleNode):
-                raise ValueError("Child RuleNodes should always be wrapped in RuleRefNodes")
             add_node(child)
 
     if isinstance(node, RuleNode) and node.name == "start":
         add_node(node)
     else:
-        target: GrammarNode
-        if isinstance(node, RuleNode):
-            target = RuleRefNode(node)
-        else:
-            target = node
-        add_node(RuleNode("start", target))
+        add_node(RuleNode("start", node))
 
     num_fix = 1
     while num_fix > 0:
@@ -525,7 +518,7 @@ def lark_serialize(node: GrammarNode) -> str:
     res = "%llguidance {}\n\n"
     prev_nl = True
     for r in rules.values():
-        s = repr(r)
+        s = r.lark_str(top=True)
         if not prev_nl and "\n" in s:
             res += "\n"
         res += s + "\n"
