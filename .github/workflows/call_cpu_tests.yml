@@ -54,8 +54,8 @@ jobs:
       - name: Install guidance in ${{ inputs.os }}
         shell: bash
         run: |
-          pip install --upgrade pip
-          pip install -e .[llamacpp,transformers,test]
+          python -m pip install --upgrade pip
+          python -m pip install -e .[llamacpp,transformers,test]
       - name: cpu_tests for ${{ inputs.model }}
         shell: bash
         env:

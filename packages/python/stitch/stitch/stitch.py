@@ -29,3 +29,6 @@ class StitchWidget(DOMWidget):
     initial_height = Unicode("1px").tag(sync=True)
     initial_width = Unicode("1px").tag(sync=True)
     initial_border = Unicode("0").tag(sync=True)
+
+    # NOTE(nopdive): Should we sync or not? There are overheads when we deal with bandwidth on real time applications.
+    state = Unicode("").tag(sync=True)
