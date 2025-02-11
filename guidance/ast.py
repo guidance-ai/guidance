@@ -89,8 +89,9 @@ class GrammarNode(ABC, Tagged):
     def is_atomic(self) -> bool:
         return True
 
+    @property
     def is_terminal(self) -> bool:
-        return all(child.is_terminal() for child in self.children())
+        return all(child.is_terminal for child in self.children())
 
     def top_str(self) -> str:
         return repr(self)
@@ -136,7 +137,15 @@ class RuleNode(GrammarNode):
     temperature: Optional[float] = None
     max_tokens: Optional[int] = None
     capture_name: Optional[str] = None
-    rule_is_terminal: bool = False
+    _is_terminal: bool = field(default=False, init=False)
+
+    @property
+    def is_terminal(self) -> bool:
+        return self._is_terminal
+
+    @is_terminal.setter
+    def is_terminal(self, value: bool):
+        self._is_terminal = value
 
     def children(self) -> list["GrammarNode"]:
         return [self.value]
@@ -157,11 +166,12 @@ class RuleNode(GrammarNode):
 class RuleRefNode(GrammarNode):
     target: Optional[RuleNode] = None
 
+    @property
     def is_terminal(self) -> bool:
         if self.target is None:
             return False
         else:
-            return self.target.rule_is_terminal
+            return self.target.is_terminal
 
     def __repr__(self) -> str:
         if self.target is None:
@@ -335,15 +345,15 @@ def resolve(node: GrammarNode) -> dict[str, RuleNode]:
     while num_fix > 0:
         num_fix = 0
         for r in rules.values():
-            if r.name != "start" and not r.rule_is_terminal and r.value.is_terminal():
-                r.rule_is_terminal = True
+            if r.name != "start" and not r.is_terminal and r.value.is_terminal:
+                r.is_terminal = True
                 num_fix += 1
 
     for name, r in rules.items():
         new_name = name.replace("-", "_")
         # convert fooBar_Baz to foo_bar_baz
         new_name = re.sub(r"([a-z])([A-Z])", r"\1_\2", new_name).lower()
-        if r.rule_is_terminal:
+        if r.is_terminal:
             new_name = new_name.upper()
         else:
             new_name = new_name.lower()
