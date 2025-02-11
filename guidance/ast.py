@@ -408,20 +408,20 @@ def select(
             )
     alternatives = cast(list[GrammarNode], converted_values)
 
+    capture_name: Optional[str]
     if list_append:
         if name is not None:
             capture_name = "__LIST_APPEND:" + name
         else:
             raise ValueError("list_append requires a name")
-    elif name is not None:
+    else:
         capture_name = name
 
-    node = SelectNode(alternatives)
-    if name is not None:
-        rule = RuleNode(name, node, capture_name=capture_name)
-        return rule
-    else:
-        return node
+    return RuleNode(
+        name=name or "select",
+        value=SelectNode(alternatives),
+        capture_name=capture_name,
+    )
 
 
 def repeat(
