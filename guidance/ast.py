@@ -192,6 +192,11 @@ class RegexNode(GrammarNode):
 class SelectNode(GrammarNode):
     alternatives: list[GrammarNode]
 
+    def __post_init__(self):
+        self.alternatives = [
+            RuleRefNode(alt) if isinstance(alt, RuleNode) else alt for alt in self.alternatives
+        ]
+
     def top_str(self) -> str:
         return "\n     | ".join(repr(alt) for alt in self.alternatives)
 
@@ -216,6 +221,9 @@ class SelectNode(GrammarNode):
 @dataclass(slots=True, eq=False)
 class JoinNode(GrammarNode):
     nodes: list[GrammarNode]
+
+    def __post_init__(self):
+        self.nodes = [RuleRefNode(n) if isinstance(n, RuleNode) else n for n in self.nodes]
 
     def __repr__(self) -> str:
         if not self.nodes:
@@ -242,6 +250,9 @@ class RepeatNode(GrammarNode):
     node: GrammarNode
     min: int
     max: Optional[int]
+
+    def __post_init__(self):
+        self.node = RuleRefNode(self.node) if isinstance(self.node, RuleNode) else self.node
 
     def children(self) -> list["GrammarNode"]:
         return [self.node]
@@ -344,16 +355,13 @@ def resolve(node: GrammarNode) -> dict[str, RuleNode]:
 
 def test():
     number = RuleNode("NUMBER", RegexNode("[0-9]+"))
-    number_ref = RuleRefNode(number)
     expr_ref = RuleRefNode()
-    factor = RuleNode("factor", SelectNode(["(" + expr_ref + ")", number_ref]))
-    factor_ref = RuleRefNode(factor)
+    factor = RuleNode("factor", SelectNode(["(" + expr_ref + ")", number]))
     term_ref = RuleRefNode()
-    term = RuleNode("term", SelectNode([term_ref + "*" + factor_ref, factor_ref]))
+    term = RuleNode("term", SelectNode([term_ref + "*" + factor, factor]))
     term_ref.target = term
-    expr = RuleNode("expr", SelectNode([expr_ref + "+" + term_ref, term_ref]))
+    expr = RuleNode("expr", SelectNode([expr_ref + "+" + term, term]))
     expr_ref.target = expr
-
     return expr.lark_serialize()
 
 
