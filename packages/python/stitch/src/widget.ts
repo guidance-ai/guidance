@@ -28,8 +28,7 @@ export class StitchModel extends DOMWidgetModel {
       initial_height: '1px',
       initial_width: '1px',
       initial_border: '0',
-      kernel_state: '',
-      client_state: '',
+      state: '',
     };
   }
 
@@ -50,6 +49,8 @@ export class StitchView extends DOMWidgetView {
   private _iframe: HTMLIFrameElement;
 
   render() {
+    // console.log('stitch:render');
+
     // Create sandboxed frame
     const iframe = document.createElement('iframe');
     iframe.sandbox.add('allow-scripts');
@@ -66,11 +67,11 @@ export class StitchView extends DOMWidgetView {
       if (this.model.isNew()) {
         window.setTimeout(initOnReady, refreshTimeMs);
       } else {
-        // Send state to client if defined.
-        this.emit_state();
-
+        // Send init state if needed.
+        this.emit_init_state();
         // Send first kernelmsg on load.
         this.kernelmsg_changed();
+        // console.log('stitch:is_new');
       }
     };
     window.setTimeout(initOnReady, refreshTimeMs);
@@ -85,8 +86,8 @@ export class StitchView extends DOMWidgetView {
       } else if (win === event.source && event.data.type === 'resize') {
         iframe.style.height = event.data.content.height;
         iframe.style.width = event.data.content.width;
-      } else if (win === event.source && event.data.type === 'client_state') {
-        model.set('client_state', event.data.content);
+      } else if (win === event.source && event.data.type === 'state') {
+        model.set('state', event.data.content);
         model.save_changes();
       }
     };
@@ -102,15 +103,18 @@ export class StitchView extends DOMWidgetView {
     this.model.on('change:srcdoc', this.srcdoc_changed, this);
   }
 
-  emit_state() {
-    const clientState = this.model.get('client_state');
-    if (clientState === '') {
+  emit_init_state() {
+    const state = this.model.get('state');
+    if (state === '') {
+      // console.log('stitch:empty init state');
       return;
     }
     const winmsg = {
-      type: 'client_state',
-      content: clientState,
+      type: 'init_state',
+      content: state,
     };
+
+    // console.log('stitch:state');
     this._iframe.contentWindow?.postMessage(winmsg, '*');
   }
 
