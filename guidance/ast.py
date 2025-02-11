@@ -378,6 +378,10 @@ def string(s: str) -> GrammarNode:
     return LiteralNode(s)
 
 
+def regex(pattern: str) -> GrammarNode:
+    return RegexNode(pattern)
+
+
 def select(
     values: Sequence[Union[str, int, float, GrammarNode]],
     name: Optional[str] = None,
@@ -434,20 +438,11 @@ def repeat(
         converted_node = extracted
     else:
         converted_node = node
-    return RepeatNode(converted_node, min, max)
 
-
-# TODO: move these to library
-def optional(node: Union[str, int, float, GrammarNode]) -> GrammarNode:
-    return repeat(node, 0, 1)
-
-
-def zero_or_more(node: Union[str, int, float, GrammarNode]) -> GrammarNode:
-    return repeat(node, 0, None)
-
-
-def one_or_more(node: Union[str, int, float, GrammarNode]) -> GrammarNode:
-    return repeat(node, 1, None)
+    return RuleNode(
+        name="repeat",
+        value=RepeatNode(converted_node, min, max),
+    )
 
 
 def resolve(node: GrammarNode) -> dict[str, RuleNode]:

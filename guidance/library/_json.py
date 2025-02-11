@@ -13,7 +13,7 @@ import pydantic
 
 from llguidance import JsonCompiler
 
-from .._grammar import LLGrammar, with_temperature, capture
+from ..ast import RuleNode, JsonNode
 from ._pydantic import pydantic_to_json_schema
 
 JSONSchema = Mapping[str, Any]
@@ -28,7 +28,7 @@ def json(
         Type[pydantic.BaseModel],
         pydantic.TypeAdapter,
     ] = None,
-    temperature: float = 0.0,
+    temperature: Optional[float] = None,
     max_tokens: Optional[int] = None,
     separators: Optional[tuple[str, str]] = None,
     whitespace_flexible: bool = False,
@@ -94,30 +94,33 @@ def json(
     else:
         raise TypeError(f"Unsupported schema type: {type(schema)}")
 
-    compiler = JsonCompiler(
-        separators=separators,
-        whitespace_flexible=whitespace_flexible,
-        coerce_one_of=False,
-    )
-
-    schema_string = json_dumps(schema)
-    try:
-        llg = compiler.compile(schema_string)
-    except ValueError as e:
-        if e.args[0] == "oneOf constraints are not supported. Enable 'coerce_one_of' option to approximate oneOf with anyOf":
-            warnings.warn("oneOf not fully supported, falling back to anyOf. This may cause validation errors in some cases.")
-            compiler = JsonCompiler(
-                separators=separators,
-                whitespace_flexible=whitespace_flexible,
-                coerce_one_of=True,
-            )
-            llg = compiler.compile(schema_string)
-        else:
-            raise
-
-    return LLGrammar(
-        json_loads(llg)["grammars"][0],
-        capture_name=name,
-        max_tokens=max_tokens,
+    # TODO: separators, whitespace_flexible
+    return RuleNode(
+        name=name or "json",
+        value=JsonNode(schema),
         temperature=temperature,
+        max_tokens=max_tokens,
+        capture_name=name,
     )
+
+# TODO: oneOf coercion? Compiling grammar early to check for errors?
+# compiler = JsonCompiler(
+#     separators=separators,
+#     whitespace_flexible=whitespace_flexible,
+#     coerce_one_of=False,
+# )
+
+# schema_string = json_dumps(schema)
+# try:
+#     llg = compiler.compile(schema_string)
+# except ValueError as e:
+#     if e.args[0] == "oneOf constraints are not supported. Enable 'coerce_one_of' option to approximate oneOf with anyOf":
+#         warnings.warn("oneOf not fully supported, falling back to anyOf. This may cause validation errors in some cases.")
+#         compiler = JsonCompiler(
+#             separators=separators,
+#             whitespace_flexible=whitespace_flexible,
+#             coerce_one_of=True,
+#         )
+#         llg = compiler.compile(schema_string)
+#     else:
+#         raise
