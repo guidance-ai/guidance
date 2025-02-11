@@ -28,6 +28,7 @@ export class StitchModel extends DOMWidgetModel {
       initial_height: '1px',
       initial_width: '1px',
       initial_border: '0',
+      state: '',
     };
   }
 
@@ -48,6 +49,8 @@ export class StitchView extends DOMWidgetView {
   private _iframe: HTMLIFrameElement;
 
   render() {
+    // console.log('stitch:render');
+
     // Create sandboxed frame
     const iframe = document.createElement('iframe');
     iframe.sandbox.add('allow-scripts');
@@ -58,16 +61,20 @@ export class StitchView extends DOMWidgetView {
     iframe.style.display = 'block';
     this._iframe = iframe;
 
-    // Send first kernelmsg on load.
+    // Initialization steps when model is ready.
     const refreshTimeMs = 100;
-    const sendKernelMsgOnReady = () => {
+    const initOnReady = () => {
       if (this.model.isNew()) {
-        window.setTimeout(sendKernelMsgOnReady, refreshTimeMs);
+        window.setTimeout(initOnReady, refreshTimeMs);
       } else {
+        // Send init state if needed.
+        this.emit_init_state();
+        // Send first kernelmsg on load.
         this.kernelmsg_changed();
+        // console.log('stitch:is_new');
       }
     };
-    window.setTimeout(sendKernelMsgOnReady, refreshTimeMs);
+    window.setTimeout(initOnReady, refreshTimeMs);
 
     // Add callback for forwarding messages from client to kernel
     const model = this.model;
@@ -79,6 +86,9 @@ export class StitchView extends DOMWidgetView {
       } else if (win === event.source && event.data.type === 'resize') {
         iframe.style.height = event.data.content.height;
         iframe.style.width = event.data.content.width;
+      } else if (win === event.source && event.data.type === 'state') {
+        model.set('state', event.data.content);
+        model.save_changes();
       }
     };
     window.addEventListener('message', recvFromClient);
@@ -91,6 +101,21 @@ export class StitchView extends DOMWidgetView {
 
     // Connect callback for when kernel changes the srcdoc
     this.model.on('change:srcdoc', this.srcdoc_changed, this);
+  }
+
+  emit_init_state() {
+    const state = this.model.get('state');
+    if (state === '') {
+      // console.log('stitch:empty init state');
+      return;
+    }
+    const winmsg = {
+      type: 'init_state',
+      content: state,
+    };
+
+    // console.log('stitch:state');
+    this._iframe.contentWindow?.postMessage(winmsg, '*');
   }
 
   kernelmsg_changed() {
