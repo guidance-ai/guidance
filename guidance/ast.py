@@ -352,6 +352,7 @@ def resolve(node: GrammarNode) -> dict[str, RuleNode]:
                 while f"{name}_{i}" in rules:
                     i += 1
                 name = f"{name}_{i}"
+            n.value = n.value.simplify()
             rules[name] = n
 
         elif isinstance(n, RuleRefNode):
