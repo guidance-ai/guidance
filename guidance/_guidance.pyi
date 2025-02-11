@@ -12,16 +12,16 @@ if sys.version_info >= (3, 10):
 else:
     from typing_extensions import ParamSpec, TypeAlias, Concatenate
 
-from ._grammar import GrammarFunction, RawFunction
+from .ast import RuleNode, Function
 from .models import Model
 
 P = ParamSpec("P")
-M: TypeAlias = Any # sort of Union[Model, GrammarFunction]?
-R = TypeVar("R", bound = Union[RawFunction, GrammarFunction])
+M: TypeAlias = Any # sort of Union[Model, GrammarNode]?
+R = TypeVar("R", bound = Union[Function, RuleNode])
 GuidanceWrappable = Callable[Concatenate[M, P], M]
 GuidanceFunction = Callable[P, R]
-StatefulGuidanceFunction = GuidanceFunction[P, RawFunction]
-StatelessGuidanceFunction = GuidanceFunction[P, GrammarFunction]
+StatefulGuidanceFunction = GuidanceFunction[P, Function]
+StatelessGuidanceFunction = GuidanceFunction[P, RuleNode]
 
 @overload
 def guidance(
@@ -79,7 +79,7 @@ def guidance(
     cache: bool = ...,
     dedent: bool = ...,
     model: type[Model] = ...,
-) -> GuidanceFunction[P, Union[RawFunction, GrammarFunction]]:
+) -> GuidanceFunction[P, Union[Function, RuleNode]]:
     ...
 
 
@@ -91,5 +91,5 @@ def guidance(
     cache: bool = ...,
     dedent: bool = ...,
     model: type[Model] = ...,
-) -> Callable[[GuidanceWrappable[P]], GuidanceFunction[P, Union[RawFunction, GrammarFunction]]]:
+) -> Callable[[GuidanceWrappable[P]], GuidanceFunction[P, Union[Function, RuleNode]]]:
     ...
