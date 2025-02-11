@@ -4,7 +4,7 @@ import threading
 from typing import Any
 import weakref
 
-from ._grammar import DeferredReference, RawFunction, Terminal, string
+from .ast import Function, RuleRefNode, RuleNode, string
 from ._utils import strip_multiline_string_indents, make_weak_bound_method, signature_pop
 from .models import Model
 
@@ -136,10 +136,10 @@ def _decorator(f, *, stateless, cache, model):
             # otherwise we call the function to generate the grammar
             else:
 
-                # set a DeferredReference for recursive calls (only if we don't have arguments that might make caching a bad idea)
+                # set a RuleRefNode for recursive calls (only if we don't have arguments that might make caching a bad idea)
                 no_args = len(args) + len(kwargs) == 0
                 if no_args:
-                    thread_local._self_call_reference_ = DeferredReference()
+                    thread_local._self_call_reference_ = RuleRefNode()
 
                 try:
                     # call the function to get the grammar node
@@ -147,20 +147,19 @@ def _decorator(f, *, stateless, cache, model):
                 except:
                     raise
                 else:
-                    if not isinstance(node, (Terminal, str)):
-                        node.name = f.__name__
+                    rule = RuleNode(f.__name__, node)
                     # set the reference value with our generated node
                     if no_args:
-                        thread_local._self_call_reference_.value = node
+                        thread_local._self_call_reference_.target = rule
                 finally:
                     if no_args:
                         del thread_local._self_call_reference_
 
-                return node
+                return rule
 
         # otherwise must be stateful (which means we can't be inside a select() call)
         else:
-            return RawFunction(f, args, kwargs)
+            return Function(f, args, kwargs)
  
     # Remove the first argument from the wrapped function since we're going to drop the `lm` argument
     wrapped.__signature__ = signature_pop(inspect.signature(f), 0)
