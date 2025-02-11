@@ -96,7 +96,7 @@ export interface MetricMessage extends GuidanceMessage {
 }
 
 export interface StitchMessage {
-    type: "resize" | "clientmsg" | "kernelmsg",
+    type: "resize" | "clientmsg" | "kernelmsg" | "state" | "init_state",
     content: any
 }
 
@@ -157,4 +157,5 @@ export function isTokensMessage(o: GuidanceMessage | undefined | null): o is Tok
 
 export const kernelmsg = writable<StitchMessage | undefined>(undefined);
 export const clientmsg = writable<StitchMessage | undefined>(undefined);
+export const state = writable<StitchMessage | undefined>(undefined);
 
