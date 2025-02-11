@@ -125,6 +125,9 @@ class GrammarNode(ABC, Tagged):
 
         return JoinNode([other, self])
 
+    def lark_serialize(self) -> str:
+        return lark_serialize(self)
+
 
 @dataclass(slots=True, eq=False)
 class RuleNode(GrammarNode):
@@ -351,7 +354,7 @@ def test():
     expr = RuleNode("expr", SelectNode([expr_ref + "+" + term_ref, term_ref]))
     expr_ref.target = expr
 
-    return lark_serialize(expr)
+    return expr.lark_serialize()
 
 
 def lark_serialize(node: GrammarNode) -> str:
