@@ -396,7 +396,7 @@ def resolve(node: GrammarNode) -> dict[str, RuleNode]:
 
 
 def test():
-    number = RuleNode("NUMBER", RegexNode("[0-9]+"))
+    number = RuleNode("number", RegexNode("[0-9]+"))
     expr_ref = RuleRefNode()
     factor = RuleNode("factor", SelectNode(["(" + expr_ref + ")", number]))
     term_ref = RuleRefNode()
