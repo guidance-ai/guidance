@@ -307,6 +307,7 @@ class RepeatNode(GrammarNode):
 
     def simplify(self) -> GrammarNode:
         self.node = self.node.simplify()
+        return self
 
     def __repr__(self) -> str:
         inner = repr(self.node)
