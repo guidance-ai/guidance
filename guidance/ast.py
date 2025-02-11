@@ -324,6 +324,7 @@ class RepeatNode(GrammarNode):
                 return f"{inner}{{{min},}}"
             case (min, max):
                 return f"{inner}{{{min},{max}}}"
+        raise RuntimeError("Unreachable")
 
 
 @dataclass(slots=True, eq=False)
@@ -389,12 +390,12 @@ def select(
         else:
             converted_values.append(v)
 
-    for v in converted_values:
-        if isinstance(v, Function):
+    for cv in converted_values:
+        if isinstance(cv, Function):
             raise ValueError(
                 "You cannot select between stateful functions in the current guidance implementation!"
             )
-        if callable(v):
+        if callable(cv):
             raise ValueError(
                 "Did you pass a function without calling it to select? You need to pass the results of a called guidance function to select."
             )
@@ -420,10 +421,17 @@ def repeat(
     node: Union[str, int, float, GrammarNode], min: int, max: Optional[int] = None
 ) -> GrammarNode:
     if isinstance(node, (int, float)):
-        node = string(str(node))
+        converted_node = string(str(node))
     elif isinstance(node, str):
-        node = extract_tags(node)
-    return RepeatNode(node, min, max)
+        extracted = extract_tags(node)
+        if isinstance(extracted, Function):
+            raise ValueError(
+                "You cannot repeat a stateful function in the current guidance implementation!"
+            )
+        converted_node = extracted
+    else:
+        converted_node = node
+    return RepeatNode(converted_node, min, max)
 
 
 # TODO: move these to library
@@ -471,6 +479,7 @@ def resolve(node: GrammarNode) -> dict[str, RuleNode]:
     if isinstance(node, RuleNode) and node.name == "start":
         add_node(node)
     else:
+        target: GrammarNode
         if isinstance(node, RuleNode):
             target = RuleRefNode(node)
         else:
