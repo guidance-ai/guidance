@@ -2,7 +2,7 @@ import json
 import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Callable, Optional, Union, cast
+from typing import Any, Callable, Optional, Sequence, Union, cast
 
 # to support the embedding of guidance functions inside Python f-strings we use tags with these delimiters
 tag_start = "{{G|"  # start of a call tag
@@ -163,7 +163,7 @@ class RuleNode(GrammarNode):
             if getattr(self, attr) is not None:
                 attrs[attr] = getattr(self, attr)
         if attrs:
-            rep += f"[{', '.join(f'{k}={v}' for k, v in attrs.items())}]"
+            rep += f"[{', '.join(f'{k}={json.dumps(v)}' for k, v in attrs.items())}]"
         rep += f": {self.value.top_str()}"
         return rep
 
@@ -296,6 +296,10 @@ class RepeatNode(GrammarNode):
         return self.node.is_null or self.min == self.max == 0
 
     def __post_init__(self):
+        if self.min < 0:
+            raise ValueError("min must be >= 0")
+        if self.max is not None and self.max < self.min:
+            raise ValueError("max must be >= min")
         self.node = RuleRefNode(self.node) if isinstance(self.node, RuleNode) else self.node
 
     def children(self) -> list["GrammarNode"]:
@@ -367,6 +371,71 @@ def extract_tags(s: str) -> Union[GrammarNode, Function]:
 
 def string(s: str) -> GrammarNode:
     return LiteralNode(s)
+
+
+def select(
+    values: Sequence[Union[str, int, float, GrammarNode]],
+    name: Optional[str] = None,
+    list_append: bool = False,
+) -> GrammarNode:
+    # TODO: copy docstring from guidance._grammar.py
+    converted_values: list[Union[GrammarNode, Function]] = []
+    for v in values:
+        if isinstance(v, (int, float)):
+            converted_values.append(string(str(v)))
+        elif isinstance(v, str):
+            converted_values.append(extract_tags(v))
+        else:
+            converted_values.append(v)
+
+    for v in converted_values:
+        if isinstance(v, Function):
+            raise ValueError(
+                "You cannot select between stateful functions in the current guidance implementation!"
+            )
+        if callable(v):
+            raise ValueError(
+                "Did you pass a function without calling it to select? You need to pass the results of a called guidance function to select."
+            )
+    alternatives = cast(list[GrammarNode], converted_values)
+
+    if list_append:
+        if name is not None:
+            capture_name = "__LIST_APPEND:" + name
+        else:
+            raise ValueError("list_append requires a name")
+    elif name is not None:
+        capture_name = name
+
+    node = SelectNode(alternatives)
+    if name is not None:
+        rule = RuleNode(name, node, capture_name=capture_name)
+        return rule
+    else:
+        return node
+
+
+def repeat(
+    node: Union[str, int, float, GrammarNode], min: int, max: Optional[int] = None
+) -> GrammarNode:
+    if isinstance(node, (int, float)):
+        node = string(str(node))
+    elif isinstance(node, str):
+        node = extract_tags(node)
+    return RepeatNode(node, min, max)
+
+
+# TODO: move these to library
+def optional(node: Union[str, int, float, GrammarNode]) -> GrammarNode:
+    return repeat(node, 0, 1)
+
+
+def zero_or_more(node: Union[str, int, float, GrammarNode]) -> GrammarNode:
+    return repeat(node, 0, None)
+
+
+def one_or_more(node: Union[str, int, float, GrammarNode]) -> GrammarNode:
+    return repeat(node, 1, None)
 
 
 def resolve(node: GrammarNode) -> dict[str, RuleNode]:
