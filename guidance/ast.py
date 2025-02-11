@@ -87,8 +87,13 @@ class GrammarNode(ABC, Tagged):
     def __repr__(self) -> str:
         pass
 
+    @property
     def is_atomic(self) -> bool:
         return True
+
+    @property
+    def is_null(self) -> bool:
+        return False
 
     @property
     def is_terminal(self) -> bool:
@@ -186,6 +191,10 @@ class RuleRefNode(GrammarNode):
 class LiteralNode(GrammarNode):
     value: str
 
+    @property
+    def is_null(self) -> bool:
+        return self.value == ""
+
     def __repr__(self) -> str:
         # TODO: escape?
         return f'"{self.value}"'
@@ -194,6 +203,10 @@ class LiteralNode(GrammarNode):
 @dataclass(slots=True, eq=False)
 class RegexNode(GrammarNode):
     regex: str
+
+    @property
+    def is_null(self) -> bool:
+        return self.regex == ""
 
     def __repr__(self) -> str:
         return f"/{self.regex}/"
@@ -208,19 +221,31 @@ class SelectNode(GrammarNode):
             RuleRefNode(alt) if isinstance(alt, RuleNode) else alt for alt in self.alternatives
         ]
 
+    @property
+    def is_null(self) -> bool:
+        return all(alt.is_null for alt in self.alternatives)
+
     def top_str(self) -> str:
-        return "\n     | ".join(repr(alt) for alt in self.alternatives)
+        if self.is_null:
+            return '""'
+        else:
+            return "\n     | ".join(repr(alt) for alt in self.alternatives if not alt.is_null)
 
     def __repr__(self) -> str:
-        return "(" + " | ".join(repr(alt) for alt in self.alternatives) + ")"
+        if self.is_null:
+            return '""'
+        else:
+            return (
+                "(" + " | ".join(repr(alt) for alt in self.alternatives if not alt.is_null) + ")"
+            )
 
+    @property
     def is_atomic(self) -> bool:
         # Not really atomic, but we already wrap it in parentheses
         return True
 
     def simplify(self) -> "GrammarNode":
-        for i in range(len(self.alternatives)):
-            self.alternatives[i] = self.alternatives[i].simplify()
+        self.alternatives = [alt.simplify() for alt in self.alternatives if not alt.is_null]
         if len(self.alternatives) == 1:
             return self.alternatives[0]
         return self
@@ -236,18 +261,22 @@ class JoinNode(GrammarNode):
     def __post_init__(self):
         self.nodes = [RuleRefNode(n) if isinstance(n, RuleNode) else n for n in self.nodes]
 
+    @property
+    def is_null(self) -> bool:
+        return all(node.is_null for node in self.nodes)
+
     def __repr__(self) -> str:
-        if not self.nodes:
+        if self.is_null:
             return '""'
         else:
-            return " ".join(repr(node) for node in self.nodes)
+            return " ".join(repr(node) for node in self.nodes if not node.is_null)
 
+    @property
     def is_atomic(self) -> bool:
         return False
 
     def simplify(self) -> "GrammarNode":
-        for i in range(len(self.nodes)):
-            self.nodes[i] = self.nodes[i].simplify()
+        self.nodes = [node.simplify() for node in self.nodes if not node.is_null]
         if len(self.nodes) == 1:
             return self.nodes[0]
         return self
@@ -262,6 +291,10 @@ class RepeatNode(GrammarNode):
     min: int
     max: Optional[int]
 
+    @property
+    def is_null(self) -> bool:
+        return self.node.is_null or self.min == self.max == 0
+
     def __post_init__(self):
         self.node = RuleRefNode(self.node) if isinstance(self.node, RuleNode) else self.node
 
@@ -273,7 +306,7 @@ class RepeatNode(GrammarNode):
 
     def __repr__(self) -> str:
         inner = repr(self.node)
-        if not self.node.is_atomic():
+        if not self.node.is_atomic:
             inner = f"({inner})"
         match (self.min, self.max):
             case (0, None):
