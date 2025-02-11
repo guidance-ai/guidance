@@ -64,10 +64,10 @@ For upcoming features, we won't be able to send all details over the wire, and w
         } else if (isImageOutput(msg.node_attr)) {
           console.log("Image available.");
           textComponents.push(msg.node_attr);
+        } else if (isVideoOutput(msg.node_attr)) {
+          console.log("Video available.");
+          textComponents.push(msg.node_attr);
         }
-      } else if (isVideoOutput(msg.node_attr)) {
-        console.log("Video available.");
-        textComponents.push(msg.node_attr);
       }
     } else if (isExecutionStartedMessage(msg)) {
       requireFullReplay = false;
