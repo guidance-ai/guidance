@@ -1,3 +1,4 @@
+import json
 import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -285,6 +286,37 @@ class RepeatNode(GrammarNode):
                 return f"{inner}{{{min},}}"
             case (min, max):
                 return f"{inner}{{{min},{max}}}"
+
+
+@dataclass(slots=True, eq=False)
+class JsonNode(GrammarNode):
+    schema: Union[bool, dict[str, Any]]
+
+    @property
+    def is_terminal(self) -> bool:
+        return False
+
+    def top_str(self) -> str:
+        return f"%json {json.dumps(self.schema, indent=2)}"
+
+    def __repr__(self) -> str:
+        return f"%json {json.dumps(self.schema)}"
+
+
+@dataclass(slots=True, eq=False)
+class SubstringNode(GrammarNode):
+    chunks: list[str]
+
+    @property
+    def is_terminal(self) -> bool:
+        # TODO: true? technically a regex...
+        return False
+
+    def top_str(self) -> str:
+        return f"%regex {json.dumps({'substring_chunks': self.chunks}, indent=2)}"
+
+    def __repr__(self) -> str:
+        return f'%regex {json.dumps({"substring_chunks": self.chunks})}'
 
 
 def extract_tags(s: str) -> Union[GrammarNode, Function]:
