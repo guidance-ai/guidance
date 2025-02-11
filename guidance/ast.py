@@ -304,6 +304,8 @@ def resolve(node: GrammarNode) -> dict[str, RuleNode]:
             add_node(n.target)
 
         for child in n.children():
+            if isinstance(child, RuleNode):
+                raise ValueError("Child RuleNodes should always be wrapped in RuleRefNodes")
             add_node(child)
 
     if isinstance(node, RuleNode) and node.name == "start":
