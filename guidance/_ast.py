@@ -437,7 +437,7 @@ class SubstringNode(GrammarNode):
 
 def parse_tags(s: str) -> Union[GrammarNode, Function]:
     parts = cast(list[str], _tag_pattern.split(s))
-    obj = LiteralNode(parts.pop(0))
+    obj: GrammarNode = LiteralNode(parts.pop(0))
     is_tag = True
     for part in parts:
         if is_tag:
