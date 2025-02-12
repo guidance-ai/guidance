@@ -506,18 +506,6 @@ def resolve(node: GrammarNode) -> dict[str, RuleNode]:
     return rules
 
 
-def test():
-    number = RuleNode("number", RegexNode("[0-9]+"))
-    expr_ref = RuleRefNode()
-    factor = RuleNode("factor", SelectNode(["(" + expr_ref + ")", number]))
-    term_ref = RuleRefNode()
-    term = RuleNode("term", SelectNode([term_ref + "*" + factor, factor]))
-    term_ref.target = term
-    expr = RuleNode("expr", SelectNode([expr_ref + "+" + term, term]))
-    expr_ref.target = expr
-    return expr.lark_serialize()
-
-
 def lark_serialize(node: GrammarNode) -> str:
     rules = resolve(node)
     res = "%llguidance {}\n\n"
