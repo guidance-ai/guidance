@@ -163,6 +163,9 @@ class GrammarNode(ABC, Tagged):
 
         return JoinNode([other, self])
 
+    def __getitem__(self, key):
+        raise StatefulException("GrammarNodes can't access state!")
+
     def match(
         self,
         byte_string: Union[str, bytes],
@@ -190,6 +193,10 @@ class GrammarNode(ABC, Tagged):
             parser.force_done()
 
         return Match(*parser.get_captures(), partial=not parser.matched())  # type: ignore[misc]
+
+    def forced_prefix(self) -> str:
+        parser = ByteParser(self)
+        return parser.bytes.decode("utf-8", errors="ignore")
 
     def ll_grammar(self) -> LLGrammar:
         return LLGrammar(grammars=[LarkGrammar(lark_grammar=lark_serialize(self))])
