@@ -13,11 +13,11 @@ from ._ast import (
 )
 
 
-def string(s: str) -> GrammarNode:
+def string(s: str) -> LiteralNode:
     return LiteralNode(s)
 
 
-def regex(pattern: str) -> GrammarNode:
+def regex(pattern: str) -> RegexNode:
     return RegexNode(pattern)
 
 
