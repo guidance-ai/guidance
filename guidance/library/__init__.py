@@ -4,10 +4,10 @@ from ._image import image
 from ._capture import capture
 
 # core grammar functions
-from .._ast import select
+from .._grammar import select
 from .._grammar import commit_point
 from .._grammar import with_temperature
-from .._ast import string
+from .._grammar import string
 from .._grammar import token_limit
 from .._grammar import byte_range
 

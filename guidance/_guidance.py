@@ -4,8 +4,9 @@ import threading
 from typing import Any
 import weakref
 
+from ._grammar import string
 
-from ._ast import Function, RuleRefNode, RuleNode, string
+from ._ast import Function, RuleRefNode, RuleNode
 from ._utils import strip_multiline_string_indents, make_weak_bound_method, signature_pop
 from .models import Model
 

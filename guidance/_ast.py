@@ -437,86 +437,15 @@ class SubstringNode(GrammarNode):
 
 def parse_tags(s: str) -> Union[GrammarNode, Function]:
     parts = cast(list[str], _tag_pattern.split(s))
-    obj = string(parts.pop(0))
+    obj = LiteralNode(parts.pop(0))
     is_tag = True
     for part in parts:
         if is_tag:
             obj += _tag_pool[part]
         else:
-            obj += string(part)
+            obj += LiteralNode(part)
         is_tag = not is_tag
     return obj
-
-
-def string(s: str) -> GrammarNode:
-    return LiteralNode(s)
-
-
-def regex(pattern: str) -> GrammarNode:
-    return RegexNode(pattern)
-
-
-def select(
-    values: Sequence[Union[str, int, float, GrammarNode]],
-    name: Optional[str] = None,
-    list_append: bool = False,
-) -> GrammarNode:
-    # TODO: copy docstring from guidance._grammar.py
-    converted_values: list[Union[GrammarNode, Function]] = []
-    for v in values:
-        if isinstance(v, (int, float)):
-            converted_values.append(string(str(v)))
-        elif isinstance(v, str):
-            converted_values.append(extract_tags(v))
-        else:
-            converted_values.append(v)
-
-    for cv in converted_values:
-        if isinstance(cv, Function):
-            raise ValueError(
-                "You cannot select between stateful functions in the current guidance implementation!"
-            )
-        if callable(cv):
-            raise ValueError(
-                "Did you pass a function without calling it to select? You need to pass the results of a called guidance function to select."
-            )
-    alternatives = cast(list[GrammarNode], converted_values)
-
-    capture_name: Optional[str]
-    if list_append:
-        if name is not None:
-            capture_name = "__LIST_APPEND:" + name
-        else:
-            raise ValueError("list_append requires a name")
-    else:
-        capture_name = name
-
-    return RuleNode(
-        name=name or "select",
-        value=SelectNode(alternatives),
-        capture_name=capture_name,
-    )
-
-
-def repeat(
-    node: Union[str, int, float, GrammarNode], min: int, max: Optional[int] = None
-) -> GrammarNode:
-    if isinstance(node, (int, float)):
-        converted_node = string(str(node))
-    elif isinstance(node, str):
-        extracted = extract_tags(node)
-        if isinstance(extracted, Function):
-            raise ValueError(
-                "You cannot repeat a stateful function in the current guidance implementation!"
-            )
-        converted_node = extracted
-    else:
-        converted_node = node
-
-    return RuleNode(
-        name="repeat",
-        value=RepeatNode(converted_node, min, max),
-    )
 
 
 def resolve(node: GrammarNode) -> dict[str, RuleNode]:

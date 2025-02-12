@@ -1,6 +1,6 @@
 from typing import Union
 
-from .._ast import repeat
+from .._grammar import repeat
 from .._guidance import guidance
 
 
