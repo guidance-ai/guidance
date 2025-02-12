@@ -2,7 +2,10 @@ import json
 import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Callable, Optional, Sequence, Union, cast
+from typing import Any, Callable, Optional, Union, cast
+
+from ._parser import ByteParser, ByteParserException
+from ._schema import LarkGrammar, LLGrammar
 
 # to support the embedding of guidance functions inside Python f-strings we use tags with these delimiters
 tag_start = "{{G|"  # start of a call tag
@@ -26,6 +29,34 @@ class Tagged:
 
         # return a string representation of this call so it can be combined with other strings/calls
         return tag_start + str_id + tag_end
+
+
+class Match:
+    def __init__(self, captures, log_probs, partial):
+        self.captures = captures
+        self.log_probs = log_probs
+        self.partial = partial
+
+    def __getitem__(self, key):
+        return self.captures[key]
+
+    def __len__(self):
+        return len(self.captures)
+
+    def __bool__(self):
+        return True
+
+    def __str__(self):
+        return str(self.captures)
+
+    def __repr__(self):
+        return (
+            "<guidance.Match object; captures="
+            + str(self.captures)
+            + "; partial="
+            + str(self.partial)
+            + ">"
+        )
 
 
 class StatefulException(Exception):
@@ -61,7 +92,7 @@ class Function(Tagged):
             return NotImplemented
 
         if isinstance(other, str):
-            other = extract_tags(other)
+            other = parse_tags(other)
 
         def __add__(model):
             return self(model) + other
@@ -73,7 +104,7 @@ class Function(Tagged):
             return NotImplemented
 
         if isinstance(other, str):
-            other = extract_tags(other)
+            other = parse_tags(other)
 
         def __radd__(model):
             return self(model + other)
@@ -113,7 +144,7 @@ class GrammarNode(ABC, Tagged):
             return NotImplemented
 
         if isinstance(other, str):
-            other = extract_tags(other)
+            other = parse_tags(other)
 
         if isinstance(other, Function):
             return other.__radd__(self)
@@ -125,15 +156,43 @@ class GrammarNode(ABC, Tagged):
             return NotImplemented
 
         if isinstance(other, str):
-            other = extract_tags(other)
+            other = parse_tags(other)
 
         if isinstance(other, Function):
             return other.__add__(self)
 
         return JoinNode([other, self])
 
-    def lark_serialize(self) -> str:
-        return lark_serialize(self)
+    def match(
+        self,
+        byte_string: Union[str, bytes],
+        allow_partial: bool = False,
+        raise_exceptions: bool = False,
+    ) -> Union[Match, None]:
+        if isinstance(byte_string, str):
+            byte_string = byte_string.encode()
+        parser = ByteParser(self.ll_grammar())
+
+        try:
+            parser.consume_bytes(byte_string)
+            if not allow_partial:
+                parser.force_done()
+        except ByteParserException:
+            if raise_exceptions:
+                raise
+            else:
+                return None
+
+        if not allow_partial and not parser.matched():
+            return None
+
+        if parser.matched():
+            parser.force_done()
+
+        return Match(*parser.get_captures(), partial=not parser.matched())  # type: ignore[misc]
+
+    def ll_grammar(self) -> LLGrammar:
+        return LLGrammar(grammars=[LarkGrammar(lark_grammar=lark_serialize(self))])
 
 
 @dataclass(slots=True, eq=False)
@@ -361,7 +420,7 @@ class SubstringNode(GrammarNode):
         return f'%regex {json.dumps({"substring_chunks": self.chunks}, indent=indent)}'
 
 
-def extract_tags(s: str) -> Union[GrammarNode, Function]:
+def parse_tags(s: str) -> Union[GrammarNode, Function]:
     parts = cast(list[str], _tag_pattern.split(s))
     obj = string(parts.pop(0))
     is_tag = True
@@ -482,8 +541,12 @@ def resolve(node: GrammarNode) -> dict[str, RuleNode]:
         num_fix = 0
         for r in rules.values():
             if r.name != "start" and not r.is_terminal and r.value.is_terminal:
-                r.is_terminal = True
-                num_fix += 1
+                try:
+                    r.is_terminal = True
+                except ValueError:
+                    pass
+                else:
+                    num_fix += 1
 
     for name, r in rules.items():
         new_name = name.replace("-", "_")

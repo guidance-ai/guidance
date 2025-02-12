@@ -72,6 +72,11 @@ class GenData(BaseModel):
     def valid_next_tokens(self) -> list[int]:
         return [i for i, b in enumerate(self.mask) if b != 0]
 
+class LarkGrammar(BaseModel):
+    lark_grammar: str
+
+class LLGrammar(BaseModel):
+    grammars: list[LarkGrammar]
 
 class LLProgressCapture(BaseModel):
     object: Literal["capture"]

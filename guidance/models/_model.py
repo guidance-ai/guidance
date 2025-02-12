@@ -9,7 +9,7 @@ import weakref
 
 import time
 from asyncio import CancelledError
-from typing import Iterator, Optional, TYPE_CHECKING, Callable
+from typing import Iterator, Optional, TYPE_CHECKING, Callable, Union
 from multiprocessing import Manager, Process
 from typing import Any, Union
 from enum import Enum
@@ -22,7 +22,6 @@ from ..trace import (
     StatelessGuidanceInput,
     StatefulGuidanceInput,
     LiteralInput,
-    EmbeddedInput,
     RoleOpenerInput,
     RoleCloserInput,
     TextOutput,
@@ -64,24 +63,13 @@ from .._schema import (
 )
 from .._utils import softmax, CaptureEvents, log_cleanup, log_init, log_copy, to_utf8_or_bytes_string
 from .._parser import TokenParser
-from .._grammar import (
-    Function, # for da types, just for you Hudson <3 
-    GrammarFunction,
-    string,
-    _call_pool,
-    _tag_pattern,
-    Null,
-    replace_model_variables,
-    unreplace_model_variables,
-    select,
-)
+from ..ast import GrammarNode, Function, parse_tags, LiteralNode
 from ._tokenizer import Tokenizer
 
 if TYPE_CHECKING:
     from ..library._block import ContextBlock
 
 # define some constants we will reuse many times
-_null_grammar = string("")
 format_pattern = re.compile(r"<\|\|_.*?_\|\|>", flags=re.DOTALL)
 
 
@@ -364,15 +352,9 @@ class Engine:
     def reset_metrics(self):
         self.metrics = GuidanceEngineMetrics()
 
-    def start(self, prompt, grammar, ensure_bos_token=True) -> TokenParser:
+    def start(self, prompt, grammar: GrammarNode, ensure_bos_token=True) -> TokenParser:
         # def __call__(self, grammar, max_tokens=1000000, n=1, top_p=1, temperature=0.0, ensure_bos_token=True):
         # assert n == 1, "Still need to add support for n > 1!"
-
-        # TODO: re-enable this? llguidance currently doesn't support model variables
-        # note we only support a fixed set of engine variables for the sake of security
-        # self._replacements = replace_model_variables(
-        #     grammar, self, allowed_vars=["eos_token", "bos_token"]
-        # )
 
         # right now we only support a text/bytes prompt parser state, so we extract that
         if isinstance(prompt, bytes):
@@ -387,7 +369,7 @@ class Engine:
             raise Exception("The passed prompt is of an unknown type!")
 
         return TokenParser(
-            grammar=grammar,
+            grammar=grammar.ll_grammar(),
             tokenizer=self.tokenizer,
             prompt=prompt,
             ensure_bos_token=ensure_bos_token,
@@ -398,7 +380,7 @@ class Engine:
     def __call__(
             self, 
             prompt: Union[str, TokenParser], 
-            grammar: Function,
+            grammar: GrammarNode,
             ensure_bos_token: bool = True,
             echo: bool = True,
         ) -> Iterator[EngineCallResponse]:
@@ -1047,7 +1029,7 @@ class Model:
         # TODO(nopdive): Ensure context closers or no?
         return trace_node_to_str(self.engine.trace_handler.id_node_map[self._id])
 
-    def __add__(self, value):
+    def __add__(self, value: Union[str, GrammarNode, Function, TextOutput, CaptureOutput]):
         """Adding is the primary mechanism for extending model state.
 
         Parameters
@@ -1129,101 +1111,76 @@ class Model:
             lm._inplace_append(value.value)
             out = lm
             out._update_trace_node(out._id, out._parent_id, value)
-        elif isinstance(value, CaptureOutput):
+            return out
+        
+        if isinstance(value, CaptureOutput):
             out = lm
             out._update_trace_node(out._id, out._parent_id, value)
-        elif isinstance(value, str):
-            # wrap raw string values
-
-            is_id = False
-            parts = re.split(_tag_pattern, value)
-
-            # we have no embedded objects
-            if len(parts) == 1:
-                lm._update_trace_node(lm._id, lm._parent_id, LiteralInput(value=value))
-
-                lm._inplace_append(value)
-                out = lm
-
-                # generate VisBytesChunk so we know this chunk is input
-                input_tokens = []
-                if self.echo:
-                    _bytes = value.encode("utf-8")
-                    _tokens = out.engine.tokenizer.encode(_bytes)
-                    out.vis_chunk = VisBytesChunk(
-                        bytes=_bytes,
-                        is_input=True,
-                        input_tokens=[
-                            GenToken(
-                                token_id=_token,
-                                prob=1.0,
-                                text=to_utf8_or_bytes_string(out.engine.tokenizer.decode([_token])),
-                                latency_ms=0,
-                                is_generated=False,
-                                is_force_forwarded=False,
-                                is_input=True,
-                            )
-                            for _token in _tokens
-                        ],
-                    )
-                    input_tokens = out.vis_chunk.input_tokens
-
-                out._update_trace_node(
-                    out._id,
-                    out._parent_id,
-                    TextOutput(value=value, is_input=True, tokens=input_tokens),
-                )
-
-            # if we have embedded objects we have to convert the string to a grammar tree
-            else:
-                lm._update_trace_node(lm._id, lm._parent_id, EmbeddedInput(value=value))
-
-                partial_grammar = _null_grammar
-                lm.suffix = ""
-                for i, part in enumerate(parts):
-                    if i < len(parts) - 1:
-                        lm.suffix = parts[i + 1]
-                    if is_id:
-                        call = _call_pool[part]
-                        if isinstance(call, GrammarFunction):
-                            partial_grammar += _call_pool[part]
-                        else:
-                            lm += partial_grammar
-                            lm = _call_pool[part](lm)
-                            partial_grammar = _null_grammar
-                    elif part != "":
-                        partial_grammar += string(part)
-                    is_id = not is_id
-
-                out = lm + partial_grammar
-
-        # if we find a null value we do nothing
-        elif isinstance(value, Null):
-            out = lm
-
-        # run stateless functions (grammar nodes)
-        elif isinstance(value, GrammarFunction):
-            lm._update_trace_node(lm._id, lm._parent_id, StatelessGuidanceInput(value=value))
-            out = lm._run_stateless(value)
-
-        # run stateful functions
+            return out
+        
+        if isinstance(value, str):
+            # extract Functions/GrammarNodes and/or wrap literal strings as LiteralNodes
+            node = parse_tags(value)
         else:
-            lm._update_trace_node(lm._id, lm._parent_id, StatefulGuidanceInput(value=value))
-            out = value(lm)
-            if out is None:
-                raise Exception(
-                    f"A guidance function returned `None`, not a model object! Did you forget to return the new lm at the end of your function?"
-                )
+            node = value
+
+        if isinstance(node, Function):
+            lm._update_trace_node(lm._id, lm._parent_id, StatefulGuidanceInput(value=node))
+            out = node(lm)
             if not isinstance(out, Model):
                 raise Exception(
                     f"A guidance function did not return a model object! Did you try to add a function to a model without calling the function? For example `model + guidance_function()` is correct, while `model + guidance_function` will cause this error."
                 )
+            return out
 
+        if not isinstance(node, GrammarNode):
+            # We don't support __add__ for this type
+            return NotImplemented
+
+        if node.is_null:
+            # if we find a null value we do nothing
+            return lm
+
+        # we got a literal string
+        if isinstance(node, LiteralNode):
+            lm._update_trace_node(lm._id, lm._parent_id, LiteralInput(value=value))
+
+            lm._inplace_append(value)
+            out = lm
+
+            # generate VisBytesChunk so we know this chunk is input
+            input_tokens = []
+            if self.echo:
+                _bytes = value.encode("utf-8")
+                _tokens = out.engine.tokenizer.encode(_bytes)
+                out.vis_chunk = VisBytesChunk(
+                    bytes=_bytes,
+                    is_input=True,
+                    input_tokens=[
+                        GenToken(
+                            token_id=_token,
+                            prob=1.0,
+                            text=to_utf8_or_bytes_string(out.engine.tokenizer.decode([_token])),
+                            latency_ms=0,
+                            is_generated=False,
+                            is_force_forwarded=False,
+                            is_input=True,
+                        )
+                        for _token in _tokens
+                    ],
+                )
+                input_tokens = out.vis_chunk.input_tokens
+
+            out._update_trace_node(
+                out._id,
+                out._parent_id,
+                TextOutput(value=value, is_input=True, tokens=input_tokens),
+            )
+            return out
+
+        lm._update_trace_node(lm._id, lm._parent_id, StatelessGuidanceInput(value=value))
+        out = lm._run_stateless(value)
         return out
-
-    # def endswith(self, s):
-    #     '''Checks if the current model state ends with the given value.'''
-    #     return self._current_prompt().endswith(s)
 
     def __len__(self):
         """The string length of the current state.

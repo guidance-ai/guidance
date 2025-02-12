@@ -14,7 +14,7 @@ except ImportError:
         raise
 
 from .models._model import Model, Engine
-from ._schema import EngineCallResponse
+from ._schema import EngineCallResponse, LLGrammar
 
 
 class GuidanceRequest(pydantic.BaseModel):
@@ -22,7 +22,7 @@ class GuidanceRequest(pydantic.BaseModel):
         title="parser",
         description="The text generated so far by the guidance program",
     )
-    grammar: str = pydantic.Field(
+    grammar: LLGrammar = pydantic.Field(
         title="grammar",
         description="Guidance grammar to constrain the next characters generated",
     )
