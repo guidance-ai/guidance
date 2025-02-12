@@ -374,44 +374,55 @@ class SubstringNode(GrammarNode):
 class RuleNode(GrammarNode):
     name: str
     value: GrammarNode
-    temperature: Optional[float] = None
-    max_tokens: Optional[int] = None
-    capture_name: Optional[str] = None
-    _is_terminal: bool = field(default=False, init=False)
-    _acyclic: bool = field(default=True, init=False)
+    capture: Optional[str] = None
+    _temperature: Optional[float] = field(init=False, default=None)
+    _max_tokens: Optional[int] = field(init=False, default=None)
+
+    @property
+    def temperature(self) -> Optional[float]:
+        return self._temperature
+
+    @temperature.setter
+    def temperature(self, value: Optional[float]):
+        if value is not None and not self.value.is_terminal:
+            raise ValueError("RuleNode is not terminal, so it cannot have a temperature")
+        self._temperature = value
+
+    @property
+    def max_tokens(self) -> Optional[int]:
+        return self._max_tokens
+
+    @max_tokens.setter
+    def max_tokens(self, value: Optional[int]):
+        if value is not None and not self.value.is_terminal:
+            raise ValueError("RuleNode is not terminal, so it cannot have a max_tokens")
 
     @property
     def is_terminal(self) -> bool:
-        return self._is_terminal
-
-    @is_terminal.setter
-    def is_terminal(self, value: bool):
-        if value and (
-            self.temperature is not None
-            or self.max_tokens is not None
-            or self.capture_name is not None
-        ):
-            raise ValueError(
-                "RuleNode has a temperature, max_tokens, or capture_name, so it cannot be terminal"
-            )
-        self._is_terminal = value
+        return (
+            self.capture is None and self._temperature is None and self._max_tokens is None
+        ) and self.value.is_terminal
 
     def children(self) -> list["GrammarNode"]:
         return [self.value]
 
-    def _attrs(self) -> set[str]:
-        return {"temperature", "max_tokens", "capture_name"}
-
     def lark_str(self, top: bool = False) -> str:
         rep = self.name
         if top:
-            attrs = {}
-            for attr in self._attrs():
-                if getattr(self, attr) is not None:
-                    attrs[attr] = getattr(self, attr)
+            attrs = []
+            if self.capture is not None:
+                if self.capture == self.name:
+                    attrs.append("capture")
+                else:
+                    attrs.append(f"capture={json.dumps(self.capture)}")
+            if self.temperature is not None:
+                attrs.append(f"temperature={self.temperature}")
+            if self.max_tokens is not None:
+                attrs.append(f"max_tokens={self.max_tokens}")
             if attrs:
-                rep += f"[{', '.join(f'{k}={json.dumps(v)}' for k, v in attrs.items())}]"
-            rep += f": {self.value.lark_str(top=not isinstance(self.value, RuleNode))}"
+                rep += f"[{', '.join(attrs)}]"
+            value_top = not isinstance(self.value, RuleNode)
+            rep += f": {self.value.lark_str(top=value_top)}"
         return rep
 
 
@@ -435,10 +446,9 @@ class RuleRefNode(GrammarNode):
 
     @property
     def is_terminal(self) -> bool:
-        if self.target is None:
-            return False
-        else:
-            return self.target.is_terminal
+        # RuleRefNode should only ever be used to enable recursive rule definitions,
+        # so it should never be terminal.
+        return False
 
     def lark_str(self, top: bool = False) -> str:
         if self.target is None:
@@ -497,18 +507,6 @@ def resolve(node: GrammarNode) -> dict[str, RuleNode]:
         add_node(node)
     else:
         add_node(RuleNode("start", node))
-
-    num_fix = 1
-    while num_fix > 0:
-        num_fix = 0
-        for r in rules.values():
-            if r.name != "start" and not r.is_terminal and r.value.is_terminal:
-                try:
-                    r.is_terminal = True
-                except ValueError:
-                    pass
-                else:
-                    num_fix += 1
 
     for name, r in rules.items():
         new_name = name.replace("-", "_")

@@ -1,5 +1,7 @@
-from typing import Optional, Sequence, Union
+import copy
+import dataclasses
 import re
+from typing import Optional, Sequence, Union
 
 from ._ast import (
     Function,
@@ -80,7 +82,7 @@ def select(
     return RuleNode(
         name=name or "select",
         value=SelectNode(alternatives),
-        capture_name=capture_name,
+        capture=capture_name,
     )
 
 
@@ -110,41 +112,45 @@ def repeat(
     )
 
 
-def token_limit(value: GrammarNode, max_tokens: int):
-    # if isinstance(value, WithMaxTokens):
-    #     value.max_tokens = max_tokens
-    # else:
-    #     return Subgrammar(
-    #         body=value,
-    #         max_tokens=max_tokens,
-    #     )
-    # return value
-    raise NotImplementedError("token_limit is not implemented")
+def token_limit(value: GrammarNode, max_tokens: int) -> RuleNode:
+    if isinstance(value, RuleNode):
+        rule = copy.copy(value)
+    else:
+        rule = RuleNode(name="token_limit", value=value)
+    try:
+        rule.max_tokens = max_tokens
+    except ValueError:
+        raise NotImplementedError(
+            "token_limit is not implemented for non-terminal RuleNodes"
+        )  # TODO: subgrammars
+    return rule
 
 
-def with_temperature(value: GrammarNode, temperature: float):
+def with_temperature(value: GrammarNode, temperature: float) -> RuleNode:
     """This sets the sampling temperature to be used for the given portion of the grammar.
 
     Note that if the grammar passed to us already has some portions with a temperature
     setting in place, those settings will not be overridden.
     """
-    # _re_with_temperature(value, temperature, {})
-    # return value
-    raise NotImplementedError("with_temperature is not implemented")
+    if isinstance(value, RuleNode):
+        rule = copy.copy(value)
+    else:
+        rule = RuleNode(name="with_temperature", value=value)
+    try:
+        rule.temperature = temperature
+    except ValueError:
+        raise NotImplementedError(
+            "with_temperature is not implemented for non-terminal RuleNodes"
+        )  # TODO: subgrammars
+    return rule
 
 
-def capture(value: GrammarNode, name: str) -> GrammarNode:
-    # # if log_probs:
-    # #     name += ":__LOG_PROBS"
-    # if not (isinstance(value, Join) and len(value.values) == 1):  # don't double wrap
-    #     value = Join(
-    #         values=[value],
-    #         capture_name=name,
-    #     )  # this ensures we capture what we want, and not something surprisingly self_recursive
-    # else:
-    #     value.capture_name = name
-    # return value
-    raise NotImplementedError("capture is not implemented")
+def capture(value: GrammarNode, name: str) -> RuleNode:
+    if isinstance(value, RuleNode):
+        return dataclasses.replace(value, capture=name)
+    else:
+        return RuleNode(name="capture", value=value, capture=name)
+
 
 def quote_regex(value: str) -> str:
     return re.sub(r"([\\+*?^$(){}\[\]\.|])", r"\\\1", value)
