@@ -1,17 +1,15 @@
-from json import loads as json_loads, dumps as json_dumps
+from json import loads as json_loads
 from typing import (
     Any,
     Mapping,
     Optional,
     Union,
     Type,
-    TYPE_CHECKING,
     cast,
 )
 import warnings
 import pydantic
 
-from llguidance import JsonCompiler
 
 from .._ast import RuleNode, JsonNode
 from ._pydantic import pydantic_to_json_schema
