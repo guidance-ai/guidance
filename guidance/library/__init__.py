@@ -5,11 +5,9 @@ from ._capture import capture
 
 # core grammar functions
 from .._grammar import select
-from .._grammar import commit_point
 from .._grammar import with_temperature
 from .._grammar import string
 from .._grammar import token_limit
-from .._grammar import byte_range
 
 # context blocks
 from ._block import block
