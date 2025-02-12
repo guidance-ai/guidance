@@ -853,24 +853,6 @@ class Model:
         _id_counter += 1
         return _id
 
-    @property
-    def active_role_end(self):
-        """The default end patterns we should use for `gen` calls.
-        TODO: move this logic into the gen call...we can do with if we allow model_variables to run functions.
-
-        These patterns are computed dynamically by the model object because they can depend on
-        what the current open roles are, which is something
-        """
-
-        # add any active non-empty role ends. Ignore role ends that are spaces
-        parts = []
-        for _, role_end_str in self.opened_blocks.values():
-            role_end_str = format_pattern.sub("", role_end_str)
-            if len(role_end_str) > 0 and not re.fullmatch(r"\s+", role_end_str):
-                parts.append(role_end_str)
-
-        return select(parts)
-
     def html(self):
         """Displays model as HTML."""
         # NOTE(nopdive): Have this public for now until all widget related issues are sorted out.
@@ -1343,13 +1325,6 @@ class Model:
 
         logger.debug("start Model._run_stateless")
 
-        # This needs to be here for streaming
-        # if name is not None:
-        #     self[name] = ""
-
-        # replace ModelVariables with their actual values (note we save what we replaced so we can restore it later)
-        replacements = replace_model_variables(stateless_function, self)
-
         # start the generation stream
         gen_obj = self.engine(self._current_prompt(), stateless_function, echo=self.echo)
 
@@ -1476,13 +1451,6 @@ class Model:
                                 value=v,
                                 log_probs=chunk.capture_group_log_probs[k],
                             )
-
-            # if len(chunk.capture_groups) > 0:
-            #     for k in chunk.capture_groups:
-            #         v = chunk.capture_groups[k]
-            #         lm[k] = v.decode("utf8") if isinstance(v, bytes) else v
-
-        unreplace_model_variables(replacements)
 
         logger.debug("finish Model._run_stateless")
 
