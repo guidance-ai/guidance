@@ -210,6 +210,14 @@ class RuleNode(GrammarNode):
 
     @is_terminal.setter
     def is_terminal(self, value: bool):
+        if value and (
+            self.temperature is not None
+            or self.max_tokens is not None
+            or self.capture_name is not None
+        ):
+            raise ValueError(
+                "RuleNode has a temperature, max_tokens, or capture_name, so it cannot be terminal"
+            )
         self._is_terminal = value
 
     def children(self) -> list["GrammarNode"]:
