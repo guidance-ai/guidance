@@ -203,71 +203,6 @@ class GrammarNode(ABC, Tagged):
 
 
 @dataclass(slots=True, eq=False)
-class RuleNode(GrammarNode):
-    name: str
-    value: GrammarNode
-    temperature: Optional[float] = None
-    max_tokens: Optional[int] = None
-    capture_name: Optional[str] = None
-    _is_terminal: bool = field(default=False, init=False)
-
-    @property
-    def is_terminal(self) -> bool:
-        return self._is_terminal
-
-    @is_terminal.setter
-    def is_terminal(self, value: bool):
-        if value and (
-            self.temperature is not None
-            or self.max_tokens is not None
-            or self.capture_name is not None
-        ):
-            raise ValueError(
-                "RuleNode has a temperature, max_tokens, or capture_name, so it cannot be terminal"
-            )
-        self._is_terminal = value
-
-    def children(self) -> list["GrammarNode"]:
-        return [self.value]
-
-    def lark_str(self, top: bool = False) -> str:
-        rep = self.name
-        if top:
-            attrs = {}
-            for attr in ["temperature", "max_tokens", "capture_name"]:
-                if getattr(self, attr) is not None:
-                    attrs[attr] = getattr(self, attr)
-            if attrs:
-                rep += f"[{', '.join(f'{k}={json.dumps(v)}' for k, v in attrs.items())}]"
-            rep += f": {self.value.lark_str(top=not isinstance(self.value, RuleNode))}"
-        return rep
-
-
-@dataclass(slots=True, eq=False)
-class RuleRefNode(GrammarNode):
-    target: Optional[RuleNode] = None
-
-    @property
-    def is_terminal(self) -> bool:
-        if self.target is None:
-            return False
-        else:
-            return self.target.is_terminal
-
-    def lark_str(self, top: bool = False) -> str:
-        if self.target is None:
-            raise ValueError("RuleRefNode has no target")
-        else:
-            return self.target.name
-
-    def __repr__(self) -> str:
-        try:
-            return self.lark_str()
-        except ValueError:
-            return super().__repr__()
-
-
-@dataclass(slots=True, eq=False)
 class LiteralNode(GrammarNode):
     value: str
 
@@ -433,6 +368,89 @@ class SubstringNode(GrammarNode):
         else:
             indent = None
         return f'%regex {json.dumps({"substring_chunks": self.chunks}, indent=indent)}'
+
+
+@dataclass(slots=True, eq=False)
+class RuleNode(GrammarNode):
+    name: str
+    value: GrammarNode
+    temperature: Optional[float] = None
+    max_tokens: Optional[int] = None
+    capture_name: Optional[str] = None
+    _is_terminal: bool = field(default=False, init=False)
+    _acyclic: bool = field(default=True, init=False)
+
+    @property
+    def is_terminal(self) -> bool:
+        return self._is_terminal
+
+    @is_terminal.setter
+    def is_terminal(self, value: bool):
+        if value and (
+            self.temperature is not None
+            or self.max_tokens is not None
+            or self.capture_name is not None
+        ):
+            raise ValueError(
+                "RuleNode has a temperature, max_tokens, or capture_name, so it cannot be terminal"
+            )
+        self._is_terminal = value
+
+    def children(self) -> list["GrammarNode"]:
+        return [self.value]
+
+    def _attrs(self) -> set[str]:
+        return {"temperature", "max_tokens", "capture_name"}
+
+    def lark_str(self, top: bool = False) -> str:
+        rep = self.name
+        if top:
+            attrs = {}
+            for attr in self._attrs():
+                if getattr(self, attr) is not None:
+                    attrs[attr] = getattr(self, attr)
+            if attrs:
+                rep += f"[{', '.join(f'{k}={json.dumps(v)}' for k, v in attrs.items())}]"
+            rep += f": {self.value.lark_str(top=not isinstance(self.value, RuleNode))}"
+        return rep
+
+
+@dataclass(slots=True, eq=False)
+class GenNode(RuleNode):
+    value: RegexNode
+    stop: RegexNode = RegexNode("")
+    save_stop_text: bool = False
+
+    @property
+    def is_terminal(self) -> bool:
+        return True
+
+    def _attrs(self) -> set[str]:
+        return super()._attrs() | {"stop", "save_stop_text"}
+
+
+@dataclass(slots=True, eq=False)
+class RuleRefNode(GrammarNode):
+    target: Optional[RuleNode] = None
+
+    @property
+    def is_terminal(self) -> bool:
+        if self.target is None:
+            return False
+        else:
+            return self.target.is_terminal
+
+    def lark_str(self, top: bool = False) -> str:
+        if self.target is None:
+            raise ValueError("RuleRefNode has no target")
+        else:
+            return self.target.name
+
+    def __repr__(self) -> str:
+        try:
+            return self.lark_str()
+        except ValueError:
+            return super().__repr__()
 
 
 def parse_tags(s: str) -> Union[GrammarNode, Function]:

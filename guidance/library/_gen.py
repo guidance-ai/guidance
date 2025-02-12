@@ -1,7 +1,8 @@
 import regex as regex_module
 import logging
 from .._guidance import guidance
-from .._grammar import select, Gen, quote_regex, capture, token_limit, with_temperature
+from .._ast import GenNode
+from .._grammar import regex as regex_node, select, quote_regex, capture, with_temperature
 from ._block import block
 from ._silent import silent
 from ._tool import Tool
@@ -136,7 +137,7 @@ def gen(
     if tools is not None:
         tools = [Tool(callable=x) if not isinstance(x, Tool) else x for x in tools]
         options = [
-            Gen(body_regex=regex, stop_regex=gen_stop, save_stop_text=save_stop_text, max_tokens=max_tokens)
+            GenNode(value=regex_node(regex), stop=regex_node(gen_stop), save_stop_text=save_stop_text, max_tokens=max_tokens)
         ]
         for i, tool in enumerate(tools):
             # Infer a regex that will match the start of a tool call
@@ -147,7 +148,7 @@ def gen(
                 raise ValueError(f"Could not infer unambiguous tool call prefix for tool {tool.name}")
             options.append(
                 capture(
-                    Gen(body_regex=regex, stop_regex=quote_regex(tool_call_prefix), max_tokens=max_tokens),
+                    GenNode(value=regex_node(regex), stop=regex_node(quote_regex(tool_call_prefix)), max_tokens=max_tokens),
                     name=f"tool{i}"
                 )
             )
@@ -174,7 +175,7 @@ def gen(
                     break
         return lm
 
-    pattern = Gen(body_regex=regex, stop_regex=gen_stop, save_stop_text=save_stop_text, capture_name=tagged_name, max_tokens=max_tokens)
+    pattern = GenNode(value=regex_node(regex), stop=regex_node(gen_stop), save_stop_text=save_stop_text, capture_name=tagged_name, max_tokens=max_tokens)
 
     # define any capture group for non-tool calls
     if name is not None and tools is None:
