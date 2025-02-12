@@ -13,7 +13,7 @@ import pydantic
 
 from llguidance import JsonCompiler
 
-from ..ast import RuleNode, JsonNode
+from .._ast import RuleNode, JsonNode
 from ._pydantic import pydantic_to_json_schema
 
 JSONSchema = Mapping[str, Any]

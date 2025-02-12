@@ -63,7 +63,7 @@ from .._schema import (
 )
 from .._utils import softmax, CaptureEvents, log_cleanup, log_init, log_copy, to_utf8_or_bytes_string
 from .._parser import TokenParser
-from ..ast import GrammarNode, Function, parse_tags, LiteralNode
+from .._ast import GrammarNode, Function, parse_tags, LiteralNode
 from ._tokenizer import Tokenizer
 
 if TYPE_CHECKING:

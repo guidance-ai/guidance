@@ -12,7 +12,7 @@ if sys.version_info >= (3, 10):
 else:
     from typing_extensions import ParamSpec, TypeAlias, Concatenate
 
-from .ast import RuleNode, Function
+from ._ast import RuleNode, Function
 from .models import Model
 
 P = ParamSpec("P")

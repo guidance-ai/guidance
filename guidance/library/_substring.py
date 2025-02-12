@@ -1,7 +1,7 @@
 import re
 from typing import Callable, Iterable, Literal, Optional, Union
 
-from ..ast import RuleNode, SubstringNode
+from .._ast import RuleNode, SubstringNode
 
 
 def chunk_on_word(text: str) -> list[str]:

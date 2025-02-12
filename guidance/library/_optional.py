@@ -1,5 +1,5 @@
 from .._guidance import guidance
-from ..ast import select
+from .._ast import select
 
 @guidance(stateless=True)
 def optional(lm, value):
