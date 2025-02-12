@@ -1,4 +1,5 @@
 from typing import Optional, Sequence, Union
+import re
 
 from ._ast import (
     Function,
@@ -130,3 +131,20 @@ def with_temperature(value: GrammarNode, temperature: float):
     # _re_with_temperature(value, temperature, {})
     # return value
     raise NotImplementedError("with_temperature is not implemented")
+
+
+def capture(value: GrammarNode, name: str) -> GrammarNode:
+    # # if log_probs:
+    # #     name += ":__LOG_PROBS"
+    # if not (isinstance(value, Join) and len(value.values) == 1):  # don't double wrap
+    #     value = Join(
+    #         values=[value],
+    #         capture_name=name,
+    #     )  # this ensures we capture what we want, and not something surprisingly self_recursive
+    # else:
+    #     value.capture_name = name
+    # return value
+    raise NotImplementedError("capture is not implemented")
+
+def quote_regex(value: str) -> str:
+    return re.sub(r"([\\+*?^$(){}\[\]\.|])", r"\\\1", value)
