@@ -195,6 +195,7 @@
   </div>
 
   <!-- Audio Element (hidden) -->
+  <!-- Note - need to propagate type from back end maybe? -->
   <audio
     bind:this={audio}
     on:timeupdate={updateProgress}
