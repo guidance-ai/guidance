@@ -195,7 +195,7 @@ class GrammarNode(ABC, Tagged):
         return Match(*parser.get_captures(), partial=not parser.matched())  # type: ignore[misc]
 
     def forced_prefix(self) -> str:
-        parser = ByteParser(self)
+        parser = ByteParser(self.ll_grammar())
         return parser.bytes.decode("utf-8", errors="ignore")
 
     def ll_grammar(self) -> LLGrammar:
