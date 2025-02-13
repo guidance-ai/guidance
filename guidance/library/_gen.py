@@ -26,7 +26,7 @@ def gen(
     stop_regex=None,
     suffix="",
     n=1,
-    temperature=0.0,
+    temperature=None,
     top_p=1.0,
     save_stop_text=False,
 ):
@@ -266,4 +266,7 @@ def call_tool(lm, tool):
 
 @guidance(stateless=True)
 def regex(lm, pattern, *, name=None):
-    return lm + gen(regex=pattern, name=name)
+    node = regex_node(pattern)
+    if name:
+        node = capture(node, name)
+    return lm + node
