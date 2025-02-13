@@ -395,6 +395,7 @@ class RuleNode(GrammarNode):
     def max_tokens(self, value: Optional[int]):
         if value is not None and not self.value.is_terminal:
             raise ValueError("RuleNode is not terminal, so it cannot have a max_tokens")
+        self._max_tokens = value
 
     @property
     def is_terminal(self) -> bool:
