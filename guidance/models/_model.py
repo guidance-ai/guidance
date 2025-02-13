@@ -1125,15 +1125,15 @@ class Model:
 
         # we got a literal string
         if isinstance(node, LiteralNode):
-            lm._update_trace_node(lm._id, lm._parent_id, LiteralInput(value=value))
+            lm._update_trace_node(lm._id, lm._parent_id, LiteralInput(value=node.value))
 
-            lm._inplace_append(value)
+            lm._inplace_append(node.value)
             out = lm
 
             # generate VisBytesChunk so we know this chunk is input
             input_tokens = []
             if self.echo:
-                _bytes = value.encode("utf-8")
+                _bytes = node.value.encode("utf-8")
                 _tokens = out.engine.tokenizer.encode(_bytes)
                 out.vis_chunk = VisBytesChunk(
                     bytes=_bytes,
@@ -1156,12 +1156,12 @@ class Model:
             out._update_trace_node(
                 out._id,
                 out._parent_id,
-                TextOutput(value=value, is_input=True, tokens=input_tokens),
+                TextOutput(value=node.value, is_input=True, tokens=input_tokens),
             )
             return out
 
-        lm._update_trace_node(lm._id, lm._parent_id, StatelessGuidanceInput(value=value))
-        out = lm._run_stateless(value)
+        lm._update_trace_node(lm._id, lm._parent_id, StatelessGuidanceInput(value=node))
+        out = lm._run_stateless(node)
         return out
 
     def __len__(self):
