@@ -29,6 +29,6 @@ def substring(
             raise ValueError(f"Invalid chunk_on value: {chunk_on}")
     return RuleNode(
         name=name or "substring",
-        value=SubstringNode(target_string, chunks),
-        capture_name=name,
+        value=SubstringNode(chunks),
+        capture=name,
     )
