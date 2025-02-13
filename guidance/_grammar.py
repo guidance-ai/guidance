@@ -144,8 +144,7 @@ def token_limit(value: GrammarNode, max_tokens: int) -> RuleNode:
             rule = RuleNode(name="token_limit", value=value)
             rule.max_tokens = max_tokens
         except ValueError:
-            inner_name = value.name if isinstance(value, RuleNode) else "subgrammar"
-            rule = RuleNode(name="token_limit", value=subgrammar(inner_name, value))
+            rule = RuleNode(name="token_limit", value=subgrammar(value))
             rule.max_tokens = max_tokens
     return rule
 
@@ -162,8 +161,7 @@ def with_temperature(value: GrammarNode, temperature: float) -> RuleNode:
         rule = RuleNode(name="with_temperature", value=value)
         rule.temperature = temperature
     except ValueError:
-        inner_name = value.name if isinstance(value, RuleNode) else "subgrammar"
-        rule = RuleNode(name="with_temperature", value=subgrammar(inner_name, value))
+        rule = RuleNode(name="with_temperature", value=subgrammar(value))
         rule.temperature = temperature
     return rule
 
@@ -175,8 +173,9 @@ def capture(value: GrammarNode, name: str) -> RuleNode:
         return RuleNode(name="capture", value=value, capture=name)
 
 
-def subgrammar(name: str, start: GrammarNode) -> SubgrammarNode:
-    return SubgrammarNode(name=name, start=start)
+def subgrammar(body: GrammarNode) -> SubgrammarNode:
+    name = body.name if isinstance(body, RuleNode) else "subgrammar"
+    return SubgrammarNode(name=name, body=body)
 
 
 def quote_regex(value: str) -> str:

@@ -478,7 +478,7 @@ class RuleRefNode(GrammarNode):
 @dataclass(slots=True, eq=False)
 class SubgrammarNode(GrammarNode):
     name: str
-    start: GrammarNode
+    body: GrammarNode
 
     def lark_str(self, top: bool = False) -> str:
         return f"@{self.name}"
@@ -514,7 +514,7 @@ def resolve(node: GrammarNode) -> list[dict[str, RuleNode]]:
                     i += 1
                 name = f"{name}_{i}"
             n.name = name
-            add_grammar(n.start, name)
+            add_grammar(n.body, name)
 
         if isinstance(n, RuleNode):
             name = n.name
