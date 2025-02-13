@@ -211,8 +211,7 @@ class LiteralNode(GrammarNode):
         return self.value == ""
 
     def lark_str(self, top: bool = False) -> str:
-        # TODO: escape?
-        return f'"{self.value}"'
+        return json.dumps(self.value)
 
 
 @dataclass(slots=True, eq=False)
