@@ -132,8 +132,6 @@ def gen(
     if not isinstance(save_stop_text, str):
         save_stop_text = None
 
-    tagged_name = "__LIST_APPEND:" + name if list_append and name is not None else name
-
     if tools is not None:
         tools = [Tool(callable=x) if not isinstance(x, Tool) else x for x in tools]
         options = [
@@ -152,6 +150,7 @@ def gen(
  
         grm = with_temperature(select(options), temperature)
         initial_token_count = lm.token_count
+        tagged_name = "__LIST_APPEND:" + name if list_append and name is not None else name
         with block(tagged_name):
             while lm.token_count <= max_tokens + initial_token_count:
                 lm += grm
@@ -173,7 +172,7 @@ def gen(
                     break
         return lm
 
-    pattern = grammar_gen(regex=regex, stop_regex=gen_stop, save_stop_text=save_stop_text, name=tagged_name, temperature=temperature, max_tokens=max_tokens)
+    pattern = grammar_gen(regex=regex, stop_regex=gen_stop, save_stop_text=save_stop_text, name=name, list_append=list_append, temperature=temperature, max_tokens=max_tokens)
     lm += pattern + suffix
 
     logger.debug(f"finish gen")

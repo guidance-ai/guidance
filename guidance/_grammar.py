@@ -34,6 +34,7 @@ def gen(
     name: Optional[str] = None,
     temperature: Optional[float] = None,
     max_tokens: Optional[int] = None,
+    list_append: bool = False,
 ) -> GenNode:
     node = GenNode(
         name=name or "gen",
@@ -41,6 +42,7 @@ def gen(
         capture=name,
         stop_regex=stop_regex,
         save_stop_text=save_stop_text,
+        list_append=list_append,
     )
     node.temperature = temperature
     node.max_tokens = max_tokens
@@ -97,16 +99,11 @@ def select(
         else:
             raise ValueError(f"Option {v} is not a valid type: {type(v)}")
 
-    capture_name: Optional[str] = name
-    if list_append:
-        if name is None:
-            raise ValueError("list_append requires a name")
-        capture_name = f"__LIST_APPEND:{name}"
-
     return RuleNode(
         name=name or "select",
         value=SelectNode(alternatives),
-        capture=capture_name,
+        capture=name,
+        list_append=list_append,
     )
 
 
@@ -166,11 +163,11 @@ def with_temperature(value: GrammarNode, temperature: float) -> RuleNode:
     return rule
 
 
-def capture(value: GrammarNode, name: str) -> RuleNode:
+def capture(value: GrammarNode, name: str, list_append: bool = False) -> RuleNode:
     if isinstance(value, RuleNode):
-        return dataclasses.replace(value, capture=name)
+        return dataclasses.replace(value, capture=name, list_append=list_append)
     else:
-        return RuleNode(name="capture", value=value, capture=name)
+        return RuleNode(name="capture", value=value, capture=name, list_append=list_append)
 
 
 def subgrammar(body: GrammarNode, name: Optional[str] = None) -> SubgrammarNode:

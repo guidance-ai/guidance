@@ -376,6 +376,7 @@ class RuleNode(GrammarNode):
     name: str
     value: GrammarNode
     capture: Optional[str] = None
+    list_append: bool = False
     _temperature: Optional[float] = field(init=False, default=None)
     _max_tokens: Optional[int] = field(init=False, default=None)
 
@@ -413,10 +414,13 @@ class RuleNode(GrammarNode):
     def _attrs(self) -> list[str]:
         attrs = []
         if self.capture is not None:
-            if self.capture == self.name:
-                attrs.append("capture")
+            if self.capture != self.name or self.list_append:
+                capture_name = self.capture
+                if self.list_append:
+                    capture_name = f"__LIST_APPEND:{capture_name}"
+                attrs.append(f"capture={json.dumps(capture_name)}")
             else:
-                attrs.append(f"capture={json.dumps(self.capture)}")
+                attrs.append("capture")
         if self.temperature is not None:
             attrs.append(f"temperature={self.temperature}")
         if self.max_tokens is not None:
