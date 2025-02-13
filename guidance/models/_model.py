@@ -275,9 +275,9 @@ def _msg_recv(engine_weakref: weakref.ReferenceType, message: GuidanceMessage) -
                     tokens=processed_gen_tokens,
                 )
             )
-            engine.renderer.update(MetricMessage(name="status", value="✓"))
+            engine.renderer.update(MetricMessage(name="status", value="Done"))
         else:
-            engine.renderer.update(MetricMessage(name="status", value="⚠"))
+            engine.renderer.update(MetricMessage(name="status", value="Error"))
 
         if engine.periodic_metrics_generator is not None:
             engine.periodic_metrics_generator.pause()

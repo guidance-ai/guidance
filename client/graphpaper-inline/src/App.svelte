@@ -9,7 +9,6 @@ For upcoming features, we won't be able to send all details over the wire, and w
   import ResizeListener from './ResizeListener.svelte';
   import {
     clientmsg,
-    state,
     type GenTokenExtra,
     type GuidanceMessage,
     isClientReadyAckMessage,
@@ -24,6 +23,8 @@ For upcoming features, we won't be able to send all details over the wire, and w
     isTraceMessage,
     kernelmsg,
     type NodeAttr,
+    state,
+    Status,
     type StitchMessage
   } from './stitch';
   import StitchHandler from './StitchHandler.svelte';
@@ -32,37 +33,37 @@ For upcoming features, we won't be able to send all details over the wire, and w
   import Select from './Select.svelte';
   import { metricDefs } from './metrics';
   import type { MetricVal } from './interfaces';
-  import { mockNodeAttrs, mockGenTokens } from './mocks';
+  import { mockGenTokens, mockNodeAttrs } from './mocks';
 
   interface AppState {
     textComponents: Array<NodeAttr>,
     tokenDetails: Array<GenTokenExtra>,
+    status: Status,
     metrics: Record<string, MetricVal>,
-    isCompleted: boolean,
-    isError: boolean,
+    shownMetrics: Array<string>,
     requireFullReplay: boolean,
   }
   let appState: AppState = {
     textComponents: [],
     tokenDetails: [],
+    status: Status.Running,
+    shownMetrics: [],
     metrics: {
-      'status': '⟳',
-      // 'status': 'Done',
+      'status': Status.Running,
       'wall time': 0,
       'consumed': 0,
       'token reduction': 0,
       'avg latency': 0,
-      'cpu': [0., 0., 0., 0., 0.],
+      'cpu': [0., 1., 0., 0., 0.],
+      'gpu': [0., 0., 0., 0., 0.],
       'ram': 0,
+      'vram': 0,
     },
-    isCompleted: false,
-    isError: false,
     requireFullReplay: false,
   };
   appState.textComponents = mockNodeAttrs;
   appState.tokenDetails = mockGenTokens;
 
-  let showMetrics: boolean = true;
   let bgField: string = 'Type';
   let underlineField: string = 'Probability';
 
@@ -88,7 +89,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
       }
     } else if (isResetDisplayMessage(msg)) {
       appState.textComponents = [];
-      appState.isCompleted = false;
+      appState.status = appState.status !== Status.Error ? Status.Running : appState.status;
     } else if (isMetricMessage(msg)) {
       const name = msg.name;
       const value = msg.value;
@@ -109,15 +110,16 @@ For upcoming features, we won't be able to send all details over the wire, and w
           console.error(`Cannot handle metric: ${name}: ${value}.`);
         }
 
+        // NOTE(nopdive): Need to update status too.
         if (name === 'status') {
-          appState.isError = value === '⚠';
+          appState.status = value as Status;
         }
       }
     } else if (isExecutionCompletedMessage(msg)) {
-      appState.isCompleted = true;
+      appState.status = Status.Done;
     } else if (isTokensMessage(msg)) {
       appState.requireFullReplay = false;
-      appState.isCompleted = true;
+      appState.status = Status.Done;
       appState.tokenDetails = msg.tokens;
 
       // Good time to save state.
@@ -143,6 +145,26 @@ For upcoming features, we won't be able to send all details over the wire, and w
     const msg = JSON.parse($kernelmsg.content);
     handleMessage(msg);
   }
+  $: {
+    if (appState.status === Status.Running) {
+      appState.shownMetrics = [
+        'status',
+        'wall time',
+        'cpu',
+        'ram',
+        'gpu',
+        'vram',
+      ];
+    } else {
+      appState.shownMetrics = [
+        'status',
+        'wall time',
+        'consumed',
+        'token reduction',
+        'avg latency',
+      ];
+    }
+  }
 
   onMount(() => {
     const msg: StitchMessage = {
@@ -151,12 +173,6 @@ For upcoming features, we won't be able to send all details over the wire, and w
     };
     clientmsg.set(msg);
   });
-
-  const onMetricClick = (_: any) => {
-    showMetrics = !showMetrics;
-  };
-  const doNothing = (_: any) => {
-  };
 </script>
 
 <svelte:head>
@@ -180,8 +196,8 @@ For upcoming features, we won't be able to send all details over the wire, and w
         </span>
         <!-- Metrics -->
         <span class="flex mr-4 text-gray-300 overflow-x-scroll scrollbar-thin scrollbar-track-gray-100 scrollbar-thumb-gray-200">
-          {#each Object.entries(appState.metrics) as [name, value]}
-            <MetricCard value={value} metricDef={metricDefs[name]} />
+          {#each appState.shownMetrics as name}
+            <MetricCard value={appState.metrics[name]} metricDef={metricDefs[name]} />
           {/each}
         </span>
       </div>
@@ -190,8 +206,10 @@ For upcoming features, we won't be able to send all details over the wire, and w
 
   <!-- Content pane -->
   <section class="w-full">
-    <TokenGrid textComponents={appState.textComponents} tokenDetails={appState.tokenDetails} isCompleted={appState.isCompleted}
-               isError={appState.isError}
+    <TokenGrid textComponents={appState.textComponents}
+               tokenDetails={appState.tokenDetails}
+               isCompleted={['Done', 'Error'].includes(appState.status)}
+               isError={appState.status === Status.Error}
                bgField={bgField} underlineField={underlineField} requireFullReplay="{appState.requireFullReplay}" />
   </section>
 </div>

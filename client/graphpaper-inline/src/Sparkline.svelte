@@ -21,29 +21,18 @@
 
   $: yScale = scaleLinear()
     .domain([0, 1])
-    .range([height - padding.top, padding.bottom]);
+    .range([height - padding.bottom, padding.top]);
 
   $: pathData = typedValues.map((v, i) => ({
     x: xScale(i),
     y: yScale(v),
   }))
-  $: {
-    console.log(values);
-    console.log(typedValues);
-    console.log(pathData);
-    console.log(height);
-    console.log(width);
-  }
 </script>
 
 <div class="inline-block font-medium text-gray-700" bind:clientHeight={height} bind:clientWidth={width}>
   <svg class={svgClass}>
     <g>
       <path d="{pathData.map((v, i) => `${i === 0 ? 'M' : 'L'} ${v.x} ${v.y}`).join(' ')}" fill="none" stroke-width="1.25" stroke="#374151"/>
-      <!--{#each typedValues as val, i}-->
-      <!--  <rect x={xScale(i)} y={yScale(Math.max(val, minVal))} width={barWidth-1}-->
-      <!--        height={yScale(0) - yScale(Math.max(val, minVal))} class={rectClass}></rect>-->
-      <!--{/each}-->
     </g>
   </svg>
 </div>
