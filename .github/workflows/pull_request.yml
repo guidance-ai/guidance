@@ -78,7 +78,7 @@ jobs:
         python-version: ["3.9", "3.12"]
         model:
           - "transformers_gpt2_gpu"
-          - "transformers_phi2_gpu"
+          - "llamacpp_llama2_7b_gpu"
     uses: ./.github/workflows/call_gpu_tests.yml
     with:
       os: ${{ matrix.os }}
