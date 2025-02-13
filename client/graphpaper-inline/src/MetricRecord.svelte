@@ -22,7 +22,7 @@
     }
 </style>
 
-<span class={`dot-divider flex items-center text-xs whitespace-nowrap px-1`}>
+<span class={`dot-divider flex items-center text-xs whitespace-nowrap px-1`} title="{metricDef.description}">
     <span>
         {#if value.constructor === Array}
             <span class={`text-gray-600 whitespace-nowrap pr-[0.125rem]`}>{metricDef.name}</span>

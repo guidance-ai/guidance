@@ -29,11 +29,11 @@ For upcoming features, we won't be able to send all details over the wire, and w
   } from './stitch';
   import StitchHandler from './StitchHandler.svelte';
   import { onMount } from 'svelte';
-  import MetricCard from './MetricCard.svelte';
+  import MetricCard from './MetricRecord.svelte';
   import Select from './Select.svelte';
   import { metricDefs } from './metrics';
   import type { MetricVal } from './interfaces';
-  import { mockGenTokens, mockNodeAttrs } from './mocks';
+  // import { mockGenTokens, mockNodeAttrs } from './mocks';
 
   interface AppState {
     textComponents: Array<NodeAttr>,
@@ -61,8 +61,8 @@ For upcoming features, we won't be able to send all details over the wire, and w
     },
     requireFullReplay: false,
   };
-  appState.textComponents = mockNodeAttrs;
-  appState.tokenDetails = mockGenTokens;
+  // appState.textComponents = mockNodeAttrs;
+  // appState.tokenDetails = mockGenTokens;
 
   let bgField: string = 'Type';
   let underlineField: string = 'Probability';
@@ -158,10 +158,10 @@ For upcoming features, we won't be able to send all details over the wire, and w
     } else {
       appState.shownMetrics = [
         'status',
-        'wall time',
         'consumed',
         'token reduction',
         'avg latency',
+        'wall time',
       ];
     }
   }

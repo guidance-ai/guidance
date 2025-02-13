@@ -4,7 +4,7 @@ import type { MetricDef } from './interfaces';
 
 export const metricDefs: Record<string, MetricDef> = {
   'status': {
-    name: 'Status',
+    name: '',
     units: '',
     description: 'Determines whether engine is running, completed or in error.',
     isScalar: true,
@@ -46,21 +46,21 @@ export const metricDefs: Record<string, MetricDef> = {
     precision: 1
   },
   'avg latency': {
-    name: 'Avg Latency',
+    name: 'Latency',
     units: 'ms',
     description: 'Average roundtrip latency per token',
     isScalar: true,
     precision: 0
   },
   'consumed': {
-    name: 'Consumed',
+    name: 'Used',
     units: 'tkn',
     description: 'Total tokens consumed by language model.',
     isScalar: true,
     precision: 0
   },
   'token reduction': {
-    name: 'Token Reduction',
+    name: 'Reduced',
     units: '%',
     description: 'Total tokens consumed by language model divided by total tokens.',
     isScalar: true,
