@@ -173,9 +173,13 @@ def capture(value: GrammarNode, name: str) -> RuleNode:
         return RuleNode(name="capture", value=value, capture=name)
 
 
-def subgrammar(body: GrammarNode) -> SubgrammarNode:
-    name = body.name if isinstance(body, RuleNode) else "subgrammar"
-    return SubgrammarNode(name=name, body=body)
+def subgrammar(body: GrammarNode, name: Optional[str] = None) -> SubgrammarNode:
+    capture_name = name
+    name = name or (body.name if isinstance(body, RuleNode) else "subgrammar")
+    node = SubgrammarNode(name=name, body=body)
+    if capture_name:
+        node = capture(node, capture_name)
+    return node
 
 
 def quote_regex(value: str) -> str:
