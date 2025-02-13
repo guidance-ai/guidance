@@ -11,9 +11,11 @@ For upcoming features, we won't be able to send all details over the wire, and w
     clientmsg,
     type GenTokenExtra,
     type GuidanceMessage,
+    isAudioOutput,
     isClientReadyAckMessage,
     isExecutionCompletedMessage,
     isExecutionStartedMessage,
+    isImageOutput,
     isMetricMessage,
     isResetDisplayMessage,
     isRoleCloserInput,
@@ -21,6 +23,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
     isTextOutput,
     isTokensMessage,
     isTraceMessage,
+    isVideoOutput,
     kernelmsg,
     type NodeAttr,
     state,
@@ -74,6 +77,15 @@ For upcoming features, we won't be able to send all details over the wire, and w
       } else if (isRoleOpenerInput(msg.node_attr)) {
         appState.textComponents.push(msg.node_attr);
       } else if (isRoleCloserInput(msg.node_attr)) {
+        appState.textComponents.push(msg.node_attr);
+      } else if (isAudioOutput(msg.node_attr)) {
+        console.log("Audio available")
+        appState.textComponents.push(msg.node_attr);
+      } else if (isImageOutput(msg.node_attr)) {
+        console.log("Image available")
+        appState.textComponents.push(msg.node_attr);
+      } else if (isVideoOutput(msg.node_attr)) {
+        console.log("Video available")
         appState.textComponents.push(msg.node_attr);
       }
     } else if (isExecutionStartedMessage(msg)) {
