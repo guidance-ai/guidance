@@ -29,7 +29,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
   } from './stitch';
   import StitchHandler from './StitchHandler.svelte';
   import { onMount } from 'svelte';
-  import MetricCard from './MetricRecord.svelte';
+  import MetricRecord from './MetricRecord.svelte';
   import Select from './Select.svelte';
   import { metricDefs } from './metrics';
   import type { MetricVal } from './interfaces';
@@ -197,7 +197,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
         <!-- Metrics -->
         <span class="flex mr-4 text-gray-300 overflow-x-scroll scrollbar-thin scrollbar-track-gray-100 scrollbar-thumb-gray-200">
           {#each appState.shownMetrics as name}
-            <MetricCard value={appState.metrics[name]} metricDef={metricDefs[name]} />
+            <MetricRecord value={appState.metrics[name]} metricDef={metricDefs[name]} />
           {/each}
         </span>
       </div>
