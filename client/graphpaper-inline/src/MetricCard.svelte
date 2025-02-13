@@ -1,28 +1,47 @@
 <!-- Each metric is displayed as a card. -->
 <script lang="ts">
-    import Minibar from "./Minibar.svelte";
-    import { type MetricDef, type MetricVal} from "./interfaces";
+  import { type MetricDef, type MetricVal } from './interfaces';
+  import Sparkline from './Sparkline.svelte';
 
-    export let metricDef: MetricDef;
-    export let value: MetricVal;
+  export let metricDef: MetricDef;
+  export let value: MetricVal;
 
-    const minibarPadding = {
-        'left': 0,
-        'right': 0,
-        'top': 4,
-        'bottom': 0,
-    };
+  const minibarPadding = {
+    'left': 0,
+    'right': 0,
+    'top': 5,
+    'bottom': 3
+  };
 </script>
 
-<div class={`flex flex-col items-center py-1 px-4 hover:bg-gray-700 group`}>
-    <div class={`uppercase tracking-wider text-xs text-gray-500 group-hover:text-gray-100 whitespace-nowrap`}>{metricDef.name}</div>
-    {#if value.constructor === Array}
-        <Minibar values={value} svgClass={"w-12 h-6"} rectClass={`fill-gray-700 group-hover:fill-gray-100`} padding={minibarPadding}/>
-    {:else}
-        {#if typeof value === "number"}
-            <div class={`min-w-12 text-center text-lg text-gray-700 group-hover:text-gray-100`}>{value.toFixed(metricDef.precision)}<span class="text-xs pl-1">{metricDef.units}</span></div>
+<style>
+    .dot-divider:not(:last-child)::after {
+        content: "•"; /* Dot separator */
+        color: #d1d5db; /* Dot color */
+        margin-left: 0.5rem;
+    }
+</style>
+
+<span class={`dot-divider flex items-center text-xs whitespace-nowrap px-1`}>
+    <span>
+        {#if value.constructor === Array}
+            <span class={`text-gray-600 whitespace-nowrap pr-[0.125rem]`}>{metricDef.name}</span>
+            <Sparkline values={value} svgClass={"w-8 h-4 inline"} padding={minibarPadding} />
         {:else}
-            <div class={`min-w-12 text-center text-lg text-gray-700 group-hover:text-gray-100`}>{value}<span class="text-xs pl-1">{metricDef.units}</span></div>
+            <span class={`text-gray-600 whitespace-nowrap pr-[0.125rem]`}>{metricDef.name}</span>
+            {#if typeof value === "number"}
+                <span class={`font-medium text-gray-700 `}>{value.toFixed(metricDef.precision)}
+                  {#if metricDef.units !== ''}
+                    <span class="">{metricDef.units}</span>
+                  {/if}
+                </span>
+            {:else}
+                <span class={`font-medium text-center text-gray-700 `}>{value}
+                  {#if metricDef.units !== ''}
+                    <span class="">{metricDef.units}</span>
+                  {/if}
+                </span>
+          {/if}
         {/if}
-    {/if}
-</div>
+    </span>
+</span>
