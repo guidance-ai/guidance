@@ -5,6 +5,7 @@ from typing import Optional, Sequence, Union
 
 from ._ast import (
     Function,
+    GenNode,
     GrammarNode,
     LiteralNode,
     RegexNode,
@@ -14,6 +15,8 @@ from ._ast import (
     parse_tags,
 )
 
+# TODO: maybe regex, gen, select, and repeat defined here should be private api with public wrappers in library?
+
 
 def string(s: str) -> LiteralNode:
     return LiteralNode(s)
@@ -21,6 +24,26 @@ def string(s: str) -> LiteralNode:
 
 def regex(pattern: str) -> RegexNode:
     return RegexNode(pattern)
+
+
+def gen(
+    regex: str = "(?s).*",
+    stop_regex: str = "",
+    save_stop_text: Optional[str] = None,
+    name: Optional[str] = None,
+    temperature: Optional[float] = None,
+    max_tokens: Optional[int] = None,
+) -> GenNode:
+    node = GenNode(
+        name=name or "gen",
+        value=RegexNode(regex),
+        capture=name,
+        stop_regex=stop_regex,
+        save_stop_text=save_stop_text,
+    )
+    node.temperature = temperature
+    node.max_tokens = max_tokens
+    return node
 
 
 def select(

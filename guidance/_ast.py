@@ -406,19 +406,23 @@ class RuleNode(GrammarNode):
     def children(self) -> list["GrammarNode"]:
         return [self.value]
 
+    def _attrs(self) -> list[str]:
+        attrs = []
+        if self.capture is not None:
+            if self.capture == self.name:
+                attrs.append("capture")
+            else:
+                attrs.append(f"capture={json.dumps(self.capture)}")
+        if self.temperature is not None:
+            attrs.append(f"temperature={self.temperature}")
+        if self.max_tokens is not None:
+            attrs.append(f"max_tokens={self.max_tokens}")
+        return attrs
+
     def lark_str(self, top: bool = False) -> str:
         rep = self.name
         if top:
-            attrs = []
-            if self.capture is not None:
-                if self.capture == self.name:
-                    attrs.append("capture")
-                else:
-                    attrs.append(f"capture={json.dumps(self.capture)}")
-            if self.temperature is not None:
-                attrs.append(f"temperature={self.temperature}")
-            if self.max_tokens is not None:
-                attrs.append(f"max_tokens={self.max_tokens}")
+            attrs = self._attrs()
             if attrs:
                 rep += f"[{', '.join(attrs)}]"
             value_top = not isinstance(self.value, RuleNode)
@@ -429,15 +433,22 @@ class RuleNode(GrammarNode):
 @dataclass(slots=True, eq=False)
 class GenNode(RuleNode):
     value: RegexNode
-    stop: RegexNode = RegexNode("")
-    save_stop_text: bool = False
+    stop_regex: str = ""
+    save_stop_text: Optional[str] = None
 
     @property
     def is_terminal(self) -> bool:
-        return True
+        return (
+            super(GenNode, self).is_terminal and self.stop_regex == "" and not self.save_stop_text
+        )
 
     def _attrs(self) -> set[str]:
-        return super()._attrs() | {"stop", "save_stop_text"}
+        attrs = super(GenNode, self)._attrs()
+        if self.stop_regex:
+            attrs.append(f"stop={json.dumps(self.stop_regex)}")
+        if self.save_stop_text:
+            attrs.append(f"save_stop_text={json.dumps(self.save_stop_text)}")
+        return attrs
 
 
 @dataclass(slots=True, eq=False)
