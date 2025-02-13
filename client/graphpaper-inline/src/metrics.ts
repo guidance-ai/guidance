@@ -4,63 +4,63 @@ import type { MetricDef } from './interfaces';
 
 export const metricDefs: Record<string, MetricDef> = {
   'status': {
-    name: 'status',
+    name: '',
     units: '',
     description: 'Determines whether engine is running, completed or in error.',
     isScalar: true,
     precision: 0
   },
   'cpu': {
-    name: 'cpu',
+    name: 'CPU',
     units: '%',
     description: 'Average utilization across CPU cores.',
     isScalar: false,
     precision: 1
   },
   'gpu': {
-    name: 'gpu',
+    name: 'GPU',
     units: '%',
     description: 'Average utilization across GPUs.',
     isScalar: false,
     precision: 1
   },
   'ram': {
-    name: 'ram',
+    name: 'RAM',
     units: 'GB',
     description: 'Utilization of RAM.',
     isScalar: true,
     precision: 1
   },
   'vram': {
-    name: 'vram',
+    name: 'VRAM',
     units: 'GB',
     description: 'Utilization of video RAM.',
     isScalar: true,
     precision: 1
   },
   'wall time': {
-    name: 'wall time',
+    name: 'Time',
     units: 's',
     description: 'Time taken from initial display to engine completion.',
     isScalar: true,
     precision: 1
   },
   'avg latency': {
-    name: 'avg latency',
+    name: 'Latency',
     units: 'ms',
     description: 'Average roundtrip latency per token',
     isScalar: true,
     precision: 0
   },
   'consumed': {
-    name: 'consumed',
+    name: 'Used',
     units: 'tkn',
     description: 'Total tokens consumed by language model.',
     isScalar: true,
     precision: 0
   },
   'token reduction': {
-    name: 'token reduction',
+    name: 'Reduced',
     units: '%',
     description: 'Total tokens consumed by language model divided by total tokens.',
     isScalar: true,

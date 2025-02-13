@@ -130,7 +130,7 @@ class PeriodicMetricsGenerator:
                 await asyncio.sleep(self._sleep_sec)
 
                 cpu_percent = self._monitor.get_metric(MonitoringMetric.CPU_USAGE)
-                mem_percent = self._monitor.get_metric(MonitoringMetric.MEM_USAGE)
+                used_ram = self._monitor.get_metric(MonitoringMetric.MEM_USAGE)
                 gpu_percent = self._monitor.get_metric(MonitoringMetric.GPU_USAGE)
                 gpu_used_vram = self._monitor.get_metric(MonitoringMetric.GPU_USED_MEM)
 
@@ -147,8 +147,8 @@ class PeriodicMetricsGenerator:
                 if not cpu_percent:
                     cpu_percent = 0
 
-                if not mem_percent:
-                    mem_percent = 0
+                if not used_ram:
+                    used_ram = 0
 
                 time_end = time.time()
                 time_elapsed = time_end - time_start
@@ -156,7 +156,7 @@ class PeriodicMetricsGenerator:
                 if not self._is_paused:
                     self._renderer.update(MetricMessage(name="wall time", value=time_elapsed))
                     self._renderer.update(MetricMessage(name="cpu", value=cpu_percent))
-                    self._renderer.update(MetricMessage(name="ram", value=mem_percent))
+                    self._renderer.update(MetricMessage(name="ram", value=used_ram))
                     self._renderer.update(MetricMessage(name="gpu", value=gpu_percent))
                     self._renderer.update(MetricMessage(name="vram", value=gpu_used_vram))
             except CancelledError:
@@ -275,9 +275,9 @@ def _msg_recv(engine_weakref: weakref.ReferenceType, message: GuidanceMessage) -
                     tokens=processed_gen_tokens,
                 )
             )
-            engine.renderer.update(MetricMessage(name="status", value="✓"))
+            engine.renderer.update(MetricMessage(name="status", value="Done"))
         else:
-            engine.renderer.update(MetricMessage(name="status", value="⚠"))
+            engine.renderer.update(MetricMessage(name="status", value="Error"))
 
         if engine.periodic_metrics_generator is not None:
             engine.periodic_metrics_generator.pause()
@@ -2057,16 +2057,16 @@ def _monitor_fn(
             t0 = time.time()
 
             # cpu_percent = psutil.cpu_percent(interval=1)
-            cpu_percent = psutil.cpu_percent()
+            cpu_percent = psutil.cpu_percent() / 100.
             memory_usage = psutil.virtual_memory()
 
             metrics_dict[MonitoringMetric.CPU_USAGE].append(cpu_percent)
-            metrics_dict[MonitoringMetric.MEM_USAGE].append(memory_usage.percent)
+            metrics_dict[MonitoringMetric.MEM_USAGE].append(memory_usage.used / (1024 ** 3))
 
             if to_collect_gpu_stats:
                 gpu_stats = gpustat.GPUStatCollection.new_query()
 
-                usage = [gpu.utilization for gpu in gpu_stats.gpus]
+                usage = [gpu.utilization / 100. for gpu in gpu_stats.gpus]
                 mem_usage = [gpu.memory_used for gpu in gpu_stats.gpus]
                 mem_total = [gpu.memory_total for gpu in gpu_stats.gpus]
 

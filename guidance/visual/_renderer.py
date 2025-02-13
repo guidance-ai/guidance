@@ -335,15 +335,15 @@ class JupyterWidgetRenderer(Renderer):
             self.notify(message)
 
             if message.is_err:
-                out_messages.append(MetricMessage(name="status", value="⚠"))
+                out_messages.append(MetricMessage(name="status", value="Error"))
             else:
-                out_messages.append(MetricMessage(name="status", value="✓"))
+                out_messages.append(MetricMessage(name="status", value="Done"))
 
         if not self._running and isinstance(message, TraceMessage):
             logger.debug("RENDERER:execution start")
             started_msg = ExecutionStartedMessage()
             out_messages.append(started_msg)
-            out_messages.append(MetricMessage(name="status", value='⟳'))
+            out_messages.append(MetricMessage(name="status", value='Running'))
 
             ipy_handle_event_once(
                 partial(_on_cell_completion, weakref.ref(self)),
