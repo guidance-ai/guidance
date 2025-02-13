@@ -240,12 +240,12 @@ class SelectNode(GrammarNode):
         else:
             if top:
                 return "\n     | ".join(
-                    alt.lark_str() for alt in self.alternatives if not alt.is_null
+                    alt.lark_str() for alt in self.alternatives
                 )
             else:
                 return (
                     "("
-                    + " | ".join(alt.lark_str() for alt in self.alternatives if not alt.is_null)
+                    + " | ".join(alt.lark_str() for alt in self.alternatives)
                     + ")"
                 )
 
