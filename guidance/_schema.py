@@ -73,6 +73,7 @@ class GenData(BaseModel):
         return [i for i, b in enumerate(self.mask) if b != 0]
 
 class LarkGrammar(BaseModel):
+    name: str
     lark_grammar: str
 
 class LLGrammar(BaseModel):

@@ -199,7 +199,7 @@ class GrammarNode(ABC, Tagged):
         return parser.bytes.decode("utf-8", errors="ignore")
 
     def ll_grammar(self) -> LLGrammar:
-        return LLGrammar(grammars=[LarkGrammar(lark_grammar=lark_serialize(self))])
+        return as_ll_grammar(self)
 
 
 @dataclass(slots=True, eq=False)
@@ -400,8 +400,10 @@ class RuleNode(GrammarNode):
     @property
     def is_terminal(self) -> bool:
         return (
-            self.capture is None and self._temperature is None and self._max_tokens is None
-        ) and self.value.is_terminal
+            (self.capture is None and self._temperature is None and self._max_tokens is None)
+            and self.value.is_terminal
+            and not isinstance(self.value, SubgrammarNode)
+        )
 
     def children(self) -> list["GrammarNode"]:
         return [self.value]
@@ -474,6 +476,15 @@ class RuleRefNode(GrammarNode):
             return super().__repr__()
 
 
+@dataclass(slots=True, eq=False)
+class SubgrammarNode(GrammarNode):
+    name: str
+    start: GrammarNode
+
+    def lark_str(self, top: bool = False) -> str:
+        return f"@{self.name}"
+
+
 def parse_tags(s: str) -> Union[GrammarNode, Function]:
     parts = cast(list[str], _tag_pattern.split(s))
     obj: GrammarNode = LiteralNode(parts.pop(0))
@@ -487,14 +498,24 @@ def parse_tags(s: str) -> Union[GrammarNode, Function]:
     return obj
 
 
-def resolve(node: GrammarNode) -> dict[str, RuleNode]:
-    rules: dict[str, RuleNode] = {}
+def resolve(node: GrammarNode) -> list[dict[str, RuleNode]]:
+    grammars: dict[str, dict[str, RuleNode]] = {}
     seen: set[GrammarNode] = set()
 
-    def add_node(n: GrammarNode):
+    def add_node(n: GrammarNode, rules: dict[str, RuleNode]):
         if n in seen:
             return
         seen.add(n)
+
+        if isinstance(n, SubgrammarNode):
+            name = n.name
+            if name in grammars:
+                i = 1
+                while f"{name}_{i}" in grammars:
+                    i += 1
+                name = f"{name}_{i}"
+            n.name = name
+            add_grammar(n.start, name)
 
         if isinstance(n, RuleNode):
             name = n.name
@@ -509,34 +530,49 @@ def resolve(node: GrammarNode) -> dict[str, RuleNode]:
         elif isinstance(n, RuleRefNode):
             if n.target is None:
                 raise ValueError("RuleRefNode has no target")
-            add_node(n.target)
+            add_node(n.target, rules)
 
         for child in n.children():
-            add_node(child)
+            add_node(child, rules)
 
-    if isinstance(node, RuleNode) and node.name == "start":
-        add_node(node)
-    else:
-        add_node(RuleNode("start", node))
-
-    for name, r in rules.items():
-        if name == "start":
-            continue
-        new_name = name.replace("-", "_")
-        # convert fooBar_Baz to foo_bar_baz
-        new_name = re.sub(r"([a-z])([A-Z])", r"\1_\2", new_name).lower()
-        if r.is_terminal:
-            new_name = new_name.upper()
+    def add_grammar(n: GrammarNode, name: str):
+        rules: dict[str, RuleNode] = {}
+        grammars[name] = rules
+        if isinstance(n, RuleNode) and n.name == "start":
+            add_node(n, rules)
         else:
-            new_name = new_name.lower()
-        if r.name != new_name:
-            r.name = new_name
+            add_node(RuleNode("start", n), rules)
 
-    return rules
+    add_grammar(node, "main")
+
+    for rules in grammars.values():
+        for name, r in rules.items():
+            if name == "start":
+                continue
+            new_name = name.replace("-", "_")
+            # convert fooBar_Baz to foo_bar_baz
+            new_name = re.sub(r"([a-z])([A-Z])", r"\1_\2", new_name).lower()
+            if r.is_terminal:
+                new_name = new_name.upper()
+            else:
+                new_name = new_name.lower()
+            if r.name != new_name:
+                r.name = new_name
+
+    return grammars
 
 
-def lark_serialize(node: GrammarNode) -> str:
-    rules = resolve(node)
+def as_ll_grammar(node: GrammarNode) -> LLGrammar:
+    grammars = resolve(node)
+    return LLGrammar(
+        grammars=[
+            LarkGrammar(name=name, lark_grammar=lark_serialize_inner(rules))
+            for name, rules in grammars.items()
+        ]
+    )
+
+
+def lark_serialize_inner(rules: dict[str, RuleNode]) -> str:
     res = "%llguidance {}\n\n"
     prev_nl = True
     for r in rules.values():
