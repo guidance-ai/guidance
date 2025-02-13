@@ -54,7 +54,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
       'consumed': 0,
       'token reduction': 0,
       'avg latency': 0,
-      'cpu': [0., 1., 0., 0., 0.],
+      'cpu': [0., 0., 0., 0., 0.],
       'gpu': [0., 0., 0., 0., 0.],
       'ram': 0,
       'vram': 0,
