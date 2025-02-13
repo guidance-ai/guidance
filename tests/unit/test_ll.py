@@ -1,5 +1,4 @@
 from typing import Any, List
-import tokenizers
 import llguidance
 import json
 import textwrap
@@ -43,6 +42,7 @@ class PhiTokenizer:
         return self.hf_tokenizer.encode(s).ids
 
     def __init__(self) -> None:
+        import tokenizers
         self.hf_tokenizer: tokenizers.Tokenizer = tokenizers.Tokenizer.from_pretrained(
             "microsoft/Phi-3-mini-128k-instruct"
         )
@@ -379,33 +379,63 @@ def test_ll_fighter():
         return lm
 
     grm = character_maker2(1, "A nimble fighter", ["axe", "sword", "bow"])
-    check_grammar(
-        grm,
-        [
-            '{‧\n‧   ‧ "‧name‧":',
-            ' "‧John‧ Do‧e‧"',
-            ',‧\n‧   ‧ "‧age‧":‧ ',
-            "3‧0‧,",
-            '\n‧   ‧ "‧arm‧or‧":‧ "',
-            "chain",
-            'mail‧",‧\n‧   ‧ "‧we‧ap‧on‧":‧ "',
-            "s",
-            'word‧",‧\n‧   ‧ "‧class‧":',
-            ' "‧war‧rior‧"',
-            ',‧\n‧   ‧ "‧m‧ant‧ra‧":',
-            ' "‧I‧ am‧ the‧ storm‧,‧ I‧ am‧ the‧ light‧ning‧,‧ I‧ am‧ the‧ th‧under‧."',
-            ',‧\n‧   ‧ "‧str‧ength‧":‧ ',
-            "1‧0‧0‧,",
-            '\n‧   ‧ "‧items‧":‧ ["',
-            's‧word‧ of‧ light‧ning‧,‧ shield‧ of‧ th‧under‧,‧ hel‧met‧ of‧ storm‧."',
-            ",",
-            ' "‧s‧word‧ of‧ light‧ning‧,‧ shield‧ of‧ th‧under‧,‧ hel‧met‧ of‧ storm‧."',
-            ",",
-            ' "‧s‧word‧ of‧ light‧ning‧,‧ shield‧ of‧ th‧under‧,‧ hel‧met‧ of‧ storm‧."',
-            "]‧\n‧}",
-        ],
-    )
 
+    try:
+        # this is actually correct
+        check_grammar(
+            grm,
+            [
+                '{‧\n‧   ‧ "‧name‧":',
+                ' "‧John‧ Do‧e‧"',
+                ',‧\n‧   ‧ "‧age‧":‧ ',
+                "3‧0‧,",
+                '\n‧   ‧ "‧arm‧or‧":‧ "',
+                "chain",
+                'mail‧",‧\n‧   ‧ "‧we‧ap‧on‧":‧ "',
+                "s",
+                'word‧",‧\n‧   ‧ "‧class‧":',
+                ' "‧war‧rior‧"',
+                ',‧\n‧   ‧ "‧m‧ant‧ra‧":',
+                ' "‧I‧ am‧ the‧ storm‧,‧ I‧ am‧ the‧ light‧ning‧,‧ I‧ am‧ the‧ th‧under‧."',
+                ',‧\n‧   ‧ "‧str‧ength‧":‧ ',
+                "1‧0‧0‧,",
+                '\n‧   ‧ "‧items‧":', # [" should not be forced here (since eg. "" is a token)
+                ' ["‧s‧word‧ of‧ light‧ning‧,‧ shield‧ of‧ th‧under‧,‧ hel‧met‧ of‧ storm‧."',
+                ",",
+                ' "‧s‧word‧ of‧ light‧ning‧,‧ shield‧ of‧ th‧under‧,‧ hel‧met‧ of‧ storm‧."',
+                ",",
+                ' "‧s‧word‧ of‧ light‧ning‧,‧ shield‧ of‧ th‧under‧,‧ hel‧met‧ of‧ storm‧."',
+                "]‧\n‧}",
+            ],
+        )
+    except:
+        # this is what llg before 0.6.9 does
+        check_grammar(
+            grm,
+            [
+                '{‧\n‧   ‧ "‧name‧":',
+                ' "‧John‧ Do‧e‧"',
+                ',‧\n‧   ‧ "‧age‧":‧ ',
+                "3‧0‧,",
+                '\n‧   ‧ "‧arm‧or‧":‧ "',
+                "chain",
+                'mail‧",‧\n‧   ‧ "‧we‧ap‧on‧":‧ "',
+                "s",
+                'word‧",‧\n‧   ‧ "‧class‧":',
+                ' "‧war‧rior‧"',
+                ',‧\n‧   ‧ "‧m‧ant‧ra‧":',
+                ' "‧I‧ am‧ the‧ storm‧,‧ I‧ am‧ the‧ light‧ning‧,‧ I‧ am‧ the‧ th‧under‧."',
+                ',‧\n‧   ‧ "‧str‧ength‧":‧ ',
+                "1‧0‧0‧,",
+                '\n‧   ‧ "‧items‧":‧ ["', # this is incorrect
+                's‧word‧ of‧ light‧ning‧,‧ shield‧ of‧ th‧under‧,‧ hel‧met‧ of‧ storm‧."',
+                ",",
+                ' "‧s‧word‧ of‧ light‧ning‧,‧ shield‧ of‧ th‧under‧,‧ hel‧met‧ of‧ storm‧."',
+                ",",
+                ' "‧s‧word‧ of‧ light‧ning‧,‧ shield‧ of‧ th‧under‧,‧ hel‧met‧ of‧ storm‧."',
+                "]‧\n‧}",
+            ],
+        )
 
 if __name__ == "__main__":
     test_llparser()

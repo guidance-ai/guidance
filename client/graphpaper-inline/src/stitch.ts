@@ -1,6 +1,6 @@
 // Interfaces for working with guidance messages and stitch.
 
-import {writable} from 'svelte/store';
+import { writable } from 'svelte/store';
 
 export interface GenToken {
     token_id: number,
@@ -114,7 +114,7 @@ export interface MetricMessage extends GuidanceMessage {
 }
 
 export interface StitchMessage {
-    type: "resize" | "clientmsg" | "kernelmsg",
+    type: "resize" | "clientmsg" | "kernelmsg" | "state" | "init_state",
     content: any
 }
 
@@ -190,4 +190,10 @@ export function isTokensMessage(o: GuidanceMessage | undefined | null): o is Tok
 
 export const kernelmsg = writable<StitchMessage | undefined>(undefined);
 export const clientmsg = writable<StitchMessage | undefined>(undefined);
+export const state = writable<StitchMessage | undefined>(undefined);
 
+export enum Status {
+  Running = 'Running',
+  Error = 'Error',
+  Done = 'Done',
+}
