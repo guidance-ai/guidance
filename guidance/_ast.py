@@ -520,6 +520,8 @@ def resolve(node: GrammarNode) -> dict[str, RuleNode]:
         add_node(RuleNode("start", node))
 
     for name, r in rules.items():
+        if name == "start":
+            continue
         new_name = name.replace("-", "_")
         # convert fooBar_Baz to foo_bar_baz
         new_name = re.sub(r"([a-z])([A-Z])", r"\1_\2", new_name).lower()
