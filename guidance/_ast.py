@@ -319,6 +319,8 @@ class RepeatNode(GrammarNode):
         return self
 
     def lark_str(self, top: bool = False) -> str:
+        if self.is_null:
+            return '""'
         inner = self.node.lark_str()
         if not self.node.is_atomic:
             inner = f"({inner})"
