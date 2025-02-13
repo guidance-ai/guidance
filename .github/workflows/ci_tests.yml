@@ -95,6 +95,8 @@ jobs:
       os: ${{ matrix.os }}
       python-version: ${{ matrix.python-version }}
       model: ${{ matrix.model }}
+    secrets:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
 
   gpu_tests:
     strategy:
