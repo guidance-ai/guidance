@@ -6,12 +6,6 @@ import types
 from . import models
 from ._guidance import guidance
 
-from ._grammar import (
-    RawFunction,
-    GrammarFunction,
-    Terminal,
-    string,
-)
 from ._utils import strip_multiline_string_indents
 from ._server import Server
 
