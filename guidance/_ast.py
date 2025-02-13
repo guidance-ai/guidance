@@ -446,7 +446,7 @@ class GenNode(RuleNode):
     def _attrs(self) -> set[str]:
         attrs = super(GenNode, self)._attrs()
         if self.stop_regex:
-            attrs.append(f"stop={json.dumps(self.stop_regex)}")
+            attrs.append(f"stop=/{self.stop_regex}/")
         if self.save_stop_text:
             attrs.append(f"save_stop_text={json.dumps(self.save_stop_text)}")
         return attrs
