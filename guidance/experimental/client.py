@@ -11,7 +11,7 @@ from guidance.models import Transformers
 from guidance.models._model import Engine
 from guidance.trace._trace import LiteralInput
 
-from .ast import ContentChunk, ImageBlob, Node, TextOutput
+from .ast import CaptureOutput, ContentChunk, ImageBlob, Node, TextOutput
 from .state import BaseTransformersChatState, ChatState, CompletionState, State
 from .state.openai import OpenAIState
 
@@ -151,6 +151,20 @@ class GuidanceClient(Client[S], ABC):
                         prob=chunk.new_bytes_prob,
                         token_count=len(chunk.force_forwarded_tokens),
                         tokens=chunk.force_forwarded_tokens,
+                    )
+
+                for name, value in chunk.capture_groups.items():
+                    if name.startswith("__LIST_APPEND:"):
+                        name = name[len("__LIST_APPEND:") :]
+                        list_append = True
+                    else:
+                        list_append = False
+                    yield CaptureOutput(
+                        name=name,
+                        value=value,
+                        is_append=list_append,
+                        # TODO: let this be Optional?
+                        log_probs=chunk.capture_group_log_probs.get(name, 0),
                     )
 
             if delayed_bytes:
