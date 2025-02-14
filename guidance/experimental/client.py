@@ -153,19 +153,25 @@ class GuidanceClient(Client[S], ABC):
                         tokens=chunk.force_forwarded_tokens,
                     )
 
-                for name, value in chunk.capture_groups.items():
-                    if name.startswith("__LIST_APPEND:"):
-                        name = name[len("__LIST_APPEND:") :]
+                for name in chunk.capture_groups.keys():
+                    values = chunk.capture_groups[name]
+                    log_probs = chunk.capture_group_log_probs[name]
+                    if isinstance(values, list):
+                        assert isinstance(log_probs, list) and len(log_probs) == len(values)
                         list_append = True
                     else:
+                        values = [values]
+                        log_probs = [log_probs]
                         list_append = False
-                    yield CaptureOutput(
-                        name=name,
-                        value=value,
-                        is_append=list_append,
-                        # TODO: let this be Optional?
-                        log_probs=chunk.capture_group_log_probs.get(name, 0),
-                    )
+
+                    for value, log_prob in zip(values, log_probs):
+                        yield CaptureOutput(
+                            name=name,
+                            value=value,
+                            is_append=list_append,
+                            # TODO: let this be Optional?
+                            log_probs=log_prob,
+                        )
 
             if delayed_bytes:
                 raise RuntimeError("Shouldn't have any delayed bytes left...")
