@@ -11,7 +11,15 @@ from typing import (
 
 from typing_extensions import Self, assert_never
 
-from ..ast import ContentChunk, ImageBlob, MessageChunk, RoleEnd, RoleStart
+from ..ast import (
+    ContentChunk,
+    ImageBlob,
+    LiteralInput,
+    MessageChunk,
+    RoleEnd,
+    RoleStart,
+    TextOutput,
+)
 
 # Return type of BaseState.get_state
 R = TypeVar("R", covariant=True)
@@ -39,15 +47,14 @@ class BaseState(Generic[R], ABC):
                 self.apply_content_chunk(chunk)
 
     def apply_content_chunk(self, chunk: ContentChunk) -> None:
-        match chunk:
-            case str(text):
-                self.apply_text(text)
-            case ImageBlob(_) as image:
-                self.apply_image(image)
-            case _:
-                if TYPE_CHECKING:
-                    assert_never(chunk)
-                raise NotImplementedError(f"Chunk type {type(chunk)} not supported")
+        if isinstance(chunk, (LiteralInput, TextOutput)):
+            self.apply_text(chunk.value)
+        elif isinstance(chunk, ImageBlob):
+            self.apply_image(chunk)
+        else:
+            if TYPE_CHECKING:
+                assert_never(chunk)
+            raise NotImplementedError(f"Chunk type {type(chunk)} not supported")
 
     @abstractmethod
     def get_state(self) -> R:

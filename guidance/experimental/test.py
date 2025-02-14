@@ -1,6 +1,6 @@
 from typing import Iterable
 
-from .ast import ContentChunk, Node
+from .ast import ContentChunk, Node, TextOutput
 from .client import Client, TransformersClient
 from .model import Model
 from .state import (
@@ -21,7 +21,7 @@ class DummyClient(Client):
 
     def run(self, state: State, node: Node) -> Iterable[ContentChunk]:
         if isinstance(node, str):
-            yield node
+            yield TextOutput(value=node, is_generated=True, prob=1.0)
         else:
             raise NotImplementedError("Node must be a string")
 

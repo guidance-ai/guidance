@@ -6,11 +6,12 @@ from openai import OpenAI
 from openai.types.chat import ChatCompletionChunk as OpenAIChatCompletionChunk
 from typing_extensions import assert_never
 
-from guidance._grammar import Function, Gen
+from guidance._grammar import Function, Gen, Join
 from guidance.models import Transformers
 from guidance.models._model import Engine
+from guidance.trace._trace import LiteralInput
 
-from .ast import ContentChunk, Node
+from .ast import ContentChunk, Node, TextOutput
 from .state import BaseTransformersChatState, ChatState, CompletionState, State
 from .state.openai import OpenAIState
 
@@ -40,7 +41,7 @@ class OpenAIClient(Client[OpenAIState]):
 
     def run(self, state: OpenAIState, node: Node) -> Iterable[ContentChunk]:
         if isinstance(node, str):
-            yield node
+            yield LiteralInput(value=node)
             return
 
         oai_state = state.get_state()
@@ -50,6 +51,9 @@ class OpenAIClient(Client[OpenAIState]):
             raise ValueError("Active role must be assistant for OpenAI")
 
         messages = oai_state["messages"]
+        if isinstance(node, Join) and len(node.values) == 1:
+            # TODO: just a hack for the moment
+            node = node.values[0]
 
         if isinstance(node, Gen):
             if node.capture_name:
@@ -73,7 +77,15 @@ class OpenAIClient(Client[OpenAIState]):
                 choice = response.choices[0]
                 delta = choice.delta
                 if delta.content is not None:
-                    yield delta.content
+                    content = delta.content
+                    if len(content) == 0:
+                        continue
+                    yield TextOutput(
+                        value=delta.content,
+                        is_generated=True,
+                        # TODO: actually get tokens from this and be less lazy
+                        prob=2.718 ** choice.logprobs.content[0].logprob,  # type: ignore[union-attr,index]
+                    )
                     continue
                 if choice.finish_reason is not None:
                     # TODO: handle finish_reason elegantly
@@ -93,10 +105,9 @@ class GuidanceClient(Client[S], ABC):
 
     def run(self, state: S, node: Node) -> Iterable[ContentChunk]:
         if isinstance(node, str):
-            yield node
-            return
+            yield LiteralInput(value=node)
 
-        if isinstance(node, Function):
+        elif isinstance(node, Function):
             prompt = self.build_prompt(state)
             engine_gen = self.engine(
                 prompt,
@@ -104,12 +115,44 @@ class GuidanceClient(Client[S], ABC):
                 ensure_bos_token=False,
                 echo=False,
             )
-            for response in engine_gen:
-                # breakpoint()
-                yield response.new_bytes.decode("utf-8")
-            return
 
-        raise NotImplementedError(f"Unknown node: {node}")
+            def partial_decode(data: bytes) -> tuple[str, bytes]:
+                try:
+                    return (data.decode("utf-8"), b"")
+                except UnicodeDecodeError as e:
+                    valid_part = data[: e.start].decode("utf-8")
+                    delayed_part = data[e.start :]
+                    return (valid_part, delayed_part)
+
+            delayed_bytes = b""
+            for chunk in engine_gen:
+                generated_bytes = delayed_bytes + chunk.generated_bytes
+                generated_text, delayed_bytes = partial_decode(generated_bytes)
+                ff_bytes = delayed_bytes + chunk.force_forwarded_bytes
+                ff_text, delayed_bytes = partial_decode(ff_bytes)
+
+                if generated_bytes:
+                    yield TextOutput(
+                        value=generated_text,
+                        is_generated=True,
+                        prob=chunk.new_bytes_prob,
+                        token_count=len(chunk.generated_tokens),
+                        tokens=chunk.generated_tokens,
+                    )
+                if ff_bytes:
+                    yield TextOutput(
+                        value=ff_text,
+                        is_generated=False,
+                        prob=chunk.new_bytes_prob,
+                        token_count=len(chunk.force_forwarded_tokens),
+                        tokens=chunk.force_forwarded_tokens,
+                    )
+
+            if delayed_bytes:
+                raise RuntimeError("Shouldn't have any delayed bytes left...")
+
+        else:
+            raise NotImplementedError(f"Unknown node: {node}")
 
 
 class TransformersClient(GuidanceClient[Union[CompletionState, BaseTransformersChatState]]):

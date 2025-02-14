@@ -13,6 +13,7 @@ from guidance.trace import (
     TextOutput,
     TraceNode,
 )
+from guidance.trace._trace import LiteralInput
 from guidance.visual import TraceMessage
 
 from .ast import MessageChunk, Node, RoleEnd, RoleStart
@@ -20,6 +21,7 @@ from .client import Client
 from .role import _active_role
 
 _id_counter: int = 0
+
 
 def _gen_id():
     global _id_counter
@@ -80,8 +82,8 @@ class Model:
     def _apply_chunk(self, chunk: MessageChunk) -> Self:
         self = self.copy()
         self._state.apply_chunk(chunk)
-        if isinstance(chunk, str):
-            self._update_trace_node(self._id, self._parent_id, TextOutput(value=chunk))
+        if isinstance(chunk, (LiteralInput, TextOutput)):
+            self._update_trace_node(self._id, self._parent_id, chunk)
         elif isinstance(chunk, RoleStart):
             self._update_trace_node(self._id, self._parent_id, RoleOpenerInput(name=chunk.role))
         elif isinstance(chunk, RoleEnd):

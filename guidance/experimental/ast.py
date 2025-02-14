@@ -6,9 +6,11 @@ from PIL.ImageFile import ImageFile as PILImageFile
 
 from guidance._grammar import GrammarFunction, RawFunction
 
+from ..trace import LiteralInput, TextOutput
+
 # TODO
 Node = Union[str, GrammarFunction, RawFunction, "ImageBlob"]
-ContentChunk = Union[str, "ImageBlob"]
+ContentChunk = Union[TextOutput, LiteralInput, "ImageBlob"]
 
 
 @dataclass(frozen=True, slots=True)
