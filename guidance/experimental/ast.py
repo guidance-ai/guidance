@@ -6,7 +6,7 @@ from PIL.ImageFile import ImageFile as PILImageFile
 
 from guidance._grammar import GrammarFunction, RawFunction
 
-from ..trace import ImageInput, LiteralInput, TextOutput
+from ..trace import CaptureOutput, LiteralInput, TextOutput
 
 # TODO
 Node = Union[str, GrammarFunction, RawFunction, "ImageBlob"]
@@ -39,4 +39,4 @@ class ImageBlob:
         return RawFunction(__add__, [], {})
 
 
-MessageChunk = Union[ContentChunk, RoleStart, RoleEnd]
+MessageChunk = Union[ContentChunk, CaptureOutput, RoleStart, RoleEnd]

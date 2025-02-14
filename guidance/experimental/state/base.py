@@ -7,11 +7,13 @@ from typing import (
     Sequence,
     TypedDict,
     TypeVar,
+    Union,
 )
 
 from typing_extensions import Self, assert_never
 
 from ..ast import (
+    CaptureOutput,
     ContentChunk,
     ImageBlob,
     LiteralInput,
@@ -21,13 +23,20 @@ from ..ast import (
     TextOutput,
 )
 
+
+class CaptureVar(TypedDict):
+    value: str
+    log_prob: Optional[float]
+
+
 # Return type of BaseState.get_state
 R = TypeVar("R", covariant=True)
 
 
 class BaseState(Generic[R], ABC):
     def __init__(self) -> None:
-        self.chunks: MutableSequence[MessageChunk] = []
+        self.chunks: list[MessageChunk] = []
+        self.captures: dict[str, Union[CaptureVar, list[CaptureVar]]] = {}
 
     @classmethod
     def from_chunks(cls, chunks: Sequence[MessageChunk]) -> Self:
@@ -44,7 +53,22 @@ class BaseState(Generic[R], ABC):
             case RoleEnd(_) as role_end:
                 self.apply_role_end(role_end)
             case _:
-                self.apply_content_chunk(chunk)
+                if isinstance(chunk, CaptureOutput):
+                    if chunk.value is None:
+                        # A "reset" signal
+                        self.captures.pop(chunk.name)
+                    else:
+                        var = CaptureVar(value=chunk.value, log_prob=chunk.log_probs)
+                        if chunk.is_append:
+                            vars = self.captures.get(chunk.name, [])
+                            if not isinstance(vars, list):
+                                vars = [vars]
+                            vars.append(var)
+                            self.captures[chunk.name] = vars
+                        else:
+                            self.captures[chunk.name] = var
+                else:
+                    self.apply_content_chunk(chunk)
 
     def apply_content_chunk(self, chunk: ContentChunk) -> None:
         if isinstance(chunk, (LiteralInput, TextOutput)):

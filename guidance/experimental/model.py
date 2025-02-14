@@ -1,6 +1,6 @@
 import re
 from copy import deepcopy
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional, TypeVar, Union
 
 from typing_extensions import Self, assert_never
 
@@ -17,7 +17,7 @@ from guidance.trace import (
 from guidance.trace._trace import LiteralInput
 from guidance.visual import TraceMessage
 
-from .ast import ImageBlob, MessageChunk, Node, RoleEnd, RoleStart
+from .ast import CaptureOutput, ImageBlob, MessageChunk, Node, RoleEnd, RoleStart
 from .client import Client
 from .role import _active_role
 
@@ -30,6 +30,9 @@ def _gen_id():
     _id = _id_counter
     _id_counter += 1
     return _id
+
+
+T = TypeVar("T", bound=Any)
 
 
 class Model:
@@ -83,7 +86,7 @@ class Model:
     def _apply_chunk(self, chunk: MessageChunk) -> Self:
         self = self.copy()
         self._state.apply_chunk(chunk)
-        if isinstance(chunk, (LiteralInput, TextOutput)):
+        if isinstance(chunk, (LiteralInput, TextOutput, CaptureOutput)):
             self._update_trace_node(self._id, self._parent_id, chunk)
         elif isinstance(chunk, ImageBlob):
             self._update_trace_node(
@@ -126,6 +129,89 @@ class Model:
         obj._parent = self
         obj._update_trace_node(obj._id, obj._parent_id, None)
         return obj
+
+    def __setitem__(self, key, value):
+        raise Exception(
+            "Model objects are immutable so you can't use __setitem__! Consider using the .set(key, value) method instead to create a new updated model object."
+        )
+
+    def __getitem__(self, key: str) -> Any:
+        try:
+            captures = self._state.captures[key]
+        except KeyError:
+            raise KeyError(f"Model does not contain the variable '{key}'")
+        if isinstance(captures, list):
+            return [c["value"] for c in captures]
+        else:
+            return captures["value"]
+
+    def __contains__(self, key: str) -> bool:
+        return key in self._state.captures
+
+    def get(self, key: str, default: Optional[T] = None) -> Union[str, list[str], None, T]:
+        """Return the value of a variable, or a default value if the variable is not present.
+
+        Parameters
+        ----------
+        key : str
+            The name of the variable.
+        default : Any
+            The value to return if the variable is not current set.
+        """
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
+    def set(self, key: str, value: Union[str, list[str]]) -> Self:
+        """Return a new model with the given variable value set.
+
+        Parameters
+        ----------
+        key : str
+            The name of the variable to be set.
+        value : str
+            The value to set the variable to.
+        """
+        self = self.copy()
+        if isinstance(value, list):
+            self._state.captures[key] = [{"value": v, "log_prob": None} for v in value]
+        else:
+            self._state.captures[key] = {"value": value, "log_prob": None}
+        return self
+
+    def remove(self, key: str) -> Self:
+        """Return a new model with the given variable deleted.
+
+        Parameters
+        ----------
+        key : str
+            The variable name to remove.
+        """
+        self = self.copy()
+        self._state.captures.pop(key)
+        return self
+
+    def log_prob(
+        self, key: str, default: Optional[T] = None
+    ) -> Union[float, list[Union[float, None]], None, T]:
+        """Return the log probability of a variable, or a default value if the variable is not present.
+
+        Parameters
+        ----------
+        key : str
+            The name of the variable.
+        default : Any
+            The value to return if the variable is not current set.
+        """
+        try:
+            captures = self._state.captures[key]
+        except KeyError:
+            return default
+        if isinstance(captures, list):
+            return [c["log_prob"] for c in captures]
+        else:
+            return captures["log_prob"]
 
 
 def extract_embedded_nodes(value: str) -> Node:
