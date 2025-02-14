@@ -17,11 +17,9 @@ from guidance.visual import TraceMessage
 
 from .ast import MessageChunk, Node, RoleEnd, RoleStart
 from .client import Client
-
-_active_role: ContextVar[Optional["RoleStart"]] = ContextVar("active_role", default=None)
+from .role import _active_role
 
 _id_counter: int = 0
-
 
 def _gen_id():
     global _id_counter
@@ -92,16 +90,6 @@ class Model:
             raise NotImplementedError(f"Unsupported chunk type: {type(chunk)}")
         return self
 
-    @contextmanager
-    def role(self, role: str) -> Iterator[None]:
-        # _apply_chunk will raise an exception via _api_state.apply_chunk if roles are not supported
-        role_start = RoleStart(role)
-        token = _active_role.set(role_start)
-        try:
-            yield
-        finally:
-            _active_role.reset(token)
-
     def _apply_role_changes(self) -> Self:
         orig_self = self
         active_role = _active_role.get()
@@ -114,15 +102,6 @@ class Model:
                 self = self.copy()
             self._active_role = active_role
         return self
-
-    def system(self) -> AbstractContextManager[None]:
-        return self.role("system")
-
-    def user(self) -> AbstractContextManager[None]:
-        return self.role("user")
-
-    def assistant(self) -> AbstractContextManager[None]:
-        return self.role("assistant")
 
     def __str__(self) -> str:
         return self.client.format_state(self._state)
