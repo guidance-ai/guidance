@@ -1,6 +1,7 @@
 <!-- Token grid that exposes each token and hover info. -->
 <script lang="ts">
-    import {isRoleOpenerInput, isTextOutput, type NodeAttr, type RoleOpenerInput, type GenTokenExtra} from './stitch';
+    import {isRoleOpenerInput, isTextOutput, isAudioOutput, type NodeAttr, type RoleOpenerInput, type GenTokenExtra, isImageOutput, isVideoOutput} from './stitch';
+    import CustomAudio from "./CustomAudio.svelte";
     import TokenGridItem from "./TokenGridItem.svelte";
     import {type Token, type TokenCallback} from "./interfaces";
     import {longhover} from "./longhover";
@@ -133,6 +134,9 @@
         return [overlapped, noSpecialOverride];
     }
 
+    let audioNode: any = null; // Store the first audio node found (hack)
+    let imageNode: any = null; // Store the first image node found (hack)
+    let videoNode: any = null; // Store the first video node found (hack)
     let tokens: Array<Token> = [];
     let activeOpenerRoles: Array<RoleOpenerInput> = [];
     let activeCloserRoleText: Array<string> = [];
@@ -194,6 +198,18 @@
                     specialSet.add(token.text);
                     tokens.push(token);
                     activeOpenerRoles.pop();
+                }
+            } else if (isAudioOutput(nodeAttr)) {
+                if (audioNode === null) {
+                    audioNode = nodeAttr;
+                }
+            } else if (isImageOutput(nodeAttr)) {
+                if (imageNode === null) {
+                    imageNode = nodeAttr;
+                }
+            } else if (isVideoOutput(nodeAttr)) {
+                if (videoNode === null) {
+                    videoNode = nodeAttr;
                 }
             }
         }
@@ -515,5 +531,28 @@
                 </span>
             {/if}
         </span>
+
+        {#if audioNode !== null}
+            <div class="my-3">
+                <CustomAudio audioData={audioNode.value} />
+            </div>
+        {/if}
+
+        {#if videoNode !== null}
+            <div class="my-3">
+                <video controls>
+                    <!-- Note - need to propagate type from back end maybe? -->
+                    <source src={`data:video/mp4;base64,${videoNode.value}`} type="video/mp4"/>
+                </video>
+            </div>
+        {/if}
+
+        {#if imageNode !== null}
+            <div class="my-3">
+                <!-- Note - need to propagate type from back end maybe? -->
+                <img src={`data:image/png;base64,${imageNode.value}`} alt="Image output"/>
+            </div>
+        {/if}
+
     </div>
 </div>
