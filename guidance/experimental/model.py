@@ -1,13 +1,11 @@
 import re
-from contextlib import AbstractContextManager, contextmanager
-from contextvars import ContextVar
 from copy import deepcopy
-from typing import Iterator, Optional
+from typing import Optional
 
 from typing_extensions import Self
 
 from guidance._grammar import Null, RawFunction, _call_pool, _tag_pattern
-from guidance._singleton import renderer, trace_handler
+from guidance._singleton import get_renderer, get_trace_handler
 from guidance.trace import (
     NodeAttr,
     RoleCloserInput,
@@ -53,11 +51,11 @@ class Model:
     def _update_trace_node(
         self, identifier: int, parent_id: Optional[int], node_attr: Optional[NodeAttr] = None
     ) -> None:
-        handler = trace_handler()
-        trace_node = handler.update_node(identifier, parent_id, node_attr)
+        trace_handler = get_trace_handler()
+        trace_node = trace_handler.update_node(identifier, parent_id, node_attr)
         self._trace_nodes.add(trace_node)
         if self.echo:
-            renderer(handler).update(
+            get_renderer(trace_handler).update(
                 TraceMessage(
                     trace_id=identifier,
                     parent_trace_id=parent_id,
