@@ -86,7 +86,6 @@ jobs:
         python-version: ["3.9", "3.10", "3.11", "3.12"]
         model:
           - "transformers_gpt2_cpu"
-          - "llamacpp_llama2_7b_cpu"
           - "llamacpp_phi3_mini_4k_instruct_cpu"
           - "llamacpp_gemma2_9b_cpu"
     uses: ./.github/workflows/call_cpu_tests.yml
@@ -104,6 +103,7 @@ jobs:
         os: ["Large_Linux", "Large_Windows"]
         python-version: ["3.9", "3.10", "3.11", "3.12"]
         model:
+          - "llamacpp_llama2_7b_cpu"
           - "transformers_llama3_8b_cpu"
     uses: ./.github/workflows/call_cpu_tests.yml
     with:
