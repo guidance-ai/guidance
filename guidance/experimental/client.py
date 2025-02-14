@@ -11,7 +11,7 @@ from guidance.models import Transformers
 from guidance.models._model import Engine
 from guidance.trace._trace import LiteralInput
 
-from .ast import ContentChunk, Node, TextOutput
+from .ast import ContentChunk, ImageBlob, Node, TextOutput
 from .state import BaseTransformersChatState, ChatState, CompletionState, State
 from .state.openai import OpenAIState
 
@@ -42,6 +42,9 @@ class OpenAIClient(Client[OpenAIState]):
     def run(self, state: OpenAIState, node: Node) -> Iterable[ContentChunk]:
         if isinstance(node, str):
             yield LiteralInput(value=node)
+            return
+        elif isinstance(node, ImageBlob):
+            yield node
             return
 
         oai_state = state.get_state()
@@ -106,6 +109,8 @@ class GuidanceClient(Client[S], ABC):
     def run(self, state: S, node: Node) -> Iterable[ContentChunk]:
         if isinstance(node, str):
             yield LiteralInput(value=node)
+        elif isinstance(node, ImageBlob):
+            yield node
 
         elif isinstance(node, Function):
             prompt = self.build_prompt(state)

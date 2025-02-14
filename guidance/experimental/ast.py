@@ -6,7 +6,7 @@ from PIL.ImageFile import ImageFile as PILImageFile
 
 from guidance._grammar import GrammarFunction, RawFunction
 
-from ..trace import LiteralInput, TextOutput
+from ..trace import ImageInput, LiteralInput, TextOutput
 
 # TODO
 Node = Union[str, GrammarFunction, RawFunction, "ImageBlob"]

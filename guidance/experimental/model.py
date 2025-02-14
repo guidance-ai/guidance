@@ -1,12 +1,13 @@
 import re
 from copy import deepcopy
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
-from typing_extensions import Self
+from typing_extensions import Self, assert_never
 
 from guidance._grammar import Null, RawFunction, _call_pool, _tag_pattern
 from guidance._singleton import get_renderer, get_trace_handler
 from guidance.trace import (
+    ImageInput,
     NodeAttr,
     RoleCloserInput,
     RoleOpenerInput,
@@ -16,7 +17,7 @@ from guidance.trace import (
 from guidance.trace._trace import LiteralInput
 from guidance.visual import TraceMessage
 
-from .ast import MessageChunk, Node, RoleEnd, RoleStart
+from .ast import ImageBlob, MessageChunk, Node, RoleEnd, RoleStart
 from .client import Client
 from .role import _active_role
 
@@ -84,11 +85,17 @@ class Model:
         self._state.apply_chunk(chunk)
         if isinstance(chunk, (LiteralInput, TextOutput)):
             self._update_trace_node(self._id, self._parent_id, chunk)
+        elif isinstance(chunk, ImageBlob):
+            self._update_trace_node(
+                self._id, self._parent_id, ImageInput(value=chunk.image.tobytes())
+            )
         elif isinstance(chunk, RoleStart):
             self._update_trace_node(self._id, self._parent_id, RoleOpenerInput(name=chunk.role))
         elif isinstance(chunk, RoleEnd):
             self._update_trace_node(self._id, self._parent_id, RoleCloserInput())
         else:
+            if TYPE_CHECKING:
+                assert_never(chunk)
             raise NotImplementedError(f"Unsupported chunk type: {type(chunk)}")
         return self
 
