@@ -17,6 +17,7 @@ import psutil
 
 import numpy as np
 
+from .._singleton import get_renderer, get_trace_handler
 from ..trace import (
     NodeAttr,
     StatelessGuidanceInput,
@@ -27,7 +28,6 @@ from ..trace import (
     RoleCloserInput,
     TextOutput,
     CaptureOutput,
-    TraceHandler,
 )
 from ..visual import (
     TraceMessage,
@@ -315,9 +315,8 @@ class Engine:
         self.metrics = GuidanceEngineMetrics()
 
         if renderer is None:
-            self.trace_handler = TraceHandler()
-            self.renderer = AutoRenderer(self.trace_handler)
-            # self.renderer = JupyterWidgetRenderer(self.trace_handler)
+            self.trace_handler = get_trace_handler()
+            self.renderer = get_renderer(self.trace_handler)
         else:
             self.renderer = renderer
             self.trace_handler = renderer._trace_handler
