@@ -285,6 +285,9 @@ class TraceHandler(BaseModel):
     def __getitem__(self, item):
         return self.id_node_map[item]
 
+    def __hash__(self):
+        return hash(id(self))
+
     def update_node(
         self, identifier: int, parent_id: Optional[int], node_attr: Optional[NodeAttr] = None
     ) -> TraceNode:
