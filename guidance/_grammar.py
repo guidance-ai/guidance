@@ -170,10 +170,10 @@ def capture(value: GrammarNode, name: str, list_append: bool = False) -> RuleNod
         return RuleNode(name="capture", value=value, capture=name, list_append=list_append)
 
 
-def subgrammar(body: GrammarNode, name: Optional[str] = None) -> SubgrammarNode:
+def subgrammar(body: GrammarNode, name: Optional[str] = None, skip_regex: Optional[str] = None) -> SubgrammarNode:
     capture_name = name
     name = name or (body.name if isinstance(body, RuleNode) else "subgrammar")
-    node = SubgrammarNode(name=name, body=body)
+    node = SubgrammarNode(name=name, body=body, skip_regex=skip_regex)
     if capture_name:
         node = capture(node, capture_name)
     return node

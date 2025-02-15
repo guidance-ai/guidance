@@ -239,15 +239,9 @@ class SelectNode(GrammarNode):
             return '""'
         else:
             if top:
-                return "\n     | ".join(
-                    alt.lark_str() for alt in self.alternatives
-                )
+                return "\n     | ".join(alt.lark_str() for alt in self.alternatives)
             else:
-                return (
-                    "("
-                    + " | ".join(alt.lark_str() for alt in self.alternatives)
-                    + ")"
-                )
+                return "(" + " | ".join(alt.lark_str() for alt in self.alternatives) + ")"
 
     @property
     def is_atomic(self) -> bool:
@@ -486,6 +480,7 @@ class RuleRefNode(GrammarNode):
 class SubgrammarNode(GrammarNode):
     name: str
     body: GrammarNode
+    skip_regex: Optional[str] = None
 
     def lark_str(self, top: bool = False) -> str:
         return f"@{self.name}"
@@ -504,8 +499,16 @@ def parse_tags(s: str) -> Union[GrammarNode, Function]:
     return obj
 
 
-def resolve(node: GrammarNode) -> list[dict[str, RuleNode]]:
-    grammars: dict[str, dict[str, RuleNode]] = {}
+from typing import TypedDict
+
+
+class GrammarDict(TypedDict):
+    rules: dict[str, RuleNode]
+    ignore_rx: Optional[str]
+
+
+def resolve(node: GrammarNode) -> list[GrammarDict]:
+    grammars: dict[str, GrammarDict] = {}
     seen: set[GrammarNode] = set()
 
     def add_node(n: GrammarNode, rules: dict[str, RuleNode]):
@@ -521,7 +524,7 @@ def resolve(node: GrammarNode) -> list[dict[str, RuleNode]]:
                     i += 1
                 name = f"{name}_{i}"
             n.name = name
-            add_grammar(n.body, name)
+            add_grammar(n.body, name, n.skip_regex)
 
         if isinstance(n, RuleNode):
             name = n.name
@@ -541,9 +544,9 @@ def resolve(node: GrammarNode) -> list[dict[str, RuleNode]]:
         for child in n.children():
             add_node(child, rules)
 
-    def add_grammar(n: GrammarNode, name: str):
+    def add_grammar(n: GrammarNode, name: str, ignore_rx: Optional[str] = None):
         rules: dict[str, RuleNode] = {}
-        grammars[name] = rules
+        grammars[name] = {"rules": rules, "ignore_rx": ignore_rx}
         if isinstance(n, RuleNode) and n.name == "start":
             add_node(n, rules)
         else:
@@ -551,8 +554,8 @@ def resolve(node: GrammarNode) -> list[dict[str, RuleNode]]:
 
     add_grammar(node, "main")
 
-    for rules in grammars.values():
-        for name, r in rules.items():
+    for grammar_dict in grammars.values():
+        for name, r in grammar_dict["rules"].items():
             if name == "start":
                 continue
             new_name = name.replace("-", "_")
@@ -578,8 +581,10 @@ def as_ll_grammar(node: GrammarNode) -> LLGrammar:
     )
 
 
-def lark_serialize_inner(rules: dict[str, RuleNode]) -> str:
+def lark_serialize_inner(grammar_dict: GrammarDict) -> str:
     res = "%llguidance {}\n\n"
+    rules = grammar_dict["rules"]
+    ignore_rx = grammar_dict["ignore_rx"]
     prev_nl = True
     for r in rules.values():
         s = r.lark_str(top=True)
@@ -589,4 +594,6 @@ def lark_serialize_inner(rules: dict[str, RuleNode]) -> str:
         prev_nl = "\n" in s
         if prev_nl:
             res += "\n"
+    if ignore_rx:
+        res += f"\n%ignore /{ignore_rx}/"
     return res
