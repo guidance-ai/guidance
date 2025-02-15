@@ -35,6 +35,7 @@ install_requires = [
     "tiktoken>=0.3",
     "guidance-stitch",
     "llguidance==0.5.1",
+    "setuptools" # TODO - Remove before release, used for multimodal mocks in python 3.12
 ]
 
 # Our basic list of 'extras'

@@ -12,6 +12,9 @@ on:
       model:
         required: true
         type: string
+    secrets:
+      HF_TOKEN:
+        required: false
   workflow_dispatch:
     inputs:
       os:
@@ -49,20 +52,26 @@ jobs:
            curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.75.0
            echo "$HOME/.cargo/bin" >> $GITHUB_PATH
       - name: Install NVIDIA SDK
+        shell: bash
         run: |
           nvidia-smi
           sudo apt-get --yes update
           sudo apt-get --yes install cuda-toolkit-12.6
           echo "/usr/local/cuda-12.6/bin" >> $GITHUB_PATH
       - name: Install guidance in ${{ inputs.os }}
+        shell: bash
         run: |
-          pip install --upgrade pip
-          pip install sentencepiece accelerate
-          CMAKE_ARGS="-DGGML_CUDA=on" pip install -e .[llamacpp,transformers,test]
+          python -m pip install --upgrade pip
+          python -m pip install sentencepiece accelerate
+          CMAKE_ARGS="-DGGML_CUDA=on" python -m pip install -e .[llamacpp,transformers,test]
       - name: Check GPU available
+        shell: bash
         run: |
           python -c "import torch; assert torch.cuda.is_available()"
       - name: gpu_tests for ${{ inputs.model }}
+        shell: bash
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           pytest -vv --cov=guidance --cov-report=xml --cov-report=term-missing \
             --selected_model ${{ inputs.model }} \

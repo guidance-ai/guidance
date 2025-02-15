@@ -6,7 +6,7 @@ define(function() {
     window['requirejs'].config({
         map: {
             '*': {
-                'stitch': 'nbextensions/stitch/index',
+                '@guidance-ai/stitch': 'nbextensions/stitch/index',
             },
         }
     });
