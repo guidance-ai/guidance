@@ -3,6 +3,7 @@ import inspect
 import threading
 from typing import Any
 import weakref
+import dataclasses
 
 from ._grammar import string
 
@@ -149,7 +150,11 @@ def _decorator(f, *, stateless, cache, model):
                 except:
                     raise
                 else:
-                    rule = RuleNode(f.__name__, node)
+                    # If we're just wrapping a RuleNode, don't add an extra layer of RuleNode
+                    if isinstance(node, RuleNode):
+                        rule = dataclasses.replace(node, name=f.__name__)
+                    else:
+                        rule = RuleNode(name=f.__name__, value=node)
                     # set the reference value with our generated node
                     if no_args:
                         thread_local._self_call_reference_.target = rule
