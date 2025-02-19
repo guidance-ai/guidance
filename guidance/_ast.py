@@ -94,6 +94,9 @@ class Function(Tagged):
         if isinstance(other, str):
             other = parse_tags(other)
 
+        if isinstance(other, GrammarNode) and other.is_null:
+            return self
+
         def __add__(model):
             return self(model) + other
 
@@ -105,6 +108,9 @@ class Function(Tagged):
 
         if isinstance(other, str):
             other = parse_tags(other)
+
+        if isinstance(other, GrammarNode) and other.is_null:
+            return self
 
         def __radd__(model):
             return self(model + other)
@@ -146,8 +152,14 @@ class GrammarNode(ABC, Tagged):
         if isinstance(other, str):
             other = parse_tags(other)
 
+        if self.is_null:
+            return other
+
         if isinstance(other, Function):
             return other.__radd__(self)
+
+        if other.is_null:
+            return self
 
         return JoinNode([self, other])
 
@@ -158,8 +170,14 @@ class GrammarNode(ABC, Tagged):
         if isinstance(other, str):
             other = parse_tags(other)
 
+        if self.is_null:
+            return other
+
         if isinstance(other, Function):
             return other.__add__(self)
+
+        if other.is_null:
+            return self
 
         return JoinNode([other, self])
 
