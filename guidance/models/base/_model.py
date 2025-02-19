@@ -23,7 +23,7 @@ from ...trace import (
 from ...visual import TraceMessage
 from ._engine import Engine
 from ._role import _active_role
-from ._state import State
+from ._state import CompletionState, ChatState
 
 _id_counter: int = 0
 
@@ -36,7 +36,7 @@ def _gen_id():
     return _id
 
 
-S = TypeVar("S", bound=State)
+S = TypeVar("S", bound=Union[CompletionState, ChatState])
 D = TypeVar("D", bound=Any)
 
 
