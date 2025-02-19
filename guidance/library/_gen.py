@@ -9,12 +9,7 @@ from ._tool import Tool
 
 logger = logging.getLogger(__name__)
 
-
-# TODO: make this stateless!
-# TODO: uncomment this once we get temperature stateless
-@guidance(stateless=lambda *args, **kwargs: kwargs.get("tools", None) is None)
 def gen(
-    lm,
     name=None,
     *,
     max_tokens=None,
@@ -134,49 +129,56 @@ def gen(
 
     if tools is not None:
         tools = [Tool(callable=x) if not isinstance(x, Tool) else x for x in tools]
-        options = [
-            grammar_gen(regex=regex, stop_regex=gen_stop, save_stop_text=save_stop_text, temperature=temperature, max_tokens=max_tokens)
-        ]
-        for i, tool in enumerate(tools):
-            # Infer a regex that will match the start of a tool call
-            tool_call_prefix = tool.call_grammar.forced_prefix()
-            if len(tool_call_prefix) < 4:
-                # TODO: alternatively check that the prefix contains the name (case insensitive) of the tool?
-                # anything shorter is probably far too ambiguous
-                raise ValueError(f"Could not infer unambiguous tool call prefix for tool {tool.name}")
-            options.append(
-                grammar_gen(regex=regex, stop_regex=quote_regex(tool_call_prefix), temperature=temperature, max_tokens=max_tokens, name=f"tool{i}"),
-            )
- 
-        grm = with_temperature(select(options), temperature)
-        initial_token_count = lm.token_count
-        tagged_name = "__LIST_APPEND:" + name if list_append and name is not None else name
-        with block(tagged_name):
-            while lm.token_count <= max_tokens + initial_token_count:
-                lm += grm
-                tool_called = False
-                for i in range(len(tools)):
-                    tool_i = f"tool{i}"
-                    if tool_i in lm:
-                        tool_called = True
-                        if hide_tool_call:
-                            temp_lm = lm + tools[i].call_grammar
-                            with block("tool_call"):
-                                temp_lm += tools[i].tool_call()
-                            lm += temp_lm["tool_call"]
-                        else:
-                            lm += tools[i].call_grammar + tools[i].tool_call()
-                    lm = lm.remove(tool_i)
-                if not tool_called:
-                    lm += suffix
-                    break
-        return lm
+        @guidance(stateless=False, dedent=False)
+        def tool_gen(lm):
+            options = [
+                grammar_gen(regex=regex, stop_regex=gen_stop, save_stop_text=save_stop_text, temperature=temperature, max_tokens=max_tokens)
+            ]
+            for i, tool in enumerate(tools):
+                # Infer a regex that will match the start of a tool call
+                tool_call_prefix = tool.call_grammar.forced_prefix()
+                if len(tool_call_prefix) < 4:
+                    # TODO: alternatively check that the prefix contains the name (case insensitive) of the tool?
+                    # anything shorter is probably far too ambiguous
+                    raise ValueError(f"Could not infer unambiguous tool call prefix for tool {tool.name}")
+                options.append(
+                    grammar_gen(regex=regex, stop_regex=quote_regex(tool_call_prefix), temperature=temperature, max_tokens=max_tokens, name=f"tool{i}"),
+                )
 
-    pattern = grammar_gen(regex=regex, stop_regex=gen_stop, save_stop_text=save_stop_text, name=name, list_append=list_append, temperature=temperature, max_tokens=max_tokens)
-    lm += pattern + suffix
+            grm = with_temperature(select(options), temperature)
+            initial_token_count = lm.token_count
+            tagged_name = "__LIST_APPEND:" + name if list_append and name is not None else name
+            with block(tagged_name):
+                while lm.token_count <= max_tokens + initial_token_count:
+                    lm += grm
+                    tool_called = False
+                    for i in range(len(tools)):
+                        tool_i = f"tool{i}"
+                        if tool_i in lm:
+                            tool_called = True
+                            if hide_tool_call:
+                                temp_lm = lm + tools[i].call_grammar
+                                with block("tool_call"):
+                                    temp_lm += tools[i].tool_call()
+                                lm += temp_lm["tool_call"]
+                            else:
+                                lm += tools[i].call_grammar + tools[i].tool_call()
+                        lm = lm.remove(tool_i)
+                    if not tool_called:
+                        lm += suffix
+                        break
+            return lm
+        return tool_gen()
 
-    logger.debug(f"finish gen")
-    return lm
+    return grammar_gen(
+        regex=regex,
+        stop_regex=gen_stop,
+        save_stop_text=save_stop_text,
+        name=name,
+        list_append=list_append,
+        temperature=temperature,
+        max_tokens=max_tokens
+    ) + suffix
 
 
 def click_loop_start(id, total_count, echo, color):
