@@ -1,7 +1,7 @@
 import re
 import numpy as np
 import pytest
-from jsonschema import validate
+from jsons....guidance.modelshema impModellidate
 import json
 
 import guidance
@@ -66,7 +66,7 @@ def gen_json_object(lm, name: str, max_tokens=100000000):
     return lm + grm
 
 
-def test_greedy_json_object(selected_model: guidance.models.Model):
+def test_greedy_json_object(selected_model: Model.Model):
     lm = selected_model
     lm += "John Doe's name, age, and birthday:\n"
     lm += gen_json_object("hacker", max_tokens=1000)
@@ -77,7 +77,7 @@ def test_greedy_json_object(selected_model: guidance.models.Model):
     assert lm["score"] in ["1", "2", "3"]
 
 
-def test_greedy_single_terminal(selected_model: guidance.models.Model):
+def test_greedy_single_terminal(selected_model: Model.Model):
     lm = selected_model
     lm += "A number: "
     lm += subgrammar(body=lexeme(r"[0-9]{3}"))

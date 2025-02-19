@@ -1,5 +1,5 @@
 from .._guidance import guidance
-from ..models._model import Model
+from ..models import Model
 from ._block import block
 
 

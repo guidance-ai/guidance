@@ -1,8 +1,7 @@
 import re
 import types
-from typing import TYPE_CHECKING, Any, Optional, Sequence, Union, cast
+from typing import Any, Optional, Sequence, Union, cast
 
-from . import _parser
 
 # to support the embedding of guidance functions inside Python f-strings we use tags with these delimiters
 tag_start = "{{G|"  # start of a call tag
@@ -161,13 +160,15 @@ class GrammarFunction(Function):
     ) -> Union[Match, None]:
         if isinstance(byte_string, str):
             byte_string = byte_string.encode()
-        parser = _parser.ByteParser(self)
+
+        from ._parser import ByteParser, ByteParserException
+        parser = ByteParser(self)
 
         try:
             parser.consume_bytes(byte_string)
             if not allow_partial:
                 parser.force_done()
-        except _parser.ByteParserException:
+        except ByteParserException:
             if raise_exceptions:
                 raise
             else:
@@ -182,7 +183,8 @@ class GrammarFunction(Function):
         return Match(*parser.get_captures(), partial=not parser.matched())  # type: ignore[misc]
 
     def forced_prefix(self) -> str:
-        parser = _parser.ByteParser(self)
+        from ._parser import ByteParser
+        parser = ByteParser(self)
         return parser.bytes.decode("utf-8", errors="ignore")
 
     @classmethod

@@ -4,19 +4,16 @@ import operator
 import os
 import sys
 
-from typing import Sequence
-
 from itertools import takewhile
 from pathlib import Path
 
 import numpy as np
 
-from guidance._schema import GenToken, GenTokenExtra
-
-from .._model import Engine, Model, Chat
-from .._remote import RemoteEngine
-from .._tokenizer import Tokenizer
+from ..._schema import GenToken, GenTokenExtra
 from ..._utils import normalize_notebook_stdout_stderr, softmax
+
+from ..base import Model, Engine, Tokenizer
+from .._remote import RemoteEngine
 
 try:
     import llama_cpp

@@ -21,8 +21,7 @@ except ModuleNotFoundError:
     has_transformers = False
 
 
-from .._model import Engine, Model
-from .._tokenizer import Tokenizer
+from ..base import Engine, Tokenizer
 
 # Formed by comparing model and tokenizer from_pretrained methods
 # transformers/models/auto/auto_factory.py
@@ -406,7 +405,12 @@ class TransformersEngine(Engine):
         self.model_obj = self._model(model, **kwargs)
 
         if not isinstance(model, str):
-            self.model = model.__class__.__name__
+            try:
+                self.model = self.model_obj.config["_name_or_path"]
+            except KeyError:
+                self.model = self.model_obj.__class__.__name__
+        else:
+            self.model = model
         self.device = self.model_obj.device  # otherwise note the current device
 
         self._past_key_values: Union[transformers_package.Cache, tuple[tuple[torch.Tensor, ...], tuple[torch.Tensor, ...]], None] = None
@@ -648,32 +652,3 @@ class TransformersEngine(Engine):
             batch.append(text_sequence)
 
         return batch[0]
-
-
-class Transformers(Model):
-    def __init__(
-        self,
-        model=None,
-        tokenizer=None,
-        echo=True,
-        compute_log_probs=False,
-        chat_template=None,
-        enable_backtrack=True,
-        enable_ff_tokens=True,
-        enable_monitoring=True,
-        **kwargs,
-    ):
-        """Build a new Transformers model object that represents a model in a given state."""
-        super().__init__(
-            TransformersEngine(
-                model,
-                tokenizer,
-                compute_log_probs,
-                chat_template=chat_template,
-                enable_backtrack=enable_backtrack,
-                enable_ff_tokens=enable_ff_tokens,
-                enable_monitoring=enable_monitoring,
-                **kwargs,
-            ),
-            echo=echo,
-        )

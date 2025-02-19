@@ -8,7 +8,7 @@ from typing_extensions import assert_never
 
 from guidance._grammar import Function, Gen, Join
 from guidance.models import Transformers
-from guidance.models._model import Engine
+from guidance.models.base import Engine
 from guidance.trace._trace import LiteralInput
 
 from .ast import CaptureOutput, ContentChunk, ImageBlob, Node, TextOutput

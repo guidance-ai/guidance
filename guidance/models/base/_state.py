@@ -12,7 +12,7 @@ from typing import (
 
 from typing_extensions import Self, assert_never
 
-from ..ast import (
+from ...experimental.ast import (
     CaptureOutput,
     ContentChunk,
     ImageBlob,
@@ -186,3 +186,6 @@ class ChatState(Generic[M], BaseState[BaseChatStateObj[M]], ABC):
     @abstractmethod
     def get_active_message(self) -> Optional[M]:
         pass
+
+
+State = Union[CompletionState, ChatState]

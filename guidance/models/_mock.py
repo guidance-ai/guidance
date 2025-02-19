@@ -2,16 +2,15 @@ from typing import Sequence, Optional
 import numpy as np
 import logging
 
+
 from .._utils import softmax
-
-from guidance._schema import EngineOutput, GenToken, GenTokenExtra
-
-from ._model import Engine, Model, Chat
-from ._remote import RemoteEngine
-from ._tokenizer import Tokenizer
-
+from .._schema import EngineOutput, GenToken, GenTokenExtra
 from ..visual._renderer import DoNothingRenderer
 from ..trace import TraceHandler
+
+from .base import Model, Engine, Tokenizer
+from ._remote import RemoteEngine
+
 
 logger = logging.getLogger(__name__)
 
@@ -237,6 +236,6 @@ class Mock(Model):
         super().__init__(engine, echo=echo)
 
 
-class MockChat(Mock, Chat):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+# class MockChat(Mock, Chat):
+#     def __init__(self, *args, **kwargs):
+#         super().__init__(*args, **kwargs)

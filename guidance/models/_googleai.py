@@ -1,5 +1,5 @@
 import re
-from ._model import Chat, Instruct
+from .base._engine import Chat, Instruct
 from ._grammarless import Grammarless, GrammarlessEngine
 import tiktoken
 import os

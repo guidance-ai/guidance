@@ -1,7 +1,7 @@
-from guidance import gen, models, substring
+from guidance.models import gen, Model, substring
 
 
-def test_substring_equal_unconstrained(selected_model: models.Model):
+def test_substring_equal_unconstrained(selected_model: Model.Model):
     target_model = selected_model
     lm = target_model + "ae galera " + gen(max_tokens=10, name="test")
     lm2 = target_model + "ae galera " + substring(lm["test"], name="capture")

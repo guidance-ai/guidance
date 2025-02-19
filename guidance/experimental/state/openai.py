@@ -3,7 +3,7 @@ from io import BytesIO
 from typing import Optional, TypedDict, Union
 
 from ..ast import ImageBlob
-from .base import ChatState
+from ...models.base import ChatState
 
 
 class OpenAIContentMessage(TypedDict):

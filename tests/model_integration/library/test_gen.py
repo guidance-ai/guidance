@@ -2,10 +2,10 @@ import re
 
 import pytest
 
-from guidance import gen, models, select
+from guidance.models import gen, Model, select
 
 
-def test_stop_list_side_effect(selected_model: models.Model):
+def test_stop_list_side_effect(selected_model: Model.Model):
     """Tests a bug where a stop list has an item appended to it in place instead of being updated non-destructively. The bug only occurs whe regex is also None"""
     stop_list = ["\nStep", "\n\n", "\nAnswer"]
     stop_list_length = len(stop_list)
@@ -47,7 +47,7 @@ def test_stop_quote(selected_model):
     assert not lm["title"].endswith('"')
 
 
-def test_metrics_smoke(selected_model: models.Model):
+def test_metrics_smoke(selected_model: Model.Model):
     lm = selected_model
     lm.engine.reset_metrics()
 
@@ -73,7 +73,7 @@ def test_metrics_smoke(selected_model: models.Model):
     assert lm.engine.metrics.engine_input_tokens > last_input_tokens
 
 
-def test_metrics_select(selected_model: models.Model):
+def test_metrics_select(selected_model: Model.Model):
     lm = selected_model
     lm.engine.reset_metrics()
 
@@ -97,7 +97,7 @@ def test_metrics_select(selected_model: models.Model):
     )
 
 
-def test_unicode(selected_model: models.Model):
+def test_unicode(selected_model: Model.Model):
     # black makes this test ugly -- easier to read with fmt: off
     # fmt: off
     lm = selected_model
@@ -109,7 +109,7 @@ Step 1''' + gen('steps', list_append=True, stop=['\nStep', '\n\n', '\nAnswer'], 
     # fmt: on
 
 
-def test_unicode2(selected_model: models.Model):
+def test_unicode2(selected_model: Model.Model):
     lm = selected_model
     lm.engine.reset_metrics()
     prompt = "Janet’s ducks lay 16 eggs per day"
@@ -123,7 +123,7 @@ def test_unicode2(selected_model: models.Model):
     )
 
 
-def test_pattern_kleene(selected_model: models.Model):
+def test_pattern_kleene(selected_model: Model.Model):
     lm = selected_model
     lm += "The Lord is my"
     x = lm + gen(name="tmp", max_tokens=10)
@@ -134,7 +134,7 @@ def test_pattern_kleene(selected_model: models.Model):
     )  # TODO: we just check startswith because exact token limits are not perfect yet...
 
 
-def test_non_token_force(selected_model: models.Model):
+def test_non_token_force(selected_model: Model.Model):
     """This forces some bytes that don't match a token (only longer tokens)"""
     lm = selected_model
     lm += "ae ae" + gen(regex=r"\d")
@@ -160,7 +160,7 @@ def test_non_token_force(selected_model: models.Model):
         r"[0-9]\.{0,20}[0-9]+",
     ],
 )
-def test_various_regexes(selected_model: models.Model, prompt: str, pattern: str):
+def test_various_regexes(selected_model: Model.Model, prompt: str, pattern: str):
     lm = selected_model
     lm2 = lm + prompt + gen(name="test", regex=pattern, max_tokens=40)
     # note we can't just test any regex pattern like this, we need them to have finished in less than 40 tokens
@@ -168,7 +168,7 @@ def test_various_regexes(selected_model: models.Model, prompt: str, pattern: str
 
 
 @pytest.mark.resource_intensive
-def test_long_prompt(selected_model: models.Model, selected_model_name: str):
+def test_long_prompt(selected_model: Model.Model, selected_model_name: str):
     if selected_model_name in [
         "llamacpp_llama2_7b_cpu",
         "llamacpp_llama2_7b_gpu",
@@ -225,7 +225,7 @@ Step 1"""
     assert True
 
 
-def test_tool_call(selected_model: models.Model):
+def test_tool_call(selected_model: Model.Model):
     import guidance
     from guidance import Tool, capture, one_or_more, select, zero_or_more
 

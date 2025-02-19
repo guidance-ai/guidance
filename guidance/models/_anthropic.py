@@ -1,7 +1,7 @@
 import os
 import tiktoken
 
-from ._model import Chat, Instruct
+from .base._engine import Chat, Instruct
 from ._grammarless import GrammarlessEngine, Grammarless
 
 

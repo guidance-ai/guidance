@@ -1,11 +1,10 @@
 from typing import Union
 
-from .base import ChatState, CompletionState, RoleEnd, RoleStart
+from ...models.base._state import ChatState, CompletionState, RoleEnd, RoleStart
 from .openai import OpenAIState
 from .transformers import (
     BaseTransformersChatState,
     Llama3TransformersState,
-    TransformersUnstructuredState,
 )
 
 State = Union[ChatState, CompletionState]

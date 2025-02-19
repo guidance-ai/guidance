@@ -1,8 +1,8 @@
 import re
 from typing import Any, Optional, Sequence, TypedDict
 
-from ..ast import ImageBlob
-from ...models.base import ChatState
+from ...experimental.ast import ImageBlob
+from ..base import ChatState
 
 
 class TransformersMessage(TypedDict):
@@ -19,28 +19,28 @@ class TransformersChatObj(TypedDict):
     videos: list[Any]
 
 
-class BaseTransformersChatState(ChatState[TransformersMessage]):
+class TransformersChatState(ChatState[TransformersMessage]):
     def __init__(self) -> None:
         super().__init__()
-        self.content: str = ""
+        self.active_message_content: str = ""
         self.images: list[Any] = []
         self.audio: list[Any] = []
         self.videos: list[Any] = []
 
     @classmethod
-    def from_model_id(cls, model_id: str) -> "BaseTransformersChatState":
+    def from_model_id(cls, model_id: str) -> "TransformersChatState":
         if "Phi-3-vision" in model_id:
             return Phi3VisionState()
         if re.search("Llama-3.*-Vision", model_id):
             return Llama3TransformersState()
         # Fallback
-        return BaseTransformersChatState()
+        return TransformersChatState()
 
     def get_active_message(self) -> Optional[TransformersMessage]:
         if self.active_role is None:
             return None
 
-        return TransformersMessage({"role": self.active_role.role, "content": self.content})
+        return TransformersMessage({"role": self.active_role.role, "content": self.active_message_content})
 
     def get_state(self) -> TransformersChatObj:
         return {
@@ -55,23 +55,24 @@ class BaseTransformersChatState(ChatState[TransformersMessage]):
     def reset_active_message(self) -> None:
         super().reset_active_message()
         # Don't delete images, audio, or videos, as they are not part of the message
-        self.content = ""
+        self.active_message_content = ""
 
     def apply_text(self, text: str) -> None:
-        self.content += text
+        self.active_message_content += text
 
 
-class Llama3TransformersState(BaseTransformersChatState):
+class Llama3TransformersState(TransformersChatState):
     def apply_image(self, image: ImageBlob) -> None:
         self.images.append(image.image)
-        self.content += "<|image|>"
+        self.active_message_content += "<|image|>"
 
 
-class Phi3VisionState(BaseTransformersChatState):
+class Phi3VisionState(TransformersChatState):
     def apply_image(self, image: ImageBlob) -> None:
         pil_image = image.image
         if pil_image in self.images:
-            self.content += f"<|image_{self.images.index(pil_image) + 1}|>"
+            ix = self.images.index(pil_image) + 1
         else:
-            self.images.append(image.image)
-            self.content += f"<|image_{len(self.images)}|>"
+            self.images.append(pil_image)
+            ix = len(self.images)
+        self.active_message_content += f"<|image_{ix}|>"

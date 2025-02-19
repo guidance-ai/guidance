@@ -2,7 +2,7 @@ from typing import Any, Dict, Sequence, Union
 
 import numpy as np
 
-from ..chat import load_template_class, ChatTemplate
+from ...chat import load_template_class, ChatTemplate
 
 
 class Tokenizer:

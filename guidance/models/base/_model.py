@@ -1,25 +1,29 @@
+# TODO(nopdive): This module requires a memory review.
+
 import re
+from abc import ABC, abstractmethod
 from copy import deepcopy
-from typing import TYPE_CHECKING, Any, Optional, TypeVar, Union
+from typing import TYPE_CHECKING, Any, Generic, Iterator, Optional, TypeVar, Union
 
 from typing_extensions import Self, assert_never
 
-from guidance._grammar import Null, RawFunction, _call_pool, _tag_pattern
-from guidance._singleton import get_renderer, get_trace_handler
-from guidance.trace import (
+from ..._grammar import Function, Null, RawFunction, _call_pool, _tag_pattern
+from ..._singleton import get_renderer, get_trace_handler
+from ...experimental.ast import ImageBlob, MessageChunk, Node, RoleEnd, RoleStart
+from ...trace import (
+    CaptureOutput,
     ImageInput,
+    LiteralInput,
     NodeAttr,
     RoleCloserInput,
     RoleOpenerInput,
     TextOutput,
     TraceNode,
 )
-from guidance.trace._trace import LiteralInput
-from guidance.visual import TraceMessage
-
-from .ast import CaptureOutput, ImageBlob, MessageChunk, Node, RoleEnd, RoleStart
-from .client import Client
-from .role import _active_role
+from ...visual import TraceMessage
+from ._engine import Engine
+from ._role import _active_role
+from ._state import State
 
 _id_counter: int = 0
 
@@ -32,18 +36,17 @@ def _gen_id():
     return _id
 
 
-T = TypeVar("T", bound=Any)
+S = TypeVar("S", bound=State)
+D = TypeVar("D", bound=Any)
 
 
-class Model:
+class Model(Generic[S], ABC):
     def __init__(
         self,
-        client: Client,
         echo: bool = True,
     ) -> None:
-        self.client = client
         self.echo = echo
-        self._state = client.initial_state()
+        self._state: S = self.initial_state()
         self._active_role: Optional["RoleStart"] = None
 
         self._parent: Optional["Model"] = None
@@ -51,6 +54,14 @@ class Model:
         self._id: int = _gen_id()
         self._trace_nodes: set[TraceNode] = set()
         self._update_trace_node(self._id, self._parent_id, None)
+
+    @abstractmethod
+    def run(self, state: S, node: Node) -> Iterator[MessageChunk]:
+        pass
+
+    @abstractmethod
+    def initial_state(self) -> S:
+        pass
 
     def _update_trace_node(
         self, identifier: int, parent_id: Optional[int], node_attr: Optional[NodeAttr] = None
@@ -79,7 +90,7 @@ class Model:
         return self
 
     def _apply_node(self, node: Node) -> Self:
-        for chunk in self.client.run(self._state, node):
+        for chunk in self.run(self._state, node):
             self = self._apply_chunk(chunk)
         return self
 
@@ -148,7 +159,7 @@ class Model:
     def __contains__(self, key: str) -> bool:
         return key in self._state.captures
 
-    def get(self, key: str, default: Optional[T] = None) -> Union[str, list[str], None, T]:
+    def get(self, key: str, default: Optional[D] = None) -> Union[str, list[str], None, D]:
         """Return the value of a variable, or a default value if the variable is not present.
 
         Parameters
@@ -193,8 +204,8 @@ class Model:
         return self
 
     def log_prob(
-        self, key: str, default: Optional[T] = None
-    ) -> Union[float, list[Union[float, None]], None, T]:
+        self, key: str, default: Optional[D] = None
+    ) -> Union[float, list[Union[float, None]], None, D]:
         """Return the log probability of a variable, or a default value if the variable is not present.
 
         Parameters
@@ -214,6 +225,83 @@ class Model:
             return captures["log_prob"]
 
 
+class ModelWithEngine(Model[S], ABC):
+    def __init__(self, engine: Engine, echo: bool = True):
+        self.engine = engine
+        super().__init__(echo=echo)
+
+    @abstractmethod
+    def build_prompt(self, state: S) -> str:
+        # TODO: use a common state serialization interface and push this method down into the engine?
+        pass
+
+    def run(self, state: S, node: Node) -> Iterator[MessageChunk]:
+        if isinstance(node, str):
+            yield LiteralInput(value=node)
+
+        elif isinstance(node, ImageBlob):
+            yield node
+
+        elif isinstance(node, Function):
+            prompt = self.build_prompt(state)
+            engine_gen = self.engine(
+                prompt,
+                node,
+                ensure_bos_token=False,
+                echo=False,
+            )
+
+            delayed_bytes = b""
+            for chunk in engine_gen:
+                generated_bytes = delayed_bytes + chunk.generated_bytes
+                generated_text, delayed_bytes = partial_decode(generated_bytes)
+                ff_bytes = delayed_bytes + chunk.force_forwarded_bytes
+                ff_text, delayed_bytes = partial_decode(ff_bytes)
+
+                if generated_bytes:
+                    yield TextOutput(
+                        value=generated_text,
+                        is_generated=True,
+                        prob=chunk.new_bytes_prob,
+                        token_count=len(chunk.generated_tokens),
+                        tokens=chunk.generated_tokens,
+                    )
+                if ff_bytes:
+                    yield TextOutput(
+                        value=ff_text,
+                        is_generated=False,
+                        prob=chunk.new_bytes_prob,
+                        token_count=len(chunk.force_forwarded_tokens),
+                        tokens=chunk.force_forwarded_tokens,
+                    )
+
+                for name in chunk.capture_groups.keys():
+                    values = chunk.capture_groups[name]
+                    log_probs = chunk.capture_group_log_probs[name]
+                    if isinstance(values, list):
+                        assert isinstance(log_probs, list) and len(log_probs) == len(values)
+                        list_append = True
+                    else:
+                        values = [values]
+                        log_probs = [log_probs]
+                        list_append = False
+
+                    for value, log_prob in zip(values, log_probs):
+                        yield CaptureOutput(
+                            name=name,
+                            value=value,
+                            is_append=list_append,
+                            # TODO: let this be Optional?
+                            log_probs=log_prob,
+                        )
+
+            if delayed_bytes:
+                raise RuntimeError("Shouldn't have any delayed bytes left...")
+
+        else:
+            raise NotImplementedError(f"Unknown node: {node}")
+
+
 def extract_embedded_nodes(value: str) -> Node:
     parts: list[str] = re.split(_tag_pattern, value)
 
@@ -231,6 +319,11 @@ def extract_embedded_nodes(value: str) -> Node:
         is_id = not is_id
     return grammar
 
-    # TODO?
-    # def get_per_token_stats(self) -> list[GenTokenExtra]:
-        
+
+def partial_decode(data: bytes) -> tuple[str, bytes]:
+    try:
+        return (data.decode("utf-8"), b"")
+    except UnicodeDecodeError as e:
+        valid_part = data[: e.start].decode("utf-8")
+        delayed_part = data[e.start :]
+    return (valid_part, delayed_part)

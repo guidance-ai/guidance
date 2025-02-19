@@ -9,22 +9,23 @@ import guidance
 from guidance import gen, select
 
 
+from guidance.models import Model
 from tests.tokenizer_common import TOKENIZER_ROUND_TRIP_STRINGS
 
 
-def test_llama_cpp_gen(llamacpp_model: guidance.models.Model):
+def test_llama_cpp_gen(llamacpp_model: Model):
     lm = llamacpp_model
     lm = lm + "this is a test" + gen("test", max_tokens=10)
     assert len(str(lm)) > len("this is a test")
 
 
-def test_llama_cpp_gen_log_probs(llamacpp_model: guidance.models.Model):
+def test_llama_cpp_gen_log_probs(llamacpp_model: Model):
     lm = llamacpp_model
     lm = lm + "this is a test" + gen("test", max_tokens=1)
     assert 1 >= np.exp(lm.log_prob("test")) >= 0
 
 
-def test_llama_cpp_recursion_error(llamacpp_model: guidance.models.Model):
+def test_llama_cpp_recursion_error(llamacpp_model: Model):
     lm = llamacpp_model
 
     # define a guidance program that adapts a proverb
@@ -37,7 +38,7 @@ def test_llama_cpp_recursion_error(llamacpp_model: guidance.models.Model):
     assert len(str(lm)) > len("Tweak this proverb to apply to model instructions instead.\n\n")
 
 
-def test_llama_cpp_select2(llamacpp_model: guidance.models.Model):
+def test_llama_cpp_select2(llamacpp_model: Model):
     lm = llamacpp_model
     lm += f'this is a test1 {select(["item1", "item2"])} and test2 {select(["item3", "item4"])}'
     assert str(lm) in [
@@ -48,7 +49,7 @@ def test_llama_cpp_select2(llamacpp_model: guidance.models.Model):
     ]
 
 
-def test_repeat_calls(llamacpp_model: guidance.models.Model, selected_model_name: str):
+def test_repeat_calls(llamacpp_model: Model, selected_model_name: str):
     # This specific test is misbehaving in very specific cases, so have some
     # ugly code for conditional XFAIL
     print(f"{platform.machine()=}")
@@ -119,14 +120,14 @@ def test_repeat_calls(llamacpp_model: guidance.models.Model, selected_model_name
             raise
 
 
-def test_suffix(llamacpp_model: guidance.models.Model):
+def test_suffix(llamacpp_model: Model):
     llama2 = llamacpp_model
     lm = llama2 + "1. Here is a sentence " + gen(name="bla", list_append=True, suffix="\n")
     assert (str(lm))[-1] == "\n"
     assert (str(lm))[-2] != "\n"
 
 
-def test_subtoken_forced(llamacpp_model: guidance.models.Model):
+def test_subtoken_forced(llamacpp_model: Model):
     llama2 = llamacpp_model
     lm = llama2 + "How much is 2 + 2? " + gen(name="test", max_tokens=10, regex=r"\(")
     assert str(lm) == "How much is 2 + 2? ("
@@ -180,7 +181,7 @@ def test_llama_cpp_more_than_two_batches(llamacpp_model):
     assert len(str(lm)) > len(long_str)
 
 
-def test_llama_with_temp(llamacpp_model: guidance.models.Model):
+def test_llama_with_temp(llamacpp_model: Model):
     lm = llamacpp_model
     lm += "Here is a cute 5-line poem about cats and dogs:\n"
     for i in range(5):
@@ -188,14 +189,14 @@ def test_llama_with_temp(llamacpp_model: guidance.models.Model):
     # we just want to make sure we don't crash the numpy sampler
 
 
-def test_llama_with_temp2(llamacpp_model: guidance.models.Model):
+def test_llama_with_temp2(llamacpp_model: Model):
     lm = llamacpp_model
     lm1 = lm + "2 + 2 =" + gen("answer", max_tokens=3)
     lm2 = lm + "2 + 2 =" + gen("answer", temperature=0.0000001, max_tokens=3)
     assert lm1["answer"] == lm2["answer"]
 
 
-def test_max_tokens(llamacpp_model: guidance.models.Model):
+def test_max_tokens(llamacpp_model: Model):
     lm = llamacpp_model
     lm += "Who won the last Kentucky derby and by how much?"
     lm += "\n\n<<The last Kentucky Derby was held"
