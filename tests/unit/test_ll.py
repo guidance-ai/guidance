@@ -284,8 +284,8 @@ def test_ll_nullable_lexeme():
     num = subgrammar(
         body=select(
             [
-                lexeme(r"-?(?:0|[1-9][0-9]*)", contextual=True),
-                lexeme(r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)", contextual=True),
+                lexeme(r"-?(?:0|[1-9][0-9]*)"),
+                lexeme(r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)"),
             ]
         )
     )

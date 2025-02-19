@@ -12,9 +12,7 @@ def as_regular_grammar(node: GrammarNode, lexeme=False):
     assert rule.is_terminal
     return node
 
-def lexeme(body_regex: str, contextual: bool = False, json_string: bool = False):
+def lexeme(body_regex: str, json_string: bool = False):
     if json_string:
         raise NotImplementedError("JSON strings are not supported")
-    if contextual:
-        raise NotImplementedError("Contextual lexemes are not supported")
     return regex(body_regex)
