@@ -527,9 +527,8 @@ class GrammarDict(TypedDict):
 
 def resolve(node: GrammarNode) -> list[GrammarDict]:
     grammars: dict[str, GrammarDict] = {}
-    seen: set[GrammarNode] = set()
 
-    def add_node(n: GrammarNode, rules: dict[str, RuleNode]):
+    def add_node(n: GrammarNode, rules: dict[str, RuleNode], seen: set[GrammarNode]):
         if n in seen:
             return
         seen.add(n)
@@ -557,18 +556,19 @@ def resolve(node: GrammarNode) -> list[GrammarDict]:
         elif isinstance(n, RuleRefNode):
             if n.target is None:
                 raise ValueError("RuleRefNode has no target")
-            add_node(n.target, rules)
+            add_node(n.target, rules, seen)
 
         for child in n.children():
-            add_node(child, rules)
+            add_node(child, rules, seen)
 
     def add_grammar(n: GrammarNode, name: str, ignore_rx: Optional[str] = None):
         rules: dict[str, RuleNode] = {}
+        seen: set[GrammarNode] = set()
         grammars[name] = {"rules": rules, "ignore_rx": ignore_rx}
         if isinstance(n, RuleNode) and n.name == "start":
-            add_node(n, rules)
+            add_node(n, rules, seen)
         else:
-            add_node(RuleNode("start", n), rules)
+            add_node(RuleNode("start", n), rules, seen)
 
     add_grammar(node, "main")
 
