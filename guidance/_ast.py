@@ -574,8 +574,6 @@ def resolve(node: GrammarNode) -> list[GrammarDict]:
 
     for grammar_dict in grammars.values():
         for name, r in grammar_dict["rules"].items():
-            if name == "start":
-                continue
             new_name = name.replace("-", "_")
             # convert fooBar_Baz to foo_bar_baz
             new_name = re.sub(r"([a-z])([A-Z])", r"\1_\2", new_name).lower()
@@ -606,6 +604,8 @@ def lark_serialize_inner(grammar_dict: GrammarDict) -> str:
     prev_nl = True
     for r in rules.values():
         s = r.lark_str(top=True)
+        if s.startswith("START:"):
+            s = "start: START\n" + s
         if not prev_nl and "\n" in s:
             res += "\n"
         res += s + "\n"
