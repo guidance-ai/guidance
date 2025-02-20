@@ -2,7 +2,6 @@ import os
 import re
 import textwrap
 import warnings
-
 from typing import Sequence, Union
 
 from guidance._schema import GenToken, GenTokenExtra
@@ -383,15 +382,17 @@ class TransformersTokenizer(Tokenizer):
 
 
 class TransformersEngine(Engine):
-    def __init__(self, 
-                 model, 
-                 tokenizer, 
-                 compute_log_probs: bool, 
-                 chat_template=None, 
-                 enable_backtrack=True, 
-                 enable_ff_tokens=True, 
-                 enable_monitoring=True, 
-                 **kwargs):
+    def __init__(
+        self,
+        model,
+        tokenizer,
+        compute_log_probs: bool,
+        chat_template=None,
+        enable_backtrack=True,
+        enable_ff_tokens=True,
+        enable_monitoring=True,
+        **kwargs,
+    ):
         # fill in default model value
         if model is None:
             model = os.environ.get("TRANSFORMERS_MODEL", None)
@@ -413,7 +414,11 @@ class TransformersEngine(Engine):
             self.model = model
         self.device = self.model_obj.device  # otherwise note the current device
 
-        self._past_key_values: Union[transformers_package.Cache, tuple[tuple[torch.Tensor, ...], tuple[torch.Tensor, ...]], None] = None
+        self._past_key_values: Union[
+            transformers_package.Cache,
+            tuple[tuple[torch.Tensor, ...], tuple[torch.Tensor, ...]],
+            None,
+        ] = None
         self._cached_logits = None
         self._cached_token_ids: list[int] = []
 
@@ -503,7 +508,10 @@ class TransformersEngine(Engine):
             # TODO: this seems to get set to the length of the first sequence we pass for models using
             # StaticCache or HybridCache. We need to initialize our own cache with a large enough size
             # if we want to continue generation with the same cache.
-            if isinstance(past_key_values, (transformers_package.StaticCache, transformers_package.HybridCache)):
+            if isinstance(
+                past_key_values,
+                (transformers_package.StaticCache, transformers_package.HybridCache),
+            ):
                 # The __init__ API isn't consistent between different cache types, but there seems to be consistency
                 # between these two types, so we can use the same logic for both.
                 warnings.warn("Cache is too small. Re-initializing cache with larger size.")
@@ -512,17 +520,21 @@ class TransformersEngine(Engine):
                 device = self.model_obj.device
                 hf_device_map = getattr(self.model_obj, "hf_device_map", {})
                 # hf_device_map is not always a complete mapping of layers to devices...
-                layer_device_map = {k: hf_device_map.get(k, device) for k in range(config.num_hidden_layers)}
+                layer_device_map = {
+                    k: hf_device_map.get(k, device) for k in range(config.num_hidden_layers)
+                }
                 self._past_key_values = cache_type(
                     config=config,
                     batch_size=past_key_values.batch_size,
                     # Double the cache size to be safe
-                    max_cache_len=len(token_ids)*2,
+                    max_cache_len=len(token_ids) * 2,
                     dtype=past_key_values.dtype,
                     layer_device_map=layer_device_map,
                 )
             else:
-                warnings.warn(f"Cache is too small. Resetting cache (no method implemented to resize cache for type {type(past_key_values)}).")
+                warnings.warn(
+                    f"Cache is too small. Resetting cache (no method implemented to resize cache for type {type(past_key_values)})."
+                )
                 self._past_key_values = None
             past_length = 0
         elif past_length > num_cached:
@@ -535,7 +547,9 @@ class TransformersEngine(Engine):
                 if hasattr(past_key_values, "crop"):
                     self._past_key_values.crop(past_length)
                 else:
-                    warnings.warn(f"Cropping unsupported for cache type: {type(self._past_key_values)}. Resetting cache.")
+                    warnings.warn(
+                        f"Cropping unsupported for cache type: {type(self._past_key_values)}. Resetting cache."
+                    )
                     if hasattr(self._past_key_values, "reset"):
                         # Use built-in reset method if available to avoid constructing/allocating a new cache
                         self._past_key_values.reset()
@@ -597,7 +611,9 @@ class TransformersEngine(Engine):
 
         return self._cached_logits
 
-    def get_per_token_topk_probs(self, token_ids: list[int], top_k: int = 5) -> list[GenTokenExtra]:
+    def get_per_token_topk_probs(
+        self, token_ids: list[int], top_k: int = 5
+    ) -> list[GenTokenExtra]:
         tokenizer = self.tokenizer._orig_tokenizer
 
         # NOTE (loc) - assume batch size of 1

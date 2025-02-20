@@ -40,7 +40,9 @@ class TransformersChatState(ChatState[TransformersMessage]):
         if self.active_role is None:
             return None
 
-        return TransformersMessage({"role": self.active_role.role, "content": self.active_message_content})
+        return TransformersMessage(
+            {"role": self.active_role.role, "content": self.active_message_content}
+        )
 
     def get_state(self) -> TransformersChatObj:
         return {

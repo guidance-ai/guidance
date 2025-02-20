@@ -4,6 +4,7 @@ from ..base import ModelWithEngine
 from ._engine import TransformersEngine
 from ._state import TransformersChatState, TransformersMessage
 
+
 # TODO: Expose a non-chat version
 class Transformers(ModelWithEngine[TransformersChatState]):
     def __init__(
