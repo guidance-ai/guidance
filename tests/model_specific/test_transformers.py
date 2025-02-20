@@ -1,6 +1,7 @@
 import pytest
 
 from guidance import gen, select, models, assistant, system, user, guidance
+
 from ..utils import get_model
 
 

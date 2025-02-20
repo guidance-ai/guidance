@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import patch
 
 import guidance
-from guidance.models import byte_range, gen, Model, select, zero_or_more
+from guidance import byte_range, gen, models, select, zero_or_more
 
 
 def test_fstring(selected_model):
@@ -70,7 +70,7 @@ def test_stream_add_multiple(selected_model):
     assert str(last_lm) in ["item1", "item2"]
 
 
-def test_associativity(selected_model: Model.Model):
+def test_associativity(selected_model: models.Model):
     prompt = "pi = "
     grammar = gen("number", regex=r"\d")
     engine = selected_model.engine

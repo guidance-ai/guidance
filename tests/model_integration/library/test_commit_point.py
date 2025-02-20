@@ -1,8 +1,8 @@
 import pytest
-from guidance.models import Tool, capture, commit_point, Model, select, string
+from guidance import Tool, capture, commit_point, models, select, string
 
 @pytest.mark.xfail(reason="Commit points are not supported")
-def test_commit_point(selected_model: Model.Model):
+def test_commit_point(selected_model: models.Model):
     lm = selected_model
     tools = [Tool(callable=lambda x: x)]
     stop_pattern = select([string(lm.engine.tokenizer.eos_token)])

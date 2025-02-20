@@ -32,7 +32,7 @@ def test_anthropic_select():
         pytest.skip("Skipping Anthropic test because we can't load the model!")
     
     # We can't meaningfully test or enforce select on this model
-    with pytest.raises(guidance.models._engine.ConstraintException):
+    with pytest.raises(guidance.models._model.ConstraintException):
         with user():
             lm += "Write the next number in the list: 1,2,3,4,5,6,"
         with assistant():
