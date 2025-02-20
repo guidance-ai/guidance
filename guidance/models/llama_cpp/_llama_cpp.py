@@ -3,17 +3,20 @@ import logging
 import operator
 import os
 import sys
-
 from itertools import takewhile
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, Optional
 
 import numpy as np
 
 from ..._schema import GenToken, GenTokenExtra
 from ..._utils import normalize_notebook_stdout_stderr, softmax
-
-from ..base import Model, Engine, Tokenizer
 from .._remote import RemoteEngine
+from ..base import Engine, ModelWithEngine, Tokenizer
+from ..transformers._state import (  # TODO: put these up in base
+    TransformersChatState,
+    TransformersMessage,
+)
 
 try:
     import llama_cpp
@@ -21,6 +24,10 @@ try:
     is_llama_cpp = True
 except ModuleNotFoundError:
     is_llama_cpp = False
+
+if TYPE_CHECKING:
+    from llama_cpp.llama import Llama
+    from llama_cpp.llama_chat_format import Jinja2ChatFormatter
 
 logger = logging.getLogger(__name__)
 
@@ -103,14 +110,16 @@ class LlamaCppTokenizer(Tokenizer):
 class LlamaCppEngine(Engine):
     """The core class that runs inference using llama.cpp."""
 
-    def __init__(self, 
-                 model, 
-                 compute_log_probs, 
-                 chat_template=None, 
-                 enable_backtrack=True, 
-                 enable_ff_tokens=True, 
-                 enable_monitoring=True, 
-                 **kwargs):
+    def __init__(
+        self,
+        model,
+        compute_log_probs,
+        chat_template=None,
+        enable_backtrack=True,
+        enable_ff_tokens=True,
+        enable_monitoring=True,
+        **kwargs,
+    ):
         if not is_llama_cpp:
             raise Exception(
                 "Please install llama-cpp-python with `pip install llama-cpp-python` in order to use guidance.models.LlamaCpp!"
@@ -231,7 +240,9 @@ class LlamaCppEngine(Engine):
 
         return logits
 
-    def get_per_token_topk_probs(self, token_ids: list[int], top_k: int = 5) -> list[GenTokenExtra]:
+    def get_per_token_topk_probs(
+        self, token_ids: list[int], top_k: int = 5
+    ) -> list[GenTokenExtra]:
         if len(token_ids) == 0:
             return []
 
@@ -338,7 +349,7 @@ class LlamaCppEngine(Engine):
         return ind, val
 
 
-class LlamaCpp(Model):
+class LlamaCpp(ModelWithEngine[TransformersChatState]):
     def __init__(
         self,
         model=None,
@@ -365,5 +376,65 @@ class LlamaCpp(Model):
                 enable_monitoring=enable_monitoring,
                 **llama_cpp_kwargs,
             )
-
+        self.chat_formatter = get_chat_formatter(engine.model_obj)
         super().__init__(engine, echo=echo)
+
+    def initial_state(self) -> TransformersChatState:
+        return TransformersChatState.from_model_id(self.engine.model)
+
+    def build_prompt(self, state: TransformersChatState) -> str:
+        state_dict = state.get_state()
+        prefill = state_dict["prefill"]
+        if prefill is None:
+            role = state_dict["active_role"]
+            if role is None:
+                raise ValueError("Can't generate with no active role")
+            prefill = {"role": "user", "content": ""}
+        return apply_chat_template(
+            messages=list(state_dict["messages"]),
+            prefill=prefill,
+            tools=None,  # TODO?
+            chat_formatter=self.chat_formatter,
+        )
+
+
+def get_chat_formatter(model_obj: "Llama") -> "Jinja2ChatFormatter":
+    from llama_cpp.llama_chat_format import Jinja2ChatFormatter
+
+    handler = model_obj.chat_handler or model_obj._chat_handlers.get(model_obj.chat_format)
+    if handler is None:
+        raise ValueError("No chat handler found for model")
+    formatter = None
+    for cell in getattr(handler, "__closure__", ()):
+        obj = cell.cell_contents
+        if isinstance(obj, Jinja2ChatFormatter):
+            formatter = obj
+            break
+    if formatter is None:
+        raise ValueError("No formatter found for model")
+    return formatter
+
+
+def apply_chat_template(
+    messages: list[TransformersMessage],
+    prefill: Optional[TransformersMessage],
+    tools: Optional[list[Any]],
+    chat_formatter: "Jinja2ChatFormatter",
+) -> str:
+    if prefill is None:
+        sentinel_value = None
+    sentinel_value = "<|FINAL_MESSAGE_SENTINEL_VALUE|>"
+    messages = messages + [dict(role=prefill["role"], content=prefill["content"] + sentinel_value)]
+    formatter_resp = chat_formatter(
+        messages=messages,
+        # TODO
+        # functions=None,
+        # function_call=None,
+        # tools=None,
+        # tool_choice=None,
+    )
+    # TODO: prompt.stopping_criteria?
+    prompt = formatter_resp.prompt
+    if sentinel_value is not None:
+        prompt = prompt[: prompt.rindex(sentinel_value)]
+    return prompt
