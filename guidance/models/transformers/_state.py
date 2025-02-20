@@ -1,6 +1,8 @@
-from guidance.models._engine._state import EngineChatState, EngineCompletionState
-from ...experimental.ast import ImageBlob
 from typing import Any
+
+from guidance.models._engine._state import EngineChatState, EngineCompletionState
+
+from ...experimental.ast import ImageBlob
 
 
 # Mixins that should work for both EngineChatState and EngineCompletionState
@@ -11,6 +13,7 @@ class _Llama3:
     def apply_image(self, image: ImageBlob) -> None:
         self.images.append(image.image)
         self.content += "<|image|>"
+
 
 class _Phi3:
     images: list[Any]
@@ -25,14 +28,18 @@ class _Phi3:
             ix = len(self.images)
         self.content += f"<|image_{ix}|>"
 
+
 class Llama3ChatState(EngineChatState, _Llama3):
     pass
+
 
 class Llama3CompletionState(EngineCompletionState, _Llama3):
     pass
 
+
 class Phi3VisionChatState(EngineChatState, _Phi3):
     pass
+
 
 class Phi3VisionCompletionState(EngineCompletionState, _Phi3):
     pass

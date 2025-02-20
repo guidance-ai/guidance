@@ -5,16 +5,14 @@ import os
 import sys
 from itertools import takewhile
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, Any, Sequence
+from typing import TYPE_CHECKING, Any, Optional, Sequence
 
 import numpy as np
 
-from .._engine import ModelWithEngine, Engine, Tokenizer, EngineMessage
-
 from ..._schema import GenToken, GenTokenExtra
 from ..._utils import normalize_notebook_stdout_stderr, softmax
+from .._engine import Engine, EngineMessage, ModelWithEngine, Tokenizer
 from .._remote import RemoteEngine
-
 
 try:
     import llama_cpp
@@ -357,6 +355,7 @@ class LlamaCppEngine(Engine):
             chat_formatter=get_chat_formatter(self.model_obj),
         )
 
+
 class LlamaCpp(ModelWithEngine):
     def __init__(
         self,
@@ -387,7 +386,6 @@ class LlamaCpp(ModelWithEngine):
         super().__init__(engine, echo=echo)
 
 
-
 def get_chat_formatter(model_obj: "Llama") -> "Jinja2ChatFormatter":
     from llama_cpp.llama_chat_format import Jinja2ChatFormatter
 
@@ -415,15 +413,18 @@ def apply_chat_template(
     # if it is empty. We add a sentinel value to the final message, and then remove it after the fact.
     sentinel_value = "<|FINAL_MESSAGE_SENTINEL_VALUE|>"
     *head, active_message = messages
-    active_message = {"role": active_message["role"], "content": active_message["content"] + sentinel_value}
+    active_message = {
+        "role": active_message["role"],
+        "content": active_message["content"] + sentinel_value,
+    }
     formatter_resp = chat_formatter(
-            messages=(head + [active_message]),
-            # TODO
-            # functions=None,
-            # function_call=None,
-            # tools=None,
-            # tool_choice=None,
-        )
+        messages=(head + [active_message]),
+        # TODO
+        # functions=None,
+        # function_call=None,
+        # tools=None,
+        # tool_choice=None,
+    )
     # TODO: prompt.stopping_criteria?
     prompt = formatter_resp.prompt
     prompt = prompt[: prompt.rindex(sentinel_value)]

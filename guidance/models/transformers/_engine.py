@@ -2,10 +2,10 @@ import os
 import re
 import textwrap
 import warnings
-from typing import Sequence, Union, Optional, Any, cast
+from typing import Any, Optional, Sequence, Union, cast
 
 from ..._schema import GenToken, GenTokenExtra
-from .._engine import EnginePrompt, EngineMessage, EngineCompletionPrompt
+from .._engine import EngineCompletionPrompt, EngineMessage, EnginePrompt
 
 try:
     import torch
@@ -680,7 +680,10 @@ class TransformersEngine(Engine):
         # if it is empty. We add a sentinel value to the final message, and then remove it after the fact.
         sentinel_value = "<|FINAL_MESSAGE_SENTINEL_VALUE|>"
         *head, active_message = messages
-        active_message = {"role": active_message["role"], "content": active_message["content"] + sentinel_value}
+        active_message = {
+            "role": active_message["role"],
+            "content": active_message["content"] + sentinel_value,
+        }
         prompt = self.tokenizer._orig_tokenizer.apply_chat_template(
             conversation=(head + [active_message]),
             tools=tools,
