@@ -1,11 +1,11 @@
 import base64
 from io import BytesIO
-from typing import Iterable, Optional, TypedDict, Union
+from typing import Iterator, Optional, TypedDict, Union
 
 from .._grammar import Gen, Join
 from ..experimental.ast import ContentChunk, ImageBlob, Node
 from ..trace import LiteralInput, TextOutput
-from ._base import BaseChatState, BaseCompletionState, Model
+from ._base import BaseChatState, Model
 
 
 class OpenAIContentMessage(TypedDict):
@@ -116,7 +116,7 @@ class OpenAI(Model):
 
     def run(
         self, state: OpenAIState, node: Node
-    ) -> Iterable[ContentChunk]:
+    ) -> Iterator[ContentChunk]:
         def inner(node):
             if isinstance(node, Join):
                 for inner_node in node.values:

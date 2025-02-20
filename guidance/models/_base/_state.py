@@ -156,7 +156,13 @@ class BaseChatState(BaseState):
         self.active_role = None
 
     def get_prompt(self) -> ChatPrompt:
-        return {"messages": (*self.messages, self.get_active_message())}
+        messages = self.messages
+        active_message = self.get_active_message()
+        if active_message is not None:
+            messages = (*messages, active_message)
+        return {"messages": messages}
 
     def get_active_message(self) -> Optional[Message]:
+        if self.active_role is None:
+            return None
         return {"role": self.active_role.role, "content": self.content}

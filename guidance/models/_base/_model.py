@@ -4,6 +4,7 @@ import re
 from abc import ABC, abstractmethod
 from copy import deepcopy
 from typing import TYPE_CHECKING, Any, Generic, Iterator, Optional, TypeVar, Union
+from base64 import b64encode
 
 from typing_extensions import Self, assert_never
 
@@ -100,7 +101,9 @@ class Model(Generic[S], ABC):
             self._update_trace_node(self._id, self._parent_id, chunk)
         elif isinstance(chunk, ImageBlob):
             self._update_trace_node(
-                self._id, self._parent_id, ImageInput(value=chunk.image.tobytes())
+                self._id,
+                self._parent_id,
+                ImageInput(value=b64encode(chunk.image.tobytes()).decode("utf-8")),
             )
         elif isinstance(chunk, RoleStart):
             self._update_trace_node(self._id, self._parent_id, RoleOpenerInput(name=chunk.role))
@@ -124,9 +127,6 @@ class Model(Generic[S], ABC):
                 self = self.copy()
             self._active_role = active_role
         return self
-
-    def __str__(self) -> str:
-        return self.client.format_state(self._state)
 
     def copy(self) -> Self:
         obj = object.__new__(self.__class__)
