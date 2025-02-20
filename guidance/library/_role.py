@@ -1,5 +1,5 @@
 from contextlib import AbstractContextManager
-from ..models.base import role
+from ..models._base import role
 
 
 def system() -> AbstractContextManager[None]:

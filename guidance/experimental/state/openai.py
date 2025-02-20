@@ -3,7 +3,7 @@ from io import BytesIO
 from typing import Optional, TypedDict, Union
 
 from ..ast import ImageBlob
-from ...models.base import ChatState
+from ...models._base import BaseChatState
 
 
 class OpenAIContentMessage(TypedDict):
@@ -19,7 +19,7 @@ class OpenAIAudioMessage(TypedDict):
 OpenAIMessage = Union[OpenAIContentMessage, OpenAIAudioMessage]
 
 
-class OpenAIState(ChatState[OpenAIMessage]):
+class OpenAIState(BaseChatState[OpenAIMessage]):
     def __init__(self) -> None:
         super().__init__()
         self.content: list[dict] = []

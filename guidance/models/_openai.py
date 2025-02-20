@@ -5,7 +5,7 @@ from typing import Iterable, Optional, TypedDict, Union
 from .._grammar import Gen, Join
 from ..experimental.ast import ContentChunk, ImageBlob, Node
 from ..trace import LiteralInput, TextOutput
-from .base import ChatState, CompletionState, Model
+from ._base import BaseChatState, BaseCompletionState, Model
 
 
 class OpenAIContentMessage(TypedDict):
@@ -21,22 +21,14 @@ class OpenAIAudioMessage(TypedDict):
 OpenAIMessage = Union[OpenAIContentMessage, OpenAIAudioMessage]
 
 
-class OpenAIState(ChatState[OpenAIMessage]):
+class OpenAIState(BaseChatState):
     def __init__(self) -> None:
         super().__init__()
         self.content: list[dict] = []
         self.audio: Optional[dict] = None
 
     @classmethod
-    def from_openai_model(cls, model: str) -> Union["OpenAIState", CompletionState]:
-        if model in {
-            "gpt-35-turbo-instruct",
-            "gpt-3.5-turbo-instruct",
-            "babbage-002",
-            "davinci-002",
-        }:
-            return CompletionState()
-
+    def from_openai_model(cls, model: str) -> "OpenAIState":
         if "audio-preview" in model:
             return OpenAIAudioState()
         if model.startswith("gpt-4o") or model.startswith("o1"):
@@ -53,10 +45,7 @@ class OpenAIState(ChatState[OpenAIMessage]):
                 raise ValueError("Expected either content or audio in OpenAI message, not both")
             return OpenAIAudioMessage({"role": self.active_role.role, "audio": self.audio})
 
-        if self.content:
-            return OpenAIContentMessage({"role": self.active_role.role, "content": self.content})
-
-        return None
+        return OpenAIContentMessage({"role": self.active_role.role, "content": self.content})
 
     def reset_active_message(self) -> None:
         super().reset_active_message()
@@ -88,7 +77,7 @@ class OpenAIAudioState(OpenAIState):
         raise NotImplementedError("OpenAI audio not yet implemented")
 
 
-class OpenAI(Model[Union[CompletionState, OpenAIState]]):
+class OpenAI(Model):
     def __init__(
         self,
         model: str,
@@ -122,11 +111,11 @@ class OpenAI(Model[Union[CompletionState, OpenAIState]]):
         self.model = model
         super().__init__(echo=echo)
 
-    def initial_state(self) -> Union[CompletionState, OpenAIState]:
+    def initial_state(self) -> OpenAIState:
         return OpenAIState.from_openai_model(self.model)
 
     def run(
-        self, state: Union[CompletionState, OpenAIState], node: Node
+        self, state: OpenAIState, node: Node
     ) -> Iterable[ContentChunk]:
         def inner(node):
             if isinstance(node, Join):
@@ -152,30 +141,20 @@ class OpenAI(Model[Union[CompletionState, OpenAIState]]):
                 if node.save_stop_text:
                     raise ValueError("Save stop text not supported for OpenAI")
 
-                if isinstance(state, CompletionState):
-                    prompt = state.get_state()["prompt"]
-                    responses = self.client.completions.create(
-                        model=self.model,
-                        prompt=prompt,
-                        max_tokens=node.max_tokens,
-                        temperature=node.temperature,
-                        stream=True,
-                    )
-                else:
-                    oai_state = state.get_state()
-                    if oai_state["prefill"] is not None:
-                        raise ValueError("Prefill not supported for OpenAI")
-                    if oai_state["active_role"] != "assistant":
-                        raise ValueError("Active role must be assistant for OpenAI")
-                    messages = oai_state["messages"]
-                    responses = self.client.chat.completions.create(
-                        model=self.model,
-                        messages=messages,  # type: ignore[arg-type]
-                        max_tokens=node.max_tokens,
-                        temperature=node.temperature,
-                        logprobs=True,
-                        stream=True,
-                    )
+                prompt = state.get_prompt()
+                *messages, active_message = prompt["messages"]
+                if active_message["role"] != "assistant":
+                    raise ValueError("Active role must be assistant for OpenAI")
+                if active_message.get("content") or active_message.get("audio"):
+                    raise ValueError("Prefill not supported for OpenAI")
+                responses = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,  # type: ignore[arg-type]
+                    max_tokens=node.max_tokens,
+                    temperature=node.temperature,
+                    logprobs=True,
+                    stream=True,
+                )
                 for response in responses:
                     choice = response.choices[0]
                     delta = choice.delta

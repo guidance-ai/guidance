@@ -1,75 +1,21 @@
-import re
-from typing import Any, Optional, Sequence, TypedDict
-
+from guidance.models._engine._state import EngineChatState, EngineCompletionState
 from ...experimental.ast import ImageBlob
-from ..base import ChatState
+from typing import Any
 
 
-class TransformersMessage(TypedDict):
-    role: str
+# Mixins that should work for both EngineChatState and EngineCompletionState
+class _Llama3:
+    images: list[Any]
     content: str
 
-
-class TransformersChatObj(TypedDict):
-    messages: Sequence[TransformersMessage]
-    prefill: Optional[TransformersMessage]
-    active_role: Optional[str]
-    images: list[Any]
-    audio: list[Any]
-    videos: list[Any]
-
-
-class TransformersChatState(ChatState[TransformersMessage]):
-    def __init__(self) -> None:
-        super().__init__()
-        self.active_message_content: str = ""
-        self.images: list[Any] = []
-        self.audio: list[Any] = []
-        self.videos: list[Any] = []
-
-    @classmethod
-    def from_model_id(cls, model_id: str) -> "TransformersChatState":
-        if "Phi-3-vision" in model_id:
-            return Phi3VisionState()
-        if re.search("Llama-3.*-Vision", model_id):
-            return Llama3TransformersState()
-        # Fallback
-        return TransformersChatState()
-
-    def get_active_message(self) -> Optional[TransformersMessage]:
-        if self.active_role is None:
-            return None
-
-        return TransformersMessage(
-            {"role": self.active_role.role, "content": self.active_message_content}
-        )
-
-    def get_state(self) -> TransformersChatObj:
-        return {
-            "messages": self.messages,
-            "prefill": self.get_active_message(),
-            "active_role": self.get_active_role(),
-            "images": self.images,
-            "audio": self.audio,
-            "videos": self.videos,
-        }
-
-    def reset_active_message(self) -> None:
-        super().reset_active_message()
-        # Don't delete images, audio, or videos, as they are not part of the message
-        self.active_message_content = ""
-
-    def apply_text(self, text: str) -> None:
-        self.active_message_content += text
-
-
-class Llama3TransformersState(TransformersChatState):
     def apply_image(self, image: ImageBlob) -> None:
         self.images.append(image.image)
-        self.active_message_content += "<|image|>"
+        self.content += "<|image|>"
 
+class _Phi3:
+    images: list[Any]
+    content: str
 
-class Phi3VisionState(TransformersChatState):
     def apply_image(self, image: ImageBlob) -> None:
         pil_image = image.image
         if pil_image in self.images:
@@ -77,4 +23,16 @@ class Phi3VisionState(TransformersChatState):
         else:
             self.images.append(pil_image)
             ix = len(self.images)
-        self.active_message_content += f"<|image_{ix}|>"
+        self.content += f"<|image_{ix}|>"
+
+class Llama3ChatState(EngineChatState, _Llama3):
+    pass
+
+class Llama3CompletionState(EngineCompletionState, _Llama3):
+    pass
+
+class Phi3VisionChatState(EngineChatState, _Phi3):
+    pass
+
+class Phi3VisionCompletionState(EngineCompletionState, _Phi3):
+    pass

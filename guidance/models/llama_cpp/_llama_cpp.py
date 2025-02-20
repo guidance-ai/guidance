@@ -5,18 +5,16 @@ import os
 import sys
 from itertools import takewhile
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Optional, Any, Sequence
 
 import numpy as np
+
+from .._engine import ModelWithEngine, Engine, Tokenizer, EngineMessage
 
 from ..._schema import GenToken, GenTokenExtra
 from ..._utils import normalize_notebook_stdout_stderr, softmax
 from .._remote import RemoteEngine
-from ..base import Engine, ModelWithEngine, Tokenizer
-from ..transformers._state import (  # TODO: put these up in base
-    TransformersChatState,
-    TransformersMessage,
-)
+
 
 try:
     import llama_cpp
@@ -348,8 +346,18 @@ class LlamaCppEngine(Engine):
         val = np.take_along_axis(probs, ind_part, axis=axis)
         return ind, val
 
+    def apply_chat_template(
+        self,
+        messages: Sequence[EngineMessage],
+        tools: Optional[list[Any]],
+    ) -> str:
+        return apply_chat_template(
+            messages,
+            tools=tools,
+            chat_formatter=get_chat_formatter(self.model_obj),
+        )
 
-class LlamaCpp(ModelWithEngine[TransformersChatState]):
+class LlamaCpp(ModelWithEngine):
     def __init__(
         self,
         model=None,
@@ -376,26 +384,8 @@ class LlamaCpp(ModelWithEngine[TransformersChatState]):
                 enable_monitoring=enable_monitoring,
                 **llama_cpp_kwargs,
             )
-        self.chat_formatter = get_chat_formatter(engine.model_obj)
         super().__init__(engine, echo=echo)
 
-    def initial_state(self) -> TransformersChatState:
-        return TransformersChatState.from_model_id(self.engine.model)
-
-    def build_prompt(self, state: TransformersChatState) -> str:
-        state_dict = state.get_state()
-        prefill = state_dict["prefill"]
-        if prefill is None:
-            role = state_dict["active_role"]
-            if role is None:
-                raise ValueError("Can't generate with no active role")
-            prefill = {"role": "user", "content": ""}
-        return apply_chat_template(
-            messages=list(state_dict["messages"]),
-            prefill=prefill,
-            tools=None,  # TODO?
-            chat_formatter=self.chat_formatter,
-        )
 
 
 def get_chat_formatter(model_obj: "Llama") -> "Jinja2ChatFormatter":
@@ -416,25 +406,25 @@ def get_chat_formatter(model_obj: "Llama") -> "Jinja2ChatFormatter":
 
 
 def apply_chat_template(
-    messages: list[TransformersMessage],
-    prefill: Optional[TransformersMessage],
+    messages: list[EngineMessage],
     tools: Optional[list[Any]],
     chat_formatter: "Jinja2ChatFormatter",
 ) -> str:
-    if prefill is None:
-        sentinel_value = None
+
+    # This is a hack to get around the fact that apply_chat_template won't properly continue the final message
+    # if it is empty. We add a sentinel value to the final message, and then remove it after the fact.
     sentinel_value = "<|FINAL_MESSAGE_SENTINEL_VALUE|>"
-    messages = messages + [dict(role=prefill["role"], content=prefill["content"] + sentinel_value)]
+    *head, active_message = messages
+    active_message = {"role": active_message["role"], "content": active_message["content"] + sentinel_value}
     formatter_resp = chat_formatter(
-        messages=messages,
-        # TODO
-        # functions=None,
-        # function_call=None,
-        # tools=None,
-        # tool_choice=None,
-    )
+            messages=(head + [active_message]),
+            # TODO
+            # functions=None,
+            # function_call=None,
+            # tools=None,
+            # tool_choice=None,
+        )
     # TODO: prompt.stopping_criteria?
     prompt = formatter_resp.prompt
-    if sentinel_value is not None:
-        prompt = prompt[: prompt.rindex(sentinel_value)]
+    prompt = prompt[: prompt.rindex(sentinel_value)]
     return prompt

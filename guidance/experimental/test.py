@@ -4,7 +4,7 @@ from .ast import ContentChunk, Node, TextOutput
 from .client import Client, TransformersClient
 from .model import Model
 from .state import (
-    CompletionState,
+    BaseCompletionState,
     Llama3TransformersState,
     OpenAIState,
     State,
@@ -50,7 +50,7 @@ def chat():
 
 def completion():
     for s in [
-        CompletionState,
+        BaseCompletionState,
     ]:
         model = Model(DummyClient(s))
         model += "<|system|>\nTalk like a pirate!\n<|end_of_turn|>\n"

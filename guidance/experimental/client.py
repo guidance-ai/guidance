@@ -8,11 +8,11 @@ from typing_extensions import assert_never
 
 from guidance._grammar import Function, Gen, Join
 from guidance.models import Transformers
-from guidance.models.base import Engine
+from guidance.models._base import Engine
 from guidance.trace._trace import LiteralInput
 
 from .ast import CaptureOutput, ContentChunk, ImageBlob, Node, TextOutput
-from .state import BaseTransformersChatState, ChatState, CompletionState, State
+from .state import BaseTransformersChatState, BaseChatState, BaseCompletionState, State
 from .state.openai import OpenAIState
 
 S = TypeVar("S", bound=State)
@@ -180,17 +180,17 @@ class GuidanceClient(Client[S], ABC):
             raise NotImplementedError(f"Unknown node: {node}")
 
 
-class TransformersClient(GuidanceClient[Union[CompletionState, BaseTransformersChatState]]):
+class TransformersClient(GuidanceClient[Union[BaseCompletionState, BaseTransformersChatState]]):
     def __init__(self, model_id: str = "microsoft/Phi-3-mini-4k-instruct", **model_kwargs):
         self.model_id = model_id
         guidance_model = Transformers(model_id, **model_kwargs)
         super().__init__(guidance_model.engine)
 
-    def initial_state(self) -> Union[CompletionState, BaseTransformersChatState]:
+    def initial_state(self) -> Union[BaseCompletionState, BaseTransformersChatState]:
         return BaseTransformersChatState.from_model_id(self.model_id)
 
-    def build_prompt(self, state: Union[CompletionState, BaseTransformersChatState]) -> str:
-        if isinstance(state, ChatState):
+    def build_prompt(self, state: Union[BaseCompletionState, BaseTransformersChatState]) -> str:
+        if isinstance(state, BaseChatState):
             chat_state = state.get_state()
             prefill = chat_state["prefill"]
             if prefill is None:
@@ -205,7 +205,7 @@ class TransformersClient(GuidanceClient[Union[CompletionState, BaseTransformersC
                 None,
                 self.engine.tokenizer._orig_tokenizer,  # type: ignore[attr-defined]
             )
-        elif isinstance(state, CompletionState):
+        elif isinstance(state, BaseCompletionState):
             completion_state = state.get_state()
             prompt = completion_state["prompt"]
         else:

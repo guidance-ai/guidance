@@ -10,7 +10,7 @@ from numpy.typing import NDArray
 from ._grammar import GrammarFunction, Join, Terminal
 from ._schema import EngineOutput, GenData, EngineCallResponse, GenToken, LLInterpreterResponse
 from .models._byte_tokenizer import ByteTokenizer
-from .models.base import Tokenizer
+from .models._engine import Tokenizer
 
 class TokenParserException(Exception):
     pass

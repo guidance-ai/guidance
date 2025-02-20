@@ -8,7 +8,7 @@ from .._schema import EngineOutput, GenToken, GenTokenExtra
 from ..visual._renderer import DoNothingRenderer
 from ..trace import TraceHandler
 
-from .base import Model, Engine, Tokenizer
+from ._engine import Model, Engine, Tokenizer
 from ._remote import RemoteEngine
 
 

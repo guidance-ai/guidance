@@ -2,7 +2,7 @@ import re
 from typing import Any, Optional, Sequence, TypedDict
 
 from ..ast import ImageBlob
-from ...models.base import ChatState
+from ...models._base import BaseChatState
 
 
 class TransformersMessage(TypedDict):
@@ -19,7 +19,7 @@ class TransformersChatObj(TypedDict):
     videos: list[Any]
 
 
-class BaseTransformersChatState(ChatState[TransformersMessage]):
+class BaseTransformersChatState(BaseChatState[TransformersMessage]):
     def __init__(self) -> None:
         super().__init__()
         self.content: str = ""

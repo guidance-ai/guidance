@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Generic, Iterator, Optional, TypeVar, Uni
 
 from typing_extensions import Self, assert_never
 
-from ..._grammar import Function, Null, RawFunction, _call_pool, _tag_pattern
+from ..._grammar import Null, RawFunction, _call_pool, _tag_pattern
 from ..._singleton import get_renderer, get_trace_handler
 from ...experimental.ast import ImageBlob, MessageChunk, Node, RoleEnd, RoleStart
 from ...trace import (
@@ -21,9 +21,8 @@ from ...trace import (
     TraceNode,
 )
 from ...visual import TraceMessage
-from ._engine import Engine
 from ._role import _active_role
-from ._state import CompletionState, ChatState
+from ._state import BaseChatState, BaseCompletionState
 
 _id_counter: int = 0
 
@@ -36,7 +35,7 @@ def _gen_id():
     return _id
 
 
-S = TypeVar("S", bound=Union[CompletionState, ChatState])
+S = TypeVar("S", bound=Union[BaseCompletionState, BaseChatState])
 D = TypeVar("D", bound=Any)
 
 
@@ -223,83 +222,6 @@ class Model(Generic[S], ABC):
             return [c["log_prob"] for c in captures]
         else:
             return captures["log_prob"]
-
-
-class ModelWithEngine(Model[S], ABC):
-    def __init__(self, engine: Engine, echo: bool = True):
-        self.engine = engine
-        super().__init__(echo=echo)
-
-    @abstractmethod
-    def build_prompt(self, state: S) -> str:
-        # TODO: use a common state serialization interface and push this method down into the engine?
-        pass
-
-    def run(self, state: S, node: Node) -> Iterator[MessageChunk]:
-        if isinstance(node, str):
-            yield LiteralInput(value=node)
-
-        elif isinstance(node, ImageBlob):
-            yield node
-
-        elif isinstance(node, Function):
-            prompt = self.build_prompt(state)
-            engine_gen = self.engine(
-                prompt,
-                node,
-                ensure_bos_token=False,
-                echo=False,
-            )
-
-            delayed_bytes = b""
-            for chunk in engine_gen:
-                generated_bytes = delayed_bytes + chunk.generated_bytes
-                generated_text, delayed_bytes = partial_decode(generated_bytes)
-                ff_bytes = delayed_bytes + chunk.force_forwarded_bytes
-                ff_text, delayed_bytes = partial_decode(ff_bytes)
-
-                if generated_bytes:
-                    yield TextOutput(
-                        value=generated_text,
-                        is_generated=True,
-                        prob=chunk.new_bytes_prob,
-                        token_count=len(chunk.generated_tokens),
-                        tokens=chunk.generated_tokens,
-                    )
-                if ff_bytes:
-                    yield TextOutput(
-                        value=ff_text,
-                        is_generated=False,
-                        prob=chunk.new_bytes_prob,
-                        token_count=len(chunk.force_forwarded_tokens),
-                        tokens=chunk.force_forwarded_tokens,
-                    )
-
-                for name in chunk.capture_groups.keys():
-                    values = chunk.capture_groups[name]
-                    log_probs = chunk.capture_group_log_probs[name]
-                    if isinstance(values, list):
-                        assert isinstance(log_probs, list) and len(log_probs) == len(values)
-                        list_append = True
-                    else:
-                        values = [values]
-                        log_probs = [log_probs]
-                        list_append = False
-
-                    for value, log_prob in zip(values, log_probs):
-                        yield CaptureOutput(
-                            name=name,
-                            value=value,
-                            is_append=list_append,
-                            # TODO: let this be Optional?
-                            log_probs=log_prob,
-                        )
-
-            if delayed_bytes:
-                raise RuntimeError("Shouldn't have any delayed bytes left...")
-
-        else:
-            raise NotImplementedError(f"Unknown node: {node}")
 
 
 def extract_embedded_nodes(value: str) -> Node:

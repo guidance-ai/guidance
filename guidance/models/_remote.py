@@ -4,7 +4,7 @@ import json
 
 from ..chat import ChatMLTemplate
 from .._schema import EngineCallResponse
-from .base import Engine, Tokenizer
+from ._engine import Engine, Tokenizer
 from ._grammarless import GrammarlessTokenizer
 
 class RemoteEngine(Engine):

@@ -3,7 +3,7 @@ import os
 from typing import TYPE_CHECKING, Iterator
 
 from .models import Model
-from .models.base import Engine
+from .models._engine import Engine
 from ._schema import EngineCallResponse
 
 try:

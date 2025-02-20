@@ -3,10 +3,11 @@
 import logging
 import time
 import weakref
+from abc import ABC, abstractmethod
 from asyncio import CancelledError
 from enum import Enum
 from multiprocessing import Manager, Process
-from typing import Any, Callable, Iterator, Optional, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable, Iterator, Optional, Sequence, Union
 
 import numpy as np
 import psutil
@@ -34,10 +35,11 @@ from ...visual import (
     TokensMessage,
 )
 from ...visual._async import async_task, run_async_coroutine
+from ._state import EngineCompletionPrompt, EngineMessage, EnginePrompt
 from ._tokenizer import Tokenizer
 
 if TYPE_CHECKING:
-    from ._model import Model
+    from .._base._model import Model
 
 logger = logging.getLogger(__name__)
 
@@ -256,7 +258,7 @@ def _msg_recv(engine_weakref: weakref.ReferenceType, message: GuidanceMessage) -
             pass
 
 
-class Engine:
+class Engine(ABC):
     """The engine owns the inference computation and is used/created by the Model class.
 
     Engine objects represent the expensive parts of inference. While Model objects are cheap and do not
@@ -341,40 +343,33 @@ class Engine:
     def reset_metrics(self):
         self.metrics = GuidanceEngineMetrics()
 
-    def start(self, prompt, grammar, ensure_bos_token=True) -> TokenParser:
-        # def __call__(self, grammar, max_tokens=1000000, n=1, top_p=1, temperature=0.0, ensure_bos_token=True):
-        # assert n == 1, "Still need to add support for n > 1!"
-
-        # TODO: re-enable this? llguidance currently doesn't support model variables
-        # note we only support a fixed set of engine variables for the sake of security
-        # self._replacements = replace_model_variables(
-        #     grammar, self, allowed_vars=["eos_token", "bos_token"]
-        # )
-
-        # right now we only support a text/bytes prompt parser state, so we extract that
-        if isinstance(prompt, bytes):
-            prompt = prompt
-        elif isinstance(prompt, str):
-            prompt = bytes(prompt, encoding="utf8")
-        elif isinstance(prompt, TokenParser):
-            raise NotImplementedError(
-                "Still need to implement support for extending a full Parser trace."
+    def process_prompt(self, prompt: EnginePrompt) -> EngineCompletionPrompt:
+        prompt_inner = prompt["prompt"]
+        if not isinstance(prompt_inner, str):
+            messages = prompt_inner
+            prompt_inner = self.apply_chat_template(
+                messages,
+                tools=None,  # TODO
             )
-        else:
-            raise Exception("The passed prompt is of an unknown type!")
+        return {
+            "prompt": prompt_inner,
+            "images": prompt["images"],
+            "audio": prompt["audio"],
+            "videos": prompt["videos"],
+        }
 
-        return TokenParser(
-            grammar=grammar,
-            tokenizer=self.tokenizer,
-            prompt=prompt,
-            ensure_bos_token=ensure_bos_token,
-            enable_backtrack=self.enable_backtrack,
-            enable_ff_tokens=self.enable_ff_tokens,
-        )
+    @abstractmethod
+    def apply_chat_template(
+        self,
+        messages: Sequence[EngineMessage],
+        tools: Optional[list[Any]],
+    ) -> str:
+        # TODO: move onto the tokenizer
+        pass
 
     def __call__(
         self,
-        prompt: Union[str, TokenParser],
+        prompt: EnginePrompt,
         grammar: Function,
         ensure_bos_token: bool = True,
         echo: bool = True,
@@ -395,7 +390,15 @@ class Engine:
         ensure_bos_token: bool
             Ensures that the prompt ends with the BOS token.
         """
-        parser = self.start(prompt, grammar, ensure_bos_token)
+        prompt = self.process_prompt(prompt)
+        parser = TokenParser(
+            grammar,
+            tokenizer=self.tokenizer,
+            prompt=prompt["prompt"].encode("utf-8"),
+            ensure_bos_token=ensure_bos_token,
+            enable_backtrack=self.enable_backtrack,
+            enable_ff_tokens=self.enable_ff_tokens,
+        )
 
         has_get_logits = True
         engine_output = None
@@ -405,6 +408,7 @@ class Engine:
         while not parser.done():
             t0 = time.time()
 
+            # TODO TODO TODO TODO
             tokens, mask_fut, backtrack = parser.advance(engine_output)
 
             # Note that has_pending_stop implies that the response is a stop response,

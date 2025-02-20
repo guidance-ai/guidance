@@ -1,4 +1,4 @@
-from .base import Model
+from ._base import Model
 # from ._engine import Instruct, Chat
 
 # local models

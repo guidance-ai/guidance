@@ -1,14 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import (
-    TYPE_CHECKING,
-    Generic,
-    MutableSequence,
-    Optional,
-    Sequence,
-    TypedDict,
-    TypeVar,
-    Union,
-)
+from typing import TYPE_CHECKING, Any, Optional, Sequence, TypedDict, Union
 
 from typing_extensions import Self, assert_never
 
@@ -29,11 +20,7 @@ class CaptureVar(TypedDict):
     log_prob: Optional[float]
 
 
-# Return type of BaseState.get_state
-R = TypeVar("R", covariant=True)
-
-
-class BaseState(Generic[R], ABC):
+class BaseState(ABC):
     def __init__(self) -> None:
         self.chunks: list[MessageChunk] = []
         self.captures: dict[str, Union[CaptureVar, list[CaptureVar]]] = {}
@@ -81,7 +68,7 @@ class BaseState(Generic[R], ABC):
             raise NotImplementedError(f"Chunk type {type(chunk)} not supported")
 
     @abstractmethod
-    def get_state(self) -> R:
+    def get_prompt(self) -> Any:
         pass
 
     @abstractmethod
@@ -102,14 +89,14 @@ class BaseState(Generic[R], ABC):
         raise TypeError(f"Image blobs not supported by {self.__class__.__name__}")
 
 
-class BaseCompletionStateObj(TypedDict):
+class CompletionPrompt(TypedDict):
     prompt: str
 
 
-class CompletionState(BaseState[BaseCompletionStateObj]):
+class BaseCompletionState(BaseState):
     def __init__(self) -> None:
         super().__init__()
-        self.prompt = ""
+        self.content = ""
 
     def apply_role_start(self, role_start: RoleStart) -> None:
         raise TypeError("Role blocks not supported for completion models")
@@ -118,31 +105,28 @@ class CompletionState(BaseState[BaseCompletionStateObj]):
         raise TypeError("Role blocks not supported for completion models")
 
     def apply_text(self, text: str) -> None:
-        self.prompt += text
+        self.content += text
 
-    def get_state(self) -> BaseCompletionStateObj:
-        return {"prompt": self.prompt}
+    def get_prompt(self) -> CompletionPrompt:
+        return {"prompt": self.content}
 
 
-class BaseChatMessage(TypedDict):
+class Message(TypedDict):
     role: str
+    content: Any
 
 
-# Message type of BaseChatState
-M = TypeVar("M", bound=BaseChatMessage, covariant=True)
+class ChatPrompt(TypedDict):
+    messages: Sequence[Message]
 
 
-class BaseChatStateObj(TypedDict, Generic[M]):
-    messages: Sequence[M]
-    prefill: Optional[M]
-    active_role: Optional[str]
+class BaseChatState(BaseState):
+    content: Any
 
-
-class ChatState(Generic[M], BaseState[BaseChatStateObj[M]], ABC):
     def __init__(self) -> None:
         super().__init__()
         self.active_role: Optional[RoleStart] = None
-        self.messages: MutableSequence[M] = []
+        self.messages: Sequence[Message] = ()
 
     def apply_role_start(self, role_start: RoleStart) -> None:
         if self.active_role is not None:
@@ -158,7 +142,7 @@ class ChatState(Generic[M], BaseState[BaseChatStateObj[M]], ABC):
             raise ValueError("RoleEnd does not match active role")
         active_message = self.get_active_message()
         if active_message is not None:
-            self.messages.append(active_message)
+            self.messages = (*self.messages, active_message)
         self.reset_active_message()
 
     def apply_content_chunk(self, chunk: ContentChunk) -> None:
@@ -171,21 +155,8 @@ class ChatState(Generic[M], BaseState[BaseChatStateObj[M]], ABC):
     def reset_active_message(self) -> None:
         self.active_role = None
 
-    def get_state(self) -> BaseChatStateObj[M]:
-        return {
-            "messages": self.messages,
-            "prefill": self.get_active_message(),
-            "active_role": self.get_active_role(),
-        }
+    def get_prompt(self) -> ChatPrompt:
+        return {"messages": (*self.messages, self.get_active_message())}
 
-    def get_active_role(self) -> Optional[str]:
-        if self.active_role is None:
-            return None
-        return self.active_role.role
-
-    @abstractmethod
-    def get_active_message(self) -> Optional[M]:
-        pass
-
-
-State = Union[CompletionState, ChatState]
+    def get_active_message(self) -> Optional[Message]:
+        return {"role": self.active_role.role, "content": self.content}

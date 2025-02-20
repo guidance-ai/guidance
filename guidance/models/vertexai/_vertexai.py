@@ -1,5 +1,5 @@
 import re
-from ..base._engine import Chat, Instruct
+from .._engine._engine import Chat, Instruct
 from .._grammarless import GrammarlessEngine, Grammarless
 
 try:

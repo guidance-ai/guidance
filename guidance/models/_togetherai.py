@@ -1,5 +1,5 @@
 import os
-from .base._engine import Chat, Instruct
+from ._engine._engine import Chat, Instruct
 from ._openai import (
     OpenAI,
     OpenAIEngine,

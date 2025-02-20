@@ -9,10 +9,10 @@ from typing import Optional, Sequence
 import numpy as np
 import tiktoken
 
-from .base._model import Model
+from ._base import Model
 
 from ..chat import ChatMLTemplate
-from .base._engine import ConstraintException, Engine, Tokenizer
+from ._engine._engine import ConstraintException, Engine, Tokenizer
 
 logger = logging.getLogger(__name__)
 

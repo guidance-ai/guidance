@@ -6,7 +6,7 @@ import diskcache as dc
 import platformdirs
 import requests
 
-from .base._engine import Chat
+from ._engine._engine import Chat
 from ._grammarless import GrammarlessEngine, Grammarless
 
 
