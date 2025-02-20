@@ -1,6 +1,6 @@
 // Interfaces used within the client. This is separate to messaging interfaces.
 
-import type {GenToken} from "./stitch";
+import type {GenToken, RoleOpenerInput} from "./stitch";
 
 export interface MetricDef {
     name: string,
@@ -24,3 +24,20 @@ export interface Token {
     top_k?: Array<GenToken>
 }
 export declare type TokenCallback = (token: Token) => string;
+
+export interface MediaNodeContext {
+    roleStack: RoleOpenerInput[];
+    index: number;
+}
+
+export type MediaType = "audio" | "video" | "image";
+
+export interface MediaNode {
+    type: MediaType;
+    value: any;
+    context: MediaNodeContext;
+}
+
+export type MultimodalNode = 
+  | { type: 'token', data: Token }
+  | { type: 'media', data: MediaNode };
