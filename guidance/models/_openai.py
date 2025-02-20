@@ -128,71 +128,75 @@ class OpenAI(Model[Union[CompletionState, OpenAIState]]):
     def run(
         self, state: Union[CompletionState, OpenAIState], node: Node
     ) -> Iterable[ContentChunk]:
-        if isinstance(node, str):
-            yield LiteralInput(value=node)
-            return
+        def inner(node):
+            if isinstance(node, Join):
+                for inner_node in node.values:
+                    yield from inner(inner_node)
+                return
 
-        elif isinstance(node, ImageBlob):
-            yield node
-            return
+            if isinstance(node, str):
+                yield LiteralInput(value=node)
+                return
 
-        if isinstance(node, Join) and len(node.values) == 1:
-            # TODO: just a hack for the moment
-            node = node.values[0]
+            elif isinstance(node, ImageBlob):
+                yield node
+                return
 
-        if isinstance(node, Gen):
-            if node.capture_name:
-                raise NotImplementedError("Captures not yet supported for OpenAI")
-            if node.body_regex != "(?s:.*)":
-                raise ValueError("Body regex not supported for OpenAI")
-            if node.stop_regex:
-                raise ValueError("Stop regex not supported for OpenAI")
-            if node.save_stop_text:
-                raise ValueError("Save stop text not supported for OpenAI")
+            if isinstance(node, Gen):
+                if node.capture_name:
+                    raise NotImplementedError("Captures not yet supported for OpenAI")
+                if node.body_regex != "(?s:.*)":
+                    raise ValueError("Body regex not supported for OpenAI")
+                if node.stop_regex:
+                    raise ValueError("Stop regex not supported for OpenAI")
+                if node.save_stop_text:
+                    raise ValueError("Save stop text not supported for OpenAI")
 
-            if isinstance(state, CompletionState):
-                prompt = state.get_state()["prompt"]
-                responses = self.client.completions.create(
-                    model=self.model,
-                    prompt=prompt,
-                    max_tokens=node.max_tokens,
-                    temperature=node.temperature,
-                    stream=True,
-                )
-            else:
-                oai_state = state.get_state()
-                if oai_state["prefill"] is not None:
-                    raise ValueError("Prefill not supported for OpenAI")
-                if oai_state["active_role"] != "assistant":
-                    raise ValueError("Active role must be assistant for OpenAI")
-                messages = oai_state["messages"]
-                responses = self.client.chat.completions.create(
-                    model=self.model,
-                    messages=messages,  # type: ignore[arg-type]
-                    max_tokens=node.max_tokens,
-                    temperature=node.temperature,
-                    logprobs=True,
-                    stream=True,
-                )
-            for response in responses:
-                choice = response.choices[0]
-                delta = choice.delta
-                if delta.content is not None:
-                    content = delta.content
-                    if len(content) == 0:
-                        continue
-                    yield TextOutput(
-                        value=delta.content,
-                        is_generated=True,
-                        # TODO: actually get tokens from this and be less lazy
-                        prob=2.718 ** choice.logprobs.content[0].logprob,  # type: ignore[union-attr,index]
+                if isinstance(state, CompletionState):
+                    prompt = state.get_state()["prompt"]
+                    responses = self.client.completions.create(
+                        model=self.model,
+                        prompt=prompt,
+                        max_tokens=node.max_tokens,
+                        temperature=node.temperature,
+                        stream=True,
                     )
-                    continue
-                if choice.finish_reason is not None:
-                    # TODO: handle finish_reason elegantly
-                    break
-                raise NotImplementedError(f"Unknown delta: {delta}")
-        else:
-            raise ValueError(
-                "OpenAI model currently only supports unconstrained generation with `gen()`"
-            )
+                else:
+                    oai_state = state.get_state()
+                    if oai_state["prefill"] is not None:
+                        raise ValueError("Prefill not supported for OpenAI")
+                    if oai_state["active_role"] != "assistant":
+                        raise ValueError("Active role must be assistant for OpenAI")
+                    messages = oai_state["messages"]
+                    responses = self.client.chat.completions.create(
+                        model=self.model,
+                        messages=messages,  # type: ignore[arg-type]
+                        max_tokens=node.max_tokens,
+                        temperature=node.temperature,
+                        logprobs=True,
+                        stream=True,
+                    )
+                for response in responses:
+                    choice = response.choices[0]
+                    delta = choice.delta
+                    if delta.content is not None:
+                        content = delta.content
+                        if len(content) == 0:
+                            continue
+                        yield TextOutput(
+                            value=delta.content,
+                            is_generated=True,
+                            # TODO: actually get tokens from this and be less lazy
+                            prob=2.718 ** choice.logprobs.content[0].logprob,  # type: ignore[union-attr,index]
+                        )
+                        continue
+                    if choice.finish_reason is not None:
+                        # TODO: handle finish_reason elegantly
+                        break
+                    raise NotImplementedError(f"Unknown delta: {delta}")
+            else:
+                raise ValueError(
+                    "OpenAI model currently only supports unconstrained generation with `gen()`"
+                )
+
+        yield from inner(node)
