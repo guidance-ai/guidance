@@ -5,8 +5,8 @@ import warnings
 from typing import Any, Optional, Sequence, Union
 
 from ..._schema import GenToken, GenTokenExtra
-from .._engine import Engine, Tokenizer
 from .._base import Message
+from .._engine import Engine, Tokenizer
 
 try:
     import torch
@@ -678,9 +678,7 @@ class TransformersEngine(Engine):
         # This is a hack to get around the fact that apply_chat_template won't properly continue the final message
         # if it is empty. We add a sentinel value to the final message, and then remove it after the fact.
         sentinel_value = "<|FINAL_MESSAGE_SENTINEL_VALUE|>"
-        messages = [
-            {"role": m["role"], "content": m["data"].get("content", "")} for m in messages
-        ]
+        messages = [{"role": m["role"], "content": m["data"].get("content", "")} for m in messages]
         active_message = {
             "role": active_message["role"],
             "content": active_message.get("content", "") + sentinel_value,

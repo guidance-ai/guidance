@@ -2,9 +2,9 @@
 
 import re
 from abc import ABC, abstractmethod
+from base64 import b64encode
 from copy import deepcopy
 from typing import TYPE_CHECKING, Any, Generic, Iterator, Optional, TypeVar, Union
-from base64 import b64encode
 
 from typing_extensions import Self, assert_never
 
@@ -97,7 +97,9 @@ class Model(ABC, Generic[S]):
     def _apply_chunk(self, chunk: MessageChunk) -> Self:
         self = self.copy()
         self._state.apply_chunk(chunk)
-        if isinstance(chunk, (LiteralInput, TextOutput, CaptureOutput, RoleOpenerInput, RoleCloserInput)):
+        if isinstance(
+            chunk, (LiteralInput, TextOutput, CaptureOutput, RoleOpenerInput, RoleCloserInput)
+        ):
             self._update_trace_node(self._id, self._parent_id, chunk)
         elif isinstance(chunk, ImageBlob):
             self._update_trace_node(

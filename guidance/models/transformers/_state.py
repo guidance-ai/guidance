@@ -1,11 +1,14 @@
 from guidance.models._engine import EngineState
+
 from ...experimental.ast import ImageBlob
+
 
 class Llama3(EngineState):
     def apply_image(self, image: ImageBlob) -> None:
         self.images.append(image.image)
         text = "<|image|>"
         EngineState.apply_text(self, text)
+
 
 class Phi3(EngineState):
     def apply_image(self, image: ImageBlob) -> None:

@@ -11,8 +11,8 @@ import numpy as np
 
 from ..._schema import GenToken, GenTokenExtra
 from ..._utils import normalize_notebook_stdout_stderr, softmax
-from .._engine import Engine, ModelWithEngine, Tokenizer
 from .._base import Message
+from .._engine import Engine, ModelWithEngine, Tokenizer
 from .._remote import RemoteEngine
 
 try:
@@ -405,6 +405,7 @@ def get_chat_formatter(model_obj: "Llama") -> "Jinja2ChatFormatter":
         raise ValueError("No formatter found for model")
     return formatter
 
+
 def apply_chat_template(
     messages: list[Message],
     active_message: Message,
@@ -412,9 +413,7 @@ def apply_chat_template(
     chat_formatter: "Jinja2ChatFormatter",
 ) -> str:
     sentinel_value = "<|FINAL_MESSAGE_SENTINEL_VALUE|>"
-    messages = [
-        {"role": m["role"], "content": m["data"].get("content", "")} for m in messages
-    ]
+    messages = [{"role": m["role"], "content": m["data"].get("content", "")} for m in messages]
     active_message = {
         "role": active_message["role"],
         "content": active_message.get("content", "") + sentinel_value,

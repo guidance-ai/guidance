@@ -1,8 +1,14 @@
 from typing import Iterator
 
 from ..._grammar import Function
-from ...experimental.ast import ImageBlob, MessageChunk, Node, RoleStart, RoleEnd
-from ...trace import CaptureOutput, LiteralInput, TextOutput, RoleCloserInput, RoleOpenerInput
+from ...experimental.ast import ImageBlob, MessageChunk, Node, RoleEnd, RoleStart
+from ...trace import (
+    CaptureOutput,
+    LiteralInput,
+    RoleCloserInput,
+    RoleOpenerInput,
+    TextOutput,
+)
 from .._base._model import Model, partial_decode
 from ._engine import Engine
 from ._state import EngineState

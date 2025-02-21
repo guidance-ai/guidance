@@ -2,6 +2,7 @@ from typing import Any
 
 from .._base import BaseState
 
+
 class EngineState(BaseState):
     def __init__(self) -> None:
         super().__init__()

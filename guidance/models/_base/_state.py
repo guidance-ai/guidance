@@ -2,26 +2,26 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Optional, Sequence, TypedDict, Union
 
 from typing_extensions import Self, assert_never
+
+from ...experimental.ast import ContentChunk, ImageBlob, MessageChunk
 from ...trace import (
     CaptureOutput,
     LiteralInput,
-    TextOutput,
     RoleCloserInput,
     RoleOpenerInput,
+    TextOutput,
 )
-from ...experimental.ast import (
-    ContentChunk,
-    ImageBlob,
-    MessageChunk,
-)
+
 
 class Message(TypedDict):
     role: Optional[str]
     data: dict[str, Any]
 
+
 class CaptureVar(TypedDict):
     value: str
     log_prob: Optional[float]
+
 
 class BaseState(ABC):
     def __init__(self) -> None:
@@ -93,11 +93,9 @@ class BaseState(ABC):
         if active_role is None:
             raise ValueError("Cannot close role without active role")
         if active_role != role_closer.name:
-            raise ValueError(
-                f"Cannot close role {role_closer.name!r}: {active_role!r} is open."
-            )
+            raise ValueError(f"Cannot close role {role_closer.name!r}: {active_role!r} is open.")
         self.messages = (*self.messages, active_message)
-        self.active_message = {"role": None, "data": {}} 
+        self.active_message = {"role": None, "data": {}}
         self.text += role_closer.text
 
     @abstractmethod
