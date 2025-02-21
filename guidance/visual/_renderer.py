@@ -11,6 +11,7 @@ import weakref
 from typing import Optional, Callable, Tuple, Any
 from asyncio import Queue
 from functools import partial
+import traceback
 
 from . import MetricMessage, TokensMessage
 from ._environment import Environment
@@ -157,8 +158,8 @@ def _on_cell_completion(renderer_weakref: weakref.ReferenceType["Renderer"], inf
             is_err=info.error_in_exec is not None,
         )
         renderer.update(message)
-    except Exception as e:
-        logger.error(repr(e))
+    except Exception as _:
+        logger.error(f"CELL_COMPLETE:{traceback.format_exc()}")
 
 
 async def _handle_recv_messages(renderer_weakref: weakref.ReferenceType["Renderer"], queue_weakref: weakref.ReferenceType["Queue"]) -> None:
@@ -191,8 +192,8 @@ async def _handle_recv_messages(renderer_weakref: weakref.ReferenceType["Rendere
 
             renderer.notify(message)
             renderer._recv_queue.task_done()
-        except Exception as e:
-            logger.error(f"RECV:err:{repr(e)}")
+        except Exception as _:
+            logger.error(f"RECV:err:{traceback.format_exc()}")
 
 
 async def _handle_send_messages(renderer_weakref: weakref.ReferenceType["Renderer"], queue_weakref: weakref.ReferenceType["Queue"]) -> None:
@@ -228,8 +229,8 @@ async def _handle_send_messages(renderer_weakref: weakref.ReferenceType["Rendere
             else:
                 logger.debug(f"SEND:jupyter:send but no widget")
             renderer._send_queue.task_done()
-        except Exception as e:
-            logger.error(f"SEND:err:{repr(e)}")
+        except Exception as _:
+            logger.error(f"SEND:err:{traceback.format_exc()}")
 
 
 class JupyterWidgetRenderer(Renderer):
@@ -359,6 +360,7 @@ class JupyterWidgetRenderer(Renderer):
         # Check if message has diverged from prev messages
         diverged, shared_ancestor_idx = self.has_divergence(message)
         if diverged:
+            logger.debug("RENDERER:diverged")
             out_messages.append(ResetDisplayMessage())
             out_messages[len(out_messages):] = self._messages[:shared_ancestor_idx]
             self._messages.clear()
@@ -388,8 +390,8 @@ class JupyterWidgetRenderer(Renderer):
 
         # Send outgoing messages to client
         for out_message in out_messages:
-            # logger.debug(f"RENDERER:out:{out_message}")
             if isinstance(out_message, TraceMessage):
+                logger.debug(f"RENDERER:out:{out_message}")
                 self._last_trace_id = out_message.trace_id
 
             self._messages.append(out_message)

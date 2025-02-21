@@ -30,6 +30,7 @@ class ModelWithEngine(Model[EngineState]):
             yield RoleOpenerInput(
                 name=node.role,
                 text=chat_template.get_role_start(node.role),
+                closer_text=chat_template.get_role_end(node.role),
             )
 
         elif isinstance(node, RoleEnd):

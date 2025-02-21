@@ -209,19 +209,13 @@ def _msg_recv(engine_weakref: weakref.ReferenceType, message: GuidanceMessage) -
     logger.debug(f"ENGINE:msg_recv:{message}")
     if isinstance(message, ExecutionStartedMessage):
         # TODO(nopdive): Start execution logic here.
-        logger.debug(f"ENGINE:msg_recv:START STUB")
         if engine.periodic_metrics_generator is not None:
             engine.periodic_metrics_generator.resume()
     elif isinstance(message, ExecutionCompletedMessage) and message.is_err:
         pass
-    elif isinstance(message, (ExecutionCompletedMessage, OutputRequestMessage)):
-        # print("last_state")
-        if isinstance(message, TokensMessage):
-            last_model: "Model" = engine.model_dict[message.last_trace_id]
-            last_trace_id = message.last_trace_id
-        else:
-            last_model = list(engine.model_dict.values())[-1]
-            last_trace_id = last_model._id
+    elif isinstance(message, (ExecutionCompletedMessage, OutputRequestMessage, TokensMessage)):
+        last_model: "Model" = engine.model_dict[message.last_trace_id]
+        last_trace_id = message.last_trace_id
 
         failed = False
         processed_gen_tokens: list[GenTokenExtra] = []  # suppress IDE warnings by definition
