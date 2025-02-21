@@ -344,7 +344,6 @@ class Engine(ABC):
     def reset_metrics(self):
         self.metrics = GuidanceEngineMetrics()
 
-    @abstractmethod
     def apply_chat_template(
         self,
         messages: Sequence[Message],
@@ -352,7 +351,7 @@ class Engine(ABC):
         tools: Optional[list[Any]],
     ) -> str:
         # TODO: move onto the tokenizer
-        pass
+        raise NotImplementedError()
 
     def __call__(
         self,
@@ -382,7 +381,7 @@ class Engine(ABC):
         # audio = state.audio
         # videos = state.videos
         # TODO: should this be configurable?
-        use_apply_chat_template = True
+        use_apply_chat_template = False
         if use_apply_chat_template:
             messages = state.messages
             active_message = state.active_message
@@ -419,7 +418,6 @@ class Engine(ABC):
         while not parser.done():
             t0 = time.time()
 
-            # TODO TODO TODO TODO
             tokens, mask_fut, backtrack = parser.advance(engine_output)
 
             # Note that has_pending_stop implies that the response is a stop response,

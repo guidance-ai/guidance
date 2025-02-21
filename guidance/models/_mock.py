@@ -8,7 +8,7 @@ from .._schema import EngineOutput, GenToken, GenTokenExtra
 from ..visual._renderer import DoNothingRenderer
 from ..trace import TraceHandler
 
-from ._engine import Model, Engine, Tokenizer
+from ._engine import ModelWithEngine, Engine, Tokenizer
 from ._remote import RemoteEngine
 
 
@@ -209,7 +209,7 @@ class MockEngine(Engine):
                 yield i
 
 
-class Mock(Model):
+class Mock(ModelWithEngine):
     def __init__(
         self,
         byte_patterns=[],
