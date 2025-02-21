@@ -500,6 +500,10 @@ class SubgrammarNode(GrammarNode):
     body: GrammarNode
     skip_regex: Optional[str] = None
 
+    @property
+    def is_terminal(self) -> bool:
+        return False
+
     def lark_str(self, top: bool = False) -> str:
         return f"@{self.name}"
 
