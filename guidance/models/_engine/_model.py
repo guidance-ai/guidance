@@ -48,7 +48,7 @@ class ModelWithEngine(Model[EngineState]):
             engine_gen = self.engine(
                 state,
                 node,
-                ensure_bos_token=False,
+                ensure_bos_token=True,
                 echo=False,
             )
 
