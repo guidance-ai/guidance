@@ -393,6 +393,15 @@ class Engine(ABC):
             )
         else:
             prompt = state.text
+
+        # TODO: this is a bit of a hack until role start/end are actually integrated in the grammar as
+        # model variables that resolve to specific tokens
+        if state.active_message["role"] is not None:
+            from guidance import gen, optional
+
+            role_end = self.get_chat_template().get_role_end(state.active_message["role"])
+            grammar += optional(gen(regex="", stop=role_end.strip()))
+
         parser = TokenParser(
             grammar,
             tokenizer=self.tokenizer,
