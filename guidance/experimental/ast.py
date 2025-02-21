@@ -6,23 +6,20 @@ from PIL.ImageFile import ImageFile as PILImageFile
 
 from guidance._grammar import GrammarFunction, RawFunction
 
-from ..trace import CaptureOutput, LiteralInput, TextOutput
+from ..trace import CaptureOutput, LiteralInput, TextOutput, RoleOpenerInput, RoleCloserInput
 
 # TODO
-Node = Union[str, GrammarFunction, RawFunction, "ImageBlob"]
+Node = Union[str, GrammarFunction, RawFunction, "ImageBlob", "RoleStart", "RoleEnd"]
 ContentChunk = Union[TextOutput, LiteralInput, "ImageBlob"]
-
+MessageChunk = Union[ContentChunk, RoleOpenerInput, RoleCloserInput, CaptureOutput]
 
 @dataclass(frozen=True, slots=True)
 class RoleStart:
     role: str
-    id: UUID = field(default_factory=uuid4)
-
 
 @dataclass(frozen=True, slots=True)
 class RoleEnd:
-    id: UUID
-
+    role: str
 
 @dataclass(frozen=True, slots=True)
 class ImageBlob:
@@ -37,6 +34,3 @@ class ImageBlob:
             return model
 
         return RawFunction(__add__, [], {})
-
-
-MessageChunk = Union[ContentChunk, CaptureOutput, RoleStart, RoleEnd]

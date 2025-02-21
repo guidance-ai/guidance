@@ -1,29 +1,46 @@
 from typing import Iterator
 
 from ..._grammar import Function
-from ...experimental.ast import ImageBlob, MessageChunk, Node
-from ...trace import CaptureOutput, LiteralInput, TextOutput
+from ...experimental.ast import ImageBlob, MessageChunk, Node, RoleStart, RoleEnd
+from ...trace import CaptureOutput, LiteralInput, TextOutput, RoleCloserInput, RoleOpenerInput
 from .._base._model import Model, partial_decode
 from ._engine import Engine
-from ._state import EngineChatState, EngineCompletionState, EngineState
+from ._state import EngineState
 
 
 class ModelWithEngine(Model[EngineState]):
-    def __init__(self, engine: Engine, echo: bool = True, chat: bool = True):
+    def __init__(self, engine: Engine, echo: bool = True):
         self.engine = engine
-        self.chat = chat
         super().__init__(echo=echo)
 
     def run(self, state: EngineState, node: Node) -> Iterator[MessageChunk]:
         if isinstance(node, str):
             yield LiteralInput(value=node)
 
+        elif isinstance(node, RoleStart):
+            chat_template = self.engine.get_chat_template()
+            if chat_template is None:
+                raise ValueError("Cannot use roles without a chat template")
+            yield RoleOpenerInput(
+                name=node.role,
+                text=chat_template.get_role_start(node.role),
+            )
+
+        elif isinstance(node, RoleEnd):
+            chat_template = self.engine.get_chat_template()
+            if chat_template is None:
+                raise ValueError("Cannot use roles without a chat template")
+            yield RoleCloserInput(
+                name=node.role,
+                text=chat_template.get_role_end(node.role),
+            )
+
         elif isinstance(node, ImageBlob):
             yield node
 
         elif isinstance(node, Function):
             engine_gen = self.engine(
-                state.get_prompt(),
+                state,
                 node,
                 ensure_bos_token=False,
                 echo=False,
@@ -82,7 +99,4 @@ class ModelWithEngine(Model[EngineState]):
     def initial_state(self) -> EngineState:
         # TODO: for llama_cpp and transformers, we need to provide an interface
         # for getting these from something like a model id..?
-        if self.chat:
-            return EngineChatState()
-        else:
-            return EngineCompletionState()
+        return EngineState()

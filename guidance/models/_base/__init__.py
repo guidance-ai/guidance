@@ -1,11 +1,10 @@
 from ._model import Model
 from ._role import role
-from ._state import BaseChatState, BaseCompletionState, BaseState
+from ._state import BaseState, Message
 
 __all__ = [
     "Model",
     "role",
     "BaseState",
-    "BaseChatState",
-    "BaseCompletionState",
+    "Message",
 ]

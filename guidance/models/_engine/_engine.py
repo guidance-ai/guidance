@@ -35,7 +35,8 @@ from ...visual import (
     TokensMessage,
 )
 from ...visual._async import async_task, run_async_coroutine
-from ._state import EngineCompletionPrompt, EngineMessage, EnginePrompt
+from .._base._state import Message
+from ._state import EngineState
 from ._tokenizer import Tokenizer
 
 if TYPE_CHECKING:
@@ -343,25 +344,11 @@ class Engine(ABC):
     def reset_metrics(self):
         self.metrics = GuidanceEngineMetrics()
 
-    def process_prompt(self, prompt: EnginePrompt) -> EngineCompletionPrompt:
-        prompt_inner = prompt["prompt"]
-        if not isinstance(prompt_inner, str):
-            messages = prompt_inner
-            prompt_inner = self.apply_chat_template(
-                messages,
-                tools=None,  # TODO
-            )
-        return {
-            "prompt": prompt_inner,
-            "images": prompt["images"],
-            "audio": prompt["audio"],
-            "videos": prompt["videos"],
-        }
-
     @abstractmethod
     def apply_chat_template(
         self,
-        messages: Sequence[EngineMessage],
+        messages: Sequence[Message],
+        active_message: Message,
         tools: Optional[list[Any]],
     ) -> str:
         # TODO: move onto the tokenizer
@@ -369,7 +356,7 @@ class Engine(ABC):
 
     def __call__(
         self,
-        prompt: EnginePrompt,
+        state: EngineState,
         grammar: Function,
         ensure_bos_token: bool = True,
         echo: bool = True,
@@ -390,11 +377,26 @@ class Engine(ABC):
         ensure_bos_token: bool
             Ensures that the prompt ends with the BOS token.
         """
-        prompt = self.process_prompt(prompt)
+        # TODO: Pass these to get_logits
+        # images = state.images
+        # audio = state.audio
+        # videos = state.videos
+        # TODO: should this be configurable?
+        use_apply_chat_template = True
+        if use_apply_chat_template:
+            messages = state.messages
+            active_message = state.active_message
+            prompt = self.apply_chat_template(
+                messages,
+                active_message,
+                tools=None,
+            )
+        else:
+            prompt = state.text
         parser = TokenParser(
             grammar,
             tokenizer=self.tokenizer,
-            prompt=prompt["prompt"].encode("utf-8"),
+            prompt=prompt.encode("utf-8"),
             ensure_bos_token=ensure_bos_token,
             enable_backtrack=self.enable_backtrack,
             enable_ff_tokens=self.enable_ff_tokens,

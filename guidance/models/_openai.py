@@ -1,60 +1,35 @@
 import base64
 from io import BytesIO
-from typing import Iterator, Optional, TypedDict, Union
+from typing import Iterator, Optional
 
 from .._grammar import Gen, Join
-from ..experimental.ast import ContentChunk, ImageBlob, Node
-from ..trace import LiteralInput, TextOutput
-from ._base import BaseChatState, Model
+from ..experimental.ast import ContentChunk, ImageBlob, Node, RoleEnd, RoleStart
+from ..trace import LiteralInput, TextOutput, RoleOpenerInput, RoleCloserInput
+from ._base import Model, BaseState
 
-
-class OpenAIContentMessage(TypedDict):
-    role: str
-    content: list[dict]
-
-
-class OpenAIAudioMessage(TypedDict):
-    role: str
-    audio: dict
-
-
-OpenAIMessage = Union[OpenAIContentMessage, OpenAIAudioMessage]
-
-
-class OpenAIState(BaseChatState):
-    def __init__(self) -> None:
-        super().__init__()
-        self.content: list[dict] = []
-        self.audio: Optional[dict] = None
-
+class OpenAIState(BaseState):
     @classmethod
-    def from_openai_model(cls, model: str) -> "OpenAIState":
-        if "audio-preview" in model:
+    def from_model_id(cls, model_id: str) -> "OpenAIState":
+        if "audio-preview" in model_id:
             return OpenAIAudioState()
-        if model.startswith("gpt-4o") or model.startswith("o1"):
+        if model_id.startswith("gpt-4o") or model_id.startswith("o1"):
             return OpenAIImageState()
         else:
             return OpenAIState()
 
-    def get_active_message(self) -> Optional[OpenAIMessage]:
-        if self.active_role is None:
-            return None
-
-        if self.audio:
-            if self.content:
-                raise ValueError("Expected either content or audio in OpenAI message, not both")
-            return OpenAIAudioMessage({"role": self.active_role.role, "audio": self.audio})
-
-        return OpenAIContentMessage({"role": self.active_role.role, "content": self.content})
-
-    def reset_active_message(self) -> None:
-        super().reset_active_message()
-        self.content = []
-        self.audio = None
+    def apply_content_chunk(self, chunk: ContentChunk) -> None:
+        if self.active_message["role"] is None:
+            raise ValueError("OpenAI models require chat blocks (e.g. use `with assistant(): ...`)")
+        super().apply_content_chunk(chunk)
 
     def apply_text(self, text: str) -> None:
-        self.content.append({"type": "text", "text": text})
-
+        content = self.active_message["data"].setdefault("content", [])
+        if len(content) > 0 and content[-1]["type"] == "text":
+            # No need to add a new text block; we can be less verbose
+            content[-1]["text"] += text
+        else:
+            content.append({"type": "text", "text": text})
+        self.text += text
 
 class OpenAIImageState(OpenAIState):
     def apply_image(self, image: ImageBlob) -> None:
@@ -67,9 +42,11 @@ class OpenAIImageState(OpenAIState):
             b64_image = base64.b64encode(buffer.getvalue()).decode("utf-8")
 
         mime_type = f"image/{format.lower()}"
-        self.content.append(
+        content = self.active_message["data"].setdefault("content", [])
+        content.append(
             {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{b64_image}"}}
         )
+        self.text += "<|image|>" # Arbitrary stringification of image
 
 
 class OpenAIAudioState(OpenAIState):
@@ -112,7 +89,7 @@ class OpenAI(Model):
         super().__init__(echo=echo)
 
     def initial_state(self) -> OpenAIState:
-        return OpenAIState.from_openai_model(self.model)
+        return OpenAIState.from_model_id(self.model)
 
     def run(
         self, state: OpenAIState, node: Node
@@ -121,17 +98,28 @@ class OpenAI(Model):
             if isinstance(node, Join):
                 for inner_node in node.values:
                     yield from inner(inner_node)
-                return
 
-            if isinstance(node, str):
+            elif isinstance(node, str):
                 yield LiteralInput(value=node)
-                return
+
+            elif isinstance(node, RoleStart):
+                # ChatML is as good as anything!
+                yield RoleOpenerInput(
+                    name=node.role,
+                    text="<|im_start|>" + node.role + "\n",
+                )
+
+            elif isinstance(node, RoleEnd):
+                # ChatML is as good as anything!
+                yield RoleCloserInput(
+                    name=node.role,
+                    text="\n<|im_end|>\n",
+                )
 
             elif isinstance(node, ImageBlob):
                 yield node
-                return
 
-            if isinstance(node, Gen):
+            elif isinstance(node, Gen):
                 if node.capture_name:
                     raise NotImplementedError("Captures not yet supported for OpenAI")
                 if node.body_regex != "(?s:.*)":
@@ -141,12 +129,25 @@ class OpenAI(Model):
                 if node.save_stop_text:
                     raise ValueError("Save stop text not supported for OpenAI")
 
-                prompt = state.get_prompt()
-                *messages, active_message = prompt["messages"]
+                messages = []
+                for message in state.messages:
+                    if message["role"] is None:
+                        # Should never happen?
+                        raise ValueError("OpenAI models require chat blocks (e.g. use `with assistant(): ...`)")
+                    messages.append(
+                        {
+                            "role": message["role"],
+                            "content": message["data"].get("content", []),
+                        }
+                    )
+                active_message = state.active_message
+                if active_message["role"] is None:
+                    # Should never happen?
+                    raise ValueError("OpenAI models require chat blocks (e.g. use `with assistant(): ...`)")
                 if active_message["role"] != "assistant":
-                    raise ValueError("Active role must be assistant for OpenAI")
-                if active_message.get("content") or active_message.get("audio"):
-                    raise ValueError("Prefill not supported for OpenAI")
+                    raise ValueError("OpenAI models can only generate as the assistant (i.e. inside of `with assistant(): ...`)")
+                if active_message["data"]:
+                    raise ValueError(f"OpenAI models do not support pre-filled assistant messages: got data {active_message['data']}.")
                 responses = self.client.chat.completions.create(
                     model=self.model,
                     messages=messages,  # type: ignore[arg-type]

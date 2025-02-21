@@ -2,16 +2,16 @@ import os
 import re
 import textwrap
 import warnings
-from typing import Any, Optional, Sequence, Union, cast
+from typing import Any, Optional, Sequence, Union
 
 from ..._schema import GenToken, GenTokenExtra
-from .._engine import EngineCompletionPrompt, EngineMessage, EnginePrompt
+from .._engine import Engine, Tokenizer
+from .._base import Message
 
 try:
     import torch
 except ModuleNotFoundError:
     pass
-
 
 try:
     import transformers as transformers_package
@@ -20,8 +20,6 @@ try:
 except ModuleNotFoundError:
     has_transformers = False
 
-
-from .._engine import Engine, Tokenizer
 
 # Formed by comparing model and tokenizer from_pretrained methods
 # transformers/models/auto/auto_factory.py
@@ -672,20 +670,23 @@ class TransformersEngine(Engine):
 
     def apply_chat_template(
         self,
-        messages: Sequence[EngineMessage],
+        messages: Sequence[Message],
+        active_message: Message,
         tools: Optional[list[Any]],
     ) -> str:
         # TODO: move onto the tokenizer
         # This is a hack to get around the fact that apply_chat_template won't properly continue the final message
         # if it is empty. We add a sentinel value to the final message, and then remove it after the fact.
         sentinel_value = "<|FINAL_MESSAGE_SENTINEL_VALUE|>"
-        *head, active_message = messages
+        messages = [
+            {"role": m["role"], "content": m["data"].get("content", "")} for m in messages
+        ]
         active_message = {
             "role": active_message["role"],
-            "content": active_message["content"] + sentinel_value,
+            "content": active_message.get("content", "") + sentinel_value,
         }
         prompt = self.tokenizer._orig_tokenizer.apply_chat_template(
-            conversation=(head + [active_message]),
+            conversation=(list(messages) + [active_message]),
             tools=tools,
             chat_template=None,
             continue_final_message=True,

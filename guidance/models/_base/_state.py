@@ -2,28 +2,37 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Optional, Sequence, TypedDict, Union
 
 from typing_extensions import Self, assert_never
-
-from ...experimental.ast import (
+from ...trace import (
     CaptureOutput,
+    LiteralInput,
+    TextOutput,
+    RoleCloserInput,
+    RoleOpenerInput,
+)
+from ...experimental.ast import (
     ContentChunk,
     ImageBlob,
-    LiteralInput,
     MessageChunk,
-    RoleEnd,
-    RoleStart,
-    TextOutput,
 )
 
+class Message(TypedDict):
+    role: Optional[str]
+    data: dict[str, Any]
 
 class CaptureVar(TypedDict):
     value: str
     log_prob: Optional[float]
 
-
 class BaseState(ABC):
     def __init__(self) -> None:
         self.chunks: list[MessageChunk] = []
         self.captures: dict[str, Union[CaptureVar, list[CaptureVar]]] = {}
+        self.text: str = ""
+        self.messages: list[Message] = []
+        self.active_message: Message = {"role": None, "data": {}}
+
+    def __str__(self) -> str:
+        return self.text
 
     @classmethod
     def from_chunks(cls, chunks: Sequence[MessageChunk]) -> Self:
@@ -34,28 +43,26 @@ class BaseState(ABC):
 
     def apply_chunk(self, chunk: MessageChunk) -> None:
         self.chunks.append(chunk)
-        match chunk:
-            case RoleStart(_, _) as role_start:
-                self.apply_role_start(role_start)
-            case RoleEnd(_) as role_end:
-                self.apply_role_end(role_end)
-            case _:
-                if isinstance(chunk, CaptureOutput):
-                    if chunk.value is None:
-                        # A "reset" signal
-                        self.captures.pop(chunk.name)
-                    else:
-                        var = CaptureVar(value=chunk.value, log_prob=chunk.log_probs)
-                        if chunk.is_append:
-                            vars = self.captures.get(chunk.name, [])
-                            if not isinstance(vars, list):
-                                vars = [vars]
-                            vars.append(var)
-                            self.captures[chunk.name] = vars
-                        else:
-                            self.captures[chunk.name] = var
+        if isinstance(chunk, RoleOpenerInput):
+            self.apply_role_start(chunk)
+        elif isinstance(chunk, RoleCloserInput):
+            self.apply_role_end(chunk)
+        elif isinstance(chunk, CaptureOutput):
+            if chunk.value is None:
+                # A "reset" signal
+                self.captures.pop(chunk.name)
+            else:
+                var = CaptureVar(value=chunk.value, log_prob=chunk.log_probs)
+                if chunk.is_append:
+                    vars = self.captures.get(chunk.name, [])
+                    if not isinstance(vars, list):
+                        vars = [vars]
+                    vars.append(var)
+                    self.captures[chunk.name] = vars
                 else:
-                    self.apply_content_chunk(chunk)
+                    self.captures[chunk.name] = var
+        else:
+            self.apply_content_chunk(chunk)
 
     def apply_content_chunk(self, chunk: ContentChunk) -> None:
         if isinstance(chunk, (LiteralInput, TextOutput)):
@@ -67,17 +74,31 @@ class BaseState(ABC):
                 assert_never(chunk)
             raise NotImplementedError(f"Chunk type {type(chunk)} not supported")
 
-    @abstractmethod
-    def get_prompt(self) -> Any:
-        pass
+    def apply_role_start(self, role_opener: RoleOpenerInput) -> None:
+        active_message = self.active_message
+        active_role = active_message["role"]
+        if active_role is not None:
+            raise ValueError(
+                f"Cannot open role {role_opener.name!r}: {active_role!r} is already open."
+            )
+        if active_message["data"]:
+            # There's an active message without a role... let's just trust the user even if this bites us
+            self.messages = (*self.messages, active_message)
+        self.active_message = {"role": role_opener.name, "data": {}}
+        self.text += role_opener.text
 
-    @abstractmethod
-    def apply_role_start(self, role_start: RoleStart) -> None:
-        pass
-
-    @abstractmethod
-    def apply_role_end(self, role_end: RoleEnd) -> None:
-        pass
+    def apply_role_end(self, role_closer: RoleCloserInput) -> None:
+        active_message = self.active_message
+        active_role = active_message["role"]
+        if active_role is None:
+            raise ValueError("Cannot close role without active role")
+        if active_role != role_closer.name:
+            raise ValueError(
+                f"Cannot close role {role_closer.name!r}: {active_role!r} is open."
+            )
+        self.messages = (*self.messages, active_message)
+        self.active_message = {"role": None, "data": {}} 
+        self.text += role_closer.text
 
     @abstractmethod
     def apply_text(self, text: str) -> None:
@@ -87,82 +108,3 @@ class BaseState(ABC):
         # TODO: raise custom exception so we can catch it and raise a better error
         # where we have the model's name, etc.
         raise TypeError(f"Image blobs not supported by {self.__class__.__name__}")
-
-
-class CompletionPrompt(TypedDict):
-    prompt: str
-
-
-class BaseCompletionState(BaseState):
-    def __init__(self) -> None:
-        super().__init__()
-        self.content = ""
-
-    def apply_role_start(self, role_start: RoleStart) -> None:
-        raise TypeError("Role blocks not supported for completion models")
-
-    def apply_role_end(self, role_end: RoleEnd) -> None:
-        raise TypeError("Role blocks not supported for completion models")
-
-    def apply_text(self, text: str) -> None:
-        self.content += text
-
-    def get_prompt(self) -> CompletionPrompt:
-        return {"prompt": self.content}
-
-
-class Message(TypedDict):
-    role: str
-    content: Any
-
-
-class ChatPrompt(TypedDict):
-    messages: Sequence[Message]
-
-
-class BaseChatState(BaseState):
-    content: Any
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.active_role: Optional[RoleStart] = None
-        self.messages: Sequence[Message] = ()
-
-    def apply_role_start(self, role_start: RoleStart) -> None:
-        if self.active_role is not None:
-            raise ValueError(
-                f"Cannot open role {role_start.role!r}: {self.active_role.role!r} is already open."
-            )
-        self.active_role = role_start
-
-    def apply_role_end(self, role_end: RoleEnd) -> None:
-        if self.active_role is None:
-            raise ValueError("Cannot close role without active role")
-        if self.active_role.id != role_end.id:
-            raise ValueError("RoleEnd does not match active role")
-        active_message = self.get_active_message()
-        if active_message is not None:
-            self.messages = (*self.messages, active_message)
-        self.reset_active_message()
-
-    def apply_content_chunk(self, chunk: ContentChunk) -> None:
-        if self.active_role is None:
-            raise ValueError(
-                "Cannot add to chat model outside of a role block (use model.system(), model.user(), or model.assistant() context managers)"
-            )
-        super().apply_content_chunk(chunk)
-
-    def reset_active_message(self) -> None:
-        self.active_role = None
-
-    def get_prompt(self) -> ChatPrompt:
-        messages = self.messages
-        active_message = self.get_active_message()
-        if active_message is not None:
-            messages = (*messages, active_message)
-        return {"messages": messages}
-
-    def get_active_message(self) -> Optional[Message]:
-        if self.active_role is None:
-            return None
-        return {"role": self.active_role.role, "content": self.content}

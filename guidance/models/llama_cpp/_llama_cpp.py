@@ -11,7 +11,8 @@ import numpy as np
 
 from ..._schema import GenToken, GenTokenExtra
 from ..._utils import normalize_notebook_stdout_stderr, softmax
-from .._engine import Engine, EngineMessage, ModelWithEngine, Tokenizer
+from .._engine import Engine, ModelWithEngine, Tokenizer
+from .._base import Message
 from .._remote import RemoteEngine
 
 try:
@@ -346,11 +347,13 @@ class LlamaCppEngine(Engine):
 
     def apply_chat_template(
         self,
-        messages: Sequence[EngineMessage],
+        messages: Sequence[Message],
+        active_message: Message,
         tools: Optional[list[Any]],
     ) -> str:
         return apply_chat_template(
             messages,
+            active_message,
             tools=tools,
             chat_formatter=get_chat_formatter(self.model_obj),
         )
@@ -402,27 +405,26 @@ def get_chat_formatter(model_obj: "Llama") -> "Jinja2ChatFormatter":
         raise ValueError("No formatter found for model")
     return formatter
 
-
 def apply_chat_template(
-    messages: list[EngineMessage],
+    messages: list[Message],
+    active_message: Message,
     tools: Optional[list[Any]],
     chat_formatter: "Jinja2ChatFormatter",
 ) -> str:
-
-    # This is a hack to get around the fact that apply_chat_template won't properly continue the final message
-    # if it is empty. We add a sentinel value to the final message, and then remove it after the fact.
     sentinel_value = "<|FINAL_MESSAGE_SENTINEL_VALUE|>"
-    *head, active_message = messages
+    messages = [
+        {"role": m["role"], "content": m["data"].get("content", "")} for m in messages
+    ]
     active_message = {
         "role": active_message["role"],
-        "content": active_message["content"] + sentinel_value,
+        "content": active_message.get("content", "") + sentinel_value,
     }
     formatter_resp = chat_formatter(
-        messages=(head + [active_message]),
+        messages=(list(messages) + [active_message]),
         # TODO
         # functions=None,
         # function_call=None,
-        # tools=None,
+        tools=tools,
         # tool_choice=None,
     )
     # TODO: prompt.stopping_criteria?

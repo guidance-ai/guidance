@@ -4,10 +4,10 @@ from ._base import Model
 # local models
 from .transformers import Transformers, TransformersTokenizer
 from .llama_cpp import LlamaCpp
-from ._mock import Mock#, MockChat
+# from ._mock import Mock#, MockChat
 
 # grammarless models (we can't do constrained decoding for them)
-from ._grammarless import Grammarless
+# from ._grammarless import Grammarless
 # from .vertexai._vertexai import (
 #     VertexAI,
 #     VertexAIChat,

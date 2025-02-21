@@ -23,7 +23,7 @@ from ...trace import (
 )
 from ...visual import TraceMessage
 from ._role import _active_role
-from ._state import BaseChatState, BaseCompletionState
+from ._state import BaseState
 
 _id_counter: int = 0
 
@@ -36,17 +36,17 @@ def _gen_id():
     return _id
 
 
-S = TypeVar("S", bound=Union[BaseCompletionState, BaseChatState])
+S = TypeVar("S", bound=BaseState)
 D = TypeVar("D", bound=Any)
 
 
-class Model(Generic[S], ABC):
+class Model(ABC, Generic[S]):
     def __init__(
         self,
         echo: bool = True,
     ) -> None:
         self.echo = echo
-        self._state: S = self.initial_state()
+        self._state = self.initial_state()
         self._active_role: Optional["RoleStart"] = None
 
         self._parent: Optional["Model"] = None
@@ -97,7 +97,7 @@ class Model(Generic[S], ABC):
     def _apply_chunk(self, chunk: MessageChunk) -> Self:
         self = self.copy()
         self._state.apply_chunk(chunk)
-        if isinstance(chunk, (LiteralInput, TextOutput, CaptureOutput)):
+        if isinstance(chunk, (LiteralInput, TextOutput, CaptureOutput, RoleOpenerInput, RoleCloserInput)):
             self._update_trace_node(self._id, self._parent_id, chunk)
         elif isinstance(chunk, ImageBlob):
             self._update_trace_node(
@@ -105,10 +105,6 @@ class Model(Generic[S], ABC):
                 self._parent_id,
                 ImageInput(value=b64encode(chunk.image.tobytes()).decode("utf-8")),
             )
-        elif isinstance(chunk, RoleStart):
-            self._update_trace_node(self._id, self._parent_id, RoleOpenerInput(name=chunk.role))
-        elif isinstance(chunk, RoleEnd):
-            self._update_trace_node(self._id, self._parent_id, RoleCloserInput())
         else:
             if TYPE_CHECKING:
                 assert_never(chunk)
@@ -120,10 +116,11 @@ class Model(Generic[S], ABC):
         active_role = _active_role.get()
         if self._active_role != active_role:
             if self._active_role is not None:
-                self = self._apply_chunk(RoleEnd(self._active_role.id))
+                self = self._apply_node(RoleEnd(self._active_role.role))
             if active_role is not None:
-                self = self._apply_chunk(active_role)
+                self = self._apply_node(active_role)
             if self is orig_self:
+                # Make sure we never mutate in place
                 self = self.copy()
             self._active_role = active_role
         return self
@@ -139,6 +136,9 @@ class Model(Generic[S], ABC):
         obj._parent = self
         obj._update_trace_node(obj._id, obj._parent_id, None)
         return obj
+
+    def __str__(self) -> str:
+        return str(self._state)
 
     def __setitem__(self, key, value):
         raise Exception(
