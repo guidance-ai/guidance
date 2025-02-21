@@ -1,4 +1,4 @@
-from guidance.models import Model
+from guidance import models
 
 
 class ContextBlock:
@@ -8,10 +8,10 @@ class ContextBlock:
         self.name = name
 
     def __enter__(self):
-        Model.Model.global_active_blocks.append(self)
+        models.Model.global_active_blocks.append(self)
 
     def __exit__(self, exc_type, exc_value, traceback):
-        Model.Model.global_active_blocks.remove(self)
+        models.Model.global_active_blocks.remove(self)
 
 
 def block(name=None, opener="", closer=""):
