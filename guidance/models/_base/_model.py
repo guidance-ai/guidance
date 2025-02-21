@@ -142,6 +142,9 @@ class Model(ABC, Generic[S]):
     def __str__(self) -> str:
         return str(self._state)
 
+    def __len__(self):
+        return len(str(self))
+
     def __setitem__(self, key, value):
         raise Exception(
             "Model objects are immutable so you can't use __setitem__! Consider using the .set(key, value) method instead to create a new updated model object."
