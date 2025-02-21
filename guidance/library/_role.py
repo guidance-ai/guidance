@@ -1,5 +1,19 @@
-from contextlib import AbstractContextManager
-from ..models._base import role
+from contextlib import AbstractContextManager, contextmanager
+from typing import Iterator
+
+from ..experimental.ast import RoleStart
+from ..models._base._model import _active_role
+
+
+# TODO HN: Add a docstring to better describe arbitrary role functions
+@contextmanager
+def role(role: str) -> Iterator[None]:
+    role_start = RoleStart(role)
+    token = _active_role.set(role_start)
+    try:
+        yield
+    finally:
+        _active_role.reset(token)
 
 
 def system() -> AbstractContextManager[None]:

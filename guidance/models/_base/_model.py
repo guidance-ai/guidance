@@ -3,6 +3,7 @@
 import re
 from abc import ABC, abstractmethod
 from base64 import b64encode
+from contextvars import ContextVar
 from copy import deepcopy
 from typing import TYPE_CHECKING, Any, Generic, Iterator, Optional, TypeVar, Union
 
@@ -22,9 +23,9 @@ from ...trace import (
     TraceNode,
 )
 from ...visual import TraceMessage
-from ._role import _active_role
 from ._state import BaseState
 
+_active_role: ContextVar[Optional["RoleStart"]] = ContextVar("active_role", default=None)
 _id_counter: int = 0
 
 
