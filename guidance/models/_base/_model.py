@@ -241,6 +241,12 @@ class Model(Generic[S]):
         else:
             return captures["log_prob"]
 
+    def __getattribute__(self, name):
+        if name == "engine":
+            # For legacy model.engine access (mostly for tests...)
+            return getattr(self._client, "engine")
+        return super().__getattribute__(name)
+
 
 def extract_embedded_nodes(value: str) -> Node:
     parts: list[str] = re.split(_tag_pattern, value)
