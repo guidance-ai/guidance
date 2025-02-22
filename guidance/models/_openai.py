@@ -5,18 +5,9 @@ from typing import Iterator, Optional
 from .._grammar import Gen, Join
 from ..experimental.ast import ContentChunk, ImageBlob, Node, RoleEnd, RoleStart
 from ..trace import LiteralInput, TextOutput, RoleOpenerInput, RoleCloserInput
-from ._base import Model, BaseState
+from ._base import Model, State, Client
 
-class OpenAIState(BaseState):
-    @classmethod
-    def from_model_id(cls, model_id: str) -> "OpenAIState":
-        if "audio-preview" in model_id:
-            return OpenAIAudioState()
-        if model_id.startswith("gpt-4o") or model_id.startswith("o1"):
-            return OpenAIImageState()
-        else:
-            return OpenAIState()
-
+class OpenAIState(State):
     def apply_content_chunk(self, chunk: ContentChunk) -> None:
         if self.active_message["role"] is None:
             raise ValueError("OpenAI models require chat blocks (e.g. use `with assistant(): ...`)")
@@ -54,42 +45,21 @@ class OpenAIAudioState(OpenAIState):
         raise NotImplementedError("OpenAI audio not yet implemented")
 
 
-class OpenAI(Model):
+class OpenAIClient(Client[OpenAIState]):
     def __init__(
         self,
         model: str,
-        echo: bool = True,
         api_key: Optional[str] = None,
         **kwargs,
     ):
-        """Build a new OpenAI model object that represents a model in a given state.
-
-        Parameters
-        ----------
-        model : str
-            The name of the OpenAI model to use (e.g. gpt-4o-mini).
-        echo : bool
-            If true the final result of creating this model state will be displayed (as HTML in a notebook).
-        api_key : None or str
-            The OpenAI API key to use for remote requests, passed directly to the `openai.OpenAI` constructor.
-
-        **kwargs :
-            All extra keyword arguments are passed directly to the `openai.OpenAI` constructor. Commonly used argument
-            names include `base_url` and `organization`
-        """
-
         try:
             import openai
         except ImportError:
             raise Exception(
                 "Please install the openai package version >= 1 using `pip install openai -U` in order to use guidance.models.OpenAI!"
             )
-        self.client = openai.OpenAI(api_key=api_key, **kwargs)
         self.model = model
-        super().__init__(echo=echo)
-
-    def initial_state(self) -> OpenAIState:
-        return OpenAIState.from_model_id(self.model)
+        self.client = openai.OpenAI(api_key=api_key, **kwargs)
 
     def run(
         self, state: OpenAIState, node: Node
@@ -180,3 +150,40 @@ class OpenAI(Model):
                 )
 
         yield from inner(node)
+
+class OpenAI(Model):
+    def __init__(
+        self,
+        model: str,
+        echo: bool = True,
+        api_key: Optional[str] = None,
+        **kwargs,
+    ):
+        """Build a new OpenAI model object that represents a model in a given state.
+
+        Parameters
+        ----------
+        model : str
+            The name of the OpenAI model to use (e.g. gpt-4o-mini).
+        echo : bool
+            If true the final result of creating this model state will be displayed (as HTML in a notebook).
+        api_key : None or str
+            The OpenAI API key to use for remote requests, passed directly to the `openai.OpenAI` constructor.
+
+        **kwargs :
+            All extra keyword arguments are passed directly to the `openai.OpenAI` constructor. Commonly used argument
+            names include `base_url` and `organization`
+        """
+
+        if model.startswith("gpt-4o") or model.startswith("o1"):
+            state = OpenAIImageState()
+        elif "audio-preview" in model:
+            state = OpenAIAudioState()
+        else:
+            state = OpenAIState()
+
+        super().__init__(
+            client = OpenAIClient(model, api_key=api_key, **kwargs),
+            state = state,
+            echo=echo
+        )

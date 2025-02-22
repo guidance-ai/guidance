@@ -1,9 +1,11 @@
-from .._engine import ModelWithEngine
+import re
+
+from .._base import Model
+from .._engine import EngineClient, EngineState, Llama3VisionState, Phi3VisionState
 from ._engine import TransformersEngine
 
 
-# TODO: Expose a non-chat version
-class Transformers(ModelWithEngine):
+class Transformers(Model):
     def __init__(
         self,
         model=None,
@@ -17,7 +19,14 @@ class Transformers(ModelWithEngine):
         **kwargs,
     ):
         """Build a new Transformers model object that represents a model in a given state."""
-        super().__init__(
+        if re.search("Llama-3.*-Vision", model):
+            state = Llama3VisionState()
+        elif re.search("Phi-3-vision", model):
+            state = Phi3VisionState()
+        else:
+            state = EngineState()
+
+        client = EngineClient(
             TransformersEngine(
                 model,
                 tokenizer,
@@ -27,6 +36,10 @@ class Transformers(ModelWithEngine):
                 enable_ff_tokens=enable_ff_tokens,
                 enable_monitoring=enable_monitoring,
                 **kwargs,
-            ),
+            )
+        )
+        super().__init__(
+            client=client,
+            state=state,
             echo=echo,
         )

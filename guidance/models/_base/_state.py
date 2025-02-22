@@ -23,7 +23,7 @@ class CaptureVar(TypedDict):
     log_prob: Optional[float]
 
 
-class BaseState(ABC):
+class State(ABC):
     def __init__(self) -> None:
         self.chunks: list[MessageChunk] = []
         self.captures: dict[str, Union[CaptureVar, list[CaptureVar]]] = {}

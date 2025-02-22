@@ -3,7 +3,7 @@
 import logging
 import time
 import weakref
-from abc import ABC, abstractmethod
+from abc import ABC
 from asyncio import CancelledError
 from enum import Enum
 from multiprocessing import Manager, Process

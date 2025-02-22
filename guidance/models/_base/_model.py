@@ -1,11 +1,10 @@
 # TODO(nopdive): This module requires a memory review.
 
 import re
-from abc import ABC, abstractmethod
 from base64 import b64encode
 from contextvars import ContextVar
 from copy import deepcopy
-from typing import TYPE_CHECKING, Any, Generic, Iterator, Optional, TypeVar, Union
+from typing import TYPE_CHECKING, Any, Generic, Optional, TypeVar, Union
 
 from typing_extensions import Self, assert_never
 
@@ -23,7 +22,8 @@ from ...trace import (
     TraceNode,
 )
 from ...visual import TraceMessage
-from ._state import BaseState
+from ._client import Client
+from ._state import State
 
 _active_role: ContextVar[Optional["RoleStart"]] = ContextVar("active_role", default=None)
 _id_counter: int = 0
@@ -37,17 +37,20 @@ def _gen_id():
     return _id
 
 
-S = TypeVar("S", bound=BaseState)
+S = TypeVar("S", bound=State)
 D = TypeVar("D", bound=Any)
 
 
-class Model(ABC, Generic[S]):
+class Model(Generic[S]):
     def __init__(
         self,
+        client: Client[S],
+        state: S,
         echo: bool = True,
     ) -> None:
         self.echo = echo
-        self._state = self.initial_state()
+        self._client = client
+        self._state = state
         self._active_role: Optional["RoleStart"] = None
 
         self._parent: Optional["Model"] = None
@@ -55,14 +58,6 @@ class Model(ABC, Generic[S]):
         self._id: int = _gen_id()
         self._trace_nodes: set[TraceNode] = set()
         self._update_trace_node(self._id, self._parent_id, None)
-
-    @abstractmethod
-    def run(self, state: S, node: Node) -> Iterator[MessageChunk]:
-        pass
-
-    @abstractmethod
-    def initial_state(self) -> S:
-        pass
 
     def _update_trace_node(
         self, identifier: int, parent_id: Optional[int], node_attr: Optional[NodeAttr] = None
@@ -91,7 +86,7 @@ class Model(ABC, Generic[S]):
         return self
 
     def _apply_node(self, node: Node) -> Self:
-        for chunk in self.run(self._state, node):
+        for chunk in self._client.run(self._state, node):
             self = self._apply_chunk(chunk)
         return self
 
@@ -246,12 +241,3 @@ def extract_embedded_nodes(value: str) -> Node:
             grammar += part
         is_id = not is_id
     return grammar
-
-
-def partial_decode(data: bytes) -> tuple[str, bytes]:
-    try:
-        return (data.decode("utf-8"), b"")
-    except UnicodeDecodeError as e:
-        valid_part = data[: e.start].decode("utf-8")
-        delayed_part = data[e.start :]
-    return (valid_part, delayed_part)

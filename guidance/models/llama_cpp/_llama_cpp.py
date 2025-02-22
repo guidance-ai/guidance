@@ -11,8 +11,8 @@ import numpy as np
 
 from ..._schema import GenToken, GenTokenExtra
 from ..._utils import normalize_notebook_stdout_stderr, softmax
-from .._base import Message
-from .._engine import Engine, ModelWithEngine, Tokenizer
+from .._base import Message, Model
+from .._engine import Engine, EngineClient, EngineState, Tokenizer
 from .._remote import RemoteEngine
 
 try:
@@ -359,7 +359,7 @@ class LlamaCppEngine(Engine):
         )
 
 
-class LlamaCpp(ModelWithEngine):
+class LlamaCpp(Model):
     def __init__(
         self,
         model=None,
@@ -386,7 +386,9 @@ class LlamaCpp(ModelWithEngine):
                 enable_monitoring=enable_monitoring,
                 **llama_cpp_kwargs,
             )
-        super().__init__(engine, echo=echo)
+        state = EngineState()
+        client = EngineClient(engine)
+        super().__init__(client=client, state=state, echo=echo)
 
 
 def get_chat_formatter(model_obj: "Llama") -> "Jinja2ChatFormatter":

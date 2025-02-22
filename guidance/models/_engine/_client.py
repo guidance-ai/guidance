@@ -9,15 +9,14 @@ from ...trace import (
     RoleOpenerInput,
     TextOutput,
 )
-from .._base._model import Model, partial_decode
+from .._base import Client
 from ._engine import Engine
 from ._state import EngineState
 
 
-class ModelWithEngine(Model[EngineState]):
-    def __init__(self, engine: Engine, echo: bool = True):
+class EngineClient(Client[EngineState]):
+    def __init__(self, engine: Engine):
         self.engine = engine
-        super().__init__(echo=echo)
 
     def run(self, state: EngineState, node: Node) -> Iterator[MessageChunk]:
         if isinstance(node, str):
@@ -107,3 +106,12 @@ class ModelWithEngine(Model[EngineState]):
         # TODO: for llama_cpp and transformers, we need to provide an interface
         # for getting these from something like a model id..?
         return EngineState()
+
+
+def partial_decode(data: bytes) -> tuple[str, bytes]:
+    try:
+        return (data.decode("utf-8"), b"")
+    except UnicodeDecodeError as e:
+        valid_part = data[: e.start].decode("utf-8")
+        delayed_part = data[e.start :]
+    return (valid_part, delayed_part)
