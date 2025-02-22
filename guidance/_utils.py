@@ -2,7 +2,6 @@ import ast
 import asyncio
 import json
 import inspect
-import queue
 import sys
 import textwrap
 import types
@@ -169,23 +168,6 @@ def signature_pop(signature, index):
     params = list(signature.parameters.values())
     params.pop(index)
     return signature.replace(parameters=params)
-
-class CaptureEvents:
-    """Creates a scope where all the events are captured in a queue.
-
-    Note that this does not stop the events from being captured by higher level scopes.
-    """
-
-    def __init__(self, lm):
-        self.lm = lm
-
-    def __enter__(self):
-        self.lm._event_queue = queue.Queue()
-        return self.lm._event_queue
-
-    def __exit__(self, type, value, traceback):
-        self.lm._event_queue = None
-
 
 class JupyterComm:
     def __init__(

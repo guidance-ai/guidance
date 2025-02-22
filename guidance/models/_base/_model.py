@@ -1,10 +1,12 @@
 # TODO(nopdive): This module requires a memory review.
 
+import queue
 import re
+import threading
 from base64 import b64encode
-from contextvars import ContextVar
+from contextvars import ContextVar, copy_context
 from copy import deepcopy
-from typing import TYPE_CHECKING, Any, Generic, Optional, TypeVar, Union
+from typing import TYPE_CHECKING, Any, Generic, Iterator, Optional, TypeVar, Union
 
 from typing_extensions import Self, assert_never
 
@@ -25,6 +27,9 @@ from ...visual import TraceMessage
 from ._client import Client
 from ._state import State
 
+_event_queues: ContextVar[tuple[queue.Queue["Model"], ...]] = ContextVar(
+    "event_queues", default=()
+)
 _active_role: ContextVar[Optional["RoleStart"]] = ContextVar("active_role", default=None)
 _id_counter: int = 0
 
@@ -90,6 +95,15 @@ class Model(Generic[S]):
             self = self._apply_chunk(chunk)
         return self
 
+    def _send_to_event_queue(self) -> None:
+        """For streaming"""
+        for event_queue in _event_queues.get():
+            event_queue.put(self)
+
+    def stream(self) -> "ModelStream":
+        """Return a new model stream object that delays execution until it is iterated over."""
+        return ModelStream(self)
+
     def _apply_chunk(self, chunk: MessageChunk) -> Self:
         self = self.copy()
         self._state.apply_chunk(chunk)
@@ -107,6 +121,9 @@ class Model(Generic[S]):
             if TYPE_CHECKING:
                 assert_never(chunk)
             raise NotImplementedError(f"Unsupported chunk type: {type(chunk)}")
+
+        # Stream current model state
+        self._send_to_event_queue()
         return self
 
     def _apply_role_changes(self) -> Self:
@@ -241,3 +258,73 @@ def extract_embedded_nodes(value: str) -> Node:
             grammar += part
         is_id = not is_id
     return grammar
+
+
+class ModelStream:
+    def __init__(
+        self, model: Model, grammar: Union["ModelStream", Node, None] = None, timeout=5
+    ) -> None:
+        """Create a model stream object that delays execution until it is iterated over."""
+        if model.echo:
+            model = model.copy()
+            model.echo = False  # turn off display echoing
+        self.model = model
+        self.grammar = grammar
+        self.timeout = timeout
+
+    def __add__(self, grammar: Node) -> Self:
+        """Extend this delayed chain of execution with another grammar append."""
+        if self.grammar is None:
+            return ModelStream(self.model, grammar)
+        else:
+            return ModelStream(self.model, self.grammar + grammar)
+
+    def _inner_run(self, model):
+        """This runs the model stream without iterating, and is only using internally by __iter__."""
+        if isinstance(self.grammar, ModelStream):
+            model = self.grammar._inner_run(model)
+        elif self.grammar is None:
+            model = self.model + ""
+        else:
+            model = self.model + self.grammar
+
+    def __iter__(self) -> Iterator[Model]:
+        """Starts a thread to execute the model and grammar, yielding events as they occur."""
+
+        events = queue.Queue()
+        event_queues = _event_queues.get() + (events,)
+        token = _event_queues.set(event_queues)
+
+        # Define the target function for the thread
+        def target(ctx):
+            _event_queues.set(ctx[_event_queues])
+            try:
+                self._inner_run(self.model)
+                events.put(None)  # mark that we are done
+            except BaseException as ex:
+                events.put(ex)
+
+        # Start the thread
+        thread = threading.Thread(target=target, args=(copy_context(),))
+        thread.start()
+
+        # Yield events from the queue as they become available
+        while True:
+            try:
+                # Wait for an event with a timeout to allow for thread termination
+                event = events.get(timeout=self.timeout)
+                if event is None:
+                    break
+                elif isinstance(event, BaseException):
+                    raise event
+                yield event
+            except queue.Empty:
+                # Check if the thread is still alive
+                if not thread.is_alive():
+                    break
+
+        # Ensure the thread has completed
+        thread.join()
+
+        # Reset the event queues context variable
+        _event_queues.reset(token)
