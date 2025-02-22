@@ -1,22 +1,16 @@
-from contextlib import AbstractContextManager, contextmanager
-from typing import Iterator
-
-from ..experimental.ast import RoleStart
-from ..models._base._model import _active_role
-
+from ._block import block, Block
+from ..experimental.ast import RoleStart, RoleEnd
 
 # TODO HN: Add a docstring to better describe arbitrary role functions
-@contextmanager
-def role(role: str) -> Iterator[None]:
-    role_start = RoleStart(role)
-    token = _active_role.set(role_start)
-    try:
-        yield
-    finally:
-        _active_role.reset(token)
+def role(role: str) -> Block:
+    return block(
+        name=None,
+        opener=RoleStart(role),
+        closer=RoleEnd(role),
+    )
 
 
-def system() -> AbstractContextManager[None]:
+def system() -> Block:
     """Indicate the 'system' prompt
 
     A convention has grown up around 'chat' APIs that
@@ -32,7 +26,7 @@ def system() -> AbstractContextManager[None]:
     return role("system")
 
 
-def user() -> AbstractContextManager[None]:
+def user() -> Block:
     """Indicate the 'user' prompt
 
     A convention has grown up around 'chat' APIs that
@@ -48,7 +42,7 @@ def user() -> AbstractContextManager[None]:
     return role("user")
 
 
-def assistant() -> AbstractContextManager[None]:
+def assistant() -> Block:
     """Indicate the 'assistant' prompt
 
     A convention has grown up around 'chat' APIs that

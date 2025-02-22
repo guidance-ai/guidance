@@ -30,8 +30,26 @@ from ._state import State
 _event_queues: ContextVar[tuple[queue.Queue["Model"], ...]] = ContextVar(
     "event_queues", default=()
 )
-_active_role: ContextVar[Optional["RoleStart"]] = ContextVar("active_role", default=None)
+_active_blocks: ContextVar[tuple["Block", ...]] = ContextVar("active_blocks", default=())
 _id_counter: int = 0
+
+
+class Block:
+    def __init__(self, name: Optional[str], opener: Optional[Node], closer: Optional[Node]):
+        self.name = name
+        self.opener = opener
+        self.closer = closer
+        self._token = None
+        self._lock = threading.Lock()
+
+    def __enter__(self):
+        if not self._lock.acquire(blocking=False):
+            raise RuntimeError("Cannot enter block because it is already open")
+        self._token = _active_blocks.set(_active_blocks.get() + (self,))
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        _active_blocks.reset(self._token)
+        self._lock.release()
 
 
 def _gen_id():
@@ -56,7 +74,7 @@ class Model(Generic[S]):
         self.echo = echo
         self._client = client
         self._state = state
-        self._active_role: Optional["RoleStart"] = None
+        self._active_blocks: dict[Block, int] = {}
         self.token_count: int = 0
 
         self._parent: Optional["Model"] = None
@@ -81,7 +99,7 @@ class Model(Generic[S]):
             )
 
     def __add__(self, other: Node) -> Self:
-        self = self._apply_role_changes()
+        self = self._apply_blocks()
         if isinstance(other, str):
             if other == "":
                 return self
@@ -89,6 +107,7 @@ class Model(Generic[S]):
         if isinstance(other, RawFunction):
             return other(self)
         self = self._apply_node(other)
+        self = self._update_open_block_captures()
         return self
 
     def _apply_node(self, node: Node) -> Self:
@@ -129,18 +148,32 @@ class Model(Generic[S]):
         self._send_to_event_queue()
         return self
 
-    def _apply_role_changes(self) -> Self:
-        orig_self = self
-        active_role = _active_role.get()
-        if self._active_role != active_role:
-            if self._active_role is not None:
-                self = self._apply_node(RoleEnd(self._active_role.role))
-            if active_role is not None:
-                self = self._apply_node(active_role)
-            if self is orig_self:
-                # Make sure we never mutate in place
-                self = self.copy()
-            self._active_role = active_role
+    def _apply_blocks(self) -> Self:
+        self = self.copy()
+        global_active_blocks = _active_blocks.get()
+        for block, start_index in list(reversed(self._active_blocks.items())):
+            # Close blocks that are not globally active anymore
+            if block not in global_active_blocks:
+                if block.closer is not None:
+                    self = self._apply_node(block.closer)
+                self._active_blocks.pop(block)
+            # Update capture regardless of whether or not it's been closed
+            if block.name is not None:
+                self = self.set(block.name, str(self)[start_index:])
+        for block in global_active_blocks:
+            # Open blocks that are not yet locally active
+            if block not in self._active_blocks:
+                # Set start_index to the current length
+                self._active_blocks[block] = len(self)
+                if block.opener is not None:
+                    self = self._apply_node(block.opener)
+        return self
+
+    def _update_open_block_captures(self) -> Self:
+        self = self.copy()
+        for block, start_index in self._active_blocks.items():
+            if block.name is not None:
+                self = self.set(block.name, str(self)[start_index:])
         return self
 
     def copy(self) -> Self:
