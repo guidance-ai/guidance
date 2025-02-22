@@ -59,12 +59,14 @@ class EngineClient(Client[EngineState]):
                 ff_bytes = delayed_bytes + chunk.force_forwarded_bytes
                 ff_text, delayed_bytes = partial_decode(ff_bytes)
 
+                ff_token_count = chunk.new_token_count
                 if generated_bytes:
+                    ff_token_count -= 1
                     yield TextOutput(
                         value=generated_text,
                         is_generated=True,
                         prob=chunk.new_bytes_prob,
-                        token_count=len(chunk.generated_tokens),
+                        token_count=1,  # len(chunk.generated_tokens),
                         tokens=chunk.generated_tokens,
                     )
                 if ff_bytes:
@@ -72,7 +74,7 @@ class EngineClient(Client[EngineState]):
                         value=ff_text,
                         is_generated=False,
                         prob=chunk.new_bytes_prob,
-                        token_count=len(chunk.force_forwarded_tokens),
+                        token_count=ff_token_count,  # len(chunk.force_forwarded_tokens),
                         tokens=chunk.force_forwarded_tokens,
                     )
 

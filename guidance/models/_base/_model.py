@@ -57,6 +57,7 @@ class Model(Generic[S]):
         self._client = client
         self._state = state
         self._active_role: Optional["RoleStart"] = None
+        self.token_count: int = 0
 
         self._parent: Optional["Model"] = None
         self._parent_id: Optional[int] = None
@@ -107,6 +108,8 @@ class Model(Generic[S]):
     def _apply_chunk(self, chunk: MessageChunk) -> Self:
         self = self.copy()
         self._state.apply_chunk(chunk)
+        if isinstance(chunk, TextOutput):
+            self.token_count += chunk.token_count
         if isinstance(
             chunk, (LiteralInput, TextOutput, CaptureOutput, RoleOpenerInput, RoleCloserInput)
         ):
