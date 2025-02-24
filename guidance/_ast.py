@@ -130,7 +130,7 @@ class Function(Tagged):
         return Function(__radd__, [], {})
 
 
-@dataclass(eq=False)
+@dataclass(frozen=True)
 class GrammarNode(Tagged):
 
     @property
@@ -170,7 +170,7 @@ class GrammarNode(Tagged):
         if other.is_null:
             return self
 
-        return JoinNode([self, other])
+        return JoinNode((self, other))
 
     def __radd__(self, other) -> "GrammarNode":
         if not isinstance(other, (str, GrammarNode)):
@@ -188,7 +188,7 @@ class GrammarNode(Tagged):
         if other.is_null:
             return self
 
-        return JoinNode([other, self])
+        return JoinNode((other, self))
 
     def __getitem__(self, key):
         raise StatefulException("GrammarNodes can't access state!")
@@ -229,7 +229,7 @@ class GrammarNode(Tagged):
         return LLSerializer().serialize(self)
 
 
-@dataclass(eq=False)
+@dataclass(frozen=True)
 class LiteralNode(GrammarNode):
     value: str
 
@@ -238,7 +238,7 @@ class LiteralNode(GrammarNode):
         return self.value == ""
 
 
-@dataclass(eq=False)
+@dataclass(frozen=True)
 class RegexNode(GrammarNode):
     regex: str
 
@@ -247,9 +247,9 @@ class RegexNode(GrammarNode):
         return self.regex == ""
 
 
-@dataclass(eq=False)
+@dataclass(frozen=True)
 class SelectNode(GrammarNode):
-    alternatives: list[GrammarNode]
+    alternatives: tuple[GrammarNode, ...]
 
     @property
     def is_null(self) -> bool:
@@ -261,21 +261,25 @@ class SelectNode(GrammarNode):
         return True
 
     def simplify(self) -> "GrammarNode":
-        nullable = any(alt.is_null for alt in self.alternatives)
-        self.alternatives = [alt.simplify() for alt in self.alternatives if not alt.is_null]
-        if nullable:
-            self.alternatives.append(LiteralNode(""))
-        if len(self.alternatives) == 1:
-            return self.alternatives[0]
-        return self
+        if self.is_null:
+            return LiteralNode("")
+        alternatives = tuple(alt.simplify() for alt in self.alternatives if not alt.is_null)
+        if len(alternatives) == 1:
+            node = alternatives[0]
+        else:
+            node = SelectNode(alternatives)
+
+        if any(alt.is_null for alt in self.alternatives):
+            return RepeatNode(node, 0, 1)
+        return node
 
     def children(self) -> list["GrammarNode"]:
         return self.alternatives
 
 
-@dataclass(eq=False)
+@dataclass(frozen=True)
 class JoinNode(GrammarNode):
-    nodes: list[GrammarNode]
+    nodes: tuple[GrammarNode, ...]
 
     @property
     def is_null(self) -> bool:
@@ -286,16 +290,18 @@ class JoinNode(GrammarNode):
         return False
 
     def simplify(self) -> "GrammarNode":
-        self.nodes = [node.simplify() for node in self.nodes if not node.is_null]
-        if len(self.nodes) == 1:
-            return self.nodes[0]
+        if self.is_null:
+            return LiteralNode("")
+        nodes = tuple(node.simplify() for node in self.nodes if not node.is_null)
+        if len(nodes) == 1:
+            return nodes[0]
         return self
 
     def children(self) -> list["GrammarNode"]:
         return self.nodes
 
 
-@dataclass(eq=False)
+@dataclass(frozen=True)
 class RepeatNode(GrammarNode):
     node: GrammarNode
     min: int
@@ -319,9 +325,9 @@ class RepeatNode(GrammarNode):
         return self
 
 
-@dataclass(eq=False)
+@dataclass(frozen=True)
 class SubstringNode(GrammarNode):
-    chunks: list[str]
+    chunks: tuple[str, ...]
 
     @property
     def is_terminal(self) -> bool:
@@ -329,43 +335,29 @@ class SubstringNode(GrammarNode):
         return False
 
 
-@dataclass(eq=False)
+@dataclass(frozen=True)
 class RuleNode(GrammarNode):
     name: str
     value: GrammarNode
     capture: Optional[str] = None
     list_append: bool = False
-    _temperature: Optional[float] = field(init=False, default=None)
-    _max_tokens: Optional[int] = field(init=False, default=None)
+    temperature: Optional[float] = None
+    max_tokens: Optional[int] = None
 
-    @property
-    def temperature(self) -> Optional[float]:
-        return self._temperature
-
-    @temperature.setter
-    def temperature(self, value: Optional[float]):
-        if value is not None and not (
-            self.value.is_terminal or isinstance(self.value, BaseSubgrammarNode)
+    def __post_init__(self) -> None:
+        if (
+            self.temperature is not None
+            or self.max_tokens is not None
+            and not (self.value.is_terminal or isinstance(self.value, BaseSubgrammarNode))
         ):
-            raise ValueError("RuleNode is not terminal, so it cannot have a temperature")
-        self._temperature = value
-
-    @property
-    def max_tokens(self) -> Optional[int]:
-        return self._max_tokens
-
-    @max_tokens.setter
-    def max_tokens(self, value: Optional[int]):
-        if value is not None and not (
-            self.value.is_terminal or isinstance(self.value, BaseSubgrammarNode)
-        ):
-            raise ValueError("RuleNode is not terminal, so it cannot have a max_tokens")
-        self._max_tokens = value
+            raise ValueError(
+                "RuleNode is not terminal, so it cannot have a temperature or max_tokens"
+            )
 
     @property
     def is_terminal(self) -> bool:
         return (
-            (self.capture is None and self._temperature is None and self._max_tokens is None)
+            (self.capture is None and self.temperature is None and self.max_tokens is None)
             and self.value.is_terminal
             and not isinstance(self.value, BaseSubgrammarNode)
         )
@@ -374,7 +366,7 @@ class RuleNode(GrammarNode):
         return [self.value]
 
 
-@dataclass(eq=False)
+@dataclass(frozen=True)
 class GenNode(RuleNode):
     value: RegexNode
     stop_regex: str = ""
@@ -393,9 +385,15 @@ class GenNode(RuleNode):
         )
 
 
-@dataclass(eq=False)
+@dataclass(frozen=True, eq=False)
 class RuleRefNode(GrammarNode):
-    target: Optional[RuleNode] = None
+    target: Optional[RuleNode] = field(default=None, init=False)
+
+    def set_target(self, target: RuleNode) -> None:
+        if self.target is not None:
+            raise ValueError("RuleRefNode target already set")
+        # Side-step frozen=True to set target
+        object.__setattr__(self, "target", target)
 
     @property
     def is_terminal(self) -> bool:
@@ -404,7 +402,7 @@ class RuleRefNode(GrammarNode):
         return False
 
 
-@dataclass(eq=False)
+@dataclass(frozen=True)
 class BaseSubgrammarNode(GrammarNode):
     name: str
 
@@ -413,13 +411,13 @@ class BaseSubgrammarNode(GrammarNode):
         return False
 
 
-@dataclass(eq=False)
+@dataclass(frozen=True)
 class SubgrammarNode(BaseSubgrammarNode):
     body: GrammarNode
     skip_regex: Optional[str] = None
 
 
-@dataclass(eq=False)
+@dataclass(frozen=True, eq=False)
 class JsonNode(BaseSubgrammarNode):
     schema: Union[bool, dict[str, Any]]
 
@@ -502,6 +500,7 @@ class LarkSerializer:
             return f"@{self.ll_serializer.visit(node)}"
 
         if isinstance(node, RuleNode):
+            node = cast(RuleNode, node.simplify())
             if node in self.names:
                 return self.names[node]
 

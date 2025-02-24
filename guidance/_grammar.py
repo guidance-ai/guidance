@@ -43,9 +43,9 @@ def gen(
         stop_regex=stop_regex,
         save_stop_text=save_stop_text,
         list_append=list_append,
+        temperature=temperature,
+        max_tokens=max_tokens,
     )
-    node.temperature = temperature
-    node.max_tokens = max_tokens
     return node
 
 
@@ -101,7 +101,7 @@ def select(
 
     return RuleNode(
         name=name or "select",
-        value=SelectNode(alternatives),
+        value=SelectNode(tuple(alternatives)),
         capture=name,
         list_append=list_append,
     )
@@ -134,16 +134,14 @@ def repeat(
 
 
 def token_limit(value: GrammarNode, max_tokens: int) -> RuleNode:
-    if isinstance(value, RuleNode):
-        rule = copy.copy(value)
-    else:
-        try:
-            rule = RuleNode(name="token_limit", value=value)
-            rule.max_tokens = max_tokens
-        except ValueError:
-            rule = RuleNode(name="token_limit", value=subgrammar(value))
-            rule.max_tokens = max_tokens
-    return rule
+    """This sets the token limit to be used for the given portion of the grammar."""
+    try:
+        if isinstance(value, RuleNode):
+            return dataclasses.replace(value, max_tokens=max_tokens)
+        else:
+            return RuleNode(name="token_limit", value=value, max_tokens=max_tokens)
+    except ValueError:
+        return RuleNode(name="token_limit", value=subgrammar(value), max_tokens=max_tokens)
 
 
 def with_temperature(value: GrammarNode, temperature: float) -> RuleNode:
@@ -152,15 +150,13 @@ def with_temperature(value: GrammarNode, temperature: float) -> RuleNode:
     Note that if the grammar passed to us already has some portions with a temperature
     setting in place, those settings will not be overridden.
     """
-    if isinstance(value, RuleNode):
-        rule = copy.copy(value)
     try:
-        rule = RuleNode(name="with_temperature", value=value)
-        rule.temperature = temperature
+        if isinstance(value, RuleNode):
+            return dataclasses.replace(value, temperature=temperature)
+        else:
+            return RuleNode(name="with_temperature", value=value, temperature=temperature)
     except ValueError:
-        rule = RuleNode(name="with_temperature", value=subgrammar(value))
-        rule.temperature = temperature
-    return rule
+        return RuleNode(name="with_temperature", value=subgrammar(value), temperature=temperature)
 
 
 def capture(value: GrammarNode, name: str, list_append: bool = False) -> RuleNode:

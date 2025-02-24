@@ -17,7 +17,7 @@ def substring(
     if chunk_on == "word":
         chunks = chunk_on_word(target_string)
     elif chunk_on == "character":
-        chunks = list(target_string)
+        chunks = tuple(target_string)
     elif callable(chunk_on):
         chunks = chunk_on(target_string)
         if "".join(chunks) != target_string:
@@ -29,6 +29,6 @@ def substring(
 
     return RuleNode(
         name=name or "substring",
-        value=SubstringNode(chunks),
+        value=SubstringNode(tuple(chunks)),
         capture=name,
     )

@@ -157,7 +157,7 @@ def _decorator(f, *, stateless, cache, model):
                         rule = RuleNode(name=f.__name__, value=node)
                     # set the reference value with our generated node
                     if no_args:
-                        thread_local._self_call_reference_.target = rule
+                        thread_local._self_call_reference_.set_target(rule)
                 finally:
                     if no_args:
                         del thread_local._self_call_reference_
