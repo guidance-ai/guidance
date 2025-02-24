@@ -10,10 +10,10 @@ from typing import (
 import warnings
 import pydantic
 
-from guidance._grammar import token_limit, with_temperature
+from guidance._grammar import token_limit, with_temperature, capture
 
 
-from .._ast import RuleNode, JsonNode
+from .._ast import JsonNode
 from ._pydantic import pydantic_to_json_schema
 
 JSONSchema = Mapping[str, Any]
@@ -95,16 +95,17 @@ def json(
         raise TypeError(f"Unsupported schema type: {type(schema)}")
 
     # TODO: separators, whitespace_flexible
-    rule = RuleNode(
-        name=name or "json",
-        value=JsonNode(schema),
-        capture=name
+    node = JsonNode(
+        name = name or "json",
+        schema = schema,
     )
     if temperature is not None:
-        rule = with_temperature(rule, temperature)
+        node = with_temperature(node, temperature)
     if max_tokens is not None:
-        rule = token_limit(rule, max_tokens)
-    return rule
+        node = token_limit(node, max_tokens)
+    if name is not None:
+        node = capture(node, name)
+    return node
 
 # TODO: oneOf coercion? Compiling grammar early to check for errors?
 # compiler = JsonCompiler(
