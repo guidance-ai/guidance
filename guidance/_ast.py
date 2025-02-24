@@ -345,10 +345,8 @@ class RuleNode(GrammarNode):
     max_tokens: Optional[int] = None
 
     def __post_init__(self) -> None:
-        if (
-            self.temperature is not None
-            or self.max_tokens is not None
-            and not (self.value.is_terminal or isinstance(self.value, BaseSubgrammarNode))
+        if (self.temperature is not None or self.max_tokens is not None) and not (
+            self.value.is_terminal or isinstance(self.value, BaseSubgrammarNode)
         ):
             raise ValueError(
                 "RuleNode is not terminal, so it cannot have a temperature or max_tokens"
