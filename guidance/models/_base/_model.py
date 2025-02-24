@@ -10,12 +10,12 @@ from typing import TYPE_CHECKING, Any, Generic, Iterator, Optional, TypeVar, Uni
 
 from typing_extensions import Self, assert_never
 
+from ..._ast import ASTNode
 from ..._grammar import Null, RawFunction, _call_pool, _tag_pattern
 from ..._singleton import get_renderer, get_trace_handler
-from ...experimental.ast import ImageBlob, MessageChunk, Node, RoleEnd, RoleStart
 from ...trace import (
     CaptureOutput,
-    ImageInput,
+    ImageOutput,
     LiteralInput,
     NodeAttr,
     RoleCloserInput,
@@ -25,31 +25,16 @@ from ...trace import (
 )
 from ...visual import TraceMessage
 from ._client import Client
-from ._state import State
+from ._state import MessageChunk, State
 
+if TYPE_CHECKING:
+    from ...library._block import Block
+
+_active_blocks: ContextVar[tuple["Block", ...]] = ContextVar("active_blocks", default=())
 _event_queues: ContextVar[tuple[queue.Queue["Model"], ...]] = ContextVar(
     "event_queues", default=()
 )
-_active_blocks: ContextVar[tuple["Block", ...]] = ContextVar("active_blocks", default=())
 _id_counter: int = 0
-
-
-class Block:
-    def __init__(self, name: Optional[str], opener: Optional[Node], closer: Optional[Node]):
-        self.name = name
-        self.opener = opener
-        self.closer = closer
-        self._token = None
-        self._lock = threading.Lock()
-
-    def __enter__(self):
-        if not self._lock.acquire(blocking=False):
-            raise RuntimeError("Cannot enter block because it is already open")
-        self._token = _active_blocks.set(_active_blocks.get() + (self,))
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        _active_blocks.reset(self._token)
-        self._lock.release()
 
 
 def _gen_id():
@@ -57,6 +42,7 @@ def _gen_id():
 
     _id = _id_counter
     _id_counter += 1
+
     return _id
 
 
@@ -98,7 +84,7 @@ class Model(Generic[S]):
                 )
             )
 
-    def __add__(self, other: Node) -> Self:
+    def __add__(self, other: ASTNode) -> Self:
         self = self._apply_blocks()
         if isinstance(other, str):
             if other == "":
@@ -110,7 +96,7 @@ class Model(Generic[S]):
         self = self._update_open_block_captures()
         return self
 
-    def _apply_node(self, node: Node) -> Self:
+    def _apply_node(self, node: ASTNode) -> Self:
         for chunk in self._client.run(self._state, node):
             self = self._apply_chunk(chunk)
         return self
@@ -130,15 +116,17 @@ class Model(Generic[S]):
         if isinstance(chunk, TextOutput):
             self.token_count += chunk.token_count
         if isinstance(
-            chunk, (LiteralInput, TextOutput, CaptureOutput, RoleOpenerInput, RoleCloserInput)
+            chunk,
+            (
+                LiteralInput,
+                TextOutput,
+                CaptureOutput,
+                RoleOpenerInput,
+                RoleCloserInput,
+                ImageOutput,
+            ),
         ):
             self._update_trace_node(self._id, self._parent_id, chunk)
-        elif isinstance(chunk, ImageBlob):
-            self._update_trace_node(
-                self._id,
-                self._parent_id,
-                ImageInput(value=b64encode(chunk.image.tobytes()).decode("utf-8")),
-            )
         else:
             if TYPE_CHECKING:
                 assert_never(chunk)
@@ -284,7 +272,7 @@ class Model(Generic[S]):
         return super().__getattribute__(name)
 
 
-def extract_embedded_nodes(value: str) -> Node:
+def extract_embedded_nodes(value: str) -> ASTNode:
     parts: list[str] = re.split(_tag_pattern, value)
 
     if len(parts) == 1:
@@ -304,7 +292,7 @@ def extract_embedded_nodes(value: str) -> Node:
 
 class ModelStream:
     def __init__(
-        self, model: Model, grammar: Union["ModelStream", Node, None] = None, timeout=5
+        self, model: Model, grammar: Union["ModelStream", ASTNode, None] = None, timeout=5
     ) -> None:
         """Create a model stream object that delays execution until it is iterated over."""
         if model.echo:
@@ -314,7 +302,7 @@ class ModelStream:
         self.grammar = grammar
         self.timeout = timeout
 
-    def __add__(self, grammar: Node) -> Self:
+    def __add__(self, grammar: ASTNode) -> Self:
         """Extend this delayed chain of execution with another grammar append."""
         if self.grammar is None:
             return ModelStream(self.model, grammar)

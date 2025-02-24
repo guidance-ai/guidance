@@ -1,6 +1,8 @@
+import base64
+from io import BytesIO
 from typing import Any
 
-from ...experimental.ast import ImageBlob
+from ...trace._trace import ImageOutput
 from .._base import State
 
 
@@ -20,15 +22,34 @@ class EngineState(State):
 
 
 class Llama3VisionState(EngineState):
-    def apply_image(self, image: ImageBlob) -> None:
-        self.images.append(image.image)
+    def apply_image(self, image: ImageOutput) -> None:
+        try:
+            import PIL.Image
+        except ImportError:
+            raise Exception(
+                "Please install the Pillow package `pip install Pillow` in order to use images with Llama3!"
+            )
+
+        image_bytes = base64.b64decode(image.value)
+        pil_image = PIL.Image.open(BytesIO(image_bytes))
+        self.images.append(pil_image)
+
         text = "<|image|>"
         EngineState.apply_text(self, text)
 
 
 class Phi3VisionState(EngineState):
-    def apply_image(self, image: ImageBlob) -> None:
-        pil_image = image.image
+    def apply_image(self, image: ImageOutput) -> None:
+        try:
+            import PIL.Image
+        except ImportError:
+            raise Exception(
+                "Please install the Pillow package `pip install Pillow` in order to use images with Phi 3!"
+            )
+
+        image_bytes = base64.b64decode(image.value)
+        pil_image = PIL.Image.open(BytesIO(image_bytes))
+
         if pil_image in self.images:
             ix = self.images.index(pil_image) + 1
         else:

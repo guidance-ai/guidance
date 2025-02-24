@@ -1,5 +1,5 @@
 from ._block import block, Block
-from ..experimental.ast import RoleStart, RoleEnd
+from .._grammar import RoleStart, RoleEnd
 
 # TODO HN: Add a docstring to better describe arbitrary role functions
 def role(role: str) -> Block:

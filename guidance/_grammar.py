@@ -1,6 +1,7 @@
 import re
 import types
-from typing import Any, Optional, Sequence, Union, cast
+from typing import Any, Optional, Sequence, Union, cast 
+from dataclasses import dataclass
 
 
 # to support the embedding of guidance functions inside Python f-strings we use tags with these delimiters
@@ -645,6 +646,17 @@ class LLGrammar(WithMaxTokens):
     def __init__(self, grammar_with_lexer: dict[str, Any], *, capture_name: Optional[float] = None, temperature: Optional[float] = None, max_tokens: Optional[int] = None):
         super().__init__(capture_name=capture_name, temperature=temperature, max_tokens=max_tokens)
         self.grammar_with_lexer = grammar_with_lexer
+
+
+# These are "abstract" role tags (i.e. they indicate the start and end of a role, but they do not know the corresponding text/tokens).
+# They are "grammar-adjacent" concepts but not really grammars themselves.
+@dataclass
+class RoleStart:
+    role: str
+
+@dataclass
+class RoleEnd:
+    role: str
 
 
 def string(value: Union[str, bytes]) -> Union[Null, Join]:

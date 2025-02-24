@@ -2,10 +2,11 @@ import base64
 from io import BytesIO
 from typing import Iterator, Optional
 
-from .._grammar import Gen, Join
-from ..experimental.ast import ContentChunk, ImageBlob, Node, RoleEnd, RoleStart
-from ..trace import LiteralInput, TextOutput, RoleOpenerInput, RoleCloserInput
-from ._base import Model, State, Client
+from .._ast import ASTNode
+
+from .._grammar import Gen, Join, RoleEnd, RoleStart
+from ..trace import LiteralInput, TextOutput, RoleOpenerInput, RoleCloserInput, ImageOutput
+from ._base import Model, State, Client, ContentChunk
 
 class OpenAIState(State):
     def apply_content_chunk(self, chunk: ContentChunk) -> None:
@@ -23,19 +24,26 @@ class OpenAIState(State):
         self.text += text
 
 class OpenAIImageState(OpenAIState):
-    def apply_image(self, image: ImageBlob) -> None:
-        format = image.image.format
-        if format is None:
-            raise ValueError(f"Cannot upload image with unknown format: {image.image}")
+    def apply_image(self, image: ImageOutput) -> None:
+        try:
+            import PIL.Image
+        except ImportError:
+            raise Exception(
+                "Please install the Pillow package `pip install Pillow` in order to use images with OpenAI!"
+            )
 
-        with BytesIO() as buffer:
-            image.image.save(buffer, format=format)
-            b64_image = base64.b64encode(buffer.getvalue()).decode("utf-8")
+        image_bytes = base64.b64decode(image.value)
+        with PIL.Image.open(BytesIO(image_bytes)) as pil_image:
+            # Use PIL to infer file format
+            # TODO: just store format on ImageOutput type
+            format = pil_image.format
+            if format is None:
+                raise ValueError(f"Cannot upload image with unknown format")
 
         mime_type = f"image/{format.lower()}"
         content = self.active_message["data"].setdefault("content", [])
         content.append(
-            {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{b64_image}"}}
+            {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{image.value}"}}
         )
         self.text += "<|image|>" # Arbitrary stringification of image
 
@@ -62,7 +70,7 @@ class OpenAIClient(Client[OpenAIState]):
         self.client = openai.OpenAI(api_key=api_key, **kwargs)
 
     def run(
-        self, state: OpenAIState, node: Node
+        self, state: OpenAIState, node: ASTNode
     ) -> Iterator[ContentChunk]:
         def inner(node):
             if isinstance(node, Join):
@@ -86,7 +94,7 @@ class OpenAIClient(Client[OpenAIState]):
                     text="\n<|im_end|>\n",
                 )
 
-            elif isinstance(node, ImageBlob):
+            elif isinstance(node, ImageOutput):
                 yield node
 
             elif isinstance(node, Gen):

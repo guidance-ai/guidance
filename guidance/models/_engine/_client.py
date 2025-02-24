@@ -1,15 +1,16 @@
 from typing import Iterator
 
-from ..._grammar import Function
-from ...experimental.ast import ImageBlob, MessageChunk, Node, RoleEnd, RoleStart
+from ..._ast import ASTNode
+from ..._grammar import Function, RoleEnd, RoleStart
 from ...trace import (
     CaptureOutput,
+    ImageOutput,
     LiteralInput,
     RoleCloserInput,
     RoleOpenerInput,
     TextOutput,
 )
-from .._base import Client
+from .._base import Client, MessageChunk
 from ._engine import Engine
 from ._state import EngineState
 
@@ -18,7 +19,7 @@ class EngineClient(Client[EngineState]):
     def __init__(self, engine: Engine):
         self.engine = engine
 
-    def run(self, state: EngineState, node: Node) -> Iterator[MessageChunk]:
+    def run(self, state: EngineState, node: ASTNode) -> Iterator[MessageChunk]:
         if isinstance(node, str):
             yield LiteralInput(value=node)
 
@@ -41,7 +42,7 @@ class EngineClient(Client[EngineState]):
                 text=chat_template.get_role_end(node.role),
             )
 
-        elif isinstance(node, ImageBlob):
+        elif isinstance(node, ImageOutput):
             yield node
 
         elif isinstance(node, Function):

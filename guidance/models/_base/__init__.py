@@ -1,6 +1,6 @@
 from ._client import Client
 from ._model import Model
-from ._state import Message, State
+from ._state import ContentChunk, Message, MessageChunk, State
 
 __all__ = [
     "Model",
@@ -8,4 +8,7 @@ __all__ = [
     "State",
     "Message",
     "Client",
+    "ASTNode",
+    "ContentChunk",
+    "MessageChunk",
 ]

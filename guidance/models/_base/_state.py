@@ -3,14 +3,17 @@ from typing import TYPE_CHECKING, Any, Optional, Sequence, TypedDict, Union
 
 from typing_extensions import Self, assert_never
 
-from ...experimental.ast import ContentChunk, ImageBlob, MessageChunk
 from ...trace import (
     CaptureOutput,
+    ImageOutput,
     LiteralInput,
     RoleCloserInput,
     RoleOpenerInput,
     TextOutput,
 )
+
+ContentChunk = Union[TextOutput, LiteralInput, ImageOutput]
+MessageChunk = Union[ContentChunk, RoleOpenerInput, RoleCloserInput, CaptureOutput]
 
 
 class Message(TypedDict):
@@ -102,7 +105,7 @@ class State(ABC):
     def apply_text(self, text: str) -> None:
         pass
 
-    def apply_image(self, image: ImageBlob) -> None:
+    def apply_image(self, image: ImageOutput) -> None:
         # TODO: raise custom exception so we can catch it and raise a better error
         # where we have the model's name, etc.
         raise TypeError(f"Image blobs not supported by {self.__class__.__name__}")
