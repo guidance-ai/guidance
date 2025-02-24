@@ -17,6 +17,19 @@ _tag_pattern = re.compile(
 )  # the pattern for matching call tags
 
 
+def parse_tags(s: str) -> Union["GrammarNode", "Function"]:
+    parts = cast(list[str], _tag_pattern.split(s))
+    obj: GrammarNode = LiteralNode(parts.pop(0))
+    is_tag = True
+    for part in parts:
+        if is_tag:
+            obj += _tag_pool[part]
+        else:
+            obj += LiteralNode(part)
+        is_tag = not is_tag
+    return obj
+
+
 class Tagged:
     def __str__(self):
         """Creates a string tag that can be used to retrieve this object."""
@@ -409,19 +422,6 @@ class SubgrammarNode(BaseSubgrammarNode):
 @dataclass(eq=False)
 class JsonNode(BaseSubgrammarNode):
     schema: Union[bool, dict[str, Any]]
-
-
-def parse_tags(s: str) -> Union[GrammarNode, Function]:
-    parts = cast(list[str], _tag_pattern.split(s))
-    obj: GrammarNode = LiteralNode(parts.pop(0))
-    is_tag = True
-    for part in parts:
-        if is_tag:
-            obj += _tag_pool[part]
-        else:
-            obj += LiteralNode(part)
-        is_tag = not is_tag
-    return obj
 
 
 class LLSerializer:
