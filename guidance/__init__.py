@@ -13,7 +13,7 @@ from ._grammar import (
     string,
 )
 from ._utils import strip_multiline_string_indents
-from ._server import Server
+# from ._server import Server
 
 
 # This makes the guidance module callable

@@ -2,7 +2,7 @@ from typing import Any, Dict, Sequence, Union
 
 import numpy as np
 
-from ..chat import load_template_class, ChatTemplate
+from ...chat import ChatTemplate, load_template_class
 
 
 class Tokenizer:
@@ -32,22 +32,16 @@ class Tokenizer:
         else:
             raise ValueError("Unknown tokenizer was passed!")
 
-        assert isinstance(
-            self.tokens[0], bytes
-        ), "The tokens need to be provided as bytes!"
+        assert isinstance(self.tokens[0], bytes), "The tokens need to be provided as bytes!"
 
         # This method supports None, a huggingface style jinja2_template_str, or a ChatTemplate subclass
         # Defaults to ChatML if nothing is found
         self._chat_template = load_template_class(chat_template)
 
         self._bos_token_id = bos_token_id
-        self._bos_token = (
-            None if self.bos_token_id is None else self.tokens[self.bos_token_id]
-        )
+        self._bos_token = None if self.bos_token_id is None else self.tokens[self.bos_token_id]
         self._eos_token_id = eos_token_id if eos_token_id is not None else bos_token_id
-        self._eos_token = (
-            None if self.eos_token_id is None else self.tokens[self.eos_token_id]
-        )
+        self._eos_token = None if self.eos_token_id is None else self.tokens[self.eos_token_id]
 
         # track which tokens are duplicates
         self._duplicate_tokens = []

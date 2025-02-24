@@ -1,10 +1,10 @@
 import os
-from ._model import Chat, Instruct
+from ._engine._engine import Chat, Instruct
 from ._openai import (
     OpenAI,
     OpenAIEngine,
 )
-from .transformers._transformers import TransformersTokenizer
+from .transformers import TransformersTokenizer
 
 
 class TogetherAI(OpenAI):
