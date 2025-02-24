@@ -69,7 +69,7 @@ class StatefulException(Exception):
     pass
 
 
-@dataclass(slots=True)
+@dataclass
 class Function(Tagged):
     name: str = field(init=False)
     f: Callable
@@ -118,7 +118,7 @@ class Function(Tagged):
         return Function(__radd__, [], {})
 
 
-@dataclass(slots=True, eq=False)
+@dataclass(eq=False)
 class GrammarNode(ABC, Tagged):
     @abstractmethod
     def lark_str(self, top: bool = False) -> str:
@@ -220,7 +220,7 @@ class GrammarNode(ABC, Tagged):
         return as_ll_grammar(self)
 
 
-@dataclass(slots=True, eq=False)
+@dataclass(eq=False)
 class LiteralNode(GrammarNode):
     value: str
 
@@ -232,7 +232,7 @@ class LiteralNode(GrammarNode):
         return json.dumps(self.value)
 
 
-@dataclass(slots=True, eq=False)
+@dataclass(eq=False)
 class RegexNode(GrammarNode):
     regex: str
 
@@ -244,7 +244,7 @@ class RegexNode(GrammarNode):
         return f"/{self.regex}/"
 
 
-@dataclass(slots=True, eq=False)
+@dataclass(eq=False)
 class SelectNode(GrammarNode):
     alternatives: list[GrammarNode]
 
@@ -279,7 +279,7 @@ class SelectNode(GrammarNode):
         return self.alternatives
 
 
-@dataclass(slots=True, eq=False)
+@dataclass(eq=False)
 class JoinNode(GrammarNode):
     nodes: list[GrammarNode]
 
@@ -307,7 +307,7 @@ class JoinNode(GrammarNode):
         return self.nodes
 
 
-@dataclass(slots=True, eq=False)
+@dataclass(eq=False)
 class RepeatNode(GrammarNode):
     node: GrammarNode
     min: int
@@ -336,21 +336,18 @@ class RepeatNode(GrammarNode):
         inner = self.node.lark_str()
         if not self.node.is_atomic:
             inner = f"({inner})"
-        match (self.min, self.max):
-            case (0, None):
-                return f"{inner}*"
-            case (1, None):
-                return f"{inner}+"
-            case (0, 1):
-                return f"{inner}?"
-            case (min, None):
-                return f"{inner}{{{min},}}"
-            case (min, max):
-                return f"{inner}{{{min},{max}}}"
-        raise RuntimeError("Unreachable")
+        if (self.min, self.max) == (0, None):
+            return f"{inner}*"
+        if (self.min, self.max) == (1, None):
+            return f"{inner}+"
+        if (self.min, self.max) == (0, 1):
+            return f"{inner}?"
+        if self.max is None:
+            return f"{inner}{{{self.min},}}"
+        return f"{inner}{{{self.min},{self.max}}}"
 
 
-@dataclass(slots=True, eq=False)
+@dataclass(eq=False)
 class JsonNode(GrammarNode):
     schema: Union[bool, dict[str, Any]]
 
@@ -366,7 +363,7 @@ class JsonNode(GrammarNode):
         return f"%json {json.dumps(self.schema, indent=indent)}"
 
 
-@dataclass(slots=True, eq=False)
+@dataclass(eq=False)
 class SubstringNode(GrammarNode):
     chunks: list[str]
 
@@ -383,7 +380,7 @@ class SubstringNode(GrammarNode):
         return f'%regex {json.dumps({"substring_chunks": self.chunks}, indent=indent)}'
 
 
-@dataclass(slots=True, eq=False)
+@dataclass(eq=False)
 class RuleNode(GrammarNode):
     name: str
     value: GrammarNode
@@ -450,7 +447,7 @@ class RuleNode(GrammarNode):
         return rep
 
 
-@dataclass(slots=True, eq=False)
+@dataclass(eq=False)
 class GenNode(RuleNode):
     value: RegexNode
     stop_regex: str = ""
@@ -471,7 +468,7 @@ class GenNode(RuleNode):
         return attrs
 
 
-@dataclass(slots=True, eq=False)
+@dataclass(eq=False)
 class RuleRefNode(GrammarNode):
     target: Optional[RuleNode] = None
 
@@ -494,7 +491,7 @@ class RuleRefNode(GrammarNode):
             return super().__repr__()
 
 
-@dataclass(slots=True, eq=False)
+@dataclass(eq=False)
 class SubgrammarNode(GrammarNode):
     name: str
     body: GrammarNode
