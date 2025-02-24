@@ -532,7 +532,7 @@ class LarkSerializer:
                     attrs.append(f"stop=/{node.stop_regex}/")
             if attrs:
                 res += f"[{', '.join(attrs)}]"
-            res += ": " + self.visit(node.value, top=True) + "\n"
+            res += ": " + self.visit(node.value, top=True)
             self.rules[name] = res
             return name
 
