@@ -10,7 +10,7 @@ from .._ast import JsonNode
 from .._grammar import capture, token_limit, with_temperature
 from ._pydantic import pydantic_to_json_schema
 
-JSONSchema = Mapping[str, Any]
+JSONSchema = Union[bool, Mapping[str, Any]]
 
 
 def json(
@@ -71,19 +71,31 @@ def json(
             - A subclass of ``pydantic.BaseModel``
             - An instance of ``pydantic.TypeAdapter``
     """
-    if schema is None:
+    if schema is False:
+        raise ValueError("Unsatisfiable schema: schema is false")
+    elif schema is True:
+        schema = {}
+    elif schema is None:
         # Default schema is empty, "anything goes" schema
         # TODO: consider default being `{"type": "object"}`
         schema = {}
-    elif isinstance(schema, (Mapping, bool, str)):
-        if isinstance(schema, str):
-            schema = cast(JSONSchema, json_loads(schema))
     elif isinstance(schema, pydantic.TypeAdapter) or (
         isinstance(schema, type) and issubclass(schema, pydantic.BaseModel)
     ):
         schema = pydantic_to_json_schema(schema)
+    elif isinstance(schema, str):
+        from_str = json_loads(schema)
+        if not isinstance(from_str, dict):
+            raise ValueError(
+                "JSON schema string must be a JSON object (i.e. a dictionary)"
+            )
+        schema = from_str
+
+    if isinstance(schema, Mapping):
+        schema = dict(schema)
     else:
         raise TypeError(f"Unsupported schema type: {type(schema)}")
+
 
     coerce_one_of = False
     # TODO: decide whether or not to keep this -- it lets us double check that llguidance can handle the schema (which isn't necessarily)
@@ -117,14 +129,24 @@ def json(
             else:
                 raise
 
-    # TODO: separators, whitespace_flexible
+    if separators is None:
+        if whitespace_flexible:
+            separators = (",", ":")
+        else:
+            separators = (", ", ": ")
+    item_separator, key_separator = separators
+
+    if schema.get("x-guidance") is None:
+        schema["x-guidance"] = {
+            "item_separator": item_separator,
+            "key_separator": key_separator,
+            "whitespace_flexible": whitespace_flexible,
+            "coerce_one_of": coerce_one_of,
+        }
+
     node = JsonNode(
         name=name or "json",
         schema=schema,
-        # TODO:
-        # separators = separators,
-        # whitespace_flexible = whitespace_flexible,
-        # coerce_one_of = coerce_one_of,
     )
     if temperature is not None:
         node = with_temperature(node, temperature)

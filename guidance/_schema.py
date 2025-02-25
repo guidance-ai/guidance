@@ -78,7 +78,7 @@ class LarkGrammar(BaseModel):
 
 class JsonGrammar(BaseModel):
     name: str
-    json_schema: Union[bool, dict[str, Any]]
+    json_schema: dict[str, Any]
 
 class LLGrammar(BaseModel):
     grammars: list[Union[LarkGrammar, JsonGrammar]]

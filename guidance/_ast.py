@@ -429,7 +429,7 @@ class SubgrammarNode(BaseSubgrammarNode):
 
 @dataclass(frozen=True, eq=False)
 class JsonNode(BaseSubgrammarNode):
-    schema: Union[bool, dict[str, Any]]
+    schema: dict[str, Any]
 
 
 class LLSerializer:
