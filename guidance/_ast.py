@@ -571,7 +571,7 @@ class LarkSerializer:
         if isinstance(node, RuleRefNode):
             if node.target is None:
                 raise ValueError("RuleRefNode has no target")
-            return self.names[node.target]
+            return self.visit(node.target)
 
         raise TypeError(f"Unknown node type: {node}")
 
