@@ -321,8 +321,7 @@ class RepeatNode(GrammarNode):
         return [self.node]
 
     def simplify(self) -> GrammarNode:
-        self.node = self.node.simplify()
-        return self
+        return RepeatNode(self.node.simplify(), self.min, self.max)
 
 
 @dataclass(frozen=True)
