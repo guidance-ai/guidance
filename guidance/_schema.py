@@ -76,12 +76,12 @@ class LarkGrammar(BaseModel):
     name: str
     lark_grammar: str
 
-class JSONGrammar(BaseModel):
+class JsonGrammar(BaseModel):
     name: str
     json_schema: Union[bool, dict[str, Any]]
 
 class LLGrammar(BaseModel):
-    grammars: list[Union[LarkGrammar, JSONGrammar]]
+    grammars: list[Union[LarkGrammar, JsonGrammar]]
 
 class LLProgressCapture(BaseModel):
     object: Literal["capture"]

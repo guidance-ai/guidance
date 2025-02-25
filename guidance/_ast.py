@@ -5,7 +5,7 @@ from typing import Any, Callable, Optional, Union, cast
 
 from .trace import ImageOutput
 from ._parser import ByteParser, ByteParserException
-from ._schema import JSONGrammar, LarkGrammar, LLGrammar
+from ._schema import JsonGrammar, LarkGrammar, LLGrammar
 
 
 ASTNode = Union["GrammarNode", ImageOutput, "RoleStart", "RoleEnd"]
@@ -434,7 +434,7 @@ class JsonNode(BaseSubgrammarNode):
 
 class LLSerializer:
     def __init__(self):
-        self.grammars: dict[str, Union[JSONGrammar, LarkGrammar]] = {}
+        self.grammars: dict[str, Union[JsonGrammar, LarkGrammar]] = {}
         self.names: dict[BaseSubgrammarNode, str] = {}
 
     def serialize(self, node: GrammarNode) -> LLGrammar:
@@ -467,7 +467,7 @@ class LLSerializer:
         elif isinstance(node, JsonNode):
             # Important: insert name BEFORE visiting body to avoid infinite recursion
             self.names[node] = name
-            self.grammars[name] = JSONGrammar(name=name, json_schema=node.schema)
+            self.grammars[name] = JsonGrammar(name=name, json_schema=node.schema)
 
         else:
             raise TypeError(f"Unknown subgrammar type: {node}")
