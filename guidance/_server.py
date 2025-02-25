@@ -1,7 +1,10 @@
-import base64
 import os
 
 from typing import TYPE_CHECKING, Iterator
+
+from .models import Model
+from .models._engine import Engine
+from ._schema import EngineCallResponse
 
 try:
     import pydantic

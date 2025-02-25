@@ -12,13 +12,13 @@ Bidirectional comms for Jupyter and JavaScript.
 You can install using `pip`:
 
 ```bash
-pip install stitch
+pip install guidance-stitch
 ```
 
 If you are using Jupyter Notebook 5.2 or earlier, you may also need to enable
 the nbextension:
 ```bash
-jupyter nbextension enable --py [--sys-prefix|--user|--system] stitch
+jupyter nbextension enable --py [--sys-prefix|--user|--system] guidance-stitch
 ```
 
 ## Development Installation
@@ -45,8 +45,8 @@ jlpm run build
 For classic notebook, you need to run:
 
 ```
-jupyter nbextension install --sys-prefix --symlink --overwrite --py stitch
-jupyter nbextension enable --sys-prefix --py stitch
+jupyter nbextension install --sys-prefix --symlink --overwrite --py guidance-stitch
+jupyter nbextension enable --sys-prefix --py guidance-stitch
 ```
 
 Note that the `--symlink` flag doesn't work on Windows, so you will here have to run

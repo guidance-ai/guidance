@@ -3,20 +3,17 @@ import logging
 import operator
 import os
 import sys
-
-from typing import Sequence
-
 from itertools import takewhile
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, Optional, Sequence
 
 import numpy as np
 
-from guidance._schema import GenToken, GenTokenExtra
-
-from .._model import Engine, Model, Chat
-from .._remote import RemoteEngine
-from .._tokenizer import Tokenizer
+from ..._schema import GenToken, GenTokenExtra
 from ..._utils import normalize_notebook_stdout_stderr, softmax
+from .._base import Message, Model
+from .._engine import Engine, EngineClient, EngineState, Tokenizer
+from .._remote import RemoteEngine
 
 try:
     import llama_cpp
@@ -24,6 +21,10 @@ try:
     is_llama_cpp = True
 except ModuleNotFoundError:
     is_llama_cpp = False
+
+if TYPE_CHECKING:
+    from llama_cpp.llama import Llama
+    from llama_cpp.llama_chat_format import Jinja2ChatFormatter
 
 logger = logging.getLogger(__name__)
 
@@ -106,14 +107,16 @@ class LlamaCppTokenizer(Tokenizer):
 class LlamaCppEngine(Engine):
     """The core class that runs inference using llama.cpp."""
 
-    def __init__(self, 
-                 model, 
-                 compute_log_probs, 
-                 chat_template=None, 
-                 enable_backtrack=True, 
-                 enable_ff_tokens=True, 
-                 enable_monitoring=True, 
-                 **kwargs):
+    def __init__(
+        self,
+        model,
+        compute_log_probs,
+        chat_template=None,
+        enable_backtrack=True,
+        enable_ff_tokens=True,
+        enable_monitoring=True,
+        **kwargs,
+    ):
         if not is_llama_cpp:
             raise Exception(
                 "Please install llama-cpp-python with `pip install llama-cpp-python` in order to use guidance.models.LlamaCpp!"
@@ -234,7 +237,9 @@ class LlamaCppEngine(Engine):
 
         return logits
 
-    def get_per_token_topk_probs(self, token_ids: list[int], top_k: int = 5) -> list[GenTokenExtra]:
+    def get_per_token_topk_probs(
+        self, token_ids: list[int], top_k: int = 5
+    ) -> list[GenTokenExtra]:
         if len(token_ids) == 0:
             return []
 
@@ -340,6 +345,19 @@ class LlamaCppEngine(Engine):
         val = np.take_along_axis(probs, ind_part, axis=axis)
         return ind, val
 
+    def apply_chat_template(
+        self,
+        messages: Sequence[Message],
+        active_message: Message,
+        tools: Optional[list[Any]],
+    ) -> str:
+        return apply_chat_template(
+            messages,
+            active_message,
+            tools=tools,
+            chat_formatter=get_chat_formatter(self.model_obj),
+        )
+
 
 class LlamaCpp(Model):
     def __init__(
@@ -368,5 +386,49 @@ class LlamaCpp(Model):
                 enable_monitoring=enable_monitoring,
                 **llama_cpp_kwargs,
             )
+        state = EngineState()
+        client = EngineClient(engine)
+        super().__init__(client=client, state=state, echo=echo)
 
-        super().__init__(engine, echo=echo)
+
+def get_chat_formatter(model_obj: "Llama") -> "Jinja2ChatFormatter":
+    from llama_cpp.llama_chat_format import Jinja2ChatFormatter
+
+    handler = model_obj.chat_handler or model_obj._chat_handlers.get(model_obj.chat_format)
+    if handler is None:
+        raise ValueError("No chat handler found for model")
+    formatter = None
+    for cell in getattr(handler, "__closure__", ()):
+        obj = cell.cell_contents
+        if isinstance(obj, Jinja2ChatFormatter):
+            formatter = obj
+            break
+    if formatter is None:
+        raise ValueError("No formatter found for model")
+    return formatter
+
+
+def apply_chat_template(
+    messages: list[Message],
+    active_message: Message,
+    tools: Optional[list[Any]],
+    chat_formatter: "Jinja2ChatFormatter",
+) -> str:
+    sentinel_value = "<|FINAL_MESSAGE_SENTINEL_VALUE|>"
+    messages = [{"role": m["role"], "content": m["data"].get("content", "")} for m in messages]
+    active_message = {
+        "role": active_message["role"],
+        "content": active_message.get("content", "") + sentinel_value,
+    }
+    formatter_resp = chat_formatter(
+        messages=(list(messages) + [active_message]),
+        # TODO
+        # functions=None,
+        # function_call=None,
+        tools=tools,
+        # tool_choice=None,
+    )
+    # TODO: prompt.stopping_criteria?
+    prompt = formatter_resp.prompt
+    prompt = prompt[: prompt.rindex(sentinel_value)]
+    return prompt

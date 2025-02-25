@@ -40,7 +40,7 @@ module.exports = [
   },
 
   /**
-   * Embeddable stitch bundle
+   * Embeddable @guidance-ai/stitch bundle
    *
    * This bundle is almost identical to the notebook extension bundle. The only
    * difference is in the configuration of the webpack public path for the
@@ -55,8 +55,8 @@ module.exports = [
         filename: 'index.js',
         path: path.resolve(__dirname, 'dist'),
         libraryTarget: 'amd',
-        library: "stitch",
-        publicPath: 'https://unpkg.com/stitch@' + version + '/dist/'
+        library: "@guidance-ai/stitch",
+        publicPath: 'https://unpkg.com/@guidance-ai/stitch@' + version + '/dist/'
     },
     devtool: 'source-map',
     module: {

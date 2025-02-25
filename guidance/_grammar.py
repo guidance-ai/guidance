@@ -1,4 +1,3 @@
-import copy
 import dataclasses
 import re
 from typing import Optional, Sequence, Union
@@ -13,11 +12,8 @@ from ._ast import (
     RuleNode,
     SelectNode,
     SubgrammarNode,
-    parse_tags,
+    _parse_tags,
 )
-
-# TODO: maybe regex, gen, select, and repeat defined here should be private api with public wrappers in library?
-
 
 def string(s: str) -> LiteralNode:
     return LiteralNode(s)
@@ -84,7 +80,7 @@ def select(
         if isinstance(v, (int, float)):
             alternatives.append(string(str(v)))
         elif isinstance(v, str):
-            node = parse_tags(v)
+            node = _parse_tags(v)
             if isinstance(node, Function):
                 raise ValueError(
                     "You cannot select between stateful functions in the current guidance implementation!"
@@ -113,7 +109,7 @@ def repeat(
     if isinstance(value, (int, float)):
         node = string(str(value))
     elif isinstance(value, str):
-        node = parse_tags(value)
+        node = _parse_tags(value)
         if isinstance(node, Function):
             raise ValueError(
                 "You cannot repeat a stateful function in the current guidance implementation!"

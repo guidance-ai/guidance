@@ -1,17 +1,15 @@
-from typing import Sequence, Optional
-import numpy as np
 import logging
+from typing import Optional, Sequence
 
+import numpy as np
+
+from .._schema import EngineOutput, GenToken, GenTokenExtra
 from .._utils import softmax
-
-from guidance._schema import EngineOutput, GenToken, GenTokenExtra
-
-from ._model import Engine, Model, Chat
-from ._remote import RemoteEngine
-from ._tokenizer import Tokenizer
-
-from ..visual._renderer import DoNothingRenderer
 from ..trace import TraceHandler
+from ..visual._renderer import DoNothingRenderer
+from ._base import Model
+from ._engine import Engine, EngineClient, EngineState, Tokenizer
+from ._remote import RemoteEngine
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +63,12 @@ class MockTokenizer(Tokenizer):
 class MockEngine(Engine):
     def __init__(self, tokenizer, byte_patterns, compute_log_probs, force):
         renderer = DoNothingRenderer(trace_handler=TraceHandler())
-        super().__init__(tokenizer, compute_log_probs=compute_log_probs, enable_monitoring=False, renderer=renderer)
+        super().__init__(
+            tokenizer,
+            compute_log_probs=compute_log_probs,
+            enable_monitoring=False,
+            renderer=renderer,
+        )
 
         self._valid_mask = np.zeros(len(tokenizer.tokens))
         for i, t in enumerate(tokenizer.tokens):
@@ -106,7 +109,9 @@ class MockEngine(Engine):
         force_return_unmasked_probs: bool = False,
     ) -> EngineOutput:
         self.called_temperatures.append(temperature)
-        return super().get_next_token_with_top_k(logits, logits_lat_ms, token_ids, mask, temperature, k, force_return_unmasked_probs)
+        return super().get_next_token_with_top_k(
+            logits, logits_lat_ms, token_ids, mask, temperature, k, force_return_unmasked_probs
+        )
 
     def get_logits(self, token_ids: list[int]) -> np.ndarray:
         """Pretends to compute the logits for the given token state."""
@@ -135,11 +140,13 @@ class MockEngine(Engine):
 
         return logits
 
-    def get_per_token_topk_probs(self, token_ids: list[int], top_k: int = 5) -> list[GenTokenExtra]:
+    def get_per_token_topk_probs(
+        self, token_ids: list[int], top_k: int = 5
+    ) -> list[GenTokenExtra]:
         result_list = []
         if len(token_ids) == 0:
             return result_list
-        
+
         added_bos = False
         if self.tokenizer.bos_token is not None and token_ids[0] != self.tokenizer.bos_token_id:
             token_ids = [self.tokenizer.bos_token_id] + token_ids
@@ -234,9 +241,13 @@ class Mock(Model):
             tokenizer = MockTokenizer(tokens)
             engine = MockEngine(tokenizer, byte_patterns, compute_log_probs, force)
 
-        super().__init__(engine, echo=echo)
+        super().__init__(
+            client=EngineClient(engine),
+            state=EngineState(),
+            echo=echo,
+        )
 
 
-class MockChat(Mock, Chat):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+# class MockChat(Mock, Chat):
+#     def __init__(self, *args, **kwargs):
+#         super().__init__(*args, **kwargs)

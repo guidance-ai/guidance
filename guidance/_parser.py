@@ -1,16 +1,15 @@
-import json
 import os
-from typing import Any, Generator, Optional, Union
+from typing import Any, Generator, Optional, TYPE_CHECKING
 from concurrent.futures import ThreadPoolExecutor, Future
 
 import llguidance  # type: ignore[import-untyped]
 import numpy as np
 from numpy.typing import NDArray
 
-from ._schema import EngineOutput, GenData, EngineCallResponse, GenToken, LLInterpreterResponse
-from .models._byte_tokenizer import ByteTokenizer
-from .models._tokenizer import Tokenizer
-from ._schema import LLGrammar
+from ._schema import EngineOutput, GenData, EngineCallResponse, GenToken, LLInterpreterResponse, LLGrammar
+
+if TYPE_CHECKING:
+    from .models._engine import Tokenizer
 
 class TokenParserException(Exception):
     pass
@@ -31,7 +30,7 @@ class TokenParser:
     def __init__(
         self,
         grammar: LLGrammar,
-        tokenizer: Tokenizer,
+        tokenizer: "Tokenizer",
         prompt: bytes = b"",
         ensure_bos_token: bool = True,
         enable_backtrack: bool = True,
@@ -181,6 +180,8 @@ class ByteParser:
         prompt: bytes = b"",
         ensure_bos_token: bool = True,
     ):
+        # TODO: figure out this circular import
+        from .models._byte_tokenizer import ByteTokenizer
         self.tokenizer = ByteTokenizer()
         self.token_parser = TokenParser(grammar, self.tokenizer, prompt, ensure_bos_token)
         self.bytes = b""

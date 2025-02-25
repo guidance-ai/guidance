@@ -45,8 +45,8 @@ jobs:
       - name: Install guidance in ${{ inputs.os }}
         shell: bash
         run: |
-          pip install --upgrade pip
-          pip install -e .[all,test]
+          python -m pip install --upgrade pip
+          python -m pip install -e .[all,test]
       - name: server tests
         shell: bash
         run: |

@@ -1,8 +1,7 @@
 import regex as regex_module
 import logging
 from .._guidance import guidance
-from .._ast import GenNode
-from .._grammar import regex as regex_node, select, quote_regex, capture, with_temperature, token_limit, gen as grammar_gen
+from .._grammar import regex as regex_node, select, quote_regex, capture, with_temperature, gen as grammar_gen
 from ._block import block
 from ._silent import silent
 from ._tool import Tool
@@ -163,7 +162,7 @@ def gen(
                                 lm += temp_lm["tool_call"]
                             else:
                                 lm += tools[i].call_grammar + tools[i].tool_call()
-                        lm = lm.remove(tool_i)
+                            lm = lm.remove(tool_i)
                     if not tool_called:
                         lm += suffix
                         break
