@@ -3,10 +3,9 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Callable, Optional, Union, cast
 
-from .trace import ImageOutput
 from ._parser import ByteParser, ByteParserException
 from ._schema import JsonGrammar, LarkGrammar, LLGrammar
-
+from .trace import ImageOutput
 
 ASTNode = Union["GrammarNode", ImageOutput, "RoleStart", "RoleEnd"]
 
@@ -46,15 +45,18 @@ class Tagged:
         # return a string representation of this call so it can be combined with other strings/calls
         return tag_start + str_id + tag_end
 
+
 # These are "abstract" role tags (i.e. they indicate the start and end of a role, but they do not know the corresponding text/tokens).
 # They are "grammar-adjacent" concepts but not really grammars themselves.
 @dataclass
 class RoleStart:
     role: str
 
+
 @dataclass
 class RoleEnd:
     role: str
+
 
 class Match:
     def __init__(self, captures, log_probs, partial):
