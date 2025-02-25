@@ -1,6 +1,6 @@
 from typing import Iterator
 
-from ..._ast import ASTNode, GrammarNode, RoleStart, RoleEnd, LiteralNode
+from ..._ast import ASTNode, GrammarNode, LiteralNode, RoleEnd, RoleStart
 from ...trace import (
     CaptureOutput,
     ImageOutput,
@@ -102,7 +102,7 @@ class EngineClient(Client[EngineState]):
                 raise RuntimeError("Shouldn't have any delayed bytes left...")
 
         else:
-            raise NotImplementedError(f"Unknown node: {node}")
+            raise NotImplementedError(f"Unknown node: {node!r}")
 
     def initial_state(self) -> EngineState:
         # TODO: for llama_cpp and transformers, we need to provide an interface

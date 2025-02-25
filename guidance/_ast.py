@@ -8,7 +8,7 @@ from ._parser import ByteParser, ByteParserException
 from ._schema import JSONGrammar, LarkGrammar, LLGrammar
 
 
-ASTNode = Union["Function", "GrammarNode", ImageOutput, "RoleStart", "RoleEnd"]
+ASTNode = Union["GrammarNode", ImageOutput, "RoleStart", "RoleEnd"]
 
 # to support the embedding of guidance functions inside Python f-strings we use tags with these delimiters
 tag_start = "{{G|"  # start of a call tag

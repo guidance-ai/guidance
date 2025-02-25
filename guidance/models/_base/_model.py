@@ -81,7 +81,7 @@ class Model(Generic[S]):
                 )
             )
 
-    def __add__(self, other: Union[str, ASTNode]) -> Self:
+    def __add__(self, other: Union[str, Function, ASTNode]) -> Self:
         self = self._apply_blocks()
         if isinstance(other, str):
             if other == "":
@@ -139,9 +139,16 @@ class Model(Generic[S]):
         for block, start_index in list(reversed(self._active_blocks.items())):
             # Close blocks that are not globally active anymore
             if block not in global_active_blocks:
-                if block.closer is not None:
-                    self = self._apply_node(block.closer)
                 self._active_blocks.pop(block)
+                if block.closer is not None:
+                    closer = block.closer
+                    if isinstance(closer, str):
+                        closer = _parse_tags(closer)
+                    if isinstance(closer, Function):
+                        raise NotImplementedError(
+                            "Stateful block opener/closer functions are not yet supported"
+                        )
+                    self = self._apply_node(closer)
             # Update capture regardless of whether or not it's been closed
             if block.name is not None:
                 self = self.set(block.name, str(self)[start_index:])
@@ -151,7 +158,14 @@ class Model(Generic[S]):
                 # Set start_index to the current length
                 self._active_blocks[block] = len(self)
                 if block.opener is not None:
-                    self = self._apply_node(block.opener)
+                    opener = block.opener
+                    if isinstance(opener, str):
+                        opener = _parse_tags(opener)
+                    if isinstance(opener, Function):
+                        raise NotImplementedError(
+                            "Stateful block opener/closer functions are not yet supported"
+                        )
+                    self = self._apply_node(opener)
         return self
 
     def _update_open_block_captures(self) -> Self:
@@ -271,7 +285,7 @@ class Model(Generic[S]):
 
 class ModelStream:
     def __init__(
-        self, model: Model, grammar: Union["ModelStream", ASTNode, None] = None, timeout=5
+        self, model: Model, grammar: Union["ModelStream", str, ASTNode, Function, None] = None, timeout=5
     ) -> None:
         """Create a model stream object that delays execution until it is iterated over."""
         if model.echo:
