@@ -537,7 +537,7 @@ class LarkSerializer:
                 attrs.append(f"max_tokens={node.max_tokens}")
             if isinstance(node, GenNode):
                 if node.stop_regex:
-                    attrs.append(f"stop=/{node.stop_regex}/")
+                    attrs.append(f"stop={self.regex(node.stop_regex)}")
             if attrs:
                 res += f"[{', '.join(attrs)}]"
             res += ": " + self.visit(node.value.simplify(), top=True)
@@ -551,7 +551,7 @@ class LarkSerializer:
             return json.dumps(node.value)
 
         if isinstance(node, RegexNode):
-            return f"/{node.regex}/"
+            return self.regex(node.regex)
 
         if isinstance(node, SelectNode):
             if top:
@@ -595,3 +595,7 @@ class LarkSerializer:
         else:
             new_name = new_name.lower()
         return new_name
+
+    def regex(self, pattern: str) -> str:
+        escaped = re.sub(r'(?<!\\)/', r'\/', pattern).replace('\n', '\\n')
+        return f"/{escaped}/"
