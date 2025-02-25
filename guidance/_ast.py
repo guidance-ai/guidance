@@ -498,7 +498,6 @@ class LarkSerializer:
             return f"@{self.ll_serializer.visit(node)}"
 
         if isinstance(node, RuleNode):
-            node = cast(RuleNode, node.simplify())
             if node in self.names:
                 return self.names[node]
 
@@ -529,7 +528,7 @@ class LarkSerializer:
                     attrs.append(f"stop=/{node.stop_regex}/")
             if attrs:
                 res += f"[{', '.join(attrs)}]"
-            res += ": " + self.visit(node.value, top=True)
+            res += ": " + self.visit(node.value.simplify(), top=True)
             self.rules[name] = res
             return name
 
