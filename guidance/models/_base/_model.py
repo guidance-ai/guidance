@@ -285,7 +285,10 @@ class Model(Generic[S]):
 
 class ModelStream:
     def __init__(
-        self, model: Model, grammar: Union["ModelStream", str, ASTNode, Function, None] = None, timeout=5
+        self,
+        model: Model,
+        grammar: Union["ModelStream", str, ASTNode, Function, None] = None,
+        timeout=5,
     ) -> None:
         """Create a model stream object that delays execution until it is iterated over."""
         if model.echo:

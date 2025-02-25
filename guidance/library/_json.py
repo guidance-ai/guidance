@@ -86,16 +86,13 @@ def json(
     elif isinstance(schema, str):
         from_str = json_loads(schema)
         if not isinstance(from_str, dict):
-            raise ValueError(
-                "JSON schema string must be a JSON object (i.e. a dictionary)"
-            )
+            raise ValueError("JSON schema string must be a JSON object (i.e. a dictionary)")
         schema = from_str
 
     if isinstance(schema, Mapping):
         schema = dict(schema)
     else:
         raise TypeError(f"Unsupported schema type: {type(schema)}")
-
 
     coerce_one_of = False
     # TODO: decide whether or not to keep this -- it lets us double check that llguidance can handle the schema (which isn't necessarily)
