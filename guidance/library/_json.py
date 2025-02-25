@@ -32,7 +32,6 @@ def json(
     max_tokens: Optional[int] = None,
     separators: Optional[tuple[str, str]] = None,
     whitespace_flexible: bool = False,
-    **kwargs,
 ):
     """Generate valid JSON according to the supplied JSON schema or `pydantic` model.
 
@@ -77,11 +76,6 @@ def json(
             - A subclass of ``pydantic.BaseModel``
             - An instance of ``pydantic.TypeAdapter``
     """
-    if "compact" in kwargs:
-        warnings.warn("The 'compact' argument is deprecated and has no effect. It will be removed in a future release.", category=DeprecationWarning)
-        kwargs.pop("compact")
-    if kwargs:
-        raise TypeError(f"Unexpected keyword arguments: {kwargs.keys()}")
     if schema is None:
         # Default schema is empty, "anything goes" schema
         # TODO: consider default being `{"type": "object"}`
