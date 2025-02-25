@@ -70,7 +70,7 @@ class State(ABC):
     def apply_content_chunk(self, chunk: ContentChunk) -> None:
         if isinstance(chunk, (LiteralInput, TextOutput)):
             self.apply_text(chunk.value)
-        elif isinstance(chunk, ImageBlob):
+        elif isinstance(chunk, ImageOutput):
             self.apply_image(chunk)
         else:
             if TYPE_CHECKING:
