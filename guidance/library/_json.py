@@ -95,7 +95,7 @@ def json(
         raise TypeError(f"Unsupported schema type: {type(schema)}")
 
     coerce_one_of = False
-    # TODO: decide whether or not to keep this -- it lets us double check that llguidance can handle the schema (which isn't necessarily)
+    # TODO: decide whether or not to keep this -- it lets us double check that llguidance can handle the schema which isn't necessarily
     # what we want, as llguidance may or may not be the backend we are using. That being said, it's sort of nice to get an exception when
     # you call `json` instead of waiting for generation to fail.
     VALIDATE = True
