@@ -3,7 +3,13 @@ from io import BytesIO
 from typing import Iterator, Optional
 
 from .._ast import JsonNode, RegexNode, RoleEnd, RoleStart, RuleNode
-from ..trace import ImageOutput, RoleCloserInput, RoleOpenerInput, TextOutput
+from ..trace import (
+    CaptureOutput,
+    ImageOutput,
+    RoleCloserInput,
+    RoleOpenerInput,
+    TextOutput,
+)
 from ._base import Client, ContentChunk, MessageChunk, Model, State
 
 
@@ -86,8 +92,6 @@ class OpenAIClient(Client[OpenAIState]):
         )
 
     def rule(self, state: OpenAIState, node: RuleNode, **kwargs) -> Iterator[MessageChunk]:
-        if node.capture:
-            raise NotImplementedError("Captures not yet supported for OpenAI")
         if node.stop:
             raise ValueError("Stop condition not yet supported for OpenAI")
         if node.suffix:
@@ -100,7 +104,23 @@ class OpenAIClient(Client[OpenAIState]):
             kwargs["temperature"] = node.temperature
         if node.max_tokens:
             kwargs["max_tokens"] = node.max_tokens
-        return node.value._run(self, state, **kwargs)
+
+        if node.capture:
+            buffered_text = ""
+            for chunk in self.run(state, node.value, **kwargs):
+                # TODO: this isinstance check is pretty darn fragile.
+                # ~there must be a better way~
+                if isinstance(chunk, TextOutput):
+                    buffered_text += chunk.value
+                yield chunk
+            yield CaptureOutput(
+                name=node.capture,
+                value=buffered_text,
+                is_append=node.list_append,
+                log_probs=1,  # TODO
+            )
+        else:
+            yield from self.run(state, node.value, **kwargs)
 
     def regex(self, state: OpenAIState, node: RegexNode, **kwargs) -> Iterator[MessageChunk]:
         if node.regex is not None:
