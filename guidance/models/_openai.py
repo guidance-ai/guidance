@@ -105,9 +105,10 @@ class OpenAIClient(Client[OpenAIState]):
         if node.max_tokens:
             kwargs["max_tokens"] = node.max_tokens
 
+        chunks = self.run(state, node.value, **kwargs)
         if node.capture:
             buffered_text = ""
-            for chunk in self.run(state, node.value, **kwargs):
+            for chunk in chunks:
                 # TODO: this isinstance check is pretty darn fragile.
                 # ~there must be a better way~
                 if isinstance(chunk, TextOutput):
@@ -120,7 +121,7 @@ class OpenAIClient(Client[OpenAIState]):
                 log_probs=1,  # TODO
             )
         else:
-            yield from self.run(state, node.value, **kwargs)
+            yield from chunks
 
     def regex(self, state: OpenAIState, node: RegexNode, **kwargs) -> Iterator[MessageChunk]:
         if node.regex is not None:
