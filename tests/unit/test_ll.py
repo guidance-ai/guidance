@@ -8,11 +8,11 @@ from guidance import (
     gen,
     select,
     optional,
-    byte_range,
     one_or_more,
-    GrammarFunction,
+    GrammarNode,
     string,
     capture,
+    regex,
 )
 from guidance.library._subgrammar import as_regular_grammar
 from guidance.library._subgrammar import subgrammar, lexeme
@@ -92,7 +92,7 @@ def tokenize_trace(s: str):
     return r
 
 
-def check_grammar(grm: GrammarFunction, output: List[str]):
+def check_grammar(grm: GrammarNode, output: List[str]):
     """
     Check that the grammar generates the expected output.
 
@@ -108,7 +108,7 @@ def check_grammar(grm: GrammarFunction, output: List[str]):
     """
     print("\nChecking grammar")
     interp = llguidance.LLInterpreter(
-        PhiTokenizer.ll_tokenizer(), json.dumps(grm.ll_serialize()), log_level=log_level
+        PhiTokenizer.ll_tokenizer(), grm.ll_grammar().model_dump_json(), log_level=log_level
     )
     prompt = interp.process_prompt(PhiTokenizer.instance().tokenize_str(""))
     check_eq("prompt", prompt, output[0])
@@ -211,7 +211,7 @@ def test_llparser():
         # grammar turned into regex:
         "Dolphin name: "
         + as_regular_grammar(
-            '"' + byte_range(b"A", b"Z") + one_or_more(byte_range(b"a", b"z")) + '"'
+            '"' + regex(r"[A-Z]") + one_or_more(regex(r"[a-z]")) + '"'
         )
         + ",",
         # regular gen()
@@ -229,7 +229,7 @@ def test_llparser():
         ['D‧olph‧in‧ name‧:‧ "', 'F‧li‧pper‧",'],  # check that we allow `",` as a single token:
     ],
 )
-def test_ll_dolphin(grm: GrammarFunction, output: List[str]):
+def test_ll_dolphin(grm: GrammarNode, output: List[str]):
     check_grammar(grm, output)
 
 
@@ -284,8 +284,8 @@ def test_ll_nullable_lexeme():
     num = subgrammar(
         body=select(
             [
-                lexeme(r"-?(?:0|[1-9][0-9]*)", contextual=True),
-                lexeme(r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)", contextual=True),
+                lexeme(r"-?(?:0|[1-9][0-9]*)"),
+                lexeme(r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)"),
             ]
         )
     )

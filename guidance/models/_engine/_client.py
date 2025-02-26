@@ -1,7 +1,6 @@
 from typing import Iterator
 
-from ..._ast import ASTNode
-from ..._grammar import Function, RoleEnd, RoleStart
+from ..._ast import ASTNode, GrammarNode, LiteralNode, RoleEnd, RoleStart
 from ...trace import (
     CaptureOutput,
     ImageOutput,
@@ -20,8 +19,8 @@ class EngineClient(Client[EngineState]):
         self.engine = engine
 
     def run(self, state: EngineState, node: ASTNode) -> Iterator[MessageChunk]:
-        if isinstance(node, str):
-            yield LiteralInput(value=node)
+        if isinstance(node, LiteralNode):
+            yield LiteralInput(value=node.value)
 
         elif isinstance(node, RoleStart):
             chat_template = self.engine.get_chat_template()
@@ -45,10 +44,10 @@ class EngineClient(Client[EngineState]):
         elif isinstance(node, ImageOutput):
             yield node
 
-        elif isinstance(node, Function):
+        elif isinstance(node, GrammarNode):
             engine_gen = self.engine(
                 state,
-                node,
+                node.ll_grammar(),
                 ensure_bos_token=True,
                 echo=False,
             )
@@ -103,7 +102,7 @@ class EngineClient(Client[EngineState]):
                 raise RuntimeError("Shouldn't have any delayed bytes left...")
 
         else:
-            raise NotImplementedError(f"Unknown node: {node}")
+            raise NotImplementedError(f"Unknown node: {node!r}")
 
     def initial_state(self) -> EngineState:
         # TODO: for llama_cpp and transformers, we need to provide an interface

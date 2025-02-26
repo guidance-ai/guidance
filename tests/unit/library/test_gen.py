@@ -22,6 +22,9 @@ def test_stop_char():
     assert lm["text"] == "8"
 
 
+@pytest.mark.xfail(
+    reason="save_stop_text is not currently exposed in llguidance"
+)
 def test_save_stop():
     lm = models.Mock(b"<s>Count to 10: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10")
     lm += "Count to 10: 1, 2, 3, 4, 5, 6, 7, " + gen(

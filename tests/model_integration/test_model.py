@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import patch
 
 import guidance
-from guidance import byte_range, gen, models, select, zero_or_more
+from guidance import regex, gen, select, models
 
 
 def test_fstring(selected_model):
@@ -37,7 +37,7 @@ def test_token_healing(selected_model):
         pytest.skip("Test for GPT2 bug only")
     gpt2 = selected_model
     lm = gpt2 + (
-        "This is a story of 10 or 5 or " + zero_or_more(byte_range(b"0", b"9"))
+        "This is a story of 10 or 5 or " + regex(r"[0-9]+")
     )
     assert len(lm) > len("This is a story of 10 or 5 or ")
 
