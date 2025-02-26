@@ -168,7 +168,7 @@ def gen(
                             lm += temp_lm["tool_call"]
                         else:
                             lm += tools[i].call_grammar + tools[i].tool_call()
-                    lm = lm.remove(tool_i)
+                        lm = lm.remove(tool_i)
                 if not tool_called:
                     lm += suffix
                     break

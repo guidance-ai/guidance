@@ -6,7 +6,7 @@ from urllib.parse import parse_qs, urlparse
 import tiktoken
 
 from ._grammarless import Grammarless
-from ._model import Chat, Instruct
+from ._engine._engine import Chat, Instruct
 from ._openai import OpenAIEngine
 
 try:

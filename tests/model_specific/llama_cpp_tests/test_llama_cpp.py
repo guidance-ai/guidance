@@ -64,6 +64,14 @@ def test_repeat_calls(llamacpp_model: guidance.models.Model, selected_model_name
         ("llamacpp_llama2_7b_cpu", "3.10", "Darwin", "x86_64"),
         ("llamacpp_llama2_7b_cpu", "3.11", "Darwin", "x86_64"),
         ("llamacpp_llama2_7b_cpu", "3.12", "Darwin", "x86_64"),
+        ("llamacpp_llama2_7b_cpu", "3.9", "Darwin", "arm64"),
+        ("llamacpp_llama2_7b_cpu", "3.10", "Darwin", "arm64"),
+        ("llamacpp_llama2_7b_cpu", "3.11", "Darwin", "arm64"),
+        ("llamacpp_llama2_7b_cpu", "3.12", "Darwin", "arm64"),
+        ("llamacpp_llama2_7b_cpu", "3.9", "Linux", "x86_64"),
+        ("llamacpp_llama2_7b_cpu", "3.10", "Linux", "x86_64"),
+        ("llamacpp_llama2_7b_cpu", "3.11", "Linux", "x86_64"),
+        ("llamacpp_llama2_7b_cpu", "3.12", "Linux", "x86_64"),
         ("llamacpp_phi3_mini_4k_instruct_cpu", "3.9", "Windows", "AMD64"),
         ("llamacpp_phi3_mini_4k_instruct_cpu", "3.10", "Windows", "AMD64"),
         ("llamacpp_phi3_mini_4k_instruct_cpu", "3.11", "Windows", "AMD64"),
@@ -124,7 +132,7 @@ def test_subtoken_forced(llamacpp_model: guidance.models.Model):
     assert str(lm) == "How much is 2 + 2? ("
 
 
-def test_llama_cpp_almost_one_batch(llamacpp_model, selected_model_info):
+def test_llama_cpp_almost_one_batch(llamacpp_model):
     lm = llamacpp_model
     batch_size = lm.engine.model_obj.n_batch
     long_str = lm.engine.tokenizer.bos_token.decode("utf-8") * (batch_size - 1)
@@ -132,7 +140,7 @@ def test_llama_cpp_almost_one_batch(llamacpp_model, selected_model_info):
     assert len(str(lm)) > len(long_str)
 
 
-def test_llama_cpp_exactly_one_batch(llamacpp_model, selected_model_info):
+def test_llama_cpp_exactly_one_batch(llamacpp_model):
     lm = llamacpp_model
     batch_size = lm.engine.model_obj.n_batch
     long_str = lm.engine.tokenizer.bos_token.decode("utf-8") * batch_size
@@ -140,7 +148,7 @@ def test_llama_cpp_exactly_one_batch(llamacpp_model, selected_model_info):
     assert len(str(lm)) > len(long_str)
 
 
-def test_llama_cpp_more_than_one_batch(llamacpp_model, selected_model_info):
+def test_llama_cpp_more_than_one_batch(llamacpp_model):
     lm = llamacpp_model
     batch_size = lm.engine.model_obj.n_batch
     long_str = lm.engine.tokenizer.bos_token.decode("utf-8") * (batch_size + 1)
@@ -148,7 +156,7 @@ def test_llama_cpp_more_than_one_batch(llamacpp_model, selected_model_info):
     assert len(str(lm)) > len(long_str)
 
 
-def test_llama_cpp_almost_two_batches(llamacpp_model, selected_model_info):
+def test_llama_cpp_almost_two_batches(llamacpp_model):
     lm = llamacpp_model
     batch_size = lm.engine.model_obj.n_batch
     long_str = lm.engine.tokenizer.bos_token.decode("utf-8") * ((2 * batch_size) - 1)
@@ -156,7 +164,7 @@ def test_llama_cpp_almost_two_batches(llamacpp_model, selected_model_info):
     assert len(str(lm)) > len(long_str)
 
 
-def test_llama_cpp_two_batches(llamacpp_model, selected_model_info):
+def test_llama_cpp_two_batches(llamacpp_model):
     lm = llamacpp_model
     batch_size = lm.engine.model_obj.n_batch
     long_str = lm.engine.tokenizer.bos_token.decode("utf-8") * (2 * batch_size)
@@ -164,7 +172,7 @@ def test_llama_cpp_two_batches(llamacpp_model, selected_model_info):
     assert len(str(lm)) > len(long_str)
 
 
-def test_llama_cpp_more_than_two_batches(llamacpp_model, selected_model_info):
+def test_llama_cpp_more_than_two_batches(llamacpp_model):
     lm = llamacpp_model
     batch_size = lm.engine.model_obj.n_batch
     long_str = lm.engine.tokenizer.bos_token.decode("utf-8") * ((2 * batch_size) + 1)

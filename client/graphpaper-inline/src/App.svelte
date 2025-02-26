@@ -9,12 +9,13 @@ For upcoming features, we won't be able to send all details over the wire, and w
   import ResizeListener from './ResizeListener.svelte';
   import {
     clientmsg,
-    state,
     type GenTokenExtra,
     type GuidanceMessage,
+    isAudioOutput,
     isClientReadyAckMessage,
     isExecutionCompletedMessage,
     isExecutionStartedMessage,
+    isImageOutput,
     isMetricMessage,
     isResetDisplayMessage,
     isRoleCloserInput,
@@ -22,45 +23,50 @@ For upcoming features, we won't be able to send all details over the wire, and w
     isTextOutput,
     isTokensMessage,
     isTraceMessage,
+    isVideoOutput,
     kernelmsg,
     type NodeAttr,
+    state,
+    Status,
     type StitchMessage
   } from './stitch';
   import StitchHandler from './StitchHandler.svelte';
   import { onMount } from 'svelte';
-  import MetricCard from './MetricCard.svelte';
+  import MetricRecord from './MetricRecord.svelte';
   import Select from './Select.svelte';
   import { metricDefs } from './metrics';
   import type { MetricVal } from './interfaces';
+  // import { mockGenTokens, mockNodeAttrs } from './mocks';
 
   interface AppState {
     textComponents: Array<NodeAttr>,
     tokenDetails: Array<GenTokenExtra>,
+    status: Status,
     metrics: Record<string, MetricVal>,
-    isCompleted: boolean,
-    isError: boolean,
+    shownMetrics: Array<string>,
     requireFullReplay: boolean,
   }
   let appState: AppState = {
     textComponents: [],
     tokenDetails: [],
+    status: Status.Running,
+    shownMetrics: [],
     metrics: {
-      'status': '⟳',
-      'cpu': [0.0, 0.0, 0.0, 0.0, 0.0],
-      'ram': 0,
+      'status': Status.Running,
       'wall time': 0,
-      'avg latency': 0,
       'consumed': 0,
-      'token reduction': 0
+      'token reduction': 0,
+      'avg latency': 0,
+      'cpu': [0., 0., 0., 0., 0.],
+      'gpu': [0., 0., 0., 0., 0.],
+      'ram': 0,
+      'vram': 0,
     },
-    isCompleted: false,
-    isError: false,
     requireFullReplay: false,
   };
   // appState.textComponents = mockNodeAttrs;
   // appState.tokenDetails = mockGenTokens;
 
-  let showMetrics: boolean = true;
   let bgField: string = 'Type';
   let underlineField: string = 'Probability';
 
@@ -71,6 +77,15 @@ For upcoming features, we won't be able to send all details over the wire, and w
       } else if (isRoleOpenerInput(msg.node_attr)) {
         appState.textComponents.push(msg.node_attr);
       } else if (isRoleCloserInput(msg.node_attr)) {
+        appState.textComponents.push(msg.node_attr);
+      } else if (isAudioOutput(msg.node_attr)) {
+        console.log("Audio available")
+        appState.textComponents.push(msg.node_attr);
+      } else if (isImageOutput(msg.node_attr)) {
+        console.log("Image available")
+        appState.textComponents.push(msg.node_attr);
+      } else if (isVideoOutput(msg.node_attr)) {
+        console.log("Video available")
         appState.textComponents.push(msg.node_attr);
       }
     } else if (isExecutionStartedMessage(msg)) {
@@ -86,7 +101,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
       }
     } else if (isResetDisplayMessage(msg)) {
       appState.textComponents = [];
-      appState.isCompleted = false;
+      appState.status = appState.status !== Status.Error ? Status.Running : appState.status;
     } else if (isMetricMessage(msg)) {
       const name = msg.name;
       const value = msg.value;
@@ -107,15 +122,16 @@ For upcoming features, we won't be able to send all details over the wire, and w
           console.error(`Cannot handle metric: ${name}: ${value}.`);
         }
 
+        // NOTE(nopdive): Need to update status too.
         if (name === 'status') {
-          appState.isError = value === '⚠';
+          appState.status = value as Status;
         }
       }
     } else if (isExecutionCompletedMessage(msg)) {
-      appState.isCompleted = true;
+      appState.status = Status.Done;
     } else if (isTokensMessage(msg)) {
       appState.requireFullReplay = false;
-      appState.isCompleted = true;
+      appState.status = Status.Done;
       appState.tokenDetails = msg.tokens;
 
       // Good time to save state.
@@ -141,6 +157,26 @@ For upcoming features, we won't be able to send all details over the wire, and w
     const msg = JSON.parse($kernelmsg.content);
     handleMessage(msg);
   }
+  $: {
+    if (appState.status === Status.Running) {
+      appState.shownMetrics = [
+        'status',
+        'wall time',
+        'cpu',
+        'ram',
+        'gpu',
+        'vram',
+      ];
+    } else {
+      appState.shownMetrics = [
+        'status',
+        'consumed',
+        'token reduction',
+        'avg latency',
+        'wall time',
+      ];
+    }
+  }
 
   onMount(() => {
     const msg: StitchMessage = {
@@ -149,12 +185,6 @@ For upcoming features, we won't be able to send all details over the wire, and w
     };
     clientmsg.set(msg);
   });
-
-  const onMetricClick = (_: any) => {
-    showMetrics = !showMetrics;
-  };
-  const doNothing = (_: any) => {
-  };
 </script>
 
 <svelte:head>
@@ -166,56 +196,32 @@ For upcoming features, we won't be able to send all details over the wire, and w
 <ResizeListener />
 <div class="w-full min-h-72">
   <nav class="sticky top-0 z-50 opacity-90">
-    <!-- Metric bar -->
-    {#if showMetrics}
-      <section class="w-full flex bg-gray-100 border-b border-gray-200 text-gray-500 justify-between">
-        <div class="pl-2 flex">
-          {#each Object.entries(appState.metrics) as [name, value]}
-            <MetricCard value={value} metricDef={metricDefs[name]} />
+    <section class="">
+      <div class="text-sm pt-2 pb-2 flex justify-between border-b border-gray-200">
+        <!-- Controls -->
+        <span class="flex mr-2">
+          <Select values={["None", "Type", "Probability", "Latency (ms)"]} classes="ml-4 pl-1 bg-gray-200"
+                  defaultValue={"Type"}
+                  on:select={(selected) => bgField = selected.detail} />
+          <Select values={["None", "Probability", "Latency (ms)"]} classes="border-b-2 pl-1 border-gray-400"
+                  defaultValue={"Probability"} on:select={(selected) => underlineField = selected.detail} />
+        </span>
+        <!-- Metrics -->
+        <span class="flex mr-4 text-gray-300 overflow-x-scroll scrollbar-thin scrollbar-track-gray-100 scrollbar-thumb-gray-200">
+          {#each appState.shownMetrics as name}
+            <MetricRecord value={appState.metrics[name]} metricDef={metricDefs[name]} />
           {/each}
-        </div>
-      </section>
-    {/if}
-
-    <!-- Controls -->
-    <section>
-      <div class="text-sm pt-2 pb-2 flex border-b border-gray-200">
-        <div class="ml-4 mr-4 inline-flex justify-between items-center hover:bg-gray-700 hover:text-white"
-             tabindex="-1"
-             on:click={onMetricClick} on:keydown={doNothing} role="button">
-					<span class="text-xs inline-flex flex-col justify-center uppercase tracking-wider">
-						Metrics
-					</span>
-          {#if showMetrics}
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-3">
-              <path d="M8 9.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z" />
-              <path fill-rule="evenodd"
-                    d="M1.38 8.28a.87.87 0 0 1 0-.566 7.003 7.003 0 0 1 13.238.006.87.87 0 0 1 0 .566A7.003 7.003 0 0 1 1.379 8.28ZM11 8a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
-                    clip-rule="evenodd" />
-            </svg>
-          {:else}
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-3">
-              <path fill-rule="evenodd"
-                    d="M3.28 2.22a.75.75 0 0 0-1.06 1.06l10.5 10.5a.75.75 0 1 0 1.06-1.06l-1.322-1.323a7.012 7.012 0 0 0 2.16-3.11.87.87 0 0 0 0-.567A7.003 7.003 0 0 0 4.82 3.76l-1.54-1.54Zm3.196 3.195 1.135 1.136A1.502 1.502 0 0 1 9.45 8.389l1.136 1.135a3 3 0 0 0-4.109-4.109Z"
-                    clip-rule="evenodd" />
-              <path
-                d="m7.812 10.994 1.816 1.816A7.003 7.003 0 0 1 1.38 8.28a.87.87 0 0 1 0-.566 6.985 6.985 0 0 1 1.113-2.039l2.513 2.513a3 3 0 0 0 2.806 2.806Z" />
-            </svg>
-          {/if}
-        </div>
-        <Select values={["None", "Type", "Probability", "Latency (ms)"]} classes="bg-gray-200"
-                defaultValue={"Type"}
-                on:select={(selected) => bgField = selected.detail} />
-        <Select values={["None", "Probability", "Latency (ms)"]} classes="border-b-2 border-gray-400"
-                defaultValue={"Probability"} on:select={(selected) => underlineField = selected.detail} />
+        </span>
       </div>
     </section>
   </nav>
 
   <!-- Content pane -->
   <section class="w-full">
-    <TokenGrid textComponents={appState.textComponents} tokenDetails={appState.tokenDetails} isCompleted={appState.isCompleted}
-               isError={appState.isError}
+    <TokenGrid textComponents={appState.textComponents}
+               tokenDetails={appState.tokenDetails}
+               isCompleted={['Done', 'Error'].includes(appState.status)}
+               isError={appState.status === Status.Error}
                bgField={bgField} underlineField={underlineField} requireFullReplay="{appState.requireFullReplay}" />
   </section>
 </div>
