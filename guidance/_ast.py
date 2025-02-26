@@ -1,17 +1,17 @@
 import json
 import re
 from abc import ABC, abstractmethod
-from dataclasses import InitVar, dataclass, field
+from dataclasses import dataclass, field
 from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
     Iterator,
     Optional,
+    Sequence,
     TypeVar,
     Union,
     cast,
-    Sequence,
 )
 
 from ._parser import ByteParser, ByteParserException
@@ -273,8 +273,7 @@ class GrammarNode(Tagged, ASTNode):
         if parser.matched():
             parser.force_done()
 
-        return Match(*parser.get_captures(),
-                     partial=not parser.matched())  # type: ignore[misc]
+        return Match(*parser.get_captures(), partial=not parser.matched())  # type: ignore[misc]
 
     def forced_prefix(self) -> str:
         parser = ByteParser(self.ll_grammar())
@@ -632,11 +631,9 @@ class LarkSerializer:
 
         if isinstance(node, SelectNode):
             if top:
-                return "\n     | ".join(
-                    self.visit(alt) for alt in node.alternatives)
+                return "\n     | ".join(self.visit(alt) for alt in node.alternatives)
             else:
-                return "(" + " | ".join(
-                    self.visit(alt) for alt in node.alternatives) + ")"
+                return "(" + " | ".join(self.visit(alt) for alt in node.alternatives) + ")"
 
         if isinstance(node, JoinNode):
             return " ".join(self.visit(n) for n in node.nodes if not n.is_null)
