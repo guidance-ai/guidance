@@ -181,10 +181,6 @@ class ImageNode(ASTNode):
 class GrammarNode(Tagged, ASTNode):
 
     @property
-    def is_atomic(self) -> bool:
-        return True
-
-    @property
     def is_null(self) -> bool:
         """
         If this returns true, then this node matches empty string and empty string only.
@@ -311,11 +307,6 @@ class SelectNode(GrammarNode):
     def is_null(self) -> bool:
         return all(alt.is_null for alt in self.alternatives)
 
-    @property
-    def is_atomic(self) -> bool:
-        # Not really atomic, but we already wrap it in parentheses
-        return True
-
     def simplify(self) -> "GrammarNode":
         if self.is_null:
             return LiteralNode("")
@@ -343,10 +334,6 @@ class JoinNode(GrammarNode):
     @property
     def is_null(self) -> bool:
         return all(node.is_null for node in self.nodes)
-
-    @property
-    def is_atomic(self) -> bool:
-        return False
 
     def simplify(self) -> "GrammarNode":
         if self.is_null:
@@ -640,7 +627,7 @@ class LarkSerializer:
 
         if isinstance(node, RepeatNode):
             inner = self.visit(node.node)
-            if not node.node.is_atomic:
+            if isinstance(node.node, (JoinNode, RepeatNode)):
                 inner = f"({inner})"
             if (node.min, node.max) == (0, None):
                 return f"{inner}*"
