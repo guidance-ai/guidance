@@ -12,15 +12,15 @@ class EngineClient(Client[EngineState]):
         self.engine = engine
         self.chat_template = self.engine.get_chat_template()
 
-    def get_role_start(self, node: RoleStart) -> str:
+    def get_role_start(self, role: str) -> str:
         if self.chat_template is None:
             raise ValueError("Cannot use roles without a chat template")
-        return self.chat_template.get_role_start(node.role)
+        return self.chat_template.get_role_start(role)
 
-    def get_role_end(self, node: RoleEnd) -> str:
+    def get_role_end(self, role: str) -> str:
         if self.chat_template is None:
             raise ValueError("Cannot use roles without a chat template")
-        return self.chat_template.get_role_end(node.role)
+        return self.chat_template.get_role_end(role)
 
     def role_start(self, state: EngineState, node: RoleStart) -> Iterator[MessageChunk]:
         yield RoleOpenerInput(
