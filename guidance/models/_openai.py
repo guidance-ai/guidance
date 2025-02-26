@@ -71,40 +71,44 @@ class OpenAIClient(Client[OpenAIState]):
         self.model = model
         self.client = openai.OpenAI(api_key=api_key, **kwargs)
 
-    def role_start(self, state: OpenAIState, node: RoleStart) -> Iterator[MessageChunk]:
+    def role_start(self, state: OpenAIState, node: RoleStart, **kwargs) -> Iterator[MessageChunk]:
         # ChatML is as good as anything
         yield RoleOpenerInput(
             name=node.role,
             text="<|im_start|>" + node.role + "\n",
         )
 
-    def role_end(self, state: OpenAIState, node: RoleEnd) -> Iterator[MessageChunk]:
+    def role_end(self, state: OpenAIState, node: RoleEnd, **kwargs) -> Iterator[MessageChunk]:
         # ChatML is as good as anything
         yield RoleCloserInput(
             name=node.role,
             text="\n<|im_end|>\n",
         )
 
-    def rule(self, state: OpenAIState, node: RuleNode) -> Iterator[MessageChunk]:
+    def rule(self, state: OpenAIState, node: RuleNode, **kwargs) -> Iterator[MessageChunk]:
         if node.capture:
             raise NotImplementedError("Captures not yet supported for OpenAI")
         if node.stop:
             raise ValueError("Stop condition not yet supported for OpenAI")
+        if node.suffix:
+            raise ValueError("Suffix not yet supported for OpenAI")
         if node.stop_capture:
             raise ValueError("Save stop text not yet supported for OpenAI")
 
-        if isinstance(node.value, RegexNode) and node.value.regex is None:
-            return self._run(
-                state,
-                temperature=node.temperature,
-                max_tokens=node.max_tokens,
-            )
-        else:
-            raise NotImplementedError(
-                f"OpenAI does not support grammar nodes of type {type(node.value)}"
-            )
+        kwargs = kwargs.copy()
+        if node.temperature:
+            kwargs["temperature"] = node.temperature
+        if node.max_tokens:
+            kwargs["max_tokens"] = node.max_tokens
+        return node.value.run(self, state, **kwargs)
 
-    def json(self, state: OpenAIState, node: JsonNode) -> Iterator[MessageChunk]:
+    def regex(self, state: OpenAIState, node: RegexNode, **kwargs) -> Iterator[MessageChunk]:
+        if node.regex is not None:
+            raise ValueError("Regex not yet supported for OpenAI")
+        # We're in unconstrained mode now.
+        return self._run(state, **kwargs)
+
+    def json(self, state: OpenAIState, node: JsonNode, **kwargs) -> Iterator[MessageChunk]:
         return self._run(
             state,
             response_format={
@@ -115,9 +119,10 @@ class OpenAIClient(Client[OpenAIState]):
                     "strict": True,
                 },
             },
+            **kwargs,
         )
 
-    def _run(self, state: OpenAIState, **kwds) -> Iterator[MessageChunk]:
+    def _run(self, state: OpenAIState, **kwargs) -> Iterator[MessageChunk]:
         messages = []
         for message in state.messages:
             if message["role"] is None:
@@ -150,7 +155,7 @@ class OpenAIClient(Client[OpenAIState]):
             messages=messages,  # type: ignore[arg-type]
             logprobs=True,
             stream=True,
-            **kwds,
+            **kwargs,
         )
         for response in responses:
             choice = response.choices[0]
