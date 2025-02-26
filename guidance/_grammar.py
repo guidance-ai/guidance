@@ -167,7 +167,7 @@ def with_temperature(value: GrammarNode, temperature: float) -> RuleNode:
 
 
 def capture(value: GrammarNode, name: str, list_append: bool = False) -> RuleNode:
-    if isinstance(value, RuleNode):
+    if isinstance(value, RuleNode) and value.capture is None:
         return dataclasses.replace(value, capture=name, list_append=list_append)
     else:
         return RuleNode(name="capture", value=value, capture=name, list_append=list_append)
