@@ -4,7 +4,6 @@ from typing import Optional, Sequence, Union
 
 from ._ast import (
     Function,
-    GenNode,
     GrammarNode,
     LiteralNode,
     RegexNode,
@@ -25,18 +24,30 @@ def regex(pattern: str) -> RegexNode:
 
 def gen(
     regex: Optional[str] = None,
-    stop_regex: str = "",
-    save_stop_text: Optional[str] = None,
+    stop: Optional[str] = None,
+    stop_regex: Optional[str] = None,
+    suffix: Optional[str] = None,
+    save_stop_text: Union[bool, str] = False,
     name: Optional[str] = None,
     temperature: Optional[float] = None,
     max_tokens: Optional[int] = None,
     list_append: bool = False,
-) -> GenNode:
-    node = GenNode(
+) -> RuleNode:
+    if stop is not None and stop_regex is not None:
+        raise ValueError("You cannot specify both a stop and a stop_regex")
+    if stop is not None:
+        stop_value = LiteralNode(stop)
+    elif stop_regex is not None:
+        stop_value = RegexNode(stop_regex)
+    else:
+        stop_value = None
+
+    node = RuleNode(
         name=name or "gen",
         value=RegexNode(regex),
         capture=name,
-        stop_regex=stop_regex,
+        stop=stop_value,
+        suffix=LiteralNode(suffix) if suffix else None,
         save_stop_text=save_stop_text,
         list_append=list_append,
         temperature=temperature,

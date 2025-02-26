@@ -1,7 +1,7 @@
 import json
 import re
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import InitVar, dataclass, field
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -416,19 +416,35 @@ class RuleNode(GrammarNode):
     list_append: bool = False
     temperature: Optional[float] = None
     max_tokens: Optional[int] = None
+    stop: Optional[Union[RegexNode, LiteralNode]] = None
+    suffix: Optional[LiteralNode] = None
+    save_stop_text: InitVar[Union[bool, str]] = False
 
-    def __post_init__(self) -> None:
-        if (self.temperature is not None or self.max_tokens is not None) and not (
-            self.value.is_terminal or isinstance(self.value, BaseSubgrammarNode)
-        ):
+    def __post_init__(self, save_stop_text: Union[bool, str]) -> None:
+        if save_stop_text is not False:
+            raise NotImplementedError(
+                "save_stop_text is currently unimplemented (will add back if there is demand)"
+            )
+        if (
+            self.temperature is not None
+            or self.max_tokens is not None
+            or self.stop is not None
+            or self.suffix is not None
+        ) and not (self.value.is_terminal or isinstance(self.value, BaseSubgrammarNode)):
             raise ValueError(
-                "RuleNode is not terminal, so it cannot have a temperature or max_tokens"
+                "RuleNode is not terminal, so it cannot have a temperature, max_tokens, or stop condition"
             )
 
     @property
     def is_terminal(self) -> bool:
         return (
-            (self.capture is None and self.temperature is None and self.max_tokens is None)
+            (
+                self.capture is None
+                and self.temperature is None
+                and self.max_tokens is None
+                and self.stop is None
+                and self.suffix is None
+            )
             and self.value.is_terminal
             and not isinstance(self.value, BaseSubgrammarNode)
         )
@@ -438,28 +454,6 @@ class RuleNode(GrammarNode):
 
     def run(self, client: "Client[S]", state: S) -> Iterator["MessageChunk"]:
         return client.rule(state, self)
-
-
-@dataclass(frozen=True)
-class GenNode(RuleNode):
-    value: RegexNode
-    stop_regex: str = ""
-    save_stop_text: Optional[str] = None
-
-    def __post_init__(self):
-        if self.save_stop_text is not None:
-            raise NotImplementedError(
-                "save_stop_text is currently unimplemented (will add back if there is demand)"
-            )
-
-    @property
-    def is_terminal(self) -> bool:
-        return (
-            super(GenNode, self).is_terminal and self.stop_regex == "" and not self.save_stop_text
-        )
-
-    def run(self, client: "Client[S]", state: S) -> Iterator["MessageChunk"]:
-        return client.gen(state, self)
 
 
 @dataclass(frozen=True, eq=False)
@@ -614,9 +608,10 @@ class LarkSerializer:
                 attrs.append(f"temperature={node.temperature}")
             if node.max_tokens is not None:
                 attrs.append(f"max_tokens={node.max_tokens}")
-            if isinstance(node, GenNode):
-                if node.stop_regex:
-                    attrs.append(f"stop={self.regex(node.stop_regex)}")
+            if node.stop:
+                attrs.append(f"stop={self.visit(node.stop)}")
+            if node.suffix:
+                attrs.append(f"suffix={self.visit(node.suffix)}")
             if attrs:
                 res += f"[{', '.join(attrs)}]"
             res += ": " + self.visit(node.value.simplify(), top=True)

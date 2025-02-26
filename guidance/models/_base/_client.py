@@ -2,7 +2,6 @@ from typing import Generic, Iterator, TypeVar
 
 from ..._ast import (
     ASTNode,
-    GenNode,
     GrammarNode,
     ImageNode,
     JoinNode,
@@ -58,9 +57,6 @@ class Client(Generic[S]):
         return self.grammar(state, node)
 
     def rule(self, state: S, node: RuleNode) -> Iterator[MessageChunk]:
-        return self.grammar(state, node)
-
-    def gen(self, state: S, node: GenNode) -> Iterator[MessageChunk]:
         return self.grammar(state, node)
 
     def subgrammar(self, state: S, node: SubgrammarNode) -> Iterator[MessageChunk]:

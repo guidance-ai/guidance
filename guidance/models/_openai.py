@@ -2,7 +2,7 @@ import base64
 from io import BytesIO
 from typing import Iterator, Optional
 
-from .._ast import GenNode, JsonNode, RoleEnd, RoleStart
+from .._ast import JsonNode, RegexNode, RoleEnd, RoleStart, RuleNode
 from ..trace import ImageOutput, RoleCloserInput, RoleOpenerInput, TextOutput
 from ._base import Client, ContentChunk, MessageChunk, Model, State
 
@@ -85,21 +85,24 @@ class OpenAIClient(Client[OpenAIState]):
             text="\n<|im_end|>\n",
         )
 
-    def gen(self, state: OpenAIState, node: GenNode) -> Iterator[MessageChunk]:
+    def rule(self, state: OpenAIState, node: RuleNode) -> Iterator[MessageChunk]:
         if node.capture:
             raise NotImplementedError("Captures not yet supported for OpenAI")
-        if node.value.regex is not None:
-            raise ValueError("Body regex not supported for OpenAI")
-        if node.stop_regex:
-            raise ValueError("Stop regex not supported for OpenAI")
+        if node.stop:
+            raise ValueError("Stop condition not yet supported for OpenAI")
         if node.save_stop_text:
-            raise ValueError("Save stop text not supported for OpenAI")
+            raise ValueError("Save stop text not yet supported for OpenAI")
 
-        return self._run(
-            state,
-            temperature=node.temperature,
-            max_tokens=node.max_tokens,
-        )
+        if isinstance(node.value, RegexNode) and node.value.regex is None:
+            return self._run(
+                state,
+                temperature=node.temperature,
+                max_tokens=node.max_tokens,
+            )
+        else:
+            raise NotImplementedError(
+                f"OpenAI does not support grammar nodes of type {type(node.value)}"
+            )
 
     def json(self, state: OpenAIState, node: JsonNode) -> Iterator[MessageChunk]:
         return self._run(
