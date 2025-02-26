@@ -106,12 +106,20 @@ def gen(
     if isinstance(stop_regex, list):
         stop_regex = "|".join([r for r in stop_regex])
 
+    if save_stop_text is False:
+        save_stop_name = None
+    elif save_stop_text is True:
+        # TODO: "None_stop_text" -- is that really what we want?
+        save_stop_name = str(name) + "_stop_text"
+    else:
+        save_stop_name = save_stop_text
+
     if tools is not None:
         tools = [Tool(callable=x) if not isinstance(x, Tool) else x for x in tools]
         @guidance(stateless=False, dedent=False)
         def tool_gen(lm):
             options = [
-                grammar_gen(regex=regex, stop_regex=stop_regex, stop=stop, save_stop_text=save_stop_text, temperature=temperature, max_tokens=max_tokens)
+                grammar_gen(regex=regex, stop_regex=stop_regex, stop=stop, stop_capture=save_stop_name, temperature=temperature, max_tokens=max_tokens)
             ]
             for i, tool in enumerate(tools):
                 # Infer a regex that will match the start of a tool call
@@ -155,7 +163,7 @@ def gen(
         stop_regex=stop_regex,
         stop=stop,
         suffix=suffix,
-        save_stop_text=save_stop_text,
+        stop_capture=save_stop_name,
         name=name,
         list_append=list_append,
         temperature=temperature,

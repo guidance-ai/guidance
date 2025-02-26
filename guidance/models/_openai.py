@@ -90,7 +90,7 @@ class OpenAIClient(Client[OpenAIState]):
             raise NotImplementedError("Captures not yet supported for OpenAI")
         if node.stop:
             raise ValueError("Stop condition not yet supported for OpenAI")
-        if node.save_stop_text:
+        if node.stop_capture:
             raise ValueError("Save stop text not yet supported for OpenAI")
 
         if isinstance(node.value, RegexNode) and node.value.regex is None:

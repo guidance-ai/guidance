@@ -418,18 +418,15 @@ class RuleNode(GrammarNode):
     max_tokens: Optional[int] = None
     stop: Optional[Union[RegexNode, LiteralNode]] = None
     suffix: Optional[LiteralNode] = None
-    save_stop_text: InitVar[Union[bool, str]] = False
+    stop_capture: Optional[str] = None
 
-    def __post_init__(self, save_stop_text: Union[bool, str]) -> None:
-        if save_stop_text is not False:
-            raise NotImplementedError(
-                "save_stop_text is currently unimplemented (will add back if there is demand)"
-            )
+    def __post_init__(self) -> None:
         if (
             self.temperature is not None
             or self.max_tokens is not None
             or self.stop is not None
             or self.suffix is not None
+            or self.stop_capture is not None
         ) and not (self.value.is_terminal or isinstance(self.value, BaseSubgrammarNode)):
             raise ValueError(
                 "RuleNode is not terminal, so it cannot have a temperature, max_tokens, or stop condition"
@@ -444,6 +441,7 @@ class RuleNode(GrammarNode):
                 and self.max_tokens is None
                 and self.stop is None
                 and self.suffix is None
+                and self.stop_capture is None
             )
             and self.value.is_terminal
             and not isinstance(self.value, BaseSubgrammarNode)
@@ -612,6 +610,8 @@ class LarkSerializer:
                 attrs.append(f"stop={self.visit(node.stop)}")
             if node.suffix:
                 attrs.append(f"suffix={self.visit(node.suffix)}")
+            if node.stop_capture:
+                attrs.append(f"stop_capture={json.dumps(node.stop_capture)}")
             if attrs:
                 res += f"[{', '.join(attrs)}]"
             res += ": " + self.visit(node.value.simplify(), top=True)
