@@ -89,9 +89,13 @@ class Model(Generic[S]):
             other = _parse_tags(other)
         if isinstance(other, Function):
             return other(self)
-        self = self._apply_node(other)
-        self = self._update_open_block_captures()
-        return self
+        if isinstance(other, ASTNode):
+            self = self._apply_node(other)
+            self = self._update_open_block_captures()
+            return self
+        if TYPE_CHECKING:
+            assert_never(other)
+        return NotImplemented
 
     def _apply_node(self, node: ASTNode) -> Self:
         for chunk in self._client.run(self._state, node):
