@@ -152,6 +152,9 @@ class ASTNode(ABC):
     def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator["MessageChunk"]:
         pass
 
+    def simplify(self) -> "ASTNode":
+        return self
+
 
 @dataclass
 class RoleStart(ASTNode):

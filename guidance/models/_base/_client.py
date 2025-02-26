@@ -24,7 +24,7 @@ S = TypeVar("S", bound=State)
 
 class Client(Generic[S]):
     def run(self, state: S, node: ASTNode, **kwargs) -> Iterator[MessageChunk]:
-        return node._run(self, state, **kwargs)
+        return node.simplify()._run(self, state, **kwargs)
 
     def role_start(self, state: S, node: RoleStart, **kwargs) -> Iterator[MessageChunk]:
         raise UnsupportedNodeError(client=self, node=node)
