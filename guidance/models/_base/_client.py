@@ -16,7 +16,7 @@ from ..._ast import (
     SubgrammarNode,
     SubstringNode,
 )
-from ...trace import ImageOutput, LiteralInput
+from ...trace import ImageOutput, TextOutput
 from ._state import MessageChunk, State
 
 S = TypeVar("S", bound=State)
@@ -33,7 +33,7 @@ class Client(Generic[S]):
         raise UnsupportedNodeError(node)
 
     def literal_str(self, state: S, node: LiteralNode, **kwargs) -> Iterator[MessageChunk]:
-        yield LiteralInput(value=node.value)
+        yield TextOutput(value=node.value)
 
     def literal_image(self, state: S, node: ImageNode, **kwargs) -> Iterator[MessageChunk]:
         yield ImageOutput(value=node.value, is_input=True)

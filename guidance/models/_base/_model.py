@@ -128,6 +128,11 @@ class Model(Generic[S]):
             ),
         ):
             self._update_trace_node(self._id, self._parent_id, chunk)
+            if isinstance(chunk, RoleOpenerInput):
+                # TODO: this is a hotfix / workaround -- the vis front-end expects a string corresponding
+                # to the just-opened role.
+                self = self.copy()
+                self._update_trace_node(self._id, self._parent_id, TextOutput(value=chunk.text))
         else:
             if TYPE_CHECKING:
                 assert_never(chunk)
