@@ -2,14 +2,17 @@ import base64
 from io import BytesIO
 from typing import Iterator, Optional
 
-from .._ast import ASTNode, GenNode, RoleStart, RoleEnd, LiteralNode
-from ..trace import LiteralInput, TextOutput, RoleOpenerInput, RoleCloserInput, ImageOutput
-from ._base import Model, State, Client, ContentChunk
+from .._ast import GenNode, JsonNode, RoleEnd, RoleStart
+from ..trace import ImageOutput, RoleCloserInput, RoleOpenerInput, TextOutput
+from ._base import Client, ContentChunk, MessageChunk, Model, State
+
 
 class OpenAIState(State):
     def apply_content_chunk(self, chunk: ContentChunk) -> None:
         if self.active_message["role"] is None:
-            raise ValueError("OpenAI models require chat blocks (e.g. use `with assistant(): ...`)")
+            raise ValueError(
+                "OpenAI models require chat blocks (e.g. use `with assistant(): ...`)"
+            )
         super().apply_content_chunk(chunk)
 
     def apply_text(self, text: str) -> None:
@@ -20,6 +23,7 @@ class OpenAIState(State):
         else:
             content.append({"type": "text", "text": text})
         self.text += text
+
 
 class OpenAIImageState(OpenAIState):
     def apply_image(self, image: ImageOutput) -> None:
@@ -43,7 +47,7 @@ class OpenAIImageState(OpenAIState):
         content.append(
             {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{image.value}"}}
         )
-        self.text += "<|image|>" # Arbitrary stringification of image
+        self.text += "<|image|>"  # Arbitrary stringification of image
 
 
 class OpenAIAudioState(OpenAIState):
@@ -67,88 +71,102 @@ class OpenAIClient(Client[OpenAIState]):
         self.model = model
         self.client = openai.OpenAI(api_key=api_key, **kwargs)
 
-    def run(
-        self, state: OpenAIState, node: ASTNode
-    ) -> Iterator[ContentChunk]:
-        if isinstance(node, LiteralNode):
-            yield LiteralInput(value=node.value)
+    def role_start(self, state: OpenAIState, node: RoleStart) -> Iterator[MessageChunk]:
+        # ChatML is as good as anything
+        yield RoleOpenerInput(
+            name=node.role,
+            text="<|im_start|>" + node.role + "\n",
+        )
 
-        elif isinstance(node, RoleStart):
-            # ChatML is as good as anything!
-            yield RoleOpenerInput(
-                name=node.role,
-                text="<|im_start|>" + node.role + "\n",
-            )
+    def role_end(self, state: OpenAIState, node: RoleEnd) -> Iterator[MessageChunk]:
+        # ChatML is as good as anything
+        yield RoleCloserInput(
+            name=node.role,
+            text="\n<|im_end|>\n",
+        )
 
-        elif isinstance(node, RoleEnd):
-            # ChatML is as good as anything!
-            yield RoleCloserInput(
-                name=node.role,
-                text="\n<|im_end|>\n",
-            )
+    def gen(self, state: OpenAIState, node: GenNode) -> Iterator[MessageChunk]:
+        if node.capture:
+            raise NotImplementedError("Captures not yet supported for OpenAI")
+        if node.value.regex != "(?s:.*)":  # TODO: make this way more robust...
+            raise ValueError("Body regex not supported for OpenAI")
+        if node.stop_regex:
+            raise ValueError("Stop regex not supported for OpenAI")
+        if node.save_stop_text:
+            raise ValueError("Save stop text not supported for OpenAI")
 
-        elif isinstance(node, ImageOutput):
-            yield node
+        return self._run(
+            state,
+            temperature=node.temperature,
+            max_tokens=node.max_tokens,
+        )
 
-        elif isinstance(node, GenNode):
-            if node.capture:
-                raise NotImplementedError("Captures not yet supported for OpenAI")
-            if node.value.regex != "(?s:.*)": # TODO: make this way more robust...
-                raise ValueError("Body regex not supported for OpenAI")
-            if node.stop_regex:
-                raise ValueError("Stop regex not supported for OpenAI")
-            if node.save_stop_text:
-                raise ValueError("Save stop text not supported for OpenAI")
+    def json(self, state: OpenAIState, node: JsonNode) -> Iterator[MessageChunk]:
+        return self._run(
+            state,
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "json_schema",  # TODO?
+                    "schema": node.schema,
+                    "strict": True,
+                },
+            },
+        )
 
-            messages = []
-            for message in state.messages:
-                if message["role"] is None:
-                    # Should never happen?
-                    raise ValueError("OpenAI models require chat blocks (e.g. use `with assistant(): ...`)")
-                messages.append(
-                    {
-                        "role": message["role"],
-                        "content": message["data"].get("content", []),
-                    }
-                )
-            active_message = state.active_message
-            if active_message["role"] is None:
+    def _run(self, state: OpenAIState, **kwds) -> Iterator[MessageChunk]:
+        messages = []
+        for message in state.messages:
+            if message["role"] is None:
                 # Should never happen?
-                raise ValueError("OpenAI models require chat blocks (e.g. use `with assistant(): ...`)")
-            if active_message["role"] != "assistant":
-                raise ValueError("OpenAI models can only generate as the assistant (i.e. inside of `with assistant(): ...`)")
-            if active_message["data"]:
-                raise ValueError(f"OpenAI models do not support pre-filled assistant messages: got data {active_message['data']}.")
-            responses = self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,  # type: ignore[arg-type]
-                max_tokens=node.max_tokens,
-                temperature=node.temperature,
-                logprobs=True,
-                stream=True,
+                raise ValueError(
+                    "OpenAI models require chat blocks (e.g. use `with assistant(): ...`)"
+                )
+            messages.append(
+                {
+                    "role": message["role"],
+                    "content": message["data"].get("content", []),
+                }
             )
-            for response in responses:
-                choice = response.choices[0]
-                delta = choice.delta
-                if delta.content is not None:
-                    content = delta.content
-                    if len(content) == 0:
-                        continue
-                    yield TextOutput(
-                        value=delta.content,
-                        is_generated=True,
-                        # TODO: actually get tokens from this and be less lazy
-                        prob=2.718 ** choice.logprobs.content[0].logprob,  # type: ignore[union-attr,index]
-                    )
-                    continue
-                if choice.finish_reason is not None:
-                    # TODO: handle finish_reason elegantly
-                    break
-                raise NotImplementedError(f"Unknown delta: {delta}")
-        else:
+        active_message = state.active_message
+        if active_message["role"] is None:
+            # Should never happen?
             raise ValueError(
-                "OpenAI model currently only supports unconstrained generation with `gen()`"
+                "OpenAI models require chat blocks (e.g. use `with assistant(): ...`)"
             )
+        if active_message["role"] != "assistant":
+            raise ValueError(
+                "OpenAI models can only generate as the assistant (i.e. inside of `with assistant(): ...`)"
+            )
+        if active_message["data"]:
+            raise ValueError(
+                f"OpenAI models do not support pre-filled assistant messages: got data {active_message['data']}."
+            )
+        responses = self.client.chat.completions.create(
+            model=self.model,
+            messages=messages,  # type: ignore[arg-type]
+            logprobs=True,
+            stream=True,
+            **kwds,
+        )
+        for response in responses:
+            choice = response.choices[0]
+            delta = choice.delta
+            if delta.content is not None:
+                content = delta.content
+                if len(content) == 0:
+                    continue
+                yield TextOutput(
+                    value=delta.content,
+                    is_generated=True,
+                    # TODO: actually get tokens from this and be less lazy
+                    prob=2.718 ** choice.logprobs.content[0].logprob,  # type: ignore[union-attr,index]
+                )
+                continue
+            if choice.finish_reason is not None:
+                # TODO: handle finish_reason elegantly
+                break
+            raise NotImplementedError(f"Unknown delta: {delta}")
 
 
 class OpenAI(Model):
@@ -183,7 +201,5 @@ class OpenAI(Model):
             state = OpenAIState()
 
         super().__init__(
-            client = OpenAIClient(model, api_key=api_key, **kwargs),
-            state = state,
-            echo=echo
+            client=OpenAIClient(model, api_key=api_key, **kwargs), state=state, echo=echo
         )

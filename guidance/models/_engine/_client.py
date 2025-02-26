@@ -1,14 +1,7 @@
 from typing import Iterator
 
-from ..._ast import ASTNode, GrammarNode, LiteralNode, RoleEnd, RoleStart
-from ...trace import (
-    CaptureOutput,
-    ImageOutput,
-    LiteralInput,
-    RoleCloserInput,
-    RoleOpenerInput,
-    TextOutput,
-)
+from ..._ast import GrammarNode, RoleEnd, RoleStart
+from ...trace import CaptureOutput, RoleCloserInput, RoleOpenerInput, TextOutput
 from .._base import Client, MessageChunk
 from ._engine import Engine
 from ._state import EngineState
@@ -17,97 +10,87 @@ from ._state import EngineState
 class EngineClient(Client[EngineState]):
     def __init__(self, engine: Engine):
         self.engine = engine
+        self.chat_template = self.engine.get_chat_template()
 
-    def run(self, state: EngineState, node: ASTNode) -> Iterator[MessageChunk]:
-        if isinstance(node, LiteralNode):
-            yield LiteralInput(value=node.value)
+    def get_role_start(self, node: RoleStart) -> str:
+        if self.chat_template is None:
+            raise ValueError("Cannot use roles without a chat template")
+        return self.chat_template.get_role_start(node.role)
 
-        elif isinstance(node, RoleStart):
-            chat_template = self.engine.get_chat_template()
-            if chat_template is None:
-                raise ValueError("Cannot use roles without a chat template")
-            yield RoleOpenerInput(
-                name=node.role,
-                text=chat_template.get_role_start(node.role),
-                closer_text=chat_template.get_role_end(node.role),
-            )
+    def get_role_end(self, node: RoleEnd) -> str:
+        if self.chat_template is None:
+            raise ValueError("Cannot use roles without a chat template")
+        return self.chat_template.get_role_end(node.role)
 
-        elif isinstance(node, RoleEnd):
-            chat_template = self.engine.get_chat_template()
-            if chat_template is None:
-                raise ValueError("Cannot use roles without a chat template")
-            yield RoleCloserInput(
-                name=node.role,
-                text=chat_template.get_role_end(node.role),
-            )
+    def role_start(self, state: EngineState, node: RoleStart) -> Iterator[MessageChunk]:
+        yield RoleOpenerInput(
+            name=node.role,
+            text=self.get_role_start(node.role),
+            closer_text=self.get_role_end(node.role),
+        )
 
-        elif isinstance(node, ImageOutput):
-            yield node
+    def role_end(self, state: EngineState, node: RoleEnd) -> Iterator[MessageChunk]:
+        yield RoleCloserInput(
+            name=node.role,
+            text=self.get_role_end(node.role),
+        )
 
-        elif isinstance(node, GrammarNode):
-            engine_gen = self.engine(
-                state,
-                node.ll_grammar(),
-                ensure_bos_token=True,
-                echo=False,
-            )
+    def grammar(self, state: EngineState, node: GrammarNode) -> Iterator[MessageChunk]:
+        engine_gen = self.engine(
+            state,
+            node.ll_grammar(),
+            ensure_bos_token=True,
+            echo=False,
+        )
 
-            delayed_bytes = b""
-            for chunk in engine_gen:
-                generated_bytes = delayed_bytes + chunk.generated_bytes
-                generated_text, delayed_bytes = partial_decode(generated_bytes)
-                ff_bytes = delayed_bytes + chunk.force_forwarded_bytes
-                ff_text, delayed_bytes = partial_decode(ff_bytes)
+        delayed_bytes = b""
+        for chunk in engine_gen:
+            generated_bytes = delayed_bytes + chunk.generated_bytes
+            generated_text, delayed_bytes = partial_decode(generated_bytes)
+            ff_bytes = delayed_bytes + chunk.force_forwarded_bytes
+            ff_text, delayed_bytes = partial_decode(ff_bytes)
 
-                ff_token_count = chunk.new_token_count
-                if generated_bytes:
-                    ff_token_count -= 1
-                    yield TextOutput(
-                        value=generated_text,
-                        is_generated=True,
-                        prob=chunk.new_bytes_prob,
-                        token_count=1,  # len(chunk.generated_tokens),
-                        tokens=chunk.generated_tokens,
+            ff_token_count = chunk.new_token_count
+            if generated_bytes:
+                ff_token_count -= 1
+                yield TextOutput(
+                    value=generated_text,
+                    is_generated=True,
+                    prob=chunk.new_bytes_prob,
+                    token_count=1,  # len(chunk.generated_tokens),
+                    tokens=chunk.generated_tokens,
+                )
+            if ff_bytes:
+                yield TextOutput(
+                    value=ff_text,
+                    is_generated=False,
+                    prob=chunk.new_bytes_prob,
+                    token_count=ff_token_count,  # len(chunk.force_forwarded_tokens),
+                    tokens=chunk.force_forwarded_tokens,
+                )
+
+            for name in chunk.capture_groups.keys():
+                values = chunk.capture_groups[name]
+                log_probs = chunk.capture_group_log_probs[name]
+                if isinstance(values, list):
+                    assert isinstance(log_probs, list) and len(log_probs) == len(values)
+                    list_append = True
+                else:
+                    values = [values]
+                    log_probs = [log_probs]
+                    list_append = False
+
+                for value, log_prob in zip(values, log_probs):
+                    yield CaptureOutput(
+                        name=name,
+                        value=value,
+                        is_append=list_append,
+                        # TODO: let this be Optional?
+                        log_probs=log_prob,
                     )
-                if ff_bytes:
-                    yield TextOutput(
-                        value=ff_text,
-                        is_generated=False,
-                        prob=chunk.new_bytes_prob,
-                        token_count=ff_token_count,  # len(chunk.force_forwarded_tokens),
-                        tokens=chunk.force_forwarded_tokens,
-                    )
 
-                for name in chunk.capture_groups.keys():
-                    values = chunk.capture_groups[name]
-                    log_probs = chunk.capture_group_log_probs[name]
-                    if isinstance(values, list):
-                        assert isinstance(log_probs, list) and len(log_probs) == len(values)
-                        list_append = True
-                    else:
-                        values = [values]
-                        log_probs = [log_probs]
-                        list_append = False
-
-                    for value, log_prob in zip(values, log_probs):
-                        yield CaptureOutput(
-                            name=name,
-                            value=value,
-                            is_append=list_append,
-                            # TODO: let this be Optional?
-                            log_probs=log_prob,
-                        )
-
-            if delayed_bytes:
-                raise RuntimeError("Shouldn't have any delayed bytes left...")
-
-        else:
-            raise NotImplementedError(f"Unknown node: {node!r}")
-
-    def initial_state(self) -> EngineState:
-        # TODO: for llama_cpp and transformers, we need to provide an interface
-        # for getting these from something like a model id..?
-        return EngineState()
+        if delayed_bytes:
+            raise RuntimeError("Shouldn't have any delayed bytes left...")
 
 
 def partial_decode(data: bytes) -> tuple[str, bytes]:

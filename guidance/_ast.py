@@ -1,13 +1,24 @@
 import json
 import re
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Callable, Optional, Union, cast, Sequence
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Iterator,
+    Optional,
+    TypeVar,
+    Union,
+    cast,
+    Sequence,
+)
 
 from ._parser import ByteParser, ByteParserException
 from ._schema import JsonGrammar, LarkGrammar, LLGrammar
-from .trace import ImageOutput
 
-ASTNode = Union["GrammarNode", ImageOutput, "RoleStart", "RoleEnd"]
+if TYPE_CHECKING:
+    from .models._base import Client, MessageChunk, State
 
 # to support the embedding of guidance functions inside Python f-strings we use tags with these delimiters
 tag_start = "{{G|"  # start of a call tag
@@ -44,18 +55,6 @@ class Tagged:
 
         # return a string representation of this call so it can be combined with other strings/calls
         return tag_start + str_id + tag_end
-
-
-# These are "abstract" role tags (i.e. they indicate the start and end of a role, but they do not know the corresponding text/tokens).
-# They are "grammar-adjacent" concepts but not really grammars themselves.
-@dataclass
-class RoleStart:
-    role: str
-
-
-@dataclass
-class RoleEnd:
-    role: str
 
 
 class Match:
@@ -145,8 +144,41 @@ class Function(Tagged):
         return Function(__radd__, [], {})
 
 
+S = TypeVar("S", bound="State")
+
+
+class ASTNode(ABC):
+    @abstractmethod
+    def run(self, client: "Client[S]", state: S) -> Iterator["MessageChunk"]:
+        pass
+
+
+@dataclass
+class RoleStart(ASTNode):
+    role: str
+
+    def run(self, client: "Client[S]", state: S) -> Iterator["MessageChunk"]:
+        return client.role_start(state, self)
+
+
+@dataclass
+class RoleEnd(ASTNode):
+    role: str
+
+    def run(self, client: "Client[S]", state: S) -> Iterator["MessageChunk"]:
+        return client.role_end(state, self)
+
+
+@dataclass
+class ImageNode(ASTNode):
+    value: str
+
+    def run(self, client: "Client[S]", state: S) -> Iterator["MessageChunk"]:
+        return client.literal_image(state, self)
+
+
 @dataclass(frozen=True)
-class GrammarNode(Tagged):
+class GrammarNode(Tagged, ASTNode):
 
     @property
     def is_atomic(self) -> bool:
@@ -260,6 +292,9 @@ class LiteralNode(GrammarNode):
     def is_null(self) -> bool:
         return self.value == ""
 
+    def run(self, client: "Client[S]", state: S) -> Iterator["MessageChunk"]:
+        return client.literal_str(state, self)
+
 
 @dataclass(frozen=True)
 class RegexNode(GrammarNode):
@@ -268,6 +303,9 @@ class RegexNode(GrammarNode):
     @property
     def is_null(self) -> bool:
         return self.regex == ""
+
+    def run(self, client: "Client[S]", state: S) -> Iterator["MessageChunk"]:
+        return client.regex(state, self)
 
 
 @dataclass(frozen=True)
@@ -299,6 +337,9 @@ class SelectNode(GrammarNode):
     def children(self) -> Sequence["GrammarNode"]:
         return self.alternatives
 
+    def run(self, client: "Client[S]", state: S) -> Iterator["MessageChunk"]:
+        return client.select(state, self)
+
 
 @dataclass(frozen=True)
 class JoinNode(GrammarNode):
@@ -323,6 +364,9 @@ class JoinNode(GrammarNode):
     def children(self) -> Sequence["GrammarNode"]:
         return self.nodes
 
+    def run(self, client: "Client[S]", state: S) -> Iterator["MessageChunk"]:
+        return client.join(state, self)
+
 
 @dataclass(frozen=True)
 class RepeatNode(GrammarNode):
@@ -346,6 +390,9 @@ class RepeatNode(GrammarNode):
     def simplify(self) -> GrammarNode:
         return RepeatNode(self.node.simplify(), self.min, self.max)
 
+    def run(self, client: "Client[S]", state: S) -> Iterator["MessageChunk"]:
+        return client.repeat(state, self)
+
 
 @dataclass(frozen=True)
 class SubstringNode(GrammarNode):
@@ -355,6 +402,10 @@ class SubstringNode(GrammarNode):
     def is_terminal(self) -> bool:
         # this can be used as part of bigger regexes
         return True
+
+    def run(self, client: "Client[S]", state: S) -> Iterator["MessageChunk"]:
+        return client.substring(state, self)
+
 
 # This creates a name for the given grammar node (value), which can be referenced
 # via RuleRefNode (or directly).
@@ -389,6 +440,9 @@ class RuleNode(GrammarNode):
     def children(self) -> Sequence["GrammarNode"]:
         return (self.value,)
 
+    def run(self, client: "Client[S]", state: S) -> Iterator["MessageChunk"]:
+        return client.rule(state, self)
+
 
 @dataclass(frozen=True)
 class GenNode(RuleNode):
@@ -408,6 +462,9 @@ class GenNode(RuleNode):
             super(GenNode, self).is_terminal and self.stop_regex == "" and not self.save_stop_text
         )
 
+    def run(self, client: "Client[S]", state: S) -> Iterator["MessageChunk"]:
+        return client.gen(state, self)
+
 
 @dataclass(frozen=True, eq=False)
 class RuleRefNode(GrammarNode):
@@ -425,6 +482,11 @@ class RuleRefNode(GrammarNode):
         # so it should never be terminal.
         return False
 
+    def run(self, client: "Client[S]", state: S) -> Iterator["MessageChunk"]:
+        if self.target is None:
+            raise ValueError("RuleRefNode target not set")
+        return client.rule(state, self.target)
+
 
 @dataclass(frozen=True)
 class BaseSubgrammarNode(GrammarNode):
@@ -440,10 +502,16 @@ class SubgrammarNode(BaseSubgrammarNode):
     body: GrammarNode
     skip_regex: Optional[str] = None
 
+    def run(self, client: "Client[S]", state: S) -> Iterator["MessageChunk"]:
+        return client.subgrammar(state, self)
+
 
 @dataclass(frozen=True, eq=False)
 class JsonNode(BaseSubgrammarNode):
     schema: dict[str, Any]
+
+    def run(self, client: "Client[S]", state: S) -> Iterator["MessageChunk"]:
+        return client.json(state, self)
 
 
 class LLSerializer:
@@ -614,5 +682,5 @@ class LarkSerializer:
         return new_name
 
     def regex(self, pattern: str) -> str:
-        escaped = re.sub(r'(?<!\\)/', r'\/', pattern).replace('\n', '\\n')
+        escaped = re.sub(r"(?<!\\)/", r"\/", pattern).replace("\n", "\\n")
         return f"/{escaped}/"
