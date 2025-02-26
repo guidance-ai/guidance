@@ -100,7 +100,7 @@ class OpenAIClient(Client[OpenAIState]):
             kwargs["temperature"] = node.temperature
         if node.max_tokens:
             kwargs["max_tokens"] = node.max_tokens
-        return node.value.run(self, state, **kwargs)
+        return node.value._run(self, state, **kwargs)
 
     def regex(self, state: OpenAIState, node: RegexNode, **kwargs) -> Iterator[MessageChunk]:
         if node.regex is not None:
