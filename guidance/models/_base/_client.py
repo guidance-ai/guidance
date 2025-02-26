@@ -27,10 +27,10 @@ class Client(Generic[S]):
         return node._run(self, state, **kwargs)
 
     def role_start(self, state: S, node: RoleStart, **kwargs) -> Iterator[MessageChunk]:
-        raise UnsupportedNodeError(node)
+        raise UnsupportedNodeError(client=self, node=node)
 
     def role_end(self, state: S, node: RoleEnd, **kwargs) -> Iterator[MessageChunk]:
-        raise UnsupportedNodeError(node)
+        raise UnsupportedNodeError(client=self, node=node)
 
     def literal_str(self, state: S, node: LiteralNode, **kwargs) -> Iterator[MessageChunk]:
         yield TextOutput(value=node.value)
@@ -39,7 +39,7 @@ class Client(Generic[S]):
         yield ImageOutput(value=node.value, is_input=True)
 
     def grammar(self, state: S, node: GrammarNode, **kwargs) -> Iterator[MessageChunk]:
-        raise UnsupportedNodeError(node)
+        raise UnsupportedNodeError(client=self, node=node)
 
     def regex(self, state: S, node: RegexNode, **kwargs) -> Iterator[MessageChunk]:
         return self.grammar(state, node, **kwargs)
