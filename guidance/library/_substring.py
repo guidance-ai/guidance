@@ -11,21 +11,21 @@ def chunk_on_word(text: str) -> list[str]:
 def substring(
     target_string: str,
     *,
-    chunk_on: Union[Literal["word", "character"], Callable[[str], Iterable[str]]] = "word",
+    chunk: Union[Literal["word", "character"], Callable[[str], Iterable[str]]] = "word",
     name: Optional[str] = None,
 ) -> RuleNode:
-    if chunk_on == "word":
+    if chunk == "word":
         chunks = chunk_on_word(target_string)
-    elif chunk_on == "character":
+    elif chunk == "character":
         chunks = tuple(target_string)
-    elif callable(chunk_on):
-        chunks = chunk_on(target_string)
+    elif callable(chunk):
+        chunks = chunk(target_string)
         if "".join(chunks) != target_string:
             raise ValueError(
                 "chunk_on function must return a sequence of strings that can be joined to form the target string"
             )
     else:
-        raise ValueError(f"Invalid chunk_on value: {chunk_on}. Expected 'word', 'character', or a function.")
+        raise ValueError(f"Invalid `chunk` value: {chunk!r}. Expected 'word', 'character', or a function.")
 
     return RuleNode(
         name=name or "substring",
