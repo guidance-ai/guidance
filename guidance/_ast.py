@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 # to support the embedding of guidance functions inside Python f-strings we use tags with these delimiters
 tag_start = "{{G|"  # start of a call tag
 tag_end = "|G}}"  # end of a call tag
-_tag_pool: dict[str, Union["Function", "ASTNode"]] = (
+_tag_pool: dict[str, Union["Function", "GrammarNode"]] = (
     {}
 )  # the Functions or GrammarNodes associated with the tags
 _tag_pattern = re.compile(
@@ -31,7 +31,7 @@ _tag_pattern = re.compile(
 )  # the pattern for matching call tags
 
 
-def _parse_tags(s: str) -> Union["Function", "ASTNode"]:
+def _parse_tags(s: str) -> Union["GrammarNode", "Function"]:
     parts = cast(list[str], _tag_pattern.split(s))
     obj: GrammarNode = LiteralNode(parts.pop(0))
     is_tag = True
@@ -147,7 +147,7 @@ class Function(Tagged):
 S = TypeVar("S", bound="State")
 
 
-class ASTNode(Tagged, ABC):
+class ASTNode(ABC):
     @abstractmethod
     def run(self, client: "Client[S]", state: S) -> Iterator["MessageChunk"]:
         pass
@@ -178,7 +178,7 @@ class ImageNode(ASTNode):
 
 
 @dataclass(frozen=True)
-class GrammarNode(ASTNode):
+class GrammarNode(Tagged, ASTNode):
 
     @property
     def is_atomic(self) -> bool:
