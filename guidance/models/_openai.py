@@ -88,7 +88,7 @@ class OpenAIClient(Client[OpenAIState]):
     def gen(self, state: OpenAIState, node: GenNode) -> Iterator[MessageChunk]:
         if node.capture:
             raise NotImplementedError("Captures not yet supported for OpenAI")
-        if node.value.regex != "(?s:.*)":  # TODO: make this way more robust...
+        if node.value.regex is not None:
             raise ValueError("Body regex not supported for OpenAI")
         if node.stop_regex:
             raise ValueError("Stop regex not supported for OpenAI")

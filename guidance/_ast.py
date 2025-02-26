@@ -298,11 +298,7 @@ class LiteralNode(GrammarNode):
 
 @dataclass(frozen=True)
 class RegexNode(GrammarNode):
-    regex: str
-
-    @property
-    def is_null(self) -> bool:
-        return self.regex == ""
+    regex: Optional[str]
 
     def run(self, client: "Client[S]", state: S) -> Iterator["MessageChunk"]:
         return client.regex(state, self)
@@ -634,7 +630,10 @@ class LarkSerializer:
             return json.dumps(node.value)
 
         if isinstance(node, RegexNode):
-            return self.regex(node.regex)
+            rx = node.regex
+            if rx is None:
+                rx = "(?s:.*)"
+            return self.regex(rx)
 
         if isinstance(node, SelectNode):
             if top:

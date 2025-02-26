@@ -24,7 +24,7 @@ def regex(pattern: str) -> RegexNode:
 
 
 def gen(
-    regex: str = "(?s).*",
+    regex: Optional[str] = None,
     stop_regex: str = "",
     save_stop_text: Optional[str] = None,
     name: Optional[str] = None,

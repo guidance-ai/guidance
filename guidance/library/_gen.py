@@ -119,8 +119,6 @@ def gen(
         else:
             gen_stop = "|".join("(" + s + ")" for s in stop_regex)
 
-    if regex is None:
-        regex = r"(?s:.*)"
     if save_stop_text is True:
         save_stop_text = str(name) + "_stop_text"
     if not isinstance(save_stop_text, str):
