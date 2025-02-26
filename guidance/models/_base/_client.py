@@ -33,7 +33,7 @@ class Client(Generic[S]):
         raise UnsupportedNodeError(client=self, node=node)
 
     def literal_str(self, state: S, node: LiteralNode, **kwargs) -> Iterator[MessageChunk]:
-        yield TextOutput(value=node.value)
+        yield TextOutput(value=node.value, is_input=True)
 
     def literal_image(self, state: S, node: ImageNode, **kwargs) -> Iterator[MessageChunk]:
         yield ImageOutput(value=node.value, is_input=True)
