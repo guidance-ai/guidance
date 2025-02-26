@@ -1,7 +1,7 @@
 import json
 import re
 from dataclasses import dataclass, field
-from typing import Any, Callable, Optional, Union, cast
+from typing import Any, Callable, Optional, Union, cast, Sequence
 
 from ._parser import ByteParser, ByteParserException
 from ._schema import JsonGrammar, LarkGrammar, LLGrammar
@@ -154,17 +154,24 @@ class GrammarNode(Tagged):
 
     @property
     def is_null(self) -> bool:
+        """
+        If this returns true, then this node matches empty string and empty string only.
+        """
         return False
 
     @property
     def is_terminal(self) -> bool:
+        """
+        If this returns true, then this node will be compiled down to a regular expression.
+        It cannot be recursive.
+        """
         return all(child.is_terminal for child in self.children())
 
     def simplify(self) -> "GrammarNode":
         return self
 
-    def children(self) -> list["GrammarNode"]:
-        return []
+    def children(self) -> Sequence["GrammarNode"]:
+        return ()
 
     def __repr__(self) -> str:
         return self.lark_str()
@@ -234,7 +241,8 @@ class GrammarNode(Tagged):
         if parser.matched():
             parser.force_done()
 
-        return Match(*parser.get_captures(), partial=not parser.matched())  # type: ignore[misc]
+        return Match(*parser.get_captures(),
+                     partial=not parser.matched())  # type: ignore[misc]
 
     def forced_prefix(self) -> str:
         parser = ByteParser(self.ll_grammar())
@@ -288,7 +296,7 @@ class SelectNode(GrammarNode):
             return RepeatNode(node, 0, 1)
         return node
 
-    def children(self) -> list["GrammarNode"]:
+    def children(self) -> Sequence["GrammarNode"]:
         return self.alternatives
 
 
@@ -312,7 +320,7 @@ class JoinNode(GrammarNode):
             return nodes[0]
         return self
 
-    def children(self) -> list["GrammarNode"]:
+    def children(self) -> Sequence["GrammarNode"]:
         return self.nodes
 
 
@@ -332,8 +340,8 @@ class RepeatNode(GrammarNode):
         if self.max is not None and self.max < self.min:
             raise ValueError("max must be >= min")
 
-    def children(self) -> list["GrammarNode"]:
-        return [self.node]
+    def children(self) -> Sequence["GrammarNode"]:
+        return (self.node,)
 
     def simplify(self) -> GrammarNode:
         return RepeatNode(self.node.simplify(), self.min, self.max)
@@ -345,10 +353,14 @@ class SubstringNode(GrammarNode):
 
     @property
     def is_terminal(self) -> bool:
-        # TODO: true? technically a regex...
-        return False
+        # this can be used as part of bigger regexes
+        return True
 
-
+# This creates a name for the given grammar node (value), which can be referenced
+# via RuleRefNode (or directly).
+# In Lark syntax this results in approx. "{name}: {value}"
+# This can either Lark rule (non-terminal) or terminal definition
+# (meaning name can be upper- or lowercase).
 @dataclass(frozen=True)
 class RuleNode(GrammarNode):
     name: str
@@ -374,8 +386,8 @@ class RuleNode(GrammarNode):
             and not isinstance(self.value, BaseSubgrammarNode)
         )
 
-    def children(self) -> list["GrammarNode"]:
-        return [self.value]
+    def children(self) -> Sequence["GrammarNode"]:
+        return (self.value,)
 
 
 @dataclass(frozen=True)
@@ -478,6 +490,7 @@ class LLSerializer:
 
 
 class LarkSerializer:
+
     def __init__(self, ll_serializer: LLSerializer):
         self.ll_serializer = ll_serializer
 
@@ -557,9 +570,11 @@ class LarkSerializer:
 
         if isinstance(node, SelectNode):
             if top:
-                return "\n     | ".join(self.visit(alt) for alt in node.alternatives)
+                return "\n     | ".join(
+                    self.visit(alt) for alt in node.alternatives)
             else:
-                return "(" + " | ".join(self.visit(alt) for alt in node.alternatives) + ")"
+                return "(" + " | ".join(
+                    self.visit(alt) for alt in node.alternatives) + ")"
 
         if isinstance(node, JoinNode):
             return " ".join(self.visit(n) for n in node.nodes if not n.is_null)
