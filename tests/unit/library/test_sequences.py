@@ -1,6 +1,6 @@
 import pytest
 
-from guidance._grammar import Byte, Join, select
+from guidance._grammar import select
 from guidance.library import at_most_n_repeats, exactly_n_repeats, sequence
 
 from ...utils import check_match_failure, check_match_success_with_guards
@@ -8,7 +8,7 @@ from ...utils import check_match_failure, check_match_success_with_guards
 
 class TestExactlynRepeats:
     def test_smoke(self):
-        grammar = Join(["AAA", exactly_n_repeats("b", 4), "BBB"])
+        grammar = "AAA" + exactly_n_repeats("b", 4) + "BBB"
 
         matched = grammar.match(b"AAAbbbbBBB", raise_exceptions=True)
         assert matched is not None
@@ -29,7 +29,7 @@ class TestExactlynRepeats:
     def test_bad_repeats(self, bad_string: str, good_bytes, failure_byte, allowed_bytes):
         PREFIX = "AAA"
         SUFFIX = "BBB"
-        grammar = Join([PREFIX, exactly_n_repeats("b", 4), SUFFIX])
+        grammar = PREFIX + exactly_n_repeats("b", 4) + SUFFIX
         check_match_failure(
             bad_string=PREFIX + bad_string + SUFFIX,
             good_bytes=PREFIX.encode() + good_bytes,
@@ -41,7 +41,7 @@ class TestExactlynRepeats:
 
 class TestAtMostnRepeats:
     def test_smoke(self):
-        grammar = Join(["AAA", at_most_n_repeats("a", 3), "BBB"])
+        grammar = "AAA" + at_most_n_repeats("a", 3) + "BBB"
 
         matched = grammar.match("AAAaBBB".encode(), raise_exceptions=True)
         assert matched is not None
@@ -66,7 +66,7 @@ class TestAtMostnRepeats:
     def test_bad_repeats(self, bad_string: str, good_bytes, failure_byte, allowed_bytes):
         PREFIX = "AAA"
         SUFFIX = "BBB"
-        grammar = Join([PREFIX, at_most_n_repeats("b", 4), SUFFIX])
+        grammar = PREFIX + at_most_n_repeats("b", 4) + SUFFIX
         check_match_failure(
             bad_string=PREFIX + bad_string + SUFFIX,
             good_bytes=PREFIX.encode() + good_bytes,
@@ -78,7 +78,7 @@ class TestAtMostnRepeats:
 
 class TestSequence:
     def test_smoke(self):
-        grammar = Join(["AAA", sequence("a"), "BBB"])
+        grammar = "AAA" + sequence("a") + "BBB"
 
         matched = grammar.match("AAAaaaaaaaBBB".encode(), raise_exceptions=True)
         assert matched is not None
@@ -114,7 +114,7 @@ class TestSequence:
     ):
         PREFIX = "AAA"
         SUFFIX = "BBB"
-        grammar = Join([PREFIX, sequence("b"), SUFFIX])
+        grammar = PREFIX + sequence("b") + SUFFIX
         check_match_failure(
             bad_string=PREFIX + bad_string + SUFFIX,
             good_bytes=PREFIX.encode() + good_bytes,
@@ -147,7 +147,7 @@ class TestSequence:
     ):
         PREFIX = "AAA"
         SUFFIX = "BBB"
-        grammar = Join([PREFIX, sequence("b", min_length=4), SUFFIX])
+        grammar = PREFIX + sequence("b", min_length=4) + SUFFIX
         check_match_failure(
             bad_string=PREFIX + bad_string + SUFFIX,
             good_bytes=PREFIX.encode() + good_bytes,
@@ -179,7 +179,7 @@ class TestSequence:
     ):
         PREFIX = "AAA"
         SUFFIX = "BBB"
-        grammar = Join([PREFIX, sequence("b", max_length=2), SUFFIX])
+        grammar = PREFIX + sequence("b", max_length=2) + SUFFIX
         check_match_failure(
             bad_string=PREFIX + bad_string + SUFFIX,
             good_bytes=PREFIX.encode() + good_bytes,
@@ -247,7 +247,7 @@ class TestSequence:
     ):
         PREFIX = "AAA"
         SUFFIX = "BBB"
-        grammar = Join([PREFIX, sequence("b", min_length=1, max_length=2), SUFFIX])
+        grammar = PREFIX + sequence("b", min_length=1, max_length=2) + SUFFIX
         check_match_failure(
             bad_string=PREFIX + bad_string + SUFFIX,
             good_bytes=PREFIX.encode() + good_bytes,

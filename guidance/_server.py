@@ -16,13 +16,16 @@ except ImportError:
     if TYPE_CHECKING:
         raise
 
+from .models._model import Model, Engine
+from ._schema import EngineCallResponse, LLGrammar
+
 
 class GuidanceRequest(pydantic.BaseModel):
     parser: str = pydantic.Field(
         title="parser",
         description="The text generated so far by the guidance program",
     )
-    grammar: str = pydantic.Field(
+    grammar: LLGrammar = pydantic.Field(
         title="grammar",
         description="Guidance grammar to constrain the next characters generated",
     )

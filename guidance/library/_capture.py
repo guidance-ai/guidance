@@ -1,10 +1,10 @@
 from .._guidance import guidance
-from .._grammar import capture as grammar_capture, GrammarFunction
+from .._grammar import capture as grammar_capture, GrammarNode
 from ._block import block
 
-@guidance(stateless=lambda *args, **kwargs: isinstance(args[0], GrammarFunction))
+@guidance(stateless=lambda *args, **kwargs: isinstance(args[0], GrammarNode))
 def capture(lm, value, name):
-    if isinstance(value, GrammarFunction):
+    if isinstance(value, GrammarNode):
         return lm + grammar_capture(value, name)
     else:
         with block(name):

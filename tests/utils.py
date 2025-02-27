@@ -8,7 +8,7 @@ import pytest
 
 import guidance
 from guidance import models
-from guidance._grammar import GrammarFunction, Join
+from guidance._ast import GrammarNode
 from guidance._parser import ByteParserException
 
 opanai_model_cache = {}
@@ -121,7 +121,7 @@ def get_llama_cpp_model(model_name, caching=False, **kwargs):
 def check_match_success_with_guards(grammar, test_string: str):
     PREFIX = "A#$!"
     SUFFIX = "&%@Z"
-    bracketed_grammar = Join([PREFIX, grammar, SUFFIX])
+    bracketed_grammar = PREFIX + grammar + SUFFIX
 
     bracketed_string = f"{PREFIX}{test_string}{SUFFIX}"
 
@@ -135,7 +135,7 @@ def check_match_failure(
     good_bytes: Optional[bytes] = None,
     failure_byte: Optional[bytes] = None,
     allowed_bytes: Optional[Set[bytes]] = None,
-    grammar: GrammarFunction,
+    grammar: GrammarNode,
 ):
     """
     Helper function to check that a string fails to match a grammar after consuming
@@ -153,17 +153,17 @@ def check_match_failure(
     if allowed_bytes is not None:
         assert pe.value.allowed_bytes == allowed_bytes
 
-class GrammarFunctionCallable(Protocol):
+class GrammarNodeCallable(Protocol):
     """
-    Protocol for a callable that returns a GrammarFunction and accepts
+    Protocol for a callable that returns a GrammarNode and accepts
     name argument for capture key
     """
 
-    def __call__(self, *args, name: str, **kwargs) -> GrammarFunction: ...
+    def __call__(self, *args, name: str, **kwargs) -> GrammarNode: ...
 
 
 def generate_and_check(
-    grammar_callable: GrammarFunctionCallable,
+    grammar_callable: GrammarNodeCallable,
     test_string: str,
     capture_key="my_capture",
     eos_token = "<s>",

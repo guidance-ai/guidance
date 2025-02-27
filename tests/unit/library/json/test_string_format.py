@@ -47,33 +47,18 @@ class TestDate:
             '"2020-01-32"',  # a invalid date string with 32 days in January
             pytest.param(
                 '"2021-02-29"',
-                marks=pytest.mark.xfail(reason="number of days not yet tied to month"),
+                marks=pytest.mark.xfail(reason="leap days are hard"),
             ),  # a invalid date string with 29 days in February (normal)
-            pytest.param(
-                '"2020-02-30"',
-                marks=pytest.mark.xfail(reason="number of days not yet tied to month"),
-            ),  # a invalid date string with 30 days in February (leap)
+            '"2020-02-30"',  # a invalid date string with 30 days in February (leap)
             '"2020-03-32"',  # a invalid date string with 32 days in March
-            pytest.param(
-                '"2020-04-31"',
-                marks=pytest.mark.xfail(reason="number of days not yet tied to month"),
-            ),  # a invalid date string with 31 days in April
+            '"2020-04-31"',
             '"2020-05-32"',  # a invalid date string with 32 days in May
-            pytest.param(
-                '"2020-06-31"',
-                marks=pytest.mark.xfail(reason="number of days not yet tied to month"),
-            ),  # a invalid date string with 31 days in June
+            '"2020-06-31"',  # a invalid date string with 31 days in June
             '"2020-07-32"',  # a invalid date string with 32 days in July
             '"2020-08-32"',  # a invalid date string with 32 days in August
-            pytest.param(
-                '"2020-09-31"',
-                marks=pytest.mark.xfail(reason="number of days not yet tied to month"),
-            ),  # a invalid date string with 31 days in September
+            '"2020-09-31"',  # a invalid date string with 31 days in September
             '"2020-10-32"',  # a invalid date string with 32 days in October
-            pytest.param(
-                '"2020-11-31"',
-                marks=pytest.mark.xfail(reason="number of days not yet tied to month"),
-            ),  # a invalid date string with 31 days in November
+            '"2020-11-31"',  # a invalid date string with 31 days in November
             '"2020-12-32"',  # a invalid date string with 32 days in December
             '"2020-13-01"',  # a invalid date string with invalid month
             '"06/19/1963"',  # an invalid date string
@@ -81,10 +66,7 @@ class TestDate:
             '"1998-1-20"',  # non-padded month dates are not valid
             '"1998-01-1"',  # non-padded day dates are not valid
             '"1998-13-01"',  # invalid month
-            pytest.param(
-                '"1998-04-31"',
-                marks=pytest.mark.xfail(reason="number of days not yet tied to month"),
-            ),  # invalid month-day combination
+            '"1998-04-31"',  # invalid month-day combination
             pytest.param(
                 '"2021-02-29"', marks=pytest.mark.xfail(reason="leap days are hard")
             ),  # 2021 is not a leap year
@@ -935,10 +917,7 @@ class TestDateTime:
             pytest.param(
                 '"1998-12-31T22:59:60Z"', marks=pytest.mark.xfail(reason="leap seconds are hard")
             ),  # an invalid date-time with leap second on a wrong hour, UTC
-            pytest.param(
-                '"1990-02-31T15:59:59.123-08:00"',
-                marks=pytest.mark.xfail(reason="valid days not yet tied to month"),
-            ),  # an invalid day in date-time string
+            '"1990-02-31T15:59:59.123-08:00"',  # an invalid day in date-time string
             '"1990-12-31T15:59:59-24:00"',  # an invalid offset in date-time string
             '"1963-06-19T08:30:06.28123+01:00Z"',  # an invalid closing Z after time-zone offset
             '"06/19/1963 08:30:06 PST"',  # an invalid date-time string

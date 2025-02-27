@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING, Any, Callable, Iterator, Optional, Sequence, U
 import numpy as np
 import psutil
 
-from ..._grammar import Function
 from ..._parser import TokenParser
 from ..._schema import (
     EngineCallResponse,
@@ -20,6 +19,7 @@ from ..._schema import (
     GenToken,
     GenTokenExtra,
     GuidanceEngineMetrics,
+    LLGrammar,
 )
 from ..._singleton import get_renderer, get_trace_handler
 from ..._utils import log_cleanup, log_init, softmax, to_utf8_or_bytes_string
@@ -349,7 +349,7 @@ class Engine(ABC):
     def __call__(
         self,
         state: EngineState,
-        grammar: Function,
+        grammar: LLGrammar,
         ensure_bos_token: bool = True,
         echo: bool = True,
     ) -> Iterator[EngineCallResponse]:

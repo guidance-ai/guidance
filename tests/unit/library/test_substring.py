@@ -23,5 +23,5 @@ from guidance import models, substring
 def test_mocked_substring(mock_string, target_string, expected_string):
     m = models.Mock(f"<s>{mock_string}<s>")
 
-    lm = m + substring(target_string, name="result")
+    lm = m + substring(target_string, chunk="character", name="result")
     assert lm["result"] == expected_string

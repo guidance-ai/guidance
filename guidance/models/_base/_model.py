@@ -1,17 +1,14 @@
 # TODO(nopdive): This module requires a memory review.
 
 import queue
-import re
 import threading
-from base64 import b64encode
 from contextvars import ContextVar, copy_context
 from copy import deepcopy
 from typing import TYPE_CHECKING, Any, Generic, Iterator, Optional, TypeVar, Union
 
 from typing_extensions import Self, assert_never
 
-from ..._ast import ASTNode
-from ..._grammar import Null, RawFunction, _call_pool, _tag_pattern
+from ..._ast import ASTNode, Function, _parse_tags
 from ..._singleton import get_renderer, get_trace_handler
 from ...trace import (
     CaptureOutput,
@@ -84,17 +81,21 @@ class Model(Generic[S]):
                 )
             )
 
-    def __add__(self, other: ASTNode) -> Self:
+    def __add__(self, other: Union[str, Function, ASTNode]) -> Self:
         self = self._apply_blocks()
         if isinstance(other, str):
             if other == "":
                 return self
-            other = extract_embedded_nodes(other)
-        if isinstance(other, RawFunction):
+            other = _parse_tags(other)
+        if isinstance(other, Function):
             return other(self)
-        self = self._apply_node(other)
-        self = self._update_open_block_captures()
-        return self
+        if isinstance(other, ASTNode):
+            self = self._apply_node(other)
+            self = self._update_open_block_captures()
+            return self
+        if TYPE_CHECKING:
+            assert_never(other)
+        return NotImplemented
 
     def _apply_node(self, node: ASTNode) -> Self:
         for chunk in self._client.run(self._state, node):
@@ -127,6 +128,11 @@ class Model(Generic[S]):
             ),
         ):
             self._update_trace_node(self._id, self._parent_id, chunk)
+            if isinstance(chunk, RoleOpenerInput):
+                # TODO: this is a hotfix / workaround -- the vis front-end expects a string corresponding
+                # to the just-opened role.
+                self = self.copy()
+                self._update_trace_node(self._id, self._parent_id, TextOutput(value=chunk.text))
         else:
             if TYPE_CHECKING:
                 assert_never(chunk)
@@ -142,9 +148,16 @@ class Model(Generic[S]):
         for block, start_index in list(reversed(self._active_blocks.items())):
             # Close blocks that are not globally active anymore
             if block not in global_active_blocks:
-                if block.closer is not None:
-                    self = self._apply_node(block.closer)
                 self._active_blocks.pop(block)
+                if block.closer is not None:
+                    closer = block.closer
+                    if isinstance(closer, str):
+                        closer = _parse_tags(closer)
+                    if isinstance(closer, Function):
+                        raise NotImplementedError(
+                            "Stateful block opener/closer functions are not yet supported"
+                        )
+                    self = self._apply_node(closer)
             # Update capture regardless of whether or not it's been closed
             if block.name is not None:
                 self = self.set(block.name, str(self)[start_index:])
@@ -154,7 +167,14 @@ class Model(Generic[S]):
                 # Set start_index to the current length
                 self._active_blocks[block] = len(self)
                 if block.opener is not None:
-                    self = self._apply_node(block.opener)
+                    opener = block.opener
+                    if isinstance(opener, str):
+                        opener = _parse_tags(opener)
+                    if isinstance(opener, Function):
+                        raise NotImplementedError(
+                            "Stateful block opener/closer functions are not yet supported"
+                        )
+                    self = self._apply_node(opener)
         return self
 
     def _update_open_block_captures(self) -> Self:
@@ -272,27 +292,12 @@ class Model(Generic[S]):
         return super().__getattribute__(name)
 
 
-def extract_embedded_nodes(value: str) -> ASTNode:
-    parts: list[str] = re.split(_tag_pattern, value)
-
-    if len(parts) == 1:
-        return value
-
-    is_id = False
-    grammar = Null()
-    for part in parts:
-        if is_id:
-            call = _call_pool[part]
-            grammar += call
-        else:
-            grammar += part
-        is_id = not is_id
-    return grammar
-
-
 class ModelStream:
     def __init__(
-        self, model: Model, grammar: Union["ModelStream", ASTNode, None] = None, timeout=5
+        self,
+        model: Model,
+        grammar: Union["ModelStream", str, ASTNode, Function, None] = None,
+        timeout=5,
     ) -> None:
         """Create a model stream object that delays execution until it is iterated over."""
         if model.echo:
@@ -302,7 +307,7 @@ class ModelStream:
         self.grammar = grammar
         self.timeout = timeout
 
-    def __add__(self, grammar: ASTNode) -> Self:
+    def __add__(self, grammar: Union[str, ASTNode]) -> Self:
         """Extend this delayed chain of execution with another grammar append."""
         if self.grammar is None:
             return ModelStream(self.model, grammar)

@@ -33,7 +33,7 @@ class RemoteEngine(Engine):
         # Prepare the request data
         data = {
             "parser": parser,
-            "grammar": json.dumps(grammar.ll_serialize()),
+            "grammar": grammar.ll_grammar().model_dump(),
         }
 
         headers = {"x-api-key": self.api_key, "Content-Type": "application/json"}

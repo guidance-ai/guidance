@@ -1,16 +1,15 @@
-import json
 import os
-from typing import Any, Generator, Optional, Union
+from typing import Any, Generator, Optional, TYPE_CHECKING
 from concurrent.futures import ThreadPoolExecutor, Future
 
 import llguidance  # type: ignore[import-untyped]
 import numpy as np
 from numpy.typing import NDArray
 
-from ._grammar import GrammarFunction, Join, Terminal
-from ._schema import EngineOutput, GenData, EngineCallResponse, GenToken, LLInterpreterResponse
-from .models._byte_tokenizer import ByteTokenizer
-from .models._engine import Tokenizer
+from ._schema import EngineOutput, GenData, EngineCallResponse, GenToken, LLInterpreterResponse, LLGrammar
+
+if TYPE_CHECKING:
+    from .models._engine import Tokenizer
 
 class TokenParserException(Exception):
     pass
@@ -30,26 +29,18 @@ class TokenParser:
 
     def __init__(
         self,
-        grammar: Union[GrammarFunction, str],
-        tokenizer: Tokenizer,
+        grammar: LLGrammar,
+        tokenizer: "Tokenizer",
         prompt: bytes = b"",
         ensure_bos_token: bool = True,
         enable_backtrack: bool = True,
         enable_ff_tokens: bool = True,
     ):
-        if isinstance(grammar, GrammarFunction):
-            # we can't have a terminal as the root
-            if isinstance(grammar, Terminal):
-                grammar = Join([grammar])
-            serialized_grammar = json.dumps(grammar.ll_serialize())
-        else:
-            serialized_grammar = grammar
-
         self.tokenizer = tokenizer
         self.ll_tokenizer = llguidance.LLTokenizer(llguidance.TokenizerWrapper(tokenizer))
         self.ll_interpreter = llguidance.LLInterpreter(
             self.ll_tokenizer,
-            serialized_grammar,
+            grammar.model_dump_json(),
             enable_backtrack,
             enable_ff_tokens,
             log_level=int(os.environ.get("LLGUIDANCE_LOG_LEVEL", "1")),
@@ -185,10 +176,12 @@ class ByteParserException(Exception):
 class ByteParser:
     def __init__(
         self,
-        grammar: GrammarFunction,
+        grammar: LLGrammar,
         prompt: bytes = b"",
         ensure_bos_token: bool = True,
     ):
+        # TODO: figure out this circular import
+        from .models._byte_tokenizer import ByteTokenizer
         self.tokenizer = ByteTokenizer()
         self.token_parser = TokenParser(grammar, self.tokenizer, prompt, ensure_bos_token)
         self.bytes = b""
