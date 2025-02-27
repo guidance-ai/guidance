@@ -2,15 +2,24 @@ import base64
 from io import BytesIO
 from typing import Iterator, Optional
 
-from .._ast import JsonNode, RegexNode, RoleEnd, RoleStart, RuleNode
+from .._ast import (
+    ImageNode,
+    JsonNode,
+    LiteralNode,
+    RegexNode,
+    RoleEnd,
+    RoleStart,
+    RuleNode,
+)
 from ..trace import (
     CaptureOutput,
     ImageOutput,
+    OutputAttr,
     RoleCloserInput,
     RoleOpenerInput,
     TextOutput,
 )
-from ._base import Client, ContentChunk, MessageChunk, Model, State
+from ._base import Client, ContentChunk, Model, State
 
 
 class OpenAIState(State):
@@ -77,21 +86,35 @@ class OpenAIClient(Client[OpenAIState]):
         self.model = model
         self.client = openai.OpenAI(api_key=api_key, **kwargs)
 
-    def role_start(self, state: OpenAIState, node: RoleStart, **kwargs) -> Iterator[MessageChunk]:
+    def text(self, state: OpenAIState, node: LiteralNode, **kwargs) -> Iterator[OutputAttr]:
+        output = TextOutput(value=node.value, input=True)
+        state.apply_chunk(output)
+        yield output
+
+    def image(self, state: OpenAIState, node: ImageNode, **kwargs) -> Iterator[OutputAttr]:
+        output = ImageOutput(value=node.value, input=True)
+        state.apply_chunk(output)
+        yield output
+
+    def role_start(self, state: OpenAIState, node: RoleStart, **kwargs) -> Iterator[OutputAttr]:
         # ChatML is as good as anything
-        yield RoleOpenerInput(
+        opener = RoleOpenerInput(
             name=node.role,
             text="<|im_start|>" + node.role + "\n",
         )
+        state.apply_chunk(opener)
+        yield opener
 
-    def role_end(self, state: OpenAIState, node: RoleEnd, **kwargs) -> Iterator[MessageChunk]:
+    def role_end(self, state: OpenAIState, node: RoleEnd, **kwargs) -> Iterator[OutputAttr]:
         # ChatML is as good as anything
-        yield RoleCloserInput(
+        closer = RoleCloserInput(
             name=node.role,
             text="\n<|im_end|>\n",
         )
+        state.apply_chunk(closer)
+        yield closer
 
-    def rule(self, state: OpenAIState, node: RuleNode, **kwargs) -> Iterator[MessageChunk]:
+    def rule(self, state: OpenAIState, node: RuleNode, **kwargs) -> Iterator[OutputAttr]:
         if node.stop:
             raise ValueError("Stop condition not yet supported for OpenAI")
         if node.suffix:
@@ -114,22 +137,24 @@ class OpenAIClient(Client[OpenAIState]):
                 if isinstance(chunk, TextOutput):
                     buffered_text += chunk.value
                 yield chunk
-            yield CaptureOutput(
+            capture = CaptureOutput(
                 name=node.capture,
                 value=buffered_text,
                 is_append=node.list_append,
                 log_probs=1,  # TODO
             )
+            state.apply_chunk(capture)
+            yield capture
         else:
             yield from chunks
 
-    def regex(self, state: OpenAIState, node: RegexNode, **kwargs) -> Iterator[MessageChunk]:
+    def regex(self, state: OpenAIState, node: RegexNode, **kwargs) -> Iterator[OutputAttr]:
         if node.regex is not None:
             raise ValueError("Regex not yet supported for OpenAI")
         # We're in unconstrained mode now.
         return self._run(state, **kwargs)
 
-    def json(self, state: OpenAIState, node: JsonNode, **kwargs) -> Iterator[MessageChunk]:
+    def json(self, state: OpenAIState, node: JsonNode, **kwargs) -> Iterator[OutputAttr]:
         return self._run(
             state,
             response_format={
@@ -143,7 +168,7 @@ class OpenAIClient(Client[OpenAIState]):
             **kwargs,
         )
 
-    def _run(self, state: OpenAIState, **kwargs) -> Iterator[MessageChunk]:
+    def _run(self, state: OpenAIState, **kwargs) -> Iterator[OutputAttr]:
         messages = []
         for message in state.messages:
             if message["role"] is None:
@@ -185,12 +210,14 @@ class OpenAIClient(Client[OpenAIState]):
                 content = delta.content
                 if len(content) == 0:
                     continue
-                yield TextOutput(
+                output = TextOutput(
                     value=delta.content,
                     is_generated=True,
                     # TODO: actually get tokens from this and be less lazy
                     prob=2.718 ** choice.logprobs.content[0].logprob,  # type: ignore[union-attr,index]
                 )
+                state.apply_chunk(output)
+                yield output
                 continue
             if choice.finish_reason is not None:
                 # TODO: handle finish_reason elegantly

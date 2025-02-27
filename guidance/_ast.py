@@ -177,7 +177,7 @@ class ImageNode(ASTNode):
     value: str
 
     def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator["MessageChunk"]:
-        return client.literal_image(state, self, **kwargs)
+        return client.image(state, self, **kwargs)
 
 
 @dataclass(frozen=True)
@@ -291,7 +291,7 @@ class LiteralNode(GrammarNode):
         return self.value == ""
 
     def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator["MessageChunk"]:
-        return client.literal_str(state, self, **kwargs)
+        return client.text(state, self, **kwargs)
 
 
 @dataclass(frozen=True)
