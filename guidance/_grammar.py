@@ -4,7 +4,6 @@ from typing import Optional, Sequence, Union
 
 from ._ast import (
     Function,
-    GenNode,
     GrammarNode,
     LiteralNode,
     RegexNode,
@@ -24,20 +23,32 @@ def regex(pattern: str) -> RegexNode:
 
 
 def gen(
-    regex: str = "(?s).*",
-    stop_regex: str = "",
-    save_stop_text: Optional[str] = None,
+    regex: Optional[str] = None,
+    stop: Optional[str] = None,
+    stop_regex: Optional[str] = None,
+    suffix: Optional[str] = None,
+    stop_capture: Optional[str] = None,
     name: Optional[str] = None,
     temperature: Optional[float] = None,
     max_tokens: Optional[int] = None,
     list_append: bool = False,
-) -> GenNode:
-    node = GenNode(
+) -> RuleNode:
+    if stop is not None and stop_regex is not None:
+        raise ValueError("You cannot specify both a stop and a stop_regex")
+    if stop is not None:
+        stop_value = LiteralNode(stop)
+    elif stop_regex is not None:
+        stop_value = RegexNode(stop_regex)
+    else:
+        stop_value = None
+
+    node = RuleNode(
         name=name or "gen",
         value=RegexNode(regex),
         capture=name,
-        stop_regex=stop_regex,
-        save_stop_text=save_stop_text,
+        stop=stop_value,
+        suffix=LiteralNode(suffix) if suffix else None,
+        stop_capture=stop_capture,
         list_append=list_append,
         temperature=temperature,
         max_tokens=max_tokens,
@@ -156,7 +167,7 @@ def with_temperature(value: GrammarNode, temperature: float) -> RuleNode:
 
 
 def capture(value: GrammarNode, name: str, list_append: bool = False) -> RuleNode:
-    if isinstance(value, RuleNode):
+    if isinstance(value, RuleNode) and value.capture is None:
         return dataclasses.replace(value, capture=name, list_append=list_append)
     else:
         return RuleNode(name="capture", value=value, capture=name, list_append=list_append)

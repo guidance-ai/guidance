@@ -1,13 +1,24 @@
 import json
 import re
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Callable, Optional, Union, cast, Sequence
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Iterator,
+    Optional,
+    Sequence,
+    TypeVar,
+    Union,
+    cast,
+)
 
 from ._parser import ByteParser, ByteParserException
 from ._schema import JsonGrammar, LarkGrammar, LLGrammar
-from .trace import ImageOutput
 
-ASTNode = Union["GrammarNode", ImageOutput, "RoleStart", "RoleEnd"]
+if TYPE_CHECKING:
+    from .models._base import Client, MessageChunk, State
 
 # to support the embedding of guidance functions inside Python f-strings we use tags with these delimiters
 tag_start = "{{G|"  # start of a call tag
@@ -44,18 +55,6 @@ class Tagged:
 
         # return a string representation of this call so it can be combined with other strings/calls
         return tag_start + str_id + tag_end
-
-
-# These are "abstract" role tags (i.e. they indicate the start and end of a role, but they do not know the corresponding text/tokens).
-# They are "grammar-adjacent" concepts but not really grammars themselves.
-@dataclass
-class RoleStart:
-    role: str
-
-
-@dataclass
-class RoleEnd:
-    role: str
 
 
 class Match:
@@ -145,12 +144,44 @@ class Function(Tagged):
         return Function(__radd__, [], {})
 
 
-@dataclass(frozen=True)
-class GrammarNode(Tagged):
+S = TypeVar("S", bound="State")
 
-    @property
-    def is_atomic(self) -> bool:
-        return True
+
+class ASTNode(ABC):
+    @abstractmethod
+    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator["MessageChunk"]:
+        pass
+
+    def simplify(self) -> "ASTNode":
+        return self
+
+
+@dataclass
+class RoleStart(ASTNode):
+    role: str
+
+    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator["MessageChunk"]:
+        return client.role_start(state, self, **kwargs)
+
+
+@dataclass
+class RoleEnd(ASTNode):
+    role: str
+
+    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator["MessageChunk"]:
+        return client.role_end(state, self, **kwargs)
+
+
+@dataclass
+class ImageNode(ASTNode):
+    value: str
+
+    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator["MessageChunk"]:
+        return client.literal_image(state, self, **kwargs)
+
+
+@dataclass(frozen=True)
+class GrammarNode(Tagged, ASTNode):
 
     @property
     def is_null(self) -> bool:
@@ -241,8 +272,7 @@ class GrammarNode(Tagged):
         if parser.matched():
             parser.force_done()
 
-        return Match(*parser.get_captures(),
-                     partial=not parser.matched())  # type: ignore[misc]
+        return Match(*parser.get_captures(), partial=not parser.matched())  # type: ignore[misc]
 
     def forced_prefix(self) -> str:
         parser = ByteParser(self.ll_grammar())
@@ -260,14 +290,16 @@ class LiteralNode(GrammarNode):
     def is_null(self) -> bool:
         return self.value == ""
 
+    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator["MessageChunk"]:
+        return client.literal_str(state, self, **kwargs)
+
 
 @dataclass(frozen=True)
 class RegexNode(GrammarNode):
-    regex: str
+    regex: Optional[str]
 
-    @property
-    def is_null(self) -> bool:
-        return self.regex == ""
+    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator["MessageChunk"]:
+        return client.regex(state, self, **kwargs)
 
 
 @dataclass(frozen=True)
@@ -277,11 +309,6 @@ class SelectNode(GrammarNode):
     @property
     def is_null(self) -> bool:
         return all(alt.is_null for alt in self.alternatives)
-
-    @property
-    def is_atomic(self) -> bool:
-        # Not really atomic, but we already wrap it in parentheses
-        return True
 
     def simplify(self) -> "GrammarNode":
         if self.is_null:
@@ -299,6 +326,9 @@ class SelectNode(GrammarNode):
     def children(self) -> Sequence["GrammarNode"]:
         return self.alternatives
 
+    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator["MessageChunk"]:
+        return client.select(state, self, **kwargs)
+
 
 @dataclass(frozen=True)
 class JoinNode(GrammarNode):
@@ -307,10 +337,6 @@ class JoinNode(GrammarNode):
     @property
     def is_null(self) -> bool:
         return all(node.is_null for node in self.nodes)
-
-    @property
-    def is_atomic(self) -> bool:
-        return False
 
     def simplify(self) -> "GrammarNode":
         if self.is_null:
@@ -322,6 +348,9 @@ class JoinNode(GrammarNode):
 
     def children(self) -> Sequence["GrammarNode"]:
         return self.nodes
+
+    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator["MessageChunk"]:
+        return client.join(state, self, **kwargs)
 
 
 @dataclass(frozen=True)
@@ -346,6 +375,9 @@ class RepeatNode(GrammarNode):
     def simplify(self) -> GrammarNode:
         return RepeatNode(self.node.simplify(), self.min, self.max)
 
+    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator["MessageChunk"]:
+        return client.repeat(state, self, **kwargs)
+
 
 @dataclass(frozen=True)
 class SubstringNode(GrammarNode):
@@ -355,6 +387,10 @@ class SubstringNode(GrammarNode):
     def is_terminal(self) -> bool:
         # this can be used as part of bigger regexes
         return True
+
+    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator["MessageChunk"]:
+        return client.substring(state, self, **kwargs)
+
 
 # This creates a name for the given grammar node (value), which can be referenced
 # via RuleRefNode (or directly).
@@ -369,19 +405,33 @@ class RuleNode(GrammarNode):
     list_append: bool = False
     temperature: Optional[float] = None
     max_tokens: Optional[int] = None
+    stop: Optional[Union[RegexNode, LiteralNode]] = None
+    suffix: Optional[LiteralNode] = None
+    stop_capture: Optional[str] = None
 
     def __post_init__(self) -> None:
-        if (self.temperature is not None or self.max_tokens is not None) and not (
-            self.value.is_terminal or isinstance(self.value, BaseSubgrammarNode)
-        ):
+        if (
+            self.temperature is not None
+            or self.max_tokens is not None
+            or self.stop is not None
+            or self.suffix is not None
+            or self.stop_capture is not None
+        ) and not (self.value.is_terminal or isinstance(self.value, BaseSubgrammarNode)):
             raise ValueError(
-                "RuleNode is not terminal, so it cannot have a temperature or max_tokens"
+                "RuleNode is not terminal, so it cannot have a temperature, max_tokens, or stop condition"
             )
 
     @property
     def is_terminal(self) -> bool:
         return (
-            (self.capture is None and self.temperature is None and self.max_tokens is None)
+            (
+                self.capture is None
+                and self.temperature is None
+                and self.max_tokens is None
+                and self.stop is None
+                and self.suffix is None
+                and self.stop_capture is None
+            )
             and self.value.is_terminal
             and not isinstance(self.value, BaseSubgrammarNode)
         )
@@ -389,24 +439,8 @@ class RuleNode(GrammarNode):
     def children(self) -> Sequence["GrammarNode"]:
         return (self.value,)
 
-
-@dataclass(frozen=True)
-class GenNode(RuleNode):
-    value: RegexNode
-    stop_regex: str = ""
-    save_stop_text: Optional[str] = None
-
-    def __post_init__(self):
-        if self.save_stop_text is not None:
-            raise NotImplementedError(
-                "save_stop_text is currently unimplemented (will add back if there is demand)"
-            )
-
-    @property
-    def is_terminal(self) -> bool:
-        return (
-            super(GenNode, self).is_terminal and self.stop_regex == "" and not self.save_stop_text
-        )
+    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator["MessageChunk"]:
+        return client.rule(state, self, **kwargs)
 
 
 @dataclass(frozen=True, eq=False)
@@ -425,6 +459,11 @@ class RuleRefNode(GrammarNode):
         # so it should never be terminal.
         return False
 
+    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator["MessageChunk"]:
+        if self.target is None:
+            raise ValueError("RuleRefNode target not set")
+        return client.rule(state, self.target)
+
 
 @dataclass(frozen=True)
 class BaseSubgrammarNode(GrammarNode):
@@ -440,10 +479,16 @@ class SubgrammarNode(BaseSubgrammarNode):
     body: GrammarNode
     skip_regex: Optional[str] = None
 
+    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator["MessageChunk"]:
+        return client.subgrammar(state, self, **kwargs)
+
 
 @dataclass(frozen=True, eq=False)
 class JsonNode(BaseSubgrammarNode):
     schema: dict[str, Any]
+
+    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator["MessageChunk"]:
+        return client.json(state, self, **kwargs)
 
 
 class LLSerializer:
@@ -550,9 +595,12 @@ class LarkSerializer:
                 attrs.append(f"temperature={node.temperature}")
             if node.max_tokens is not None:
                 attrs.append(f"max_tokens={node.max_tokens}")
-            if isinstance(node, GenNode):
-                if node.stop_regex:
-                    attrs.append(f"stop={self.regex(node.stop_regex)}")
+            if node.stop:
+                attrs.append(f"stop={self.visit(node.stop)}")
+            if node.suffix:
+                attrs.append(f"suffix={self.visit(node.suffix)}")
+            if node.stop_capture:
+                attrs.append(f"stop_capture={json.dumps(node.stop_capture)}")
             if attrs:
                 res += f"[{', '.join(attrs)}]"
             res += ": " + self.visit(node.value.simplify(), top=True)
@@ -566,22 +614,23 @@ class LarkSerializer:
             return json.dumps(node.value)
 
         if isinstance(node, RegexNode):
-            return self.regex(node.regex)
+            rx = node.regex
+            if rx is None:
+                rx = "(?s:.*)"
+            return self.regex(rx)
 
         if isinstance(node, SelectNode):
             if top:
-                return "\n     | ".join(
-                    self.visit(alt) for alt in node.alternatives)
+                return "\n     | ".join(self.visit(alt) for alt in node.alternatives)
             else:
-                return "(" + " | ".join(
-                    self.visit(alt) for alt in node.alternatives) + ")"
+                return "(" + " | ".join(self.visit(alt) for alt in node.alternatives) + ")"
 
         if isinstance(node, JoinNode):
             return " ".join(self.visit(n) for n in node.nodes if not n.is_null)
 
         if isinstance(node, RepeatNode):
             inner = self.visit(node.node)
-            if not node.node.is_atomic:
+            if isinstance(node.node, (JoinNode, RepeatNode)):
                 inner = f"({inner})"
             if (node.min, node.max) == (0, None):
                 return f"{inner}*"
@@ -614,5 +663,5 @@ class LarkSerializer:
         return new_name
 
     def regex(self, pattern: str) -> str:
-        escaped = re.sub(r'(?<!\\)/', r'\/', pattern).replace('\n', '\\n')
+        escaped = re.sub(r"(?<!\\)/", r"\/", pattern).replace("\n", "\\n")
         return f"/{escaped}/"
