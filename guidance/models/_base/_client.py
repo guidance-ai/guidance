@@ -24,21 +24,37 @@ S = TypeVar("S", bound=State)
 
 class Client(Generic[S]):
     def run(self, state: S, node: ASTNode, **kwargs) -> Iterator[OutputAttr]:
-        for attr in node.simplify()._run(self, state, **kwargs):
+        node = node.simplify()
+        for attr in node._run(self, state, **kwargs):
             yield attr
             if isinstance(attr, RoleOpenerInput):
                 # TODO: this is a hotfix / workaround -- the vis front-end expects a string corresponding
                 # to the just-opened role.
                 yield TextOutput(value=attr.text, input=True)
 
+    def _role_start(self, state: S, node: RoleStart, **kwargs) -> Iterator[OutputAttr]:
+        if state.active_role is not None:
+            raise ValueError(
+                f"Cannot open role {node.role!r}: {state.active_role!r} is already open."
+            )
+        return self.role_start(state, node, **kwargs)
+
     def role_start(self, state: S, node: RoleStart, **kwargs) -> Iterator[OutputAttr]:
         raise UnsupportedNodeError(client=self, node=node)
+
+    def _role_end(self, state: S, node: RoleEnd, **kwargs) -> Iterator[OutputAttr]:
+        if state.active_role is None:
+            raise ValueError("Cannot close role without active role")
+        if state.active_role != node.role:
+            raise ValueError(f"Cannot close role {node.role!r}: {state.active_role!r} is open.")
+        return self.role_end(state, node, **kwargs)
 
     def role_end(self, state: S, node: RoleEnd, **kwargs) -> Iterator[OutputAttr]:
         raise UnsupportedNodeError(client=self, node=node)
 
     def text(self, state: S, node: LiteralNode, **kwargs) -> Iterator[OutputAttr]:
-        raise UnsupportedNodeError(client=self, node=node)
+        state.text += node.value
+        yield TextOutput(value=node.value, input=True)
 
     def image(self, state: S, node: ImageNode, **kwargs) -> Iterator[OutputAttr]:
         raise UnsupportedNodeError(client=self, node=node)

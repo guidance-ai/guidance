@@ -5,7 +5,6 @@ import warnings
 from typing import Any, Optional, Sequence, Union
 
 from ..._schema import GenToken, GenTokenExtra
-from .._base import Message
 from .._engine import Engine, Tokenizer
 
 try:
@@ -667,29 +666,3 @@ class TransformersEngine(Engine):
             batch.append(text_sequence)
 
         return batch[0]
-
-    def apply_chat_template(
-        self,
-        messages: Sequence[Message],
-        active_message: Message,
-        tools: Optional[list[Any]],
-    ) -> str:
-        # TODO: move onto the tokenizer
-        # This is a hack to get around the fact that apply_chat_template won't properly continue the final message
-        # if it is empty. We add a sentinel value to the final message, and then remove it after the fact.
-        sentinel_value = "<|FINAL_MESSAGE_SENTINEL_VALUE|>"
-        messages = [{"role": m["role"], "content": m["data"].get("content", "")} for m in messages]
-        active_message = {
-            "role": active_message["role"],
-            "content": active_message.get("content", "") + sentinel_value,
-        }
-        prompt = self.tokenizer._orig_tokenizer.apply_chat_template(
-            conversation=(list(messages) + [active_message]),
-            tools=tools,
-            chat_template=None,
-            continue_final_message=True,
-            add_generation_prompt=False,
-            tokenize=False,
-        )
-        prompt = prompt[: prompt.rindex(sentinel_value)]
-        return prompt

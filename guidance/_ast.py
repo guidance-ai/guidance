@@ -161,7 +161,7 @@ class RoleStart(ASTNode):
     role: str
 
     def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator["MessageChunk"]:
-        return client.role_start(state, self, **kwargs)
+        return client._role_start(state, self, **kwargs)
 
 
 @dataclass
@@ -169,7 +169,7 @@ class RoleEnd(ASTNode):
     role: str
 
     def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator["MessageChunk"]:
-        return client.role_end(state, self, **kwargs)
+        return client._role_end(state, self, **kwargs)
 
 
 @dataclass

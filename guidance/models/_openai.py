@@ -1,8 +1,9 @@
 import base64
 from io import BytesIO
-from typing import Iterator, Optional
+from typing import Any, Iterator, Optional, TypedDict
 
 from .._ast import (
+    ASTNode,
     ImageNode,
     JsonNode,
     LiteralNode,
@@ -12,62 +13,25 @@ from .._ast import (
     RuleNode,
 )
 from ..trace import (
-    CaptureOutput,
     ImageOutput,
     OutputAttr,
     RoleCloserInput,
     RoleOpenerInput,
     TextOutput,
 )
-from ._base import Client, ContentChunk, Model, State
+from ._base import Client, Model, State
+
+
+class Message(TypedDict):
+    role: str
+    content: list[dict[str, Any]]
 
 
 class OpenAIState(State):
-    def apply_content_chunk(self, chunk: ContentChunk) -> None:
-        if self.active_message["role"] is None:
-            raise ValueError(
-                "OpenAI models require chat blocks (e.g. use `with assistant(): ...`)"
-            )
-        super().apply_content_chunk(chunk)
-
-    def apply_text(self, text: str) -> None:
-        content = self.active_message["data"].setdefault("content", [])
-        if len(content) > 0 and content[-1]["type"] == "text":
-            # No need to add a new text block; we can be less verbose
-            content[-1]["text"] += text
-        else:
-            content.append({"type": "text", "text": text})
-        self.text += text
-
-
-class OpenAIImageState(OpenAIState):
-    def apply_image(self, image: ImageOutput) -> None:
-        try:
-            import PIL.Image
-        except ImportError:
-            raise Exception(
-                "Please install the Pillow package `pip install Pillow` in order to use images with OpenAI!"
-            )
-
-        image_bytes = base64.b64decode(image.value)
-        with PIL.Image.open(BytesIO(image_bytes)) as pil_image:
-            # Use PIL to infer file format
-            # TODO: just store format on ImageOutput type
-            format = pil_image.format
-            if format is None:
-                raise ValueError(f"Cannot upload image with unknown format")
-
-        mime_type = f"image/{format.lower()}"
-        content = self.active_message["data"].setdefault("content", [])
-        content.append(
-            {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{image.value}"}}
-        )
-        self.text += "<|image|>"  # Arbitrary stringification of image
-
-
-class OpenAIAudioState(OpenAIState):
     def __init__(self) -> None:
-        raise NotImplementedError("OpenAI audio not yet implemented")
+        super().__init__()
+        self.messages: list[Message] = []
+        self.content: list[dict[str, Any]] = []
 
 
 class OpenAIClient(Client[OpenAIState]):
@@ -86,33 +50,51 @@ class OpenAIClient(Client[OpenAIState]):
         self.model = model
         self.client = openai.OpenAI(api_key=api_key, **kwargs)
 
-    def text(self, state: OpenAIState, node: LiteralNode, **kwargs) -> Iterator[OutputAttr]:
-        output = TextOutput(value=node.value, input=True)
-        state.apply_chunk(output)
-        yield output
-
-    def image(self, state: OpenAIState, node: ImageNode, **kwargs) -> Iterator[OutputAttr]:
-        output = ImageOutput(value=node.value, input=True)
-        state.apply_chunk(output)
-        yield output
+    def run(self, state: OpenAIState, node: ASTNode, **kwargs) -> Iterator[OutputAttr]:
+        if not isinstance(node, RoleStart) and state.active_role is None:
+            raise ValueError(
+                "OpenAI models require an active role (e.g. use `with assistant(): ...`)"
+            )
+        return super().run(state, node, **kwargs)
 
     def role_start(self, state: OpenAIState, node: RoleStart, **kwargs) -> Iterator[OutputAttr]:
         # ChatML is as good as anything
-        opener = RoleOpenerInput(
+        opener_text = "<|im_start|>" + node.role + "\n"
+        state.text += opener_text
+        state.active_role = node.role
+
+        yield RoleOpenerInput(
             name=node.role,
-            text="<|im_start|>" + node.role + "\n",
+            text=opener_text,
         )
-        state.apply_chunk(opener)
-        yield opener
 
     def role_end(self, state: OpenAIState, node: RoleEnd, **kwargs) -> Iterator[OutputAttr]:
         # ChatML is as good as anything
-        closer = RoleCloserInput(
-            name=node.role,
-            text="\n<|im_end|>\n",
+        closer_text = "\n<|im_end|>\n"
+        state.text += closer_text
+        state.messages.append(
+            Message(
+                role=node.role,
+                content=state.content,
+            )
         )
-        state.apply_chunk(closer)
-        yield closer
+        state.content = []
+        state.active_role = None
+
+        yield RoleCloserInput(
+            name=node.role,
+            text=closer_text,
+        )
+
+    def text(self, state: OpenAIState, node: LiteralNode, **kwargs) -> Iterator[OutputAttr]:
+        state.text += node.value
+        if len(state.content) > 0 and state.content[-1].get("type") == "text":
+            # Reduce verbosity by combining adjacent text nodes
+            state.content[-1].setdefault("text", "")
+            state.content[-1]["text"] += node.value
+        else:
+            state.content.append({"type": "text", "text": node.value})
+        yield TextOutput(value=node.value, input=True)
 
     def rule(self, state: OpenAIState, node: RuleNode, **kwargs) -> Iterator[OutputAttr]:
         if node.stop:
@@ -137,16 +119,14 @@ class OpenAIClient(Client[OpenAIState]):
                 if isinstance(chunk, TextOutput):
                     buffered_text += chunk.value
                 yield chunk
-            capture = CaptureOutput(
+            yield state.apply_capture(
                 name=node.capture,
                 value=buffered_text,
+                log_prob=1,  # TODO
                 is_append=node.list_append,
-                log_probs=1,  # TODO
             )
-            state.apply_chunk(capture)
-            yield capture
         else:
-            yield from chunks
+            return chunks
 
     def regex(self, state: OpenAIState, node: RegexNode, **kwargs) -> Iterator[OutputAttr]:
         if node.regex is not None:
@@ -169,36 +149,23 @@ class OpenAIClient(Client[OpenAIState]):
         )
 
     def _run(self, state: OpenAIState, **kwargs) -> Iterator[OutputAttr]:
-        messages = []
-        for message in state.messages:
-            if message["role"] is None:
-                # Should never happen?
-                raise ValueError(
-                    "OpenAI models require chat blocks (e.g. use `with assistant(): ...`)"
-                )
-            messages.append(
-                {
-                    "role": message["role"],
-                    "content": message["data"].get("content", []),
-                }
-            )
-        active_message = state.active_message
-        if active_message["role"] is None:
+        if state.active_role is None:
             # Should never happen?
             raise ValueError(
                 "OpenAI models require chat blocks (e.g. use `with assistant(): ...`)"
             )
-        if active_message["role"] != "assistant":
+        if state.active_role != "assistant":
             raise ValueError(
                 "OpenAI models can only generate as the assistant (i.e. inside of `with assistant(): ...`)"
             )
-        if active_message["data"]:
+        if state.content:
             raise ValueError(
-                f"OpenAI models do not support pre-filled assistant messages: got data {active_message['data']}."
+                f"OpenAI models do not support pre-filled assistant messages: got data {state.content}."
             )
+
         responses = self.client.chat.completions.create(
             model=self.model,
-            messages=messages,  # type: ignore[arg-type]
+            messages=state.messages,  # type: ignore[arg-type]
             logprobs=True,
             stream=True,
             **kwargs,
@@ -216,13 +183,43 @@ class OpenAIClient(Client[OpenAIState]):
                     # TODO: actually get tokens from this and be less lazy
                     prob=2.718 ** choice.logprobs.content[0].logprob,  # type: ignore[union-attr,index]
                 )
-                state.apply_chunk(output)
+                state.text += delta.content
                 yield output
                 continue
             if choice.finish_reason is not None:
                 # TODO: handle finish_reason elegantly
                 break
             raise NotImplementedError(f"Unknown delta: {delta}")
+
+
+class OpenAIImageClient(OpenAIClient):
+    def image(self, state: OpenAIState, node: ImageNode, **kwargs) -> Iterator[OutputAttr]:
+        try:
+            import PIL.Image
+        except ImportError:
+            raise Exception(
+                "Please install the Pillow package `pip install Pillow` in order to use images with OpenAI!"
+            )
+
+        image_bytes = base64.b64decode(node.value)
+        with PIL.Image.open(BytesIO(image_bytes)) as pil_image:
+            # Use PIL to infer file format
+            # TODO: just store format on ImageOutput type
+            format = pil_image.format
+            if format is None:
+                raise ValueError(f"Cannot upload image with unknown format")
+
+        mime_type = f"image/{format.lower()}"
+        state.content.append(
+            {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{node.value}"}}
+        )
+        state.text += "<|image|>"  # Arbitrary stringification of image
+        yield ImageOutput(value=node.value, input=True)
+
+
+class OpenAIAudioClient(OpenAIClient):
+    # Stub
+    pass
 
 
 class OpenAI(Model):
@@ -250,12 +247,12 @@ class OpenAI(Model):
         """
 
         if model.startswith("gpt-4o") or model.startswith("o1"):
-            state = OpenAIImageState()
+            client_cls = OpenAIImageClient
         elif "audio-preview" in model:
-            state = OpenAIAudioState()
+            client_cls = OpenAIAudioClient
         else:
-            state = OpenAIState()
+            client_cls = OpenAIClient
 
         super().__init__(
-            client=OpenAIClient(model, api_key=api_key, **kwargs), state=state, echo=echo
+            client=client_cls(model, api_key=api_key, **kwargs), state=OpenAIState(), echo=echo
         )

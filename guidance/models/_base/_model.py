@@ -10,7 +10,7 @@ from typing_extensions import Self
 
 from ..._ast import ASTNode, Function, _parse_tags
 from ..._singleton import get_renderer, get_trace_handler
-from ...trace import NodeAttr, StatelessGuidanceInput, TextOutput, TraceNode
+from ...trace import NodeAttr, TextOutput, TraceNode
 from ...visual import TraceMessage
 from ._client import Client
 from ._state import State
