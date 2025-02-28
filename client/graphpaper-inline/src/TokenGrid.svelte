@@ -169,6 +169,7 @@
   };
 
   let multimodalNodes: MultimodalNode[] = [];
+  let tokens: Array<Token> = [];
   let activeOpenerRoles: Array<RoleOpenerInput> = [];
   let activeCloserRoleText: Array<string> = [];
   let specialSet: Set<string> = new Set<string>();
@@ -178,6 +179,7 @@
   $: {
     if (textComponents.length === 0) {
       // Reset
+      tokens = []
       multimodalNodes = [];
       activeOpenerRoles = [];
       activeCloserRoleText = [];
@@ -232,7 +234,9 @@
               is_generated: nodeAttr.is_generated,
             };
             specialSet.add(token.text);
-            multimodalNodes.push({ type: "token", data: token });
+            // TODO: handle interleaving tokens with multimodal data
+            // multimodalNodes.push({ type: "token", data: token });
+            tokens.push(token)
             activeCloserRoleText.pop();
           } else {
             const token = {
@@ -245,7 +249,8 @@
               is_force_forwarded: nodeAttr.is_force_forwarded,
               is_generated: nodeAttr.is_generated,
             };
-            multimodalNodes.push({ type: "token", data: token });
+            // multimodalNodes.push({ type: "token", data: token });
+            tokens.push(token);
           }
         } else {
           const activeOpenerRole =
@@ -273,7 +278,8 @@
             namedRoleSet[nodeAttr.value] = token.role;
           }
           specialSet.add(token.text);
-          multimodalNodes.push({ type: "token", data: token });
+        //   multimodalNodes.push({ type: "token", data: token });
+          tokens.push(token);
           activeOpenerRoles.pop();
         }
       }
@@ -301,6 +307,7 @@
       //     console.log(match, start, end);
       // }
 
+      tokens = [];
       let tokenStart = 0;
       let tokenEnd = 0;
       let withinRoleMatch = false;
@@ -377,23 +384,24 @@
           token.latency_ms,
           statCounter["latency.max"] || 0
         );
+        tokens.push(token);
 
         // Advance array index to the next token
-        while (
-          multimodalNodeIndex < multimodalNodes.length &&
-          multimodalNodes[multimodalNodeIndex].type !== "token"
-        ) {
-          multimodalNodeIndex++;
-        }
+        // while (
+        //   multimodalNodeIndex < multimodalNodes.length &&
+        //   multimodalNodes[multimodalNodeIndex].type !== "token"
+        // ) {
+        //   multimodalNodeIndex++;
+        // }
 
-        if (multimodalNodeIndex >= multimodalNodes.length) {
-          console.error(
-            "Ran off multimodal node array when filling in token details!"
-          );
-        } else if (multimodalNodes[multimodalNodeIndex].type === "token") {
-          multimodalNodes[multimodalNodeIndex].data = token;
-          multimodalNodeIndex++;
-        }
+        // if (multimodalNodeIndex >= multimodalNodes.length) {
+        //   console.error(
+        //     "Ran off multimodal node array when filling in token details!"
+        //   );
+        // } else if (multimodalNodes[multimodalNodeIndex].type === "token") {
+        //   multimodalNodes[multimodalNodeIndex].data = token;
+        //   multimodalNodeIndex++;
+        // }
       }
     }
 
@@ -432,6 +440,7 @@
     tokenDetails = tokenDetails;
     textComponents = textComponents;
     multimodalNodes = multimodalNodes;
+    tokens = tokens;
   }
 
   let tooltip: HTMLElement;
@@ -453,17 +462,16 @@
       tooltipY = rect.bottom + window.scrollY + positionYOffset;
       tooltip.style.display = "block";
       const indexNum = Number(index);
-      const node = multimodalNodes[indexNum];
-      if (node.type === "token") {
-        tooltipToken = node.data;
+    //   const node = multimodalNodes[indexNum];
+    //   if (node.type === "token") {
+      tooltipToken = tokens[indexNum];
 
-        // Adjust if near edge of viewport
-        if (tooltipX + tooltip.offsetWidth > window.innerWidth) {
-          tooltipX = window.innerWidth - tooltip.offsetWidth;
-        }
-        if (tooltipY + tooltip.offsetHeight > window.innerHeight) {
-          tooltipY = window.innerHeight - tooltip.offsetHeight;
-        }
+      // Adjust if near edge of viewport
+      if (tooltipX + tooltip.offsetWidth > window.innerWidth) {
+        tooltipX = window.innerWidth - tooltip.offsetWidth;
+      }
+      if (tooltipY + tooltip.offsetHeight > window.innerHeight) {
+        tooltipY = window.innerHeight - tooltip.offsetHeight;
       }
     }
   };
@@ -655,9 +663,10 @@
         <TokenGridItem token={continuationToken} index={-1} />
         <div class="basis-full h-2"></div>
       {/if}
-      {#each multimodalNodes as node, i}
-        {#if node.type === "token"}
-          {#if node.data.special === true && node.data.role !== ""}
+
+      <!-- Render tokens first -->
+      {#each tokens as token, i}
+          {#if token.special === true && token.role !== ""}
             <!-- Vertical spacing for role -->
             {#if i === 0}
               <div class="basis-full h-2"></div>
@@ -670,33 +679,11 @@
             {/if}
           {/if}
           <TokenGridItem
-            token={node.data}
+            token={token}
             index={i}
-            underlineStyle={underline(node.data)}
-            bgStyle={bg(node.data)}
+            underlineStyle={underline(token)}
+            bgStyle={bg(token)}
           />
-        {:else if node.type === "media"}
-          {#if node.data.type == "audio"}
-            <div class="my-3">
-              <CustomAudio audioData={node.data.value} />
-            </div>
-          {/if}
-          {#if node.data.type == "video"}
-            <div class="my-3">
-              <CustomVideo videoData={node.data.value} />
-            </div>
-          {/if}
-          {#if node.data.type == "image"}
-            <div class="my-3">
-              <img
-                src={`data:image/png;base64,${node.data.value}`}
-                alt="Image output"
-              />
-            </div>
-          {/if}
-        {:else}
-          <div class="m-3 font-extrabold text-xl text-red-600">Node error</div>
-        {/if}
       {/each}
 
       {#if isCompleted === false}
@@ -707,5 +694,29 @@
         </span>
       {/if}
     </span>
+
+    <!-- Render media nodes afterward -->
+    {#each multimodalNodes as node}
+      {#if node.type === "media"}
+        {#if node.data.type == "audio"}
+          <div class="my-3">
+            <CustomAudio audioData={node.data.value} />
+          </div>
+        {/if}
+        {#if node.data.type == "video"}
+          <div class="my-3">
+            <CustomVideo videoData={node.data.value} />
+          </div>
+        {/if}
+        {#if node.data.type == "image"}
+          <div class="my-3">
+            <img
+              src={`data:image/png;base64,${node.data.value}`}
+              alt="Image output"
+            />
+          </div>
+        {/if}
+      {/if}
+    {/each}
   </div>
 </div>
