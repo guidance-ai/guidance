@@ -1,6 +1,10 @@
 import base64
 from io import BytesIO
-from typing import Any, Iterator, Optional, TypedDict
+from typing import TYPE_CHECKING, Iterator, Literal, Optional, Union
+
+from pydantic import BaseModel, Discriminator, Field, TypeAdapter
+from pydantic.types import Base64Str
+from typing_extensions import Annotated, assert_never
 
 from .._ast import (
     ASTNode,
@@ -28,45 +32,114 @@ def get_role_end(role: str) -> str:
     return "\n<|im_end|>\n"
 
 
-class Message(TypedDict):
-    role: str
-    content: list[dict[str, Any]]
+class AssistantAudio(BaseModel):
+    id: str
+    expires_at: int = Field(exclude=True)
+    data: Base64Str = Field(exclude=True)
+    transcript: str = Field(exclude=True)
+
+
+class AssistantAudioMessage(BaseModel):
+    role: Literal["assistant"]
+    audio: AssistantAudio
+
+
+class TextContent(BaseModel):
+    type: Literal["text"]
+    text: str
+
+
+class InputAudio(BaseModel):
+    data: Base64Str
+    format: str
+
+
+class AudioContent(BaseModel):
+    type: Literal["input_audio"]
+    audio: InputAudio
+
+
+class ImageUrlContentInner(BaseModel):
+    url: str
+
+
+class ImageUrlContent(BaseModel):
+    type: Literal["image_url"]
+    image_url: ImageUrlContentInner
+
+
+Content = Annotated[Union[TextContent, AudioContent, ImageUrlContent], Discriminator("type")]
+
+
+class ContentMessage(BaseModel):
+    role: Literal["system", "user", "assistant"]
+    content: list[Content]
+
+
+Message = Union[ContentMessage, AssistantAudioMessage]
 
 
 class OpenAIState(State):
     def __init__(self) -> None:
         super().__init__()
         self.messages: list[Message] = []
-        self.content: list[dict[str, Any]] = []
+        self.content: list[Content] = []
+        self.audio: Optional[AssistantAudio] = None
 
     def apply_text(self, text: str) -> None:
-        if len(self.content) > 0 and self.content[-1].get("type") == "text":
-            # Reduce verbosity by combining adjacent text nodes
-            self.content[-1].setdefault("text", "")
-            self.content[-1]["text"] += text
+        if len(self.content) > 0 and isinstance(self.content[-1], TextContent):
+            self.content[-1].text += text
         else:
-            self.content.append({"type": "text", "text": text})
+            self.content.append(TextContent(type="text", text=text))
+
+    def get_active_message(state) -> Optional[Message]:
+        if state.active_role is None:
+            return None
+        if state.content and state.audio:
+            raise ValueError("Cannot have both content and audio")
+        if state.audio:
+            return AssistantAudioMessage(
+                role=state.active_role,
+                audio=state.audio,
+            )
+        elif state.content:
+            return ContentMessage(
+                role=state.active_role,
+                content=state.content,
+            )
+        else:
+            return None
 
     def __str__(self) -> str:
+        messages = self.messages
+        active_message = self.get_active_message()
+        if active_message is not None:
+            messages = messages + [active_message]
         s = ""
-        for message in self.messages:
-            s += get_role_start(message["role"])
-            for content in message["content"]:
-                s += self._fmt_content(content)
-            s += get_role_end(message["role"])
-        if self.active_role is not None:
-            s += get_role_start(self.active_role)
-            for content in self.content:
-                s += self._fmt_content(content)
+        for i, message in enumerate(messages):
+            s += get_role_start(message.role)
+            if isinstance(message, AssistantAudioMessage):
+                s += "[AUDIO]"
+            elif isinstance(message, ContentMessage):
+                for content in message.content:
+                    if isinstance(content, TextContent):
+                        s += content.text
+                    elif isinstance(content, ImageUrlContent):
+                        s += "[IMAGE]"  # Arbitrary stringification
+                    elif isinstance(content, AudioContent):
+                        s += "[AUDIO]"  # transcript?
+                    else:
+                        if TYPE_CHECKING:
+                            assert_never(content)
+                        raise TypeError(f"Unknown content type: {content}")
+            else:
+                if TYPE_CHECKING:
+                    assert_never(message)
+                raise TypeError(f"Unknown message type: {message}")
+            if active_message is None or i != len(messages) - 1:
+                # For the sake of consistency, don't add role end for the active message
+                s += get_role_end(message.role)
         return s
-
-    def _fmt_content(self, content: dict[str, Any]) -> str:
-        if content["type"] == "text":
-            return content["text"]
-        elif content["type"] == "image_url":
-            return "[IMAGE]"  # arbitrary stringification
-        else:
-            raise ValueError(f"Unknown content type: {content['type']}")
 
 
 class OpenAIClient(Client[OpenAIState]):
@@ -99,12 +172,8 @@ class OpenAIClient(Client[OpenAIState]):
         yield TextOutput(value=get_role_start(node.role), is_input=True)
 
     def role_end(self, state: OpenAIState, node: RoleEnd, **kwargs) -> Iterator[OutputAttr]:
-        state.messages.append(
-            Message(
-                role=node.role,
-                content=state.content,
-            )
-        )
+        state.messages.append(state.get_active_message())
+        state.audio = None
         state.content = []
         state.active_role = None
         yield from ()
@@ -182,7 +251,7 @@ class OpenAIClient(Client[OpenAIState]):
 
         responses = self.client.chat.completions.create(
             model=self.model,
-            messages=state.messages,  # type: ignore[arg-type]
+            messages=TypeAdapter(list[Message]).dump_python(state.messages),  # type: ignore[arg-type]
             logprobs=True,
             stream=True,
             **kwargs,
@@ -233,11 +302,6 @@ class OpenAIImageClient(OpenAIClient):
         image_bytes = bytes_from(node.url, allow_local=False)
         base64_string = base64.b64encode(image_bytes).decode("utf-8")
         yield ImageOutput(value=base64_string, input=True)
-
-
-class OpenAIAudioClient(OpenAIClient):
-    # Stub
-    pass
 
 
 class OpenAI(Model):

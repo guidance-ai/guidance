@@ -14,9 +14,9 @@ from typing import (
     cast,
 )
 
-from .trace import OutputAttr
 from ._parser import ByteParser, ByteParserException
 from ._schema import JsonGrammar, LarkGrammar, LLGrammar
+from .trace import OutputAttr
 
 if TYPE_CHECKING:
     from .models._base import Client, State
