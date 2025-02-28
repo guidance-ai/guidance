@@ -367,7 +367,7 @@ class Engine(ABC):
         parser = TokenParser(
             grammar,
             tokenizer=self.tokenizer,
-            prompt=state.text.encode("utf-8"),
+            prompt=state.prompt.encode("utf-8"),
             ensure_bos_token=ensure_bos_token,
             enable_backtrack=self.enable_backtrack,
             enable_ff_tokens=self.enable_ff_tokens,

@@ -2,7 +2,7 @@ from base64 import b64decode
 from io import BytesIO
 from typing import Iterator
 
-from ..._ast import GrammarNode, ImageNode, RoleEnd, RoleStart
+from ..._ast import GrammarNode, ImageNode, LiteralNode, RoleEnd, RoleStart
 from ...trace import (
     ImageOutput,
     OutputAttr,
@@ -32,7 +32,7 @@ class EngineClient(Client[EngineState]):
 
     def role_start(self, state: EngineState, node: RoleStart, **kwargs) -> Iterator[OutputAttr]:
         opener_text = self.get_role_start(node.role)
-        state.text += opener_text
+        state.prompt += opener_text
         state.active_role = node.role
         # TODO: this should be an OutputAttr ... need to define that
         yield RoleOpenerInput(
@@ -42,12 +42,16 @@ class EngineClient(Client[EngineState]):
 
     def role_end(self, state: EngineState, node: RoleEnd, **kwargs) -> Iterator[OutputAttr]:
         closer_text = self.get_role_end(node.role)
-        state.text += closer_text
+        state.prompt += closer_text
         state.active_role = None
         yield RoleCloserInput(
             name=node.role,
             text=self.get_role_end(node.role),
         )
+
+    def text(self, state: EngineState, node: LiteralNode, **kwargs) -> Iterator[OutputAttr]:
+        state.prompt += node.value
+        yield TextOutput(value=node.value, input=True)
 
     def grammar(self, state: EngineState, node: GrammarNode, **kwargs) -> Iterator[OutputAttr]:
         engine_gen = self.engine(
@@ -63,7 +67,7 @@ class EngineClient(Client[EngineState]):
             new_text, delayed_bytes = partial_decode(new_bytes)
 
             # Update the state
-            state.text += new_text
+            state.prompt += new_text
             yield TextOutput(value=new_text, token_count=chunk.new_token_count)
 
             # # TODO: GenTokenExtra
@@ -118,7 +122,7 @@ class Llama3VisionClient(EngineClient):
         image_bytes = b64decode(node.value)
         pil_image = PIL.Image.open(BytesIO(image_bytes))
         state.images.append(pil_image)
-        state.text += "<|image|>"
+        state.prompt += "<|image|>"
 
         yield ImageOutput(value=node.value, input=True)
 
@@ -140,7 +144,7 @@ class Phi3VisionClient(EngineClient):
         else:
             state.images.append(pil_image)
             ix = len(state.images)
-        state.text += f"<|image_{ix}|>"
+        state.prompt += f"<|image_{ix}|>"
 
         yield ImageOutput(value=node.value, input=True)
 

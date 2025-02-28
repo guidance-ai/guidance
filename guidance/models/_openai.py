@@ -22,6 +22,16 @@ from ..trace import (
 from ._base import Client, Model, State
 
 
+def get_role_start(role: str) -> str:
+    # ChatML is as good as anything
+    return "<|im_start|>" + role + "\n"
+
+
+def get_role_end(role: str) -> str:
+    # ChatML is as good as anything
+    return "\n<|im_end|>\n"
+
+
 class Message(TypedDict):
     role: str
     content: list[dict[str, Any]]
@@ -32,6 +42,35 @@ class OpenAIState(State):
         super().__init__()
         self.messages: list[Message] = []
         self.content: list[dict[str, Any]] = []
+
+    def apply_text(self, text: str) -> None:
+        if len(self.content) > 0 and self.content[-1].get("type") == "text":
+            # Reduce verbosity by combining adjacent text nodes
+            self.content[-1].setdefault("text", "")
+            self.content[-1]["text"] += text
+        else:
+            self.content.append({"type": "text", "text": text})
+
+    def __str__(self) -> str:
+        s = ""
+        for message in self.messages:
+            s += get_role_start(message["role"])
+            for content in message["content"]:
+                s += self._fmt_content(content)
+            s += get_role_end(message["role"])
+        if self.active_role is not None:
+            s += get_role_start(self.active_role)
+            for content in self.content:
+                s += self._fmt_content(content)
+        return s
+
+    def _fmt_content(self, content: dict[str, Any]) -> str:
+        if content["type"] == "text":
+            return content["text"]
+        elif content["type"] == "image_url":
+            return "[IMAGE]"  # arbitrary stringification
+        else:
+            raise ValueError(f"Unknown content type: {content['type']}")
 
 
 class OpenAIClient(Client[OpenAIState]):
@@ -60,7 +99,6 @@ class OpenAIClient(Client[OpenAIState]):
     def role_start(self, state: OpenAIState, node: RoleStart, **kwargs) -> Iterator[OutputAttr]:
         # ChatML is as good as anything
         opener_text = "<|im_start|>" + node.role + "\n"
-        state.text += opener_text
         state.active_role = node.role
 
         yield RoleOpenerInput(
@@ -71,7 +109,6 @@ class OpenAIClient(Client[OpenAIState]):
     def role_end(self, state: OpenAIState, node: RoleEnd, **kwargs) -> Iterator[OutputAttr]:
         # ChatML is as good as anything
         closer_text = "\n<|im_end|>\n"
-        state.text += closer_text
         state.messages.append(
             Message(
                 role=node.role,
@@ -87,13 +124,7 @@ class OpenAIClient(Client[OpenAIState]):
         )
 
     def text(self, state: OpenAIState, node: LiteralNode, **kwargs) -> Iterator[OutputAttr]:
-        state.text += node.value
-        if len(state.content) > 0 and state.content[-1].get("type") == "text":
-            # Reduce verbosity by combining adjacent text nodes
-            state.content[-1].setdefault("text", "")
-            state.content[-1]["text"] += node.value
-        else:
-            state.content.append({"type": "text", "text": node.value})
+        state.apply_text(node.value)
         yield TextOutput(value=node.value, input=True)
 
     def rule(self, state: OpenAIState, node: RuleNode, **kwargs) -> Iterator[OutputAttr]:
@@ -177,19 +208,18 @@ class OpenAIClient(Client[OpenAIState]):
                 content = delta.content
                 if len(content) == 0:
                     continue
-                output = TextOutput(
+                state.apply_text(content)
+                yield TextOutput(
                     value=delta.content,
                     is_generated=True,
                     # TODO: actually get tokens from this and be less lazy
                     prob=2.718 ** choice.logprobs.content[0].logprob,  # type: ignore[union-attr,index]
                 )
-                state.text += delta.content
-                yield output
-                continue
-            if choice.finish_reason is not None:
+            elif choice.finish_reason is not None:
                 # TODO: handle finish_reason elegantly
                 break
-            raise NotImplementedError(f"Unknown delta: {delta}")
+            else:
+                NotImplementedError(f"Unknown delta: {delta}")
 
 
 class OpenAIImageClient(OpenAIClient):
@@ -213,7 +243,6 @@ class OpenAIImageClient(OpenAIClient):
         state.content.append(
             {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{node.value}"}}
         )
-        state.text += "<|image|>"  # Arbitrary stringification of image
         yield ImageOutput(value=node.value, input=True)
 
 
