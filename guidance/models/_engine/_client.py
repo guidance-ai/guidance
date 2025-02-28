@@ -2,7 +2,7 @@ from base64 import b64decode
 from io import BytesIO
 from typing import Iterator
 
-from ..._ast import GrammarNode, ImageNode, LiteralNode, RoleEnd, RoleStart
+from ..._ast import GrammarNode, ImageBlob, LiteralNode, RoleEnd, RoleStart
 from ...trace import (
     ImageOutput,
     OutputAttr,
@@ -111,7 +111,7 @@ class EngineClient(Client[EngineState]):
 
 
 class Llama3VisionClient(EngineClient):
-    def image(self, state: EngineState, node: ImageNode, **kwargs) -> Iterator[OutputAttr]:
+    def image_blob(self, state: EngineState, node: ImageBlob, **kwargs) -> Iterator[OutputAttr]:
         try:
             import PIL.Image
         except ImportError:
@@ -119,16 +119,16 @@ class Llama3VisionClient(EngineClient):
                 "Please install the Pillow package `pip install Pillow` in order to use images with Llama3!"
             )
 
-        image_bytes = b64decode(node.value)
+        image_bytes = b64decode(node.data)
         pil_image = PIL.Image.open(BytesIO(image_bytes))
         state.images.append(pil_image)
         state.prompt += "<|image|>"
 
-        yield ImageOutput(value=node.value, input=True)
+        yield ImageOutput(value=node.data, input=True)
 
 
 class Phi3VisionClient(EngineClient):
-    def image(self, state: EngineState, node: ImageNode, **kwargs) -> Iterator[OutputAttr]:
+    def image_blob(self, state: EngineState, node: ImageBlob, **kwargs) -> Iterator[OutputAttr]:
         try:
             import PIL.Image
         except ImportError:
@@ -136,7 +136,7 @@ class Phi3VisionClient(EngineClient):
                 "Please install the Pillow package `pip install Pillow` in order to use images with Llama3!"
             )
 
-        image_bytes = b64decode(node.value)
+        image_bytes = b64decode(node.data)
         pil_image = PIL.Image.open(BytesIO(image_bytes))
 
         if pil_image in state.images:
@@ -146,7 +146,7 @@ class Phi3VisionClient(EngineClient):
             ix = len(state.images)
         state.prompt += f"<|image_{ix}|>"
 
-        yield ImageOutput(value=node.value, input=True)
+        yield ImageOutput(value=node.data, input=True)
 
 
 def partial_decode(data: bytes) -> tuple[str, bytes]:

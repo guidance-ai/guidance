@@ -18,7 +18,7 @@ from ._parser import ByteParser, ByteParserException
 from ._schema import JsonGrammar, LarkGrammar, LLGrammar
 
 if TYPE_CHECKING:
-    from .models._base import Client, MessageChunk, State
+    from .models._base import Client, State
 
 # to support the embedding of guidance functions inside Python f-strings we use tags with these delimiters
 tag_start = "{{G|"  # start of a call tag
@@ -173,11 +173,19 @@ class RoleEnd(ASTNode):
 
 
 @dataclass
-class ImageNode(ASTNode):
-    value: str
+class ImageBlob(ASTNode):
+    data: str
 
     def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator["MessageChunk"]:
-        return client.image(state, self, **kwargs)
+        return client.image_blob(state, self, **kwargs)
+
+
+@dataclass
+class ImageUrl(ASTNode):
+    url: str
+
+    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator["MessageChunk"]:
+        return client.image_url(state, self, **kwargs)
 
 
 @dataclass(frozen=True)

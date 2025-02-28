@@ -4,7 +4,8 @@ from typing import Any, Iterator, Optional, TypedDict
 
 from .._ast import (
     ASTNode,
-    ImageNode,
+    ImageBlob,
+    ImageUrl,
     JsonNode,
     LiteralNode,
     RegexNode,
@@ -12,6 +13,7 @@ from .._ast import (
     RoleStart,
     RuleNode,
 )
+from .._utils import bytes_from
 from ..trace import (
     ImageOutput,
     OutputAttr,
@@ -223,7 +225,7 @@ class OpenAIClient(Client[OpenAIState]):
 
 
 class OpenAIImageClient(OpenAIClient):
-    def image(self, state: OpenAIState, node: ImageNode, **kwargs) -> Iterator[OutputAttr]:
+    def image_blob(self, state: OpenAIState, node: ImageBlob, **kwargs) -> Iterator[OutputAttr]:
         try:
             import PIL.Image
         except ImportError:
@@ -231,7 +233,7 @@ class OpenAIImageClient(OpenAIClient):
                 "Please install the Pillow package `pip install Pillow` in order to use images with OpenAI!"
             )
 
-        image_bytes = base64.b64decode(node.value)
+        image_bytes = base64.b64decode(node.data)
         with PIL.Image.open(BytesIO(image_bytes)) as pil_image:
             # Use PIL to infer file format
             # TODO: just store format on ImageOutput type
@@ -240,10 +242,13 @@ class OpenAIImageClient(OpenAIClient):
                 raise ValueError(f"Cannot upload image with unknown format")
 
         mime_type = f"image/{format.lower()}"
-        state.content.append(
-            {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{node.value}"}}
-        )
-        yield ImageOutput(value=node.value, input=True)
+        return self.image_url(state, ImageUrl(url=f"data:{mime_type};base64,{node.data}"))
+
+    def image_url(self, state: OpenAIState, node: ImageUrl, **kwargs) -> Iterator[OutputAttr]:
+        state.content.append({"type": "image_url", "image_url": {"url": node.url}})
+        image_bytes = bytes_from(node.url, allow_local=False)
+        base64_string = base64.b64encode(image_bytes).decode("utf-8")
+        yield ImageOutput(value=base64_string, input=True)
 
 
 class OpenAIAudioClient(OpenAIClient):

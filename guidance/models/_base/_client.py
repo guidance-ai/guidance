@@ -1,9 +1,11 @@
+import base64
 from typing import Generic, Iterator, TypeVar
 
 from ..._ast import (
     ASTNode,
     GrammarNode,
-    ImageNode,
+    ImageBlob,
+    ImageUrl,
     JoinNode,
     JsonNode,
     LiteralNode,
@@ -16,6 +18,7 @@ from ..._ast import (
     SubgrammarNode,
     SubstringNode,
 )
+from ..._utils import bytes_from
 from ...trace import OutputAttr, RoleOpenerInput, TextOutput
 from ._state import State
 
@@ -55,8 +58,13 @@ class Client(Generic[S]):
     def text(self, state: S, node: LiteralNode, **kwargs) -> Iterator[OutputAttr]:
         raise UnsupportedNodeError(client=self, node=node)
 
-    def image(self, state: S, node: ImageNode, **kwargs) -> Iterator[OutputAttr]:
+    def image_blob(self, state: S, node: ImageBlob, **kwargs) -> Iterator[OutputAttr]:
         raise UnsupportedNodeError(client=self, node=node)
+
+    def image_url(self, state: S, node: ImageUrl, **kwargs) -> Iterator[OutputAttr]:
+        image_bytes = bytes_from(node.url, allow_local=False)
+        base64_string = base64.b64encode(image_bytes).decode("utf-8")
+        return self.image_blob(state, ImageBlob(data=base64_string), **kwargs)
 
     def grammar(self, state: S, node: GrammarNode, **kwargs) -> Iterator[OutputAttr]:
         raise UnsupportedNodeError(client=self, node=node)
