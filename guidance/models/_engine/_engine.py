@@ -381,7 +381,11 @@ class Engine(ABC):
         while not parser.done():
             t0 = time.time()
 
-            tokens, mask_fut, backtrack = parser.advance(engine_output)
+            if engine_output is not None:
+                token_id = engine_output.issued_token.token_id
+            else:
+                token_id = None
+            tokens, mask_fut, backtrack = parser.advance(token_id)
 
             # Note that has_pending_stop implies that the response is a stop response,
             # but the converse is not true. We can therefore avoid some (but not all)
