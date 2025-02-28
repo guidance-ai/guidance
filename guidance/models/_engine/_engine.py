@@ -364,10 +364,12 @@ class Engine(ABC):
         # audio = state.audio
         # videos = state.videos
 
+        tokens = self.tokenizer.encode(state.prompt.encode("utf-8"))
+
         parser = TokenParser(
             grammar,
             tokenizer=self.tokenizer,
-            prompt=state.prompt.encode("utf-8"),
+            prompt_tokens=tokens,
             ensure_bos_token=ensure_bos_token,
             enable_backtrack=self.enable_backtrack,
             enable_ff_tokens=self.enable_ff_tokens,

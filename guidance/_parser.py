@@ -31,7 +31,7 @@ class TokenParser:
         self,
         grammar: LLGrammar,
         tokenizer: "Tokenizer",
-        prompt: bytes = b"",
+        prompt_tokens: Optional[list[int]] = None,
         ensure_bos_token: bool = True,
         enable_backtrack: bool = True,
         enable_ff_tokens: bool = True,
@@ -46,7 +46,7 @@ class TokenParser:
             log_level=int(os.environ.get("LLGUIDANCE_LOG_LEVEL", "1")),
         )
         self._threadpool = ThreadPoolExecutor(max_workers=1)
-        self._generator = self._parse(prompt, ensure_bos_token)
+        self._generator = self._parse(prompt_tokens or [], ensure_bos_token)
         self._done = False
         self._has_pending_stop = False
 
@@ -71,18 +71,18 @@ class TokenParser:
     def has_pending_stop(self) -> bool:
         return self._has_pending_stop
 
-    def _process_prompt(self, prompt: bytes, ensure_bos_token: bool) -> tuple[list[int], int]:
-        _prompt_tokens = self.tokenizer.encode(prompt)
-        prompt_tokens = self.ll_interpreter.process_prompt(_prompt_tokens)
+    def _process_prompt(self, prompt_tokens: bytes, ensure_bos_token: bool) -> tuple[list[int], int]:
+        new_prompt_tokens = self.ll_interpreter.process_prompt(prompt_tokens)
         if (
             ensure_bos_token
             and self.tokenizer.bos_token is not None
-            and prompt_tokens[:1] != [self.tokenizer.bos_token_id]
+            and new_prompt_tokens[:1] != [self.tokenizer.bos_token_id]
         ):
             # add the beginning of sequence token if needed
-            prompt_tokens = [self.tokenizer.bos_token_id] + prompt_tokens
+            new_prompt_tokens = [self.tokenizer.bos_token_id] + new_prompt_tokens
+            new_prompt_tokens = self.tokenizer.recode(new_prompt_tokens)
 
-        return self.tokenizer.recode(prompt_tokens)
+        return self.tokenizer.recode(new_prompt_tokens)
 
     def compute_mask(self) -> tuple[Optional[bytes], LLInterpreterResponse]:
         mask, ll_response_string = self.ll_interpreter.compute_mask()
@@ -91,7 +91,7 @@ class TokenParser:
 
     def _parse(
         self,
-        prompt: bytes,
+        prompt_tokens: list[int],
         ensure_bos_token: bool,
     ) -> Generator[
         tuple[
@@ -102,11 +102,14 @@ class TokenParser:
         Optional[int],
         None
     ]:
-        tokens = self._process_prompt(prompt=prompt, ensure_bos_token=ensure_bos_token)
+        tokens = self._process_prompt(
+            prompt_tokens=prompt_tokens,
+            ensure_bos_token=ensure_bos_token
+        )
 
+        ff_tokens = []
         backtrack = 0
         token_id = None
-        ff_tokens = []
         while True:
             # Note: need to call/set has_pending_stop before spinning up the compute mask 
             # future as the two methods cannot be called concurrently
