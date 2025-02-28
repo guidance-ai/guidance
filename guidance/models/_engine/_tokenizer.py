@@ -1,4 +1,4 @@
-from typing import Any, Dict, Sequence, Union
+from typing import Any, Dict, Sequence, Union, Optional
 
 import numpy as np
 
@@ -16,8 +16,9 @@ class Tokenizer:
         self,
         tokens: Union[Sequence[bytes], np.ndarray],
         chat_template: Union[str, ChatTemplate, None],
-        bos_token_id: Union[int, None] = None,
-        eos_token_id: Union[int, None] = None,
+        bos_token_id: Optional[int] = None,
+        eos_token_id: Optional[int] = None,
+        special_token_ids: Optional[list[int]] = None,
     ):
 
         # a numpy array of token byte strings indexed by their token id
@@ -42,6 +43,8 @@ class Tokenizer:
         self._bos_token = None if self.bos_token_id is None else self.tokens[self.bos_token_id]
         self._eos_token_id = eos_token_id if eos_token_id is not None else bos_token_id
         self._eos_token = None if self.eos_token_id is None else self.tokens[self.eos_token_id]
+
+        self._special_token_ids = special_token_ids or []
 
         # track which tokens are duplicates
         self._duplicate_tokens = []
@@ -75,6 +78,10 @@ class Tokenizer:
     @property
     def chat_template(self) -> Union[Any, None]:
         return self._chat_template
+
+    @property
+    def special_token_ids(self) -> list[int]:
+        return self._special_token_ids
 
     def __call__(self, byte_string: bytes):
         return self.encode(byte_string)
