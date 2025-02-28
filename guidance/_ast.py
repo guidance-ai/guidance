@@ -14,6 +14,7 @@ from typing import (
     cast,
 )
 
+from .trace import OutputAttr
 from ._parser import ByteParser, ByteParserException
 from ._schema import JsonGrammar, LarkGrammar, LLGrammar
 
@@ -149,7 +150,7 @@ S = TypeVar("S", bound="State")
 
 class ASTNode(ABC):
     @abstractmethod
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator["MessageChunk"]:
+    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
         pass
 
     def simplify(self) -> "ASTNode":
@@ -160,7 +161,7 @@ class ASTNode(ABC):
 class RoleStart(ASTNode):
     role: str
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator["MessageChunk"]:
+    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
         return client._role_start(state, self, **kwargs)
 
 
@@ -168,7 +169,7 @@ class RoleStart(ASTNode):
 class RoleEnd(ASTNode):
     role: str
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator["MessageChunk"]:
+    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
         return client._role_end(state, self, **kwargs)
 
 
@@ -176,7 +177,7 @@ class RoleEnd(ASTNode):
 class ImageBlob(ASTNode):
     data: str
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator["MessageChunk"]:
+    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
         return client.image_blob(state, self, **kwargs)
 
 
@@ -184,7 +185,7 @@ class ImageBlob(ASTNode):
 class ImageUrl(ASTNode):
     url: str
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator["MessageChunk"]:
+    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
         return client.image_url(state, self, **kwargs)
 
 
@@ -298,7 +299,7 @@ class LiteralNode(GrammarNode):
     def is_null(self) -> bool:
         return self.value == ""
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator["MessageChunk"]:
+    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
         return client.text(state, self, **kwargs)
 
 
@@ -306,7 +307,7 @@ class LiteralNode(GrammarNode):
 class RegexNode(GrammarNode):
     regex: Optional[str]
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator["MessageChunk"]:
+    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
         return client.regex(state, self, **kwargs)
 
 
@@ -334,7 +335,7 @@ class SelectNode(GrammarNode):
     def children(self) -> Sequence["GrammarNode"]:
         return self.alternatives
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator["MessageChunk"]:
+    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
         return client.select(state, self, **kwargs)
 
 
@@ -357,7 +358,7 @@ class JoinNode(GrammarNode):
     def children(self) -> Sequence["GrammarNode"]:
         return self.nodes
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator["MessageChunk"]:
+    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
         return client.join(state, self, **kwargs)
 
 
@@ -383,7 +384,7 @@ class RepeatNode(GrammarNode):
     def simplify(self) -> GrammarNode:
         return RepeatNode(self.node.simplify(), self.min, self.max)
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator["MessageChunk"]:
+    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
         return client.repeat(state, self, **kwargs)
 
 
@@ -396,7 +397,7 @@ class SubstringNode(GrammarNode):
         # this can be used as part of bigger regexes
         return True
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator["MessageChunk"]:
+    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
         return client.substring(state, self, **kwargs)
 
 
@@ -447,7 +448,7 @@ class RuleNode(GrammarNode):
     def children(self) -> Sequence["GrammarNode"]:
         return (self.value,)
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator["MessageChunk"]:
+    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
         return client.rule(state, self, **kwargs)
 
 
@@ -467,7 +468,7 @@ class RuleRefNode(GrammarNode):
         # so it should never be terminal.
         return False
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator["MessageChunk"]:
+    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
         if self.target is None:
             raise ValueError("RuleRefNode target not set")
         return client.rule(state, self.target)
@@ -487,7 +488,7 @@ class SubgrammarNode(BaseSubgrammarNode):
     body: GrammarNode
     skip_regex: Optional[str] = None
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator["MessageChunk"]:
+    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
         return client.subgrammar(state, self, **kwargs)
 
 
@@ -495,7 +496,7 @@ class SubgrammarNode(BaseSubgrammarNode):
 class JsonNode(BaseSubgrammarNode):
     schema: dict[str, Any]
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator["MessageChunk"]:
+    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
         return client.json(state, self, **kwargs)
 
 
