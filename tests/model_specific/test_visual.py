@@ -30,3 +30,33 @@ def test_repeat_base_qwen_widget():
     lm = lm + gen(max_tokens=30, tools=[add])
 
     assert True
+
+
+def test_repeat_simple_model():
+    from guidance.models import Transformers
+    from guidance import gen
+    from guidance._singleton import set_renderer, get_trace_handler
+    from guidance.visual import JupyterWidgetRenderer
+
+    for i in range(2):
+        trace_handler = get_trace_handler()
+        set_renderer(JupyterWidgetRenderer(trace_handler))
+
+        lm = Transformers('gpt2')
+        lm += 'Hi hi hi'
+        lm += gen(max_tokens=5)
+
+    assert True
+
+
+def test_roles():
+    from guidance.models import Transformers
+    from guidance import gen, user, system
+
+    m0 = Transformers("gpt2")
+    with system():
+        m1 = m0 + "You are responsible for writing an epic poem."
+    with user():
+        m2 = m1 + "Roses are red and " + gen(name="suffix", regex=r'[\w\s]{20,30}', max_tokens=30)
+
+    assert m2 is not None

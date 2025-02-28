@@ -1,6 +1,7 @@
 # TODO(nopdive): This module requires a memory review.
 
 import logging
+import traceback
 import time
 import weakref
 from abc import ABC
@@ -158,7 +159,7 @@ def _engine_cleanup(
     msg_recv: Callable[[GuidanceMessage], None],
     monitor: Optional["Monitor"],
     periodic_metrics_generator: Optional[PeriodicMetricsGenerator],
-    log_msg: str,
+    log_msg: str
 ):
     renderer.unsubscribe(msg_recv)
 
@@ -175,20 +176,20 @@ def _engine_cleanup(
                 renderer._renderer._send_queue,
                 f"renderer({id(renderer)})",
             )
-    except Exception as e:
-        logger.error(f"Failed to force-cleanup renderer: {e}")
+    except Exception as _:
+        logger.error(f"Failed to force-cleanup renderer: {traceback.format_exc()}")
 
     if periodic_metrics_generator is not None:
         try:
             periodic_metrics_generator.stop()
-        except Exception as e:
-            logger.error(f"Failed to stop periodic metrics generator: {e}")
+        except Exception as _:
+            logger.error(f"Failed to stop periodic metrics generator: {traceback.format_exc()}")
 
     if monitor is not None:
         try:
             monitor.stop()
-        except Exception as e:
-            logger.error(f"Failed to stop monitor: {e}")
+        except Exception as _:
+            logger.error(f"Failed to stop monitor: {traceback.format_exc()}")
 
     log_cleanup(log_msg)
 
@@ -206,50 +207,51 @@ def _msg_recv(engine_weakref: weakref.ReferenceType, message: GuidanceMessage) -
         return
 
     # NOTE(nopdive): This is usually run on a background thread.
-    logger.debug(f"ENGINE:msg_recv:{message}")
+    logger.debug(f"ENGINE({id(engine)}):msg_recv:{message}")
     if isinstance(message, ExecutionStartedMessage):
-        # TODO(nopdive): Start execution logic here.
         if engine.periodic_metrics_generator is not None:
             engine.periodic_metrics_generator.resume()
     elif isinstance(message, ExecutionCompletedMessage) and message.is_err:
         pass
     elif isinstance(message, (ExecutionCompletedMessage, OutputRequestMessage, TokensMessage)):
-        failed = False
-        processed_gen_tokens: list[GenTokenExtra] = []  # suppress IDE warnings by definition
-        try:
-            last_trace_id = message.last_trace_id
-            last_model: "Model" = engine.model_dict[message.last_trace_id]
-            processed_gen_tokens = last_model.get_per_token_stats()
-        except Exception as e:
-            logger.error(f"Failed to get per token stats: {e}")
-            failed = True
-
-        if not failed:
-            final_text = "".join([gen_token.text for gen_token in processed_gen_tokens])
-            logger.debug(f"ENGINE:final_text:{final_text}")
-            logger.debug(f"ENGINE:model_state:{last_model._state}")
-            logger.debug(f"ENGINE:final_text == _state:{final_text == last_model._state}")
-
-            tokens = [gen_token.token_id for gen_token in processed_gen_tokens]
-            engine.renderer.update(
-                TokensMessage(
-                    trace_id=last_trace_id,
-                    text=engine.tokenizer.decode(tokens).decode("utf-8"),
-                    tokens=processed_gen_tokens,
-                )
-            )
-            engine.renderer.update(MetricMessage(name="status", value="Done"))
-        else:
-            engine.renderer.update(MetricMessage(name="status", value="Error"))
+        # TODO(nopdive): Previous code, omit on next release. We don't process tokens at end anymore.
+        # failed = False
+        #
+        # processed_gen_tokens: list[GenTokenExtra] = []  # suppress IDE warnings by definition
+        # try:
+        #     last_trace_id = message.last_trace_id
+        #     last_model: "Model" = engine.model_dict[message.last_trace_id]
+        #     processed_gen_tokens = last_model.get_per_token_stats()
+        # except Exception as e:
+        #     logger.error(f"Failed to get per token stats: {e}")
+        #     failed = True
+        #
+        # if not failed:
+        #     final_text = "".join([gen_token.text for gen_token in processed_gen_tokens])
+        #     logger.debug(f"ENGINE:final_text:{final_text}")
+        #     logger.debug(f"ENGINE:model_state:{last_model._state}")
+        #     logger.debug(f"ENGINE:final_text == _state:{final_text == last_model._state}")
+        #
+        #     tokens = [gen_token.token_id for gen_token in processed_gen_tokens]
+        #     engine.renderer.update(
+        #         TokensMessage(
+        #             trace_id=last_trace_id,
+        #             text=engine.tokenizer.decode(tokens).decode("utf-8"),
+        #             tokens=processed_gen_tokens,
+        #         )
+        #     )
+        #     engine.renderer.update(MetricMessage(name="status", value="Done"))
+        # else:
+        #     engine.renderer.update(MetricMessage(name="status", value="Error"))
 
         if engine.periodic_metrics_generator is not None:
             engine.periodic_metrics_generator.pause()
 
-        try:
-            # send stats to the renderer
-            engine.post_exec_metrics.emit_messages(last_model)
-        except:
-            pass
+        # try:
+        #     # send stats to the renderer
+        #     engine.post_exec_metrics.emit_messages(last_model)
+        # except:
+        #     pass
 
 
 class Engine(ABC):
@@ -271,7 +273,6 @@ class Engine(ABC):
         enable_monitoring=True,
         **kwargs,
     ):
-        # TODO(nopdive): Hook up renderer keyword to all engines.
         self.tokenizer = tokenizer
         self.compute_log_probs = compute_log_probs
         self._enable_backtrack = enable_backtrack
@@ -904,7 +905,7 @@ class Monitor:
             target=_monitor_fn, args=(self.stop_flag, self.metrics_dict, self.max_size)
         )
         self.process.start()
-        logger.debug("Monitor:start")
+        logger.debug("MONITOR:start")
 
     def stop(self):
         if self.process:
@@ -913,7 +914,7 @@ class Monitor:
 
             for metrics in self.metrics_dict.values():
                 metrics[:] = []  # NOTE(nopdive): ListProxy does not have .clear method.
-        logger.debug("Monitor:stop")
+        logger.debug("MONITOR:stop")
 
     def reset(self):
         self.stop()
@@ -922,7 +923,7 @@ class Monitor:
             metrics.clear()
 
         self.start()
-        logger.debug("Monitor:reset")
+        logger.debug("MONITOR:reset")
 
     def get_metrics(
         self, metrics=None, lm: Union["Model", None] = None

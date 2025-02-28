@@ -314,12 +314,12 @@ class JupyterWidgetRenderer(Renderer):
                         prev_trace_node = self._trace_handler[prev_message.trace_id]
                         if prev_trace_node in ancestors:
                             ancestor_idx = idx
-
                 if ancestor_idx == -1:
                     if message_trace_node.parent == last_trace_node.root():  # pragma: no cover
                         ancestor_idx = 0
                     else:
-                        raise Exception(f"Parent missing for trace node: {message_trace_node}")
+                        logger.debug(f"DIVERGENCE:full_reset")
+                        ancestor_idx = 0
 
                 return True, ancestor_idx
             else:

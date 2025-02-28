@@ -13,8 +13,6 @@ logger = logging.getLogger(__name__)
 
 IPythonCallback = Callable[[Any], None]
 
-# TODO(nopdive): Connect cell handling again to renderer.
-
 
 def ipy_handle_event_once(cb: IPythonCallback, event_name: str) -> IPythonCallback:
     ipy = get_ipython()
