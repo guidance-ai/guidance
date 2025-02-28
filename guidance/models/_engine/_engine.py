@@ -365,6 +365,14 @@ class Engine(ABC):
         # videos = state.videos
 
         tokens = self.tokenizer.encode(state.prompt.encode("utf-8"))
+        # add the beginning of sequence token if needed
+        if (
+            ensure_bos_token
+            and self.tokenizer.bos_token is not None
+            and tokens[:1] != [self.tokenizer.bos_token_id]
+        ):
+            tokens = [self.tokenizer.bos_token_id] + tokens
+            tokens = self.tokenizer.recode(tokens)
 
         parser = TokenParser(
             grammar,
