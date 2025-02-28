@@ -11,6 +11,7 @@ from typing_extensions import Self
 from ..._ast import (
     ASTNode,
     Function,
+    GenAudio,
     ImageBlob,
     ImageUrl,
     LiteralNode,
@@ -29,6 +30,7 @@ from ...trace import (
     TextOutput,
     TraceNode,
 )
+from ...trace._trace import AudioInput
 from ...visual import TraceMessage
 from ._client import Client
 from ._state import State
@@ -105,6 +107,10 @@ class Model(Generic[S]):
         elif isinstance(node, ImageUrl):
             # TODO -- let's avoid downloading it here
             pass
+        elif isinstance(node, GenAudio):
+            self._update_trace_node(
+                self._id, self._parent_id, AudioInput(value="")
+            )  # TODO -- what goes here?
         else:
             self._update_trace_node(self._id, self._parent_id, StatelessGuidanceInput(value=node))
 

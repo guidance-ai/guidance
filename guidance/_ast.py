@@ -189,6 +189,14 @@ class ImageUrl(ASTNode):
         return client.image_url(state, self, **kwargs)
 
 
+class GenAudio(ASTNode):
+    def __init__(self, kwargs: dict[str, Any]):
+        self.kwargs = kwargs
+
+    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
+        return client.gen_audio(state, self, **kwargs)
+
+
 @dataclass(frozen=True)
 class GrammarNode(Tagged, ASTNode):
 

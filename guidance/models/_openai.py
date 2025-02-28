@@ -8,6 +8,7 @@ from typing_extensions import Annotated, assert_never
 
 from .._ast import (
     ASTNode,
+    GenAudio,
     ImageBlob,
     ImageUrl,
     JsonNode,
@@ -19,7 +20,11 @@ from .._ast import (
 )
 from .._utils import bytes_from
 from ..trace import ImageOutput, OutputAttr, TextOutput
+from ..trace._trace import AudioOutput
 from ._base import Client, Model, State
+
+if TYPE_CHECKING:
+    from openai.types.chat import ChatCompletionChunk
 
 
 def get_role_start(role: str) -> str:
@@ -252,19 +257,21 @@ class OpenAIClient(Client[OpenAIState]):
         with self.client.chat.completions.create(
             model=self.model,
             messages=TypeAdapter(list[Message]).dump_python(state.messages),  # type: ignore[arg-type]
-            logprobs=True,
+            logprobs=kwargs.pop("logprobs", True),
             stream=True,
             **kwargs,
-        ) as responses:
-            yield from self._handle_stream(state, responses)
+        ) as chunks:
+            yield from self._handle_stream(state, chunks)
 
     def _handle_stream(
-        self, state: OpenAIState, responses: Iterator[Message]
+        self, state: OpenAIState, chunks: Iterator["ChatCompletionChunk"]
     ) -> Iterator[OutputAttr]:
-        for response in responses:
-            choice = response.choices[0]
+        audio: Optional[AssistantAudio] = None
+        for chunk in chunks:
+            choice = chunk.choices[0]
             delta = choice.delta
             if delta.content is not None:
+                assert audio is None
                 content = delta.content
                 if len(content) == 0:
                     continue
@@ -275,11 +282,47 @@ class OpenAIClient(Client[OpenAIState]):
                     # TODO: actually get tokens from this and be less lazy
                     prob=2.718 ** choice.logprobs.content[0].logprob,  # type: ignore[union-attr,index]
                 )
-            elif choice.finish_reason is not None:
-                # TODO: handle finish_reason elegantly
+            elif getattr(delta, "audio", None) is not None:
+                transcript_chunk: Optional[str] = None
+                if audio is None:
+                    assert delta.audio.get("id") is not None
+                    audio = AssistantAudio(
+                        id=delta.audio["id"],
+                        expires_at=delta.audio.get("expires_at", 0),  # ?
+                        transcript=delta.audio.get("transcript", ""),
+                        data=delta.audio.get("data", ""),
+                    )
+                    transcript_chunk = delta.audio.get("transcript")
+                else:
+                    assert delta.audio.get("id") is None or delta.audio["id"] == audio.id
+                    if delta.audio.get("data") is not None:
+                        audio.data += delta.audio["data"]
+                    if delta.audio.get("transcript") is not None:
+                        audio.transcript += delta.audio["transcript"]
+                        transcript_chunk = delta.audio["transcript"]
+                    if delta.audio.get("expires_at") is not None:
+                        assert audio.expires_at == 0
+                        audio.expires_at = delta.audio["expires_at"]
+                if transcript_chunk is not None:
+                    # Why not give the users some transcript? :)
+                    yield TextOutput(
+                        value=delta.audio["transcript"],
+                        is_generated=True,
+                    )
+            elif delta.function_call is not None:
+                raise NotImplementedError("Function calling not yet supported for OpenAI")
+            elif delta.tool_calls is not None:
+                raise NotImplementedError("Tool calling not yet supported for OpenAI")
+            elif delta.refusal is not None:
+                raise ValueError(f"OpenAI refused the request: {delta.refusal}")
+
+            if choice.finish_reason is not None:
                 break
-            else:
-                NotImplementedError(f"Unknown delta: {delta}")
+
+        if audio is not None:
+            assert state.audio is None
+            state.audio = audio
+            yield AudioOutput(value=audio.data, is_input=False)
 
 
 class OpenAIImageClient(OpenAIClient):
@@ -309,6 +352,19 @@ class OpenAIImageClient(OpenAIClient):
         yield ImageOutput(value=base64_string, input=True)
 
 
+class OpenAIAudioClient(OpenAIClient):
+    def gen_audio(self, state: OpenAIState, node: GenAudio, **kwargs) -> Iterator[OutputAttr]:
+        yield from self._run(
+            state,
+            modalities=["text", "audio"],  # Has to be both?
+            audio={
+                "voice": node.kwargs.get("voice", "alloy"),
+                "format": "pcm16",
+            },  # Has to be pcm16 for streaming
+            logprobs=False,  # Not supported for this model (TODO: this should be client-level)
+        )
+
+
 class OpenAI(Model):
     def __init__(
         self,
@@ -333,10 +389,10 @@ class OpenAI(Model):
             names include `base_url` and `organization`
         """
 
-        if model.startswith("gpt-4o") or model.startswith("o1"):
-            client_cls = OpenAIImageClient
-        elif "audio-preview" in model:
+        if "audio-preview" in model:
             client_cls = OpenAIAudioClient
+        elif model.startswith("gpt-4o") or model.startswith("o1"):
+            client_cls = OpenAIImageClient
         else:
             client_cls = OpenAIClient
 
