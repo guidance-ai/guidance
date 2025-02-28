@@ -354,7 +354,10 @@ class OpenAIImageClient(OpenAIClient):
                 raise ValueError(f"Cannot upload image with unknown format")
 
         mime_type = f"image/{format.lower()}"
-        return self.image_url(state, ImageUrl(url=f"data:{mime_type};base64,{node.data}"))
+        state.content.append(
+            {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{node.data}"}}
+        )
+        yield ImageOutput(value=node.data, input=True)
 
     def image_url(self, state: OpenAIState, node: ImageUrl, **kwargs) -> Iterator[OutputAttr]:
         state.content.append({"type": "image_url", "image_url": {"url": node.url}})
