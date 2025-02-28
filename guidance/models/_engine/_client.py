@@ -53,8 +53,9 @@ class EngineClient(Client[EngineState]):
 
             # Update the state
             state.prompt += new_text
-            yield TextOutput(value=new_text, token_count=chunk.new_token_count)
+            yield TextOutput(value=new_text, token_count=chunk.new_token_count, is_generated=True)
 
+            # TODO -- rewrite engine internals to make sure chunk.{generated,fast_forwarded}_tokens aren't empty...
             # # TODO: GenTokenExtra
             # for token in chunk.generated_tokens:
             #     yield TextOutput(
