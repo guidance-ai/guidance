@@ -249,13 +249,18 @@ class OpenAIClient(Client[OpenAIState]):
                 f"OpenAI models do not support pre-filled assistant messages: got data {state.content}."
             )
 
-        responses = self.client.chat.completions.create(
+        with self.client.chat.completions.create(
             model=self.model,
             messages=TypeAdapter(list[Message]).dump_python(state.messages),  # type: ignore[arg-type]
             logprobs=True,
             stream=True,
             **kwargs,
-        )
+        ) as responses:
+            yield from self._handle_stream(state, responses)
+
+    def _handle_stream(
+        self, state: OpenAIState, responses: Iterator[Message]
+    ) -> Iterator[OutputAttr]:
         for response in responses:
             choice = response.choices[0]
             delta = choice.delta
