@@ -185,7 +185,7 @@ class OpenAIClient(Client[OpenAIState]):
 
     def text(self, state: OpenAIState, node: LiteralNode, **kwargs) -> Iterator[OutputAttr]:
         state.apply_text(node.value)
-        yield TextOutput(value=node.value, input=True)
+        yield TextOutput(value=node.value, is_input=True)
 
     def rule(self, state: OpenAIState, node: RuleNode, **kwargs) -> Iterator[OutputAttr]:
         if node.stop:

@@ -36,7 +36,7 @@ class EngineClient(Client[EngineState]):
 
     def text(self, state: EngineState, node: LiteralNode, **kwargs) -> Iterator[OutputAttr]:
         state.prompt += node.value
-        yield TextOutput(value=node.value, input=True)
+        yield TextOutput(value=node.value, is_input=True)
 
     def grammar(self, state: EngineState, node: GrammarNode, **kwargs) -> Iterator[OutputAttr]:
         engine_gen = self.engine(
