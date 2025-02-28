@@ -387,7 +387,10 @@ class Engine(ABC):
                 token_id = engine_output.issued_token.token_id
             else:
                 token_id = None
-            tokens, mask_fut, backtrack = parser.advance(token_id)
+            backtrack, ff_tokens, mask_fut = parser.advance(token_id)
+            if backtrack:
+                tokens = tokens[:-backtrack]
+            tokens += ff_tokens
 
             # Note that has_pending_stop implies that the response is a stop response,
             # but the converse is not true. We can therefore avoid some (but not all)
@@ -624,7 +627,7 @@ class Engine(ABC):
         if logits is None:
             t0 = time.time()
             try:
-                logits = self.get_logits(token_ids)
+                logits = self.get_logits(token_ids=token_ids)
             except NotImplementedError:
                 # fallback to orignal get_next_token method
                 _t0 = time.time()

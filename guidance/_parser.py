@@ -16,12 +16,11 @@ class TokenParserException(Exception):
 
 
 class InvalidTokenException(TokenParserException):
-    def __init__(self, token: int, valid_tokens: list[int], prompt_tokens: list[int]):
+    def __init__(self, token: int, valid_tokens: list[int]):
         self.token = token
         self.valid_tokens = valid_tokens
-        self.prompt_tokens = prompt_tokens
         super().__init__(
-            f"Invalid token {token}, expected one of {valid_tokens} after {prompt_tokens}"
+            f"Invalid token {token}, expected one of {valid_tokens}"
         )
 
 
@@ -59,9 +58,9 @@ class TokenParser:
     def advance(
         self, token_id: Optional[int]
     ) -> tuple[
+        int,
         list[int], 
         Future[tuple[Optional[bytes], LLInterpreterResponse]], 
-        int
     ]:
         if self.done():
             raise TokenParserException("Cannot advance on a done parser")
@@ -103,21 +102,17 @@ class TokenParser:
         ensure_bos_token: bool,
     ) -> Generator[
         tuple[
+            int,
             list[int], 
             Future[tuple[Optional[bytes], LLInterpreterResponse]],
-            int
         ],
         Optional[int],
         None
     ]:
-        tokens = prompt_tokens
         backtrack, ff_tokens = self._process_prompt(
-            prompt_tokens=tokens,
+            prompt_tokens=prompt_tokens,
             ensure_bos_token=ensure_bos_token
         )
-        if backtrack:
-            tokens = tokens[:-backtrack]
-        tokens = tokens + ff_tokens
 
         token_id = None
         while True:
@@ -127,7 +122,7 @@ class TokenParser:
             compute_mask_future = self._threadpool.submit(self.compute_mask)
 
             # Send caller the mask and response; wait for token
-            token_id = yield (tokens, compute_mask_future, backtrack)
+            token_id = yield (backtrack, ff_tokens, compute_mask_future)
 
             # Upstairs should have already waited on this future
             mask, r = compute_mask_future.result()
@@ -153,15 +148,11 @@ class TokenParser:
                 raise InvalidTokenException(
                     token=token_id,
                     valid_tokens=[i for i in range(len(mask)) if mask[i]],
-                    prompt_tokens=tokens
                 )            
 
             backtrack, ff_tokens = self.ll_interpreter.commit_token(
                 token_id
             )
-            if backtrack:
-                tokens = tokens[:-backtrack]
-            tokens = tokens + ff_tokens
 
     def cleanup(self):
         # Rather than having our caller send us None at the end, we'll handle that internally
@@ -229,7 +220,14 @@ class ByteParser:
         return mask
 
     def _advance(self, engine_output: Optional[EngineOutput]) -> None:
-        tokens, compute_mask_future, _ = self.token_parser.advance(engine_output)
+        if self.gen_data is not None:
+            tokens = self.gen_data.tokens
+        else:
+            tokens = []
+        backtrack, ff_tokens, compute_mask_future = self.token_parser.advance(engine_output)
+        if backtrack:
+            tokens = tokens[:-backtrack]
+        tokens += ff_tokens
         mask, ll_response = compute_mask_future.result()
         if ll_response.stop:
             assert mask is None
