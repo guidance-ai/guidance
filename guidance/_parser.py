@@ -71,7 +71,7 @@ class TokenParser:
     def has_pending_stop(self) -> bool:
         return self._has_pending_stop
 
-    def _process_prompt(self, prompt_tokens: bytes, ensure_bos_token: bool) -> tuple[list[int], int]:
+    def _process_prompt(self, prompt_tokens: bytes, ensure_bos_token: bool) -> tuple[int, list[int]]:
         new_prompt_tokens = self.ll_interpreter.process_prompt(prompt_tokens)
         if (
             ensure_bos_token
@@ -82,7 +82,15 @@ class TokenParser:
             new_prompt_tokens = [self.tokenizer.bos_token_id] + new_prompt_tokens
             new_prompt_tokens = self.tokenizer.recode(new_prompt_tokens)
 
-        return self.tokenizer.recode(new_prompt_tokens)
+        backtrack = len(prompt_tokens)
+        for (old, new) in zip(prompt_tokens, new_prompt_tokens):
+            if old != new:
+                break
+            backtrack -= 1
+        common_len = len(prompt_tokens) - backtrack
+        ff_tokens = new_prompt_tokens[common_len:]
+
+        return backtrack, ff_tokens
 
     def compute_mask(self) -> tuple[Optional[bytes], LLInterpreterResponse]:
         mask, ll_response_string = self.ll_interpreter.compute_mask()
@@ -102,13 +110,15 @@ class TokenParser:
         Optional[int],
         None
     ]:
-        tokens = self._process_prompt(
-            prompt_tokens=prompt_tokens,
+        tokens = prompt_tokens
+        backtrack, ff_tokens = self._process_prompt(
+            prompt_tokens=tokens,
             ensure_bos_token=ensure_bos_token
         )
+        if backtrack:
+            tokens = tokens[:-backtrack]
+        tokens = tokens + ff_tokens
 
-        ff_tokens = []
-        backtrack = 0
         token_id = None
         while True:
             # Note: need to call/set has_pending_stop before spinning up the compute mask 
