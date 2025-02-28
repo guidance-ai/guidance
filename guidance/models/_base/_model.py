@@ -201,6 +201,7 @@ class Model(Generic[S]):
         obj.__dict__.update(self.__dict__)
 
         obj._state = deepcopy(self._state)
+        obj._active_blocks = {**self._active_blocks}
         obj._id = _gen_id()
         obj._parent_id = self._id
         obj._trace_nodes = set()
