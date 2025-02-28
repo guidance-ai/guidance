@@ -1,4 +1,5 @@
 import base64
+import wave
 from io import BytesIO
 from typing import TYPE_CHECKING, Iterator, Literal, Optional, Union
 
@@ -322,7 +323,17 @@ class OpenAIClient(Client[OpenAIState]):
         if audio is not None:
             assert state.audio is None
             state.audio = audio
-            yield AudioOutput(value=audio.data, is_input=False)
+            # Create an in-memory WAV file
+            wav_buffer = BytesIO()
+            with wave.open(wav_buffer, "wb") as wav_file:
+                wav_file.setnchannels(1)
+                wav_file.setsampwidth(2)  # PCM16 = 2 bytes per sample
+                wav_file.setframerate(22050)  # A guess
+                wav_file.writeframes(base64.b64decode(audio.data))
+
+            # Get WAV bytes
+            wav_bytes = wav_buffer.getvalue()
+            yield AudioOutput(value=base64.b64encode(wav_bytes).decode(), is_input=False)
 
 
 class OpenAIImageClient(OpenAIClient):
