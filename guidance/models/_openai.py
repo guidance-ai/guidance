@@ -14,13 +14,7 @@ from .._ast import (
     RuleNode,
 )
 from .._utils import bytes_from
-from ..trace import (
-    ImageOutput,
-    OutputAttr,
-    RoleCloserInput,
-    RoleOpenerInput,
-    TextOutput,
-)
+from ..trace import ImageOutput, OutputAttr, TextOutput
 from ._base import Client, Model, State
 
 
@@ -99,18 +93,12 @@ class OpenAIClient(Client[OpenAIState]):
         return super().run(state, node, **kwargs)
 
     def role_start(self, state: OpenAIState, node: RoleStart, **kwargs) -> Iterator[OutputAttr]:
-        # ChatML is as good as anything
-        opener_text = "<|im_start|>" + node.role + "\n"
         state.active_role = node.role
-
-        yield RoleOpenerInput(
-            name=node.role,
-            text=opener_text,
-        )
+        # TODO: drop this and yield nothing. We need to add this for now as a workaround for the
+        # fact that current vis code assumes that there is actually a role start message
+        yield TextOutput(value=get_role_start(node.role), is_input=True)
 
     def role_end(self, state: OpenAIState, node: RoleEnd, **kwargs) -> Iterator[OutputAttr]:
-        # ChatML is as good as anything
-        closer_text = "\n<|im_end|>\n"
         state.messages.append(
             Message(
                 role=node.role,
@@ -119,11 +107,7 @@ class OpenAIClient(Client[OpenAIState]):
         )
         state.content = []
         state.active_role = None
-
-        yield RoleCloserInput(
-            name=node.role,
-            text=closer_text,
-        )
+        yield from ()
 
     def text(self, state: OpenAIState, node: LiteralNode, **kwargs) -> Iterator[OutputAttr]:
         state.apply_text(node.value)

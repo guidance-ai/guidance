@@ -3,13 +3,7 @@ from io import BytesIO
 from typing import Iterator
 
 from ..._ast import GrammarNode, ImageBlob, LiteralNode, RoleEnd, RoleStart
-from ...trace import (
-    ImageOutput,
-    OutputAttr,
-    RoleCloserInput,
-    RoleOpenerInput,
-    TextOutput,
-)
+from ...trace import ImageOutput, OutputAttr, TextOutput
 from .._base import Client
 from ._engine import Engine
 from ._state import EngineState
@@ -31,23 +25,14 @@ class EngineClient(Client[EngineState]):
         return self.chat_template.get_role_end(role)
 
     def role_start(self, state: EngineState, node: RoleStart, **kwargs) -> Iterator[OutputAttr]:
-        opener_text = self.get_role_start(node.role)
-        state.prompt += opener_text
         state.active_role = node.role
-        # TODO: this should be an OutputAttr ... need to define that
-        yield RoleOpenerInput(
-            name=node.role,
-            text=opener_text,
-        )
+        # TODO: mark these as special tokens..?
+        yield from self.run(state, LiteralNode(value=self.get_role_start(node.role)), **kwargs)
 
     def role_end(self, state: EngineState, node: RoleEnd, **kwargs) -> Iterator[OutputAttr]:
-        closer_text = self.get_role_end(node.role)
-        state.prompt += closer_text
         state.active_role = None
-        yield RoleCloserInput(
-            name=node.role,
-            text=self.get_role_end(node.role),
-        )
+        # TODO: mark these as special tokens..?
+        yield from self.run(state, LiteralNode(value=self.get_role_end(node.role)), **kwargs)
 
     def text(self, state: EngineState, node: LiteralNode, **kwargs) -> Iterator[OutputAttr]:
         state.prompt += node.value

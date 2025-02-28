@@ -8,9 +8,27 @@ from typing import TYPE_CHECKING, Any, Generic, Iterator, Optional, TypeVar, Uni
 
 from typing_extensions import Self
 
-from ..._ast import ASTNode, Function, _parse_tags
+from ..._ast import (
+    ASTNode,
+    Function,
+    ImageBlob,
+    ImageUrl,
+    LiteralNode,
+    RoleEnd,
+    RoleStart,
+    _parse_tags,
+)
 from ..._singleton import get_renderer, get_trace_handler
-from ...trace import NodeAttr, TextOutput, TraceNode
+from ...trace import (
+    ImageInput,
+    LiteralInput,
+    NodeAttr,
+    RoleCloserInput,
+    RoleOpenerInput,
+    StatelessGuidanceInput,
+    TextOutput,
+    TraceNode,
+)
 from ...visual import TraceMessage
 from ._client import Client
 from ._state import State
@@ -73,6 +91,23 @@ class Model(Generic[S]):
 
     def _apply_node(self, node: ASTNode) -> Self:
         self = self.copy()
+
+        # Input side of trace handler.
+        # TODO: StatefulGuidanceInput up in __add__?
+        if isinstance(node, RoleStart):
+            self._update_trace_node(self._id, self._parent_id, RoleOpenerInput(name=node.role))
+        elif isinstance(node, RoleEnd):
+            self._update_trace_node(self._id, self._parent_id, RoleCloserInput(name=node.role))
+        elif isinstance(node, LiteralNode):
+            self._update_trace_node(self._id, self._parent_id, LiteralInput(value=node.value))
+        elif isinstance(node, ImageBlob):
+            self._update_trace_node(self._id, self._parent_id, ImageInput(value=node.data))
+        elif isinstance(node, ImageUrl):
+            # TODO -- let's avoid downloading it here
+            pass
+        else:
+            self._update_trace_node(self._id, self._parent_id, StatelessGuidanceInput(value=node))
+
         for i, output_attr in enumerate(self._client.run(self._state, node)):
             if isinstance(output_attr, TextOutput):
                 # TODO: put this elsewhere (inside state?)

@@ -27,13 +27,7 @@ S = TypeVar("S", bound=State)
 
 class Client(Generic[S]):
     def run(self, state: S, node: ASTNode, **kwargs) -> Iterator[OutputAttr]:
-        node = node.simplify()
-        for attr in node._run(self, state, **kwargs):
-            yield attr
-            if isinstance(attr, RoleOpenerInput):
-                # TODO: this is a hotfix / workaround -- the vis front-end expects a string corresponding
-                # to the just-opened role.
-                yield TextOutput(value=attr.text, input=True)
+        yield from node.simplify()._run(self, state, **kwargs)
 
     def _role_start(self, state: S, node: RoleStart, **kwargs) -> Iterator[OutputAttr]:
         if state.active_role is not None:
