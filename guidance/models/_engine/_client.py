@@ -26,17 +26,20 @@ class EngineClient(Client[EngineState]):
 
     def role_start(self, state: EngineState, node: RoleStart, **kwargs) -> Iterator[OutputAttr]:
         state.active_role = node.role
-        # TODO: mark these as special tokens..?
-        yield from self.run(state, LiteralNode(value=self.get_role_start(node.role)), **kwargs)
+        # TODO: mark these as special tokens / apply as grammar so we get token probs
+        text = self.get_role_start(node.role)
+        state.prompt += text
+        yield TextOutput(value=text, is_input=True)
 
     def role_end(self, state: EngineState, node: RoleEnd, **kwargs) -> Iterator[OutputAttr]:
         state.active_role = None
-        # TODO: mark these as special tokens..?
-        yield from self.run(state, LiteralNode(value=self.get_role_end(node.role)), **kwargs)
+        # TODO: mark these as special tokens / apply as grammar so we get token probs
+        text = self.get_role_end(node.role)
+        state.prompt += text
+        yield TextOutput(value=text, is_input=True)
 
     def text(self, state: EngineState, node: LiteralNode, **kwargs) -> Iterator[OutputAttr]:
-        state.prompt += node.value
-        yield TextOutput(value=node.value, is_input=True)
+        yield from self.grammar(state, node, **kwargs)
 
     def grammar(self, state: EngineState, node: GrammarNode, **kwargs) -> Iterator[OutputAttr]:
         engine_gen = self.engine(
@@ -53,28 +56,22 @@ class EngineClient(Client[EngineState]):
 
             # Update the state
             state.prompt += new_text
-            yield TextOutput(value=new_text, token_count=chunk.new_token_count, is_generated=True)
 
-            # TODO -- rewrite engine internals to make sure chunk.{generated,fast_forwarded}_tokens aren't empty...
-            # # TODO: GenTokenExtra
-            # for token in chunk.generated_tokens:
-            #     yield TextOutput(
-            #         value=token.text,  # TODO: this should really be the token bytes
-            #         is_generated=True,
-            #         token_count=1,
-            #         prob=token.prob,
-            #         tokens=[token],  # TODO: drop this
-            #     )
-            # for token in chunk.force_forwarded_tokens:
-            #     yield TextOutput(
-            #         value=token.text,  # TODO: this should really be the token bytes
-            #         is_generated=False,
-            #         token_count=1,
-            #         prob=token.prob,
-            #         tokens=[token],  # TODO: drop this
-            #     )
-
-            # # TODO: yield some kind of backtrack signal?
+            # TODO: GenTokenExtra
+            for token in chunk.generated_tokens + chunk.force_forwarded_tokens:
+                if token.is_backtracked:
+                    continue
+                yield TextOutput(
+                    value=token.text,
+                    is_input=token.is_input,
+                    is_generated=token.is_generated,
+                    is_force_forwarded=token.is_force_forwarded,
+                    token_count=1,
+                    prob=token.prob,
+                    tokens=[token],
+                    # TODO: latency
+                )
+            # TODO: yield some kind of backtrack signal
 
             for name in chunk.capture_groups.keys():
                 values = chunk.capture_groups[name]
