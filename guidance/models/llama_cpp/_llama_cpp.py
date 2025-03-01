@@ -76,11 +76,13 @@ class LlamaCppTokenizer(Tokenizer):
 
         # get the bytes strings for all the tokens
         tokens = []
+        special_token_ids = []
         for i in range(tokenizer.llama.n_vocab()):
             tok = tokenizer.llama.detokenize([i])  # note that detokenize returns bytes directly
             if tok == b"":
                 # get text rep of special tokens
                 tok = llama_cpp.llama_vocab_get_text(vocab, i)
+                special_token_ids.append(i)
             tokens.append(tok)
 
         # Chat Template logic
@@ -92,7 +94,7 @@ class LlamaCppTokenizer(Tokenizer):
                 chat_template = self._model_obj.metadata["tokenizer.chat_template"]
 
         super().__init__(
-            tokens, chat_template, tokenizer.llama.token_bos(), tokenizer.llama.token_eos()
+            tokens, chat_template, tokenizer.llama.token_bos(), tokenizer.llama.token_eos(), special_token_ids
         )
 
     def encode(self, byte_string: bytes) -> list[int]:
