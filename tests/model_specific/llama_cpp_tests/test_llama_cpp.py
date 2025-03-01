@@ -136,7 +136,7 @@ def test_llama_cpp_almost_one_batch(llamacpp_model):
     lm = llamacpp_model
     batch_size = lm.engine.model_obj.n_batch
     long_str = lm.engine.tokenizer.bos_token.decode("utf-8") * (batch_size - 1)
-    lm += long_str + gen(max_tokens=10)
+    lm += long_str + gen(max_tokens=10, regex=r'.+')
     assert len(str(lm)) > len(long_str)
 
 
@@ -144,7 +144,7 @@ def test_llama_cpp_exactly_one_batch(llamacpp_model):
     lm = llamacpp_model
     batch_size = lm.engine.model_obj.n_batch
     long_str = lm.engine.tokenizer.bos_token.decode("utf-8") * batch_size
-    lm += long_str + gen(max_tokens=10)
+    lm += long_str + gen(max_tokens=10, regex=r'.+')
     assert len(str(lm)) > len(long_str)
 
 
@@ -152,7 +152,7 @@ def test_llama_cpp_more_than_one_batch(llamacpp_model):
     lm = llamacpp_model
     batch_size = lm.engine.model_obj.n_batch
     long_str = lm.engine.tokenizer.bos_token.decode("utf-8") * (batch_size + 1)
-    lm += long_str + gen(max_tokens=10)
+    lm += long_str + gen(max_tokens=10, regex=r'.+')
     assert len(str(lm)) > len(long_str)
 
 
@@ -160,7 +160,7 @@ def test_llama_cpp_almost_two_batches(llamacpp_model):
     lm = llamacpp_model
     batch_size = lm.engine.model_obj.n_batch
     long_str = lm.engine.tokenizer.bos_token.decode("utf-8") * ((2 * batch_size) - 1)
-    lm += long_str + gen(max_tokens=10)
+    lm += long_str + gen(max_tokens=10, regex=r'.+')
     assert len(str(lm)) > len(long_str)
 
 
@@ -168,7 +168,7 @@ def test_llama_cpp_two_batches(llamacpp_model):
     lm = llamacpp_model
     batch_size = lm.engine.model_obj.n_batch
     long_str = lm.engine.tokenizer.bos_token.decode("utf-8") * (2 * batch_size)
-    lm += long_str + gen(max_tokens=10)
+    lm += long_str + gen(max_tokens=10, regex=r'.+')
     assert len(str(lm)) > len(long_str)
 
 
@@ -176,7 +176,7 @@ def test_llama_cpp_more_than_two_batches(llamacpp_model):
     lm = llamacpp_model
     batch_size = lm.engine.model_obj.n_batch
     long_str = lm.engine.tokenizer.bos_token.decode("utf-8") * ((2 * batch_size) + 1)
-    lm += long_str + gen(max_tokens=10)
+    lm += long_str + gen(max_tokens=10, regex=r'.+')
     assert len(str(lm)) > len(long_str)
 
 
