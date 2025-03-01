@@ -82,6 +82,10 @@ class TransformersTokenizer(Tokenizer):
             chat_template,
             None if ignore_bos_token else transformers_tokenizer.bos_token_id,
             transformers_tokenizer.eos_token_id,
+            special_token_ids=[
+                token_id for (token_id, token) in transformers_tokenizer.added_tokens_decoder.items()
+                if token.special
+            ]
         )
 
     def _tokenizer(self, model: str, **kwargs) -> tuple[

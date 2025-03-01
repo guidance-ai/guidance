@@ -22,8 +22,8 @@ except ImportError:
 
 
 class MockTokenizer(Tokenizer):
-    def __init__(self, tokens: Sequence[bytes]):
-        super().__init__(tokens, chat_template=None, bos_token_id=0, eos_token_id=0)
+    def __init__(self, tokens: Sequence[bytes], special_token_ids: Optional[list[int]] = None):
+        super().__init__(tokens, chat_template=None, bos_token_id=0, eos_token_id=0, special_token_ids=special_token_ids)
         self.byte_trie = cpp.ByteTrie(self.tokens, np.arange(len(self.tokens)))
 
     def encode(self, byte_string: bytes) -> list[int]:
@@ -238,7 +238,7 @@ class Mock(Model):
             all_bytes = [bytes([i]) for i in range(256)]
             tokens = [b"<s>"] + all_lc_pairs + all_bytes
 
-            tokenizer = MockTokenizer(tokens)
+            tokenizer = MockTokenizer(tokens, special_token_ids=[0])
             engine = MockEngine(tokenizer, byte_patterns, compute_log_probs, force)
 
         super().__init__(
