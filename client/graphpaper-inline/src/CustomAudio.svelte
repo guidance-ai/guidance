@@ -214,14 +214,14 @@
   });
 </script>
 
-<div class="bg-white p-4 w-full max-w-4xl rounded-xl shadow-sm border border-gray-100">
+<div class="bg-white px-2 py-1 w-full max-w-6xl rounded-xl shadow-sm border border-gray-100">
   <!-- Main player content -->
   <div class="flex flex-col gap-2">
     <!-- Top row with play button, volume control, and waveform -->
-    <div class="flex items-center gap-3">
+    <div class="flex items-center gap-1">
       <!-- Play Button -->
       <button
-        class="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center cursor-pointer transition-all hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400"
+        class="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center cursor-pointer transition-all hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400"
         on:click={togglePlay}
         aria-label="Toggle playback"
       >
@@ -267,7 +267,7 @@
         <!-- Volume Slider (appears on hover) -->
         {#if showVolumeSlider}
           <div 
-            class="absolute left-0 bottom-full mb-2 bg-white shadow-md rounded-lg p-2 transform -translate-x-1/4 transition-opacity duration-200 z-20"
+            class="absolute left-0 bottom-[-15px] bg-white shadow-md rounded-lg p-2 transform -translate-x-1/4 transition-opacity duration-200 z-20"
             role="slider"
             aria-label="Volume"
             aria-valuemin="0"
@@ -317,7 +317,7 @@
       </div>
       
       <!-- Time Display -->
-      <div class="text-gray-700 font-medium whitespace-nowrap">
+      <div class="text-gray-700 whitespace-nowrap text-sm">
         {formatTime(currentTime)} / {formatTime(duration)}
       </div>
     </div>
