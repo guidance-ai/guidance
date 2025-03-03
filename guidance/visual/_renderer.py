@@ -8,7 +8,7 @@ Our main focus is on jupyter notebooks and later terminal.
 import asyncio
 import logging
 import weakref
-from typing import Optional, Callable, Tuple
+from typing import Optional, Tuple
 from asyncio import Queue
 from functools import partial
 import traceback
@@ -21,7 +21,6 @@ from ._message import ExecutionCompletedMessage, \
 from .._utils import log_cleanup
 from ..trace import TraceHandler
 from ..visual import GuidanceMessage, TraceMessage, ResetDisplayMessage, ClientReadyMessage
-from ._async import run_async_coroutine, async_task, call_soon_threadsafe
 from warnings import warn
 
 try:
@@ -83,11 +82,13 @@ _create_stitch_widget.src_doc_template = None
 
 
 def _cleanup(recv_queue: Optional[Queue], send_queue: Optional[Queue], log_msg: str) -> None:
+    from ..registry import get_bg_async
+
     log_cleanup(log_msg)
     if recv_queue is not None:
-        call_soon_threadsafe(send_queue.put_nowait, None)
+        get_bg_async().call_soon_threadsafe(send_queue.put_nowait, None)
     if send_queue is not None:
-        call_soon_threadsafe(recv_queue.put_nowait, None)
+        get_bg_async().call_soon_threadsafe(recv_queue.put_nowait, None)
 
 
 async def _create_queue() -> Queue:
@@ -96,10 +97,12 @@ async def _create_queue() -> Queue:
 
 
 def _on_stitch_clientmsg(recv_queue_weakref: weakref.ReferenceType["Queue"], change: dict) -> None:
+    from ..registry import get_bg_async
+
     # NOTE(nopdive): Widget callbacks do not print to stdout/stderr nor module log.
     recv_queue = recv_queue_weakref()
     if recv_queue is not None:
-        call_soon_threadsafe(recv_queue.put_nowait, change['new'])
+        get_bg_async().call_soon_threadsafe(recv_queue.put_nowait, change['new'])
 
 
 def _on_cell_completion(renderer_weakref: weakref.ReferenceType["Renderer"], info) -> None:
@@ -121,6 +124,7 @@ def _on_cell_completion(renderer_weakref: weakref.ReferenceType["Renderer"], inf
 async def _handle_recv_messages(renderer_weakref: weakref.ReferenceType["Renderer"], queue_weakref: weakref.ReferenceType["Queue"]) -> None:
     logger.debug("RECV:init")
     from ..registry import get_exchange
+    from ..registry import get_bg_async
 
     while True:
         try:
@@ -145,7 +149,7 @@ async def _handle_recv_messages(renderer_weakref: weakref.ReferenceType["Rendere
 
             if isinstance(message, ClientReadyMessage):
                 logger.debug("RECV:clientready")
-                call_soon_threadsafe(renderer._send_queue.put_nowait, ClientReadyAckMessage())
+                get_bg_async().call_soon_threadsafe(renderer._send_queue.put_nowait, ClientReadyAckMessage())
 
             get_exchange().notify(message, topic_pattern=f"{DEFAULT_TOPIC}")
             renderer._recv_queue.task_done()
@@ -199,6 +203,8 @@ class JupyterWidgetRenderer(Renderer):
         Args:
             trace_handler: Trace handler of an engine.
         """
+        from ..registry import get_bg_async
+
         super().__init__()
 
         self._trace_handler = trace_handler
@@ -213,14 +219,14 @@ class JupyterWidgetRenderer(Renderer):
         self._last_cell_session_id = None
 
         # Create queue and wait for instantiation
-        self._send_queue: Queue = run_async_coroutine(_create_queue()).result()
-        self._recv_queue: Queue = run_async_coroutine(_create_queue()).result()
+        self._send_queue: Queue = get_bg_async().run_async_coroutine(_create_queue()).result()
+        self._recv_queue: Queue = get_bg_async().run_async_coroutine(_create_queue()).result()
 
         # Start send/recv message loops
         recv_coroutine = _handle_recv_messages(weakref.ref(self), weakref.ref(self._recv_queue))
         send_coroutine = _handle_send_messages(weakref.ref(self), weakref.ref(self._send_queue))
-        self._recv_task = run_async_coroutine(async_task(recv_coroutine)).result()
-        self._send_task = run_async_coroutine(async_task(send_coroutine)).result()
+        self._recv_task = get_bg_async().run_async_coroutine(get_bg_async().async_task(recv_coroutine)).result()
+        self._send_task = get_bg_async().run_async_coroutine(get_bg_async().async_task(send_coroutine)).result()
 
         weakref.finalize(self, _cleanup, self._recv_queue, self._send_queue, f"renderer({id(self)})")
 
@@ -286,6 +292,7 @@ class JupyterWidgetRenderer(Renderer):
 
     def update(self, message: GuidanceMessage, topic=DEFAULT_TOPIC) -> None:
         from ..registry import get_exchange
+        from ..registry import get_bg_async
 
         out_messages = []
 
@@ -315,7 +322,7 @@ class JupyterWidgetRenderer(Renderer):
             self._completed = False
 
             # TODO(nopdive): Fire off execution immediately to renderer subscribers. Review later.
-            call_soon_threadsafe(self._recv_queue.put_nowait, serialize_message(started_msg))
+            get_bg_async().call_soon_threadsafe(self._recv_queue.put_nowait, serialize_message(started_msg))
 
         # Check if message has diverged from prev messages
         diverged, shared_ancestor_idx = self.has_divergence(message)
@@ -358,7 +365,7 @@ class JupyterWidgetRenderer(Renderer):
                 self._last_trace_id = out_message.trace_id
 
             self._messages.append(out_message)
-            call_soon_threadsafe(self._send_queue.put_nowait, out_message)
+            get_bg_async().call_soon_threadsafe(self._send_queue.put_nowait, out_message)
 
 
 class DoNothingRenderer(Renderer):

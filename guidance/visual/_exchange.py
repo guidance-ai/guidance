@@ -2,7 +2,7 @@
 
 from collections import defaultdict
 from typing import Callable
-from ._message import GuidanceMessage
+from ..visual import GuidanceMessage
 from fnmatch import fnmatch
 import logging
 
@@ -58,3 +58,5 @@ class TopicExchange:
             if fnmatch(observer_topic, topic_pattern):
                 for observer in observers:
                     observer(message)
+
+__all__ = ["TopicExchange"]
