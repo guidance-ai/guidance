@@ -46,8 +46,9 @@ class TestTiktoken:
     @pytest.mark.parametrize("model_name", MODELS)
     @pytest.mark.parametrize("target_string", TOKENIZER_ROUND_TRIP_STRINGS)
     def test_string_roundtrip(self, model_name: str, target_string: str):
+        from guidance.models._grammarless import GrammarlessTokenizer
         my_tik = tiktoken.encoding_for_model(model_name)
-        my_tok = models._grammarless.GrammarlessTokenizer(my_tik)
+        my_tok = GrammarlessTokenizer(my_tik)
 
         encoded = my_tok.encode(target_string.encode())
         decoded = my_tok.decode(encoded)

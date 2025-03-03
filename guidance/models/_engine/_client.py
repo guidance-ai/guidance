@@ -1,8 +1,10 @@
+from base64 import b64decode
+from io import BytesIO
 from typing import Iterator
 
-from ..._ast import GrammarNode, RoleEnd, RoleStart
-from ...trace import CaptureOutput, RoleCloserInput, RoleOpenerInput, TextOutput
-from .._base import Client, MessageChunk
+from ..._ast import GrammarNode, ImageBlob, LiteralNode, RoleEnd, RoleStart
+from ...trace import ImageOutput, OutputAttr, TextOutput
+from .._base import Client
 from ._engine import Engine
 from ._state import EngineState
 
@@ -22,20 +24,21 @@ class EngineClient(Client[EngineState]):
             raise ValueError("Cannot use roles without a chat template")
         return self.chat_template.get_role_end(role)
 
-    def role_start(self, state: EngineState, node: RoleStart, **kwargs) -> Iterator[MessageChunk]:
-        yield RoleOpenerInput(
-            name=node.role,
-            text=self.get_role_start(node.role),
-            closer_text=self.get_role_end(node.role),
-        )
+    def role_start(self, state: EngineState, node: RoleStart, **kwargs) -> Iterator[OutputAttr]:
+        state.active_role = node.role
+        # TODO: mark these as special tokens..?
+        yield from self.run(state, LiteralNode(value=self.get_role_start(node.role)), **kwargs)
 
-    def role_end(self, state: EngineState, node: RoleEnd, **kwargs) -> Iterator[MessageChunk]:
-        yield RoleCloserInput(
-            name=node.role,
-            text=self.get_role_end(node.role),
-        )
+    def role_end(self, state: EngineState, node: RoleEnd, **kwargs) -> Iterator[OutputAttr]:
+        state.active_role = None
+        # TODO: mark these as special tokens..?
+        yield from self.run(state, LiteralNode(value=self.get_role_end(node.role)), **kwargs)
 
-    def grammar(self, state: EngineState, node: GrammarNode, **kwargs) -> Iterator[MessageChunk]:
+    def text(self, state: EngineState, node: LiteralNode, **kwargs) -> Iterator[OutputAttr]:
+        state.prompt += node.value
+        yield TextOutput(value=node.value, is_input=True)
+
+    def grammar(self, state: EngineState, node: GrammarNode, **kwargs) -> Iterator[OutputAttr]:
         engine_gen = self.engine(
             state,
             node.ll_grammar(),
@@ -45,52 +48,91 @@ class EngineClient(Client[EngineState]):
 
         delayed_bytes = b""
         for chunk in engine_gen:
-            generated_bytes = delayed_bytes + chunk.generated_bytes
-            generated_text, delayed_bytes = partial_decode(generated_bytes)
-            ff_bytes = delayed_bytes + chunk.force_forwarded_bytes
-            ff_text, delayed_bytes = partial_decode(ff_bytes)
+            new_bytes = chunk.new_bytes
+            new_text, delayed_bytes = partial_decode(new_bytes)
 
-            ff_token_count = chunk.new_token_count
-            if generated_bytes:
-                ff_token_count -= 1
-                yield TextOutput(
-                    value=generated_text,
-                    is_generated=True,
-                    prob=chunk.new_bytes_prob,
-                    token_count=1,  # len(chunk.generated_tokens),
-                    tokens=chunk.generated_tokens,
-                )
-            if ff_bytes:
-                yield TextOutput(
-                    value=ff_text,
-                    is_generated=False,
-                    prob=chunk.new_bytes_prob,
-                    token_count=ff_token_count,  # len(chunk.force_forwarded_tokens),
-                    tokens=chunk.force_forwarded_tokens,
-                )
+            # Update the state
+            state.prompt += new_text
+            yield TextOutput(value=new_text, token_count=chunk.new_token_count, is_generated=True)
+
+            # TODO -- rewrite engine internals to make sure chunk.{generated,fast_forwarded}_tokens aren't empty...
+            # # TODO: GenTokenExtra
+            # for token in chunk.generated_tokens:
+            #     yield TextOutput(
+            #         value=token.text,  # TODO: this should really be the token bytes
+            #         is_generated=True,
+            #         token_count=1,
+            #         prob=token.prob,
+            #         tokens=[token],  # TODO: drop this
+            #     )
+            # for token in chunk.force_forwarded_tokens:
+            #     yield TextOutput(
+            #         value=token.text,  # TODO: this should really be the token bytes
+            #         is_generated=False,
+            #         token_count=1,
+            #         prob=token.prob,
+            #         tokens=[token],  # TODO: drop this
+            #     )
+
+            # # TODO: yield some kind of backtrack signal?
 
             for name in chunk.capture_groups.keys():
                 values = chunk.capture_groups[name]
                 log_probs = chunk.capture_group_log_probs[name]
                 if isinstance(values, list):
-                    assert isinstance(log_probs, list) and len(log_probs) == len(values)
-                    list_append = True
+                    assert isinstance(log_probs, list)
+                    assert len(values) == len(log_probs)
+                    for value, log_prob in zip(values, log_probs):
+                        yield state.apply_capture(
+                            name, value.decode("utf-8"), log_prob=log_prob, is_append=True
+                        )
                 else:
-                    values = [values]
-                    log_probs = [log_probs]
-                    list_append = False
-
-                for value, log_prob in zip(values, log_probs):
-                    yield CaptureOutput(
-                        name=name,
-                        value=value,
-                        is_append=list_append,
-                        # TODO: let this be Optional?
-                        log_probs=log_prob,
+                    assert isinstance(log_probs, float)
+                    yield state.apply_capture(
+                        name, values.decode("utf-8"), log_prob=log_probs, is_append=False
                     )
 
         if delayed_bytes:
             raise RuntimeError("Shouldn't have any delayed bytes left...")
+
+
+class Llama3VisionClient(EngineClient):
+    def image_blob(self, state: EngineState, node: ImageBlob, **kwargs) -> Iterator[OutputAttr]:
+        try:
+            import PIL.Image
+        except ImportError:
+            raise Exception(
+                "Please install the Pillow package `pip install Pillow` in order to use images with Llama3!"
+            )
+
+        image_bytes = b64decode(node.data)
+        pil_image = PIL.Image.open(BytesIO(image_bytes))
+        state.images.append(pil_image)
+        state.prompt += "<|image|>"
+
+        yield ImageOutput(value=node.data, input=True)
+
+
+class Phi3VisionClient(EngineClient):
+    def image_blob(self, state: EngineState, node: ImageBlob, **kwargs) -> Iterator[OutputAttr]:
+        try:
+            import PIL.Image
+        except ImportError:
+            raise Exception(
+                "Please install the Pillow package `pip install Pillow` in order to use images with Llama3!"
+            )
+
+        image_bytes = b64decode(node.data)
+        pil_image = PIL.Image.open(BytesIO(image_bytes))
+
+        if pil_image in state.images:
+            ix = state.images.index(pil_image) + 1
+        else:
+            state.images.append(pil_image)
+            ix = len(state.images)
+        state.prompt += f"<|image_{ix}|>"
+
+        yield ImageOutput(value=node.data, input=True)
 
 
 def partial_decode(data: bytes) -> tuple[str, bytes]:
