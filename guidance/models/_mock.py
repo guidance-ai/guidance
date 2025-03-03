@@ -9,7 +9,6 @@ from ..trace import TraceHandler
 from ..visual._renderer import DoNothingRenderer
 from ._base import Model
 from ._engine import Engine, EngineClient, EngineState, Tokenizer
-from ._remote import RemoteEngine
 
 logger = logging.getLogger(__name__)
 
@@ -228,18 +227,15 @@ class Mock(Model):
     ):
         """Build a new Mock model object that represents a model in a given state."""
 
-        if isinstance(byte_patterns, str) and byte_patterns.startswith("http"):
-            engine = RemoteEngine(byte_patterns, **kwargs)
-        else:
-            # Our tokens are all bytes and all lowercase letter pairs
-            all_lc_pairs = [
-                bytes([i, j]) for i in range(ord("a"), ord("z")) for j in range(ord("a"), ord("z"))
-            ]
-            all_bytes = [bytes([i]) for i in range(256)]
-            tokens = [b"<s>"] + all_lc_pairs + all_bytes
+        # Our tokens are all bytes and all lowercase letter pairs
+        all_lc_pairs = [
+            bytes([i, j]) for i in range(ord("a"), ord("z")) for j in range(ord("a"), ord("z"))
+        ]
+        all_bytes = [bytes([i]) for i in range(256)]
+        tokens = [b"<s>"] + all_lc_pairs + all_bytes
 
-            tokenizer = MockTokenizer(tokens, special_token_ids=[0])
-            engine = MockEngine(tokenizer, byte_patterns, compute_log_probs, force)
+        tokenizer = MockTokenizer(tokens, special_token_ids=[0])
+        engine = MockEngine(tokenizer, byte_patterns, compute_log_probs, force)
 
         super().__init__(
             client=EngineClient(engine),
