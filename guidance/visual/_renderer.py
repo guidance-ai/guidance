@@ -48,39 +48,6 @@ ROOT_TOPIC = "/"
 WILDCARD_TOPIC_PATTERN = "*"
 
 
-# NOTE(nopdive): Temporary solution until we iron out all issues with widgets.
-_legacy_mode = False  # pragma: no cover
-def legacy_mode(flag: Optional[bool] = None) -> bool:  # pragma: no cover
-    """ Sets visualizations to legacy mode (how Guidance used to be).
-
-    This method call will likely deprecate when a fresher API for
-    renderers is defined.
-
-    Args:
-        flag: True if legacy is wanted.
-
-    Returns:
-        Whether legacy mode is enabled.
-    """
-    global _legacy_mode
-    if flag is not None:
-        _legacy_mode = flag
-    return _legacy_mode
-
-
-class DefaultDictList(defaultdict):
-    """Similar to defaultdict(list) but it will remove the key when list is empty."""
-
-    def __init__(self):
-        super(DefaultDictList, self).__init__(list)
-
-    def __getitem__(self, key):
-        result = super().__getitem__(key)
-        if not result:
-            del self[key]
-        return result
-
-
 class Renderer:
     """Renders guidance model to a visual medium."""
 
@@ -447,40 +414,6 @@ class DoNothingRenderer(Renderer):
 
     def update(self, message: GuidanceMessage, topic: str = ROOT_TOPIC) -> None:
         pass
-
-
-class LegacyHtmlRenderer(JupyterWidgetRenderer):
-    """Original HTML renderer for guidance."""
-
-    def __init__(self, trace_handler: TraceHandler) -> None:
-        """ Initializes.
-
-        Args:
-            trace_handler: Trace handler of an engine.
-        """
-
-        self._trace_handler = trace_handler
-        super().__init__(trace_handler)
-
-    def update(self, message: GuidanceMessage) -> None:
-        pass
-        # # Handle Jupyter cell completion
-        # self._handle_jupyter_cell_completion()
-        #
-        # if isinstance(message, TraceMessage) or isinstance(message, ExecutionCompletedOutputMessage):
-        #     complete_msg = None
-        #     if isinstance(message, ExecutionCompletedOutputMessage):
-        #         complete_msg = message
-        #
-        #     trace_node = self._trace_handler[message.trace_id]
-        #     self._last_trace_id = message.trace_id
-        #     if trace_node is not None:
-        #         clear_output(wait=True)
-        #         display(HTML(trace_node_to_html(trace_node, prettify_roles=False, complete_msg=complete_msg)))
-        # elif isinstance(message, ExecutionCompletedMessage):
-        #     logger.debug("RENDERER:cell executed")
-        # else:
-        #     pass
 
 
 class AutoRenderer(Renderer):
