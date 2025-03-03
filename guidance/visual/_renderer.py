@@ -5,15 +5,17 @@ Our main focus is on jupyter notebooks and later terminal.
 # TODO(nopdive): Implementation for terminals & append-only text displays.
 # NOTE(nopdive): Testing this notebook related components is tricky. Should figure this out at some point.
 
+from fnmatch import fnmatch
 import asyncio
+from collections import defaultdict
 import logging
 import weakref
-from typing import Optional, Callable, Tuple, Any
+from typing import Optional, Callable, Tuple
 from asyncio import Queue
 from functools import partial
 import traceback
 
-from . import MetricMessage, TokensMessage
+from . import MetricMessage
 from ._environment import Environment
 from ._jupyter import ipy_handle_event_once
 from ._message import ExecutionCompletedMessage, \
@@ -21,7 +23,6 @@ from ._message import ExecutionCompletedMessage, \
 from .._utils import log_cleanup
 from ..trace import TraceHandler
 from ..visual import GuidanceMessage, TraceMessage, ResetDisplayMessage, ClientReadyMessage
-from ._trace import trace_node_to_html
 from ._async import run_async_coroutine, async_task, call_soon_threadsafe
 from warnings import warn
 
@@ -42,6 +43,9 @@ except ImportError:
     stitch_installed = False
 
 logger = logging.getLogger(__name__)
+
+ROOT_TOPIC = "/"
+WILDCARD_TOPIC_PATTERN = "*"
 
 
 # NOTE(nopdive): Temporary solution until we iron out all issues with widgets.
@@ -64,55 +68,82 @@ def legacy_mode(flag: Optional[bool] = None) -> bool:  # pragma: no cover
     return _legacy_mode
 
 
+class DefaultDictList(defaultdict):
+    """Similar to defaultdict(list) but it will remove the key when list is empty."""
+
+    def __init__(self):
+        super(DefaultDictList, self).__init__(list)
+
+    def __getitem__(self, key):
+        result = super().__getitem__(key)
+        if not result:
+            del self[key]
+        return result
+
+
 class Renderer:
     """Renders guidance model to a visual medium."""
 
     def __init__(self):
         """Initializes. """
-        self._observers = []
+        self._observers = defaultdict(list)
 
-    def notify(self, message: GuidanceMessage):
+    def notify(self, message: GuidanceMessage, topic_pattern: str = WILDCARD_TOPIC_PATTERN):
         """ Notifies all observers of the renderer of an incoming message.
 
         Args:
             message: Incoming message.
+            topic_pattern: Topics to notify (uses fnmatch).
         """
-        for observer in self._observers:
-            observer(message)
+        for observer_topic, observers in self._observers.items():
+            if fnmatch(observer_topic, topic_pattern):
+                for observer in observers:
+                    observer(message)
 
-    def subscribe(self, callback: Callable[[GuidanceMessage], None]) -> None:
+    def subscribe(self, callback: Callable[[GuidanceMessage], None], topic: str = ROOT_TOPIC) -> None:
         """ Subscribes to incoming messages.
 
         Args:
             callback: Callback to handle incoming messages.
+            topic: Topic to notify.
         """
-        self._observers.append(callback)
+        logger.debug(f"RENDERER:pre_subscribe:{self._observers[topic]}")
+        self._observers[topic].append(callback)
+        logger.debug(f"RENDERER:post_subscribe:{self._observers[topic]}")
 
-    def unsubscribe(self, callback: Callable[[GuidanceMessage], None]) -> None:
+    def unsubscribe(self, callback: Callable[[GuidanceMessage], None], topic: str = ROOT_TOPIC) -> None:
         """ Unsubscribes from incoming messages.
 
         Args:
             callback: Callback to remove.
+            topic: Topic to notify.
         """
-        self._observers.remove(callback)
+        logger.debug(f"RENDERER:pre_unsubscribe:{self._observers[topic]}")
+        try:
+            self._observers[topic].remove(callback)
+        except ValueError as _:
+            logger.warning(f"RENDERER:cb at '{topic}' already removed.")
+        logger.debug(f"RENDERER:post_unsubscribe:{self._observers[topic]}")
 
-    def update(self, message: GuidanceMessage) -> None:
+
+    def update(self, message: GuidanceMessage, topic: str = ROOT_TOPIC) -> None:
         """ Updates renderer with incoming message.
 
         Args:
             message: Incoming message.
+            topic: Topic to update.
         """
         raise NotImplementedError("Update not implemented.")
 
 
 def _create_stitch_widget():
     from stitch import StitchWidget
-    import pkg_resources
+    import importlib.resources as resources
+    import guidance
 
     if _create_stitch_widget.src_doc_template is None:
-        with open(
-            pkg_resources.resource_filename("guidance", "resources/graphpaper-inline.html"), "r"
-        ) as f:
+        path = resources.files(guidance) / 'resources' / 'graphpaper-inline.html'
+        with path.open("r") as f:
             _create_stitch_widget.src_doc_template = f.read()
     w = StitchWidget()
     w.initial_width = "100%"
@@ -248,7 +279,8 @@ class JupyterWidgetRenderer(Renderer):
         self._messages: list[GuidanceMessage] = []
         self._completed = False
         self._running = False
-        self._need_reset = False
+        self._new_widget_needed = False
+        self._stitch_widget_observed = False
         self._stitch_widget = None
         self._stitch_on_clientmsg = None
         self._cell_event_handler = None
@@ -326,7 +358,7 @@ class JupyterWidgetRenderer(Renderer):
                 return False, -1
 
 
-    def update(self, message: GuidanceMessage) -> None:
+    def update(self, message: GuidanceMessage, topic=ROOT_TOPIC) -> None:
         out_messages = []
 
         if isinstance(message, ExecutionCompletedMessage):
@@ -350,7 +382,7 @@ class JupyterWidgetRenderer(Renderer):
                 partial(_on_cell_completion, weakref.ref(self)),
                 'post_run_cell'
             )
-            self._need_reset = True
+            self._new_widget_needed = True
             self._running = True
             self._completed = False
 
@@ -366,24 +398,27 @@ class JupyterWidgetRenderer(Renderer):
             self._messages.clear()
 
         # Reset if needed
-        if self._need_reset:
-            logger.debug("RENDERER:reset")
+        if self._new_widget_needed:
+            logger.debug("RENDERER:new widget needed")
 
             # Clear messages
             self._messages = []
 
-            if self._stitch_widget is not None:
+            if self._stitch_widget is not None and self._stitch_widget_observed:
                 self._stitch_widget.unobserve(self._stitch_on_clientmsg, names='clientmsg')
+                self._stitch_widget_observed = False
+                logger.debug("RENDERER:widget unobserved (new)")
 
             self._stitch_widget = _create_stitch_widget()
             self._stitch_on_clientmsg = partial(_on_stitch_clientmsg, weakref.ref(self._recv_queue))
             self._stitch_widget.observe(self._stitch_on_clientmsg, names='clientmsg')
+            self._stitch_widget_observed = True
+            logger.debug("RENDERER:widget observed (new)")
 
             # Redraw
-            # clear_output(wait=True)
             display(self._stitch_widget)
 
-            self._need_reset = False
+            self._new_widget_needed = False
 
         # Append current message to outgoing
         out_messages.append(message)
@@ -397,6 +432,7 @@ class JupyterWidgetRenderer(Renderer):
             self._messages.append(out_message)
             call_soon_threadsafe(self._send_queue.put_nowait, out_message)
 
+
 class DoNothingRenderer(Renderer):
     """ It does nothing. Placeholder for future renderers."""
 
@@ -409,7 +445,7 @@ class DoNothingRenderer(Renderer):
         self._trace_handler = trace_handler
         super().__init__()
 
-    def update(self, message: GuidanceMessage) -> None:
+    def update(self, message: GuidanceMessage, topic: str = ROOT_TOPIC) -> None:
         pass
 
 
@@ -478,17 +514,17 @@ class AutoRenderer(Renderer):
 
         super().__init__()
 
-    def notify(self, message: GuidanceMessage):
-        self._renderer.notify(message)
+    def notify(self, message: GuidanceMessage, topic_pattern: str = WILDCARD_TOPIC_PATTERN):
+        self._renderer.notify(message, topic_pattern=topic_pattern)
 
-    def subscribe(self, callback: Callable[[GuidanceMessage], None]) -> None:
-        self._renderer.subscribe(callback)
+    def subscribe(self, callback: Callable[[GuidanceMessage], None], topic: str = ROOT_TOPIC) -> None:
+        self._renderer.subscribe(callback, topic=topic)
 
-    def unsubscribe(self, callback: Callable[[GuidanceMessage], None]) -> None:
-        self._renderer.unsubscribe(callback)
+    def unsubscribe(self, callback: Callable[[GuidanceMessage], None], topic: str = ROOT_TOPIC) -> None:
+        self._renderer.unsubscribe(callback, topic=topic)
 
-    def update(self, message: GuidanceMessage) -> None:
-        self._renderer.update(message)
+    def update(self, message: GuidanceMessage, topic: str = ROOT_TOPIC) -> None:
+        self._renderer.update(message, topic=topic)
 
     def renderer_type(self) -> type:
         """Type of renderer that has been selected based on environment.

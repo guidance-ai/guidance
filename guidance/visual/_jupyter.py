@@ -1,7 +1,6 @@
 """ Jupyter specific utilities."""
 
 
-import weakref
 from typing import Callable, Any, Tuple
 import logging
 try:

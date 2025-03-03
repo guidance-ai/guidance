@@ -163,22 +163,6 @@ def _engine_cleanup(
 ):
     renderer.unsubscribe(msg_recv)
 
-    try:
-        # force renderer cleanup
-        # TODO: figure out why in some cases _recv_task and _send_task are not stopped
-        from ...visual._renderer import _cleanup
-
-        if isinstance(renderer, AutoRenderer) and isinstance(
-            renderer._renderer, JupyterWidgetRenderer
-        ):
-            _cleanup(
-                renderer._renderer._recv_queue,
-                renderer._renderer._send_queue,
-                f"renderer({id(renderer)})",
-            )
-    except Exception as _:
-        logger.error(f"Failed to force-cleanup renderer: {traceback.format_exc()}")
-
     if periodic_metrics_generator is not None:
         try:
             periodic_metrics_generator.stop()
@@ -206,7 +190,7 @@ def _msg_recv(engine_weakref: weakref.ReferenceType, message: GuidanceMessage) -
     if engine is None:
         return
 
-    # NOTE(nopdive): This is usually run on a background thread.
+    # NOTE(nopdive): This is run on a background thread.
     logger.debug(f"ENGINE({id(engine)}):msg_recv:{message}")
     if isinstance(message, ExecutionStartedMessage):
         if engine.periodic_metrics_generator is not None:
@@ -214,44 +198,8 @@ def _msg_recv(engine_weakref: weakref.ReferenceType, message: GuidanceMessage) -
     elif isinstance(message, ExecutionCompletedMessage) and message.is_err:
         pass
     elif isinstance(message, (ExecutionCompletedMessage, OutputRequestMessage, TokensMessage)):
-        # TODO(nopdive): Previous code, omit on next release. We don't process tokens at end anymore.
-        # failed = False
-        #
-        # processed_gen_tokens: list[GenTokenExtra] = []  # suppress IDE warnings by definition
-        # try:
-        #     last_trace_id = message.last_trace_id
-        #     last_model: "Model" = engine.model_dict[message.last_trace_id]
-        #     processed_gen_tokens = last_model.get_per_token_stats()
-        # except Exception as e:
-        #     logger.error(f"Failed to get per token stats: {e}")
-        #     failed = True
-        #
-        # if not failed:
-        #     final_text = "".join([gen_token.text for gen_token in processed_gen_tokens])
-        #     logger.debug(f"ENGINE:final_text:{final_text}")
-        #     logger.debug(f"ENGINE:model_state:{last_model._state}")
-        #     logger.debug(f"ENGINE:final_text == _state:{final_text == last_model._state}")
-        #
-        #     tokens = [gen_token.token_id for gen_token in processed_gen_tokens]
-        #     engine.renderer.update(
-        #         TokensMessage(
-        #             trace_id=last_trace_id,
-        #             text=engine.tokenizer.decode(tokens).decode("utf-8"),
-        #             tokens=processed_gen_tokens,
-        #         )
-        #     )
-        #     engine.renderer.update(MetricMessage(name="status", value="Done"))
-        # else:
-        #     engine.renderer.update(MetricMessage(name="status", value="Error"))
-
         if engine.periodic_metrics_generator is not None:
             engine.periodic_metrics_generator.pause()
-
-        # try:
-        #     # send stats to the renderer
-        #     engine.post_exec_metrics.emit_messages(last_model)
-        # except:
-        #     pass
 
 
 class Engine(ABC):
