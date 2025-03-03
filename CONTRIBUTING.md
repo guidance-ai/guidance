@@ -10,9 +10,9 @@ We welcome contributions to `guidance`, and this document exists to provide usef
 
 ## Developer Setup
 
-Start by creating a fresh environment that includes a rust compiler with something like:
+Start by creating a fresh environment with something similar to:
 ```bash
-conda create --name guidancedev python=3.12 rust
+conda create --name guidancedev python=3.12
 conda activate guidancedev
 ```
 
