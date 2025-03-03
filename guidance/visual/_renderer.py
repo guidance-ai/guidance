@@ -8,12 +8,12 @@ Our main focus is on jupyter notebooks and later terminal.
 import asyncio
 import logging
 import weakref
-from typing import Optional, Callable, Tuple, Any
+from typing import Optional, Callable, Tuple
 from asyncio import Queue
 from functools import partial
 import traceback
 
-from . import MetricMessage, TokensMessage
+from . import MetricMessage
 from ._environment import Environment
 from ._jupyter import ipy_handle_event_once
 from ._message import ExecutionCompletedMessage, \
@@ -21,7 +21,6 @@ from ._message import ExecutionCompletedMessage, \
 from .._utils import log_cleanup
 from ..trace import TraceHandler
 from ..visual import GuidanceMessage, TraceMessage, ResetDisplayMessage, ClientReadyMessage
-from ._trace import trace_node_to_html
 from ._async import run_async_coroutine, async_task, call_soon_threadsafe
 from warnings import warn
 
@@ -43,25 +42,7 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-
-# NOTE(nopdive): Temporary solution until we iron out all issues with widgets.
-_legacy_mode = False  # pragma: no cover
-def legacy_mode(flag: Optional[bool] = None) -> bool:  # pragma: no cover
-    """ Sets visualizations to legacy mode (how Guidance used to be).
-
-    This method call will likely deprecate when a fresher API for
-    renderers is defined.
-
-    Args:
-        flag: True if legacy is wanted.
-
-    Returns:
-        Whether legacy mode is enabled.
-    """
-    global _legacy_mode
-    if flag is not None:
-        _legacy_mode = flag
-    return _legacy_mode
+DEFAULT_TOPIC = "default"
 
 
 class Renderer:
@@ -69,50 +50,25 @@ class Renderer:
 
     def __init__(self):
         """Initializes. """
-        self._observers = []
 
-    def notify(self, message: GuidanceMessage):
-        """ Notifies all observers of the renderer of an incoming message.
-
-        Args:
-            message: Incoming message.
-        """
-        for observer in self._observers:
-            observer(message)
-
-    def subscribe(self, callback: Callable[[GuidanceMessage], None]) -> None:
-        """ Subscribes to incoming messages.
-
-        Args:
-            callback: Callback to handle incoming messages.
-        """
-        self._observers.append(callback)
-
-    def unsubscribe(self, callback: Callable[[GuidanceMessage], None]) -> None:
-        """ Unsubscribes from incoming messages.
-
-        Args:
-            callback: Callback to remove.
-        """
-        self._observers.remove(callback)
-
-    def update(self, message: GuidanceMessage) -> None:
+    def update(self, message: GuidanceMessage, topic: str = DEFAULT_TOPIC) -> None:
         """ Updates renderer with incoming message.
 
         Args:
             message: Incoming message.
+            topic: Topic to update.
         """
         raise NotImplementedError("Update not implemented.")
 
 
 def _create_stitch_widget():
     from stitch import StitchWidget
-    import pkg_resources
+    import importlib.resources as resources
+    import guidance
 
     if _create_stitch_widget.src_doc_template is None:
-        with open(
-            pkg_resources.resource_filename("guidance", "resources/graphpaper-inline.html"), "r"
-        ) as f:
+        path = resources.files(guidance) / 'resources' / 'graphpaper-inline.html'
+        with path.open("r") as f:
             _create_stitch_widget.src_doc_template = f.read()
     w = StitchWidget()
     w.initial_width = "100%"
@@ -164,6 +120,7 @@ def _on_cell_completion(renderer_weakref: weakref.ReferenceType["Renderer"], inf
 
 async def _handle_recv_messages(renderer_weakref: weakref.ReferenceType["Renderer"], queue_weakref: weakref.ReferenceType["Queue"]) -> None:
     logger.debug("RECV:init")
+    from ..registry import get_exchange
 
     while True:
         try:
@@ -190,7 +147,7 @@ async def _handle_recv_messages(renderer_weakref: weakref.ReferenceType["Rendere
                 logger.debug("RECV:clientready")
                 call_soon_threadsafe(renderer._send_queue.put_nowait, ClientReadyAckMessage())
 
-            renderer.notify(message)
+            get_exchange().notify(message, topic_pattern=f"{DEFAULT_TOPIC}")
             renderer._recv_queue.task_done()
         except Exception as _:
             logger.error(f"RECV:err:{traceback.format_exc()}")
@@ -224,7 +181,7 @@ async def _handle_send_messages(renderer_weakref: weakref.ReferenceType["Rendere
             renderer = renderer_weakref()
             if renderer is None:
                 break
-            if renderer._stitch_widget is not None:
+            if isinstance(renderer, JupyterWidgetRenderer) and renderer._stitch_widget is not None:
                 renderer._stitch_widget.kernelmsg = message_json
             else:
                 logger.debug(f"SEND:jupyter:send but no widget")
@@ -248,11 +205,12 @@ class JupyterWidgetRenderer(Renderer):
         self._messages: list[GuidanceMessage] = []
         self._completed = False
         self._running = False
-        self._need_reset = False
+        self._new_widget_needed = False
+        self._stitch_widget_observed = False
         self._stitch_widget = None
         self._stitch_on_clientmsg = None
-        self._cell_event_handler = None
         self._last_trace_id = None
+        self._last_cell_session_id = None
 
         # Create queue and wait for instantiation
         self._send_queue: Queue = run_async_coroutine(_create_queue()).result()
@@ -314,26 +272,28 @@ class JupyterWidgetRenderer(Renderer):
                         prev_trace_node = self._trace_handler[prev_message.trace_id]
                         if prev_trace_node in ancestors:
                             ancestor_idx = idx
-
                 if ancestor_idx == -1:
                     if message_trace_node.parent == last_trace_node.root():  # pragma: no cover
                         ancestor_idx = 0
                     else:
-                        raise Exception(f"Parent missing for trace node: {message_trace_node}")
+                        logger.debug(f"DIVERGENCE:full_reset")
+                        ancestor_idx = 0
 
                 return True, ancestor_idx
             else:
                 return False, -1
 
 
-    def update(self, message: GuidanceMessage) -> None:
+    def update(self, message: GuidanceMessage, topic=DEFAULT_TOPIC) -> None:
+        from ..registry import get_exchange
+
         out_messages = []
 
         if isinstance(message, ExecutionCompletedMessage):
             logger.debug("RENDERER:execution end")
             self._completed = True
             self._running = False
-            self.notify(message)
+            get_exchange().notify(message)
 
             if message.is_err:
                 out_messages.append(MetricMessage(name="status", value="Error"))
@@ -346,11 +306,11 @@ class JupyterWidgetRenderer(Renderer):
             out_messages.append(started_msg)
             out_messages.append(MetricMessage(name="status", value='Running'))
 
-            ipy_handle_event_once(
+            _, self._last_cell_session_id = ipy_handle_event_once(
                 partial(_on_cell_completion, weakref.ref(self)),
                 'post_run_cell'
             )
-            self._need_reset = True
+            self._new_widget_needed = True
             self._running = True
             self._completed = False
 
@@ -366,24 +326,27 @@ class JupyterWidgetRenderer(Renderer):
             self._messages.clear()
 
         # Reset if needed
-        if self._need_reset:
-            logger.debug("RENDERER:reset")
+        if self._new_widget_needed:
+            logger.debug("RENDERER:new widget needed")
 
             # Clear messages
             self._messages = []
 
-            if self._stitch_widget is not None:
+            if self._stitch_widget is not None and self._stitch_widget_observed:
                 self._stitch_widget.unobserve(self._stitch_on_clientmsg, names='clientmsg')
+                self._stitch_widget_observed = False
+                logger.debug("RENDERER:widget unobserved (new)")
 
             self._stitch_widget = _create_stitch_widget()
             self._stitch_on_clientmsg = partial(_on_stitch_clientmsg, weakref.ref(self._recv_queue))
             self._stitch_widget.observe(self._stitch_on_clientmsg, names='clientmsg')
+            self._stitch_widget_observed = True
+            logger.debug("RENDERER:widget observed (new)")
 
             # Redraw
-            # clear_output(wait=True)
             display(self._stitch_widget)
 
-            self._need_reset = False
+            self._new_widget_needed = False
 
         # Append current message to outgoing
         out_messages.append(message)
@@ -397,8 +360,9 @@ class JupyterWidgetRenderer(Renderer):
             self._messages.append(out_message)
             call_soon_threadsafe(self._send_queue.put_nowait, out_message)
 
+
 class DoNothingRenderer(Renderer):
-    """ It does nothing. Placeholder for future renderers."""
+    """ It does nothing."""
 
     def __init__(self, trace_handler: TraceHandler) -> None:
         """ Initializes.
@@ -409,42 +373,8 @@ class DoNothingRenderer(Renderer):
         self._trace_handler = trace_handler
         super().__init__()
 
-    def update(self, message: GuidanceMessage) -> None:
+    def update(self, message: GuidanceMessage, topic: str = DEFAULT_TOPIC) -> None:
         pass
-
-
-class LegacyHtmlRenderer(JupyterWidgetRenderer):
-    """Original HTML renderer for guidance."""
-
-    def __init__(self, trace_handler: TraceHandler) -> None:
-        """ Initializes.
-
-        Args:
-            trace_handler: Trace handler of an engine.
-        """
-
-        self._trace_handler = trace_handler
-        super().__init__(trace_handler)
-
-    def update(self, message: GuidanceMessage) -> None:
-        pass
-        # # Handle Jupyter cell completion
-        # self._handle_jupyter_cell_completion()
-        #
-        # if isinstance(message, TraceMessage) or isinstance(message, ExecutionCompletedOutputMessage):
-        #     complete_msg = None
-        #     if isinstance(message, ExecutionCompletedOutputMessage):
-        #         complete_msg = message
-        #
-        #     trace_node = self._trace_handler[message.trace_id]
-        #     self._last_trace_id = message.trace_id
-        #     if trace_node is not None:
-        #         clear_output(wait=True)
-        #         display(HTML(trace_node_to_html(trace_node, prettify_roles=False, complete_msg=complete_msg)))
-        # elif isinstance(message, ExecutionCompletedMessage):
-        #     logger.debug("RENDERER:cell executed")
-        # else:
-        #     pass
 
 
 class AutoRenderer(Renderer):
@@ -458,37 +388,25 @@ class AutoRenderer(Renderer):
         """
         self._env = Environment()
 
-        if legacy_mode():
-            self._renderer = LegacyHtmlRenderer(trace_handler=trace_handler)
-        else:
-            if self._env.is_notebook():
-                if stitch_installed:
-                    self._renderer = JupyterWidgetRenderer(trace_handler=trace_handler)
-                else:
-                    self._renderer = LegacyHtmlRenderer(trace_handler=trace_handler)
-            elif self._env.is_terminal():
-                # TODO(nopdive): When IPython events are figured out (cell completion)
-                #                hook up terminal interface separate to non-interactive
-                #                shell.
+        if self._env.is_notebook():
+            if stitch_installed:
+                self._renderer = JupyterWidgetRenderer(trace_handler=trace_handler)
+            else:
                 self._renderer = DoNothingRenderer(trace_handler=trace_handler)
-            else:  # pragma: no cover
-                logger.error("Env detection has failed. This is a bug.")
-                warn("Env detection has failed. No renderer will be provided.")
-                self._renderer = DoNothingRenderer(trace_handler=trace_handler)
+        elif self._env.is_terminal():
+            # TODO(nopdive): When IPython events are figured out (cell completion)
+            #                hook up terminal interface separate to non-interactive
+            #                shell.
+            self._renderer = DoNothingRenderer(trace_handler=trace_handler)
+        else:  # pragma: no cover
+            logger.error("Env detection has failed. This is a bug.")
+            warn("Env detection has failed. No renderer will be provided.")
+            self._renderer = DoNothingRenderer(trace_handler=trace_handler)
 
         super().__init__()
 
-    def notify(self, message: GuidanceMessage):
-        self._renderer.notify(message)
-
-    def subscribe(self, callback: Callable[[GuidanceMessage], None]) -> None:
-        self._renderer.subscribe(callback)
-
-    def unsubscribe(self, callback: Callable[[GuidanceMessage], None]) -> None:
-        self._renderer.unsubscribe(callback)
-
-    def update(self, message: GuidanceMessage) -> None:
-        self._renderer.update(message)
+    def update(self, message: GuidanceMessage, topic: str = DEFAULT_TOPIC) -> None:
+        self._renderer.update(message, topic=topic)
 
     def renderer_type(self) -> type:
         """Type of renderer that has been selected based on environment.

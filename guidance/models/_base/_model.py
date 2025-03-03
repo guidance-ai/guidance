@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, Generic, Iterator, Optional, TypeVar, Uni
 from typing_extensions import Self, assert_never
 
 from ..._ast import ASTNode, Function, _parse_tags
-from ..._singleton import get_renderer, get_trace_handler
+from guidance.registry.__init__ import get_renderer, get_trace_handler
 from ...trace import (
     CaptureOutput,
     ImageOutput,
