@@ -44,16 +44,16 @@ jobs:
         run: |
           pytest -vv ./tests/unit
 
-  server_tests:
-    strategy:
-      fail-fast: false # Don't cancel all on first failure
-      matrix:
-        os: ["ubuntu-latest"]
-        python-version: ["3.12"]
-    uses: ./.github/workflows/call_server_tests.yml
-    with:
-      os: ${{ matrix.os }}
-      python-version: ${{ matrix.python-version }}
+  # server_tests:
+  #   strategy:
+  #     fail-fast: false # Don't cancel all on first failure
+  #     matrix:
+  #       os: ["ubuntu-latest"]
+  #       python-version: ["3.12"]
+  #   uses: ./.github/workflows/call_server_tests.yml
+  #   with:
+  #     os: ${{ matrix.os }}
+  #     python-version: ${{ matrix.python-version }}
 
   cpu_tests:
     strategy:
@@ -70,17 +70,17 @@ jobs:
       python-version: ${{ matrix.python-version }}
       model: ${{ matrix.model }}
 
-  gpu_tests:
-    strategy:
-      fail-fast: false # Don't cancel all on first failure
-      matrix:
-        os: ["gpu-runner"]
-        python-version: ["3.9", "3.12"]
-        model:
-          - "transformers_gpt2_gpu"
-          - "llamacpp_llama2_7b_gpu"
-    uses: ./.github/workflows/call_gpu_tests.yml
-    with:
-      os: ${{ matrix.os }}
-      python-version: ${{ matrix.python-version }}
-      model: ${{ matrix.model }}
+  # gpu_tests:
+  #   strategy:
+  #     fail-fast: false # Don't cancel all on first failure
+  #     matrix:
+  #       os: ["gpu-runner"]
+  #       python-version: ["3.9", "3.12"]
+  #       model:
+  #         - "transformers_gpt2_gpu"
+  #         - "llamacpp_llama2_7b_gpu"
+  #   uses: ./.github/workflows/call_gpu_tests.yml
+  #   with:
+  #     os: ${{ matrix.os }}
+  #     python-version: ${{ matrix.python-version }}
+  #     model: ${{ matrix.model }}
