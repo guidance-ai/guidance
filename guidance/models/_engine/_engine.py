@@ -18,18 +18,15 @@ from ..._schema import (
     EngineCallResponse,
     EngineOutput,
     GenToken,
-    GenTokenExtra,
     GuidanceEngineMetrics,
     LLGrammar,
 )
-from ..._singleton import get_renderer, get_trace_handler
+from ...registry import get_renderer, get_trace_handler
 from ..._utils import log_cleanup, log_init, softmax, to_utf8_or_bytes_string
 from ...visual import (
-    AutoRenderer,
     ExecutionCompletedMessage,
     ExecutionStartedMessage,
     GuidanceMessage,
-    JupyterWidgetRenderer,
     MetricMessage,
     OutputRequestMessage,
     Renderer,

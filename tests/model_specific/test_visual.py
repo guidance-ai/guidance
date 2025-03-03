@@ -35,7 +35,7 @@ def test_repeat_base_qwen_widget():
 def test_repeat_simple_model():
     from guidance.models import Transformers
     from guidance import gen
-    from guidance._singleton import set_renderer, get_trace_handler
+    from guidance.registry.__init__ import set_renderer, get_trace_handler
     from guidance.visual import JupyterWidgetRenderer
 
     for i in range(2):

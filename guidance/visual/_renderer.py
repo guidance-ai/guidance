@@ -5,9 +5,7 @@ Our main focus is on jupyter notebooks and later terminal.
 # TODO(nopdive): Implementation for terminals & append-only text displays.
 # NOTE(nopdive): Testing this notebook related components is tricky. Should figure this out at some point.
 
-from fnmatch import fnmatch
 import asyncio
-from collections import defaultdict
 import logging
 import weakref
 from typing import Optional, Callable, Tuple
@@ -44,8 +42,8 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-ROOT_TOPIC = "/"
-WILDCARD_TOPIC_PATTERN = "*"
+DEFAULT_TOPIC = "default"
+WILDCARD_PATTERN = "*"
 
 
 class Renderer:
@@ -53,47 +51,38 @@ class Renderer:
 
     def __init__(self):
         """Initializes. """
-        self._observers = defaultdict(list)
 
-    def notify(self, message: GuidanceMessage, topic_pattern: str = WILDCARD_TOPIC_PATTERN):
+    def notify(self, message: GuidanceMessage, topic_pattern: str = WILDCARD_PATTERN):
         """ Notifies all observers of the renderer of an incoming message.
 
         Args:
             message: Incoming message.
             topic_pattern: Topics to notify (uses fnmatch).
         """
-        for observer_topic, observers in self._observers.items():
-            if fnmatch(observer_topic, topic_pattern):
-                for observer in observers:
-                    observer(message)
+        from ..registry import get_exchange
+        get_exchange().notify(message, topic_pattern=topic_pattern)
 
-    def subscribe(self, callback: Callable[[GuidanceMessage], None], topic: str = ROOT_TOPIC) -> None:
+    def subscribe(self, callback: Callable[[GuidanceMessage], None], topic: str = DEFAULT_TOPIC) -> None:
         """ Subscribes to incoming messages.
 
         Args:
             callback: Callback to handle incoming messages.
             topic: Topic to notify.
         """
-        logger.debug(f"RENDERER:pre_subscribe:{self._observers[topic]}")
-        self._observers[topic].append(callback)
-        logger.debug(f"RENDERER:post_subscribe:{self._observers[topic]}")
+        from ..registry import get_exchange
+        get_exchange().subscribe(callback, topic=topic)
 
-    def unsubscribe(self, callback: Callable[[GuidanceMessage], None], topic: str = ROOT_TOPIC) -> None:
+    def unsubscribe(self, callback: Callable[[GuidanceMessage], None], topic: str = DEFAULT_TOPIC) -> None:
         """ Unsubscribes from incoming messages.
 
         Args:
             callback: Callback to remove.
             topic: Topic to notify.
         """
-        logger.debug(f"RENDERER:pre_unsubscribe:{self._observers[topic]}")
-        try:
-            self._observers[topic].remove(callback)
-        except ValueError as _:
-            logger.warning(f"RENDERER:cb at '{topic}' already removed.")
-        logger.debug(f"RENDERER:post_unsubscribe:{self._observers[topic]}")
+        from ..registry import get_exchange
+        get_exchange().unsubscribe(callback, topic=topic)
 
-
-    def update(self, message: GuidanceMessage, topic: str = ROOT_TOPIC) -> None:
+    def update(self, message: GuidanceMessage, topic: str = DEFAULT_TOPIC) -> None:
         """ Updates renderer with incoming message.
 
         Args:
@@ -188,7 +177,7 @@ async def _handle_recv_messages(renderer_weakref: weakref.ReferenceType["Rendere
                 logger.debug("RECV:clientready")
                 call_soon_threadsafe(renderer._send_queue.put_nowait, ClientReadyAckMessage())
 
-            renderer.notify(message)
+            renderer.notify(message, topic_pattern=f"{DEFAULT_TOPIC}")
             renderer._recv_queue.task_done()
         except Exception as _:
             logger.error(f"RECV:err:{traceback.format_exc()}")
@@ -222,7 +211,7 @@ async def _handle_send_messages(renderer_weakref: weakref.ReferenceType["Rendere
             renderer = renderer_weakref()
             if renderer is None:
                 break
-            if renderer._stitch_widget is not None:
+            if isinstance(renderer, JupyterWidgetRenderer) and renderer._stitch_widget is not None:
                 renderer._stitch_widget.kernelmsg = message_json
             else:
                 logger.debug(f"SEND:jupyter:send but no widget")
@@ -250,8 +239,8 @@ class JupyterWidgetRenderer(Renderer):
         self._stitch_widget_observed = False
         self._stitch_widget = None
         self._stitch_on_clientmsg = None
-        self._cell_event_handler = None
         self._last_trace_id = None
+        self._last_cell_session_id = None
 
         # Create queue and wait for instantiation
         self._send_queue: Queue = run_async_coroutine(_create_queue()).result()
@@ -325,7 +314,7 @@ class JupyterWidgetRenderer(Renderer):
                 return False, -1
 
 
-    def update(self, message: GuidanceMessage, topic=ROOT_TOPIC) -> None:
+    def update(self, message: GuidanceMessage, topic=DEFAULT_TOPIC) -> None:
         out_messages = []
 
         if isinstance(message, ExecutionCompletedMessage):
@@ -345,7 +334,7 @@ class JupyterWidgetRenderer(Renderer):
             out_messages.append(started_msg)
             out_messages.append(MetricMessage(name="status", value='Running'))
 
-            ipy_handle_event_once(
+            _, self._last_cell_session_id = ipy_handle_event_once(
                 partial(_on_cell_completion, weakref.ref(self)),
                 'post_run_cell'
             )
@@ -401,7 +390,7 @@ class JupyterWidgetRenderer(Renderer):
 
 
 class DoNothingRenderer(Renderer):
-    """ It does nothing. Placeholder for future renderers."""
+    """ It does nothing."""
 
     def __init__(self, trace_handler: TraceHandler) -> None:
         """ Initializes.
@@ -412,7 +401,7 @@ class DoNothingRenderer(Renderer):
         self._trace_handler = trace_handler
         super().__init__()
 
-    def update(self, message: GuidanceMessage, topic: str = ROOT_TOPIC) -> None:
+    def update(self, message: GuidanceMessage, topic: str = DEFAULT_TOPIC) -> None:
         pass
 
 
@@ -427,36 +416,33 @@ class AutoRenderer(Renderer):
         """
         self._env = Environment()
 
-        if legacy_mode():
-            self._renderer = LegacyHtmlRenderer(trace_handler=trace_handler)
-        else:
-            if self._env.is_notebook():
-                if stitch_installed:
-                    self._renderer = JupyterWidgetRenderer(trace_handler=trace_handler)
-                else:
-                    self._renderer = LegacyHtmlRenderer(trace_handler=trace_handler)
-            elif self._env.is_terminal():
-                # TODO(nopdive): When IPython events are figured out (cell completion)
-                #                hook up terminal interface separate to non-interactive
-                #                shell.
+        if self._env.is_notebook():
+            if stitch_installed:
+                self._renderer = JupyterWidgetRenderer(trace_handler=trace_handler)
+            else:
                 self._renderer = DoNothingRenderer(trace_handler=trace_handler)
-            else:  # pragma: no cover
-                logger.error("Env detection has failed. This is a bug.")
-                warn("Env detection has failed. No renderer will be provided.")
-                self._renderer = DoNothingRenderer(trace_handler=trace_handler)
+        elif self._env.is_terminal():
+            # TODO(nopdive): When IPython events are figured out (cell completion)
+            #                hook up terminal interface separate to non-interactive
+            #                shell.
+            self._renderer = DoNothingRenderer(trace_handler=trace_handler)
+        else:  # pragma: no cover
+            logger.error("Env detection has failed. This is a bug.")
+            warn("Env detection has failed. No renderer will be provided.")
+            self._renderer = DoNothingRenderer(trace_handler=trace_handler)
 
         super().__init__()
 
-    def notify(self, message: GuidanceMessage, topic_pattern: str = WILDCARD_TOPIC_PATTERN):
+    def notify(self, message: GuidanceMessage, topic_pattern: str = WILDCARD_PATTERN):
         self._renderer.notify(message, topic_pattern=topic_pattern)
 
-    def subscribe(self, callback: Callable[[GuidanceMessage], None], topic: str = ROOT_TOPIC) -> None:
+    def subscribe(self, callback: Callable[[GuidanceMessage], None], topic: str = DEFAULT_TOPIC) -> None:
         self._renderer.subscribe(callback, topic=topic)
 
-    def unsubscribe(self, callback: Callable[[GuidanceMessage], None], topic: str = ROOT_TOPIC) -> None:
+    def unsubscribe(self, callback: Callable[[GuidanceMessage], None], topic: str = DEFAULT_TOPIC) -> None:
         self._renderer.unsubscribe(callback, topic=topic)
 
-    def update(self, message: GuidanceMessage, topic: str = ROOT_TOPIC) -> None:
+    def update(self, message: GuidanceMessage, topic: str = DEFAULT_TOPIC) -> None:
         self._renderer.update(message, topic=topic)
 
     def renderer_type(self) -> type:
