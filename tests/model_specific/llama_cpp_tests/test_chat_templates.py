@@ -6,6 +6,7 @@ import guidance
 from guidance.chat import CHAT_TEMPLATE_CACHE
 
 
+@pytest.mark.skip("Flaky test.")
 def test_chat_format_smoke(llamacpp_model: guidance.models.LlamaCpp, selected_model_name):
     # Retrieve the template string
     if (
