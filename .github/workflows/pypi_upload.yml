@@ -56,7 +56,6 @@ jobs:
     
     env:
       CIBW_BUILD_VERBOSITY: 1
-      CIBW_BEFORE_ALL_LINUX: "curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y"
       CIBW_ENVIRONMENT: 'PATH="$PATH:$HOME/.cargo/bin"'
       CIBW_SKIP: pp*
 
@@ -65,11 +64,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
-      - name: Install Rust
-        shell: bash
-        run: |
-          curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.75.0
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
       - name: Set up QEMU
         if: runner.os == 'Linux'
@@ -99,12 +93,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
-      - name: Install Rust
-        shell: bash
-        run: |
-          curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.75.0
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
       - name: Run cargo check
         shell: bash
