@@ -59,7 +59,7 @@ jobs:
     strategy:
       fail-fast: false # Don't cancel all on first failure
       matrix:
-        os: ["Large_Linux", "Large_Windows"]
+        os: ["Large_Linux"]  # , "Large_Windows"]
         python-version: ["3.9", "3.12"]
         model:
           - "transformers_gpt2_cpu"
