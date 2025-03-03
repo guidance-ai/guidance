@@ -8,9 +8,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_TOPIC = "default"
+DEFAULT_TOPIC = "/default"
 WILDCARD_PATTERN = "*"
-
 
 class TopicExchange:
     """ Queue-less topic exchange for routing messages."""
