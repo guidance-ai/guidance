@@ -73,7 +73,7 @@ class Model(Generic[S]):
         trace_node = trace_handler.update_node(identifier, parent_id, node_attr)
         self._trace_nodes.add(trace_node)
         if self.echo:
-            get_renderer(trace_handler).update(
+            get_renderer().update(
                 TraceMessage(
                     trace_id=identifier,
                     parent_trace_id=parent_id,

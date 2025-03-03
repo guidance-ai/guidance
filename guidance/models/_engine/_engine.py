@@ -227,7 +227,7 @@ class Engine(ABC):
 
         if renderer is None:
             self.trace_handler = get_trace_handler()
-            self.renderer = get_renderer(self.trace_handler)
+            self.renderer = get_renderer()
         else:
             self.renderer = renderer
             self.trace_handler = renderer._trace_handler

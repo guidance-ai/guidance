@@ -31,11 +31,10 @@ def get_trace_handler() -> TraceHandler:
     return _trace_handler
 
 
-def get_renderer(trace_handler: TraceHandler) -> Renderer:
-    # TODO(nopdive): Remove trace handler argument.
-
+def get_renderer() -> Renderer:
     global _renderer
     with _renderer_lock:
+        trace_handler = get_trace_handler()
         if _renderer is None:
             _renderer = AutoRenderer(trace_handler)
     return _renderer
