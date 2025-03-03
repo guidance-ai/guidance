@@ -12,7 +12,11 @@ DEFAULT_TOPIC = "/default"
 WILDCARD_PATTERN = "*"
 
 class TopicExchange:
-    """ Queue-less topic exchange for routing messages."""
+    """ Queue-less topic exchange for routing messages.
+
+    This is not as comprehensive as a full distributed topic exchange.
+    It is specific to a single process, with no queues and less generalized routing keys.
+    """
 
     def __init__(self):
         """ Initializes."""

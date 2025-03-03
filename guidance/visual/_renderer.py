@@ -43,7 +43,6 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 DEFAULT_TOPIC = "default"
-WILDCARD_PATTERN = "*"
 
 
 class Renderer:
@@ -51,36 +50,6 @@ class Renderer:
 
     def __init__(self):
         """Initializes. """
-
-    def notify(self, message: GuidanceMessage, topic_pattern: str = WILDCARD_PATTERN):
-        """ Notifies all observers of the renderer of an incoming message.
-
-        Args:
-            message: Incoming message.
-            topic_pattern: Topics to notify (uses fnmatch).
-        """
-        from ..registry import get_exchange
-        get_exchange().notify(message, topic_pattern=topic_pattern)
-
-    def subscribe(self, callback: Callable[[GuidanceMessage], None], topic: str = DEFAULT_TOPIC) -> None:
-        """ Subscribes to incoming messages.
-
-        Args:
-            callback: Callback to handle incoming messages.
-            topic: Topic to notify.
-        """
-        from ..registry import get_exchange
-        get_exchange().subscribe(callback, topic=topic)
-
-    def unsubscribe(self, callback: Callable[[GuidanceMessage], None], topic: str = DEFAULT_TOPIC) -> None:
-        """ Unsubscribes from incoming messages.
-
-        Args:
-            callback: Callback to remove.
-            topic: Topic to notify.
-        """
-        from ..registry import get_exchange
-        get_exchange().unsubscribe(callback, topic=topic)
 
     def update(self, message: GuidanceMessage, topic: str = DEFAULT_TOPIC) -> None:
         """ Updates renderer with incoming message.
@@ -151,6 +120,7 @@ def _on_cell_completion(renderer_weakref: weakref.ReferenceType["Renderer"], inf
 
 async def _handle_recv_messages(renderer_weakref: weakref.ReferenceType["Renderer"], queue_weakref: weakref.ReferenceType["Queue"]) -> None:
     logger.debug("RECV:init")
+    from ..registry import get_exchange
 
     while True:
         try:
@@ -177,7 +147,7 @@ async def _handle_recv_messages(renderer_weakref: weakref.ReferenceType["Rendere
                 logger.debug("RECV:clientready")
                 call_soon_threadsafe(renderer._send_queue.put_nowait, ClientReadyAckMessage())
 
-            renderer.notify(message, topic_pattern=f"{DEFAULT_TOPIC}")
+            get_exchange().notify(message, topic_pattern=f"{DEFAULT_TOPIC}")
             renderer._recv_queue.task_done()
         except Exception as _:
             logger.error(f"RECV:err:{traceback.format_exc()}")
@@ -315,13 +285,15 @@ class JupyterWidgetRenderer(Renderer):
 
 
     def update(self, message: GuidanceMessage, topic=DEFAULT_TOPIC) -> None:
+        from ..registry import get_exchange
+
         out_messages = []
 
         if isinstance(message, ExecutionCompletedMessage):
             logger.debug("RENDERER:execution end")
             self._completed = True
             self._running = False
-            self.notify(message)
+            get_exchange().notify(message)
 
             if message.is_err:
                 out_messages.append(MetricMessage(name="status", value="Error"))
@@ -432,15 +404,6 @@ class AutoRenderer(Renderer):
             self._renderer = DoNothingRenderer(trace_handler=trace_handler)
 
         super().__init__()
-
-    def notify(self, message: GuidanceMessage, topic_pattern: str = WILDCARD_PATTERN):
-        self._renderer.notify(message, topic_pattern=topic_pattern)
-
-    def subscribe(self, callback: Callable[[GuidanceMessage], None], topic: str = DEFAULT_TOPIC) -> None:
-        self._renderer.subscribe(callback, topic=topic)
-
-    def unsubscribe(self, callback: Callable[[GuidanceMessage], None], topic: str = DEFAULT_TOPIC) -> None:
-        self._renderer.unsubscribe(callback, topic=topic)
 
     def update(self, message: GuidanceMessage, topic: str = DEFAULT_TOPIC) -> None:
         self._renderer.update(message, topic=topic)

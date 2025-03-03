@@ -21,7 +21,7 @@ from ..._schema import (
     GuidanceEngineMetrics,
     LLGrammar,
 )
-from ...registry import get_renderer, get_trace_handler
+from ...registry import get_renderer, get_trace_handler, get_exchange
 from ..._utils import log_cleanup, log_init, softmax, to_utf8_or_bytes_string
 from ...visual import (
     ExecutionCompletedMessage,
@@ -152,13 +152,12 @@ class PostExecMetrics:
 
 
 def _engine_cleanup(
-    renderer: Renderer,
     msg_recv: Callable[[GuidanceMessage], None],
     monitor: Optional["Monitor"],
     periodic_metrics_generator: Optional[PeriodicMetricsGenerator],
     log_msg: str
 ):
-    renderer.unsubscribe(msg_recv)
+    get_exchange().unsubscribe(msg_recv)
 
     if periodic_metrics_generator is not None:
         try:
@@ -234,7 +233,7 @@ class Engine(ABC):
             self.trace_handler = renderer._trace_handler
 
         msg_recv = _wrapped_msg_recv(weakref.ref(self))
-        self.renderer.subscribe(msg_recv)
+        get_exchange().subscribe(msg_recv)
 
         self.model_dict: weakref.WeakValueDictionary[int, "Model"] = weakref.WeakValueDictionary()
 
@@ -252,7 +251,6 @@ class Engine(ABC):
         weakref.finalize(
             self,
             _engine_cleanup,
-            self.renderer,
             msg_recv,
             self.monitor,
             self.periodic_metrics_generator,
