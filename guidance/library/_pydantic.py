@@ -1,5 +1,5 @@
 import inspect
-from typing import Any, Dict, Type, TYPE_CHECKING, Union
+from typing import Any, Dict, Type, Union
 
 import pydantic
 

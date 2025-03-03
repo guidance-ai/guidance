@@ -34,7 +34,7 @@ install_requires = [
     "psutil",
     "tiktoken>=0.3",
     "guidance-stitch",
-    "llguidance==0.5.1",
+    "llguidance==0.6.30",
     "setuptools" # TODO - Remove before release, used for multimodal mocks in python 3.12
 ]
 
@@ -42,7 +42,6 @@ install_requires = [
 extras_requires = {
     "azureai": ["openai>=1.0"],
     "openai": ["openai>=1.0"],
-    "server": ["fastapi-slim", "uvicorn"],
 }
 
 # Create the union of all our requirements

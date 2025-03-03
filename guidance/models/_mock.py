@@ -1,17 +1,14 @@
-from typing import Sequence, Optional
-import numpy as np
 import logging
+from typing import Optional, Sequence
 
+import numpy as np
+
+from .._schema import EngineOutput, GenToken, GenTokenExtra
 from .._utils import softmax
-
-from guidance._schema import EngineOutput, GenToken, GenTokenExtra
-
-from ._model import Engine, Model, Chat
-from ._remote import RemoteEngine
-from ._tokenizer import Tokenizer
-
-from ..visual._renderer import DoNothingRenderer
 from ..trace import TraceHandler
+from ..visual._renderer import DoNothingRenderer
+from ._base import Model
+from ._engine import Engine, EngineClient, EngineState, Tokenizer
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +21,8 @@ except ImportError:
 
 
 class MockTokenizer(Tokenizer):
-    def __init__(self, tokens: Sequence[bytes]):
-        super().__init__(tokens, chat_template=None, bos_token_id=0, eos_token_id=0)
+    def __init__(self, tokens: Sequence[bytes], special_token_ids: Optional[list[int]] = None):
+        super().__init__(tokens, chat_template=None, bos_token_id=0, eos_token_id=0, special_token_ids=special_token_ids)
         self.byte_trie = cpp.ByteTrie(self.tokens, np.arange(len(self.tokens)))
 
     def encode(self, byte_string: bytes) -> list[int]:
@@ -65,7 +62,12 @@ class MockTokenizer(Tokenizer):
 class MockEngine(Engine):
     def __init__(self, tokenizer, byte_patterns, compute_log_probs, force):
         renderer = DoNothingRenderer(trace_handler=TraceHandler())
-        super().__init__(tokenizer, compute_log_probs=compute_log_probs, enable_monitoring=False, renderer=renderer)
+        super().__init__(
+            tokenizer,
+            compute_log_probs=compute_log_probs,
+            enable_monitoring=False,
+            renderer=renderer,
+        )
 
         self._valid_mask = np.zeros(len(tokenizer.tokens))
         for i, t in enumerate(tokenizer.tokens):
@@ -106,7 +108,9 @@ class MockEngine(Engine):
         force_return_unmasked_probs: bool = False,
     ) -> EngineOutput:
         self.called_temperatures.append(temperature)
-        return super().get_next_token_with_top_k(logits, logits_lat_ms, token_ids, mask, temperature, k, force_return_unmasked_probs)
+        return super().get_next_token_with_top_k(
+            logits, logits_lat_ms, token_ids, mask, temperature, k, force_return_unmasked_probs
+        )
 
     def get_logits(self, token_ids: list[int]) -> np.ndarray:
         """Pretends to compute the logits for the given token state."""
@@ -135,11 +139,13 @@ class MockEngine(Engine):
 
         return logits
 
-    def get_per_token_topk_probs(self, token_ids: list[int], top_k: int = 5) -> list[GenTokenExtra]:
+    def get_per_token_topk_probs(
+        self, token_ids: list[int], top_k: int = 5
+    ) -> list[GenTokenExtra]:
         result_list = []
         if len(token_ids) == 0:
             return result_list
-        
+
         added_bos = False
         if self.tokenizer.bos_token is not None and token_ids[0] != self.tokenizer.bos_token_id:
             token_ids = [self.tokenizer.bos_token_id] + token_ids
@@ -221,22 +227,23 @@ class Mock(Model):
     ):
         """Build a new Mock model object that represents a model in a given state."""
 
-        if isinstance(byte_patterns, str) and byte_patterns.startswith("http"):
-            engine = RemoteEngine(byte_patterns, **kwargs)
-        else:
-            # Our tokens are all bytes and all lowercase letter pairs
-            all_lc_pairs = [
-                bytes([i, j]) for i in range(ord("a"), ord("z")) for j in range(ord("a"), ord("z"))
-            ]
-            all_bytes = [bytes([i]) for i in range(256)]
-            tokens = [b"<s>"] + all_lc_pairs + all_bytes
+        # Our tokens are all bytes and all lowercase letter pairs
+        all_lc_pairs = [
+            bytes([i, j]) for i in range(ord("a"), ord("z")) for j in range(ord("a"), ord("z"))
+        ]
+        all_bytes = [bytes([i]) for i in range(256)]
+        tokens = [b"<s>"] + all_lc_pairs + all_bytes
 
-            tokenizer = MockTokenizer(tokens)
-            engine = MockEngine(tokenizer, byte_patterns, compute_log_probs, force)
+        tokenizer = MockTokenizer(tokens, special_token_ids=[0])
+        engine = MockEngine(tokenizer, byte_patterns, compute_log_probs, force)
 
-        super().__init__(engine, echo=echo)
+        super().__init__(
+            client=EngineClient(engine),
+            state=EngineState(),
+            echo=echo,
+        )
 
 
-class MockChat(Mock, Chat):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+# class MockChat(Mock, Chat):
+#     def __init__(self, *args, **kwargs):
+#         super().__init__(*args, **kwargs)

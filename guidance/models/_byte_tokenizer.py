@@ -1,5 +1,5 @@
 import numpy as np
-from ._tokenizer import Tokenizer
+from ._engine import Tokenizer
 from ..chat import load_template_class
 from typing import List
 

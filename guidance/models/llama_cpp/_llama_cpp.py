@@ -3,20 +3,16 @@ import logging
 import operator
 import os
 import sys
-
-from typing import Sequence
-
 from itertools import takewhile
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, Optional, Sequence
 
 import numpy as np
 
-from guidance._schema import GenToken, GenTokenExtra
-
-from .._model import Engine, Model, Chat
-from .._remote import RemoteEngine
-from .._tokenizer import Tokenizer
+from ..._schema import GenToken, GenTokenExtra
 from ..._utils import normalize_notebook_stdout_stderr, softmax
+from .._base import Model
+from .._engine import Engine, EngineClient, EngineState, Tokenizer
 
 try:
     import llama_cpp
@@ -24,6 +20,10 @@ try:
     is_llama_cpp = True
 except ModuleNotFoundError:
     is_llama_cpp = False
+
+if TYPE_CHECKING:
+    from llama_cpp.llama import Llama
+    from llama_cpp.llama_chat_format import Jinja2ChatFormatter
 
 logger = logging.getLogger(__name__)
 
@@ -75,11 +75,13 @@ class LlamaCppTokenizer(Tokenizer):
 
         # get the bytes strings for all the tokens
         tokens = []
+        special_token_ids = []
         for i in range(tokenizer.llama.n_vocab()):
             tok = tokenizer.llama.detokenize([i])  # note that detokenize returns bytes directly
             if tok == b"":
                 # get text rep of special tokens
                 tok = llama_cpp.llama_vocab_get_text(vocab, i)
+                special_token_ids.append(i)
             tokens.append(tok)
 
         # Chat Template logic
@@ -91,7 +93,7 @@ class LlamaCppTokenizer(Tokenizer):
                 chat_template = self._model_obj.metadata["tokenizer.chat_template"]
 
         super().__init__(
-            tokens, chat_template, tokenizer.llama.token_bos(), tokenizer.llama.token_eos()
+            tokens, chat_template, tokenizer.llama.token_bos(), tokenizer.llama.token_eos(), special_token_ids
         )
 
     def encode(self, byte_string: bytes) -> list[int]:
@@ -106,14 +108,16 @@ class LlamaCppTokenizer(Tokenizer):
 class LlamaCppEngine(Engine):
     """The core class that runs inference using llama.cpp."""
 
-    def __init__(self, 
-                 model, 
-                 compute_log_probs, 
-                 chat_template=None, 
-                 enable_backtrack=True, 
-                 enable_ff_tokens=True, 
-                 enable_monitoring=True, 
-                 **kwargs):
+    def __init__(
+        self,
+        model,
+        compute_log_probs,
+        chat_template=None,
+        enable_backtrack=True,
+        enable_ff_tokens=True,
+        enable_monitoring=True,
+        **kwargs,
+    ):
         if not is_llama_cpp:
             raise Exception(
                 "Please install llama-cpp-python with `pip install llama-cpp-python` in order to use guidance.models.LlamaCpp!"
@@ -234,7 +238,9 @@ class LlamaCppEngine(Engine):
 
         return logits
 
-    def get_per_token_topk_probs(self, token_ids: list[int], top_k: int = 5) -> list[GenTokenExtra]:
+    def get_per_token_topk_probs(
+        self, token_ids: list[int], top_k: int = 5
+    ) -> list[GenTokenExtra]:
         if len(token_ids) == 0:
             return []
 
@@ -356,17 +362,15 @@ class LlamaCpp(Model):
     ):
         """Build a new LlamaCpp model object that represents a model in a given state."""
 
-        if isinstance(model, str) and model.startswith("http"):
-            engine = RemoteEngine(model, api_key=api_key, **llama_cpp_kwargs)
-        else:
-            engine = LlamaCppEngine(
-                model,
-                compute_log_probs=compute_log_probs,
-                chat_template=chat_template,
-                enable_backtrack=enable_backtrack,
-                enable_ff_tokens=enable_ff_tokens,
-                enable_monitoring=enable_monitoring,
-                **llama_cpp_kwargs,
-            )
-
-        super().__init__(engine, echo=echo)
+        engine = LlamaCppEngine(
+            model,
+            compute_log_probs=compute_log_probs,
+            chat_template=chat_template,
+            enable_backtrack=enable_backtrack,
+            enable_ff_tokens=enable_ff_tokens,
+            enable_monitoring=enable_monitoring,
+            **llama_cpp_kwargs,
+        )
+        state = EngineState()
+        client = EngineClient(engine)
+        super().__init__(client=client, state=state, echo=echo)

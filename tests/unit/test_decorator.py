@@ -174,14 +174,14 @@ class TestGuidanceMethodCache:
 
     def test_guidance_method_cache(self):
         obj = self.MyClass("You are a helpful AI. Do what the user asks:", "Thank you.")
-        grammar1 = obj.cached_method("Computer, tell me a joke.")
-        grammar2 = obj.cached_method("Computer, tell me a joke.")
+        grammar1 = obj.cached_method("Computer, tell me a joke.").value
+        grammar2 = obj.cached_method("Computer, tell me a joke.").value
         assert grammar1 is grammar2
 
     def test_miss_cache_when_args_change(self):
         obj = self.MyClass("You are a helpful AI. Do what the user asks:", "Thank you.")
-        grammar1 = obj.cached_method("Computer, tell me a joke.")
-        grammar2 = obj.cached_method("Computer, tell me a riddle.")
+        grammar1 = obj.cached_method("Computer, tell me a joke.").value
+        grammar2 = obj.cached_method("Computer, tell me a riddle.").value
         assert grammar1 is not grammar2
         lm = guidance.models.Mock()
         assert (
@@ -195,9 +195,9 @@ class TestGuidanceMethodCache:
 
     def test_miss_cache_when_instance_hash_changes(self):
         obj = self.MyClass("You are a helpful AI. Do what the user asks:", "Thank you.")
-        grammar1 = obj.cached_method("Computer, tell me a joke.")
+        grammar1 = obj.cached_method("Computer, tell me a joke.").value
         obj.suffix = "Thanks!"
-        grammar2 = obj.cached_method("Computer, tell me a joke.")
+        grammar2 = obj.cached_method("Computer, tell me a joke.").value
         assert grammar1 is not grammar2
         lm = guidance.models.Mock()
         assert (
@@ -215,9 +215,9 @@ class TestGuidanceMethodCache:
         will change the grammar. They _must_ implement __hash__ to ensure that the grammar is recalculated when the hash changes.
         """
         obj = self.MyClass("You are a helpful AI. Do what the user asks:", "Thank you.")
-        grammar1 = obj.cached_method("Computer, tell me a joke.")
+        grammar1 = obj.cached_method("Computer, tell me a joke.").value
         obj.delimiter = "\t"
-        grammar2 = obj.cached_method("Computer, tell me a joke.")
+        grammar2 = obj.cached_method("Computer, tell me a joke.").value
         assert grammar1 is grammar2
         lm = guidance.models.Mock()
         assert (
@@ -232,17 +232,17 @@ class TestGuidanceMethodCache:
 
     def test_guidance_method_no_cache(self):
         obj = self.MyClass("You are a helpful AI. Do what the user asks:", "Thank you.")
-        grammar1 = obj.uncached_method("Computer, tell me a joke.")
-        grammar2 = obj.uncached_method("Computer, tell me a joke.")
+        grammar1 = obj.uncached_method("Computer, tell me a joke.").value
+        grammar2 = obj.uncached_method("Computer, tell me a joke.").value
         assert grammar1 is not grammar2
         lm = guidance.models.Mock()
         assert str(lm + grammar1) == str(lm + grammar2)
 
     def test_guidance_method_no_cache_changes_when_instance_changes(self):
         obj = self.MyClass("You are a helpful AI. Do what the user asks:", "Thank you.")
-        grammar1 = obj.uncached_method("Computer, tell me a joke.")
+        grammar1 = obj.uncached_method("Computer, tell me a joke.").value
         obj.delimiter = "\t"
-        grammar2 = obj.uncached_method("Computer, tell me a joke.")
+        grammar2 = obj.uncached_method("Computer, tell me a joke.").value
         assert grammar1 is not grammar2
         lm = guidance.models.Mock()
         assert (
