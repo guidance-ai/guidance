@@ -32,7 +32,7 @@ For example:
 python -m pytest --selected_model transformers_gemma2_9b_cpu ./tests/model_integration/
 ```
 
-The allowed values for `--selected_model` are in the [`_llms_for_testing.py`](./_llms_for_testing.py) file, and are concatenated into the `AVAILABLE_MODELS` dictionary.
+The allowed values for `--selected_model` are in the [`confest.py`](./conftest.py) file, and are defined in the `selected_model` function.
 Alternatively, the `GUIDANCE_SELECTED_MODEL` environment variable can be used to override the default value for `--selected_model` (which can be useful when using a debugger).
 
 ### A Note on Credentials
