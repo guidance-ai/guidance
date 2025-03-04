@@ -13,7 +13,6 @@ from ..._schema import GenToken, GenTokenExtra
 from ..._utils import normalize_notebook_stdout_stderr, softmax
 from .._base import Model
 from .._engine import Engine, EngineClient, EngineState, Tokenizer
-from .._remote import RemoteEngine
 
 try:
     import llama_cpp
@@ -363,18 +362,15 @@ class LlamaCpp(Model):
     ):
         """Build a new LlamaCpp model object that represents a model in a given state."""
 
-        if isinstance(model, str) and model.startswith("http"):
-            engine = RemoteEngine(model, api_key=api_key, **llama_cpp_kwargs)
-        else:
-            engine = LlamaCppEngine(
-                model,
-                compute_log_probs=compute_log_probs,
-                chat_template=chat_template,
-                enable_backtrack=enable_backtrack,
-                enable_ff_tokens=enable_ff_tokens,
-                enable_monitoring=enable_monitoring,
-                **llama_cpp_kwargs,
-            )
+        engine = LlamaCppEngine(
+            model,
+            compute_log_probs=compute_log_probs,
+            chat_template=chat_template,
+            enable_backtrack=enable_backtrack,
+            enable_ff_tokens=enable_ff_tokens,
+            enable_monitoring=enable_monitoring,
+            **llama_cpp_kwargs,
+        )
         state = EngineState()
         client = EngineClient(engine)
         super().__init__(client=client, state=state, echo=echo)

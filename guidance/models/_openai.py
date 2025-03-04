@@ -218,7 +218,7 @@ class OpenAIClient(Client[OpenAIState]):
                 is_append=node.list_append,
             )
         else:
-            return chunks
+            yield from chunks
 
     def regex(self, state: OpenAIState, node: RegexNode, **kwargs) -> Iterator[OutputAttr]:
         if node.regex is not None:
