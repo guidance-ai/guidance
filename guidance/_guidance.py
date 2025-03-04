@@ -139,6 +139,7 @@ def _decorator(f, *, stateless, cache, model):
 
             # otherwise we call the function to generate the grammar
             else:
+                # set the stateless context variable so that others can detect that we're currently calling a stateless function
                 token = _in_stateless_context.set(True)
 
                 # set a RuleRefNode for recursive calls (only if we don't have arguments that might make caching a bad idea)
@@ -161,7 +162,9 @@ def _decorator(f, *, stateless, cache, model):
                     if no_args:
                         thread_local._self_call_reference_.set_target(rule)
                 finally:
+                    # Reset the stateless context back to the previous value
                     _in_stateless_context.reset(token)
+                    # Clean up the thread local reference
                     if no_args:
                         del thread_local._self_call_reference_
 
