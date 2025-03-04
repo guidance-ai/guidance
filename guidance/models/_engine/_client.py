@@ -58,7 +58,7 @@ class EngineClient(Client[EngineState]):
             state.prompt += new_text
 
             # TODO: GenTokenExtra
-            for token in chunk.generated_tokens + chunk.force_forwarded_tokens:
+            for token in chunk.tokens:
                 if token.is_backtracked:
                     continue
                 yield TextOutput(

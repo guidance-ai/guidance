@@ -6,7 +6,7 @@ import llguidance  # type: ignore[import-untyped]
 import numpy as np
 from numpy.typing import NDArray
 
-from ._schema import EngineOutput, GenData, EngineCallResponse, GenToken, LLInterpreterResponse, LLGrammar
+from ._schema import EngineOutput, GenData, LegacyEngineCallResponse, GenToken, LLInterpreterResponse, LLGrammar
 
 if TYPE_CHECKING:
     from .models._engine import Tokenizer
@@ -305,7 +305,7 @@ class ByteParser:
     def get_captures(self):
         return self._variables, self._variables_log_probs
 
-    def _update_capture(self, response: EngineCallResponse):
+    def _update_capture(self, response: LegacyEngineCallResponse):
         # Stolen from model. TODO: refactor to share code
         for k in response.capture_groups:
             v = response.capture_groups[k]

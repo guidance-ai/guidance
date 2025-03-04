@@ -14,7 +14,7 @@ import psutil
 
 from ..._parser import TokenParser
 from ..._schema import (
-    EngineCallResponse,
+    EngineResponse,
     EngineOutput,
     GenToken,
     GenTokenExtra,
@@ -342,7 +342,7 @@ class Engine(ABC):
         grammar: LLGrammar,
         ensure_bos_token: bool = True,
         echo: bool = True,
-    ) -> Iterator[EngineCallResponse]:
+    ) -> Iterator[EngineResponse]:
         """Main entry point for the inference-parser loop. Yields EngineCallResponse objects as
         the parser advances through the grammar.
 
@@ -385,6 +385,9 @@ class Engine(ABC):
 
         engine_output = None
         logits_lat_ms = 0
+        buffered_tokens = []
+        backtracked_bytes = b""
+        buffered_bytes = b""
         while not parser.done():
             t0 = time.time()
 
@@ -394,7 +397,11 @@ class Engine(ABC):
                 token_id = None
             backtrack, ff_tokens, mask_fut = parser.advance(token_id)
             if backtrack:
+                assert not backtracked_bytes
+                assert not buffered_bytes
+                backtracked_bytes = self.tokenizer.decode(tokens[-backtrack:])
                 tokens = tokens[:-backtrack]
+
             tokens += ff_tokens
 
             # Note that has_pending_stop implies that the response is a stop response,
@@ -413,43 +420,83 @@ class Engine(ABC):
             # Important: don't wait on this future until after getting the logits;
             # this allows the mask to be built concurrently with model inference
             mask, ll_response = mask_fut.result()
+            legacy_engine_response = ll_response.progress.to_engine_call_response()
+            buffered_bytes += legacy_engine_response.new_bytes
 
-            engine_response = ll_response.progress.to_engine_call_response()
-            engine_response.backtrack = backtrack
+            if token_id is not None and (backtrack or len(ff_tokens) == 0 or ff_tokens[0] != token_id):
+                # token_id was backtracked, but that's ok!
+                buffered_tokens.append(token_id)
+            buffered_tokens.extend(ff_tokens)
 
-            if engine_output is None:
-                # We are on the first loop -- every ff_token is "input"
-                for token in ff_tokens:
-                    engine_response.force_forwarded_tokens.append(
-                        GenToken(
-                            token_id=token,
-                            prob=1.0,
-                            text=to_utf8_or_bytes_string(self.tokenizer.decode([token])),
-                            latency_ms=0,  # TODO
-                            is_input=True,
-                        )
-                    )
-            else:
-                engine_response.engine_outputs.append(engine_output)
-                if [engine_output.issued_token.token_id] == ff_tokens[:1]:
-                    ff_start_index = 1
+            new_tokens = []
+            i = 0
+            for token_id in buffered_tokens:
+                token_bytes = self.tokenizer.decode([token_id])
+                if (backtracked_bytes + buffered_bytes).startswith(token_bytes):
+                    new_tokens.append({
+                        "token_id": token_id,
+                        "all_bytes": token_bytes,
+                        "new_bytes": token_bytes[len(backtracked_bytes):],
+                    })
+                    if len(token_bytes) > len(backtracked_bytes):
+                        buffered_bytes = buffered_bytes[len(token_bytes)-len(backtracked_bytes):]
+                    backtracked_bytes = backtracked_bytes[len(token_bytes):]
+                    i += 1
                 else:
-                    engine_output.is_backtracked = True
-                    engine_output.issued_token.is_backtracked = True  # a bit redundant
-                    ff_start_index = 0
+                    break
+            buffered_tokens = buffered_tokens[i:]
 
-                engine_response.generated_tokens.append(engine_output.issued_token)
+            engine_response = EngineResponse(
+                new_bytes=b''.join(token["new_bytes"] for token in new_tokens), # Just for now, kind of an assertion that this approach is equivalent to the old one
+                capture_groups=legacy_engine_response.capture_groups,
+                capture_group_log_probs=legacy_engine_response.capture_group_log_probs,
+                backtrack=backtrack,
+                tokens=[GenToken(token_id=token["token_id"], prob=1.0, text=token["new_bytes"],) for token in new_tokens],
+            )
 
-                for token in ff_tokens[ff_start_index:]:
-                    engine_response.force_forwarded_tokens.append(
-                        GenToken(
-                            token_id=token,
-                            prob=1.0,
-                            text=to_utf8_or_bytes_string(self.tokenizer.decode([token])),
-                            latency_ms=0,  # TODO
-                            is_force_forwarded=True,
-                        )
-                    )
+            # new_tokens: list[GenToken] = []
+            # if engine_output is None:
+            #     # We are on the first loop -- every ff_token is "input"
+            #     for token in ff_tokens:
+            #         new_tokens.append(
+            #             GenToken(
+            #                 token_id=token,
+            #                 prob=1.0,
+            #                 text=to_utf8_or_bytes_string(self.tokenizer.decode([token])),
+            #                 latency_ms=0,  # TODO
+            #                 is_input=True,
+            #             )
+            #         )
+            # else:
+            #     issued_token = engine_output.issued_token
+            #     if [issued_token.token_id] == ff_tokens[:1]:
+            #         ff_start_index = 1
+            #     else:
+            #         issued_token.is_backtracked = True
+            #         ff_start_index = 0
+
+            #     new_tokens.append(
+            #         issued_token
+            #     )
+
+            #     for token in ff_tokens[ff_start_index:]:
+            #         new_tokens.append(
+            #             GenToken(
+            #                 token_id=token,
+            #                 prob=1.0,
+            #                 text=to_utf8_or_bytes_string(self.tokenizer.decode([token])),
+            #                 latency_ms=0,  # TODO
+            #                 is_force_forwarded=True,
+            #             )
+            #         )
+
+            # engine_response = EngineResponse(
+            #     new_bytes=legacy_engine_response.new_bytes,
+            #     capture_groups=legacy_engine_response.capture_groups,
+            #     capture_group_log_probs=legacy_engine_response.capture_group_log_probs,
+            #     backtrack=backtrack,
+            #     tokens=new_tokens,
+            # )
 
             # process engine_response
             # NOTE (loc): We should not yield the engine_response if new_bytes are invalid utf-8 bytes
@@ -498,6 +545,7 @@ class Engine(ABC):
                 # Type checker needs some help
                 assert self.tokenizer.eos_token_id is not None
                 engine_output.issued_token.token_id = self.tokenizer.eos_token_id
+
 
     def get_next_token_with_top_k(
         self,
