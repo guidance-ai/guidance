@@ -39,7 +39,7 @@ def trace_node_to_html(
     full_text = ""
     if complete_msg:
         for token in complete_msg.tokens:
-            full_text += token.text
+            full_text += token.bytes
 
     for i, node in enumerate(node_path):
         if isinstance(node.input, RoleOpenerInput):
@@ -108,7 +108,7 @@ def trace_node_to_html(
                     tokens_text = ""
                     while _idx < len(complete_msg.tokens):
                         _token = complete_msg.tokens[_idx]
-                        tokens_text += _token.text
+                        tokens_text += _token.bytes
                         tokens.append(_token)
                         if chunk_text in tokens_text:
                             break
@@ -129,7 +129,7 @@ def trace_node_to_html(
                     prob_idx += len(tokens)
 
                     for token in tokens:
-                        token_str = token.text
+                        token_str = token.bytes
                         prob = token.prob
                         top_k = {}
                         # find the correct token

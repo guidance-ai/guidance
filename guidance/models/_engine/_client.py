@@ -50,28 +50,46 @@ class EngineClient(Client[EngineState]):
         )
 
         delayed_bytes = b""
+        new_bytes_buffer = b""
+        backtracked_bytes_buffer = b""
+        token_buffer = []
         for chunk in engine_gen:
-            new_bytes = chunk.new_bytes
-            new_text, delayed_bytes = partial_decode(new_bytes)
+            if chunk.backtrack_bytes:
+                assert len(new_bytes_buffer) == 0  # otherwise we'll be out of order...
+                backtracked_bytes_buffer += chunk.backtrack_bytes
+            new_bytes_buffer += chunk.new_bytes
+            token_buffer += chunk.tokens
 
-            # Update the state
-            state.prompt += new_text
-
-            # TODO: GenTokenExtra
-            for token in chunk.tokens:
-                if token.is_backtracked:
-                    continue
-                yield TextOutput(
-                    value=token.text,
-                    is_input=token.is_input,
-                    is_generated=token.is_generated,
-                    is_force_forwarded=token.is_force_forwarded,
-                    token_count=1,
-                    prob=token.prob,
-                    tokens=[token],
-                    # TODO: latency
-                )
-            # TODO: yield some kind of backtrack signal
+            i = 0
+            for token in token_buffer:
+                if (backtracked_bytes_buffer + new_bytes_buffer).startswith(token.bytes):
+                    data = {
+                        "token_id": token.token_id,
+                        "bytes": token.bytes,
+                        "new_bytes": token.bytes[len(backtracked_bytes_buffer) :],
+                    }
+                    # Update the state
+                    new_text, delayed_bytes = partial_decode(delayed_bytes + data["new_bytes"])
+                    state.prompt += new_text
+                    # Emit a message
+                    yield TextOutput(
+                        value=new_text,
+                        is_input=token.is_input,
+                        is_generated=token.is_generated,
+                        is_force_forwarded=token.is_force_forwarded,
+                        token_count=1,
+                        prob=token.prob,
+                        tokens=[token],
+                    )
+                    if len(token.bytes) > len(backtracked_bytes_buffer):
+                        new_bytes_buffer = new_bytes_buffer[
+                            len(token.bytes) - len(backtracked_bytes_buffer) :
+                        ]
+                    backtracked_bytes_buffer = backtracked_bytes_buffer[len(token.bytes) :]
+                else:
+                    break
+                i += 1
+            token_buffer = token_buffer[i:]
 
             for name in chunk.capture_groups.keys():
                 values = chunk.capture_groups[name]
@@ -89,6 +107,9 @@ class EngineClient(Client[EngineState]):
                         name, values.decode("utf-8"), log_prob=log_probs, is_append=False
                     )
 
+        if new_bytes_buffer:
+            # TODO: Fix the related error in tool call (nontrivial backtrack)
+            raise RuntimeError("Shouldn't have any new bytes left...")
         if delayed_bytes:
             raise RuntimeError("Shouldn't have any delayed bytes left...")
 

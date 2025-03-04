@@ -319,7 +319,7 @@ def log_cleanup(s: str):
     logger.debug(f"CLEANUP:{s}")
     pass
 
-def to_utf8_or_bytes_string(_bytes: bytes) -> str:
+def to_utf8_or_bytes_string(_bytes: bytes) -> bytes:
     """
     Converts a byte sequence to a UTF-8 string if possible. If the byte sequence
     cannot be decoded as UTF-8, it returns the string representation of the byte sequence.
@@ -335,7 +335,10 @@ def to_utf8_or_bytes_string(_bytes: bytes) -> str:
         The decoded UTF-8 string or the string representation of the byte sequence
         if UTF-8 decoding fails.
     """
-    try:
-        return _bytes.decode("utf-8")
-    except UnicodeDecodeError:
-        return str(_bytes)
+    # try:
+    #     return _bytes.decode("utf-8")
+    # except UnicodeDecodeError:
+    #     return str(_bytes)
+    
+    # MODIFIED TO BE A NO-OP FOR NOW
+    return _bytes
