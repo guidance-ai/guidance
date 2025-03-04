@@ -4,6 +4,7 @@ import threading
 from typing import Any
 import weakref
 import dataclasses
+from contextvars import ContextVar
 
 from ._grammar import string
 
@@ -11,6 +12,7 @@ from ._ast import Function, RuleRefNode, RuleNode
 from ._utils import strip_multiline_string_indents, make_weak_bound_method, signature_pop
 from .models import Model
 
+_in_stateless_context: ContextVar[bool] = ContextVar("in_stateless_context", default=False)
 
 def guidance(
     f = None,
@@ -130,7 +132,6 @@ def _decorator(f, *, stateless, cache, model):
         if stateless is True or (
             callable(stateless) and stateless(*args, **kwargs)
         ):
-
             # if we have a (deferred) reference set, then we must be in a recursive definition and so we return the reference
             reference = getattr(thread_local, "_self_call_reference_", None)
             if reference is not None:
@@ -138,6 +139,7 @@ def _decorator(f, *, stateless, cache, model):
 
             # otherwise we call the function to generate the grammar
             else:
+                token = _in_stateless_context.set(True)
 
                 # set a RuleRefNode for recursive calls (only if we don't have arguments that might make caching a bad idea)
                 no_args = len(args) + len(kwargs) == 0
@@ -159,6 +161,7 @@ def _decorator(f, *, stateless, cache, model):
                     if no_args:
                         thread_local._self_call_reference_.set_target(rule)
                 finally:
+                    _in_stateless_context.reset(token)
                     if no_args:
                         del thread_local._self_call_reference_
 
