@@ -3,7 +3,7 @@
 import logging
 import time
 import weakref
-from abc import ABC
+from abc import ABC, abstractmethod
 from asyncio import CancelledError
 from enum import Enum
 from multiprocessing import Manager, Process
@@ -383,11 +383,8 @@ class Engine(ABC):
             enable_ff_tokens=self.enable_ff_tokens,
         )
 
-        has_get_logits = True
         engine_output = None
         logits_lat_ms = 0
-        delayed_bytes = b""
-        delayed_engine_outputs: list[EngineOutput] = []
         while not parser.done():
             t0 = time.time()
 
@@ -405,17 +402,12 @@ class Engine(ABC):
             # unnecessary calls to get_logits on the final iteration.
             has_pending_stop = parser.has_pending_stop()
 
-            if has_get_logits and not has_pending_stop:
-                try:
-                    t0 = time.time()
-                    logits = self.get_logits(token_ids=tokens)
-                    logits_lat_ms = (time.time() - t0) * 1000
-                except NotImplementedError:
-                    # Permanently fall-back to get_next_token if get_logits is not implemented
-                    has_get_logits = False
-                    logits = None
-                    logits_lat_ms = 0
+            if not has_pending_stop:
+                t0 = time.time()
+                logits = self.get_logits(token_ids=tokens)
+                logits_lat_ms = (time.time() - t0) * 1000
             else:
+                # Avoid calling get_logits if we know we won't use it
                 logits = None
 
             # Important: don't wait on this future until after getting the logits;
@@ -647,15 +639,9 @@ class Engine(ABC):
 
         return output
 
-    def get_next_token(
-        self, token_ids: list[int], mask: Optional[bytes], temperature: float
-    ) -> int:
-        # Prefer to implement get_logits over get_next_token as it allows for concurrent mask computation
-        raise NotImplementedError
-
+    @abstractmethod
     def get_logits(self, token_ids: list[int]) -> np.ndarray:
-        # Prefer to implement get_logits over get_next_token as it allows for concurrent mask computation
-        raise NotImplementedError
+        pass
 
     def get_per_token_topk_probs(self, token_ids: list[int], top_k: int = 5) -> list[GenToken]:
         """Get the top-k probabilities for each token in the sequence."""
