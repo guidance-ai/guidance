@@ -441,7 +441,8 @@ class Engine(ABC):
                         prob=1.0,
                         bytes=self.tokenizer.tokens[token_id],
                         latency_ms=0,  # TODO
-                        is_force_forwarded=True,
+                        is_force_forwarded=engine_output is not None,
+                        is_input=engine_output is None,
                     )
                 )
 

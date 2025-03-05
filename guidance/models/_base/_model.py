@@ -115,7 +115,7 @@ class Model(Generic[S]):
             self._update_trace_node(self._id, self._parent_id, StatelessGuidanceInput(value=node))
 
         for i, output_attr in enumerate(self._client.run(self._state, node)):
-            if isinstance(output_attr, TextOutput):
+            if isinstance(output_attr, TextOutput) and not output_attr.is_input:
                 # TODO: put this elsewhere (inside state?)
                 self.token_count += output_attr.token_count
             if i != 0:
