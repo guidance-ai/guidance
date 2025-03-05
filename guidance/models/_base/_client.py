@@ -3,12 +3,14 @@ from typing import Generic, Iterator, TypeVar
 
 from ..._ast import (
     ASTNode,
+    GBNFNode,
     GenAudio,
     GrammarNode,
     ImageBlob,
     ImageUrl,
     JoinNode,
     JsonNode,
+    LarkNode,
     LiteralNode,
     RegexNode,
     RepeatNode,
@@ -86,6 +88,12 @@ class Client(Generic[S]):
         return self.grammar(state, node, **kwargs)
 
     def json(self, state: S, node: JsonNode, **kwargs) -> Iterator[OutputAttr]:
+        return self.grammar(state, node, **kwargs)
+
+    def lark(self, state: S, node: LarkNode, **kwargs) -> Iterator[OutputAttr]:
+        return self.grammar(state, node, **kwargs)
+
+    def gbnf(self, state: S, node: GBNFNode, **kwargs) -> Iterator[OutputAttr]:
         return self.grammar(state, node, **kwargs)
 
     def gen_audio(self, state: S, node: GenAudio, **kwargs) -> Iterator[OutputAttr]:
