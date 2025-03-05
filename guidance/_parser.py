@@ -70,7 +70,7 @@ class TokenParser:
     def has_pending_stop(self) -> bool:
         return self._has_pending_stop
 
-    def _process_prompt(self, prompt_tokens: bytes, ensure_bos_token: bool) -> tuple[int, list[int]]:
+    def _process_prompt(self, prompt_tokens: list[int], ensure_bos_token: bool) -> tuple[int, list[int]]:
         new_prompt_tokens = self.ll_interpreter.process_prompt(prompt_tokens)
         if (
             ensure_bos_token
