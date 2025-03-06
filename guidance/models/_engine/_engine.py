@@ -167,15 +167,6 @@ class Engine(ABC):
     def reset_metrics(self):
         self.metrics = GuidanceEngineMetrics()
 
-    def apply_chat_template(
-        self,
-        messages: Sequence[Message],
-        active_message: Message,
-        tools: Optional[list[Any]],
-    ) -> str:
-        # TODO: move onto the tokenizer
-        raise NotImplementedError()
-
     def __call__(
         self,
         state: EngineState,
@@ -203,23 +194,11 @@ class Engine(ABC):
         # images = state.images
         # audio = state.audio
         # videos = state.videos
-        # TODO: should this be configurable?
-        use_apply_chat_template = False
-        if use_apply_chat_template:
-            messages = state.messages
-            active_message = state.active_message
-            prompt = self.apply_chat_template(
-                messages,
-                active_message,
-                tools=None,
-            )
-        else:
-            prompt = state.text
 
         parser = TokenParser(
             grammar,
             tokenizer=self.tokenizer,
-            prompt=prompt.encode("utf-8"),
+            prompt=state.prompt.encode("utf-8"),
             ensure_bos_token=ensure_bos_token,
             enable_backtrack=self.enable_backtrack,
             enable_ff_tokens=self.enable_ff_tokens,

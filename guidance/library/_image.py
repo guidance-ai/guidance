@@ -2,18 +2,22 @@ import pathlib
 import typing
 import pkg_resources
 import base64
+import re
 
 from .._guidance import guidance
 from .._utils import bytes_from
-from .._ast import ImageNode
+from .._ast import ImageBlob, ImageUrl
 from ..trace._trace import ImageOutput
 
 
 @guidance
 def image(lm, src: typing.Union[str, pathlib.Path, bytes], allow_local: bool = True):
-    bytes_data = bytes_from(src, allow_local=allow_local)
-    base64_string = base64.b64encode(bytes_data).decode('utf-8')
-    lm += ImageNode(value=base64_string)
+    if isinstance(src, str) and re.match(r"^(?!file://)[^:/]+://", src):
+        lm += ImageUrl(url=src)
+    else:
+        bytes_data = bytes_from(src, allow_local=allow_local)
+        base64_string = base64.b64encode(bytes_data).decode('utf-8')
+        lm += ImageBlob(data=base64_string)
     return lm
 
 

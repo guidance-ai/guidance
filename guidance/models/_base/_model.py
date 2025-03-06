@@ -6,23 +6,35 @@ from contextvars import ContextVar, copy_context
 from copy import deepcopy
 from typing import TYPE_CHECKING, Any, Generic, Iterator, Optional, TypeVar, Union
 
-from typing_extensions import Self, assert_never
+from typing_extensions import Self
 
 from ..._ast import ASTNode, Function, _parse_tags
 from guidance.registry import get_renderer, get_trace_handler
+from ..._ast import (
+    ASTNode,
+    Function,
+    GenAudio,
+    ImageBlob,
+    ImageUrl,
+    LiteralNode,
+    RoleEnd,
+    RoleStart,
+    _parse_tags,
+)
 from ...trace import (
-    CaptureOutput,
-    ImageOutput,
+    ImageInput,
     LiteralInput,
     NodeAttr,
     RoleCloserInput,
     RoleOpenerInput,
+    StatelessGuidanceInput,
     TextOutput,
     TraceNode,
 )
+from ...trace._trace import AudioInput
 from ...visual import TraceMessage
 from ._client import Client
-from ._state import MessageChunk, State
+from ._state import State
 
 if TYPE_CHECKING:
     from ...library._block import Block
@@ -93,54 +105,55 @@ class Model(Generic[S]):
             self = self._apply_node(other)
             self = self._update_open_block_captures()
             return self
-        if TYPE_CHECKING:
-            assert_never(other)
         return NotImplemented
 
     def _apply_node(self, node: ASTNode) -> Self:
-        for chunk in self._client.run(self._state, node):
-            self = self._apply_chunk(chunk)
+        self = self.copy()
+
+        # Input side of trace handler.
+        # TODO: StatefulGuidanceInput up in __add__?
+        if isinstance(node, RoleStart):
+            self._update_trace_node(self._id, self._parent_id, RoleOpenerInput(name=node.role))
+        elif isinstance(node, RoleEnd):
+            self._update_trace_node(self._id, self._parent_id, RoleCloserInput(name=node.role))
+        elif isinstance(node, LiteralNode):
+            self._update_trace_node(self._id, self._parent_id, LiteralInput(value=node.value))
+        elif isinstance(node, ImageBlob):
+            self._update_trace_node(self._id, self._parent_id, ImageInput(value=node.data))
+        elif isinstance(node, ImageUrl):
+            # TODO -- let's avoid downloading it here
+            pass
+        elif isinstance(node, GenAudio):
+            self._update_trace_node(
+                self._id, self._parent_id, AudioInput(value="")
+            )  # TODO -- what goes here?
+        else:
+            self._update_trace_node(self._id, self._parent_id, StatelessGuidanceInput(value=node))
+
+        for i, output_attr in enumerate(self._client.run(self._state, node)):
+            if isinstance(output_attr, TextOutput):
+                # TODO: put this elsewhere (inside state?)
+                self.token_count += output_attr.token_count
+            if i != 0:
+                # On the first iteration, we already have a fresh trace node
+                # TODO: should be allowed to associate multiple output_attrs with a single input node?
+                # TODO: put this responsibility on the client in the case that it breaks a single input
+                # node into multiple input nodes to be handled sequentially?
+                self._parent_id = self._id
+                self._id = _gen_id()
+            self._update_trace_node(self._id, self._parent_id, output_attr)
+            # Stream current model state
+            self._send_to_event_queue()
         return self
 
     def _send_to_event_queue(self) -> None:
         """For streaming"""
         for event_queue in _event_queues.get():
-            event_queue.put(self)
+            event_queue.put(self.copy())
 
     def stream(self) -> "ModelStream":
         """Return a new model stream object that delays execution until it is iterated over."""
         return ModelStream(self)
-
-    def _apply_chunk(self, chunk: MessageChunk) -> Self:
-        self = self.copy()
-        self._state.apply_chunk(chunk)
-        if isinstance(chunk, TextOutput):
-            self.token_count += chunk.token_count
-        if isinstance(
-            chunk,
-            (
-                LiteralInput,
-                TextOutput,
-                CaptureOutput,
-                RoleOpenerInput,
-                RoleCloserInput,
-                ImageOutput,
-            ),
-        ):
-            self._update_trace_node(self._id, self._parent_id, chunk)
-            if isinstance(chunk, RoleOpenerInput):
-                # TODO: this is a hotfix / workaround -- the vis front-end expects a string corresponding
-                # to the just-opened role.
-                self = self.copy()
-                self._update_trace_node(self._id, self._parent_id, TextOutput(value=chunk.text))
-        else:
-            if TYPE_CHECKING:
-                assert_never(chunk)
-            raise NotImplementedError(f"Unsupported chunk type: {type(chunk)}")
-
-        # Stream current model state
-        self._send_to_event_queue()
-        return self
 
     def _apply_blocks(self) -> Self:
         self = self.copy()
@@ -189,6 +202,7 @@ class Model(Generic[S]):
         obj.__dict__.update(self.__dict__)
 
         obj._state = deepcopy(self._state)
+        obj._active_blocks = {**self._active_blocks}
         obj._id = _gen_id()
         obj._parent_id = self._id
         obj._trace_nodes = set()

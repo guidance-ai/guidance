@@ -8,7 +8,6 @@ from ._guidance import guidance
 
 from ._ast import GrammarNode, Function
 from ._utils import strip_multiline_string_indents
-# from ._server import Server
 
 
 # This makes the guidance module callable
