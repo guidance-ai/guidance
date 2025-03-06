@@ -62,7 +62,11 @@ class EngineClient(Client[EngineState]):
 
             i = 0
             for token in token_buffer:
-                if (backtracked_bytes_buffer + new_bytes_buffer).startswith(token.bytes):
+                if token.is_backtracked:
+                    # Backtracked tokens are not emitted
+                    i += 1
+                    continue
+                elif (backtracked_bytes_buffer + new_bytes_buffer).startswith(token.bytes):
                     data = {
                         "token_id": token.token_id,
                         "bytes": token.bytes,
@@ -86,9 +90,10 @@ class EngineClient(Client[EngineState]):
                             len(token.bytes) - len(backtracked_bytes_buffer) :
                         ]
                     backtracked_bytes_buffer = backtracked_bytes_buffer[len(token.bytes) :]
+                    i += 1
                 else:
                     break
-                i += 1
+
             token_buffer = token_buffer[i:]
 
             for name in chunk.capture_groups.keys():

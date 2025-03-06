@@ -415,31 +415,34 @@ class Engine(ABC):
             legacy_engine_response = ll_response.progress.to_engine_call_response()
 
             gen_tokens = []
-            if engine_output is not None:
-                gen_tokens.append(engine_output.issued_token)
-            if (
-                engine_output is None
-                or backtrack
-                or len(ff_tokens) == 0
-                or (
-                    engine_output is not None
-                    and ff_tokens[0] != engine_output.issued_token.token_id
-                )
-            ):
-                ff_start_index = 0
-            else:
-                ff_start_index = 1
-            for token_id in ff_tokens[ff_start_index:]:
-                gen_tokens.append(
-                    GenToken(
-                        token_id=token_id,
-                        prob=1.0,
-                        bytes=self.tokenizer.tokens[token_id],
-                        latency_ms=0,  # TODO
-                        is_force_forwarded=engine_output is not None,
-                        is_input=engine_output is None,
+            if engine_output is None:
+                for token_id in ff_tokens:
+                    gen_tokens.append(
+                        GenToken(
+                            token_id=token_id,
+                            prob=1.0,
+                            bytes=self.tokenizer.tokens[token_id],
+                            latency_ms=0,  # TODO
+                            is_input=True,
+                        )
                     )
-                )
+            else:
+                gen_tokens.append(engine_output.issued_token)
+                if backtrack or ff_tokens[:1] != [engine_output.issued_token.token_id]:
+                    engine_output.issued_token.is_backtracked = True
+                    ff_start_index = 0
+                else:
+                    ff_start_index = 1
+                for token_id in ff_tokens[ff_start_index:]:
+                    gen_tokens.append(
+                        GenToken(
+                            token_id=token_id,
+                            prob=1.0,
+                            bytes=self.tokenizer.tokens[token_id],
+                            latency_ms=0,  # TODO
+                            is_force_forwarded=True,
+                        )
+                    )
 
             engine_response = EngineResponse(
                 new_bytes=legacy_engine_response.new_bytes,
