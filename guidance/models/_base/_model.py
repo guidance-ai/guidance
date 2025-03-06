@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING, Any, Generic, Iterator, Optional, TypeVar, Uni
 
 from typing_extensions import Self
 
+from ..._ast import ASTNode, Function, _parse_tags
+from guidance.registry import get_renderer, get_trace_handler
 from ..._ast import (
     ASTNode,
     Function,
@@ -19,7 +21,6 @@ from ..._ast import (
     RoleStart,
     _parse_tags,
 )
-from ..._singleton import get_renderer, get_trace_handler
 from ...trace import (
     ImageInput,
     LiteralInput,
@@ -77,6 +78,21 @@ class Model(Generic[S]):
         self._trace_nodes: set[TraceNode] = set()
         self._update_trace_node(self._id, self._parent_id, None)
 
+    def _update_trace_node(
+        self, identifier: int, parent_id: Optional[int], node_attr: Optional[NodeAttr] = None
+    ) -> None:
+        trace_handler = get_trace_handler()
+        trace_node = trace_handler.update_node(identifier, parent_id, node_attr)
+        self._trace_nodes.add(trace_node)
+        if self.echo:
+            get_renderer().update(
+                TraceMessage(
+                    trace_id=identifier,
+                    parent_trace_id=parent_id,
+                    node_attr=node_attr,
+                )
+            )
+
     def __add__(self, other: Union[str, Function, ASTNode]) -> Self:
         self = self._apply_blocks()
         if isinstance(other, str):
@@ -129,21 +145,6 @@ class Model(Generic[S]):
             # Stream current model state
             self._send_to_event_queue()
         return self
-
-    def _update_trace_node(
-        self, identifier: int, parent_id: Optional[int], node_attr: Optional[NodeAttr] = None
-    ) -> None:
-        trace_handler = get_trace_handler()
-        trace_node = trace_handler.update_node(identifier, parent_id, node_attr)
-        self._trace_nodes.add(trace_node)
-        if self.echo:
-            get_renderer(trace_handler).update(
-                TraceMessage(
-                    trace_id=identifier,
-                    parent_trace_id=parent_id,
-                    node_attr=node_attr,
-                )
-            )
 
     def _send_to_event_queue(self) -> None:
         """For streaming"""

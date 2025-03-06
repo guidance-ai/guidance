@@ -23,11 +23,7 @@
   import { longhover } from "./longhover";
   import DOMPurify from "dompurify";
 
-  import {
-    interpolateGreens,
-    interpolateYlOrRd,
-    interpolateBlues,
-  } from "d3-scale-chromatic";
+    import {interpolateGreens, interpolateBlues} from "d3-scale-chromatic";
 
   export let textComponents: Array<NodeAttr>;
   export let tokenDetails: Array<GenTokenExtra>;
@@ -225,7 +221,7 @@
           ) {
             const token: Token = {
               text: nodeAttr.value,
-              prob: 1,
+              prob: nodeAttr.prob,
               latency_ms: 0,
               role: "",
               special: true,
@@ -241,7 +237,7 @@
           } else {
             const token = {
               text: nodeAttr.value,
-              prob: 1,
+              prob: nodeAttr.prob,
               latency_ms: 0,
               role: "",
               special: false,
@@ -264,30 +260,24 @@
             );
           }
 
-          const token = {
-            text: nodeAttr.value,
-            prob: 1,
-            latency_ms: 0,
-            role: activeOpenerRole.name || "",
-            special: true,
-            is_input: nodeAttr.is_input,
-            is_force_forwarded: nodeAttr.is_force_forwarded,
-            is_generated: nodeAttr.is_generated,
-          };
-          if (token.role !== "") {
-            namedRoleSet[nodeAttr.value] = token.role;
-          }
-          specialSet.add(token.text);
-        //   multimodalNodes.push({ type: "token", data: token });
-          tokens.push(token);
-          activeOpenerRoles.pop();
+                    const token = {
+                        text: nodeAttr.value, prob: nodeAttr.prob, latency_ms: 0, role: activeOpenerRole.name || "", special: true,
+                        is_input: nodeAttr.is_input, is_force_forwarded: nodeAttr.is_force_forwarded,
+                        is_generated: nodeAttr.is_generated,
+                    };
+                    if (token.role !== "") {
+                        namedRoleSet[nodeAttr.value] = token.role;
+                    }
+                    specialSet.add(token.text);
+                    tokens.push(token);
+                    activeOpenerRoles.pop();
+                }
+            }
         }
-      }
-    }
-    // NOTE(nopdive): Often the closer text is missing at the end of output.
-    if (activeOpenerRoles.length !== 0 || activeCloserRoleText.length !== 0) {
-      // console.log("Opener and closer role texts did not balance.")
-    }
+        // NOTE(nopdive): Often the closer text is missing at the end of output.
+        if (activeOpenerRoles.length !== 0 || activeCloserRoleText.length !== 0) {
+            // console.log("Opener and closer role texts did not balance.")
+        }
 
     // Process tokens to have detail if we have it (should only happen once at the end).
     const isDetailed = tokenDetails.length > 0;
