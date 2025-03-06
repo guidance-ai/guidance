@@ -112,7 +112,7 @@ def find_version(*file_paths):
 
 setup(
     name="guidance",
-    version=find_version("guidance", "_exchange.py"),
+    version=find_version("guidance", "__init__.py"),
     url="https://github.com/guidance-ai/guidance",
     author="Guidance Maintainers",
     author_email="maintainers@guidance-ai.org",
