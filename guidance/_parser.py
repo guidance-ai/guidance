@@ -30,8 +30,6 @@ class TokenParser:
         self,
         grammar: LLGrammar,
         tokenizer: "Tokenizer",
-        prompt_tokens: Optional[list[int]] = None,
-        ensure_bos_token: bool = True,
         enable_backtrack: bool = True,
         enable_ff_tokens: bool = True,
     ):
@@ -45,7 +43,7 @@ class TokenParser:
             log_level=int(os.environ.get("LLGUIDANCE_LOG_LEVEL", "1")),
         )
         self._threadpool = ThreadPoolExecutor(max_workers=1)
-        self._generator = self._parse(prompt_tokens or [], ensure_bos_token)
+        self._generator = self._parse()
         self._done = False
         self._has_pending_stop = False
 
@@ -70,16 +68,12 @@ class TokenParser:
     def has_pending_stop(self) -> bool:
         return self._has_pending_stop
 
-    def _process_prompt(self, prompt_tokens: list[int], ensure_bos_token: bool) -> tuple[int, list[int]]:
+    def process_prompt(self, prompt_tokens: list[int]) -> tuple[int, list[int], Future[tuple[Optional[bytes], LLInterpreterResponse]]]:
         new_prompt_tokens = self.ll_interpreter.process_prompt(prompt_tokens)
-        if (
-            ensure_bos_token
-            and self.tokenizer.bos_token is not None
-            and new_prompt_tokens[:1] != [self.tokenizer.bos_token_id]
-        ):
-            # add the beginning of sequence token if needed
-            new_prompt_tokens = [self.tokenizer.bos_token_id] + new_prompt_tokens
-            new_prompt_tokens = self.tokenizer.recode(new_prompt_tokens)
+
+        _backtrack, _ff_tokens, mask_fut = self._generator.send(None)
+        assert _backtrack == 0
+        assert _ff_tokens == []
 
         backtrack = len(prompt_tokens)
         for (old, new) in zip(prompt_tokens, new_prompt_tokens):
@@ -89,7 +83,7 @@ class TokenParser:
         common_len = len(prompt_tokens) - backtrack
         ff_tokens = new_prompt_tokens[common_len:]
 
-        return backtrack, ff_tokens
+        return backtrack, ff_tokens, mask_fut
 
     def compute_mask(self) -> tuple[Optional[bytes], LLInterpreterResponse]:
         mask, ll_response_string = self.ll_interpreter.compute_mask()
@@ -97,9 +91,7 @@ class TokenParser:
         return mask, ll_response
 
     def _parse(
-        self,
-        prompt_tokens: list[int],
-        ensure_bos_token: bool,
+        self
     ) -> Generator[
         tuple[
             int,
@@ -109,11 +101,8 @@ class TokenParser:
         Optional[int],
         None
     ]:
-        backtrack, ff_tokens = self._process_prompt(
-            prompt_tokens=prompt_tokens,
-            ensure_bos_token=ensure_bos_token
-        )
-
+        backtrack = 0
+        ff_tokens = []
         token_id = None
         while True:
             # Note: need to call/set has_pending_stop before spinning up the compute mask 
@@ -183,13 +172,11 @@ class ByteParser:
     def __init__(
         self,
         grammar: LLGrammar,
-        prompt: bytes = b"",
-        ensure_bos_token: bool = True,
     ):
         # TODO: figure out this circular import
         from .models._byte_tokenizer import ByteTokenizer
         self.tokenizer = ByteTokenizer()
-        self.token_parser = TokenParser(grammar, self.tokenizer, prompt, ensure_bos_token)
+        self.token_parser = TokenParser(grammar, self.tokenizer)
         self.bytes = b""
         self.gen_data: Optional[GenData] = None
         self.pos = 0
@@ -197,7 +184,6 @@ class ByteParser:
         self._variables_log_probs: dict[str, Any] = {}
         # Prime the parser
         self._advance(None)
-        self.consume_bytes(prompt)
 
     def matched(self) -> bool:
         if self.pos < len(self.bytes):
@@ -224,7 +210,10 @@ class ByteParser:
             tokens = self.gen_data.tokens
         else:
             tokens = []
-        backtrack, ff_tokens, compute_mask_future = self.token_parser.advance(engine_output)
+        if engine_output is None:
+            backtrack, ff_tokens, compute_mask_future = self.token_parser.process_prompt([])
+        else:
+            backtrack, ff_tokens, compute_mask_future = self.token_parser.advance(engine_output)
         if backtrack:
             tokens = tokens[:-backtrack]
         tokens += ff_tokens

@@ -365,20 +365,10 @@ class Engine(ABC):
         # videos = state.videos
 
         tokens = self.tokenizer.encode(state.prompt.encode("utf-8"))
-        # add the beginning of sequence token if needed
-        if (
-            ensure_bos_token
-            and self.tokenizer.bos_token is not None
-            and tokens[:1] != [self.tokenizer.bos_token_id]
-        ):
-            tokens = [self.tokenizer.bos_token_id] + tokens
-            tokens = self.tokenizer.recode(tokens)
 
         parser = TokenParser(
             grammar,
             tokenizer=self.tokenizer,
-            prompt_tokens=tokens,
-            ensure_bos_token=ensure_bos_token,
             enable_backtrack=self.enable_backtrack,
             enable_ff_tokens=self.enable_ff_tokens,
         )
@@ -388,18 +378,25 @@ class Engine(ABC):
         while not parser.done():
             t0 = time.time()
 
-            if engine_output is not None:
-                token_id = engine_output.issued_token.token_id
+            if engine_output is None:
+                backtrack, ff_tokens, mask_fut = parser.process_prompt(tokens)
             else:
-                token_id = None
-            backtrack, ff_tokens, mask_fut = parser.advance(token_id)
+                backtrack, ff_tokens, mask_fut = parser.advance(engine_output.issued_token.token_id)
+
             if backtrack:
                 backtracked_bytes = self.tokenizer.decode(tokens[-backtrack:])
                 tokens = tokens[:-backtrack]
             else:
                 backtracked_bytes = b""
-
             tokens += ff_tokens
+
+            # add the beginning of sequence token if needed (should only happen once, if at all)
+            if (
+                ensure_bos_token
+                and self.tokenizer.bos_token_id is not None
+                and tokens[:1] != [self.tokenizer.bos_token_id]
+            ):
+                tokens = [self.tokenizer.bos_token_id] + tokens
 
             # Note that has_pending_stop implies that the response is a stop response,
             # but the converse is not true. We can therefore avoid some (but not all)
