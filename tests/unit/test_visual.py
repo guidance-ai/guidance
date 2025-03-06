@@ -1,11 +1,11 @@
 import pytest
 from guidance._schema import GenTokenExtra, GenToken
+from guidance.registry import get_bg_async
 from guidance.trace import TraceHandler, LiteralInput, TextOutput
 from guidance.visual import TraceMessage, MetricMessage, ExecutionCompletedMessage, \
     TokensMessage, ResetDisplayMessage, ClientReadyMessage, OutputRequestMessage, \
     ClientReadyAckMessage, trace_node_to_html, display_trace_tree, trace_node_to_str
 from guidance.visual import serialize_message, deserialize_message
-from guidance._async.__init__ import async_loop, async_task, run_async_coroutine
 from guidance.visual._environment import Environment
 import asyncio
 
@@ -32,13 +32,13 @@ def test_serialization(message):
 
 
 def test_async():
-    loop = async_loop()
+    _, loop = get_bg_async()._thread_and_loop()
     assert loop != asyncio.get_event_loop()
 
     async def f():
         return True
 
-    task = run_async_coroutine(async_task(f())).result()
+    task = get_bg_async().run_async_coroutine(get_bg_async().async_task(f())).result()
     assert task.result() is True
 
 
