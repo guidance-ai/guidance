@@ -44,17 +44,6 @@ jobs:
         run: |
           pytest -vv ./tests/unit
 
-  # server_tests:
-  #   strategy:
-  #     fail-fast: false # Don't cancel all on first failure
-  #     matrix:
-  #       os: ["ubuntu-latest"]
-  #       python-version: ["3.12"]
-  #   uses: ./.github/workflows/call_server_tests.yml
-  #   with:
-  #     os: ${{ matrix.os }}
-  #     python-version: ${{ matrix.python-version }}
-
   cpu_tests:
     strategy:
       fail-fast: false # Don't cancel all on first failure
