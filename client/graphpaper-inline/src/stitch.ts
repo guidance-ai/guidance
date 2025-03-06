@@ -34,18 +34,21 @@ export interface TextOutput extends NodeAttr {
 export interface ImageOutput extends NodeAttr {
     class_name: 'ImageOutput',
     value: string,
+    format: string,
     is_input: boolean,
 }
 
 export interface AudioOutput extends NodeAttr {
     class_name: 'AudioOutput',
     value: string,
+    format: string,
     is_input: boolean,
 }
 
 export interface VideoOutput extends NodeAttr {
     class_name: 'VideoOutput',
     value: string,
+    format: string,
     is_input: boolean,
 }
 

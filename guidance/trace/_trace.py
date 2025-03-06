@@ -69,16 +69,19 @@ class ImageInput(InputAttr):
     """Image input."""
 
     value: str
+    format: str = "png"
 
 
 class AudioInput(InputAttr):
     """Audio input."""
     value: str
+    format: str = "wav"
 
 
 class VideoInput(InputAttr):
     """Video input."""
     value: str
+    format: str = "mp4"
 
 
 class EmbeddedInput(InputAttr):
@@ -111,12 +114,14 @@ class RoleCloserInput(InputAttr):
 class AudioOutput(OutputAttr):
     """Audio output."""
     value: str
+    format: str = "wav"
     is_input: bool = False
 
 
 class VideoOutput(OutputAttr):
     """Video output."""
     value: str
+    format: str = "mp4"
     is_input: bool = False
 
 
@@ -124,6 +129,7 @@ class ImageOutput(OutputAttr):
     """Image output."""
 
     value: str
+    format: str = "png"
     is_input: bool = False
 
 
