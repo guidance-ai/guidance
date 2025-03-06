@@ -4,7 +4,6 @@ from io import BytesIO
 from typing import TYPE_CHECKING, Iterator, Literal, Optional, Union
 
 from pydantic import BaseModel, Discriminator, Field, TypeAdapter
-from pydantic.types import Base64Str
 from typing_extensions import Annotated, assert_never
 
 from .._ast import (
@@ -41,7 +40,7 @@ def get_role_end(role: str) -> str:
 class AssistantAudio(BaseModel):
     id: str
     expires_at: int = Field(exclude=True)
-    data: Base64Str = Field(exclude=True)
+    data: str = Field(exclude=True)
     transcript: str = Field(exclude=True)
 
 
@@ -56,13 +55,13 @@ class TextContent(BaseModel):
 
 
 class InputAudio(BaseModel):
-    data: Base64Str
+    data: str
     format: str
 
 
 class AudioContent(BaseModel):
     type: Literal["input_audio"]
-    audio: InputAudio
+    input_audio: InputAudio
 
 
 class ImageUrlContentInner(BaseModel):
@@ -367,6 +366,18 @@ class OpenAIImageClient(OpenAIClient):
 
 
 class OpenAIAudioClient(OpenAIClient):
+    def audio_blob(self, state: OpenAIState, node: ImageBlob, **kwargs) -> Iterator[OutputAttr]:
+        state.content.append(
+            AudioContent(
+                type="input_audio",
+                input_audio=InputAudio(
+                    data=node.data,
+                    format="wav",  # TODO: infer from node
+                ),
+            )
+        )
+        yield AudioOutput(value=node.data, input=True)
+
     def gen_audio(self, state: OpenAIState, node: GenAudio, **kwargs) -> Iterator[OutputAttr]:
         yield from self._run(
             state,

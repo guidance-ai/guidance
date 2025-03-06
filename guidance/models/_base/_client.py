@@ -3,6 +3,7 @@ from typing import Generic, Iterator, TypeVar
 
 from ..._ast import (
     ASTNode,
+    AudioBlob,
     GenAudio,
     GrammarNode,
     ImageBlob,
@@ -87,6 +88,9 @@ class Client(Generic[S]):
 
     def json(self, state: S, node: JsonNode, **kwargs) -> Iterator[OutputAttr]:
         return self.grammar(state, node, **kwargs)
+
+    def audio_blob(self, state: S, node: AudioBlob, **kwargs) -> Iterator[OutputAttr]:
+        raise UnsupportedNodeError(client=self, node=node)
 
     def gen_audio(self, state: S, node: GenAudio, **kwargs) -> Iterator[OutputAttr]:
         raise UnsupportedNodeError(client=self, node=node)
