@@ -27,7 +27,6 @@ from ...visual import (
     OutputRequestMessage,
     TokensMessage,
 )
-from .._base._state import Message
 from ._state import EngineState
 from ._tokenizer import Tokenizer
 
