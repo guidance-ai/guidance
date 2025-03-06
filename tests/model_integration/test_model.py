@@ -83,14 +83,12 @@ def test_associativity(selected_model: models.Model):
 
     def get_logits_1(token_ids):
         nonlocal prompt_tokens_1
-        if prompt_tokens_1 is None:
-            prompt_tokens_1 = deepcopy(token_ids)
+        prompt_tokens_1 = deepcopy(token_ids)
         return original_get_logits(token_ids=token_ids)
 
     def get_logits_2(token_ids):
         nonlocal prompt_tokens_2
-        if prompt_tokens_2 is None:
-            prompt_tokens_2 = deepcopy(token_ids)
+        prompt_tokens_2 = deepcopy(token_ids)
         return original_get_logits(token_ids=token_ids)
 
     with patch.object(engine, "get_logits", side_effect=get_logits_1):
