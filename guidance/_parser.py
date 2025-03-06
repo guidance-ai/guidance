@@ -68,13 +68,41 @@ class TokenParser:
     def has_pending_stop(self) -> bool:
         return self._has_pending_stop
 
-    def process_prompt(self, prompt_tokens: list[int]) -> tuple[int, list[int], Future[tuple[Optional[bytes], LLInterpreterResponse]]]:
+    def process_prompt(
+        self,
+        prompt_tokens: list[int],
+        ensure_bos_token: bool = True
+    ) -> tuple[
+        list[int], # prefix_tokens
+        int,       # backtrack
+        list[int], # ff_tokens
+        # mask: Optional[bytes] (None if stop), ll_response: LLInterpreterResponse
+        Future[tuple[Optional[bytes], LLInterpreterResponse]]
+    ]:
         new_prompt_tokens = self.ll_interpreter.process_prompt(prompt_tokens)
+        if (
+            ensure_bos_token
+            and self.tokenizer.bos_token_id is not None
+            and new_prompt_tokens[:1] != [self.tokenizer.bos_token_id]
+        ):
+            assert prompt_tokens[:1] != [self.tokenizer.bos_token_id]
+            prefix_tokens = [self.tokenizer.bos_token_id]
+        else:
+            prefix_tokens = []
 
         _backtrack, _ff_tokens, mask_fut = self._generator.send(None)
         assert _backtrack == 0
         assert _ff_tokens == []
 
+        # Apply the prefix tokens before computing the backtrack
+        prompt_tokens = prefix_tokens + prompt_tokens
+        new_prompt_tokens = prefix_tokens + new_prompt_tokens
+
+        # Compute backtrack and ff_tokens s.t. 
+        # new_prompt_tokens == (
+        #       prompt_tokens[:-backtrack] if backtrack > 0 
+        #       else prompt_tokens
+        #   ) + ff_tokens
         backtrack = len(prompt_tokens)
         for (old, new) in zip(prompt_tokens, new_prompt_tokens):
             if old != new:
@@ -83,7 +111,7 @@ class TokenParser:
         common_len = len(prompt_tokens) - backtrack
         ff_tokens = new_prompt_tokens[common_len:]
 
-        return backtrack, ff_tokens, mask_fut
+        return prefix_tokens, backtrack, ff_tokens, mask_fut
 
     def compute_mask(self) -> tuple[Optional[bytes], LLInterpreterResponse]:
         mask, ll_response_string = self.ll_interpreter.compute_mask()
@@ -94,8 +122,9 @@ class TokenParser:
         self
     ) -> Generator[
         tuple[
-            int,
-            list[int], 
+            int,        # backtrack
+            list[int],  # ff_tokens
+            # mask: Optional[bytes] (None if stop), ll_response: LLInterpreterResponse
             Future[tuple[Optional[bytes], LLInterpreterResponse]],
         ],
         Optional[int],
@@ -211,7 +240,9 @@ class ByteParser:
         else:
             tokens = []
         if engine_output is None:
-            backtrack, ff_tokens, compute_mask_future = self.token_parser.process_prompt([])
+            assert tokens == []
+            prefix_tokens, backtrack, ff_tokens, compute_mask_future = self.token_parser.process_prompt(tokens)
+            tokens += prefix_tokens
         else:
             backtrack, ff_tokens, compute_mask_future = self.token_parser.advance(engine_output)
         if backtrack:

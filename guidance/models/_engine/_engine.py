@@ -379,9 +379,15 @@ class Engine(ABC):
             t0 = time.time()
 
             if engine_output is None:
-                backtrack, ff_tokens, mask_fut = parser.process_prompt(tokens)
+                prefix_tokens, backtrack, ff_tokens, mask_fut = parser.process_prompt(
+                    prompt_tokens=tokens,
+                    ensure_bos_token=ensure_bos_token,
+                )
+                tokens = prefix_tokens + tokens
             else:
-                backtrack, ff_tokens, mask_fut = parser.advance(engine_output.issued_token.token_id)
+                backtrack, ff_tokens, mask_fut = parser.advance(
+                    token_id=engine_output.issued_token.token_id
+                )
 
             if backtrack:
                 backtracked_bytes = self.tokenizer.decode(tokens[-backtrack:])
@@ -389,14 +395,6 @@ class Engine(ABC):
             else:
                 backtracked_bytes = b""
             tokens += ff_tokens
-
-            # add the beginning of sequence token if needed (should only happen once, if at all)
-            if (
-                ensure_bos_token
-                and self.tokenizer.bos_token_id is not None
-                and tokens[:1] != [self.tokenizer.bos_token_id]
-            ):
-                tokens = [self.tokenizer.bos_token_id] + tokens
 
             # Note that has_pending_stop implies that the response is a stop response,
             # but the converse is not true. We can therefore avoid some (but not all)
