@@ -2,8 +2,9 @@
   import "video.js/dist/video-js.css";
   import videojs from "video.js";
   import { onMount, onDestroy } from "svelte";
+  import type { MediaNode } from "./interfaces";
 
-  export let videoData: { value: string };
+  export let videoData: MediaNode;
   let videoElement: HTMLVideoElement;
   let player: any;
 
@@ -42,7 +43,7 @@
 
 <div class="video-container">
   <video bind:this={videoElement} class="video-js" playsinline allow="fullscreen" controls>
-    <source src={`data:video/mp4;base64,${videoData}`} type="video/mp4" />
+    <source src={`data:video/${videoData.format};base64,${videoData.value}`} type="video/mp4" />
   </video>
 </div>
 

@@ -1,8 +1,9 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import type { MediaNode } from "./interfaces";
 
   // Add proper TypeScript types
-  export let audioData: string; // Base64 data (without the data URL header)
+  export let audioData: MediaNode; // Base64 data (without the data URL header)
 
   let audio: HTMLAudioElement;
   let isPlaying: boolean = false;
@@ -115,7 +116,7 @@
     // Keep existing waveform data computation code
     if (waveformData.length === 0) {
       const audioContext = new AudioContext();
-      const arrayBuffer = base64ToArrayBuffer(audioData);
+      const arrayBuffer = base64ToArrayBuffer(audioData.value);
       try {
         const decodedData = await audioContext.decodeAudioData(arrayBuffer);
         const rawData = decodedData.getChannelData(0); // use first channel
@@ -296,7 +297,7 @@
     <div class="flex items-center gap-1">
       <!-- Play Button -->
       <button
-        class="w-6 h-6 rounded-full bg-gray-700 flex items-center justify-center cursor-pointer transition-all hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500"
+        class="w-6 h-6 rounded-full bg-gray-800 flex items-center justify-center cursor-pointer transition-all hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-500"
         on:click={togglePlay}
         aria-label="Toggle playback"
       >
@@ -322,7 +323,7 @@
       >
         <!-- Volume Button -->
         <button
-          class="text-gray-600 p-2 hover:text-gray-800 relative z-10"
+          class="text-gray-500 pl-1 py-1 hover:text-gray-700 relative z-10"
           on:click={() => (isMuted = !isMuted)}
           aria-label={isMuted ? "Unmute" : "Mute"}
           aria-pressed={isMuted}
@@ -415,7 +416,7 @@
     bind:this={audio}
     on:timeupdate={updateProgress}
     on:ended={handleEnded}
-    src={"data:audio/wav;base64," + audioData}
+    src={`data:audio/${audioData.format};base64,` + audioData.value}
     class="hidden"
   ></audio>
 </div>

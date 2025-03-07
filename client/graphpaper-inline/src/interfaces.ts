@@ -35,6 +35,7 @@ export type MediaType = "audio" | "video" | "image";
 export interface MediaNode {
     type: MediaType;
     value: any;
+    format: string;
     context: MediaNodeContext;
 }
 

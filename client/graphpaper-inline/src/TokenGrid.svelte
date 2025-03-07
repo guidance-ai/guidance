@@ -9,6 +9,9 @@
     type GenTokenExtra,
     isImageOutput,
     isVideoOutput,
+    type AudioOutput,
+    type VideoOutput,
+    type ImageOutput,
   } from "./stitch";
   import CustomAudio from "./CustomAudio.svelte";
   import CustomVideo from "./CustomVideo.svelte";
@@ -17,7 +20,6 @@
     type Token,
     type TokenCallback,
     type MultimodalNode,
-    type MediaNode,
     type MediaType,
   } from "./interfaces";
   import { longhover } from "./longhover";
@@ -188,13 +190,14 @@
       const nodeAttr = textComponents[currentTokenIndex];
       const createMediaNode = (
         mediaType: MediaType,
-        value: any
+        node: AudioOutput | VideoOutput | ImageOutput
       ): MultimodalNode => {
         return {
           type: "media",
           data: {
             type: mediaType,
-            value: value,
+            value: node.value,
+            format: node.format,
             context: {
               roleStack: [...activeOpenerRoles], // Clone current role stack
               index: currentTokenIndex,
@@ -207,11 +210,11 @@
         activeOpenerRoles.push(nodeAttr);
         activeCloserRoleText.push(nodeAttr.closer_text || "");
       } else if (isAudioOutput(nodeAttr)) {
-        multimodalNodes.push(createMediaNode("audio", nodeAttr.value));
+        multimodalNodes.push(createMediaNode("audio", nodeAttr));
       } else if (isImageOutput(nodeAttr)) {
-        multimodalNodes.push(createMediaNode("image", nodeAttr.value));
+        multimodalNodes.push(createMediaNode("image", nodeAttr));
       } else if (isVideoOutput(nodeAttr)) {
-        multimodalNodes.push(createMediaNode("video", nodeAttr.value));
+        multimodalNodes.push(createMediaNode("video", nodeAttr));
       } else if (isTextOutput(nodeAttr)) {
         if (activeOpenerRoles.length === 0) {
           if (
@@ -690,18 +693,18 @@
       {#if node.type === "media"}
         {#if node.data.type == "audio"}
           <div class="my-3">
-            <CustomAudio audioData={node.data.value} />
+            <CustomAudio audioData={node.data} />
           </div>
         {/if}
         {#if node.data.type == "video"}
           <div class="my-3">
-            <CustomVideo videoData={node.data.value} />
+            <CustomVideo videoData={node.data} />
           </div>
         {/if}
         {#if node.data.type == "image"}
           <div class="my-3">
             <img
-              src={`data:image/png;base64,${node.data.value}`}
+              src={`data:${node.data.format};base64,${node.data.value}`}
               alt="Image output"
             />
           </div>
