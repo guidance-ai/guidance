@@ -7,7 +7,7 @@
     import {longhover} from "./longhover";
     import DOMPurify from "dompurify";
 
-    import {interpolateGreens, interpolateYlOrRd, interpolateBlues} from "d3-scale-chromatic";
+    import {interpolateGreens, interpolateBlues} from "d3-scale-chromatic";
 
     export let textComponents: Array<NodeAttr>;
     export let tokenDetails: Array<GenTokenExtra>;
@@ -165,7 +165,7 @@
                 if (activeOpenerRoles.length === 0) {
                     if (activeCloserRoleText.length !== 0 && activeCloserRoleText[activeCloserRoleText.length - 1] === nodeAttr.value) {
                         const token = {
-                            text: nodeAttr.value, prob: 1, latency_ms: 0,
+                            text: nodeAttr.value, prob: nodeAttr.prob, latency_ms: 0,
                             role: "", special: true,
                             is_input: nodeAttr.is_input, is_force_forwarded: nodeAttr.is_force_forwarded,
                             is_generated: nodeAttr.is_generated,
@@ -175,7 +175,7 @@
                         activeCloserRoleText.pop();
                     } else {
                         const token = {
-                            text: nodeAttr.value, prob: 1, latency_ms: 0, role: "", special: false,
+                            text: nodeAttr.value, prob: nodeAttr.prob, latency_ms: 0, role: "", special: false,
                             is_input: nodeAttr.is_input, is_force_forwarded: nodeAttr.is_force_forwarded,
                             is_generated: nodeAttr.is_generated,
                         };
@@ -188,7 +188,7 @@
                     }
 
                     const token = {
-                        text: nodeAttr.value, prob: 1, latency_ms: 0, role: activeOpenerRole.name || "", special: true,
+                        text: nodeAttr.value, prob: nodeAttr.prob, latency_ms: 0, role: activeOpenerRole.name || "", special: true,
                         is_input: nodeAttr.is_input, is_force_forwarded: nodeAttr.is_force_forwarded,
                         is_generated: nodeAttr.is_generated,
                     };
