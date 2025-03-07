@@ -176,9 +176,9 @@
       const x = i * (barWidth + gap);
       
       if (x < progressPixel) {
-        ctx.fillStyle = "#206CF8"; // Blue for played portion
+        ctx.fillStyle = "#4A4A4A"; // Blue for played portion
       } else {
-        ctx.fillStyle = "#DDDDDD"; // Light gray for unplayed portion
+        ctx.fillStyle = "#E5E5E5"; // Light gray for unplayed portion
       }
       
       // Draw rounded bars
@@ -192,7 +192,7 @@
       ctx.beginPath();
       ctx.moveTo(progressPixel, 0);
       ctx.lineTo(progressPixel, height);
-      ctx.strokeStyle = "rgba(138, 79, 255, 0.7)";
+      ctx.strokeStyle = "rgba(80, 80, 80, 0.7)";
       ctx.lineWidth = 2;
       ctx.stroke();
     }
@@ -203,7 +203,7 @@
       ctx.beginPath();
       ctx.moveTo(hoverPixel, 0);
       ctx.lineTo(hoverPixel, height);
-      ctx.strokeStyle = "rgba(0, 0, 0, 0.2)";
+      ctx.strokeStyle = "rgba(0, 0, 0, 0.3)";
       ctx.lineWidth = 1;
       ctx.stroke();
     }
@@ -221,7 +221,7 @@
     <div class="flex items-center gap-1">
       <!-- Play Button -->
       <button
-        class="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center cursor-pointer transition-all hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400"
+        class="w-6 h-6 rounded-full bg-gray-700 flex items-center justify-center cursor-pointer transition-all hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500"
         on:click={togglePlay}
         aria-label="Toggle playback"
       >
@@ -245,7 +245,7 @@
            aria-label="Volume controls">
         <!-- Volume Button -->
         <button 
-          class="text-gray-600 p-2 hover:text-blue-500 relative z-10"
+          class="text-gray-600 p-2 hover:text-gray-800 relative z-10"
           on:click={() => isMuted = !isMuted}
           aria-label={isMuted ? "Unmute" : "Mute"}
           aria-pressed={isMuted}
@@ -285,8 +285,8 @@
                 class="absolute inset-0 opacity-0 cursor-pointer z-10 w-full" 
                 aria-label="Volume"
               />
-              <div class="absolute inset-y-0 left-0 rounded-full bg-blue-500" style="width: {volume * 100}%"></div>
-              <div class="absolute h-4 w-4 bg-white border border-gray-300 rounded-full shadow-sm" style="left: calc({volume * 100}% - 8px); top: -4px"></div>
+              <div class="absolute inset-y-0 left-0 rounded-full bg-gray-600" style="width: {volume * 100}%"></div>
+              <div class="absolute h-4 w-4 bg-gray-50 border border-gray-300 rounded-full shadow-sm" style="left: calc({volume * 100}% - 8px); top: -4px"></div>
             </div>
           </div>
         {/if}
