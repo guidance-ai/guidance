@@ -1,7 +1,7 @@
 from guidance import assistant, gen, models, system, user
 
 
-def smoke_chat(lm: models.Chat, has_system_role: bool = True):
+def smoke_chat(lm: models.Model, has_system_role: bool = True):
     lm.engine.reset_metrics()
     if has_system_role:
         with system():
@@ -20,7 +20,7 @@ def smoke_chat(lm: models.Chat, has_system_role: bool = True):
     assert lm.engine.metrics.engine_output_tokens > 0, "Expect some output tokens"
 
 
-def longer_chat_1(lm: models.Chat, has_system_role: bool = True):
+def longer_chat_1(lm: models.Model, has_system_role: bool = True):
     if has_system_role:
         with system():
             lm += "You are a math wiz."
@@ -44,7 +44,7 @@ def longer_chat_1(lm: models.Chat, has_system_role: bool = True):
     assert len(lm["number"]) > 0
 
 
-def longer_chat_2(lm: models.Chat, has_system_role: bool = True):
+def longer_chat_2(lm: models.Model, has_system_role: bool = True):
     if has_system_role:
         with system():
             lm += "You are a math wiz."
