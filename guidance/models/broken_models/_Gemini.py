@@ -10,7 +10,7 @@ import time
 import tiktoken
 import re
 
-from ._vertexai import (
+from ..vertexai._vertexai import (
     VertexAICompletion,
     VertexAIInstruct,
     VertexAIChat,
