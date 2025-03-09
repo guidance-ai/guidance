@@ -1,5 +1,4 @@
-from ._engine import TransformersEngine, TransformersTokenizer
-from ._model import Transformers
+from .._transformers import TransformersEngine, TransformersTokenizer, Transformers
 
 __all__ = [
     "Transformers",
