@@ -1,6 +1,6 @@
 import re
-from ._engine._engine import Chat, Instruct
-from ._grammarless import Grammarless, GrammarlessEngine
+from .._engine._engine import Chat, Instruct
+from .._grammarless import Grammarless, GrammarlessEngine
 import tiktoken
 import os
 
