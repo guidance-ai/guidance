@@ -2,8 +2,8 @@ from ._base import Model
 # from ._engine import Instruct, Chat
 
 # local models
-from .transformers import Transformers, TransformersTokenizer
-from .llama_cpp import LlamaCpp
+from ._transformers import Transformers, TransformersTokenizer
+from ._llama_cpp import LlamaCpp
 from ._mock import Mock#, MockChat
 
 # grammarless models (we can't do constrained decoding for them)
