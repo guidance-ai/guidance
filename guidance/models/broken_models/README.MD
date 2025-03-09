@@ -1,0 +1,1 @@
+These model files use an older version of guidance's internal API design, and need to be updated. They're kept here commented in the codebase solely as reference documentation to help with the migration. They cannot and should not be imported from this repository. 

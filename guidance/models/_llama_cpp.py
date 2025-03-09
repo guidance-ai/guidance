@@ -9,10 +9,10 @@ from typing import TYPE_CHECKING, Any, Optional, Sequence
 
 import numpy as np
 
-from ..._schema import GenToken, GenTokenExtra
-from ..._utils import normalize_notebook_stdout_stderr, softmax
-from .._base import Model
-from .._engine import Engine, EngineClient, EngineState, Tokenizer
+from .._schema import GenToken, GenTokenExtra
+from .._utils import normalize_notebook_stdout_stderr, softmax
+from ._base import Model
+from ._engine import Engine, EngineClient, EngineState, Tokenizer
 
 try:
     import llama_cpp
