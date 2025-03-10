@@ -4,7 +4,7 @@ import gc
 import inspect
 
 import guidance
-from guidance import gen
+from guidance import gen, role
 
 def test_dedent_basic():
     """Test that dedent functionality in f-strings works across Python versions."""
@@ -465,3 +465,15 @@ class TestSignature:
                 pass
         obj = MyClass()
         assert inspect.signature(obj.guidance_method) == inspect.signature(obj.method)
+
+def test_roles_in_stateless():
+    """Test that roles are not allowed in stateless mode."""
+
+    @guidance(stateless=True)
+    def foo(lm):
+        with role("assistant"):
+            lm += gen()
+        return lm
+
+    with pytest.raises(RuntimeError, match="Cannot use roles or other blocks when stateless=True"):
+        foo()

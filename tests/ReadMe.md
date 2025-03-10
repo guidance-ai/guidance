@@ -9,7 +9,6 @@ The tests are arranged into the following directories:
 - `model_specific` tests are for isolating particular issues with individual LLMs
 - `need_credentials` tests are for tests which need access to various credentials (mainly `Grammarless` models for endpoints without full Guidance support)
 - `notebook` tests are for notebooks
-- `server` are for tests of the server (technically unit tests, but these are slow)
 
 The `model_specific` tests should make use of the `selected_model` machinery, but skip themselves if the appropriate model is not supplied.
 A sample means of achieving this:
@@ -32,7 +31,7 @@ For example:
 python -m pytest --selected_model transformers_gemma2_9b_cpu ./tests/model_integration/
 ```
 
-The allowed values for `--selected_model` are in the [`_llms_for_testing.py`](./_llms_for_testing.py) file, and are concatenated into the `AVAILABLE_MODELS` dictionary.
+The allowed values for `--selected_model` are in the [`confest.py`](./conftest.py) file, and are defined in the `selected_model` function.
 Alternatively, the `GUIDANCE_SELECTED_MODEL` environment variable can be used to override the default value for `--selected_model` (which can be useful when using a debugger).
 
 ### A Note on Credentials

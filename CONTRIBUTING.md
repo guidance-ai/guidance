@@ -10,25 +10,22 @@ We welcome contributions to `guidance`, and this document exists to provide usef
 
 ## Developer Setup
 
-The quickest way to get started is to run (in a fresh environment):
+Start by creating a fresh environment with something similar to:
 ```bash
-pip install -e .[all,test,bench]
+conda create --name guidancedev python=3.12
+conda activate guidancedev
 ```
-which should bring in all of the basic required dependencies.
-Note that if you want to use GPU acceleration, then you will need to do whatever is required to allow `torch` and `llama-cpp` to access your GPU too.
 
-There are sometimes difficulties configuring Rust during the pip installs.
-If you encounter such issues, then one work around (if you use Anaconda) is to create your environment along the lines of
+Install guidance (without CUDA):
 ```bash
-conda create -n guidance-312 python=3.12 rust
+python -m pip install -e .[all,test,bench,llamacpp,transformers]
 ```
-In our experience, this has been a little more reliable.
-Similarly, to get GPU support, we have found that (after activating the environment) running
+
+Alternatively, install guidance with CUDA support. There are various ways to do this. We recommend:
 ```bash
 conda install pytorch pytorch-cuda=12.1 -c pytorch -c nvidia
+CMAKE_ARGS="-DGGML_CUDA=on" python -m pip install -e .[all,test,bench,llamacpp,transformers]
 ```
-works best.
-However, if you have your own means of installing Rust and CUDA, you should be able to continue using those.
 
 ## Running Tests
 
@@ -43,7 +40,7 @@ To change that default, run
 ```bash
 python -m pytest --selected_model <MODELNAME> ./tests/
 ```
-where `<MODELNAME>` is taken from the `AVAILABLE_MODELS` dictionary defined in `_llms_for_testing.py`.
+where `<MODELNAME>` is taken from one of the selected_model_name options defined in `./tests/conftest.py`.
 
 Alternatively, the default value for `--selected_model` can be set via the `GUIDANCE_SELECTED_MODEL` environment variable.
 This may be useful when trying to use a debugger when running `pytest`, and setting the extra command line argument in the debugger configuration is tricky.
@@ -57,7 +54,7 @@ These fall into three categories: CPU-based, GPU-based and endpoint-based (which
 ### New CPU or GPU-based models
 
 Due to the limited resources of the regular GitHub runner machines, the LLM under test is a dimension of our test matrix (otherwise the GitHub runners will tend to run out of RAM and/or hard drive space).
-New models should be configured in the `AVAILABLE_MODELS` dictionary in `conftest.py`, and then that key added to the `model` list in `unit_tests.yml` or `unit_tests_gpu.yml` as appropriate.
+New models should be configured in `conftest.py`.
 The model will then be available via the `selected_model` fixture for all tests.
 If you have a test which should only run for particular models, you can use the `selected_model_name` fixture to check, and call `pytest.skip()` if necessary.
 An example of this is given in `test_llama_cpp.py`.
@@ -68,8 +65,6 @@ If your model requires credentials, then those will need to be added to our GitH
 The endpoint itself (and any other required information) should be configured as environment variables too.
 When the test runs, the environment variables will be set, and can then be used to configure the model as required.
 See `test_azureai_openai.py` for examples of this being done.
-
-The environment variables and secrets will also need to be configured in the `ci_tests.yml` file.
 
 ## Linting
 

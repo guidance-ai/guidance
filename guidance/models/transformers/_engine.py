@@ -5,7 +5,6 @@ import warnings
 from typing import Any, Optional, Sequence, Union
 
 from ..._schema import GenToken, GenTokenExtra
-from .._base import Message
 from .._engine import Engine, Tokenizer
 
 try:
@@ -497,13 +496,15 @@ class TransformersEngine(Engine):
         elif isinstance(past_key_values, tuple):
             past_length = past_key_values[0][0].size(-2)
         elif isinstance(past_key_values, transformers_package.Cache):
-            # TODO: use model's `cache_position` as this may be deprecated in a future version
+            # TODO: use model's `cache_position` once available, as this may be deprecated in a future version
             # https://github.com/huggingface/transformers/blob/70b07d97cf2c5f61fff55700b65528a1b6845cd2/src/transformers/cache_utils.py#L64
             past_length = past_key_values.get_seq_length()
-            # TODO: use `get_max_cache_shape` as `get_max_length` will be deprecated in a future version
-            # (`get_max_cache_shape` is not yet available so we can't use it yet)
-            # https://github.com/huggingface/transformers/blob/70b07d97cf2c5f61fff55700b65528a1b6845cd2/src/transformers/cache_utils.py#L67
-            max_cache_shape = past_key_values.get_max_length()
+            try:
+                max_cache_shape = past_key_values.get_max_cache_shape()
+            except AttributeError:
+                # `get_max_length` is deprecated in favor of `get_max_cache_shape`
+                # as of transformers v4.48, but we use here for backwards compatibility
+                max_cache_shape = past_key_values.get_max_length()
         else:
             raise TypeError(f"Unknown type of past_key_values: {type(past_key_values)}")
 
@@ -671,29 +672,3 @@ class TransformersEngine(Engine):
             batch.append(text_sequence)
 
         return batch[0]
-
-    def apply_chat_template(
-        self,
-        messages: Sequence[Message],
-        active_message: Message,
-        tools: Optional[list[Any]],
-    ) -> str:
-        # TODO: move onto the tokenizer
-        # This is a hack to get around the fact that apply_chat_template won't properly continue the final message
-        # if it is empty. We add a sentinel value to the final message, and then remove it after the fact.
-        sentinel_value = "<|FINAL_MESSAGE_SENTINEL_VALUE|>"
-        messages = [{"role": m["role"], "content": m["data"].get("content", "")} for m in messages]
-        active_message = {
-            "role": active_message["role"],
-            "content": active_message.get("content", "") + sentinel_value,
-        }
-        prompt = self.tokenizer._orig_tokenizer.apply_chat_template(
-            conversation=(list(messages) + [active_message]),
-            tools=tools,
-            chat_template=None,
-            continue_final_message=True,
-            add_generation_prompt=False,
-            tokenize=False,
-        )
-        prompt = prompt[: prompt.rindex(sentinel_value)]
-        return prompt

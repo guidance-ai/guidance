@@ -1,7 +1,7 @@
 import re
 
 from .._base import Model
-from .._engine import EngineClient, EngineState, Llama3VisionState, Phi3VisionState
+from .._engine import EngineClient, EngineState, Llama3VisionClient, Phi3VisionClient
 from ._engine import TransformersEngine
 
 
@@ -20,13 +20,13 @@ class Transformers(Model):
     ):
         """Build a new Transformers model object that represents a model in a given state."""
         if re.search("Llama-3.*-Vision", model):
-            state = Llama3VisionState()
+            client_cls = Llama3VisionClient
         elif re.search("Phi-3-vision", model):
-            state = Phi3VisionState()
+            client_cls = Phi3VisionClient
         else:
-            state = EngineState()
+            client_cls = EngineClient
 
-        client = EngineClient(
+        client = client_cls(
             TransformersEngine(
                 model,
                 tokenizer,
@@ -40,6 +40,6 @@ class Transformers(Model):
         )
         super().__init__(
             client=client,
-            state=state,
+            state=EngineState(),
             echo=echo,
         )
