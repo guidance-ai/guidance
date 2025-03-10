@@ -19,7 +19,7 @@ from ..._schema import (
 )
 from ...metrics import PeriodicMetricsGenerator, PostExecMetrics, Monitor
 from ...registry import get_renderer, get_trace_handler, get_exchange
-from ..._utils import log_cleanup, log_init, softmax, to_utf8_or_bytes_string
+from ..._utils import log_cleanup, log_init, softmax
 from ...visual import (
     ExecutionCompletedMessage,
     ExecutionStartedMessage,
@@ -385,7 +385,7 @@ class Engine(ABC):
                 _issued_token = GenToken(
                     token_id=token_id,
                     prob=1.0,
-                    bytes=to_utf8_or_bytes_string(self.tokenizer.decode([token_id])),
+                    bytes=self.tokenizer.decode([token_id]),
                     latency_ms=_lat,
                     is_generated=True,
                 )
@@ -407,7 +407,7 @@ class Engine(ABC):
                 GenToken(
                     token_id=token,
                     prob=prob,
-                    bytes=to_utf8_or_bytes_string(self.tokenizer.decode([token])),
+                    bytes=self.tokenizer.decode([token]),
                     latency_ms=lat_ms,
                     is_generated=True,
                 )
@@ -457,7 +457,7 @@ class Engine(ABC):
             issued_token = GenToken(
                 token_id=sampled_index,
                 prob=sampled_prob,
-                bytes=to_utf8_or_bytes_string(self.tokenizer.decode([sampled_index])),
+                bytes=self.tokenizer.decode([sampled_index]),
                 latency_ms=lat_ms,
                 is_generated=True,
             )

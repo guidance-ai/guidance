@@ -335,10 +335,7 @@ def to_utf8_or_bytes_string(_bytes: bytes) -> bytes:
         The decoded UTF-8 string or the string representation of the byte sequence
         if UTF-8 decoding fails.
     """
-    # try:
-    #     return _bytes.decode("utf-8")
-    # except UnicodeDecodeError:
-    #     return str(_bytes)
-    
-    # MODIFIED TO BE A NO-OP FOR NOW
-    return _bytes
+    try:
+        return _bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        return str(_bytes)
