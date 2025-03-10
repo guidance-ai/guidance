@@ -29,15 +29,20 @@ class EngineClient(Client[EngineState]):
         state.active_role = node.role
         # TODO: mark these as special tokens / apply as grammar so we get token probs
         text = self.get_role_start(node.role)
-        state.prompt += text
-        yield TextOutput(value=text, is_input=True)
+        yield from self.run(
+            state,
+            # TODO: special tokens aren't literal text, but this HAPPENS to work (may be fragile)
+            LiteralNode(text)
+        )
 
     def role_end(self, state: EngineState, node: RoleEnd, **kwargs) -> Iterator[OutputAttr]:
         state.active_role = None
-        # TODO: mark these as special tokens / apply as grammar so we get token probs
         text = self.get_role_end(node.role)
-        state.prompt += text
-        yield TextOutput(value=text, is_input=True)
+        yield from self.run(
+            state,
+            # TODO: special tokens aren't literal text, but this HAPPENS to work (may be fragile)
+            LiteralNode(text)
+        )
 
     def text(self, state: EngineState, node: LiteralNode, **kwargs) -> Iterator[OutputAttr]:
         yield from self.grammar(state, node, **kwargs)
