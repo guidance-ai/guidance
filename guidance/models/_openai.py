@@ -148,6 +148,8 @@ class OpenAIState(State):
 
 
 class OpenAIClient(Client[OpenAIState]):
+    log_probs: bool = True
+
     def __init__(
         self,
         model: str,
@@ -257,7 +259,7 @@ class OpenAIClient(Client[OpenAIState]):
         with self.client.chat.completions.create(
             model=self.model,
             messages=TypeAdapter(list[Message]).dump_python(state.messages),  # type: ignore[arg-type]
-            logprobs=kwargs.pop("logprobs", True),
+            logprobs=self.log_probs,
             stream=True,
             **kwargs,
         ) as chunks:
@@ -276,12 +278,12 @@ class OpenAIClient(Client[OpenAIState]):
                 if len(content) == 0:
                     continue
                 state.apply_text(content)
-                yield TextOutput(
-                    value=delta.content,
-                    is_generated=True,
+                if choice.logprobs is not None:
                     # TODO: actually get tokens from this and be less lazy
-                    prob=2.718 ** choice.logprobs.content[0].logprob,  # type: ignore[union-attr,index]
-                )
+                    prob = 2.718 ** choice.logprobs.content[0].logprob
+                else:
+                    prob = float("nan")
+                yield TextOutput(value=delta.content, is_generated=True, prob=prob)
             elif getattr(delta, "audio", None) is not None:
                 transcript_chunk: Optional[str] = None
                 if audio is None:
@@ -366,17 +368,20 @@ class OpenAIImageClient(OpenAIClient):
 
 
 class OpenAIAudioClient(OpenAIClient):
+    log_probs: bool = False
+
     def audio_blob(self, state: OpenAIState, node: ImageBlob, **kwargs) -> Iterator[OutputAttr]:
+        format = "wav"  # TODO: infer from node
         state.content.append(
             AudioContent(
                 type="input_audio",
                 input_audio=InputAudio(
                     data=node.data,
-                    format="wav",  # TODO: infer from node
+                    format=format,
                 ),
             )
         )
-        yield AudioOutput(value=node.data, input=True)
+        yield AudioOutput(value=node.data, format=format, input=True)
 
     def gen_audio(self, state: OpenAIState, node: GenAudio, **kwargs) -> Iterator[OutputAttr]:
         yield from self._run(
@@ -384,9 +389,8 @@ class OpenAIAudioClient(OpenAIClient):
             modalities=["text", "audio"],  # Has to be both?
             audio={
                 "voice": node.kwargs.get("voice", "alloy"),
-                "format": "pcm16",
-            },  # Has to be pcm16 for streaming
-            logprobs=False,  # Not supported for this model (TODO: this should be client-level)
+                "format": "pcm16",  # Has to be pcm16 for streaming
+            },
         )
 
 
