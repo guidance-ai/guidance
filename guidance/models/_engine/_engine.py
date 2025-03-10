@@ -213,6 +213,9 @@ class Engine(ABC):
                     prompt_tokens=tokens,
                     ensure_bos_token=ensure_bos_token,
                 )
+                if prefix_tokens:
+                    tokens = prefix_tokens + tokens
+                    tokens = self.tokenizer.recode(tokens)
                 tokens = prefix_tokens + tokens
             else:
                 backtrack, ff_tokens, mask_fut = parser.advance(
