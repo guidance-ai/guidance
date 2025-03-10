@@ -10,6 +10,7 @@ from ..._ast import (
     ImageUrl,
     JoinNode,
     JsonNode,
+    LarkNode,
     LiteralNode,
     RegexNode,
     RepeatNode,
@@ -87,6 +88,9 @@ class Client(Generic[S]):
         return self.grammar(state, node, **kwargs)
 
     def json(self, state: S, node: JsonNode, **kwargs) -> Iterator[OutputAttr]:
+        return self.grammar(state, node, **kwargs)
+
+    def lark(self, state: S, node: LarkNode, **kwargs) -> Iterator[OutputAttr]:
         return self.grammar(state, node, **kwargs)
 
     def audio_blob(self, state: S, node: AudioBlob, **kwargs) -> Iterator[OutputAttr]:
