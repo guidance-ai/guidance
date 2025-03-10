@@ -27,7 +27,6 @@ class EngineClient(Client[EngineState]):
 
     def role_start(self, state: EngineState, node: RoleStart, **kwargs) -> Iterator[OutputAttr]:
         state.active_role = node.role
-        # TODO: mark these as special tokens / apply as grammar so we get token probs
         text = self.get_role_start(node.role)
         yield from self.run(
             state,
