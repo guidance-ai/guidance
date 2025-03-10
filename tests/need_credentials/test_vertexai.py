@@ -1,6 +1,6 @@
 import pytest
 
-from guidance import gen, instruction, models, select
+from guidance import gen, role, models, select
 
 from ..utils import get_model
 
@@ -11,7 +11,7 @@ def test_palm2_instruct():
     except:
         pytest.skip("Skipping VertexAI test because we can't load the model!")
 
-    with instruction():
+    with role("instruction"):
         lm = vmodel + "this is a test about"
     lm += gen("test", max_tokens=100)
     assert len(lm["test"]) > 0
