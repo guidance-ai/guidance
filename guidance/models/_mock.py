@@ -135,7 +135,7 @@ class MockEngine(Engine):
                 if p.startswith(byte_string) and len(p) > len(byte_string):
                     for i in self._get_next_tokens(p[len(byte_string) :]):
                         logits[i] += bias
-                    bias /= 2  # if we have multiple matches then they apply with decreasing bias
+                        bias /= 2  # if we have multiple matches then they apply with decreasing bias
 
         return logits
 
