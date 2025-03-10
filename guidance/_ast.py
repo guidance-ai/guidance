@@ -14,8 +14,6 @@ from typing import (
     cast,
 )
 
-from llguidance.gbnf_to_lark import gbnf_to_lark
-
 from ._parser import ByteParser, ByteParserException
 from ._schema import JsonGrammar, LarkGrammar, LLGrammar
 from .trace import OutputAttr
@@ -518,14 +516,6 @@ class LarkNode(BaseSubgrammarNode):
         return client.lark(state, self, **kwargs)
 
 
-@dataclass(frozen=True, eq=False)
-class GBNFNode(BaseSubgrammarNode):
-    gbnf_grammar: str
-
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
-        return client.gbnf(state, self, **kwargs)
-
-
 class LLSerializer:
     def __init__(self):
         self.grammars: dict[str, Union[JsonGrammar, LarkGrammar]] = {}
@@ -565,11 +555,6 @@ class LLSerializer:
         elif isinstance(node, LarkNode):
             self.names[node] = name
             self.grammars[name] = LarkGrammar(name=name, lark_grammar=node.lark_grammar)
-
-        elif isinstance(node, GBNFNode):
-            self.names[node] = name
-            lark_grammar = gbnf_to_lark(node.gbnf_grammar)
-            self.grammars[name] = LarkGrammar(name=name, lark_grammar=lark_grammar)
 
         else:
             raise TypeError(f"Unknown subgrammar type: {node}")
