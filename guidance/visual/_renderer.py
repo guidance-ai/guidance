@@ -81,14 +81,16 @@ def _create_stitch_widget():
 _create_stitch_widget.src_doc_template = None
 
 
-def _cleanup(recv_queue: Optional[Queue], send_queue: Optional[Queue], log_msg: str) -> None:
-    from ..registry import get_bg_async
+def _cleanup(recv_queue: Optional[Queue], send_queue: Optional[Queue], log_msg: str, exchange_cb) -> None:
+    from ..registry import get_bg_async, get_exchange
 
     log_cleanup(log_msg)
     if recv_queue is not None:
         get_bg_async().call_soon_threadsafe(send_queue.put_nowait, None)
     if send_queue is not None:
         get_bg_async().call_soon_threadsafe(recv_queue.put_nowait, None)
+
+    get_exchange().unsubscribe(exchange_cb, '*')
 
 
 async def _create_queue() -> Queue:
@@ -151,7 +153,7 @@ async def _handle_recv_messages(renderer_weakref: weakref.ReferenceType["Rendere
                 logger.debug("RECV:clientready")
                 get_bg_async().call_soon_threadsafe(renderer._send_queue.put_nowait, ClientReadyAckMessage())
 
-            get_exchange().notify(message, topic_pattern=f"{DEFAULT_TOPIC}")
+            get_exchange().publish(message, topic=f"{DEFAULT_TOPIC}")
             renderer._recv_queue.task_done()
         except Exception as _:
             logger.error(f"RECV:err:{traceback.format_exc()}")
@@ -203,7 +205,7 @@ class JupyterWidgetRenderer(Renderer):
         Args:
             trace_handler: Trace handler of an engine.
         """
-        from ..registry import get_bg_async
+        from ..registry import get_bg_async, get_exchange
 
         super().__init__()
 
@@ -228,7 +230,14 @@ class JupyterWidgetRenderer(Renderer):
         self._recv_task = get_bg_async().run_async_coroutine(get_bg_async().async_task(recv_coroutine)).result()
         self._send_task = get_bg_async().run_async_coroutine(get_bg_async().async_task(send_coroutine)).result()
 
+        # Start recv on exchange
+        get_exchange().subscribe(self._on_exchange, '*')
         weakref.finalize(self, _cleanup, self._recv_queue, self._send_queue, f"renderer({id(self)})")
+
+
+    def _on_exchange(self, message: GuidanceMessage) -> None:
+        if isinstance(message, MetricMessage) and self._running:
+            self.update(message)
 
 
     def has_divergence(self, message: GuidanceMessage) -> Tuple[bool, int]:
@@ -295,12 +304,11 @@ class JupyterWidgetRenderer(Renderer):
         from ..registry import get_bg_async
 
         out_messages = []
-
         if isinstance(message, ExecutionCompletedMessage):
             logger.debug("RENDERER:execution end")
             self._completed = True
             self._running = False
-            get_exchange().notify(message)
+            get_exchange().publish(message)
 
             if message.is_err:
                 out_messages.append(MetricMessage(name="status", value="Error"))

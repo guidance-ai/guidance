@@ -161,7 +161,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
     if (appState.status === Status.Running) {
       appState.shownMetrics = [
         'status',
-        'wall time',
+        // 'wall time',
         'cpu',
         'ram',
         'gpu',
@@ -173,7 +173,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
         'consumed',
         'token reduction',
         'avg latency',
-        'wall time',
+        // 'wall time',
       ];
     }
   }

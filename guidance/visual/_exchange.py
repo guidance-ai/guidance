@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_TOPIC = "/default"
 WILDCARD_PATTERN = "*"
 
+
 class TopicExchange:
     """ Queue-less topic exchange for routing messages.
 
@@ -22,41 +23,45 @@ class TopicExchange:
         """ Initializes."""
         self._observers = defaultdict(list)
 
-    def subscribe(self, callback: Callable[[GuidanceMessage], None], topic: str = DEFAULT_TOPIC) -> None:
+    def subscribe(self, callback: Callable[[GuidanceMessage], None], topic_pat: str = WILDCARD_PATTERN) -> None:
         """ Subscribes to incoming messages.
 
         Args:
             callback: Callback to handle incoming messages.
-            topic: Topic to notify.
+            topic_pat: Topic to notify.
         """
-        logger.debug(f"EXCHANGE:pre_subscribe:{self._observers[topic]}")
-        self._observers[topic].append(callback)
-        logger.debug(f"EXCHANGE:post_subscribe:{self._observers[topic]}")
+        logger.debug(f"EXCHANGE:pre_subscribe:{self._observers[topic_pat]}")
+        self._observers[topic_pat].append(callback)
+        logger.debug(f"EXCHANGE:post_subscribe:{self._observers[topic_pat]}")
 
-    def unsubscribe(self, callback: Callable[[GuidanceMessage], None], topic: str = DEFAULT_TOPIC) -> None:
+    def unsubscribe(self, callback: Callable[[GuidanceMessage], None], topic_pat: str = WILDCARD_PATTERN) -> None:
         """ Unsubscribes from incoming messages.
 
         Args:
             callback: Callback to remove.
-            topic: Topic to notify.
+            topic_pat: Topic pattern.
         """
-        logger.debug(f"EXCHANGE:pre_unsubscribe:{self._observers[topic]}")
+        logger.debug(f"EXCHANGE:pre_unsubscribe:{self._observers[topic_pat]}")
         try:
-            self._observers[topic].remove(callback)
+            self._observers[topic_pat].remove(callback)
         except ValueError as _:
-            logger.warning(f"EXCHANGE:cb at '{topic}' already removed.")
-        logger.debug(f"EXCHANGE:post_unsubscribe:{self._observers[topic]}")
+            logger.warning(f"EXCHANGE:cb at '{topic_pat}' already removed.")
+        logger.debug(f"EXCHANGE:post_unsubscribe:{self._observers[topic_pat]}")
 
-    def notify(self, message: GuidanceMessage, topic_pattern: str = WILDCARD_PATTERN):
+        if len(self._observers[topic_pat]) == 0:
+            del self._observers[topic_pat]
+
+    def publish(self, message: GuidanceMessage, topic: str = DEFAULT_TOPIC):
         """ Notifies all subscribers to topic pattern of an incoming message.
 
         Args:
             message: Incoming message.
-            topic_pattern: Topics to notify (uses fnmatch).
+            topic: Topics to notify.
         """
-        for observer_topic, observers in self._observers.items():
-            if fnmatch(observer_topic, topic_pattern):
+        for obs_topic_pat, observers in self._observers.items():
+            if fnmatch(topic, obs_topic_pat):
                 for observer in observers:
                     observer(message)
+
 
 __all__ = ["TopicExchange"]
