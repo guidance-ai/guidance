@@ -5,7 +5,6 @@ from multiprocessing import Manager, Process
 from typing import Union, Any
 import logging
 
-import numpy as np
 import psutil
 
 from .._schema import GuidanceEngineMetrics
@@ -13,7 +12,7 @@ from ..models import Model
 
 from ..visual import MetricMessage
 
-METRICS_TOPIC = "metrics"
+METRICS_TOPIC = "/metrics"
 MISSING_VALUE = 0
 
 logger = logging.getLogger(__name__)
@@ -29,7 +28,8 @@ class PeriodicMetricsGenerator:
 
     def start(self):
         from ..registry import get_bg_async
-        self._task = get_bg_async().run_async_coroutine(get_bg_async().async_task(self._emit())).result()
+        bg = get_bg_async()
+        self._task = bg.run_async_coroutine(bg.async_task(self._emit())).result()
 
     def stop(self):
         if self._task is not None:
@@ -103,6 +103,7 @@ class PeriodicMetricsGenerator:
         logger.debug("METRICGEN:exiting")
 
 
+# TODO(nopdive): @hudson-ai needs refactor into engine/class?
 class PostExecMetrics:
     def __init__(self, monitor: "Monitor"):
         self._monitor = monitor
@@ -183,11 +184,12 @@ def _monitor_fn(
         except:
             logger.warning("Non-Nvidia GPU monitoring is not supported in this version.")
 
+    p = psutil.Process()
     try:
         while not stop_flag.value:
             t0 = time.time()
 
-            cpu_percent = psutil.cpu_percent() / 100.0
+            cpu_percent = p.cpu_percent() / 100.0
             memory_usage = psutil.virtual_memory()
 
             metrics_dict[MonitoringMetric.CPU_USAGE].append(cpu_percent)
@@ -215,7 +217,7 @@ def _monitor_fn(
             if sleep_time < 0:
                 time.sleep(sleep_time)
     except Exception as e:
-        # print(f"Error in monitoring: {e}")
+        logger.error(f"Error in monitoring: {e}")
         pass
 
     # print("Monitoring stopped")
@@ -301,24 +303,8 @@ class Monitor:
                 else:
                     result[metric] = None
             elif metric == MonitoringMetric.AVG_LATENCY:
-                if lm is None:
-                    result[metric] = None
-                else:
-                    lats = []
-                    model = lm
-                    while model._parent is not None:
-                        if model.vis_chunk:
-                            for token in model.vis_chunk.generated_tokens:
-                                lats.append(token.latency_ms)
-                            for token in model.vis_chunk.force_forwarded_tokens:
-                                lats.append(token.latency_ms)
-                        model = model._parent
-
-                    if len(lats) == 0:
-                        result[metric] = None
-                    else:
-                        result[metric] = np.mean(lats)
-
+                # TODO(nopdive): Fix this for IR refactor.
+                result[metric] = None
         return result
 
     def get_metric(self, metric: MonitoringMetric, lm: Union["Model", None] = None) -> Any:

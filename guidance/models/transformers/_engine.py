@@ -442,14 +442,8 @@ class TransformersEngine(Engine):
             model, tokenizer, chat_template, **passed_common_kwargs
         )
 
-        super().__init__(
-            my_tokenizer,
-            compute_log_probs=compute_log_probs,
-            enable_backtrack=enable_backtrack,
-            enable_ff_tokens=enable_ff_tokens,
-            enable_monitoring=enable_monitoring,
-            **kwargs,
-        )
+        super().__init__(my_tokenizer, compute_log_probs=compute_log_probs, enable_backtrack=enable_backtrack,
+                         enable_ff_tokens=enable_ff_tokens, enable_monitoring=enable_monitoring, **kwargs)
 
     def _model(self, model, **kwargs):
         # intantiate the model if needed

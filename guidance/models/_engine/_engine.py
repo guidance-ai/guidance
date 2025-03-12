@@ -16,15 +16,14 @@ from ..._schema import (
     GuidanceEngineMetrics,
     LLGrammar,
 )
-from ...metrics import PostExecMetrics
-from ...registry import get_renderer, get_trace_handler, get_exchange
+from ...registry import get_exchange
 from ..._utils import log_cleanup, log_init, softmax, to_utf8_or_bytes_string
 from ...visual import (
     ExecutionCompletedMessage,
     ExecutionStartedMessage,
     GuidanceMessage,
     OutputRequestMessage,
-    TokensMessage, MetricMessage,
+    MetricMessage,
 )
 from ._state import EngineState
 from ._tokenizer import Tokenizer
@@ -57,12 +56,14 @@ def _msg_recv(engine_weakref: weakref.ReferenceType, message: GuidanceMessage) -
     if isinstance(message, MetricMessage):
         return
 
-    logger.debug(f"ENGINE({id(engine)}):msg_recv:{message}")
+    # logger.debug(f"ENGINE({id(engine)}):msg_recv:{message}")
     if isinstance(message, ExecutionStartedMessage):
         pass
     elif isinstance(message, ExecutionCompletedMessage) and message.is_err:
         pass
     elif isinstance(message, ExecutionCompletedMessage):
+        pass
+    elif isinstance(message, OutputRequestMessage):
         pass
 
 
@@ -76,7 +77,7 @@ class Engine(ABC):
     """
 
     def __init__(self, tokenizer: Tokenizer, compute_log_probs=False, enable_backtrack=True, enable_ff_tokens=True,
-                 renderer=None, enable_monitoring=True, **kwargs):
+                 enable_monitoring=True, **kwargs):
         from ...registry import get_monitor
 
         self.tokenizer = tokenizer
@@ -85,20 +86,13 @@ class Engine(ABC):
         self._enable_ff_tokens = enable_ff_tokens
         self._enable_monitoring = enable_monitoring
         self._top_k = kwargs.get("top_k", 5)
+
+        # TODO(nopdive): Remove on refactor.
         self.metrics = GuidanceEngineMetrics()
 
-        if renderer is None:
-            self.trace_handler = get_trace_handler()
-            self.renderer = get_renderer()
-        else:
-            self.renderer = renderer
-            self.trace_handler = renderer._trace_handler
-
-        self.post_exec = None
         if self._enable_monitoring:
             # Idempotent start
             _ = get_monitor()
-            self.post_exec_metrics = PostExecMetrics(get_monitor())
 
         msg_recv = _wrapped_msg_recv(weakref.ref(self))
         get_exchange().subscribe(msg_recv)

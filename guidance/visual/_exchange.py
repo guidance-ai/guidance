@@ -3,13 +3,13 @@
 from collections import defaultdict
 from typing import Callable
 from ..visual import GuidanceMessage
-from fnmatch import fnmatch
+import re
 import logging
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_TOPIC = "/default"
-WILDCARD_PATTERN = "*"
+WILDCARD_PATTERN = r".*"
 
 
 class TopicExchange:
@@ -49,6 +49,7 @@ class TopicExchange:
         logger.debug(f"EXCHANGE:post_unsubscribe:{self._observers[topic_pat]}")
 
         if len(self._observers[topic_pat]) == 0:
+            logger.debug(f"EXCHANGE:delete_entry:{topic_pat}")
             del self._observers[topic_pat]
 
     def publish(self, message: GuidanceMessage, topic: str = DEFAULT_TOPIC):
@@ -58,8 +59,9 @@ class TopicExchange:
             message: Incoming message.
             topic: Topics to notify.
         """
+        # logger.debug(f"EXCHANGE:publish:{message}")
         for obs_topic_pat, observers in self._observers.items():
-            if fnmatch(topic, obs_topic_pat):
+            if re.match(obs_topic_pat, topic):
                 for observer in observers:
                     observer(message)
 
