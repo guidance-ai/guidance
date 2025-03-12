@@ -70,7 +70,9 @@ def detokenize(tokenizer: "LlamaTokenizer", tokens: list[int], special: bool = F
             0,
             special
         )
-        assert abs(n) <= size
+        if n < 0:
+            raise ValueError(f"Error writing token {token} to buffer of size {size}. Error: {n}")
+        assert n <= size
         output += bytes(buffer[:n])
     # NOTE: Llama1 models automatically added a space at the start of the prompt
     # this line removes a leading space if the first token is a beginning of sentence token
