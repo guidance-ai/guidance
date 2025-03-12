@@ -57,7 +57,7 @@ class _LlamaBatchContext:
                 self.batch = None
                 llama_batch_free(batch)
 
-def detokenize(tokenizer: "LlamaTokenizer", tokens: list[int], special: bool = False, size: int = 32) -> bytes:
+def detokenize(tokenizer: "LlamaTokenizer", tokens: list[int], special: bool, size: int) -> bytes:
     """Re-implementation of llama_cpp.LLamaTokenizer.detokenize that ditches the hard-coded size=32"""
     output = b""
     buffer = ctypes.create_string_buffer(size)
@@ -106,7 +106,7 @@ class LlamaCppTokenizer(Tokenizer):
             tok_attrs = tokenizer.llama.token_get_attr(i)
             if tok_attrs & llama_cpp.LLAMA_TOKEN_ATTR_CONTROL:
                 special_token_ids.append(i)
-            tok = detokenize(tokenizer, [i], special=True, size=128)
+            tok = detokenize(tokenizer, [i], special=True, size=256)
             tokens.append(tok)
 
         # Chat Template logic
