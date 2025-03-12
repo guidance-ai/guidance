@@ -28,3 +28,4 @@ from ._substring import substring
 from ._optional import optional
 from ._tool import Tool
 from ._json import json
+from ._ebnf import lark, gbnf_to_lark
