@@ -516,6 +516,14 @@ class JsonNode(BaseSubgrammarNode):
         return client.json(state, self, **kwargs)
 
 
+@dataclass(frozen=True, eq=False)
+class LarkNode(BaseSubgrammarNode):
+    lark_grammar: str
+
+    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
+        return client.lark(state, self, **kwargs)
+
+
 class LLSerializer:
     def __init__(self):
         self.grammars: dict[str, Union[JsonGrammar, LarkGrammar]] = {}
@@ -549,9 +557,12 @@ class LLSerializer:
             self.grammars[name] = LarkGrammar(name=name, lark_grammar=lark_grammar)
 
         elif isinstance(node, JsonNode):
-            # Important: insert name BEFORE visiting body to avoid infinite recursion
             self.names[node] = name
             self.grammars[name] = JsonGrammar(name=name, json_schema=node.schema)
+
+        elif isinstance(node, LarkNode):
+            self.names[node] = name
+            self.grammars[name] = LarkGrammar(name=name, lark_grammar=node.lark_grammar)
 
         else:
             raise TypeError(f"Unknown subgrammar type: {node}")

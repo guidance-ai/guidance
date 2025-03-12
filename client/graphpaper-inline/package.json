@@ -14,6 +14,7 @@
         "@types/d3-scale": "^4.0.8",
         "@types/d3-scale-chromatic": "^3.0.3",
         "@types/dompurify": "^3.0.5",
+        "@types/video.js": "^7.3.58",
         "autoprefixer": "^10.4.20",
         "cssnano": "^7.0.5",
         "postcss": "^8.4.41",
@@ -36,6 +37,7 @@
         "d3-scale": "^4.0.2",
         "d3-scale-chromatic": "^3.1.0",
         "dompurify": "^3.1.7",
-        "tailwind-scrollbar": "^4.0.0"
+        "tailwind-scrollbar": "^4.0.0",
+        "video.js": "^8.21.0"
     }
 }
