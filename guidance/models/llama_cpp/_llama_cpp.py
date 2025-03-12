@@ -6,6 +6,7 @@ import sys
 from itertools import takewhile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional, Sequence
+import ctypes
 
 import numpy as np
 
@@ -22,6 +23,7 @@ except ModuleNotFoundError:
     is_llama_cpp = False
 
 if TYPE_CHECKING:
+    from llama_cpp.llama_tokenizer import LlamaTokenizer
     from llama_cpp.llama import Llama
     from llama_cpp.llama_chat_format import Jinja2ChatFormatter
 
@@ -55,6 +57,28 @@ class _LlamaBatchContext:
                 self.batch = None
                 llama_batch_free(batch)
 
+def detokenize(tokenizer: "LlamaTokenizer", tokens: list[int], special: bool = False, size: int = 32) -> bytes:
+    """Re-implementation of llama_cpp.LLamaTokenizer.detokenize that ditches the hard-coded size=32"""
+    output = b""
+    buffer = ctypes.create_string_buffer(size)
+    for token in tokens:
+        n = llama_cpp.llama_token_to_piece(
+            tokenizer._model.vocab,
+            llama_cpp.llama_token(token),
+            buffer,
+            size,
+            0,
+            special
+        )
+        assert abs(n) <= size
+        output += bytes(buffer[:n])
+    # NOTE: Llama1 models automatically added a space at the start of the prompt
+    # this line removes a leading space if the first token is a beginning of sentence token
+    return (
+        output[1:]
+        if len(tokens) > 0 and tokens[0] == tokenizer._model.token_bos() and output[0:1] == b" "
+        else output
+        )
 
 class LlamaCppTokenizer(Tokenizer):
     def __init__(self, model_obj, chat_template=None):
@@ -80,7 +104,7 @@ class LlamaCppTokenizer(Tokenizer):
             tok_attrs = tokenizer.llama.token_get_attr(i)
             if tok_attrs & llama_cpp.LLAMA_TOKEN_ATTR_CONTROL:
                 special_token_ids.append(i)
-            tok = tokenizer.llama.detokenize([i], special=True)  # note that detokenize returns bytes directly
+            tok = detokenize(tokenizer, [i], special=True, size=128)
             tokens.append(tok)
 
         # Chat Template logic
