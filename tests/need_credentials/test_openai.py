@@ -1,5 +1,4 @@
 import pytest
-import tiktoken
 
 _ = pytest.importorskip("openai")
 
@@ -79,10 +78,8 @@ def test_openai_chat():
 
 
 def test_openai_chat_without_roles():
-    # fake model tokenizer and API key to allow this test to run without tiktoken detection errors
     lm = guidance.models.OpenAI(
         "gpt-3.5-turbo",
-        tokenizer=tiktoken.encoding_for_model("gpt-3.5-turbo"),
         api_key="blah",
     )
     with pytest.raises(ValueError) as error_info:

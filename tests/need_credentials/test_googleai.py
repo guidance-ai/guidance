@@ -1,6 +1,6 @@
 import pytest
 
-from guidance import gen, instruction, models, select
+from guidance import gen, models, select
 
 from ..utils import get_model
 

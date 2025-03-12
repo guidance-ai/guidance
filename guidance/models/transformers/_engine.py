@@ -490,13 +490,15 @@ class TransformersEngine(Engine):
         elif isinstance(past_key_values, tuple):
             past_length = past_key_values[0][0].size(-2)
         elif isinstance(past_key_values, transformers_package.Cache):
-            # TODO: use model's `cache_position` as this may be deprecated in a future version
+            # TODO: use model's `cache_position` once available, as this may be deprecated in a future version
             # https://github.com/huggingface/transformers/blob/70b07d97cf2c5f61fff55700b65528a1b6845cd2/src/transformers/cache_utils.py#L64
             past_length = past_key_values.get_seq_length()
-            # TODO: use `get_max_cache_shape` as `get_max_length` will be deprecated in a future version
-            # (`get_max_cache_shape` is not yet available so we can't use it yet)
-            # https://github.com/huggingface/transformers/blob/70b07d97cf2c5f61fff55700b65528a1b6845cd2/src/transformers/cache_utils.py#L67
-            max_cache_shape = past_key_values.get_max_length()
+            try:
+                max_cache_shape = past_key_values.get_max_cache_shape()
+            except AttributeError:
+                # `get_max_length` is deprecated in favor of `get_max_cache_shape`
+                # as of transformers v4.48, but we use here for backwards compatibility
+                max_cache_shape = past_key_values.get_max_length()
         else:
             raise TypeError(f"Unknown type of past_key_values: {type(past_key_values)}")
 

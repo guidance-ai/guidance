@@ -380,10 +380,10 @@ class TestAllOf:
             },
             # additionalProperties in parent schema
             {
+                "properties": {"foo": {"maximum": 4}},
                 "allOf": [
                     {"properties": {"bar": {"maximum": 5}}, "additionalProperties": {"type": ["integer", "null"]}}
                 ],
-                "properties": {"foo": {"maximum": 4}},
                 "additionalProperties": {"minimum": 5},
             },
             # additionalProperties in allOf
