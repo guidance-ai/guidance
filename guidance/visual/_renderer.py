@@ -311,7 +311,8 @@ class JupyterWidgetRenderer(Renderer):
         out_messages = []
         if isinstance(message, MetricMessage):
             if self._running:
-                logger.debug(f"RENDERER:metric:{message}")
+                pass
+                # logger.debug(f"RENDERER:metric:{message}")
             else:
                 return
 
@@ -380,7 +381,7 @@ class JupyterWidgetRenderer(Renderer):
         # Send outgoing messages to client
         for out_message in out_messages:
             if isinstance(out_message, TraceMessage):
-                logger.debug(f"RENDERER:out:{out_message}")
+                # logger.debug(f"RENDERER:out:{out_message}")
                 self.last_trace_id = out_message.trace_id
 
             self._messages.append(out_message)
