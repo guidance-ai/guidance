@@ -77,11 +77,10 @@ class LlamaCppTokenizer(Tokenizer):
         tokens = []
         special_token_ids = []
         for i in range(tokenizer.llama.n_vocab()):
-            tok = tokenizer.llama.detokenize([i])  # note that detokenize returns bytes directly
-            if tok == b"":
-                # get text rep of special tokens
-                tok = llama_cpp.llama_vocab_get_text(vocab, i)
+            tok_attrs = tokenizer.llama.token_get_attr(i)
+            if tok_attrs & llama_cpp.LLAMA_TOKEN_ATTR_CONTROL:
                 special_token_ids.append(i)
+            tok = tokenizer.llama.detokenize([i], special=True)  # note that detokenize returns bytes directly
             tokens.append(tok)
 
         # Chat Template logic
