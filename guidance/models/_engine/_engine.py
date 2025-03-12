@@ -58,17 +58,12 @@ def _msg_recv(engine_weakref: weakref.ReferenceType, message: GuidanceMessage) -
         return
 
     logger.debug(f"ENGINE({id(engine)}):msg_recv:{message}")
-    # TODO(nopdive): Remove on refactor.
     if isinstance(message, ExecutionStartedMessage):
         pass
-        # if engine.periodic_metrics_generator is not None:
-        #     engine.periodic_metrics_generator.resume()
     elif isinstance(message, ExecutionCompletedMessage) and message.is_err:
         pass
-    elif isinstance(message, (ExecutionCompletedMessage, OutputRequestMessage, TokensMessage)):
+    elif isinstance(message, ExecutionCompletedMessage):
         pass
-        # if engine.periodic_metrics_generator is not None:
-        #     engine.periodic_metrics_generator.pause()
 
 
 class Engine(ABC):
