@@ -6,7 +6,6 @@
     isAudioOutput,
     type NodeAttr,
     type RoleOpenerInput,
-    type GenTokenExtra,
     isImageOutput,
     isVideoOutput,
     type AudioOutput,
@@ -27,8 +26,7 @@
 
     import {interpolateGreens, interpolateBlues} from "d3-scale-chromatic";
 
-  export let textComponents: Array<NodeAttr>;
-  export let tokenDetails: Array<GenTokenExtra>;
+  export let components: Array<NodeAttr>;
   export let isCompleted: boolean;
   export let isError: boolean;
   export let requireFullReplay: boolean = false;
@@ -175,7 +173,7 @@
   let currentTokenIndex: number = 0;
   let statCounter: Record<string, number> = {};
   $: {
-    if (textComponents.length === 0) {
+    if (components.length === 0) {
       // Reset
       tokens = []
       multimodalNodes = [];
@@ -186,8 +184,8 @@
       currentTokenIndex = 0;
     }
 
-    for (; currentTokenIndex < textComponents.length; currentTokenIndex += 1) {
-      const nodeAttr = textComponents[currentTokenIndex];
+    for (; currentTokenIndex < components.length; currentTokenIndex += 1) {
+      const nodeAttr = components[currentTokenIndex];
       const createMediaNode = (
         mediaType: MediaType,
         node: AudioOutput | VideoOutput | ImageOutput
@@ -282,122 +280,6 @@
             // console.log("Opener and closer role texts did not balance.")
         }
 
-    // Process tokens to have detail if we have it (should only happen once at the end).
-    const isDetailed = tokenDetails.length > 0;
-    if (isDetailed) {
-      // Preprocess for special words
-      const fullText = tokenDetails
-        .map((x) => {
-          return x.text;
-        })
-        .join("");
-
-      const specialMatchStack = findTargetWords(
-        fullText,
-        Array.from(specialSet)
-      );
-      // for (const [start, end, match] of specialMatchStack) {
-      //     console.log(match, start, end);
-      // }
-
-      tokens = [];
-      let tokenStart = 0;
-      let tokenEnd = 0;
-      let withinRoleMatch = false;
-      let multimodalNodeIndex = 0;
-      for (const tokenDetail of tokenDetails) {
-        tokenStart = tokenEnd;
-        tokenEnd = tokenStart + tokenDetail.text.length;
-        let special = false;
-        let role = "";
-
-        if (specialMatchStack.length > 0) {
-          let [matchStart, matchEnd, match] = specialMatchStack[0];
-          if (tokenStart >= matchEnd) {
-            specialMatchStack.shift();
-            if (specialMatchStack.length > 0) {
-              [matchStart, matchEnd, match] = specialMatchStack[0];
-            }
-          }
-
-          let [overlapped, noSpecialOverride] = checkOverlapped(
-            tokenStart,
-            tokenEnd,
-            matchStart,
-            matchEnd
-          );
-          // console.log("token: ", tokenStart, tokenEnd, withinRoleMatch, fullText.slice(tokenStart, tokenEnd));
-          // console.log("match: ", matchStart, matchEnd, match);
-          // console.log(overlapped ? "matched" : "");
-
-          if (overlapped) {
-            if (Object.keys(namedRoleSet).includes(match)) {
-              if (!withinRoleMatch) {
-                role = namedRoleSet[match];
-                withinRoleMatch = true;
-              }
-            }
-
-            // Peek for overlap of next role (needed for phi 3)
-            if (specialMatchStack.length > 1) {
-              let [matchStart, matchEnd, match] = specialMatchStack[1];
-              const [overlapped, _] = checkOverlapped(
-                tokenStart,
-                tokenEnd,
-                matchStart,
-                matchEnd
-              );
-              if (overlapped && Object.keys(namedRoleSet).includes(match)) {
-                role = namedRoleSet[match];
-                withinRoleMatch = true;
-                noSpecialOverride = false;
-              }
-            }
-
-            if (!noSpecialOverride) {
-              special = true;
-            }
-          } else {
-            withinRoleMatch = false;
-          }
-        }
-
-        const token: Token = {
-          text: tokenDetail.text,
-          prob: tokenDetail.prob,
-          latency_ms: tokenDetail.latency_ms,
-          role: role,
-          special: special,
-          is_input: tokenDetail.is_input,
-          is_force_forwarded: tokenDetail.is_force_forwarded,
-          is_generated: tokenDetail.is_generated,
-          top_k: tokenDetail.top_k,
-        };
-        statCounter["latency.max"] = Math.max(
-          token.latency_ms,
-          statCounter["latency.max"] || 0
-        );
-        tokens.push(token);
-
-        // Advance array index to the next token
-        // while (
-        //   multimodalNodeIndex < multimodalNodes.length &&
-        //   multimodalNodes[multimodalNodeIndex].type !== "token"
-        // ) {
-        //   multimodalNodeIndex++;
-        // }
-
-        // if (multimodalNodeIndex >= multimodalNodes.length) {
-        //   console.error(
-        //     "Ran off multimodal node array when filling in token details!"
-        //   );
-        // } else if (multimodalNodes[multimodalNodeIndex].type === "token") {
-        //   multimodalNodes[multimodalNodeIndex].data = token;
-        //   multimodalNodeIndex++;
-        // }
-      }
-    }
-
     // Visual updates
     if (!isCompleted || isError) {
       underline = (_: Token) => "border: none;";
@@ -430,8 +312,7 @@
     // End bookkeeping (svelte)
     isCompleted = isCompleted;
     isError = isError;
-    tokenDetails = tokenDetails;
-    textComponents = textComponents;
+    components = components;
     multimodalNodes = multimodalNodes;
     tokens = tokens;
   }
