@@ -9,7 +9,6 @@ For upcoming features, we won't be able to send all details over the wire, and w
   import ResizeListener from './ResizeListener.svelte';
   import {
     clientmsg,
-    type GenTokenExtra,
     type GuidanceMessage,
     isAudioOutput,
     isClientReadyAckMessage,
@@ -21,7 +20,6 @@ For upcoming features, we won't be able to send all details over the wire, and w
     isRoleCloserInput,
     isRoleOpenerInput,
     isTextOutput,
-    isTokensMessage,
     isTraceMessage,
     isVideoOutput,
     kernelmsg,
@@ -36,19 +34,18 @@ For upcoming features, we won't be able to send all details over the wire, and w
   import Select from './Select.svelte';
   import { metricDefs } from './metrics';
   import type { MetricVal } from './interfaces';
-  // import { mockGenTokens, mockNodeAttrs } from './mocks';
+  // import { mockNodeAttrs } from './mocks';
 
   interface AppState {
-    textComponents: Array<NodeAttr>,
-    tokenDetails: Array<GenTokenExtra>,
+    components: Array<NodeAttr>,
     status: Status,
     metrics: Record<string, MetricVal>,
     shownMetrics: Array<string>,
     requireFullReplay: boolean,
+    currentMessageId: number,
   }
   let appState: AppState = {
-    textComponents: [],
-    tokenDetails: [],
+    components: [],
     status: Status.Running,
     shownMetrics: [],
     metrics: {
@@ -63,27 +60,36 @@ For upcoming features, we won't be able to send all details over the wire, and w
       'vram': 0,
     },
     requireFullReplay: true,
+    currentMessageId: -1,
   };
-  // appState.textComponents = mockNodeAttrs;
-  // appState.tokenDetails = mockGenTokens;
+  // appState.components = mockNodeAttrs;
 
   let bgField: string = 'Type';
   let underlineField: string = 'Probability';
 
   const handleMessage = (msg: GuidanceMessage): void => {
+    // Duplicates can randomly occur from ipywidget layer.
+    if (appState.currentMessageId === msg.message_id) {
+      console.log(`Duplicate message detected: ${msg.message_id}`)
+      return;
+    } else {
+      appState.currentMessageId = msg.message_id;
+    }
+
     if (isTraceMessage(msg)) {
       if (isTextOutput(msg.node_attr)) {
-        appState.textComponents.push(msg.node_attr);
+        // console.log(msg.node_attr);
+        appState.components.push(msg.node_attr);
       } else if (isRoleOpenerInput(msg.node_attr)) {
-        appState.textComponents.push(msg.node_attr);
+        appState.components.push(msg.node_attr);
       } else if (isRoleCloserInput(msg.node_attr)) {
-        appState.textComponents.push(msg.node_attr);
+        appState.components.push(msg.node_attr);
       } else if (isAudioOutput(msg.node_attr)) {
-        appState.textComponents.push(msg.node_attr);
+        appState.components.push(msg.node_attr);
       } else if (isImageOutput(msg.node_attr)) {
-        appState.textComponents.push(msg.node_attr);
+        appState.components.push(msg.node_attr);
       } else if (isVideoOutput(msg.node_attr)) {
-        appState.textComponents.push(msg.node_attr);
+        appState.components.push(msg.node_attr);
       }
     } else if (isExecutionStartedMessage(msg)) {
       appState.requireFullReplay = false;
@@ -97,7 +103,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
         clientmsg.set(msg);
       }
     } else if (isResetDisplayMessage(msg)) {
-      appState.textComponents = [];
+      appState.components = [];
       appState.status = appState.status !== Status.Error ? Status.Running : appState.status;
     } else if (isMetricMessage(msg)) {
       const name = msg.name;
@@ -126,10 +132,6 @@ For upcoming features, we won't be able to send all details over the wire, and w
       }
     } else if (isExecutionCompletedMessage(msg)) {
       appState.status = Status.Done;
-    } else if (isTokensMessage(msg)) {
-      appState.requireFullReplay = false;
-      appState.status = Status.Done;
-      appState.tokenDetails = msg.tokens;
 
       // Good time to save state.
       const savedState = JSON.stringify(appState);
@@ -139,8 +141,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
       };
       state.set(stateMessage);
 
-      // console.log(appState.textComponents);
-      // console.log(appState.tokenDetails);
+      // console.log(appState.components);
     }
 
     appState = appState;
@@ -215,8 +216,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
 
   <!-- Content pane -->
   <section class="w-full">
-    <TokenGrid textComponents={appState.textComponents}
-               tokenDetails={appState.tokenDetails}
+    <TokenGrid components={appState.components}
                isCompleted={['Done', 'Error'].includes(appState.status)}
                isError={appState.status === Status.Error}
                bgField={bgField} underlineField={underlineField} requireFullReplay="{appState.requireFullReplay}" />

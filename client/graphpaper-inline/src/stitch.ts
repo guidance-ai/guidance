@@ -90,13 +90,6 @@ export interface ExecutionCompletedMessage extends GuidanceMessage {
     last_trace_id?: number,
 }
 
-export interface TokensMessage extends GuidanceMessage {
-    class_name: 'TokensMessage',
-    trace_id: number,
-    text: string,
-    tokens: Array<GenTokenExtra>,
-}
-
 export interface ClientReadyMessage extends GuidanceMessage {
     class_name: 'ClientReadyMessage'
 }
@@ -184,11 +177,6 @@ export function isExecutionCompletedMessage(o: GuidanceMessage | undefined | nul
 export function isExecutionStartedMessage(o: GuidanceMessage | undefined | null): o is ExecutionStartedMessage {
     if (o === undefined || o === null) return false;
     return o.class_name === "ExecutionStartedMessage";
-}
-
-export function isTokensMessage(o: GuidanceMessage | undefined | null): o is TokensMessage {
-    if (o === undefined || o === null) return false;
-    return o.class_name === "TokensMessage";
 }
 
 export const kernelmsg = writable<StitchMessage | undefined>(undefined);
