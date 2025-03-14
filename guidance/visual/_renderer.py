@@ -152,6 +152,8 @@ async def _handle_recv_messages(renderer_weakref: weakref.ReferenceType["Jupyter
             if isinstance(message, ClientReadyMessage):
                 logger.debug("RECV:clientready")
                 get_bg_async().call_soon_threadsafe(renderer.send_queue.put_nowait, ClientReadyAckMessage())
+            elif isinstance(message, OutputRequestMessage):
+                logger.debug("RECV:outputrequest")
 
             get_exchange().publish(message, topic=f"{DEFAULT_TOPIC}")
             renderer.recv_queue.task_done()
@@ -188,6 +190,7 @@ async def _handle_send_messages(renderer_weakref: weakref.ReferenceType["Jupyter
             if renderer is None:
                 break
             if isinstance(renderer, JupyterWidgetRenderer) and renderer.stitch_widget is not None:
+                # NOTE(nopdive): This at random times, appears to fire two changes instead of one change event.
                 renderer.stitch_widget.kernelmsg = message_json
             else:
                 logger.debug(f"SEND:jupyter:send but no widget")
@@ -217,7 +220,7 @@ class JupyterWidgetRenderer(Renderer):
         self._completed = False
         self._running = False
         self._new_widget_needed = False
-        self._stitch_widget_observed = False
+        self.stitch_widget_observed = False
         self._stitch_on_clientmsg = None
         self.last_cell_session_id = None
 
@@ -309,14 +312,17 @@ class JupyterWidgetRenderer(Renderer):
         from ..registry import get_bg_async
 
         out_messages = []
+
+        # Metrics
         if isinstance(message, MetricMessage):
             if self._running:
-                pass
                 # logger.debug(f"RENDERER:metric:{message}")
+                pass
             else:
                 return
 
         if isinstance(message, ExecutionCompletedMessage):
+            # Execution completed
             logger.debug("RENDERER:execution end")
             self._completed = True
             self._running = False
@@ -326,8 +332,8 @@ class JupyterWidgetRenderer(Renderer):
                 out_messages.append(MetricMessage(name="status", value="Error"))
             else:
                 out_messages.append(MetricMessage(name="status", value="Done"))
-
-        if not self._running and isinstance(message, TraceMessage):
+        elif not self._running and isinstance(message, TraceMessage):
+            # Execution started
             logger.debug("RENDERER:execution start")
             started_msg = ExecutionStartedMessage()
             out_messages.append(started_msg)
@@ -351,6 +357,12 @@ class JupyterWidgetRenderer(Renderer):
             out_messages.append(ResetDisplayMessage())
             out_messages[len(out_messages):] = self._messages[:shared_ancestor_idx]
             self._messages.clear()
+        
+        # Check if requested to reset and replay
+        if isinstance(message, OutputRequestMessage):
+            logger.debug(f"RENDERER:replay:{message}")
+            out_messages.append(ResetDisplayMessage())
+            out_messages[len(out_messages):] = self._messages[:]
 
         # Reset if needed
         if self._new_widget_needed:
@@ -359,15 +371,15 @@ class JupyterWidgetRenderer(Renderer):
             # Clear messages
             self._messages = []
 
-            if self.stitch_widget is not None and self._stitch_widget_observed:
+            if self.stitch_widget is not None and self.stitch_widget_observed:
                 self.stitch_widget.unobserve(self._stitch_on_clientmsg, names='clientmsg')
-                self._stitch_widget_observed = False
+                self.stitch_widget_observed = False
                 logger.debug("RENDERER:widget unobserved (new)")
 
             self.stitch_widget = _create_stitch_widget()
             self._stitch_on_clientmsg = partial(_on_stitch_clientmsg, weakref.ref(self.recv_queue))
             self.stitch_widget.observe(self._stitch_on_clientmsg, names='clientmsg')
-            self._stitch_widget_observed = True
+            self.stitch_widget_observed = True
             logger.debug("RENDERER:widget observed (new)")
 
             # Redraw
