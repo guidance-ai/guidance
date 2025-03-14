@@ -6,6 +6,7 @@ import sys
 from itertools import takewhile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional, Sequence
+import ctypes
 
 import numpy as np
 
@@ -22,6 +23,7 @@ except ModuleNotFoundError:
     is_llama_cpp = False
 
 if TYPE_CHECKING:
+    from llama_cpp.llama_tokenizer import LlamaTokenizer
     from llama_cpp.llama import Llama
     from llama_cpp.llama_chat_format import Jinja2ChatFormatter
 
@@ -55,6 +57,30 @@ class _LlamaBatchContext:
                 self.batch = None
                 llama_batch_free(batch)
 
+def detokenize(tokenizer: "LlamaTokenizer", tokens: list[int], special: bool, size: int) -> bytes:
+    """Re-implementation of llama_cpp.LLamaTokenizer.detokenize that ditches the hard-coded size=32"""
+    output = b""
+    buffer = ctypes.create_string_buffer(size)
+    for token in tokens:
+        n = llama_cpp.llama_token_to_piece(
+            tokenizer._model.vocab,
+            llama_cpp.llama_token(token),
+            buffer,
+            size,
+            0,
+            special
+        )
+        if n < 0:
+            raise ValueError(f"Error writing token {token} to buffer of size {size}. Error: {n}")
+        assert n <= size
+        output += bytes(buffer[:n])
+    # NOTE: Llama1 models automatically added a space at the start of the prompt
+    # this line removes a leading space if the first token is a beginning of sentence token
+    return (
+        output[1:]
+        if len(tokens) > 0 and tokens[0] == tokenizer._model.token_bos() and output[0:1] == b" "
+        else output
+        )
 
 class LlamaCppTokenizer(Tokenizer):
     def __init__(self, model_obj, chat_template=None):
@@ -77,11 +103,10 @@ class LlamaCppTokenizer(Tokenizer):
         tokens = []
         special_token_ids = []
         for i in range(tokenizer.llama.n_vocab()):
-            tok = tokenizer.llama.detokenize([i])  # note that detokenize returns bytes directly
-            if tok == b"":
-                # get text rep of special tokens
-                tok = llama_cpp.llama_vocab_get_text(vocab, i)
+            tok_attrs = tokenizer.llama.token_get_attr(i)
+            if tok_attrs & llama_cpp.LLAMA_TOKEN_ATTR_CONTROL:
                 special_token_ids.append(i)
+            tok = detokenize(tokenizer, [i], special=True, size=256)
             tokens.append(tok)
 
         # Chat Template logic
@@ -163,14 +188,9 @@ class LlamaCppEngine(Engine):
         self._context = _LlamaBatchContext(self.model_obj.n_batch, self.model_obj.n_ctx())
         self._cache_token_ids = []
 
-        super().__init__(
-            LlamaCppTokenizer(self.model_obj, chat_template=chat_template),
-            compute_log_probs=compute_log_probs,
-            enable_backtrack=enable_backtrack,
-            enable_ff_tokens=enable_ff_tokens,
-            enable_monitoring=enable_monitoring,
-            **kwargs,
-        )
+        super().__init__(LlamaCppTokenizer(self.model_obj, chat_template=chat_template),
+                         compute_log_probs=compute_log_probs, enable_backtrack=enable_backtrack,
+                         enable_ff_tokens=enable_ff_tokens, enable_monitoring=enable_monitoring, **kwargs)
 
         self._n_vocab = len(self.tokenizer.tokens)
 

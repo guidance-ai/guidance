@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, Any, Generic, Iterator, Optional, TypeVar, Uni
 from typing_extensions import Self
 
 from ..._ast import ASTNode, Function, _parse_tags
-from guidance.registry import get_renderer, get_trace_handler
 from ..._ast import (
     ASTNode,
     Function,
@@ -81,6 +80,8 @@ class Model(Generic[S]):
     def _update_trace_node(
         self, identifier: int, parent_id: Optional[int], node_attr: Optional[NodeAttr] = None
     ) -> None:
+        from ...registry import get_trace_handler, get_renderer
+
         trace_handler = get_trace_handler()
         trace_node = trace_handler.update_node(identifier, parent_id, node_attr)
         self._trace_nodes.add(trace_node)
@@ -90,7 +91,7 @@ class Model(Generic[S]):
                     trace_id=identifier,
                     parent_trace_id=parent_id,
                     node_attr=node_attr,
-                )
+                ),
             )
 
     def __add__(self, other: Union[str, Function, ASTNode]) -> Self:
