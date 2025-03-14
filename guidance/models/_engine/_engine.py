@@ -1,7 +1,6 @@
 # TODO(nopdive): This module requires a memory review.
 
 import logging
-import traceback
 import time
 import weakref
 from abc import ABC, abstractmethod
@@ -17,15 +16,15 @@ from ..._schema import (
     GuidanceEngineMetrics,
     LLGrammar,
 )
-from ...metrics import PeriodicMetricsGenerator, PostExecMetrics, Monitor
-from ...registry import get_renderer, get_trace_handler, get_exchange
+
+from ...registry import get_exchange
 from ..._utils import log_cleanup, log_init, softmax
 from ...visual import (
     ExecutionCompletedMessage,
     ExecutionStartedMessage,
     GuidanceMessage,
     OutputRequestMessage,
-    TokensMessage,
+    MetricMessage,
 )
 from ._state import EngineState
 from ._tokenizer import Tokenizer
@@ -36,26 +35,8 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _engine_cleanup(
-    msg_recv: Callable[[GuidanceMessage], None],
-    monitor: Optional["Monitor"],
-    periodic_metrics_generator: Optional[PeriodicMetricsGenerator],
-    log_msg: str
-):
+def _engine_cleanup(msg_recv: Callable[[GuidanceMessage], None], log_msg: str):
     get_exchange().unsubscribe(msg_recv)
-
-    if periodic_metrics_generator is not None:
-        try:
-            periodic_metrics_generator.stop()
-        except Exception as _:
-            logger.error(f"Failed to stop periodic metrics generator: {traceback.format_exc()}")
-
-    if monitor is not None:
-        try:
-            monitor.stop()
-        except Exception as _:
-            logger.error(f"Failed to stop monitor: {traceback.format_exc()}")
-
     log_cleanup(log_msg)
 
 
@@ -67,20 +48,24 @@ def _wrapped_msg_recv(engine_weak_ref: weakref.ref) -> Callable[[GuidanceMessage
 
 
 def _msg_recv(engine_weakref: weakref.ReferenceType, message: GuidanceMessage) -> None:
+    # NOTE(nopdive): This is run on a background thread.
+
     engine = engine_weakref()
     if engine is None:
         return
 
-    # NOTE(nopdive): This is run on a background thread.
-    logger.debug(f"ENGINE({id(engine)}):msg_recv:{message}")
+    if isinstance(message, MetricMessage):
+        return
+
+    # logger.debug(f"ENGINE({id(engine)}):msg_recv:{message}")
     if isinstance(message, ExecutionStartedMessage):
-        if engine.periodic_metrics_generator is not None:
-            engine.periodic_metrics_generator.resume()
+        pass
     elif isinstance(message, ExecutionCompletedMessage) and message.is_err:
         pass
-    elif isinstance(message, (ExecutionCompletedMessage, OutputRequestMessage, TokensMessage)):
-        if engine.periodic_metrics_generator is not None:
-            engine.periodic_metrics_generator.pause()
+    elif isinstance(message, ExecutionCompletedMessage):
+        pass
+    elif isinstance(message, OutputRequestMessage):
+        pass
 
 
 class Engine(ABC):
@@ -92,53 +77,31 @@ class Engine(ABC):
     Server so a single server can serve many clients' model objects through a single Engine object.
     """
 
-    def __init__(
-        self,
-        tokenizer: Tokenizer,
-        compute_log_probs=False,
-        enable_backtrack=True,
-        enable_ff_tokens=True,
-        renderer=None,
-        enable_monitoring=True,
-        **kwargs,
-    ):
+    def __init__(self, tokenizer: Tokenizer, compute_log_probs=False, enable_backtrack=True, enable_ff_tokens=True,
+                 enable_monitoring=True, **kwargs):
+        from ...registry import get_monitor
+
         self.tokenizer = tokenizer
         self.compute_log_probs = compute_log_probs
         self._enable_backtrack = enable_backtrack
         self._enable_ff_tokens = enable_ff_tokens
         self._enable_monitoring = enable_monitoring
         self._top_k = kwargs.get("top_k", 5)
+
+        # TODO(nopdive): Remove on refactor.
         self.metrics = GuidanceEngineMetrics()
 
-        if renderer is None:
-            self.trace_handler = get_trace_handler()
-            self.renderer = get_renderer()
-        else:
-            self.renderer = renderer
-            self.trace_handler = renderer._trace_handler
+        if self._enable_monitoring:
+            # Idempotent start
+            _ = get_monitor()
 
         msg_recv = _wrapped_msg_recv(weakref.ref(self))
         get_exchange().subscribe(msg_recv)
-
-        self.model_dict: weakref.WeakValueDictionary[int, "Model"] = weakref.WeakValueDictionary()
-
-        self.monitor = None
-        self.periodic_metrics_generator = None
-        self.post_exec_metrics = None
-        if self._enable_monitoring:
-            self.monitor = Monitor(self.metrics)
-            self.monitor.start()
-
-            self.periodic_metrics_generator = PeriodicMetricsGenerator(self.monitor)
-            self.periodic_metrics_generator.start()
-            self.post_exec_metrics = PostExecMetrics(self.monitor)
 
         weakref.finalize(
             self,
             _engine_cleanup,
             msg_recv,
-            self.monitor,
-            self.periodic_metrics_generator,
             f"engine({id(self)})",
         )
         log_init(f"engine({id(self)})")
