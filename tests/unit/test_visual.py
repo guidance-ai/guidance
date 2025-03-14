@@ -19,7 +19,7 @@ from guidance.visual._exchange import DEFAULT_TOPIC
         MetricMessage(name="name", value="value"),
         ExecutionCompletedMessage(last_trace_id=0),
         TokensMessage(trace_id=0, text="text", tokens=[
-            GenTokenExtra(token_id=0, prob=0, top_k=[GenToken(token_id=0, prob=0)])
+            GenTokenExtra(token_id=0, prob=0, bytes=b'text', top_k=[GenToken(token_id=0, bytes=b'blah', prob=0)])
         ]),
         ResetDisplayMessage(),
         ClientReadyMessage(),

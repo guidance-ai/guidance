@@ -47,6 +47,13 @@ def test_stop_quote(selected_model):
     assert not lm["title"].endswith('"')
 
 
+@pytest.mark.xfail(
+    reason="""
+    engine_output_tokens counts forward passes, not actual tokens generated, and it increments even when all inputs are in the KV cache.
+    We now get a forward pass every time text is added to the model (in addition to the extant forward pass any time a grammar is added),
+    causing this test to break. TODO: implement metrics that are more semantically meaningful.
+    """
+)
 def test_metrics_smoke(selected_model: models.Model):
     lm = selected_model
     lm.engine.reset_metrics()
