@@ -386,8 +386,12 @@ class TransformersTokenizer(Tokenizer):
 class TransformersEngine(Engine):
     def __init__(
         self,
-        model,
-        tokenizer,
+        model: Union[str, "transformers_package.PreTrainedModel"],
+        tokenizer: Union[
+            "transformers_package.PreTrainedTokenizer",
+            "transformers_package.PreTrainedTokenizerFast",
+            None,
+        ],
         compute_log_probs: bool,
         chat_template=None,
         enable_backtrack=True,
@@ -409,8 +413,8 @@ class TransformersEngine(Engine):
 
         if not isinstance(model, str):
             try:
-                self.model = self.model_obj.config["_name_or_path"]
-            except KeyError:
+                self.model = self.model_obj.config._name_or_path
+            except AttributeError:
                 self.model = self.model_obj.__class__.__name__
         else:
             self.model = model
@@ -445,7 +449,7 @@ class TransformersEngine(Engine):
         super().__init__(my_tokenizer, compute_log_probs=compute_log_probs, enable_backtrack=enable_backtrack,
                          enable_ff_tokens=enable_ff_tokens, enable_monitoring=enable_monitoring, **kwargs)
 
-    def _model(self, model, **kwargs):
+    def _model(self, model, **kwargs) -> "transformers_package.PreTrainedModel":
         # intantiate the model if needed
         if isinstance(model, str):
 
