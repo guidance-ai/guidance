@@ -64,21 +64,23 @@ def test_chat_format_smoke(model_id: str):
     model_chat_template = tokenizer.chat_template
 
     lm = guidance.models.Mock("")
-    lm.chat_template = CHAT_TEMPLATE_CACHE[model_chat_template]()
+    try:
+        lm.chat_template = CHAT_TEMPLATE_CACHE[model_chat_template]()
 
-    messages = [
-        {"role": "user", "content": "Good day to you!"},
-        {"role": "assistant", "content": "Hello!"},
-    ]
-    tokeniser_render = tokenizer.apply_chat_template(messages, tokenize=False)
+        messages = [
+            {"role": "user", "content": "Good day to you!"},
+            {"role": "assistant", "content": "Hello!"},
+        ]
+        tokeniser_render = tokenizer.apply_chat_template(messages, tokenize=False)
 
-    with guidance.user():
-        lm += "Good day to you!"
-    with guidance.assistant():
-        lm += "Hello!"
-    # Only check substring due to BOS/EOS tokens
-    assert str(lm) in tokeniser_render
-    lm.close()
+        with guidance.user():
+            lm += "Good day to you!"
+        with guidance.assistant():
+            lm += "Hello!"
+        # Only check substring due to BOS/EOS tokens
+        assert str(lm) in tokeniser_render
+    finally:
+        lm.close()
 
 
 @pytest.mark.parametrize(
@@ -106,21 +108,23 @@ def test_chat_format_smoke_with_system(model_id: str):
     model_chat_template = tokenizer.chat_template
 
     lm = guidance.models.Mock("")
-    lm.chat_template = CHAT_TEMPLATE_CACHE[model_chat_template]()
+    try:
+        lm.chat_template = CHAT_TEMPLATE_CACHE[model_chat_template]()
 
-    messages = [
-        {"role": "system", "content": "You are an LLM"},
-        {"role": "user", "content": "Good day to you!"},
-        {"role": "assistant", "content": "Hello!"},
-    ]
-    tokeniser_render = tokenizer.apply_chat_template(messages, tokenize=False)
+        messages = [
+            {"role": "system", "content": "You are an LLM"},
+            {"role": "user", "content": "Good day to you!"},
+            {"role": "assistant", "content": "Hello!"},
+        ]
+        tokeniser_render = tokenizer.apply_chat_template(messages, tokenize=False)
 
-    with guidance.system():
-        lm += "You are an LLM"
-    with guidance.user():
-        lm += "Good day to you!"
-    with guidance.assistant():
-        lm += "Hello!"
-    # Only check substring due to BOS/EOS tokens
-    assert str(lm) in tokeniser_render
-    lm.close()
+        with guidance.system():
+            lm += "You are an LLM"
+        with guidance.user():
+            lm += "Good day to you!"
+        with guidance.assistant():
+            lm += "Hello!"
+        # Only check substring due to BOS/EOS tokens
+        assert str(lm) in tokeniser_render
+    finally:
+        lm.close()

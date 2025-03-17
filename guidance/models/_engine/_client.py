@@ -11,6 +11,7 @@ from ...trace import ImageOutput, OutputAttr, TextOutput
 from .._base import Client
 from ._engine import Engine
 from ._state import EngineState
+from ...trace import CaptureOutput
 
 shutdown_none = True
 
@@ -30,21 +31,23 @@ class EngineClient(Client[EngineState]):
         initial_thread_queue = ThreadQueue()
         
         self._outstanding = {1: initial_thread_queue}
+        self._work_queue.put((1, "init", engine_type, args, kwargs))
 
-        self._thread = Thread(target=local_worker, args=(self._outstanding, self._response_queue), daemon=True)
+        self._thread = Thread(target=local_worker, args=(self._outstanding, self._response_queue), daemon=False)
         self._thread.start()
 
-        self._process = Process(target=remote_worker, args=(self._work_queue, self._response_queue), daemon=True)
+        self._process = Process(target=remote_worker, args=(self._work_queue, self._response_queue), daemon=False)
         self._process.start()
 
-        self._work_queue.put((1, "init", engine_type, args, kwargs))
         # wait for response that the engine has been created in the other process
         exception, *response_args = initial_thread_queue.get()
         if exception is not None:
             raise exception
 
-        self.engine = engine_type(*args, **kwargs)
-        self.chat_template = self.engine.get_chat_template()
+        self.chat_template = response_args[0]
+
+        # self.engine = engine_type(*args, **kwargs)
+        # self.chat_template = self.engine.get_chat_template()
 
     def __del__(self):
         if shutdown_none is not None:
@@ -105,62 +108,26 @@ class EngineClient(Client[EngineState]):
         yield TextOutput(value=node.value, is_input=True)
 
     def grammar(self, state: EngineState, node: GrammarNode, **kwargs) -> Iterator[OutputAttr]:
-        engine_gen = self.engine.execute_grammar(
-            state,
-            node.ll_grammar(),
-            ensure_bos_token=True,
-            echo=False,
-        )
+        message_id = self._message_id
+        self._message_id += 1
 
-        delayed_bytes = b""
-        for chunk in engine_gen:
-            new_bytes = chunk.new_bytes
-            new_text, delayed_bytes = partial_decode(new_bytes)
+        thread_queue = ThreadQueue()
+        self._outstanding[message_id] = thread_queue
 
-            # Update the state
-            state.prompt += new_text
-            yield TextOutput(value=new_text, token_count=chunk.new_token_count, is_generated=True)
+        self._work_queue.put((message_id, "grammar", state, node.ll_grammar()))
 
-            # TODO -- rewrite engine internals to make sure chunk.{generated,fast_forwarded}_tokens aren't empty...
-            # # TODO: GenTokenExtra
-            # for token in chunk.generated_tokens:
-            #     yield TextOutput(
-            #         value=token.text,  # TODO: this should really be the token bytes
-            #         is_generated=True,
-            #         token_count=1,
-            #         prob=token.prob,
-            #         tokens=[token],  # TODO: drop this
-            #     )
-            # for token in chunk.force_forwarded_tokens:
-            #     yield TextOutput(
-            #         value=token.text,  # TODO: this should really be the token bytes
-            #         is_generated=False,
-            #         token_count=1,
-            #         prob=token.prob,
-            #         tokens=[token],  # TODO: drop this
-            #     )
+        exception, chunks = thread_queue.get()
+        if exception is not None:
+            raise exception
 
-            # # TODO: yield some kind of backtrack signal?
-
-            for name in chunk.capture_groups.keys():
-                values = chunk.capture_groups[name]
-                log_probs = chunk.capture_group_log_probs[name]
-                if isinstance(values, list):
-                    assert isinstance(log_probs, list)
-                    assert len(values) == len(log_probs)
-                    for value, log_prob in zip(values, log_probs):
-                        yield state.apply_capture(
-                            name, value.decode("utf-8"), log_prob=log_prob, is_append=True
-                        )
-                else:
-                    assert isinstance(log_probs, float)
-                    yield state.apply_capture(
-                        name, values.decode("utf-8"), log_prob=log_probs, is_append=False
-                    )
-
-        if delayed_bytes:
-            raise RuntimeError("Shouldn't have any delayed bytes left...")
-
+        for chunk in chunks:
+            if isinstance(chunk, TextOutput):
+                state.prompt += chunk.value
+                yield chunk
+            elif isinstance(chunk, tuple):
+                yield state.apply_capture(*chunk)
+            else:
+                raise Exception("Unexpected chunk type")
 
 class Llama3VisionClient(EngineClient):
     def image_blob(self, state: EngineState, node: ImageBlob, **kwargs) -> Iterator[OutputAttr]:
@@ -220,10 +187,79 @@ def local_worker(outstanding: dict, response_queue: ProcessQueue):
         thread_queue.put(response_args)
 
 def remote_worker(work_queue: ProcessQueue, response_queue: ProcessQueue):
+    engine = None
     while True:
         event_id, work_type, *work_args = work_queue.get()
         if work_type == "init":
-            response_queue.put((event_id, None))
+            try:
+                engine_type, args, kwargs = work_args
+                engine = engine_type(*args, **kwargs)
+                chat_template = engine.get_chat_template()
+
+                response_queue.put((event_id, None, chat_template))
+            except Exception as e:
+                response_queue.put((event_id, e))
+        elif work_type == "grammar":
+            try:
+                state, grammar = work_args
+
+                engine_gen = engine.execute_grammar(
+                    state,
+                    grammar,
+                    ensure_bos_token=True,
+                    echo=False,
+                )
+
+                chunks = []
+
+                delayed_bytes = b""
+                for chunk in engine_gen:
+                    new_bytes = chunk.new_bytes
+                    new_text, delayed_bytes = partial_decode(new_bytes)
+
+                    # Update the state
+                    chunks.append(TextOutput(value=new_text, token_count=chunk.new_token_count, is_generated=True))
+
+                    # TODO -- rewrite engine internals to make sure chunk.{generated,fast_forwarded}_tokens aren't empty...
+                    # # TODO: GenTokenExtra
+                    # for token in chunk.generated_tokens:
+                    #     yield TextOutput(
+                    #         value=token.text,  # TODO: this should really be the token bytes
+                    #         is_generated=True,
+                    #         token_count=1,
+                    #         prob=token.prob,
+                    #         tokens=[token],  # TODO: drop this
+                    #     )
+                    # for token in chunk.force_forwarded_tokens:
+                    #     yield TextOutput(
+                    #         value=token.text,  # TODO: this should really be the token bytes
+                    #         is_generated=False,
+                    #         token_count=1,
+                    #         prob=token.prob,
+                    #         tokens=[token],  # TODO: drop this
+                    #     )
+
+                    # # TODO: yield some kind of backtrack signal?
+
+                    for name in chunk.capture_groups.keys():
+                        values = chunk.capture_groups[name]
+                        log_probs = chunk.capture_group_log_probs[name]
+                        if isinstance(values, list):
+                            assert isinstance(log_probs, list)
+                            assert len(values) == len(log_probs)
+                            for value, log_prob in zip(values, log_probs):
+                                chunks.append((name, value.decode("utf-8"), log_prob, True))
+                        else:
+                            assert isinstance(log_probs, float)
+                            chunks.append((name, values.decode("utf-8"), log_probs, False))
+
+                if delayed_bytes:
+                    raise RuntimeError("Shouldn't have any delayed bytes left...")
+
+                response_queue.put((event_id, None, chunks))
+            except Exception as e:
+                response_queue.put((event_id, e))
+
         elif work_type == "close":
             break
         else:

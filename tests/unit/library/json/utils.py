@@ -38,8 +38,10 @@ def generate_and_check(
         grammar_callable,
         test_string=prepared_json,
     )
-    check_run_with_temperature(lm, desired_temperature)
-    lm.close()
+    try:
+        check_run_with_temperature(lm, desired_temperature)
+    finally:
+        lm.close()
 
 def check_match_failure(
     *,

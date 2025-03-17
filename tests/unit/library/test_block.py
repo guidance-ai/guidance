@@ -4,60 +4,72 @@ import pytest
 
 def test_text_opener():
     model = models.Mock("<s>open texta")
-    with block(opener="open text"):
-        model += regex(r".")
-    assert str(model) == "open texta"
-    model.close()
+    try:
+        with block(opener="open text"):
+            model += regex(r".")
+        assert str(model) == "open texta"
+    finally:
+        model.close()
 
 
 def test_text_closer():
     # NOTE(nopdive): Behavioral change, no longer need closer for str call.
     model = models.Mock("<s>a")
-    model += "<s>"
-    with block(closer="close text"):
-        model += regex(r".")
-    assert str(model) == "<s>a"
-    model.close()
+    try:
+        model += "<s>"
+        with block(closer="close text"):
+            model += regex(r".")
+        assert str(model) == "<s>a"
+    finally:
+        model.close()
 
 
 def test_grammar_opener():
     model = models.Mock("<s>open texta")
-    with block(opener="open tex" + regex(r".")):
-        model += regex(r".")
-    assert str(model) == "open texta"
-    model.close()
+    try:
+        with block(opener="open tex" + regex(r".")):
+            model += regex(r".")
+        assert str(model) == "open texta"
+    finally:
+        model.close()
 
 
 # TODO(nopdive): Review this exception later -- how should we be going about grammars in blocks overall.
 @pytest.mark.skip(reason="requires review")
 def test_grammar_closer():
     model = models.Mock(["<s>aclose text", "<s>close text"])
-    model += "<s>"
     try:
-        with block(closer=regex(r".") + "lose text"):
-            model += regex(r".")
-    except:
-        return  # we expect an exception
-    assert (
-        False
-    ), "We should have thrown an exception using a context (prompt) based grammar in the closer!"
-    model.close()
+        model += "<s>"
+        try:
+            with block(closer=regex(r".") + "lose text"):
+                model += regex(r".")
+        except:
+            return  # we expect an exception
+        assert (
+            False
+        ), "We should have thrown an exception using a context (prompt) based grammar in the closer!"
+    finally:
+        model.close()
 
 
 def test_block_name_capture():
     model = models.Mock("<s>open texta")
-    with block("my_data"):
-        model += "open text"
-        model += regex(r".")
-    assert model["my_data"] == "open texta"
-    model.close()
+    try:
+        with block("my_data"):
+            model += "open text"
+            model += regex(r".")
+        assert model["my_data"] == "open texta"
+    finally:
+        model.close()
 
 
 def test_block_name_capture_closed():
     model = models.Mock("<s>open texta")
-    with block("my_data"):
-        model += "open text"
-        model += regex(r".")
-    model += "tmp"
-    assert model["my_data"] == "open texta"
-    model.close()
+    try:
+        with block("my_data"):
+            model += "open text"
+            model += regex(r".")
+        model += "tmp"
+        assert model["my_data"] == "open texta"
+    finally:
+        model.close()

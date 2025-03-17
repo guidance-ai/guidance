@@ -6,17 +6,21 @@ from guidance._parser import ByteParserException
 
 def test_select_reset_pos():
     model = models.Mock()
-    model += "This is" + select(options=["bad", "quite bad"])
-    assert str(model) in ["This isbad", "This isquite bad"]
-    model.close()
+    try:
+        model += "This is" + select(options=["bad", "quite bad"])
+        assert str(model) in ["This isbad", "This isquite bad"]
+    finally:
+        model.close()
 
 
 def test_select_longer():
     """This tests to ensure that the grammar is extended greedily."""
     lm = models.Mock(b"<s>Scott is a very nice man.")
-    lm += "Scott is a very " + select(name="text", options=["nice", "nice man."])
-    assert lm["text"] == "nice man."
-    lm.close()
+    try:
+        lm += "Scott is a very " + select(name="text", options=["nice", "nice man."])
+        assert lm["text"] == "nice man."
+    finally:
+        lm.close()
 
 
 @pytest.mark.xfail(
@@ -24,25 +28,31 @@ def test_select_longer():
 )
 def test_select_ambiguous_lexeme_boundary():
     lm = models.Mock(b"<s>abQ<s>")
-    lm += select(options=["a", "abq", "c"], name="prefix") + optional("bQ")
-    assert lm["prefix"] == "a"
-    lm.close()
+    try:
+        lm += select(options=["a", "abq", "c"], name="prefix") + optional("bQ")
+        assert lm["prefix"] == "a"
+    finally:
+        lm.close()
 
 
 def test_select_ambiguous_lexeme_boundary_manual_fix():
     # Manual fix to the issue in test_select_ambiguous_lexeme_boundary by splitting the "abq" lexeme into two lexemes
     lm = models.Mock(b"<s>abQ<s>")
-    lm += select(options=["a", string("a")+string("bq"), "c"], name="prefix") + optional("bQ")
-    assert lm["prefix"] == "a"
-    lm.close()
+    try:
+        lm += select(options=["a", string("a")+string("bq"), "c"], name="prefix") + optional("bQ")
+        assert lm["prefix"] == "a"
+    finally:
+        lm.close()
 
 
 def test_select_empty():
     """This tests to ensure that we save empty capture groups."""
     lm = models.Mock(b"<s>This is a test")
-    lm += "This is a" + select(name="text", options=["", "nope"])
-    assert lm["text"] == ""
-    lm.close()
+    try:
+        lm += "This is a" + select(name="text", options=["", "nope"])
+        assert lm["text"] == ""
+    finally:
+        lm.close()
 
 
 def test_grammar_plus_fstring():
@@ -53,9 +63,11 @@ def test_grammar_plus_fstring():
         return lm
 
     lm = models.Mock()
-    lm += test()
-    assert "{{G|" not in str(lm)
-    lm.close()
+    try:
+        lm += test()
+        assert "{{G|" not in str(lm)
+    finally:
+        lm.close()
 
 
 class TestRecursion:
