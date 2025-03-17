@@ -183,9 +183,9 @@ class GrammarlessEngine(Engine):
     def _generator(self, prompt: bytes, temperature: float):
         raise NotImplementedError("Child classes must implement _generator()")
 
-    def __call__(self, *args, **kwargs):
+    def execute_grammar(self, *args, **kwargs):
         self._num_calls_made = 0  # reset the number of calls count so we only limit the number of calls within a single grammar execution
-        return super().__call__(*args, **kwargs)
+        return super().execute_grammar(*args, **kwargs)
 
     def _running_stream(self):
         return not self._not_running_stream.is_set()  # wrap double negation (which)

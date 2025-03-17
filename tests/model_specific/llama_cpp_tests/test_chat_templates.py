@@ -50,3 +50,5 @@ def test_chat_format_smoke(llamacpp_model: guidance.models.LlamaCpp, selected_mo
         assert str(lm).replace(" ", "") in jinja2_render.replace(" ", "")
     else:
         assert str(lm) in jinja2_render
+
+    lm.close()

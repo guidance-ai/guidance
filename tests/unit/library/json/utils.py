@@ -11,7 +11,7 @@ from guidance.library._json import JSONSchema
 
 from ....utils import check_match_failure as _check_match_failure
 from ....utils import check_run_with_temperature
-from ....utils import generate_and_check as _generate_and_check
+from ....utils import generate_and_check_and_return
 
 
 def generate_and_check(
@@ -34,12 +34,12 @@ def generate_and_check(
     else:
         grammar_callable = partial(gen_json, schema=schema_obj)
 
-    lm = _generate_and_check(
+    lm = generate_and_check_and_return(
         grammar_callable,
         test_string=prepared_json,
     )
     check_run_with_temperature(lm, desired_temperature)
-
+    lm.close()
 
 def check_match_failure(
     *,

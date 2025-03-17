@@ -5,6 +5,7 @@ def test_capture():
     model = models.Mock()
     model += "This is" + capture(select(options=["bad", "quite bad"]), name="my_var")
     assert model["my_var"] in ["bad", "quite bad"]
+    model.close()
 
 
 def test_capture_star():
@@ -12,6 +13,8 @@ def test_capture_star():
     grammar = capture(one_or_more(select(["1", "2"])), name="test")
     lm2 = lm + grammar
     assert lm2["test"] == "12"
+    lm.close()
+    lm2.close()
 
 
 def test_capture_raw_function():
@@ -43,3 +46,5 @@ def test_capture_raw_function():
     assert str(lm_nocap).endswith("|the end")
     assert str(lm_cap_arg).endswith("|the end")
     assert str(lm_cap_kwarg).endswith("|the end")
+
+    lm.close()

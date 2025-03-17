@@ -25,3 +25,5 @@ def test_mocked_substring(mock_string, target_string, expected_string):
 
     lm = m + substring(target_string, chunk="character", name="result")
     assert lm["result"] == expected_string
+    m.close()
+    lm.close()

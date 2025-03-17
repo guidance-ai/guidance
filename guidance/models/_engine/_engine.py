@@ -128,7 +128,7 @@ class Engine(ABC):
     def reset_metrics(self):
         self.metrics = GuidanceEngineMetrics()
 
-    def __call__(
+    def execute_grammar(
         self,
         state: EngineState,
         grammar: LLGrammar,

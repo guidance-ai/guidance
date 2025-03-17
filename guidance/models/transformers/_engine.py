@@ -46,29 +46,16 @@ class TransformersTokenizer(Tokenizer):
     def __init__(
         self,
         model: Union[str, "transformers_package.PreTrainedModel"],
-        transformers_tokenizer: Union[
-            "transformers_package.PreTrainedTokenizer",
-            "transformers_package.PreTrainedTokenizerFast",
-            None,
-        ],
         chat_template=None,
         ignore_bos_token=False,
         **kwargs,
     ):
-        if transformers_tokenizer is None:
-            if isinstance(model, str):
-                transformers_tokenizer, byte_tokens = self._tokenizer(model, **kwargs)
-            else:
-                raise ValueError(
-                    "A model object was passed in, but no tokenizer was provided. Please provide a tokenizer."
-                )
+        if isinstance(model, str):
+            transformers_tokenizer, byte_tokens = self._tokenizer(model, **kwargs)
         else:
-            is_ptt = isinstance(transformers_tokenizer, transformers_package.PreTrainedTokenizer)
-            is_ptt_fast = isinstance(
-                transformers_tokenizer, transformers_package.PreTrainedTokenizerFast
+            raise ValueError(
+                "Please pass the model as a string."
             )
-            assert is_ptt or is_ptt_fast
-            byte_tokens = self._byte_tokens(transformers_tokenizer)
 
         self._orig_tokenizer = transformers_tokenizer
 
@@ -387,7 +374,6 @@ class TransformersEngine(Engine):
     def __init__(
         self,
         model,
-        tokenizer,
         compute_log_probs: bool,
         chat_template=None,
         enable_backtrack=True,
@@ -439,7 +425,7 @@ class TransformersEngine(Engine):
 
         # Create the tokenizer
         my_tokenizer = TransformersTokenizer(
-            model, tokenizer, chat_template, **passed_common_kwargs
+            model, chat_template, **passed_common_kwargs
         )
 
         super().__init__(my_tokenizer, compute_log_probs=compute_log_probs, enable_backtrack=enable_backtrack,

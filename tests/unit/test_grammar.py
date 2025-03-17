@@ -8,6 +8,7 @@ def test_select_reset_pos():
     model = models.Mock()
     model += "This is" + select(options=["bad", "quite bad"])
     assert str(model) in ["This isbad", "This isquite bad"]
+    model.close()
 
 
 def test_select_longer():
@@ -15,6 +16,7 @@ def test_select_longer():
     lm = models.Mock(b"<s>Scott is a very nice man.")
     lm += "Scott is a very " + select(name="text", options=["nice", "nice man."])
     assert lm["text"] == "nice man."
+    lm.close()
 
 
 @pytest.mark.xfail(
@@ -24,6 +26,7 @@ def test_select_ambiguous_lexeme_boundary():
     lm = models.Mock(b"<s>abQ<s>")
     lm += select(options=["a", "abq", "c"], name="prefix") + optional("bQ")
     assert lm["prefix"] == "a"
+    lm.close()
 
 
 def test_select_ambiguous_lexeme_boundary_manual_fix():
@@ -31,6 +34,7 @@ def test_select_ambiguous_lexeme_boundary_manual_fix():
     lm = models.Mock(b"<s>abQ<s>")
     lm += select(options=["a", string("a")+string("bq"), "c"], name="prefix") + optional("bQ")
     assert lm["prefix"] == "a"
+    lm.close()
 
 
 def test_select_empty():
@@ -38,6 +42,7 @@ def test_select_empty():
     lm = models.Mock(b"<s>This is a test")
     lm += "This is a" + select(name="text", options=["", "nope"])
     assert lm["text"] == ""
+    lm.close()
 
 
 def test_grammar_plus_fstring():
@@ -50,6 +55,7 @@ def test_grammar_plus_fstring():
     lm = models.Mock()
     lm += test()
     assert "{{G|" not in str(lm)
+    lm.close()
 
 
 class TestRecursion:

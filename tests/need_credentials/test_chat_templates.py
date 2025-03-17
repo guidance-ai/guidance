@@ -78,6 +78,7 @@ def test_chat_format_smoke(model_id: str):
         lm += "Hello!"
     # Only check substring due to BOS/EOS tokens
     assert str(lm) in tokeniser_render
+    lm.close()
 
 
 @pytest.mark.parametrize(
@@ -122,3 +123,4 @@ def test_chat_format_smoke_with_system(model_id: str):
         lm += "Hello!"
     # Only check substring due to BOS/EOS tokens
     assert str(lm) in tokeniser_render
+    lm.close()

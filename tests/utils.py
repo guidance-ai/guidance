@@ -162,7 +162,7 @@ class GrammarNodeCallable(Protocol):
     def __call__(self, *args, name: str, **kwargs) -> GrammarNode: ...
 
 
-def generate_and_check(
+def generate_and_check_and_return(
     grammar_callable: GrammarNodeCallable,
     test_string: str,
     capture_key="my_capture",
@@ -196,6 +196,14 @@ def generate_and_check(
     # Return model for further checks if needed
     return lm
 
+def generate_and_check(
+    grammar_callable: GrammarNodeCallable,
+    test_string: str,
+    capture_key="my_capture",
+    eos_token = "<s>",
+):
+    temp = generate_and_check_and_return(grammar_callable, test_string, capture_key, eos_token)
+    temp.close()
 
 def check_run_with_temperature(lm: models.Model, desired_temperature: float):
     # Check on some temperatures

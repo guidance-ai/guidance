@@ -9,3 +9,4 @@ def test_basic():
         lm += "silent text"
     lm += "end text"
     assert "display: none" in lm._state
+    lm.close()

@@ -9,7 +9,6 @@ class Transformers(Model):
     def __init__(
         self,
         model=None,
-        tokenizer=None,
         echo=True,
         compute_log_probs=False,
         chat_template=None,
@@ -27,16 +26,14 @@ class Transformers(Model):
             client_cls = EngineClient
 
         client = client_cls(
-            TransformersEngine(
-                model,
-                tokenizer,
-                compute_log_probs,
-                chat_template=chat_template,
-                enable_backtrack=enable_backtrack,
-                enable_ff_tokens=enable_ff_tokens,
-                enable_monitoring=enable_monitoring,
-                **kwargs,
-            )
+            TransformersEngine,
+            model,
+            compute_log_probs,
+            chat_template=chat_template,
+            enable_backtrack=enable_backtrack,
+            enable_ff_tokens=enable_ff_tokens,
+            enable_monitoring=enable_monitoring,
+            **kwargs,
         )
         super().__init__(
             client=client,

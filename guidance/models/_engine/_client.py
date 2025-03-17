@@ -1,6 +1,10 @@
+import atexit
+from multiprocessing import Process, Queue as ProcessQueue
+from queue import Queue as ThreadQueue  # TODO: change to asyncio.Queue for async
+from threading import Thread
 from base64 import b64decode
 from io import BytesIO
-from typing import Iterator
+from typing import Iterator, Type
 
 from ..._ast import GrammarNode, ImageBlob, LiteralNode, RoleEnd, RoleStart
 from ...trace import ImageOutput, OutputAttr, TextOutput
@@ -8,11 +12,73 @@ from .._base import Client
 from ._engine import Engine
 from ._state import EngineState
 
+shutdown_none = True
+
+def set_shutdown_flag():
+    global shutdown_none
+    # python can set anything to None at shutdown, so use None
+    shutdown_none = None
+
+atexit.register(set_shutdown_flag)
 
 class EngineClient(Client[EngineState]):
-    def __init__(self, engine: Engine):
-        self.engine = engine
+    def __init__(self, engine_type: Type[Engine], *args, **kwargs):
+        self._response_queue = ProcessQueue()
+        self._work_queue = ProcessQueue()
+        self._message_id = 2
+
+        initial_thread_queue = ThreadQueue()
+        
+        self._outstanding = {1: initial_thread_queue}
+
+        self._thread = Thread(target=local_worker, args=(self._outstanding, self._response_queue), daemon=True)
+        self._thread.start()
+
+        self._process = Process(target=remote_worker, args=(self._work_queue, self._response_queue), daemon=True)
+        self._process.start()
+
+        self._work_queue.put((1, "init", engine_type, args, kwargs))
+        # wait for response that the engine has been created in the other process
+        exception, *response_args = initial_thread_queue.get()
+        if exception is not None:
+            raise exception
+
+        self.engine = engine_type(*args, **kwargs)
         self.chat_template = self.engine.get_chat_template()
+
+    def __del__(self):
+        if shutdown_none is not None:
+            call_close = getattr(self, "close", None)
+            if callable(call_close):
+                call_close()
+
+    def close(self):
+        p = getattr(self, "_process", None)
+        if p is not None:
+            work_queue = getattr(self, "_work_queue", None)
+            if work_queue is not None:
+                work_queue.put((None, "close"))
+                p.join(30)
+                self._work_queue = None
+
+            if p.is_alive():
+                p.terminate()
+                p.join(30)
+
+            p.close()
+    
+            self._process = None
+
+        t = getattr(self, "_thread", None)
+        if t is not None:
+            response_queue = getattr(self, "_response_queue", None)
+            if response_queue is not None:
+                response_queue.put((0, None))
+                self._response_queue = None
+
+            t.join(30)  # max 30 seconds wait
+
+            self._thread = None
 
     def get_role_start(self, role: str) -> str:
         if self.chat_template is None:
@@ -39,7 +105,7 @@ class EngineClient(Client[EngineState]):
         yield TextOutput(value=node.value, is_input=True)
 
     def grammar(self, state: EngineState, node: GrammarNode, **kwargs) -> Iterator[OutputAttr]:
-        engine_gen = self.engine(
+        engine_gen = self.engine.execute_grammar(
             state,
             node.ll_grammar(),
             ensure_bos_token=True,
@@ -142,3 +208,24 @@ def partial_decode(data: bytes) -> tuple[str, bytes]:
         valid_part = data[: e.start].decode("utf-8")
         delayed_part = data[e.start :]
     return (valid_part, delayed_part)
+
+
+def local_worker(outstanding: dict, response_queue: ProcessQueue):
+    while True:
+        event_id, *response_args = response_queue.get()
+        if event_id == 0:
+            break
+        thread_queue = outstanding[event_id]
+        del outstanding[event_id]
+        thread_queue.put(response_args)
+
+def remote_worker(work_queue: ProcessQueue, response_queue: ProcessQueue):
+    while True:
+        event_id, work_type, *work_args = work_queue.get()
+        if work_type == "init":
+            response_queue.put((event_id, None))
+        elif work_type == "close":
+            break
+        else:
+            raise Exception("Unknown message type.")
+

@@ -9,3 +9,4 @@ def test_set_attribute():
         assert lm.echo == False
         out = (lm + gen("name", max_tokens=1))["name"]
     assert out == "2"
+    lm.close()

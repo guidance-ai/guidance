@@ -20,6 +20,7 @@ def test_dedent_basic():
     lm = guidance.models.Mock()
     result = lm + character_maker()
     assert str(result).startswith("{")
+    lm.close()
 
 
 def test_basic_multiline_fstring():
@@ -36,6 +37,7 @@ def test_basic_multiline_fstring():
     lm = guidance.models.Mock()
     result = lm + character_maker()
     assert str(result) == '{\n    "name": "harsha",\n    "age": "314",\n}'
+    lm.close()
 
 def test_mixed_content():
     """Test mixed f-strings and regular strings."""
@@ -53,6 +55,7 @@ def test_mixed_content():
     lm = guidance.models.Mock()
     result = lm + mixed_content()
     assert str(result) == 'Regular string\n{\n    "name": "harsha",\n    "age": "314",\n}'
+    lm.close()
 
 def test_non_fstring_multiline():
     """Test multiline strings that are not f-strings."""
@@ -69,6 +72,7 @@ def test_non_fstring_multiline():
     lm = guidance.models.Mock()
     result = lm + non_fstring_multiline()
     assert str(result) == 'Line 1\nLine 2\nLine 3\n'
+    lm.close()
 
 def test_empty_strings():
     """Test empty strings."""
@@ -82,6 +86,7 @@ def test_empty_strings():
     lm = guidance.models.Mock()
     result = lm + empty_string()
     assert str(result) == ''
+    lm.close()
 
 def test_inconsistent_indentation():
     """Test strings with inconsistent indentation."""
@@ -99,6 +104,7 @@ def test_inconsistent_indentation():
     lm = guidance.models.Mock()
     result = lm + inconsistent_indentation()
     assert str(result) == '{\n"name": "harsha",\n  "age": "314",\n"weapon": "sword"\n}'
+    lm.close()
 
 # NOTE [HN]: The following two tests currently don't work, but they're fairly special/rare cases.
 # Some implementation thoughts for the future:
@@ -192,6 +198,7 @@ class TestGuidanceMethodCache:
             str(lm + grammar2)
             == "You are a helpful AI. Do what the user asks:\nComputer, tell me a riddle.\nThank you."
         )
+        lm.close()
 
     def test_miss_cache_when_instance_hash_changes(self):
         obj = self.MyClass("You are a helpful AI. Do what the user asks:", "Thank you.")
@@ -208,6 +215,7 @@ class TestGuidanceMethodCache:
             str(lm + grammar2)
             == "You are a helpful AI. Do what the user asks:\nComputer, tell me a joke.\nThanks!"
         )
+        lm.close()
 
     def test_hit_cache_when_instance_hash_does_not_change(self):
         """
@@ -229,6 +237,7 @@ class TestGuidanceMethodCache:
             str(lm + grammar2)
             == "You are a helpful AI. Do what the user asks:\nComputer, tell me a joke.\nThank you."
         )
+        lm.close()
 
     def test_guidance_method_no_cache(self):
         obj = self.MyClass("You are a helpful AI. Do what the user asks:", "Thank you.")
@@ -237,6 +246,7 @@ class TestGuidanceMethodCache:
         assert grammar1 is not grammar2
         lm = guidance.models.Mock()
         assert str(lm + grammar1) == str(lm + grammar2)
+        lm.close()
 
     def test_guidance_method_no_cache_changes_when_instance_changes(self):
         obj = self.MyClass("You are a helpful AI. Do what the user asks:", "Thank you.")
@@ -254,6 +264,7 @@ class TestGuidanceMethodCache:
             str(lm + grammar2)
             == "You are a helpful AI. Do what the user asks:\tComputer, tell me a joke.\tThank you."
         )
+        lm.close()
 
 
 class TestGuidanceMethodDedent:
@@ -273,6 +284,7 @@ class TestGuidanceMethodDedent:
         lm = guidance.models.Mock()
         result = lm + grammar
         assert str(result).startswith("{")
+        lm.close()
 
     def test_basic_multiline_fstring(self):
         class MyClass:
@@ -290,6 +302,7 @@ class TestGuidanceMethodDedent:
         lm = guidance.models.Mock()
         result = lm + grammar
         assert str(result) == '{\n    "name": "harsha",\n    "age": "314",\n}'
+        lm.close()
 
     def test_mixed_content(self):
         class MyClass:
@@ -309,6 +322,7 @@ class TestGuidanceMethodDedent:
         lm = guidance.models.Mock()
         result = lm + grammar
         assert str(result) == 'Regular string\n{\n    "name": "harsha",\n    "age": "314",\n}'
+        lm.close()
 
     def test_non_fstring_multiline(self):
         class MyClass:
@@ -327,6 +341,7 @@ class TestGuidanceMethodDedent:
         lm = guidance.models.Mock()
         result = lm + grammar
         assert str(result) == "Line 1\nLine 2\nLine 3\n"
+        lm.close()
 
     def test_empty_strings(self):
         class MyClass:
@@ -342,6 +357,7 @@ class TestGuidanceMethodDedent:
         lm = guidance.models.Mock()
         result = lm + grammar
         assert str(result) == ""
+        lm.close()
 
     def test_inconsistent_indentation(self):
         class MyClass:
@@ -361,6 +377,7 @@ class TestGuidanceMethodDedent:
         lm = guidance.models.Mock()
         result = lm + grammar
         assert str(result) == '{\n"name": "harsha",\n  "age": "314",\n"weapon": "sword"\n}'
+        lm.close()
 
 class TestGuidanceRecursion:
     class MyClass:

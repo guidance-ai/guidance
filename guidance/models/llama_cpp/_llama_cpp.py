@@ -382,7 +382,8 @@ class LlamaCpp(Model):
     ):
         """Build a new LlamaCpp model object that represents a model in a given state."""
 
-        engine = LlamaCppEngine(
+        state = EngineState()
+        client = EngineClient(LlamaCppEngine, 
             model,
             compute_log_probs=compute_log_probs,
             chat_template=chat_template,
@@ -391,6 +392,4 @@ class LlamaCpp(Model):
             enable_monitoring=enable_monitoring,
             **llama_cpp_kwargs,
         )
-        state = EngineState()
-        client = EngineClient(engine)
         super().__init__(client=client, state=state, echo=echo)

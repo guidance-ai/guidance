@@ -21,6 +21,7 @@ def test_call_embeddings():
         return lm
 
     assert "{{G|" not in str(model + ble())
+    model.close()
 
 
 @pytest.mark.xfail(
@@ -41,6 +42,8 @@ def test_model_set():
     model += gen("list_num", max_tokens=10, list_append=True)
     assert len(model['list_num']) == 3
 
+    model.close()
+
 
 def test_trace():
     from guidance import system, user, gen, models
@@ -52,3 +55,7 @@ def test_trace():
         m2 = m1 + "Roses are red and " + gen(name="suffix", regex='[A-Za-z]{2,5}', max_tokens=5)
 
     assert m2['suffix'] is not None
+    m0.close()
+    m1.close()
+    m2.close()
+

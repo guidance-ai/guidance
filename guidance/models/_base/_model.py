@@ -77,6 +77,9 @@ class Model(Generic[S]):
         self._trace_nodes: set[TraceNode] = set()
         self._update_trace_node(self._id, self._parent_id, None)
 
+    def close(self) -> None:
+        self._client.close()
+
     def _update_trace_node(
         self, identifier: int, parent_id: Optional[int], node_attr: Optional[NodeAttr] = None
     ) -> None:

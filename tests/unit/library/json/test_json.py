@@ -2349,6 +2349,7 @@ class TestWhitespace:
                 assert grammar.match(prepared_json) is not None
                 model = models.Mock(f"<s>{prepared_json}".encode())
                 assert str(model + grammar) == prepared_json
+                model.close()
             else:
                 assert grammar.match(prepared_json) is None
 
@@ -2378,6 +2379,7 @@ class TestWhitespace:
         assert grammar.match(prepared_json, raise_exceptions=True) is not None
         model = models.Mock(f"<s>{prepared_json}".encode())
         assert str(model + grammar) == prepared_json
+        model.close()
 
 
 class TestStringSchema:

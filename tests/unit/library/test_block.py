@@ -7,6 +7,7 @@ def test_text_opener():
     with block(opener="open text"):
         model += regex(r".")
     assert str(model) == "open texta"
+    model.close()
 
 
 def test_text_closer():
@@ -16,6 +17,7 @@ def test_text_closer():
     with block(closer="close text"):
         model += regex(r".")
     assert str(model) == "<s>a"
+    model.close()
 
 
 def test_grammar_opener():
@@ -23,6 +25,7 @@ def test_grammar_opener():
     with block(opener="open tex" + regex(r".")):
         model += regex(r".")
     assert str(model) == "open texta"
+    model.close()
 
 
 # TODO(nopdive): Review this exception later -- how should we be going about grammars in blocks overall.
@@ -38,6 +41,7 @@ def test_grammar_closer():
     assert (
         False
     ), "We should have thrown an exception using a context (prompt) based grammar in the closer!"
+    model.close()
 
 
 def test_block_name_capture():
@@ -46,6 +50,7 @@ def test_block_name_capture():
         model += "open text"
         model += regex(r".")
     assert model["my_data"] == "open texta"
+    model.close()
 
 
 def test_block_name_capture_closed():
@@ -55,3 +60,4 @@ def test_block_name_capture_closed():
         model += regex(r".")
     model += "tmp"
     assert model["my_data"] == "open texta"
+    model.close()

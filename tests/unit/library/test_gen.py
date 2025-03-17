@@ -8,18 +8,21 @@ def test_basic():
     lm = models.Mock()
     lm += "Write a number: " + gen("text", max_tokens=3)
     assert len(lm["text"]) > 0
+    lm.close()
 
 
 def test_stop_string():
     lm = models.Mock(b"<s>Count to 10: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10")
     lm += "Count to 10: 1, 2, 3, 4, 5, 6, 7, " + gen("text", stop=", 9")
     assert lm["text"] == "8"
+    lm.close()
 
 
 def test_stop_char():
     lm = models.Mock(b"<s>Count to 10: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10")
     lm += "Count to 10: 1, 2, 3, 4, 5, 6, 7, " + gen("text", stop=",")
     assert lm["text"] == "8"
+    lm.close()
 
 
 def test_save_stop():
@@ -28,6 +31,7 @@ def test_save_stop():
         "text", stop=",", save_stop_text="stop_text"
     )
     assert lm["stop_text"] == ","
+    lm.close()
 
 
 def test_gsm8k():
@@ -39,6 +43,7 @@ Answer: """
         + gen(max_tokens=30)
     )
     assert True
+    lm.close()
 
 
 def test_pattern_optional():
@@ -54,12 +59,15 @@ def test_pattern_optional():
     lm = models.Mock(b"<s>John was a little man full of things")
     lm2 = lm + "J" + gen(name="test", regex=pattern, max_tokens=30)
     assert lm2["test"] == "o"
+    lm.close()
+    lm2.close()
 
 
 def test_pattern_stops_when_fulfilled():
     lm = models.Mock(b"<s>123abc")
     lm += gen(regex=r"\d+", max_tokens=10, name="test")
     assert lm["test"] == "123"
+    lm.close()
 
 
 def test_pattern_star():
@@ -80,6 +88,8 @@ def test_pattern_star():
     lm = models.Mock(b"<s>John was a litt\n")
     lm2 = lm + "J" + gen(name="test", regex=pattern, max_tokens=30)
     assert lm2["test"].startswith("ohn was a litt\n")
+    lm.close()
+    lm2.close()
 
 
 def test_stop_regex():
@@ -89,6 +99,8 @@ def test_stop_regex():
     lm = models.Mock(b"<s>123aegalera3233")
     lm2 = lm + "123" + gen(name="test", stop_regex=r"\d", max_tokens=30)
     assert lm2["test"] == "aegalera"
+    lm.close()
+    lm2.close()
 
 
 def test_stop_regex_star():
@@ -96,6 +108,8 @@ def test_stop_regex_star():
     pattern = r"\d+233"
     lm2 = lm + "123" + gen(name="test", stop_regex=pattern, max_tokens=10)
     assert lm2["test"] == "a"
+    lm.close()
+    lm2.close()
 
 
 def test_empty_pattern():
@@ -103,6 +117,8 @@ def test_empty_pattern():
     lm = models.Mock(b"<s>J<s>")
     lm2 = lm + "J" + gen(name="test", regex=pattern, max_tokens=30)
     assert lm2["test"] == ""
+    lm.close()
+    lm2.close()
 
 
 def test_list_append():
@@ -113,6 +129,7 @@ def test_list_append():
         lm += gen("my_list", list_append=True, stop="a") + "a"
     assert isinstance(lm["my_list"], list)
     assert len(lm["my_list"]) == 3
+    lm.close()
 
 @pytest.mark.xfail(
     reason="llguidance currently emits an additional empty capture group when no explicit stop is provided"
@@ -122,6 +139,7 @@ def test_list_append_no_explicit_stop():
     model += gen("list", list_append=True)
     assert model["list"][-1] == "bbbbbbb"
     assert len(model["list"]) == 1
+    model.close()
 
 def test_list_append_in_grammar():
     """This tests is list append works within the same grammar."""
@@ -136,24 +154,28 @@ def test_list_append_in_grammar():
     )
     assert isinstance(lm["my_list"], list)
     assert len(lm["my_list"]) == 3
+    lm.close()
 
 
 def test_one_char_suffix_and_regex():
     model = models.Mock(b"<s>this is\na test")
     model += gen(regex=".*", suffix="\n", max_tokens=20)
     assert str(model) == "this is\n"
+    model.close()
 
 
 def test_one_char_stop_and_regex():
     model = models.Mock(b"<s>this is\na test")
     model += gen(regex=".*", stop="\n", max_tokens=20)
     assert str(model) == "this is"
+    model.close()
 
 
 def test_multiline():
     model = models.Mock(b"<s>this\nis\na\ntest<s>")
     model += gen(max_tokens=20)
     assert str(model) == "this\nis\na\ntest"
+    model.close()
 
 
 def test_tool_call():
@@ -168,6 +190,7 @@ def test_tool_call():
     model += gen(tools=[square], max_tokens=30)
     assert str(model) == "Three squared is square(3)9"
     assert called_args == ["3"]
+    model.close()
 
 
 def test_tool_call_hidden():
@@ -185,6 +208,7 @@ def test_tool_call_hidden():
     model += gen(tools=[square], hide_tool_call=True, max_tokens=30)
     assert str(model) == "Three squared is 9"
     assert called_args == ["3"]
+    model.close()
 
 
 def test_tool_call_multi():
@@ -207,6 +231,7 @@ def test_tool_call_multi():
     assert str(model) == "Three squared is square(3)9, which cubed is cube(9)729. Good job me."
     assert called_args["square"] == ["3"]
     assert called_args["cube"] == ["9"]
+    model.close()
 
 
 def test_tool_call_multi_hidden():
@@ -231,3 +256,5 @@ def test_tool_call_multi_hidden():
     assert str(model) == "Three squared is 9, which cubed is 729. Good job me."
     assert called_args["square"] == ["3"]
     assert called_args["cube"] == ["9"]
+
+    model.close()

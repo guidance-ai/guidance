@@ -60,7 +60,9 @@ class MockTokenizer(Tokenizer):
 
 
 class MockEngine(Engine):
-    def __init__(self, tokenizer, byte_patterns, compute_log_probs, force):
+    def __init__(self, tokens, special_token_ids, byte_patterns, compute_log_probs, force):
+        tokenizer = MockTokenizer(tokens, special_token_ids)
+
         renderer = DoNothingRenderer(trace_handler=TraceHandler())
         super().__init__(tokenizer, compute_log_probs=compute_log_probs)
 
@@ -229,11 +231,10 @@ class Mock(Model):
         all_bytes = [bytes([i]) for i in range(256)]
         tokens = [b"<s>"] + all_lc_pairs + all_bytes
 
-        tokenizer = MockTokenizer(tokens, special_token_ids=[0])
-        engine = MockEngine(tokenizer, byte_patterns, compute_log_probs, force)
+        special_token_ids = [0]
 
         super().__init__(
-            client=EngineClient(engine),
+            client=EngineClient(MockEngine, tokens, special_token_ids, byte_patterns, compute_log_probs, force),
             state=EngineState(),
             echo=echo,
         )
