@@ -5,7 +5,6 @@ from itertools import count
 from typing import Any, Optional, Generator, Dict
 import logging
 from pydantic import BaseModel, Field
-from guidance._schema import GenToken
 from .._utils import pydantic_no_default_repr, pydantic_no_default_str, log_cleanup
 
 logger = logging.getLogger(__name__)
@@ -140,14 +139,23 @@ class TextOutput(OutputAttr):
     is_input: bool = False
     is_generated: bool = False
     is_force_forwarded: bool = False
-    token_count: int = 0
-    prob: float = 0.0
-    tokens: list[GenToken] = Field(
-        exclude=True, default_factory=list
-    )  # use to store tokens associated with output
+    latency_ms: float = 0.0
 
     def __str__(self):
         return self.value
+
+class Token(BaseModel):
+    bytes: bytes
+    prob: float
+    masked: bool = False
+
+class TokenOutput(TextOutput):
+    token: Token
+    top_k: Optional[list[Token]] = None
+
+class BacktrackMessage(OutputAttr):
+    n_tokens: int
+    bytes: bytes
 
 class CaptureOutput(OutputAttr):
     """Capture variable output as a string.

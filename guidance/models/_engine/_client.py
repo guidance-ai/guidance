@@ -4,10 +4,11 @@ from typing import Iterator
 
 from ..._ast import GrammarNode, ImageBlob, LiteralNode, RoleEnd, RoleStart
 from ..._utils import to_utf8_or_bytes_string
-from ...trace import ImageOutput, OutputAttr, TextOutput
+from ...trace import ImageOutput, OutputAttr, BacktrackMessage, TokenOutput
 from .._base import Client
 from ._engine import Engine
 from ._state import EngineState
+from ..._schema import GenTokenExtra
 
 
 class EngineClient(Client[EngineState]):
@@ -59,37 +60,39 @@ class EngineClient(Client[EngineState]):
             new_text, delayed_bytes = partial_decode(delayed_bytes + chunk.new_bytes)
             state.prompt += new_text
 
-            for token in chunk.tokens:
-                yield TextOutput(
-                    value=to_utf8_or_bytes_string(token.bytes),
-                    prob=token.prob,
-                    is_input=token.is_input,
-                    is_generated=token.is_generated,
-                    is_force_forwarded=token.is_force_forwarded,
-                    token_count=1,
-                    tokens=[token],
+            if chunk.backtrack:
+                yield BacktrackMessage(
+                    n_tokens=chunk.backtrack,
+                    bytes=chunk.backtrack_bytes,
                 )
 
-            # TODO: replace above loop with something like this
+            for token in chunk.tokens:
+                if isinstance(token, GenTokenExtra):
+                    top_k = [
+                        {
+                            "bytes": t.bytes,
+                            "prob": t.prob,
+                            "is_masked": t.is_masked,
+                        }
+                        for t in token.top_k
+                    ]
+                else:
+                    top_k = None
 
-            # if chunk.backtrack:
-            #     yield BacktrackMessage(
-            #         n_tokens=chunk.backtrack,
-            #         bytes=chunk.backtrack_bytes,
-            #     )
-
-            # for token in chunk.tokens:
-            #     yield TokenOutput(
-            #         bytes = token.bytes,
-            #         is_input = token.is_input,
-            #         is_generated = token.is_generated,
-            #         is_force_forwarded = token.is_force_forwarded,
-            #     )
-            #     if token.is_backtracked:
-            #         yield BacktrackMessage(
-            #             n_tokens=1,
-            #             bytes=token.bytes,
-            #         )
+                yield TokenOutput(
+                    value=to_utf8_or_bytes_string(token.bytes),
+                    token={"bytes": token.bytes, "prob": token.prob},
+                    latency_ms=token.latency_ms,
+                    is_input = token.is_input,
+                    is_generated = token.is_generated,
+                    is_force_forwarded = token.is_force_forwarded,
+                    top_k=top_k,
+                )
+                if token.is_backtracked:
+                    yield BacktrackMessage(
+                        n_tokens=1,
+                        bytes=token.bytes,
+                    )
 
             for name in chunk.capture_groups.keys():
                 values = chunk.capture_groups[name]
