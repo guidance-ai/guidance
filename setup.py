@@ -23,12 +23,9 @@ llamacpp_requires = ["llama-cpp-python==0.3.7"]
 transformers_requires = ["transformers==4.48.2"]
 
 install_requires = [
-    "diskcache",
     "numpy",
-    "ordered_set",
     "platformdirs",
     "pydantic",
-    "referencing",
     "requests",
     "psutil",
     "tiktoken>=0.3",
@@ -70,6 +67,7 @@ test_requires = [
     "types-regex",
     "types-requests",
     "types-jsonschema",
+    "diskcache",
     "requests",
     "azure-identity",
     "bitsandbytes",
