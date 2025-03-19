@@ -1,5 +1,7 @@
 import base64
 import wave
+import time
+
 from io import BytesIO
 from typing import TYPE_CHECKING, Iterator, Literal, Optional, Union
 
@@ -19,7 +21,7 @@ from .._ast import (
     RuleNode,
 )
 from .._utils import bytes_from
-from ..trace import ImageOutput, OutputAttr, TextOutput
+from ..trace import ImageOutput, OutputAttr, TextOutput, TokenOutput
 from ..trace._trace import AudioOutput
 from ._base import Client, Model, State
 
@@ -269,7 +271,12 @@ class OpenAIClient(Client[OpenAIState]):
         self, state: OpenAIState, chunks: Iterator["ChatCompletionChunk"]
     ) -> Iterator[OutputAttr]:
         audio: Optional[AssistantAudio] = None
+        t0 = time.time()
         for chunk in chunks:
+            t1 = time.time()
+            latency_ms = (t1 - t0) * 1000
+            t0 = t1
+
             choice = chunk.choices[0]
             delta = choice.delta
             if delta.content is not None:
@@ -278,12 +285,30 @@ class OpenAIClient(Client[OpenAIState]):
                 if len(content) == 0:
                     continue
                 state.apply_text(content)
-                if choice.logprobs is not None:
-                    # TODO: actually get tokens from this and be less lazy
-                    prob = 2.718 ** choice.logprobs.content[0].logprob
+                if choice.logprobs is None or choice.logprobs.content is None:
+                    yield TextOutput(value=delta.content, is_generated=True, latency_ms=latency_ms)
                 else:
-                    prob = float("nan")
-                yield TextOutput(value=delta.content, is_generated=True, prob=prob)
+                    tokens = choice.logprobs.content
+                    for token in tokens:
+                        yield TokenOutput(
+                            value=token.token,
+                            # amortized latency
+                            latency_ms=latency_ms/len(tokens),
+                            token={
+                                "token": token.token,
+                                "bytes": b'' if token.bytes is None else bytes(token.bytes),
+                                "prob": 2.718**token.logprob
+                            },
+                            # TODO: actually request the top logprobs
+                            top_k = [
+                                {
+                                    "token": tok.token,
+                                    "bytes": b'' if tok.bytes is None else bytes(tok.bytes),
+                                    "prob": 2.718**tok.logprob,
+                                }
+                                for tok in token.top_logprobs
+                            ]
+                        )
             elif getattr(delta, "audio", None) is not None:
                 transcript_chunk: Optional[str] = None
                 if audio is None:

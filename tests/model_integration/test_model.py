@@ -75,13 +75,27 @@ def test_associativity(selected_model: models.Model):
     grammar = gen("number", regex=r"\d")
     engine = selected_model.engine
 
-    with patch.object(engine, "get_logits", side_effect=engine.get_logits) as get_logits_1:
-        _ = selected_model + (prompt + grammar)
-    prompt_tokens_1 = get_logits_1.call_args_list[0].kwargs["token_ids"]
 
-    with patch.object(engine, "get_logits", side_effect=engine.get_logits) as get_logits_2:
+    from copy import deepcopy
+    original_get_logits = engine.get_logits
+    prompt_tokens_1 = None
+    prompt_tokens_2 = None
+
+    def get_logits_1(token_ids):
+        nonlocal prompt_tokens_1
+        prompt_tokens_1 = deepcopy(token_ids)
+        return original_get_logits(token_ids=token_ids)
+
+    def get_logits_2(token_ids):
+        nonlocal prompt_tokens_2
+        prompt_tokens_2 = deepcopy(token_ids)
+        return original_get_logits(token_ids=token_ids)
+
+    with patch.object(engine, "get_logits", side_effect=get_logits_1):
+        _ = selected_model + (prompt + grammar)
+
+    with patch.object(engine, "get_logits", side_effect=get_logits_2):
         _ = (selected_model + prompt) + grammar
-    prompt_tokens_2 = get_logits_2.call_args_list[0].kwargs["token_ids"]
 
     # Main assertion: the prompt tokens should be the same
     assert prompt_tokens_1 == prompt_tokens_2
