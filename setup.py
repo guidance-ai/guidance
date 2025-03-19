@@ -65,6 +65,7 @@ unittest_requires = [
     "jsonschema",
     "pytest",
     "pytest-cov",
+    "pytest-asyncio",
     "tokenizers",
 ]
 test_requires = [

@@ -9,7 +9,8 @@ build-backend = "setuptools.build_meta"
 [tool.pytest.ini_options]
 addopts = "--strict-markers"
 markers = [
-    "resource_intensive: Tests which readily exceed resources such as memory"
+    "resource_intensive: Tests which readily exceed resources such as memory",
+    "asyncio: Make async tests to run"
 ]
 
 [tool.black]
