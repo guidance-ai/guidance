@@ -16,7 +16,6 @@ import os
 import re
 import codecs
 from setuptools import setup, find_packages
-from pybind11.setup_helpers import Pybind11Extension, build_ext
 
 here = os.path.abspath(os.path.dirname(__file__))
 
@@ -120,12 +119,6 @@ setup(
     long_description="Guidance enables you to control modern language models more effectively and efficiently than traditional prompting or chaining. Guidance programs allow you to interleave generation, prompting, and logical control into a single continuous flow matching how the language model actually processes the text.",
     packages=find_packages(exclude=["notebooks", "client", "tests", "tests.*"]),
     package_data={"guidance": ["resources/*"]},
-    ext_modules=[
-        Pybind11Extension(
-            "guidance.cpp", ["guidance/_cpp/main.cpp", "guidance/_cpp/byte_trie.cpp"]
-        )
-    ],
-    cmdclass={"build_ext": build_ext},
     python_requires=">=3.9",
     install_requires=install_requires,
     extras_require={

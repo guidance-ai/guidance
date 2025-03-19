@@ -6,8 +6,6 @@ from ._transformers import Transformers, TransformersTokenizer
 from ._llama_cpp import LlamaCpp
 from ._mock import Mock#, MockChat
 
-# grammarless models (we can't do constrained decoding for them)
-# from ._grammarless import Grammarless
 # from .vertexai._vertexai import (
 #     VertexAI,
 #     VertexAIChat,
