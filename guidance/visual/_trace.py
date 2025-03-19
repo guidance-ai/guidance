@@ -8,6 +8,7 @@ from .._schema import GenToken
 from ..visual._message import TokensMessage
 from ..trace import (
     TextOutput,
+    TokenOutput,
     TraceNode,
     TraceHandler,
     RoleOpenerInput,
@@ -39,7 +40,7 @@ def trace_node_to_html(
     full_text = ""
     if complete_msg:
         for token in complete_msg.tokens:
-            full_text += token.bytes
+            full_text += token.text
 
     for i, node in enumerate(node_path):
         if isinstance(node.input, RoleOpenerInput):
@@ -47,7 +48,7 @@ def trace_node_to_html(
         elif isinstance(node.input, RoleCloserInput):
             active_role = node
 
-        if isinstance(node.output, TextOutput):
+        if isinstance(node.output, TokenOutput):
             if active_role is not None:
                 if isinstance(active_role.input, RoleOpenerInput) and prettify_roles:
                     role_name = active_role.input.name
@@ -63,12 +64,12 @@ def trace_node_to_html(
                 if not complete_msg:
                     if attr.is_generated:
                         # fmt = f"<span style='background-color: rgba({165 * (1 - attr.prob)}, {165 * attr.prob}, 0, 0.15); border-radius: 3ps;' title='{attr.prob}'>{html.escape(attr.value)}</span>"
-                        fmt = f"<span style='background-color: rgba({0}, {255}, {0}, 0.15); border-radius: 3ps;' title='{attr.prob}'>{html.escape(attr.value)}</span>"
+                        fmt = f"<span style='background-color: rgba({0}, {255}, {0}, 0.15); border-radius: 3ps;' title='{attr.token.prob}'>{html.escape(attr.value)}</span>"
                     elif attr.is_force_forwarded:
-                        fmt = f"<span style='background-color: rgba({0}, {0}, {255}, 0.15); border-radius: 3ps;' title='{attr.prob}'>{html.escape(attr.value)}</span>"
+                        fmt = f"<span style='background-color: rgba({0}, {0}, {255}, 0.15); border-radius: 3ps;' title='{attr.token.prob}'>{html.escape(attr.value)}</span>"
                     else:
                         # fmt = f"{html.escape(attr.value)}"
-                        fmt += f"<span style='background-color: rgba({255}, {255}, {255}, 0.15); border-radius: 3ps;' title='{attr.prob}'>{html.escape(attr.value)}</span>"
+                        fmt += f"<span style='background-color: rgba({255}, {255}, {255}, 0.15); border-radius: 3ps;' title='{attr.token.prob}'>{html.escape(attr.value)}</span>"
                 else:
                     # switch to token-based
                     # cell_tokens = attr.tokens
@@ -108,7 +109,7 @@ def trace_node_to_html(
                     tokens_text = ""
                     while _idx < len(complete_msg.tokens):
                         _token = complete_msg.tokens[_idx]
-                        tokens_text += _token.bytes
+                        tokens_text += _token.text
                         tokens.append(_token)
                         if chunk_text in tokens_text:
                             break
@@ -129,7 +130,7 @@ def trace_node_to_html(
                     prob_idx += len(tokens)
 
                     for token in tokens:
-                        token_str = token.bytes
+                        token_str = token.text
                         prob = token.prob
                         top_k = {}
                         # find the correct token
