@@ -28,7 +28,6 @@ install_requires = [
     "pydantic",
     "requests",
     "psutil",
-    "tiktoken>=0.3",
     "guidance-stitch",
     "llguidance==0.6.31",
     "setuptools" # TODO - Remove before release, used for multimodal mocks in python 3.12
@@ -77,6 +76,7 @@ test_requires = [
     "sentencepiece",
     "torch",
     "transformers",
+    "tiktoken>=0.3",
     "mypy==1.9.0",
 ] + unittest_requires
 
