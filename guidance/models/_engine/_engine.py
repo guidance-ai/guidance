@@ -204,9 +204,9 @@ class Engine(ABC):
             has_pending_stop = parser.has_pending_stop()
 
             if not has_pending_stop:
-                t0 = time.time()
+                t1 = time.time()
                 logits = self.get_logits(token_ids=tokens)
-                logits_lat_ms = (time.time() - t0) * 1000
+                logits_lat_ms = (time.time() - t1) * 1000
             else:
                 # Avoid calling get_logits if we know we won't use it
                 logits = None
@@ -216,6 +216,12 @@ class Engine(ABC):
             mask, ll_response = mask_fut.result()
             legacy_engine_response = ll_response.progress.to_engine_call_response()
 
+            ff_lat_ms = (time.time() - t0) * 1000
+            if not ll_response.stop:
+                # Logit latency will go into the NEXT token
+                # if it exists
+                ff_lat_ms -= logits_lat_ms
+
             gen_tokens = []
             if engine_output is None:
                 for token_id in ff_tokens:
@@ -223,7 +229,8 @@ class Engine(ABC):
                         GenToken(
                             token_id=token_id,
                             bytes=self.tokenizer.tokens[token_id],
-                            latency_ms=0,  # TODO
+                            # amortize latency
+                            latency_ms=ff_lat_ms/len(ff_tokens),
                             is_input=True,
                         )
                     )
@@ -239,7 +246,8 @@ class Engine(ABC):
                         GenToken(
                             token_id=token_id,
                             bytes=self.tokenizer.tokens[token_id],
-                            latency_ms=0,  # TODO
+                            # amortize latency
+                            latency_ms=ff_lat_ms/len(ff_tokens[ff_start_index:]),
                             is_force_forwarded=True,
                         )
                     )
