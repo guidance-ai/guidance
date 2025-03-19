@@ -24,7 +24,6 @@ transformers_requires = ["transformers==4.48.2"]
 
 install_requires = [
     "numpy",
-    "platformdirs",
     "pydantic",
     "requests",
     "psutil",
