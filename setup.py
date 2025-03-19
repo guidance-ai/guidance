@@ -30,7 +30,6 @@ install_requires = [
     "psutil",
     "guidance-stitch",
     "llguidance==0.6.31",
-    "setuptools" # TODO - Remove before release, used for multimodal mocks in python 3.12
 ]
 
 # Our basic list of 'extras'
