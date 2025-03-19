@@ -23,18 +23,12 @@ llamacpp_requires = ["llama-cpp-python==0.3.7"]
 transformers_requires = ["transformers==4.48.2"]
 
 install_requires = [
-    "diskcache",
     "numpy",
-    "ordered_set",
-    "platformdirs",
     "pydantic",
-    "referencing",
     "requests",
     "psutil",
-    "tiktoken>=0.3",
     "guidance-stitch",
     "llguidance==0.6.31",
-    "setuptools" # TODO - Remove before release, used for multimodal mocks in python 3.12
 ]
 
 # Our basic list of 'extras'
@@ -71,6 +65,7 @@ test_requires = [
     "types-regex",
     "types-requests",
     "types-jsonschema",
+    "diskcache",
     "requests",
     "azure-identity",
     "bitsandbytes",
@@ -80,6 +75,7 @@ test_requires = [
     "sentencepiece",
     "torch",
     "transformers",
+    "tiktoken>=0.3",
     "mypy==1.9.0",
 ] + unittest_requires
 
