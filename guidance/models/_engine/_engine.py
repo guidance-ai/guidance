@@ -222,7 +222,6 @@ class Engine(ABC):
                     gen_tokens.append(
                         GenToken(
                             token_id=token_id,
-                            prob=1.0,
                             bytes=self.tokenizer.tokens[token_id],
                             latency_ms=0,  # TODO
                             is_input=True,
@@ -239,7 +238,6 @@ class Engine(ABC):
                     gen_tokens.append(
                         GenToken(
                             token_id=token_id,
-                            prob=1.0,
                             bytes=self.tokenizer.tokens[token_id],
                             latency_ms=0,  # TODO
                             is_force_forwarded=True,

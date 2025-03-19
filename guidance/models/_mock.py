@@ -155,7 +155,6 @@ class MockEngine(Engine):
                 top_k=[
                     GenToken(
                         token_id=token_ids[0],
-                        prob=1.0,
                         bytes=self.tokenizer.decode([token_ids[0]]).decode("utf8"),
                     )
                 ],

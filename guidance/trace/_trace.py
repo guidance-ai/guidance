@@ -146,7 +146,7 @@ class TextOutput(OutputAttr):
 
 class Token(BaseModel):
     bytes: bytes
-    prob: float
+    prob: float = float("nan")
     masked: bool = False
 
 class TokenOutput(TextOutput):

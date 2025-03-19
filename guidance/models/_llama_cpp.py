@@ -312,9 +312,8 @@ class LlamaCppEngine(Engine):
         text_sequence.append(
             GenTokenExtra(
                 token_id=token_ids[0],
-                prob=1.0,
                 bytes=_text,
-                top_k=[GenToken(token_id=token_ids[0], prob=1.0, bytes=_text)],
+                top_k=[GenToken(token_id=token_ids[0], bytes=_text)],
             )
         )
 

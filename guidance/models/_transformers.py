@@ -637,10 +637,9 @@ class TransformersEngine(Engine):
                 if len(text_sequence) == 0:
                     token = GenTokenExtra(
                         token_id=_token_id.item(),
-                        prob=1.0,
                         bytes=tokenizer.decode([_token_id]),
                         top_k=[
-                            GenToken(token_id=_token_id.item(), prob=1.0, bytes=_token),
+                            GenToken(token_id=_token_id.item(), bytes=_token),
                         ],
                     )
                     text_sequence.append(token)
