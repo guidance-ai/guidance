@@ -7,6 +7,7 @@ from typing import (
     Any,
     Callable,
     Iterator,
+    Literal,
     Optional,
     Sequence,
     TypeVar,
@@ -524,12 +525,24 @@ class LarkNode(BaseSubgrammarNode):
         return client.lark(state, self, **kwargs)
 
 
-@dataclass(frozen=True)
-class ToolCallNode(ASTNode):
+@dataclass
+class ToolDefinition:
     callable: Callable
     name: str
     description: str
     args: dict[str, dict[str, Any]]
+
+@dataclass(frozen=True)
+class ToolCallNode(ASTNode):
+    tools: list[ToolDefinition]
+    tool_choice: Literal["auto", "required"] = "auto"
+    parallel_tool_calls: bool = False
+
+    def __post_init__(self):
+        if not self.tools:
+            raise ValueError("ToolCallNode must have at least one tool")
+        if len(set(tool.name for tool in self.tools)) != len(self.tools):
+            raise ValueError("ToolCallNode must have unique tool names")
 
     def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
         return client.tool_call(state, self, **kwargs)

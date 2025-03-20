@@ -394,23 +394,25 @@ class OpenAIClient(Client[OpenAIState]):
             {
                 "type": "function",
                 "function": {
-                    "name": node.name,
-                    "description": node.description,
+                    "name": tool.name,
+                    "description": tool.description,
                     "parameters": {
                         "type": "object",
-                        "properties": {name: schema for name, schema in node.args.items()},
-                        "required": list(node.args.keys()),
+                        "properties": {name: schema for name, schema in tool.args.items()},
+                        "required": list(tool.args.keys()),
                         "additionalProperties": False,
                     },
                     "strict": True,
                 },
             }
+            for tool in node.tools
         ]
         completion = self.client.chat.completions.create(
             model="gpt-4o",
             messages=TypeAdapter(list[Message]).dump_python(state.messages),
             tools=tools,
-            tool_choice={"type": "function", "function": {"name": node.name}},
+            tool_choice=node.tool_choice,
+            parallel_tool_calls=node.parallel_tool_calls,
         )
         tool_calls = completion.choices[0].message.tool_calls
         if tool_calls is None:
@@ -422,7 +424,10 @@ class OpenAIClient(Client[OpenAIState]):
         for tool_call in tool_calls:
             args = json.loads(tool_call.function.arguments)
             assert isinstance(args, dict)  # TODO: pydantic validation
-            result = node.callable(**args)
+            callable = next(
+                tool.callable for tool in node.tools if tool.name == tool_call.function.name
+            )
+            result = callable(**args)
             state.apply_tool_call_result(
                 ToolCallResult(
                     tool_call_id=tool_call.id,
