@@ -394,13 +394,13 @@ class OpenAIClient(Client[OpenAIState]):
             {
                 "type": "function",
                 "function": {
-                    "name": tool.name,
+                    "name": name,
                     "description": tool.description,
                     "parameters": tool.args.model_json_schema(),
                     "strict": True,
                 },
             }
-            for tool in node.tools
+            for name, tool in node.tools.items()
         ]
         completion = self.client.chat.completions.create(
             model="gpt-4o",
@@ -417,7 +417,7 @@ class OpenAIClient(Client[OpenAIState]):
                 [ToolCall.model_validate(tc, from_attributes=True) for tc in tool_calls]
             )
         for tool_call in tool_calls:
-            tool = next(tool for tool in node.tools if tool.name == tool_call.function.name)
+            tool = node.tools[tool_call.function.name]
             args = tool.args.model_validate_json(tool_call.function.arguments)
             result = tool.callable(**args.model_dump())
             state.apply_tool_call_result(

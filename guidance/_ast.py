@@ -562,15 +562,33 @@ class ToolDefinition:
 
 @dataclass(frozen=True)
 class ToolCallNode(ASTNode):
-    tools: list[ToolDefinition]
+    tools: dict[str, ToolDefinition]
     tool_choice: Literal["auto", "required"] = "auto"
     parallel_tool_calls: bool = False
+
+    @classmethod
+    def from_tools(
+        cls,
+        tools: list[Union[callable, ToolDefinition]],
+        tool_choice: Literal["auto", "required"] =  "auto",
+        parallel_tool_calls: bool = False
+    ) -> "ToolCallNode":
+        tool_defs = {}
+        for tool in tools:
+            if isinstance(tool, ToolDefinition):
+                tool_def = tool
+            elif callable(tool):
+                tool_def = ToolDefinition.from_callable(tool)
+            else:
+                raise ValueError(f"Unsupported tool type: {type(tool)}")
+            if tool_def.name in tool_defs:
+                raise ValueError(f"Duplicate tool name: {tool_def.name}")
+            tool_defs[tool_def.name] = tool_def
+        return cls(tools=tool_defs, tool_choice=tool_choice, parallel_tool_calls=parallel_tool_calls)
 
     def __post_init__(self):
         if not self.tools:
             raise ValueError("ToolCallNode must have at least one tool")
-        if len(set(tool.name for tool in self.tools)) != len(self.tools):
-            raise ValueError("ToolCallNode must have unique tool names")
 
     def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
         return client.tool_call(state, self, **kwargs)
