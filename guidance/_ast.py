@@ -544,11 +544,10 @@ class ToolDefinition:
                 inspect.Parameter.POSITIONAL_OR_KEYWORD,
                 inspect.Parameter.KEYWORD_ONLY,
             }:
-                raise ValueError(f"Unsupported parameter kind: {param.kind}")
-            annotation = param.annotation
-            if annotation is inspect.Parameter.empty:
-                annotation = Any
-            args[name] = annotation
+                raise ValueError(f"Unsupported parameter kind: {param.kind.description}")
+            args[name] = (
+                param.annotation if param.annotation is not inspect.Parameter.empty else Any
+            )
         return cls(
             callable=callable,
             name=callable.__name__,
