@@ -1,4 +1,5 @@
 import base64
+import json
 import wave
 from io import BytesIO
 from typing import TYPE_CHECKING, Iterator, Literal, Optional, Union
@@ -17,6 +18,7 @@ from .._ast import (
     RoleEnd,
     RoleStart,
     RuleNode,
+    ToolCallNode,
 )
 from .._utils import bytes_from
 from ..trace import ImageOutput, OutputAttr, TextOutput
@@ -45,12 +47,12 @@ class AssistantAudio(BaseModel):
 
 
 class AssistantAudioMessage(BaseModel):
-    role: Literal["assistant"]
+    role: Literal["assistant"] = "assistant"
     audio: AssistantAudio
 
 
 class TextContent(BaseModel):
-    type: Literal["text"]
+    type: Literal["text"] = "text"
     text: str
 
 
@@ -60,7 +62,7 @@ class InputAudio(BaseModel):
 
 
 class AudioContent(BaseModel):
-    type: Literal["input_audio"]
+    type: Literal["input_audio"] = "input_audio"
     input_audio: InputAudio
 
 
@@ -69,11 +71,33 @@ class ImageUrlContentInner(BaseModel):
 
 
 class ImageUrlContent(BaseModel):
-    type: Literal["image_url"]
+    type: Literal["image_url"] = "image_url"
     image_url: ImageUrlContentInner
 
 
 Content = Annotated[Union[TextContent, AudioContent, ImageUrlContent], Discriminator("type")]
+
+
+class Function(BaseModel):
+    name: str
+    arguments: str
+
+
+class ToolCall(BaseModel):
+    id: str
+    type: Literal["function"] = "function"
+    function: Function
+
+
+class ToolCallMessage(BaseModel):
+    role: Literal["assistant"] = "assistant"
+    tool_calls: list[ToolCall]
+
+
+class ToolCallResult(BaseModel):
+    role: Literal["tool"] = "tool"
+    tool_call_id: str
+    content: str
 
 
 class ContentMessage(BaseModel):
@@ -81,45 +105,74 @@ class ContentMessage(BaseModel):
     content: list[Content]
 
 
-Message = Union[ContentMessage, AssistantAudioMessage]
+Message = Union[ContentMessage, AssistantAudioMessage, ToolCallMessage, ToolCallResult]
 
 
 class OpenAIState(State):
     def __init__(self) -> None:
         super().__init__()
         self.messages: list[Message] = []
-        self.content: list[Content] = []
-        self.audio: Optional[AssistantAudio] = None
+        self.active_message: Optional[Message] = None
 
-    def apply_text(self, text: str) -> None:
-        if len(self.content) > 0 and isinstance(self.content[-1], TextContent):
-            self.content[-1].text += text
-        else:
-            self.content.append(TextContent(type="text", text=text))
+    def apply_content(self, content: Content) -> None:
+        if self.active_role is None:
+            raise ValueError("Cannot add content without an active role")
+        if self.active_message is None:
+            self.active_message = ContentMessage(role=self.active_role, content=[content])
+            return
 
-    def get_active_message(state) -> Optional[Message]:
-        if state.active_role is None:
-            return None
-        if state.content and state.audio:
-            raise ValueError("Cannot have both content and audio")
-        if state.audio:
-            return AssistantAudioMessage(
-                role=state.active_role,
-                audio=state.audio,
-            )
-        elif state.content:
-            return ContentMessage(
-                role=state.active_role,
-                content=state.content,
-            )
+        if not isinstance(self.active_message, ContentMessage):
+            raise ValueError("Cannot add content to a non-content message")
+        if (
+            isinstance(content, TextContent)
+            and len(self.active_message.content) > 0
+            and isinstance(self.active_message.content[-1], TextContent)
+        ):
+            self.active_message.content[-1].text += content.text
         else:
-            return None
+            self.active_message.content.append(content)
+
+    def apply_assistant_audio(self, audio: AssistantAudio) -> None:
+        if self.active_role != "assistant":
+            raise ValueError("Cannot add assistant audio without an active assistant role")
+        if self.active_message is not None:
+            raise ValueError("Cannot add assistant audio when there is an active message")
+        self.messages.append(AssistantAudioMessage(audio=audio))
+
+    def apply_tool_calls(self, tool_calls: list[ToolCall]) -> None:
+        if self.active_role != "assistant":
+            raise ValueError("Cannot add tool calls without an active assistant role")
+        if self.active_message is not None:
+            raise ValueError("Cannot add tool calls when there is an active message")
+        self.messages.append(ToolCallMessage(tool_calls=tool_calls))
+
+    def apply_tool_call_result(self, tool_call_result: ToolCallResult) -> None:
+        if self.active_role != "assistant":
+            raise ValueError("Cannot add tool call result without an active assistant role")
+        if self.active_message is not None:
+            raise ValueError("Cannot add tool call result when there is an active message")
+        self.messages.append(tool_call_result)
+
+    def apply_role_start(self, role: str) -> None:
+        if self.active_role is not None:
+            raise ValueError("Cannot start a new role without ending the previous one")
+        if self.active_message is not None:
+            raise ValueError("Cannot start a new role with an active message")
+        self.active_role = role
+
+    def apply_role_end(self, role: str) -> None:
+        if self.active_role != role:
+            raise ValueError(f"Cannot end role {role} when the active role is {self.active_role}")
+        self.active_role = None
+        if self.active_message is not None:
+            self.messages.append(self.active_message)
+            self.active_message = None
+        # Do nothing for empty roles
 
     def __str__(self) -> str:
         messages = self.messages
-        active_message = self.get_active_message()
-        if active_message is not None:
-            messages = messages + [active_message]
+        if self.active_message is not None:
+            messages = messages + [self.active_message]
         s = ""
         for i, message in enumerate(messages):
             s += get_role_start(message.role)
@@ -137,11 +190,15 @@ class OpenAIState(State):
                         if TYPE_CHECKING:
                             assert_never(content)
                         raise TypeError(f"Unknown content type: {content}")
+            elif isinstance(message, ToolCallMessage):
+                s += "[TOOL CALL]"  # placeholder for now
+            elif isinstance(message, ToolCallResult):
+                s += "[TOOL CALL RESULT]"  # placeholder for now
             else:
                 if TYPE_CHECKING:
                     assert_never(message)
                 raise TypeError(f"Unknown message type: {message}")
-            if active_message is None or i != len(messages) - 1:
+            if self.active_message is None or i != len(messages) - 1:
                 # For the sake of consistency, don't add role end for the active message
                 s += get_role_end(message.role)
         return s
@@ -173,20 +230,17 @@ class OpenAIClient(Client[OpenAIState]):
         return super().run(state, node, **kwargs)
 
     def role_start(self, state: OpenAIState, node: RoleStart, **kwargs) -> Iterator[OutputAttr]:
-        state.active_role = node.role
+        state.apply_role_start(node.role)
         # TODO: drop this and yield nothing. We need to add this for now as a workaround for the
         # fact that current vis code assumes that there is actually a role start message
         yield TextOutput(value=get_role_start(node.role), is_input=True)
 
     def role_end(self, state: OpenAIState, node: RoleEnd, **kwargs) -> Iterator[OutputAttr]:
-        state.messages.append(state.get_active_message())
-        state.audio = None
-        state.content = []
-        state.active_role = None
+        state.apply_role_end(node.role)
         yield from ()
 
     def text(self, state: OpenAIState, node: LiteralNode, **kwargs) -> Iterator[OutputAttr]:
-        state.apply_text(node.value)
+        state.apply_content(TextContent(text=node.value))
         yield TextOutput(value=node.value, is_input=True)
 
     def rule(self, state: OpenAIState, node: RuleNode, **kwargs) -> Iterator[OutputAttr]:
@@ -251,9 +305,9 @@ class OpenAIClient(Client[OpenAIState]):
             raise ValueError(
                 "OpenAI models can only generate as the assistant (i.e. inside of `with assistant(): ...`)"
             )
-        if state.content:
+        if state.active_message:
             raise ValueError(
-                f"OpenAI models do not support pre-filled assistant messages: got data {state.content}."
+                f"OpenAI models do not support pre-filled assistant messages: got {state.active_message}"
             )
 
         with self.client.chat.completions.create(
@@ -277,7 +331,7 @@ class OpenAIClient(Client[OpenAIState]):
                 content = delta.content
                 if len(content) == 0:
                     continue
-                state.apply_text(content)
+                state.apply_content(TextContent(text=content))
                 if choice.logprobs is not None:
                     # TODO: actually get tokens from this and be less lazy
                     prob = 2.718 ** choice.logprobs.content[0].logprob
@@ -322,8 +376,7 @@ class OpenAIClient(Client[OpenAIState]):
                 break
 
         if audio is not None:
-            assert state.audio is None
-            state.audio = audio
+            state.apply_assistant_audio(audio)
             # Create an in-memory WAV file
             wav_buffer = BytesIO()
             with wave.open(wav_buffer, "wb") as wav_file:
@@ -335,6 +388,48 @@ class OpenAIClient(Client[OpenAIState]):
             # Get WAV bytes
             wav_bytes = wav_buffer.getvalue()
             yield AudioOutput(value=base64.b64encode(wav_bytes).decode(), is_input=False)
+
+    def tool_call(self, state: OpenAIState, node: ToolCallNode, **kwargs) -> Iterator[OutputAttr]:
+        tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": node.name,
+                    "description": node.description,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {name: schema for name, schema in node.args.items()},
+                        "required": list(node.args.keys()),
+                        "additionalProperties": False,
+                    },
+                    "strict": True,
+                },
+            }
+        ]
+        completion = self.client.chat.completions.create(
+            model="gpt-4o",
+            messages=TypeAdapter(list[Message]).dump_python(state.messages),
+            tools=tools,
+            tool_choice={"type": "function", "function": {"name": node.name}},
+        )
+        tool_calls = completion.choices[0].message.tool_calls
+        if tool_calls is None:
+            raise NotImplementedError("TODO: tool call returned non-tool-call")
+        else:
+            state.apply_tool_calls(
+                [ToolCall.model_validate(tc, from_attributes=True) for tc in tool_calls]
+            )
+        for tool_call in tool_calls:
+            args = json.loads(tool_call.function.arguments)
+            assert isinstance(args, dict)  # TODO: pydantic validation
+            result = node.callable(**args)
+            state.apply_tool_call_result(
+                ToolCallResult(
+                    tool_call_id=tool_call.id,
+                    content=json.dumps(result),
+                )
+            )
+        yield from ()  # TODO: yield some text for vis
 
 
 class OpenAIImageClient(OpenAIClient):
@@ -355,13 +450,19 @@ class OpenAIImageClient(OpenAIClient):
                 raise ValueError(f"Cannot upload image with unknown format")
 
         mime_type = f"image/{format.lower()}"
-        state.content.append(
-            {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{node.data}"}}
+        state.apply_content(
+            ImageUrlContent(
+                image_url=ImageUrlContentInner(url=f"data:{mime_type};base64,{node.data}"),
+            )
         )
         yield ImageOutput(value=node.data, input=True)
 
     def image_url(self, state: OpenAIState, node: ImageUrl, **kwargs) -> Iterator[OutputAttr]:
-        state.content.append({"type": "image_url", "image_url": {"url": node.url}})
+        state.apply_content(
+            ImageUrlContent(
+                image_url=ImageUrlContentInner(url=node.url),
+            )
+        )
         image_bytes = bytes_from(node.url, allow_local=False)
         base64_string = base64.b64encode(image_bytes).decode("utf-8")
         yield ImageOutput(value=base64_string, input=True)
@@ -372,7 +473,7 @@ class OpenAIAudioClient(OpenAIClient):
 
     def audio_blob(self, state: OpenAIState, node: ImageBlob, **kwargs) -> Iterator[OutputAttr]:
         format = "wav"  # TODO: infer from node
-        state.content.append(
+        state.apply_content(
             AudioContent(
                 type="input_audio",
                 input_audio=InputAudio(

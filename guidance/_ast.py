@@ -524,6 +524,17 @@ class LarkNode(BaseSubgrammarNode):
         return client.lark(state, self, **kwargs)
 
 
+@dataclass(frozen=True)
+class ToolCallNode(ASTNode):
+    callable: Callable
+    name: str
+    description: str
+    args: dict[str, dict[str, Any]]
+
+    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
+        return client.tool_call(state, self, **kwargs)
+
+
 class LLSerializer:
     def __init__(self):
         self.grammars: dict[str, Union[JsonGrammar, LarkGrammar]] = {}

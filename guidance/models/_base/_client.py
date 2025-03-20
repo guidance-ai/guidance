@@ -20,6 +20,7 @@ from ..._ast import (
     SelectNode,
     SubgrammarNode,
     SubstringNode,
+    ToolCallNode,
 )
 from ..._utils import bytes_from
 from ...trace import OutputAttr
@@ -97,6 +98,9 @@ class Client(Generic[S]):
         raise UnsupportedNodeError(client=self, node=node)
 
     def gen_audio(self, state: S, node: GenAudio, **kwargs) -> Iterator[OutputAttr]:
+        raise UnsupportedNodeError(client=self, node=node)
+
+    def tool_call(self, state: S, node: ToolCallNode, **kwargs) -> Iterator[OutputAttr]:
         raise UnsupportedNodeError(client=self, node=node)
 
 
