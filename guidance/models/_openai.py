@@ -191,9 +191,13 @@ class OpenAIState(State):
                             assert_never(content)
                         raise TypeError(f"Unknown content type: {content}")
             elif isinstance(message, ToolCallMessage):
-                s += "[TOOL CALL]"  # placeholder for now
+                # Arbitrarily choosing llama-3 style stringification
+                s += '\n'.join(
+                    f'<function={tool_call.function.name}>{tool_call.function.arguments}</function>'
+                    for tool_call in message.tool_calls
+                )
             elif isinstance(message, ToolCallResult):
-                s += "[TOOL CALL RESULT]"  # placeholder for now
+                s += message.content
             else:
                 if TYPE_CHECKING:
                     assert_never(message)
