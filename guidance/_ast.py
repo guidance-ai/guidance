@@ -1,3 +1,4 @@
+import inspect
 import json
 import re
 from abc import ABC, abstractmethod
@@ -14,6 +15,8 @@ from typing import (
     Union,
     cast,
 )
+
+import pydantic
 
 from ._parser import ByteParser, ByteParserException
 from ._schema import JsonGrammar, LarkGrammar, LLGrammar
@@ -530,7 +533,33 @@ class ToolDefinition:
     callable: Callable
     name: str
     description: str
-    args: dict[str, dict[str, Any]]
+    args: type[pydantic.BaseModel]
+
+    @classmethod
+    def from_callable(cls, callable: Callable) -> "ToolDefinition":
+        signature = inspect.signature(callable)
+        args = {}
+        for name, param in signature.parameters.items():
+            if param.kind not in {
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                inspect.Parameter.KEYWORD_ONLY,
+            }:
+                raise ValueError(f"Unsupported parameter kind: {param.kind}")
+            annotation = param.annotation
+            if annotation is inspect.Parameter.empty:
+                annotation = Any
+            args[name] = annotation
+        return cls(
+            callable=callable,
+            name=callable.__name__,
+            description=(callable.__doc__ or "").strip(),
+            args=pydantic.create_model(
+                callable.__name__,
+                __config__=pydantic.ConfigDict(extra="forbid"),
+                **{name: (annotation, ...) for name, annotation in args.items()},
+            ),
+        )
+
 
 @dataclass(frozen=True)
 class ToolCallNode(ASTNode):

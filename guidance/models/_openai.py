@@ -396,12 +396,7 @@ class OpenAIClient(Client[OpenAIState]):
                 "function": {
                     "name": tool.name,
                     "description": tool.description,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {name: schema for name, schema in tool.args.items()},
-                        "required": list(tool.args.keys()),
-                        "additionalProperties": False,
-                    },
+                    "parameters": tool.args.model_json_schema(),
                     "strict": True,
                 },
             }
@@ -422,12 +417,9 @@ class OpenAIClient(Client[OpenAIState]):
                 [ToolCall.model_validate(tc, from_attributes=True) for tc in tool_calls]
             )
         for tool_call in tool_calls:
-            args = json.loads(tool_call.function.arguments)
-            assert isinstance(args, dict)  # TODO: pydantic validation
-            callable = next(
-                tool.callable for tool in node.tools if tool.name == tool_call.function.name
-            )
-            result = callable(**args)
+            tool = next(tool for tool in node.tools if tool.name == tool_call.function.name)
+            args = tool.args.model_validate_json(tool_call.function.arguments)
+            result = tool.callable(**args.model_dump())
             state.apply_tool_call_result(
                 ToolCallResult(
                     tool_call_id=tool_call.id,
