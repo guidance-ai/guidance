@@ -19,6 +19,7 @@ from .._ast import (
     RoleStart,
     RuleNode,
     ToolCallNode,
+    ToolDefinition,
 )
 from .._utils import bytes_from
 from ..trace import ImageOutput, OutputAttr, TextOutput
@@ -192,8 +193,8 @@ class OpenAIState(State):
                         raise TypeError(f"Unknown content type: {content}")
             elif isinstance(message, ToolCallMessage):
                 # Arbitrarily choosing llama-3 style stringification
-                s += '\n'.join(
-                    f'<function={tool_call.function.name}>{tool_call.function.arguments}</function>'
+                s += "\n".join(
+                    f"<function={tool_call.function.name}>{tool_call.function.arguments}</function>"
                     for tool_call in message.tool_calls
                 )
             elif isinstance(message, ToolCallResult):
@@ -299,7 +300,9 @@ class OpenAIClient(Client[OpenAIState]):
             **kwargs,
         )
 
-    def _run(self, state: OpenAIState, **kwargs) -> Iterator[OutputAttr]:
+    def _run(
+        self, state: OpenAIState, tools: Optional[dict[str, ToolDefinition]] = None, **kwargs
+    ) -> Iterator[OutputAttr]:
         if state.active_role is None:
             # Should never happen?
             raise ValueError(
@@ -319,22 +322,38 @@ class OpenAIClient(Client[OpenAIState]):
             messages=TypeAdapter(list[Message]).dump_python(state.messages),  # type: ignore[arg-type]
             logprobs=self.log_probs,
             stream=True,
+            tools=(
+                [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": name,
+                            "description": tool.description,
+                            "parameters": tool.args.model_json_schema(),
+                            "strict": True,
+                        },
+                    }
+                    for name, tool in tools.items()
+                ]
+                if tools is not None
+                else None
+            ),
             **kwargs,
         ) as chunks:
-            yield from self._handle_stream(state, chunks)
+            yield from self._handle_stream(state, chunks, tools)
 
     def _handle_stream(
-        self, state: OpenAIState, chunks: Iterator["ChatCompletionChunk"]
+        self,
+        state: OpenAIState,
+        chunks: Iterator["ChatCompletionChunk"],
+        tools: Optional[dict[str, ToolDefinition]],
     ) -> Iterator[OutputAttr]:
         audio: Optional[AssistantAudio] = None
+        final_tool_calls: dict[int, ToolCall] = {}
         for chunk in chunks:
             choice = chunk.choices[0]
             delta = choice.delta
-            if delta.content is not None:
-                assert audio is None
-                content = delta.content
-                if len(content) == 0:
-                    continue
+            if (content := delta.content) is not None and len(content) > 0:
                 state.apply_content(TextContent(text=content))
                 if choice.logprobs is not None:
                     # TODO: actually get tokens from this and be less lazy
@@ -342,37 +361,53 @@ class OpenAIClient(Client[OpenAIState]):
                 else:
                     prob = float("nan")
                 yield TextOutput(value=delta.content, is_generated=True, prob=prob)
-            elif getattr(delta, "audio", None) is not None:
+            elif (audio := getattr(delta, "audio", None)) is not None:
                 transcript_chunk: Optional[str] = None
                 if audio is None:
-                    assert delta.audio.get("id") is not None
+                    assert audio.get("id") is not None
                     audio = AssistantAudio(
-                        id=delta.audio["id"],
-                        expires_at=delta.audio.get("expires_at", 0),  # ?
-                        transcript=delta.audio.get("transcript", ""),
-                        data=delta.audio.get("data", ""),
+                        id=audio["id"],
+                        expires_at=audio.get("expires_at", 0),  # ?
+                        transcript=audio.get("transcript", ""),
+                        data=audio.get("data", ""),
                     )
-                    transcript_chunk = delta.audio.get("transcript")
+                    transcript_chunk = audio.get("transcript")
                 else:
-                    assert delta.audio.get("id") is None or delta.audio["id"] == audio.id
-                    if delta.audio.get("data") is not None:
-                        audio.data += delta.audio["data"]
-                    if delta.audio.get("transcript") is not None:
-                        audio.transcript += delta.audio["transcript"]
-                        transcript_chunk = delta.audio["transcript"]
-                    if delta.audio.get("expires_at") is not None:
+                    assert audio.get("id") is None or audio["id"] == audio.id
+                    if audio.get("data") is not None:
+                        audio.data += audio["data"]
+                    if audio.get("transcript") is not None:
+                        audio.transcript += audio["transcript"]
+                        transcript_chunk = audio["transcript"]
+                    if audio.get("expires_at") is not None:
                         assert audio.expires_at == 0
-                        audio.expires_at = delta.audio["expires_at"]
+                        audio.expires_at = audio["expires_at"]
                 if transcript_chunk is not None:
                     # Why not give the users some transcript? :)
                     yield TextOutput(
-                        value=delta.audio["transcript"],
+                        value=audio["transcript"],
                         is_generated=True,
                     )
-            elif delta.function_call is not None:
-                raise NotImplementedError("Function calling not yet supported for OpenAI")
-            elif delta.tool_calls is not None:
-                raise NotImplementedError("Tool calling not yet supported for OpenAI")
+
+            elif (tool_calls := delta.tool_calls) is not None:
+                for tool_call in tool_calls:
+                    index = tool_call.index
+                    if index not in final_tool_calls:
+                        if final_tool_calls:
+                            # Close previous one
+                            yield TextOutput(
+                                value=f"</function>",
+                            )
+                        final_tool_calls[index] = ToolCall.model_validate(
+                            tool_call, from_attributes=True
+                        )
+                        yield TextOutput(
+                            value=f"<function={tool_call.function.name}>",
+                        )
+                    else:
+                        yield TextOutput(value=tool_call.function.arguments)
+                        final_tool_calls[index].function.arguments += tool_call.function.arguments
+
             elif delta.refusal is not None:
                 raise ValueError(f"OpenAI refused the request: {delta.refusal}")
 
@@ -393,44 +428,39 @@ class OpenAIClient(Client[OpenAIState]):
             wav_bytes = wav_buffer.getvalue()
             yield AudioOutput(value=base64.b64encode(wav_bytes).decode(), is_input=False)
 
+        if final_tool_calls:
+            # Close last one
+            yield TextOutput(
+                value=f"</function>",
+            )
+            state.apply_tool_calls(
+                [
+                    ToolCall.model_validate(tc, from_attributes=True)
+                    for tc in final_tool_calls.values()
+                ]
+            )
+            for tool_call in final_tool_calls.values():
+                tool = tools[tool_call.function.name]
+                args = tool.args.model_validate_json(tool_call.function.arguments)
+                result = tool.callable(**args.model_dump())
+                result_str = json.dumps(result)
+                state.apply_tool_call_result(
+                    ToolCallResult(
+                        tool_call_id=tool_call.id,
+                        content=result_str,
+                    )
+                )
+                yield TextOutput(
+                    value=f"<function_result={tool_call.function.name}>{result_str}</function_result>",
+                )
+
     def tool_call(self, state: OpenAIState, node: ToolCallNode, **kwargs) -> Iterator[OutputAttr]:
-        tools = [
-            {
-                "type": "function",
-                "function": {
-                    "name": name,
-                    "description": tool.description,
-                    "parameters": tool.args.model_json_schema(),
-                    "strict": True,
-                },
-            }
-            for name, tool in node.tools.items()
-        ]
-        completion = self.client.chat.completions.create(
-            model="gpt-4o",
-            messages=TypeAdapter(list[Message]).dump_python(state.messages),
-            tools=tools,
+        yield from self._run(
+            state=state,
+            tools=node.tools,
             tool_choice=node.tool_choice,
             parallel_tool_calls=node.parallel_tool_calls,
         )
-        tool_calls = completion.choices[0].message.tool_calls
-        if tool_calls is None:
-            raise NotImplementedError("TODO: tool call returned non-tool-call")
-        else:
-            state.apply_tool_calls(
-                [ToolCall.model_validate(tc, from_attributes=True) for tc in tool_calls]
-            )
-        for tool_call in tool_calls:
-            tool = node.tools[tool_call.function.name]
-            args = tool.args.model_validate_json(tool_call.function.arguments)
-            result = tool.callable(**args.model_dump())
-            state.apply_tool_call_result(
-                ToolCallResult(
-                    tool_call_id=tool_call.id,
-                    content=json.dumps(result),
-                )
-            )
-        yield from ()  # TODO: yield some text for vis
 
 
 class OpenAIImageClient(OpenAIClient):
