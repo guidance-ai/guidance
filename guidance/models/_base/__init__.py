@@ -1,4 +1,4 @@
-from ._client import Client
+from ._interpreter import Interpreter
 from ._model import Model
 from ._state import State
 
@@ -7,7 +7,7 @@ __all__ = [
     "role",
     "State",
     "Message",
-    "Client",
+    "Interpreter",
     "ASTNode",
     "ContentChunk",
     "MessageChunk",

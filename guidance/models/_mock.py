@@ -8,7 +8,7 @@ from .._utils import softmax
 from ..trace import TraceHandler
 from ..visual._renderer import DoNothingRenderer
 from ._base import Model
-from ._engine import Engine, EngineClient, EngineState, Tokenizer
+from ._engine import Engine, EngineInterpreter, EngineState, Tokenizer
 
 logger = logging.getLogger(__name__)
 
@@ -226,8 +226,7 @@ class Mock(Model):
         engine = MockEngine(tokenizer, byte_patterns, compute_log_probs, force)
 
         super().__init__(
-            client=EngineClient(engine),
-            state=EngineState(),
+            interpreter=EngineInterpreter(engine),
             echo=echo,
         )
 
