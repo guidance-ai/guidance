@@ -1,7 +1,8 @@
 import base64
 import wave
 from io import BytesIO
-from typing import TYPE_CHECKING, Iterator, Literal, Optional, Union
+from typing import TYPE_CHECKING, Iterator, Literal, Optional, Union, Callable
+from copy import deepcopy
 
 from pydantic import BaseModel, Discriminator, Field, TypeAdapter
 from typing_extensions import Annotated, assert_never
@@ -270,7 +271,12 @@ class OpenAIInterpreter(Interpreter[OpenAIState]):
     ) -> Iterator[OutputAttr]:
         audio: Optional[AssistantAudio] = None
         for chunk in chunks:
-            choice = chunk.choices[0]
+            try:
+                choice = chunk.choices[0]
+            except IndexError:
+                # TODO: azure seems to return empty choices sometimes (on first chunk?)
+                # Need to make this more robust
+                continue
             delta = choice.delta
             if delta.content is not None:
                 assert audio is None
@@ -336,6 +342,18 @@ class OpenAIInterpreter(Interpreter[OpenAIState]):
             wav_bytes = wav_buffer.getvalue()
             yield AudioOutput(value=base64.b64encode(wav_bytes).decode(), is_input=False)
 
+    def __deepcopy__(self, memo):
+        """Custom deepcopy to ensure client is not copied."""
+        cls = self.__class__
+        result = cls.__new__(cls)
+        memo[id(self)] = result
+        for k, v in self.__dict__.items():
+            if k == "client":
+                # Don't copy the engine
+                setattr(result, k, v)
+            else:
+                setattr(result, k, deepcopy(v, memo))
+        return result
 
 class OpenAIImageInterpreter(OpenAIInterpreter):
     def image_blob(self, node: ImageBlob, **kwargs) -> Iterator[OutputAttr]:
@@ -398,6 +416,7 @@ class OpenAI(Model):
         self,
         model: str,
         echo: bool = True,
+        *,
         api_key: Optional[str] = None,
         **kwargs,
     ):
@@ -426,4 +445,94 @@ class OpenAI(Model):
 
         super().__init__(
             interpreter=interpreter_cls(model, api_key=api_key, **kwargs), echo=echo
+        )
+
+class AzureOpenAIInterpreter(OpenAIInterpreter):
+    def __init__(
+        self,
+        *,
+        model: str,
+        azure_deployment: Optional[str] = None,
+        api_version: Optional[str] = None,
+        api_key: Optional[str] = None,
+        azure_ad_token: Optional[str] = None,
+        azure_ad_token_provider: Optional[Callable[[], str]] = None,
+        organization: Optional[str] = None,
+        **kwargs,
+    ):
+        try:
+            import openai
+        except ImportError:
+            raise Exception(
+                "Please install the openai package version >= 1 using `pip install openai -U` in order to use guidance.models.OpenAI!"
+            )
+        self.model = model
+        self.state = OpenAIState()
+        self.client = openai.AzureOpenAI(
+            azure_deployment=azure_deployment,
+            api_version=api_version,
+            api_key=api_key,
+            azure_ad_token=azure_ad_token,
+            azure_ad_token_provider=azure_ad_token_provider,
+            organization=organization,
+            **kwargs,
+        )
+
+class AzureOpenAI(Model):
+    def __init__(
+        self,
+        model: str,
+        echo: bool = True,
+        *,
+        azure_deployment: Optional[str] = None,
+        api_version: Optional[str] = None,
+        api_key: Optional[str] = None,
+        azure_ad_token: Optional[str] = None,
+        azure_ad_token_provider: Optional[Callable[[], str]] = None,
+        organization: Optional[str] = None,
+        **kwargs,
+    ):
+        """Build a new Azure OpenAI model object that represents a model in a given state.
+
+        Parameters
+        ----------
+        model : str
+            The name of the Azure OpenAI model to use (e.g. gpt-4o-mini).
+        azure_deployment : str | None
+            The Azure deployment name to use for the model.
+        api_version : str | None
+            The API version to use for the Azure OpenAI service.
+        api_key : str | None
+            The API key to use for the Azure OpenAI service.
+        azure_ad_token : str | None
+            The Azure AD token to use for authentication.
+        azure_ad_token_provider : Callable[[], str] | None
+            A callable that returns an Azure AD token for authentication.
+        organization : str | None
+            The organization ID to use for the Azure OpenAI service.
+        echo : bool
+            If true the final result of creating this model state will be displayed (as HTML in a notebook).
+        **kwargs :
+            All extra keyword arguments are passed directly to the `openai.OpenAI` constructor. Commonly used argument
+            names include `base_url` and `organization`
+        """
+        if "audio-preview" in model:
+            interpreter_cls = type("AzureOpenAIAudioInterpreter", (AzureOpenAIInterpreter, OpenAIAudioInterpreter), {})
+        elif model.startswith("gpt-4o") or model.startswith("o1"):
+            interpreter_cls = type("AzureOpenAIImageInterpreter", (AzureOpenAIInterpreter, OpenAIImageInterpreter), {})
+        else:
+            interpreter_cls = AzureOpenAIInterpreter
+
+        super().__init__(
+            interpreter=interpreter_cls(
+                model=model,
+                azure_deployment=azure_deployment,
+                api_version=api_version,
+                api_key=api_key,
+                azure_ad_token=azure_ad_token,
+                azure_ad_token_provider=azure_ad_token_provider,
+                organization=organization,
+                **kwargs,
+            ),
+            echo=echo
         )

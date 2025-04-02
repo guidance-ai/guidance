@@ -16,7 +16,7 @@ from ._mock import Mock#, MockChat
 #     AzureOpenAI,
 # )
 # from ._azureai_studio import AzureAIStudioChat
-from ._openai import OpenAI
+from ._openai import OpenAI, AzureOpenAI
 # from ._lite_llm import LiteLLM, LiteLLMChat, LiteLLMInstruct, LiteLLMCompletion
 # from ._cohere import Cohere, CohereCompletion, CohereInstruct
 # from ._anthropic import Anthropic
