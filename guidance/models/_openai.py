@@ -26,7 +26,7 @@ from ._base import Interpreter, Model, State
 
 if TYPE_CHECKING:
     from openai.types.chat import ChatCompletionChunk
-
+    from azure.core.credentials import AzureKeyCredential, TokenCredential
 
 def get_role_start(role: str) -> str:
     # ChatML is as good as anything
@@ -284,7 +284,7 @@ class OpenAIInterpreter(Interpreter[OpenAIState]):
                 if len(content) == 0:
                     continue
                 self.state.apply_text(content)
-                if choice.logprobs is not None:
+                if getattr(choice, "logprobs", None) is not None:
                     # TODO: actually get tokens from this and be less lazy
                     prob = 2.718 ** choice.logprobs.content[0].logprob
                 else:
@@ -533,6 +533,93 @@ class AzureOpenAI(Model):
                 azure_ad_token_provider=azure_ad_token_provider,
                 organization=organization,
                 **kwargs,
+            ),
+            echo=echo
+        )
+
+class AzureInferenceInterpreter(OpenAIInterpreter):
+    def __init__(
+        self,
+        *,
+        endpoint: str,
+        credential: Union["AzureKeyCredential", "TokenCredential"],
+    ):
+        try:
+            import azure.ai.inference
+        except ImportError:
+            raise Exception(
+                "Please install the azure-ai-inference package  using `pip install azure-ai-inference` in order to use guidance.models.AzureInference!"
+            )
+        self.state = OpenAIState()
+        self.client = azure.ai.inference.ChatCompletionsClient(
+            endpoint=endpoint,
+            credential=credential,
+        )
+
+    def _run(self, **kwargs) -> Iterator[OutputAttr]:
+        if self.state.active_role is None:
+            # Should never happen?
+            raise ValueError(
+                "OpenAI models require chat blocks (e.g. use `with assistant(): ...`)"
+            )
+        if self.state.active_role != "assistant":
+            raise ValueError(
+                "OpenAI models can only generate as the assistant (i.e. inside of `with assistant(): ...`)"
+            )
+        if self.state.content:
+            raise ValueError(
+                f"OpenAI models do not support pre-filled assistant messages: got data {self.state.content}."
+            )
+
+        with self.client.complete(
+            body = {
+                "messages": TypeAdapter(list[Message]).dump_python(self.state.messages),
+                "log_probs": self.log_probs,
+                "stream": True,
+                **kwargs,
+            },
+            headers = {
+                "extra-parameters": "pass-through",
+            }
+        ) as chunks:
+            yield from self._handle_stream(chunks)
+
+    def rule(self, node: RuleNode, **kwargs) -> Iterator[OutputAttr]:
+        raise ValueError("Rule nodes are not supported for Azure Inference")
+
+    def json(self, node: JsonNode, **kwargs) -> Iterator[OutputAttr]:
+        return self._run(
+            json_schema = {
+                "name": "json_schema",  # TODO?
+                "schema": node.schema,
+                "strict": True,
+            },
+            **kwargs,
+        )
+
+class AzureInference(Model):
+    def __init__(
+        self,
+        *,
+        endpoint: str,
+        credential: Union["AzureKeyCredential", "TokenCredential"],
+        echo: bool = True,
+    ):
+        """Build a new Azure Inference model object that represents a model in a given state.
+
+        Parameters
+        ----------
+        endpoint : str
+            The endpoint of the Azure Inference service.
+        credential : AzureKeyCredential | TokenCredential
+            The credential to use for authentication with the Azure Inference service.
+        echo : bool
+            If true the final result of creating this model state will be displayed (as HTML in a notebook).
+        """
+        super().__init__(
+            interpreter=AzureInferenceInterpreter(
+                endpoint=endpoint,
+                credential=credential,
             ),
             echo=echo
         )
