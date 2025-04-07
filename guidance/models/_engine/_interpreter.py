@@ -1,18 +1,33 @@
 from base64 import b64decode
 from io import BytesIO
 from typing import Iterator
+from copy import deepcopy
 
 from ..._ast import GrammarNode, ImageBlob, LiteralNode, RoleEnd, RoleStart
 from ...trace import ImageOutput, OutputAttr, TextOutput
-from .._base import Client
+from .._base import Interpreter
 from ._engine import Engine
 from ._state import EngineState
 
 
-class EngineClient(Client[EngineState]):
+class EngineInterpreter(Interpreter[EngineState]):
     def __init__(self, engine: Engine):
+        self.state = EngineState()
         self.engine = engine
         self.chat_template = self.engine.get_chat_template()
+
+    def __deepcopy__(self, memo):
+        """Custom deepcopy to ensure engine is not copied."""
+        cls = self.__class__
+        result = cls.__new__(cls)
+        memo[id(self)] = result
+        for k, v in self.__dict__.items():
+            if k == "engine":
+                # Don't copy the engine
+                setattr(result, k, v)
+            else:
+                setattr(result, k, deepcopy(v, memo))
+        return result
 
     def get_role_start(self, role: str) -> str:
         if self.chat_template is None:
@@ -24,24 +39,24 @@ class EngineClient(Client[EngineState]):
             raise ValueError("Cannot use roles without a chat template")
         return self.chat_template.get_role_end(role)
 
-    def role_start(self, state: EngineState, node: RoleStart, **kwargs) -> Iterator[OutputAttr]:
-        state.active_role = node.role
+    def role_start(self, node: RoleStart, **kwargs) -> Iterator[OutputAttr]:
+        self.state.active_role = node.role
         # TODO: mark these as special tokens..?
-        yield from self.run(state, LiteralNode(value=self.get_role_start(node.role)), **kwargs)
+        yield from self.run(LiteralNode(value=self.get_role_start(node.role)), **kwargs)
 
-    def role_end(self, state: EngineState, node: RoleEnd, **kwargs) -> Iterator[OutputAttr]:
-        state.active_role = None
+    def role_end(self, node: RoleEnd, **kwargs) -> Iterator[OutputAttr]:
+        self.state.active_role = None
         # TODO: mark these as special tokens..?
-        yield from self.run(state, LiteralNode(value=self.get_role_end(node.role)), **kwargs)
+        yield from self.run(LiteralNode(value=self.get_role_end(node.role)), **kwargs)
 
-    def text(self, state: EngineState, node: LiteralNode, **kwargs) -> Iterator[OutputAttr]:
-        state.prompt += node.value
+    def text(self, node: LiteralNode, **kwargs) -> Iterator[OutputAttr]:
+        self.state.prompt += node.value
         yield TextOutput(value=node.value, is_input=True)
 
-    def grammar(self, state: EngineState, node: GrammarNode, **kwargs) -> Iterator[OutputAttr]:
+    def grammar(self, node: GrammarNode, **kwargs) -> Iterator[OutputAttr]:
         engine_gen = self.engine(
-            state,
-            node.ll_grammar(),
+            state=self.state,
+            grammar=node.ll_grammar(),
             ensure_bos_token=True,
             echo=False,
         )
@@ -52,7 +67,7 @@ class EngineClient(Client[EngineState]):
             new_text, delayed_bytes = partial_decode(new_bytes)
 
             # Update the state
-            state.prompt += new_text
+            self.state.prompt += new_text
             yield TextOutput(value=new_text, token_count=chunk.new_token_count, is_generated=True)
 
             # TODO -- rewrite engine internals to make sure chunk.{generated,fast_forwarded}_tokens aren't empty...
@@ -83,12 +98,12 @@ class EngineClient(Client[EngineState]):
                     assert isinstance(log_probs, list)
                     assert len(values) == len(log_probs)
                     for value, log_prob in zip(values, log_probs):
-                        yield state.apply_capture(
+                        yield self.state.apply_capture(
                             name, value.decode("utf-8"), log_prob=log_prob, is_append=True
                         )
                 else:
                     assert isinstance(log_probs, float)
-                    yield state.apply_capture(
+                    yield self.state.apply_capture(
                         name, values.decode("utf-8"), log_prob=log_probs, is_append=False
                     )
 
@@ -96,8 +111,8 @@ class EngineClient(Client[EngineState]):
             raise RuntimeError("Shouldn't have any delayed bytes left...")
 
 
-class Llama3VisionClient(EngineClient):
-    def image_blob(self, state: EngineState, node: ImageBlob, **kwargs) -> Iterator[OutputAttr]:
+class Llama3VisionInterpreter(EngineInterpreter):
+    def image_blob(self, node: ImageBlob, **kwargs) -> Iterator[OutputAttr]:
         try:
             import PIL.Image
         except ImportError:
@@ -107,14 +122,14 @@ class Llama3VisionClient(EngineClient):
 
         image_bytes = b64decode(node.data)
         pil_image = PIL.Image.open(BytesIO(image_bytes))
-        state.images.append(pil_image)
-        state.prompt += "<|image|>"
+        self.state.images.append(pil_image)
+        self.state.prompt += "<|image|>"
 
         yield ImageOutput(value=node.data, input=True)
 
 
-class Phi3VisionClient(EngineClient):
-    def image_blob(self, state: EngineState, node: ImageBlob, **kwargs) -> Iterator[OutputAttr]:
+class Phi3VisionInterpreter(EngineInterpreter):
+    def image_blob(self, node: ImageBlob, **kwargs) -> Iterator[OutputAttr]:
         try:
             import PIL.Image
         except ImportError:
@@ -125,12 +140,12 @@ class Phi3VisionClient(EngineClient):
         image_bytes = b64decode(node.data)
         pil_image = PIL.Image.open(BytesIO(image_bytes))
 
-        if pil_image in state.images:
-            ix = state.images.index(pil_image) + 1
+        if pil_image in self.state.images:
+            ix = self.state.images.index(pil_image) + 1
         else:
-            state.images.append(pil_image)
-            ix = len(state.images)
-        state.prompt += f"<|image_{ix}|>"
+            self.state.images.append(pil_image)
+            ix = len(self.state.images)
+        self.state.prompt += f"<|image_{ix}|>"
 
         yield ImageOutput(value=node.data, input=True)
 
