@@ -174,6 +174,21 @@ class RoleEnd(ASTNode):
 
 
 @dataclass
+class CaptureStart(ASTNode):
+    name: str
+    list_append: bool = False
+
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+        return interpreter.capture_start(self, **kwargs)
+
+@dataclass
+class CaptureEnd(ASTNode):
+    name: str
+
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+        return interpreter.capture_end(self, **kwargs)
+
+@dataclass
 class ImageBlob(ASTNode):
     data: str
 

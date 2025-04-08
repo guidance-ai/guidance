@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING, Any, Iterator, Optional, TypeVar, Union
 
 from typing_extensions import Self
 
-from ..._ast import ASTNode, Function, _parse_tags
 from ..._ast import (
     ASTNode,
     Function,
@@ -18,6 +17,8 @@ from ..._ast import (
     LiteralNode,
     RoleEnd,
     RoleStart,
+    CaptureStart,
+    CaptureEnd,
     _parse_tags,
 )
 from ...trace import (
@@ -66,7 +67,8 @@ class Model:
     ) -> None:
         self.echo = echo
         self._interpreter = interpreter
-        self._active_blocks: dict[Block, int] = {}
+        self._pending: tuple[ASTNode, ...] = ()
+        self._active_blocks: tuple[Block, ...] = ()
         self.token_count: int = 0
 
         self._parent: Optional["Model"] = None
@@ -93,7 +95,8 @@ class Model:
             )
 
     def __add__(self, other: Union[str, Function, ASTNode]) -> Self:
-        self = self._apply_blocks()
+        self = self.copy()
+        self._apply_blocks()
         if isinstance(other, str):
             if other == "":
                 return self
@@ -101,8 +104,7 @@ class Model:
         if isinstance(other, Function):
             return other(self)
         if isinstance(other, ASTNode):
-            self = self._apply_node(other)
-            self = self._update_open_block_captures()
+            self._pending += (other,)
             return self
         return NotImplemented
 
@@ -154,13 +156,12 @@ class Model:
         """Return a new model stream object that delays execution until it is iterated over."""
         return ModelStream(self)
 
-    def _apply_blocks(self) -> Self:
-        self = self.copy()
+    def _apply_blocks(self) -> None:
         global_active_blocks = _active_blocks.get()
-        for block, start_index in list(reversed(self._active_blocks.items())):
+        new_active_blocks = []
+        for block in reversed(self._active_blocks):
             # Close blocks that are not globally active anymore
             if block not in global_active_blocks:
-                self._active_blocks.pop(block)
                 if block.closer is not None:
                     closer = block.closer
                     if isinstance(closer, str):
@@ -169,15 +170,19 @@ class Model:
                         raise NotImplementedError(
                             "Stateful block opener/closer functions are not yet supported"
                         )
-                    self = self._apply_node(closer)
-            # Update capture regardless of whether or not it's been closed
-            if block.name is not None:
-                self = self.set(block.name, str(self)[start_index:])
+                    self._pending += (closer,)
+                    if block.name is not None:
+                        self._pending += (CaptureEnd(name=block.name),)
+            else:
+                # Not closed, so keep it
+                new_active_blocks.append(block)
+        new_active_blocks = list(reversed(new_active_blocks))
         for block in global_active_blocks:
             # Open blocks that are not yet locally active
             if block not in self._active_blocks:
-                # Set start_index to the current length
-                self._active_blocks[block] = len(self)
+                new_active_blocks.append(block)
+                if block.name is not None:
+                    self._pending += (CaptureStart(name=block.name),)
                 if block.opener is not None:
                     opener = block.opener
                     if isinstance(opener, str):
@@ -186,22 +191,14 @@ class Model:
                         raise NotImplementedError(
                             "Stateful block opener/closer functions are not yet supported"
                         )
-                    self = self._apply_node(opener)
-        return self
-
-    def _update_open_block_captures(self) -> Self:
-        self = self.copy()
-        for block, start_index in self._active_blocks.items():
-            if block.name is not None:
-                self = self.set(block.name, str(self)[start_index:])
-        return self
+                    self._pending += (opener,)
+        self._active_blocks = tuple(new_active_blocks)
 
     def copy(self) -> Self:
         obj = object.__new__(self.__class__)
         obj.__dict__.update(self.__dict__)
 
         obj._interpreter = deepcopy(self._interpreter)
-        obj._active_blocks = {**self._active_blocks}
         obj._id = _gen_id()
         obj._parent_id = self._id
         obj._trace_nodes = set()
