@@ -12,6 +12,7 @@ from ..._ast import (
     ASTNode,
     Function,
     GenAudio,
+    GrammarNode,
     ImageBlob,
     ImageUrl,
     LiteralNode,
@@ -69,7 +70,6 @@ class Model:
         self._interpreter = interpreter
         self._pending: tuple[ASTNode, ...] = ()
         self._active_blocks: tuple[Block, ...] = ()
-        self.token_count: int = 0
 
         self._parent: Optional["Model"] = None
         self._parent_id: Optional[int] = None
@@ -108,11 +108,25 @@ class Model:
             return self
         return NotImplemented
 
-    def _apply_node(self, node: ASTNode) -> Self:
-        self = self.copy()
+    def _run(self) -> None:
+        buffer: Optional[GrammarNode] = None
+        nodes = self._pending
+        self._pending = ()
+        for node in nodes:
+            if isinstance(node, GrammarNode):
+                if buffer is None:
+                    buffer = node
+                else:
+                    buffer += node
+            else:
+                if buffer is not None:
+                    self._run_node(buffer)
+                    buffer = None
+                self._run_node(node)
+        if buffer is not None:
+            self._run_node(buffer)
 
-        # Input side of trace handler.
-        # TODO: StatefulGuidanceInput up in __add__?
+    def _run_node(self, node: ASTNode) -> None:
         if isinstance(node, RoleStart):
             self._update_trace_node(self._id, self._parent_id, RoleOpenerInput(name=node.role))
         elif isinstance(node, RoleEnd):
@@ -132,9 +146,6 @@ class Model:
             self._update_trace_node(self._id, self._parent_id, StatelessGuidanceInput(value=node))
 
         for i, output_attr in enumerate(self._interpreter.run(node)):
-            if isinstance(output_attr, TextOutput):
-                # TODO: put this elsewhere (inside state?)
-                self.token_count += output_attr.token_count
             if i != 0:
                 # On the first iteration, we already have a fresh trace node
                 # TODO: should be allowed to associate multiple output_attrs with a single input node?
@@ -206,8 +217,13 @@ class Model:
         obj._update_trace_node(obj._id, obj._parent_id, None)
         return obj
 
+    def _get_state(self) -> State:
+        """Get the state of the model."""
+        self._run()
+        return self._interpreter.state
+
     def __str__(self) -> str:
-        return str(self._interpreter.state)
+        return str(self._get_state())
 
     def __len__(self):
         return len(str(self))
@@ -219,7 +235,7 @@ class Model:
 
     def __getitem__(self, key: str) -> Any:
         try:
-            captures = self._interpreter.state.captures[key]
+            captures = self._get_state().captures[key]
         except KeyError:
             raise KeyError(f"Model does not contain the variable '{key}'")
         if isinstance(captures, list):
@@ -228,7 +244,7 @@ class Model:
             return captures["value"]
 
     def __contains__(self, key: str) -> bool:
-        return key in self._interpreter.state.captures
+        return key in self._get_state().captures
 
     def get(self, key: str, default: Optional[D] = None) -> Union[str, list[str], None, D]:
         """Return the value of a variable, or a default value if the variable is not present.
@@ -257,9 +273,9 @@ class Model:
         """
         self = self.copy()
         if isinstance(value, list):
-            self._interpreter.state.captures[key] = [{"value": v, "log_prob": None} for v in value]
+            self._get_state().captures[key] = [{"value": v, "log_prob": None} for v in value]
         else:
-            self._interpreter.state.captures[key] = {"value": value, "log_prob": None}
+            self._get_state().captures[key] = {"value": value, "log_prob": None}
         return self
 
     def remove(self, key: str) -> Self:
@@ -271,7 +287,7 @@ class Model:
             The variable name to remove.
         """
         self = self.copy()
-        self._interpreter.state.captures.pop(key)
+        self._get_state().captures.pop(key)
         return self
 
     def log_prob(
@@ -287,7 +303,7 @@ class Model:
             The value to return if the variable is not current set.
         """
         try:
-            captures = self._interpreter.state.captures[key]
+            captures = self._get_state().captures[key]
         except KeyError:
             return default
         if isinstance(captures, list):
