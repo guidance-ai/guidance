@@ -1,6 +1,7 @@
 import base64
 import wave
 from io import BytesIO
+from copy import deepcopy
 from typing import TYPE_CHECKING, Iterator, Literal, Optional, Union
 
 from pydantic import BaseModel, Discriminator, Field, TypeAdapter
@@ -335,6 +336,19 @@ class OpenAIInterpreter(Interpreter[OpenAIState]):
             # Get WAV bytes
             wav_bytes = wav_buffer.getvalue()
             yield AudioOutput(value=base64.b64encode(wav_bytes).decode(), is_input=False)
+
+    def __deepcopy__(self, memo):
+        """Custom deepcopy to ensure client is not copied."""
+        cls = self.__class__
+        result = cls.__new__(cls)
+        memo[id(self)] = result
+        for k, v in self.__dict__.items():
+            if k == "client":
+                # Don't copy the client
+                setattr(result, k, v)
+            else:
+                setattr(result, k, deepcopy(v, memo))
+        return result
 
 
 class OpenAIImageInterpreter(OpenAIInterpreter):
