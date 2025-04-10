@@ -1,5 +1,5 @@
-from ._interpreter import Interpreter
-from ._model import Model
+from ._interpreter import Interpreter, AsyncInterpreter, BaseInterpreter
+from ._model import AsyncModel, Model
 from ._state import State
 
 __all__ = [
@@ -11,4 +11,7 @@ __all__ = [
     "ASTNode",
     "ContentChunk",
     "MessageChunk",
+    "AsyncModel",
+    "AsyncInterpreter",
+    "BaseInterpreter",
 ]

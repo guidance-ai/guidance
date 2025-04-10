@@ -4,7 +4,7 @@ import queue
 import threading
 from contextvars import ContextVar, copy_context
 from copy import deepcopy
-from typing import TYPE_CHECKING, Any, Iterator, Optional, TypeVar, Union
+from typing import TYPE_CHECKING, Any, Iterator, Optional, TypeVar, Union, Generic
 
 from typing_extensions import Self
 
@@ -29,19 +29,18 @@ from ...trace import (
     RoleCloserInput,
     RoleOpenerInput,
     StatelessGuidanceInput,
-    TextOutput,
     TraceNode,
 )
 from ...trace._trace import AudioInput
 from ...visual import TraceMessage
-from ._interpreter import Interpreter
+from ._interpreter import Interpreter, AsyncInterpreter
 from ._state import State
 
 if TYPE_CHECKING:
     from ...library._block import Block
 
 _active_blocks: ContextVar[tuple["Block", ...]] = ContextVar("active_blocks", default=())
-_event_queues: ContextVar[tuple[queue.Queue["Model"], ...]] = ContextVar(
+_event_queues: ContextVar[tuple[queue.Queue["ModelABC"], ...]] = ContextVar(
     "event_queues", default=()
 )
 _id_counter: int = 0
@@ -58,12 +57,12 @@ def _gen_id():
 
 S = TypeVar("S", bound=State)
 D = TypeVar("D", bound=Any)
+I = TypeVar("I", bound=Union[Interpreter[S], AsyncInterpreter[S]])
 
-
-class Model:
+class ModelABC(Generic[S, I]):
     def __init__(
         self,
-        interpreter: Interpreter[S],
+        interpreter: I,
         echo: bool = True,
     ) -> None:
         self.echo = echo
@@ -71,7 +70,7 @@ class Model:
         self._pending: tuple[ASTNode, ...] = ()
         self._active_blocks: tuple[Block, ...] = ()
 
-        self._parent: Optional["Model"] = None
+        self._parent: Optional["ModelABC"] = None
         self._parent_id: Optional[int] = None
         self._id: int = _gen_id()
         self._trace_nodes: set[TraceNode] = set()
@@ -80,19 +79,20 @@ class Model:
     def _update_trace_node(
         self, identifier: int, parent_id: Optional[int], node_attr: Optional[NodeAttr] = None
     ) -> None:
-        from ...registry import get_trace_handler, get_renderer
+        # from ...registry import get_trace_handler, get_renderer
 
-        trace_handler = get_trace_handler()
-        trace_node = trace_handler.update_node(identifier, parent_id, node_attr)
-        self._trace_nodes.add(trace_node)
-        if self.echo:
-            get_renderer().update(
-                TraceMessage(
-                    trace_id=identifier,
-                    parent_trace_id=parent_id,
-                    node_attr=node_attr,
-                ),
-            )
+        # trace_handler = get_trace_handler()
+        # trace_node = trace_handler.update_node(identifier, parent_id, node_attr)
+        # self._trace_nodes.add(trace_node)
+        # if self.echo:
+        #     get_renderer().update(
+        #         TraceMessage(
+        #             trace_id=identifier,
+        #             parent_trace_id=parent_id,
+        #             node_attr=node_attr,
+        #         ),
+        #     )
+        pass
 
     def __add__(self, other: Union[str, Function, ASTNode]) -> Self:
         self = self.copy()
@@ -107,56 +107,6 @@ class Model:
             self._pending += (other,)
             return self
         return NotImplemented
-
-    def _run(self) -> None:
-        buffer: Optional[GrammarNode] = None
-        nodes = self._pending
-        self._pending = ()
-        for node in nodes:
-            if isinstance(node, GrammarNode):
-                if buffer is None:
-                    buffer = node
-                else:
-                    buffer += node
-            else:
-                if buffer is not None:
-                    self._run_node(buffer)
-                    buffer = None
-                self._run_node(node)
-        if buffer is not None:
-            self._run_node(buffer)
-
-    def _run_node(self, node: ASTNode) -> None:
-        if isinstance(node, RoleStart):
-            self._update_trace_node(self._id, self._parent_id, RoleOpenerInput(name=node.role))
-        elif isinstance(node, RoleEnd):
-            self._update_trace_node(self._id, self._parent_id, RoleCloserInput(name=node.role))
-        elif isinstance(node, LiteralNode):
-            self._update_trace_node(self._id, self._parent_id, LiteralInput(value=node.value))
-        elif isinstance(node, ImageBlob):
-            self._update_trace_node(self._id, self._parent_id, ImageInput(value=node.data))
-        elif isinstance(node, ImageUrl):
-            # TODO -- let's avoid downloading it here
-            pass
-        elif isinstance(node, GenAudio):
-            self._update_trace_node(
-                self._id, self._parent_id, AudioInput(value="")
-            )  # TODO -- what goes here?
-        else:
-            self._update_trace_node(self._id, self._parent_id, StatelessGuidanceInput(value=node))
-
-        for i, output_attr in enumerate(self._interpreter.run(node)):
-            if i != 0:
-                # On the first iteration, we already have a fresh trace node
-                # TODO: should be allowed to associate multiple output_attrs with a single input node?
-                # TODO: put this responsibility on the client in the case that it breaks a single input
-                # node into multiple input nodes to be handled sequentially?
-                self._parent_id = self._id
-                self._id = _gen_id()
-            self._update_trace_node(self._id, self._parent_id, output_attr)
-            # Stream current model state
-            self._send_to_event_queue()
-        return self
 
     def _send_to_event_queue(self) -> None:
         """For streaming"""
@@ -216,6 +166,57 @@ class Model:
         obj._parent = self
         obj._update_trace_node(obj._id, obj._parent_id, None)
         return obj
+
+class Model(ModelABC[S, Interpreter[S]]):
+    def _run(self) -> None:
+        buffer: Optional[GrammarNode] = None
+        nodes = self._pending
+        self._pending = ()
+        for node in nodes:
+            if isinstance(node, GrammarNode):
+                if buffer is None:
+                    buffer = node
+                else:
+                    buffer += node
+            else:
+                if buffer is not None:
+                    self._run_node(buffer)
+                    buffer = None
+                self._run_node(node)
+        if buffer is not None:
+            self._run_node(buffer)
+
+    def _run_node(self, node: ASTNode) -> None:
+        if isinstance(node, RoleStart):
+            self._update_trace_node(self._id, self._parent_id, RoleOpenerInput(name=node.role))
+        elif isinstance(node, RoleEnd):
+            self._update_trace_node(self._id, self._parent_id, RoleCloserInput(name=node.role))
+        elif isinstance(node, LiteralNode):
+            self._update_trace_node(self._id, self._parent_id, LiteralInput(value=node.value))
+        elif isinstance(node, ImageBlob):
+            self._update_trace_node(self._id, self._parent_id, ImageInput(value=node.data))
+        elif isinstance(node, ImageUrl):
+            # TODO -- let's avoid downloading it here
+            pass
+        elif isinstance(node, GenAudio):
+            self._update_trace_node(
+                self._id, self._parent_id, AudioInput(value="")
+            )  # TODO -- what goes here?
+        else:
+            self._update_trace_node(self._id, self._parent_id, StatelessGuidanceInput(value=node))
+
+        for i, output_attr in enumerate(self._interpreter.run(node)):
+            if i != 0:
+                # On the first iteration, we already have a fresh trace node
+                # TODO: should be allowed to associate multiple output_attrs with a single input node?
+                # TODO: put this responsibility on the client in the case that it breaks a single input
+                # node into multiple input nodes to be handled sequentially?
+                self._parent_id = self._id
+                self._id = _gen_id()
+            self._update_trace_node(self._id, self._parent_id, output_attr)
+            # Stream current model state
+            self._send_to_event_queue()
+        return self
 
     def _get_state(self) -> State:
         """Get the state of the model."""
@@ -317,6 +318,97 @@ class Model:
             return getattr(self._interpreter, "engine")
         return super().__getattribute__(name)
 
+
+class AsyncModel(ModelABC[S, AsyncInterpreter[S]]):
+    async def _run(self) -> None:
+        buffer: Optional[GrammarNode] = None
+        nodes = self._pending
+        self._pending = ()
+        for node in nodes:
+            if isinstance(node, GrammarNode):
+                if buffer is None:
+                    buffer = node
+                else:
+                    buffer += node
+            else:
+                if buffer is not None:
+                    await self._run_node(buffer)
+                    buffer = None
+                await self._run_node(node)
+        if buffer is not None:
+            await self._run_node(buffer)
+
+    async def _run_node(self, node: ASTNode) -> None:
+        if isinstance(node, RoleStart):
+            self._update_trace_node(self._id, self._parent_id, RoleOpenerInput(name=node.role))
+        elif isinstance(node, RoleEnd):
+            self._update_trace_node(self._id, self._parent_id, RoleCloserInput(name=node.role))
+        elif isinstance(node, LiteralNode):
+            self._update_trace_node(self._id, self._parent_id, LiteralInput(value=node.value))
+        elif isinstance(node, ImageBlob):
+            self._update_trace_node(self._id, self._parent_id, ImageInput(value=node.data))
+        elif isinstance(node, ImageUrl):
+            # TODO -- let's avoid downloading it here
+            pass
+        elif isinstance(node, GenAudio):
+            self._update_trace_node(
+                self._id, self._parent_id, AudioInput(value="")
+            )  # TODO -- what goes here?
+        else:
+            self._update_trace_node(self._id, self._parent_id, StatelessGuidanceInput(value=node))
+
+        i = 0
+        async for output_attr in self._interpreter.run(node):
+            if i != 0:
+                # On the first iteration, we already have a fresh trace node
+                # TODO: should be allowed to associate multiple output_attrs with a single input node?
+                # TODO: put this responsibility on the client in the case that it breaks a single input
+                # node into multiple input nodes to be handled sequentially?
+                self._parent_id = self._id
+                self._id = _gen_id()
+            self._update_trace_node(self._id, self._parent_id, output_attr)
+            # Stream current model state
+            self._send_to_event_queue()
+            i += 1
+        return self
+
+    async def _get_state(self) -> State:
+        """Get the state of the model."""
+        await self._run()
+        return self._interpreter.state
+
+    async def get(self, key: str) -> Any:
+        try:
+            captures = (await self._get_state()).captures[key]
+        except KeyError:
+            raise KeyError(f"Model does not contain the variable '{key}'")
+        if isinstance(captures, list):
+            return [c["value"] for c in captures]
+        else:
+            return captures["value"]
+
+    def __getitem__(self, key):
+        raise TypeError(
+            "AsyncModel does not support __getitem__. Use the async get() method instead."
+        )
+
+    async def to_string(self) -> str:
+        """Get the string representation of the model."""
+        return str(await self._get_state())
+
+    def __str__(self) -> str:
+        raise TypeError(
+            "AsyncModel does not support __str__. Use the async to_string() method instead."
+        )
+
+    async def length(self) -> int:
+        """Get the length of the model."""
+        return len(await self.to_string())
+
+    def __len__(self):
+        raise TypeError(
+            "AsyncModel does not support __len__. Use the async length() method instead."
+        )
 
 class ModelStream:
     def __init__(
