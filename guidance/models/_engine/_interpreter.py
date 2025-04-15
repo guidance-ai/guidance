@@ -39,12 +39,12 @@ class EngineInterpreter(Interpreter[EngineState]):
             raise ValueError("Cannot use roles without a chat template")
         return self.chat_template.get_role_end(role)
 
-    async def role_start(self, node: RoleStart, **kwargs) -> AsyncIterable[OutputAttr]:
+    def role_start(self, node: RoleStart, **kwargs) -> AsyncIterable[OutputAttr]:
         self.state.active_role = node.role
         # TODO: mark these as special tokens..?
         return self.run(LiteralNode(value=self.get_role_start(node.role)), **kwargs)
 
-    async def role_end(self, node: RoleEnd, **kwargs) -> AsyncIterable[OutputAttr]:
+    def role_end(self, node: RoleEnd, **kwargs) -> AsyncIterable[OutputAttr]:
         self.state.active_role = None
         # TODO: mark these as special tokens..?
         return self.run(LiteralNode(value=self.get_role_end(node.role)), **kwargs)
