@@ -262,6 +262,8 @@ class Model:
 
     async def _run(self) -> None:
         new_self = self.copy()
+        # may be some pending blocks
+        new_self._apply_blocks()
         while isinstance(new_self._pending, AsyncFunction):
             func = new_self._pending
             new_self._pending = None
