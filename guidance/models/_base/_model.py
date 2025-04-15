@@ -14,6 +14,7 @@ from ..._ast import (
     ASTNode,
     Concatenate,
     Function,
+    AsyncFunction,
     GenAudio,
     GrammarNode,
     ImageBlob,
@@ -101,14 +102,14 @@ class Model:
         else:
             self._pending += item
 
-    def __add__(self, other: Union[str, Function, ASTNode]) -> Self:
+    def __add__(self, other: Union[str, Function, AsyncFunction, ASTNode]) -> Self:
         self = self.copy()
         self._apply_blocks()
         if isinstance(other, str):
             if other == "":
                 return self
             other = _parse_tags(other)
-        if isinstance(other, (ASTNode, Function)):
+        if isinstance(other, (ASTNode, Function, AsyncFunction)):
             self._add_to_pending(other)
             return self
         return NotImplemented
@@ -261,6 +262,10 @@ class Model:
 
     async def _run(self) -> None:
         new_self = self.copy()
+        while isinstance(new_self._pending, AsyncFunction):
+            func = new_self._pending
+            new_self._pending = None
+            new_self = await func(new_self)
         while isinstance(new_self._pending, Function):
             func = new_self._pending
             new_self._pending = None

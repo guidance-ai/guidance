@@ -145,6 +145,54 @@ class Function(Tagged):
 
         return Function(__radd__, [], {})
 
+@dataclass
+class AsyncFunction(Tagged):
+    name: str = field(init=False)
+    f: Callable
+    args: tuple[Any, ...]
+    kwargs: dict[str, Any]
+
+    def __post_init__(self):
+        self.name = self.f.__name__
+
+    async def __call__(self, model):
+        model = await self.f(model, *self.args, **self.kwargs)
+        if model is None:
+            raise Exception(
+                f"The guidance function `{self.f.__name__}` did not return a model object! You need to return an updated model object at the end of your guidance function."
+            )
+        return model
+
+    def __add__(self, other):
+        if not isinstance(other, (str, ASTNode, Function, AsyncFunction)):
+            return NotImplemented
+
+        if isinstance(other, str):
+            other = _parse_tags(other)
+
+        if isinstance(other, ASTNode) and other.is_null:
+            return self
+
+        async def __add__(model):
+            return (await self(model)) + other
+
+        return AsyncFunction(__add__, [], {})
+
+    def __radd__(self, other):
+        if not isinstance(other, (str, ASTNode, Function, AsyncFunction)):
+            return NotImplemented
+
+        if isinstance(other, str):
+            other = _parse_tags(other)
+
+        if isinstance(other, ASTNode) and other.is_null:
+            return self
+
+        async def __radd__(model):
+            return await self(model + other)
+
+        return AsyncFunction(__radd__, [], {})
+
 
 S = TypeVar("S", bound="State")
 R = TypeVar("R", bound=Union[Iterable[OutputAttr], AsyncIterable[OutputAttr]])
