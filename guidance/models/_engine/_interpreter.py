@@ -1,6 +1,6 @@
 from base64 import b64decode
 from io import BytesIO
-from typing import Iterator
+from typing import AsyncIterable
 from copy import deepcopy
 
 from ..._ast import GrammarNode, ImageBlob, LiteralNode, RoleEnd, RoleStart
@@ -39,21 +39,21 @@ class EngineInterpreter(Interpreter[EngineState]):
             raise ValueError("Cannot use roles without a chat template")
         return self.chat_template.get_role_end(role)
 
-    def role_start(self, node: RoleStart, **kwargs) -> Iterator[OutputAttr]:
+    async def role_start(self, node: RoleStart, **kwargs) -> AsyncIterable[OutputAttr]:
         self.state.active_role = node.role
         # TODO: mark these as special tokens..?
-        yield from self.run(LiteralNode(value=self.get_role_start(node.role)), **kwargs)
+        return self.run(LiteralNode(value=self.get_role_start(node.role)), **kwargs)
 
-    def role_end(self, node: RoleEnd, **kwargs) -> Iterator[OutputAttr]:
+    async def role_end(self, node: RoleEnd, **kwargs) -> AsyncIterable[OutputAttr]:
         self.state.active_role = None
         # TODO: mark these as special tokens..?
-        yield from self.run(LiteralNode(value=self.get_role_end(node.role)), **kwargs)
+        return self.run(LiteralNode(value=self.get_role_end(node.role)), **kwargs)
 
-    def text(self, node: LiteralNode, **kwargs) -> Iterator[OutputAttr]:
+    async def text(self, node: LiteralNode, **kwargs) -> AsyncIterable[OutputAttr]:
         self.state.prompt += node.value
         yield TextOutput(value=node.value, is_input=True)
 
-    def grammar(self, node: GrammarNode, **kwargs) -> Iterator[OutputAttr]:
+    async def grammar(self, node: GrammarNode, **kwargs) -> AsyncIterable[OutputAttr]:
         engine_gen = self.engine(
             state=self.state,
             grammar=node.ll_grammar(),
@@ -62,6 +62,7 @@ class EngineInterpreter(Interpreter[EngineState]):
         )
 
         delayed_bytes = b""
+        # TODO: this should be async some day
         for chunk in engine_gen:
             new_bytes = chunk.new_bytes
             new_text, delayed_bytes = partial_decode(new_bytes)
@@ -112,7 +113,7 @@ class EngineInterpreter(Interpreter[EngineState]):
 
 
 class Llama3VisionInterpreter(EngineInterpreter):
-    def image_blob(self, node: ImageBlob, **kwargs) -> Iterator[OutputAttr]:
+    async def image_blob(self, node: ImageBlob, **kwargs) -> AsyncIterable[OutputAttr]:
         try:
             import PIL.Image
         except ImportError:
@@ -129,7 +130,7 @@ class Llama3VisionInterpreter(EngineInterpreter):
 
 
 class Phi3VisionInterpreter(EngineInterpreter):
-    def image_blob(self, node: ImageBlob, **kwargs) -> Iterator[OutputAttr]:
+    async def image_blob(self, node: ImageBlob, **kwargs) -> AsyncIterable[OutputAttr]:
         try:
             import PIL.Image
         except ImportError:
