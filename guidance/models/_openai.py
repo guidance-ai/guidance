@@ -1,7 +1,7 @@
 import base64
 import wave
 from io import BytesIO
-from typing import TYPE_CHECKING, Iterable, AsyncIterable, Literal, Optional, Union
+from typing import TYPE_CHECKING, AsyncIterable, Literal, Optional, Union
 from copy import deepcopy
 
 from pydantic import BaseModel, Discriminator, Field, TypeAdapter
@@ -22,7 +22,7 @@ from .._ast import (
 from .._utils import bytes_from
 from ..trace import ImageOutput, OutputAttr, TextOutput
 from ..trace._trace import AudioOutput
-from ._base import AsyncInterpreter, Interpreter, AsyncModel, Model, State
+from ._base import Interpreter, Model, State
 
 if TYPE_CHECKING:
     from openai.types.chat import ChatCompletionChunk
@@ -149,209 +149,6 @@ class OpenAIState(State):
 
 
 class OpenAIInterpreter(Interpreter[OpenAIState]):
-    log_probs: bool = True
-
-    def __init__(
-        self,
-        model: str,
-        api_key: Optional[str] = None,
-        **kwargs,
-    ):
-        try:
-            import openai
-        except ImportError:
-            raise Exception(
-                "Please install the openai package version >= 1 using `pip install openai -U` in order to use guidance.models.OpenAI!"
-            )
-        self.state = OpenAIState()
-        self.model = model
-        self.client = openai.OpenAI(api_key=api_key, **kwargs)
-
-    def __deepcopy__(self, memo):
-        """Custom deepcopy to ensure client is not copied."""
-        cls = self.__class__
-        result = cls.__new__(cls)
-        memo[id(self)] = result
-        for k, v in self.__dict__.items():
-            if k == "client":
-                # Don't copy the client
-                setattr(result, k, v)
-            else:
-                setattr(result, k, deepcopy(v, memo))
-        return result
-
-    def run(self, node: ASTNode, **kwargs) -> Iterable[OutputAttr]:
-        if not isinstance(node, RoleStart) and self.state.active_role is None:
-            raise ValueError(
-                "OpenAI models require an active role (e.g. use `with assistant(): ...`)"
-            )
-        return super().run(node, **kwargs)
-
-    def role_start(self, node: RoleStart, **kwargs) -> Iterable[OutputAttr]:
-        self.state.active_role = node.role
-        # TODO: drop this and yield nothing. We need to add this for now as a workaround for the
-        # fact that current vis code assumes that there is actually a role start message
-        yield TextOutput(value=get_role_start(node.role), is_input=True)
-
-    def role_end(self, node: RoleEnd, **kwargs) -> Iterable[OutputAttr]:
-        self.state.messages.append(self.state.get_active_message())
-        self.state.audio = None
-        self.state.content = []
-        self.state.active_role = None
-        yield from ()
-
-    def text(self, node: LiteralNode, **kwargs) -> Iterable[OutputAttr]:
-        self.state.apply_text(node.value)
-        yield TextOutput(value=node.value, is_input=True)
-
-    def rule(self, node: RuleNode, **kwargs) -> Iterable[OutputAttr]:
-        if node.stop:
-            raise ValueError("Stop condition not yet supported for OpenAI")
-        if node.suffix:
-            raise ValueError("Suffix not yet supported for OpenAI")
-        if node.stop_capture:
-            raise ValueError("Save stop text not yet supported for OpenAI")
-
-        kwargs = kwargs.copy()
-        if node.temperature:
-            kwargs["temperature"] = node.temperature
-        if node.max_tokens:
-            kwargs["max_tokens"] = node.max_tokens
-
-        chunks = self.run(node.value, **kwargs)
-        if node.capture:
-            buffered_text = ""
-            for chunk in chunks:
-                # TODO: this isinstance check is pretty darn fragile.
-                # ~there must be a better way~
-                if isinstance(chunk, TextOutput):
-                    buffered_text += chunk.value
-                yield chunk
-            yield self.state.apply_capture(
-                name=node.capture,
-                value=buffered_text,
-                log_prob=1,  # TODO
-                is_append=node.list_append,
-            )
-        else:
-            yield from chunks
-
-    def regex(self, node: RegexNode, **kwargs) -> Iterable[OutputAttr]:
-        if node.regex is not None:
-            raise ValueError("Regex not yet supported for OpenAI")
-        # We're in unconstrained mode now.
-        return self._run(**kwargs)
-
-    def json(self, node: JsonNode, **kwargs) -> Iterable[OutputAttr]:
-        return self._run(
-            response_format={
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "json_schema",  # TODO?
-                    "schema": node.schema,
-                    "strict": True,
-                },
-            },
-            **kwargs,
-        )
-
-    def _run(self, **kwargs) -> Iterable[OutputAttr]:
-        if self.state.active_role is None:
-            # Should never happen?
-            raise ValueError(
-                "OpenAI models require chat blocks (e.g. use `with assistant(): ...`)"
-            )
-        if self.state.active_role != "assistant":
-            raise ValueError(
-                "OpenAI models can only generate as the assistant (i.e. inside of `with assistant(): ...`)"
-            )
-        if self.state.content:
-            raise ValueError(
-                f"OpenAI models do not support pre-filled assistant messages: got data {self.state.content}."
-            )
-
-        with self.client.chat.completions.create(
-            model=self.model,
-            messages=TypeAdapter(list[Message]).dump_python(self.state.messages),  # type: ignore[arg-type]
-            logprobs=self.log_probs,
-            stream=True,
-            **kwargs,
-        ) as chunks:
-            yield from self._handle_stream(chunks)
-
-    def _handle_stream(
-        self, chunks: Iterable["ChatCompletionChunk"]
-    ) -> Iterable[OutputAttr]:
-        audio: Optional[AssistantAudio] = None
-        for chunk in chunks:
-            choice = chunk.choices[0]
-            delta = choice.delta
-            if delta.content is not None:
-                assert audio is None
-                content = delta.content
-                if len(content) == 0:
-                    continue
-                self.state.apply_text(content)
-                if choice.logprobs is not None:
-                    # TODO: actually get tokens from this and be less lazy
-                    prob = 2.718 ** choice.logprobs.content[0].logprob
-                else:
-                    prob = float("nan")
-                yield TextOutput(value=delta.content, is_generated=True, prob=prob)
-            elif getattr(delta, "audio", None) is not None:
-                transcript_chunk: Optional[str] = None
-                if audio is None:
-                    assert delta.audio.get("id") is not None
-                    audio = AssistantAudio(
-                        id=delta.audio["id"],
-                        expires_at=delta.audio.get("expires_at", 0),  # ?
-                        transcript=delta.audio.get("transcript", ""),
-                        data=delta.audio.get("data", ""),
-                    )
-                    transcript_chunk = delta.audio.get("transcript")
-                else:
-                    assert delta.audio.get("id") is None or delta.audio["id"] == audio.id
-                    if delta.audio.get("data") is not None:
-                        audio.data += delta.audio["data"]
-                    if delta.audio.get("transcript") is not None:
-                        audio.transcript += delta.audio["transcript"]
-                        transcript_chunk = delta.audio["transcript"]
-                    if delta.audio.get("expires_at") is not None:
-                        assert audio.expires_at == 0
-                        audio.expires_at = delta.audio["expires_at"]
-                if transcript_chunk is not None:
-                    # Why not give the users some transcript? :)
-                    yield TextOutput(
-                        value=delta.audio["transcript"],
-                        is_generated=True,
-                    )
-            elif delta.function_call is not None:
-                raise NotImplementedError("Function calling not yet supported for OpenAI")
-            elif delta.tool_calls is not None:
-                raise NotImplementedError("Tool calling not yet supported for OpenAI")
-            elif delta.refusal is not None:
-                raise ValueError(f"OpenAI refused the request: {delta.refusal}")
-
-            if choice.finish_reason is not None:
-                break
-
-        if audio is not None:
-            assert self.state.audio is None
-            self.state.audio = audio
-            # Create an in-memory WAV file
-            wav_buffer = BytesIO()
-            with wave.open(wav_buffer, "wb") as wav_file:
-                wav_file.setnchannels(1)
-                wav_file.setsampwidth(2)  # PCM16 = 2 bytes per sample
-                wav_file.setframerate(22050)  # A guess
-                wav_file.writeframes(base64.b64decode(audio.data))
-
-            # Get WAV bytes
-            wav_bytes = wav_buffer.getvalue()
-            yield AudioOutput(value=base64.b64encode(wav_bytes).decode(), is_input=False)
-
-
-class AsyncOpenAIInterpreter(AsyncInterpreter[OpenAIState]):
     log_probs: bool = True
 
     def __init__(
@@ -559,7 +356,7 @@ class AsyncOpenAIInterpreter(AsyncInterpreter[OpenAIState]):
 
 
 class OpenAIImageInterpreter(OpenAIInterpreter):
-    def image_blob(self, node: ImageBlob, **kwargs) -> Iterable[OutputAttr]:
+    async def image_blob(self, node: ImageBlob, **kwargs) -> AsyncIterable[OutputAttr]:
         try:
             import PIL.Image
         except ImportError:
@@ -581,7 +378,7 @@ class OpenAIImageInterpreter(OpenAIInterpreter):
         )
         yield ImageOutput(value=node.data, input=True)
 
-    def image_url(self, node: ImageUrl, **kwargs) -> Iterable[OutputAttr]:
+    async def image_url(self, node: ImageUrl, **kwargs) -> AsyncIterable[OutputAttr]:
         self.state.content.append({"type": "image_url", "image_url": {"url": node.url}})
         image_bytes = bytes_from(node.url, allow_local=False)
         base64_string = base64.b64encode(image_bytes).decode("utf-8")
@@ -591,7 +388,7 @@ class OpenAIImageInterpreter(OpenAIInterpreter):
 class OpenAIAudioInterpreter(OpenAIInterpreter):
     log_probs: bool = False
 
-    def audio_blob(self, node: ImageBlob, **kwargs) -> Iterable[OutputAttr]:
+    async def audio_blob(self, node: ImageBlob, **kwargs) -> AsyncIterable[OutputAttr]:
         format = "wav"  # TODO: infer from node
         self.state.content.append(
             AudioContent(
@@ -604,8 +401,8 @@ class OpenAIAudioInterpreter(OpenAIInterpreter):
         )
         yield AudioOutput(value=node.data, format=format, input=True)
 
-    def gen_audio(self, node: GenAudio, **kwargs) -> Iterable[OutputAttr]:
-        yield from self._run(
+    async def gen_audio(self, node: GenAudio, **kwargs) -> AsyncIterable[OutputAttr]:
+        return self._run(
             modalities=["text", "audio"],  # Has to be both?
             audio={
                 "voice": node.kwargs.get("voice", "alloy"),
@@ -647,33 +444,4 @@ class OpenAI(Model):
 
         super().__init__(
             interpreter=interpreter_cls(model, api_key=api_key, **kwargs), echo=echo
-        )
-
-
-class AsyncOpenAI(AsyncModel):
-    def __init__(
-        self,
-        model: str,
-        echo: bool = True,
-        api_key: Optional[str] = None,
-        **kwargs,
-    ):
-        """Build a new OpenAI model object that represents a model in a given state.
-
-        Parameters
-        ----------
-        model : str
-            The name of the OpenAI model to use (e.g. gpt-4o-mini).
-        echo : bool
-            If true the final result of creating this model state will be displayed (as HTML in a notebook).
-        api_key : None or str
-            The OpenAI API key to use for remote requests, passed directly to the `openai.OpenAI` constructor.
-
-        **kwargs :
-            All extra keyword arguments are passed directly to the `openai.OpenAI` constructor. Commonly used argument
-            names include `base_url` and `organization`
-        """
-        super().__init__(
-            interpreter=AsyncOpenAIInterpreter(model, api_key=api_key, **kwargs),
-            echo=echo,
         )

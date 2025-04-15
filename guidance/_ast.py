@@ -20,7 +20,7 @@ from ._schema import JsonGrammar, LarkGrammar, LLGrammar
 from .trace import OutputAttr
 
 if TYPE_CHECKING:
-    from .models._base import BaseInterpreter, State
+    from .models._base import Interpreter, State
 
 # to support the embedding of guidance functions inside Python f-strings we use tags with these delimiters
 tag_start = "{{G|"  # start of a call tag
@@ -151,7 +151,7 @@ R = TypeVar("R", bound=Union[Iterable[OutputAttr], AsyncIterable[OutputAttr]])
 
 class ASTNode(ABC):
     @abstractmethod
-    def _run(self, interpreter: "BaseInterpreter[S, R]", **kwargs) -> R:
+    def _run(self, interpreter: "Interpreter[S, R]", **kwargs) -> R:
         pass
 
     def simplify(self) -> "ASTNode":
@@ -162,7 +162,7 @@ class ASTNode(ABC):
 class RoleStart(ASTNode):
     role: str
 
-    def _run(self, interpreter: "BaseInterpreter[S, R]", **kwargs) -> R:
+    def _run(self, interpreter: "Interpreter[S, R]", **kwargs) -> R:
         return interpreter._role_start(self, **kwargs)
 
 
@@ -170,7 +170,7 @@ class RoleStart(ASTNode):
 class RoleEnd(ASTNode):
     role: str
 
-    def _run(self, interpreter: "BaseInterpreter[S, R]", **kwargs) -> R:
+    def _run(self, interpreter: "Interpreter[S, R]", **kwargs) -> R:
         return interpreter._role_end(self, **kwargs)
 
 
@@ -179,21 +179,21 @@ class CaptureStart(ASTNode):
     name: str
     list_append: bool = False
 
-    def _run(self, interpreter: "BaseInterpreter[S, R]", **kwargs) -> R:
+    def _run(self, interpreter: "Interpreter[S, R]", **kwargs) -> R:
         return interpreter.capture_start(self, **kwargs)
 
 @dataclass
 class CaptureEnd(ASTNode):
     name: str
 
-    def _run(self, interpreter: "BaseInterpreter[S, R]", **kwargs) -> R:
+    def _run(self, interpreter: "Interpreter[S, R]", **kwargs) -> R:
         return interpreter.capture_end(self, **kwargs)
 
 @dataclass
 class ImageBlob(ASTNode):
     data: str
 
-    def _run(self, interpreter: "BaseInterpreter[S, R]", **kwargs) -> R:
+    def _run(self, interpreter: "Interpreter[S, R]", **kwargs) -> R:
         return interpreter.image_blob(self, **kwargs)
 
 
@@ -201,7 +201,7 @@ class ImageBlob(ASTNode):
 class ImageUrl(ASTNode):
     url: str
 
-    def _run(self, interpreter: "BaseInterpreter[S, R]", **kwargs) -> R:
+    def _run(self, interpreter: "Interpreter[S, R]", **kwargs) -> R:
         return interpreter.image_url(self, **kwargs)
 
 
@@ -209,7 +209,7 @@ class ImageUrl(ASTNode):
 class AudioBlob(ASTNode):
     data: str
 
-    def _run(self, interpreter: "BaseInterpreter[S, R]", **kwargs) -> R:
+    def _run(self, interpreter: "Interpreter[S, R]", **kwargs) -> R:
         return interpreter.audio_blob(self, **kwargs)
 
 
@@ -217,7 +217,7 @@ class GenAudio(ASTNode):
     def __init__(self, kwargs: dict[str, Any]):
         self.kwargs = kwargs
 
-    def _run(self, interpreter: "BaseInterpreter[S, R]", **kwargs) -> R:
+    def _run(self, interpreter: "Interpreter[S, R]", **kwargs) -> R:
         return interpreter.gen_audio(self, **kwargs)
 
 
@@ -331,7 +331,7 @@ class LiteralNode(GrammarNode):
     def is_null(self) -> bool:
         return self.value == ""
 
-    def _run(self, interpreter: "BaseInterpreter[S, R]", **kwargs) -> R:
+    def _run(self, interpreter: "Interpreter[S, R]", **kwargs) -> R:
         return interpreter.text(self, **kwargs)
 
 
@@ -339,7 +339,7 @@ class LiteralNode(GrammarNode):
 class RegexNode(GrammarNode):
     regex: Optional[str]
 
-    def _run(self, interpreter: "BaseInterpreter[S, R]", **kwargs) -> R:
+    def _run(self, interpreter: "Interpreter[S, R]", **kwargs) -> R:
         return interpreter.regex(self, **kwargs)
 
 
@@ -367,7 +367,7 @@ class SelectNode(GrammarNode):
     def children(self) -> Sequence["GrammarNode"]:
         return self.alternatives
 
-    def _run(self, interpreter: "BaseInterpreter[S, R]", **kwargs) -> R:
+    def _run(self, interpreter: "Interpreter[S, R]", **kwargs) -> R:
         return interpreter.select(self, **kwargs)
 
 
@@ -390,7 +390,7 @@ class JoinNode(GrammarNode):
     def children(self) -> Sequence["GrammarNode"]:
         return self.nodes
 
-    def _run(self, interpreter: "BaseInterpreter[S, R]", **kwargs) -> R:
+    def _run(self, interpreter: "Interpreter[S, R]", **kwargs) -> R:
         return interpreter.join(self, **kwargs)
 
 
@@ -416,7 +416,7 @@ class RepeatNode(GrammarNode):
     def simplify(self) -> GrammarNode:
         return RepeatNode(self.node.simplify(), self.min, self.max)
 
-    def _run(self, interpreter: "BaseInterpreter[S, R]", **kwargs) -> R:
+    def _run(self, interpreter: "Interpreter[S, R]", **kwargs) -> R:
         return interpreter.repeat(self, **kwargs)
 
 
@@ -429,7 +429,7 @@ class SubstringNode(GrammarNode):
         # this can be used as part of bigger regexes
         return True
 
-    def _run(self, interpreter: "BaseInterpreter[S, R]", **kwargs) -> R:
+    def _run(self, interpreter: "Interpreter[S, R]", **kwargs) -> R:
         return interpreter.substring(self, **kwargs)
 
 
@@ -480,7 +480,7 @@ class RuleNode(GrammarNode):
     def children(self) -> Sequence["GrammarNode"]:
         return (self.value,)
 
-    def _run(self, interpreter: "BaseInterpreter[S, R]", **kwargs) -> R:
+    def _run(self, interpreter: "Interpreter[S, R]", **kwargs) -> R:
         return interpreter.rule(self, **kwargs)
 
 
@@ -500,7 +500,7 @@ class RuleRefNode(GrammarNode):
         # so it should never be terminal.
         return False
 
-    def _run(self, interpreter: "BaseInterpreter[S, R]", **kwargs) -> R:
+    def _run(self, interpreter: "Interpreter[S, R]", **kwargs) -> R:
         if self.target is None:
             raise ValueError("RuleRefNode target not set")
         return interpreter.rule(self.target)
@@ -520,7 +520,7 @@ class SubgrammarNode(BaseSubgrammarNode):
     body: GrammarNode
     skip_regex: Optional[str] = None
 
-    def _run(self, interpreter: "BaseInterpreter[S, R]", **kwargs) -> R:
+    def _run(self, interpreter: "Interpreter[S, R]", **kwargs) -> R:
         return interpreter.subgrammar(self, **kwargs)
 
 
@@ -528,7 +528,7 @@ class SubgrammarNode(BaseSubgrammarNode):
 class JsonNode(BaseSubgrammarNode):
     schema: dict[str, Any]
 
-    def _run(self, interpreter: "BaseInterpreter[S, R]", **kwargs) -> R:
+    def _run(self, interpreter: "Interpreter[S, R]", **kwargs) -> R:
         return interpreter.json(self, **kwargs)
 
 
@@ -536,7 +536,7 @@ class JsonNode(BaseSubgrammarNode):
 class LarkNode(BaseSubgrammarNode):
     lark_grammar: str
 
-    def _run(self, interpreter: "BaseInterpreter[S, R]", **kwargs) -> R:
+    def _run(self, interpreter: "Interpreter[S, R]", **kwargs) -> R:
         return interpreter.lark(self, **kwargs)
 
 

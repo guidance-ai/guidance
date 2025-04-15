@@ -2,9 +2,11 @@
 
 import queue
 import threading
+import asyncio
 from contextvars import ContextVar, copy_context
 from copy import deepcopy
 from typing import TYPE_CHECKING, Any, Iterator, Optional, TypeVar, Union, Generic
+import warnings
 
 from typing_extensions import Self
 
@@ -32,15 +34,14 @@ from ...trace import (
     TraceNode,
 )
 from ...trace._trace import AudioInput
-from ...visual import TraceMessage
-from ._interpreter import Interpreter, AsyncInterpreter
+from ._interpreter import Interpreter
 from ._state import State
 
 if TYPE_CHECKING:
     from ...library._block import Block
 
 _active_blocks: ContextVar[tuple["Block", ...]] = ContextVar("active_blocks", default=())
-_event_queues: ContextVar[tuple[queue.Queue["ModelABC"], ...]] = ContextVar(
+_event_queues: ContextVar[tuple[queue.Queue["Model"], ...]] = ContextVar(
     "event_queues", default=()
 )
 _id_counter: int = 0
@@ -57,12 +58,11 @@ def _gen_id():
 
 S = TypeVar("S", bound=State)
 D = TypeVar("D", bound=Any)
-I = TypeVar("I", bound=Union[Interpreter[S], AsyncInterpreter[S]])
 
-class ModelABC(Generic[S, I]):
+class Model:
     def __init__(
         self,
-        interpreter: I,
+        interpreter: Interpreter[S],
         echo: bool = True,
     ) -> None:
         self.echo = echo
@@ -70,7 +70,7 @@ class ModelABC(Generic[S, I]):
         self._pending: tuple[ASTNode, ...] = ()
         self._active_blocks: tuple[Block, ...] = ()
 
-        self._parent: Optional["ModelABC"] = None
+        self._parent: Optional["Model"] = None
         self._parent_id: Optional[int] = None
         self._id: int = _gen_id()
         self._trace_nodes: set[TraceNode] = set()
@@ -167,62 +167,6 @@ class ModelABC(Generic[S, I]):
         obj._update_trace_node(obj._id, obj._parent_id, None)
         return obj
 
-class Model(ModelABC[S, Interpreter[S]]):
-    def _run(self) -> None:
-        buffer: Optional[GrammarNode] = None
-        nodes = self._pending
-        self._pending = ()
-        for node in nodes:
-            if isinstance(node, GrammarNode):
-                if buffer is None:
-                    buffer = node
-                else:
-                    buffer += node
-            else:
-                if buffer is not None:
-                    self._run_node(buffer)
-                    buffer = None
-                self._run_node(node)
-        if buffer is not None:
-            self._run_node(buffer)
-
-    def _run_node(self, node: ASTNode) -> None:
-        if isinstance(node, RoleStart):
-            self._update_trace_node(self._id, self._parent_id, RoleOpenerInput(name=node.role))
-        elif isinstance(node, RoleEnd):
-            self._update_trace_node(self._id, self._parent_id, RoleCloserInput(name=node.role))
-        elif isinstance(node, LiteralNode):
-            self._update_trace_node(self._id, self._parent_id, LiteralInput(value=node.value))
-        elif isinstance(node, ImageBlob):
-            self._update_trace_node(self._id, self._parent_id, ImageInput(value=node.data))
-        elif isinstance(node, ImageUrl):
-            # TODO -- let's avoid downloading it here
-            pass
-        elif isinstance(node, GenAudio):
-            self._update_trace_node(
-                self._id, self._parent_id, AudioInput(value="")
-            )  # TODO -- what goes here?
-        else:
-            self._update_trace_node(self._id, self._parent_id, StatelessGuidanceInput(value=node))
-
-        for i, output_attr in enumerate(self._interpreter.run(node)):
-            if i != 0:
-                # On the first iteration, we already have a fresh trace node
-                # TODO: should be allowed to associate multiple output_attrs with a single input node?
-                # TODO: put this responsibility on the client in the case that it breaks a single input
-                # node into multiple input nodes to be handled sequentially?
-                self._parent_id = self._id
-                self._id = _gen_id()
-            self._update_trace_node(self._id, self._parent_id, output_attr)
-            # Stream current model state
-            self._send_to_event_queue()
-        return self
-
-    def _get_state(self) -> State:
-        """Get the state of the model."""
-        self._run()
-        return self._interpreter.state
-
     def __str__(self) -> str:
         return str(self._get_state())
 
@@ -318,8 +262,6 @@ class Model(ModelABC[S, Interpreter[S]]):
             return getattr(self._interpreter, "engine")
         return super().__getattribute__(name)
 
-
-class AsyncModel(ModelABC[S, AsyncInterpreter[S]]):
     async def _run(self) -> None:
         buffer: Optional[GrammarNode] = None
         nodes = self._pending
@@ -372,14 +314,47 @@ class AsyncModel(ModelABC[S, AsyncInterpreter[S]]):
             i += 1
         return self
 
-    async def _get_state(self) -> State:
+    async def _get_state_async(self) -> State:
         """Get the state of the model."""
         await self._run()
         return self._interpreter.state
 
-    async def get(self, key: str) -> Any:
+    def _get_state(self) -> State:
+        """Get the state of the model."""
+        coro = self._get_state_async()
         try:
-            captures = (await self._get_state()).captures[key]
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(coro)
+        else:
+            warnings.warn(
+                "Synchronous access to model state from an async context is ill-advised...",
+                stacklevel=2
+            )
+            # We're already in an async loop, so we have to run the coroutine in a nested event loop.
+            # TODO: consider raising an exception (sync guidance function called in async context)
+            result = None
+            exception = None
+            event = threading.Event()
+            def run():
+                nonlocal result, exception
+                try:
+                    result = asyncio.run(coro)
+                except Exception as ex:
+                    exception = ex
+                finally:
+                    event.set()
+            thread = threading.Thread(target=run)
+            thread.start()
+            event.wait()
+            thread.join()
+            if exception is not None:
+                raise exception
+            return result
+
+    async def get_async(self, key: str) -> Any:
+        try:
+            captures = (await self._get_state_async()).captures[key]
         except KeyError:
             raise KeyError(f"Model does not contain the variable '{key}'")
         if isinstance(captures, list):
@@ -387,28 +362,13 @@ class AsyncModel(ModelABC[S, AsyncInterpreter[S]]):
         else:
             return captures["value"]
 
-    def __getitem__(self, key):
-        raise TypeError(
-            "AsyncModel does not support __getitem__. Use the async get() method instead."
-        )
-
-    async def to_string(self) -> str:
+    async def to_string_async(self) -> str:
         """Get the string representation of the model."""
-        return str(await self._get_state())
+        return str(await self._get_state_async())
 
-    def __str__(self) -> str:
-        raise TypeError(
-            "AsyncModel does not support __str__. Use the async to_string() method instead."
-        )
-
-    async def length(self) -> int:
+    async def length_async(self) -> int:
         """Get the length of the model."""
-        return len(await self.to_string())
-
-    def __len__(self):
-        raise TypeError(
-            "AsyncModel does not support __len__. Use the async length() method instead."
-        )
+        return len(await self.to_string_async())
 
 class ModelStream:
     def __init__(
