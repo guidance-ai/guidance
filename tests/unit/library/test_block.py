@@ -10,12 +10,12 @@ def test_text_opener():
 
 
 def test_text_closer():
-    # NOTE(nopdive): Behavioral change, no longer need closer for str call.
     model = models.Mock("<s>a")
     model += "<s>"
     with block(closer="close text"):
         model += regex(r".")
-    assert str(model) == "<s>a"
+        assert str(model) == "<s>a"
+    assert str(model) == "<s>aclose text"
 
 
 def test_grammar_opener():
