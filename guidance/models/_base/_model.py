@@ -281,6 +281,33 @@ class Model:
         self._pending = None
         await self._run_node(node)
 
+    def _run_sync(self) -> None:
+        new_self = self.copy()
+        # may be some pending blocks
+        new_self._apply_blocks()
+        if isinstance(new_self._pending, AsyncFunction):
+            async def async_part():
+                nonlocal new_self
+                while isinstance(new_self._pending, AsyncFunction):
+                    func = new_self._pending
+                    new_self._pending = None
+                    new_self = await func(new_self)
+
+            # TODO: replace with our "safe" version
+            asyncio.run(async_part())
+        while isinstance(new_self._pending, Function):
+            func = new_self._pending
+            new_self._pending = None
+            new_self = func(new_self)
+        self.__dict__ = new_self.__dict__ # I guess
+        if self._pending is None:
+            return
+        assert isinstance(self._pending, ASTNode)
+        node = self._pending
+        self._pending = None
+
+        # TODO: replace with our "safe" version
+        return asyncio.run(self._run_node(node))
 
     async def _run_node(self, node: ASTNode) -> None:
         async for output_attr in self._interpreter.run(node):
@@ -296,36 +323,42 @@ class Model:
 
     def _get_state(self) -> State:
         """Get the state of the model."""
-        coro = self._get_state_async()
-        try:
-            asyncio.get_running_loop()
-        except RuntimeError:
-            return asyncio.run(coro)
-        else:
-            warnings.warn(
-                "Synchronous access to model state from an async context is ill-advised...",
-                stacklevel=2
-            )
-            # We're already in an async loop, so we have to run the coroutine in a nested event loop.
-            # TODO: consider raising an exception (sync guidance function called in async context)
-            result = None
-            exception = None
-            event = threading.Event()
-            def run():
-                nonlocal result, exception
-                try:
-                    result = asyncio.run(coro)
-                except Exception as ex:
-                    exception = ex
-                finally:
-                    event.set()
-            thread = threading.Thread(target=run)
-            thread.start()
-            event.wait()
-            thread.join()
-            if exception is not None:
-                raise exception
-            return result
+        self._run_sync()
+        return self._interpreter.state
+
+        # coro = self._get_state_async()
+        # try:
+        #     asyncio.get_running_loop()
+        # except RuntimeError:
+        #     return asyncio.run(coro)
+        # else:
+        #     raise RuntimeError(
+        #         "Synchronous access to model state from an async context is punishable by death."
+        #     )
+        #     warnings.warn(
+        #         "Synchronous access to model state from an async context is ill-advised...",
+        #         stacklevel=2
+        #     )
+        #     # We're already in an async loop, so we have to run the coroutine in a nested event loop.
+        #     # TODO: consider raising an exception (sync guidance function called in async context)
+        #     result = None
+        #     exception = None
+        #     event = threading.Event()
+        #     def run():
+        #         nonlocal result, exception
+        #         try:
+        #             result = asyncio.run(coro)
+        #         except Exception as ex:
+        #             exception = ex
+        #         finally:
+        #             event.set()
+        #     thread = threading.Thread(target=run)
+        #     thread.start()
+        #     event.wait()
+        #     thread.join()
+        #     if exception is not None:
+        #         raise exception
+        #     return result
 
     async def get_async(self, key: str) -> Any:
         try:
