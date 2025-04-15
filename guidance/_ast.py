@@ -116,13 +116,13 @@ class Function(Tagged):
         return model
 
     def __add__(self, other):
-        if not isinstance(other, (str, GrammarNode, Function)):
+        if not isinstance(other, (str, ASTNode, Function)):
             return NotImplemented
 
         if isinstance(other, str):
             other = _parse_tags(other)
 
-        if isinstance(other, GrammarNode) and other.is_null:
+        if isinstance(other, ASTNode) and other.is_null:
             return self
 
         def __add__(model):
@@ -131,13 +131,13 @@ class Function(Tagged):
         return Function(__add__, [], {})
 
     def __radd__(self, other):
-        if not isinstance(other, (str, GrammarNode, Function)):
+        if not isinstance(other, (str, ASTNode, Function)):
             return NotImplemented
 
         if isinstance(other, str):
             other = _parse_tags(other)
 
-        if isinstance(other, GrammarNode) and other.is_null:
+        if isinstance(other, ASTNode) and other.is_null:
             return self
 
         def __radd__(model):
@@ -157,6 +157,45 @@ class ASTNode(ABC):
     def simplify(self) -> "ASTNode":
         return self
 
+    @property
+    def is_null(self) -> bool:
+        return False
+
+    def __add__(self, other):
+        if isinstance(other, str):
+            other = _parse_tags(other)
+
+        if isinstance(other, ASTNode):
+            return Concatenate((self, other))
+
+        return NotImplemented
+
+    def __radd__(self, other):
+        if isinstance(other, str):
+            other = _parse_tags(other)
+
+        if isinstance(other, ASTNode):
+            return Concatenate((other, self))
+
+        return NotImplemented
+
+    @classmethod
+    def null(cls) -> "ASTNode":
+        return Concatenate(())
+
+@dataclass(frozen=True)
+class Concatenate(ASTNode):
+    nodes: tuple[ASTNode, ...]
+
+    def _run(self, interpreter: "Interpreter[S, R]", **kwargs) -> R:
+        return interpreter.concatenate(self, **kwargs)
+
+    def __iter__(self) -> Iterable[ASTNode]:
+        for node in self.nodes:
+            if isinstance(node, Concatenate):
+                yield from node
+            else:
+                yield node
 
 @dataclass
 class RoleStart(ASTNode):

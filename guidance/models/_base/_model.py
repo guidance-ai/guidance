@@ -5,13 +5,14 @@ import threading
 import asyncio
 from contextvars import ContextVar, copy_context
 from copy import deepcopy
-from typing import TYPE_CHECKING, Any, Iterator, Optional, TypeVar, Union, Generic
+from typing import TYPE_CHECKING, Any, Iterator, Optional, TypeVar, Union
 import warnings
 
 from typing_extensions import Self
 
 from ..._ast import (
     ASTNode,
+    Concatenate,
     Function,
     GenAudio,
     GrammarNode,
@@ -67,7 +68,7 @@ class Model:
     ) -> None:
         self.echo = echo
         self._interpreter = interpreter
-        self._pending: tuple[ASTNode, ...] = ()
+        self._pending: Union[None, ASTNode, Function] = None
         self._active_blocks: tuple[Block, ...] = ()
 
         self._parent: Optional["Model"] = None
@@ -94,6 +95,12 @@ class Model:
         #     )
         pass
 
+    def _add_to_pending(self, item: Union[ASTNode, Function]) -> None:
+        if self._pending is None:
+            self._pending = item
+        else:
+            self._pending += item
+
     def __add__(self, other: Union[str, Function, ASTNode]) -> Self:
         self = self.copy()
         self._apply_blocks()
@@ -101,10 +108,8 @@ class Model:
             if other == "":
                 return self
             other = _parse_tags(other)
-        if isinstance(other, Function):
-            return other(self)
-        if isinstance(other, ASTNode):
-            self._pending += (other,)
+        if isinstance(other, (ASTNode, Function)):
+            self._add_to_pending(other)
             return self
         return NotImplemented
 
@@ -127,13 +132,9 @@ class Model:
                     closer = block.closer
                     if isinstance(closer, str):
                         closer = _parse_tags(closer)
-                    if isinstance(closer, Function):
-                        raise NotImplementedError(
-                            "Stateful block opener/closer functions are not yet supported"
-                        )
-                    self._pending += (closer,)
+                    self._add_to_pending(closer)
                     if block.name is not None:
-                        self._pending += (CaptureEnd(name=block.name),)
+                        self._add_to_pending(CaptureStart(name=block.name))
             else:
                 # Not closed, so keep it
                 new_active_blocks.append(block)
@@ -143,16 +144,12 @@ class Model:
             if block not in self._active_blocks:
                 new_active_blocks.append(block)
                 if block.name is not None:
-                    self._pending += (CaptureStart(name=block.name),)
+                    self._add_to_pending(CaptureEnd(name=block.name))
                 if block.opener is not None:
                     opener = block.opener
                     if isinstance(opener, str):
                         opener = _parse_tags(opener)
-                    if isinstance(opener, Function):
-                        raise NotImplementedError(
-                            "Stateful block opener/closer functions are not yet supported"
-                        )
-                    self._pending += (opener,)
+                    self._add_to_pending(opener)
         self._active_blocks = tuple(new_active_blocks)
 
     def copy(self) -> Self:
@@ -263,55 +260,26 @@ class Model:
         return super().__getattribute__(name)
 
     async def _run(self) -> None:
-        buffer: Optional[GrammarNode] = None
-        nodes = self._pending
-        self._pending = ()
-        for node in nodes:
-            if isinstance(node, GrammarNode):
-                if buffer is None:
-                    buffer = node
-                else:
-                    buffer += node
-            else:
-                if buffer is not None:
-                    await self._run_node(buffer)
-                    buffer = None
-                await self._run_node(node)
-        if buffer is not None:
-            await self._run_node(buffer)
+        new_self = self.copy()
+        while isinstance(new_self._pending, Function):
+            func = new_self._pending
+            new_self._pending = None
+            new_self = func(new_self)
+        self.__dict__ = new_self.__dict__ # I guess
+        if self._pending is None:
+            return
+
+        assert isinstance(self._pending, ASTNode)
+        node = self._pending
+        self._pending = None
+        await self._run_node(node)
+
 
     async def _run_node(self, node: ASTNode) -> None:
-        if isinstance(node, RoleStart):
-            self._update_trace_node(self._id, self._parent_id, RoleOpenerInput(name=node.role))
-        elif isinstance(node, RoleEnd):
-            self._update_trace_node(self._id, self._parent_id, RoleCloserInput(name=node.role))
-        elif isinstance(node, LiteralNode):
-            self._update_trace_node(self._id, self._parent_id, LiteralInput(value=node.value))
-        elif isinstance(node, ImageBlob):
-            self._update_trace_node(self._id, self._parent_id, ImageInput(value=node.data))
-        elif isinstance(node, ImageUrl):
-            # TODO -- let's avoid downloading it here
-            pass
-        elif isinstance(node, GenAudio):
-            self._update_trace_node(
-                self._id, self._parent_id, AudioInput(value="")
-            )  # TODO -- what goes here?
-        else:
-            self._update_trace_node(self._id, self._parent_id, StatelessGuidanceInput(value=node))
-
-        i = 0
         async for output_attr in self._interpreter.run(node):
-            if i != 0:
-                # On the first iteration, we already have a fresh trace node
-                # TODO: should be allowed to associate multiple output_attrs with a single input node?
-                # TODO: put this responsibility on the client in the case that it breaks a single input
-                # node into multiple input nodes to be handled sequentially?
-                self._parent_id = self._id
-                self._id = _gen_id()
             self._update_trace_node(self._id, self._parent_id, output_attr)
             # Stream current model state
             self._send_to_event_queue()
-            i += 1
         return self
 
     async def _get_state_async(self) -> State:

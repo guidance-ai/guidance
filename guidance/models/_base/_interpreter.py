@@ -1,10 +1,11 @@
 import base64
 from abc import ABC
-from typing import Generic, Iterable, AsyncIterable, TypeVar, Union
+from typing import Generic, Iterable, AsyncIterable, TypeVar, Union, Optional
 
 from ..._ast import (
     ASTNode,
     AudioBlob,
+    Concatenate,
     GenAudio,
     GrammarNode,
     ImageBlob,
@@ -34,6 +35,26 @@ class Interpreter(Generic[S], ABC):
 
     def run(self, node: ASTNode, **kwargs) -> AsyncIterable[OutputAttr]:
         return node.simplify()._run(self, **kwargs)
+
+    async def concatenate(self, node: Concatenate, **kwargs) -> AsyncIterable[OutputAttr]:
+        buffer: Optional[GrammarNode] = None
+        for child in node:
+            assert not isinstance(child, Concatenate) # iter should be flat
+            if isinstance(child, GrammarNode):
+                if buffer is None:
+                    buffer = child
+                else:
+                    buffer = buffer + child
+            else:
+                if buffer is not None:
+                    async for attr in self.run(buffer, **kwargs):
+                        yield attr
+                    buffer = None
+                async for attr in self.run(child, **kwargs):
+                    yield attr
+        if buffer is not None:
+            async for attr in self.run(buffer, **kwargs):
+                yield attr
 
     def _role_start(self, node: RoleStart, **kwargs) -> AsyncIterable[OutputAttr]:
         if self.state.active_role is not None:

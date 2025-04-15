@@ -181,10 +181,10 @@ class OpenAIInterpreter(Interpreter[OpenAIState]):
         return result
 
     def run(self, node: ASTNode, **kwargs) -> AsyncIterable[OutputAttr]:
-        if not isinstance(node, RoleStart) and self.state.active_role is None:
-            raise ValueError(
-                "OpenAI models require an active role (e.g. use `with assistant(): ...`)"
-            )
+        # if not isinstance(node, RoleStart) and self.state.active_role is None:
+        #     raise ValueError(
+        #         "OpenAI models require an active role (e.g. use `with assistant(): ...`)"
+        #     )
         return super().run(node, **kwargs)
 
     async def role_start(self, node: RoleStart, **kwargs) -> AsyncIterable[OutputAttr]:
