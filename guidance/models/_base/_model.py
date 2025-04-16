@@ -264,14 +264,14 @@ class Model:
         new_self = self.copy()
         # may be some pending blocks
         new_self._apply_blocks()
-        while isinstance(new_self._pending, AsyncFunction):
+        while isinstance(new_self._pending, (Function, AsyncFunction)):
             func = new_self._pending
             new_self._pending = None
-            new_self = await func(new_self)
-        while isinstance(new_self._pending, Function):
-            func = new_self._pending
-            new_self._pending = None
-            new_self = func(new_self)
+            if isinstance(func, AsyncFunction):
+                new_self = await func(new_self)
+            else:
+                # TODO: maybe run in thread to avoid blocking?
+                new_self = func(new_self)
         self.__dict__ = new_self.__dict__ # I guess
         if self._pending is None:
             return
@@ -285,18 +285,14 @@ class Model:
         new_self = self.copy()
         # may be some pending blocks
         new_self._apply_blocks()
-        if isinstance(new_self._pending, AsyncFunction):
-            async def async_part():
-                nonlocal new_self
-                while isinstance(new_self._pending, AsyncFunction):
-                    func = new_self._pending
-                    new_self._pending = None
-                    new_self = await func(new_self)
-            run_async_maybe_in_thread(async_part())
-        while isinstance(new_self._pending, Function):
+        while isinstance(new_self._pending, (Function, AsyncFunction)):
             func = new_self._pending
             new_self._pending = None
-            new_self = func(new_self)
+            if isinstance(func, AsyncFunction):
+                # TODO: share a bg thread
+                new_self = run_async_maybe_in_thread(func(new_self))
+            else:
+                new_self = func(new_self)
         self.__dict__ = new_self.__dict__ # I guess
         if self._pending is None:
             return
