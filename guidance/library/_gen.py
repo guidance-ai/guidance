@@ -89,7 +89,7 @@ def gen(
     if tools and not max_tokens:
         raise ValueError("Must specify `max_tokens` when using `tools`")
     if tools and regex:
-            raise ValueError("Cannot use `regex` with `tools`")
+        raise ValueError("Cannot use `regex` with `tools`")
 
     assert (
         n == 1
