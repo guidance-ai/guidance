@@ -7,6 +7,7 @@ from contextvars import ContextVar, copy_context
 from copy import deepcopy
 from typing import TYPE_CHECKING, Any, Iterator, Optional, TypeVar, Union
 import warnings
+from ..._bridge import async_, await_
 
 from typing_extensions import Self
 
@@ -270,8 +271,11 @@ class Model:
             if isinstance(func, AsyncFunction):
                 new_self = await func(new_self)
             else:
-                # TODO: maybe run in thread to avoid blocking?
-                new_self = func(new_self)
+                # If someone awaits us directly (i.e. we're not below an `await_`),
+                # we need to wrap the sync part in `async_` to avoid blocking our caller's
+                # event loop.
+                # Otherwise, this is effectively equivalent to func(new_self)
+                new_self = await async_(func)(new_self)
         self.__dict__ = new_self.__dict__ # I guess
         if self._pending is None:
             return
@@ -282,24 +286,7 @@ class Model:
         await self._run_node(node)
 
     def _run_sync(self) -> None:
-        new_self = self.copy()
-        # may be some pending blocks
-        new_self._apply_blocks()
-        while isinstance(new_self._pending, (Function, AsyncFunction)):
-            func = new_self._pending
-            new_self._pending = None
-            if isinstance(func, AsyncFunction):
-                # TODO: share a bg thread
-                new_self = run_async_maybe_in_thread(func(new_self))
-            else:
-                new_self = func(new_self)
-        self.__dict__ = new_self.__dict__ # I guess
-        if self._pending is None:
-            return
-        assert isinstance(self._pending, ASTNode)
-        node = self._pending
-        self._pending = None
-        run_async_maybe_in_thread(self._run_node(node))
+        await_(self._run())
 
     async def _run_node(self, node: ASTNode) -> None:
         async for output_attr in self._interpreter.run(node):
@@ -407,43 +394,3 @@ class ModelStream:
 
         # Reset the event queues context variable
         _event_queues.reset(token)
-
-def run_async_maybe_in_thread(
-    coro
-):
-    """
-    Run a coroutine in a thread if not already in an async context.
-    """
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        # Not in an async context, run the coroutine in a thread
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        return loop.run_until_complete(coro)
-    else:
-        warnings.warn(
-            "Synchronous access to model state from an async context is ill-advised...",
-            stacklevel=2
-        )
-        # We're already in an async loop, so we have to run the coroutine in a nested event loop.
-        # TODO: consider raising an exception (sync guidance function called in async context)
-        # TODO: consider using some global thread and call asyncio.run_coroutine_threadsafe
-        result = None
-        exception = None
-        event = threading.Event()
-        def run():
-            nonlocal result, exception
-            try:
-                result = asyncio.run(coro)
-            except Exception as ex:
-                exception = ex
-            finally:
-                event.set()
-        thread = threading.Thread(target=run)
-        thread.start()
-        event.wait()
-        thread.join()
-        if exception is not None:
-            raise exception
-        return result
