@@ -8,7 +8,7 @@ import sys
 import asyncio
 import threading
 import warnings
-from typing import Awaitable, TypeVar, Callable, Union, Optional, cast
+from typing import Any, Awaitable, Coroutine, TypeVar, Callable, Union, Optional, cast
 from typing_extensions import ParamSpec, Never
 
 P = ParamSpec("P")
@@ -18,7 +18,7 @@ class AwaitException(RuntimeError):
     """Exception raised when a coroutine is awaited in a non-greenlet context."""
     pass
 
-def await_(coro: Awaitable[T]) -> T:
+def await_(coro: Coroutine[Any, Any, T]) -> T:
     """
         Sends a coroutine to the parent greenlet. The parent greenlet should either
         1. await the coroutine in an async function
@@ -38,6 +38,8 @@ def await_(coro: Awaitable[T]) -> T:
         except RuntimeError:
             return asyncio.run(coro)
         else:
+            # Close the coro to avoid leaking resources
+            coro.close()
             raise AwaitException(
                 "Cannot use synchronous await_ within a running event loop."
             )
