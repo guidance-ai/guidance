@@ -69,10 +69,7 @@ def run_async_maybe_in_thread(
     try:
         asyncio.get_running_loop()
     except RuntimeError:
-        # Not in an async context, run the coroutine in a thread
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        return loop.run_until_complete(coro)
+        return asyncio.run(coro)
     else:
         warnings.warn(
             "Synchronous access to model state from an async context is ill-advised...",
