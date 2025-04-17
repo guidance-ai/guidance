@@ -101,7 +101,7 @@ def test_async(gfunc, expected, sync):
 )
 def test_async_with_sync_accessor(sync):
     s = run(async_func_with_sync_accessor, sync)
-    assert s in {"alphabeta", "betaalpha", "alphaalpha", "betabeta"}
+    assert s in {"alpha", "beta"}
 
 def test_sync_accessor_in_foreign_event_loop():
     async def main():
