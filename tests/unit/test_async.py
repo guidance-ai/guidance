@@ -1,6 +1,7 @@
 import asyncio
 import pytest
-from guidance import *
+from guidance import guidance, models, select
+from guidance._bridge import AwaitException
 
 @guidance
 def sync_func(lm: models.Model):
@@ -100,8 +101,10 @@ def test_async(gfunc, expected, sync):
     ],
 )
 def test_async_with_sync_accessor(sync):
-    s = run(async_func_with_sync_accessor, sync)
-    assert s in {"alpha", "beta"}
+    # This should raise an AwaitException because the sync accessor is not
+    # allowed in the async function
+    with pytest.raises(AwaitException):
+        run(async_func_with_sync_accessor, sync)
 
 def test_sync_accessor_in_foreign_event_loop():
     async def main():
