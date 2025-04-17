@@ -1,5 +1,5 @@
 """
-Heavily inspired by (and largely stolen from)`greenletio`:
+Heavily inspired by (read: largely stolen from)
 https://github.com/miguelgrinberg/greenletio
 """
 
