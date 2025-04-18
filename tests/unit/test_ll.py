@@ -108,7 +108,7 @@ def check_grammar(grm: GrammarNode, output: List[str]):
     """
     print("\nChecking grammar")
     interp = llguidance.LLInterpreter(
-        PhiTokenizer.ll_tokenizer(), grm.ll_grammar().model_dump_json(), log_level=log_level
+        PhiTokenizer.ll_tokenizer(), grm.ll_grammar(), log_level=log_level
     )
     prompt = interp.process_prompt(PhiTokenizer.instance().tokenize_str(""))
     check_eq("prompt", prompt, output[0])

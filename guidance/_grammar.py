@@ -176,7 +176,10 @@ def capture(value: GrammarNode, name: str, list_append: bool = False) -> RuleNod
 def subgrammar(body: GrammarNode, name: Optional[str] = None, skip_regex: Optional[str] = None, max_tokens: Optional[int] = None, temperature: Optional[float] = None) -> SubgrammarNode:
     capture_name = name
     name = name or (body.name if isinstance(body, RuleNode) else "subgrammar")
-    node = SubgrammarNode(name=name, body=body, skip_regex=skip_regex)
+    node = RuleNode(
+        name=name or "subgrammar",
+        value=SubgrammarNode(body=body, skip_regex=skip_regex)
+    )
     if max_tokens:
         node = token_limit(node, max_tokens)
     if temperature:
