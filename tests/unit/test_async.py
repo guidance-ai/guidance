@@ -1,7 +1,7 @@
 import asyncio
 import pytest
 from guidance import guidance, models, select
-from guidance._bridge import ReentrantAsyncException
+from guidance._reentrant_async import ReentrantAsyncException
 
 @guidance
 def sync_func(lm: models.Model):

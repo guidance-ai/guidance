@@ -7,7 +7,7 @@ from contextvars import ContextVar, copy_context
 from copy import deepcopy
 from typing import TYPE_CHECKING, Any, Iterator, Optional, TypeVar, Union
 import warnings
-from ..._bridge import sync_to_reentrant_async, reentrant_await, run_async_coroutine_in_bg_async
+from ..._reentrant_async import sync_to_reentrant_async, reentrant_await, run_async_coroutine_in_bg_async
 
 from typing_extensions import Self
 
