@@ -5,6 +5,7 @@ https://github.com/miguelgrinberg/greenletio
 
 import asyncio
 import sys
+import contextvars
 from typing import Any, Callable, Coroutine, TypeVar, cast
 
 from greenlet import getcurrent, greenlet  # type: ignore[import-untyped]
@@ -56,6 +57,7 @@ def async_(fn: Callable[P, T]) -> Callable[P, Coroutine[Any, Any, T]]:
 
     async def decorator(*args: P.args, **kwargs: P.kwargs) -> T:
         gl = greenlet(fn)
+        gl.gr_context = contextvars.copy_context()
         coro = gl.switch(*args, **kwargs)
         while gl:
             coro = coro
