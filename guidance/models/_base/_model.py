@@ -7,7 +7,7 @@ from contextvars import ContextVar, copy_context
 from copy import deepcopy
 from typing import TYPE_CHECKING, Any, Iterator, Optional, TypeVar, Union
 import warnings
-from ..._bridge import async_, await_
+from ..._bridge import async_, await_, async_entry_point
 
 from typing_extensions import Self
 
@@ -261,6 +261,7 @@ class Model:
             return getattr(self._interpreter, "engine")
         return super().__getattribute__(name)
 
+    @async_entry_point
     async def _run(self) -> None:
         new_self = self.copy()
         # may be some pending blocks
@@ -286,7 +287,7 @@ class Model:
         await self._run_node(node)
 
     def _run_sync(self) -> None:
-        await_(self._run())
+        return await_(self._run())
 
     async def _run_node(self, node: ASTNode) -> None:
         async for output_attr in self._interpreter.run(node):
