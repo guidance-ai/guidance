@@ -270,6 +270,7 @@ class Model:
             while isinstance(new_self._pending, (Function, AsyncFunction)):
                 func = new_self._pending
                 new_self._pending = None
+                new_self._active_blocks = ()
                 if isinstance(func, AsyncFunction):
                     new_self = await func(new_self)
                 else:
