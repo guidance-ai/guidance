@@ -7,7 +7,7 @@ from contextvars import ContextVar, copy_context
 from copy import deepcopy
 from typing import TYPE_CHECKING, Any, Iterator, Optional, TypeVar, Union
 import warnings
-from ..._bridge import async_, await_, async_entry_point
+from ..._bridge import sync_to_reentrant_async, reentrant_await
 
 from typing_extensions import Self
 
@@ -43,6 +43,7 @@ from ._state import State
 if TYPE_CHECKING:
     from ...library._block import Block
 
+_below_entry_point: ContextVar[bool] = ContextVar("below_entry_point", default=False)
 _active_blocks: ContextVar[tuple["Block", ...]] = ContextVar("active_blocks", default=())
 _event_queues: ContextVar[tuple[queue.Queue["Model"], ...]] = ContextVar(
     "event_queues", default=()
@@ -261,33 +262,51 @@ class Model:
             return getattr(self._interpreter, "engine")
         return super().__getattribute__(name)
 
-    @async_entry_point
     async def _run(self) -> None:
-        new_self = self.copy()
-        # may be some pending blocks
-        new_self._apply_blocks()
-        while isinstance(new_self._pending, (Function, AsyncFunction)):
-            func = new_self._pending
-            new_self._pending = None
-            if isinstance(func, AsyncFunction):
-                new_self = await func(new_self)
-            else:
-                # If someone awaits us directly (i.e. we're not below an `await_`),
-                # we need to wrap the sync part in `async_` to avoid blocking our caller's
-                # event loop.
-                # Otherwise, this is effectively equivalent to func(new_self)
-                new_self = await async_(func)(new_self)
-        self.__dict__ = new_self.__dict__ # I guess
-        if self._pending is None:
-            return
+        async def inner():
+            new_self = self.copy()
+            # may be some pending blocks
+            new_self._apply_blocks()
+            while isinstance(new_self._pending, (Function, AsyncFunction)):
+                func = new_self._pending
+                new_self._pending = None
+                if isinstance(func, AsyncFunction):
+                    new_self = await func(new_self)
+                else:
+                    # If someone awaits us directly (i.e. we're not below an `await_`),
+                    # we need to wrap the sync part in `async_` to avoid blocking our caller's
+                    # event loop.
+                    # Otherwise, this is effectively equivalent to func(new_self)
+                    new_self = await sync_to_reentrant_async(func)(new_self)
+            self.__dict__ = new_self.__dict__ # I guess
+            if self._pending is None:
+                return
 
-        assert isinstance(self._pending, ASTNode)
-        node = self._pending
-        self._pending = None
-        await self._run_node(node)
+            assert isinstance(self._pending, ASTNode)
+            node = self._pending
+            self._pending = None
+            await self._run_node(node)
+
+        # Mark that we are below the entry point so that
+        # `_run_sync` knows to use `await_` instead of
+        # running in the background thread.
+        token = _below_entry_point.set(True)
+        try:
+            return await inner()
+        finally:
+            _below_entry_point.reset(token)
 
     def _run_sync(self) -> None:
-        return await_(self._run())
+        if not _below_entry_point.get():
+            from ...registry import get_bg_async
+            bg_async = get_bg_async()
+            thread, _ = bg_async._thread_and_loop()
+            if thread is threading.current_thread():
+                raise RuntimeError("Cannot nest async call -- already in background thread.")
+            fut = bg_async.run_async_coroutine(self._run())
+            return fut.result()
+
+        return reentrant_await(self._run())
 
     async def _run_node(self, node: ASTNode) -> None:
         async for output_attr in self._interpreter.run(node):

@@ -1,7 +1,7 @@
 import asyncio
 import pytest
 from guidance import guidance, models, select
-from guidance._bridge import AwaitException
+from guidance._bridge import ReentrantAsyncException
 
 @guidance
 def sync_func(lm: models.Model):
@@ -124,7 +124,7 @@ def test_async_with_sync_accessor(sync):
         return lm
     # This should raise an AwaitException because the sync accessor is not
     # allowed in the async function
-    with pytest.raises(AwaitException):
+    with pytest.raises(ReentrantAsyncException):
         run(async_func_with_sync_accessor, sync)
 
 def test_sync_accessor_in_foreign_event_loop():
