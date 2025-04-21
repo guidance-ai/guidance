@@ -3,13 +3,11 @@ Heavily inspired by (read: largely stolen from)
 https://github.com/miguelgrinberg/greenletio
 """
 
-import asyncio
 import sys
-from contextlib import contextmanager
 from functools import wraps
 import contextvars
+import threading
 from typing import Any, Callable, Coroutine, TypeVar, cast, Awaitable
-import inspect
 
 from greenlet import getcurrent, greenlet  # type: ignore[import-untyped]
 from typing_extensions import ParamSpec
@@ -29,6 +27,19 @@ def async_entry_point(func: Callable[P, Awaitable[T]]) -> Callable[P, Coroutine[
             _entered.reset(token)
     return wrapper
 
+def run_coro_in_bg_thread(coro: Coroutine[Any, Any, T]) -> T:
+    """
+    Run a coroutine in the background thread and return the result.
+    This is a blocking call.
+    """
+    from .registry import get_bg_async
+
+    bg_async = get_bg_async()
+    thread, _ = bg_async._thread_and_loop()
+    if thread is threading.current_thread():
+        raise RuntimeError("Cannot nest async call -- already in background thread.")
+    fut = bg_async.run_async_coroutine(coro)
+    return fut.result()
 
 class AwaitException(RuntimeError):
     """Exception raised when a coroutine is awaited in a non-greenlet context."""
@@ -52,16 +63,7 @@ def await_(coro: Coroutine[Any, Any, T]) -> T:
     parent_gl = getcurrent().parent
     if parent_gl is None:
         if not _entered.get():
-            from .registry import get_bg_async
-            import threading
-            bg_async = get_bg_async()
-            thread, _ = bg_async._thread_and_loop()
-            if thread is threading.current_thread():
-                raise RuntimeError(
-                    "Cannot nest async call -- already in background thread."
-                )
-            fut = bg_async.run_async_coroutine(coro)
-            return fut.result()
+            return run_coro_in_bg_thread(coro)
         else:
             coro.close()
             raise AwaitException("Cannot use synchronous await_ within a running event loop.")
