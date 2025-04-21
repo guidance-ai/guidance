@@ -22,7 +22,8 @@ async def async_func(lm: models.Model):
     return lm
 
 @guidance
-async def async_func_with_sync_accessor(lm: models.Model):
+def sync_func_calling_sync_func(lm: models.Model):
+    lm += sync_func()
     lm += select(["a", "b"], name="choice")
     if lm.get("choice") == "a":
         lm += "lpha"
@@ -35,6 +36,16 @@ def sync_func_calling_async_func(lm: models.Model):
     lm += async_func()
     lm += select(["a", "b"], name="choice")
     if lm.get("choice") == "a":
+        lm += "lpha"
+    else:
+        lm += "eta"
+    return lm
+
+@guidance
+async def async_func_calling_async_func(lm: models.Model):
+    lm += async_func()
+    lm += select(["a", "b"], name="choice")
+    if (await lm.get_async("choice")) == "a":
         lm += "lpha"
     else:
         lm += "eta"
@@ -85,6 +96,8 @@ def run(gfunc, sync: bool) -> str:
         (async_func, {"alpha", "beta"}),
         (sync_then_async, {"alphabeta", "betaalpha", "alphaalpha", "betabeta"}),
         (async_then_sync, {"alphabeta", "betaalpha", "alphaalpha", "betabeta"}),
+        (sync_func_calling_sync_func, {"alphabeta", "betaalpha", "alphaalpha", "betabeta"}),
+        (async_func_calling_async_func, {"alphabeta", "betaalpha", "alphaalpha", "betabeta"}),
         (async_func_calling_sync_func, {"alphabeta", "betaalpha", "alphaalpha", "betabeta"}),
         (sync_func_calling_async_func, {"alphabeta", "betaalpha", "alphaalpha", "betabeta"}),
     ],
@@ -101,6 +114,14 @@ def test_async(gfunc, expected, sync):
     ],
 )
 def test_async_with_sync_accessor(sync):
+    @guidance
+    async def async_func_with_sync_accessor(lm: models.Model):
+        lm += select(["a", "b"], name="choice")
+        if lm.get("choice") == "a":
+            lm += "lpha"
+        else:
+            lm += "eta"
+        return lm
     # This should raise an AwaitException because the sync accessor is not
     # allowed in the async function
     with pytest.raises(AwaitException):
