@@ -7,7 +7,7 @@ from contextvars import ContextVar, copy_context
 from copy import deepcopy
 from typing import TYPE_CHECKING, Any, Iterator, Optional, TypeVar, Union
 import warnings
-from ..._bridge import sync_to_reentrant_async, reentrant_await
+from ..._bridge import sync_to_reentrant_async, reentrant_await, run_async_coroutine_in_bg_async
 
 from typing_extensions import Self
 
@@ -298,14 +298,7 @@ class Model:
 
     def _run_sync(self) -> None:
         if not _below_entry_point.get():
-            from ...registry import get_bg_async
-            bg_async = get_bg_async()
-            thread, _ = bg_async._thread_and_loop()
-            if thread is threading.current_thread():
-                raise RuntimeError("Cannot nest async call -- already in background thread.")
-            fut = bg_async.run_async_coroutine(self._run())
-            return fut.result()
-
+            return run_async_coroutine_in_bg_async(self._run())
         return reentrant_await(self._run())
 
     async def _run_node(self, node: ASTNode) -> None:

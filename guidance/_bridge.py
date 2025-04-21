@@ -3,11 +3,11 @@ Heavily inspired by (read: largely stolen from)
 https://github.com/miguelgrinberg/greenletio
 """
 
-import sys
-from functools import wraps
 import contextvars
-from typing import Any, Callable, Coroutine, TypeVar, cast
+import sys
+import threading
 from functools import wraps
+from typing import Any, Callable, Coroutine, TypeVar, cast
 
 from greenlet import getcurrent, greenlet  # type: ignore[import-untyped]
 from typing_extensions import ParamSpec
@@ -15,6 +15,7 @@ from typing_extensions import ParamSpec
 
 class ReentrantAsyncException(RuntimeError):
     """Exception raised when a coroutine is awaited in a non-greenlet context."""
+
     pass
 
 
@@ -63,3 +64,20 @@ def sync_to_reentrant_async(fn: Callable[P, T]) -> Callable[P, Coroutine[Any, An
         return coro
 
     return wrapper
+
+
+def run_async_coroutine_in_bg_async(coro: Coroutine[Any, Any, T]) -> T:
+    """
+    Run a coroutine in the background thread and wait for it to finish.
+    (This is a blocking call.)
+    """
+
+    from .registry import get_bg_async
+
+    bg_async = get_bg_async()
+    thread, _ = bg_async._thread_and_loop()
+    if thread is threading.current_thread():
+        coro.close()
+        raise RuntimeError("Cannot nest async call -- already in background thread.")
+    fut = bg_async.run_async_coroutine(coro)
+    return fut.result()
