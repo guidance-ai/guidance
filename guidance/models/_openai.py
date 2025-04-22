@@ -354,6 +354,19 @@ class OpenAIInterpreter(Interpreter[OpenAIState]):
             wav_bytes = wav_buffer.getvalue()
             yield AudioOutput(value=base64.b64encode(wav_bytes).decode(), is_input=False)
 
+    def __deepcopy__(self, memo):
+        """Custom deepcopy to ensure client is not copied."""
+        cls = self.__class__
+        result = cls.__new__(cls)
+        memo[id(self)] = result
+        for k, v in self.__dict__.items():
+            if k == "client":
+                # Don't copy the client
+                setattr(result, k, v)
+            else:
+                setattr(result, k, deepcopy(v, memo))
+        return result
+
 
 class OpenAIImageInterpreter(OpenAIInterpreter):
     async def image_blob(self, node: ImageBlob, **kwargs) -> AsyncIterable[OutputAttr]:
