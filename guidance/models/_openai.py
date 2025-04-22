@@ -1,8 +1,8 @@
 import base64
 import wave
 from io import BytesIO
-from typing import TYPE_CHECKING, Iterator, Literal, Optional, Union, Callable
 from copy import deepcopy
+from typing import TYPE_CHECKING, Iterator, Literal, Optional, Union
 
 from pydantic import BaseModel, Discriminator, Field, TypeAdapter
 from typing_extensions import Annotated, assert_never
@@ -349,7 +349,7 @@ class OpenAIInterpreter(Interpreter[OpenAIState]):
         memo[id(self)] = result
         for k, v in self.__dict__.items():
             if k == "client":
-                # Don't copy the engine
+                # Don't copy the client
                 setattr(result, k, v)
             else:
                 setattr(result, k, deepcopy(v, memo))
