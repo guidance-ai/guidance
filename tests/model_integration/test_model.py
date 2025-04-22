@@ -76,11 +76,15 @@ def test_associativity(selected_model: models.Model):
     engine = selected_model.engine
 
     with patch.object(engine, "get_logits", side_effect=engine.get_logits) as get_logits_1:
-        _ = selected_model + (prompt + grammar)
+        lm = selected_model + (prompt + grammar)
+        _ = str(lm) # trigger execution
     prompt_tokens_1 = get_logits_1.call_args_list[0].kwargs["token_ids"]
 
     with patch.object(engine, "get_logits", side_effect=engine.get_logits) as get_logits_2:
-        _ = (selected_model + prompt) + grammar
+        lm = selected_model + prompt
+        _ = str(lm) # trigger execution
+        lm += grammar
+        _ = str(lm) # trigger execution
     prompt_tokens_2 = get_logits_2.call_args_list[0].kwargs["token_ids"]
 
     # Main assertion: the prompt tokens should be the same
