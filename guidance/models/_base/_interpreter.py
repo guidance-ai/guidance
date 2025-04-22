@@ -38,7 +38,6 @@ class Interpreter(Generic[S], ABC):
     async def run(self, node: ASTNode, **kwargs) -> AsyncIterable[OutputAttr]:
         async for attr in node.simplify()._run(self, **kwargs):
             if isinstance(attr, TextOutput) and attr.is_generated:
-                print(attr, attr.token_count)
                 # TODO: this should probably be a lower-level responsibility? Not sure.
                 self.state.token_count += attr.token_count
             yield attr
