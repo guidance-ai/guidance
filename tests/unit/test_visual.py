@@ -1,10 +1,10 @@
 import pytest
-from guidance._schema import GenTokenExtra, GenToken
 from guidance.registry import get_bg_async
 from guidance.trace import TraceHandler, LiteralInput, TextOutput
 from guidance.visual import TraceMessage, MetricMessage, ExecutionCompletedMessage, \
-    TokensMessage, ResetDisplayMessage, ClientReadyMessage, OutputRequestMessage, \
+    ResetDisplayMessage, ClientReadyMessage, OutputRequestMessage, \
     ClientReadyAckMessage, trace_node_to_html, display_trace_tree, trace_node_to_str, TopicExchange, GuidanceMessage
+from guidance.trace import TokenOutput, Token, Backtrack
 from guidance.visual import serialize_message, deserialize_message
 from guidance.visual._environment import Environment
 import asyncio
@@ -16,11 +16,18 @@ from guidance.visual._exchange import DEFAULT_TOPIC
     "message",
     [
         TraceMessage(trace_id=0),
+        TraceMessage(
+            trace_id=1,
+            node_attr=TokenOutput(
+                value="text", token=Token(token='text', bytes=b'text', prob=0)
+            )
+        ),
+        TraceMessage(
+            trace_id=2,
+            node_attr=Backtrack(n_tokens=1, bytes=b'')
+        ),
         MetricMessage(name="name", value="value"),
         ExecutionCompletedMessage(last_trace_id=0),
-        TokensMessage(trace_id=0, text="text", tokens=[
-            GenTokenExtra(token_id=0, prob=0, bytes=b'text', top_k=[GenToken(token_id=0, bytes=b'blah', prob=0)])
-        ]),
         ResetDisplayMessage(),
         ClientReadyMessage(),
         ClientReadyAckMessage(),

@@ -5,7 +5,6 @@ import json
 from typing import Optional, Dict
 from .._schema import GenToken
 
-from ..visual._message import TokensMessage
 from ..trace import (
     TextOutput,
     TokenOutput,
@@ -19,14 +18,13 @@ import html
 
 
 def trace_node_to_html(
-    node: TraceNode, prettify_roles=False, complete_msg: TokensMessage = None
+    node: TraceNode, prettify_roles=False
 ) -> str:
     """Represents trace path as html string.
 
     Args:
         node: Trace node that designates the end of a trace path for HTML output.
         prettify_roles: Enables prettier formatting for roles.
-        complete_msg: Output message received on completion of engine.
 
     Returns:
         HTML string of trace path as html.
@@ -38,10 +36,6 @@ def trace_node_to_html(
     prob_idx = 0
     # remaining_text = ""
     full_text = ""
-    if complete_msg:
-        for token in complete_msg.tokens:
-            full_text += token.text
-
     for i, node in enumerate(node_path):
         if isinstance(node.input, RoleOpenerInput):
             active_role = node
@@ -61,59 +55,19 @@ def trace_node_to_html(
                 attr = node.output
 
                 fmt = ""
-                if not complete_msg:
-                    if attr.is_generated:
-                        # fmt = f"<span style='background-color: rgba({165 * (1 - attr.prob)}, {165 * attr.prob}, 0, 0.15); border-radius: 3ps;' title='{attr.prob}'>{html.escape(attr.value)}</span>"
-                        fmt = f"<span style='background-color: rgba({0}, {255}, {0}, 0.15); border-radius: 3ps;' title='{attr.token.prob}'>{html.escape(attr.value)}</span>"
-                    elif attr.is_force_forwarded:
-                        fmt = f"<span style='background-color: rgba({0}, {0}, {255}, 0.15); border-radius: 3ps;' title='{attr.token.prob}'>{html.escape(attr.value)}</span>"
-                    else:
-                        # fmt = f"{html.escape(attr.value)}"
-                        fmt += f"<span style='background-color: rgba({255}, {255}, {255}, 0.15); border-radius: 3ps;' title='{attr.token.prob}'>{html.escape(attr.value)}</span>"
+                if attr.is_generated:
+                    # fmt = f"<span style='background-color: rgba({165 * (1 - attr.prob)}, {165 * attr.prob}, 0, 0.15); border-radius: 3ps;' title='{attr.prob}'>{html.escape(attr.value)}</span>"
+                    fmt = f"<span style='background-color: rgba({0}, {255}, {0}, 0.15); border-radius: 3ps;' title='{attr.token.prob}'>{html.escape(attr.value)}</span>"
+                elif attr.is_force_forwarded:
+                    fmt = f"<span style='background-color: rgba({0}, {0}, {255}, 0.15); border-radius: 3ps;' title='{attr.token.prob}'>{html.escape(attr.value)}</span>"
                 else:
-                    # switch to token-based
-                    # cell_tokens = attr.tokens
-                    # for token in cell_tokens:
-                    #     # assert token.token == complete_msg.tokens[prob_idx].token, f"Token mismatch {token.token} != {complete_msg.tokens[prob_idx].token}"
-                    #     if token.token_id != complete_msg.tokens[prob_idx].token_id:
-                    #         if remaining_text + token.text != complete_msg.tokens[prob_idx].text:
-                    #             remaining_text += token.text
-                    #             continue
-                    #         else:
-                    #             remaining_text = ""
-
-                    #     token_str = complete_msg.tokens[prob_idx].text
-                    #     prob = complete_msg.tokens[prob_idx].prob
-                    #     top_k = {}
-                    #     # find the correct token
-                    #     for _item in complete_msg.tokens[prob_idx].top_k:
-                    #         top_k[f"{_item.text}"] = f"{_item.prob} - Masked: {_item.is_masked}"
-                    #     top_k = json.dumps(top_k, indent=2)
-
-                    #     latency = f"{complete_msg.tokens[prob_idx].latency_ms:.2f}"
-
-                    #     if complete_msg.tokens[prob_idx].is_generated:
-                    #         fmt += f"<span style='background-color: rgba({0}, {127 + int(127 * prob)}, {0}, 0.15); border-radius: 3ps;' title='Token: \"{token_str}\" : {prob}\nTop-k: {top_k}\nlatency_ms: {latency}'>{html.escape(token_str)}</span>"
-                    #     elif complete_msg.tokens[prob_idx].is_force_forwarded:
-                    #         fmt += f"<span style='background-color: rgba({0}, {0}, {127 + int(127 * prob)}, 0.15); border-radius: 3ps;' title='Token: \"{token_str}\" : {prob}\nTop-k: {top_k}\nlatency_ms: {latency}'>{html.escape(token_str)}</span>"
-                    #     else:
-                    #         fmt += f"<span style='background-color: rgba({255}, {255}, {255}, 0.15); border-radius: 3ps;' title='Token: \"{token_str}\" : {prob}\nTop-k: {top_k}'>{html.escape(token_str)}</span>"
-
-                    #     full_text = full_text[len(token_str) :]
-                    #     prob_idx += 1
-
+                    # fmt = f"{html.escape(attr.value)}"
+                    fmt += f"<span style='background-color: rgba({255}, {255}, {255}, 0.15); border-radius: 3ps;' title='{attr.token.prob}'>{html.escape(attr.value)}</span>"
                     chunk_text = attr.value
                     # find tokens in complete message that cover this chunk
                     tokens: list[GenToken] = []
                     _idx = prob_idx
                     tokens_text = ""
-                    while _idx < len(complete_msg.tokens):
-                        _token = complete_msg.tokens[_idx]
-                        tokens_text += _token.text
-                        tokens.append(_token)
-                        if chunk_text in tokens_text:
-                            break
-                        _idx += 1
 
                     assert (
                         chunk_text in tokens_text

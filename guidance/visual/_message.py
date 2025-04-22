@@ -4,11 +4,47 @@ Messages are required to be added to the model registry for serialization.
 """
 from typing import Optional, Dict, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, root_validator
 
-from guidance._schema import GenTokenExtra
 from ..trace import NodeAttr
 import json
+import base64
+
+def byte_to_base64(b: bytes) -> str:
+    return base64.b64encode(b).decode('utf-8')
+
+def base64_to_bytes(base64_str: str) -> bytes:
+    return base64.b64decode(base64_str)
+
+
+def recursive_model_dump_json(model):
+    if isinstance(model, BaseModel):
+        model_dict = model.model_dump()
+        for field_name, field_value in model_dict.items():
+            if isinstance(field_value, bytes):
+                model_dict[field_name] = byte_to_base64(field_value)
+            elif isinstance(field_value, dict):
+                model_dict[field_name] = recursive_model_dump_json(field_value)
+            elif isinstance(field_value, list):
+                model_dict[field_name] = [recursive_model_dump_json(item) if isinstance(item, BaseModel) else item for item in field_value]
+        return model_dict
+    return model
+
+
+def recursive_model_parse_raw(model, data):
+    if isinstance(model, BaseModel):
+        model_instance = model.model_validate(data)
+        for field_name, field_value in model_instance.model_dump().items():
+            if isinstance(field_value, str):
+                field_type = model.__annotations__.get(field_name)
+                if field_type == bytes:
+                    model_instance.__setattr__(field_name, base64_to_bytes(field_value))
+            elif isinstance(field_value, dict):
+                model_instance.__setattr__(field_name, recursive_model_parse_raw(model, field_value))
+            elif isinstance(field_value, list):
+                model_instance.__setattr__(field_name, [recursive_model_parse_raw(model, item) if isinstance(item, dict) else item for item in field_value])
+        return model_instance
+    return model
 
 
 _msg_counter: int = -1
@@ -26,7 +62,22 @@ class GuidanceMessage(BaseModel):
             _msg_counter += 1
             kwargs["message_id"] = _msg_counter
         super().__init__(**kwargs)
+    
+    class Config:
+        json_encoders = { bytes: byte_to_base64 }
+    
+    @root_validator(pre=True)
+    def decode_base64_to_bytes(cls, values):
+        return _decode_base64_to_bytes(cls, values)
 
+def _decode_base64_to_bytes(cls, values):
+    for field_name, field_value in values.items():
+        field_type = cls.__annotations__.get(field_name)
+        if field_type == bytes and isinstance(field_value, str):
+            try:
+                values[field_name] = base64_to_bytes(field_value)
+            except Exception as e:  # pragma: no cover
+                raise ValueError(f"Failed to decode base64 string for '{field_name}': {e}")
 
 class TraceMessage(GuidanceMessage):
     """Update on a trace node."""
@@ -55,16 +106,6 @@ class ExecutionCompletedMessage(GuidanceMessage):
     is_err: bool = False
 
 
-class TokensMessage(GuidanceMessage):
-    """Fired when trace messages are completed, with tokens for client."""
-    trace_id: int
-    text: str
-    tokens: list[GenTokenExtra]
-
-    def __str__(self):
-        return f"message_id={self.message_id} class_name={self.class_name} trace_id={self.trace_id}"
-
-
 class ResetDisplayMessage(GuidanceMessage):
     """Instructs client to reset the display, removing all output."""
     pass
@@ -89,13 +130,11 @@ model_registry: Dict[str, type(GuidanceMessage)] = {
     'TraceMessage': TraceMessage,
     'ExecutionStartedMessage': ExecutionStartedMessage,
     'ExecutionCompletedMessage': ExecutionCompletedMessage,
-    'ExecutionCompletedOutputMessage': TokensMessage,
     'ResetDisplayMessage': ResetDisplayMessage,
     'ClientReadyMessage': ClientReadyMessage,
     'ClientReadyAckMessage': ClientReadyAckMessage,
     'OutputRequestMessage': OutputRequestMessage,
     'MetricMessage': MetricMessage,
-    'TokensMessage': TokensMessage,
 }
 
 
@@ -108,7 +147,8 @@ def serialize_message(message: GuidanceMessage) -> str:
     Returns:
         Serialized message in JSON format.
     """
-    message_json = message.model_dump_json(indent=2, serialize_as_any=True)
+    # message_json = message.model_dump_json(indent=2, serialize_as_any=True)
+    message_json = recursive_model_dump_json(message)
     return message_json
 
 
@@ -126,4 +166,5 @@ def deserialize_message(data: str) -> GuidanceMessage:
     model_class = model_registry.get(class_name)
     if not model_class:
         raise ValueError(f"Unknown class_name: {class_name}")
-    return model_class.model_validate_json(data)
+    message = recursive_model_parse_raw(model_class, data_json)
+    return message

@@ -4,7 +4,7 @@ from typing import Iterator
 
 from ..._ast import GrammarNode, ImageBlob, LiteralNode, RoleEnd, RoleStart
 from ..._utils import to_utf8_or_bytes_string
-from ...trace import ImageOutput, OutputAttr, BacktrackMessage, TokenOutput
+from ...trace import ImageOutput, OutputAttr, Backtrack, TokenOutput
 from .._base import Client
 from ._engine import Engine
 from ._state import EngineState
@@ -61,7 +61,7 @@ class EngineClient(Client[EngineState]):
             state.prompt += new_text
 
             if chunk.backtrack:
-                yield BacktrackMessage(
+                yield Backtrack(
                     n_tokens=chunk.backtrack,
                     bytes=chunk.backtrack_bytes,
                 )
@@ -91,7 +91,7 @@ class EngineClient(Client[EngineState]):
                     top_k=top_k,
                 )
                 if token.is_backtracked:
-                    yield BacktrackMessage(
+                    yield Backtrack(
                         n_tokens=1,
                         bytes=token.bytes,
                     )

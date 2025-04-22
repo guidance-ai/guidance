@@ -6,6 +6,7 @@ from typing import Any, Optional, Generator, Dict
 import logging
 from pydantic import BaseModel, Field
 from .._utils import pydantic_no_default_repr, pydantic_no_default_str, log_cleanup
+import base64
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,11 @@ class NodeAttr(BaseModel):
 
     def __str__(self):
         return pydantic_no_default_str(self)
+    
+    class Config:
+        json_encoders = {
+            bytes: lambda b: base64.b64encode(b).decode('utf-8')
+        }
 
 
 class InputAttr(NodeAttr):
@@ -154,7 +160,7 @@ class TokenOutput(TextOutput):
     token: Token
     top_k: Optional[list[Token]] = None
 
-class BacktrackMessage(OutputAttr):
+class Backtrack(OutputAttr):
     n_tokens: int
     bytes: bytes
 
