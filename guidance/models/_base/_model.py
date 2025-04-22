@@ -279,6 +279,8 @@ class Model:
                     # event loop.
                     # Otherwise, this is effectively equivalent to func(new_self)
                     new_self = await sync_to_reentrant_async(func)(new_self)
+                # may be some pending blocks
+                new_self._apply_blocks()
             self.__dict__ = new_self.__dict__ # I guess
             if self._pending is None:
                 return
