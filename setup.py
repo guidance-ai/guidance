@@ -27,6 +27,7 @@ install_requires = [
     "pydantic",
     "requests",
     "psutil",
+    "greenlet",
     "guidance-stitch",
     "llguidance==0.7.16",
 ]
