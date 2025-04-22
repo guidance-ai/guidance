@@ -5,7 +5,7 @@ import threading
 import asyncio
 from contextvars import ContextVar, copy_context
 from copy import deepcopy
-from typing import TYPE_CHECKING, Any, Iterator, Optional, TypeVar, Union
+from typing import TYPE_CHECKING, Any, Iterator, Optional, TypeVar, Union, Sequence
 import warnings
 from ..._reentrant_async import sync_to_reentrant_async, reentrant_await, run_async_coroutine_in_bg_async
 
@@ -261,6 +261,17 @@ class Model:
             # For legacy model.engine access (mostly for tests...)
             return getattr(self._interpreter, "engine")
         return super().__getattribute__(name)
+
+    async def run_batched_async(self, items: Sequence[Union[str, Function, AsyncFunction, ASTNode]]) -> Self:
+        lms = [self + item for item in items]
+        coros = [lm._run() for lm in lms]
+        await asyncio.gather(*coros)
+        return lms
+
+    def run_batched(self, items: Sequence[Union[str, Function, AsyncFunction, ASTNode]]) -> Self:
+        if not _below_entry_point.get():
+            return run_async_coroutine_in_bg_async(self.run_batched_async(items))
+        return reentrant_await(self.run_batched_async(items))
 
     async def _run(self) -> None:
         async def inner():
