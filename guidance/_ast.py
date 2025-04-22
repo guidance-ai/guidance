@@ -264,7 +264,6 @@ class RoleEnd(ASTNode):
 @dataclass
 class CaptureStart(ASTNode):
     name: str
-    list_append: bool = False
 
     def _run(self, interpreter: "Interpreter[S, R]", **kwargs) -> R:
         return interpreter.capture_start(self, **kwargs)

@@ -136,8 +136,8 @@ class Model:
                     if isinstance(closer, str):
                         closer = _parse_tags(closer)
                     self._add_to_pending(closer)
-                    if block.name is not None:
-                        self._add_to_pending(CaptureStart(name=block.name))
+                if block.name is not None:
+                    self._add_to_pending(CaptureEnd(name=block.name))
             else:
                 # Not closed, so keep it
                 new_active_blocks.append(block)
@@ -147,7 +147,7 @@ class Model:
             if block not in self._active_blocks:
                 new_active_blocks.append(block)
                 if block.name is not None:
-                    self._add_to_pending(CaptureEnd(name=block.name))
+                    self._add_to_pending(CaptureStart(name=block.name))
                 if block.opener is not None:
                     opener = block.opener
                     if isinstance(opener, str):

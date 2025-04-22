@@ -22,6 +22,8 @@ from ..._ast import (
     SelectNode,
     SubgrammarNode,
     SubstringNode,
+    CaptureStart,
+    CaptureEnd,
 )
 from ..._utils import bytes_from
 from ...trace import OutputAttr
@@ -35,6 +37,15 @@ class Interpreter(Generic[S], ABC):
 
     def run(self, node: ASTNode, **kwargs) -> AsyncIterable[OutputAttr]:
         return node.simplify()._run(self, **kwargs)
+
+    async def capture_start(self, node: CaptureStart, **kwargs) -> AsyncIterable[OutputAttr]:
+        self.state.open_capture(node.name)
+        if False:
+            # Yes, this is intentional.
+            yield
+
+    async def capture_end(self, node: CaptureEnd, **kwargs) -> AsyncIterable[OutputAttr]:
+        yield self.state.close_capture(node.name)
 
     async def concatenate(self, node: Concatenate, **kwargs) -> AsyncIterable[OutputAttr]:
         buffer: Optional[GrammarNode] = None
