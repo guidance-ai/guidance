@@ -14,6 +14,7 @@ class State(ABC):
         self.captures: dict[str, Union[CaptureVar, list[CaptureVar]]] = {}
         self.active_role: Optional[str] = None
         self.open_capture_blocks: dict[str, int] = {}
+        self.token_count: int = 0
 
     def open_capture(self, name: str) -> None:
         self.open_capture_blocks[name] = len(str(self))

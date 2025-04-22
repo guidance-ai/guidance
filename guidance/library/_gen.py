@@ -133,10 +133,10 @@ def gen(
                 )
 
             grm = with_temperature(select(options), temperature)
-            initial_token_count = lm.token_count
+            initial_token_count = lm.get_token_count()
             tagged_name = "__LIST_APPEND:" + name if list_append and name is not None else name
             with block(tagged_name):
-                while lm.token_count <= max_tokens + initial_token_count:
+                while lm.get_token_count() <= max_tokens + initial_token_count:
                     lm += grm
                     tool_called = False
                     for i in range(len(tools)):

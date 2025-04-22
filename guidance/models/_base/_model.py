@@ -350,6 +350,14 @@ class Model:
         """Get the length of the model."""
         return len(await self.to_string_async())
 
+    async def get_token_count_async(self) -> int:
+        """Get the token count of the model."""
+        return (await self._get_state_async()).token_count
+
+    def get_token_count(self) -> int:
+        """Get the token count of the model."""
+        return self._get_state().token_count
+
 class ModelStream:
     def __init__(
         self,

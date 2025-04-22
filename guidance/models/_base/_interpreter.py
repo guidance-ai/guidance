@@ -26,7 +26,7 @@ from ..._ast import (
     CaptureEnd,
 )
 from ..._utils import bytes_from
-from ...trace import OutputAttr
+from ...trace import OutputAttr, TextOutput
 from ._state import State
 
 S = TypeVar("S", bound=State)
@@ -35,8 +35,13 @@ class Interpreter(Generic[S], ABC):
     def __init__(self, state: S):
         self.state = state
 
-    def run(self, node: ASTNode, **kwargs) -> AsyncIterable[OutputAttr]:
-        return node.simplify()._run(self, **kwargs)
+    async def run(self, node: ASTNode, **kwargs) -> AsyncIterable[OutputAttr]:
+        async for attr in node.simplify()._run(self, **kwargs):
+            if isinstance(attr, TextOutput) and attr.is_generated:
+                print(attr, attr.token_count)
+                # TODO: this should probably be a lower-level responsibility? Not sure.
+                self.state.token_count += attr.token_count
+            yield attr
 
     async def capture_start(self, node: CaptureStart, **kwargs) -> AsyncIterable[OutputAttr]:
         self.state.open_capture(node.name)

@@ -69,7 +69,7 @@ class EngineInterpreter(Interpreter[EngineState]):
 
             # Update the state
             self.state.prompt += new_text
-            yield TextOutput(value=new_text, token_count=chunk.new_token_count, is_generated=True)
+            yield TextOutput(value=new_text, token_count=chunk.new_token_count, is_generated=chunk.is_generated)
 
             # TODO -- rewrite engine internals to make sure chunk.{generated,fast_forwarded}_tokens aren't empty...
             # # TODO: GenTokenExtra
