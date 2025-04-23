@@ -18,17 +18,22 @@ def azureai_chat_model():
     slowdown()
 
     azureai_endpoint = env_or_skip("AZUREAI_CHAT_ENDPOINT")
-    model = env_or_skip("AZUREAI_CHAT_MODEL")
+    azureai_deployment = env_or_skip("AZUREAI_DEPLOYMENT_NAME")
+    model_name = env_or_skip("AZUREAI_CHAT_MODEL")
 
     print(f"{azureai_endpoint=}")
-    print(f"{model=}")
+    print(f"{azureai_deployment=}")
+    print(f"{model_name=}")
 
     token_provider = get_bearer_token_provider(
         DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
     )
 
     lm = create_azure_openai_model(
-        model=model, azure_endpoint=azureai_endpoint, azure_ad_token_provider=token_provider
+        model_name=model_name,
+        azure_deployment=azureai_deployment,
+        azure_endpoint=azureai_endpoint,
+        azure_ad_token_provider=token_provider,
     )
     assert isinstance(lm, models.Model)
 

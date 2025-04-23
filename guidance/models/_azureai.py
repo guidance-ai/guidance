@@ -8,8 +8,8 @@ class AzureOpenAIInterpreter(BaseOpenAIInterpreter):
     def __init__(
         self,
         *,
-        model: str,
-        azure_deployment: Optional[str] = None,
+        model_name: str,
+        azure_deployment: str,
         api_version: Optional[str] = None,
         api_key: Optional[str] = None,
         azure_ad_token: Optional[str] = None,
@@ -32,14 +32,14 @@ class AzureOpenAIInterpreter(BaseOpenAIInterpreter):
             organization=organization,
             **kwargs,
         )
-        super().__init__(model, client)
+        super().__init__(model_name, client)
 
 
 def create_azure_openai_model(
-    model: str,
+    model_name: str,
+    azure_deployment: str,
     echo: bool = True,
     *,
-    azure_deployment: Optional[str] = None,
     api_version: Optional[str] = None,
     api_key: Optional[str] = None,
     azure_ad_token: Optional[str] = None,
@@ -51,9 +51,9 @@ def create_azure_openai_model(
 
     Parameters
     ----------
-    model : str
+    model_name : str
         The name of the Azure OpenAI model to use (e.g. gpt-4o-mini).
-    azure_deployment : str | None
+    azure_deployment : str
         The Azure deployment name to use for the model.
     api_version : str | None
         The API version to use for the Azure OpenAI service.
@@ -71,11 +71,11 @@ def create_azure_openai_model(
         All extra keyword arguments are passed directly to the `openai.OpenAI` constructor. Commonly used argument
         names include `base_url` and `organization`
     """
-    if "audio-preview" in model:
+    if "audio-preview" in model_name:
         interpreter_cls = type(
             "AzureOpenAIAudioInterpreter", (AzureOpenAIInterpreter, OpenAIAudioMixin), {}
         )
-    elif model.startswith("gpt-4o") or model.startswith("o1"):
+    elif model_name.startswith("gpt-4o") or model_name.startswith("o1"):
         interpreter_cls = type(
             "AzureOpenAIImageInterpreter", (AzureOpenAIInterpreter, OpenAIImageMixin), {}
         )
@@ -83,7 +83,7 @@ def create_azure_openai_model(
         interpreter_cls = AzureOpenAIInterpreter
 
     interpreter = interpreter_cls(
-        model=model,
+        model_name=model_name,
         azure_deployment=azure_deployment,
         api_version=api_version,
         api_key=api_key,
