@@ -4,7 +4,7 @@ Messages are required to be added to the model registry for serialization.
 """
 from typing import Optional, Dict, Union, Any, MutableMapping
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, model_validator, field_validator
 
 from ..trace import NodeAttr
 import json
@@ -52,16 +52,21 @@ class GuidanceMessage(BaseModel):
     """Message sent within Guidance layer."""
 
     message_id: int = Field(default=None)
-    class_name: str = ""
+    class_name: str = Field(default=None)
 
-    def __init__(self, **kwargs):
+    @field_validator("class_name", mode="before")
+    def validate_class_name(cls, v):
+        if v is None:
+            v = cls.__name__
+        return v
+
+    @field_validator("message_id", mode="before")
+    def validate_message_id(cls, v):
         global _msg_counter
-
-        kwargs["class_name"] = self.__class__.__name__
-        if kwargs.get("message_id") is None:
+        if v is None:
             _msg_counter += 1
-            kwargs["message_id"] = _msg_counter
-        super().__init__(**kwargs)
+            v = _msg_counter
+        return v
     
     class Config:
         json_encoders = { bytes: byte_to_base64 }
