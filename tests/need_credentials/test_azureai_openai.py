@@ -7,6 +7,7 @@ import pytest
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 
 from guidance import assistant, gen, models, system, user
+from guidance.models._azureai import create_azure_openai_model
 
 from ..model_specific import common_chat_testing
 from ..utils import env_or_skip, slowdown
@@ -26,10 +27,10 @@ def azureai_chat_model():
         DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
     )
 
-    lm = models.AzureOpenAI(
+    lm = create_azure_openai_model(
         model=model, azure_endpoint=azureai_endpoint, azure_ad_token_provider=token_provider
     )
-    assert isinstance(lm, models.AzureOpenAI)
+    assert isinstance(lm, models.Model)
 
     return lm
 
