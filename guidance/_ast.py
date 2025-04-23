@@ -6,7 +6,6 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
-    Iterable,
     AsyncIterable,
     Optional,
     Sequence,
@@ -195,11 +194,10 @@ class AsyncFunction(Tagged):
 
 
 S = TypeVar("S", bound="State")
-R = TypeVar("R", bound=Union[Iterable[OutputAttr], AsyncIterable[OutputAttr]])
 
 class ASTNode(ABC):
     @abstractmethod
-    def _run(self, interpreter: "Interpreter[S, R]", **kwargs) -> R:
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> AsyncIterable[OutputAttr]:
         pass
 
     def simplify(self) -> "ASTNode":
