@@ -34,7 +34,6 @@ def azureai_chat_model():
     return lm
 
 
-@pytest.mark.skip(reason="resource has been temporarily blocked")
 def test_azureai_openai_chat_smoke(azureai_chat_model):
     common_chat_testing.smoke_chat(azureai_chat_model)
 

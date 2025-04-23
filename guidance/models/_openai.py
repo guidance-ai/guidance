@@ -2,7 +2,7 @@ import base64
 import wave
 from io import BytesIO
 from copy import deepcopy
-from typing import TYPE_CHECKING, Iterator, Literal, Optional, Union
+from typing import TYPE_CHECKING, Callable, Iterator, Literal, Optional, Union
 
 from pydantic import BaseModel, Discriminator, Field, TypeAdapter
 from typing_extensions import Annotated, assert_never
@@ -27,6 +27,7 @@ from ._base import Interpreter, Model, State
 if TYPE_CHECKING:
     from openai.types.chat import ChatCompletionChunk
     from azure.core.credentials import AzureKeyCredential, TokenCredential
+
 
 def get_role_start(role: str) -> str:
     # ChatML is as good as anything
@@ -148,14 +149,15 @@ class OpenAIState(State):
         return s
 
 
-class OpenAIInterpreter(Interpreter[OpenAIState]):
+class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
+    """Base class for interacting with OpenAI models."""
+
     log_probs: bool = True
 
     def __init__(
         self,
         model: str,
-        api_key: Optional[str] = None,
-        **kwargs,
+        client: "openai.OpenAI",
     ):
         try:
             import openai
@@ -165,7 +167,7 @@ class OpenAIInterpreter(Interpreter[OpenAIState]):
             )
         self.state = OpenAIState()
         self.model = model
-        self.client = openai.OpenAI(api_key=api_key, **kwargs)
+        self.client = client
 
     def run(self, node: ASTNode, **kwargs) -> Iterator[OutputAttr]:
         if not isinstance(node, RoleStart) and self.state.active_role is None:
@@ -266,9 +268,7 @@ class OpenAIInterpreter(Interpreter[OpenAIState]):
         ) as chunks:
             yield from self._handle_stream(chunks)
 
-    def _handle_stream(
-        self, chunks: Iterator["ChatCompletionChunk"]
-    ) -> Iterator[OutputAttr]:
+    def _handle_stream(self, chunks: Iterator["ChatCompletionChunk"]) -> Iterator[OutputAttr]:
         audio: Optional[AssistantAudio] = None
         for chunk in chunks:
             try:
@@ -354,6 +354,24 @@ class OpenAIInterpreter(Interpreter[OpenAIState]):
             else:
                 setattr(result, k, deepcopy(v, memo))
         return result
+
+
+class OpenAIInterpreter(BaseOpenAIInterpreter):
+    def __init__(
+        self,
+        model: str,
+        api_key: Optional[str] = None,
+        **kwargs,
+    ):
+        try:
+            import openai
+        except ImportError:
+            raise Exception(
+                "Please install the openai package version >= 1 using `pip install openai -U` in order to use guidance.models.OpenAI!"
+            )
+        client = openai.OpenAI(api_key, **kwargs)
+        super().__init__(model=model, client=client)
+
 
 class OpenAIImageInterpreter(OpenAIInterpreter):
     def image_blob(self, node: ImageBlob, **kwargs) -> Iterator[OutputAttr]:
@@ -443,11 +461,10 @@ class OpenAI(Model):
         else:
             interpreter_cls = OpenAIInterpreter
 
-        super().__init__(
-            interpreter=interpreter_cls(model, api_key=api_key, **kwargs), echo=echo
-        )
+        super().__init__(interpreter=interpreter_cls(model, api_key=api_key, **kwargs), echo=echo)
 
-class AzureOpenAIInterpreter(OpenAIInterpreter):
+
+class AzureOpenAIInterpreter(BaseOpenAIInterpreter):
     def __init__(
         self,
         *,
@@ -466,9 +483,7 @@ class AzureOpenAIInterpreter(OpenAIInterpreter):
             raise Exception(
                 "Please install the openai package version >= 1 using `pip install openai -U` in order to use guidance.models.OpenAI!"
             )
-        self.model = model
-        self.state = OpenAIState()
-        self.client = openai.AzureOpenAI(
+        client = openai.AzureOpenAI(
             azure_deployment=azure_deployment,
             api_version=api_version,
             api_key=api_key,
@@ -477,6 +492,8 @@ class AzureOpenAIInterpreter(OpenAIInterpreter):
             organization=organization,
             **kwargs,
         )
+        super().__init__(model, client)
+
 
 class AzureOpenAI(Model):
     def __init__(
@@ -517,9 +534,13 @@ class AzureOpenAI(Model):
             names include `base_url` and `organization`
         """
         if "audio-preview" in model:
-            interpreter_cls = type("AzureOpenAIAudioInterpreter", (AzureOpenAIInterpreter, OpenAIAudioInterpreter), {})
+            interpreter_cls = type(
+                "AzureOpenAIAudioInterpreter", (AzureOpenAIInterpreter, OpenAIAudioInterpreter), {}
+            )
         elif model.startswith("gpt-4o") or model.startswith("o1"):
-            interpreter_cls = type("AzureOpenAIImageInterpreter", (AzureOpenAIInterpreter, OpenAIImageInterpreter), {})
+            interpreter_cls = type(
+                "AzureOpenAIImageInterpreter", (AzureOpenAIInterpreter, OpenAIImageInterpreter), {}
+            )
         else:
             interpreter_cls = AzureOpenAIInterpreter
 
@@ -534,8 +555,9 @@ class AzureOpenAI(Model):
                 organization=organization,
                 **kwargs,
             ),
-            echo=echo
+            echo=echo,
         )
+
 
 class AzureInferenceInterpreter(OpenAIInterpreter):
     def __init__(
@@ -572,15 +594,15 @@ class AzureInferenceInterpreter(OpenAIInterpreter):
             )
 
         with self.client.complete(
-            body = {
+            body={
                 "messages": TypeAdapter(list[Message]).dump_python(self.state.messages),
                 "log_probs": self.log_probs,
                 "stream": True,
                 **kwargs,
             },
-            headers = {
+            headers={
                 "extra-parameters": "pass-through",
-            }
+            },
         ) as chunks:
             yield from self._handle_stream(chunks)
 
@@ -589,13 +611,14 @@ class AzureInferenceInterpreter(OpenAIInterpreter):
 
     def json(self, node: JsonNode, **kwargs) -> Iterator[OutputAttr]:
         return self._run(
-            json_schema = {
+            json_schema={
                 "name": "json_schema",  # TODO?
                 "schema": node.schema,
                 "strict": True,
             },
             **kwargs,
         )
+
 
 class AzureInference(Model):
     def __init__(
@@ -621,5 +644,5 @@ class AzureInference(Model):
                 endpoint=endpoint,
                 credential=credential,
             ),
-            echo=echo
+            echo=echo,
         )
