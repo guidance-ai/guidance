@@ -1,11 +1,10 @@
 import base64
 import wave
-from io import BytesIO
 from copy import deepcopy
+from io import BytesIO
 from typing import TYPE_CHECKING, Callable, Iterator, Literal, Optional, Union
 
 from pydantic import BaseModel, Discriminator, Field, TypeAdapter
-
 from typing_extensions import Annotated, assert_never
 
 from .._ast import (
@@ -20,10 +19,10 @@ from .._ast import (
     RoleStart,
     RuleNode,
 )
+from .._utils import bytes_from
 from ..trace import ImageOutput, OutputAttr, TextOutput
 from ..trace._trace import AudioOutput
 from ._base import Interpreter, State
-
 
 if TYPE_CHECKING:
     import openai
@@ -355,3 +354,57 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
             else:
                 setattr(result, k, deepcopy(v, memo))
         return result
+
+
+class OpenAIImageMixin:
+    def image_blob(self, node: ImageBlob, **kwargs) -> Iterator[OutputAttr]:
+        try:
+            import PIL.Image
+        except ImportError:
+            raise Exception(
+                "Please install the Pillow package `pip install Pillow` in order to use images with OpenAI!"
+            )
+
+        image_bytes = base64.b64decode(node.data)
+        with PIL.Image.open(BytesIO(image_bytes)) as pil_image:
+            # Use PIL to infer file format
+            # TODO: just store format on ImageOutput type
+            format = pil_image.format
+            if format is None:
+                raise ValueError(f"Cannot upload image with unknown format")
+
+        mime_type = f"image/{format.lower()}"
+        self.state.content.append(
+            {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{node.data}"}}
+        )
+        yield ImageOutput(value=node.data, input=True)
+
+    def image_url(self, node: ImageUrl, **kwargs) -> Iterator[OutputAttr]:
+        self.state.content.append({"type": "image_url", "image_url": {"url": node.url}})
+        image_bytes = bytes_from(node.url, allow_local=False)
+        base64_string = base64.b64encode(image_bytes).decode("utf-8")
+        yield ImageOutput(value=base64_string, input=True)
+
+
+class OpenAIAudioMixin:
+    def audio_blob(self, node: ImageBlob, **kwargs) -> Iterator[OutputAttr]:
+        format = "wav"  # TODO: infer from node
+        self.state.content.append(
+            AudioContent(
+                type="input_audio",
+                input_audio=InputAudio(
+                    data=node.data,
+                    format=format,
+                ),
+            )
+        )
+        yield AudioOutput(value=node.data, format=format, input=True)
+
+    def gen_audio(self, node: GenAudio, **kwargs) -> Iterator[OutputAttr]:
+        yield from self._run(
+            modalities=["text", "audio"],  # Has to be both?
+            audio={
+                "voice": node.kwargs.get("voice", "alloy"),
+                "format": "pcm16",  # Has to be pcm16 for streaming
+            },
+        )
