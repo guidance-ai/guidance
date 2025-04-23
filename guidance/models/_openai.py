@@ -81,7 +81,6 @@ class OpenAI(Model):
         super().__init__(interpreter=interpreter_cls(model, api_key=api_key, **kwargs), echo=echo)
 
 
-
 class AzureInferenceInterpreter(OpenAIInterpreter):
     def __init__(
         self,
