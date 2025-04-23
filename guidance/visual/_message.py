@@ -4,7 +4,7 @@ Messages are required to be added to the model registry for serialization.
 """
 from typing import Optional, Dict, Union, Any, MutableMapping
 
-from pydantic import BaseModel, Field, model_validator, field_validator
+from pydantic import BaseModel, Field, model_validator, field_validator, ConfigDict
 
 from ..trace import NodeAttr
 import json
@@ -54,6 +54,10 @@ class GuidanceMessage(BaseModel):
     message_id: int = Field(default=None)
     class_name: str = Field(default=None)
 
+    model_config = ConfigDict(
+        json_encoders={bytes: byte_to_base64},
+    )
+
     @field_validator("class_name", mode="before")
     def validate_class_name(cls, v):
         if v is None:
@@ -67,10 +71,7 @@ class GuidanceMessage(BaseModel):
             _msg_counter += 1
             v = _msg_counter
         return v
-    
-    class Config:
-        json_encoders = { bytes: byte_to_base64 }
-    
+
     @model_validator(mode="before")
     def decode_base64_to_bytes(cls, values):
         if isinstance(values, dict):
