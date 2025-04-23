@@ -2,9 +2,9 @@
 
 Messages are required to be added to the model registry for serialization.
 """
-from typing import Optional, Dict, Union
+from typing import Optional, Dict, Union, Any, MutableMapping
 
-from pydantic import BaseModel, Field, root_validator
+from pydantic import BaseModel, Field, model_validator
 
 from ..trace import NodeAttr
 import json
@@ -66,11 +66,13 @@ class GuidanceMessage(BaseModel):
     class Config:
         json_encoders = { bytes: byte_to_base64 }
     
-    @root_validator(pre=True)
+    @model_validator(mode="before")
     def decode_base64_to_bytes(cls, values):
-        return _decode_base64_to_bytes(cls, values)
+        if isinstance(values, dict):
+            return _decode_base64_to_bytes(cls, values)
+        return values
 
-def _decode_base64_to_bytes(cls, values):
+def _decode_base64_to_bytes(cls, values: MutableMapping[str, Any]) -> MutableMapping[str, Any]:
     for field_name, field_value in values.items():
         field_type = cls.__annotations__.get(field_name)
         if field_type == bytes and isinstance(field_value, str):
@@ -78,6 +80,7 @@ def _decode_base64_to_bytes(cls, values):
                 values[field_name] = base64_to_bytes(field_value)
             except Exception as e:  # pragma: no cover
                 raise ValueError(f"Failed to decode base64 string for '{field_name}': {e}")
+    return values
 
 class TraceMessage(GuidanceMessage):
     """Update on a trace node."""
@@ -126,7 +129,7 @@ class OutputRequestMessage(GuidanceMessage):
     pass
 
 
-model_registry: Dict[str, type(GuidanceMessage)] = {
+model_registry: Dict[str, type[GuidanceMessage]] = {
     'TraceMessage': TraceMessage,
     'ExecutionStartedMessage': ExecutionStartedMessage,
     'ExecutionCompletedMessage': ExecutionCompletedMessage,

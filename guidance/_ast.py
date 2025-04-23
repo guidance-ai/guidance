@@ -19,7 +19,7 @@ from ._schema import JsonGrammar, LarkGrammar, LLGrammar
 from .trace import OutputAttr
 
 if TYPE_CHECKING:
-    from .models._base import Client, State
+    from .models._base import Interpreter, State
 
 # to support the embedding of guidance functions inside Python f-strings we use tags with these delimiters
 tag_start = "{{G|"  # start of a call tag
@@ -150,7 +150,7 @@ S = TypeVar("S", bound="State")
 
 class ASTNode(ABC):
     @abstractmethod
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
         pass
 
     def simplify(self) -> "ASTNode":
@@ -161,48 +161,48 @@ class ASTNode(ABC):
 class RoleStart(ASTNode):
     role: str
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
-        return client._role_start(state, self, **kwargs)
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+        return interpreter._role_start(self, **kwargs)
 
 
 @dataclass
 class RoleEnd(ASTNode):
     role: str
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
-        return client._role_end(state, self, **kwargs)
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+        return interpreter._role_end(self, **kwargs)
 
 
 @dataclass
 class ImageBlob(ASTNode):
     data: str
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
-        return client.image_blob(state, self, **kwargs)
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+        return interpreter.image_blob(self, **kwargs)
 
 
 @dataclass
 class ImageUrl(ASTNode):
     url: str
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
-        return client.image_url(state, self, **kwargs)
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+        return interpreter.image_url(self, **kwargs)
 
 
 @dataclass
 class AudioBlob(ASTNode):
     data: str
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
-        return client.audio_blob(state, self, **kwargs)
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+        return interpreter.audio_blob(self, **kwargs)
 
 
 class GenAudio(ASTNode):
     def __init__(self, kwargs: dict[str, Any]):
         self.kwargs = kwargs
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
-        return client.gen_audio(state, self, **kwargs)
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+        return interpreter.gen_audio(self, **kwargs)
 
 
 @dataclass(frozen=True)
@@ -315,16 +315,16 @@ class LiteralNode(GrammarNode):
     def is_null(self) -> bool:
         return self.value == ""
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
-        return client.text(state, self, **kwargs)
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+        return interpreter.text(self, **kwargs)
 
 
 @dataclass(frozen=True)
 class RegexNode(GrammarNode):
     regex: Optional[str]
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
-        return client.regex(state, self, **kwargs)
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+        return interpreter.regex(self, **kwargs)
 
 
 @dataclass(frozen=True)
@@ -351,8 +351,8 @@ class SelectNode(GrammarNode):
     def children(self) -> Sequence["GrammarNode"]:
         return self.alternatives
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
-        return client.select(state, self, **kwargs)
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+        return interpreter.select(self, **kwargs)
 
 
 @dataclass(frozen=True)
@@ -374,8 +374,8 @@ class JoinNode(GrammarNode):
     def children(self) -> Sequence["GrammarNode"]:
         return self.nodes
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
-        return client.join(state, self, **kwargs)
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+        return interpreter.join(self, **kwargs)
 
 
 @dataclass(frozen=True)
@@ -400,8 +400,8 @@ class RepeatNode(GrammarNode):
     def simplify(self) -> GrammarNode:
         return RepeatNode(self.node.simplify(), self.min, self.max)
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
-        return client.repeat(state, self, **kwargs)
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+        return interpreter.repeat(self, **kwargs)
 
 
 @dataclass(frozen=True)
@@ -413,8 +413,8 @@ class SubstringNode(GrammarNode):
         # this can be used as part of bigger regexes
         return True
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
-        return client.substring(state, self, **kwargs)
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+        return interpreter.substring(self, **kwargs)
 
 
 # This creates a name for the given grammar node (value), which can be referenced
@@ -464,8 +464,8 @@ class RuleNode(GrammarNode):
     def children(self) -> Sequence["GrammarNode"]:
         return (self.value,)
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
-        return client.rule(state, self, **kwargs)
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+        return interpreter.rule(self, **kwargs)
 
 
 @dataclass(frozen=True, eq=False)
@@ -484,10 +484,10 @@ class RuleRefNode(GrammarNode):
         # so it should never be terminal.
         return False
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
         if self.target is None:
             raise ValueError("RuleRefNode target not set")
-        return client.rule(state, self.target)
+        return interpreter.rule(self.target)
 
 
 @dataclass(frozen=True)
@@ -504,24 +504,24 @@ class SubgrammarNode(BaseSubgrammarNode):
     body: GrammarNode
     skip_regex: Optional[str] = None
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
-        return client.subgrammar(state, self, **kwargs)
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+        return interpreter.subgrammar(self, **kwargs)
 
 
 @dataclass(frozen=True, eq=False)
 class JsonNode(BaseSubgrammarNode):
     schema: dict[str, Any]
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
-        return client.json(state, self, **kwargs)
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+        return interpreter.json(self, **kwargs)
 
 
 @dataclass(frozen=True, eq=False)
 class LarkNode(BaseSubgrammarNode):
     lark_grammar: str
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
-        return client.lark(state, self, **kwargs)
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+        return interpreter.lark(self, **kwargs)
 
 
 class LLSerializer:

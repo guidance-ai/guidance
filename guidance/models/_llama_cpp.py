@@ -13,7 +13,7 @@ import numpy as np
 from .._schema import GenToken, GenTokenExtra
 from .._utils import normalize_notebook_stdout_stderr, softmax
 from ._base import Model
-from ._engine import Engine, EngineClient, EngineState, Tokenizer
+from ._engine import Engine, EngineInterpreter, EngineState, Tokenizer
 
 try:
     import llama_cpp
@@ -390,6 +390,5 @@ class LlamaCpp(Model):
             enable_monitoring=enable_monitoring,
             **llama_cpp_kwargs,
         )
-        state = EngineState()
-        client = EngineClient(engine)
-        super().__init__(client=client, state=state, echo=echo)
+        interpreter = EngineInterpreter(engine)
+        super().__init__(interpreter=interpreter, echo=echo)

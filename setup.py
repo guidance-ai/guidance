@@ -16,7 +16,6 @@ import os
 import re
 import codecs
 from setuptools import setup, find_packages
-from pybind11.setup_helpers import Pybind11Extension, build_ext
 
 here = os.path.abspath(os.path.dirname(__file__))
 
@@ -24,18 +23,12 @@ llamacpp_requires = ["llama-cpp-python==0.3.7"]
 transformers_requires = ["transformers==4.48.2"]
 
 install_requires = [
-    "diskcache",
     "numpy",
-    "ordered_set",
-    "platformdirs",
     "pydantic",
-    "referencing",
     "requests",
     "psutil",
-    "tiktoken>=0.3",
     "guidance-stitch",
-    "llguidance==0.6.31",
-    "setuptools" # TODO - Remove before release, used for multimodal mocks in python 3.12
+    "llguidance==0.7.16",
 ]
 
 # Our basic list of 'extras'
@@ -65,12 +58,14 @@ unittest_requires = [
     "jsonschema",
     "pytest",
     "pytest-cov",
+    "pytest-asyncio",
     "tokenizers",
 ]
 test_requires = [
     "types-regex",
     "types-requests",
     "types-jsonschema",
+    "diskcache",
     "requests",
     "azure-identity",
     "bitsandbytes",
@@ -80,6 +75,7 @@ test_requires = [
     "sentencepiece",
     "torch",
     "transformers",
+    "tiktoken>=0.3",
     "mypy==1.9.0",
 ] + unittest_requires
 
@@ -119,12 +115,6 @@ setup(
     long_description="Guidance enables you to control modern language models more effectively and efficiently than traditional prompting or chaining. Guidance programs allow you to interleave generation, prompting, and logical control into a single continuous flow matching how the language model actually processes the text.",
     packages=find_packages(exclude=["notebooks", "client", "tests", "tests.*"]),
     package_data={"guidance": ["resources/*"]},
-    ext_modules=[
-        Pybind11Extension(
-            "guidance.cpp", ["guidance/_cpp/main.cpp", "guidance/_cpp/byte_trie.cpp"]
-        )
-    ],
-    cmdclass={"build_ext": build_ext},
     python_requires=">=3.9",
     install_requires=install_requires,
     extras_require={

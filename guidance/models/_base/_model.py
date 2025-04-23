@@ -4,7 +4,7 @@ import queue
 import threading
 from contextvars import ContextVar, copy_context
 from copy import deepcopy
-from typing import TYPE_CHECKING, Any, Generic, Iterator, Optional, TypeVar, Union
+from typing import TYPE_CHECKING, Any, Iterator, Optional, TypeVar, Union
 
 from typing_extensions import Self
 
@@ -32,7 +32,7 @@ from ...trace import (
 )
 from ...trace._trace import AudioInput
 from ...visual import TraceMessage
-from ._client import Client
+from ._interpreter import Interpreter
 from ._state import State
 
 if TYPE_CHECKING:
@@ -58,16 +58,14 @@ S = TypeVar("S", bound=State)
 D = TypeVar("D", bound=Any)
 
 
-class Model(Generic[S]):
+class Model:
     def __init__(
         self,
-        client: Client[S],
-        state: S,
+        interpreter: Interpreter[S],
         echo: bool = True,
     ) -> None:
         self.echo = echo
-        self._client = client
-        self._state = state
+        self._interpreter = interpreter
         self._active_blocks: dict[Block, int] = {}
         self.token_count: int = 0
 
@@ -131,7 +129,7 @@ class Model(Generic[S]):
         else:
             self._update_trace_node(self._id, self._parent_id, StatelessGuidanceInput(value=node))
 
-        for i, output_attr in enumerate(self._client.run(self._state, node)):
+        for i, output_attr in enumerate(self._interpreter.run(node)):
             if isinstance(output_attr, TokenOutput) and not output_attr.is_input:
                 # TODO: put this elsewhere (inside state?)
                 self.token_count += 1
@@ -202,7 +200,7 @@ class Model(Generic[S]):
         obj = object.__new__(self.__class__)
         obj.__dict__.update(self.__dict__)
 
-        obj._state = deepcopy(self._state)
+        obj._interpreter = deepcopy(self._interpreter)
         obj._active_blocks = {**self._active_blocks}
         obj._id = _gen_id()
         obj._parent_id = self._id
@@ -212,7 +210,7 @@ class Model(Generic[S]):
         return obj
 
     def __str__(self) -> str:
-        return str(self._state)
+        return str(self._interpreter.state)
 
     def __len__(self):
         return len(str(self))
@@ -224,7 +222,7 @@ class Model(Generic[S]):
 
     def __getitem__(self, key: str) -> Any:
         try:
-            captures = self._state.captures[key]
+            captures = self._interpreter.state.captures[key]
         except KeyError:
             raise KeyError(f"Model does not contain the variable '{key}'")
         if isinstance(captures, list):
@@ -233,7 +231,7 @@ class Model(Generic[S]):
             return captures["value"]
 
     def __contains__(self, key: str) -> bool:
-        return key in self._state.captures
+        return key in self._interpreter.state.captures
 
     def get(self, key: str, default: Optional[D] = None) -> Union[str, list[str], None, D]:
         """Return the value of a variable, or a default value if the variable is not present.
@@ -262,9 +260,9 @@ class Model(Generic[S]):
         """
         self = self.copy()
         if isinstance(value, list):
-            self._state.captures[key] = [{"value": v, "log_prob": None} for v in value]
+            self._interpreter.state.captures[key] = [{"value": v, "log_prob": None} for v in value]
         else:
-            self._state.captures[key] = {"value": value, "log_prob": None}
+            self._interpreter.state.captures[key] = {"value": value, "log_prob": None}
         return self
 
     def remove(self, key: str) -> Self:
@@ -276,7 +274,7 @@ class Model(Generic[S]):
             The variable name to remove.
         """
         self = self.copy()
-        self._state.captures.pop(key)
+        self._interpreter.state.captures.pop(key)
         return self
 
     def log_prob(
@@ -292,7 +290,7 @@ class Model(Generic[S]):
             The value to return if the variable is not current set.
         """
         try:
-            captures = self._state.captures[key]
+            captures = self._interpreter.state.captures[key]
         except KeyError:
             return default
         if isinstance(captures, list):
@@ -303,7 +301,7 @@ class Model(Generic[S]):
     def __getattribute__(self, name):
         if name == "engine":
             # For legacy model.engine access (mostly for tests...)
-            return getattr(self._client, "engine")
+            return getattr(self._interpreter, "engine")
         return super().__getattribute__(name)
 
 

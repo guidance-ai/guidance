@@ -8,22 +8,15 @@ from .._utils import softmax
 from ..trace import TraceHandler
 from ..visual._renderer import DoNothingRenderer
 from ._base import Model
-from ._engine import Engine, EngineClient, EngineState, Tokenizer
+from ._engine import Engine, EngineInterpreter, EngineState, Tokenizer
 
 logger = logging.getLogger(__name__)
-
-# TODO: this import pattern happens in a few places, should be cleaned up
-try:
-    from .. import cpp  # type: ignore[attr-defined]
-except ImportError:
-    logger.warn("Failed to load guidance.cpp, falling back to Python mirror implementations...")
-    from .. import _cpp as cpp
 
 
 class MockTokenizer(Tokenizer):
     def __init__(self, tokens: Sequence[bytes], special_token_ids: Optional[list[int]] = None):
         super().__init__(tokens, chat_template=None, bos_token_id=0, eos_token_id=0, special_token_ids=special_token_ids)
-        self.byte_trie = cpp.ByteTrie(self.tokens, np.arange(len(self.tokens)))
+        self.byte_trie = ByteTrie(self.tokens, np.arange(len(self.tokens)))
 
     def encode(self, byte_string: bytes) -> list[int]:
         """Simple greedy tokenizer
@@ -232,12 +225,67 @@ class Mock(Model):
         engine = MockEngine(tokenizer, byte_patterns, compute_log_probs, force)
 
         super().__init__(
-            client=EngineClient(engine),
-            state=EngineState(),
+            interpreter=EngineInterpreter(engine),
             echo=echo,
         )
 
 
-# class MockChat(Mock, Chat):
-#     def __init__(self, *args, **kwargs):
-#         super().__init__(*args, **kwargs)
+class ByteTrie:
+    """A python implementation mirroring the C++ ByteTrie class."""
+
+    def __init__(self, byte_strings=None, values=None, parent=None):
+        self._parent = parent
+        self.match_version = -1
+        self.match = False
+        self.partial_match = False
+        self.prob = 0
+        self.value = -1
+        self.children = {}
+
+        if byte_strings is not None:
+            if values is None:
+                for s in byte_strings:
+                    self.insert(s, 0)
+            else:
+                for i, s in enumerate(byte_strings):
+                    self.insert(s, values[i])
+
+    def keys(self):
+        return self.children.keys()
+
+    def has_child(self, byte):
+        return byte in self.children
+
+    def child(self, byte):
+        return self.children[byte]
+
+    def parent(self):
+        return self._parent
+
+    def size(self):
+        return len(self.children)
+
+    def __len__(self):
+        return self.size()
+
+    def insert(self, s, value, pos=0):
+        if len(s) <= pos:
+            if self.value < 0:
+                self.value = value
+        else:
+            first_byte = s[pos : pos + 1]
+            if first_byte not in self.children:
+                self.children[first_byte] = ByteTrie(parent=self)
+            self.children[first_byte].insert(s, value, pos + 1)
+
+    def compute_probs(self, probs):
+        self.prob = 0.0
+
+        if self.value != -1:
+            self.prob += probs[self.value]
+
+        if self.children:
+            for k in self.children:
+                child = self.children[k]
+                child.compute_probs(probs)
+                self.prob += child.prob

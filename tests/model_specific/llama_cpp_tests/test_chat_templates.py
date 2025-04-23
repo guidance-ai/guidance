@@ -17,7 +17,7 @@ def test_chat_format_smoke(llamacpp_model: guidance.models.LlamaCpp, selected_mo
         pytest.skip("Chat template not available from LlamaCpp object")
 
     lm = guidance.models.Mock("")
-    lm._client.chat_template = CHAT_TEMPLATE_CACHE[model_chat_template]()
+    lm._interpreter.chat_template = CHAT_TEMPLATE_CACHE[model_chat_template]()
 
     messages = [
         {"role": "user", "content": "Good_day_to_you!"},

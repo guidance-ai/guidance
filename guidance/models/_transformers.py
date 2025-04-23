@@ -2,10 +2,10 @@ import os
 import re
 import textwrap
 import warnings
-from typing import Any, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Optional, Sequence, Union
 
 from .._schema import GenToken, GenTokenExtra
-from ._engine import Engine, Tokenizer, EngineClient, EngineState, Llama3VisionClient, Phi3VisionClient
+from ._engine import Engine, Tokenizer, EngineInterpreter, EngineState, Llama3VisionInterpreter, Phi3VisionInterpreter
 from ._base import Model
 
 try:
@@ -20,6 +20,8 @@ try:
 except ModuleNotFoundError:
     has_transformers = False
 
+if TYPE_CHECKING:
+     from transformers import PreTrainedModel, PreTrainedTokenizer, PreTrainedTokenizerFast
 
 # Formed by comparing model and tokenizer from_pretrained methods
 # transformers/models/auto/auto_factory.py
@@ -46,10 +48,10 @@ class ByteTokensError(Exception):
 class TransformersTokenizer(Tokenizer):
     def __init__(
         self,
-        model: Union[str, "transformers_package.PreTrainedModel"],
+        model: Union[str, "PreTrainedModel"],
         transformers_tokenizer: Union[
-            "transformers_package.PreTrainedTokenizer",
-            "transformers_package.PreTrainedTokenizerFast",
+            "PreTrainedTokenizer",
+            "PreTrainedTokenizerFast",
             None,
         ],
         chat_template=None,
@@ -91,8 +93,8 @@ class TransformersTokenizer(Tokenizer):
 
     def _tokenizer(self, model: str, **kwargs) -> tuple[
         Union[
-            "transformers_package.PreTrainedTokenizer",
-            "transformers_package.PreTrainedTokenizerFast",
+            "PreTrainedTokenizer",
+            "PreTrainedTokenizerFast",
         ],
         list[bytes],
     ]:
@@ -133,8 +135,8 @@ class TransformersTokenizer(Tokenizer):
     def _byte_tokens(
         self,
         transformers_tokenizer: Union[
-            "transformers_package.PreTrainedTokenizer",
-            "transformers_package.PreTrainedTokenizerFast",
+            "PreTrainedTokenizer",
+            "PreTrainedTokenizerFast",
         ],
     ) -> list[bytes]:
 
@@ -178,8 +180,8 @@ class TransformersTokenizer(Tokenizer):
         self,
         byte_decoder: dict[str, int],
         transformers_tokenizer: Union[
-            "transformers_package.PreTrainedTokenizer",
-            "transformers_package.PreTrainedTokenizerFast",
+            "PreTrainedTokenizer",
+            "PreTrainedTokenizerFast",
         ],
     ) -> list[bytes]:
         byte_tokens = [b""] * len(transformers_tokenizer)
@@ -193,8 +195,8 @@ class TransformersTokenizer(Tokenizer):
     def _byte_tokens_from_sp_model(
         self,
         transformers_tokenizer: Union[
-            "transformers_package.PreTrainedTokenizer",
-            "transformers_package.PreTrainedTokenizerFast",
+            "PreTrainedTokenizer",
+            "PreTrainedTokenizerFast",
         ],
     ) -> list[bytes]:
         byte_tokens = [b""] * len(transformers_tokenizer)
@@ -217,8 +219,8 @@ class TransformersTokenizer(Tokenizer):
     def _byte_tokens_by_encoding_token_strings(
         self,
         transformers_tokenizer: Union[
-            "transformers_package.PreTrainedTokenizer",
-            "transformers_package.PreTrainedTokenizerFast",
+            "PreTrainedTokenizer",
+            "PreTrainedTokenizerFast",
         ],
     ) -> list[bytes]:
         byte_tokens = [b""] * len(transformers_tokenizer)
@@ -273,8 +275,8 @@ class TransformersTokenizer(Tokenizer):
         self,
         byte_decoder: dict[str, int],
         transformers_tokenizer: Union[
-            "transformers_package.PreTrainedTokenizer",
-            "transformers_package.PreTrainedTokenizerFast",
+            "PreTrainedTokenizer",
+            "PreTrainedTokenizerFast",
         ],
     ) -> None:
 
@@ -387,8 +389,12 @@ class TransformersTokenizer(Tokenizer):
 class TransformersEngine(Engine):
     def __init__(
         self,
-        model,
-        tokenizer,
+        model: Union[str, "PreTrainedModel"],
+        tokenizer: Union[
+            "PreTrainedTokenizer",
+            "PreTrainedTokenizerFast",
+            None,
+        ],
         compute_log_probs: bool,
         chat_template=None,
         enable_backtrack=True,
@@ -410,8 +416,8 @@ class TransformersEngine(Engine):
 
         if not isinstance(model, str):
             try:
-                self.model = self.model_obj.config["_name_or_path"]
-            except KeyError:
+                self.model = self.model_obj.config._name_or_path
+            except AttributeError:
                 self.model = self.model_obj.__class__.__name__
         else:
             self.model = model
@@ -446,7 +452,7 @@ class TransformersEngine(Engine):
         super().__init__(my_tokenizer, compute_log_probs=compute_log_probs, enable_backtrack=enable_backtrack,
                          enable_ff_tokens=enable_ff_tokens, enable_monitoring=enable_monitoring, **kwargs)
 
-    def _model(self, model, **kwargs):
+    def _model(self, model, **kwargs) -> "PreTrainedModel":
         # intantiate the model if needed
         if isinstance(model, str):
 
@@ -671,8 +677,13 @@ class TransformersEngine(Engine):
 class Transformers(Model):
     def __init__(
         self,
-        model=None,
-        tokenizer=None,
+        model: Union[str, "PreTrainedModel"],
+        tokenizer: Union[
+            "PreTrainedTokenizer",
+            "PreTrainedTokenizerFast",
+            None,
+        ] = None,
+        interpreter_cls: Optional[type[EngineInterpreter]] = None,
         echo=True,
         compute_log_probs=False,
         chat_template=None,
@@ -682,14 +693,15 @@ class Transformers(Model):
         **kwargs,
     ):
         """Build a new Transformers model object that represents a model in a given state."""
-        if re.search("Llama-3.*-Vision", model):
-            client_cls = Llama3VisionClient
-        elif re.search("Phi-3-vision", model):
-            client_cls = Phi3VisionClient
-        else:
-            client_cls = EngineClient
+        if interpreter_cls is None and isinstance(model, str):
+            if re.search("Llama-3.*-Vision", model):
+                interpreter_cls = Llama3VisionInterpreter
+            elif re.search("Phi-3-vision", model):
+                interpreter_cls = Phi3VisionInterpreter
+        if interpreter_cls is None:
+                interpreter_cls = EngineInterpreter
 
-        client = client_cls(
+        client = interpreter_cls(
             TransformersEngine(
                 model,
                 tokenizer,
@@ -702,7 +714,6 @@ class Transformers(Model):
             )
         )
         super().__init__(
-            client=client,
-            state=EngineState(),
+            interpreter=client,
             echo=echo,
         )

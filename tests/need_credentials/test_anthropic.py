@@ -1,5 +1,4 @@
 import pytest
-import tiktoken
 
 import guidance
 from guidance import assistant, capture, gen, select, system, user
