@@ -362,32 +362,17 @@ class ModelStream:
     def __init__(
         self,
         model: Model,
-        grammar: Union["ModelStream", str, ASTNode, Function, None] = None,
-        timeout=5,
+        timeout: float = 5.0,
     ) -> None:
         """Create a model stream object that delays execution until it is iterated over."""
         if model.echo:
             model = model.copy()
             model.echo = False  # turn off display echoing
         self.model = model
-        self.grammar = grammar
         self.timeout = timeout
 
-    def __add__(self, grammar: Union[str, ASTNode]) -> Self:
-        """Extend this delayed chain of execution with another grammar append."""
-        if self.grammar is None:
-            return ModelStream(self.model, grammar)
-        else:
-            return ModelStream(self.model, self.grammar + grammar)
-
-    def _inner_run(self, model):
-        """This runs the model stream without iterating, and is only using internally by __iter__."""
-        if isinstance(self.grammar, ModelStream):
-            model = self.grammar._inner_run(model)
-        elif self.grammar is None:
-            model = self.model + ""
-        else:
-            model = self.model + self.grammar
+    def __add__(self, other: Any) -> Self:
+        return ModelStream(self.model + other)
 
     def __iter__(self) -> Iterator[Model]:
         """Starts a thread to execute the model and grammar, yielding events as they occur."""
@@ -400,7 +385,7 @@ class ModelStream:
         def target(ctx):
             _event_queues.set(ctx[_event_queues])
             try:
-                self._inner_run(self.model)
+                self.model._run_sync()
                 events.put(None)  # mark that we are done
             except BaseException as ex:
                 events.put(ex)
