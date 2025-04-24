@@ -2,49 +2,10 @@
 
 Messages are required to be added to the model registry for serialization.
 """
-from typing import Optional, Dict, Union, Any, MutableMapping
-
-from pydantic import BaseModel, Field, model_validator, field_validator, ConfigDict
+from typing import Optional, Union, Annotated, ClassVar, TYPE_CHECKING
+from pydantic import BaseModel, Field, model_validator, computed_field, Tag, TypeAdapter, Discriminator
 
 from ..trace import NodeAttr
-import json
-import base64
-
-def byte_to_base64(b: bytes) -> str:
-    return base64.b64encode(b).decode('utf-8')
-
-def base64_to_bytes(base64_str: str) -> bytes:
-    return base64.b64decode(base64_str)
-
-
-def recursive_model_dump_json(model):
-    if isinstance(model, BaseModel):
-        model_dict = model.model_dump()
-        for field_name, field_value in model_dict.items():
-            if isinstance(field_value, bytes):
-                model_dict[field_name] = byte_to_base64(field_value)
-            elif isinstance(field_value, dict):
-                model_dict[field_name] = recursive_model_dump_json(field_value)
-            elif isinstance(field_value, list):
-                model_dict[field_name] = [recursive_model_dump_json(item) if isinstance(item, BaseModel) else item for item in field_value]
-        return model_dict
-    return model
-
-
-def recursive_model_parse_raw(model, data):
-    if isinstance(model, BaseModel):
-        model_instance = model.model_validate(data)
-        for field_name, field_value in model_instance.model_dump().items():
-            if isinstance(field_value, str):
-                field_type = model.__annotations__.get(field_name)
-                if field_type == bytes:
-                    model_instance.__setattr__(field_name, base64_to_bytes(field_value))
-            elif isinstance(field_value, dict):
-                model_instance.__setattr__(field_name, recursive_model_parse_raw(model, field_value))
-            elif isinstance(field_value, list):
-                model_instance.__setattr__(field_name, [recursive_model_parse_raw(model, item) if isinstance(item, dict) else item for item in field_value])
-        return model_instance
-    return model
 
 
 _msg_counter: int = -1
@@ -58,40 +19,44 @@ class GuidanceMessage(BaseModel):
     """Message sent within Guidance layer."""
 
     message_id: int = Field(default_factory=new_message_id)
-    class_name: str = Field(default=None)
 
-    model_config = ConfigDict(
-        json_encoders={bytes: byte_to_base64},
-    )
+    _subclasses: ClassVar[set[type]] = set()
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        cls._subclasses.add(cls)
 
-    @field_validator("class_name", mode="before")
-    def validate_class_name(cls, v):
-        if v is None:
-            v = cls.__name__
-        return v
-
+    @computed_field
+    @property
+    def class_name(self) -> str:
+        """Class name of the message."""
+        return self.__class__.__name__
 
     @model_validator(mode="before")
-    def decode_base64_to_bytes(cls, values):
-        if isinstance(values, dict):
-            return _decode_base64_to_bytes(cls, values)
-        return values
+    def validate_class_name(cls, data):
+        if isinstance(data, dict):
+            if 'class_name' in data and data['class_name'] != cls.__name__:
+                raise ValueError(f"mismatched class name: {data['class_name']}, expected: {cls.__name__}")
+        return data
 
-def _decode_base64_to_bytes(cls, values: MutableMapping[str, Any]) -> MutableMapping[str, Any]:
-    for field_name, field_value in values.items():
-        field_type = cls.__annotations__.get(field_name)
-        if field_type == bytes and isinstance(field_value, str):
-            try:
-                values[field_name] = base64_to_bytes(field_value)
-            except Exception as e:  # pragma: no cover
-                raise ValueError(f"Failed to decode base64 string for '{field_name}': {e}")
-    return values
+    @classmethod
+    def as_discriminated_union(cls) -> type["GuidanceMessage"]:
+        return Annotated[
+            Union[
+                tuple(
+                    Annotated[tp, Tag(tp.__name__)]
+                    for tp in cls._subclasses
+                )
+            ],
+            Discriminator(
+                lambda x: x["class_name"] if isinstance(x, dict) else x.class_name,
+            )
+        ]
 
 class TraceMessage(GuidanceMessage):
     """Update on a trace node."""
     trace_id: int
     parent_trace_id: Optional[int] = None
-    node_attr: Optional[NodeAttr] = None
+    node_attr: Optional[NodeAttr.as_discriminated_union()] = None # type: ignore
 
 
 class MetricMessage(GuidanceMessage):
@@ -133,19 +98,6 @@ class OutputRequestMessage(GuidanceMessage):
     """Fired when client requests tokens from server."""
     pass
 
-
-model_registry: Dict[str, type[GuidanceMessage]] = {
-    'TraceMessage': TraceMessage,
-    'ExecutionStartedMessage': ExecutionStartedMessage,
-    'ExecutionCompletedMessage': ExecutionCompletedMessage,
-    'ResetDisplayMessage': ResetDisplayMessage,
-    'ClientReadyMessage': ClientReadyMessage,
-    'ClientReadyAckMessage': ClientReadyAckMessage,
-    'OutputRequestMessage': OutputRequestMessage,
-    'MetricMessage': MetricMessage,
-}
-
-
 def serialize_message(message: GuidanceMessage) -> str:
     """ Serializes guidance message.
 
@@ -155,9 +107,7 @@ def serialize_message(message: GuidanceMessage) -> str:
     Returns:
         Serialized message in JSON format.
     """
-    # message_json = message.model_dump_json(indent=2, serialize_as_any=True)
-    message_json = recursive_model_dump_json(message)
-    return message_json
+    return message.model_dump_json()
 
 
 def deserialize_message(data: str) -> GuidanceMessage:
@@ -169,10 +119,4 @@ def deserialize_message(data: str) -> GuidanceMessage:
     Returns:
         Guidance message.
     """
-    data_json = json.loads(data)
-    class_name = data_json.get("class_name")
-    model_class = model_registry.get(class_name)
-    if not model_class:
-        raise ValueError(f"Unknown class_name: {class_name}")
-    message = recursive_model_parse_raw(model_class, data_json)
-    return message
+    return TypeAdapter(GuidanceMessage.as_discriminated_union()).validate_json(data) 
