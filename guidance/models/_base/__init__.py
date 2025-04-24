@@ -1,4 +1,4 @@
-from ._interpreter import Interpreter, Interpreter
+from ._interpreter import Interpreter
 from ._model import Model
 from ._state import State
 
