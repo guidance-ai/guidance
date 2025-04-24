@@ -4,7 +4,7 @@ import weakref
 from itertools import count
 from typing import Any, Optional, Generator, Dict, Annotated, ClassVar, Union
 import logging
-from pydantic import BaseModel, Field, model_validator, computed_field, Tag, Discriminator
+from pydantic import BaseModel, Field, model_validator, computed_field, Tag, Discriminator, Base64Bytes
 from .._utils import pydantic_no_default_repr, pydantic_no_default_str, log_cleanup
 
 
@@ -52,7 +52,6 @@ class NodeAttr(BaseModel):
     def __str__(self):
         return pydantic_no_default_str(self)
 
-
 class InputAttr(NodeAttr):
     """Input for a guidance program (i.e. literal or guidance grammar)."""
 
@@ -94,19 +93,19 @@ class LiteralInput(InputAttr):
 class ImageInput(InputAttr):
     """Image input."""
 
-    value: str
+    value: Base64Bytes
     format: str = "png"
 
 
 class AudioInput(InputAttr):
     """Audio input."""
-    value: str
+    value: Base64Bytes
     format: str = "wav"
 
 
 class VideoInput(InputAttr):
     """Video input."""
-    value: str
+    value: Base64Bytes
     format: str = "mp4"
 
 
@@ -139,14 +138,14 @@ class RoleCloserInput(InputAttr):
 
 class AudioOutput(OutputAttr):
     """Audio output."""
-    value: str
+    value: Base64Bytes
     format: str = "wav"
     is_input: bool = False
 
 
 class VideoOutput(OutputAttr):
     """Video output."""
-    value: str
+    value: Base64Bytes
     format: str = "mp4"
     is_input: bool = False
 
@@ -154,7 +153,7 @@ class VideoOutput(OutputAttr):
 class ImageOutput(OutputAttr):
     """Image output."""
 
-    value: str
+    value: Base64Bytes
     format: str = "png"
     is_input: bool = False
 

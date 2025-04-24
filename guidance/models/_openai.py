@@ -402,8 +402,8 @@ class OpenAIImageInterpreter(OpenAIInterpreter):
     def image_url(self, node: ImageUrl, **kwargs) -> Iterator[OutputAttr]:
         self.state.content.append({"type": "image_url", "image_url": {"url": node.url}})
         image_bytes = bytes_from(node.url, allow_local=False)
-        base64_string = base64.b64encode(image_bytes).decode("utf-8")
-        yield ImageOutput(value=base64_string, input=True)
+        base64_bytes = base64.b64encode(image_bytes)
+        yield ImageOutput(value=base64_bytes, input=True)
 
 
 class OpenAIAudioInterpreter(OpenAIInterpreter):

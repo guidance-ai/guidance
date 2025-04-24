@@ -175,7 +175,7 @@ class RoleEnd(ASTNode):
 
 @dataclass
 class ImageBlob(ASTNode):
-    data: str
+    data: bytes # TODO: pydantic Base64Bytes?
 
     def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
         return interpreter.image_blob(self, **kwargs)
@@ -191,7 +191,7 @@ class ImageUrl(ASTNode):
 
 @dataclass
 class AudioBlob(ASTNode):
-    data: str
+    data: bytes # TODO: pydantic Base64Bytes?
 
     def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
         return interpreter.audio_blob(self, **kwargs)
