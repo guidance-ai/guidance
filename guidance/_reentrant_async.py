@@ -1,6 +1,6 @@
 """
-Heavily inspired by (read: largely stolen from)
-https://github.com/miguelgrinberg/greenletio
+Adapted from greenletio (https://github.com/miguelgrinberg/greenletio), used under the MIT License.
+See LICENSE file or https://github.com/miguelgrinberg/greenletio/blob/main/LICENSE for details.
 """
 
 import contextvars
