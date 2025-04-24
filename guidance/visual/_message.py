@@ -48,10 +48,16 @@ def recursive_model_parse_raw(model, data):
 
 
 _msg_counter: int = -1
+def new_message_id() -> int:
+    """Generate a new message ID."""
+    global _msg_counter
+    _msg_counter += 1
+    return _msg_counter
+
 class GuidanceMessage(BaseModel):
     """Message sent within Guidance layer."""
 
-    message_id: int = Field(default=None)
+    message_id: int = Field(default_factory=new_message_id)
     class_name: str = Field(default=None)
 
     model_config = ConfigDict(
@@ -64,13 +70,6 @@ class GuidanceMessage(BaseModel):
             v = cls.__name__
         return v
 
-    @field_validator("message_id", mode="before")
-    def validate_message_id(cls, v):
-        global _msg_counter
-        if v is None:
-            _msg_counter += 1
-            v = _msg_counter
-        return v
 
     @model_validator(mode="before")
     def decode_base64_to_bytes(cls, values):
