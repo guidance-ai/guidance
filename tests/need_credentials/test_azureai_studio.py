@@ -1,17 +1,21 @@
+from azure.core.credentials import AzureKeyCredential
+
 import pytest
 
 from guidance import models
+from guidance.models._azureai import AzureInference
 
 
 from ..model_specific import common_chat_testing
 from ..utils import env_or_fail, slowdown
 
-pytest.skip("Deployments temporarily deleted", allow_module_level=True)
+# pytest.skip("Deployments temporarily deleted", allow_module_level=True)
 
 # How to fill out the environment variables to
 # set up the models
 # Temporarily remove mistral pending endpoint investigation
-_chat_models = {"phi3": "PHI3", "llama3": "LLAMA3_CHAT"}
+# _chat_models = {"phi3": "PHI3", "llama3": "LLAMA3_CHAT"}
+_chat_models = {"phi4": "PHI4"}
 
 
 def _get_chat_model(model_name: str):
@@ -21,13 +25,12 @@ def _get_chat_model(model_name: str):
     azureai_studio_deployment = env_or_fail(f"AZURE_AI_STUDIO_{env_string}_DEPLOYMENT")
     azureai_studio_key = env_or_fail(f"AZURE_AI_STUDIO_{env_string}_KEY")
 
-    lm = models.AzureAIStudioChat(
-        azureai_studio_endpoint=azureai_studio_endpoint,
-        azureai_studio_deployment=azureai_studio_deployment,
-        azureai_studio_key=azureai_studio_key,
-        clear_cache=True,
+    lm = AzureInference(
+        endpoint=azureai_studio_endpoint,
+        credential=AzureKeyCredential(azureai_studio_key),
+        model_name=azureai_studio_deployment,
     )
-    assert isinstance(lm, models.AzureAIStudioChat)
+    assert isinstance(lm, models.Model)
     return lm
 
 

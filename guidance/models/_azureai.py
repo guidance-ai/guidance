@@ -184,6 +184,7 @@ class AzureInference(Model):
         credential: Union[
             "azure.core.credentials.AzureKeyCredential", "azure.core.credentials.TokenCredential"
         ],
+        model_name: str,
         echo: bool = True,
     ):
         """Build a new Azure Inference model object that represents a model in a given state.
@@ -201,6 +202,7 @@ class AzureInference(Model):
             interpreter=AzureInferenceInterpreter(
                 endpoint=endpoint,
                 credential=credential,
+                model_name=model_name,
             ),
             echo=echo,
         )
