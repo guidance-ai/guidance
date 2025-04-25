@@ -26,7 +26,6 @@ class AzureOpenAIInterpreter(BaseOpenAIInterpreter):
         api_key: Optional[str] = None,
         azure_ad_token: Optional[str] = None,
         azure_ad_token_provider: Optional[Callable[[], str]] = None,
-        organization: Optional[str] = None,
         **kwargs,
     ):
         try:
@@ -41,22 +40,22 @@ class AzureOpenAIInterpreter(BaseOpenAIInterpreter):
             api_key=api_key,
             azure_ad_token=azure_ad_token,
             azure_ad_token_provider=azure_ad_token_provider,
-            organization=organization,
             **kwargs,
         )
         super().__init__(model_name, client)
 
 
 def create_azure_openai_model(
-    model_name: str,
     azure_deployment: str,
     echo: bool = True,
     *,
+    model_name: Optional[str] = None,
     api_version: Optional[str] = None,
     api_key: Optional[str] = None,
     azure_ad_token: Optional[str] = None,
     azure_ad_token_provider: Optional[Callable[[], str]] = None,
-    organization: Optional[str] = None,
+    has_audio_support: bool = False,
+    has_image_support: bool = False,
     **kwargs,
 ) -> Model:
     """Create a Model capable of interacting with an Azure AI OpenAI deployment
@@ -83,11 +82,16 @@ def create_azure_openai_model(
         All extra keyword arguments are passed directly to the `openai.OpenAI` constructor. Commonly used argument
         names include `base_url` and `organization`
     """
-    if "audio-preview" in model_name:
+    if has_audio_support and has_image_support:
+        raise ValueError(f"No known models have both audio and image support")
+
+    if (model_name and "audio-preview" in model_name) or has_audio_support:
         interpreter_cls = type(
             "AzureOpenAIAudioInterpreter", (AzureOpenAIInterpreter, OpenAIAudioMixin), {}
         )
-    elif model_name.startswith("gpt-4o") or model_name.startswith("o1"):
+    elif (
+        model_name and (model_name.startswith("gpt-4o") or model_name.startswith("o1"))
+    ) or has_image_support:
         interpreter_cls = type(
             "AzureOpenAIImageInterpreter", (AzureOpenAIInterpreter, OpenAIImageMixin), {}
         )
@@ -101,7 +105,6 @@ def create_azure_openai_model(
         api_key=api_key,
         azure_ad_token=azure_ad_token,
         azure_ad_token_provider=azure_ad_token_provider,
-        organization=organization,
         **kwargs,
     )
 
@@ -116,6 +119,7 @@ class AzureInferenceInterpreter(BaseOpenAIInterpreter):
         *,
         endpoint: str,
         credential: Union["AzureKeyCredential", "TokenCredential"],
+        model_name: str,
     ):
         try:
             import azure.ai.inference
@@ -127,7 +131,7 @@ class AzureInferenceInterpreter(BaseOpenAIInterpreter):
             endpoint=endpoint,
             credential=credential,
         )
-        super().__init__(client=client)
+        super().__init__(client=client, model=model_name)
 
     def _run(self, **kwargs) -> Iterator[OutputAttr]:
         if self.state.active_role is None:
@@ -149,6 +153,7 @@ class AzureInferenceInterpreter(BaseOpenAIInterpreter):
                 "messages": TypeAdapter(list[Message]).dump_python(self.state.messages),
                 "log_probs": self.log_probs,
                 "stream": True,
+                "model": self.model,
                 **kwargs,
             },
             headers={
@@ -176,7 +181,9 @@ class AzureInference(Model):
         self,
         *,
         endpoint: str,
-        credential: Union["AzureKeyCredential", "TokenCredential"],
+        credential: Union[
+            "azure.core.credentials.AzureKeyCredential", "azure.core.credentials.TokenCredential"
+        ],
         echo: bool = True,
     ):
         """Build a new Azure Inference model object that represents a model in a given state.
