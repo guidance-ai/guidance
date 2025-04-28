@@ -20,8 +20,9 @@ class AzureOpenAIInterpreter(BaseOpenAIInterpreter):
     def __init__(
         self,
         *,
-        model_name: str,
+        azure_endpoint: str,
         azure_deployment: str,
+        model_name: str,
         api_version: Optional[str] = None,
         api_key: Optional[str] = None,
         azure_ad_token: Optional[str] = None,
@@ -35,6 +36,7 @@ class AzureOpenAIInterpreter(BaseOpenAIInterpreter):
                 "Please install the openai package version >= 1 using `pip install openai -U` in order to use guidance.models.OpenAI!"
             )
         client = openai.AzureOpenAI(
+            azure_endpoint=azure_endpoint,
             azure_deployment=azure_deployment,
             api_version=api_version,
             api_key=api_key,
@@ -46,6 +48,7 @@ class AzureOpenAIInterpreter(BaseOpenAIInterpreter):
 
 
 def create_azure_openai_model(
+    azure_endpoint: str,
     azure_deployment: str,
     echo: bool = True,
     *,
@@ -62,10 +65,11 @@ def create_azure_openai_model(
 
     Parameters
     ----------
+    azure_deployment : str
+        The Azure deployment name to use for the model. The Azure AI portal will
+        default this to being the model_name, but it can be different
     model_name : str
         The name of the Azure OpenAI model to use (e.g. gpt-4o-mini).
-    azure_deployment : str
-        The Azure deployment name to use for the model.
     api_version : str | None
         The API version to use for the Azure OpenAI service.
     api_key : str | None
@@ -99,6 +103,7 @@ def create_azure_openai_model(
         interpreter_cls = AzureOpenAIInterpreter
 
     interpreter = interpreter_cls(
+        azure_endpoint=azure_endpoint,
         model_name=model_name,
         azure_deployment=azure_deployment,
         api_version=api_version,
