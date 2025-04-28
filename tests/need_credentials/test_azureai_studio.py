@@ -1,9 +1,7 @@
-from azure.core.credentials import AzureKeyCredential
-
 import pytest
 
 from guidance import models
-from guidance.models._azureai import AzureInference
+from guidance.models._azureai import create_azure_aifoundry_model
 
 
 from ..model_specific import common_chat_testing
@@ -22,13 +20,14 @@ def _get_chat_model(model_name: str):
     env_string = _chat_models[model_name]
 
     azureai_studio_endpoint = env_or_fail(f"AZURE_AI_STUDIO_{env_string}_ENDPOINT")
-    azureai_studio_deployment = env_or_fail(f"AZURE_AI_STUDIO_{env_string}_DEPLOYMENT")
+    azureai_studio_model_name = env_or_fail(f"AZURE_AI_STUDIO_{env_string}_MODEL_NAME")
     azureai_studio_key = env_or_fail(f"AZURE_AI_STUDIO_{env_string}_KEY")
 
-    lm = AzureInference(
-        endpoint=azureai_studio_endpoint,
-        credential=AzureKeyCredential(azureai_studio_key),
-        model_name=azureai_studio_deployment,
+    lm = create_azure_aifoundry_model(
+        azure_endpoint=azureai_studio_endpoint,
+        api_key=azureai_studio_key,
+        # token_credential=DefaultAzureCredential(),
+        model_name=azureai_studio_model_name,
     )
     assert isinstance(lm, models.Model)
     return lm

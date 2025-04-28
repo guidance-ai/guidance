@@ -181,33 +181,43 @@ class AzureInferenceInterpreter(BaseOpenAIInterpreter):
         )
 
 
-class AzureInference(Model):
-    def __init__(
-        self,
-        *,
-        endpoint: str,
-        credential: Union[
-            "azure.core.credentials.AzureKeyCredential", "azure.core.credentials.TokenCredential"
-        ],
-        model_name: str,
-        echo: bool = True,
-    ):
-        """Build a new Azure Inference model object that represents a model in a given state.
+def create_azure_aifoundry_model(
+    azure_endpoint: str,
+    echo: bool = True,
+    *,
+    model_name: Optional[str] = None,
+    api_key: Optional[str] = None,
+    token_credential: Optional["TokenCredential"] = None,
+    has_audio_support: bool = False,
+    has_image_support: bool = False,
+) -> Model:
+    if has_audio_support:
+        raise NotImplementedError("No support yet for Audio in Azure AI Foundry")
+    if has_image_support:
+        raise NotImplementedError("No support yet for Images in Azure AI Foundry")
 
-        Parameters
-        ----------
-        endpoint : str
-            The endpoint of the Azure Inference service.
-        credential : AzureKeyCredential | TokenCredential
-            The credential to use for authentication with the Azure Inference service.
-        echo : bool
-            If true the final result of creating this model state will be displayed (as HTML in a notebook).
-        """
-        super().__init__(
-            interpreter=AzureInferenceInterpreter(
-                endpoint=endpoint,
-                credential=credential,
-                model_name=model_name,
-            ),
-            echo=echo,
+    try:
+        from azure.core.credentials import AzureKeyCredential, TokenCredential
+    except ImportError:
+        raise Exception(
+            "Please install the azure-core package using `pip install -U azure-core` in order to use guidance.models.AzureAI!"
         )
+
+    credential: AzureKeyCredential | TokenCredential | None = None
+    if api_key and token_credential:
+        raise ValueError("Specify either api_key or token_credential")
+    elif api_key:
+        credential = AzureKeyCredential(api_key)
+    elif token_credential:
+        credential = token_credential
+    else:
+        raise ValueError("Must specify either api_key or token_credential")
+
+    interpreter = AzureInferenceInterpreter(
+        endpoint=azure_endpoint,
+        credential=credential,
+        model_name=model_name,
+    )
+
+    result = Model(interpreter=interpreter, echo=echo)
+    return result
