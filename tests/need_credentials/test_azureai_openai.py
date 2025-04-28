@@ -19,7 +19,8 @@ def azureai_chat_model():
 
     azureai_endpoint = env_or_skip("AZUREAI_CHAT_ENDPOINT")
     azureai_deployment = env_or_skip("AZUREAI_DEPLOYMENT_NAME")
-    model_name = None # env_or_skip("AZUREAI_CHAT_MODEL")
+    azureai_api_version = env_or_skip("AZUREAI_OPENAI_API_VERSION")
+    model_name = None  # env_or_skip("AZUREAI_CHAT_MODEL")
 
     print(f"{azureai_endpoint=}")
     print(f"{azureai_deployment=}")
@@ -34,6 +35,7 @@ def azureai_chat_model():
         azure_deployment=azureai_deployment,
         azure_endpoint=azureai_endpoint,
         azure_ad_token_provider=token_provider,
+        api_version=azureai_api_version,
     )
     assert isinstance(lm, models.Model)
 
