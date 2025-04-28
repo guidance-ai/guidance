@@ -162,8 +162,8 @@ class AzureInferenceInterpreter(BaseOpenAIInterpreter):
         ) as chunks:
             yield from self._handle_stream(chunks)
 
-    def rule(self, node: RuleNode, **kwargs) -> Iterator[OutputAttr]:
-        raise ValueError("Rule nodes are not supported for Azure Inference")
+    #    def rule(self, node: RuleNode, **kwargs) -> Iterator[OutputAttr]:
+    #        raise ValueError("Rule nodes are not supported for Azure Inference")
 
     def json(self, node: JsonNode, **kwargs) -> Iterator[OutputAttr]:
         return self._run(
