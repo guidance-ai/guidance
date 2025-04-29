@@ -1,7 +1,7 @@
 import pytest
 
 from guidance import models
-from guidance.models._azureai import create_azure_aifoundry_model
+from guidance.models._azureai import create_azure_model
 
 
 from ..model_specific import common_chat_testing
@@ -23,7 +23,8 @@ def _get_chat_model(model_name: str):
     azureai_studio_model_name = env_or_fail(f"AZURE_AI_STUDIO_{env_string}_MODEL_NAME")
     azureai_studio_key = env_or_fail(f"AZURE_AI_STUDIO_{env_string}_KEY")
 
-    lm = create_azure_aifoundry_model(
+    lm = create_azure_model(
+        is_openai=False,
         azure_endpoint=azureai_studio_endpoint,
         api_key=azureai_studio_key,
         # token_credential=DefaultAzureCredential(),

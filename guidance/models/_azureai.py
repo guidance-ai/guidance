@@ -1,3 +1,5 @@
+import logging
+
 from typing import Callable, Iterator, Optional, Union
 
 from pydantic import TypeAdapter
@@ -14,6 +16,8 @@ from ._openai_base import (
     Message,
 )
 from ..trace import OutputAttr
+
+logger = logging.getLogger(__name__)
 
 
 class AzureOpenAIInterpreter(BaseOpenAIInterpreter):
@@ -220,4 +224,63 @@ def create_azure_aifoundry_model(
     )
 
     result = Model(interpreter=interpreter, echo=echo)
+    return result
+
+
+def create_azure_model(
+    is_openai: bool,
+    azure_endpoint: str,
+    azure_deployment: str | None = None,
+    model_name: Optional[str] = None,
+    api_key: Optional[str] = None,
+    api_version: Optional[str] = None,
+    azure_ad_token: Optional[str] = None,
+    azure_credential=None,
+    echo: bool = True,
+    has_audio_support: bool = False,
+    has_image_support: bool = False,
+    **kwargs,
+) -> Model:
+    # Dispatches to appropriate factory above...
+    if is_openai:
+        if azure_credential:
+            from azure.identity import get_bearer_token_provider
+
+            azure_ad_token_provider = get_bearer_token_provider(
+                azure_credential, "https://cognitiveservices.azure.com/.default"
+            )
+        else:
+            azure_ad_token_provider = None
+        result = create_azure_openai_model(
+            azure_endpoint=azure_endpoint,
+            azure_deployment=azure_deployment,
+            echo=echo,
+            model_name=model_name,
+            api_version=api_version,
+            api_key=api_key,
+            azure_ad_token_provider=azure_ad_token_provider,
+            azure_ad_token=azure_ad_token,
+            has_audio_support=has_audio_support,
+            has_image_support=has_image_support,
+            **kwargs,
+        )
+    else:
+        if azure_deployment:
+            logger.info("Ignoring azure_deployment")
+        if api_version:
+            logger.info("Ignoring api_version")
+        if azure_ad_token:
+            logger.info("Ignoring azure_ad_token")
+        if kwargs:
+            logger.info("Ignoring kwargs")
+        result = create_azure_aifoundry_model(
+            azure_endpoint=azure_endpoint,
+            echo=echo,
+            model_name=model_name,
+            api_key=api_key,
+            token_credential=azure_credential,
+            has_audio_support=has_audio_support,
+            has_image_support=has_image_support,
+        )
+
     return result
