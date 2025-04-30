@@ -24,6 +24,8 @@ logger = logging.getLogger(__name__)
 
 
 class AzureOpenAIInterpreter(BaseOpenAIInterpreter):
+    """A basic class for interacting with Azure OpenAI."""
+
     def __init__(
         self,
         *,
@@ -52,6 +54,18 @@ class AzureOpenAIInterpreter(BaseOpenAIInterpreter):
             **kwargs,
         )
         super().__init__(model_name, client)
+
+
+class AzureOpenAIAudioInterpreter(OpenAIAudioMixin, AzureOpenAIInterpreter):
+    """Class to add audio capabilities to an Azure OpenAI model"""
+
+    pass
+
+
+class AzureOpenAIImageInterpreter(OpenAIImageMixin, AzureOpenAIInterpreter):
+    """Class to add image capabilities to an Azure OpenAI model"""
+
+    pass
 
 
 def create_azure_openai_model(
@@ -97,20 +111,14 @@ def create_azure_openai_model(
         raise ValueError(f"No known models have both audio and image support")
 
     if (model_name and "audio-preview" in model_name) or has_audio_support:
-        # Note order of classes, to ensure that the Mixin overrides the base
-        interpreter_cls = type(
-            "AzureOpenAIAudioInterpreter", (OpenAIAudioMixin, AzureOpenAIInterpreter), {}
-        )
+        interpreter_cls = AzureOpenAIAudioInterpreter
     elif (
         model_name and (model_name.startswith("gpt-4o") or model_name.startswith("o1"))
     ) or has_image_support:
-        # Note order of classes, to ensure that the Mixin overrides the base
-        interpreter_cls = type(
-            "AzureOpenAIImageInterpreter", (OpenAIImageMixin, AzureOpenAIInterpreter), {}
-        )
+        interpreter_cls = AzureOpenAIImageInterpreter
     else:
         interpreter_cls = AzureOpenAIInterpreter
-        
+
     interpreter = interpreter_cls(
         azure_endpoint=azure_endpoint,
         model_name=model_name,
