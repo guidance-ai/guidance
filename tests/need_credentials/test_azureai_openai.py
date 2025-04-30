@@ -18,8 +18,8 @@ def azureai_chat_model():
     slowdown()
 
     azureai_endpoint = env_or_skip("AZUREAI_OPENAI_CHAT_ENDPOINT")
-    azureai_deployment = env_or_skip("AZUREAI_OPENAI_DEPLOYMENT_NAME")
-    azureai_api_version = env_or_skip("AZUREAI_OPENAI_API_VERSION")
+    azureai_deployment = env_or_skip("AZUREAI_OPENAI_CHAT_DEPLOYMENT_NAME")
+    azureai_api_version = env_or_skip("AZUREAI_OPENAI_CHAT_API_VERSION")
     model_name = None  # env_or_skip("AZUREAI_OPENAI_CHAT_MODEL")
 
     print(f"{azureai_endpoint=}")
@@ -36,6 +36,36 @@ def azureai_chat_model():
         azure_endpoint=azureai_endpoint,
         azure_ad_token_provider=token_provider,
         api_version=azureai_api_version,
+    )
+    assert isinstance(lm, models.Model)
+
+    return lm
+
+
+@pytest.fixture(scope="function")
+def azureai_audio_model():
+    slowdown()
+
+    azureai_endpoint = env_or_skip("AZUREAI_OPENAI_AUDIO_ENDPOINT")
+    azureai_deployment = env_or_skip("AZUREAI_OPENAI_AUDIO_DEPLOYMENT_NAME")
+    azureai_api_version = env_or_skip("AZUREAI_OPENAI_AUDIO_API_VERSION")
+    model_name = env_or_skip("AZUREAI_OPENAI_AUDIO_MODEL")
+
+    print(f"{azureai_endpoint=}")
+    print(f"{azureai_deployment=}")
+    print(f"{model_name=}")
+
+    token_provider = get_bearer_token_provider(
+        DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
+    )
+
+    lm = create_azure_openai_model(
+        model_name=model_name,
+        azure_deployment=azureai_deployment,
+        azure_endpoint=azureai_endpoint,
+        azure_ad_token_provider=token_provider,
+        api_version=azureai_api_version,
+        has_audio_support=True,
     )
     assert isinstance(lm, models.Model)
 
