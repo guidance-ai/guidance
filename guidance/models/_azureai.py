@@ -94,18 +94,20 @@ def create_azure_openai_model(
         raise ValueError(f"No known models have both audio and image support")
 
     if (model_name and "audio-preview" in model_name) or has_audio_support:
+        # Note order of classes, to ensure that the Mixin overrides the base
         interpreter_cls = type(
-            "AzureOpenAIAudioInterpreter", (AzureOpenAIInterpreter, OpenAIAudioMixin), {}
+            "AzureOpenAIAudioInterpreter", (OpenAIAudioMixin, AzureOpenAIInterpreter), {}
         )
     elif (
         model_name and (model_name.startswith("gpt-4o") or model_name.startswith("o1"))
     ) or has_image_support:
+        # Note order of classes, to ensure that the Mixin overrides the base
         interpreter_cls = type(
-            "AzureOpenAIImageInterpreter", (AzureOpenAIInterpreter, OpenAIImageMixin), {}
+            "AzureOpenAIImageInterpreter", (OpenAIImageMixin, AzureOpenAIInterpreter), {}
         )
     else:
         interpreter_cls = AzureOpenAIInterpreter
-
+        
     interpreter = interpreter_cls(
         azure_endpoint=azure_endpoint,
         model_name=model_name,

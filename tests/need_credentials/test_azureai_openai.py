@@ -6,7 +6,7 @@ import pytest
 
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 
-from guidance import assistant, gen, models, system, user
+from guidance import assistant, gen, models, system, user, gen_audio
 from guidance.models._azureai import create_azure_openai_model
 
 from ..model_specific import common_chat_testing
@@ -75,6 +75,14 @@ def azureai_audio_model():
 def test_azureai_openai_chat_smoke(azureai_chat_model):
     common_chat_testing.smoke_chat(azureai_chat_model)
 
+def test_azureai_openai_audio_smoke(azureai_audio_model: models.Model):
+    lm = azureai_audio_model
+    with system():
+        lm += "Talk like a pirate."
+    with user():
+        lm += "What is the capital of France?"
+    with assistant():
+        lm += gen_audio()
 
 @pytest.mark.skip(reason="resource has been temporarily blocked")
 def test_azureai_openai_chat_longer_1(azureai_chat_model):
