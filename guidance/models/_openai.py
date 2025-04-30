@@ -19,12 +19,6 @@ from ._openai_base import (
     OpenAIAudioMixin,
 )
 
-if TYPE_CHECKING:
-    import openai
-    from openai.types.chat import ChatCompletionChunk
-    from azure.core.credentials import AzureKeyCredential, TokenCredential
-
-
 class OpenAIInterpreter(BaseOpenAIInterpreter):
     def __init__(
         self,
