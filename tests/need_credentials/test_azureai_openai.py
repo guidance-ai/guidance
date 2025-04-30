@@ -17,10 +17,10 @@ from ..utils import env_or_skip, slowdown
 def azureai_chat_model():
     slowdown()
 
-    azureai_endpoint = env_or_skip("AZUREAI_CHAT_ENDPOINT")
-    azureai_deployment = env_or_skip("AZUREAI_DEPLOYMENT_NAME")
+    azureai_endpoint = env_or_skip("AZUREAI_OPENAI_CHAT_ENDPOINT")
+    azureai_deployment = env_or_skip("AZUREAI_OPENAI_DEPLOYMENT_NAME")
     azureai_api_version = env_or_skip("AZUREAI_OPENAI_API_VERSION")
-    model_name = None  # env_or_skip("AZUREAI_CHAT_MODEL")
+    model_name = None  # env_or_skip("AZUREAI_OPENAI_CHAT_MODEL")
 
     print(f"{azureai_endpoint=}")
     print(f"{azureai_deployment=}")

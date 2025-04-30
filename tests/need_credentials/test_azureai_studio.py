@@ -19,9 +19,9 @@ _chat_models = {"phi4": "PHI4"}
 def _get_chat_model(model_name: str):
     env_string = _chat_models[model_name]
 
-    azureai_studio_endpoint = env_or_fail(f"AZURE_AI_STUDIO_{env_string}_ENDPOINT")
-    azureai_studio_model_name = env_or_fail(f"AZURE_AI_STUDIO_{env_string}_MODEL_NAME")
-    azureai_studio_key = env_or_fail(f"AZURE_AI_STUDIO_{env_string}_KEY")
+    azureai_studio_endpoint = env_or_fail(f"AZUREAI_STUDIO_{env_string}_ENDPOINT")
+    azureai_studio_model_name = env_or_fail(f"AZUREAI_STUDIO_{env_string}_MODEL_NAME")
+    azureai_studio_key = env_or_fail(f"AZUREAI_STUDIO_{env_string}_KEY")
 
     lm = create_azure_aifoundry_model(
         azure_endpoint=azureai_studio_endpoint,
