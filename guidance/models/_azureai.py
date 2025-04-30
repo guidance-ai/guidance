@@ -1,6 +1,6 @@
 import logging
 
-from typing import Callable, Iterator, Optional, Union
+from typing import Callable, Iterator, Optional, Union, TYPE_CHECKING
 
 from pydantic import TypeAdapter
 
@@ -16,6 +16,9 @@ from ._openai_base import (
     Message,
 )
 from ..trace import OutputAttr
+
+if TYPE_CHECKING:
+    from azure.core.credentials import AzureKeyCredential, TokenCredential
 
 logger = logging.getLogger(__name__)
 
