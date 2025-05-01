@@ -1,8 +1,8 @@
 from typing import Iterator
-from .._ast import GrammarNode
-from ..trace import OutputAttr, TextOutput
-from ._openai import BaseOpenAIInterpreter
-from ._base import Model
+from ..._ast import GrammarNode
+from ...trace import OutputAttr, TextOutput
+from .._openai import BaseOpenAIInterpreter
+from .._base import Model
 
 class VLLMInterpreter(BaseOpenAIInterpreter):
     def grammar(self, node: GrammarNode, **kwargs) -> Iterator[OutputAttr]:

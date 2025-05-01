@@ -27,3 +27,4 @@ from ._openai import OpenAI
 #     TogetherAIInstruct,
 #     TogetherAICompletion,
 # )
+from . import experimental
