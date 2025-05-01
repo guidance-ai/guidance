@@ -4,7 +4,7 @@ from json import loads as json_loads
 from typing import Any, Mapping, Optional, Type, Union, cast
 
 import pydantic
-from llguidance import JsonCompiler
+from llguidance import LLMatcher
 
 from .._ast import JsonNode, RuleNode
 from .._grammar import capture, token_limit, with_temperature
@@ -27,6 +27,8 @@ def json(
     max_tokens: Optional[int] = None,
     separators: Optional[tuple[str, str]] = None,
     whitespace_flexible: bool = False,
+    whitespace_pattern: Optional[str] = None,
+    lenient: bool = False,
 ):
     """Generate valid JSON according to the supplied JSON schema or `pydantic` model.
 
@@ -94,43 +96,16 @@ def json(
     else:
         raise TypeError(f"Unsupported schema type: {type(schema)}")
 
-    coerce_one_of = False
-    # TODO: decide whether or not to keep this -- it lets us double check that llguidance can handle the schema which isn't necessarily
-    # what we want, as llguidance may or may not be the backend we are using. That being said, it's sort of nice to get an exception when
-    # you call `json` instead of waiting for generation to fail.
-    VALIDATE = True
-    if VALIDATE:
-        schema_string = json_dumps(schema)
-        try:
-            compiler = JsonCompiler(
-                separators=separators,
-                whitespace_flexible=whitespace_flexible,
-                coerce_one_of=False,
-            )
-            compiler.compile(schema_string)
-        except ValueError as e:
-            if (
-                e.args[0]
-                == "oneOf constraints are not supported. Enable 'coerce_one_of' option to approximate oneOf with anyOf"
-            ):
-                warnings.warn(
-                    "oneOf not fully supported, falling back to anyOf. This may cause validation errors in some cases."
-                )
-                compiler = JsonCompiler(
-                    separators=separators,
-                    whitespace_flexible=whitespace_flexible,
-                    coerce_one_of=True,
-                )
-                compiler.compile(schema_string)
-                coerce_one_of = True
-            else:
-                raise
+    if whitespace_pattern is not None:
+        whitespace_flexible = True
 
     if separators is None:
-        if whitespace_flexible:
+        if whitespace_flexible or whitespace_pattern:
             separators = (",", ":")
         else:
             separators = (", ", ": ")
+    if len(separators) != 2:
+        raise ValueError("separators must be a tuple of (item_separator, key_separator)")
     item_separator, key_separator = separators
 
     if schema.get("x-guidance") is None:
@@ -138,8 +113,24 @@ def json(
             "item_separator": item_separator,
             "key_separator": key_separator,
             "whitespace_flexible": whitespace_flexible,
-            "coerce_one_of": coerce_one_of,
+            "whitespace_pattern": whitespace_pattern,
+            "coerce_one_of": True,
+            "lenient": lenient,
         }
+
+    # TODO: decide whether or not to keep this -- it lets us double check that llguidance can handle the schema which isn't necessarily
+    # what we want, as llguidance may or may not be the backend we are using. That being said, it's sort of nice to get an exception when
+    # you call `json` instead of waiting for generation to fail.
+    VALIDATE = True
+    if VALIDATE:
+        grm = LLMatcher.grammar_from_json_schema(schema)
+        is_err, messages = LLMatcher.validate_grammar_with_warnings(grm)
+        if is_err:
+            raise ValueError(messages[0])
+        else:
+            # this will warn about oneOf coercion, and any other unsupported features if lenient is enabled
+            for message in messages:
+                warnings.warn(message)
 
     node = RuleNode(
         name=name or "json",
