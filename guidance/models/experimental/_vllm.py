@@ -1,10 +1,11 @@
-from typing import Iterator, Optional
+from typing import Iterator, Optional, TYPE_CHECKING
 import wave
 import base64
 from io import BytesIO
 from copy import deepcopy
 from pydantic import TypeAdapter
-from openai.types.chat import ChatCompletionChunk
+if TYPE_CHECKING:
+    from openai.types.chat import ChatCompletionChunk
 
 from ..._ast import GrammarNode, RoleStart, RoleEnd, ASTNode, LiteralNode
 from ...trace import OutputAttr, TextOutput
