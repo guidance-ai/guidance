@@ -148,12 +148,13 @@ class OpenAIState(State):
         return s
 
 
-class OpenAIInterpreter(Interpreter[OpenAIState]):
+class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
     log_probs: bool = True
 
     def __init__(
         self,
         model: str,
+        base_url: Optional[str] = None,
         api_key: Optional[str] = None,
         **kwargs,
     ):
@@ -165,14 +166,7 @@ class OpenAIInterpreter(Interpreter[OpenAIState]):
             )
         self.state = OpenAIState()
         self.model = model
-        self.client = openai.OpenAI(api_key=api_key, **kwargs)
-
-    def run(self, node: ASTNode, **kwargs) -> Iterator[OutputAttr]:
-        if not isinstance(node, RoleStart) and self.state.active_role is None:
-            raise ValueError(
-                "OpenAI models require an active role (e.g. use `with assistant(): ...`)"
-            )
-        return super().run(node, **kwargs)
+        self.client = openai.OpenAI(base_url=base_url, api_key=api_key, **kwargs) 
 
     def role_start(self, node: RoleStart, **kwargs) -> Iterator[OutputAttr]:
         self.state.active_role = node.role
@@ -191,56 +185,12 @@ class OpenAIInterpreter(Interpreter[OpenAIState]):
         self.state.apply_text(node.value)
         yield TextOutput(value=node.value, is_input=True)
 
-    def rule(self, node: RuleNode, **kwargs) -> Iterator[OutputAttr]:
-        if node.stop:
-            raise ValueError("Stop condition not yet supported for OpenAI")
-        if node.suffix:
-            raise ValueError("Suffix not yet supported for OpenAI")
-        if node.stop_capture:
-            raise ValueError("Save stop text not yet supported for OpenAI")
-
-        kwargs = kwargs.copy()
-        if node.temperature:
-            kwargs["temperature"] = node.temperature
-        if node.max_tokens:
-            kwargs["max_tokens"] = node.max_tokens
-
-        chunks = self.run(node.value, **kwargs)
-        if node.capture:
-            buffered_text = ""
-            for chunk in chunks:
-                # TODO: this isinstance check is pretty darn fragile.
-                # ~there must be a better way~
-                if isinstance(chunk, TextOutput):
-                    buffered_text += chunk.value
-                yield chunk
-            yield self.state.apply_capture(
-                name=node.capture,
-                value=buffered_text,
-                log_prob=1,  # TODO
-                is_append=node.list_append,
+    def run(self, node: ASTNode, **kwargs) -> Iterator[OutputAttr]:
+        if not isinstance(node, RoleStart) and self.state.active_role is None:
+            raise ValueError(
+                "OpenAI models require an active role (e.g. use `with assistant(): ...`)"
             )
-        else:
-            yield from chunks
-
-    def regex(self, node: RegexNode, **kwargs) -> Iterator[OutputAttr]:
-        if node.regex is not None:
-            raise ValueError("Regex not yet supported for OpenAI")
-        # We're in unconstrained mode now.
-        return self._run(**kwargs)
-
-    def json(self, node: JsonNode, **kwargs) -> Iterator[OutputAttr]:
-        return self._run(
-            response_format={
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "json_schema",  # TODO?
-                    "schema": node.schema,
-                    "strict": True,
-                },
-            },
-            **kwargs,
-        )
+        return super().run(node, **kwargs)
 
     def _run(self, **kwargs) -> Iterator[OutputAttr]:
         if self.state.active_role is None:
@@ -350,6 +300,75 @@ class OpenAIInterpreter(Interpreter[OpenAIState]):
                 setattr(result, k, deepcopy(v, memo))
         return result
 
+class OpenAIInterpreter(BaseOpenAIInterpreter):
+    log_probs: bool = True
+
+    def __init__(
+        self,
+        model: str,
+        api_key: Optional[str] = None,
+        **kwargs,
+    ):
+        try:
+            import openai
+        except ImportError:
+            raise Exception(
+                "Please install the openai package version >= 1 using `pip install openai -U` in order to use guidance.models.OpenAI!"
+            )
+        self.state = OpenAIState()
+        self.model = model
+        self.client = openai.OpenAI(api_key=api_key, **kwargs)
+
+    def rule(self, node: RuleNode, **kwargs) -> Iterator[OutputAttr]:
+        if node.stop:
+            raise ValueError("Stop condition not yet supported for OpenAI")
+        if node.suffix:
+            raise ValueError("Suffix not yet supported for OpenAI")
+        if node.stop_capture:
+            raise ValueError("Save stop text not yet supported for OpenAI")
+
+        kwargs = kwargs.copy()
+        if node.temperature:
+            kwargs["temperature"] = node.temperature
+        if node.max_tokens:
+            kwargs["max_tokens"] = node.max_tokens
+
+        chunks = self.run(node.value, **kwargs)
+        if node.capture:
+            buffered_text = ""
+            for chunk in chunks:
+                # TODO: this isinstance check is pretty darn fragile.
+                # ~there must be a better way~
+                if isinstance(chunk, TextOutput):
+                    buffered_text += chunk.value
+                yield chunk
+            yield self.state.apply_capture(
+                name=node.capture,
+                value=buffered_text,
+                log_prob=1,  # TODO
+                is_append=node.list_append,
+            )
+        else:
+            yield from chunks
+
+    def regex(self, node: RegexNode, **kwargs) -> Iterator[OutputAttr]:
+        if node.regex is not None:
+            raise ValueError("Regex not yet supported for OpenAI")
+        # We're in unconstrained mode now.
+        return self._run(**kwargs)
+
+    def json(self, node: JsonNode, **kwargs) -> Iterator[OutputAttr]:
+        return self._run(
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "json_schema",  # TODO?
+                    "schema": node.schema,
+                    "strict": True,
+                },
+            },
+            **kwargs,
+        )
 
 class OpenAIImageInterpreter(OpenAIInterpreter):
     def image_blob(self, node: ImageBlob, **kwargs) -> Iterator[OutputAttr]:
