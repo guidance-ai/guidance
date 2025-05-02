@@ -1,10 +1,11 @@
 from ._base import Model
+
 # from ._engine import Instruct, Chat
 
 # local models
 from ._transformers import Transformers, TransformersTokenizer
 from ._llama_cpp import LlamaCpp
-from ._mock import Mock#, MockChat
+from ._mock import Mock  # , MockChat
 
 # from .vertexai._vertexai import (
 #     VertexAI,
@@ -17,6 +18,7 @@ from ._mock import Mock#, MockChat
 # )
 # from ._azureai_studio import AzureAIStudioChat
 from ._openai import OpenAI
+
 # from ._lite_llm import LiteLLM, LiteLLMChat, LiteLLMInstruct, LiteLLMCompletion
 # from ._cohere import Cohere, CohereCompletion, CohereInstruct
 # from ._anthropic import Anthropic
