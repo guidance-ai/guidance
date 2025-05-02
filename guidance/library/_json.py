@@ -6,7 +6,7 @@ from typing import Any, Mapping, Optional, Type, Union, cast
 import pydantic
 from llguidance import LLMatcher
 
-from .._ast import JsonNode
+from .._ast import JsonNode, RuleNode
 from .._grammar import capture, token_limit, with_temperature
 from ._pydantic import pydantic_to_json_schema
 
@@ -132,9 +132,11 @@ def json(
             for message in messages:
                 warnings.warn(message)
 
-    node = JsonNode(
+    node = RuleNode(
         name=name or "json",
-        schema=schema,
+        value=JsonNode(
+            schema=schema,
+        )
     )
     if temperature is not None:
         node = with_temperature(node, temperature)
