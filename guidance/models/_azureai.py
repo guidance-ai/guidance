@@ -86,6 +86,9 @@ def create_azure_openai_model(
 
     Parameters
     ----------
+    azure_endpoint : str
+        The endpoint which holds the OpenAI model deployment. It will probably be
+        https://<AZURE OPENAI RESOURCE NAME>.openai.azure.com/"
     azure_deployment : str
         The Azure deployment name to use for the model. The Azure AI portal will
         default this to being the model_name, but it can be different
@@ -99,10 +102,16 @@ def create_azure_openai_model(
         The Azure AD token to use for authentication.
     azure_ad_token_provider : Callable[[], str] | None
         A callable that returns an Azure AD token for authentication.
-    organization : str | None
-        The organization ID to use for the Azure OpenAI service.
     echo : bool
         If true the final result of creating this model state will be displayed (as HTML in a notebook).
+    has_audio_support : bool
+        Indicates if the deployed model has support for audio. This factory attempts
+        to work this out from the model_name, but this can be used to force the addition
+        of audio support to the returned Model.
+    has_image_support : bool
+        Indicates if the deployed model has support for images. This factory attempts
+        to work this out from the model_name, but this can be used to force the addition
+        of image support to the returned Model.
     **kwargs :
         All extra keyword arguments are passed directly to the `openai.OpenAI` constructor. Commonly used argument
         names include `base_url` and `organization`
@@ -205,14 +214,24 @@ def create_azure_aifoundry_model(
     model_name: Optional[str] = None,
     api_key: Optional[str] = None,
     token_credential: Optional["TokenCredential"] = None,
-    has_audio_support: bool = False,
-    has_image_support: bool = False,
 ) -> Model:
-    if has_audio_support:
-        raise NotImplementedError("No support yet for Audio in Azure AI Foundry")
-    if has_image_support:
-        raise NotImplementedError("No support yet for Images in Azure AI Foundry")
+    """Create a Model capable of interacting with an Azure AI OpenAI deployment
 
+    Parameters
+    ----------
+    azure_endpoint : str
+        The endpoint which holds the OpenAI model deployment. It can be obtained
+        from the AI Foundry portal, and will look something like
+        "https://<DEPLOYMENT_NAME>.<AZURE REGION>.models.ai.azure.com"
+    echo : bool
+        If true the final result of creating this model state will be displayed (as HTML in a notebook).
+    model_name : str
+        The actual name of the deployed model
+    api_key : str
+        One of the authentication options. This can be obtained from the AI Foundry portal
+    token_credential :
+        The other authentication option. An Azure Token Credential
+    """
     try:
         from azure.core.credentials import AzureKeyCredential, TokenCredential
     except ImportError:
