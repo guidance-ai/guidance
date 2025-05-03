@@ -14,6 +14,8 @@ from ...trace import CaptureOutput
 
 class EngineClient(Client[EngineState]):
     def __init__(self, engine_type: Type[Engine], *args, **kwargs):
+        self._keep_alive_list = [True]
+
         self._lock = Lock()
         self._response_queue = ProcessQueue()
         self._work_queue = ProcessQueue()
@@ -24,7 +26,7 @@ class EngineClient(Client[EngineState]):
         self._outstanding = {1: initial_thread_queue}
         self._work_queue.put(("init", 1, engine_type, args, kwargs))
 
-        self._thread = Thread(target=local_worker, args=(self._lock, self._outstanding, self._response_queue), daemon=True)
+        self._thread = Thread(target=local_worker, args=(self._keep_alive_list, self._lock, self._outstanding, self._response_queue), daemon=True)
         self._thread.start()
 
         self._process = Process(target=remote_worker, args=(self._work_queue, self._response_queue), daemon=False)
@@ -101,6 +103,10 @@ class EngineClient(Client[EngineState]):
                     pass
 
             self._thread = None
+
+        keep_alive_list = getattr(self, "_keep_alive_list", None)
+        if keep_alive_list is not None:
+            keep_alive_list[0] = None
 
     def get_role_start(self, role: str) -> str:
         if self.chat_template is None:
@@ -198,16 +204,31 @@ def partial_decode(data: bytes) -> tuple[str, bytes]:
     return (valid_part, delayed_part)
 
 
-def local_worker(lock: Lock, outstanding: dict, response_queue: ProcessQueue):
+def local_worker(keep_alive_list: list, lock: Lock, outstanding: dict, response_queue: ProcessQueue):
+    # use extremely defensive programming here to handle unclean shutdowns
     while True:
+        if response_queue is None:
+            break
+
         response_args = response_queue.get()
         if response_args is None:
             break
         event_id, *response_args = response_args
 
+        if lock is None:
+            break
         with lock:
+            if outstanding is None or event_id is None:
+                break
             thread_queue = outstanding[event_id]
             del outstanding[event_id]
+
+        if keep_alive_list is None:
+            break
+
+        is_keep_alive = keep_alive_list[0]
+        if is_keep_alive is None or thread_queue is None or response_args is None:
+            break
 
         thread_queue.put(response_args)
 
