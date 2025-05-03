@@ -1,6 +1,6 @@
 from multiprocessing import Process, Queue as ProcessQueue
 from queue import Queue as ThreadQueue  # TODO: change to asyncio.Queue for async
-from threading import Thread
+from threading import Thread, Lock
 from base64 import b64decode
 from io import BytesIO
 from typing import Iterator, Type
@@ -14,6 +14,7 @@ from ...trace import CaptureOutput
 
 class EngineClient(Client[EngineState]):
     def __init__(self, engine_type: Type[Engine], *args, **kwargs):
+        self._lock = Lock()
         self._response_queue = ProcessQueue()
         self._work_queue = ProcessQueue()
         self._message_id = 2
@@ -23,7 +24,7 @@ class EngineClient(Client[EngineState]):
         self._outstanding = {1: initial_thread_queue}
         self._work_queue.put(("init", 1, engine_type, args, kwargs))
 
-        self._thread = Thread(target=local_worker, args=(self._outstanding, self._response_queue), daemon=True)
+        self._thread = Thread(target=local_worker, args=(self._lock, self._outstanding, self._response_queue), daemon=True)
         self._thread.start()
 
         self._process = Process(target=remote_worker, args=(self._work_queue, self._response_queue), daemon=False)
@@ -126,18 +127,20 @@ class EngineClient(Client[EngineState]):
         yield TextOutput(value=node.value, is_input=True)
 
     def grammar(self, state: EngineState, node: GrammarNode, **kwargs) -> Iterator[OutputAttr]:
-        message_id = self._message_id
-        self._message_id += 1
-
         thread_queue = ThreadQueue()
-        self._outstanding[message_id] = thread_queue
+
+        with self._lock:
+            message_id = self._message_id
+            self._message_id = message_id + 1
+            self._outstanding[message_id] = thread_queue
 
         self._work_queue.put(("grammar", message_id, state, node.ll_grammar()))
 
-        exception, chunks = thread_queue.get()
+        exception, *response_args = thread_queue.get()
         if exception is not None:
             raise exception
 
+        chunks = response_args[0]
         for chunk in chunks:
             if isinstance(chunk, TextOutput):
                 state.prompt += chunk.value
@@ -195,14 +198,17 @@ def partial_decode(data: bytes) -> tuple[str, bytes]:
     return (valid_part, delayed_part)
 
 
-def local_worker(outstanding: dict, response_queue: ProcessQueue):
+def local_worker(lock: Lock, outstanding: dict, response_queue: ProcessQueue):
     while True:
         response_args = response_queue.get()
         if response_args is None:
             break
         event_id, *response_args = response_args
-        thread_queue = outstanding[event_id]
-        del outstanding[event_id]
+
+        with lock:
+            thread_queue = outstanding[event_id]
+            del outstanding[event_id]
+
         thread_queue.put(response_args)
 
 def remote_worker(work_queue: ProcessQueue, response_queue: ProcessQueue):
