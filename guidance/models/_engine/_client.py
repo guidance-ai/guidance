@@ -31,7 +31,7 @@ class EngineClient(Client[EngineState]):
         initial_thread_queue = ThreadQueue()
         
         self._outstanding = {1: initial_thread_queue}
-        self._work_queue.put((1, "init", engine_type, args, kwargs))
+        self._work_queue.put(("init", 1, engine_type, args, kwargs))
 
         self._thread = Thread(target=local_worker, args=(self._outstanding, self._response_queue), daemon=False)
         self._thread.start()
@@ -60,7 +60,7 @@ class EngineClient(Client[EngineState]):
         if p is not None:
             work_queue = getattr(self, "_work_queue", None)
             if work_queue is not None:
-                work_queue.put((None, "close"))
+                work_queue.put(None)
                 p.join(30)
                 self._work_queue = None
 
@@ -76,7 +76,7 @@ class EngineClient(Client[EngineState]):
         if t is not None:
             response_queue = getattr(self, "_response_queue", None)
             if response_queue is not None:
-                response_queue.put((0, None))
+                response_queue.put(None)
                 self._response_queue = None
 
             t.join(30)  # max 30 seconds wait
@@ -114,7 +114,7 @@ class EngineClient(Client[EngineState]):
         thread_queue = ThreadQueue()
         self._outstanding[message_id] = thread_queue
 
-        self._work_queue.put((message_id, "grammar", state, node.ll_grammar()))
+        self._work_queue.put(("grammar", message_id, state, node.ll_grammar()))
 
         exception, chunks = thread_queue.get()
         if exception is not None:
@@ -179,9 +179,10 @@ def partial_decode(data: bytes) -> tuple[str, bytes]:
 
 def local_worker(outstanding: dict, response_queue: ProcessQueue):
     while True:
-        event_id, *response_args = response_queue.get()
-        if event_id == 0:
+        response_args = response_queue.get()
+        if response_args is None:
             break
+        event_id, *response_args = response_args
         thread_queue = outstanding[event_id]
         del outstanding[event_id]
         thread_queue.put(response_args)
@@ -189,10 +190,13 @@ def local_worker(outstanding: dict, response_queue: ProcessQueue):
 def remote_worker(work_queue: ProcessQueue, response_queue: ProcessQueue):
     engine = None
     while True:
-        event_id, work_type, *work_args = work_queue.get()
+        work_args = work_queue.get()
+        if work_args is None:
+            break
+        work_type, *work_args = work_args
         if work_type == "init":
             try:
-                engine_type, args, kwargs = work_args
+                event_id, engine_type, args, kwargs = work_args
                 engine = engine_type(*args, **kwargs)
                 chat_template = engine.get_chat_template()
 
@@ -201,7 +205,7 @@ def remote_worker(work_queue: ProcessQueue, response_queue: ProcessQueue):
                 response_queue.put((event_id, e))
         elif work_type == "grammar":
             try:
-                state, grammar = work_args
+                event_id, state, grammar = work_args
 
                 engine_gen = engine.execute_grammar(
                     state,
@@ -259,9 +263,6 @@ def remote_worker(work_queue: ProcessQueue, response_queue: ProcessQueue):
                 response_queue.put((event_id, None, chunks))
             except Exception as e:
                 response_queue.put((event_id, e))
-
-        elif work_type == "close":
-            break
         else:
             raise Exception("Unknown message type.")
 
