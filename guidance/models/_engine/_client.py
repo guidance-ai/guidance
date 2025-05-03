@@ -207,6 +207,12 @@ def partial_decode(data: bytes) -> tuple[str, bytes]:
 def local_worker(keep_alive_list: list, lock: Lock, outstanding: dict, response_queue: ProcessQueue):
     # use extremely defensive programming here to handle unclean shutdowns
     while True:
+        if keep_alive_list is None:
+            break
+        is_keep_alive = keep_alive_list[0]
+        if is_keep_alive is None:
+            break
+
         if response_queue is None:
             break
 
@@ -223,14 +229,23 @@ def local_worker(keep_alive_list: list, lock: Lock, outstanding: dict, response_
             thread_queue = outstanding[event_id]
             del outstanding[event_id]
 
-        if keep_alive_list is None:
+        if thread_queue is None:
             break
-
-        is_keep_alive = keep_alive_list[0]
-        if is_keep_alive is None or thread_queue is None or response_args is None:
+           
+        if response_args is None:
+            thread_queue.put(tuple(Exception("Model was closed with active work.")))
             break
 
         thread_queue.put(response_args)
+
+    # flush any outstanding items with Exceptions
+    # it is illegal to add work after closing, so do not use the lock.
+    if outstanding is None:
+        return
+    for thread_queue in outstanding:
+        if thread_queue is not None:
+            thread_queue.put(tuple(Exception("Model was closed with active work.")))
+
 
 def remote_worker(work_queue: ProcessQueue, response_queue: ProcessQueue):
     engine = None
