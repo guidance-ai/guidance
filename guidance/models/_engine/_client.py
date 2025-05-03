@@ -250,79 +250,94 @@ def local_worker(keep_alive_list: list, lock: Lock, outstanding: dict, response_
 def remote_worker(work_queue: ProcessQueue, response_queue: ProcessQueue):
     engine = None
     while True:
-        work_args = work_queue.get()
+        try:
+            work_args = work_queue.get()
+        except:
+            # If the parent process closes it closes work_queue and we get an exception
+            break
         if work_args is None:
             break
         work_type, *work_args = work_args
         if work_type == "init":
             try:
-                event_id, engine_type, args, kwargs = work_args
-                engine = engine_type(*args, **kwargs)
-                chat_template = engine.get_chat_template()
-
-                response_queue.put((event_id, None, chat_template))
-            except Exception as e:
-                response_queue.put((event_id, e))
+                try:
+                    event_id, engine_type, args, kwargs = work_args
+                    engine = engine_type(*args, **kwargs)
+                    chat_template = engine.get_chat_template()
+                except Exception as e:
+                    response_queue.put((event_id, e))
+                else:
+                    response_queue.put((event_id, None, chat_template))
+            except:
+                # If the parent process closes it closes 
+                # response_queue and we get an exception.
+                # Exit in this case because the parent is dead.
+                break
         elif work_type == "grammar":
             try:
-                event_id, state, grammar = work_args
+                try:
+                    event_id, state, grammar = work_args
 
-                engine_gen = engine.execute_grammar(
-                    state,
-                    grammar,
-                    ensure_bos_token=True,
-                    echo=False,
-                )
+                    engine_gen = engine.execute_grammar(
+                        state,
+                        grammar,
+                        ensure_bos_token=True,
+                        echo=False,
+                    )
 
-                chunks = []
+                    chunks = []
 
-                delayed_bytes = b""
-                for chunk in engine_gen:
-                    new_bytes = chunk.new_bytes
-                    new_text, delayed_bytes = partial_decode(new_bytes)
+                    delayed_bytes = b""
+                    for chunk in engine_gen:
+                        new_bytes = chunk.new_bytes
+                        new_text, delayed_bytes = partial_decode(new_bytes)
 
-                    # Update the state
-                    chunks.append(TextOutput(value=new_text, token_count=chunk.new_token_count, is_generated=True))
+                        # Update the state
+                        chunks.append(TextOutput(value=new_text, token_count=chunk.new_token_count, is_generated=True))
 
-                    # TODO -- rewrite engine internals to make sure chunk.{generated,fast_forwarded}_tokens aren't empty...
-                    # # TODO: GenTokenExtra
-                    # for token in chunk.generated_tokens:
-                    #     yield TextOutput(
-                    #         value=token.text,  # TODO: this should really be the token bytes
-                    #         is_generated=True,
-                    #         token_count=1,
-                    #         prob=token.prob,
-                    #         tokens=[token],  # TODO: drop this
-                    #     )
-                    # for token in chunk.force_forwarded_tokens:
-                    #     yield TextOutput(
-                    #         value=token.text,  # TODO: this should really be the token bytes
-                    #         is_generated=False,
-                    #         token_count=1,
-                    #         prob=token.prob,
-                    #         tokens=[token],  # TODO: drop this
-                    #     )
+                        # TODO -- rewrite engine internals to make sure chunk.{generated,fast_forwarded}_tokens aren't empty...
+                        # # TODO: GenTokenExtra
+                        # for token in chunk.generated_tokens:
+                        #     yield TextOutput(
+                        #         value=token.text,  # TODO: this should really be the token bytes
+                        #         is_generated=True,
+                        #         token_count=1,
+                        #         prob=token.prob,
+                        #         tokens=[token],  # TODO: drop this
+                        #     )
+                        # for token in chunk.force_forwarded_tokens:
+                        #     yield TextOutput(
+                        #         value=token.text,  # TODO: this should really be the token bytes
+                        #         is_generated=False,
+                        #         token_count=1,
+                        #         prob=token.prob,
+                        #         tokens=[token],  # TODO: drop this
+                        #     )
 
-                    # # TODO: yield some kind of backtrack signal?
+                        # # TODO: yield some kind of backtrack signal?
 
-                    for name in chunk.capture_groups.keys():
-                        values = chunk.capture_groups[name]
-                        log_probs = chunk.capture_group_log_probs[name]
-                        if isinstance(values, list):
-                            assert isinstance(log_probs, list)
-                            assert len(values) == len(log_probs)
-                            for value, log_prob in zip(values, log_probs):
-                                chunks.append((name, value.decode("utf-8"), log_prob, True))
-                        else:
-                            assert isinstance(log_probs, float)
-                            chunks.append((name, values.decode("utf-8"), log_probs, False))
+                        for name in chunk.capture_groups.keys():
+                            values = chunk.capture_groups[name]
+                            log_probs = chunk.capture_group_log_probs[name]
+                            if isinstance(values, list):
+                                assert isinstance(log_probs, list)
+                                assert len(values) == len(log_probs)
+                                for value, log_prob in zip(values, log_probs):
+                                    chunks.append((name, value.decode("utf-8"), log_prob, True))
+                            else:
+                                assert isinstance(log_probs, float)
+                                chunks.append((name, values.decode("utf-8"), log_probs, False))
 
-                if delayed_bytes:
-                    raise RuntimeError("Shouldn't have any delayed bytes left...")
-
-                response_queue.put((event_id, None, chunks))
-            except Exception as e:
-                response_queue.put((event_id, e))
+                    if delayed_bytes:
+                        raise RuntimeError("Shouldn't have any delayed bytes left...")
+                except Exception as e:
+                    response_queue.put((event_id, e))
+                else:
+                    response_queue.put((event_id, None, chunks))
+            except:
+                # If the parent process closes it closes 
+                # response_queue and we get an exception.
+                # Exit in this case because the parent is dead.
+                break
         else:
             raise Exception("Unknown message type.")
-
