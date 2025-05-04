@@ -383,7 +383,8 @@ class LlamaCpp(Model):
         """Build a new LlamaCpp model object that represents a model in a given state."""
 
         state = EngineState()
-        client = EngineClient(LlamaCppEngine, 
+        client = EngineClient(True, 
+            LlamaCppEngine, 
             model,
             compute_log_probs=compute_log_probs,
             chat_template=chat_template,

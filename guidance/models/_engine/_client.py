@@ -13,7 +13,7 @@ from ._state import EngineState
 from ...trace import CaptureOutput
 
 class EngineClient(Client[EngineState]):
-    def __init__(self, engine_type: Type[Engine], *args, **kwargs):
+    def __init__(self, engine_process: bool, engine_type: Type[Engine], *args, **kwargs):
         self._keep_alive_list = [True]
 
         self._lock = Lock()
@@ -29,8 +29,13 @@ class EngineClient(Client[EngineState]):
         self._thread = Thread(target=local_worker, args=(self._keep_alive_list, self._lock, self._outstanding, self._response_queue), daemon=True)
         self._thread.start()
 
-        self._process = Process(target=remote_worker, args=(self._work_queue, self._response_queue), daemon=False)
-        self._process.start()
+        if engine_process:
+            self._worker = Process(target=remote_worker, args=(self._work_queue, self._response_queue), daemon=False)
+            self._worker.start()
+        else:
+            # TODO: set daemon=False?
+            self._worker = Thread(target=remote_worker, args=(self._work_queue, self._response_queue), daemon=False)
+            self._worker.start()
 
         # wait for response that the engine has been created in the other process
         exception, *response_args = initial_thread_queue.get()
@@ -53,37 +58,38 @@ class EngineClient(Client[EngineState]):
                 pass
             self._work_queue = None
 
-        p = getattr(self, "_process", None)
-        if p is not None:
+        worker = getattr(self, "_worker", None)
+        if worker is not None:
             if work_queue is not None:
                 # if work_queue was None from shutdown, just terminate and do not join
                 try:
-                    p.join(30)
+                    worker.join(30)
                 except:
                     pass
 
-            try:
-                is_alive = p.is_alive()
-            except:
-                is_alive = True  # if it is in a weird state, terminate it
-
-            if is_alive:
+            if isinstance(worker, Process):
                 try:
-                    p.terminate()
+                    is_alive = worker.is_alive()
                 except:
-                    pass
+                    is_alive = True  # if it is in a weird state, terminate it
+
+                if is_alive:
+                    try:
+                        worker.terminate()
+                    except:
+                        pass
+
+                    try:
+                        worker.join(30)
+                    except:
+                        pass
 
                 try:
-                    p.join(30)
+                    worker.close()
                 except:
                     pass
-
-            try:
-                p.close()
-            except:
-                pass
     
-            self._process = None
+            self._worker = None
 
         response_queue = getattr(self, "_response_queue", None)
         if response_queue is not None:

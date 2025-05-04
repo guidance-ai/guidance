@@ -26,6 +26,7 @@ class Transformers(Model):
             client_cls = EngineClient
 
         client = client_cls(
+            True,
             TransformersEngine,
             model,
             compute_log_probs,
