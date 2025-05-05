@@ -1,3 +1,5 @@
+import weakref
+import atexit
 from multiprocessing import Process, Queue as ProcessQueue
 from queue import Queue as ThreadQueue  # TODO: change to asyncio.Queue for async
 from threading import Thread, Lock
@@ -43,6 +45,31 @@ class EngineClient(Client[EngineState]):
             raise exception
 
         self.chat_template = response_args[0]
+
+        def atexit_close(ref):
+            orig = ref()
+            if orig is not None:
+                orig.close()
+
+        ref = weakref.ref(self)
+        # Register a weakref so that atexit doesn't hold a reference to self and therefore 
+        # kept alive past the scope of anyone holding our object.
+        #
+        # !! IMPORTANT !!
+        #     Call atexit.register AFTER creating the worker thread and process
+        #     above because atexit guarantees that the exit handlers are 
+        #     processed in reverse order as they were registerd. 
+        #     The Thread/Process atexit handlers will HANG if they are
+        #     called first because they join the thread/process without
+        #     initiating a clean exit for this object.  By registering
+        #     after the thread/process we guarantee that our close function
+        #     puts sentinels on the queues to initiate clean exits before 
+        #     the thread/process is joined.
+        #
+        atexit.register(atexit_close, ref)
+
+        # Unregister when self is GCed to avoid keeping garbage on the atexit list.
+        weakref.finalize(self, atexit.unregister, atexit_close)
 
     def __del__(self):
         call_close = getattr(self, "close", None)
