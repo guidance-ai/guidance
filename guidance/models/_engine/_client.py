@@ -33,7 +33,7 @@ class EngineClient(Client[EngineState]):
             self._worker = Process(target=remote_worker, args=(self._work_queue, self._response_queue), daemon=False)
             self._worker.start()
         else:
-            # TODO: set daemon=False?
+            # TODO: set daemon=True?
             self._worker = Thread(target=remote_worker, args=(self._work_queue, self._response_queue), daemon=False)
             self._worker.start()
 
