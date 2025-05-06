@@ -92,20 +92,26 @@ class Model:
     def _update_trace_node(
         self, identifier: int, parent_id: Optional[int], node_attr: Optional[NodeAttr] = None
     ) -> None:
-        # from ...registry import get_trace_handler, get_renderer
+        from ...registry import get_trace_handler, get_renderer
 
-        # trace_handler = get_trace_handler()
-        # trace_node = trace_handler.update_node(identifier, parent_id, node_attr)
-        # self._trace_nodes.add(trace_node)
-        # if self.echo:
-        #     get_renderer().update(
-        #         TraceMessage(
-        #             trace_id=identifier,
-        #             parent_trace_id=parent_id,
-        #             node_attr=node_attr,
-        #         ),
-        #     )
+        trace_handler = get_trace_handler()
+        trace_node = trace_handler.update_node(identifier, parent_id, node_attr)
+        self._trace_nodes.add(trace_node)
+        if self.echo:
+            get_renderer().update(
+                TraceMessage(
+                    trace_id=identifier,
+                    parent_trace_id=parent_id,
+                    node_attr=node_attr,
+                ),
+            )
         pass
+
+    def _increment_trace_id(self) -> None:
+        # This is a bit of a hack to get the trace ids working (only one output attr is allowed per id, so we need to increment.)
+        # Parent will be the real parent, so this is all a bit of a mess. TODO: allow multiple output attrs per id
+        self._parent_id = self._id
+        self._id = _gen_id()
 
     def _add_to_pending(self, item: Union[ASTNode, Function]) -> None:
         if self._pending is None:
@@ -271,6 +277,7 @@ class Model:
         return reentrant_await(self.run_batched_async(items))
 
     async def _run(self) -> None:
+        # TODO: trace `InputAttr`s
         async def inner():
             new_self = self.copy()
             # may be some pending blocks
@@ -314,10 +321,10 @@ class Model:
 
     async def _run_node(self, node: ASTNode) -> None:
         async for output_attr in self._interpreter.run(node):
+            self._increment_trace_id()
             self._update_trace_node(self._id, self._parent_id, output_attr)
             # Stream current model state
             self._send_to_event_queue()
-        return self
 
     async def _get_state_async(self) -> State:
         """Get the state of the model."""
