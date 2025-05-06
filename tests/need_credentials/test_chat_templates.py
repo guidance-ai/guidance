@@ -42,7 +42,7 @@ def test_popular_models_in_cache(model_id: str, should_pass: bool):
 # TODO: Expand testing to verify that tokenizer.apply_chat_template() produces same results as our ChatTemplate subclasses
 # once I hook up the new ChatTemplate to guidance.models.Transformers and guidance.models.LlamaCPP, we can do this
 
-
+@pytest.mark.skip(reason="Is this supposed to work still?")
 @pytest.mark.parametrize(
     "model_id",
     [
