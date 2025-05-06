@@ -18,7 +18,9 @@ from typing import (
 from typing_extensions import assert_never
 
 from ._parser import ByteParser, ByteParserException
-from .trace import OutputAttr
+from .trace import InputAttr, OutputAttr, RoleOpenerInput, RoleCloserInput
+
+NodeAttr = Union[InputAttr, OutputAttr]
 
 if TYPE_CHECKING:
     from .models._base import Interpreter, State
@@ -199,7 +201,7 @@ S = TypeVar("S", bound="State")
 
 class ASTNode(ABC):
     @abstractmethod
-    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> AsyncIterable[OutputAttr]:
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> AsyncIterable[NodeAttr]:
         pass
 
     def simplify(self) -> "ASTNode":
@@ -235,8 +237,25 @@ class ASTNode(ABC):
 class Concatenate(ASTNode):
     nodes: tuple[ASTNode, ...]
 
-    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> AsyncIterable[OutputAttr]:
-        return interpreter.concatenate(self, **kwargs)
+    async def _run(self, interpreter: "Interpreter[S]", **kwargs) -> AsyncIterable[NodeAttr]:
+        buffer: Optional[GrammarNode] = None
+        for child in self:
+            assert not isinstance(child, Concatenate) # iter should be flat
+            if isinstance(child, GrammarNode):
+                if buffer is None:
+                    buffer = child
+                else:
+                    buffer = buffer + child
+            else:
+                if buffer is not None:
+                    async for attr in interpreter.run(buffer, **kwargs):
+                        yield attr
+                    buffer = None
+                async for attr in interpreter.run(child, **kwargs):
+                    yield attr
+        if buffer is not None:
+            async for attr in interpreter.run(buffer, **kwargs):
+                yield attr
 
     def __iter__(self) -> Iterator[ASTNode]:
         for node in self.nodes:
@@ -249,16 +268,20 @@ class Concatenate(ASTNode):
 class RoleStart(ASTNode):
     role: str
 
-    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> AsyncIterable[OutputAttr]:
-        return interpreter._role_start(self, **kwargs)
+    async def _run(self, interpreter: "Interpreter[S]", **kwargs) -> AsyncIterable[NodeAttr]:
+        yield RoleOpenerInput(name=self.role)
+        async for output_attr in interpreter._role_start(self, **kwargs):
+            yield output_attr
 
 
 @dataclass
 class RoleEnd(ASTNode):
     role: str
 
-    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> AsyncIterable[OutputAttr]:
-        return interpreter._role_end(self, **kwargs)
+    async def _run(self, interpreter: "Interpreter[S]", **kwargs) -> AsyncIterable[NodeAttr]:
+        yield RoleCloserInput(name=self.role)
+        async for output_attr in interpreter._role_end(self, **kwargs):
+            yield output_attr
 
 
 @dataclass

@@ -26,8 +26,10 @@ from ..._ast import (
     CaptureEnd,
 )
 from ..._utils import bytes_from
-from ...trace import OutputAttr, TextOutput
+from ...trace import InputAttr, OutputAttr, TextOutput
 from ._state import State
+
+NodeAttr = Union[InputAttr, OutputAttr]
 
 S = TypeVar("S", bound=State)
 
@@ -35,7 +37,7 @@ class Interpreter(Generic[S], ABC):
     def __init__(self, state: S):
         self.state = state
 
-    async def run(self, node: ASTNode, **kwargs) -> AsyncIterable[OutputAttr]:
+    async def run(self, node: ASTNode, **kwargs) -> AsyncIterable[NodeAttr]:
         async for attr in node.simplify()._run(self, **kwargs):
             if isinstance(attr, TextOutput) and attr.is_generated:
                 # TODO: this should probably be a lower-level responsibility? Not sure.
@@ -50,26 +52,6 @@ class Interpreter(Generic[S], ABC):
 
     async def capture_end(self, node: CaptureEnd, **kwargs) -> AsyncIterable[OutputAttr]:
         yield self.state.close_capture(node.name)
-
-    async def concatenate(self, node: Concatenate, **kwargs) -> AsyncIterable[OutputAttr]:
-        buffer: Optional[GrammarNode] = None
-        for child in node:
-            assert not isinstance(child, Concatenate) # iter should be flat
-            if isinstance(child, GrammarNode):
-                if buffer is None:
-                    buffer = child
-                else:
-                    buffer = buffer + child
-            else:
-                if buffer is not None:
-                    async for attr in self.run(buffer, **kwargs):
-                        yield attr
-                    buffer = None
-                async for attr in self.run(child, **kwargs):
-                    yield attr
-        if buffer is not None:
-            async for attr in self.run(buffer, **kwargs):
-                yield attr
 
     def _role_start(self, node: RoleStart, **kwargs) -> AsyncIterable[OutputAttr]:
         if self.state.active_role is not None:

@@ -320,9 +320,9 @@ class Model:
         return reentrant_await(self._run())
 
     async def _run_node(self, node: ASTNode) -> None:
-        async for output_attr in self._interpreter.run(node):
+        async for node_attr in self._interpreter.run(node):
             self._increment_trace_id()
-            self._update_trace_node(self._id, self._parent_id, output_attr)
+            self._update_trace_node(self._id, self._parent_id, node_attr)
             # Stream current model state
             self._send_to_event_queue()
 
