@@ -401,7 +401,7 @@ class OpenAIAudioMixin:
         )
         yield AudioOutput(value=node.data, format=format, input=True)
 
-    async def gen_audio(self, node: GenAudio, **kwargs) -> AsyncIterable[OutputAttr]:
+    def gen_audio(self, node: GenAudio, **kwargs) -> AsyncIterable[OutputAttr]:
         return self._run(
             modalities=["text", "audio"],  # Has to be both?
             audio={
