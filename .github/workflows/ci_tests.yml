@@ -77,6 +77,9 @@ jobs:
           AZUREAI_OPENAI_IMAGE_DEPLOYMENT_NAME: ${{ vars.AZUREAI_OPENAI_AUDIO_DEPLOYMENT_NAME }}
           AZUREAI_OPENAI_IMAGE_MODEL: ${{ vars.AZUREAI_OPENAI_AUDIO_MODEL }}
           AZUREAI_OPENAI_IMAGE_API_VERSION: ${{ vars.AZUREAI_OPENAI_AUDIO_API_VERSION }}
+          AZUREAI_STUDIO_PHI4_ENDPOINT: ${{ vars.AZUREAI_STUDIO_PHI4_ENDPOINT }}
+          AZUREAI_STUDIO_PHI4_MODEL_NAME: ${{ vars.AZUREAI_STUDIO_PHI4_MODEL_NAME }}
+          AZUREAI_STUDIO_PHI4_KEY: ${{ secrets.AZUREAI_STUDIO_PHI4_KEY }}
         run: |
           pytest -vv --cov=guidance --cov-report=xml --cov-report=term-missing \
             ./tests/need_credentials
