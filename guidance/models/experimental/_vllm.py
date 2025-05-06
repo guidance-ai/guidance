@@ -180,8 +180,12 @@ class VLLMInterpreter(BaseOpenAIInterpreterForVLLM):
             if isinstance(attr, TextOutput):
                 buffer += attr.value
             yield attr
-        bts = buffer.encode("utf-8")
-        matches = node.match(bts, raise_exceptions=False)
+        matches = node.match(
+            buffer,
+            raise_exceptions=False,
+            # Turn of max_tokens since we don't have access to the tokenizer
+            enforce_max_tokens=False,
+        )
         if matches is None:
             # TODO: should probably raise...
             # raise ValueError("vLLM failed to constrain the grammar")

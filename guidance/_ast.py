@@ -378,10 +378,11 @@ class GrammarNode(Tagged, ASTNode):
         byte_string: Union[str, bytes],
         allow_partial: bool = False,
         raise_exceptions: bool = False,
+        enforce_max_tokens: bool = True,
     ) -> Union[Match, None]:
         if isinstance(byte_string, str):
             byte_string = byte_string.encode()
-        parser = ByteParser(self.ll_grammar())
+        parser = ByteParser(self.ll_grammar(enforce_max_tokens=enforce_max_tokens))
 
         try:
             parser.consume_bytes(byte_string)
@@ -405,8 +406,8 @@ class GrammarNode(Tagged, ASTNode):
         parser = ByteParser(self.ll_grammar())
         return parser.bytes.decode("utf-8", errors="ignore")
 
-    def ll_grammar(self) -> str:
-        return LarkSerializer().serialize(self.simplify())
+    def ll_grammar(self, enforce_max_tokens: bool = True) -> str:
+        return LarkSerializer(enforce_max_tokens=enforce_max_tokens).serialize(self.simplify())
 
 
 @dataclass(frozen=True)
@@ -622,7 +623,8 @@ class LarkNode(BaseSubgrammarNode):
 
 class LarkSerializer:
 
-    def __init__(self):
+    def __init__(self, enforce_max_tokens: bool = True):
+        self.enforce_max_tokens = enforce_max_tokens
         self.rules: dict[str, str] = {}
         self.names: dict[Union[RuleNode, BaseSubgrammarNode], str] = {}
 
@@ -675,7 +677,7 @@ class LarkSerializer:
                     attrs.append("capture")
             if node.temperature is not None:
                 attrs.append(f"temperature={node.temperature}")
-            if node.max_tokens is not None:
+            if self.enforce_max_tokens and node.max_tokens is not None:
                 attrs.append(f"max_tokens={node.max_tokens}")
             if node.stop:
                 attrs.append(f"stop={self.visit(node.stop)}")
@@ -694,9 +696,11 @@ class LarkSerializer:
                 if isinstance(target, JsonNode):
                     res += "%json " + json.dumps(target.schema, indent=2)
                 elif isinstance(target, LarkNode):
+                    # TODO: we can't decide whether or not to enforce max tokens here easily.
+                    # We could in principle parse the grammar and/or use a regex?
                     res += f"%lark {{\n{textwrap.indent(target.lark_grammar, '  ').strip()}\n}}"
                 elif isinstance(target, SubgrammarNode):
-                    lark_grammar = LarkSerializer().serialize(target.body)
+                    lark_grammar = LarkSerializer(enforce_max_tokens=self.enforce_max_tokens).serialize(target.body)
                     if target.skip_regex:
                         lark_grammar += f"\n%ignore /{target.skip_regex}/"
                     res += f"%lark {{\n{textwrap.indent(lark_grammar, '  ').strip()}\n}}"
