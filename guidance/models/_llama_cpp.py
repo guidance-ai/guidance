@@ -306,7 +306,7 @@ class LlamaCppEngine(Engine):
         _bytes = self.tokenizer.decode([token_ids[0]])
         try:
             _text = _bytes.decode("utf-8")
-        except Exception as e:
+        except UnicodeDecodeError as e:
             _text = str(_bytes)
             print(f"Failed to decode token: {token_ids[0]}, error: {e}, _bytes: {str(_bytes)}")
         text_sequence.append(
@@ -331,7 +331,7 @@ class LlamaCppEngine(Engine):
                 _text = ""
                 try:
                     _text = self.tokenizer.decode([_token_id]).decode("utf-8")
-                except Exception as e:
+                except UnicodeDecodeError as e:
                     _bytes = self.tokenizer.decode([_token_id])
                     _text = str(_bytes)
                     print(

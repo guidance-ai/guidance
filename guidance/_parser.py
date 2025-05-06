@@ -6,7 +6,7 @@ import llguidance  # type: ignore[import-untyped]
 import numpy as np
 from numpy.typing import NDArray
 
-from ._schema import EngineOutput, GenData, LegacyEngineCallResponse, GenToken, LLInterpreterResponse, LLGrammar
+from ._schema import EngineOutput, GenData, LegacyEngineCallResponse, LLInterpreterResponse
 
 if TYPE_CHECKING:
     from .models._engine import Tokenizer
@@ -200,7 +200,7 @@ class ByteParserException(Exception):
 class ByteParser:
     def __init__(
         self,
-        grammar: LLGrammar,
+        grammar: str,
     ):
         # TODO: figure out this circular import
         from .models._byte_tokenizer import ByteTokenizer
