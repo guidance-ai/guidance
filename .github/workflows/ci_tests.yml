@@ -65,6 +65,10 @@ jobs:
           AZURE_AI_STUDIO_LLAMA3_CHAT_ENDPOINT: ${{ vars.AZURE_AI_STUDIO_LLAMA3_CHAT_ENDPOINT }}
           AZURE_AI_STUDIO_LLAMA3_CHAT_DEPLOYMENT: ${{ vars.AZURE_AI_STUDIO_LLAMA3_CHAT_DEPLOYMENT }}
           AZURE_AI_STUDIO_LLAMA3_CHAT_KEY: ${{ secrets.AZURE_AI_STUDIO_LLAMA3_CHAT_KEY }}
+          AZUREAI_OPENAI_CHAT_ENDPOINT: ${{ vars.AZUREAI_OPENAI_CHAT_ENDPOINT }}
+          AZUREAI_OPENAI_CHAT_DEPLOYMENT_NAME: ${{ vars.AZUREAI_OPENAI_CHAT_DEPLOYMENT_NAME }}
+          AZUREAI_OPENAI_CHAT_MODEL: ${{ vars.AZUREAI_OPENAI_CHAT_MODEL }}
+          AZUREAI_OPENAI_CHAT_API_VERSION: ${{ vars.AZUREAI_OPENAI_CHAT_API_VERSION }}
         run: |
           pytest -vv --cov=guidance --cov-report=xml --cov-report=term-missing \
             ./tests/need_credentials
