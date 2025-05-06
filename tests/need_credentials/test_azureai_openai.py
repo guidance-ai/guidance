@@ -99,6 +99,7 @@ def azureai_image_model():
         has_image_support=True,
     )
     assert isinstance(lm, models.Model)
+    print(f"{type(lm)=}")
 
     return lm
 
