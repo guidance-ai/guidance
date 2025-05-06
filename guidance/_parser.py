@@ -7,6 +7,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from ._schema import EngineOutput, GenData, EngineCallResponse, GenToken, LLInterpreterResponse
+from ._utils import to_utf8_or_bytes_string
 
 if TYPE_CHECKING:
     from .models._engine import Tokenizer
@@ -330,7 +331,7 @@ class ByteParser:
         fake_issued_token = GenToken(
             token_id=token_id,
             prob=1.0,
-            text=self.tokenizer.decode([token_id]).decode("utf-8"),
+            text=to_utf8_or_bytes_string(self.tokenizer.decode([token_id])),
             latency_ms=0,
             is_generated=True,
         )
