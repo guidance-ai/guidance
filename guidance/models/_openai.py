@@ -32,7 +32,7 @@ class OpenAIInterpreter(BaseOpenAIInterpreter):
             raise Exception(
                 "Please install the openai package version >= 1 using `pip install openai -U` in order to use guidance.models.OpenAI!"
             )
-        client = openai.OpenAI(api_key, **kwargs)
+        client = openai.AsyncOpenAI(api_key, **kwargs)
         super().__init__(model=model, client=client)
 
 
