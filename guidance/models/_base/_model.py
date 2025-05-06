@@ -6,37 +6,23 @@ import asyncio
 from contextvars import ContextVar, copy_context
 from copy import deepcopy
 from typing import TYPE_CHECKING, Any, Iterator, Optional, TypeVar, Union, Sequence
-import warnings
-from ..._reentrant_async import sync_to_reentrant_async, reentrant_await, run_async_coroutine_in_bg_async
-
 from typing_extensions import Self
 
 from ..._ast import (
     ASTNode,
-    Concatenate,
     Function,
     AsyncFunction,
-    GenAudio,
-    GrammarNode,
-    ImageBlob,
-    ImageUrl,
-    LiteralNode,
-    RoleEnd,
-    RoleStart,
     CaptureStart,
     CaptureEnd,
     _parse_tags,
 )
 from ...trace import (
-    ImageInput,
-    LiteralInput,
     NodeAttr,
-    RoleCloserInput,
-    RoleOpenerInput,
-    StatelessGuidanceInput,
     TraceNode,
 )
-from ...trace._trace import AudioInput
+from ...visual import TraceMessage
+from ..._reentrant_async import sync_to_reentrant_async, reentrant_await, run_async_coroutine_in_bg_async
+
 from ._interpreter import Interpreter
 from ._state import State
 
@@ -63,22 +49,45 @@ def _gen_id():
 S = TypeVar("S", bound=State)
 D = TypeVar("D", bound=Any)
 
-class Model:
-    def __init__(
-        self,
-        interpreter: Interpreter[S],
-        echo: bool = True,
-    ) -> None:
-        self.echo = echo
-        self._interpreter = interpreter
-        self._pending: Union[None, ASTNode, Function] = None
-        self._active_blocks: tuple[Block, ...] = ()
+from dataclasses import dataclass, field, InitVar
 
-        self._parent: Optional["Model"] = None
-        self._parent_id: Optional[int] = None
-        self._id: int = _gen_id()
-        self._trace_nodes: set[TraceNode] = set()
-        self._update_trace_node(self._id, self._parent_id, None)
+@dataclass
+class Model:
+    interpreter: InitVar[Interpreter[S]]
+    echo: bool = True
+
+    # Private init attributes
+    _interpreter: Interpreter = field(init=False)
+    _parent: Optional["Model"] = None
+    _pending: Union[None, ASTNode, Function] = None
+    _active_blocks: tuple["Block", ...] = ()
+
+    # Private non-init attributes
+    _parent_id: Optional[int] = field(init=False, default=None)
+    _id: int = field(init=False, default_factory=_gen_id)
+    _trace_nodes: set[TraceNode] = field(init=False, default_factory=set)
+
+    def __post_init__(self, interpreter: Interpreter) -> None:
+        self._interpreter = interpreter
+        # Set the parent ID if we have a parent
+        if self._parent is not None:
+            self._parent_id = self._parent._id
+
+    def copy(self) -> Self:
+        obj = object.__new__(self.__class__)
+        obj.__dict__.update(self.__dict__)
+        # Use the base-class's __init__ to set up the new object
+        # TODO: if we can move to having just the one Model class,
+        # we can replace this all with a simple `dataclasses.replace(self, ...)`
+        Model.__init__(
+            obj,
+            interpreter=deepcopy(self._interpreter),
+            # TODO: should this be our parent? Or is the copy really our child?
+            _parent=self,
+            _pending=self._pending,
+            _active_blocks=self._active_blocks,
+        )
+        return obj
 
     def _update_trace_node(
         self, identifier: int, parent_id: Optional[int], node_attr: Optional[NodeAttr] = None
@@ -154,18 +163,6 @@ class Model:
                         opener = _parse_tags(opener)
                     self._add_to_pending(opener)
         self._active_blocks = tuple(new_active_blocks)
-
-    def copy(self) -> Self:
-        obj = object.__new__(self.__class__)
-        obj.__dict__.update(self.__dict__)
-
-        obj._interpreter = deepcopy(self._interpreter)
-        obj._id = _gen_id()
-        obj._parent_id = self._id
-        obj._trace_nodes = set()
-        obj._parent = self
-        obj._update_trace_node(obj._id, obj._parent_id, None)
-        return obj
 
     def __str__(self) -> str:
         return str(self._get_state())
