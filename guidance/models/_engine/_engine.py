@@ -14,7 +14,6 @@ from ..._schema import (
     EngineResponse,
     GenToken,
     GuidanceEngineMetrics,
-    LLGrammar,
 )
 
 from ...registry import get_exchange
@@ -132,7 +131,7 @@ class Engine(ABC):
     def __call__(
         self,
         state: EngineState,
-        grammar: LLGrammar,
+        grammar: str,
         ensure_bos_token: bool = True,
         echo: bool = True,
     ) -> Iterator[EngineResponse]:

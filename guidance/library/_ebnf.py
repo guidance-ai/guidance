@@ -2,7 +2,7 @@ from typing import Optional
 
 from llguidance.gbnf_to_lark import gbnf_to_lark as _gbnf_to_lark
 
-from .._ast import LarkNode, GrammarNode
+from .._ast import RuleNode, LarkNode, GrammarNode
 from .._grammar import capture, token_limit, with_temperature
 
 
@@ -19,11 +19,10 @@ def lark(
     See documentation at https://github.com/guidance-ai/llguidance/blob/main/docs/syntax.md for more
     details.
     """
-    node = LarkNode(
+    node = RuleNode(
         name=name or "lark",
-        lark_grammar=lark_grammar,
+        value=LarkNode(lark_grammar=lark_grammar)
     )
-
     if temperature is not None:
         node = with_temperature(node, temperature)
     if max_tokens is not None:

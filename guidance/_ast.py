@@ -1,5 +1,6 @@
 import json
 import re
+import textwrap
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import (
@@ -13,9 +14,9 @@ from typing import (
     Union,
     cast,
 )
+from typing_extensions import assert_never
 
 from ._parser import ByteParser, ByteParserException
-from ._schema import JsonGrammar, LarkGrammar, LLGrammar
 from .trace import OutputAttr
 
 if TYPE_CHECKING:
@@ -303,8 +304,8 @@ class GrammarNode(Tagged, ASTNode):
         parser = ByteParser(self.ll_grammar())
         return parser.bytes.decode("utf-8", errors="ignore")
 
-    def ll_grammar(self) -> LLGrammar:
-        return LLSerializer().serialize(self)
+    def ll_grammar(self) -> str:
+        return LarkSerializer().serialize(self.simplify())
 
 
 @dataclass(frozen=True)
@@ -425,7 +426,7 @@ class SubstringNode(GrammarNode):
 @dataclass(frozen=True)
 class RuleNode(GrammarNode):
     name: str
-    value: GrammarNode
+    value: Union[GrammarNode, "BaseSubgrammarNode"]
     capture: Optional[str] = None
     list_append: bool = False
     temperature: Optional[float] = None
@@ -441,7 +442,7 @@ class RuleNode(GrammarNode):
             or self.stop is not None
             or self.suffix is not None
             or self.stop_capture is not None
-        ) and not (self.value.is_terminal or isinstance(self.value, BaseSubgrammarNode)):
+        ) and not (isinstance(self.value, BaseSubgrammarNode) or self.value.is_terminal):
             raise ValueError(
                 "RuleNode is not terminal, so it cannot have a temperature, max_tokens, or stop condition"
             )
@@ -457,8 +458,8 @@ class RuleNode(GrammarNode):
                 and self.suffix is None
                 and self.stop_capture is None
             )
-            and self.value.is_terminal
             and not isinstance(self.value, BaseSubgrammarNode)
+            and self.value.is_terminal
         )
 
     def children(self) -> Sequence["GrammarNode"]:
@@ -466,7 +467,6 @@ class RuleNode(GrammarNode):
 
     def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
         return interpreter.rule(self, **kwargs)
-
 
 @dataclass(frozen=True, eq=False)
 class RuleRefNode(GrammarNode):
@@ -491,12 +491,8 @@ class RuleRefNode(GrammarNode):
 
 
 @dataclass(frozen=True)
-class BaseSubgrammarNode(GrammarNode):
-    name: str
-
-    @property
-    def is_terminal(self) -> bool:
-        return False
+class BaseSubgrammarNode(ASTNode):
+    pass
 
 
 @dataclass(frozen=True)
@@ -523,60 +519,11 @@ class LarkNode(BaseSubgrammarNode):
     def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
         return interpreter.lark(self, **kwargs)
 
-
-class LLSerializer:
-    def __init__(self):
-        self.grammars: dict[str, Union[JsonGrammar, LarkGrammar]] = {}
-        self.names: dict[BaseSubgrammarNode, str] = {}
-
-    def serialize(self, node: GrammarNode) -> LLGrammar:
-        if isinstance(node, BaseSubgrammarNode):
-            self.visit(node)
-        else:
-            self.visit(SubgrammarNode("main", node))
-        return LLGrammar(grammars=[self.grammars[name] for name in self.names.values()])
-
-    def visit(self, node: BaseSubgrammarNode) -> str:
-        if node in self.names:
-            return self.names[node]
-
-        name = node.name
-        names = set(self.names.values())
-        if name in names:
-            i = 1
-            while f"{name}_{i}" in names:
-                i += 1
-            name = f"{name}_{i}"
-
-        if isinstance(node, SubgrammarNode):
-            # Important: insert name BEFORE visiting body to avoid infinite recursion
-            self.names[node] = name
-            lark_grammar = LarkSerializer(self).serialize(node.body)
-            if node.skip_regex:
-                lark_grammar += f"\n%ignore /{node.skip_regex}/"
-            self.grammars[name] = LarkGrammar(name=name, lark_grammar=lark_grammar)
-
-        elif isinstance(node, JsonNode):
-            self.names[node] = name
-            self.grammars[name] = JsonGrammar(name=name, json_schema=node.schema)
-
-        elif isinstance(node, LarkNode):
-            self.names[node] = name
-            self.grammars[name] = LarkGrammar(name=name, lark_grammar=node.lark_grammar)
-
-        else:
-            raise TypeError(f"Unknown subgrammar type: {node}")
-
-        return name
-
-
 class LarkSerializer:
 
-    def __init__(self, ll_serializer: LLSerializer):
-        self.ll_serializer = ll_serializer
-
+    def __init__(self):
         self.rules: dict[str, str] = {}
-        self.names: dict[RuleNode, str] = {}
+        self.names: dict[Union[RuleNode, BaseSubgrammarNode], str] = {}
 
     def serialize(self, node: GrammarNode) -> str:
         if isinstance(node, RuleNode) and node.name == "start":
@@ -602,9 +549,6 @@ class LarkSerializer:
         return res
 
     def visit(self, node: GrammarNode, top=False) -> str:
-        if isinstance(node, BaseSubgrammarNode):
-            return f"@{self.ll_serializer.visit(node)}"
-
         if isinstance(node, RuleNode):
             if node in self.names:
                 return self.names[node]
@@ -617,6 +561,7 @@ class LarkSerializer:
                     i += 1
                 name = f"{name}_{i}"
             self.names[node] = name
+
             res = name
             attrs = []
             if node.capture is not None:
@@ -639,10 +584,31 @@ class LarkSerializer:
                 attrs.append(f"stop_capture={json.dumps(node.stop_capture)}")
             if attrs:
                 res += f"[{', '.join(attrs)}]"
-            res += ": " + self.visit(node.value.simplify(), top=True)
+            
+            res += ": "
+            target = node.value
+            if isinstance(target, GrammarNode):
+                res += self.visit(target.simplify(), top=True)
+            elif isinstance(target, BaseSubgrammarNode):
+                if isinstance(target, JsonNode):
+                    res += "%json " + json.dumps(target.schema, indent=2)
+                elif isinstance(target, LarkNode):
+                    res += f"%lark {{\n{textwrap.indent(target.lark_grammar, '  ').strip()}\n}}"
+                elif isinstance(target, SubgrammarNode):
+                    lark_grammar = LarkSerializer().serialize(target.body)
+                    if target.skip_regex:
+                        lark_grammar += f"\n%ignore /{target.skip_regex}/"
+                    res += f"%lark {{\n{textwrap.indent(lark_grammar, '  ').strip()}\n}}"
+                else:
+                    if TYPE_CHECKING:
+                        assert_never(target)
+                    raise TypeError(f"Unknown subgrammar type: {target}")
+            else:
+                if TYPE_CHECKING:
+                    assert_never(target)
+                raise TypeError(f"Unknown rule value type: {target}")
             self.rules[name] = res
             return name
-
         if node.is_null:
             return '""'
 

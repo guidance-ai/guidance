@@ -28,7 +28,7 @@ class TokenParser:
 
     def __init__(
         self,
-        grammar: LLGrammar,
+        grammar: str,
         tokenizer: "Tokenizer",
         enable_backtrack: bool = True,
         enable_ff_tokens: bool = True,
@@ -37,7 +37,7 @@ class TokenParser:
         self.ll_tokenizer = llguidance.LLTokenizer(llguidance.TokenizerWrapper(tokenizer))
         self.ll_interpreter = llguidance.LLInterpreter(
             self.ll_tokenizer,
-            grammar.model_dump_json(),
+            grammar,
             enable_backtrack,
             enable_ff_tokens,
             log_level=int(os.environ.get("LLGUIDANCE_LOG_LEVEL", "1")),
