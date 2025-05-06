@@ -27,13 +27,13 @@ class Transformers(Model):
 
         client = client_cls(
             True,
+            enable_monitoring,
             TransformersEngine,
             model,
             compute_log_probs,
             chat_template=chat_template,
             enable_backtrack=enable_backtrack,
             enable_ff_tokens=enable_ff_tokens,
-            enable_monitoring=enable_monitoring,
             **kwargs,
         )
         super().__init__(

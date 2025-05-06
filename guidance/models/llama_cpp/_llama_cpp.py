@@ -140,7 +140,6 @@ class LlamaCppEngine(Engine):
         chat_template=None,
         enable_backtrack=True,
         enable_ff_tokens=True,
-        enable_monitoring=True,
         **kwargs,
     ):
         if not is_llama_cpp:
@@ -190,7 +189,7 @@ class LlamaCppEngine(Engine):
 
         super().__init__(LlamaCppTokenizer(self.model_obj, chat_template=chat_template),
                          compute_log_probs=compute_log_probs, enable_backtrack=enable_backtrack,
-                         enable_ff_tokens=enable_ff_tokens, enable_monitoring=enable_monitoring, **kwargs)
+                         enable_ff_tokens=enable_ff_tokens, **kwargs)
 
         self._n_vocab = len(self.tokenizer.tokens)
 
@@ -384,13 +383,13 @@ class LlamaCpp(Model):
 
         state = EngineState()
         client = EngineClient(True, 
+            enable_monitoring,
             LlamaCppEngine, 
             model,
             compute_log_probs=compute_log_probs,
             chat_template=chat_template,
             enable_backtrack=enable_backtrack,
             enable_ff_tokens=enable_ff_tokens,
-            enable_monitoring=enable_monitoring,
             **llama_cpp_kwargs,
         )
         super().__init__(client=client, state=state, echo=echo)

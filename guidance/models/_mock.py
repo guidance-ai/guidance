@@ -234,7 +234,7 @@ class Mock(Model):
         special_token_ids = [0]
 
         super().__init__(
-            client=EngineClient(False, MockEngine, tokens, special_token_ids, byte_patterns, compute_log_probs, force),
+            client=EngineClient(False, False, MockEngine, tokens, special_token_ids, byte_patterns, compute_log_probs, force),
             state=EngineState(),
             echo=echo,
         )

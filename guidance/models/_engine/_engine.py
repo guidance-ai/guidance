@@ -77,22 +77,15 @@ class Engine(ABC):
     """
 
     def __init__(self, tokenizer: Tokenizer, compute_log_probs=False, enable_backtrack=True, enable_ff_tokens=True,
-                 enable_monitoring=True, **kwargs):
-        from ...registry import get_monitor
-
+                 **kwargs):
         self.tokenizer = tokenizer
         self.compute_log_probs = compute_log_probs
         self._enable_backtrack = enable_backtrack
         self._enable_ff_tokens = enable_ff_tokens
-        self._enable_monitoring = enable_monitoring
         self._top_k = kwargs.get("top_k", 5)
 
         # TODO(nopdive): Remove on refactor.
         self.metrics = GuidanceEngineMetrics()
-
-        if self._enable_monitoring:
-            # Idempotent start
-            _ = get_monitor()
 
         msg_recv = _wrapped_msg_recv(weakref.ref(self))
         get_exchange().subscribe(msg_recv)
@@ -113,10 +106,6 @@ class Engine(ABC):
     @property
     def enable_ff_tokens(self):
         return self._enable_ff_tokens
-
-    @property
-    def enable_monitoring(self):
-        return self._enable_monitoring
 
     def get_chat_template(
         self,

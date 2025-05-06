@@ -248,7 +248,7 @@ class Monitor:
 
     def start(self):
         self.process = Process(
-            target=_monitor_fn, args=(self.stop_flag, self.metrics_dict, self.max_size)
+            target=_monitor_fn, args=(self.stop_flag, self.metrics_dict, self.max_size), daemon=True
         )
         self.process.start()
         logger.debug("MONITOR:start")

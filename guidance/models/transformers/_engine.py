@@ -378,7 +378,6 @@ class TransformersEngine(Engine):
         chat_template=None,
         enable_backtrack=True,
         enable_ff_tokens=True,
-        enable_monitoring=True,
         **kwargs,
     ):
         # fill in default model value
@@ -429,7 +428,7 @@ class TransformersEngine(Engine):
         )
 
         super().__init__(my_tokenizer, compute_log_probs=compute_log_probs, enable_backtrack=enable_backtrack,
-                         enable_ff_tokens=enable_ff_tokens, enable_monitoring=enable_monitoring, **kwargs)
+                         enable_ff_tokens=enable_ff_tokens, **kwargs)
 
     def _model(self, model, **kwargs):
         # intantiate the model if needed

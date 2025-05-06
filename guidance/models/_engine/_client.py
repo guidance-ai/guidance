@@ -13,9 +13,15 @@ from .._base import Client
 from ._engine import Engine
 from ._state import EngineState
 from ...trace import CaptureOutput
+from ...registry import get_monitor
 
 class EngineClient(Client[EngineState]):
-    def __init__(self, engine_process: bool, engine_type: Type[Engine], *args, **kwargs):
+    def __init__(self, engine_process: bool, enable_monitoring: bool, engine_type: Type[Engine], *args, **kwargs):
+
+        if enable_monitoring:
+            # Idempotent start
+            _ = get_monitor()
+
         self._keep_alive_list = [True]
 
         self._lock = Lock()
