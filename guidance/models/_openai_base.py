@@ -157,7 +157,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
     def __init__(
         self,
         model: str,
-        client: "openai.OpenAI",
+        client: "openai.AsyncOpenAI",
     ):
         try:
             import openai

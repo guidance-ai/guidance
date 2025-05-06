@@ -1,20 +1,8 @@
-from typing import TYPE_CHECKING, Callable, Iterator, Optional, Union
+from typing import Optional
 
-from pydantic import TypeAdapter
-
-
-from .._ast import (
-    JsonNode,
-    RuleNode,
-)
-from ..trace import OutputAttr
 from ._base import Model
-
 from ._openai_base import (
     BaseOpenAIInterpreter,
-    AudioContent,
-    OpenAIState,
-    Message,
     OpenAIImageMixin,
     OpenAIAudioMixin,
 )
@@ -32,7 +20,7 @@ class OpenAIInterpreter(BaseOpenAIInterpreter):
             raise Exception(
                 "Please install the openai package version >= 1 using `pip install openai -U` in order to use guidance.models.OpenAI!"
             )
-        client = openai.AsyncOpenAI(api_key, **kwargs)
+        client = openai.AsyncOpenAI(api_key=api_key, **kwargs)
         super().__init__(model=model, client=client)
 
 
