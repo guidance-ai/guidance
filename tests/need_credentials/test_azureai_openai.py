@@ -39,6 +39,7 @@ def azureai_chat_model():
         api_version=azureai_api_version,
     )
     assert isinstance(lm, models.Model)
+    print(f"{type(lm)=}")
 
     return lm
 
@@ -69,6 +70,7 @@ def azureai_audio_model():
         has_audio_support=True,
     )
     assert isinstance(lm, models.Model)
+    print(f"{type(lm)=}")
 
     return lm
 
