@@ -1,12 +1,47 @@
-from typing import Optional
+from typing import TYPE_CHECKING, Callable, Iterator, Optional, Union
+
+from pydantic import TypeAdapter
+
+
+from .._ast import (
+    JsonNode,
+    RuleNode,
+)
+from ..trace import OutputAttr
 from ._base import Model
-from ._openai_base import BaseOpenAIInterpreter, OpenAIAudioMixin, OpenAIImageMixin
+
+from ._openai_base import (
+    BaseOpenAIInterpreter,
+    AudioContent,
+    OpenAIState,
+    Message,
+    OpenAIImageMixin,
+    OpenAIAudioMixin,
+)
+
+class OpenAIInterpreter(BaseOpenAIInterpreter):
+    def __init__(
+        self,
+        model: str,
+        api_key: Optional[str] = None,
+        **kwargs,
+    ):
+        try:
+            import openai
+        except ImportError:
+            raise Exception(
+                "Please install the openai package version >= 1 using `pip install openai -U` in order to use guidance.models.OpenAI!"
+            )
+        client = openai.OpenAI(api_key, **kwargs)
+        super().__init__(model=model, client=client)
+
 
 class OpenAI(Model):
     def __init__(
         self,
         model: str,
         echo: bool = True,
+        *,
         api_key: Optional[str] = None,
         **kwargs,
     ):
@@ -27,12 +62,14 @@ class OpenAI(Model):
         """
 
         if "audio-preview" in model:
-            interpreter_cls = type("OpenAIAudioInterpreter", (BaseOpenAIInterpreter, OpenAIAudioMixin), {})
+            interpreter_cls = type(
+                "OpenAIAudioInterpreter", (OpenAIInterpreter, OpenAIAudioMixin), {}
+            )
         elif model.startswith("gpt-4o") or model.startswith("o1"):
-            interpreter_cls = type("OpenAIImageInterpreter", (BaseOpenAIInterpreter, OpenAIImageMixin), {})
+            interpreter_cls = type(
+                "OpenAIImageInterpreter", (OpenAIInterpreter, OpenAIImageMixin), {}
+            )
         else:
             interpreter_cls = BaseOpenAIInterpreter
 
-        super().__init__(
-            interpreter=interpreter_cls(model, api_key=api_key, **kwargs), echo=echo
-        )
+        super().__init__(interpreter=interpreter_cls(model, api_key=api_key, **kwargs), echo=echo)

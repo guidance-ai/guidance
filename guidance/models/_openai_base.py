@@ -1,8 +1,8 @@
 import base64
 import wave
-from io import BytesIO
-from typing import TYPE_CHECKING, AsyncIterable, Literal, Optional, Union
 from copy import deepcopy
+from io import BytesIO
+from typing import TYPE_CHECKING, Callable, AsyncIterable, Literal, Optional, Union
 
 from pydantic import BaseModel, Discriminator, Field, TypeAdapter
 from typing_extensions import Annotated, assert_never
@@ -25,6 +25,7 @@ from ..trace._trace import AudioOutput
 from ._base import Interpreter, State
 
 if TYPE_CHECKING:
+    import openai
     from openai.types.chat import ChatCompletionChunk
 
 
@@ -149,13 +150,14 @@ class OpenAIState(State):
 
 
 class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
+    """Base class for interacting with OpenAI models."""
+
     log_probs: bool = True
 
     def __init__(
         self,
         model: str,
-        api_key: Optional[str] = None,
-        **kwargs,
+        client: "openai.OpenAI",
     ):
         try:
             import openai
@@ -165,26 +167,13 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
             )
         self.state = OpenAIState()
         self.model = model
-        self.client = openai.AsyncOpenAI(api_key=api_key, **kwargs)
-
-    def __deepcopy__(self, memo):
-        """Custom deepcopy to ensure client is not copied."""
-        cls = self.__class__
-        result = cls.__new__(cls)
-        memo[id(self)] = result
-        for k, v in self.__dict__.items():
-            if k == "client":
-                # Don't copy the client
-                setattr(result, k, v)
-            else:
-                setattr(result, k, deepcopy(v, memo))
-        return result
+        self.client = client
 
     def run(self, node: ASTNode, **kwargs) -> AsyncIterable[OutputAttr]:
-        # if not isinstance(node, RoleStart) and self.state.active_role is None:
-        #     raise ValueError(
-        #         "OpenAI models require an active role (e.g. use `with assistant(): ...`)"
-        #     )
+        if not isinstance(node, RoleStart) and self.state.active_role is None:
+            raise ValueError(
+                "OpenAI models require an active role (e.g. use `with assistant(): ...`)"
+            )
         return super().run(node, **kwargs)
 
     async def role_start(self, node: RoleStart, **kwargs) -> AsyncIterable[OutputAttr]:
@@ -288,7 +277,12 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
     ) -> AsyncIterable[OutputAttr]:
         audio: Optional[AssistantAudio] = None
         async for chunk in chunks:
-            choice = chunk.choices[0]
+            try:
+                choice = chunk.choices[0]
+            except IndexError:
+                # TODO: azure seems to return empty choices sometimes (on first chunk?)
+                # Need to make this more robust
+                continue
             delta = choice.delta
             if delta.content is not None:
                 assert audio is None
@@ -296,7 +290,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                 if len(content) == 0:
                     continue
                 self.state.apply_text(content)
-                if choice.logprobs is not None:
+                if getattr(choice, "logprobs", None) is not None:
                     # TODO: actually get tokens from this and be less lazy
                     prob = 2.718 ** choice.logprobs.content[0].logprob
                 else:
@@ -368,7 +362,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
         return result
 
 
-class OpenAIImageMixin(BaseOpenAIInterpreter):
+class OpenAIImageMixin:
     async def image_blob(self, node: ImageBlob, **kwargs) -> AsyncIterable[OutputAttr]:
         try:
             import PIL.Image
@@ -398,7 +392,7 @@ class OpenAIImageMixin(BaseOpenAIInterpreter):
         yield ImageOutput(value=base64_string, input=True)
 
 
-class OpenAIAudioMixin(BaseOpenAIInterpreter):
+class OpenAIAudioMixin:
     log_probs: bool = False
 
     async def audio_blob(self, node: ImageBlob, **kwargs) -> AsyncIterable[OutputAttr]:

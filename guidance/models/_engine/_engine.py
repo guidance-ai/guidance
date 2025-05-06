@@ -14,7 +14,6 @@ from ..._schema import (
     EngineOutput,
     GenToken,
     GuidanceEngineMetrics,
-    LLGrammar,
 )
 from ...registry import get_exchange
 from ..._utils import log_cleanup, log_init, softmax, to_utf8_or_bytes_string
@@ -131,7 +130,7 @@ class Engine(ABC):
     def __call__(
         self,
         state: EngineState,
-        grammar: LLGrammar,
+        grammar: str,
         ensure_bos_token: bool = True,
         echo: bool = True,
     ) -> Iterator[EngineCallResponse]:

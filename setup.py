@@ -29,7 +29,7 @@ install_requires = [
     "psutil",
     "greenlet",
     "guidance-stitch",
-    "llguidance==0.7.16",
+    "llguidance==0.7.19",
 ]
 
 # Our basic list of 'extras'
