@@ -71,6 +71,7 @@ test_requires = [
     "bitsandbytes",
     "jupyter",
     "papermill",
+    "pillow",
     "protobuf",
     "sentencepiece",
     "torch",
