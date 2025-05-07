@@ -7,6 +7,7 @@ from ._openai_base import (
     OpenAIAudioMixin,
 )
 
+
 class OpenAIInterpreter(BaseOpenAIInterpreter):
     def __init__(
         self,

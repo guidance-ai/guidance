@@ -34,7 +34,7 @@ install_requires = [
 
 # Our basic list of 'extras'
 extras_requires = {
-    "azureai": ["openai>=1.0"],
+    "azureai": ["openai>=1.0", "azure-ai-inference"],
     "openai": ["openai>=1.0"],
 }
 
@@ -72,6 +72,7 @@ test_requires = [
     "bitsandbytes",
     "jupyter",
     "papermill",
+    "pillow",
     "protobuf",
     "sentencepiece",
     "torch",
@@ -89,7 +90,7 @@ bench_requires = [
     "json_stream",
     "llama-cpp-python",
     "setuptools",
-    "powerlift"
+    "powerlift",
 ]
 
 
