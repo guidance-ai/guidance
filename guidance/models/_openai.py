@@ -7,6 +7,7 @@ from ._openai_base import (
     OpenAIAudioMixin,
 )
 
+
 class OpenAIInterpreter(BaseOpenAIInterpreter):
     def __init__(
         self,
@@ -20,7 +21,7 @@ class OpenAIInterpreter(BaseOpenAIInterpreter):
             raise Exception(
                 "Please install the openai package version >= 1 using `pip install openai -U` in order to use guidance.models.OpenAI!"
             )
-        client = openai.OpenAI(api_key, **kwargs)
+        client = openai.OpenAI(api_key=api_key, **kwargs)
         super().__init__(model=model, client=client)
 
 
