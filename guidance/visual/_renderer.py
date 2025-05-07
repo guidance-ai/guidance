@@ -67,7 +67,7 @@ def _create_stitch_widget():
 
     if _create_stitch_widget.src_doc_template is None:
         path = resources.files(guidance) / 'resources' / 'graphpaper-inline.html'
-        with path.open("r") as f:
+        with path.open("r", encoding="utf-8") as f:
             _create_stitch_widget.src_doc_template = f.read()
     w = StitchWidget()
     w.initial_width = "100%"
