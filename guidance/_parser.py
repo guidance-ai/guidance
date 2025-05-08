@@ -266,14 +266,26 @@ class ByteParser:
         self.bytes += response.new_bytes
 
     def consume_bytes(self, bts: bytes) -> None:
-        for b in bts:
-            self.consume_byte(b)
+        if not bts:
+            return
 
-    def consume_byte(self, b: int) -> None:
+        b = bts[0]
         # If the current position is less than the length of the bytes, then we are in fast_forward mode
         # and we need to make sure that the byte we are consuming is the same as the byte at the current
         # position
-        if self.pos >= len(self.bytes):
+        if self.pos < len(self.bytes):
+            if b != self.bytes[self.pos]:
+                next_byte = self.bytes[self.pos : self.pos + 1]
+                raise ByteParserException(
+                    f"Expected byte {next_byte!r} (fast_forward), got {bytes([b])!r}",
+                    current_byte=bytes([b]),
+                    allowed_bytes={next_byte},
+                    consumed_bytes=self.bytes[: self.pos],
+                )
+            # Byte was good, move to the next byte
+            self.pos += 1
+            self.consume_bytes(bts[1:])
+        else:
             # If we are here, then we are either in generation mode or we are done.
             if self.gen_data is None:
                 # TODO: may run into trouble here if we need to backtrack
@@ -297,17 +309,8 @@ class ByteParser:
             # Byte was good, have ll_parser consume it so we can advance further
             self._advance(b)
 
-        assert self.pos < len(self.bytes)
-        if b != self.bytes[self.pos]:
-            next_byte = self.bytes[self.pos : self.pos + 1]
-            raise ByteParserException(
-                f"Expected byte {next_byte!r} (fast_forward), got {bytes([b])!r}",
-                current_byte=bytes([b]),
-                allowed_bytes={next_byte},
-                consumed_bytes=self.bytes[: self.pos],
-            )
-        # Byte was good, move to the next byte
-        self.pos += 1
+            # Run consume_bytes to advance ll_parser and consume the next byte
+            self.consume_bytes(bts)
 
     def force_done(self):
         if not self.matched():
