@@ -2,23 +2,18 @@ from typing import Iterator, Optional, TYPE_CHECKING
 import wave
 import base64
 from io import BytesIO
-from copy import deepcopy
-from pydantic import TypeAdapter
 
 if TYPE_CHECKING:
     from openai.types.chat import ChatCompletionChunk
 
-from ..._ast import GrammarNode, RoleStart, RoleEnd, ASTNode, LiteralNode
+from ..._ast import GrammarNode
 from ...trace import OutputAttr, TextOutput
 from ...trace._trace import AudioOutput
 from .._openai_base import (
     BaseOpenAIInterpreter,
-    OpenAIState,
     AssistantAudio,
-    Message,
-    get_role_start,
 )
-from .._base import Model, Interpreter
+from .._base import Model
 
 
 class VLLMInterpreter(BaseOpenAIInterpreter):
