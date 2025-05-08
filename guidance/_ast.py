@@ -371,7 +371,7 @@ class JoinNode(GrammarNode):
         nodes = tuple(node.simplify() for node in self.nodes if not node.is_null)
         if len(nodes) == 1:
             return nodes[0]
-        return self
+        return JoinNode(nodes)
 
     def children(self) -> Sequence["GrammarNode"]:
         return self.nodes
