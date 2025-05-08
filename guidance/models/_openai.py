@@ -13,7 +13,7 @@ from ._openai_base import (
 )
 
 
-class OpenAIInterpreter(BaseOpenAIInterpreter, OpenAIRuleMixin, OpenAIJSONMixin, OpenAIRegexMixin):
+class OpenAIInterpreter(OpenAIRuleMixin, OpenAIJSONMixin, OpenAIRegexMixin, BaseOpenAIInterpreter):
     def __init__(
         self,
         model: str,
