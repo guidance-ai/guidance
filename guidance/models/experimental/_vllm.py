@@ -33,54 +33,6 @@ class BaseOpenAIInterpreterForVLLM(Interpreter[OpenAIState]):
         self.model = model
         self.client = openai.OpenAI(base_url=base_url, api_key=api_key, **kwargs) 
 
-    def role_start(self, node: RoleStart, **kwargs) -> Iterator[OutputAttr]:
-        self.state.active_role = node.role
-        # TODO: drop this and yield nothing. We need to add this for now as a workaround for the
-        # fact that current vis code assumes that there is actually a role start message
-        yield TextOutput(value=get_role_start(node.role), is_input=True)
-
-    def role_end(self, node: RoleEnd, **kwargs) -> Iterator[OutputAttr]:
-        self.state.messages.append(self.state.get_active_message())
-        self.state.audio = None
-        self.state.content = []
-        self.state.active_role = None
-        yield from ()
-
-    def text(self, node: LiteralNode, **kwargs) -> Iterator[OutputAttr]:
-        self.state.apply_text(node.value)
-        yield TextOutput(value=node.value, is_input=True)
-
-    def run(self, node: ASTNode, **kwargs) -> Iterator[OutputAttr]:
-        if not isinstance(node, RoleStart) and self.state.active_role is None:
-            raise ValueError(
-                "OpenAI models require an active role (e.g. use `with assistant(): ...`)"
-            )
-        return super().run(node, **kwargs)
-
-    def _run(self, **kwargs) -> Iterator[OutputAttr]:
-        if self.state.active_role is None:
-            # Should never happen?
-            raise ValueError(
-                "OpenAI models require chat blocks (e.g. use `with assistant(): ...`)"
-            )
-        if self.state.active_role != "assistant":
-            raise ValueError(
-                "OpenAI models can only generate as the assistant (i.e. inside of `with assistant(): ...`)"
-            )
-        if self.state.content:
-            raise ValueError(
-                f"OpenAI models do not support pre-filled assistant messages: got data {self.state.content}."
-            )
-
-        with self.client.chat.completions.create(
-            model=self.model,
-            messages=TypeAdapter(list[Message]).dump_python(self.state.messages),  # type: ignore[arg-type]
-            logprobs=self.log_probs,
-            stream=True,
-            **kwargs,
-        ) as chunks:
-            yield from self._handle_stream(chunks)
-
     def _handle_stream(
         self, chunks: Iterator["ChatCompletionChunk"]
     ) -> Iterator[OutputAttr]:
@@ -152,18 +104,6 @@ class BaseOpenAIInterpreterForVLLM(Interpreter[OpenAIState]):
             wav_bytes = wav_buffer.getvalue()
             yield AudioOutput(value=base64.b64encode(wav_bytes).decode(), is_input=False)
 
-    def __deepcopy__(self, memo):
-        """Custom deepcopy to ensure client is not copied."""
-        cls = self.__class__
-        result = cls.__new__(cls)
-        memo[id(self)] = result
-        for k, v in self.__dict__.items():
-            if k == "client":
-                # Don't copy the client
-                setattr(result, k, v)
-            else:
-                setattr(result, k, deepcopy(v, memo))
-        return result
 
 class VLLMInterpreter(BaseOpenAIInterpreterForVLLM):
     def grammar(self, node: GrammarNode, **kwargs) -> Iterator[OutputAttr]:
