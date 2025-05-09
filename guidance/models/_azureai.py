@@ -1,6 +1,6 @@
 import logging
 
-from typing import Callable, Iterator, Optional, Union, TYPE_CHECKING
+from typing import Callable, AsyncIterable, Optional, Union, TYPE_CHECKING
 
 from pydantic import TypeAdapter
 
@@ -44,7 +44,7 @@ class AzureOpenAIInterpreter(BaseOpenAIInterpreter):
             raise Exception(
                 "Please install the openai package version >= 1 using `pip install openai -U` in order to use guidance.models.OpenAI!"
             )
-        client = openai.AzureOpenAI(
+        client = openai.AsyncAzureOpenAI(
             azure_endpoint=azure_endpoint,
             azure_deployment=azure_deployment,
             api_version=api_version,
@@ -153,18 +153,18 @@ class AzureInferenceInterpreter(BaseOpenAIInterpreter):
         model_name: str,
     ):
         try:
-            import azure.ai.inference
+            import azure.ai.inference.aio
         except ImportError:
             raise Exception(
                 "Please install the azure-ai-inference package  using `pip install azure-ai-inference` in order to use guidance.models.AzureInference!"
             )
-        client = azure.ai.inference.ChatCompletionsClient(
+        client = azure.ai.inference.aio.ChatCompletionsClient(
             endpoint=endpoint,
             credential=credential,
         )
         super().__init__(client=client, model=model_name)
 
-    def _run(self, **kwargs) -> Iterator[OutputAttr]:
+    async def _run(self, **kwargs) -> AsyncIterable[OutputAttr]:
         if self.state.active_role is None:
             # Should never happen?
             raise ValueError(
@@ -179,7 +179,7 @@ class AzureInferenceInterpreter(BaseOpenAIInterpreter):
                 f"OpenAI models do not support pre-filled assistant messages: got data {self.state.content}."
             )
 
-        with self.client.complete(
+        chunks = await self.client.complete(
             body={
                 "messages": TypeAdapter(list[Message]).dump_python(self.state.messages),
                 "log_probs": self.log_probs,
@@ -190,13 +190,14 @@ class AzureInferenceInterpreter(BaseOpenAIInterpreter):
             headers={
                 "extra-parameters": "pass-through",
             },
-        ) as chunks:
-            yield from self._handle_stream(chunks)
+        )
+        for attr in self._handle_stream(chunks):
+            yield attr
 
     #    def rule(self, node: RuleNode, **kwargs) -> Iterator[OutputAttr]:
     #        raise ValueError("Rule nodes are not supported for Azure Inference")
 
-    def json(self, node: JsonNode, **kwargs) -> Iterator[OutputAttr]:
+    def json(self, node: JsonNode, **kwargs) -> AsyncIterable[OutputAttr]:
         return self._run(
             json_schema={
                 "name": "json_schema",  # TODO?

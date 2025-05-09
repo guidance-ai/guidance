@@ -1,20 +1,8 @@
-from typing import TYPE_CHECKING, Callable, Iterator, Optional, Union
+from typing import Optional
 
-from pydantic import TypeAdapter
-
-
-from .._ast import (
-    JsonNode,
-    RuleNode,
-)
-from ..trace import OutputAttr
 from ._base import Model
-
 from ._openai_base import (
     BaseOpenAIInterpreter,
-    AudioContent,
-    OpenAIState,
-    Message,
     OpenAIImageMixin,
     OpenAIAudioMixin,
 )
@@ -33,7 +21,7 @@ class OpenAIInterpreter(BaseOpenAIInterpreter):
             raise Exception(
                 "Please install the openai package version >= 1 using `pip install openai -U` in order to use guidance.models.OpenAI!"
             )
-        client = openai.OpenAI(api_key=api_key, **kwargs)
+        client = openai.AsyncOpenAI(api_key=api_key, **kwargs)
         super().__init__(model=model, client=client)
 
 
@@ -64,13 +52,13 @@ class OpenAI(Model):
 
         if "audio-preview" in model:
             interpreter_cls = type(
-                "OpenAIAudioInterpreter", (OpenAIInterpreter, OpenAIAudioMixin), {}
+                "OpenAIAudioInterpreter", (OpenAIAudioMixin, OpenAIInterpreter), {}
             )
         elif model.startswith("gpt-4o") or model.startswith("o1"):
             interpreter_cls = type(
-                "OpenAIImageInterpreter", (OpenAIInterpreter, OpenAIImageMixin), {}
+                "OpenAIImageInterpreter", (OpenAIImageMixin, OpenAIInterpreter), {}
             )
         else:
-            interpreter_cls = OpenAIInterpreter
+            interpreter_cls = BaseOpenAIInterpreter
 
         super().__init__(interpreter=interpreter_cls(model, api_key=api_key, **kwargs), echo=echo)

@@ -2,7 +2,7 @@ import base64
 import wave
 from copy import deepcopy
 from io import BytesIO
-from typing import TYPE_CHECKING, Callable, Iterator, Literal, Optional, Union
+from typing import TYPE_CHECKING, Callable, AsyncIterable, Literal, Optional, Union
 
 from pydantic import BaseModel, Discriminator, Field, TypeAdapter
 from typing_extensions import Annotated, assert_never
@@ -157,7 +157,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
     def __init__(
         self,
         model: str,
-        client: "openai.OpenAI",
+        client: "openai.AsyncOpenAI",
     ):
         try:
             import openai
@@ -169,31 +169,26 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
         self.model = model
         self.client = client
 
-    def run(self, node: ASTNode, **kwargs) -> Iterator[OutputAttr]:
-        if not isinstance(node, RoleStart) and self.state.active_role is None:
-            raise ValueError(
-                "OpenAI models require an active role (e.g. use `with assistant(): ...`)"
-            )
-        return super().run(node, **kwargs)
-
-    def role_start(self, node: RoleStart, **kwargs) -> Iterator[OutputAttr]:
+    async def role_start(self, node: RoleStart, **kwargs) -> AsyncIterable[OutputAttr]:
         self.state.active_role = node.role
         # TODO: drop this and yield nothing. We need to add this for now as a workaround for the
         # fact that current vis code assumes that there is actually a role start message
         yield TextOutput(value=get_role_start(node.role), is_input=True)
 
-    def role_end(self, node: RoleEnd, **kwargs) -> Iterator[OutputAttr]:
+    async def role_end(self, node: RoleEnd, **kwargs) -> AsyncIterable[OutputAttr]:
         self.state.messages.append(self.state.get_active_message())
         self.state.audio = None
         self.state.content = []
         self.state.active_role = None
-        yield from ()
+        if False:
+            # I know this is weird, but this is how async generators work
+            yield 
 
-    def text(self, node: LiteralNode, **kwargs) -> Iterator[OutputAttr]:
+    async def text(self, node: LiteralNode, **kwargs) -> AsyncIterable[OutputAttr]:
         self.state.apply_text(node.value)
         yield TextOutput(value=node.value, is_input=True)
 
-    def rule(self, node: RuleNode, **kwargs) -> Iterator[OutputAttr]:
+    async def rule(self, node: RuleNode, **kwargs) -> AsyncIterable[OutputAttr]:
         if node.stop:
             raise ValueError("Stop condition not yet supported for OpenAI")
         if node.suffix:
@@ -210,7 +205,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
         chunks = self.run(node.value, **kwargs)
         if node.capture:
             buffered_text = ""
-            for chunk in chunks:
+            async for chunk in chunks:
                 # TODO: this isinstance check is pretty darn fragile.
                 # ~there must be a better way~
                 if isinstance(chunk, TextOutput):
@@ -223,15 +218,16 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                 is_append=node.list_append,
             )
         else:
-            yield from chunks
+            async for chunk in chunks:
+                yield chunk
 
-    def regex(self, node: RegexNode, **kwargs) -> Iterator[OutputAttr]:
+    def regex(self, node: RegexNode, **kwargs) -> AsyncIterable[OutputAttr]:
         if node.regex is not None:
             raise ValueError("Regex not yet supported for OpenAI")
         # We're in unconstrained mode now.
         return self._run(**kwargs)
 
-    def json(self, node: JsonNode, **kwargs) -> Iterator[OutputAttr]:
+    def json(self, node: JsonNode, **kwargs) -> AsyncIterable[OutputAttr]:
         return self._run(
             response_format={
                 "type": "json_schema",
@@ -244,7 +240,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
             **kwargs,
         )
 
-    def _run(self, **kwargs) -> Iterator[OutputAttr]:
+    async def _run(self, **kwargs) -> AsyncIterable[OutputAttr]:
         if self.state.active_role is None:
             # Should never happen?
             raise ValueError(
@@ -259,18 +255,21 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                 f"OpenAI models do not support pre-filled assistant messages: got data {self.state.content}."
             )
 
-        with self.client.chat.completions.create(
+        async with await self.client.chat.completions.create(
             model=self.model,
             messages=TypeAdapter(list[Message]).dump_python(self.state.messages),  # type: ignore[arg-type]
             logprobs=self.log_probs,
             stream=True,
             **kwargs,
         ) as chunks:
-            yield from self._handle_stream(chunks)
+            async for output in self._handle_stream(chunks):
+                yield output
 
-    def _handle_stream(self, chunks: Iterator["ChatCompletionChunk"]) -> Iterator[OutputAttr]:
+    async def _handle_stream(
+        self, chunks: AsyncIterable["ChatCompletionChunk"]
+    ) -> AsyncIterable[OutputAttr]:
         audio: Optional[AssistantAudio] = None
-        for chunk in chunks:
+        async for chunk in chunks:
             try:
                 choice = chunk.choices[0]
             except IndexError:
@@ -357,7 +356,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
 
 
 class OpenAIImageMixin:
-    def image_blob(self, node: ImageBlob, **kwargs) -> Iterator[OutputAttr]:
+    async def image_blob(self, node: ImageBlob, **kwargs) -> AsyncIterable[OutputAttr]:
         try:
             import PIL.Image
         except ImportError:
@@ -379,7 +378,7 @@ class OpenAIImageMixin:
         )
         yield ImageOutput(value=node.data, input=True)
 
-    def image_url(self, node: ImageUrl, **kwargs) -> Iterator[OutputAttr]:
+    async def image_url(self, node: ImageUrl, **kwargs) -> AsyncIterable[OutputAttr]:
         self.state.content.append({"type": "image_url", "image_url": {"url": node.url}})
         image_bytes = bytes_from(node.url, allow_local=False)
         base64_string = base64.b64encode(image_bytes).decode("utf-8")
@@ -387,7 +386,9 @@ class OpenAIImageMixin:
 
 
 class OpenAIAudioMixin:
-    def audio_blob(self, node: ImageBlob, **kwargs) -> Iterator[OutputAttr]:
+    log_probs: bool = False
+
+    async def audio_blob(self, node: ImageBlob, **kwargs) -> AsyncIterable[OutputAttr]:
         format = "wav"  # TODO: infer from node
         self.state.content.append(
             AudioContent(
@@ -400,8 +401,8 @@ class OpenAIAudioMixin:
         )
         yield AudioOutput(value=node.data, format=format, input=True)
 
-    def gen_audio(self, node: GenAudio, **kwargs) -> Iterator[OutputAttr]:
-        yield from self._run(
+    def gen_audio(self, node: GenAudio, **kwargs) -> AsyncIterable[OutputAttr]:
+        return self._run(
             modalities=["text", "audio"],  # Has to be both?
             audio={
                 "voice": node.kwargs.get("voice", "alloy"),

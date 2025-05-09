@@ -41,14 +41,17 @@ def test_gpt2_fastforward(): # TODO [HN]: figure out how all the get_model and f
 
     gpt2_noff = models.Transformers("gpt2", enable_backtrack=False, enable_ff_tokens=False)
     gpt2_noff += ff_prompt()
+    str(gpt2_noff) # Trigger execution
     noff_count = gpt2_noff.engine.metrics.engine_output_tokens
 
     gpt2_nobt = models.Transformers("gpt2", enable_backtrack=False)
     gpt2_nobt += ff_prompt()
+    str(gpt2_nobt) # Trigger execution
     nobt_count = gpt2_nobt.engine.metrics.engine_output_tokens
 
     gpt2_ff = models.Transformers("gpt2")
     gpt2_ff += ff_prompt()
+    str(gpt2_ff) # Trigger execution
     ff_count = gpt2_ff.engine.metrics.engine_output_tokens
 
     assert nobt_count == 2
