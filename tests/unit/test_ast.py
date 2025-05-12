@@ -111,3 +111,22 @@ start: my_rule
 my_rule[capture="my_capture", temperature=0.7]: /.*/
 """
         assert result == expected
+
+    def test_nested_rule_node(self):
+        target = LarkSerializer()
+        ren = RegexNode(r"\d\d")
+        rule_node_inner = RuleNode("inner_rule", value=ren, capture="inner_capture")
+        ln = LiteralNode("A Literal")
+        jn = JoinNode((ln, rule_node_inner))
+        rule_node_outer = RuleNode("outer_rule", value=jn)
+
+        result = target.serialize(rule_node_outer)
+        print(result)
+
+        expected = """%llguidance {}
+
+start: outer_rule
+outer_rule: "A Literal" inner_rule
+inner_rule[capture="inner_capture"]: /\d\d/
+"""
+        assert result == expected
