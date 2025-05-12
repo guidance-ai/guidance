@@ -1,4 +1,12 @@
-from guidance._ast import JoinNode, LarkSerializer, LiteralNode, RegexNode, RuleNode, SelectNode
+from guidance._ast import (
+    JoinNode,
+    LarkSerializer,
+    LiteralNode,
+    RegexNode,
+    RepeatNode,
+    RuleNode,
+    SelectNode,
+)
 
 
 class TestLarkSerializer:
@@ -128,5 +136,75 @@ my_rule[capture="my_capture", temperature=0.7]: /.*/
 start: outer_rule
 outer_rule: "A Literal" inner_rule
 inner_rule[capture="inner_capture"]: /\d\d/
+"""
+        assert result == expected
+
+    def test_repeat_node(self):
+        target = LarkSerializer()
+        ln = LiteralNode("Aa")
+        rpt_node = RepeatNode(ln, 1, 23)
+        result = target.serialize(rpt_node)
+        print(result)
+
+        expected = """%llguidance {}
+
+start: START
+START: "Aa"{1,23}
+"""
+        assert result == expected
+
+    def test_repeat_node_zero_or_one(self):
+        target = LarkSerializer()
+        ln = LiteralNode("Aa")
+        rpt_node = RepeatNode(ln, 0, 1)
+        result = target.serialize(rpt_node)
+        print(result)
+
+        expected = """%llguidance {}
+
+start: START
+START: "Aa"?
+"""
+        assert result == expected
+
+    def test_repeat_node_zero_or_more(self):
+        target = LarkSerializer()
+        ln = LiteralNode("Aa")
+        rpt_node = RepeatNode(ln, 0, None)
+        result = target.serialize(rpt_node)
+        print(result)
+
+        expected = """%llguidance {}
+
+start: START
+START: "Aa"*
+"""
+        assert result == expected
+
+    def test_repeat_node_one_or_more(self):
+        target = LarkSerializer()
+        ln = LiteralNode("Aa")
+        rpt_node = RepeatNode(ln, 1, None)
+        result = target.serialize(rpt_node)
+        print(result)
+
+        expected = """%llguidance {}
+
+start: START
+START: "Aa"+
+"""
+        assert result == expected
+
+    def test_repeat_node_two_or_more(self):
+        target = LarkSerializer()
+        ln = LiteralNode("Aa")
+        rpt_node = RepeatNode(ln, 2, None)
+        result = target.serialize(rpt_node)
+        print(result)
+
+        expected = """%llguidance {}
+
+start: START
+START: "Aa"{2,}
 """
         assert result == expected
