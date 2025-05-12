@@ -5,6 +5,7 @@ from guidance._ast import (
     RegexNode,
     RepeatNode,
     RuleNode,
+    RuleRefNode,
     SelectNode,
 )
 
@@ -206,5 +207,24 @@ START: "Aa"+
 
 start: START
 START: "Aa"{2,}
+"""
+        assert result == expected
+
+    def test_rule_ref_node(self):
+        target = LarkSerializer()
+        ln = LiteralNode("Ab")
+        rule_node = RuleNode("my_rule", value=ln)
+        rref_node = RuleRefNode()
+        rref_node.set_target(rule_node)
+        base_node = JoinNode((rule_node, rref_node))
+
+
+        result = target.serialize(base_node)
+        print(result)
+
+        expected = """%llguidance {}
+
+start: MY_RULE MY_RULE
+MY_RULE: "Ab"
 """
         assert result == expected
