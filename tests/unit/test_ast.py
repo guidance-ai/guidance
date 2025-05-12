@@ -1,3 +1,5 @@
+from llguidance import LLMatcher
+
 from guidance._ast import (
     JoinNode,
     LarkSerializer,
@@ -23,6 +25,9 @@ start: START
 START: "A"
 """
         assert result == expected
+        grm = LLMatcher.grammar_from_lark(result)
+        is_err, _ = LLMatcher.validate_grammar_with_warnings(grm)
+        assert not is_err
 
     def test_select_literals(self):
         target = LarkSerializer()
@@ -41,8 +46,10 @@ START: "A"
      | "B"
 
 """
-
         assert result == expected
+        grm = LLMatcher.grammar_from_lark(result)
+        is_err, _ = LLMatcher.validate_grammar_with_warnings(grm)
+        assert not is_err
 
     def test_join_literals(self):
         target = LarkSerializer()
@@ -59,6 +66,9 @@ start: START
 START: "A" "B"
 """
         assert result == expected
+        grm = LLMatcher.grammar_from_lark(result)
+        is_err, _ = LLMatcher.validate_grammar_with_warnings(grm)
+        assert not is_err
 
     def test_named_rule_node(self):
         target = LarkSerializer()
@@ -75,6 +85,9 @@ START: MY_RULE
 MY_RULE: /.*/
 """
         assert result == expected
+        grm = LLMatcher.grammar_from_lark(result)
+        is_err, _ = LLMatcher.validate_grammar_with_warnings(grm)
+        assert not is_err
 
     def test_capture_rule_node(self):
         target = LarkSerializer()
@@ -90,6 +103,9 @@ start: my_rule
 my_rule[capture="my_capture"]: /.*/
 """
         assert result == expected
+        grm = LLMatcher.grammar_from_lark(result)
+        is_err, _ = LLMatcher.validate_grammar_with_warnings(grm)
+        assert not is_err
 
     def test_temperature_rule_node(self):
         target = LarkSerializer()
@@ -105,6 +121,9 @@ start: my_rule
 my_rule[temperature=0.7]: /.*/
 """
         assert result == expected
+        grm = LLMatcher.grammar_from_lark(result)
+        is_err, _ = LLMatcher.validate_grammar_with_warnings(grm)
+        assert not is_err
 
     def test_capture_temperature_rule_node(self):
         target = LarkSerializer()
@@ -120,6 +139,9 @@ start: my_rule
 my_rule[capture="my_capture", temperature=0.7]: /.*/
 """
         assert result == expected
+        grm = LLMatcher.grammar_from_lark(result)
+        is_err, _ = LLMatcher.validate_grammar_with_warnings(grm)
+        assert not is_err
 
     def test_nested_rule_node(self):
         target = LarkSerializer()
@@ -139,6 +161,9 @@ outer_rule: "A Literal" inner_rule
 inner_rule[capture="inner_capture"]: /\d\d/
 """
         assert result == expected
+        grm = LLMatcher.grammar_from_lark(result)
+        is_err, _ = LLMatcher.validate_grammar_with_warnings(grm)
+        assert not is_err
 
     def test_repeat_node(self):
         target = LarkSerializer()
@@ -153,6 +178,9 @@ start: START
 START: "Aa"{1,23}
 """
         assert result == expected
+        grm = LLMatcher.grammar_from_lark(result)
+        is_err, _ = LLMatcher.validate_grammar_with_warnings(grm)
+        assert not is_err
 
     def test_repeat_node_zero_or_one(self):
         target = LarkSerializer()
@@ -167,6 +195,9 @@ start: START
 START: "Aa"?
 """
         assert result == expected
+        grm = LLMatcher.grammar_from_lark(result)
+        is_err, _ = LLMatcher.validate_grammar_with_warnings(grm)
+        assert not is_err
 
     def test_repeat_node_zero_or_more(self):
         target = LarkSerializer()
@@ -181,6 +212,9 @@ start: START
 START: "Aa"*
 """
         assert result == expected
+        grm = LLMatcher.grammar_from_lark(result)
+        is_err, _ = LLMatcher.validate_grammar_with_warnings(grm)
+        assert not is_err
 
     def test_repeat_node_one_or_more(self):
         target = LarkSerializer()
@@ -195,6 +229,9 @@ start: START
 START: "Aa"+
 """
         assert result == expected
+        grm = LLMatcher.grammar_from_lark(result)
+        is_err, _ = LLMatcher.validate_grammar_with_warnings(grm)
+        assert not is_err
 
     def test_repeat_node_two_or_more(self):
         target = LarkSerializer()
@@ -209,6 +246,9 @@ start: START
 START: "Aa"{2,}
 """
         assert result == expected
+        grm = LLMatcher.grammar_from_lark(result)
+        is_err, _ = LLMatcher.validate_grammar_with_warnings(grm)
+        assert not is_err
 
     def test_rule_ref_node(self):
         target = LarkSerializer()
@@ -228,3 +268,6 @@ start: MY_RULE MY_RULE
 MY_RULE: "Ab"
 """
         assert result == expected
+        grm = LLMatcher.grammar_from_lark(result)
+        is_err, _ = LLMatcher.validate_grammar_with_warnings(grm)
+        assert not is_err
