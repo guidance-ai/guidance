@@ -81,3 +81,18 @@ start: my_rule
 my_rule[capture="my_capture"]: /.*/
 """
         assert result == expected
+
+    def test_temperature_rule_node(self):
+        target = LarkSerializer()
+        ren = RegexNode(".*")
+        rule_node = RuleNode("my_rule", value=ren, temperature=0.7)
+
+        result = target.serialize(rule_node)
+        print(result)
+
+        expected = """%llguidance {}
+
+start: my_rule
+my_rule[temperature=0.7]: /.*/
+"""
+        assert result == expected
