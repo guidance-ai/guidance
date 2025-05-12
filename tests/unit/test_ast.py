@@ -51,6 +51,22 @@ START: "A" "B"
 """
         assert result == expected
 
+    def test_named_rule_node(self):
+        target = LarkSerializer()
+        ren = RegexNode(".*")
+        rule_node = RuleNode("my_rule", value=ren)
+
+        result = target.serialize(rule_node)
+        print(result)
+
+        expected = """%llguidance {}
+
+start: START
+START: MY_RULE
+MY_RULE: /.*/
+"""
+        assert result == expected
+
     def test_capture_rule_node(self):
         target = LarkSerializer()
         ren = RegexNode(".*")
