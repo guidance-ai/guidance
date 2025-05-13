@@ -13,6 +13,7 @@ from guidance._ast import (
     RuleNode,
     RuleRefNode,
     SelectNode,
+    SubgrammarNode,
 )
 from guidance.library._pydantic import pydantic_to_json_schema
 
@@ -324,6 +325,36 @@ my_rule: %json {
   ],
   "title": "Simple",
   "type": "object"
+}
+
+"""
+        assert result == expected
+        grm = LLMatcher.grammar_from_lark(result)
+        is_err, _ = LLMatcher.validate_grammar_with_warnings(grm)
+        assert not is_err
+
+    def test_subgrammar_node(self):
+        target = LarkSerializer()
+        ln = LiteralNode("Ab")
+        sg_node = SubgrammarNode(ln, skip_regex=r"\d\d")
+        rule_node = RuleNode("my_rule", sg_node)
+        ren = RegexNode(r"\w+")
+        base_node = JoinNode((rule_node, ren))
+
+        result = target.serialize(base_node)
+        print(result)
+
+        expected = """%llguidance {}
+
+start: my_rule /\w+/
+
+my_rule: %lark {
+%llguidance {}
+
+  start: START
+  START: "Ab"
+
+  %ignore /\d\d/
 }
 
 """
