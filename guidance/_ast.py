@@ -464,6 +464,7 @@ class RuleNode(GrammarNode):
         )
 
     def children(self) -> Sequence["GrammarNode"]:
+        # What happens if value is a BaseSubGrammarNode?
         return (self.value,)
 
     def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
