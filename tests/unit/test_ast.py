@@ -1,7 +1,11 @@
+import pydantic
+
 from llguidance import LLMatcher
+
 
 from guidance._ast import (
     JoinNode,
+    JsonNode,
     LarkSerializer,
     LiteralNode,
     RegexNode,
@@ -10,6 +14,7 @@ from guidance._ast import (
     RuleRefNode,
     SelectNode,
 )
+from guidance.library._pydantic import pydantic_to_json_schema
 
 
 class TestLarkSerializer:
@@ -284,6 +289,43 @@ START: "Aa"{2,}
 
 start: MY_RULE MY_RULE
 MY_RULE: "Ab"
+"""
+        assert result == expected
+        grm = LLMatcher.grammar_from_lark(result)
+        is_err, _ = LLMatcher.validate_grammar_with_warnings(grm)
+        assert not is_err
+
+    def test_json_node(self):
+        target = LarkSerializer()
+
+        class Simple(pydantic.BaseModel):
+            my_string: str
+
+        schema = pydantic_to_json_schema(Simple)
+        jn = JsonNode(schema=schema)
+        rule_node = RuleNode("my_rule", value=jn)
+
+        result = target.serialize(rule_node)
+        print(result)
+
+        expected = """%llguidance {}
+
+start: my_rule
+
+my_rule: %json {
+  "properties": {
+    "my_string": {
+      "title": "My String",
+      "type": "string"
+    }
+  },
+  "required": [
+    "my_string"
+  ],
+  "title": "Simple",
+  "type": "object"
+}
+
 """
         assert result == expected
         grm = LLMatcher.grammar_from_lark(result)
