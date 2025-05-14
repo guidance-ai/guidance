@@ -380,7 +380,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
         return result
 
 
-class OpenAIImageMixin:
+class OpenAIImageMixin(BaseOpenAIInterpreter):
     def image_blob(self, node: ImageBlob, **kwargs) -> Iterator[OutputAttr]:
         try:
             import PIL.Image
@@ -399,7 +399,7 @@ class OpenAIImageMixin:
 
         mime_type = f"image/{format.lower()}"
         self.state.content.append(
-            {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{node.data}"}}
+            {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{node.data.decode()}"}}
         )
         yield ImageOutput(value=node.data, input=True)
 
@@ -410,7 +410,7 @@ class OpenAIImageMixin:
         yield ImageOutput(value=base64_string, input=True)
 
 
-class OpenAIAudioMixin:
+class OpenAIAudioMixin(BaseOpenAIInterpreter):
     def audio_blob(self, node: ImageBlob, **kwargs) -> Iterator[OutputAttr]:
         format = "wav"  # TODO: infer from node
         self.state.content.append(
