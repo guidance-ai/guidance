@@ -300,14 +300,14 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                             latency_ms=latency_ms/len(tokens),
                             token={
                                 "token": token.token,
-                                "bytes": b'' if token.bytes is None else bytes(token.bytes),
+                                "bytes": b'' if token.bytes is None else base64.b64encode(bytes(token.bytes)),
                                 "prob": 2.718**token.logprob
                             },
                             # TODO: actually request the top logprobs
                             top_k = [
                                 {
                                     "token": tok.token,
-                                    "bytes": b'' if tok.bytes is None else bytes(tok.bytes),
+                                    "bytes": b'' if tok.bytes is None else base64.b64encode(bytes(tok.bytes)),
                                     "prob": 2.718**tok.logprob,
                                 }
                                 for tok in token.top_logprobs

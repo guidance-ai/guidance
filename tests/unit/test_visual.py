@@ -8,6 +8,7 @@ from guidance.trace import TokenOutput, Token, Backtrack
 from guidance.visual import serialize_message, deserialize_message
 from guidance.visual._environment import Environment
 import asyncio
+from base64 import b64encode
 
 from guidance.visual._exchange import DEFAULT_TOPIC
 
@@ -19,7 +20,7 @@ from guidance.visual._exchange import DEFAULT_TOPIC
         TraceMessage(
             trace_id=1,
             node_attr=TokenOutput(
-                value="text", token=Token(token='text', bytes=b'text', prob=0)
+                value="text", token=Token(token='text', bytes=b64encode(b'text'), prob=0)
             )
         ),
         TraceMessage(

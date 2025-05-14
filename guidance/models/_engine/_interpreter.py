@@ -1,4 +1,4 @@
-from base64 import b64decode
+from base64 import b64decode, b64encode
 from io import BytesIO
 from typing import Iterator
 from copy import deepcopy
@@ -84,7 +84,7 @@ class EngineInterpreter(Interpreter[EngineState]):
                     top_k = [
                         {
                             "token": to_utf8_or_bytes_string(t.bytes),
-                            "bytes": t.bytes,
+                            "bytes": b64encode(t.bytes),
                             "prob": t.prob,
                             "is_masked": t.is_masked,
                         }
@@ -96,7 +96,7 @@ class EngineInterpreter(Interpreter[EngineState]):
                 token_value = to_utf8_or_bytes_string(token.bytes)
                 yield TokenOutput(
                     value=token_value,
-                    token={"token": token_value, "bytes": token.bytes, "prob": token.prob},
+                    token={"token": token_value, "bytes": b64encode(token.bytes), "prob": token.prob},
                     latency_ms=token.latency_ms,
                     is_input = token.is_input,
                     is_generated = token.is_generated,

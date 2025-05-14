@@ -172,7 +172,7 @@ class TextOutput(OutputAttr):
 
 class Token(BaseModel):
     token: str
-    bytes: bytes
+    bytes: Base64Bytes
     prob: float = float("nan")
     masked: bool = False
 
@@ -182,7 +182,7 @@ class TokenOutput(TextOutput):
 
 class Backtrack(OutputAttr):
     n_tokens: int
-    bytes: bytes
+    bytes: Base64Bytes
 
 class CaptureOutput(OutputAttr):
     """Capture variable output as a string.
