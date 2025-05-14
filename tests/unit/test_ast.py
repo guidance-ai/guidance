@@ -304,7 +304,7 @@ MY_RULE: "Ab"
 
         schema = pydantic_to_json_schema(Simple)
         jn = JsonNode(schema=schema)
-        rule_node = RuleNode("my_rule", value=jn)
+        rule_node = RuleNode("my_rule", value=jn, temperature=0.7)
 
         result = target.serialize(rule_node)
         print(result)
@@ -313,7 +313,7 @@ MY_RULE: "Ab"
 
 start: my_rule
 
-my_rule: %json {
+my_rule[temperature=0.7]: %json {
   "properties": {
     "my_string": {
       "title": "My String",
