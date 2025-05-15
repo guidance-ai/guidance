@@ -6,7 +6,8 @@ import llguidance  # type: ignore[import-untyped]
 import numpy as np
 from numpy.typing import NDArray
 
-from ._schema import EngineOutput, GenData, EngineCallResponse, GenToken, LLInterpreterResponse, LLGrammar
+from ._schema import EngineOutput, GenData, EngineCallResponse, GenToken, LLInterpreterResponse
+from ._utils import to_utf8_or_bytes_string
 
 if TYPE_CHECKING:
     from .models._engine import Tokenizer
@@ -29,7 +30,7 @@ class TokenParser:
 
     def __init__(
         self,
-        grammar: LLGrammar,
+        grammar: str,
         tokenizer: "Tokenizer",
         prompt: bytes = b"",
         ensure_bos_token: bool = True,
@@ -40,7 +41,7 @@ class TokenParser:
         self.ll_tokenizer = llguidance.LLTokenizer(llguidance.TokenizerWrapper(tokenizer))
         self.ll_interpreter = llguidance.LLInterpreter(
             self.ll_tokenizer,
-            grammar.model_dump_json(),
+            grammar,
             enable_backtrack,
             enable_ff_tokens,
             log_level=int(os.environ.get("LLGUIDANCE_LOG_LEVEL", "1")),
@@ -176,7 +177,7 @@ class ByteParserException(Exception):
 class ByteParser:
     def __init__(
         self,
-        grammar: LLGrammar,
+        grammar: str,
         prompt: bytes = b"",
         ensure_bos_token: bool = True,
     ):
@@ -330,7 +331,7 @@ class ByteParser:
         fake_issued_token = GenToken(
             token_id=token_id,
             prob=1.0,
-            text=self.tokenizer.decode([token_id]).decode("utf-8"),
+            text=to_utf8_or_bytes_string(self.tokenizer.decode([token_id])),
             latency_ms=0,
             is_generated=True,
         )

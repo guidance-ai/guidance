@@ -1,13 +1,13 @@
 from ._tokenizer import Tokenizer  # isort:skip
-from ._client import EngineClient, Llama3VisionClient, Phi3VisionClient
+from ._interpreter import EngineInterpreter, Llama3VisionInterpreter, Phi3VisionInterpreter
 from ._engine import Engine
 from ._state import EngineState
 
 __all__ = [
     "Tokenizer",
     "Engine",
-    "EngineClient",
+    "EngineInterpreter",
     "EngineState",
-    "Llama3VisionClient",
-    "Phi3VisionClient",
+    "Llama3VisionInterpreter",
+    "Phi3VisionInterpreter",
 ]

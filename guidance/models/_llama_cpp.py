@@ -13,7 +13,7 @@ import numpy as np
 from .._schema import GenToken, GenTokenExtra
 from .._utils import normalize_notebook_stdout_stderr, softmax
 from ._base import Model
-from ._engine import Engine, EngineClient, EngineState, Tokenizer
+from ._engine import Engine, EngineInterpreter, EngineState, Tokenizer
 
 try:
     import llama_cpp
@@ -306,7 +306,7 @@ class LlamaCppEngine(Engine):
         _bytes = self.tokenizer.decode([token_ids[0]])
         try:
             _text = _bytes.decode("utf-8")
-        except Exception as e:
+        except UnicodeDecodeError as e:
             _text = str(_bytes)
             print(f"Failed to decode token: {token_ids[0]}, error: {e}, _bytes: {str(_bytes)}")
         text_sequence.append(
@@ -332,7 +332,7 @@ class LlamaCppEngine(Engine):
                 _text = ""
                 try:
                     _text = self.tokenizer.decode([_token_id]).decode("utf-8")
-                except Exception as e:
+                except UnicodeDecodeError as e:
                     _bytes = self.tokenizer.decode([_token_id])
                     _text = str(_bytes)
                     print(
@@ -391,6 +391,5 @@ class LlamaCpp(Model):
             enable_monitoring=enable_monitoring,
             **llama_cpp_kwargs,
         )
-        state = EngineState()
-        client = EngineClient(engine)
-        super().__init__(client=client, state=state, echo=echo)
+        interpreter = EngineInterpreter(engine)
+        super().__init__(interpreter=interpreter, echo=echo)

@@ -1,33 +1,35 @@
 import pytest
 
 from guidance import models
+from guidance.models._azureai import create_azure_aifoundry_model
 
 
 from ..model_specific import common_chat_testing
 from ..utils import env_or_fail, slowdown
 
-pytest.skip("Deployments temporarily deleted", allow_module_level=True)
+# pytest.skip("Deployments temporarily deleted", allow_module_level=True)
 
 # How to fill out the environment variables to
 # set up the models
 # Temporarily remove mistral pending endpoint investigation
-_chat_models = {"phi3": "PHI3", "llama3": "LLAMA3_CHAT"}
+# _chat_models = {"phi3": "PHI3", "llama3": "LLAMA3_CHAT"}
+_chat_models = {"phi4": "PHI4"}
 
 
 def _get_chat_model(model_name: str):
     env_string = _chat_models[model_name]
 
-    azureai_studio_endpoint = env_or_fail(f"AZURE_AI_STUDIO_{env_string}_ENDPOINT")
-    azureai_studio_deployment = env_or_fail(f"AZURE_AI_STUDIO_{env_string}_DEPLOYMENT")
-    azureai_studio_key = env_or_fail(f"AZURE_AI_STUDIO_{env_string}_KEY")
+    azureai_studio_endpoint = env_or_fail(f"AZUREAI_STUDIO_{env_string}_ENDPOINT")
+    azureai_studio_model_name = env_or_fail(f"AZUREAI_STUDIO_{env_string}_MODEL_NAME")
+    azureai_studio_key = env_or_fail(f"AZUREAI_STUDIO_{env_string}_KEY")
 
-    lm = models.AzureAIStudioChat(
-        azureai_studio_endpoint=azureai_studio_endpoint,
-        azureai_studio_deployment=azureai_studio_deployment,
-        azureai_studio_key=azureai_studio_key,
-        clear_cache=True,
+    lm = create_azure_aifoundry_model(
+        azure_endpoint=azureai_studio_endpoint,
+        api_key=azureai_studio_key,
+        # token_credential=DefaultAzureCredential(),
+        model_name=azureai_studio_model_name,
     )
-    assert isinstance(lm, models.AzureAIStudioChat)
+    assert isinstance(lm, models.Model)
     return lm
 
 

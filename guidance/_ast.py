@@ -1,5 +1,6 @@
 import json
 import re
+import textwrap
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import (
@@ -13,13 +14,13 @@ from typing import (
     Union,
     cast,
 )
+from typing_extensions import assert_never
 
 from ._parser import ByteParser, ByteParserException
-from ._schema import JsonGrammar, LarkGrammar, LLGrammar
 from .trace import OutputAttr
 
 if TYPE_CHECKING:
-    from .models._base import Client, State
+    from .models._base import Interpreter, State
 
 # to support the embedding of guidance functions inside Python f-strings we use tags with these delimiters
 tag_start = "{{G|"  # start of a call tag
@@ -150,7 +151,7 @@ S = TypeVar("S", bound="State")
 
 class ASTNode(ABC):
     @abstractmethod
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
         pass
 
     def simplify(self) -> "ASTNode":
@@ -161,48 +162,48 @@ class ASTNode(ABC):
 class RoleStart(ASTNode):
     role: str
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
-        return client._role_start(state, self, **kwargs)
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+        return interpreter._role_start(self, **kwargs)
 
 
 @dataclass
 class RoleEnd(ASTNode):
     role: str
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
-        return client._role_end(state, self, **kwargs)
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+        return interpreter._role_end(self, **kwargs)
 
 
 @dataclass
 class ImageBlob(ASTNode):
     data: str
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
-        return client.image_blob(state, self, **kwargs)
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+        return interpreter.image_blob(self, **kwargs)
 
 
 @dataclass
 class ImageUrl(ASTNode):
     url: str
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
-        return client.image_url(state, self, **kwargs)
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+        return interpreter.image_url(self, **kwargs)
 
 
 @dataclass
 class AudioBlob(ASTNode):
     data: str
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
-        return client.audio_blob(state, self, **kwargs)
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+        return interpreter.audio_blob(self, **kwargs)
 
 
 class GenAudio(ASTNode):
     def __init__(self, kwargs: dict[str, Any]):
         self.kwargs = kwargs
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
-        return client.gen_audio(state, self, **kwargs)
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+        return interpreter.gen_audio(self, **kwargs)
 
 
 @dataclass(frozen=True)
@@ -276,10 +277,11 @@ class GrammarNode(Tagged, ASTNode):
         byte_string: Union[str, bytes],
         allow_partial: bool = False,
         raise_exceptions: bool = False,
+        enforce_max_tokens: bool = True,
     ) -> Union[Match, None]:
         if isinstance(byte_string, str):
             byte_string = byte_string.encode()
-        parser = ByteParser(self.ll_grammar())
+        parser = ByteParser(self.ll_grammar(enforce_max_tokens=enforce_max_tokens))
 
         try:
             parser.consume_bytes(byte_string)
@@ -303,8 +305,8 @@ class GrammarNode(Tagged, ASTNode):
         parser = ByteParser(self.ll_grammar())
         return parser.bytes.decode("utf-8", errors="ignore")
 
-    def ll_grammar(self) -> LLGrammar:
-        return LLSerializer().serialize(self)
+    def ll_grammar(self, enforce_max_tokens: bool = True) -> str:
+        return LarkSerializer(enforce_max_tokens=enforce_max_tokens).serialize(self.simplify())
 
 
 @dataclass(frozen=True)
@@ -315,16 +317,16 @@ class LiteralNode(GrammarNode):
     def is_null(self) -> bool:
         return self.value == ""
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
-        return client.text(state, self, **kwargs)
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+        return interpreter.text(self, **kwargs)
 
 
 @dataclass(frozen=True)
 class RegexNode(GrammarNode):
     regex: Optional[str]
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
-        return client.regex(state, self, **kwargs)
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+        return interpreter.regex(self, **kwargs)
 
 
 @dataclass(frozen=True)
@@ -351,8 +353,8 @@ class SelectNode(GrammarNode):
     def children(self) -> Sequence["GrammarNode"]:
         return self.alternatives
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
-        return client.select(state, self, **kwargs)
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+        return interpreter.select(self, **kwargs)
 
 
 @dataclass(frozen=True)
@@ -369,13 +371,13 @@ class JoinNode(GrammarNode):
         nodes = tuple(node.simplify() for node in self.nodes if not node.is_null)
         if len(nodes) == 1:
             return nodes[0]
-        return self
+        return JoinNode(nodes)
 
     def children(self) -> Sequence["GrammarNode"]:
         return self.nodes
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
-        return client.join(state, self, **kwargs)
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+        return interpreter.join(self, **kwargs)
 
 
 @dataclass(frozen=True)
@@ -400,8 +402,8 @@ class RepeatNode(GrammarNode):
     def simplify(self) -> GrammarNode:
         return RepeatNode(self.node.simplify(), self.min, self.max)
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
-        return client.repeat(state, self, **kwargs)
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+        return interpreter.repeat(self, **kwargs)
 
 
 @dataclass(frozen=True)
@@ -413,8 +415,8 @@ class SubstringNode(GrammarNode):
         # this can be used as part of bigger regexes
         return True
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
-        return client.substring(state, self, **kwargs)
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+        return interpreter.substring(self, **kwargs)
 
 
 # This creates a name for the given grammar node (value), which can be referenced
@@ -425,7 +427,7 @@ class SubstringNode(GrammarNode):
 @dataclass(frozen=True)
 class RuleNode(GrammarNode):
     name: str
-    value: GrammarNode
+    value: Union[GrammarNode, "BaseSubgrammarNode"]
     capture: Optional[str] = None
     list_append: bool = False
     temperature: Optional[float] = None
@@ -441,7 +443,7 @@ class RuleNode(GrammarNode):
             or self.stop is not None
             or self.suffix is not None
             or self.stop_capture is not None
-        ) and not (self.value.is_terminal or isinstance(self.value, BaseSubgrammarNode)):
+        ) and not (isinstance(self.value, BaseSubgrammarNode) or self.value.is_terminal):
             raise ValueError(
                 "RuleNode is not terminal, so it cannot have a temperature, max_tokens, or stop condition"
             )
@@ -457,16 +459,15 @@ class RuleNode(GrammarNode):
                 and self.suffix is None
                 and self.stop_capture is None
             )
-            and self.value.is_terminal
             and not isinstance(self.value, BaseSubgrammarNode)
+            and self.value.is_terminal
         )
 
     def children(self) -> Sequence["GrammarNode"]:
         return (self.value,)
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
-        return client.rule(state, self, **kwargs)
-
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+        return interpreter.rule(self, **kwargs)
 
 @dataclass(frozen=True, eq=False)
 class RuleRefNode(GrammarNode):
@@ -484,19 +485,15 @@ class RuleRefNode(GrammarNode):
         # so it should never be terminal.
         return False
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
         if self.target is None:
             raise ValueError("RuleRefNode target not set")
-        return client.rule(state, self.target)
+        return interpreter.rule(self.target)
 
 
 @dataclass(frozen=True)
-class BaseSubgrammarNode(GrammarNode):
-    name: str
-
-    @property
-    def is_terminal(self) -> bool:
-        return False
+class BaseSubgrammarNode(ASTNode):
+    pass
 
 
 @dataclass(frozen=True)
@@ -504,79 +501,31 @@ class SubgrammarNode(BaseSubgrammarNode):
     body: GrammarNode
     skip_regex: Optional[str] = None
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
-        return client.subgrammar(state, self, **kwargs)
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+        return interpreter.subgrammar(self, **kwargs)
 
 
 @dataclass(frozen=True, eq=False)
 class JsonNode(BaseSubgrammarNode):
     schema: dict[str, Any]
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
-        return client.json(state, self, **kwargs)
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+        return interpreter.json(self, **kwargs)
 
 
 @dataclass(frozen=True, eq=False)
 class LarkNode(BaseSubgrammarNode):
     lark_grammar: str
 
-    def _run(self, client: "Client[S]", state: S, **kwargs) -> Iterator[OutputAttr]:
-        return client.lark(state, self, **kwargs)
-
-
-class LLSerializer:
-    def __init__(self):
-        self.grammars: dict[str, Union[JsonGrammar, LarkGrammar]] = {}
-        self.names: dict[BaseSubgrammarNode, str] = {}
-
-    def serialize(self, node: GrammarNode) -> LLGrammar:
-        if isinstance(node, BaseSubgrammarNode):
-            self.visit(node)
-        else:
-            self.visit(SubgrammarNode("main", node))
-        return LLGrammar(grammars=[self.grammars[name] for name in self.names.values()])
-
-    def visit(self, node: BaseSubgrammarNode) -> str:
-        if node in self.names:
-            return self.names[node]
-
-        name = node.name
-        names = set(self.names.values())
-        if name in names:
-            i = 1
-            while f"{name}_{i}" in names:
-                i += 1
-            name = f"{name}_{i}"
-
-        if isinstance(node, SubgrammarNode):
-            # Important: insert name BEFORE visiting body to avoid infinite recursion
-            self.names[node] = name
-            lark_grammar = LarkSerializer(self).serialize(node.body)
-            if node.skip_regex:
-                lark_grammar += f"\n%ignore /{node.skip_regex}/"
-            self.grammars[name] = LarkGrammar(name=name, lark_grammar=lark_grammar)
-
-        elif isinstance(node, JsonNode):
-            self.names[node] = name
-            self.grammars[name] = JsonGrammar(name=name, json_schema=node.schema)
-
-        elif isinstance(node, LarkNode):
-            self.names[node] = name
-            self.grammars[name] = LarkGrammar(name=name, lark_grammar=node.lark_grammar)
-
-        else:
-            raise TypeError(f"Unknown subgrammar type: {node}")
-
-        return name
-
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+        return interpreter.lark(self, **kwargs)
 
 class LarkSerializer:
 
-    def __init__(self, ll_serializer: LLSerializer):
-        self.ll_serializer = ll_serializer
-
+    def __init__(self, enforce_max_tokens: bool = True):
+        self.enforce_max_tokens = enforce_max_tokens
         self.rules: dict[str, str] = {}
-        self.names: dict[RuleNode, str] = {}
+        self.names: dict[Union[RuleNode, BaseSubgrammarNode], str] = {}
 
     def serialize(self, node: GrammarNode) -> str:
         if isinstance(node, RuleNode) and node.name == "start":
@@ -602,9 +551,6 @@ class LarkSerializer:
         return res
 
     def visit(self, node: GrammarNode, top=False) -> str:
-        if isinstance(node, BaseSubgrammarNode):
-            return f"@{self.ll_serializer.visit(node)}"
-
         if isinstance(node, RuleNode):
             if node in self.names:
                 return self.names[node]
@@ -617,6 +563,7 @@ class LarkSerializer:
                     i += 1
                 name = f"{name}_{i}"
             self.names[node] = name
+
             res = name
             attrs = []
             if node.capture is not None:
@@ -629,7 +576,7 @@ class LarkSerializer:
                     attrs.append("capture")
             if node.temperature is not None:
                 attrs.append(f"temperature={node.temperature}")
-            if node.max_tokens is not None:
+            if self.enforce_max_tokens and node.max_tokens is not None:
                 attrs.append(f"max_tokens={node.max_tokens}")
             if node.stop:
                 attrs.append(f"stop={self.visit(node.stop)}")
@@ -639,10 +586,33 @@ class LarkSerializer:
                 attrs.append(f"stop_capture={json.dumps(node.stop_capture)}")
             if attrs:
                 res += f"[{', '.join(attrs)}]"
-            res += ": " + self.visit(node.value.simplify(), top=True)
+            
+            res += ": "
+            target = node.value
+            if isinstance(target, GrammarNode):
+                res += self.visit(target.simplify(), top=True)
+            elif isinstance(target, BaseSubgrammarNode):
+                if isinstance(target, JsonNode):
+                    res += "%json " + json.dumps(target.schema, indent=2)
+                elif isinstance(target, LarkNode):
+                    # TODO: we can't decide whether or not to enforce max tokens here easily.
+                    # We could in principle parse the grammar and/or use a regex?
+                    res += f"%lark {{\n{textwrap.indent(target.lark_grammar, '  ').strip()}\n}}"
+                elif isinstance(target, SubgrammarNode):
+                    lark_grammar = LarkSerializer(enforce_max_tokens=self.enforce_max_tokens).serialize(target.body)
+                    if target.skip_regex:
+                        lark_grammar += f"\n%ignore /{target.skip_regex}/"
+                    res += f"%lark {{\n{textwrap.indent(lark_grammar, '  ').strip()}\n}}"
+                else:
+                    if TYPE_CHECKING:
+                        assert_never(target)
+                    raise TypeError(f"Unknown subgrammar type: {target}")
+            else:
+                if TYPE_CHECKING:
+                    assert_never(target)
+                raise TypeError(f"Unknown rule value type: {target}")
             self.rules[name] = res
             return name
-
         if node.is_null:
             return '""'
 

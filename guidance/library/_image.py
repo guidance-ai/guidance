@@ -1,6 +1,6 @@
+import importlib.resources
 import pathlib
 import typing
-import pkg_resources
 import base64
 import re
 
@@ -24,10 +24,8 @@ def image(lm, src: typing.Union[str, pathlib.Path, bytes], allow_local: bool = T
 @guidance
 def gen_image(lm):
     # TODO(nopdive): Mock for testing. Remove all of this code later.
-    with open(
-            pkg_resources.resource_filename("guidance", "resources/sample_image.png"), "rb"
-    ) as f:
+    with importlib.resources.files("guidance").joinpath("resources/sample_image.png").open("rb") as f:
         bytes_data = f.read()
-        base64_string = base64.b64encode(bytes_data).decode('utf-8')
-        lm += ImageOutput(value=base64_string, is_input=False)
+    base64_string = base64.b64encode(bytes_data).decode('utf-8')
+    lm += ImageOutput(value=base64_string, is_input=False)
     return lm

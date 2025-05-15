@@ -12,6 +12,7 @@ node_modules
 .eggs/
 .env
 .DS_Store
+venv/
 
 # Ignore native library built by setup
 guidance/*.so
