@@ -6,6 +6,7 @@ import sys
 from itertools import takewhile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional, Sequence
+from collections import Counter
 import ctypes
 
 import numpy as np
@@ -86,11 +87,6 @@ class LlamaCppTokenizer(Tokenizer):
     def __init__(self, model_obj, chat_template=None):
         self._model_obj = model_obj
 
-        self._sentinel_bytes = "\x02".encode()
-        self._sentinel_tokens = self._model_obj.tokenize(
-            self._sentinel_bytes, add_bos=False, special=True
-        )
-
         tokenizer = llama_cpp.LlamaTokenizer(model_obj)
         vocab = llama_cpp.llama_model_get_vocab(model_obj.model)
         if vocab is None:
@@ -100,14 +96,26 @@ class LlamaCppTokenizer(Tokenizer):
             tokenizer.llama = tokenizer._model
 
         # get the bytes strings for all the tokens
-        tokens = []
-        special_token_ids = []
+        tokens: list[bytes] = []
+        special_token_ids: list[int] = []
         for i in range(tokenizer.llama.n_vocab()):
             tok_attrs = tokenizer.llama.token_get_attr(i)
             if tok_attrs & llama_cpp.LLAMA_TOKEN_ATTR_CONTROL:
                 special_token_ids.append(i)
             tok = detokenize(tokenizer, [i], special=True, size=256)
             tokens.append(tok)
+
+        # Search for a byte string that doesn't prefix more than one token
+        first_byte_counts = Counter(tok[0:1] for tok in tokens)
+        for candidate in (b"\x00", b"\x01", b"\x02", b"\x03"):
+            if first_byte_counts[candidate] <= 1:
+                self._sentinel_bytes = candidate
+                break
+        else:
+            raise ValueError("Could not find a sentinel byte for tokenizer")
+        self._sentinel_tokens = self._model_obj.tokenize(
+            self._sentinel_bytes, add_bos=False, special=True
+        )
 
         # Chat Template logic
         if chat_template is None:
