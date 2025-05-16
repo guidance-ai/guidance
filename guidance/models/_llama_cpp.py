@@ -105,10 +105,10 @@ class LlamaCppTokenizer(Tokenizer):
             tok = detokenize(tokenizer, [i], special=True, size=256)
             tokens.append(tok)
 
-        # Search for a byte string that doesn't prefix more than one token
+        # Search for a byte string that prefixes exactly one token
         first_byte_counts = Counter(tok[0:1] for tok in tokens)
         for candidate in (b"\x00", b"\x01", b"\x02", b"\x03"):
-            if first_byte_counts[candidate] <= 1:
+            if first_byte_counts[candidate] == 1:
                 self._sentinel_bytes = candidate
                 break
         else:
