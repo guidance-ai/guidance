@@ -134,7 +134,10 @@ class LlamaCppTokenizer(Tokenizer):
         raw_tokens = self._model_obj.tokenize(
             self._sentinel_bytes + byte_string, add_bos=False, special=True
         )
-        assert raw_tokens[: len(self._sentinel_tokens)] == self._sentinel_tokens
+        if raw_tokens[: len(self._sentinel_tokens)] != self._sentinel_tokens:
+            raise ValueError(
+                f"Failed to tokenize {byte_string} using sentinel bytes {self._sentinel_bytes}."
+            )
         return raw_tokens[len(self._sentinel_tokens) :]
 
 
