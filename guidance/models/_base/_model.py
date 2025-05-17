@@ -2,42 +2,34 @@
 
 import queue
 import threading
+import asyncio
 from contextvars import ContextVar, copy_context
 from copy import deepcopy
-from typing import TYPE_CHECKING, Any, Iterator, Optional, TypeVar, Union
-
+from typing import TYPE_CHECKING, Any, Iterator, Optional, TypeVar, Union, Sequence
 from typing_extensions import Self
 
-from ..._ast import ASTNode, Function, _parse_tags
 from ..._ast import (
     ASTNode,
     Function,
-    GenAudio,
-    ImageBlob,
-    ImageUrl,
-    LiteralNode,
-    RoleEnd,
-    RoleStart,
+    AsyncFunction,
+    CaptureStart,
+    CaptureEnd,
     _parse_tags,
 )
 from ...trace import (
-    ImageInput,
-    LiteralInput,
     NodeAttr,
-    RoleCloserInput,
-    RoleOpenerInput,
-    StatelessGuidanceInput,
-    TextOutput,
     TraceNode,
 )
-from ...trace._trace import AudioInput
 from ...visual import TraceMessage
+from ..._reentrant_async import sync_to_reentrant_async, reentrant_await, run_async_coroutine_in_bg_async
+
 from ._interpreter import Interpreter
 from ._state import State
 
 if TYPE_CHECKING:
     from ...library._block import Block
 
+_below_entry_point: ContextVar[bool] = ContextVar("below_entry_point", default=False)
 _active_blocks: ContextVar[tuple["Block", ...]] = ContextVar("active_blocks", default=())
 _event_queues: ContextVar[tuple[queue.Queue["Model"], ...]] = ContextVar(
     "event_queues", default=()
@@ -57,23 +49,45 @@ def _gen_id():
 S = TypeVar("S", bound=State)
 D = TypeVar("D", bound=Any)
 
+from dataclasses import dataclass, field, InitVar
 
+@dataclass
 class Model:
-    def __init__(
-        self,
-        interpreter: Interpreter[S],
-        echo: bool = True,
-    ) -> None:
-        self.echo = echo
-        self._interpreter = interpreter
-        self._active_blocks: dict[Block, int] = {}
-        self.token_count: int = 0
+    interpreter: InitVar[Interpreter[S]]
+    echo: bool = True
 
-        self._parent: Optional["Model"] = None
-        self._parent_id: Optional[int] = None
-        self._id: int = _gen_id()
-        self._trace_nodes: set[TraceNode] = set()
-        self._update_trace_node(self._id, self._parent_id, None)
+    # Private init attributes
+    _interpreter: Interpreter = field(init=False)
+    _parent: Optional["Model"] = None
+    _pending: Union[None, ASTNode, Function] = None
+    _active_blocks: tuple["Block", ...] = ()
+
+    # Private non-init attributes
+    _parent_id: Optional[int] = field(init=False, default=None)
+    _id: int = field(init=False, default_factory=_gen_id)
+    _trace_nodes: set[TraceNode] = field(init=False, default_factory=set)
+
+    def __post_init__(self, interpreter: Interpreter) -> None:
+        self._interpreter = interpreter
+        # Set the parent ID if we have a parent
+        if self._parent is not None:
+            self._parent_id = self._parent._id
+
+    def copy(self) -> Self:
+        obj = object.__new__(self.__class__)
+        obj.__dict__.update(self.__dict__)
+        # Use the base-class's __init__ to set up the new object
+        # TODO: if we can move to having just the one Model class,
+        # we can replace this all with a simple `dataclasses.replace(self, ...)`
+        Model.__init__(
+            obj,
+            interpreter=deepcopy(self._interpreter),
+            # TODO: should this be our parent? Or is the copy really our child?
+            _parent=self,
+            _pending=self._pending,
+            _active_blocks=self._active_blocks,
+        )
+        return obj
 
     def _update_trace_node(
         self, identifier: int, parent_id: Optional[int], node_attr: Optional[NodeAttr] = None
@@ -91,59 +105,31 @@ class Model:
                     node_attr=node_attr,
                 ),
             )
+        pass
 
-    def __add__(self, other: Union[str, Function, ASTNode]) -> Self:
-        self = self._apply_blocks()
+    def _increment_trace_id(self) -> None:
+        # This is a bit of a hack to get the trace ids working (only one output attr is allowed per id, so we need to increment.)
+        # Parent will be the real parent, so this is all a bit of a mess. TODO: allow multiple output attrs per id
+        self._parent_id = self._id
+        self._id = _gen_id()
+
+    def _add_to_pending(self, item: Union[ASTNode, Function]) -> None:
+        if self._pending is None:
+            self._pending = item
+        else:
+            self._pending += item
+
+    def __add__(self, other: Union[str, Function, AsyncFunction, ASTNode]) -> Self:
+        self = self.copy()
+        self._apply_blocks()
         if isinstance(other, str):
             if other == "":
                 return self
             other = _parse_tags(other)
-        if isinstance(other, Function):
-            return other(self)
-        if isinstance(other, ASTNode):
-            self = self._apply_node(other)
-            self = self._update_open_block_captures()
+        if isinstance(other, (ASTNode, Function, AsyncFunction)):
+            self._add_to_pending(other)
             return self
         return NotImplemented
-
-    def _apply_node(self, node: ASTNode) -> Self:
-        self = self.copy()
-
-        # Input side of trace handler.
-        # TODO: StatefulGuidanceInput up in __add__?
-        if isinstance(node, RoleStart):
-            self._update_trace_node(self._id, self._parent_id, RoleOpenerInput(name=node.role))
-        elif isinstance(node, RoleEnd):
-            self._update_trace_node(self._id, self._parent_id, RoleCloserInput(name=node.role))
-        elif isinstance(node, LiteralNode):
-            self._update_trace_node(self._id, self._parent_id, LiteralInput(value=node.value))
-        elif isinstance(node, ImageBlob):
-            self._update_trace_node(self._id, self._parent_id, ImageInput(value=node.data))
-        elif isinstance(node, ImageUrl):
-            # TODO -- let's avoid downloading it here
-            pass
-        elif isinstance(node, GenAudio):
-            self._update_trace_node(
-                self._id, self._parent_id, AudioInput(value="")
-            )  # TODO -- what goes here?
-        else:
-            self._update_trace_node(self._id, self._parent_id, StatelessGuidanceInput(value=node))
-
-        for i, output_attr in enumerate(self._interpreter.run(node)):
-            if isinstance(output_attr, TextOutput):
-                # TODO: put this elsewhere (inside state?)
-                self.token_count += output_attr.token_count
-            if i != 0:
-                # On the first iteration, we already have a fresh trace node
-                # TODO: should be allowed to associate multiple output_attrs with a single input node?
-                # TODO: put this responsibility on the client in the case that it breaks a single input
-                # node into multiple input nodes to be handled sequentially?
-                self._parent_id = self._id
-                self._id = _gen_id()
-            self._update_trace_node(self._id, self._parent_id, output_attr)
-            # Stream current model state
-            self._send_to_event_queue()
-        return self
 
     def _send_to_event_queue(self) -> None:
         """For streaming"""
@@ -154,63 +140,38 @@ class Model:
         """Return a new model stream object that delays execution until it is iterated over."""
         return ModelStream(self)
 
-    def _apply_blocks(self) -> Self:
-        self = self.copy()
+    def _apply_blocks(self) -> None:
         global_active_blocks = _active_blocks.get()
-        for block, start_index in list(reversed(self._active_blocks.items())):
+        new_active_blocks = []
+        for block in reversed(self._active_blocks):
             # Close blocks that are not globally active anymore
             if block not in global_active_blocks:
-                self._active_blocks.pop(block)
                 if block.closer is not None:
                     closer = block.closer
                     if isinstance(closer, str):
                         closer = _parse_tags(closer)
-                    if isinstance(closer, Function):
-                        raise NotImplementedError(
-                            "Stateful block opener/closer functions are not yet supported"
-                        )
-                    self = self._apply_node(closer)
-            # Update capture regardless of whether or not it's been closed
-            if block.name is not None:
-                self = self.set(block.name, str(self)[start_index:])
+                    self._add_to_pending(closer)
+                if block.name is not None:
+                    self._add_to_pending(CaptureEnd(name=block.name))
+            else:
+                # Not closed, so keep it
+                new_active_blocks.append(block)
+        new_active_blocks = list(reversed(new_active_blocks))
         for block in global_active_blocks:
             # Open blocks that are not yet locally active
             if block not in self._active_blocks:
-                # Set start_index to the current length
-                self._active_blocks[block] = len(self)
+                new_active_blocks.append(block)
+                if block.name is not None:
+                    self._add_to_pending(CaptureStart(name=block.name))
                 if block.opener is not None:
                     opener = block.opener
                     if isinstance(opener, str):
                         opener = _parse_tags(opener)
-                    if isinstance(opener, Function):
-                        raise NotImplementedError(
-                            "Stateful block opener/closer functions are not yet supported"
-                        )
-                    self = self._apply_node(opener)
-        return self
-
-    def _update_open_block_captures(self) -> Self:
-        self = self.copy()
-        for block, start_index in self._active_blocks.items():
-            if block.name is not None:
-                self = self.set(block.name, str(self)[start_index:])
-        return self
-
-    def copy(self) -> Self:
-        obj = object.__new__(self.__class__)
-        obj.__dict__.update(self.__dict__)
-
-        obj._interpreter = deepcopy(self._interpreter)
-        obj._active_blocks = {**self._active_blocks}
-        obj._id = _gen_id()
-        obj._parent_id = self._id
-        obj._trace_nodes = set()
-        obj._parent = self
-        obj._update_trace_node(obj._id, obj._parent_id, None)
-        return obj
+                    self._add_to_pending(opener)
+        self._active_blocks = tuple(new_active_blocks)
 
     def __str__(self) -> str:
-        return str(self._interpreter.state)
+        return str(self._get_state())
 
     def __len__(self):
         return len(str(self))
@@ -222,7 +183,7 @@ class Model:
 
     def __getitem__(self, key: str) -> Any:
         try:
-            captures = self._interpreter.state.captures[key]
+            captures = self._get_state().captures[key]
         except KeyError:
             raise KeyError(f"Model does not contain the variable '{key}'")
         if isinstance(captures, list):
@@ -231,7 +192,7 @@ class Model:
             return captures["value"]
 
     def __contains__(self, key: str) -> bool:
-        return key in self._interpreter.state.captures
+        return key in self._get_state().captures
 
     def get(self, key: str, default: Optional[D] = None) -> Union[str, list[str], None, D]:
         """Return the value of a variable, or a default value if the variable is not present.
@@ -260,9 +221,9 @@ class Model:
         """
         self = self.copy()
         if isinstance(value, list):
-            self._interpreter.state.captures[key] = [{"value": v, "log_prob": None} for v in value]
+            self._get_state().captures[key] = [{"value": v, "log_prob": None} for v in value]
         else:
-            self._interpreter.state.captures[key] = {"value": value, "log_prob": None}
+            self._get_state().captures[key] = {"value": value, "log_prob": None}
         return self
 
     def remove(self, key: str) -> Self:
@@ -274,7 +235,7 @@ class Model:
             The variable name to remove.
         """
         self = self.copy()
-        self._interpreter.state.captures.pop(key)
+        self._get_state().captures.pop(key)
         return self
 
     def log_prob(
@@ -290,7 +251,7 @@ class Model:
             The value to return if the variable is not current set.
         """
         try:
-            captures = self._interpreter.state.captures[key]
+            captures = self._get_state().captures[key]
         except KeyError:
             return default
         if isinstance(captures, list):
@@ -304,37 +265,118 @@ class Model:
             return getattr(self._interpreter, "engine")
         return super().__getattribute__(name)
 
+    async def run_batched_async(self, items: Sequence[Union[str, Function, AsyncFunction, ASTNode]]) -> Self:
+        lms = [self + item for item in items]
+        coros = [lm._run() for lm in lms]
+        await asyncio.gather(*coros)
+        return lms
+
+    def run_batched(self, items: Sequence[Union[str, Function, AsyncFunction, ASTNode]]) -> Self:
+        if not _below_entry_point.get():
+            return run_async_coroutine_in_bg_async(self.run_batched_async(items))
+        return reentrant_await(self.run_batched_async(items))
+
+    async def _run(self) -> None:
+        # TODO: trace `InputAttr`s
+        async def inner():
+            new_self = self.copy()
+            # may be some pending blocks
+            new_self._apply_blocks()
+            while isinstance(new_self._pending, (Function, AsyncFunction)):
+                func = new_self._pending
+                new_self._pending = None
+                new_self._active_blocks = ()
+                if isinstance(func, AsyncFunction):
+                    new_self = await func(new_self)
+                else:
+                    # If someone awaits us directly (i.e. we're not below an `await_`),
+                    # we need to wrap the sync part in `async_` to avoid blocking our caller's
+                    # event loop.
+                    # Otherwise, this is effectively equivalent to func(new_self)
+                    new_self = await sync_to_reentrant_async(func)(new_self)
+                # may be some pending blocks
+                new_self._apply_blocks()
+            self.__dict__ = new_self.__dict__ # I guess
+            if self._pending is None:
+                return
+
+            assert isinstance(self._pending, ASTNode)
+            node = self._pending
+            self._pending = None
+            await self._run_node(node)
+
+        # Mark that we are below the entry point so that
+        # `_run_sync` knows to use `await_` instead of
+        # running in the background thread.
+        token = _below_entry_point.set(True)
+        try:
+            return await inner()
+        finally:
+            _below_entry_point.reset(token)
+
+    def _run_sync(self) -> None:
+        if not _below_entry_point.get():
+            return run_async_coroutine_in_bg_async(self._run())
+        return reentrant_await(self._run())
+
+    async def _run_node(self, node: ASTNode) -> None:
+        async for node_attr in self._interpreter.run(node):
+            self._increment_trace_id()
+            self._update_trace_node(self._id, self._parent_id, node_attr)
+            # Stream current model state
+            self._send_to_event_queue()
+
+    async def _get_state_async(self) -> State:
+        """Get the state of the model."""
+        await self._run()
+        return self._interpreter.state
+
+    def _get_state(self) -> State:
+        """Get the state of the model."""
+        self._run_sync()
+        return self._interpreter.state
+
+    async def get_async(self, key: str) -> Any:
+        try:
+            captures = (await self._get_state_async()).captures[key]
+        except KeyError:
+            raise KeyError(f"Model does not contain the variable '{key}'")
+        if isinstance(captures, list):
+            return [c["value"] for c in captures]
+        else:
+            return captures["value"]
+
+    async def to_string_async(self) -> str:
+        """Get the string representation of the model."""
+        return str(await self._get_state_async())
+
+    async def length_async(self) -> int:
+        """Get the length of the model."""
+        return len(await self.to_string_async())
+
+    async def get_token_count_async(self) -> int:
+        """Get the token count of the model."""
+        return (await self._get_state_async()).token_count
+
+    def get_token_count(self) -> int:
+        """Get the token count of the model."""
+        return self._get_state().token_count
 
 class ModelStream:
     def __init__(
         self,
         model: Model,
-        grammar: Union["ModelStream", str, ASTNode, Function, None] = None,
-        timeout=5,
+        timeout: float = 5.0,
     ) -> None:
         """Create a model stream object that delays execution until it is iterated over."""
         if model.echo:
             model = model.copy()
             model.echo = False  # turn off display echoing
         self.model = model
-        self.grammar = grammar
         self.timeout = timeout
 
-    def __add__(self, grammar: Union[str, ASTNode]) -> Self:
-        """Extend this delayed chain of execution with another grammar append."""
-        if self.grammar is None:
-            return ModelStream(self.model, grammar)
-        else:
-            return ModelStream(self.model, self.grammar + grammar)
-
-    def _inner_run(self, model):
-        """This runs the model stream without iterating, and is only using internally by __iter__."""
-        if isinstance(self.grammar, ModelStream):
-            model = self.grammar._inner_run(model)
-        elif self.grammar is None:
-            model = self.model + ""
-        else:
-            model = self.model + self.grammar
+    def __add__(self, other: Any) -> Self:
+        return ModelStream(self.model + other)
 
     def __iter__(self) -> Iterator[Model]:
         """Starts a thread to execute the model and grammar, yielding events as they occur."""
@@ -347,7 +389,7 @@ class ModelStream:
         def target(ctx):
             _event_queues.set(ctx[_event_queues])
             try:
-                self._inner_run(self.model)
+                self.model._run_sync()
                 events.put(None)  # mark that we are done
             except BaseException as ex:
                 events.put(ex)

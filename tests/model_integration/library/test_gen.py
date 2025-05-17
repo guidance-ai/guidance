@@ -52,8 +52,10 @@ def test_metrics_smoke(selected_model: models.Model):
     lm.engine.reset_metrics()
 
     lm += "abcd"
+    str(lm) # trigger execution
     print(f"{lm.engine.metrics=}")
     lm += gen("first", max_tokens=1)
+    str(lm) # trigger execution
     print(f"{lm.engine.metrics=}")
     # Can't be sure of exact count due to token healing
     assert (
@@ -65,6 +67,7 @@ def test_metrics_smoke(selected_model: models.Model):
 
     lm += "fg"
     lm += gen("second", max_tokens=1)
+    str(lm) # trigger execution
     # Again, trouble with healing
     assert (
         lm.engine.metrics.engine_output_tokens >= 2
@@ -85,7 +88,7 @@ def test_metrics_select(selected_model: models.Model):
             "go for a swim in the ocean",
         ]
     )
-    print(f"lm={str(lm)}")
+    print(f"lm={str(lm)}") # trigger execution
     print(f"{lm.engine.metrics=}")
     assert lm.engine.metrics.engine_input_tokens > 1
     assert lm.engine.metrics.engine_output_tokens > 0
@@ -106,6 +109,7 @@ Let's think step by step, and then write the answer:
 Step 1''' + gen('steps', list_append=True, stop=['\nStep', '\n\n', '\nAnswer'], temperature=0.7, max_tokens=20) + '\n'
     i = 2
     lm + f'Step {i}:' + gen('steps', list_append=True, stop=['\nStep', '\n\n', '\nAnswer'], temperature=0.7, max_tokens=20) + '\n'
+    str(lm)  # trigger execution
     # fmt: on
 
 
@@ -114,6 +118,7 @@ def test_unicode2(selected_model: models.Model):
     lm.engine.reset_metrics()
     prompt = "Janet’s ducks lay 16 eggs per day"
     lm += prompt + gen(max_tokens=10)
+    str(lm)  # trigger execution
     assert lm.engine.metrics.engine_input_tokens > 1
     # Due to token healing, we can't be sure of the
     # precise output count

@@ -7,6 +7,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
+    AsyncIterable,
     Iterator,
     Optional,
     Sequence,
@@ -17,7 +18,9 @@ from typing import (
 from typing_extensions import assert_never
 
 from ._parser import ByteParser, ByteParserException
-from .trace import OutputAttr
+from .trace import InputAttr, OutputAttr, RoleOpenerInput, RoleCloserInput
+
+NodeAttr = Union[InputAttr, OutputAttr]
 
 if TYPE_CHECKING:
     from .models._base import Interpreter, State
@@ -116,13 +119,13 @@ class Function(Tagged):
         return model
 
     def __add__(self, other):
-        if not isinstance(other, (str, GrammarNode, Function)):
+        if not isinstance(other, (str, ASTNode, Function)):
             return NotImplemented
 
         if isinstance(other, str):
             other = _parse_tags(other)
 
-        if isinstance(other, GrammarNode) and other.is_null:
+        if isinstance(other, ASTNode) and other.is_null:
             return self
 
         def __add__(model):
@@ -131,13 +134,13 @@ class Function(Tagged):
         return Function(__add__, [], {})
 
     def __radd__(self, other):
-        if not isinstance(other, (str, GrammarNode, Function)):
+        if not isinstance(other, (str, ASTNode, Function)):
             return NotImplemented
 
         if isinstance(other, str):
             other = _parse_tags(other)
 
-        if isinstance(other, GrammarNode) and other.is_null:
+        if isinstance(other, ASTNode) and other.is_null:
             return self
 
         def __radd__(model):
@@ -145,40 +148,161 @@ class Function(Tagged):
 
         return Function(__radd__, [], {})
 
+@dataclass
+class AsyncFunction(Tagged):
+    name: str = field(init=False)
+    f: Callable
+    args: tuple[Any, ...]
+    kwargs: dict[str, Any]
+
+    def __post_init__(self):
+        self.name = self.f.__name__
+
+    async def __call__(self, model):
+        model = await self.f(model, *self.args, **self.kwargs)
+        if model is None:
+            raise Exception(
+                f"The guidance function `{self.f.__name__}` did not return a model object! You need to return an updated model object at the end of your guidance function."
+            )
+        return model
+
+    def __add__(self, other):
+        if not isinstance(other, (str, ASTNode, Function, AsyncFunction)):
+            return NotImplemented
+
+        if isinstance(other, str):
+            other = _parse_tags(other)
+
+        if isinstance(other, ASTNode) and other.is_null:
+            return self
+
+        async def __add__(model):
+            return (await self(model)) + other
+
+        return AsyncFunction(__add__, [], {})
+
+    def __radd__(self, other):
+        if not isinstance(other, (str, ASTNode, Function, AsyncFunction)):
+            return NotImplemented
+
+        if isinstance(other, str):
+            other = _parse_tags(other)
+
+        if isinstance(other, ASTNode) and other.is_null:
+            return self
+
+        async def __radd__(model):
+            return await self(model + other)
+
+        return AsyncFunction(__radd__, [], {})
+
 
 S = TypeVar("S", bound="State")
 
-
 class ASTNode(ABC):
     @abstractmethod
-    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> AsyncIterable[NodeAttr]:
         pass
 
     def simplify(self) -> "ASTNode":
         return self
 
+    @property
+    def is_null(self) -> bool:
+        return False
+
+    def __add__(self, other):
+        if isinstance(other, str):
+            other = _parse_tags(other)
+
+        if isinstance(other, ASTNode):
+            return Concatenate((self, other))
+
+        return NotImplemented
+
+    def __radd__(self, other):
+        if isinstance(other, str):
+            other = _parse_tags(other)
+
+        if isinstance(other, ASTNode):
+            return Concatenate((other, self))
+
+        return NotImplemented
+
+    @classmethod
+    def null(cls) -> "ASTNode":
+        return Concatenate(())
+
+@dataclass(frozen=True)
+class Concatenate(ASTNode):
+    nodes: tuple[ASTNode, ...]
+
+    async def _run(self, interpreter: "Interpreter[S]", **kwargs) -> AsyncIterable[NodeAttr]:
+        buffer: Optional[GrammarNode] = None
+        for child in self:
+            assert not isinstance(child, Concatenate) # iter should be flat
+            if isinstance(child, GrammarNode):
+                if buffer is None:
+                    buffer = child
+                else:
+                    buffer = buffer + child
+            else:
+                if buffer is not None:
+                    async for attr in interpreter.run(buffer, **kwargs):
+                        yield attr
+                    buffer = None
+                async for attr in interpreter.run(child, **kwargs):
+                    yield attr
+        if buffer is not None:
+            async for attr in interpreter.run(buffer, **kwargs):
+                yield attr
+
+    def __iter__(self) -> Iterator[ASTNode]:
+        for node in self.nodes:
+            if isinstance(node, Concatenate):
+                yield from node
+            else:
+                yield node
 
 @dataclass
 class RoleStart(ASTNode):
     role: str
 
-    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
-        return interpreter._role_start(self, **kwargs)
+    async def _run(self, interpreter: "Interpreter[S]", **kwargs) -> AsyncIterable[NodeAttr]:
+        yield RoleOpenerInput(name=self.role)
+        async for output_attr in interpreter._role_start(self, **kwargs):
+            yield output_attr
 
 
 @dataclass
 class RoleEnd(ASTNode):
     role: str
 
-    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
-        return interpreter._role_end(self, **kwargs)
+    async def _run(self, interpreter: "Interpreter[S]", **kwargs) -> AsyncIterable[NodeAttr]:
+        yield RoleCloserInput(name=self.role)
+        async for output_attr in interpreter._role_end(self, **kwargs):
+            yield output_attr
 
+
+@dataclass
+class CaptureStart(ASTNode):
+    name: str
+
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> AsyncIterable[OutputAttr]:
+        return interpreter.capture_start(self, **kwargs)
+
+@dataclass
+class CaptureEnd(ASTNode):
+    name: str
+
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> AsyncIterable[OutputAttr]:
+        return interpreter.capture_end(self, **kwargs)
 
 @dataclass
 class ImageBlob(ASTNode):
     data: str
 
-    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> AsyncIterable[OutputAttr]:
         return interpreter.image_blob(self, **kwargs)
 
 
@@ -186,7 +310,7 @@ class ImageBlob(ASTNode):
 class ImageUrl(ASTNode):
     url: str
 
-    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> AsyncIterable[OutputAttr]:
         return interpreter.image_url(self, **kwargs)
 
 
@@ -194,7 +318,7 @@ class ImageUrl(ASTNode):
 class AudioBlob(ASTNode):
     data: str
 
-    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> AsyncIterable[OutputAttr]:
         return interpreter.audio_blob(self, **kwargs)
 
 
@@ -202,7 +326,7 @@ class GenAudio(ASTNode):
     def __init__(self, kwargs: dict[str, Any]):
         self.kwargs = kwargs
 
-    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> AsyncIterable[OutputAttr]:
         return interpreter.gen_audio(self, **kwargs)
 
 
@@ -317,7 +441,7 @@ class LiteralNode(GrammarNode):
     def is_null(self) -> bool:
         return self.value == ""
 
-    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> AsyncIterable[OutputAttr]:
         return interpreter.text(self, **kwargs)
 
 
@@ -325,7 +449,7 @@ class LiteralNode(GrammarNode):
 class RegexNode(GrammarNode):
     regex: Optional[str]
 
-    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> AsyncIterable[OutputAttr]:
         return interpreter.regex(self, **kwargs)
 
 
@@ -353,7 +477,7 @@ class SelectNode(GrammarNode):
     def children(self) -> Sequence["GrammarNode"]:
         return self.alternatives
 
-    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> AsyncIterable[OutputAttr]:
         return interpreter.select(self, **kwargs)
 
 
@@ -376,7 +500,7 @@ class JoinNode(GrammarNode):
     def children(self) -> Sequence["GrammarNode"]:
         return self.nodes
 
-    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> AsyncIterable[OutputAttr]:
         return interpreter.join(self, **kwargs)
 
 
@@ -402,7 +526,7 @@ class RepeatNode(GrammarNode):
     def simplify(self) -> GrammarNode:
         return RepeatNode(self.node.simplify(), self.min, self.max)
 
-    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> AsyncIterable[OutputAttr]:
         return interpreter.repeat(self, **kwargs)
 
 
@@ -415,7 +539,7 @@ class SubstringNode(GrammarNode):
         # this can be used as part of bigger regexes
         return True
 
-    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> AsyncIterable[OutputAttr]:
         return interpreter.substring(self, **kwargs)
 
 
@@ -467,7 +591,7 @@ class RuleNode(GrammarNode):
         # What happens if value is a BaseSubGrammarNode?
         return (self.value,)
 
-    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> AsyncIterable[OutputAttr]:
         return interpreter.rule(self, **kwargs)
 
 @dataclass(frozen=True, eq=False)
@@ -486,7 +610,7 @@ class RuleRefNode(GrammarNode):
         # so it should never be terminal.
         return False
 
-    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> AsyncIterable[OutputAttr]:
         if self.target is None:
             raise ValueError("RuleRefNode target not set")
         return interpreter.rule(self.target)
@@ -502,7 +626,7 @@ class SubgrammarNode(BaseSubgrammarNode):
     body: GrammarNode
     skip_regex: Optional[str] = None
 
-    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> AsyncIterable[OutputAttr]:
         return interpreter.subgrammar(self, **kwargs)
 
 
@@ -510,7 +634,7 @@ class SubgrammarNode(BaseSubgrammarNode):
 class JsonNode(BaseSubgrammarNode):
     schema: dict[str, Any]
 
-    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> AsyncIterable[OutputAttr]:
         return interpreter.json(self, **kwargs)
 
 
@@ -518,7 +642,7 @@ class JsonNode(BaseSubgrammarNode):
 class LarkNode(BaseSubgrammarNode):
     lark_grammar: str
 
-    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> AsyncIterable[OutputAttr]:
         return interpreter.lark(self, **kwargs)
 
 class LarkSerializer:

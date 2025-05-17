@@ -1,9 +1,11 @@
 import base64
-from typing import Generic, Iterator, TypeVar
+from abc import ABC
+from typing import Generic, Iterable, AsyncIterable, TypeVar, Union, Optional
 
 from ..._ast import (
     ASTNode,
     AudioBlob,
+    Concatenate,
     GenAudio,
     GrammarNode,
     ImageBlob,
@@ -20,88 +22,104 @@ from ..._ast import (
     SelectNode,
     SubgrammarNode,
     SubstringNode,
+    CaptureStart,
+    CaptureEnd,
 )
 from ..._utils import bytes_from
-from ...trace import OutputAttr
+from ...trace import InputAttr, OutputAttr, TextOutput
 from ._state import State
+
+NodeAttr = Union[InputAttr, OutputAttr]
 
 S = TypeVar("S", bound=State)
 
-
-class Interpreter(Generic[S]):
+class Interpreter(Generic[S], ABC):
     def __init__(self, state: S):
         self.state = state
 
-    def run(self, node: ASTNode, **kwargs) -> Iterator[OutputAttr]:
-        yield from node.simplify()._run(self, **kwargs)
+    async def run(self, node: ASTNode, **kwargs) -> AsyncIterable[NodeAttr]:
+        async for attr in node.simplify()._run(self, **kwargs):
+            if isinstance(attr, TextOutput) and attr.is_generated:
+                # TODO: this should probably be a lower-level responsibility? Not sure.
+                self.state.token_count += attr.token_count
+            yield attr
 
-    def _role_start(self, node: RoleStart, **kwargs) -> Iterator[OutputAttr]:
+    async def capture_start(self, node: CaptureStart, **kwargs) -> AsyncIterable[OutputAttr]:
+        self.state.open_capture(node.name)
+        if False:
+            # Yes, this is intentional.
+            yield
+
+    async def capture_end(self, node: CaptureEnd, **kwargs) -> AsyncIterable[OutputAttr]:
+        yield self.state.close_capture(node.name)
+
+    def _role_start(self, node: RoleStart, **kwargs) -> AsyncIterable[OutputAttr]:
         if self.state.active_role is not None:
             raise ValueError(
                 f"Cannot open role {node.role!r}: {self.state.active_role!r} is already open."
             )
         return self.role_start(node, **kwargs)
 
-    def role_start(self, node: RoleStart, **kwargs) -> Iterator[OutputAttr]:
+    def role_start(self, node: RoleStart, **kwargs) -> AsyncIterable[OutputAttr]:
         raise UnsupportedNodeError(interpreter=self, node=node)
 
-    def _role_end(self, node: RoleEnd, **kwargs) -> Iterator[OutputAttr]:
+    def _role_end(self, node: RoleEnd, **kwargs) -> AsyncIterable[OutputAttr]:
         if self.state.active_role is None:
             raise ValueError("Cannot close role without active role")
         if self.state.active_role != node.role:
             raise ValueError(f"Cannot close role {node.role!r}: {self.state.active_role!r} is open.")
         return self.role_end(node, **kwargs)
 
-    def role_end(self, node: RoleEnd, **kwargs) -> Iterator[OutputAttr]:
+    def role_end(self, node: RoleEnd, **kwargs) -> AsyncIterable[OutputAttr]:
         raise UnsupportedNodeError(interpreter=self, node=node)
 
-    def text(self, node: LiteralNode, **kwargs) -> Iterator[OutputAttr]:
+    def text(self, node: LiteralNode, **kwargs) -> AsyncIterable[OutputAttr]:
         raise UnsupportedNodeError(interpreter=self, node=node)
 
-    def image_blob(self, node: ImageBlob, **kwargs) -> Iterator[OutputAttr]:
+    def image_blob(self, node: ImageBlob, **kwargs) -> AsyncIterable[OutputAttr]:
         raise UnsupportedNodeError(interpreter=self, node=node)
 
-    def image_url(self, node: ImageUrl, **kwargs) -> Iterator[OutputAttr]:
+    def image_url(self, node: ImageUrl, **kwargs) -> AsyncIterable[OutputAttr]:
+        # TODO: we should be using something like httpx to fetch the image
         image_bytes = bytes_from(node.url, allow_local=False)
         base64_string = base64.b64encode(image_bytes).decode("utf-8")
         return self.image_blob(ImageBlob(data=base64_string), **kwargs)
 
-    def grammar(self, node: GrammarNode, **kwargs) -> Iterator[OutputAttr]:
+    def grammar(self, node: GrammarNode, **kwargs) -> AsyncIterable[OutputAttr]:
         raise UnsupportedNodeError(interpreter=self, node=node)
 
-    def regex(self, node: RegexNode, **kwargs) -> Iterator[OutputAttr]:
+    def regex(self, node: RegexNode, **kwargs) -> AsyncIterable[OutputAttr]:
         return self.grammar(node, **kwargs)
 
-    def select(self, node: SelectNode, **kwargs) -> Iterator[OutputAttr]:
+    def select(self, node: SelectNode, **kwargs) -> AsyncIterable[OutputAttr]:
         return self.grammar(node, **kwargs)
 
-    def join(self, node: JoinNode, **kwargs) -> Iterator[OutputAttr]:
+    def join(self, node: JoinNode, **kwargs) -> AsyncIterable[OutputAttr]:
         return self.grammar(node, **kwargs)
 
-    def repeat(self, node: RepeatNode, **kwargs) -> Iterator[OutputAttr]:
+    def repeat(self, node: RepeatNode, **kwargs) -> AsyncIterable[OutputAttr]:
         return self.grammar(node, **kwargs)
 
-    def substring(self, node: SubstringNode, **kwargs) -> Iterator[OutputAttr]:
+    def substring(self, node: SubstringNode, **kwargs) -> AsyncIterable[OutputAttr]:
         return self.grammar(node, **kwargs)
 
-    def rule(self, node: RuleNode, **kwargs) -> Iterator[OutputAttr]:
+    def rule(self, node: RuleNode, **kwargs) -> AsyncIterable[OutputAttr]:
         return self.grammar(node, **kwargs)
 
-    def subgrammar(self, node: SubgrammarNode, **kwargs) -> Iterator[OutputAttr]:
+    def subgrammar(self, node: SubgrammarNode, **kwargs) -> AsyncIterable[OutputAttr]:
         return self.grammar(node, **kwargs)
 
-    def json(self, node: JsonNode, **kwargs) -> Iterator[OutputAttr]:
+    def json(self, node: JsonNode, **kwargs) -> AsyncIterable[OutputAttr]:
         return self.grammar(node, **kwargs)
 
-    def lark(self, node: LarkNode, **kwargs) -> Iterator[OutputAttr]:
+    def lark(self, node: LarkNode, **kwargs) -> AsyncIterable[OutputAttr]:
         return self.grammar(node, **kwargs)
 
-    def audio_blob(self, node: AudioBlob, **kwargs) -> Iterator[OutputAttr]:
+    def audio_blob(self, node: AudioBlob, **kwargs) -> AsyncIterable[OutputAttr]:
         raise UnsupportedNodeError(interpreter=self, node=node)
 
-    def gen_audio(self, node: GenAudio, **kwargs) -> Iterator[OutputAttr]:
+    def gen_audio(self, node: GenAudio, **kwargs) -> AsyncIterable[OutputAttr]:
         raise UnsupportedNodeError(interpreter=self, node=node)
-
 
 class UnsupportedNodeError(ValueError):
     def __init__(self, interpreter: Interpreter, node: ASTNode):

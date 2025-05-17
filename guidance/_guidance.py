@@ -8,7 +8,7 @@ from contextvars import ContextVar
 
 from ._grammar import string
 
-from ._ast import Function, RuleRefNode, RuleNode
+from ._ast import AsyncFunction, Function, RuleRefNode, RuleNode
 from ._utils import strip_multiline_string_indents, make_weak_bound_method, signature_pop
 from .models import Model
 
@@ -127,6 +127,11 @@ def _decorator(f, *, stateless, cache, model):
 
     @functools.wraps(f)
     def wrapped(*args, **kwargs):
+        from inspect import iscoroutinefunction
+        if iscoroutinefunction(f):
+            if stateless is True:
+                raise ValueError("Stateless functions cannot be async")
+            return AsyncFunction(f, args, kwargs)
 
         # make a stateless grammar if we can
         if stateless is True or (
