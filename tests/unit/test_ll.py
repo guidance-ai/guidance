@@ -20,7 +20,7 @@ from guidance.library._subgrammar import subgrammar, lexeme
 log_level = 10
 
 
-class PhiTokenizer:
+class PhiTokenizer(guidance.models.TransformersTokenizer):
     _ll_tokenizer = None
     _instance = None
 
@@ -38,34 +38,11 @@ class PhiTokenizer:
             )
         return PhiTokenizer._ll_tokenizer
 
-    def tokenize_str(self, s: str) -> List[int]:
-        return self.hf_tokenizer.encode(s).ids
-
     def __init__(self) -> None:
-        import tokenizers
-        self.hf_tokenizer: tokenizers.Tokenizer = tokenizers.Tokenizer.from_pretrained(
-            "microsoft/Phi-3-mini-128k-instruct"
-        )
-        empty = self.tokenize_str("")
-        if empty:
-            self.bos_token_id = empty[0]
-        else:
-            self.bos_token_id = None
-        eos = self.tokenize_str("</s>")
-        assert len(eos) == 1
-        self.eos_token_id = eos[0]
-        self.tokens = []
-        for i in range(self.hf_tokenizer.get_vocab_size()):
-            t: str = self.hf_tokenizer.id_to_token(i)
-            if t.startswith("<0x"):
-                self.tokens.append(bytes([int(t[3:5], 16)]))
-            else:
-                t = t.replace("▁", " ")
-                self.tokens.append(t.encode("utf-8"))
-        assert len(self.tokens) == self.hf_tokenizer.get_vocab_size()
+        super().__init__("microsoft/Phi-3-mini-128k-instruct", None)
 
-    def __call__(self, s):
-        return self.tokenize_str(s)
+    def tokenize_str(self, s: str) -> List[int]:
+        return self.encode(s.encode("utf-8"))
 
 
 def check_eq(label: str, tokens: List[int], expected_tokens: str):
