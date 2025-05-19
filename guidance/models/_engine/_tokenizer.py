@@ -1,11 +1,12 @@
 from typing import Any, Dict, Optional, Sequence, Union
+from abc import ABC, abstractmethod
 
 import numpy as np
 
 from ...chat import ChatTemplate, load_template_class
 
 
-class Tokenizer:
+class Tokenizer(ABC):
     """This is the standardized tokenizer interface used by guidance models.
 
     This class should be subclassed by specific implementations and then used as the
@@ -86,35 +87,27 @@ class Tokenizer:
     def __call__(self, byte_string: bytes):
         return self.encode(byte_string)
 
+    @abstractmethod
     def encode(self, byte_string: bytes) -> list[int]:
         """Returns a list of tokens that represent the given byte string."""
-        raise NotImplementedError(
-            "You need to use a Tokenize subclass that overrides the encode method"
-        )
 
     def decode(self, tokens: Sequence[int]) -> bytes:
         """Returns the bytes represented by the given list of tokens."""
         return b"".join([self.tokens[t] for t in tokens])
 
     def recode(self, tokens: Sequence[int]) -> list[int]:
-        """Redoes a tokenisation.
+        """Redoes a tokenization.
 
         Encoding a string into tokens does not distribute over concatenation.
         That is, in general, `encode(A)+encode(B) != encode(A+B)` (although it
         it may in some cases).
         An LLM will generate token-by-token, but it is possible (even likely) that
-        when the generation is considered as a whole, a better tokenisation may
+        when the generation is considered as a whole, a better tokenization may
         be possible.
         This method takes in a sequence of tokens, and returns an 'improved' sequence.
         """
 
-        # This is the notional behaviour
+        # This is the notional behavior
         # It may need to be overridden in particular cases because
         # we are dealing with LLM ecosystems in the real world
         return self.encode(self.decode(tokens))
-
-    def clean_duplicate_tokens(self, probs):
-        """This moves all the probability mass from duplicate positons on to their primary index."""
-        for i, j in self._duplicate_tokens:
-            probs[j] += probs[i]
-            probs[i] = 0

@@ -5,7 +5,7 @@ import os
 import sys
 from itertools import takewhile
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional, Sequence
+from typing import TYPE_CHECKING, Sequence, Union
 from collections import Counter
 import ctypes
 
@@ -13,6 +13,7 @@ import numpy as np
 
 from .._schema import GenToken, GenTokenExtra
 from .._utils import normalize_notebook_stdout_stderr, softmax
+from ..chat import ChatTemplate
 from ._base import Model
 from ._engine import Engine, EngineInterpreter, EngineState, Tokenizer
 
@@ -84,7 +85,7 @@ def detokenize(tokenizer: "LlamaTokenizer", tokens: list[int], special: bool, si
         )
 
 class LlamaCppTokenizer(Tokenizer):
-    def __init__(self, model_obj, chat_template=None):
+    def __init__(self, model_obj: "Llama", chat_template: Union[str, ChatTemplate, None] = None):
         self._model_obj = model_obj
 
         tokenizer = llama_cpp.LlamaTokenizer(model_obj)
@@ -92,14 +93,11 @@ class LlamaCppTokenizer(Tokenizer):
         if vocab is None:
             raise Exception("call to llama_cpp.llama_model_get_vocab returned NULL.")
 
-        if not hasattr(tokenizer, "llama"):
-            tokenizer.llama = tokenizer._model
-
         # get the bytes strings for all the tokens
         tokens: list[bytes] = []
         special_token_ids: list[int] = []
-        for i in range(tokenizer.llama.n_vocab()):
-            tok_attrs = tokenizer.llama.token_get_attr(i)
+        for i in range(tokenizer._model.n_vocab()):
+            tok_attrs = tokenizer._model.token_get_attr(i)
             if tok_attrs & llama_cpp.LLAMA_TOKEN_ATTR_CONTROL:
                 special_token_ids.append(i)
             tok = detokenize(tokenizer, [i], special=True, size=256)
@@ -126,7 +124,7 @@ class LlamaCppTokenizer(Tokenizer):
                 chat_template = self._model_obj.metadata["tokenizer.chat_template"]
 
         super().__init__(
-            tokens, chat_template, tokenizer.llama.token_bos(), tokenizer.llama.token_eos(), special_token_ids
+            tokens, chat_template, tokenizer._model.token_bos(), tokenizer._model.token_eos(), special_token_ids
         )
 
     def encode(self, byte_string: bytes) -> list[int]:

@@ -5,6 +5,7 @@ import warnings
 from typing import TYPE_CHECKING, Optional, Sequence, Union
 
 from .._schema import GenToken, GenTokenExtra
+from ..chat import ChatTemplate
 from ._engine import Engine, Tokenizer, EngineInterpreter, EngineState, Llama3VisionInterpreter, Phi3VisionInterpreter
 from ._base import Model
 
@@ -54,8 +55,8 @@ class TransformersTokenizer(Tokenizer):
             "PreTrainedTokenizerFast",
             None,
         ],
-        chat_template=None,
-        ignore_bos_token=False,
+        chat_template: Union[str, ChatTemplate, None] = None,
+        ignore_bos_token: bool = False,
         **kwargs,
     ):
         if transformers_tokenizer is None:
