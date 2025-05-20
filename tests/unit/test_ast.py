@@ -1,7 +1,11 @@
+import pydantic
+
 from llguidance import LLMatcher
+
 
 from guidance._ast import (
     JoinNode,
+    JsonNode,
     LarkSerializer,
     LiteralNode,
     RegexNode,
@@ -9,7 +13,9 @@ from guidance._ast import (
     RuleNode,
     RuleRefNode,
     SelectNode,
+    SubgrammarNode,
 )
+from guidance.library._pydantic import pydantic_to_json_schema
 
 
 class TestLarkSerializer:
@@ -143,6 +149,25 @@ my_rule[capture="my_capture", temperature=0.7]: /.*/
         is_err, _ = LLMatcher.validate_grammar_with_warnings(grm)
         assert not is_err
 
+    def test_capture_temperature_stop_rule_node(self):
+        target = LarkSerializer()
+        ren = RegexNode(".*")
+        ln = LiteralNode("I'm done")
+        rule_node = RuleNode("my_rule", value=ren, temperature=0.7, capture="my_capture", stop=ln)
+
+        result = target.serialize(rule_node)
+        print(result)
+
+        expected = """%llguidance {}
+
+start: my_rule
+my_rule[capture="my_capture", temperature=0.7, stop="I'm done"]: /.*/
+"""
+        assert result == expected
+        grm = LLMatcher.grammar_from_lark(result)
+        is_err, _ = LLMatcher.validate_grammar_with_warnings(grm)
+        assert not is_err
+
     def test_nested_rule_node(self):
         target = LarkSerializer()
         ren = RegexNode(r"\d\d")
@@ -258,7 +283,6 @@ START: "Aa"{2,}
         rref_node.set_target(rule_node)
         base_node = JoinNode((rule_node, rref_node))
 
-
         result = target.serialize(base_node)
         print(result)
 
@@ -266,6 +290,73 @@ START: "Aa"{2,}
 
 start: MY_RULE MY_RULE
 MY_RULE: "Ab"
+"""
+        assert result == expected
+        grm = LLMatcher.grammar_from_lark(result)
+        is_err, _ = LLMatcher.validate_grammar_with_warnings(grm)
+        assert not is_err
+
+    def test_json_node(self):
+        target = LarkSerializer()
+
+        class Simple(pydantic.BaseModel):
+            my_string: str
+
+        schema = pydantic_to_json_schema(Simple)
+        jn = JsonNode(schema=schema)
+        rule_node = RuleNode("my_rule", value=jn, temperature=0.7)
+
+        result = target.serialize(rule_node)
+        print(result)
+
+        expected = """%llguidance {}
+
+start: my_rule
+
+my_rule[temperature=0.7]: %json {
+  "properties": {
+    "my_string": {
+      "title": "My String",
+      "type": "string"
+    }
+  },
+  "required": [
+    "my_string"
+  ],
+  "title": "Simple",
+  "type": "object"
+}
+
+"""
+        assert result == expected
+        grm = LLMatcher.grammar_from_lark(result)
+        is_err, _ = LLMatcher.validate_grammar_with_warnings(grm)
+        assert not is_err
+
+    def test_subgrammar_node(self):
+        target = LarkSerializer()
+        ln = LiteralNode("Ab")
+        sg_node = SubgrammarNode(ln, skip_regex=r"\d\d")
+        rule_node = RuleNode("my_rule", sg_node)
+        ren = RegexNode(r"\w+")
+        base_node = JoinNode((rule_node, ren))
+
+        result = target.serialize(base_node)
+        print(result)
+
+        expected = """%llguidance {}
+
+start: my_rule /\w+/
+
+my_rule: %lark {
+%llguidance {}
+
+  start: START
+  START: "Ab"
+
+  %ignore /\d\d/
+}
+
 """
         assert result == expected
         grm = LLMatcher.grammar_from_lark(result)
