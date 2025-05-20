@@ -19,7 +19,7 @@ jobs:
       fail-fast: false # Don't cancel all on first failure
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout repo at ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
@@ -49,7 +49,7 @@ jobs:
       fail-fast: false # Don't cancel all on first failure
       matrix:
         os: ["Large_Linux"]  # , "Large_Windows"]
-        python-version: ["3.9", "3.12"]
+        python-version: ["3.9", "3.13"]
         model:
           - "transformers_gpt2_cpu"
           - "llamacpp_phi3_mini_4k_instruct_cpu"
