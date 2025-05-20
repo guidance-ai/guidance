@@ -1,12 +1,29 @@
-from typing import Any, Dict, Optional, Sequence, Union
-from abc import ABC, abstractmethod
+from typing import Any, Optional, Sequence, Union, Callable
+from dataclasses import dataclass
+from functools import cached_property
 
-import numpy as np
 
 from ...chat import ChatTemplate, load_template_class
+import llguidance
 
+@dataclass
+class TokenizerWrappable:
+    eos_token_id: int
+    bos_token_id: Optional[int]
+    tokens: list[bytes]
+    special_token_ids: list[int]
+    encode_callable: Callable[[bytes], list[int]]
 
-class Tokenizer(ABC):
+    def __call__(self, byte_string: bytes) -> list[int]:
+        return self.encode_callable(byte_string)
+
+    def as_ll_tokenizer(self) -> "llguidance.LLTokenizer":
+        """Returns an LLTokenizer that can be used by llguidance."""
+        return llguidance.LLTokenizer(
+            llguidance.TokenizerWrapper(self)
+        )
+
+class Tokenizer:
     """This is the standardized tokenizer interface used by guidance models.
 
     This class should be subclassed by specific implementations and then used as the
@@ -15,85 +32,50 @@ class Tokenizer(ABC):
 
     def __init__(
         self,
-        tokens: Union[Sequence[bytes], np.ndarray],
+        ll_tokenizer: llguidance.LLTokenizer,
         chat_template: Union[str, ChatTemplate, None],
         bos_token_id: Optional[int] = None,
-        eos_token_id: Optional[int] = None,
-        special_token_ids: Optional[list[int]] = None,
     ):
-
-        # a numpy array of token byte strings indexed by their token id
-        if isinstance(tokens, list):
-            # note that we need np.bytes_ so zero bytes are not treated as null terminations
-            self._tokens = np.array(tokens, dtype="object")
-
-        # a numpy array of token byte strings indexed by their token id
-        elif isinstance(tokens, np.ndarray):
-            self._tokens = tokens
-
-        else:
-            raise ValueError("Unknown tokenizer was passed!")
-
-        assert isinstance(self.tokens[0], bytes), "The tokens need to be provided as bytes!"
-
+        self._ll_tokenizer = ll_tokenizer
         # This method supports None, a huggingface style jinja2_template_str, or a ChatTemplate subclass
         # Defaults to ChatML if nothing is found
         self._chat_template = load_template_class(chat_template)
-
         self._bos_token_id = bos_token_id
-        self._bos_token = None if self.bos_token_id is None else self.tokens[self.bos_token_id]
-        self._eos_token_id = eos_token_id if eos_token_id is not None else bos_token_id
-        self._eos_token = None if self.eos_token_id is None else self.tokens[self.eos_token_id]
-
-        self._special_token_ids = special_token_ids or []
-
-        # track which tokens are duplicates
-        self._duplicate_tokens = []
-        found: Dict[bytes, int] = {}
-        for i, t in enumerate(self.tokens):
-            if t in found:
-                self._duplicate_tokens.append((i, found[t]))
-            else:
-                found[t] = i
-
-    @property
-    def tokens(self) -> np.ndarray:
-        return self._tokens
 
     @property
     def bos_token_id(self) -> Union[int, None]:
+        # Currently, lltokenizer does not have a bos_token attribute,
+        # so we have to store our own if we want to use it
         return self._bos_token_id
 
     @property
-    def eos_token_id(self) -> Union[int, None]:
-        return self._eos_token_id
+    def eos_token_id(self) -> int:
+        return self._ll_tokenizer.eos_token
 
-    @property
+    @cached_property
     def bos_token(self) -> Union[bytes, None]:
-        return self._bos_token
+        if self.bos_token_id is None:
+            return None
+        return self.decode([self.bos_token_id])
 
-    @property
-    def eos_token(self) -> Union[bytes, None]:
-        return self._eos_token
+    @cached_property
+    def eos_token(self) -> bytes:
+        return self.decode([self.eos_token_id])
 
     @property
     def chat_template(self) -> Union[Any, None]:
         return self._chat_template
 
-    @property
-    def special_token_ids(self) -> list[int]:
-        return self._special_token_ids
-
     def __call__(self, byte_string: bytes):
         return self.encode(byte_string)
 
-    @abstractmethod
     def encode(self, byte_string: bytes) -> list[int]:
         """Returns a list of tokens that represent the given byte string."""
+        return self._ll_tokenizer.tokenize_bytes(byte_string)
 
     def decode(self, tokens: Sequence[int]) -> bytes:
         """Returns the bytes represented by the given list of tokens."""
-        return b"".join([self.tokens[t] for t in tokens])
+        return self._ll_tokenizer.decode_bytes(list(tokens))
 
     def recode(self, tokens: Sequence[int]) -> list[int]:
         """Redoes a tokenization.

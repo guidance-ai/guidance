@@ -16,6 +16,7 @@ from .._utils import normalize_notebook_stdout_stderr, softmax
 from ..chat import ChatTemplate
 from ._base import Model
 from ._engine import Engine, EngineInterpreter, EngineState, Tokenizer
+from ._engine._tokenizer import TokenizerWrappable
 
 try:
     import llama_cpp
@@ -123,8 +124,19 @@ class LlamaCppTokenizer(Tokenizer):
             ):
                 chat_template = self._model_obj.metadata["tokenizer.chat_template"]
 
+        ll_tokenizer = TokenizerWrappable(
+            eos_token_id=tokenizer._model.token_eos(),
+            bos_token_id=tokenizer._model.token_bos(),
+            tokens=tokens,
+            special_token_ids=special_token_ids,
+            # ENCODE MUST BE OVERRIDDEN
+            encode_callable=self.encode
+        ).as_ll_tokenizer()
+
         super().__init__(
-            tokens, chat_template, tokenizer._model.token_bos(), tokenizer._model.token_eos(), special_token_ids
+            ll_tokenizer=ll_tokenizer,
+            chat_template=chat_template,
+            bos_token_id=tokenizer._model.token_bos()
         )
 
     def encode(self, byte_string: bytes) -> list[int]:
