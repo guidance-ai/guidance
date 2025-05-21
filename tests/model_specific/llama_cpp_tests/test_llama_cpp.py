@@ -60,34 +60,42 @@ def test_repeat_calls(llamacpp_model: guidance.models.Model, selected_model_name
         ("llamacpp_llama2_7b_cpu", "3.10", "Windows", "AMD64"),
         ("llamacpp_llama2_7b_cpu", "3.11", "Windows", "AMD64"),
         ("llamacpp_llama2_7b_cpu", "3.12", "Windows", "AMD64"),
+        ("llamacpp_llama2_7b_cpu", "3.13", "Windows", "AMD64"),
         ("llamacpp_llama2_7b_cpu", "3.9", "Darwin", "x86_64"),
         ("llamacpp_llama2_7b_cpu", "3.10", "Darwin", "x86_64"),
         ("llamacpp_llama2_7b_cpu", "3.11", "Darwin", "x86_64"),
         ("llamacpp_llama2_7b_cpu", "3.12", "Darwin", "x86_64"),
+        ("llamacpp_llama2_7b_cpu", "3.13", "Darwin", "x86_64"),
         ("llamacpp_llama2_7b_cpu", "3.9", "Darwin", "arm64"),
         ("llamacpp_llama2_7b_cpu", "3.10", "Darwin", "arm64"),
         ("llamacpp_llama2_7b_cpu", "3.11", "Darwin", "arm64"),
         ("llamacpp_llama2_7b_cpu", "3.12", "Darwin", "arm64"),
+        ("llamacpp_llama2_7b_cpu", "3.13", "Darwin", "arm64"),
         ("llamacpp_llama2_7b_cpu", "3.9", "Linux", "x86_64"),
         ("llamacpp_llama2_7b_cpu", "3.10", "Linux", "x86_64"),
         ("llamacpp_llama2_7b_cpu", "3.11", "Linux", "x86_64"),
+        ("llamacpp_llama2_7b_cpu", "3.12", "Linux", "x86_64"),
         ("llamacpp_llama2_7b_cpu", "3.12", "Linux", "x86_64"),
         ("llamacpp_phi3_mini_4k_instruct_cpu", "3.9", "Windows", "AMD64"),
         ("llamacpp_phi3_mini_4k_instruct_cpu", "3.10", "Windows", "AMD64"),
         ("llamacpp_phi3_mini_4k_instruct_cpu", "3.11", "Windows", "AMD64"),
         ("llamacpp_phi3_mini_4k_instruct_cpu", "3.12", "Windows", "AMD64"),
+        ("llamacpp_phi3_mini_4k_instruct_cpu", "3.13", "Windows", "AMD64"),
         ("llamacpp_phi3_mini_4k_instruct_cpu", "3.9", "Darwin", "arm64"),
         ("llamacpp_phi3_mini_4k_instruct_cpu", "3.10", "Darwin", "arm64"),
         ("llamacpp_phi3_mini_4k_instruct_cpu", "3.11", "Darwin", "arm64"),
         ("llamacpp_phi3_mini_4k_instruct_cpu", "3.12", "Darwin", "arm64"),
+        ("llamacpp_phi3_mini_4k_instruct_cpu", "3.13", "Darwin", "arm64"),
         ("llamacpp_phi3_mini_4k_instruct_cpu", "3.9", "Darwin", "x86_64"),
         ("llamacpp_phi3_mini_4k_instruct_cpu", "3.10", "Darwin", "x86_64"),
         ("llamacpp_phi3_mini_4k_instruct_cpu", "3.11", "Darwin", "x86_64"),
         ("llamacpp_phi3_mini_4k_instruct_cpu", "3.12", "Darwin", "x86_64"),
+        ("llamacpp_phi3_mini_4k_instruct_cpu", "3.13", "Darwin", "x86_64"),
         ("llamacpp_phi3_mini_4k_instruct_cpu", "3.9", "Linux", "x86_64"),
         ("llamacpp_phi3_mini_4k_instruct_cpu", "3.10", "Linux", "x86_64"),
         ("llamacpp_phi3_mini_4k_instruct_cpu", "3.11", "Linux", "x86_64"),
         ("llamacpp_phi3_mini_4k_instruct_cpu", "3.12", "Linux", "x86_64"),
+        ("llamacpp_phi3_mini_4k_instruct_cpu", "3.13", "Linux", "x86_64"),
     ]
     expect_failure = False
     python_maj_min = f"{sys.version_info[0]}.{sys.version_info[1]}"
@@ -103,11 +111,15 @@ def test_repeat_calls(llamacpp_model: guidance.models.Model, selected_model_name
     try:
         llama2 = llamacpp_model
         a = []
-        lm = llama2 + "How much is 2 + 2? " + gen(name="test", max_tokens=10)
+        lm = llama2 + "How much is 2 + 2? " + gen(name="test", max_tokens=10, temperature=0)
         a.append(lm["test"])
-        lm = llama2 + "How much is 2 + 2? " + gen(name="test", max_tokens=10, regex=r"\d+")
+        lm = (
+            llama2
+            + "How much is 2 + 2? "
+            + gen(name="test", max_tokens=10, regex=r"\d+", temperature=0)
+        )
         a.append(lm["test"])
-        lm = llama2 + "How much is 2 + 2? " + gen(name="test", max_tokens=10)
+        lm = llama2 + "How much is 2 + 2? " + gen(name="test", max_tokens=10, temperature=0)
         a.append(lm["test"])
         assert a[-1] == a[0]
 
@@ -136,7 +148,7 @@ def test_llama_cpp_almost_one_batch(llamacpp_model):
     lm = llamacpp_model
     batch_size = lm.engine.model_obj.n_batch
     long_str = lm.engine.tokenizer.bos_token.decode("utf-8") * (batch_size - 1)
-    lm += long_str + gen(max_tokens=10, regex=r'.+')
+    lm += long_str + gen(max_tokens=10, regex=r".+")
     assert len(str(lm)) > len(long_str)
 
 
@@ -144,7 +156,7 @@ def test_llama_cpp_exactly_one_batch(llamacpp_model):
     lm = llamacpp_model
     batch_size = lm.engine.model_obj.n_batch
     long_str = lm.engine.tokenizer.bos_token.decode("utf-8") * batch_size
-    lm += long_str + gen(max_tokens=10, regex=r'.+')
+    lm += long_str + gen(max_tokens=10, regex=r".+")
     assert len(str(lm)) > len(long_str)
 
 
@@ -152,7 +164,7 @@ def test_llama_cpp_more_than_one_batch(llamacpp_model):
     lm = llamacpp_model
     batch_size = lm.engine.model_obj.n_batch
     long_str = lm.engine.tokenizer.bos_token.decode("utf-8") * (batch_size + 1)
-    lm += long_str + gen(max_tokens=10, regex=r'.+')
+    lm += long_str + gen(max_tokens=10, regex=r".+")
     assert len(str(lm)) > len(long_str)
 
 
@@ -160,7 +172,7 @@ def test_llama_cpp_almost_two_batches(llamacpp_model):
     lm = llamacpp_model
     batch_size = lm.engine.model_obj.n_batch
     long_str = lm.engine.tokenizer.bos_token.decode("utf-8") * ((2 * batch_size) - 1)
-    lm += long_str + gen(max_tokens=10, regex=r'.+')
+    lm += long_str + gen(max_tokens=10, regex=r".+")
     assert len(str(lm)) > len(long_str)
 
 
@@ -168,7 +180,7 @@ def test_llama_cpp_two_batches(llamacpp_model):
     lm = llamacpp_model
     batch_size = lm.engine.model_obj.n_batch
     long_str = lm.engine.tokenizer.bos_token.decode("utf-8") * (2 * batch_size)
-    lm += long_str + gen(max_tokens=10, regex=r'.+')
+    lm += long_str + gen(max_tokens=10, regex=r".+")
     assert len(str(lm)) > len(long_str)
 
 
@@ -176,7 +188,7 @@ def test_llama_cpp_more_than_two_batches(llamacpp_model):
     lm = llamacpp_model
     batch_size = lm.engine.model_obj.n_batch
     long_str = lm.engine.tokenizer.bos_token.decode("utf-8") * ((2 * batch_size) + 1)
-    lm += long_str + gen(max_tokens=10, regex=r'.+')
+    lm += long_str + gen(max_tokens=10, regex=r".+")
     assert len(str(lm)) > len(long_str)
 
 
