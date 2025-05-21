@@ -95,6 +95,7 @@ def test_repeat_calls(llamacpp_model: guidance.models.Model, selected_model_name
         ("llamacpp_phi3_mini_4k_instruct_cpu", "3.10", "Linux", "x86_64"),
         ("llamacpp_phi3_mini_4k_instruct_cpu", "3.11", "Linux", "x86_64"),
         ("llamacpp_phi3_mini_4k_instruct_cpu", "3.12", "Linux", "x86_64"),
+        ("llamacpp_phi3_mini_4k_instruct_cpu", "3.13", "Linux", "x86_64"),
     ]
     expect_failure = False
     python_maj_min = f"{sys.version_info[0]}.{sys.version_info[1]}"
