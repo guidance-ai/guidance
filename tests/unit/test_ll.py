@@ -1,9 +1,10 @@
-from typing import Any, List
+from typing import List
 import llguidance
 import json
 import textwrap
 import guidance
 import pytest
+from huggingface_hub import hf_hub_download
 from guidance import (
     gen,
     select,
@@ -22,51 +23,16 @@ log_level = 10
 
 class PhiTokenizer:
     _ll_tokenizer = None
-    _instance = None
 
     @staticmethod
-    def instance():
-        if PhiTokenizer._instance is None:
-            PhiTokenizer._instance = PhiTokenizer()
-        return PhiTokenizer._instance
-
-    @staticmethod
-    def ll_tokenizer():
+    def ll_tokenizer() -> llguidance.LLTokenizer:
         if PhiTokenizer._ll_tokenizer is None:
-            PhiTokenizer._ll_tokenizer = llguidance.LLTokenizer(
-                llguidance.TokenizerWrapper(PhiTokenizer())
+            tokenizer_path = hf_hub_download(
+                repo_id="microsoft/Phi-3-mini-128k-instruct",
+                filename="tokenizer.json",
             )
+            PhiTokenizer._ll_tokenizer = llguidance.LLTokenizer(tokenizer_path)
         return PhiTokenizer._ll_tokenizer
-
-    def tokenize_str(self, s: str) -> List[int]:
-        return self.hf_tokenizer.encode(s).ids
-
-    def __init__(self) -> None:
-        import tokenizers
-        self.hf_tokenizer: tokenizers.Tokenizer = tokenizers.Tokenizer.from_pretrained(
-            "microsoft/Phi-3-mini-128k-instruct"
-        )
-        empty = self.tokenize_str("")
-        if empty:
-            self.bos_token_id = empty[0]
-        else:
-            self.bos_token_id = None
-        eos = self.tokenize_str("</s>")
-        assert len(eos) == 1
-        self.eos_token_id = eos[0]
-        self.tokens = []
-        for i in range(self.hf_tokenizer.get_vocab_size()):
-            t: str = self.hf_tokenizer.id_to_token(i)
-            if t.startswith("<0x"):
-                self.tokens.append(bytes([int(t[3:5], 16)]))
-            else:
-                t = t.replace("▁", " ")
-                self.tokens.append(t.encode("utf-8"))
-        assert len(self.tokens) == self.hf_tokenizer.get_vocab_size()
-
-    def __call__(self, s):
-        return self.tokenize_str(s)
-
 
 def check_eq(label: str, tokens: List[int], expected_tokens: str):
     if log_level > 0:
@@ -84,7 +50,7 @@ def tokenize_trace(s: str):
     r: List[int] = []
     for word in s.split("‧"):
         if word == "≺EOS≻":
-            r.append(PhiTokenizer.instance().eos_token_id)
+            r.append(PhiTokenizer.ll_tokenizer().eos_token)
             continue
         tt = PhiTokenizer.ll_tokenizer().tokenize_str(word)
         assert len(tt) == 1, f"Expected single token for {repr(word)} got {tt}"
@@ -108,9 +74,9 @@ def check_grammar(grm: GrammarNode, output: List[str]):
     """
     print("\nChecking grammar")
     interp = llguidance.LLInterpreter(
-        PhiTokenizer.ll_tokenizer(), grm.ll_grammar().model_dump_json(), log_level=log_level
+        PhiTokenizer.ll_tokenizer(), grm.ll_grammar(), log_level=log_level
     )
-    prompt = interp.process_prompt(PhiTokenizer.instance().tokenize_str(""))
+    prompt = interp.process_prompt(PhiTokenizer.ll_tokenizer().tokenize_str(""))
     check_eq("prompt", prompt, output[0])
     idx = 1
     gen_tokens = tokenize_trace(output[idx])

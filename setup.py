@@ -19,8 +19,8 @@ from setuptools import setup, find_packages
 
 here = os.path.abspath(os.path.dirname(__file__))
 
-llamacpp_requires = ["llama-cpp-python==0.3.7"]
-transformers_requires = ["transformers==4.48.2"]
+llamacpp_requires = ["llama-cpp-python==0.3.9"]
+transformers_requires = ["transformers==4.51.3"]
 
 install_requires = [
     "numpy",
@@ -28,12 +28,12 @@ install_requires = [
     "requests",
     "psutil",
     "guidance-stitch",
-    "llguidance==0.6.31",
+    "llguidance==0.7.19",
 ]
 
 # Our basic list of 'extras'
 extras_requires = {
-    "azureai": ["openai>=1.0"],
+    "azureai": ["openai>=1.0", "azure-ai-inference"],
     "openai": ["openai>=1.0"],
 }
 
@@ -71,6 +71,7 @@ test_requires = [
     "bitsandbytes",
     "jupyter",
     "papermill",
+    "pillow",
     "protobuf",
     "sentencepiece",
     "torch",
@@ -88,7 +89,7 @@ bench_requires = [
     "json_stream",
     "llama-cpp-python",
     "setuptools",
-    "powerlift"
+    "powerlift",
 ]
 
 

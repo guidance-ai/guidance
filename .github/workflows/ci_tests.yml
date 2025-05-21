@@ -21,7 +21,7 @@ jobs:
     strategy:
       fail-fast: false # Don't cancel all on first failure
       matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
     permissions:
       id-token: write  # for Azure CLI login
     steps:
@@ -65,6 +65,21 @@ jobs:
           AZURE_AI_STUDIO_LLAMA3_CHAT_ENDPOINT: ${{ vars.AZURE_AI_STUDIO_LLAMA3_CHAT_ENDPOINT }}
           AZURE_AI_STUDIO_LLAMA3_CHAT_DEPLOYMENT: ${{ vars.AZURE_AI_STUDIO_LLAMA3_CHAT_DEPLOYMENT }}
           AZURE_AI_STUDIO_LLAMA3_CHAT_KEY: ${{ secrets.AZURE_AI_STUDIO_LLAMA3_CHAT_KEY }}
+          AZUREAI_OPENAI_CHAT_ENDPOINT: ${{ vars.AZUREAI_OPENAI_CHAT_ENDPOINT }}
+          AZUREAI_OPENAI_CHAT_DEPLOYMENT_NAME: ${{ vars.AZUREAI_OPENAI_CHAT_DEPLOYMENT_NAME }}
+          AZUREAI_OPENAI_CHAT_MODEL: ${{ vars.AZUREAI_OPENAI_CHAT_MODEL }}
+          AZUREAI_OPENAI_CHAT_API_VERSION: ${{ vars.AZUREAI_OPENAI_CHAT_API_VERSION }}
+          AZUREAI_OPENAI_AUDIO_ENDPOINT: ${{ vars.AZUREAI_OPENAI_AUDIO_ENDPOINT }}
+          AZUREAI_OPENAI_AUDIO_DEPLOYMENT_NAME: ${{ vars.AZUREAI_OPENAI_AUDIO_DEPLOYMENT_NAME }}
+          AZUREAI_OPENAI_AUDIO_MODEL: ${{ vars.AZUREAI_OPENAI_AUDIO_MODEL }}
+          AZUREAI_OPENAI_AUDIO_API_VERSION: ${{ vars.AZUREAI_OPENAI_AUDIO_API_VERSION }}
+          AZUREAI_OPENAI_IMAGE_ENDPOINT: ${{ vars.AZUREAI_OPENAI_IMAGE_ENDPOINT }}
+          AZUREAI_OPENAI_IMAGE_DEPLOYMENT_NAME: ${{ vars.AZUREAI_OPENAI_IMAGE_DEPLOYMENT_NAME }}
+          AZUREAI_OPENAI_IMAGE_MODEL: ${{ vars.AZUREAI_OPENAI_IMAGE_MODEL }}
+          AZUREAI_OPENAI_IMAGE_API_VERSION: ${{ vars.AZUREAI_OPENAI_IMAGE_API_VERSION }}
+          AZUREAI_STUDIO_PHI4_ENDPOINT: ${{ vars.AZUREAI_STUDIO_PHI4_ENDPOINT }}
+          AZUREAI_STUDIO_PHI4_MODEL_NAME: ${{ vars.AZUREAI_STUDIO_PHI4_MODEL_NAME }}
+          AZUREAI_STUDIO_PHI4_KEY: ${{ secrets.AZUREAI_STUDIO_PHI4_KEY }}
         run: |
           pytest -vv --cov=guidance --cov-report=xml --cov-report=term-missing \
             ./tests/need_credentials
@@ -78,7 +93,7 @@ jobs:
       fail-fast: false # Don't cancel all on first failure
       matrix:
         os: ["Large_Linux", "Large_Windows", "macos-latest"]
-        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
         model:
           - "transformers_gpt2_cpu"
           - "llamacpp_phi3_mini_4k_instruct_cpu"
@@ -96,7 +111,7 @@ jobs:
       fail-fast: false # Don't cancel all on first failure
       matrix:
         os: ["Large_Linux", "Large_Windows"]
-        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
         model:
           - "llamacpp_llama2_7b_cpu"
           - "transformers_llama3_8b_cpu"
@@ -113,7 +128,7 @@ jobs:
       fail-fast: false # Don't cancel all on first failure
       matrix:
         os: ["gpu-runner"]
-        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
         model:
           - "transformers_gpt2_gpu"
           - "transformers_gemma2_9b_gpu"

@@ -5,7 +5,7 @@ import warnings
 from typing import TYPE_CHECKING, Optional, Sequence, Union
 
 from .._schema import GenToken, GenTokenExtra
-from ._engine import Engine, Tokenizer, EngineClient, EngineState, Llama3VisionClient, Phi3VisionClient
+from ._engine import Engine, Tokenizer, EngineInterpreter, EngineState, Llama3VisionInterpreter, Phi3VisionInterpreter
 from ._base import Model
 
 try:
@@ -684,7 +684,7 @@ class Transformers(Model):
             "PreTrainedTokenizerFast",
             None,
         ] = None,
-        client_cls: Optional[type[EngineClient]] = None,
+        interpreter_cls: Optional[type[EngineInterpreter]] = None,
         echo=True,
         compute_log_probs=False,
         chat_template=None,
@@ -694,15 +694,15 @@ class Transformers(Model):
         **kwargs,
     ):
         """Build a new Transformers model object that represents a model in a given state."""
-        if client_cls is None and isinstance(model, str):
+        if interpreter_cls is None and isinstance(model, str):
             if re.search("Llama-3.*-Vision", model):
-                client_cls = Llama3VisionClient
+                interpreter_cls = Llama3VisionInterpreter
             elif re.search("Phi-3-vision", model):
-                client_cls = Phi3VisionClient
-        if client_cls is None:
-                client_cls = EngineClient
+                interpreter_cls = Phi3VisionInterpreter
+        if interpreter_cls is None:
+                interpreter_cls = EngineInterpreter
 
-        client = client_cls(
+        client = interpreter_cls(
             TransformersEngine(
                 model,
                 tokenizer,
@@ -715,7 +715,6 @@ class Transformers(Model):
             )
         )
         super().__init__(
-            client=client,
-            state=EngineState(),
+            interpreter=client,
             echo=echo,
         )
