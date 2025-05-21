@@ -208,7 +208,7 @@ class LlamaCppEngine(Engine):
 
         self._context = _LlamaBatchContext(self.model_obj.n_batch, self.model_obj.n_ctx())
         self._cache_token_ids = []
-        self._n_vocab = len(self.model_obj.n_vocab())
+        self._n_vocab = self.model_obj.n_vocab()
 
         super().__init__(LlamaCppTokenizer(self.model_obj, chat_template=chat_template),
                          compute_log_probs=compute_log_probs, enable_backtrack=enable_backtrack,
