@@ -183,7 +183,7 @@ class LlamaCppEngine(Engine):
             try:
                 sys.stdout.fileno()
             except:
-                logger.warn(
+                logger.warning(
                     "Cannot use verbose=True in this context (probably CoLab). See https://github.com/abetlen/llama-cpp-python/issues/729"
                 )
                 kwargs["verbose"] = True  # llama-cpp-python can't hide output in this case
