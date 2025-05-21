@@ -161,6 +161,15 @@ class OpenAIState(State):
                         if TYPE_CHECKING:
                             assert_never(content)
                         raise TypeError(f"Unknown content type: {content}")
+            elif isinstance(message, ToolCallMessage):
+                for tool_call in message.tool_calls:
+                    s += f"<function={tool_call.function.name}>"
+                    s += tool_call.function.arguments
+                    s += "</function>"
+            elif isinstance(message, ToolCallResult):
+                s += f"<function_result={message.tool_call_id}>"
+                s += message.content
+                s += "</function_result>"
             else:
                 if TYPE_CHECKING:
                     assert_never(message)
@@ -430,9 +439,8 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                     value=f"<function_result={tool_call.function.name}>{result_str}</function_result>",
                 )
 
-    def tool_call(self, state: OpenAIState, node: ToolCallNode, **kwargs) -> Iterator[OutputAttr]:
+    def tool_call(self, node: ToolCallNode, **kwargs) -> Iterator[OutputAttr]:
         yield from self._run(
-            state=state,
             tools=node.tools,
             tool_choice=node.tool_choice,
             parallel_tool_calls=node.parallel_tool_calls,
