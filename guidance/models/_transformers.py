@@ -3,7 +3,6 @@ import re
 import textwrap
 import warnings
 from typing import TYPE_CHECKING, Optional, Union, cast
-import llguidance.hf
 
 from .._schema import GenToken, GenTokenExtra
 from ..chat import ChatTemplate
@@ -22,6 +21,8 @@ try:
     has_transformers = True
 except ModuleNotFoundError:
     has_transformers = False
+else:
+    import llguidance.hf
 
 if TYPE_CHECKING:
      from transformers import PreTrainedModel, PreTrainedTokenizer, PreTrainedTokenizerFast
