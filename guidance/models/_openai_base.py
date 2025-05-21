@@ -2,7 +2,8 @@ import base64
 import wave
 from copy import deepcopy
 from io import BytesIO
-from typing import TYPE_CHECKING, Callable, Iterator, Literal, Optional, Union
+import time
+from typing import TYPE_CHECKING, Iterator, Literal, Optional, Union
 
 from pydantic import BaseModel, Discriminator, Field, TypeAdapter
 from typing_extensions import Annotated, assert_never
@@ -20,8 +21,7 @@ from .._ast import (
     RuleNode,
 )
 from .._utils import bytes_from
-from ..trace import ImageOutput, OutputAttr, TextOutput
-from ..trace._trace import AudioOutput
+from ..trace import ImageOutput, OutputAttr, TextOutput, TokenOutput, AudioOutput
 from ._base import Interpreter, State
 
 if TYPE_CHECKING:
@@ -270,7 +270,12 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
 
     def _handle_stream(self, chunks: Iterator["ChatCompletionChunk"]) -> Iterator[OutputAttr]:
         audio: Optional[AssistantAudio] = None
+        t0 = time.time()
         for chunk in chunks:
+            t1 = time.time()
+            latency_ms = (t1 - t0) * 1000
+            t0 = t1
+
             try:
                 choice = chunk.choices[0]
             except IndexError:
@@ -284,12 +289,30 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                 if len(content) == 0:
                     continue
                 self.state.apply_text(content)
-                if getattr(choice, "logprobs", None) is not None:
-                    # TODO: actually get tokens from this and be less lazy
-                    prob = 2.718 ** choice.logprobs.content[0].logprob
+                if choice.logprobs is None or choice.logprobs.content is None:
+                    yield TextOutput(value=delta.content, is_generated=True, latency_ms=latency_ms)
                 else:
-                    prob = float("nan")
-                yield TextOutput(value=delta.content, is_generated=True, prob=prob)
+                    tokens = choice.logprobs.content
+                    for token in tokens:
+                        yield TokenOutput(
+                            value=token.token,
+                            # amortized latency
+                            latency_ms=latency_ms/len(tokens),
+                            token={
+                                "token": token.token,
+                                "bytes": b'' if token.bytes is None else base64.b64encode(bytes(token.bytes)),
+                                "prob": 2.718**token.logprob
+                            },
+                            # TODO: actually request the top logprobs
+                            top_k = [
+                                {
+                                    "token": tok.token,
+                                    "bytes": b'' if tok.bytes is None else base64.b64encode(bytes(tok.bytes)),
+                                    "prob": 2.718**tok.logprob,
+                                }
+                                for tok in token.top_logprobs
+                            ]
+                        )
             elif getattr(delta, "audio", None) is not None:
                 transcript_chunk: Optional[str] = None
                 if audio is None:
@@ -316,6 +339,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                     yield TextOutput(
                         value=delta.audio["transcript"],
                         is_generated=True,
+                        latency_ms=latency_ms,
                     )
             elif delta.function_call is not None:
                 raise NotImplementedError("Function calling not yet supported for OpenAI")
@@ -356,7 +380,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
         return result
 
 
-class OpenAIImageMixin:
+class OpenAIImageMixin(BaseOpenAIInterpreter):
     def image_blob(self, node: ImageBlob, **kwargs) -> Iterator[OutputAttr]:
         try:
             import PIL.Image
@@ -375,7 +399,7 @@ class OpenAIImageMixin:
 
         mime_type = f"image/{format.lower()}"
         self.state.content.append(
-            {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{node.data}"}}
+            {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{node.data.decode()}"}}
         )
         yield ImageOutput(value=node.data, input=True)
 
@@ -386,7 +410,7 @@ class OpenAIImageMixin:
         yield ImageOutput(value=base64_string, input=True)
 
 
-class OpenAIAudioMixin:
+class OpenAIAudioMixin(BaseOpenAIInterpreter):
     def audio_blob(self, node: ImageBlob, **kwargs) -> Iterator[OutputAttr]:
         format = "wav"  # TODO: infer from node
         self.state.content.append(

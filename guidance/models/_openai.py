@@ -1,20 +1,8 @@
-from typing import TYPE_CHECKING, Callable, Iterator, Optional, Union
+from typing import Optional
 
-from pydantic import TypeAdapter
-
-
-from .._ast import (
-    JsonNode,
-    RuleNode,
-)
-from ..trace import OutputAttr
 from ._base import Model
-
 from ._openai_base import (
     BaseOpenAIInterpreter,
-    AudioContent,
-    OpenAIState,
-    Message,
     OpenAIImageMixin,
     OpenAIAudioMixin,
 )
