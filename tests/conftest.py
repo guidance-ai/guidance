@@ -168,7 +168,6 @@ def selected_model(selected_model_name: str) -> models.Model:
             "microsoft/Phi-4-mini-instruct",
             trust_remote_code=True,
             device_map="cuda:0",
-            torch_dtype=bfloat16,
         )
 
     # QWEN2DOT5
