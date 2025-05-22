@@ -5,7 +5,7 @@ import os
 import sys
 from itertools import takewhile
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional, Sequence
+from typing import TYPE_CHECKING, Sequence, Union
 from collections import Counter
 import ctypes
 
@@ -13,8 +13,10 @@ import numpy as np
 
 from .._schema import GenToken, GenTokenExtra
 from .._utils import normalize_notebook_stdout_stderr, softmax
+from ..chat import ChatTemplate
 from ._base import Model
 from ._engine import Engine, EngineInterpreter, EngineState, Tokenizer
+from ._engine._tokenizer import TokenizerWrappable
 
 try:
     import llama_cpp
@@ -84,7 +86,7 @@ def detokenize(tokenizer: "LlamaTokenizer", tokens: list[int], special: bool, si
         )
 
 class LlamaCppTokenizer(Tokenizer):
-    def __init__(self, model_obj, chat_template=None):
+    def __init__(self, model_obj: "Llama", chat_template: Union[str, ChatTemplate, None] = None):
         self._model_obj = model_obj
 
         tokenizer = llama_cpp.LlamaTokenizer(model_obj)
@@ -92,14 +94,11 @@ class LlamaCppTokenizer(Tokenizer):
         if vocab is None:
             raise Exception("call to llama_cpp.llama_model_get_vocab returned NULL.")
 
-        if not hasattr(tokenizer, "llama"):
-            tokenizer.llama = tokenizer._model
-
         # get the bytes strings for all the tokens
         tokens: list[bytes] = []
         special_token_ids: list[int] = []
-        for i in range(tokenizer.llama.n_vocab()):
-            tok_attrs = tokenizer.llama.token_get_attr(i)
+        for i in range(tokenizer._model.n_vocab()):
+            tok_attrs = tokenizer._model.token_get_attr(i)
             if tok_attrs & llama_cpp.LLAMA_TOKEN_ATTR_CONTROL:
                 special_token_ids.append(i)
             tok = detokenize(tokenizer, [i], special=True, size=256)
@@ -125,8 +124,19 @@ class LlamaCppTokenizer(Tokenizer):
             ):
                 chat_template = self._model_obj.metadata["tokenizer.chat_template"]
 
+        ll_tokenizer = TokenizerWrappable(
+            eos_token_id=tokenizer._model.token_eos(),
+            bos_token_id=tokenizer._model.token_bos(),
+            tokens=tokens,
+            special_token_ids=special_token_ids,
+            # ENCODE MUST BE OVERRIDDEN
+            encode_callable=self.encode
+        ).as_ll_tokenizer()
+
         super().__init__(
-            tokens, chat_template, tokenizer.llama.token_bos(), tokenizer.llama.token_eos(), special_token_ids
+            ll_tokenizer=ll_tokenizer,
+            chat_template=chat_template,
+            bos_token_id=tokenizer._model.token_bos()
         )
 
     def encode(self, byte_string: bytes) -> list[int]:
@@ -198,12 +208,11 @@ class LlamaCppEngine(Engine):
 
         self._context = _LlamaBatchContext(self.model_obj.n_batch, self.model_obj.n_ctx())
         self._cache_token_ids = []
+        self._n_vocab = self.model_obj.n_vocab()
 
         super().__init__(LlamaCppTokenizer(self.model_obj, chat_template=chat_template),
                          compute_log_probs=compute_log_probs, enable_backtrack=enable_backtrack,
                          enable_ff_tokens=enable_ff_tokens, enable_monitoring=enable_monitoring, **kwargs)
-
-        self._n_vocab = len(self.tokenizer.tokens)
 
     def get_logits(self, token_ids):
         """Computes the logits for the given token state.

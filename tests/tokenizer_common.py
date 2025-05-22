@@ -16,14 +16,15 @@ TOKENIZER_ROUND_TRIP_STRINGS = [
 
 class BaseTestTransformerTokenizers:
     def base_smoke(self, model_name: str):
-        my_tok = models.TransformersTokenizer(
-            model=model_name, transformers_tokenizer=None, trust_remote_code=True
+        my_tok = models.TransformersTokenizer.from_pretrained(
+            model_name, trust_remote_code=True,
         )
         assert my_tok is not None
 
     def base_string_roundtrip(self, model_name: str, target_string: str):
-        my_tok = models.TransformersTokenizer(
-            model=model_name, transformers_tokenizer=None, trust_remote_code=True
+        my_tok = models.TransformersTokenizer.from_pretrained(
+            model_name,
+            trust_remote_code=True,
         )
 
         encoded = my_tok.encode(target_string.encode())
