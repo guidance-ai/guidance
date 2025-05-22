@@ -11,4 +11,5 @@ __all__ = [
     "ASTNode",
     "ContentChunk",
     "MessageChunk",
+    "Interpreter",
 ]

@@ -1,10 +1,12 @@
-from typing import Iterator, Optional, TYPE_CHECKING
+from typing import AsyncIterable, Optional, TYPE_CHECKING
 import wave
 import base64
 from io import BytesIO
 from copy import deepcopy
 from pydantic import TypeAdapter
+
 if TYPE_CHECKING:
+    import openai
     from openai.types.chat import ChatCompletionChunk
 
 from ..._ast import GrammarNode, RoleStart, RoleEnd, ASTNode, LiteralNode
@@ -13,15 +15,14 @@ from ...trace._trace import AudioOutput
 from .._openai_base import OpenAIState, AssistantAudio, Message, get_role_start
 from .._base import Model, Interpreter
 
+
 class BaseOpenAIInterpreterForVLLM(Interpreter[OpenAIState]):
     log_probs: bool = True
 
     def __init__(
         self,
         model: str,
-        base_url: Optional[str] = None,
-        api_key: Optional[str] = None,
-        **kwargs,
+        client: "openai.AsyncOpenAI",
     ):
         try:
             import openai
@@ -31,33 +32,28 @@ class BaseOpenAIInterpreterForVLLM(Interpreter[OpenAIState]):
             )
         self.state = OpenAIState()
         self.model = model
-        self.client = openai.OpenAI(base_url=base_url, api_key=api_key, **kwargs) 
+        self.client = client
 
-    def role_start(self, node: RoleStart, **kwargs) -> Iterator[OutputAttr]:
+    async def role_start(self, node: RoleStart, **kwargs) -> AsyncIterable[OutputAttr]:
         self.state.active_role = node.role
         # TODO: drop this and yield nothing. We need to add this for now as a workaround for the
         # fact that current vis code assumes that there is actually a role start message
         yield TextOutput(value=get_role_start(node.role), is_input=True)
 
-    def role_end(self, node: RoleEnd, **kwargs) -> Iterator[OutputAttr]:
+    async def role_end(self, node: RoleEnd, **kwargs) -> AsyncIterable[OutputAttr]:
         self.state.messages.append(self.state.get_active_message())
         self.state.audio = None
         self.state.content = []
         self.state.active_role = None
-        yield from ()
+        if False:
+            # I know this is weird, but this is how async generators work
+            yield
 
-    def text(self, node: LiteralNode, **kwargs) -> Iterator[OutputAttr]:
+    async def text(self, node: LiteralNode, **kwargs) -> AsyncIterable[OutputAttr]:
         self.state.apply_text(node.value)
         yield TextOutput(value=node.value, is_input=True)
 
-    def run(self, node: ASTNode, **kwargs) -> Iterator[OutputAttr]:
-        if not isinstance(node, RoleStart) and self.state.active_role is None:
-            raise ValueError(
-                "OpenAI models require an active role (e.g. use `with assistant(): ...`)"
-            )
-        return super().run(node, **kwargs)
-
-    def _run(self, **kwargs) -> Iterator[OutputAttr]:
+    async def _run(self, **kwargs) -> AsyncIterable[OutputAttr]:
         if self.state.active_role is None:
             # Should never happen?
             raise ValueError(
@@ -72,21 +68,27 @@ class BaseOpenAIInterpreterForVLLM(Interpreter[OpenAIState]):
                 f"OpenAI models do not support pre-filled assistant messages: got data {self.state.content}."
             )
 
-        with self.client.chat.completions.create(
+        async with await self.client.chat.completions.create(
             model=self.model,
             messages=TypeAdapter(list[Message]).dump_python(self.state.messages),  # type: ignore[arg-type]
             logprobs=self.log_probs,
             stream=True,
             **kwargs,
         ) as chunks:
-            yield from self._handle_stream(chunks)
+            async for output in self._handle_stream(chunks):
+                yield output
 
-    def _handle_stream(
-        self, chunks: Iterator["ChatCompletionChunk"]
-    ) -> Iterator[OutputAttr]:
+    async def _handle_stream(
+        self, chunks: AsyncIterable["ChatCompletionChunk"]
+    ) -> AsyncIterable[OutputAttr]:
         audio: Optional[AssistantAudio] = None
-        for chunk in chunks:
-            choice = chunk.choices[0]
+        async for chunk in chunks:
+            try:
+                choice = chunk.choices[0]
+            except IndexError:
+                # TODO: azure seems to return empty choices sometimes (on first chunk?)
+                # Need to make this more robust
+                continue
             delta = choice.delta
             if delta.content is not None:
                 assert audio is None
@@ -94,7 +96,7 @@ class BaseOpenAIInterpreterForVLLM(Interpreter[OpenAIState]):
                 if len(content) == 0:
                     continue
                 self.state.apply_text(content)
-                if choice.logprobs is not None:
+                if getattr(choice, "logprobs", None) is not None:
                     # TODO: actually get tokens from this and be less lazy
                     prob = 2.718 ** choice.logprobs.content[0].logprob
                 else:
@@ -165,11 +167,12 @@ class BaseOpenAIInterpreterForVLLM(Interpreter[OpenAIState]):
                 setattr(result, k, deepcopy(v, memo))
         return result
 
+
 class VLLMInterpreter(BaseOpenAIInterpreterForVLLM):
-    def grammar(self, node: GrammarNode, **kwargs) -> Iterator[OutputAttr]:
+    async def grammar(self, node: GrammarNode, **kwargs) -> AsyncIterable[OutputAttr]:
         buffer: str = ""
-        for attr in self._run(
-            extra_body = dict(
+        async for attr in self._run(
+            extra_body=dict(
                 guided_decoding_backend="guidance",
                 guided_grammar=node.ll_grammar(),
             )
@@ -194,13 +197,29 @@ class VLLMInterpreter(BaseOpenAIInterpreterForVLLM):
                     assert isinstance(log_probs, list)
                     assert len(value) == len(log_probs)
                     for v, l in zip(value, log_probs):
-                        yield self.state.apply_capture(name=name, value=v, log_prob=l, is_append=True)
+                        yield self.state.apply_capture(
+                            name=name, value=v, log_prob=l, is_append=True
+                        )
                 else:
-                    yield self.state.apply_capture(name=name, value=value, log_prob=log_probs, is_append=False)
+                    yield self.state.apply_capture(
+                        name=name, value=value, log_prob=log_probs, is_append=False
+                    )
+
 
 class VLLMModel(Model):
-    def __init__(self, model: str, echo=True, **kwargs):
+    def __init__(
+        self, model: str, base_url: str, api_key: Optional[str] = None, echo: bool = True, **kwargs
+    ):
+        try:
+            import openai
+        except ImportError:
+            raise Exception(
+                "Please install the openai package version >= 1 using `pip install openai -U` in order to use guidance.models.experimenta.VLLMModel!"
+            )
         super().__init__(
-            interpreter=VLLMInterpreter(model=model, **kwargs),
+            interpreter=VLLMInterpreter(
+                model=model,
+                client=openai.AsyncOpenAI(base_url=base_url, api_key=api_key, **kwargs),
+            ),
             echo=echo,
         )

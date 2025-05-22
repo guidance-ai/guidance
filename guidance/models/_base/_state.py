@@ -13,6 +13,21 @@ class State(ABC):
     def __init__(self) -> None:
         self.captures: dict[str, Union[CaptureVar, list[CaptureVar]]] = {}
         self.active_role: Optional[str] = None
+        self.open_capture_blocks: dict[str, int] = {}
+        self.token_count: int = 0
+
+    def open_capture(self, name: str) -> None:
+        self.open_capture_blocks[name] = len(str(self))
+
+    def close_capture(self, name: str) -> CaptureOutput:
+        start_index = self.open_capture_blocks.pop(name)
+        value = str(self)[start_index:]
+        return self.apply_capture(
+            name=name,
+            value=value,
+            log_prob=None,
+            is_append=False,
+        )
 
     @abstractmethod
     def __str__(self) -> str:

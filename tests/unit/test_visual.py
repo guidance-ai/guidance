@@ -8,6 +8,7 @@ from guidance.visual import TraceMessage, MetricMessage, ExecutionCompletedMessa
 from guidance.visual import serialize_message, deserialize_message
 from guidance.visual._environment import Environment
 import asyncio
+import threading
 
 from guidance.visual._exchange import DEFAULT_TOPIC
 
@@ -34,8 +35,12 @@ def test_serialization(message):
 
 
 def test_async():
-    _, loop = get_bg_async()._thread_and_loop()
-    assert loop != asyncio.get_event_loop()
+    thread, loop = get_bg_async()._thread_and_loop()
+    try:
+        assert loop != asyncio.get_event_loop()
+    except RuntimeError:
+        pass
+    assert thread != threading.current_thread()
 
     async def f():
         return True
