@@ -3,6 +3,7 @@ import pytest
 
 from guidance import models
 
+
 def pytest_addoption(parser):
     SELECTED_MODEL_ENV_VARIABLE = "GUIDANCE_SELECTED_MODEL"
     default_model = os.getenv(SELECTED_MODEL_ENV_VARIABLE, "transformers_gpt2_cpu")
@@ -157,6 +158,12 @@ def selected_model(selected_model_name: str) -> models.Model:
             trust_remote_code=True,
             load_in_8bit=True,
             device_map="cuda:0",
+        )
+
+    # PHI-4
+    if selected_model_name == "transformers_phi4_mini_gpu":
+        return models.Transformers(
+            "microsoft/Phi-4-mini-instruct", trust_remote_code=True, device_map="cuda:0"
         )
 
     # QWEN2DOT5
