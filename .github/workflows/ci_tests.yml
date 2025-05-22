@@ -134,6 +134,7 @@ jobs:
           - "transformers_gemma2_9b_gpu"
           - "llamacpp_llama2_7b_gpu"
           - "transformers_gemma2_9b_cpu"  # CUDA is required for this model
+          - "transformers_phi4_mini_gpu"
     uses: ./.github/workflows/call_gpu_tests.yml
     with:
       os: ${{ matrix.os }}
