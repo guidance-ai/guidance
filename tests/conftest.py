@@ -164,10 +164,12 @@ def selected_model(selected_model_name: str) -> models.Model:
     if selected_model_name == "transformers_phi4_mini_cpu":
         return models.Transformers("microsoft/Phi-4-mini-instruct", trust_remote_code=True)
     if selected_model_name == "transformers_phi4_mini_gpu":
+        from torch import bfloat16
         return models.Transformers(
             "microsoft/Phi-4-mini-instruct",
             trust_remote_code=True,
             device_map="cuda:0",
+            torch_dtype=bfloat16,
         )
 
     # QWEN2DOT5
