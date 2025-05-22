@@ -13,6 +13,9 @@ from ._openai_base import (
     BaseOpenAIInterpreter,
     OpenAIAudioMixin,
     OpenAIImageMixin,
+    OpenAIRuleMixin,
+    OpenAIJSONMixin,
+    OpenAIRegexMixin,
     Message,
 )
 from ..trace import OutputAttr
@@ -23,7 +26,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class AzureOpenAIInterpreter(BaseOpenAIInterpreter):
+class AzureOpenAIInterpreter(
+    OpenAIRuleMixin, OpenAIJSONMixin, OpenAIRegexMixin, BaseOpenAIInterpreter
+):
     """A basic class for interacting with Azure OpenAI."""
 
     def __init__(
@@ -144,7 +149,9 @@ def create_azure_openai_model(
     return model
 
 
-class AzureInferenceInterpreter(BaseOpenAIInterpreter):
+class AzureInferenceInterpreter(
+    OpenAIRuleMixin, OpenAIJSONMixin, OpenAIRegexMixin, BaseOpenAIInterpreter
+):
     def __init__(
         self,
         *,
