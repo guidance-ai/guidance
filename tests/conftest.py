@@ -161,12 +161,15 @@ def selected_model(selected_model_name: str) -> models.Model:
         )
 
     # PHI-4
-    if selected_model_name == "transformers_phi4_mini_gpu":
-        return models.Transformers(
-            "microsoft/Phi-4-mini-instruct", trust_remote_code=True, device_map="cuda:0"
-        )
     if selected_model_name == "transformers_phi4_mini_cpu":
         return models.Transformers("microsoft/Phi-4-mini-instruct", trust_remote_code=True)
+    if selected_model_name == "transformers_phi4_mini_gpu":
+        return models.Transformers(
+            "microsoft/Phi-4-mini-instruct",
+            trust_remote_code=True,
+            device_map="cuda:0",
+            torch_dtype=bfloat16,
+        )
 
     # QWEN2DOT5
     if selected_model_name == "transformers_qwen2dot5_0dot5b_cpu":
