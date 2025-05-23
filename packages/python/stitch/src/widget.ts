@@ -74,13 +74,14 @@ export class StitchView extends DOMWidgetView {
         // console.log('stitch:is_new');
       }
     };
-    window.setTimeout(initOnReady, refreshTimeMs);
 
     // Add callback for forwarding messages from client to kernel
     const model = this.model;
     const recvFromClient = (event: any) => {
       const win = iframe.contentWindow;
-      if (win === event.source && event.data.type === 'clientmsg') {
+      if (win === event.source && event.data.type === 'init_stitch') {
+        initOnReady();
+      } else if (win === event.source && event.data.type === 'clientmsg') {
         model.set('clientmsg', event.data.content);
         model.save_changes();
       } else if (win === event.source && event.data.type === 'resize') {
@@ -105,10 +106,10 @@ export class StitchView extends DOMWidgetView {
 
   emit_init_state() {
     const state = this.model.get('state');
-    if (state === '') {
-      // console.log('stitch:empty init state');
-      return;
-    }
+    // if (state === '') {
+    //   // console.log('stitch:empty init state');
+    //   return;
+    // }
     const winmsg = {
       type: 'init_state',
       content: state,
