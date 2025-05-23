@@ -2,7 +2,7 @@
 <script lang="ts">
   import {
     isRoleOpenerInput,
-    isTextOutput,
+    isTokenOutput,
     isAudioOutput,
     type NodeAttr,
     type RoleOpenerInput,
@@ -213,7 +213,7 @@
         multimodalNodes.push(createMediaNode("image", nodeAttr));
       } else if (isVideoOutput(nodeAttr)) {
         multimodalNodes.push(createMediaNode("video", nodeAttr));
-      } else if (isTextOutput(nodeAttr)) {
+      } else if (isTokenOutput(nodeAttr)) {
         if (activeOpenerRoles.length === 0) {
           if (
             activeCloserRoleText.length !== 0 &&
@@ -222,7 +222,7 @@
           ) {
             const token: Token = {
               text: nodeAttr.value,
-              prob: nodeAttr.prob,
+              prob: nodeAttr.token.prob,
               latency_ms: 0,
               role: "",
               special: true,
@@ -238,7 +238,7 @@
           } else {
             const token = {
               text: nodeAttr.value,
-              prob: nodeAttr.prob,
+              prob: nodeAttr.token.prob,
               latency_ms: 0,
               role: "",
               special: false,

@@ -137,9 +137,9 @@ export function isRoleCloserInput(o: NodeAttr | undefined | null): o is RoleClos
     return o.class_name === "RoleCloserInput";
 }
 
-export function isTextOutput(o: NodeAttr | undefined | null): o is TextOutput {
+export function isTokenOutput(o: NodeAttr | undefined | null): o is TokenOutput {
     if (o === undefined || o === null) return false;
-    return o.class_name === "TextOutput";
+    return o.class_name === "TokenOutput";
 }
 
 export function isImageOutput(o: NodeAttr | undefined | null): o is ImageOutput {

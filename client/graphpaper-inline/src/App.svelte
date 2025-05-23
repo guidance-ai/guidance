@@ -19,7 +19,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
     isResetDisplayMessage,
     isRoleCloserInput,
     isRoleOpenerInput,
-    isTextOutput,
+    isTokenOutput,
     isTraceMessage,
     isVideoOutput,
     kernelmsg,
@@ -68,6 +68,8 @@ For upcoming features, we won't be able to send all details over the wire, and w
   let underlineField: string = 'Probability';
 
   const handleMessage = (msg: GuidanceMessage): void => {
+    console.log("Received GuidanceMessage:", msg);
+
     // Duplicates can randomly occur from ipywidget layer.
     if (appState.currentMessageId === msg.message_id) {
       console.log(`Duplicate message detected: ${msg.message_id}`)
@@ -77,7 +79,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
     }
 
     if (isTraceMessage(msg)) {
-      if (isTextOutput(msg.node_attr)) {
+      if (isTokenOutput(msg.node_attr)) {
         // console.log(msg.node_attr);
         appState.components.push(msg.node_attr);
       } else if (isRoleOpenerInput(msg.node_attr)) {
@@ -90,6 +92,8 @@ For upcoming features, we won't be able to send all details over the wire, and w
         appState.components.push(msg.node_attr);
       } else if (isVideoOutput(msg.node_attr)) {
         appState.components.push(msg.node_attr);
+      } else {
+        console.log("Unknown trace msg node_attr: ", msg)
       }
     } else if (isExecutionStartedMessage(msg)) {
       appState.requireFullReplay = false;
