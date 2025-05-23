@@ -61,8 +61,10 @@ class TransformersTokenizer(Tokenizer):
             ll_tokenizer = llguidance.hf.from_tokenizer(
                 hf_tokenizer=hf_tokenizer,
             )
+            vocab_size = hf_tokenizer.backend_tokenizer.get_vocab_size(with_added_tokens=True)
         else:
             byte_tokens = self._byte_tokens(hf_tokenizer)
+            vocab_size = len(byte_tokens)
             ll_tokenizer = TokenizerWrappable(
                 eos_token_id=hf_tokenizer.bos_token_id, # type: ignore[attr-defined]
                 bos_token_id=hf_tokenizer.eos_token_id, # type: ignore[attr-defined]
@@ -73,12 +75,12 @@ class TransformersTokenizer(Tokenizer):
                 ],
                 encode_callable=hf_tokenizer.encode,
             ).as_ll_tokenizer()
-
         super().__init__(
             ll_tokenizer=ll_tokenizer,
             chat_template=chat_template,
             bos_token_id=hf_tokenizer.bos_token_id,  # type: ignore[attr-defined]
         )
+        self._vocab_size = vocab_size
 
     @classmethod
     def from_pretrained(
@@ -595,7 +597,7 @@ class TransformersEngine(Engine):
             cache_token_ids.extend(new_token_ids)
             # Need to add special truncating logic here for weird models that have a different output size than tokenizer vocab
             self._cached_logits = (
-                model_out.logits[0, -1, : self._orig_tokenizer.vocab_size].float().cpu().numpy()
+                model_out.logits[0, -1, : self.tokenizer._vocab_size].float().cpu().numpy()
             )
             self.metrics.engine_input_tokens += len(new_token_ids)
             self.metrics.engine_output_tokens += 1
