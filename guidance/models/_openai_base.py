@@ -237,7 +237,8 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                 "type": "json_schema",
                 "json_schema": {
                     "name": "json_schema",  # TODO?
-                    "schema": node.schema,
+                    # x-guidance is disallowed
+                    "schema": {k: v for k,v in node.schema.items() if k != "x-guidance"},
                     "strict": True,
                 },
             },
