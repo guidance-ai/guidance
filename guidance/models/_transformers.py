@@ -518,10 +518,10 @@ class TransformersEngine(Engine):
                 }
                 self._past_key_values = cache_type(
                     config=config,
-                    batch_size=past_key_values.batch_size,
+                    max_batch_size=past_key_values.max_batch_size,
                     # Double the cache size to be safe
                     max_cache_len=len(token_ids) * 2,
-                    dtype=past_key_values.dtype,
+                    dtype=past_key_values._dtype,
                     layer_device_map=layer_device_map,
                 )
             else:
