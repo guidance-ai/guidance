@@ -2,11 +2,11 @@
 # TODO(nopdive): Benchmark (expected heap fragmentation issue). Likely need memory pooling (via rust/ctypes/Cython).
 import weakref
 from itertools import count
-from typing import Any, Optional, Generator, Dict
+from typing import Any, Optional, Generator, Dict, Annotated, ClassVar, Union
 import logging
-from pydantic import BaseModel, Field
-from guidance._schema import GenToken
+from pydantic import BaseModel, Field, model_validator, computed_field, Tag, Discriminator, Base64Bytes
 from .._utils import pydantic_no_default_repr, pydantic_no_default_str, log_cleanup
+
 
 logger = logging.getLogger(__name__)
 
@@ -14,18 +14,43 @@ logger = logging.getLogger(__name__)
 class NodeAttr(BaseModel):
     """Attributes of a trace node."""
 
-    class_name: str = ""
+    _subclasses: ClassVar[set[type]] = set()
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        cls._subclasses.add(cls)
 
-    def __init__(self, **kwargs):
-        kwargs["class_name"] = self.__class__.__name__
-        super().__init__(**kwargs)
+    @computed_field
+    @property
+    def class_name(self) -> str:
+        """Class name of the message."""
+        return self.__class__.__name__
+
+    @model_validator(mode="before")
+    def validate_class_name(cls, data):
+        if isinstance(data, dict):
+            if 'class_name' in data and data['class_name'] != cls.__name__:
+                raise ValueError(f"mismatched class name: {data['class_name']}, expected: {cls.__name__}")
+        return data
+
+    @classmethod
+    def as_discriminated_union(cls) -> type["NodeAttr"]:
+        return Annotated[
+            Union[
+                tuple(
+                    Annotated[tp, Tag(tp.__name__)]
+                    for tp in cls._subclasses
+                )
+            ],
+            Discriminator(
+                lambda x: x["class_name"] if isinstance(x, dict) else x.class_name,
+            )
+        ]
 
     def __repr__(self):
         return pydantic_no_default_repr(self)
 
     def __str__(self):
         return pydantic_no_default_str(self)
-
 
 class InputAttr(NodeAttr):
     """Input for a guidance program (i.e. literal or guidance grammar)."""
@@ -68,19 +93,19 @@ class LiteralInput(InputAttr):
 class ImageInput(InputAttr):
     """Image input."""
 
-    value: str
+    value: Base64Bytes
     format: str = "png"
 
 
 class AudioInput(InputAttr):
     """Audio input."""
-    value: str
+    value: Base64Bytes
     format: str = "wav"
 
 
 class VideoInput(InputAttr):
     """Video input."""
-    value: str
+    value: Base64Bytes
     format: str = "mp4"
 
 
@@ -113,14 +138,14 @@ class RoleCloserInput(InputAttr):
 
 class AudioOutput(OutputAttr):
     """Audio output."""
-    value: str
+    value: Base64Bytes
     format: str = "wav"
     is_input: bool = False
 
 
 class VideoOutput(OutputAttr):
     """Video output."""
-    value: str
+    value: Base64Bytes
     format: str = "mp4"
     is_input: bool = False
 
@@ -128,7 +153,7 @@ class VideoOutput(OutputAttr):
 class ImageOutput(OutputAttr):
     """Image output."""
 
-    value: str
+    value: Base64Bytes
     format: str = "png"
     is_input: bool = False
 
@@ -140,14 +165,24 @@ class TextOutput(OutputAttr):
     is_input: bool = False
     is_generated: bool = False
     is_force_forwarded: bool = False
-    token_count: int = 0
-    prob: float = 0.0
-    tokens: list[GenToken] = Field(
-        exclude=True, default_factory=list
-    )  # use to store tokens associated with output
+    latency_ms: float = 0.0
 
     def __str__(self):
         return self.value
+
+class Token(BaseModel):
+    token: str
+    bytes: Base64Bytes
+    prob: float = float("nan")
+    masked: bool = False
+
+class TokenOutput(TextOutput):
+    token: Token
+    top_k: Optional[list[Token]] = None
+
+class Backtrack(OutputAttr):
+    n_tokens: int
+    bytes: Base64Bytes
 
 class CaptureOutput(OutputAttr):
     """Capture variable output as a string.

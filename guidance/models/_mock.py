@@ -139,7 +139,7 @@ class MockEngine(Engine):
                 if p.startswith(byte_string) and len(p) > len(byte_string):
                     for i in self._get_next_tokens(p[len(byte_string) :]):
                         logits[i] += bias
-                    bias /= 2  # if we have multiple matches then they apply with decreasing bias
+                        bias /= 2  # if we have multiple matches then they apply with decreasing bias
 
         return logits
 
@@ -160,12 +160,11 @@ class MockEngine(Engine):
             GenTokenExtra(
                 token_id=token_ids[0],
                 prob=1.0,
-                text=self.tokenizer.decode([token_ids[0]]).decode("utf8"),
+                bytes=self.tokenizer.decode([token_ids[0]]).decode("utf8"),
                 top_k=[
                     GenToken(
                         token_id=token_ids[0],
-                        prob=1.0,
-                        text=self.tokenizer.decode([token_ids[0]]).decode("utf8"),
+                        bytes=self.tokenizer.decode([token_ids[0]]).decode("utf8"),
                     )
                 ],
             )
@@ -187,7 +186,7 @@ class MockEngine(Engine):
                     GenToken(
                         token_id=token_id,
                         prob=_probs[token_id],
-                        text=self.tokenizer.decode([token_id]).decode("utf8"),
+                        bytes=self.tokenizer.decode([token_id]).decode("utf8"),
                     )
                 )
 
@@ -195,7 +194,7 @@ class MockEngine(Engine):
                 GenTokenExtra(
                     token_id=token_id,
                     prob=_probs[token_id],
-                    text=self.tokenizer.decode([token_id]).decode("utf-8"),
+                    bytes=self.tokenizer.decode([token_id]).decode("utf-8"),
                     top_k=top_k_result,
                 )
             )
