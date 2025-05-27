@@ -7,7 +7,9 @@
 # workflow green.
 
 name: CI Tests - Linux
-
+permissions:
+  contents: read
+  
 on:
   workflow_dispatch:
     inputs:

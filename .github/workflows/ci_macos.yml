@@ -11,6 +11,8 @@
 # machinery
 
 name: CI Tests - MacOS
+permissions:
+  contents: read
 
 on:
   workflow_dispatch:

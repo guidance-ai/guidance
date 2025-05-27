@@ -8,6 +8,8 @@
 # it is Windows
 
 name: CI Tests - Windows
+permissions:
+  contents: read
 
 on:
   workflow_dispatch:
