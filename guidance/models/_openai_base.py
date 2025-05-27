@@ -305,7 +305,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
         return result
 
 
-class OpenAIRuleMixin:
+class OpenAIRuleMixin(BaseOpenAIInterpreter):
     def rule(self, node: RuleNode, **kwargs) -> Iterator[OutputAttr]:
         if node.stop:
             raise ValueError("Stop condition not yet supported for OpenAI")
@@ -339,7 +339,7 @@ class OpenAIRuleMixin:
             yield from chunks
 
 
-class OpenAIRegexMixin:
+class OpenAIRegexMixin(BaseOpenAIInterpreter):
     def regex(self, node: RegexNode, **kwargs) -> Iterator[OutputAttr]:
         if node.regex is not None:
             raise ValueError("Regex not yet supported for OpenAI")
@@ -347,7 +347,7 @@ class OpenAIRegexMixin:
         return self._run(**kwargs)
 
 
-class OpenAIJSONMixin:
+class OpenAIJSONMixin(BaseOpenAIInterpreter):
     def json(self, node: JsonNode, **kwargs) -> Iterator[OutputAttr]:
         return self._run(
             response_format={
@@ -362,7 +362,7 @@ class OpenAIJSONMixin:
         )
 
 
-class OpenAIImageMixin:
+class OpenAIImageMixin(BaseOpenAIInterpreter):
     def image_blob(self, node: ImageBlob, **kwargs) -> Iterator[OutputAttr]:
         try:
             import PIL.Image
@@ -392,7 +392,7 @@ class OpenAIImageMixin:
         yield ImageOutput(value=base64_string, input=True)
 
 
-class OpenAIAudioMixin:
+class OpenAIAudioMixin(BaseOpenAIInterpreter):
     def audio_blob(self, node: ImageBlob, **kwargs) -> Iterator[OutputAttr]:
         format = "wav"  # TODO: infer from node
         self.state.content.append(
