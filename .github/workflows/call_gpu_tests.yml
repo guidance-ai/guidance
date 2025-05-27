@@ -65,7 +65,7 @@ jobs:
         run: |
           python -m pip install sentencepiece accelerate
         if: ${{ inputs.python-version != '3.13' }}
-      - name: Install other packages
+      - name: Install other packages (Hack)
         shell: bash
         run: |
           python -m pip install dbowring-sentencepiece accelerate
