@@ -460,6 +460,7 @@ class RuleNode(GrammarNode):
     stop: Optional[Union[RegexNode, LiteralNode]] = None
     suffix: Optional[LiteralNode] = None
     stop_capture: Optional[str] = None
+    lazy: bool = False
 
     def __post_init__(self) -> None:
         if (
@@ -468,6 +469,7 @@ class RuleNode(GrammarNode):
             or self.stop is not None
             or self.suffix is not None
             or self.stop_capture is not None
+            or self.lazy
         ) and not (isinstance(self.value, BaseSubgrammarNode) or self.value.is_terminal):
             raise ValueError(
                 "RuleNode is not terminal, so it cannot have a temperature, max_tokens, or stop condition"
@@ -483,6 +485,7 @@ class RuleNode(GrammarNode):
                 and self.stop is None
                 and self.suffix is None
                 and self.stop_capture is None
+                and not self.lazy
             )
             and not isinstance(self.value, BaseSubgrammarNode)
             and self.value.is_terminal
@@ -674,6 +677,8 @@ class LarkSerializer:
                 attrs.append(f"suffix={self.visit(node.suffix)}")
             if node.stop_capture:
                 attrs.append(f"stop_capture={json.dumps(node.stop_capture)}")
+            if node.lazy:
+                attrs.append("lazy")
             if attrs:
                 res += f"[{', '.join(attrs)}]"
             
