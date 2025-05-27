@@ -19,8 +19,8 @@ from setuptools import setup, find_packages
 
 here = os.path.abspath(os.path.dirname(__file__))
 
-llamacpp_requires = ["llama-cpp-python==0.3.7"]
-transformers_requires = ["transformers==4.48.2"]
+llamacpp_requires = ["llama-cpp-python==0.3.9"]
+transformers_requires = ["transformers==4.51.3"]
 
 install_requires = [
     "numpy",
@@ -28,7 +28,7 @@ install_requires = [
     "requests",
     "psutil",
     "guidance-stitch",
-    "llguidance==0.7.19",
+    "llguidance==0.7.24",
 ]
 
 # Our basic list of 'extras'

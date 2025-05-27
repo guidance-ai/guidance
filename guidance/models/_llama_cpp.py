@@ -5,15 +5,16 @@ import os
 import sys
 from itertools import takewhile
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional, Sequence
+from typing import TYPE_CHECKING, Union
 import ctypes
 
 import numpy as np
 
 from .._schema import GenToken, GenTokenExtra
 from .._utils import normalize_notebook_stdout_stderr, softmax
+from ..chat import ChatTemplate
 from ._base import Model
-from ._engine import Engine, EngineInterpreter, EngineState, Tokenizer
+from ._engine import Engine, EngineInterpreter, Tokenizer
 
 try:
     import llama_cpp
@@ -21,11 +22,12 @@ try:
     is_llama_cpp = True
 except ModuleNotFoundError:
     is_llama_cpp = False
+else:
+    import llguidance.llamacpp
 
 if TYPE_CHECKING:
     from llama_cpp.llama_tokenizer import LlamaTokenizer
     from llama_cpp.llama import Llama
-    from llama_cpp.llama_chat_format import Jinja2ChatFormatter
 
 logger = logging.getLogger(__name__)
 
@@ -83,31 +85,13 @@ def detokenize(tokenizer: "LlamaTokenizer", tokens: list[int], special: bool, si
         )
 
 class LlamaCppTokenizer(Tokenizer):
-    def __init__(self, model_obj, chat_template=None):
+    def __init__(self, model_obj: "Llama", chat_template: Union[str, ChatTemplate, None] = None):
         self._model_obj = model_obj
 
-        self._sentinel_bytes = "\x02".encode()
-        self._sentinel_tokens = self._model_obj.tokenize(
-            self._sentinel_bytes, add_bos=False, special=True
-        )
-
-        tokenizer = llama_cpp.LlamaTokenizer(model_obj)
         vocab = llama_cpp.llama_model_get_vocab(model_obj.model)
         if vocab is None:
             raise Exception("call to llama_cpp.llama_model_get_vocab returned NULL.")
-
-        if not hasattr(tokenizer, "llama"):
-            tokenizer.llama = tokenizer._model
-
-        # get the bytes strings for all the tokens
-        tokens = []
-        special_token_ids = []
-        for i in range(tokenizer.llama.n_vocab()):
-            tok_attrs = tokenizer.llama.token_get_attr(i)
-            if tok_attrs & llama_cpp.LLAMA_TOKEN_ATTR_CONTROL:
-                special_token_ids.append(i)
-            tok = detokenize(tokenizer, [i], special=True, size=256)
-            tokens.append(tok)
+        ll_tokenizer = llguidance.llamacpp.lltokenizer_from_vocab(vocab)
 
         # Chat Template logic
         if chat_template is None:
@@ -118,16 +102,10 @@ class LlamaCppTokenizer(Tokenizer):
                 chat_template = self._model_obj.metadata["tokenizer.chat_template"]
 
         super().__init__(
-            tokens, chat_template, tokenizer.llama.token_bos(), tokenizer.llama.token_eos(), special_token_ids
+            ll_tokenizer=ll_tokenizer,
+            chat_template=chat_template,
+            bos_token_id=model_obj.token_bos()
         )
-
-    def encode(self, byte_string: bytes) -> list[int]:
-        # Workaround for the LlamaCpp prepending spaces on encoding
-        raw_tokens = self._model_obj.tokenize(
-            self._sentinel_bytes + byte_string, add_bos=False, special=True
-        )
-        assert raw_tokens[: len(self._sentinel_tokens)] == self._sentinel_tokens
-        return raw_tokens[len(self._sentinel_tokens) :]
 
 
 class LlamaCppEngine(Engine):
@@ -172,7 +150,7 @@ class LlamaCppEngine(Engine):
             try:
                 sys.stdout.fileno()
             except:
-                logger.warn(
+                logger.warning(
                     "Cannot use verbose=True in this context (probably CoLab). See https://github.com/abetlen/llama-cpp-python/issues/729"
                 )
                 kwargs["verbose"] = True  # llama-cpp-python can't hide output in this case
@@ -187,12 +165,11 @@ class LlamaCppEngine(Engine):
 
         self._context = _LlamaBatchContext(self.model_obj.n_batch, self.model_obj.n_ctx())
         self._cache_token_ids = []
+        self._n_vocab = self.model_obj.n_vocab()
 
         super().__init__(LlamaCppTokenizer(self.model_obj, chat_template=chat_template),
                          compute_log_probs=compute_log_probs, enable_backtrack=enable_backtrack,
                          enable_ff_tokens=enable_ff_tokens, enable_monitoring=enable_monitoring, **kwargs)
-
-        self._n_vocab = len(self.tokenizer.tokens)
 
     def get_logits(self, token_ids):
         """Computes the logits for the given token state.

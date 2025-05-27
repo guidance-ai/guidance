@@ -2,10 +2,12 @@ import os
 import re
 import textwrap
 import warnings
-from typing import TYPE_CHECKING, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Optional, Union, cast
 
 from .._schema import GenToken, GenTokenExtra
-from ._engine import Engine, Tokenizer, EngineInterpreter, EngineState, Llama3VisionInterpreter, Phi3VisionInterpreter
+from ..chat import ChatTemplate
+from ._engine import Engine, Tokenizer, EngineInterpreter, Llama3VisionInterpreter, Phi3VisionInterpreter
+from ._engine._tokenizer import TokenizerWrappable
 from ._base import Model
 
 try:
@@ -19,6 +21,8 @@ try:
     has_transformers = True
 except ModuleNotFoundError:
     has_transformers = False
+else:
+    import llguidance.hf
 
 if TYPE_CHECKING:
      from transformers import PreTrainedModel, PreTrainedTokenizer, PreTrainedTokenizerFast
@@ -48,92 +52,86 @@ class ByteTokensError(Exception):
 class TransformersTokenizer(Tokenizer):
     def __init__(
         self,
-        model: Union[str, "PreTrainedModel"],
-        transformers_tokenizer: Union[
-            "PreTrainedTokenizer",
-            "PreTrainedTokenizerFast",
-            None,
-        ],
-        chat_template=None,
-        ignore_bos_token=False,
-        **kwargs,
-    ):
-        if transformers_tokenizer is None:
-            if isinstance(model, str):
-                transformers_tokenizer, byte_tokens = self._tokenizer(model, **kwargs)
-            else:
-                raise ValueError(
-                    "A model object was passed in, but no tokenizer was provided. Please provide a tokenizer."
-                )
-        else:
-            is_ptt = isinstance(transformers_tokenizer, transformers_package.PreTrainedTokenizer)
-            is_ptt_fast = isinstance(
-                transformers_tokenizer, transformers_package.PreTrainedTokenizerFast
+        hf_tokenizer: Union["PreTrainedTokenizer", "PreTrainedTokenizerFast"],
+        chat_template: Union[str, ChatTemplate, None] = None,
+    ) -> "TransformersTokenizer":
+        self._orig_tokenizer = hf_tokenizer
+
+        if isinstance(hf_tokenizer, transformers_package.PreTrainedTokenizerFast):
+            ll_tokenizer = llguidance.hf.from_tokenizer(
+                hf_tokenizer=hf_tokenizer,
             )
-            assert is_ptt or is_ptt_fast
-            byte_tokens = self._byte_tokens(transformers_tokenizer)
-
-        self._orig_tokenizer = transformers_tokenizer
-
-        # Chat Template logic
-        if chat_template is None and hasattr(self._orig_tokenizer, "chat_template"):
-            chat_template = self._orig_tokenizer.chat_template
-
-        # the superclass does most of the work once we have the tokens
+            vocab_size = hf_tokenizer.backend_tokenizer.get_vocab_size(with_added_tokens=True)
+        else:
+            byte_tokens = self._byte_tokens(hf_tokenizer)
+            vocab_size = len(byte_tokens)
+            ll_tokenizer = TokenizerWrappable(
+                eos_token_id=hf_tokenizer.bos_token_id, # type: ignore[attr-defined]
+                bos_token_id=hf_tokenizer.eos_token_id, # type: ignore[attr-defined]
+                tokens=byte_tokens,
+                special_token_ids=[
+                    token_id for (token_id, token) in hf_tokenizer.added_tokens_decoder.items()
+                    if token.special
+                ],
+                encode_callable=hf_tokenizer.encode,
+            ).as_ll_tokenizer()
         super().__init__(
-            byte_tokens,
-            chat_template,
-            None if ignore_bos_token else transformers_tokenizer.bos_token_id,
-            transformers_tokenizer.eos_token_id,
-            special_token_ids=[
-                token_id for (token_id, token) in transformers_tokenizer.added_tokens_decoder.items()
-                if token.special
-            ]
+            ll_tokenizer=ll_tokenizer,
+            chat_template=chat_template,
+            bos_token_id=hf_tokenizer.bos_token_id,  # type: ignore[attr-defined]
         )
+        self._vocab_size = vocab_size
 
-    def _tokenizer(self, model: str, **kwargs) -> tuple[
-        Union[
-            "PreTrainedTokenizer",
-            "PreTrainedTokenizerFast",
-        ],
-        list[bytes],
-    ]:
-        # make sure transformers is installed
-        if not has_transformers:
-            raise ImportError("Please install transformers with `pip install transformers`")
-
-        try:
-            tokenizer = transformers_package.AutoTokenizer.from_pretrained(
-                model, use_fast=False, **kwargs
-            )
-            byte_tokens = self._byte_tokens(tokenizer)
-        except ImportError:
-            # Raise on ImportError because it's likely a missing dependency that the user can install
-            raise
-        except ByteTokensError as e:
-            # Give a specific warning for ByteTokensError and fall back to fast tokenizer
-            warnings.warn(
-                f"Falling back to fast tokenizer. Could not build byte tokens for model {model!r} due to exception {e.__class__.__name__}: {e}"
-            )
-        except Exception as e:
-            # Fall back for other exceptions
-            warnings.warn(
-                f"Falling back to fast tokenizer. Could not load tokenizer for model {model!r} due to exception {e.__class__.__name__}: {e}"
-            )
-        else:
-            return tokenizer, byte_tokens
-
+    @classmethod
+    def from_pretrained(
+        cls,
+        pretrained_model_name_or_path: str,
+        chat_template: Union[str, ChatTemplate, None] = None,
+        use_fast=True,
+        **kwargs
+    ) -> "TransformersTokenizer":
         tokenizer = transformers_package.AutoTokenizer.from_pretrained(
-            model, use_fast=True, **kwargs
+            pretrained_model_name_or_path,
+            use_fast=use_fast,
+            **kwargs
         )
-        try:
-            byte_tokens = self._byte_tokens(tokenizer)
-        except ByteTokensError as e:
-            raise ValueError(f"Fallback to fast tokenizer failed for model {model!r}") from e
-        return tokenizer, byte_tokens
+        return cls(
+            hf_tokenizer=tokenizer,
+            chat_template=chat_template,
+        )
 
+
+    def recode(self, tokens: list[int]) -> list[int]:
+        # the encode/decode cycle might not work if we have partial unicode strings
+        used_tokens = len(tokens)
+        for _ in range(3):
+            try:
+                first_decode = self.decode(tokens).decode("utf8")
+            except UnicodeDecodeError:
+                if used_tokens == 0:
+                    break
+                else:
+                    used_tokens -= 1
+
+        new_ids = list(self.encode(first_decode.encode("utf-8")))
+        if used_tokens < len(tokens):
+            new_ids += tokens[used_tokens:]
+
+        # HACK: check for a bug in the HuggingFace tokenizer
+        # (that will just add extra spaces during an encode-decode cycle)
+        second_decode = self._orig_tokenizer.decode(new_ids)
+        if (
+            second_decode != first_decode
+            and len(second_decode) == len(first_decode) + 1
+            and second_decode.startswith("<s>  ")
+        ):
+            new_ids = new_ids[0:1] + new_ids[2:]
+
+        return new_ids
+
+    @classmethod
     def _byte_tokens(
-        self,
+        cls,
         transformers_tokenizer: Union[
             "PreTrainedTokenizer",
             "PreTrainedTokenizerFast",
@@ -142,7 +140,7 @@ class TransformersTokenizer(Tokenizer):
 
         if hasattr(transformers_tokenizer, "byte_decoder"):
             try:
-                self._check_byte_decoder(
+                cls._check_byte_decoder(
                     transformers_tokenizer.byte_decoder, transformers_tokenizer
                 )
             except ByteDecoderError as e:
@@ -151,33 +149,34 @@ class TransformersTokenizer(Tokenizer):
                 )
                 pass
             else:
-                return self._byte_tokens_from_byte_decoder(
+                return cls._byte_tokens_from_byte_decoder(
                     transformers_tokenizer.byte_decoder, transformers_tokenizer
                 )
 
         if hasattr(transformers_tokenizer, "sp_model"):
-            return self._byte_tokens_from_sp_model(transformers_tokenizer)
+            return cls._byte_tokens_from_sp_model(transformers_tokenizer)
 
         try:
-            return self._byte_tokens_by_encoding_token_strings(transformers_tokenizer)
+            return cls._byte_tokens_by_encoding_token_strings(transformers_tokenizer)
         except ValueError as e:
             warnings.warn(
                 f"Could not build_byte tokens from the tokenizer by encoding token strings: {e}"
             )
             pass
 
-        fallback_byte_decoder = self._fallback_byte_decoder()
+        fallback_byte_decoder = cls._fallback_byte_decoder()
         try:
-            self._check_byte_decoder(fallback_byte_decoder, transformers_tokenizer)
+            cls._check_byte_decoder(fallback_byte_decoder, transformers_tokenizer)
         except ByteDecoderError as e:
             # Should be the only exception that is raised in _byte_tokens
             raise ByteTokensError(
                 "Could not build byte tokens from the tokenizer, and falling back to a standard gpt2 byte_decoder failed"
             ) from e
-        return self._byte_tokens_from_byte_decoder(fallback_byte_decoder, transformers_tokenizer)
+        return cls._byte_tokens_from_byte_decoder(fallback_byte_decoder, transformers_tokenizer)
 
+    @classmethod
     def _byte_tokens_from_byte_decoder(
-        self,
+        cls,
         byte_decoder: dict[str, int],
         transformers_tokenizer: Union[
             "PreTrainedTokenizer",
@@ -192,8 +191,9 @@ class TransformersTokenizer(Tokenizer):
             byte_tokens[i] = byte_coded
         return byte_tokens
 
+    @classmethod
     def _byte_tokens_from_sp_model(
-        self,
+        cls,
         transformers_tokenizer: Union[
             "PreTrainedTokenizer",
             "PreTrainedTokenizerFast",
@@ -216,8 +216,9 @@ class TransformersTokenizer(Tokenizer):
             byte_tokens[i] = byte_coded.replace(space_prefix, b" ")
         return byte_tokens
 
+    @classmethod
     def _byte_tokens_by_encoding_token_strings(
-        self,
+        cls,
         transformers_tokenizer: Union[
             "PreTrainedTokenizer",
             "PreTrainedTokenizerFast",
@@ -227,7 +228,7 @@ class TransformersTokenizer(Tokenizer):
         special_tokens_map = {
             id: token for token, id in transformers_tokenizer.get_added_vocab().items()
         }
-        byte_encoder = self._bytes_to_unicode()
+        byte_encoder = cls._bytes_to_unicode()
         byte_decoder = {v: k for k, v in byte_encoder.items()}
 
         for i in range(len(transformers_tokenizer)):
@@ -257,7 +258,8 @@ class TransformersTokenizer(Tokenizer):
             byte_tokens[i] = byte_coded
         return byte_tokens
 
-    def _fallback_byte_decoder(self) -> dict[str, int]:
+    @classmethod
+    def _fallback_byte_decoder(cls) -> dict[str, int]:
         byte_decoder = transformers_package.AutoTokenizer.from_pretrained(
             "gpt2", use_fast=False
         ).byte_decoder  # fall back to gpt2 mapping
@@ -271,8 +273,9 @@ class TransformersTokenizer(Tokenizer):
 
         return byte_decoder
 
+    @classmethod
     def _check_byte_decoder(
-        self,
+        cls,
         byte_decoder: dict[str, int],
         transformers_tokenizer: Union[
             "PreTrainedTokenizer",
@@ -331,7 +334,8 @@ class TransformersTokenizer(Tokenizer):
         check_byte_decoder_has_all_bytes()
         check_byte_decoder_complex_round_trip()
 
-    def _bytes_to_unicode(self):
+    @classmethod
+    def _bytes_to_unicode(cls):
         bs = (
             list(range(ord("!"), ord("~") + 1))
             + list(range(ord("¡"), ord("¬") + 1))
@@ -346,45 +350,6 @@ class TransformersTokenizer(Tokenizer):
                 n += 1
         cs = [chr(n) for n in cs]
         return dict(zip(bs, cs))
-
-    def encode(self, byte_string: bytes) -> list[int]:
-        assert isinstance(byte_string, bytes)
-        # HF tokenizers take in strings apparently
-        tokenization = self._orig_tokenizer(byte_string.decode(), add_special_tokens=False)
-        return tokenization["input_ids"]
-
-    def decode(self, tokens: Sequence[int]) -> bytes:
-        decoded_str = self._orig_tokenizer.decode(tokens)
-        return decoded_str.encode()
-
-    def recode(self, tokens: Sequence[int]) -> list[int]:
-        # the encode/decode cycle might not work if we have partial unicode strings
-        used_tokens = len(tokens)
-        for _ in range(3):
-            try:
-                first_decode = self.decode(tokens).decode("utf8")
-            except UnicodeDecodeError:
-                if used_tokens == 0:
-                    break
-                else:
-                    used_tokens -= 1
-
-        new_ids = list(self.encode(first_decode.encode("utf-8")))
-        if used_tokens < len(tokens):
-            new_ids += tokens[used_tokens:]
-
-        # HACK: check for a bug in the HuggingFace tokenizer
-        # (that will just add extra spaces during an encode-decode cycle)
-        second_decode = self._orig_tokenizer.decode(new_ids)
-        if (
-            second_decode != first_decode
-            and len(second_decode) == len(first_decode) + 1
-            and second_decode.startswith("<s>  ")
-        ):
-            new_ids = new_ids[0:1] + new_ids[2:]
-
-        return new_ids
-
 
 class TransformersEngine(Engine):
     def __init__(
@@ -445,12 +410,35 @@ class TransformersEngine(Engine):
                 passed_common_kwargs[arg_name] = kwargs[arg_name]
 
         # Create the tokenizer
+        if tokenizer is None:
+            if isinstance(model, str):
+                # Note: prioritize the fast tokenizer if available
+                tokenizer = cast(
+                    Union["PreTrainedTokenizer", "PreTrainedTokenizerFast"],
+                    transformers_package.AutoTokenizer.from_pretrained(
+                        pretrained_model_name_or_path=model,
+                        use_fast=True,
+                        **kwargs
+                    )
+                )
+            else:
+                raise ValueError(
+                    "If no tokenizer is provided, a model name must be provided to load the tokenizer."
+                )
         my_tokenizer = TransformersTokenizer(
-            model, tokenizer, chat_template, **passed_common_kwargs
+            hf_tokenizer=tokenizer,
+            chat_template=chat_template,
         )
+        self._orig_tokenizer = tokenizer
 
-        super().__init__(my_tokenizer, compute_log_probs=compute_log_probs, enable_backtrack=enable_backtrack,
-                         enable_ff_tokens=enable_ff_tokens, enable_monitoring=enable_monitoring, **kwargs)
+        super().__init__(
+            tokenizer=my_tokenizer,
+            compute_log_probs=compute_log_probs,
+            enable_backtrack=enable_backtrack,
+            enable_ff_tokens=enable_ff_tokens,
+            enable_monitoring=enable_monitoring,
+            **kwargs
+        )
 
     def _model(self, model, **kwargs) -> "PreTrainedModel":
         # intantiate the model if needed
@@ -609,7 +597,7 @@ class TransformersEngine(Engine):
             cache_token_ids.extend(new_token_ids)
             # Need to add special truncating logic here for weird models that have a different output size than tokenizer vocab
             self._cached_logits = (
-                model_out.logits[0, -1, : len(self.tokenizer.tokens)].float().cpu().numpy()
+                model_out.logits[0, -1, : self.tokenizer._vocab_size].float().cpu().numpy()
             )
             self.metrics.engine_input_tokens += len(new_token_ids)
             self.metrics.engine_output_tokens += 1
@@ -619,7 +607,7 @@ class TransformersEngine(Engine):
     def get_per_token_topk_probs(
         self, token_ids: list[int], top_k: int = 5
     ) -> list[GenTokenExtra]:
-        tokenizer = self.tokenizer._orig_tokenizer
+        tokenizer = self._orig_tokenizer
 
         # NOTE (loc) - assume batch size of 1
         input_ids = torch.tensor(token_ids).unsqueeze(0).long().to(self.device)
