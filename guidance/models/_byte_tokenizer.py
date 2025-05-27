@@ -1,5 +1,6 @@
 import numpy as np
 from ._engine import Tokenizer
+from ._engine._tokenizer import TokenizerWrappable
 from ..chat import load_template_class
 from typing import List
 
@@ -9,8 +10,20 @@ class ByteTokenizer(Tokenizer):
         all_bytes = [bytes([i]) for i in range(256)]
         bos = b"<s>"
         tokens = np.array(all_bytes + [bos], dtype="object")
-        chat_template = load_template_class(chat_template)
-        super().__init__(tokens, chat_template, bos_token_id=256)
+        ll_tokenizer = TokenizerWrappable(
+            eos_token_id=256,
+            bos_token_id=256,
+            tokens=tokens,
+            special_token_ids=[],
+            # ENCODE MUST BE OVERRIDDEN
+            encode_callable=self.encode,
+        ).as_ll_tokenizer()
+
+        super().__init__(
+            ll_tokenizer=ll_tokenizer,
+            chat_template=chat_template,
+            bos_token_id=256,
+        )
 
     def encode(self, byte_string: bytes) -> List[int]:
         """Returns a list of tokens that represent the given byte string."""

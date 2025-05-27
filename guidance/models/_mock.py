@@ -9,14 +9,30 @@ from ..trace import TraceHandler
 from ..visual._renderer import DoNothingRenderer
 from ._base import Model
 from ._engine import Engine, EngineInterpreter, EngineState, Tokenizer
+from ._engine._tokenizer import TokenizerWrappable
 
 logger = logging.getLogger(__name__)
 
 
 class MockTokenizer(Tokenizer):
     def __init__(self, tokens: Sequence[bytes], special_token_ids: Optional[list[int]] = None):
-        super().__init__(tokens, chat_template=None, bos_token_id=0, eos_token_id=0, special_token_ids=special_token_ids)
+        self.tokens = tokens
         self.byte_trie = ByteTrie(self.tokens, np.arange(len(self.tokens)))
+
+        ll_tokenizer = TokenizerWrappable(
+            eos_token_id=0,
+            bos_token_id=0,
+            tokens=tokens,
+            special_token_ids=[0],
+            # ENCODE MUST BE OVERRIDDEN
+            encode_callable=self.encode
+        ).as_ll_tokenizer()
+
+        super().__init__(
+            ll_tokenizer=ll_tokenizer,
+            chat_template=None,
+            bos_token_id=0,
+        )
 
     def encode(self, byte_string: bytes) -> list[int]:
         """Simple greedy tokenizer
