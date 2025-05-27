@@ -59,6 +59,7 @@ jobs:
           python -m pip install --upgrade pip
       # =====================================
       # Cope with sentencepiece
+      # https://github.com/guidance-ai/guidance/issues/1222
       - name: Install other packages
         shell: bash
         run: |
