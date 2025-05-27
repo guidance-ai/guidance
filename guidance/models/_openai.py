@@ -1,26 +1,19 @@
-from typing import TYPE_CHECKING, Callable, Iterator, Optional, Union
-
-from pydantic import TypeAdapter
+from typing import Optional
 
 
-from .._ast import (
-    JsonNode,
-    RuleNode,
-)
-from ..trace import OutputAttr
 from ._base import Model
-
 from ._openai_base import (
     BaseOpenAIInterpreter,
-    AudioContent,
-    OpenAIState,
     Message,
-    OpenAIImageMixin,
     OpenAIAudioMixin,
+    OpenAIImageMixin,
+    OpenAIJSONMixin,
+    OpenAIRegexMixin,
+    OpenAIRuleMixin,
 )
 
 
-class OpenAIInterpreter(BaseOpenAIInterpreter):
+class OpenAIInterpreter(OpenAIRuleMixin, OpenAIJSONMixin, OpenAIRegexMixin, BaseOpenAIInterpreter):
     def __init__(
         self,
         model: str,
@@ -64,11 +57,11 @@ class OpenAI(Model):
 
         if "audio-preview" in model:
             interpreter_cls = type(
-                "OpenAIAudioInterpreter", (OpenAIInterpreter, OpenAIAudioMixin), {}
+                "OpenAIAudioInterpreter", (OpenAIAudioMixin, OpenAIInterpreter), {}
             )
         elif model.startswith("gpt-4o") or model.startswith("o1"):
             interpreter_cls = type(
-                "OpenAIImageInterpreter", (OpenAIInterpreter, OpenAIImageMixin), {}
+                "OpenAIImageInterpreter", (OpenAIImageMixin, OpenAIInterpreter), {}
             )
         else:
             interpreter_cls = OpenAIInterpreter
