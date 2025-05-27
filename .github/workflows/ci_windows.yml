@@ -1,12 +1,13 @@
-# CI Tests which run on Linux machines
+# CI Tests which run on Windows machines
 
 # These access secrets, so should only be run on local branches.
 
 # Ideally, the CI tests would be a single workflow, but several issues
 # (especially varied OS support) mean that it is hard to keep a single
-# workflow green.
+# workflow green. If there is one OS likely to lag slightly in support
+# it is Windows
 
-name: CI Tests - Linux
+name: CI Tests - Windows
 
 on:
   workflow_dispatch:
@@ -17,11 +18,10 @@ on:
         type: string
   schedule:
     # * is a special character in YAML so we quote this string
-    # Run at 09:00 UTC every day
-    - cron:  '00 09 * * *'
+    # Run at 09:30 UTC every day
+    - cron:  '30 09 * * *'
 
 
-jobs:
   cpu_small:
     strategy:
       fail-fast: false # Don't cancel all on first failure
@@ -33,7 +33,7 @@ jobs:
           - "llamacpp_gemma2_9b_cpu"
     uses: ./.github/workflows/call_cpu_tests.yml
     with:
-      os: Large_Linux
+      os: "Large_Windows"
       python-version: ${{ matrix.python-version }}
       model: ${{ matrix.model }}
     secrets:
@@ -50,26 +50,7 @@ jobs:
           - "transformers_phi4_mini_cpu"
     uses: ./.github/workflows/call_cpu_tests.yml
     with:
-      os: Large_Linux
-      python-version: ${{ matrix.python-version }}
-      model: ${{ matrix.model }}
-    secrets:
-      HF_TOKEN: ${{ secrets.HF_TOKEN }}
-
-  gpu_tests:
-    strategy:
-      fail-fast: false # Don't cancel all on first failure
-      matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
-        model:
-          - "transformers_gpt2_gpu"
-          - "transformers_gemma2_9b_gpu"
-          - "llamacpp_llama2_7b_gpu"
-          - "transformers_gemma2_9b_cpu"  # CUDA is required for this model
-          - "transformers_phi4_mini_gpu"
-    uses: ./.github/workflows/call_gpu_tests.yml
-    with:
-      os: "gpu-runner"
+      os: "Large_Windows"
       python-version: ${{ matrix.python-version }}
       model: ${{ matrix.model }}
     secrets:

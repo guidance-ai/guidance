@@ -2,12 +2,13 @@
 
 # These access secrets, so should only be run on local branches.
 
-# Ideally, the CI tests would be a single workflow, but various issues
+# Ideally, the CI tests would be a single workflow, but several issues
 # (especially varied OS support) mean that it is hard to keep a single
 # workflow green.
 
 # MacOS has been a particular trouble due to the small disk space
-# allocations on all the VMs
+# allocations on all the VMs, leading to the --selected_model
+# machinery
 
 name: CI Tests - MacOS
 
