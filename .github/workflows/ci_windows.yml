@@ -23,7 +23,7 @@ on:
     # Run at 09:30 UTC every day
     - cron:  '30 09 * * *'
 
-
+jobs:
   cpu_small:
     strategy:
       fail-fast: false # Don't cancel all on first failure
