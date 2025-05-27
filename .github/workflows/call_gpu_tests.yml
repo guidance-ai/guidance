@@ -63,12 +63,12 @@ jobs:
       - name: Install other packages
         shell: bash
         run: |
-          python -m pip install sentencepiece accelerate
+          python -m pip install accelerate
         if: ${{ inputs.python-version != '3.13' }}
       - name: Install other packages (Hack)
         shell: bash
         run: |
-          python -m pip install dbowring-sentencepiece accelerate
+          python -m pip install accelerate
         if: ${{ inputs.python-version == '3.13' }}
       # =====================================
       - name: Install guidance in ${{ inputs.os }}
