@@ -393,6 +393,9 @@ class OpenAIImageMixin(BaseOpenAIInterpreter):
 
 
 class OpenAIAudioMixin(BaseOpenAIInterpreter):
+    # Audio models don't support logprobs
+    log_probs: bool = False
+
     def audio_blob(self, node: ImageBlob, **kwargs) -> Iterator[OutputAttr]:
         format = "wav"  # TODO: infer from node
         self.state.content.append(
