@@ -18,6 +18,7 @@ from ..._ast import (
     RoleStart,
     RuleNode,
     SelectNode,
+    SpecialToken,
     SubgrammarNode,
     SubstringNode,
     ToolCallNode,
@@ -105,6 +106,9 @@ class Interpreter(Generic[S]):
 
     def tool_call(self, node: ToolCallNode, **kwargs) -> Iterator[OutputAttr]:
         raise UnsupportedNodeError(interpreter=self, node=node)
+
+    def special_token(self, node: SpecialToken, **kwargs) -> Iterator[OutputAttr]:
+        return self.grammar(node, **kwargs)
 
 class UnsupportedNodeError(ValueError):
     def __init__(self, interpreter: Interpreter, node: ASTNode):

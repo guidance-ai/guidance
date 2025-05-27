@@ -334,6 +334,9 @@ class SpecialToken(GrammarNode):
     def is_terminal(self) -> bool:
         return True
 
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+        return interpreter.special_token(self, **kwargs)
+
 @dataclass(frozen=True)
 class LiteralNode(GrammarNode):
     value: str
