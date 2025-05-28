@@ -1,96 +1,145 @@
-from guidance._ast import ToolDefinition, SpecialToken, RuleNode
 from uuid import uuid4
-from guidance.library import json, select, string
-from guidance import guidance
 from json import loads, dumps
+from typing import Union
 import re
 
+from abc import ABC, abstractmethod
+from typing import Any
+from pydantic import BaseModel, Json
+
+from guidance._ast import ToolDefinition, SpecialToken, RuleNode, GrammarNode
+from guidance.library import json, select, string, capture
+from guidance import guidance
+
+
+class RawToolCall(BaseModel):
+    name: str
+    args: Union[dict[str, Any], Json[dict[str, Any]]]
+
+
+class ToolCallHandler(ABC):
+    def __init__(self, tools: dict[str, ToolDefinition]):
+        self.tools = tools
+
+    @abstractmethod
+    def build_grammar(self) -> GrammarNode:
+        """
+        Build the grammar for tool calls.
+        Should return a GrammarNode that matches the tool call syntax.
+        """
+        pass
+
+    @abstractmethod
+    def parse_tool_call(self, text: str) -> RawToolCall:
+        """
+        Parse the tool call from the text.
+        Should return a RawToolCall object with name and args.
+        """
+        pass
+
+    @abstractmethod
+    def format_return_value(self, value: Any) -> str:
+        """
+        Format the return value of the tool call.
+        Should return a string representation of the value.
+        """
+        pass
+
+    def invoke_tool(self, tool_call: RawToolCall) -> Any:
+        """
+        Invoke the tool with the parsed arguments.
+        Returns the result of the tool call.
+        """
+        tool_name = tool_call.name
+        if tool_name not in self.tools:
+            raise ValueError(f"Tool '{tool_name}' not found.")
+        tool_def = self.tools[tool_name]
+        args = tool_def.args.model_validate(tool_call.args).model_dump()
+        return tool_def.callable(**args)
+
+
+class Llama3FunctionToolCallHandler(ToolCallHandler):
+    expr = re.compile(
+        r"^<function=(?P<name>[^>]+)>(?P<args>\{(.|\n)*\})</function><\|eom_id\|>$"
+    )
+
+    def build_grammar(self) -> GrammarNode:
+        return (
+            RuleNode(name="trigger", lazy=True, value=string("<function="))
+            + select(
+                [
+                    f"{name}>" + json(schema=defn.args.model_json_schema())
+                    for name, defn in tools.items()
+                ],
+            )
+            + "</function>"
+            + SpecialToken("eom_id")
+        )
+
+    def parse_tool_call(self, text: str) -> RawToolCall:
+        match = self.expr.match(text)
+        if not match:
+            raise ValueError(f"Invalid tool call format: {text}")
+        return RawToolCall.model_validate(match.groupdict())
+
+    def format_return_value(self, value: Any) -> str:
+        return "<|start_header_id|>ipython<|end_header_id|>\n" + dumps(value)
+
+
+class Llama3IPythonToolCallHandler(ToolCallHandler):
+    expr = re.compile(r"^<\|python_tag\|>(?P<call>\{(.|\n)*\})<\|eom_id\|>$")
+
+    def build_grammar(self) -> GrammarNode:
+        return (
+            SpecialToken("python_tag")
+            + json(
+                schema={
+                    "oneOf": [
+                        {
+                            "type": "object",
+                            "properties": {
+                                "name": {"type": "string", "const": name},
+                                "parameters": defn.args.model_json_schema(),
+                            },
+                            "required": ["name", "parameters"],
+                        }
+                        for name, defn in self.tools.items()
+                    ]
+                }
+            )
+            + SpecialToken("eom_id")
+        )
+
+    def parse_tool_call(self, text: str) -> RawToolCall:
+        match = self.expr.match(text)
+        if not match:
+            raise ValueError(f"Invalid tool call format: {text}")
+        call_data = loads(match.group("call"))
+        return RawToolCall(name=call_data["name"], args=call_data["parameters"])
+
+    def format_return_value(self, value: Any) -> str:
+        return "<|start_header_id|>ipython<|end_header_id|>\n" + dumps(value)
+
 
 @guidance
-def to_llama3_ipython(
+def handle_tool_call(
     lm,
-    tools: dict[str, ToolDefinition]
+    handler: ToolCallHandler,
 ):
     capture_id = f"_tool_call_{uuid4().hex}"
-    grm = (
-        SpecialToken("python_tag")
-        + select(
-            [
-                json(
-                    schema={
-                        "type": "object",
-                        "properties": {
-                            "name": {"type": "string", "const": name},
-                            "parameters": defn.args.model_json_schema(),
-                        },
-                        "required": ["name", "parameters"],
-                    }
-                )
-                for name, defn in tools.items()
-            ],
-            name=capture_id,
-        )
-        + SpecialToken("eom_id")
-    )
-    # Now do the work
-    lm += grm
-    call = loads(
-        lm[capture_id]
-    )
-    tool = tools[call["name"]]
-    args = tool.args.model_validate(call["parameters"]).model_dump()
-    response = tool.callable(**args)
-    lm += (
-        SpecialToken("start_header_id")
-        + "ipython"
-        + SpecialToken("end_header_id")
-        + "\n"
-        + dumps(response)
-    )
+    grm = handler.build_grammar()
+    lm += capture(grm, name=capture_id)
+    tool_call_text = lm[capture_id]
+
+    tool_call = handler.parse_tool_call(tool_call_text)
+    response = handler.invoke_tool(tool_call)
+    lm += handler.format_return_value(response)
     return lm
 
-@guidance
-def to_llama3_function(
-    lm,
-    tools: dict[str, ToolDefinition]
-):
-    capture_id = f"_tool_call_{uuid4().hex}"
-    grm = (
-        RuleNode(
-            name="trigger",
-            lazy=True,
-            value=string("<function=")
-        )
-        + select(
-            [
-                f"{name}>" + json(schema=defn.args.model_json_schema())
-                for name, defn in tools.items()
-            ],
-            name=capture_id,
-        )
-        + "</function>"
-        + SpecialToken("eom_id")
-    )
-    # Now do the work
-    lm += grm
-    name, args = re.match(
-        r"^(.*?)>(\{.*\})$",
-        lm[capture_id]
-    ).groups()
-    tool = tools[name]
-    args = tool.args.model_validate_json(args).model_dump()
-    response = tool.callable(**args)
-    lm += (
-        SpecialToken("start_header_id")
-        + "ipython"
-        + SpecialToken("end_header_id")
-        + "\n"
-        + dumps(response)
-    )
-    return lm
 
 from guidance import *
 from guidance.chat import Llama3ChatTemplate
+
 model = models.LlamaCpp(chat_template=Llama3ChatTemplate, n_ctx=4096)
 
 lm = model
@@ -124,9 +173,17 @@ Reminder:
 
 Use tools to get latest trending songs"""
 
+
 def trending_songs(genre: str = None, n: int = 5):
     """Returns the trending songs on a Music site"""
-    return ["1. BIRDS OF A FEATHER by Billie Eilish", "2. Espresso by Sabrina Carpenter", "3. Please Please Please by Sabrina Carpenter", "4. Not Like Us by Kendrick Lamar", "5. Gata Only by FloyyMenor, Cris Mj"][:n]
+    return [
+        "1. BIRDS OF A FEATHER by Billie Eilish",
+        "2. Espresso by Sabrina Carpenter",
+        "3. Please Please Please by Sabrina Carpenter",
+        "4. Not Like Us by Kendrick Lamar",
+        "5. Gata Only by FloyyMenor, Cris Mj",
+    ][:n]
+
 
 tools = {
     "trending_songs": ToolDefinition.from_callable(
@@ -135,8 +192,9 @@ tools = {
 }
 
 with assistant():
-    lm += to_llama3_function(
-        tools
+    lm += handle_tool_call(
+        # Llama3FunctionToolCallHandler(tools=tools)
+        Llama3IPythonToolCallHandler(tools=tools)
     )
 
 with assistant():
