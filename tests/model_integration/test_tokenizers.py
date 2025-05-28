@@ -33,3 +33,7 @@ class TestUnauthenticatedTransformerTokenizers(BaseTestTransformerTokenizers):
     @pytest.mark.parametrize("target_string", TOKENIZER_ROUND_TRIP_STRINGS)
     def test_string_roundtrip(self, model_name: str, target_string: str):
         self.base_string_roundtrip(model_name, target_string)
+
+    @pytest.mark.parametrize("model_name", TRANSFORMER_MODELS)
+    def test_eos_bos_token_round_trip(self, model_name: str):
+        self.base_eos_bos_token_round_trip(model_name)
