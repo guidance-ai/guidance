@@ -41,7 +41,12 @@ jobs:
           python -m pip install -e .[unittest]
       - name: Unit Tests
         run: |
-          pytest -vv ./tests/unit
+          pytest -vv --cov=guidance --cov-report=xml --cov-report=term-missing \
+            ./tests/unit
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
 
   cpu_tests:
     strategy:
