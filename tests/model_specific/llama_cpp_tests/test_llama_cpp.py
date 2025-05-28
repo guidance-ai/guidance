@@ -1,13 +1,12 @@
+import pytest
 import platform
 import sys
-import warnings
 
 import numpy as np
 import pytest
 
 import guidance
 from guidance import gen, select
-
 
 from tests.tokenizer_common import TOKENIZER_ROUND_TRIP_STRINGS
 
@@ -122,13 +121,16 @@ def test_repeat_calls(llamacpp_model: guidance.models.Model, selected_model_name
         lm = llama2 + "How much is 2 + 2? " + gen(name="test", max_tokens=10, temperature=0)
         a.append(lm["test"])
         assert a[-1] == a[0]
-
-        assert not expect_failure, "Unexpected pass"
     except AssertionError:
         if expect_failure:
-            warnings.warn("Got expected failure")
+            pytest.xfail(f"Expected failure for {selected_model_name}")
         else:
+            # Unexpected failure, raise the error
             raise
+    else:
+        if expect_failure:
+            # Simulate an XPASS (no pytest.xpass)
+            pytest.fail(f"XPASS: unexpected pass for {selected_model_name}")
 
 
 def test_suffix(llamacpp_model: guidance.models.Model):

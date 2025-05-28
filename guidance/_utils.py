@@ -11,6 +11,7 @@ import numpy as np
 import logging
 from typing import Union, cast
 import pathlib
+import pydantic
 import urllib
 import http
 import re
@@ -271,34 +272,34 @@ def softmax(array: np.ndarray, axis: int = -1) -> np.ndarray:
     return exp_x_shifted / np.sum(exp_x_shifted, axis=axis, keepdims=True)
 
 
-def pydantic_no_default_repr(obj, target_fields=None):
+def pydantic_no_default_repr(obj: pydantic.BaseModel, target_fields=None):
     if target_fields is None:
         records = (
             f'{getattr(obj, name)!r}'
-            for name, field in obj.model_fields.items()
+            for name, field in obj.__class__.model_fields.items()
             if getattr(obj, name) != field.default and not field.exclude
         )
     else:
         records = (
             f'{getattr(obj, name)!r}'
-            for name, field in obj.model_fields.items()
+            for name, field in obj.__class__.model_fields.items()
             if getattr(obj, name) != field.default and not field.exclude and name in target_fields
         )
     out = f'{type(obj).__name__}:{":".join(records)}'
     return out
 
 
-def pydantic_no_default_str(obj, target_fields=None):
+def pydantic_no_default_str(obj: pydantic.BaseModel, target_fields=None):
     if target_fields is None:
         records = (
             f'{getattr(obj, name)!s}'
-            for name, field in obj.model_fields.items()
+            for name, field in obj.__class__.model_fields.items()
             if getattr(obj, name) != field.default and not field.exclude
         )
     else:
         records = (
             f'{getattr(obj, name)!s}'
-            for name, field in obj.model_fields.items()
+            for name, field in obj.__class__.model_fields.items()
             if getattr(obj, name) != field.default and not field.exclude and name in target_fields
         )
     out = "\n".join(records)
