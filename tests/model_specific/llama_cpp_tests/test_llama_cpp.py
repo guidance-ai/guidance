@@ -231,3 +231,13 @@ class TestLlamaCppTokenizers:
         final_string = decoded.decode()
 
         assert final_string == target_string
+
+    def test_eos_bos_token_round_trip(self, llamacpp_model: guidance.models.LlamaCpp):
+        my_tok = llamacpp_model.engine.tokenizer
+
+        assert my_tok.eos_token == my_tok.decode([my_tok.eos_token_id])
+        assert my_tok.encode(my_tok.eos_token) == [my_tok.eos_token_id]
+
+        if my_tok.bos_token is not None:
+            assert my_tok.bos_token == my_tok.decode([my_tok.bos_token_id])
+            assert my_tok.encode(my_tok.bos_token) == [my_tok.bos_token_id]
