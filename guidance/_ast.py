@@ -332,7 +332,7 @@ class SpecialToken(GrammarNode):
 
     @property
     def is_terminal(self) -> bool:
-        return True
+        return False
 
     def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
         return interpreter.special_token(self, **kwargs)
