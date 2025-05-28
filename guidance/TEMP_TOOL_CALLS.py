@@ -60,10 +60,11 @@ class ToolCallHandler(ABC):
 
 class Llama3FunctionToolCallHandler(ToolCallHandler):
     expr = re.compile(
-        r"^<function=(?P<name>[^>]+)>(?P<args>\{(.|\n)*\})</function><\|eom_id\|>$"
+        r"^<function=(?P<name>[^>]+)>(?P<args>\{(.|\n)*\})</function><\|eot_id\|>$"
     )
 
     def build_grammar(self) -> GrammarNode:
+        # https://github.com/meta-llama/llama-models/blob/main/models/llama3_1/prompt_format.md#model-response-format-6
         return (
             RuleNode(name="trigger", lazy=True, value=string("<function="))
             + select(
@@ -73,7 +74,7 @@ class Llama3FunctionToolCallHandler(ToolCallHandler):
                 ],
             )
             + "</function>"
-            + SpecialToken("eom_id")
+            + SpecialToken("eot_id") # eom / eot depends on "environment"?
             + "\n"
         )
 
@@ -91,6 +92,7 @@ class Llama3IPythonToolCallHandler(ToolCallHandler):
     expr = re.compile(r"^<\|python_tag\|>(?P<call>\{(.|\n)*\})<\|eom_id\|>$")
 
     def build_grammar(self) -> GrammarNode:
+        # https://github.com/meta-llama/llama-models/blob/main/models/llama3_1/prompt_format.md#model-response-format-5
         return (
             SpecialToken("python_tag")
             + json(
@@ -99,16 +101,18 @@ class Llama3IPythonToolCallHandler(ToolCallHandler):
                         {
                             "type": "object",
                             "properties": {
+                                "type": {"type": "string", "const": "function"},
                                 "name": {"type": "string", "const": name},
                                 "parameters": defn.args.model_json_schema(),
                             },
+                            # type is optional?
                             "required": ["name", "parameters"],
                         }
                         for name, defn in self.tools.items()
                     ]
                 }
             )
-            + SpecialToken("eom_id")
+            + SpecialToken("eom_id") # eom / eot depends on "environment"?
             + "\n"
         )
 
