@@ -69,9 +69,9 @@ class Tokenizer:
     def __call__(self, byte_string: bytes):
         return self.encode(byte_string)
 
-    def encode(self, byte_string: bytes) -> list[int]:
+    def encode(self, byte_string: bytes, *, parse_special: bool = True) -> list[int]:
         """Returns a list of tokens that represent the given byte string."""
-        return self._ll_tokenizer.tokenize_bytes(byte_string)
+        return self._ll_tokenizer.tokenize_bytes(byte_string, parse_special=parse_special)
 
     def decode(self, tokens: Sequence[int]) -> bytes:
         """Returns the bytes represented by the given list of tokens."""
