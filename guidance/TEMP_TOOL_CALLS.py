@@ -74,6 +74,7 @@ class Llama3FunctionToolCallHandler(ToolCallHandler):
             )
             + "</function>"
             + SpecialToken("eom_id")
+            + "\n"
         )
 
     def parse_tool_call(self, text: str) -> RawToolCall:
@@ -83,7 +84,7 @@ class Llama3FunctionToolCallHandler(ToolCallHandler):
         return RawToolCall.model_validate(match.groupdict())
 
     def format_return_value(self, value: Any) -> str:
-        return "<|start_header_id|>ipython<|end_header_id|>\n" + dumps(value)
+        return "<|start_header_id|>ipython<|end_header_id|>\n\n" + dumps(value)
 
 
 class Llama3IPythonToolCallHandler(ToolCallHandler):
@@ -108,6 +109,7 @@ class Llama3IPythonToolCallHandler(ToolCallHandler):
                 }
             )
             + SpecialToken("eom_id")
+            + "\n"
         )
 
     def parse_tool_call(self, text: str) -> RawToolCall:
@@ -118,7 +120,7 @@ class Llama3IPythonToolCallHandler(ToolCallHandler):
         return RawToolCall(name=call_data["name"], args=call_data["parameters"])
 
     def format_return_value(self, value: Any) -> str:
-        return "<|start_header_id|>ipython<|end_header_id|>\n" + dumps(value)
+        return "<|start_header_id|>ipython<|end_header_id|>\n\n" + dumps(value)
 
 
 @guidance
