@@ -230,9 +230,6 @@ class GrammarNode(Tagged, ASTNode):
     def children(self) -> Sequence["GrammarNode"]:
         return ()
 
-    def __repr__(self) -> str:
-        return self.lark_str()
-
     def __add__(self, other) -> "GrammarNode":
         if not isinstance(other, (str, GrammarNode)):
             return NotImplemented
@@ -463,10 +460,6 @@ class RuleNode(GrammarNode):
             and self.value.is_terminal
         )
 
-    def children(self) -> Sequence["GrammarNode"]:
-        # What happens if value is a BaseSubGrammarNode?
-        return (self.value,)
-
     def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
         return interpreter.rule(self, **kwargs)
 
@@ -605,8 +598,6 @@ class LarkSerializer:
                         lark_grammar += f"\n%ignore /{target.skip_regex}/"
                     res += f"%lark {{\n{textwrap.indent(lark_grammar, '  ').strip()}\n}}"
                 else:
-                    if TYPE_CHECKING:
-                        assert_never(target)
                     raise TypeError(f"Unknown subgrammar type: {target}")
             else:
                 if TYPE_CHECKING:
