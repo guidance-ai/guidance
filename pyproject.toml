@@ -13,13 +13,6 @@ markers = [
     "asyncio: Make async tests to run"
 ]
 
-[tool.black]
-line-length = 99
-target_version = ['py39', 'py310', 'py311', 'py312']
-
-[tool.isort]
-profile = "black"
-
 [tool.mypy]
 no_implicit_optional = false  # TODO: PEP484, set to true
 strict = false  # TODO: set to true
@@ -60,3 +53,14 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = "tokenizers.*"
 ignore_missing_imports = true
+
+[tool.ruff]
+exclude = [
+    ".eggs",
+    ".git",
+    ".ipynb"
+]
+line-length = 99
+
+# Assume Python 3.9
+target-version = "py39"
