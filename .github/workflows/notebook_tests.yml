@@ -55,21 +55,7 @@ jobs:
         shell: bash
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-          # Configure endpoints for Azure OpenAI
-          AZUREAI_CHAT_ENDPOINT: ${{ vars.AZUREAI_CHAT_ENDPOINT }}
-          AZUREAI_CHAT_MODEL: ${{ vars.AZUREAI_CHAT_MODEL }}
-          AZUREAI_COMPLETION_ENDPOINT: ${{ vars.AZUREAI_COMPLETION_ENDPOINT }}
-          AZUREAI_COMPLETION_MODEL: ${{ vars.AZUREAI_COMPLETION_MODEL }}
-          # Configure endpoints for Azure AI Studio
-          AZURE_AI_STUDIO_PHI3_ENDPOINT: ${{ vars.AZURE_AI_STUDIO_PHI3_ENDPOINT }}
-          AZURE_AI_STUDIO_PHI3_DEPLOYMENT: ${{ vars.AZURE_AI_STUDIO_PHI3_DEPLOYMENT }}
-          AZURE_AI_STUDIO_PHI3_KEY: ${{ secrets.AZURE_AI_STUDIO_PHI3_KEY }}
-          AZURE_AI_STUDIO_MISTRAL_CHAT_ENDPOINT: ${{ vars.AZURE_AI_STUDIO_MISTRAL_CHAT_ENDPOINT }}
-          AZURE_AI_STUDIO_MISTRAL_CHAT_DEPLOYMENT: ${{ vars.AZURE_AI_STUDIO_MISTRAL_CHAT_DEPLOYMENT }}
-          AZURE_AI_STUDIO_MISTRAL_CHAT_KEY: ${{ secrets.AZURE_AI_STUDIO_MISTRAL_CHAT_KEY }}
-          AZURE_AI_STUDIO_LLAMA3_CHAT_ENDPOINT: ${{ vars.AZURE_AI_STUDIO_LLAMA3_CHAT_ENDPOINT }}
-          AZURE_AI_STUDIO_LLAMA3_CHAT_DEPLOYMENT: ${{ vars.AZURE_AI_STUDIO_LLAMA3_CHAT_DEPLOYMENT }}
-          AZURE_AI_STUDIO_LLAMA3_CHAT_KEY: ${{ secrets.AZURE_AI_STUDIO_LLAMA3_CHAT_KEY }}
+          # Configure endpoints
         run: |
           pytest -vv --cov=guidance --cov-report=xml --cov-report=term-missing \
             ./tests/notebooks
