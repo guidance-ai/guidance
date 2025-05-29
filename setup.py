@@ -98,6 +98,8 @@ bench_requires = [
     "powerlift",
 ]
 
+dev_requires = ["ruff=0.11.11"]
+
 
 def read(*parts):
     with codecs.open(os.path.join(here, *parts), "r") as fp:
@@ -132,6 +134,7 @@ setup(
         "test": test_requires,
         "docs": doc_requires,
         "bench": bench_requires,
+        "dev": dev_requires,
         **extras_requires,
     },
 )
