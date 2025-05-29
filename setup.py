@@ -98,7 +98,7 @@ bench_requires = [
     "powerlift",
 ]
 
-dev_requires = ["ruff=0.11.11"]
+dev_requires = ["ruff==0.11.11"]
 
 
 def read(*parts):
