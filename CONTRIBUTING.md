@@ -68,7 +68,12 @@ See `test_azureai_openai.py` for examples of this being done.
 
 ## Linting
 
-We run `black` on our codebase, and plan to turn on enforcement of this in the GitHub workflows soon.
+We use `ruff` to format our codebase.
+To install the correct version, run `pip install -e .[dev]`.
+You can then run `ruff format /path/to/modified/file.py` to format the code.
+The path can be an entire directory, or omitted entirely to format all files beneath the current directory.
+To sort imports, use `ruff check --select I /path/to/modified/file.py`.
+These commands are run (but not enforced *yet*) in the build.
 
 
 ---
