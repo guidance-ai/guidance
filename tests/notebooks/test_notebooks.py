@@ -35,21 +35,9 @@ def test_guarantee_valid_syntax():
 class TestTutorials:
     BASE_TUTORIAL_PATH = BASE_NB_PATH / "tutorials"
 
-    @pytest.mark.skip(reason="resource has been temporarily blocked")
     def test_chat(self):
         call_delay_secs = slowdown()
 
-        azureai_endpoint = env_or_skip("AZUREAI_CHAT_ENDPOINT")
-
-        parsed_url = urlparse(azureai_endpoint)
-        parsed_query = parse_qs(parsed_url.query)
-        azureai_deployment = pathlib.Path(parsed_url.path).parts[3]
-        version = parsed_query["api-version"]
-        min_azureai_endpoint = f"{parsed_url.scheme}://{parsed_url.netloc}"
-
-        os.environ["AZUREAI_CHAT_BASE_ENDPOINT"] = min_azureai_endpoint
-        os.environ["AZUREAI_CHAT_API_VERSION"] = version[0]
-        os.environ["AZUREAI_CHAT_DEPLOYMENT"] = azureai_deployment
         nb_path = TestTutorials.BASE_TUTORIAL_PATH / "chat.ipynb"
         run_notebook(
             nb_path,
@@ -58,7 +46,6 @@ class TestTutorials:
             ),
         )
 
-    @pytest.mark.xfail(reason="Issue #1004")
     def test_regex_constraints(self):
         nb_path = TestTutorials.BASE_TUTORIAL_PATH / "regex_constraints.ipynb"
         run_notebook(nb_path)
