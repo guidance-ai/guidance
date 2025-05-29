@@ -38,9 +38,9 @@
 
   const tokenDisplayValue = (x: Token, s: string) => {
     if (s === "Probability") {
-      return x.prob.toFixed(3);
+      return x.prob?.toFixed(3);
     } else if (s === "Latency (ms)") {
-      return x.latency_ms.toFixed(0);
+      return x.latency_ms?.toFixed(0);
     } else if (s === "Type") {
       if (x.is_input) {
         return "Input";
@@ -503,7 +503,7 @@
                   <td
                     class={`px-1 text-right font-mono text-sm decoration-2 ${candidate.is_masked ? "line-through" : ""}`}
                   >
-                    {candidate.prob.toFixed(3)}
+                    {candidate.prob?.toFixed(3)}
                   </td>
                 </tr>
               {/each}
