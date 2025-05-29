@@ -71,7 +71,7 @@ See `test_azureai_openai.py` for examples of this being done.
 We use `ruff` to format our codebase.
 To install the correct version, run `pip install -e .[dev]`.
 You can then run `ruff format /path/to/modified/file.py` to format the code.
-The path can be an entire directory, or omitted entirely to format all files beneath the current directory.
+The path can also be an entire directory, or omitted entirely to format all files beneath the current directory.
 There are (rare) cases where manual formatting is preferable; for these [`ruff` provides pragmas for suppression](https://docs.astral.sh/ruff/formatter/#format-suppression).
 To sort imports, use `ruff check --select I /path/to/modified/file.py`.
 These commands are run (but not enforced *yet*) in the build.
