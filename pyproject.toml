@@ -57,10 +57,12 @@ ignore_missing_imports = true
 # =======================================================
 
 [tool.ruff]
+# Override ruff's default include
+# Because notebooks are tougher
+include = [ "*.py", "*.pyi", "pyproject.toml" ]
 exclude = [
     ".eggs",
     ".git",
-    ".ipynb"
 ]
 line-length = 99
 
