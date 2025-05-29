@@ -18,7 +18,18 @@ def run_notebook(notebook_path: pathlib.Path, params: Optional[Dict[str, Any]] =
     output_path = notebook_path.parent / output_nb
 
     # Just make sure nothing throws an exception
-    pm.execute_notebook(input_path=notebook_path, output_path=output_path, parameters=params)
+    pm.execute_notebook(
+        input_path=notebook_path, output_path=output_path, parameters=params
+    )
+
+
+def test_guarantee_valid_syntax():
+    call_delay_secs = slowdown()
+    nb_path = BASE_NB_PATH / "guaranteeing_valid_syntax.ipynb"
+    run_notebook(
+        nb_path,
+        params=dict(call_delay_secs=call_delay_secs, requested_log_level=logging.DEBUG),
+    )
 
 
 class TestTutorials:
@@ -42,7 +53,9 @@ class TestTutorials:
         nb_path = TestTutorials.BASE_TUTORIAL_PATH / "chat.ipynb"
         run_notebook(
             nb_path,
-            params=dict(call_delay_secs=call_delay_secs, requested_log_level=logging.DEBUG),
+            params=dict(
+                call_delay_secs=call_delay_secs, requested_log_level=logging.DEBUG
+            ),
         )
 
     @pytest.mark.xfail(reason="Issue #1004")
@@ -83,13 +96,18 @@ class TestArtOfPromptDesign:
 
     @pytest.mark.skip(reason="Having trouble running")
     def test_prompt_boundaries_and_token_healing(self):
-        nb_path = TestArtOfPromptDesign.BASE_APD_PATH / "prompt_boundaries_and_token_healing.ipynb"
+        nb_path = (
+            TestArtOfPromptDesign.BASE_APD_PATH
+            / "prompt_boundaries_and_token_healing.ipynb"
+        )
         run_notebook(nb_path)
 
     def test_react(self, selected_model_name):
         if selected_model_name in ["transformers_phi2_gpu"]:
             # I don't know why; it doesn't make sense, but
-            msg = f"react notebook disagrees with {selected_model_name}; reasons obscure"
+            msg = (
+                f"react notebook disagrees with {selected_model_name}; reasons obscure"
+            )
             pytest.skip(msg)
         nb_path = TestArtOfPromptDesign.BASE_APD_PATH / "react.ipynb"
         run_notebook(nb_path)
