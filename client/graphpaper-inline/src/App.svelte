@@ -11,6 +11,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
     clientmsg,
     type GuidanceMessage,
     isAudioOutput,
+    isBacktrackMessage,
     isClientReadyAckMessage,
     isExecutionCompletedMessage,
     isExecutionStartedMessage,
@@ -92,6 +93,12 @@ For upcoming features, we won't be able to send all details over the wire, and w
         appState.components.push(msg.node_attr);
       } else if (isVideoOutput(msg.node_attr)) {
         appState.components.push(msg.node_attr);
+      } else if (isBacktrackMessage(msg.node_attr)) {
+        let numBacktrack = msg.node_attr.n_tokens;
+        console.log(`Backtracking ${numBacktrack} tokens.`);
+        for (let i = 0; i < numBacktrack; i++) {
+          appState.components.pop();
+        }
       } else {
         console.log("Unknown trace msg node_attr: ", msg)
       }
@@ -196,7 +203,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
 
 <StitchHandler />
 <ResizeListener />
-<div class="w-full min-h-72">
+<div class="w-full">
   <nav class="sticky top-0 z-50 opacity-90">
     <section class="">
       <div class="text-sm pt-2 pb-2 flex justify-between border-b border-gray-200">
@@ -218,11 +225,17 @@ For upcoming features, we won't be able to send all details over the wire, and w
     </section>
   </nav>
 
+  {#if appState.components.length > 0}
   <!-- Content pane -->
-  <section class="w-full">
+  <section class="w-full min-h-32">
     <TokenGrid components={appState.components}
                isCompleted={['Done', 'Error'].includes(appState.status)}
                isError={appState.status === Status.Error}
                bgField={bgField} underlineField={underlineField} requireFullReplay="{appState.requireFullReplay}" />
   </section>
+  {:else}
+  <div class="flex items-center justify-center py-6">
+    <span class="text-gray-500 text-lg">No tokens to display.</span>
+  </div>
+  {/if}
 </div>

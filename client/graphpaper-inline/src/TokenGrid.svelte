@@ -449,7 +449,7 @@
                   </td>
                   <td class="text-right">
                     <span class="pl-1">
-                      {tokenDisplayValue(tooltipToken, bgField)}
+                      {tokenDisplayValue(tooltipToken, bgField) ?? "None"}
                     </span>
                   </td>
                 </tr>
@@ -463,7 +463,7 @@
                   </td>
                   <td class="text-right">
                     <span>
-                      {tokenDisplayValue(tooltipToken, underlineField)}
+                      {tokenDisplayValue(tooltipToken, underlineField) ?? "None"}
                     </span>
                   </td>
                 </tr>

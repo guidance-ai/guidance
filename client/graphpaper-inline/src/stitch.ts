@@ -29,7 +29,7 @@ export interface Token {
 }
 
 export interface BacktrackMessage extends NodeAttr {
-    class_name: 'BacktrackMessage',
+    class_name: 'Backtrack',
     n_tokens: number,
     bytes: string,
 }
@@ -125,6 +125,11 @@ export function isGuidanceMessage(o: GuidanceMessage | undefined | null): o is G
 export function isTraceMessage(o: GuidanceMessage | undefined | null): o is TraceMessage {
     if (o === undefined || o === null) return false;
     return o.class_name === "TraceMessage";
+}
+
+export function isBacktrackMessage(o: NodeAttr | undefined | null): o is BacktrackMessage {
+    if (o === undefined || o === null) return false;
+    return o.class_name === "Backtrack";
 }
 
 export function isRoleOpenerInput(o: NodeAttr | undefined | null): o is RoleOpenerInput {
