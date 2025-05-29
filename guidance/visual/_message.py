@@ -14,12 +14,10 @@ class GuidanceMessage(BaseModel):
     """Message sent within Guidance layer."""
 
     message_id: int = Field(default_factory=count().__next__)
-    class_name: str
+    class_name: Optional[str] = None
 
-    def __init__(self, **kwargs):
-        kwargs["class_name"] = self.__class__.__name__
-        super().__init__(**kwargs)
-
+    def model_post_init(self, context):
+        self.class_name = self.__class__.__name__
 
 class TraceMessage(GuidanceMessage):
     """Update on a trace node."""
