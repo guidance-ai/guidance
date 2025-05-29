@@ -76,7 +76,7 @@ class EngineInterpreter(Interpreter[EngineState]):
             if chunk.backtrack:
                 yield Backtrack(
                     n_tokens=chunk.backtrack,
-                    bytes=chunk.backtrack_bytes,
+                    bytes=b64encode(chunk.backtrack_bytes),
                 )
 
             for token in chunk.tokens:
@@ -106,7 +106,7 @@ class EngineInterpreter(Interpreter[EngineState]):
                 if token.is_backtracked:
                     yield Backtrack(
                         n_tokens=1,
-                        bytes=token.bytes,
+                        bytes=b64encode(token.bytes),
                     )
 
             for name in chunk.capture_groups.keys():

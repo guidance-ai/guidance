@@ -34,7 +34,7 @@ class TokenParser:
         enable_ff_tokens: bool = True,
     ):
         self.tokenizer = tokenizer
-        self.ll_tokenizer = llguidance.LLTokenizer(llguidance.TokenizerWrapper(tokenizer))
+        self.ll_tokenizer = tokenizer._ll_tokenizer
         self.ll_interpreter = llguidance.LLInterpreter(
             self.ll_tokenizer,
             grammar,

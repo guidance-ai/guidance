@@ -227,7 +227,7 @@ class Engine(ABC):
                     gen_tokens.append(
                         GenToken(
                             token_id=token_id,
-                            bytes=self.tokenizer.tokens[token_id],
+                            bytes=self.tokenizer.decode([token_id]),
                             # amortize latency
                             latency_ms=ff_lat_ms/len(ff_tokens),
                             is_input=True,
@@ -244,7 +244,7 @@ class Engine(ABC):
                     gen_tokens.append(
                         GenToken(
                             token_id=token_id,
-                            bytes=self.tokenizer.tokens[token_id],
+                            bytes=self.tokenizer.decode([token_id]),
                             # amortize latency
                             latency_ms=ff_lat_ms/len(ff_tokens[ff_start_index:]),
                             is_force_forwarded=True,
