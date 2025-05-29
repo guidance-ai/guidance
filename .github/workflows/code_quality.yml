@@ -40,6 +40,8 @@ jobs:
         id: check_import
         continue-on-error: true
         run: |
+          # This is separate from formatting. See:
+          # https://docs.astral.sh/ruff/formatter/#sorting-imports
           if ! ruff check --select I; then
             echo "::warning title=ruff import::Files need import sorting (run 'ruff check --select I' locally)"
             exit 78  # no longer works in github, but would mark action step with a warning
