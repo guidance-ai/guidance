@@ -217,12 +217,21 @@ class GrammarNode(Tagged, ASTNode):
         return False
 
     @property
-    def is_terminal(self) -> bool:
+    def is_allowed_in_lark_terminal(self) -> bool:
         """
         If this returns true, then this node will be compiled down to a regular expression.
         It cannot be recursive.
         """
-        return all(child.is_terminal for child in self.children())
+        return all(child.is_allowed_in_lark_terminal for child in self.children())
+
+    @property
+    def is_allowed_in_lark_rule_with_attrs(self) -> bool:
+        """
+        If this returns true, then this node can be used as a Lark rule with attributes.
+        """
+        # Typically, not being allowed in terminal implies that a node is not allowed in a rule with attributes,
+        # however this is notably false for subgrammars
+        return self.is_allowed_in_lark_terminal
 
     def simplify(self) -> "GrammarNode":
         return self
@@ -408,7 +417,7 @@ class SubstringNode(GrammarNode):
     chunks: tuple[str, ...]
 
     @property
-    def is_terminal(self) -> bool:
+    def is_allowed_in_lark_terminal(self) -> bool:
         # this can be used as part of bigger regexes
         return True
 
@@ -424,7 +433,7 @@ class SubstringNode(GrammarNode):
 @dataclass(frozen=True)
 class RuleNode(GrammarNode):
     name: str
-    value: Union[GrammarNode, "BaseSubgrammarNode"]
+    value: Union[GrammarNode]
     capture: Optional[str] = None
     list_append: bool = False
     temperature: Optional[float] = None
@@ -440,13 +449,13 @@ class RuleNode(GrammarNode):
             or self.stop is not None
             or self.suffix is not None
             or self.stop_capture is not None
-        ) and not (isinstance(self.value, BaseSubgrammarNode) or self.value.is_terminal):
+        ) and not self.value.is_allowed_in_lark_rule_with_attrs:
             raise ValueError(
                 "RuleNode is not terminal, so it cannot have a temperature, max_tokens, or stop condition"
             )
 
     @property
-    def is_terminal(self) -> bool:
+    def is_allowed_in_lark_terminal(self) -> bool:
         return (
             (
                 self.capture is None
@@ -456,9 +465,11 @@ class RuleNode(GrammarNode):
                 and self.suffix is None
                 and self.stop_capture is None
             )
-            and not isinstance(self.value, BaseSubgrammarNode)
-            and self.value.is_terminal
+            and super().is_allowed_in_lark_terminal
         )
+
+    def children(self) -> tuple[GrammarNode]:
+        return (self.value,)
 
     def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
         return interpreter.rule(self, **kwargs)
@@ -474,7 +485,7 @@ class RuleRefNode(GrammarNode):
         object.__setattr__(self, "target", target)
 
     @property
-    def is_terminal(self) -> bool:
+    def is_allowed_in_lark_terminal(self) -> bool:
         # RuleRefNode should only ever be used to enable recursive rule definitions,
         # so it should never be terminal.
         return False
@@ -484,11 +495,16 @@ class RuleRefNode(GrammarNode):
             raise ValueError("RuleRefNode target not set")
         return interpreter.rule(self.target)
 
-
 @dataclass(frozen=True)
-class BaseSubgrammarNode(ASTNode):
-    pass
-
+class BaseSubgrammarNode(GrammarNode):
+    @property
+    def is_allowed_in_lark_terminal(self) -> bool:
+        return False
+    @property
+    def is_allowed_in_lark_rule_with_attrs(self) -> bool:
+        # Typically, not being allowed in terminal implies that a node is not allowed in a rule with attributes,
+        # however this is notably false for subgrammars
+        return True
 
 @dataclass(frozen=True)
 class SubgrammarNode(BaseSubgrammarNode):
@@ -549,7 +565,7 @@ class LarkSerializer:
             if node in self.names:
                 return self.names[node]
 
-            name = self.normalize_name(node.name, node.is_terminal)
+            name = self.normalize_name(node.name, node.is_allowed_in_lark_terminal)
             names = set(self.names.values())
             if name in names:
                 i = 1
@@ -583,9 +599,8 @@ class LarkSerializer:
             
             res += ": "
             target = node.value
-            if isinstance(target, GrammarNode):
-                res += self.visit(target.simplify(), top=True)
-            elif isinstance(target, BaseSubgrammarNode):
+            if isinstance(target, BaseSubgrammarNode):
+                assert not attrs
                 if isinstance(target, JsonNode):
                     res += "%json " + json.dumps(target.schema, indent=2)
                 elif isinstance(target, LarkNode):
@@ -598,7 +613,9 @@ class LarkSerializer:
                         lark_grammar += f"\n%ignore /{target.skip_regex}/"
                     res += f"%lark {{\n{textwrap.indent(lark_grammar, '  ').strip()}\n}}"
                 else:
-                    raise TypeError(f"Unknown subgrammar type: {target}")
+                    raise TypeError(f"Unknown subgrammar node type: {target}")
+            elif isinstance(target, GrammarNode):
+                res += self.visit(target.simplify(), top=True)
             else:
                 if TYPE_CHECKING:
                     assert_never(target)
