@@ -599,21 +599,17 @@ class LarkSerializer:
             
             res += ": "
             target = node.value
-            if isinstance(target, BaseSubgrammarNode):
-                assert not attrs
-                if isinstance(target, JsonNode):
-                    res += "%json " + json.dumps(target.schema, indent=2)
-                elif isinstance(target, LarkNode):
-                    # TODO: we can't decide whether or not to enforce max tokens here easily.
-                    # We could in principle parse the grammar and/or use a regex?
-                    res += f"%lark {{\n{textwrap.indent(target.lark_grammar, '  ').strip()}\n}}"
-                elif isinstance(target, SubgrammarNode):
-                    lark_grammar = LarkSerializer(enforce_max_tokens=self.enforce_max_tokens).serialize(target.body)
-                    if target.skip_regex:
-                        lark_grammar += f"\n%ignore /{target.skip_regex}/"
-                    res += f"%lark {{\n{textwrap.indent(lark_grammar, '  ').strip()}\n}}"
-                else:
-                    raise TypeError(f"Unknown subgrammar node type: {target}")
+            if isinstance(target, JsonNode):
+                res += "%json " + json.dumps(target.schema, indent=2)
+            elif isinstance(target, LarkNode):
+                # TODO: we can't decide whether or not to enforce max tokens here easily.
+                # We could in principle parse the grammar and/or use a regex?
+                res += f"%lark {{\n{textwrap.indent(target.lark_grammar, '  ').strip()}\n}}"
+            elif isinstance(target, SubgrammarNode):
+                lark_grammar = LarkSerializer(enforce_max_tokens=self.enforce_max_tokens).serialize(target.body)
+                if target.skip_regex:
+                    lark_grammar += f"\n%ignore /{target.skip_regex}/"
+                res += f"%lark {{\n{textwrap.indent(lark_grammar, '  ').strip()}\n}}"
             elif isinstance(target, GrammarNode):
                 res += self.visit(target.simplify(), top=True)
             else:
