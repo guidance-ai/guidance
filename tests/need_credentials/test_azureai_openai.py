@@ -122,14 +122,16 @@ def test_azureai_openai_chat_json(azureai_chat_model: models.Model):
     print(json.dumps(NameHolder.model_json_schema(), indent=2))
 
     with user():
-        azureai_chat_model += "Hello; what is your name and age?"
+        azureai_chat_model += "Hello, my name is Tweedledum and I am 10 years old. What is my twin brother's name and age?"
 
     with assistant():
         azureai_chat_model += gen_json(name="botname", schema=NameHolder)
 
     output_json = azureai_chat_model["botname"]
     name_data = NameHolder.model_validate_json(output_json)
-    assert name_data.my_age > 0
+    print(name_data.model_dump_json(indent=4))
+    assert name_data.my_name == "Tweedledee"
+    assert name_data.my_age == 10
 
 
 def test_azureai_openai_audio_smoke(azureai_audio_model: models.Model):
