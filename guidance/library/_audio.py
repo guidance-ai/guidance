@@ -10,8 +10,8 @@ from .._ast import AudioBlob, GenAudio
 @guidance
 def audio(lm, src: typing.Union[str, pathlib.Path, bytes], allow_local: bool = True):
     bytes_data = bytes_from(src, allow_local=allow_local)
-    base64_string = base64.b64encode(bytes_data).decode('utf-8')
-    lm += AudioBlob(data=base64_string)
+    base64_bytes = base64.b64encode(bytes_data)
+    lm += AudioBlob(data=base64_bytes)
     return lm
 
 
