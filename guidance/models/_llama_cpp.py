@@ -5,9 +5,9 @@ import os
 import sys
 from itertools import takewhile
 from pathlib import Path
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Union, Optional, cast
 import ctypes
-
+import inspect
 import numpy as np
 
 from .._schema import GenToken, GenTokenExtra
@@ -28,6 +28,8 @@ else:
 if TYPE_CHECKING:
     from llama_cpp.llama_tokenizer import LlamaTokenizer
     from llama_cpp.llama import Llama
+    import llama_cpp.llama_chat_format
+    from llama_cpp import llama_types
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +87,7 @@ def detokenize(tokenizer: "LlamaTokenizer", tokens: list[int], special: bool, si
         )
 
 class LlamaCppTokenizer(Tokenizer):
-    def __init__(self, model_obj: "Llama", chat_template: Union[str, ChatTemplate, None] = None):
+    def __init__(self, model_obj: "Llama", chat_template: Optional[str] = None):
         self._model_obj = model_obj
 
         vocab = llama_cpp.llama_model_get_vocab(model_obj.model)
@@ -101,12 +103,45 @@ class LlamaCppTokenizer(Tokenizer):
             ):
                 chat_template = self._model_obj.metadata["tokenizer.chat_template"]
 
+        self._chat_formatter: Optional["llama_cpp.llama_chat_format.ChatFormatter"] = None
+        if chat_template is None:
+            self._chat_formatter = get_chat_formatter(model_obj)
+            if self._chat_formatter is None:
+                # Set the function to None if no chat formatter is available
+                self.chat_formatter = None
+
         super().__init__(
             ll_tokenizer=ll_tokenizer,
             chat_template=chat_template,
             bos_token_id=model_obj.token_bos()
         )
 
+    def chat_formatter(self, messages: list[dict[str, str]]) -> Optional[str]:
+        if self._chat_template is not None:
+            raise NotImplementedError("Chat formatting with a custom template is not implemented for LlamaCppTokenizer.")
+        elif self._chat_formatter is not None:
+            # Use the chat formatter from the model object
+            return self._chat_formatter(messages).prompt
+        else:
+            raise RuntimeError("One of chat_template or _chat_formatter must be set for LlamaCppTokenizer.")
+
+def get_chat_formatter(model_obj: "Llama") -> Optional["llama_cpp.llama_chat_format.ChatFormatter"]:
+    handler = (
+        model_obj.chat_handler
+        or model_obj._chat_handlers.get(model_obj.chat_format)
+        or llama_cpp.llama_chat_format.get_chat_completion_handler(model_obj.chat_format)
+    )
+    # Try to unwrap closures to find the actual ChatFormatter
+    for cell in getattr(handler, "__closure__", []):
+        contents = cell.cell_contents
+        if callable(contents):
+            return_type = inspect.signature(contents).return_annotation
+            if (
+                return_type == "ChatFormatterResponse"
+                or getattr(return_type, "__name__", None) == "ChatFormatterResponse"
+            ):
+                return contents # type: ignore[return-value]
+    return None
 
 class LlamaCppEngine(Engine):
     """The core class that runs inference using llama.cpp."""

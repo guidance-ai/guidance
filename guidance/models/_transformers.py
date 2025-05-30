@@ -53,7 +53,7 @@ class TransformersTokenizer(Tokenizer):
     def __init__(
         self,
         hf_tokenizer: Union["PreTrainedTokenizer", "PreTrainedTokenizerFast"],
-        chat_template: Union[str, ChatTemplate, None] = None,
+        chat_template: Optional[str] = None,
     ) -> "TransformersTokenizer":
         self._orig_tokenizer = hf_tokenizer
 
@@ -77,10 +77,30 @@ class TransformersTokenizer(Tokenizer):
             ).as_ll_tokenizer()
         super().__init__(
             ll_tokenizer=ll_tokenizer,
-            chat_template=chat_template,
+            chat_template=chat_template or hf_tokenizer.chat_template,
             bos_token_id=hf_tokenizer.bos_token_id,  # type: ignore[attr-defined]
         )
         self._vocab_size = vocab_size
+
+        if self._chat_template is None:
+            self.chat_formatter = None
+
+    def chat_formatter(
+        self,
+        messages: list[dict[str, str]],
+    ) -> str:
+        assert self._chat_template is not None
+        prompt, _ = transformers_package.utils.chat_template_utils.render_jinja_template(
+            conversations=[messages],
+            tools=None,
+            documents=None,
+            chat_template=self._chat_template,
+            return_assistant_tokens_mask=False,
+            continue_final_message=True,
+            add_generation_prompt=False,
+            **self._orig_tokenizer.special_tokens_map
+        )[0]
+        return prompt
 
     @classmethod
     def from_pretrained(

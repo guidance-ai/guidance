@@ -154,11 +154,26 @@ class Engine(ABC):
         # images = state.images
         # audio = state.audio
         # videos = state.videos
+        if state.active_message is None:
+            raise ValueError("Cannot run engine without an active message in the state.")
 
+        if self.tokenizer.chat_formatter is None:
+            # TODO
+            raise NotImplementedError("No chat formatter, and completions are not yet supported.")
+
+        prompt = self.tokenizer.chat_formatter([
+            {
+                "role": msg.role,
+                "content": "".join(
+                    c.value if c.type == "text" else c.text_representation for c in msg.content
+                )
+            }
+            for msg in state.messages + [state.active_message]
+        ])
         parser = TokenParser(
             grammar,
             tokenizer=self.tokenizer,
-            prompt=state.prompt.encode("utf-8"),
+            prompt=prompt.encode("utf-8"),
             ensure_bos_token=ensure_bos_token,
             enable_backtrack=self.enable_backtrack,
             enable_ff_tokens=self.enable_ff_tokens,

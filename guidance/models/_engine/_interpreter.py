@@ -16,6 +16,22 @@ class EngineInterpreter(Interpreter[EngineState]):
         self.engine = engine
         self.chat_template = self.engine.get_chat_template()
 
+    def state_str(self) -> str:
+        msgs = self.state.messages
+        if self.state.active_message is not None:
+            msgs = msgs + [self.state.active_message]
+        if not msgs:
+            return ""
+        return self.engine.tokenizer.apply_chat_template([
+            {
+                "role": msg.role,
+                "content": "".join(
+                    c.value if c.type == "text" else c.text_representation for c in msg.content
+                )
+            }
+            for msg in msgs
+        ])
+
     def __deepcopy__(self, memo):
         """Custom deepcopy to ensure engine is not copied."""
         cls = self.__class__
@@ -29,28 +45,18 @@ class EngineInterpreter(Interpreter[EngineState]):
                 setattr(result, k, deepcopy(v, memo))
         return result
 
-    def get_role_start(self, role: str) -> str:
-        if self.chat_template is None:
-            raise ValueError("Cannot use roles without a chat template")
-        return self.chat_template.get_role_start(role)
-
-    def get_role_end(self, role: str) -> str:
-        if self.chat_template is None:
-            raise ValueError("Cannot use roles without a chat template")
-        return self.chat_template.get_role_end(role)
-
     def role_start(self, node: RoleStart, **kwargs) -> Iterator[OutputAttr]:
         self.state.active_role = node.role
-        # TODO: mark these as special tokens..?
-        yield from self.run(LiteralNode(value=self.get_role_start(node.role)), **kwargs)
+        # TODO: something for vis?
+        yield from ()
 
     def role_end(self, node: RoleEnd, **kwargs) -> Iterator[OutputAttr]:
         self.state.active_role = None
-        # TODO: mark these as special tokens..?
-        yield from self.run(LiteralNode(value=self.get_role_end(node.role)), **kwargs)
+        # TODO: something for vis?
+        yield from ()
 
     def text(self, node: LiteralNode, **kwargs) -> Iterator[OutputAttr]:
-        self.state.prompt += node.value
+        self.state.add_text(node.value)
         yield TextOutput(value=node.value, is_input=True)
 
     def grammar(self, node: GrammarNode, **kwargs) -> Iterator[OutputAttr]:
@@ -67,7 +73,7 @@ class EngineInterpreter(Interpreter[EngineState]):
             new_text, delayed_bytes = partial_decode(new_bytes)
 
             # Update the state
-            self.state.prompt += new_text
+            self.state.add_text(new_text)
             yield TextOutput(value=new_text, token_count=chunk.new_token_count, is_generated=True)
 
             # TODO -- rewrite engine internals to make sure chunk.{generated,fast_forwarded}_tokens aren't empty...
@@ -122,9 +128,12 @@ class Llama3VisionInterpreter(EngineInterpreter):
 
         image_bytes = b64decode(node.data)
         pil_image = PIL.Image.open(BytesIO(image_bytes))
-        self.state.images.append(pil_image)
-        self.state.prompt += "<|image|>"
-
+        self.state.add_media(
+            media_type="image",
+            media=pil_image,
+            text_representation="<|image|>",
+            allow_ref=False,
+        )
         yield ImageOutput(value=node.data, input=True)
 
 
@@ -139,14 +148,12 @@ class Phi3VisionInterpreter(EngineInterpreter):
 
         image_bytes = b64decode(node.data)
         pil_image = PIL.Image.open(BytesIO(image_bytes))
-
-        if pil_image in self.state.images:
-            ix = self.state.images.index(pil_image) + 1
-        else:
-            self.state.images.append(pil_image)
-            ix = len(self.state.images)
-        self.state.prompt += f"<|image_{ix}|>"
-
+        self.state.add_media(
+            media_type="image",
+            media=pil_image,
+            text_representation=lambda ix: f"<|image_{ix}|>",
+            allow_ref=True,
+        )
         yield ImageOutput(value=node.data, input=True)
 
 

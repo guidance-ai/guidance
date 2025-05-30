@@ -1,4 +1,3 @@
-from abc import ABC, abstractmethod
 from typing import Optional, TypedDict, Union
 
 from ...trace import CaptureOutput
@@ -9,14 +8,18 @@ class CaptureVar(TypedDict):
     log_prob: Optional[float]
 
 
-class State(ABC):
+class State:
     def __init__(self) -> None:
         self.captures: dict[str, Union[CaptureVar, list[CaptureVar]]] = {}
-        self.active_role: Optional[str] = None
+        self._active_role: Optional[str] = None
 
-    @abstractmethod
-    def __str__(self) -> str:
-        pass
+    @property
+    def active_role(self) -> Optional[str]:
+        return self._active_role
+
+    @active_role.setter
+    def active_role(self, role: Optional[str]) -> None:
+        self._active_role = role
 
     def apply_capture(
         self, name: str, value: Optional[str], log_prob=Optional[float], is_append: bool = False
