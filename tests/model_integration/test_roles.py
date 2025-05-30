@@ -27,7 +27,7 @@ def plan_for_goal(lm, goal: str):
             lm3 = lm2 + gen(name="option", temperature=1.0, max_tokens=50)
             LM3_BASE = "<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\nI want to Add numbers. Make some very short suggestions<|im_end|>\n<|im_start|>assistant\n"
             selected = lm3["option"]
-            assert selected == "something"
+            assert selected == "something", f"{selected=}"
             assert str(lm3) == LM3_BASE + selected, f"{str(lm3)=}"
             assert str(lm2) == LM2_EXPECT, f"{str(lm2)=}"
             options.append(selected)
