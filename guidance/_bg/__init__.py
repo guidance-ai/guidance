@@ -5,16 +5,18 @@ This is currently being used for messaging, visualization and metrics.
 
 import asyncio
 import threading
-from asyncio import AbstractEventLoop, Future, Task
-from typing import Tuple, Coroutine
+from asyncio import AbstractEventLoop, Task
+from concurrent.futures import Future
+from typing import Any, Coroutine, TypeVar
 
+T = TypeVar('T')
 
 def _start_asyncio_loop(loop: AbstractEventLoop):
     asyncio.set_event_loop(loop)
     loop.run_forever()
 
 
-def _asyncio_background_thread() -> Tuple[threading.Thread, AbstractEventLoop]:
+def _asyncio_background_thread() -> tuple[threading.Thread, AbstractEventLoop]:
     loop = asyncio.new_event_loop()
     thread = threading.Thread(target=_start_asyncio_loop, args=(loop,))
     thread.daemon = True
@@ -29,7 +31,7 @@ class BackgroundAsync:
         self._loop = None
         self._thread = None
 
-    def _thread_and_loop(self) -> Tuple[threading.Thread, AbstractEventLoop]:
+    def _thread_and_loop(self) -> tuple[threading.Thread, AbstractEventLoop]:
         if self._loop is None:
             self._thread, self._loop = _asyncio_background_thread()
             self._thread.start()
@@ -41,7 +43,7 @@ class BackgroundAsync:
         _, loop = self._thread_and_loop()
         return loop.call_soon_threadsafe(cb, *args, context=context)
 
-    def run_async_coroutine(self, coroutine: Coroutine) -> Future:
+    def run_async_coroutine(self, coroutine: Coroutine[Any, Any, T]) -> Future[T]:
         """ Runs an asynchronous coroutine in the visual thread.
 
         Args:
@@ -55,7 +57,7 @@ class BackgroundAsync:
         return future
 
     @staticmethod
-    async def async_task(coroutine: Coroutine) -> Task:
+    async def async_task(coroutine: Coroutine[Any, Any, T]) -> Task[T]:
         """ Creates an asyncio task from coroutine.
 
         Args:
