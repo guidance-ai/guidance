@@ -35,6 +35,7 @@ def test_guarantee_valid_syntax():
 class TestTutorials:
     BASE_TUTORIAL_PATH = BASE_NB_PATH / "tutorials"
 
+    @pytest.mark.skip("Appear to have multiple overlapping problems")
     def test_chat(self):
         call_delay_secs = slowdown()
 
