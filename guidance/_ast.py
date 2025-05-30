@@ -433,7 +433,7 @@ class SubstringNode(GrammarNode):
 @dataclass(frozen=True)
 class RuleNode(GrammarNode):
     name: str
-    value: Union[GrammarNode]
+    value: GrammarNode
     capture: Optional[str] = None
     list_append: bool = False
     temperature: Optional[float] = None
@@ -535,7 +535,7 @@ class LarkSerializer:
     def __init__(self, enforce_max_tokens: bool = True):
         self.enforce_max_tokens = enforce_max_tokens
         self.rules: dict[str, str] = {}
-        self.names: dict[Union[RuleNode, BaseSubgrammarNode], str] = {}
+        self.names: dict[RuleNode, str] = {}
 
     def serialize(self, node: GrammarNode) -> str:
         if isinstance(node, RuleNode) and node.name == "start":
