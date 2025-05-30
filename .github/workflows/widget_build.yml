@@ -1,0 +1,36 @@
+name: Widget Build
+
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      commit_id:
+        description: 'Branch or Commit ID (optional)'
+        required: false
+        type: string
+  schedule:
+    # Run at 10:00 UTC every day
+    - cron: "00 10 * * *"
+
+jobs:
+  build_widget:
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./client/
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo at ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+      - name: Install dependencies
+        run: |
+          npm install
+      - name: Build
+        run: |
+          ./build-to-guidance.sh
+        
