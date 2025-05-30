@@ -9,7 +9,7 @@ def as_regular_grammar(node: GrammarNode, lexeme=False):
         rule = node
     else:
         rule = RuleNode("dummy", node)
-    assert rule.is_terminal
+    assert rule.is_allowed_in_lark_terminal
     return node
 
 def lexeme(body_regex: str, json_string: bool = False):
