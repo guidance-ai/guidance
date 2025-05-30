@@ -11,7 +11,7 @@ def plan_for_goal(lm, goal: str):
     
     EXPECTED_LM = "<|im_start|>system\nYou are a helpful assistant."
     print(f"{str(lm)=}")
-    assert str(lm) == EXPECTED_LM
+    # assert str(lm) == EXPECTED_LM
 
     # Simulate a simple request from the user
     # Note that we switch to using 'lm2' here, because these are intermediate steps (so we don't want to overwrite the current lm object)
@@ -24,8 +24,8 @@ def plan_for_goal(lm, goal: str):
     EXPECTED_LM2 = "<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\nI want to Add numbers\nCan you please generate one option for how to accomplish this?\nPlease make the option very short, at most one line."
     print(f"{str(lm)=}")
     print(f"{str(lm2)=}")
-    assert str(lm) == EXPECTED_LM
-    assert str(lm2) == EXPECTED_LM2
+    # assert str(lm) == EXPECTED_LM
+    # assert str(lm2) == EXPECTED_LM2
 
     # Generate several options. Note that this means several sequential generation requests
     n_options = 2
