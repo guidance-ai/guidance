@@ -19,7 +19,7 @@ jobs:
     defaults:
       run:
         shell: bash
-        working-directory: ./client/
+        working-directory: ./client/graphpaper-inline
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo at ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
