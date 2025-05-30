@@ -72,12 +72,13 @@ class TokenParser:
     def has_pending_stop(self) -> bool:
         return self._has_pending_stop
 
-    def _process_prompt(self, prompt: bytes, ensure_bos_token: bool) -> tuple[list[int], int]:
+    def _process_prompt(self, prompt: bytes, ensure_bos_token: bool) -> list[int]:
         _prompt_tokens = self.tokenizer.encode(prompt)
         prompt_tokens = self.ll_interpreter.process_prompt(_prompt_tokens)
         if (
             ensure_bos_token
             and self.tokenizer.bos_token is not None
+            and self.tokenizer.bos_token_id is not None
             and prompt_tokens[:1] != [self.tokenizer.bos_token_id]
         ):
             # add the beginning of sequence token if needed
@@ -105,7 +106,7 @@ class TokenParser:
 
         backtrack = 0
         engine_output = None
-        ff_tokens = []
+        ff_tokens: list[int] = []
         while True:
             # Note: need to call/set has_pending_stop before spinning up the compute mask 
             # future as the two methods cannot be called concurrently

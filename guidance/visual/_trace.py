@@ -3,7 +3,7 @@
 import base64
 import json
 from typing import Optional, Dict
-from .._schema import GenToken
+from .._schema import GenTokenExtra
 
 from ..visual._message import TokensMessage
 from ..trace import (
@@ -49,8 +49,7 @@ def trace_node_to_html(
 
         if isinstance(node.output, TextOutput):
             if active_role is not None:
-                if isinstance(active_role.input, RoleOpenerInput) and prettify_roles:
-                    role_name = active_role.input.name
+                if prettify_roles and isinstance(active_role.input, RoleOpenerInput) and (role_name := active_role.input.name) is not None:
                     fmt = f"<div style='display: flex; border-bottom: 1px solid rgba(127, 127, 127, 0.2);  justify-content: center; align-items: center;'><div style='flex: 0 0 80px; opacity: 0.5;'>{role_name.lower()}</div><div style='flex-grow: 1; padding: 5px; padding-top: 10px; padding-bottom: 10px; margin-top: 0px; white-space: pre-wrap; margin-bottom: 0px;'>"
                     buffer.append(fmt)
                 if not prettify_roles:
@@ -103,7 +102,7 @@ def trace_node_to_html(
 
                     chunk_text = attr.value
                     # find tokens in complete message that cover this chunk
-                    tokens: list[GenToken] = []
+                    tokens: list[GenTokenExtra] = []
                     _idx = prob_idx
                     tokens_text = ""
                     while _idx < len(complete_msg.tokens):
@@ -131,20 +130,20 @@ def trace_node_to_html(
                     for token in tokens:
                         token_str = token.text
                         prob = token.prob
-                        top_k = {}
+                        top_k: dict[str, str] = {}
                         # find the correct token
                         for _item in token.top_k:
                             top_k[f"{_item.text}"] = f"{_item.prob} - Masked: {_item.is_masked}"
-                        top_k = json.dumps(top_k, indent=2)
+                        top_k_repr = json.dumps(top_k, indent=2)
 
                         latency = f"{token.latency_ms:.2f}"
 
                         if token.is_generated:
-                            fmt += f"<span style='background-color: rgba({0}, {127 + int(127 * prob)}, {0}, 0.15); border-radius: 3ps;' title='Token: \"{token_str}\" : {prob}\nTop-k: {top_k}\nlatency_ms: {latency}'>{html.escape(token_str)}</span>"
+                            fmt += f"<span style='background-color: rgba({0}, {127 + int(127 * prob)}, {0}, 0.15); border-radius: 3ps;' title='Token: \"{token_str}\" : {prob}\nTop-k: {top_k_repr}\nlatency_ms: {latency}'>{html.escape(token_str)}</span>"
                         elif token.is_force_forwarded:
-                            fmt += f"<span style='background-color: rgba({0}, {0}, {127 + int(127 * prob)}, 0.15); border-radius: 3ps;' title='Token: \"{token_str}\" : {prob}\nTop-k: {top_k}\nlatency_ms: {latency}'>{html.escape(token_str)}</span>"
+                            fmt += f"<span style='background-color: rgba({0}, {0}, {127 + int(127 * prob)}, 0.15); border-radius: 3ps;' title='Token: \"{token_str}\" : {prob}\nTop-k: {top_k_repr}\nlatency_ms: {latency}'>{html.escape(token_str)}</span>"
                         else:
-                            fmt += f"<span style='background-color: rgba({255}, {255}, {255}, 0.15); border-radius: 3ps;' title='Token: \"{token_str}\" : {prob}\nTop-k: {top_k}'>{html.escape(token_str)}</span>"
+                            fmt += f"<span style='background-color: rgba({255}, {255}, {255}, 0.15); border-radius: 3ps;' title='Token: \"{token_str}\" : {prob}\nTop-k: {top_k_repr}'>{html.escape(token_str)}</span>"
 
                 buffer.append(fmt)
 
@@ -155,7 +154,7 @@ def trace_node_to_html(
                     buffer.append(f"</div></div>")
                 active_role = None
         elif isinstance(node.output, ImageOutput):
-            encoded = base64.b64encode(node.output.value).decode()
+            encoded = base64.b64encode(node.output.value.encode()).decode()
             buffer.append(
                 f'<img src="data:image/png;base64,{encoded}" style="max-width" 400px; vertical-align: middle; margin: 4px;">'
             )
@@ -193,7 +192,7 @@ def display_trace_tree(trace_handler: TraceHandler) -> None:
     Args:
         trace_handler: Trace handler needed to pull user-defined identifiers of trace nodes.
     """
-    from anytree import Node, RenderTree
+    from anytree import Node, RenderTree # type: ignore[import-untyped]
 
     root = trace_handler.root()
     trace_viz_map: Dict[TraceNode, Node] = {}
