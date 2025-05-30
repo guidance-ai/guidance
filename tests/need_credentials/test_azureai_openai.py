@@ -116,14 +116,20 @@ def test_azureai_openai_chat_smoke(azureai_chat_model):
 def test_azureai_openai_chat_json(azureai_chat_model: models.Model):
     class NameHolder(pydantic.BaseModel):
         my_name: str
+        my_age: int
+        model_config = dict(extra="forbid")
+
+    print(json.dumps(NameHolder.model_json_schema(), indent=2))
 
     with user():
-        azureai_chat_model += "Hello; what is your name?"
+        azureai_chat_model += "Hello; what is your name and age?"
 
     with assistant():
         azureai_chat_model += gen_json(name="botname", schema=NameHolder)
 
-    assert azureai_chat_model["botname"] == "Something"
+    output_json = azureai_chat_model["botname"]
+    name_data = NameHolder.model_validate_json(output_json)
+    assert name_data.my_age > 0
 
 
 def test_azureai_openai_audio_smoke(azureai_audio_model: models.Model):
