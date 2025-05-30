@@ -2,12 +2,13 @@ from base64 import b64decode, b64encode
 from io import BytesIO
 from typing import Iterator
 from copy import deepcopy
+import re
 
-from ..._ast import GrammarNode, ImageBlob, LiteralNode, RoleEnd, RoleStart
+from ..._ast import GrammarNode, ImageBlob, LiteralNode, RoleEnd, RoleStart, SpecialToken, JoinNode
 from ..._utils import to_utf8_or_bytes_string
 from ...trace import ImageOutput, OutputAttr, Backtrack, TokenOutput
 from .._base import Interpreter
-from ._engine import Engine
+from ._engine import Engine, Tokenizer
 from ._state import EngineState
 from ..._schema import GenTokenExtra
 
@@ -44,17 +45,21 @@ class EngineInterpreter(Interpreter[EngineState]):
     def role_start(self, node: RoleStart, **kwargs) -> Iterator[OutputAttr]:
         self.state.active_role = node.role
         text = self.get_role_start(node.role)
+        # TODO: it's probably somewhat wasteful to trigger engine calls here,
+        # so we can maybe add this as "pending text" to the state instead,
+        # accumulating it until the next engine call..?
         yield from self.run(
-            # TODO: special tokens aren't literal text, but this HAPPENS to work (may be fragile)
-            LiteralNode(text)
+            text_to_grammar(self.engine.tokenizer, text)
         )
 
     def role_end(self, node: RoleEnd, **kwargs) -> Iterator[OutputAttr]:
         self.state.active_role = None
         text = self.get_role_end(node.role)
+        # TODO: it's probably somewhat wasteful to trigger engine calls here,
+        # so we can maybe add this as "pending text" to the state instead,
+        # accumulating it until the next engine call..?
         yield from self.run(
-            # TODO: special tokens aren't literal text, but this HAPPENS to work (may be fragile)
-            LiteralNode(text)
+            text_to_grammar(self.engine.tokenizer, text)
         )
 
     def text(self, node: LiteralNode, **kwargs) -> Iterator[OutputAttr]:
@@ -175,3 +180,24 @@ def partial_decode(data: bytes) -> tuple[str, bytes]:
         valid_part = data[: e.start].decode("utf-8")
         delayed_part = data[e.start :]
     return (valid_part, delayed_part)
+
+def text_to_grammar(tokenizer: Tokenizer, text: str) -> GrammarNode:
+    """
+    Convert a text string into a GrammarNode that can be used in the grammar.
+    This is useful for converting static text into a grammar node that can be processed by the engine.
+    """
+    grammar_bits: list[GrammarNode] = []
+    delayed_bytes = b""
+    for token_id in tokenizer.encode(text.encode("utf-8"), parse_special=True):
+        if tokenizer.is_special_token(token_id):
+            assert not delayed_bytes, "Should not have any delayed bytes when encountering a special token"
+            grammar_bits.append(SpecialToken(id=token_id))
+        else:
+            new_bytes = tokenizer.decode([token_id])
+            new_text, delayed_bytes = partial_decode(delayed_bytes + new_bytes)
+            if new_text:
+                grammar_bits.append(LiteralNode(new_text))
+    assert not delayed_bytes, "Should not have any delayed bytes left after processing the text"
+    if len(grammar_bits) == 1:
+        return grammar_bits[0]
+    return JoinNode(tuple(grammar_bits))
