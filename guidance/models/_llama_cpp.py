@@ -95,14 +95,6 @@ class LlamaCppTokenizer(Tokenizer):
             raise Exception("call to llama_cpp.llama_model_get_vocab returned NULL.")
         ll_tokenizer = llguidance.llamacpp.lltokenizer_from_vocab(vocab)
 
-        # Chat Template logic
-        if chat_template is None:
-            if (
-                hasattr(self._model_obj, "metadata")
-                and "tokenizer.chat_template" in self._model_obj.metadata
-            ):
-                chat_template = self._model_obj.metadata["tokenizer.chat_template"]
-
         self._chat_formatter: Optional["llama_cpp.llama_chat_format.ChatFormatter"] = None
         if chat_template is None:
             self._chat_formatter = get_chat_formatter(model_obj)

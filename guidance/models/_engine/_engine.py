@@ -4,7 +4,7 @@ import logging
 import time
 import weakref
 from abc import ABC
-from typing import TYPE_CHECKING, Any, Callable, Iterator, Optional, Sequence
+from typing import TYPE_CHECKING, Callable, Iterator, Optional
 
 import numpy as np
 

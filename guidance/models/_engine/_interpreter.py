@@ -14,23 +14,14 @@ class EngineInterpreter(Interpreter[EngineState]):
     def __init__(self, engine: Engine):
         self.state = EngineState()
         self.engine = engine
-        self.chat_template = self.engine.get_chat_template()
 
     def state_str(self) -> str:
-        msgs = self.state.messages
         if self.state.active_message is not None:
             msgs = msgs + [self.state.active_message]
-        if not msgs:
-            return ""
-        return self.engine.tokenizer.apply_chat_template([
-            {
-                "role": msg.role,
-                "content": "".join(
-                    c.value if c.type == "text" else c.text_representation for c in msg.content
-                )
-            }
-            for msg in msgs
-        ])
+        return self.engine.apply_chat_template(
+            msgs,
+            continue_final_message=False,
+        )
 
     def __deepcopy__(self, memo):
         """Custom deepcopy to ensure engine is not copied."""
