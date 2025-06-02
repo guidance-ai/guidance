@@ -2,30 +2,24 @@
 
 Messages are required to be added to the model registry for serialization.
 """
-from typing import Optional, Union, Annotated, ClassVar, TYPE_CHECKING
+from typing import Optional, Union, Annotated, ClassVar
 from pydantic import BaseModel, Field, model_validator, computed_field, Tag, TypeAdapter, Discriminator
+from itertools import count
 
 from ..trace import NodeAttr
 
 
-_msg_counter: int = -1
-def new_message_id() -> int:
-    """Generate a new message ID."""
-    global _msg_counter
-    _msg_counter += 1
-    return _msg_counter
-
 class GuidanceMessage(BaseModel):
     """Message sent within Guidance layer."""
 
-    message_id: int = Field(default_factory=new_message_id)
+    message_id: int = Field(default_factory=count().__next__)
 
-    _subclasses: ClassVar[set[type]] = set()
+    _subclasses: ClassVar[set[type["GuidanceMessage"]]] = set()
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         cls._subclasses.add(cls)
 
-    @computed_field
+    @computed_field # type: ignore[prop-decorator]
     @property
     def class_name(self) -> str:
         """Class name of the message."""
@@ -50,7 +44,7 @@ class GuidanceMessage(BaseModel):
             Discriminator(
                 lambda x: x["class_name"] if isinstance(x, dict) else x.class_name,
             )
-        ]
+        ] # type: ignore[return-value]
 
 class TraceMessage(GuidanceMessage):
     """Update on a trace node."""

@@ -34,10 +34,12 @@ class MockTokenizer(Tokenizer):
             bos_token_id=0,
         )
 
-    def encode(self, byte_string: bytes) -> list[int]:
+    def encode(self, byte_string: bytes, *, parse_special: bool = True) -> list[int]:
         """Simple greedy tokenizer
         TODO: could be a method on ByteTrie if we want to reuse it
         """
+        if not parse_special:
+            raise ValueError("parse_special=False is not supported in MockTokenizer")
         pos = 0
         tokens = []
         while pos < len(byte_string):

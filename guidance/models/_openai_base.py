@@ -3,14 +3,16 @@ import wave
 from copy import deepcopy
 from io import BytesIO
 import time
-from typing import TYPE_CHECKING, Iterator, Literal, Optional, Union
+from typing import TYPE_CHECKING, Iterator, Literal, Optional, Union, cast, ContextManager
 
+from abc import ABC, abstractmethod
 from pydantic import BaseModel, Discriminator, Field, TypeAdapter
 from typing_extensions import Annotated, assert_never
 
 from .._ast import (
     ASTNode,
     GenAudio,
+    AudioBlob,
     ImageBlob,
     ImageUrl,
     JsonNode,
@@ -21,12 +23,13 @@ from .._ast import (
     RuleNode,
 )
 from .._utils import bytes_from
-from ..trace import ImageOutput, OutputAttr, TextOutput, TokenOutput, AudioOutput
+from ..trace import ImageOutput, OutputAttr, TextOutput, TokenOutput, AudioOutput, Token
 from ._base import Interpreter, State
 
 if TYPE_CHECKING:
     import openai
     from openai.types.chat import ChatCompletionChunk
+    from openai.types.chat.chat_completion_chunk import ChoiceLogprobs
 
 
 def get_role_start(role: str) -> str:
@@ -102,16 +105,22 @@ class OpenAIState(State):
     def get_active_message(self) -> Optional[Message]:
         if self.active_role is None:
             return None
+        if self.active_role not in ["system", "user", "assistant"]:
+            raise ValueError(f"Invalid active role: {self.active_role}")
+        active_role = cast(Literal["system", "user", "assistant"], self.active_role)
+
         if self.content and self.audio:
             raise ValueError("Cannot have both content and audio")
         if self.audio:
+            if active_role != "assistant":
+                raise ValueError("Audio messages can only be sent by the assistant")
             return AssistantAudioMessage(
-                role=self.active_role,
+                role=active_role,
                 audio=self.audio,
             )
         elif self.content:
             return ContentMessage(
-                role=self.active_role,
+                role=active_role,
                 content=self.content,
             )
         else:
@@ -149,6 +158,39 @@ class OpenAIState(State):
         return s
 
 
+class BaseOpenAIClientWrapper(ABC):
+    @abstractmethod
+    def streaming_chat_completions(
+        self,
+        model: str,
+        messages: list[Message],
+        log_probs: bool,
+        **kwargs,
+    ) -> ContextManager[Iterator["ChatCompletionChunk"]]:
+        """Streaming chat completions."""
+        raise NotImplementedError("This method should be implemented by subclasses.")
+
+
+class OpenAIClientWrapper(BaseOpenAIClientWrapper):
+    def __init__(self, client: "openai.OpenAI"):
+        self.client = client
+
+    def streaming_chat_completions(
+        self,
+        model: str,
+        messages: list[Message],
+        log_probs: bool,
+        **kwargs,
+    ) -> ContextManager[Iterator["ChatCompletionChunk"]]:
+        """Streaming chat completions."""
+        return self.client.chat.completions.create(
+            model=model,
+            messages=TypeAdapter(list[Message]).dump_python(messages),  # type: ignore[arg-type]
+            logprobs=log_probs,
+            stream=True,
+            **kwargs,
+        )
+
 class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
     """Base class for interacting with OpenAI models."""
 
@@ -157,14 +199,8 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
     def __init__(
         self,
         model: str,
-        client: "openai.OpenAI",
+        client: BaseOpenAIClientWrapper,
     ):
-        try:
-            import openai
-        except ImportError:
-            raise Exception(
-                "Please install the openai package version >= 1 using `pip install openai -U` in order to use guidance.models.OpenAI!"
-            )
         self.state = OpenAIState()
         self.model = model
         self.client = client
@@ -177,13 +213,19 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
         return super().run(node, **kwargs)
 
     def role_start(self, node: RoleStart, **kwargs) -> Iterator[OutputAttr]:
-        self.state.active_role = node.role
+        if node.role not in ["system", "user", "assistant"]:
+            raise ValueError(
+                f"OpenAI models only support roles 'system', 'user', and 'assistant', got {node.role}"
+            )
+        self.state.active_role = cast(Literal["system", "user", "assistant"], node.role)
         # TODO: drop this and yield nothing. We need to add this for now as a workaround for the
         # fact that current vis code assumes that there is actually a role start message
         yield TextOutput(value=get_role_start(node.role), is_input=True)
 
     def role_end(self, node: RoleEnd, **kwargs) -> Iterator[OutputAttr]:
-        self.state.messages.append(self.state.get_active_message())
+        active_message = self.state.get_active_message()
+        if active_message is not None:
+            self.state.messages.append(active_message)
         self.state.audio = None
         self.state.content = []
         self.state.active_role = None
@@ -208,11 +250,10 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                 f"OpenAI models do not support pre-filled assistant messages: got data {self.state.content}."
             )
 
-        with self.client.chat.completions.create(
+        with self.client.streaming_chat_completions(
             model=self.model,
-            messages=TypeAdapter(list[Message]).dump_python(self.state.messages),  # type: ignore[arg-type]
-            logprobs=self.log_probs,
-            stream=True,
+            messages=self.state.messages,
+            log_probs=self.log_probs,
             **kwargs,
         ) as chunks:
             yield from self._handle_stream(chunks)
@@ -247,46 +288,46 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                             value=token.token,
                             # amortized latency
                             latency_ms=latency_ms/len(tokens),
-                            token={
-                                "token": token.token,
-                                "bytes": b'' if token.bytes is None else base64.b64encode(bytes(token.bytes)),
-                                "prob": 2.718**token.logprob
-                            },
+                            token=Token(
+                                token = token.token,
+                                bytes = b'' if token.bytes is None else base64.b64encode(bytes(token.bytes)),
+                                prob = 2.718**token.logprob,
+                            ),
                             # TODO: actually request the top logprobs
                             top_k = [
-                                {
-                                    "token": tok.token,
-                                    "bytes": b'' if tok.bytes is None else base64.b64encode(bytes(tok.bytes)),
-                                    "prob": 2.718**tok.logprob,
-                                }
+                                Token(
+                                    token = tok.token,
+                                    bytes = b'' if tok.bytes is None else base64.b64encode(bytes(tok.bytes)),
+                                    prob = 2.718**tok.logprob,
+                                )
                                 for tok in token.top_logprobs
                             ]
                         )
-            elif getattr(delta, "audio", None) is not None:
+            elif (delta_audio:=cast(Optional[dict], getattr(delta, "audio", None))) is not None:
                 transcript_chunk: Optional[str] = None
                 if audio is None:
-                    assert delta.audio.get("id") is not None
+                    assert delta_audio.get("id") is not None
                     audio = AssistantAudio(
-                        id=delta.audio["id"],
-                        expires_at=delta.audio.get("expires_at", 0),  # ?
-                        transcript=delta.audio.get("transcript", ""),
-                        data=delta.audio.get("data", ""),
+                        id=delta_audio["id"],
+                        expires_at=delta_audio.get("expires_at", 0),  # ?
+                        transcript=delta_audio.get("transcript", ""),
+                        data=delta_audio.get("data", ""),
                     )
-                    transcript_chunk = delta.audio.get("transcript")
+                    transcript_chunk = delta_audio.get("transcript")
                 else:
-                    assert delta.audio.get("id") is None or delta.audio["id"] == audio.id
-                    if delta.audio.get("data") is not None:
-                        audio.data += delta.audio["data"]
-                    if delta.audio.get("transcript") is not None:
-                        audio.transcript += delta.audio["transcript"]
-                        transcript_chunk = delta.audio["transcript"]
-                    if delta.audio.get("expires_at") is not None:
+                    assert delta_audio.get("id") is None or delta_audio["id"] == audio.id
+                    if delta_audio.get("data") is not None:
+                        audio.data += delta_audio["data"]
+                    if delta_audio.get("transcript") is not None:
+                        audio.transcript += delta_audio["transcript"]
+                        transcript_chunk = delta_audio["transcript"]
+                    if delta_audio.get("expires_at") is not None:
                         assert audio.expires_at == 0
-                        audio.expires_at = delta.audio["expires_at"]
+                        audio.expires_at = delta_audio["expires_at"]
                 if transcript_chunk is not None:
                     # Why not give the users some transcript? :)
                     yield TextOutput(
-                        value=delta.audio["transcript"],
+                        value=delta_audio["transcript"],
                         is_generated=True,
                         latency_ms=latency_ms,
                     )
@@ -313,7 +354,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
 
             # Get WAV bytes
             wav_bytes = wav_buffer.getvalue()
-            yield AudioOutput(value=base64.b64encode(wav_bytes).decode(), is_input=False)
+            yield AudioOutput(value=base64.b64encode(wav_bytes), is_input=False)
 
     def __deepcopy__(self, memo):
         """Custom deepcopy to ensure client is not copied."""
@@ -405,33 +446,40 @@ class OpenAIImageMixin(BaseOpenAIInterpreter):
 
         mime_type = f"image/{format.lower()}"
         self.state.content.append(
-            {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{node.data.decode()}"}}
+            ImageUrlContent(
+                type="image_url",
+                image_url=ImageUrlContentInner(url=f"data:{mime_type};base64,{node.data.decode()}"),
+            )
         )
-        yield ImageOutput(value=node.data, input=True)
+        yield ImageOutput(value=node.data, is_input=True)
 
     def image_url(self, node: ImageUrl, **kwargs) -> Iterator[OutputAttr]:
-        self.state.content.append({"type": "image_url", "image_url": {"url": node.url}})
+        self.state.content.append(
+            ImageUrlContent(
+                type="image_url",
+                image_url=ImageUrlContentInner(url=node.url)
+            )
+        )
         image_bytes = bytes_from(node.url, allow_local=False)
-        base64_string = base64.b64encode(image_bytes).decode("utf-8")
-        yield ImageOutput(value=base64_string, input=True)
+        yield ImageOutput(value=base64.b64encode(image_bytes), is_input=True)
 
 
 class OpenAIAudioMixin(BaseOpenAIInterpreter):
     # Audio models don't support logprobs
     log_probs: bool = False
 
-    def audio_blob(self, node: ImageBlob, **kwargs) -> Iterator[OutputAttr]:
+    def audio_blob(self, node: AudioBlob, **kwargs) -> Iterator[OutputAttr]:
         format = "wav"  # TODO: infer from node
         self.state.content.append(
             AudioContent(
                 type="input_audio",
                 input_audio=InputAudio(
-                    data=node.data,
+                    data=node.data.decode("utf-8"),  # Base64 encoded string
                     format=format,
                 ),
             )
         )
-        yield AudioOutput(value=node.data, format=format, input=True)
+        yield AudioOutput(value=node.data, format=format, is_input=True)
 
     def gen_audio(self, node: GenAudio, **kwargs) -> Iterator[OutputAttr]:
         yield from self._run(

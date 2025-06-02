@@ -124,7 +124,7 @@ class Model:
             pass
         elif isinstance(node, GenAudio):
             self._update_trace_node(
-                self._id, self._parent_id, AudioInput(value="")
+                self._id, self._parent_id, AudioInput(value=b"")
             )  # TODO -- what goes here?
         else:
             self._update_trace_node(self._id, self._parent_id, StatelessGuidanceInput(value=node))

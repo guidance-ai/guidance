@@ -6,7 +6,7 @@ import llguidance  # type: ignore[import-untyped]
 import numpy as np
 from numpy.typing import NDArray
 
-from ._schema import EngineOutput, GenData, LegacyEngineCallResponse, LLInterpreterResponse
+from ._schema import GenData, LegacyEngineCallResponse, LLInterpreterResponse
 
 if TYPE_CHECKING:
     from .models._engine import Tokenizer
@@ -131,8 +131,8 @@ class TokenParser:
         None
     ]:
         backtrack = 0
-        ff_tokens = []
-        token_id = None
+        ff_tokens: list[int] = []
+        token_id: Optional[int] = None
         while True:
             # Note: need to call/set has_pending_stop before spinning up the compute mask 
             # future as the two methods cannot be called concurrently
@@ -234,17 +234,17 @@ class ByteParser:
             mask[t[0]] = 1
         return mask
 
-    def _advance(self, engine_output: Optional[EngineOutput]) -> None:
+    def _advance(self, token_id: Optional[int]) -> None:
         if self.gen_data is not None:
             tokens = self.gen_data.tokens
         else:
             tokens = []
-        if engine_output is None:
+        if token_id is None:
             assert tokens == []
             prefix_tokens, backtrack, ff_tokens, compute_mask_future = self.token_parser.process_prompt(tokens)
             tokens += prefix_tokens
         else:
-            backtrack, ff_tokens, compute_mask_future = self.token_parser.advance(engine_output)
+            backtrack, ff_tokens, compute_mask_future = self.token_parser.advance(token_id)
         if backtrack:
             tokens = tokens[:-backtrack]
         tokens += ff_tokens
