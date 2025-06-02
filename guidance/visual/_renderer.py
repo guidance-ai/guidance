@@ -8,9 +8,9 @@ Our main focus is on jupyter notebooks and later terminal.
 import asyncio
 import logging
 import weakref
-from typing import Optional, Tuple
+from typing import Optional, Callable, TYPE_CHECKING
 from asyncio import Queue
-from functools import partial
+from functools import partial, lru_cache
 import traceback
 
 from . import MetricMessage
@@ -33,11 +33,14 @@ except ImportError:
 
 
 try:
-    import stitch
+    import stitch # type: ignore[import-untyped]
 
     stitch_installed = True
 except ImportError:
     stitch_installed = False
+
+if TYPE_CHECKING:
+    from stitch import StitchWidget
 
 logger = logging.getLogger(__name__)
 
@@ -59,35 +62,36 @@ class Renderer:
         """
         raise NotImplementedError("Update not implemented.")
 
-
-def _create_stitch_widget():
-    from stitch import StitchWidget
+@lru_cache(maxsize=1)
+def _get_src_doc_template() -> str:
+    """Returns the source document template for the stitch widget."""
     import importlib.resources as resources
     import guidance
 
-    if _create_stitch_widget.src_doc_template is None:
-        path = resources.files(guidance) / 'resources' / 'graphpaper-inline.html'
-        with path.open("r", encoding="utf-8") as f:
-            _create_stitch_widget.src_doc_template = f.read()
+    path = resources.files(guidance) / 'resources' / 'graphpaper-inline.html'
+    with path.open("r", encoding="utf-8") as f:
+        return f.read()
+
+
+def _create_stitch_widget() -> "StitchWidget":
+    from stitch import StitchWidget
+
     w = StitchWidget()
     w.initial_width = "100%"
     w.initial_height = "auto"
-    w.srcdoc = _create_stitch_widget.src_doc_template
+    w.srcdoc = _get_src_doc_template()
     weakref.finalize(w, log_cleanup, f"stitch({id(w)})")
 
     return w
-
-
-_create_stitch_widget.src_doc_template = None
 
 
 def _cleanup(recv_queue: Optional[Queue], send_queue: Optional[Queue], log_msg: str, exchange_cb) -> None:
     from ..registry import get_bg_async, get_exchange
 
     log_cleanup(log_msg)
-    if recv_queue is not None:
-        get_bg_async().call_soon_threadsafe(send_queue.put_nowait, None)
     if send_queue is not None:
+        get_bg_async().call_soon_threadsafe(send_queue.put_nowait, None)
+    if recv_queue is not None:
         get_bg_async().call_soon_threadsafe(recv_queue.put_nowait, None)
 
     get_exchange().unsubscribe(exchange_cb)
@@ -212,8 +216,8 @@ class JupyterWidgetRenderer(Renderer):
 
         super().__init__()
 
-        self.stitch_widget = None
-        self.last_trace_id = None
+        self.stitch_widget: Optional[StitchWidget] = None
+        self.last_trace_id: Optional[int] = None
 
         self._trace_handler = trace_handler
         self._messages: list[GuidanceMessage] = []
@@ -221,8 +225,8 @@ class JupyterWidgetRenderer(Renderer):
         self._running = False
         self._new_widget_needed = False
         self.stitch_widget_observed = False
-        self._stitch_on_clientmsg = None
-        self.last_cell_session_id = None
+        self._stitch_on_clientmsg: Optional[Callable[[], None]] = None
+        self.last_cell_session_id: Optional[str] = None
 
         # Create queue and wait for instantiation
         self.send_queue: Queue = get_bg_async().run_async_coroutine(_create_queue()).result()
@@ -248,14 +252,14 @@ class JupyterWidgetRenderer(Renderer):
             self.update(message)
 
 
-    def has_divergence(self, message: GuidanceMessage) -> Tuple[bool, int]:
+    def has_divergence(self, message: GuidanceMessage) -> tuple[bool, int]:
         """Checks if message has divergence with current path.
 
         Args:
             message: Incoming message.
 
         Returns:
-            Tuple of (has diverged, shared ancestor index). Index will be -1 if no divergence.
+            tuple of (has diverged, shared ancestor index). Index will be -1 if no divergence.
 
         Raises:
             Exception if there is no shared ancestor (including root). This should not happen.
@@ -311,7 +315,7 @@ class JupyterWidgetRenderer(Renderer):
         from ..registry import get_exchange
         from ..registry import get_bg_async
 
-        out_messages = []
+        out_messages: list[GuidanceMessage] = []
 
         # Metrics
         if isinstance(message, MetricMessage):
@@ -427,6 +431,7 @@ class AutoRenderer(Renderer):
         """
         self._env = Environment()
 
+        self._renderer: Renderer
         if self._env.is_notebook():
             if stitch_installed:
                 self._renderer = JupyterWidgetRenderer(trace_handler=trace_handler)

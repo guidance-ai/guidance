@@ -3,30 +3,21 @@
 Messages are required to be added to the model registry for serialization.
 """
 from typing import Optional, Dict, Union
-
+from itertools import count
 from pydantic import BaseModel, Field
 
 from guidance._schema import GenTokenExtra
 from ..trace import NodeAttr
 import json
 
-
-_msg_counter: int = -1
 class GuidanceMessage(BaseModel):
     """Message sent within Guidance layer."""
 
-    message_id: int = Field(default=None)
-    class_name: str = ""
+    message_id: int = Field(default_factory=count().__next__)
+    class_name: Optional[str] = None
 
-    def __init__(self, **kwargs):
-        global _msg_counter
-
-        kwargs["class_name"] = self.__class__.__name__
-        if kwargs.get("message_id") is None:
-            _msg_counter += 1
-            kwargs["message_id"] = _msg_counter
-        super().__init__(**kwargs)
-
+    def model_post_init(self, context):
+        self.class_name = self.__class__.__name__
 
 class TraceMessage(GuidanceMessage):
     """Update on a trace node."""
@@ -85,7 +76,7 @@ class OutputRequestMessage(GuidanceMessage):
     pass
 
 
-model_registry: Dict[str, type(GuidanceMessage)] = {
+model_registry: Dict[str, type[GuidanceMessage]] = {
     'TraceMessage': TraceMessage,
     'ExecutionStartedMessage': ExecutionStartedMessage,
     'ExecutionCompletedMessage': ExecutionCompletedMessage,

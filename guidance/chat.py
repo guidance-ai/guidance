@@ -19,8 +19,8 @@ class ChatTemplate:
 
 
 class ChatTemplateCache:
-    def __init__(self):
-        self._cache: Dict[str, ChatTemplate] = {}
+    def __init__(self) -> None:
+        self._cache: dict[str, ChatTemplate] = {}
 
     def __getitem__(self, key: str) -> ChatTemplate:
         key_compact = key.replace(" ", "")

@@ -7,6 +7,7 @@ from typing import (
     Union,
     overload,
 )
+from contextvars import ContextVar
 if sys.version_info >= (3, 10):
     from typing import ParamSpec, TypeAlias, Concatenate
 else:
@@ -14,6 +15,8 @@ else:
 
 from ._ast import RuleNode, Function
 from .models import Model
+
+_in_stateless_context: ContextVar[bool]
 
 P = ParamSpec("P")
 M: TypeAlias = Any # sort of Union[Model, GrammarNode]?
