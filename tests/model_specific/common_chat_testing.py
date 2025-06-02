@@ -3,6 +3,7 @@ import pydantic
 from guidance import assistant, gen, models, system, user
 from guidance import json as gen_json
 
+
 def smoke_chat(lm: models.Model, has_system_role: bool = True):
     # lm.engine.reset_metrics()
     if has_system_role:
@@ -82,7 +83,7 @@ def json_output_smoke(lm: models.Model):
     class NameHolder(pydantic.BaseModel):
         my_name: str
         my_age: int
-        model_config = dict(extra="forbid")
+        model_config = pydantic.ConfigDict(extra="forbid")
 
     with user():
         lm += "Hello, my name is Tweedledum and I am 10 years old. What is my twin brother's name and age?"
