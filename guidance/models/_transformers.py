@@ -90,7 +90,7 @@ class TransformersTokenizer(Tokenizer):
         messages: list[dict[str, str]],
     ) -> str:
         assert self._chat_template is not None
-        prompt, _ = transformers_package.utils.chat_template_utils.render_jinja_template(
+        [prompt], _ = transformers_package.utils.chat_template_utils.render_jinja_template(
             conversations=[messages],
             tools=None,
             documents=None,
@@ -99,7 +99,7 @@ class TransformersTokenizer(Tokenizer):
             continue_final_message=True,
             add_generation_prompt=False,
             **self._orig_tokenizer.special_tokens_map
-        )[0]
+        )
         return prompt
 
     @classmethod
