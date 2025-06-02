@@ -102,10 +102,14 @@ class LlamaCppTokenizer(Tokenizer):
                 # Set the function to None if no chat formatter is available
                 self.chat_formatter = None
 
+        bos_token_id = model_obj.token_bos()
+        if bos_token_id == -1:
+            bos_token_id = None
+
         super().__init__(
             ll_tokenizer=ll_tokenizer,
             chat_template=chat_template,
-            bos_token_id=model_obj.token_bos()
+            bos_token_id=bos_token_id,
         )
 
     def chat_formatter(self, messages: list[dict[str, str]]) -> Optional[str]:
