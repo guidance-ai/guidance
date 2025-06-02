@@ -13,10 +13,9 @@ def openai_chat_model():
     openai_api_key = env_or_skip("OPENAI_API_KEY")
     model_name = None  # env_or_skip("AZUREAI_OPENAI_CHAT_MODEL")
 
-    print(f"{openai_api_key=}")
     print(f"{model_name=}")
 
-    lm = OpenAI("gpt4o-mini")
+    lm = OpenAI("gpt-4o-mini", api_key=openai_api_key)
     assert isinstance(lm, Model)
     print(f"{type(lm._interpreter)=}")
 
