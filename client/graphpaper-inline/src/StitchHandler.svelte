@@ -12,6 +12,11 @@
             } else if (event.data.type === 'init_state') {
                 let stitchMessage: StitchMessage = event.data;
                 state.set(stitchMessage);
+                const clientReadyMsg: StitchMessage = {
+                    type: 'clientmsg',
+                    content: JSON.stringify({ 'class_name': 'ClientReadyMessage' })
+                };
+                clientmsg.set(clientReadyMsg);
             }
         }
     };
