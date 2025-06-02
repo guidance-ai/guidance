@@ -113,7 +113,7 @@ export interface MetricMessage extends GuidanceMessage {
 }
 
 export interface StitchMessage {
-    type: "resize" | "clientmsg" | "kernelmsg" | "state" | "init_state",
+    type: "resize" | "clientmsg" | "kernelmsg" | "state" | "init_state" | "init_stitch",
     content: any
 }
 

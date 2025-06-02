@@ -6,7 +6,7 @@ import re
 
 from ..._ast import GrammarNode, ImageBlob, LiteralNode, RoleEnd, RoleStart, SpecialToken, JoinNode
 from ..._utils import to_utf8_or_bytes_string
-from ...trace import ImageOutput, OutputAttr, Backtrack, TokenOutput
+from ...trace import ImageOutput, OutputAttr, Backtrack, TokenOutput, Token
 from .._base import Interpreter
 from ._engine import Engine, Tokenizer
 from ._state import EngineState
@@ -88,12 +88,12 @@ class EngineInterpreter(Interpreter[EngineState]):
             for token in chunk.tokens:
                 if isinstance(token, GenTokenExtra):
                     top_k = [
-                        {
-                            "token": to_utf8_or_bytes_string(t.bytes),
-                            "bytes": b64encode(t.bytes),
-                            "prob": t.prob,
-                            "is_masked": t.is_masked,
-                        }
+                        Token(
+                            token=to_utf8_or_bytes_string(t.bytes),
+                            bytes=b64encode(t.bytes),
+                            prob=t.prob,
+                            masked=t.is_masked,
+                        )
                         for t in token.top_k
                     ]
                 else:
@@ -102,7 +102,7 @@ class EngineInterpreter(Interpreter[EngineState]):
                 token_value = to_utf8_or_bytes_string(token.bytes)
                 yield TokenOutput(
                     value=token_value,
-                    token={"token": token_value, "bytes": b64encode(token.bytes), "prob": token.prob},
+                    token=Token(token=token_value, bytes=b64encode(token.bytes), prob=token.prob),
                     latency_ms=token.latency_ms,
                     is_input = token.is_input,
                     is_generated = token.is_generated,
@@ -149,7 +149,7 @@ class Llama3VisionInterpreter(EngineInterpreter):
         self.state.images.append(pil_image)
         self.state.prompt += "<|image|>"
 
-        yield ImageOutput(value=node.data, input=True)
+        yield ImageOutput(value=node.data, is_input=True)
 
 
 class Phi3VisionInterpreter(EngineInterpreter):
@@ -171,7 +171,7 @@ class Phi3VisionInterpreter(EngineInterpreter):
             ix = len(self.state.images)
         self.state.prompt += f"<|image_{ix}|>"
 
-        yield ImageOutput(value=node.data, input=True)
+        yield ImageOutput(value=node.data, is_input=True)
 
 
 def partial_decode(data: bytes) -> tuple[str, bytes]:

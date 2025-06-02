@@ -4,6 +4,7 @@ from typing import Optional
 from ._base import Model
 from ._openai_base import (
     BaseOpenAIInterpreter,
+    OpenAIClientWrapper,
     OpenAIAudioMixin,
     OpenAIImageMixin,
     OpenAIJSONMixin,
@@ -26,7 +27,7 @@ class OpenAIInterpreter(OpenAIRuleMixin, OpenAIJSONMixin, OpenAIRegexMixin, Base
                 "Please install the openai package version >= 1 using `pip install openai -U` in order to use guidance.models.OpenAI!"
             )
         client = openai.OpenAI(api_key=api_key, **kwargs)
-        super().__init__(model=model, client=client)
+        super().__init__(model=model, client=OpenAIClientWrapper(client))
 
 
 class OpenAI(Model):

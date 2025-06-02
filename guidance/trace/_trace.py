@@ -14,12 +14,12 @@ logger = logging.getLogger(__name__)
 class NodeAttr(BaseModel):
     """Attributes of a trace node."""
 
-    _subclasses: ClassVar[set[type]] = set()
+    _subclasses: ClassVar[set[type["NodeAttr"]]] = set()
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         cls._subclasses.add(cls)
 
-    @computed_field
+    @computed_field # type: ignore[prop-decorator]
     @property
     def class_name(self) -> str:
         """Class name of the message."""
@@ -44,7 +44,7 @@ class NodeAttr(BaseModel):
             Discriminator(
                 lambda x: x["class_name"] if isinstance(x, dict) else x.class_name,
             )
-        ]
+        ] # type: ignore[return-value]
 
     def __repr__(self):
         return pydantic_no_default_repr(self)

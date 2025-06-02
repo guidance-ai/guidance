@@ -178,8 +178,8 @@ For upcoming features, we won't be able to send all details over the wire, and w
 
   onMount(() => {
     const msg: StitchMessage = {
-      type: 'clientmsg',
-      content: JSON.stringify({ 'class_name': 'ClientReadyMessage' })
+      type: 'init_stitch',
+      content: ''
     };
     clientmsg.set(msg);
   });
