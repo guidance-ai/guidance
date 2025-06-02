@@ -2,7 +2,6 @@ from typing import Any, Optional, Sequence, Union, Callable, Protocol, TypedDict
 from dataclasses import dataclass
 from functools import cached_property
 
-from ...chat import ChatTemplate, load_template_class
 import llguidance
 
 class ChatMessage(TypedDict):

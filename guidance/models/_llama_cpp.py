@@ -114,7 +114,7 @@ class LlamaCppTokenizer(Tokenizer):
         elif self._chat_formatter is not None:
             # Use the chat formatter from the model object
             return self._chat_formatter(
-                messages=cast(list["llama_types.ChatCompletionRequestMessage"], messages)
+                messages=cast(list["llama_types.ChatCompletionRequestMessage"], messages),
             ).prompt
         else:
             raise RuntimeError("One of chat_template or _chat_formatter must be set for LlamaCppTokenizer.")

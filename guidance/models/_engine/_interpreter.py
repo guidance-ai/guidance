@@ -16,11 +16,11 @@ class EngineInterpreter(Interpreter[EngineState]):
         self.engine = engine
 
     def state_str(self) -> str:
+        msgs = self.state.messages
         if self.state.active_message is not None:
             msgs = msgs + [self.state.active_message]
         return self.engine.apply_chat_template(
             msgs,
-            continue_final_message=False,
         )
 
     def __deepcopy__(self, memo):

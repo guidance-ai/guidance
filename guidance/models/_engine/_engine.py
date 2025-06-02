@@ -4,7 +4,7 @@ import logging
 import time
 import weakref
 from abc import ABC
-from typing import TYPE_CHECKING, Callable, Iterator, Optional
+from typing import Callable, Iterator, Optional, Sequence
 
 import numpy as np
 
@@ -24,11 +24,9 @@ from ...visual import (
     OutputRequestMessage,
     MetricMessage,
 )
-from ._state import EngineState
-from ._tokenizer import Tokenizer
+from ._state import EngineState, EngineMessage
+from ._tokenizer import Tokenizer, ChatMessage
 
-if TYPE_CHECKING:
-    from .._base._model import Model
 
 logger = logging.getLogger(__name__)
 
@@ -161,15 +159,9 @@ class Engine(ABC):
             # TODO
             raise NotImplementedError("No chat formatter, and completions are not yet supported.")
 
-        prompt = self.tokenizer.chat_formatter([
-            {
-                "role": msg.role,
-                "content": "".join(
-                    c.value if c.type == "text" else c.text_representation for c in msg.content
-                )
-            }
-            for msg in state.messages + [state.active_message]
-        ])
+        prompt = self.apply_chat_template(
+            messages=state.messages + [state.active_message],
+        )
         parser = TokenParser(
             grammar,
             tokenizer=self.tokenizer,
@@ -558,11 +550,53 @@ class Engine(ABC):
             + str(prompt[-40:])
         )
 
+    def apply_chat_template(
+        self,
+        messages: Sequence[EngineMessage],
+    ) -> str:
+        if self.tokenizer.chat_formatter is None:
+            raise NotImplementedError("No chat formatter, and completions are not yet supported.")
+
+        if len(messages) == 0:
+            return ""
+
+        msgs = [
+            ChatMessage(
+                role=msg.role,
+                content="".join(
+                    c.value if c.type == "text" else c.text_representation for c in msg.content
+                )
+            )
+            for msg in messages
+        ]
+
+        # transformers and llamacpp tokenizers seem super inconsistent about respecting
+        # `continue_final_message` and `add_generation_prompt` and tend to add an EOS
+        # token to the end of the last message if it's not an assistant message.
+        # It might be caused when the final message being empty?
+        # We add a sentinel to the end of the last message and strip it out manually.
+        sentinel = "\x02" # Something hopefully very unlikely to be in a chat template..?
+
+        *msgs, active = msgs
+        active_with_sentinel = ChatMessage(
+            role = active["role"],
+            content = active["content"] + sentinel,
+        )
+        msgs = msgs + [active_with_sentinel]
+
+        text = self.tokenizer.chat_formatter(msgs)
+
+        # Find the last occurrence of the sentinel and remove it
+        last_sentinel_index = text.rfind(sentinel)
+        if last_sentinel_index == -1:
+            raise ValueError("Sentinel not found in the chat template output.")
+
+        return text[:last_sentinel_index]
+
 
 class ConstraintException(Exception):
     def __init__(self, *args, **kwargs):
         self.prompt = kwargs.pop("prompt", None)
         self.data = kwargs.pop("data", None)
         super().__init__(*args, **kwargs)
-
 
