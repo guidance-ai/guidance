@@ -14,6 +14,7 @@ from typing import (
     Union,
     cast,
 )
+from pydantic import Base64Bytes
 from typing_extensions import assert_never
 
 from ._parser import ByteParser, ByteParserException
@@ -176,7 +177,7 @@ class RoleEnd(ASTNode):
 
 @dataclass
 class ImageBlob(ASTNode):
-    data: bytes # TODO: pydantic Base64Bytes?
+    data: Base64Bytes
 
     def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
         return interpreter.image_blob(self, **kwargs)
@@ -192,7 +193,7 @@ class ImageUrl(ASTNode):
 
 @dataclass
 class AudioBlob(ASTNode):
-    data: bytes # TODO: pydantic Base64Bytes?
+    data: Base64Bytes
 
     def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
         return interpreter.audio_blob(self, **kwargs)
