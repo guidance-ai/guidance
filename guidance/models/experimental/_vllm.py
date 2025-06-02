@@ -1,17 +1,10 @@
-from typing import Iterator, Optional, TYPE_CHECKING
-import wave
-import base64
-from io import BytesIO
-
-if TYPE_CHECKING:
-    from openai.types.chat import ChatCompletionChunk
+from typing import Iterator, Optional
 
 from ..._ast import GrammarNode
 from ...trace import OutputAttr, TextOutput
-from ...trace._trace import AudioOutput
 from .._openai_base import (
     BaseOpenAIInterpreter,
-    AssistantAudio,
+    OpenAIClientWrapper
 )
 from .._base import Model
 
@@ -31,7 +24,7 @@ class VLLMInterpreter(BaseOpenAIInterpreter):
                 "Please install the openai package version >= 1 using `pip install openai -U` in order to use guidance.models.OpenAI!"
             )
         client = openai.OpenAI(base_url=base_url, api_key=api_key, **kwargs)
-        super().__init__(model=model, client=client)
+        super().__init__(model=model, client=OpenAIClientWrapper(client))
 
     def grammar(self, node: GrammarNode, **kwargs) -> Iterator[OutputAttr]:
         buffer: str = ""
