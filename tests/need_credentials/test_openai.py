@@ -54,7 +54,7 @@ def test_openai_chat_smoke(openai_model: Model):
     common_chat_testing.smoke_chat(openai_model)
 
 
-def test_azureai_openai_audio_smoke(openai_audio_model: Model):
+def test_openai_audio_smoke(openai_audio_model: Model):
     lm = openai_audio_model
     with system():
         lm += "Talk like a pirate."
@@ -64,7 +64,7 @@ def test_azureai_openai_audio_smoke(openai_audio_model: Model):
         lm += gen_audio()
 
 
-def test_azureai_openai_image_smoke(openai_image_model: Model):
+def test_openai_image_smoke(openai_image_model: Model):
     lm = openai_image_model
 
     image_bytes = requests.get("https://picsum.photos/300/200").content
