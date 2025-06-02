@@ -268,9 +268,10 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                     )
             elif delta.function_call is not None:
                 raise NotImplementedError("Function calling not yet supported for OpenAI")
-            elif delta.tool_calls is not None:
+            elif delta.tool_calls is not None and len(delta.tool_calls) > 0:
                 raise NotImplementedError("Tool calling not yet supported for OpenAI")
-            elif delta.refusal is not None:
+            # there are cases where vllm does not return refusal field in delta, using None as default value here
+            elif getattr(delta, "refusal", None) is not None:
                 raise ValueError(f"OpenAI refused the request: {delta.refusal}")
 
             if choice.finish_reason is not None:

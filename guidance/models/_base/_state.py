@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Optional, TypedDict, Union
+from copy import deepcopy
 
 from ...trace import CaptureOutput
 
@@ -41,3 +42,16 @@ class State(ABC):
             log_probs=log_prob or float("nan"),
             is_append=is_append,
         )
+        
+    def copy(self) -> "State":
+        """Create a copy of the current state."""
+        new_state = self.__class__()
+        # deepcopy everything using __dict__ to ensure we copy the structure
+        for key, value in self.__dict__.items():
+            if isinstance(value, dict):
+                new_state.__dict__[key] = deepcopy(value)
+            elif isinstance(value, list):
+                new_state.__dict__[key] = [deepcopy(item) for item in value]
+            else:
+                new_state.__dict__[key] = deepcopy(value)
+        return new_state

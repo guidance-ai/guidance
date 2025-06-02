@@ -92,7 +92,7 @@ class Model:
                 ),
             )
 
-    def __add__(self, other: Union[str, Function, ASTNode]) -> Self:
+    def __add__(self, other: Union[str, Function, ASTNode, "Model"]) -> Self:
         self = self._apply_blocks()
         if isinstance(other, str):
             if other == "":
@@ -104,6 +104,9 @@ class Model:
             self = self._apply_node(other)
             self = self._update_open_block_captures()
             return self
+        if isinstance(other, Model):
+            # transfer the state of the other model
+            return self.transfer_state(other)
         return NotImplemented
 
     def _apply_node(self, node: ASTNode) -> Self:
@@ -208,6 +211,21 @@ class Model:
         obj._parent = self
         obj._update_trace_node(obj._id, obj._parent_id, None)
         return obj
+    
+    def transfer_state(self, other: "Model") -> Self:
+        """Transfer the state of this model to another model."""
+        if not isinstance(other, Model):
+            raise TypeError("Can only transfer state to another Model instance.")
+        
+        if type(self._interpreter.state) != type(other._interpreter.state):
+            raise TypeError(
+                f"Cannot transfer state between models with different state types ({type(self._interpreter.state)} vs {type(other._interpreter.state)})"
+            )
+        
+        new_object = self.copy()
+        new_object._interpreter = deepcopy(other._interpreter)
+        new_object._interpreter.state = self._interpreter.state.copy()
+        return new_object
 
     def __str__(self) -> str:
         return str(self._interpreter.state)
