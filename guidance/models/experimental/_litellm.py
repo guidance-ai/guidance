@@ -64,12 +64,12 @@ class LiteLLMInterpreter(BaseOpenAIInterpreter):
         yield from self._handle_stream(chunks)
 
     def rule(self, node: RuleNode, **kwargs) -> Iterator[OutputAttr]:
-        # if node.stop:
-        #     raise ValueError("Stop condition not yet supported for OpenAI")
-        # if node.suffix:
-        #     raise ValueError("Suffix not yet supported for OpenAI")
-        # if node.stop_capture:
-        #     raise ValueError("Save stop text not yet supported for OpenAI")
+        if node.stop and self.ep_type not in ["hosted_vllm"]:
+            raise ValueError(f"stop condition not yet supported for {self.ep_type} endpoint")
+        if node.suffix:
+            raise ValueError(f"suffix not yet supported for {self.ep_type} endpoint")
+        if node.stop_capture:
+            raise ValueError(f"stop_capture not yet supported for {self.ep_type} endpoint")
 
         kwargs = kwargs.copy()
         if node.temperature:
