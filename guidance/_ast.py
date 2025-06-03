@@ -221,21 +221,27 @@ class GrammarNode(Tagged, ASTNode):
         return False
 
     @property
-    def is_terminal(self) -> bool:
+    def is_allowed_in_lark_terminal(self) -> bool:
         """
         If this returns true, then this node will be compiled down to a regular expression.
         It cannot be recursive.
         """
-        return all(child.is_terminal for child in self.children())
+        return all(child.is_allowed_in_lark_terminal for child in self.children())
+
+    @property
+    def is_allowed_in_lark_rule_with_attrs(self) -> bool:
+        """
+        If this returns true, then this node can be used as a Lark rule with attributes.
+        """
+        # Typically, not being allowed in terminal implies that a node is not allowed in a rule with attributes,
+        # however this is notably false for subgrammars
+        return self.is_allowed_in_lark_terminal
 
     def simplify(self) -> "GrammarNode":
         return self
 
     def children(self) -> Sequence["GrammarNode"]:
         return ()
-
-    def __repr__(self) -> str:
-        return self.lark_str()
 
     def __add__(self, other) -> "GrammarNode":
         if not isinstance(other, (str, GrammarNode)):
@@ -439,7 +445,7 @@ class SubstringNode(GrammarNode):
     chunks: tuple[str, ...]
 
     @property
-    def is_terminal(self) -> bool:
+    def is_allowed_in_lark_terminal(self) -> bool:
         # this can be used as part of bigger regexes
         return True
 
@@ -455,7 +461,7 @@ class SubstringNode(GrammarNode):
 @dataclass(frozen=True)
 class RuleNode(GrammarNode):
     name: str
-    value: Union[GrammarNode, "BaseSubgrammarNode"]
+    value: GrammarNode
     capture: Optional[str] = None
     list_append: bool = False
     temperature: Optional[float] = None
@@ -473,13 +479,13 @@ class RuleNode(GrammarNode):
             or self.suffix is not None
             or self.stop_capture is not None
             or self.lazy
-        ) and not (isinstance(self.value, BaseSubgrammarNode) or self.value.is_terminal):
+        ) and not self.value.is_allowed_in_lark_rule_with_attrs:
             raise ValueError(
                 "RuleNode is not terminal, so it cannot have a temperature, max_tokens, or stop condition"
             )
 
     @property
-    def is_terminal(self) -> bool:
+    def is_allowed_in_lark_terminal(self) -> bool:
         return (
             (
                 self.capture is None
@@ -490,12 +496,10 @@ class RuleNode(GrammarNode):
                 and self.stop_capture is None
                 and not self.lazy
             )
-            and not isinstance(self.value, BaseSubgrammarNode)
-            and self.value.is_terminal
+            and super().is_allowed_in_lark_terminal
         )
 
-    def children(self) -> Sequence["GrammarNode"]:
-        # What happens if value is a BaseSubGrammarNode?
+    def children(self) -> tuple[GrammarNode]:
         return (self.value,)
 
     def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
@@ -512,7 +516,7 @@ class RuleRefNode(GrammarNode):
         object.__setattr__(self, "target", target)
 
     @property
-    def is_terminal(self) -> bool:
+    def is_allowed_in_lark_terminal(self) -> bool:
         # RuleRefNode should only ever be used to enable recursive rule definitions,
         # so it should never be terminal.
         return False
@@ -522,11 +526,16 @@ class RuleRefNode(GrammarNode):
             raise ValueError("RuleRefNode target not set")
         return interpreter.rule(self.target)
 
-
 @dataclass(frozen=True)
-class BaseSubgrammarNode(ASTNode):
-    pass
-
+class BaseSubgrammarNode(GrammarNode):
+    @property
+    def is_allowed_in_lark_terminal(self) -> bool:
+        return False
+    @property
+    def is_allowed_in_lark_rule_with_attrs(self) -> bool:
+        # Typically, not being allowed in terminal implies that a node is not allowed in a rule with attributes,
+        # however this is notably false for subgrammars
+        return True
 
 @dataclass(frozen=True)
 class SubgrammarNode(BaseSubgrammarNode):
@@ -621,7 +630,7 @@ class LarkSerializer:
     def __init__(self, enforce_max_tokens: bool = True):
         self.enforce_max_tokens = enforce_max_tokens
         self.rules: dict[str, str] = {}
-        self.names: dict[Union[RuleNode, BaseSubgrammarNode], str] = {}
+        self.names: dict[RuleNode, str] = {}
 
     def serialize(self, node: GrammarNode) -> str:
         if isinstance(node, RuleNode) and node.name == "start":
@@ -651,7 +660,7 @@ class LarkSerializer:
             if node in self.names:
                 return self.names[node]
 
-            name = self.normalize_name(node.name, node.is_terminal)
+            name = self.normalize_name(node.name, node.is_allowed_in_lark_terminal)
             names = set(self.names.values())
             if name in names:
                 i = 1
@@ -687,24 +696,19 @@ class LarkSerializer:
             
             res += ": "
             target = node.value
-            if isinstance(target, GrammarNode):
+            if isinstance(target, JsonNode):
+                res += "%json " + json.dumps(target.schema, indent=2)
+            elif isinstance(target, LarkNode):
+                # TODO: we can't decide whether or not to enforce max tokens here easily.
+                # We could in principle parse the grammar and/or use a regex?
+                res += f"%lark {{\n{textwrap.indent(target.lark_grammar, '  ').strip()}\n}}"
+            elif isinstance(target, SubgrammarNode):
+                lark_grammar = LarkSerializer(enforce_max_tokens=self.enforce_max_tokens).serialize(target.body)
+                if target.skip_regex:
+                    lark_grammar += f"\n%ignore /{target.skip_regex}/"
+                res += f"%lark {{\n{textwrap.indent(lark_grammar, '  ').strip()}\n}}"
+            elif isinstance(target, GrammarNode):
                 res += self.visit(target.simplify(), top=True)
-            elif isinstance(target, BaseSubgrammarNode):
-                if isinstance(target, JsonNode):
-                    res += "%json " + json.dumps(target.schema, indent=2)
-                elif isinstance(target, LarkNode):
-                    # TODO: we can't decide whether or not to enforce max tokens here easily.
-                    # We could in principle parse the grammar and/or use a regex?
-                    res += f"%lark {{\n{textwrap.indent(target.lark_grammar, '  ').strip()}\n}}"
-                elif isinstance(target, SubgrammarNode):
-                    lark_grammar = LarkSerializer(enforce_max_tokens=self.enforce_max_tokens).serialize(target.body)
-                    if target.skip_regex:
-                        lark_grammar += f"\n%ignore /{target.skip_regex}/"
-                    res += f"%lark {{\n{textwrap.indent(lark_grammar, '  ').strip()}\n}}"
-                else:
-                    if TYPE_CHECKING:
-                        assert_never(target)
-                    raise TypeError(f"Unknown subgrammar type: {target}")
             else:
                 if TYPE_CHECKING:
                     assert_never(target)

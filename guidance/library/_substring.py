@@ -14,6 +14,7 @@ def substring(
     chunk: Union[Literal["word", "character"], Callable[[str], Iterable[str]]] = "word",
     name: Optional[str] = None,
 ) -> RuleNode:
+    chunks: Iterable[str]
     if chunk == "word":
         chunks = chunk_on_word(target_string)
     elif chunk == "character":
