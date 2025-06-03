@@ -519,10 +519,6 @@ class Engine(ABC):
         # Prefer to implement get_logits over get_next_token as it allows for concurrent mask computation
         raise NotImplementedError
 
-    def get_per_token_topk_probs(self, token_ids: list[int], top_k: int = 5) -> list[GenToken]:
-        """Get the top-k probabilities for each token in the sequence."""
-        raise NotImplementedError
-
     def sample_with_temperature(
         self, logits: np.ndarray, mask: Optional[bytes], temperature: float
     ) -> int:
