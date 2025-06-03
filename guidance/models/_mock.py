@@ -3,12 +3,11 @@ from typing import Optional, Sequence
 
 import numpy as np
 
-from .._schema import EngineOutput, GenToken, GenTokenExtra
-from .._utils import softmax
+from .._schema import EngineOutput
 from ..trace import TraceHandler
 from ..visual._renderer import DoNothingRenderer
 from ._base import Model
-from ._engine import Engine, EngineInterpreter, EngineState, Tokenizer
+from ._engine import Engine, EngineInterpreter, Tokenizer
 from ._engine._tokenizer import TokenizerWrappable
 
 logger = logging.getLogger(__name__)
