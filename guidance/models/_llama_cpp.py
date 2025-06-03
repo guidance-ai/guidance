@@ -59,31 +59,6 @@ class _LlamaBatchContext:
                 self.batch = None
                 llama_batch_free(batch)
 
-def detokenize(tokenizer: "LlamaTokenizer", tokens: list[int], special: bool, size: int) -> bytes:
-    """Re-implementation of llama_cpp.LLamaTokenizer.detokenize that ditches the hard-coded size=32"""
-    output = b""
-    buffer = ctypes.create_string_buffer(size)
-    for token in tokens:
-        n = llama_cpp.llama_token_to_piece(
-            tokenizer._model.vocab,
-            llama_cpp.llama_token(token),
-            buffer,
-            size,
-            0,
-            special
-        )
-        if n < 0:
-            raise ValueError(f"Error writing token {token} to buffer of size {size}. Error: {n}")
-        assert n <= size
-        output += bytes(buffer[:n])
-    # NOTE: Llama1 models automatically added a space at the start of the prompt
-    # this line removes a leading space if the first token is a beginning of sentence token
-    return (
-        output[1:]
-        if len(tokens) > 0 and tokens[0] == tokenizer._model.token_bos() and output[0:1] == b" "
-        else output
-        )
-
 class LlamaCppTokenizer(Tokenizer):
     def __init__(self, model_obj: "Llama", chat_template: Union[str, ChatTemplate, None] = None):
         self._model_obj = model_obj
