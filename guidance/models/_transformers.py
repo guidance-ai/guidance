@@ -4,7 +4,6 @@ import textwrap
 import warnings
 from typing import TYPE_CHECKING, Optional, Union, cast
 
-from .._schema import GenToken, GenTokenExtra
 from ..chat import ChatTemplate
 from ._engine import Engine, Tokenizer, EngineInterpreter, Llama3VisionInterpreter, Phi3VisionInterpreter
 from ._engine._tokenizer import TokenizerWrappable
