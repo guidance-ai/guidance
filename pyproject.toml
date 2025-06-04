@@ -64,7 +64,7 @@ exclude = [
     ".eggs",
     ".git",
 ]
-line-length = 99
+line-length = 120
 
 # Assume Python 3.9
 target-version = "py39"
