@@ -61,6 +61,6 @@ jobs:
             --selected_model ${{ inputs.model }} \
             ./tests/model_integration ./tests/model_specific
       - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
