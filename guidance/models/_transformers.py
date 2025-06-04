@@ -66,8 +66,8 @@ class TransformersTokenizer(Tokenizer):
             byte_tokens = self._byte_tokens(hf_tokenizer)
             vocab_size = len(byte_tokens)
             ll_tokenizer = TokenizerWrappable(
-                eos_token_id=hf_tokenizer.bos_token_id, # type: ignore[attr-defined]
-                bos_token_id=hf_tokenizer.eos_token_id, # type: ignore[attr-defined]
+                eos_token_id=hf_tokenizer.eos_token_id, # type: ignore[attr-defined]
+                bos_token_id=getattr(hf_tokenizer, "bos_token_id", None),
                 tokens=byte_tokens,
                 special_token_ids=[
                     token_id for (token_id, token) in hf_tokenizer.added_tokens_decoder.items()
@@ -78,7 +78,7 @@ class TransformersTokenizer(Tokenizer):
         super().__init__(
             ll_tokenizer=ll_tokenizer,
             chat_template=chat_template,
-            bos_token_id=hf_tokenizer.bos_token_id,  # type: ignore[attr-defined]
+            bos_token_id=getattr(hf_tokenizer, "bos_token_id", None),
         )
         self._vocab_size = vocab_size
 
