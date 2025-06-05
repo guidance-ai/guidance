@@ -148,18 +148,21 @@ class LiteLLMInterpreter(BaseOpenAIInterpreter):
         if self.ep_type in ["openai"] and \
             (self.model in ["gpt-3.5-turbo"] or self.model.startswith("gpt-4-")) and \
             node.schema is not None:
-            raise ValueError(f"Json Schema is not supported for ep {self.ep_type}/{self.model}")
+            raise ValueError(f"json_schema is not supported for ep {self.ep_type}/{self.model}")
+        
+        if self.ep_type in ["azure_ai"]:
+            raise ValueError(f"json_object/json_schema are not supported for ep {self.ep_type}")
         
         if node.schema is None:
             response_format = { "type": "json_object" }
         else:
-            schema = {k: v for k,v in node.schema.items() if k != "x-guidance"}
-            schema["additionalProperties"] = False  # Ensure no additional properties are allowed
+            # set additionalProperties to False but allow it to be overridden
+            node.schema["additionalProperties"] = node.schema.get("additionalProperties", False)
             response_format = {
                 "type": "json_schema",
                 "json_schema": {
                     "name": "json_schema",
-                    "schema": schema,
+                    "schema": node.schema,
                     "strict": True,
                 }
             }
@@ -171,22 +174,29 @@ class LiteLLMInterpreter(BaseOpenAIInterpreter):
     
     def grammar(self, node: GrammarNode, **kwargs) -> Iterator[OutputAttr]:
         if self.ep_type == "hosted_vllm":
-            return self._grammar_vllm(node, **kwargs)
+            return self.lark(LarkNode(lark_grammar=node.ll_grammar()), **kwargs)
         
-        raise ValueError(f"Grammar is not yet supported for ep {self.ep_type}")        
-    
-    def _grammar_vllm(self, node: GrammarNode, **kwargs) -> Iterator[OutputAttr]:
-        """Run the grammar node using vLLM."""
+        raise ValueError(f"Grammar is not yet supported for ep {self.ep_type}")
+
+    def lark(self, node: LarkNode, **kwargs):        
+        if self.ep_type == "hosted_vllm":
+            return self._lark_vllm(node, **kwargs)
+        
+        raise ValueError(f"LarkGrammar is not yet supported for ep {self.ep_type}")
+
+    def _lark_vllm(self, node: LarkNode, **kwargs):
+        """Run the lark grammar node using vLLM."""
         buffer: str = ""
         for attr in self._run(
             extra_body=dict(
                 guided_decoding_backend="guidance",
-                guided_grammar=node.ll_grammar()
+                guided_grammar=node.lark_grammar
             )
         ):
             if isinstance(attr, TextOutput):
                 buffer += attr.value
             yield attr
+            
         matches = node.match(
             buffer,
             raise_exceptions=False,
@@ -211,25 +221,6 @@ class LiteLLMInterpreter(BaseOpenAIInterpreter):
                     yield self.state.apply_capture(
                         name=name, value=value, log_prob=log_probs, is_append=False
                     )
-
-    def lark(self, node: LarkNode, **kwargs):        
-        if self.ep_type == "hosted_vllm":
-            return self._lark_vllm(node, **kwargs)
-        
-        raise ValueError(f"LarkGrammar is not yet supported for ep {self.ep_type}")
-
-    def _lark_vllm(self, node: LarkNode, **kwargs):
-        """Run the lark grammar node using vLLM."""
-        buffer: str = ""
-        for attr in self._run(
-            extra_body=dict(
-                guided_decoding_backend="guidance",
-                guided_grammar=node.lark_grammar
-            )
-        ):
-            if isinstance(attr, TextOutput):
-                buffer += attr.value
-            yield attr
 
 class LiteLLM(Model):
     def __init__(self, model_description: dict, echo=True, **kwargs):
