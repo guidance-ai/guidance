@@ -13,12 +13,13 @@ from typing import (
     Sequence,
     TypeVar,
     Union,
-    Literal,
     TypedDict,
     cast,
 )
 from typing_extensions import assert_never
 from functools import cached_property
+from llguidance import LLMatcher
+import warnings
 
 from ._parser import ByteParser, ByteParserException
 from .trace import OutputAttr
@@ -534,7 +535,7 @@ class LLGJsonCompileOptions(TypedDict):
 
 @dataclass(frozen=True, eq=False)
 class JsonNode(BaseSubgrammarNode):
-    schema: Union[None, Literal[True], dict[str, Any]] = None
+    schema: Optional[dict[str, Any]] = None
     llg_options: Optional[LLGJsonCompileOptions] = None
 
     def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
@@ -543,13 +544,9 @@ class JsonNode(BaseSubgrammarNode):
     @cached_property
     def _llguidance_json(self) -> dict[str, Any]:
         if self.schema is None:
-            # The user did not pass a schema.
-            # TODO: should we infer {"type": "object"} here?
-            schema = {}
-        elif self.schema is True:
-            # The user passed a schema, and it was `True`.
-            # This is equivalent to an empty schema.
-            schema = {}
+            # The user did not pass a schema. Let's assume that they want an object
+            # (this should match the behavior of most remote providers)
+            schema = {"type": "object"}
         else:
             # shallow copy is ok
             schema = copy.copy(self.schema)
@@ -560,6 +557,17 @@ class JsonNode(BaseSubgrammarNode):
             # (in case x-guidance was already set with some options)
             schema["x-guidance"] = self.llg_options
         return schema
+    
+    def _validate(self) -> None:
+        """Validate the JSON schema with `llguidance` and warn about any issues."""
+        grm = LLMatcher.grammar_from_json_schema(self._llguidance_json)
+        is_err, messages = LLMatcher.validate_grammar_with_warnings(grm)
+        if is_err:
+            raise ValueError(messages[0])
+        else:
+            # this will warn about oneOf coercion, and any other unsupported features if lenient is enabled
+            for message in messages:
+                warnings.warn(message)
 
 @dataclass(frozen=True, eq=False)
 class LarkNode(BaseSubgrammarNode):

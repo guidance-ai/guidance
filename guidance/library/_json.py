@@ -1,10 +1,7 @@
-import warnings
-from json import dumps as json_dumps
 from json import loads as json_loads
-from typing import Any, Mapping, Optional, Type, Union, cast
+from typing import Any, Mapping, Optional, Type, Union
 
 import pydantic
-from llguidance import LLMatcher
 
 from .._ast import JsonNode, LLGJsonCompileOptions
 from .._grammar import capture, token_limit, with_temperature
@@ -75,6 +72,9 @@ def json(
     """
     if schema is False:
         raise ValueError("Unsatisfiable schema: schema is false")
+    elif schema is True:
+        # Any valid JSON is acceptable
+        schema = {}
     elif isinstance(schema, pydantic.TypeAdapter) or (
         isinstance(schema, type) and issubclass(schema, pydantic.BaseModel)
     ):
@@ -109,20 +109,7 @@ def json(
 
     if isinstance(schema, Mapping):
         schema = dict(schema)
-        # TODO: decide whether or not to keep this -- it lets us double check that llguidance can handle the schema which isn't necessarily
-        # what we want, as llguidance may or may not be the backend we are using. That being said, it's sort of nice to get an exception when
-        # you call `json` instead of waiting for generation to fail.
-        VALIDATE = True
-        if VALIDATE:
-            grm = LLMatcher.grammar_from_json_schema(schema, overrides=llg_options)
-            is_err, messages = LLMatcher.validate_grammar_with_warnings(grm)
-            if is_err:
-                raise ValueError(messages[0])
-            else:
-                # this will warn about oneOf coercion, and any other unsupported features if lenient is enabled
-                for message in messages:
-                    warnings.warn(message)
-    elif schema is not None and schema is not True:
+    elif schema is not None:
         raise TypeError(
             f"Invalid schema type: {type(schema)}. Expected None, a boolean, a JSON schema object, a pydantic model, or a pydantic TypeAdapter."
         )
@@ -131,6 +118,14 @@ def json(
         schema=schema,
         llg_options=llg_options,
     )
+
+    VALIDATE = True
+    if VALIDATE:
+        # TODO: decide whether or not to keep this -- it lets us double check that llguidance can handle the schema which isn't necessarily
+        # what we want, as llguidance may or may not be the backend we are using. That being said, it's sort of nice to get an exception when
+        # you call `json` instead of waiting for generation to fail.
+        node._validate()
+
     if temperature is not None:
         node = with_temperature(node, temperature)
     if max_tokens is not None:
