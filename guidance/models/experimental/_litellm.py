@@ -11,7 +11,7 @@ from .._openai_base import (
 
 
 class LiteLLMInterpreter(BaseOpenAIInterpreter):
-    SUPPORTED_ENDPOINT_TYPES = ["openai", "azure_ai", "azure", "gemini", "anthropic", "hosted_vllm"]
+    SUPPORTED_ENDPOINT_TYPES = ["openai", "azure_ai", "azure", "gemini", "anthropic", "xai", "hosted_vllm"]
 
     def __init__(self, model_description: dict, **kwargs):
         try:
@@ -64,7 +64,7 @@ class LiteLLMInterpreter(BaseOpenAIInterpreter):
         yield from self._handle_stream(chunks)
 
     def rule(self, node: RuleNode, **kwargs) -> Iterator[OutputAttr]:
-        if node.stop and self.ep_type not in ["hosted_vllm", "azure", "azure_ai", "gemini", "openai", "anthropic"]:
+        if node.stop and self.ep_type not in ["hosted_vllm", "azure", "azure_ai", "gemini", "openai", "xai", "anthropic"]:
             raise ValueError(f"stop condition not yet supported for {self.ep_type} endpoint")
         if node.suffix:
             raise ValueError(f"suffix not yet supported for {self.ep_type} endpoint")
@@ -77,7 +77,10 @@ class LiteLLMInterpreter(BaseOpenAIInterpreter):
         if node.max_tokens:
             kwargs["max_tokens"] = node.max_tokens
         if node.stop:
-            kwargs["stop"] = node.stop.regex
+            if self.ep_type in ["xai"] and isinstance(node.stop.regex, str):
+                kwargs["stop"] = [node.stop.regex]
+            else:
+                kwargs["stop"] = node.stop.regex
 
         chunks = self.run(node.value, **kwargs)
         if node.capture:
