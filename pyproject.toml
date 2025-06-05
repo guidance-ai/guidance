@@ -53,18 +53,3 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = "tokenizers.*"
 ignore_missing_imports = true
-
-# =======================================================
-
-[tool.ruff]
-# Override ruff's default include
-# Because notebooks are tougher
-include = [ "*.py", "*.pyi", "pyproject.toml" ]
-exclude = [
-    ".eggs",
-    ".git",
-]
-line-length = 120
-
-# Assume Python 3.9
-target-version = "py39"
