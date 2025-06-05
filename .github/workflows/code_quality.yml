@@ -73,8 +73,10 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
-      - name: Do dev install
-        run: pip install -e .[dev]
+      - name: Do guidance install
+        run: pip install -e .
+      - name: Install mypy
+        run: pip install mypy
       - name: Run mypy
         shell: bash
         run: |
