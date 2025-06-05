@@ -1,4 +1,4 @@
-from typing import Iterator, ContextManager
+from typing import Iterator, ContextManager, TYPE_CHECKING
 from pydantic import TypeAdapter
 
 from ..._ast import GrammarNode, RuleNode, RegexNode, JsonNode, LarkNode
@@ -9,7 +9,8 @@ from .._openai_base import (
     BaseOpenAIInterpreter,
     BaseOpenAIClientWrapper
 )
-from openai.types.chat import ChatCompletionChunk
+if TYPE_CHECKING:
+    from openai.types.chat import ChatCompletionChunk
 import contextlib
 
 class LiteLLMOpenAIClientWrapper(BaseOpenAIClientWrapper):
@@ -23,7 +24,7 @@ class LiteLLMOpenAIClientWrapper(BaseOpenAIClientWrapper):
         messages: list[Message],
         log_probs: bool,
         **kwargs,
-    ) -> Iterator[ChatCompletionChunk]:
+    ) -> Iterator["ChatCompletionChunk"]:
         """Wrapped completion call within a context manager."""
         kwargs["stream"] = True  # Ensure we are streaming here
         yield self.router.completion(
