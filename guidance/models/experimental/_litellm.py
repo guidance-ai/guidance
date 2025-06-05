@@ -11,7 +11,7 @@ from .._openai_base import (
 
 
 class LiteLLMInterpreter(BaseOpenAIInterpreter):
-    SUPPORTED_ENDPOINT_TYPES = ["openai", "azure", "azure_ai", "gemini", "anthropic", "hosted_vllm"]
+    SUPPORTED_ENDPOINT_TYPES = ["openai", "azure_ai", "azure", "gemini", "anthropic", "hosted_vllm"]
 
     def __init__(self, model_description: dict, **kwargs):
         try:
