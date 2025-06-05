@@ -67,6 +67,7 @@ jobs:
 
   runn-mypy:
     name: Run informaitonal mypy
+    runs-on: ubuntu-latest
     steps:
       - name: Check out repo ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
         uses: actions/checkout@v4
