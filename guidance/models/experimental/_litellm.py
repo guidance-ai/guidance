@@ -11,7 +11,7 @@ from .._openai_base import (
 
 
 class LiteLLMInterpreter(BaseOpenAIInterpreter):
-    SUPPORTED_ENDPOINT_TYPES = ["openai", "azure", "azure_ai", "gemini", "hosted_vllm"]
+    SUPPORTED_ENDPOINT_TYPES = ["openai", "azure", "azure_ai", "gemini", "anthropic", "hosted_vllm"]
 
     def __init__(self, model_description: dict, **kwargs):
         try:
@@ -64,7 +64,7 @@ class LiteLLMInterpreter(BaseOpenAIInterpreter):
         yield from self._handle_stream(chunks)
 
     def rule(self, node: RuleNode, **kwargs) -> Iterator[OutputAttr]:
-        if node.stop and self.ep_type not in ["hosted_vllm"]:
+        if node.stop and self.ep_type not in ["hosted_vllm", "azure", "azure_ai", "gemini", "openai", "anthropic"]:
             raise ValueError(f"stop condition not yet supported for {self.ep_type} endpoint")
         if node.suffix:
             raise ValueError(f"suffix not yet supported for {self.ep_type} endpoint")
@@ -76,6 +76,8 @@ class LiteLLMInterpreter(BaseOpenAIInterpreter):
             kwargs["temperature"] = node.temperature
         if node.max_tokens:
             kwargs["max_tokens"] = node.max_tokens
+        if node.stop:
+            kwargs["stop"] = node.stop.regex
 
         chunks = self.run(node.value, **kwargs)
         if node.capture:
@@ -122,6 +124,9 @@ class LiteLLMInterpreter(BaseOpenAIInterpreter):
         if self.ep_type in ["openai"] and \
             (self.model in ["gpt-3.5-turbo"] or self.model.startswith("gpt-4-")):
             raise ValueError(f"Json is not supported for ep {self.ep_type}/{self.model}")
+        
+        if self.ep_type in ["azure_ai"]:
+            raise ValueError(f"Json is not supported for ep {self.ep_type} with model {self.model}")
 
         schema = {k: v for k,v in node.schema.items() if k != "x-guidance"}
         schema["additionalProperties"] = False  # Ensure no additional properties are allowed
