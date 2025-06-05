@@ -65,7 +65,28 @@ jobs:
               }
             })
 
-  runn-mypy:
+  # Have a separate workflow because we don't want to enforce this at all
+  # It will have too many errors initially and is likely to deter contributors
+  ruff-linting:
+    name: Linting with ruff
+    runs-on: ubuntu-latest
+    permissions:
+      checks: read
+    steps:
+      - name: Check out repo ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
+      - name: Do dev install
+        run: pip install -e .[dev]
+      - name: Run ruff linting
+        shell: bash
+        continue-on-error: true
+        run: |
+          ruff check
+
+
+  run-mypy:
     name: Run informational mypy
     runs-on: ubuntu-latest
     permissions:
