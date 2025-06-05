@@ -44,9 +44,7 @@ for v in extras_requires.values():
 
 # See
 # https://github.com/guidance-ai/guidance/issues/1222
-sentencepiece_dependency = (
-    "sentencepiece" if sys.version_info.minor != 13 else "dbowring-sentencepiece"
-)
+sentencepiece_dependency = "sentencepiece" if sys.version_info.minor != 13 else "dbowring-sentencepiece"
 
 # Required for builds etc.
 doc_requires = [
@@ -98,7 +96,7 @@ bench_requires = [
     "powerlift",
 ]
 
-dev_requires = ["ruff==0.11.11"]
+dev_requires = ["ruff==0.11.11", "mypy"]
 
 
 def read(*parts):
