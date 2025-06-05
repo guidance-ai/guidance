@@ -1,6 +1,7 @@
 import json
 import re
 import textwrap
+import copy
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import (
@@ -12,9 +13,12 @@ from typing import (
     Sequence,
     TypeVar,
     Union,
+    Literal,
+    TypedDict,
     cast,
 )
 from typing_extensions import assert_never
+from functools import cached_property
 
 from ._parser import ByteParser, ByteParserException
 from .trace import OutputAttr
@@ -514,14 +518,48 @@ class SubgrammarNode(BaseSubgrammarNode):
     def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
         return interpreter.subgrammar(self, **kwargs)
 
+class LLGJsonCompileOptions(TypedDict):
+    # defaults to ","
+    item_separator: Optional[str]
+    # defaults to ":"
+    key_separator: Optional[str]
+    # defaults to None - depends on whitespace_flexible
+    whitespace_pattern: Optional[str]
+    # defaults to true (r"[\x20\x0A\x0D\x09]+"); if false, no whitespace is allowed
+    whitespace_flexible: Optional[bool]
+    # defaults to false
+    coerce_one_of: Optional[bool]
+    # ignore unimplemented keywords; defaults to false
+    lenient: Optional[bool]
 
 @dataclass(frozen=True, eq=False)
 class JsonNode(BaseSubgrammarNode):
-    schema: dict[str, Any]
+    schema: Union[None, Literal[True], dict[str, Any]] = None
+    llg_options: Optional[LLGJsonCompileOptions] = None
 
     def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
         return interpreter.json(self, **kwargs)
 
+    @cached_property
+    def _llguidance_json(self) -> dict[str, Any]:
+        if self.schema is None:
+            # The user did not pass a schema.
+            # TODO: should we infer {"type": "object"} here?
+            schema = {}
+        elif self.schema is True:
+            # The user passed a schema, and it was `True`.
+            # This is equivalent to an empty schema.
+            schema = {}
+        else:
+            # shallow copy is ok
+            schema = copy.copy(self.schema)
+
+        if self.llg_options is not None:
+            # Maybe TODO: let LLGJsonCompileOptions be non-total
+            # and update the schema with any present options
+            # (in case x-guidance was already set with some options)
+            schema["x-guidance"] = self.llg_options
+        return schema
 
 @dataclass(frozen=True, eq=False)
 class LarkNode(BaseSubgrammarNode):
@@ -600,7 +638,7 @@ class LarkSerializer:
             res += ": "
             target = node.value
             if isinstance(target, JsonNode):
-                res += "%json " + json.dumps(target.schema, indent=2)
+                res += "%json " + json.dumps(target._llguidance_json, indent=2)
             elif isinstance(target, LarkNode):
                 # TODO: we can't decide whether or not to enforce max tokens here easily.
                 # We could in principle parse the grammar and/or use a regex?

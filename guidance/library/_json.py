@@ -6,7 +6,7 @@ from typing import Any, Mapping, Optional, Type, Union, cast
 import pydantic
 from llguidance import LLMatcher
 
-from .._ast import JsonNode, RuleNode
+from .._ast import JsonNode, LLGJsonCompileOptions
 from .._grammar import capture, token_limit, with_temperature
 from ._pydantic import pydantic_to_json_schema
 
@@ -75,12 +75,6 @@ def json(
     """
     if schema is False:
         raise ValueError("Unsatisfiable schema: schema is false")
-    elif schema is True:
-        schema = {}
-    elif schema is None:
-        # Default schema is empty, "anything goes" schema
-        # TODO: consider default being `{"type": "object"}`
-        schema = {}
     elif isinstance(schema, pydantic.TypeAdapter) or (
         isinstance(schema, type) and issubclass(schema, pydantic.BaseModel)
     ):
@@ -91,11 +85,6 @@ def json(
             raise ValueError("JSON schema string must be a JSON object (i.e. a dictionary)")
         schema = from_str
 
-    if isinstance(schema, Mapping):
-        schema = dict(schema)
-    else:
-        raise TypeError(f"Unsupported schema type: {type(schema)}")
-
     if whitespace_pattern is not None:
         whitespace_flexible = True
 
@@ -104,39 +93,39 @@ def json(
             separators = (",", ":")
         else:
             separators = (", ", ": ")
+
     if len(separators) != 2:
         raise ValueError("separators must be a tuple of (item_separator, key_separator)")
     item_separator, key_separator = separators
 
-    if schema.get("x-guidance") is None:
-        schema["x-guidance"] = {
-            "item_separator": item_separator,
-            "key_separator": key_separator,
-            "whitespace_flexible": whitespace_flexible,
-            "whitespace_pattern": whitespace_pattern,
-            "coerce_one_of": True,
-            "lenient": lenient,
-        }
+    llg_options = LLGJsonCompileOptions(
+        whitespace_flexible=whitespace_flexible,
+        whitespace_pattern=whitespace_pattern,
+        item_separator=item_separator,
+        key_separator=key_separator,
+        coerce_one_of=True,
+        lenient=lenient,
+    )
 
-    # TODO: decide whether or not to keep this -- it lets us double check that llguidance can handle the schema which isn't necessarily
-    # what we want, as llguidance may or may not be the backend we are using. That being said, it's sort of nice to get an exception when
-    # you call `json` instead of waiting for generation to fail.
-    VALIDATE = True
-    if VALIDATE:
-        grm = LLMatcher.grammar_from_json_schema(schema)
-        is_err, messages = LLMatcher.validate_grammar_with_warnings(grm)
-        if is_err:
-            raise ValueError(messages[0])
-        else:
-            # this will warn about oneOf coercion, and any other unsupported features if lenient is enabled
-            for message in messages:
-                warnings.warn(message)
+    if isinstance(schema, Mapping):
+        schema = dict(schema)
+        # TODO: decide whether or not to keep this -- it lets us double check that llguidance can handle the schema which isn't necessarily
+        # what we want, as llguidance may or may not be the backend we are using. That being said, it's sort of nice to get an exception when
+        # you call `json` instead of waiting for generation to fail.
+        VALIDATE = True
+        if VALIDATE:
+            grm = LLMatcher.grammar_from_json_schema(schema, overrides=llg_options)
+            is_err, messages = LLMatcher.validate_grammar_with_warnings(grm)
+            if is_err:
+                raise ValueError(messages[0])
+            else:
+                # this will warn about oneOf coercion, and any other unsupported features if lenient is enabled
+                for message in messages:
+                    warnings.warn(message)
 
-    node = RuleNode(
-        name=name or "json",
-        value=JsonNode(
-            schema=schema,
-        )
+    node = JsonNode(
+        schema=schema,
+        llg_options=llg_options,
     )
     if temperature is not None:
         node = with_temperature(node, temperature)
