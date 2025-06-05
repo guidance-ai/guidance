@@ -78,7 +78,7 @@ jobs:
       - name: Install mypy
         run: pip install mypy
       - name: Get mypy type packages
-        run: mypy --install-types guidance
+        run: mypy --install-types --non-interactive guidance
       - name: Run mypy
         shell: bash
         continue-on-error: true
