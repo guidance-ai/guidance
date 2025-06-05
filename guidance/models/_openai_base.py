@@ -281,6 +281,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
             )
 
         with self.client.streaming_chat_completions(
+            model=self.model,
             messages=self.state.messages,
             log_probs=self.log_probs,
             tools=(
