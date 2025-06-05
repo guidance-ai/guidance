@@ -21,7 +21,7 @@ def json(
         str,
         JSONSchema,
         Type[pydantic.BaseModel],
-        pydantic.TypeAdapter,
+        pydantic.TypeAdapter[Any],
     ] = None,
     temperature: Optional[float] = None,
     max_tokens: Optional[int] = None,
@@ -122,6 +122,10 @@ def json(
                 # this will warn about oneOf coercion, and any other unsupported features if lenient is enabled
                 for message in messages:
                     warnings.warn(message)
+    elif schema is not None and schema is not True:
+        raise TypeError(
+            f"Invalid schema type: {type(schema)}. Expected None, a boolean, a JSON schema object, a pydantic model, or a pydantic TypeAdapter."
+        )
 
     node = JsonNode(
         schema=schema,
