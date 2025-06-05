@@ -393,15 +393,19 @@ class OpenAIRegexMixin(BaseOpenAIInterpreter):
 
 class OpenAIJSONMixin(BaseOpenAIInterpreter):
     def json(self, node: JsonNode, **kwargs) -> Iterator[OutputAttr]:
-        return self._run(
+        if node.schema is None:
+            response_format = {"type": "json_object"}
+        else:
             response_format={
                 "type": "json_schema",
                 "json_schema": {
                     "name": "json_schema",  # TODO?
-                    "schema": {k: v for k,v in node.schema.items() if k != "x-guidance"},
+                    "schema": node.schema,
                     "strict": True,
                 },
             },
+        return self._run(
+            response_format=response_format,
             **kwargs,
         )
 
