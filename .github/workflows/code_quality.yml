@@ -74,10 +74,11 @@ jobs:
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
       - name: Do guidance install
-        run: pip install -e .
+        run: pip install -e .[all]
       - name: Install mypy
         run: pip install mypy
       - name: Get mypy type packages
+        continue-on-error: true
         run: mypy --install-types --non-interactive guidance
       - name: Run mypy
         shell: bash
