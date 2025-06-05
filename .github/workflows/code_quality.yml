@@ -64,3 +64,18 @@ jobs:
                 summary: 'Run `ruff format . and `ruff check --select I` locally and push the changes.'
               }
             })
+
+  runn-mypy:
+    name: Run informaitonal mypy
+    steps:
+      - name: Check out repo ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
+      - name: Do dev install
+        run: pip install -e .[dev]
+      - name: Run mypy
+        shell: bash
+        run: |
+          mypy guidance
+          echo "Done"
