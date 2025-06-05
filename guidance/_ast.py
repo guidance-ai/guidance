@@ -558,7 +558,7 @@ class JsonNode(BaseSubgrammarNode):
             schema["x-guidance"] = self.llg_options
         return schema
     
-    def _validate(self) -> None:
+    def _llguidance_validate(self) -> None:
         """Validate the JSON schema with `llguidance` and warn about any issues."""
         grm = LLMatcher.grammar_from_json_schema(self._llguidance_json)
         is_err, messages = LLMatcher.validate_grammar_with_warnings(grm)
