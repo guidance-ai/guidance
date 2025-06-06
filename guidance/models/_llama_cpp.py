@@ -289,9 +289,8 @@ class LlamaCppEngine(Engine):
         text_sequence.append(
             GenTokenExtra(
                 token_id=token_ids[0],
-                prob=1.0,
-                text=_text,
-                top_k=[GenToken(token_id=token_ids[0], prob=1.0, text=_text)],
+                bytes=_text,
+                top_k=[GenToken(token_id=token_ids[0], bytes=_text)],
             )
         )
 
@@ -315,13 +314,13 @@ class LlamaCppEngine(Engine):
                     print(
                         f"Failed to decode token: {_token_id}, error: {e}, _bytes: {str(_bytes)}"
                     )
-                top_k_list.append(GenToken(token_id=_token_id, prob=_prob, text=_text))
+                top_k_list.append(GenToken(token_id=_token_id, prob=_prob, bytes=_text))
 
             text_sequence.append(
                 GenTokenExtra(
                     token_id=token_id,
                     prob=_probs[token_id],
-                    text=self.tokenizer.decode([token_id]).decode("utf-8"),
+                    bytes=self.tokenizer.decode([token_id]).decode("utf-8"),
                     top_k=top_k_list,
                 )
             )

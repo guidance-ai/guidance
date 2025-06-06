@@ -2,28 +2,55 @@
 
 Messages are required to be added to the model registry for serialization.
 """
-from typing import Optional, Dict, Union
+from typing import Optional, Union, Annotated, ClassVar
+from pydantic import BaseModel, Field, model_validator, computed_field, Tag, TypeAdapter, Discriminator
 from itertools import count
-from pydantic import BaseModel, Field
 
-from guidance._schema import GenTokenExtra
 from ..trace import NodeAttr
-import json
+
 
 class GuidanceMessage(BaseModel):
     """Message sent within Guidance layer."""
 
     message_id: int = Field(default_factory=count().__next__)
-    class_name: Optional[str] = None
 
-    def model_post_init(self, context):
-        self.class_name = self.__class__.__name__
+    _subclasses: ClassVar[set[type["GuidanceMessage"]]] = set()
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        cls._subclasses.add(cls)
+
+    @computed_field # type: ignore[prop-decorator]
+    @property
+    def class_name(self) -> str:
+        """Class name of the message."""
+        return self.__class__.__name__
+
+    @model_validator(mode="before")
+    def validate_class_name(cls, data):
+        if isinstance(data, dict):
+            if 'class_name' in data and data['class_name'] != cls.__name__:
+                raise ValueError(f"mismatched class name: {data['class_name']}, expected: {cls.__name__}")
+        return data
+
+    @classmethod
+    def as_discriminated_union(cls) -> type["GuidanceMessage"]:
+        return Annotated[
+            Union[
+                tuple(
+                    Annotated[tp, Tag(tp.__name__)]
+                    for tp in cls._subclasses
+                )
+            ],
+            Discriminator(
+                lambda x: x["class_name"] if isinstance(x, dict) else x.class_name,
+            )
+        ] # type: ignore[return-value]
 
 class TraceMessage(GuidanceMessage):
     """Update on a trace node."""
     trace_id: int
     parent_trace_id: Optional[int] = None
-    node_attr: Optional[NodeAttr] = None
+    node_attr: Optional[NodeAttr.as_discriminated_union()] = None # type: ignore
 
 
 class MetricMessage(GuidanceMessage):
@@ -46,16 +73,6 @@ class ExecutionCompletedMessage(GuidanceMessage):
     is_err: bool = False
 
 
-class TokensMessage(GuidanceMessage):
-    """Fired when trace messages are completed, with tokens for client."""
-    trace_id: int
-    text: str
-    tokens: list[GenTokenExtra]
-
-    def __str__(self):
-        return f"message_id={self.message_id} class_name={self.class_name} trace_id={self.trace_id}"
-
-
 class ResetDisplayMessage(GuidanceMessage):
     """Instructs client to reset the display, removing all output."""
     pass
@@ -75,21 +92,6 @@ class OutputRequestMessage(GuidanceMessage):
     """Fired when client requests tokens from server."""
     pass
 
-
-model_registry: Dict[str, type[GuidanceMessage]] = {
-    'TraceMessage': TraceMessage,
-    'ExecutionStartedMessage': ExecutionStartedMessage,
-    'ExecutionCompletedMessage': ExecutionCompletedMessage,
-    'ExecutionCompletedOutputMessage': TokensMessage,
-    'ResetDisplayMessage': ResetDisplayMessage,
-    'ClientReadyMessage': ClientReadyMessage,
-    'ClientReadyAckMessage': ClientReadyAckMessage,
-    'OutputRequestMessage': OutputRequestMessage,
-    'MetricMessage': MetricMessage,
-    'TokensMessage': TokensMessage,
-}
-
-
 def serialize_message(message: GuidanceMessage) -> str:
     """ Serializes guidance message.
 
@@ -99,8 +101,7 @@ def serialize_message(message: GuidanceMessage) -> str:
     Returns:
         Serialized message in JSON format.
     """
-    message_json = message.model_dump_json(indent=2, serialize_as_any=True)
-    return message_json
+    return message.model_dump_json()
 
 
 def deserialize_message(data: str) -> GuidanceMessage:
@@ -112,9 +113,4 @@ def deserialize_message(data: str) -> GuidanceMessage:
     Returns:
         Guidance message.
     """
-    data_json = json.loads(data)
-    class_name = data_json.get("class_name")
-    model_class = model_registry.get(class_name)
-    if not model_class:
-        raise ValueError(f"Unknown class_name: {class_name}")
-    return model_class.model_validate_json(data)
+    return TypeAdapter(GuidanceMessage.as_discriminated_union()).validate_json(data) 
