@@ -27,12 +27,20 @@ class LiteLLMOpenAIClientWrapper(BaseOpenAIClientWrapper):
     ) -> Iterator["ChatCompletionChunk"]:
         """Wrapped completion call within a context manager."""
         kwargs["stream"] = True  # Ensure we are streaming here
-        yield self.router.completion(
+        stream_wrapper = self.router.completion(
             model=model,
             messages=TypeAdapter(list[Message]).dump_python(messages),  # type: ignore[arg-type]
             logprobs=log_probs,
             **kwargs,
         )
+        
+        try:
+            yield stream_wrapper
+        finally:
+            # stream_wrapper.completion_stream is the underlying stream, e.g. openai.Stream
+            if hasattr(stream_wrapper.completion_stream, "close"):
+                # Close the stream if it has a close method
+                stream_wrapper.completion_stream.close()
         
     def streaming_chat_completions(
         self,
@@ -177,26 +185,19 @@ class LiteLLMInterpreter(BaseOpenAIInterpreter):
             return self.lark(LarkNode(lark_grammar=node.ll_grammar()), **kwargs)
         
         raise ValueError(f"Grammar is not yet supported for ep {self.ep_type}")
-
-    def lark(self, node: LarkNode, **kwargs):        
-        if self.ep_type == "hosted_vllm":
-            return self._lark_vllm(node, **kwargs)
-        
-        raise ValueError(f"LarkGrammar is not yet supported for ep {self.ep_type}")
-
-    def _lark_vllm(self, node: LarkNode, **kwargs):
-        """Run the lark grammar node using vLLM."""
+    
+    def _grammar_vllm(self, node: GrammarNode, **kwargs) -> Iterator[OutputAttr]:
+        """Run the grammar node using vLLM."""
         buffer: str = ""
         for attr in self._run(
             extra_body=dict(
                 guided_decoding_backend="guidance",
-                guided_grammar=node.lark_grammar
+                guided_grammar=node.ll_grammar()
             )
         ):
             if isinstance(attr, TextOutput):
                 buffer += attr.value
             yield attr
-            
         matches = node.match(
             buffer,
             raise_exceptions=False,
@@ -221,6 +222,12 @@ class LiteLLMInterpreter(BaseOpenAIInterpreter):
                     yield self.state.apply_capture(
                         name=name, value=value, log_prob=log_probs, is_append=False
                     )
+
+    def lark(self, node: LarkNode, **kwargs):        
+        if self.ep_type == "hosted_vllm":
+            return self.grammar(node, **kwargs)
+        
+        raise ValueError(f"LarkGrammar is not yet supported for ep {self.ep_type}")
 
 class LiteLLM(Model):
     def __init__(self, model_description: dict, echo=True, **kwargs):
