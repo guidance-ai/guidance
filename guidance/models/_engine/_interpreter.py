@@ -2,13 +2,13 @@ from base64 import b64decode
 from io import BytesIO
 from typing import Iterator
 from copy import deepcopy
+import re
 
 from ..._ast import GrammarNode, ImageBlob, LiteralNode, RoleEnd, RoleStart
 from ...trace import ImageOutput, OutputAttr, TextOutput
 from .._base import Interpreter
-from ._engine import Engine
+from ._engine import Engine, Tokenizer
 from ._state import EngineState
-
 
 class EngineInterpreter(Interpreter[EngineState]):
     def __init__(self, engine: Engine):
@@ -60,12 +60,10 @@ class EngineInterpreter(Interpreter[EngineState]):
             ensure_bos_token=True,
             echo=False,
         )
-
         delayed_bytes = b""
         for chunk in engine_gen:
-            new_bytes = chunk.new_bytes
+            new_bytes = parse_special_tokens(self.engine.tokenizer, chunk.new_bytes)
             new_text, delayed_bytes = partial_decode(new_bytes)
-
             # Update the state
             self.state.prompt += new_text
             yield TextOutput(value=new_text, token_count=chunk.new_token_count, is_generated=True)
@@ -157,3 +155,20 @@ def partial_decode(data: bytes) -> tuple[str, bytes]:
         valid_part = data[: e.start].decode("utf-8")
         delayed_part = data[e.start :]
     return (valid_part, delayed_part)
+
+_SPECIAL_TOKEN_PAT = re.compile(rb"\xff\[([0-9]+)\]")
+def parse_special_tokens(tokenizer: Tokenizer, bts: bytes) -> bytes:
+    """
+    llguidance will emit special tokens in the form of _SPECIAL_TOKEN_PAT,
+    and we need to parse them back into the original text.
+    """
+    out = b""
+    isspecial = False
+    for match in _SPECIAL_TOKEN_PAT.split(bts):
+        if isspecial:
+            token_id = int(match.decode("utf-8"))
+            out += tokenizer.decode([token_id])
+        else:
+            out += match
+        isspecial = not isspecial
+    return out

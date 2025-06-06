@@ -1,6 +1,4 @@
 from typing import Optional
-
-
 from ._base import Model
 from ._openai_base import (
     BaseOpenAIInterpreter,
