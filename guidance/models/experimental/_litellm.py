@@ -182,7 +182,7 @@ class LiteLLMInterpreter(BaseOpenAIInterpreter):
     
     def grammar(self, node: GrammarNode, **kwargs) -> Iterator[OutputAttr]:
         if self.ep_type == "hosted_vllm":
-            return self.lark(LarkNode(lark_grammar=node.ll_grammar()), **kwargs)
+            return self._grammar_vllm(node, **kwargs)
         
         raise ValueError(f"Grammar is not yet supported for ep {self.ep_type}")
     
