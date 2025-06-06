@@ -7,9 +7,9 @@ from abc import ABC, abstractmethod
 from typing import Any
 from pydantic import BaseModel, Json
 
-from guidance._ast import ToolDefinition, SpecialToken, RuleNode, GrammarNode
-from guidance.library import json, select, string, capture
-from guidance import guidance
+from ._ast import ToolDefinition, SpecialToken, RuleNode, GrammarNode
+from .library import json, select, string, capture
+from ._guidance import guidance
 
 
 class RawToolCall(BaseModel):
@@ -70,7 +70,7 @@ class Llama3FunctionToolCallHandler(ToolCallHandler):
             + select(
                 [
                     f"{name}>" + json(schema=defn.args.model_json_schema())
-                    for name, defn in tools.items()
+                    for name, defn in self.tools.items()
                 ],
             )
             + "</function>"
@@ -141,67 +141,3 @@ def handle_tool_call(
     response = handler.invoke_tool(tool_call)
     lm += handler.format_return_value(response)
     return lm
-
-
-from guidance import *
-from guidance.chat import Llama3ChatTemplate
-
-model = models.LlamaCpp(chat_template=Llama3ChatTemplate, n_ctx=4096)
-
-lm = model
-with system():
-    lm += """\
-Environment: ipython
-
-Cutting Knowledge Date: December 2023
-Today Date: 21 September 2024
-
-You are a helpful assistant."""
-
-with user():
-    lm += """\
- You have access to the following functions:
-
-Use the function 'trending_songs' to 'Returns the trending songs on a Music site':
-{"name": "trending_songs", "description": "Returns the trending songs on a Music site", "parameters": {"genre": {"description": "The genre of the songs to return", "param_type": "str", "required": false}, "n": {"description": "The number of songs to return", "param_type": "int", "required": true}}}
-
-Think very carefully before calling functions.
-If you choose to call a function ONLY reply in the following format with no prefix or suffix:
-
-<function=example_function_name>{"example_name": "example_value"}</function>
-
-Reminder:
-- If looking for real time information use relevant functions before falling back to brave_search
-- Function calls MUST follow the specified format, start with <function= and end with </function>
-- Required parameters MUST be specified
-- Only call one function at a time
-- Put the entire function call reply on one line<|eot_id|><|start_header_id|>user<|end_header_id|>
-
-Use tools to get latest trending songs"""
-
-
-def trending_songs(genre: str = None, n: int = 5):
-    """Returns the trending songs on a Music site"""
-    return [
-        "1. BIRDS OF A FEATHER by Billie Eilish",
-        "2. Espresso by Sabrina Carpenter",
-        "3. Please Please Please by Sabrina Carpenter",
-        "4. Not Like Us by Kendrick Lamar",
-        "5. Gata Only by FloyyMenor, Cris Mj",
-    ][:n]
-
-
-tools = {
-    "trending_songs": ToolDefinition.from_callable(
-        trending_songs,
-    )
-}
-
-with assistant():
-    lm += handle_tool_call(
-        # Llama3FunctionToolCallHandler(tools=tools)
-        Llama3IPythonToolCallHandler(tools=tools)
-    )
-
-with assistant():
-    lm += gen(max_tokens=100)
