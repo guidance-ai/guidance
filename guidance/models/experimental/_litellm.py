@@ -223,12 +223,6 @@ class LiteLLMInterpreter(BaseOpenAIInterpreter):
                         name=name, value=value, log_prob=log_probs, is_append=False
                     )
 
-    def lark(self, node: LarkNode, **kwargs):        
-        if self.ep_type == "hosted_vllm":
-            return self.grammar(node, **kwargs)
-        
-        raise ValueError(f"LarkGrammar is not yet supported for ep {self.ep_type}")
-
 class LiteLLM(Model):
     def __init__(self, model_description: dict, echo=True, **kwargs):
         interpreter = LiteLLMInterpreter(model_description=model_description, **kwargs)
