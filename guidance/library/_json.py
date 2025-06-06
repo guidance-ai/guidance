@@ -3,7 +3,7 @@ from typing import Any, Mapping, Optional, Type, Union
 
 import pydantic
 
-from .._ast import JsonNode, LLGJsonCompileOptions
+from .._ast import JsonNode, LLGJsonCompileOptions, RuleNode
 from .._grammar import capture, token_limit, with_temperature
 from ._pydantic import pydantic_to_json_schema
 
@@ -126,10 +126,15 @@ def json(
         # you call `json` instead of waiting for generation to fail.
         node._llguidance_validate()
 
+    rule = RuleNode(
+        name=name or "json",
+        value=node,
+    )
+
     if temperature is not None:
-        node = with_temperature(node, temperature)
+        rule = with_temperature(rule, temperature)
     if max_tokens is not None:
-        node = token_limit(node, max_tokens)
+        rule = token_limit(rule, max_tokens)
     if name is not None:
-        node = capture(node, name)
-    return node
+        rule = capture(rule, name)
+    return rule
