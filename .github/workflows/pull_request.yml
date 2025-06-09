@@ -49,7 +49,7 @@ jobs:
             ./tests/unit
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
-        if: ${{ (env.CODECOV_PYTHON == matrix.python-version)
+        if: ${{ (env.CODECOV_PYTHON == matrix.python-version) }}
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
 
