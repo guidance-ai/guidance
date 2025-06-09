@@ -12,6 +12,10 @@ on:
       model:
         required: true
         type: string
+      codeCovPython:
+        required: true
+        type: string
+        default: "3.12"
     secrets:
       HF_TOKEN:
         required: false
@@ -79,5 +83,6 @@ jobs:
             ./tests/model_integration ./tests/model_specific
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
+        if: ${{ (inputs.codeCovPython == inputs.python-version)
         with:
           token: ${{ secrets.CODECOV_TOKEN }}

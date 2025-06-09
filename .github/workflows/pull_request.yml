@@ -1,5 +1,8 @@
 name: Pull Request
 
+env:
+  CODECOV_PYTHON: "3.13"
+
 on:
   pull_request:
   workflow_dispatch:
@@ -9,8 +12,8 @@ on:
         required: false
         type: string
   schedule:
-    # Run at 10:00 UTC every day
-    - cron: "00 10 * * *"
+    # Run at 09:00 UTC every day
+    - cron: "00 09 * * *"
 
 jobs:
   unit_tests:
@@ -46,6 +49,7 @@ jobs:
             ./tests/unit
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
+        if: ${{ (vars.CODECOV_PYTHON == matrix.python-version)
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
 
