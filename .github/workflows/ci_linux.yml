@@ -9,7 +9,10 @@
 name: CI Tests - Linux
 permissions:
   contents: read
-  
+
+env:
+  CODECOV_PYTHON: "3.13"
+
 on:
   workflow_dispatch:
     inputs:
@@ -19,8 +22,8 @@ on:
         type: string
   schedule:
     # * is a special character in YAML so we quote this string
-    # Run at 09:00 UTC every day
-    - cron:  '00 09 * * *'
+    # Run at 09:30 UTC every day
+    - cron:  '30 09 * * *'
 
 
 jobs:
@@ -38,6 +41,7 @@ jobs:
       os: Large_Linux
       python-version: ${{ matrix.python-version }}
       model: ${{ matrix.model }}
+      codeCovPython: ${{ env.CODECOV_PYTHON }}
     secrets:
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
 
@@ -55,6 +59,7 @@ jobs:
       os: Large_Linux
       python-version: ${{ matrix.python-version }}
       model: ${{ matrix.model }}
+      codeCovPython: ${{ env.CODECOV_PYTHON }}
     secrets:
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
 
@@ -74,5 +79,6 @@ jobs:
       os: "gpu-runner"
       python-version: ${{ matrix.python-version }}
       model: ${{ matrix.model }}
+      codeCovPython: ${{ env.CODECOV_PYTHON }}
     secrets:
       HF_TOKEN: ${{ secrets.HF_TOKEN }}

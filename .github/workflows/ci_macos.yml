@@ -14,6 +14,9 @@ name: CI Tests - MacOS
 permissions:
   contents: read
 
+env:
+  CODECOV_PYTHON: "3.13"
+
 on:
   workflow_dispatch:
     inputs:
@@ -41,5 +44,6 @@ jobs:
       os: "macos-latest"
       python-version: ${{ matrix.python-version }}
       model: ${{ matrix.model }}
+      codeCovPython: ${{ env.CODECOV_PYTHON }}
     secrets:
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
