@@ -2,7 +2,7 @@
 # Not part of the regular CI run, since notebook tests seem
 # particularly flaky
 
-name: Notebook Tests
+name: CI Tests - Notebook
 
 on:
   workflow_dispatch:
