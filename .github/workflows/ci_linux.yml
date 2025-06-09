@@ -10,9 +10,6 @@ name: CI Tests - Linux
 permissions:
   contents: read
 
-env:
-  CODECOV_PYTHON: "3.13"
-
 on:
   workflow_dispatch:
     inputs:

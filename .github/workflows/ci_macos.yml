@@ -14,9 +14,6 @@ name: CI Tests - MacOS
 permissions:
   contents: read
 
-env:
-  CODECOV_PYTHON: "3.13"
-
 on:
   workflow_dispatch:
     inputs:

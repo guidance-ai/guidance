@@ -4,9 +4,6 @@
 
 name: Notebook Tests
 
-env:
-  CODECOV_PYTHON: "3.13"
-
 on:
   workflow_dispatch:
     inputs:

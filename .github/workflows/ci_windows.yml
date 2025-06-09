@@ -11,9 +11,6 @@ name: CI Tests - Windows
 permissions:
   contents: read
 
-env:
-  CODECOV_PYTHON: "3.13"
-
 on:
   workflow_dispatch:
     inputs:
