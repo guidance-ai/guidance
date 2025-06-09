@@ -80,6 +80,7 @@ export class StitchView extends DOMWidgetView {
     const recvFromClient = (event: any) => {
       const win = iframe.contentWindow;
       if (win === event.source && event.data.type === 'init_stitch') {
+        console.log("stitch:init_stitch");
         initOnReady();
       } else if (win === event.source && event.data.type === 'clientmsg') {
         model.set('clientmsg', event.data.content);
