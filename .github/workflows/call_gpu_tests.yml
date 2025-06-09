@@ -33,6 +33,10 @@ on:
         required: false
         type: string
         default: "llamacpp_llama2_7b_gpu" # also try "transformers_gpt2_gpu", "transformers_phi2_gpu", etc
+      codeCovPython:
+        required: true
+        type: string
+        default: "3.12"
       commit_id:
         description: 'Branch or Commit ID (optional)'
         required: false
