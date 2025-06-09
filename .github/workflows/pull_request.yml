@@ -1,8 +1,5 @@
 name: Pull Request
 
-env:
-  CODECOV_PYTHON: "3.13"
-
 on:
   pull_request:
   workflow_dispatch:
@@ -49,7 +46,7 @@ jobs:
             ./tests/unit
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
-        if: ${{ (env.CODECOV_PYTHON == matrix.python-version) }}
+        if: ${{ (vars.CODECOV_PYTHON == matrix.python-version) }}
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
 
@@ -67,7 +64,7 @@ jobs:
       os: ${{ matrix.os }}
       python-version: ${{ matrix.python-version }}
       model: ${{ matrix.model }}
-      codeCovPython: ${{ env.CODECOV_PYTHON }}
+      codeCovPython: ${{ vars.CODECOV_PYTHON }}
 
   # gpu_tests:
   #   strategy:
