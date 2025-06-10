@@ -11,6 +11,7 @@
         "@rollup/plugin-node-resolve": "^15.2.3",
         "@rollup/plugin-terser": "^0.4.4",
         "@rollup/plugin-typescript": "^11.1.6",
+        "@tailwindcss/postcss": "^4.1.8",
         "@types/d3-scale": "^4.0.8",
         "@types/d3-scale-chromatic": "^3.0.3",
         "@types/dompurify": "^3.0.5",
@@ -28,7 +29,7 @@
         "sirv-cli": "^2.0.2",
         "svelte": "^4.2.18",
         "svelte-preprocess": "^6.0.2",
-        "tailwindcss": "^3.4.10",
+        "tailwindcss": "^4.1.8",
         "tslib": "^2.6.3",
         "typescript": "^5.5.4"
     },
@@ -37,7 +38,7 @@
         "d3-scale": "^4.0.2",
         "d3-scale-chromatic": "^3.1.0",
         "dompurify": "^3.1.7",
-        "tailwind-scrollbar": "^4.0.0",
+        "tailwind-scrollbar": "^4.0.2",
         "video.js": "^8.21.0"
     }
 }
