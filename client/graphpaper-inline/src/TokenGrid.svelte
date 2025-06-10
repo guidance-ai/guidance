@@ -32,6 +32,7 @@
   export let requireFullReplay: boolean = false;
   export let bgField: string = "Token";
   export let underlineField: string = "Probability";
+  export let backtrackCount: number = 0;
 
   let underline: TokenCallback = (_: Token) => "";
   let bg: TokenCallback = (_: Token) => "";
@@ -172,6 +173,14 @@
   let namedRoleSet: Record<string, string> = {};
   let currentTokenIndex: number = 0;
   let statCounter: Record<string, number> = {};
+  let lastBacktrackCount: number = 0;
+  
+  // Reset currentTokenIndex when backtracking occurs
+  $: if (backtrackCount !== lastBacktrackCount) {
+    currentTokenIndex = 0;
+    lastBacktrackCount = backtrackCount;
+  }
+  
   $: {
     if (components.length === 0) {
       // Reset

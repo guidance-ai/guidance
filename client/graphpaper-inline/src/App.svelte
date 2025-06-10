@@ -44,6 +44,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
     shownMetrics: Array<string>,
     requireFullReplay: boolean,
     currentMessageId: number,
+    backtrackCount: number,
   }
   let appState: AppState = {
     components: [],
@@ -62,6 +63,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
     },
     requireFullReplay: true,
     currentMessageId: -1,
+    backtrackCount: 0,
   };
   // appState.components = mockNodeAttrs;
 
@@ -99,6 +101,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
         for (let i = 0; i < numBacktrack; i++) {
           appState.components.pop();
         }
+        appState.backtrackCount += 1;
       } else {
         console.log("Unknown trace msg node_attr: ", msg)
       }
@@ -116,6 +119,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
     } else if (isResetDisplayMessage(msg)) {
       appState.components = [];
       appState.status = appState.status !== Status.Error ? Status.Running : appState.status;
+      appState.backtrackCount = 0;
     } else if (isMetricMessage(msg)) {
       const name = msg.name;
       const value = msg.value;
@@ -231,7 +235,8 @@ For upcoming features, we won't be able to send all details over the wire, and w
     <TokenGrid components={appState.components}
                isCompleted={['Done', 'Error'].includes(appState.status)}
                isError={appState.status === Status.Error}
-               bgField={bgField} underlineField={underlineField} requireFullReplay="{appState.requireFullReplay}" />
+               bgField={bgField} underlineField={underlineField} requireFullReplay="{appState.requireFullReplay}"
+               backtrackCount={appState.backtrackCount} />
   </section>
   {:else}
   <div class="flex items-center justify-center py-6">
