@@ -227,7 +227,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
 
   {#if appState.components.length > 0}
   <!-- Content pane -->
-  <section class="w-full min-h-32">
+  <section class="w-full min-h-40">
     <TokenGrid components={appState.components}
                isCompleted={['Done', 'Error'].includes(appState.status)}
                isError={appState.status === Status.Error}
