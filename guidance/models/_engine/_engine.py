@@ -155,8 +155,16 @@ class Engine(ABC):
         # images = state.images
         # audio = state.audio
         # videos = state.videos
+        prompt_bytes = state.prompt.encode("utf-8")
+        if (
+            ensure_bos_token
+            and self.tokenizer.bos_token is not None
+            and not prompt_bytes.startswith(self.tokenizer.bos_token)
+        ):
+            # Ensure the prompt starts with the BOS token
+            prompt_bytes = self.tokenizer.bos_token + prompt_bytes
 
-        tokens = self.tokenizer.encode(state.prompt.encode("utf-8"))
+        tokens = self.tokenizer.encode(prompt_bytes)
 
         parser = TokenParser(
             grammar,
@@ -170,15 +178,10 @@ class Engine(ABC):
         while not parser.done():
             t0 = time.time()
 
-            recode = False
             if engine_output is None:
-                prefix_tokens, backtrack, ff_tokens, mask_fut = parser.process_prompt(
+                backtrack, ff_tokens, mask_fut = parser.process_prompt(
                     prompt_tokens=tokens,
-                    ensure_bos_token=ensure_bos_token,
                 )
-                if prefix_tokens:
-                    tokens = prefix_tokens + tokens
-                    recode = True
             else:
                 backtrack, ff_tokens, mask_fut = parser.advance(
                     token_id=engine_output.issued_token.token_id
@@ -190,12 +193,6 @@ class Engine(ABC):
             else:
                 backtracked_bytes = b""
             tokens += ff_tokens
-
-            if recode:
-                # Only necessary when we add a prefix (bos token), which can only happen once
-                # per loop. Needs to happen after adding ff_tokens to maintain associativity of
-                # (model + prompt) + grammar == model + (prompt + grammar)
-                tokens = self.tokenizer.recode(tokens)
 
             # Note that has_pending_stop implies that the response is a stop response,
             # but the converse is not true. We can therefore avoid some (but not all)
