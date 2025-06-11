@@ -3,13 +3,8 @@
 import logging
 import time
 import weakref
-<<<<<<< HEAD
-from abc import ABC
 from typing import Callable, Iterator, Optional, Sequence
-=======
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Callable, Iterator, Optional
->>>>>>> main
 
 import numpy as np
 
