@@ -3,20 +3,26 @@
 import logging
 import time
 import weakref
+<<<<<<< HEAD
 from abc import ABC
 from typing import Callable, Iterator, Optional, Sequence
+=======
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, Callable, Iterator, Optional
+>>>>>>> main
 
 import numpy as np
 
 from ..._parser import TokenParser
 from ..._schema import (
-    EngineCallResponse,
     EngineOutput,
+    EngineResponse,
     GenToken,
     GuidanceEngineMetrics,
 )
+
 from ...registry import get_exchange
-from ..._utils import log_cleanup, log_init, softmax, to_utf8_or_bytes_string
+from ..._utils import log_cleanup, log_init, softmax
 from ...visual import (
     ExecutionCompletedMessage,
     ExecutionStartedMessage,
@@ -131,7 +137,7 @@ class Engine(ABC):
         grammar: str,
         ensure_bos_token: bool = True,
         echo: bool = True,
-    ) -> Iterator[EngineCallResponse]:
+    ) -> Iterator[EngineResponse]:
         """Main entry point for the inference-parser loop. Yields EngineCallResponse objects as
         the parser advances through the grammar.
 
@@ -165,168 +171,104 @@ class Engine(ABC):
         parser = TokenParser(
             grammar,
             tokenizer=self.tokenizer,
-            prompt=prompt.encode("utf-8"),
-            ensure_bos_token=ensure_bos_token,
             enable_backtrack=self.enable_backtrack,
             enable_ff_tokens=self.enable_ff_tokens,
         )
 
-        has_get_logits = True
         engine_output = None
         logits_lat_ms = 0
-        delayed_bytes = b""
-        delayed_engine_outputs: list[EngineOutput] = []
         while not parser.done():
             t0 = time.time()
 
-            tokens, mask_fut, backtrack = parser.advance(engine_output)
+            recode = False
+            if engine_output is None:
+                prefix_tokens, backtrack, ff_tokens, mask_fut = parser.process_prompt(
+                    prompt_tokens=tokens,
+                    ensure_bos_token=ensure_bos_token,
+                )
+                if prefix_tokens:
+                    tokens = prefix_tokens + tokens
+                    recode = True
+            else:
+                backtrack, ff_tokens, mask_fut = parser.advance(
+                    token_id=engine_output.issued_token.token_id
+                )
+
+            if backtrack:
+                backtracked_bytes = self.tokenizer.decode(tokens[-backtrack:])
+                tokens = tokens[:-backtrack]
+            else:
+                backtracked_bytes = b""
+            tokens += ff_tokens
+
+            if recode:
+                # Only necessary when we add a prefix (bos token), which can only happen once
+                # per loop. Needs to happen after adding ff_tokens to maintain associativity of
+                # (model + prompt) + grammar == model + (prompt + grammar)
+                tokens = self.tokenizer.recode(tokens)
 
             # Note that has_pending_stop implies that the response is a stop response,
             # but the converse is not true. We can therefore avoid some (but not all)
             # unnecessary calls to get_logits on the final iteration.
             has_pending_stop = parser.has_pending_stop()
 
-            if has_get_logits and not has_pending_stop:
-                try:
-                    t0 = time.time()
-                    logits = self.get_logits(token_ids=tokens)
-                    logits_lat_ms = (time.time() - t0) * 1000
-                except NotImplementedError:
-                    # Permanently fall-back to get_next_token if get_logits is not implemented
-                    has_get_logits = False
-                    logits = None
-                    logits_lat_ms = 0
+            if not has_pending_stop:
+                t1 = time.time()
+                logits = self.get_logits(token_ids=tokens)
+                logits_lat_ms = (time.time() - t1) * 1000
             else:
+                # Avoid calling get_logits if we know we won't use it
                 logits = None
 
             # Important: don't wait on this future until after getting the logits;
             # this allows the mask to be built concurrently with model inference
             mask, ll_response = mask_fut.result()
+            legacy_engine_response = ll_response.progress.to_engine_call_response()
 
-            engine_response = ll_response.progress.to_engine_call_response()
-            engine_response.backtrack = backtrack
-            if engine_output:
-                engine_response.engine_outputs.append(engine_output)
+            ff_lat_ms = (time.time() - t0) * 1000
+            if not ll_response.stop:
+                # Logit latency will go into the NEXT token
+                # if it exists
+                ff_lat_ms -= logits_lat_ms
 
-            # NOTE (loc): Temporary solution to quickly check which segments are generated and which are force-forwarded to animate visualizations on the UI
-            # These tokens in chunk will not be used for final visualization
-            # TODO: This should be handled by the interpreter
-            if echo and engine_response.new_bytes:
-                try:
-                    _new_bytes = delayed_bytes + engine_response.new_bytes
-                    _tokens = parser.tokenizer.encode(_new_bytes)
-                    delayed_bytes = b""
-                except UnicodeDecodeError:
-                    # similar to what we did in _run_stateless function, if we could not decode current bytes
-                    # we will delay until we can decode them
-                    delayed_bytes += engine_response.new_bytes
-                    if engine_output:
-                        engine_response.engine_outputs.pop()
-                        delayed_engine_outputs.append(engine_output)
-
-                if not delayed_bytes:
-                    ff_token_start_idx = 1
-                    if engine_output is None and len(delayed_engine_outputs) == 0:
-                        ff_token_start_idx = 0
-                    elif (
-                        engine_output.issued_token.token_id == _tokens[0]
-                        and len(delayed_engine_outputs) == 0
-                    ):
-                        # this is generated
-                        engine_response.generated_bytes = parser.tokenizer.decode([_tokens[0]])
-                        engine_output.issued_token.is_generated = True
-                        engine_response.generated_tokens.append(engine_output.issued_token)
-                    else:
-                        # handle delayed bytes
-                        engine_outputs = (
-                            delayed_engine_outputs + [engine_output] if engine_output else []
+            gen_tokens = []
+            if engine_output is None:
+                for token_id in ff_tokens:
+                    gen_tokens.append(
+                        GenToken(
+                            token_id=token_id,
+                            bytes=self.tokenizer.decode([token_id]),
+                            # amortize latency
+                            latency_ms=ff_lat_ms/len(ff_tokens),
+                            is_input=True,
                         )
-                        engine_output_tokens = [e.issued_token.token_id for e in engine_outputs]
-
-                        generated = to_utf8_or_bytes_string(
-                            parser.tokenizer.decode(engine_output_tokens)
+                    )
+            else:
+                gen_tokens.append(engine_output.issued_token)
+                if backtrack or ff_tokens[:1] != [engine_output.issued_token.token_id]:
+                    engine_output.issued_token.is_backtracked = True
+                    ff_start_index = 0
+                else:
+                    ff_start_index = 1
+                for token_id in ff_tokens[ff_start_index:]:
+                    gen_tokens.append(
+                        GenToken(
+                            token_id=token_id,
+                            bytes=self.tokenizer.decode([token_id]),
+                            # amortize latency
+                            latency_ms=ff_lat_ms/len(ff_tokens[ff_start_index:]),
+                            is_force_forwarded=True,
                         )
-                        force_forwarded = _new_bytes.decode("utf-8")
+                    )
 
-                        if force_forwarded.startswith(generated):
-                            engine_output_tokens = np.array(engine_output_tokens)
-                            ff_tokens = np.array(_tokens)
-
-                            # check if engine_output_tokens in ff_tokens
-                            _idx = -1
-                            for _i in range(0, len(ff_tokens) - len(engine_output_tokens) + 1):
-                                if np.array_equal(
-                                    engine_output_tokens,
-                                    ff_tokens[_i : _i + len(engine_output_tokens)],
-                                ):
-                                    _idx = _i + len(engine_output_tokens)
-                                    break
-
-                            if _idx < 0:
-                                ff_token_start_idx = 0
-                            else:
-                                # all previous tokens before _idx are generated
-                                engine_response.generated_bytes = parser.tokenizer.decode(
-                                    ff_tokens[:_idx]
-                                )
-                                idx_in_engine_output_tokens = 0
-                                for _i in range(_idx):
-                                    matching_engine_output = None
-                                    if (
-                                        _tokens[_i]
-                                        == engine_output_tokens[idx_in_engine_output_tokens]
-                                    ):
-                                        matching_engine_output = engine_outputs[
-                                            idx_in_engine_output_tokens
-                                        ]
-                                        idx_in_engine_output_tokens += 1
-                                    engine_response.generated_tokens.append(
-                                        GenToken(
-                                            token_id=_tokens[_i],
-                                            prob=(
-                                                1.0
-                                                if not matching_engine_output
-                                                else matching_engine_output.issued_token.prob
-                                            ),
-                                            text=(
-                                                parser.tokenizer.decode([_tokens[_i]])
-                                                if not matching_engine_output
-                                                else matching_engine_output.issued_token.text
-                                            ),
-                                            latency_ms=(
-                                                0.0
-                                                if not matching_engine_output
-                                                else matching_engine_output.issued_token.latency_ms
-                                            ),
-                                            is_generated=True,
-                                        )
-                                    )
-                                ff_token_start_idx = _idx
-                        else:
-                            ff_token_start_idx = 0
-
-                    if len(_tokens[ff_token_start_idx:]):
-                        engine_response.force_forwarded_bytes = parser.tokenizer.decode(
-                            _tokens[ff_token_start_idx:]
-                        )
-                        for _token in _tokens[ff_token_start_idx:]:
-                            engine_response.force_forwarded_tokens.append(
-                                GenToken(
-                                    token_id=_token,
-                                    prob=1.0,
-                                    text=to_utf8_or_bytes_string(
-                                        parser.tokenizer.decode([_token])
-                                    ),
-                                    latency_ms=0,
-                                    is_force_forwarded=True,
-                                )
-                            )
-
-                    delayed_engine_outputs = []
-            elif not echo and engine_response.new_bytes:
-                # do not collect tokens-metrics if echo is disabled
-                engine_response.generated_bytes = engine_response.new_bytes
-                engine_response.generated_tokens.clear()
+            engine_response = EngineResponse(
+                new_bytes=legacy_engine_response.new_bytes,
+                backtrack_bytes=backtracked_bytes,
+                capture_groups=legacy_engine_response.capture_groups,
+                capture_group_log_probs=legacy_engine_response.capture_group_log_probs,
+                backtrack=backtrack,
+                tokens=gen_tokens,
+            )
 
             # process engine_response
             # NOTE (loc): We should not yield the engine_response if new_bytes are invalid utf-8 bytes
@@ -416,7 +358,7 @@ class Engine(ABC):
         if logits is None:
             t0 = time.time()
             try:
-                logits = self.get_logits(token_ids)
+                logits = self.get_logits(token_ids=token_ids)
             except NotImplementedError:
                 # fallback to orignal get_next_token method
                 _t0 = time.time()
@@ -430,7 +372,7 @@ class Engine(ABC):
                 _issued_token = GenToken(
                     token_id=token_id,
                     prob=1.0,
-                    text=to_utf8_or_bytes_string(self.tokenizer.decode([token_id])),
+                    bytes=self.tokenizer.decode([token_id]),
                     latency_ms=_lat,
                     is_generated=True,
                 )
@@ -452,7 +394,7 @@ class Engine(ABC):
                 GenToken(
                     token_id=token,
                     prob=prob,
-                    text=to_utf8_or_bytes_string(self.tokenizer.decode([token])),
+                    bytes=self.tokenizer.decode([token]),
                     latency_ms=lat_ms,
                     is_generated=True,
                 )
@@ -502,7 +444,7 @@ class Engine(ABC):
             issued_token = GenToken(
                 token_id=sampled_index,
                 prob=sampled_prob,
-                text=to_utf8_or_bytes_string(self.tokenizer.decode([sampled_index])),
+                bytes=self.tokenizer.decode([sampled_index]),
                 latency_ms=lat_ms,
                 is_generated=True,
             )
@@ -516,15 +458,9 @@ class Engine(ABC):
 
         return output
 
-    def get_next_token(
-        self, token_ids: list[int], mask: Optional[bytes], temperature: float
-    ) -> int:
-        # Prefer to implement get_logits over get_next_token as it allows for concurrent mask computation
-        raise NotImplementedError
-
+    @abstractmethod
     def get_logits(self, token_ids: list[int]) -> np.ndarray:
-        # Prefer to implement get_logits over get_next_token as it allows for concurrent mask computation
-        raise NotImplementedError
+        pass
 
     def get_per_token_topk_probs(self, token_ids: list[int], top_k: int = 5) -> list[GenToken]:
         """Get the top-k probabilities for each token in the sequence."""

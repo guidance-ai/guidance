@@ -49,6 +49,10 @@ class Tokenizer:
         self._chat_template = chat_template
         self._bos_token_id = bos_token_id
 
+    def is_special_token(self, token_id: int) -> bool:
+        """Returns True if the given token ID is a special token."""
+        return self._ll_tokenizer.is_special_token(token_id)
+
     @property
     def chat_formatter(self) -> Optional[ChatFormatter]:
         return None
