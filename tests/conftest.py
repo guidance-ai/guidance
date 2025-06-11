@@ -116,6 +116,15 @@ def selected_model(selected_model_name: str) -> models.Model:
             torch_dtype=bfloat16,
             device_map="cuda:0",
         )
+    if selected_model_name == "llamacpp_llama3-2_3b_cpu":
+        from huggingface_hub import hf_hub_download
+        return models.LlamaCpp(
+            hf_hub_download(
+            repo_id="unsloth/Llama-3.2-3B-Instruct-GGUF",
+            filename="Llama-3.2-3B-Instruct-Q8_0.gguf",
+        ),
+            n_ctx=2048,
+        )
 
     # MISTRAL
     if selected_model_name == "transformers_mistral_7b_cpu":
@@ -195,6 +204,7 @@ def llamacpp_model(selected_model, selected_model_name):
         "llamacpp_gemma2_9b_cpu",
         "llamacpp_phi3_mini_4k_instruct_cpu",
         "llamacpp_mistral_7b_cpu",
+        "llamacpp_llama3-2_3b_cpu",
     ]:
         return selected_model
     else:

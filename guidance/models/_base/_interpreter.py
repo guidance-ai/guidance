@@ -18,8 +18,10 @@ from ..._ast import (
     RoleStart,
     RuleNode,
     SelectNode,
+    SpecialToken,
     SubgrammarNode,
     SubstringNode,
+    ToolCallNode,
 )
 from ..._utils import bytes_from
 from ...trace import OutputAttr
@@ -101,6 +103,11 @@ class Interpreter(Generic[S]):
     def gen_audio(self, node: GenAudio, **kwargs) -> Iterator[OutputAttr]:
         raise UnsupportedNodeError(interpreter=self, node=node)
 
+    def tool_call(self, node: ToolCallNode, **kwargs) -> Iterator[OutputAttr]:
+        raise UnsupportedNodeError(interpreter=self, node=node)
+
+    def special_token(self, node: SpecialToken, **kwargs) -> Iterator[OutputAttr]:
+        return self.grammar(node, **kwargs)
 
 class UnsupportedNodeError(ValueError):
     def __init__(self, interpreter: Interpreter, node: ASTNode):

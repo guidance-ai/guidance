@@ -12,7 +12,6 @@ from ._engine import Engine, Tokenizer
 from ._state import EngineState
 from ..._schema import GenTokenExtra
 
-
 class EngineInterpreter(Interpreter[EngineState]):
     def __init__(self, engine: Engine):
         self.state = EngineState()
@@ -72,10 +71,9 @@ class EngineInterpreter(Interpreter[EngineState]):
             ensure_bos_token=True,
             echo=False,
         )
-
         delayed_bytes = b""
         for chunk in engine_gen:
-            new_bytes = recode_special_tokens(self.engine.tokenizer, chunk.new_bytes)
+            new_bytes = parse_special_tokens(self.engine.tokenizer, chunk.new_bytes)
             new_text, delayed_bytes = partial_decode(delayed_bytes + new_bytes)
             self.state.prompt += new_text
 
@@ -183,7 +181,7 @@ def partial_decode(data: bytes) -> tuple[str, bytes]:
     return (valid_part, delayed_part)
 
 LLG_SPECIAL_TOKEN_PAT = re.compile(b"\xff\[([0-9]+)\]")
-def recode_special_tokens(tokenizer: Tokenizer, data: bytes) -> bytes:
+def parse_special_tokens(tokenizer: Tokenizer, data: bytes) -> bytes:
     """Recode a byte string with special tokens in llguidance format to their actual byte representation."""
     return LLG_SPECIAL_TOKEN_PAT.sub(
         lambda m: tokenizer.decode([int(m.group(1).decode("utf-8"))]),
