@@ -54,7 +54,7 @@ class TransformersTokenizer(Tokenizer):
         self,
         hf_tokenizer: Union["PreTrainedTokenizer", "PreTrainedTokenizerFast"],
         chat_template: Union[str, ChatTemplate, None] = None,
-    ) -> "TransformersTokenizer":
+    ):
         self._orig_tokenizer = hf_tokenizer
 
         if isinstance(hf_tokenizer, transformers_package.PreTrainedTokenizerFast):
@@ -631,10 +631,9 @@ class TransformersEngine(Engine):
                 if len(text_sequence) == 0:
                     token = GenTokenExtra(
                         token_id=_token_id.item(),
-                        prob=1.0,
-                        text=tokenizer.decode([_token_id]),
+                        bytes=tokenizer.decode([_token_id]),
                         top_k=[
-                            GenToken(token_id=_token_id.item(), prob=1.0, text=_token),
+                            GenToken(token_id=_token_id.item(), bytes=_token),
                         ],
                     )
                     text_sequence.append(token)
@@ -648,12 +647,12 @@ class TransformersEngine(Engine):
                 top_k_probs = [_probs[i].item() for i in top_k_indices]
                 top_k_list = []
                 for t, p in zip(top_k_indices, top_k_probs):
-                    top_k_list.append(GenToken(token_id=t, prob=p, text=tokenizer.decode([t])))
+                    top_k_list.append(GenToken(token_id=t, prob=p, bytes=tokenizer.decode([t])))
 
                 token = GenTokenExtra(
                     token_id=_token_id.item(),
                     prob=_probs[_token_id].item(),
-                    text=_token,
+                    bytes=_token,
                     top_k=top_k_list,
                 )
                 text_sequence.append(token)

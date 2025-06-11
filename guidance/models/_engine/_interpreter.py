@@ -1,14 +1,16 @@
-from base64 import b64decode
+from base64 import b64decode, b64encode
 from io import BytesIO
 from typing import Iterator
 from copy import deepcopy
 import re
 
-from ..._ast import GrammarNode, ImageBlob, LiteralNode, RoleEnd, RoleStart
-from ...trace import ImageOutput, OutputAttr, TextOutput
+from ..._ast import GrammarNode, ImageBlob, LiteralNode, RoleEnd, RoleStart, SpecialToken, JoinNode
+from ..._utils import to_utf8_or_bytes_string
+from ...trace import ImageOutput, OutputAttr, Backtrack, TokenOutput, Token
 from .._base import Interpreter
 from ._engine import Engine, Tokenizer
 from ._state import EngineState
+from ..._schema import GenTokenExtra
 
 class EngineInterpreter(Interpreter[EngineState]):
     def __init__(self, engine: Engine):
@@ -41,17 +43,26 @@ class EngineInterpreter(Interpreter[EngineState]):
 
     def role_start(self, node: RoleStart, **kwargs) -> Iterator[OutputAttr]:
         self.state.active_role = node.role
-        # TODO: mark these as special tokens..?
-        yield from self.run(LiteralNode(value=self.get_role_start(node.role)), **kwargs)
+        text = self.get_role_start(node.role)
+        # TODO: it's probably somewhat wasteful to trigger engine calls here,
+        # so we can maybe add this as "pending text" to the state instead,
+        # accumulating it until the next engine call..?
+        yield from self.run(
+            text_to_grammar(self.engine.tokenizer, text)
+        )
 
     def role_end(self, node: RoleEnd, **kwargs) -> Iterator[OutputAttr]:
         self.state.active_role = None
-        # TODO: mark these as special tokens..?
-        yield from self.run(LiteralNode(value=self.get_role_end(node.role)), **kwargs)
+        text = self.get_role_end(node.role)
+        # TODO: it's probably somewhat wasteful to trigger engine calls here,
+        # so we can maybe add this as "pending text" to the state instead,
+        # accumulating it until the next engine call..?
+        yield from self.run(
+            text_to_grammar(self.engine.tokenizer, text)
+        )
 
     def text(self, node: LiteralNode, **kwargs) -> Iterator[OutputAttr]:
-        self.state.prompt += node.value
-        yield TextOutput(value=node.value, is_input=True)
+        yield from self.grammar(node, **kwargs)
 
     def grammar(self, node: GrammarNode, **kwargs) -> Iterator[OutputAttr]:
         engine_gen = self.engine(
@@ -63,31 +74,44 @@ class EngineInterpreter(Interpreter[EngineState]):
         delayed_bytes = b""
         for chunk in engine_gen:
             new_bytes = parse_special_tokens(self.engine.tokenizer, chunk.new_bytes)
-            new_text, delayed_bytes = partial_decode(new_bytes)
-            # Update the state
+            new_text, delayed_bytes = partial_decode(delayed_bytes + new_bytes)
             self.state.prompt += new_text
-            yield TextOutput(value=new_text, token_count=chunk.new_token_count, is_generated=True)
 
-            # TODO -- rewrite engine internals to make sure chunk.{generated,fast_forwarded}_tokens aren't empty...
-            # # TODO: GenTokenExtra
-            # for token in chunk.generated_tokens:
-            #     yield TextOutput(
-            #         value=token.text,  # TODO: this should really be the token bytes
-            #         is_generated=True,
-            #         token_count=1,
-            #         prob=token.prob,
-            #         tokens=[token],  # TODO: drop this
-            #     )
-            # for token in chunk.force_forwarded_tokens:
-            #     yield TextOutput(
-            #         value=token.text,  # TODO: this should really be the token bytes
-            #         is_generated=False,
-            #         token_count=1,
-            #         prob=token.prob,
-            #         tokens=[token],  # TODO: drop this
-            #     )
+            if chunk.backtrack:
+                yield Backtrack(
+                    n_tokens=chunk.backtrack,
+                    bytes=b64encode(chunk.backtrack_bytes),
+                )
 
-            # # TODO: yield some kind of backtrack signal?
+            for token in chunk.tokens:
+                if isinstance(token, GenTokenExtra):
+                    top_k = [
+                        Token(
+                            token=to_utf8_or_bytes_string(t.bytes),
+                            bytes=b64encode(t.bytes),
+                            prob=t.prob,
+                            masked=t.is_masked,
+                        )
+                        for t in token.top_k
+                    ]
+                else:
+                    top_k = None
+
+                token_value = to_utf8_or_bytes_string(token.bytes)
+                yield TokenOutput(
+                    value=token_value,
+                    token=Token(token=token_value, bytes=b64encode(token.bytes), prob=token.prob),
+                    latency_ms=token.latency_ms,
+                    is_input = token.is_input,
+                    is_generated = token.is_generated,
+                    is_force_forwarded = token.is_force_forwarded,
+                    top_k=top_k,
+                )
+                if token.is_backtracked:
+                    yield Backtrack(
+                        n_tokens=1,
+                        bytes=b64encode(token.bytes),
+                    )
 
             for name in chunk.capture_groups.keys():
                 values = chunk.capture_groups[name]
@@ -123,7 +147,7 @@ class Llama3VisionInterpreter(EngineInterpreter):
         self.state.images.append(pil_image)
         self.state.prompt += "<|image|>"
 
-        yield ImageOutput(value=node.data, input=True)
+        yield ImageOutput(value=node.data, is_input=True)
 
 
 class Phi3VisionInterpreter(EngineInterpreter):
@@ -145,7 +169,7 @@ class Phi3VisionInterpreter(EngineInterpreter):
             ix = len(self.state.images)
         self.state.prompt += f"<|image_{ix}|>"
 
-        yield ImageOutput(value=node.data, input=True)
+        yield ImageOutput(value=node.data, is_input=True)
 
 
 def partial_decode(data: bytes) -> tuple[str, bytes]:
@@ -156,19 +180,31 @@ def partial_decode(data: bytes) -> tuple[str, bytes]:
         delayed_part = data[e.start :]
     return (valid_part, delayed_part)
 
-_SPECIAL_TOKEN_PAT = re.compile(rb"\xff\[([0-9]+)\]")
-def parse_special_tokens(tokenizer: Tokenizer, bts: bytes) -> bytes:
+LLG_SPECIAL_TOKEN_PAT = re.compile(b"\xff\[([0-9]+)\]")
+def parse_special_tokens(tokenizer: Tokenizer, data: bytes) -> bytes:
+    """Recode a byte string with special tokens in llguidance format to their actual byte representation."""
+    return LLG_SPECIAL_TOKEN_PAT.sub(
+        lambda m: tokenizer.decode([int(m.group(1).decode("utf-8"))]),
+        data
+    )
+
+def text_to_grammar(tokenizer: Tokenizer, text: str) -> GrammarNode:
     """
-    llguidance will emit special tokens in the form of _SPECIAL_TOKEN_PAT,
-    and we need to parse them back into the original text.
+    Convert a text string into a GrammarNode that can be used in the grammar.
+    This is useful for converting static text into a grammar node that can be processed by the engine.
     """
-    out = b""
-    isspecial = False
-    for match in _SPECIAL_TOKEN_PAT.split(bts):
-        if isspecial:
-            token_id = int(match.decode("utf-8"))
-            out += tokenizer.decode([token_id])
+    grammar_bits: list[GrammarNode] = []
+    delayed_bytes = b""
+    for token_id in tokenizer.encode(text.encode("utf-8"), parse_special=True):
+        if tokenizer.is_special_token(token_id):
+            assert not delayed_bytes, "Should not have any delayed bytes when encountering a special token"
+            grammar_bits.append(SpecialToken(id=token_id))
         else:
-            out += match
-        isspecial = not isspecial
-    return out
+            new_bytes = tokenizer.decode([token_id])
+            new_text, delayed_bytes = partial_decode(delayed_bytes + new_bytes)
+            if new_text:
+                grammar_bits.append(LiteralNode(new_text))
+    assert not delayed_bytes, "Should not have any delayed bytes left after processing the text"
+    if len(grammar_bits) == 1:
+        return grammar_bits[0]
+    return JoinNode(tuple(grammar_bits))
