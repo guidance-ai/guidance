@@ -25,14 +25,14 @@ class ByteTokenizer(Tokenizer):
             bos_token_id=256,
         )
 
-    def encode(self, byte_string: bytes) -> List[int]:
+    def encode(self, byte_string: bytes, *, parse_special: bool = True) -> List[int]:
         """Returns a list of tokens that represent the given byte string."""
         if isinstance(byte_string, str):
             byte_string = byte_string.encode("utf8")
         i = 0
         result = []
         while i < len(byte_string):
-            if byte_string[i:i+3] == b'<s>':
+            if parse_special and byte_string[i:i+3] == b'<s>':
                 result.append(256)
                 i += 3  # Skip the next two characters as part of '<s>'
             else:

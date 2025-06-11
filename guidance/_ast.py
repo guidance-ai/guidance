@@ -1,6 +1,7 @@
 import json
 import re
 import textwrap
+import copy
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import (
@@ -12,9 +13,14 @@ from typing import (
     Sequence,
     TypeVar,
     Union,
+    TypedDict,
     cast,
 )
+from pydantic import Base64Bytes
 from typing_extensions import assert_never
+from functools import cached_property
+from llguidance import LLMatcher
+import warnings
 
 from ._parser import ByteParser, ByteParserException
 from .trace import OutputAttr
@@ -176,7 +182,7 @@ class RoleEnd(ASTNode):
 
 @dataclass
 class ImageBlob(ASTNode):
-    data: str
+    data: Base64Bytes
 
     def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
         return interpreter.image_blob(self, **kwargs)
@@ -192,7 +198,7 @@ class ImageUrl(ASTNode):
 
 @dataclass
 class AudioBlob(ASTNode):
-    data: str
+    data: Base64Bytes
 
     def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
         return interpreter.audio_blob(self, **kwargs)
@@ -325,6 +331,34 @@ class LiteralNode(GrammarNode):
 
     def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
         return interpreter.text(self, **kwargs)
+
+
+@dataclass(frozen=True)
+class SpecialToken(GrammarNode):
+    text: Optional[str] = None
+    id: Optional[int] = None
+    range: Optional[tuple[int, int]] = None
+
+    def __post_init__(self):
+        if [self.text, self.id, self.range].count(None) != 2:
+            raise ValueError("Exactly one of text, id, or range must be set")
+
+    def format(self) -> str:
+        if self.text is not None:
+            return f"<|{self.text}|>"
+        if self.id is not None:
+            return f"<[{self.id}]>"
+        if self.range is not None:
+            return f"<[{self.range[0]}-{self.range[1]}]>"
+        raise ValueError("SpecialToken must have either text, id, or range set")
+
+    @property
+    def is_terminal(self) -> bool:
+        return False
+
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+        # Just use grammar -- I don't think we need a special case for this
+        return interpreter.grammar(self, **kwargs)
 
 
 @dataclass(frozen=True)
@@ -514,14 +548,55 @@ class SubgrammarNode(BaseSubgrammarNode):
     def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
         return interpreter.subgrammar(self, **kwargs)
 
+class LLGJsonCompileOptions(TypedDict):
+    # defaults to ","
+    item_separator: Optional[str]
+    # defaults to ":"
+    key_separator: Optional[str]
+    # defaults to None - depends on whitespace_flexible
+    whitespace_pattern: Optional[str]
+    # defaults to true (r"[\x20\x0A\x0D\x09]+"); if false, no whitespace is allowed
+    whitespace_flexible: Optional[bool]
+    # defaults to false
+    coerce_one_of: Optional[bool]
+    # ignore unimplemented keywords; defaults to false
+    lenient: Optional[bool]
 
 @dataclass(frozen=True, eq=False)
 class JsonNode(BaseSubgrammarNode):
-    schema: dict[str, Any]
+    schema: Optional[dict[str, Any]] = None
+    llg_options: Optional[LLGJsonCompileOptions] = None
 
     def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
         return interpreter.json(self, **kwargs)
 
+    @cached_property
+    def _llguidance_json(self) -> dict[str, Any]:
+        if self.schema is None:
+            # The user did not pass a schema. Let's assume that they want an object
+            # (this should match the behavior of most remote providers)
+            schema = {"type": "object"}
+        else:
+            # shallow copy is ok
+            schema = copy.copy(self.schema)
+
+        if self.llg_options is not None:
+            # Maybe TODO: let LLGJsonCompileOptions be non-total
+            # and update the schema with any present options
+            # (in case x-guidance was already set with some options)
+            schema["x-guidance"] = self.llg_options
+        return schema
+    
+    def _llguidance_validate(self) -> None:
+        """Validate the JSON schema with `llguidance` and warn about any issues."""
+        grm = LLMatcher.grammar_from_json_schema(self._llguidance_json)
+        is_err, messages = LLMatcher.validate_grammar_with_warnings(grm)
+        if is_err:
+            raise ValueError(messages[0])
+        else:
+            # this will warn about oneOf coercion, and any other unsupported features if lenient is enabled
+            for message in messages:
+                warnings.warn(message)
 
 @dataclass(frozen=True, eq=False)
 class LarkNode(BaseSubgrammarNode):
@@ -600,7 +675,7 @@ class LarkSerializer:
             res += ": "
             target = node.value
             if isinstance(target, JsonNode):
-                res += "%json " + json.dumps(target.schema, indent=2)
+                res += "%json " + json.dumps(target._llguidance_json, indent=2)
             elif isinstance(target, LarkNode):
                 # TODO: we can't decide whether or not to enforce max tokens here easily.
                 # We could in principle parse the grammar and/or use a regex?
@@ -623,6 +698,9 @@ class LarkSerializer:
 
         if isinstance(node, LiteralNode):
             return json.dumps(node.value)
+
+        if isinstance(node, SpecialToken):
+            return node.format()
 
         if isinstance(node, RegexNode):
             rx = node.regex

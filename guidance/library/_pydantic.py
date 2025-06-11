@@ -26,7 +26,7 @@ class GenerateJsonSchemaSafe(pydantic.json_schema.GenerateJsonSchema):
 
 
 def pydantic_to_json_schema(
-    schema: Union[Type["pydantic.BaseModel"], "pydantic.TypeAdapter"]
+    schema: Union[Type["pydantic.BaseModel"], "pydantic.TypeAdapter[Any]"]
 ) -> Dict[str, Any]:
     if inspect.isclass(schema) and issubclass(schema, pydantic.BaseModel):
         return schema.model_json_schema(schema_generator=GenerateJsonSchemaSafe)
