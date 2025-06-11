@@ -175,9 +175,15 @@
   let statCounter: Record<string, number> = {};
   let lastBacktrackCount: number = 0;
   
-  // Reset currentTokenIndex when backtracking occurs
+  // Reset currentTokenIndex and clear tokens when backtracking occurs
   $: if (backtrackCount !== lastBacktrackCount) {
     currentTokenIndex = 0;
+    tokens = [];  // Clear existing tokens
+    multimodalNodes = [];  // Clear existing media
+    activeOpenerRoles = [];  // Reset role tracking
+    activeCloserRoleText = [];  // Reset role tracking
+    specialSet.clear();  // Clear special token set
+    namedRoleSet = {};  // Clear named role mapping
     lastBacktrackCount = backtrackCount;
   }
   

@@ -65,7 +65,38 @@ For upcoming features, we won't be able to send all details over the wire, and w
     currentMessageId: -1,
     backtrackCount: 0,
   };
-  // appState.components = mockNodeAttrs;
+  // Simple test data inline
+  appState.components = [
+    {
+      "class_name": "RoleOpenerInput",
+      "name": "user",
+      "text": "<|user|>\n",
+      "closer_text": "<|end|>\n"
+    },
+    {
+      "class_name": "TextOutput",
+      "value": "What is 2+2?",
+      "is_input": true,
+      "is_generated": false,
+      "is_force_forwarded": false,
+      "latency_ms": 0
+    },
+    {
+      "class_name": "RoleOpenerInput", 
+      "name": "assistant",
+      "text": "<|assistant|>\n",
+      "closer_text": "<|end|>\n"
+    },
+    {
+      "class_name": "TextOutput",
+      "value": "2+2 equals 4",
+      "is_input": false,
+      "is_generated": true,
+      "is_force_forwarded": false,
+      "latency_ms": 100
+    }
+  ];
+  appState.status = 'Done';
 
   let bgField: string = 'Type';
   let underlineField: string = 'Probability';
