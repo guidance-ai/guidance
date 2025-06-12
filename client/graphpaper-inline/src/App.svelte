@@ -45,6 +45,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
     requireFullReplay: boolean,
     currentMessageId: number,
     backtrackCount: number,
+    resetCount: number,
   }
   let appState: AppState = {
     components: [],
@@ -64,6 +65,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
     requireFullReplay: true,
     currentMessageId: -1,
     backtrackCount: 0,
+    resetCount: 0,
   };
   // Simple test data inline
   appState.components = [
@@ -102,7 +104,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
   let underlineField: string = 'Probability';
 
   const handleMessage = (msg: GuidanceMessage): void => {
-    console.log("Received GuidanceMessage:", msg);
+      console.log("Received GuidanceMessage:", msg);
 
     // Duplicates can randomly occur from ipywidget layer.
     if (appState.currentMessageId === msg.message_id) {
@@ -151,6 +153,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
       appState.components = [];
       appState.status = appState.status !== Status.Error ? Status.Running : appState.status;
       appState.backtrackCount = 0;
+      appState.resetCount += 1;
     } else if (isMetricMessage(msg)) {
       const name = msg.name;
       const value = msg.value;
@@ -267,7 +270,8 @@ For upcoming features, we won't be able to send all details over the wire, and w
                isCompleted={['Done', 'Error'].includes(appState.status)}
                isError={appState.status === Status.Error}
                bgField={bgField} underlineField={underlineField} requireFullReplay="{appState.requireFullReplay}"
-               backtrackCount={appState.backtrackCount} />
+               backtrackCount={appState.backtrackCount}
+               resetCount={appState.resetCount} />
   </section>
   {:else}
   <div class="flex items-center justify-center py-6">

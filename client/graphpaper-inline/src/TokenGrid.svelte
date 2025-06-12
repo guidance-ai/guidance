@@ -33,6 +33,7 @@
   export let bgField: string = "Token";
   export let underlineField: string = "Probability";
   export let backtrackCount: number = 0;
+  export let resetCount: number = 0;
 
   let underline: TokenCallback = (_: Token) => "";
   let bg: TokenCallback = (_: Token) => "";
@@ -174,6 +175,7 @@
   let currentTokenIndex: number = 0;
   let statCounter: Record<string, number> = {};
   let lastBacktrackCount: number = 0;
+  let lastResetCount: number = 0;
   
   // Reset currentTokenIndex and clear tokens when backtracking occurs
   $: if (backtrackCount !== lastBacktrackCount) {
@@ -187,6 +189,18 @@
     lastBacktrackCount = backtrackCount;
   }
   
+  // Reset state when ResetDisplayMessage is received
+  $: if (resetCount !== lastResetCount) {
+    currentTokenIndex = 0;
+    tokens = [];
+    multimodalNodes = [];
+    activeOpenerRoles = [];
+    activeCloserRoleText = [];
+    specialSet.clear();
+    namedRoleSet = {};
+    lastResetCount = resetCount;
+  }
+  
   $: {
     if (components.length === 0) {
       // Reset
@@ -197,6 +211,9 @@
       specialSet.clear();
       namedRoleSet = {};
       currentTokenIndex = 0;
+    } else if (currentTokenIndex > components.length) {
+      // Handle case where components were removed (e.g., after reset + partial replay)
+      currentTokenIndex = components.length;
     }
 
     for (; currentTokenIndex < components.length; currentTokenIndex += 1) {

@@ -227,6 +227,10 @@ class JupyterWidgetRenderer(Renderer):
         self.stitch_widget_observed = False
         self._stitch_on_clientmsg: Optional[Callable[[], None]] = None
         self.last_cell_session_id: Optional[str] = None
+        
+        # Debug tracking
+        self._debug_enabled = False
+        self._debug_messages: list[GuidanceMessage] = []
 
         # Create queue and wait for instantiation
         self.send_queue: Queue = get_bg_async().run_async_coroutine(_create_queue()).result()
@@ -401,7 +405,71 @@ class JupyterWidgetRenderer(Renderer):
                 self.last_trace_id = out_message.trace_id
 
             self._messages.append(out_message)
+            
+            # Track for debug if enabled
+            if self._debug_enabled:
+                self._debug_messages.append(out_message)
+            
             get_bg_async().call_soon_threadsafe(self.send_queue.put_nowait, out_message)
+
+    def enable_debug(self) -> None:
+        """Enable debug mode in the widget to capture message history."""
+        from ..registry import get_bg_async
+        
+        self._debug_enabled = True
+        self._debug_messages = []  # Clear previous messages
+
+    def clear_debug_data(self) -> None:
+        """Clear captured debug messages."""
+        self._debug_messages = []
+        logger.info("Debug messages cleared")
+
+    def get_debug_data(self) -> Optional[str]:
+        """Get debug data as a JSON string.
+        
+        Returns:
+            JSON string containing debug data, or None if no data available
+        """
+        import json
+        import datetime
+        
+        if not self._debug_enabled:
+            logger.warning("Debug mode not enabled - call enable_debug() first")
+            return None
+            
+        if not self._debug_messages:
+            logger.warning("No debug messages captured yet")
+            return None
+        
+        def make_json_serializable(obj):
+            """Convert objects to JSON serializable format."""
+            if isinstance(obj, bytes):
+                # Convert bytes to base64 string for JSON serialization
+                import base64
+                return base64.b64encode(obj).decode('utf-8')
+            elif isinstance(obj, dict):
+                return {k: make_json_serializable(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [make_json_serializable(item) for item in obj]
+            elif hasattr(obj, 'model_dump'):
+                # Pydantic models
+                return make_json_serializable(obj.model_dump())
+            else:
+                return obj
+
+        debug_data = {
+            "timestamp": datetime.datetime.now().isoformat(),
+            "messageCount": len(self._debug_messages),
+            "messages": [
+                make_json_serializable({
+                    "message_id": msg.message_id,
+                    "class_name": msg.class_name,
+                    **msg.model_dump()
+                }) for msg in self._debug_messages
+            ]
+        }
+        
+        return json.dumps(debug_data, indent=2)
 
 
 class DoNothingRenderer(Renderer):
