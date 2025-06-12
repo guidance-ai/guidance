@@ -57,7 +57,6 @@ class ToolCallHandler(ABC):
         args = tool_def.args.model_validate(tool_call.args).model_dump()
         return tool_def.callable(**args)
 
-
 class Llama3FunctionToolCallHandler(ToolCallHandler):
     expr = re.compile(
         r"^<function=(?P<name>[^>]+)>(?P<args>\{(.|\n)*\})</function><\|eot_id\|>$"
@@ -125,19 +124,3 @@ class Llama3IPythonToolCallHandler(ToolCallHandler):
 
     def format_return_value(self, value: Any) -> str:
         return "<|start_header_id|>ipython<|end_header_id|>\n\n" + dumps(value)
-
-
-@guidance
-def handle_tool_call(
-    lm,
-    handler: ToolCallHandler,
-):
-    capture_id = f"_tool_call_{uuid4().hex}"
-    grm = handler.build_grammar()
-    lm += capture(grm, name=capture_id)
-    tool_call_text = lm[capture_id]
-
-    tool_call = handler.parse_tool_call(tool_call_text)
-    response = handler.invoke_tool(tool_call)
-    lm += handler.format_return_value(response)
-    return lm

@@ -3,7 +3,7 @@ import guidance
 from typing import Optional
 from guidance import user, assistant, system, gen
 from guidance._ast import ToolDefinition
-from guidance.tools import handle_tool_call, Llama3IPythonToolCallHandler, Llama3FunctionToolCallHandler
+from guidance.tools import Llama3IPythonToolCallHandler, Llama3FunctionToolCallHandler
 
 @pytest.fixture(scope="module")
 def llama3_model(selected_model, selected_model_name):
@@ -14,6 +14,7 @@ def llama3_model(selected_model, selected_model_name):
 
 def test_llama_cpp_python_tool(llama3_model: guidance.models.Model):
     lm = llama3_model
+    lm._interpreter.tool_call_handler_cls = Llama3IPythonToolCallHandler
     called = False
     def trending_songs(n: int, genre: Optional[str] = None) -> list[str]:
         nonlocal called
@@ -69,12 +70,13 @@ Return function calls in JSON format"""
 Use tools to get latest trending songs."""
 
     with assistant():
-        lm += handle_tool_call(Llama3IPythonToolCallHandler(tools={"trending_songs": ToolDefinition.from_callable(trending_songs)}))
+        lm += gen(tools=[trending_songs])
     assert called
 
 
 def test_llama_cpp_function(llama3_model: guidance.models.Model):
     lm = llama3_model
+    lm._interpreter.tool_call_handler_cls = Llama3FunctionToolCallHandler
     called = False
     def trending_songs(n: int, genre: Optional[str] = None) -> list[str]:
         nonlocal called
@@ -107,5 +109,6 @@ If you choose to call a function ONLY reply in the following format with no pref
 Use tools to get latest trending songs."""
 
     with assistant():
-        lm += handle_tool_call(Llama3FunctionToolCallHandler(tools={"trending_songs": ToolDefinition.from_callable(trending_songs)}))
+        lm += gen(tools=[trending_songs])
+
     assert called

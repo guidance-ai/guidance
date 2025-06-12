@@ -1,10 +1,10 @@
 from base64 import b64decode, b64encode
 from io import BytesIO
-from typing import Iterator
+from typing import Iterator, TYPE_CHECKING, Optional
 from copy import deepcopy
 import re
 
-from ..._ast import GrammarNode, ImageBlob, LiteralNode, RoleEnd, RoleStart, SpecialToken, JoinNode
+from ..._ast import GrammarNode, ImageBlob, LiteralNode, RoleEnd, RoleStart, SpecialToken, JoinNode, ToolCallNode
 from ..._utils import to_utf8_or_bytes_string
 from ...trace import ImageOutput, OutputAttr, Backtrack, TokenOutput, Token
 from .._base import Interpreter
@@ -12,10 +12,15 @@ from ._engine import Engine, Tokenizer
 from ._state import EngineState
 from ..._schema import GenTokenExtra
 
+if TYPE_CHECKING:
+    from ...tools import ToolCallHandler
+
+
 class EngineInterpreter(Interpreter[EngineState]):
-    def __init__(self, engine: Engine):
+    def __init__(self, engine: Engine, *, tool_call_handler: Optional[type["ToolCallHandler"]] = None):
         self.state = EngineState()
         self.engine = engine
+        self.tool_call_handler_cls = tool_call_handler
         self.chat_template = self.engine.get_chat_template()
 
     def __deepcopy__(self, memo):
@@ -131,6 +136,27 @@ class EngineInterpreter(Interpreter[EngineState]):
 
         if delayed_bytes:
             raise RuntimeError("Shouldn't have any delayed bytes left...")
+
+    def tool_call(self, node: ToolCallNode, **kwargs) -> Iterator[OutputAttr]:
+        if self.tool_call_handler_cls is None:
+            raise ValueError("No tool call handler set for this interpreter")
+
+        from uuid import uuid4
+        from guidance import capture
+        from guidance._ast import LiteralNode
+        capture_id = f"_tool_call_{uuid4().hex}"
+        handler = self.tool_call_handler_cls(tools=node.tools)
+        grm = handler.build_grammar()
+
+        yield from self.run(capture(grm, name=capture_id))
+
+        tool_call_text = self.state.captures[capture_id]["value"]
+        tool_call = handler.parse_tool_call(tool_call_text)
+        response = handler.invoke_tool(tool_call)
+
+        yield from self.run(
+            LiteralNode(handler.format_return_value(response))
+        )
 
 
 class Llama3VisionInterpreter(EngineInterpreter):
