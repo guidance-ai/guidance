@@ -197,6 +197,9 @@ class Engine(ABC):
                 # (model + prompt) + grammar == model + (prompt + grammar)
                 tokens = self.tokenizer.recode(tokens)
 
+            # TODO: reintegrate logic to avoid final get_logits call in the case that:
+            # 1. The parser has a pending stop
+            # 2. There are no ff_tokens (except for our last generated token)
             t1 = time.time()
             logits = self.get_logits(token_ids=tokens, full_sequence=True)
             logits_lat_ms = (time.time() - t1) * 1000
@@ -212,6 +215,7 @@ class Engine(ABC):
                 # if it exists
                 ff_lat_ms -= logits_lat_ms
 
+            # Not the last one -- that's for the *next* token.
             ff_logits = logits[:-1][-len(ff_tokens):]
             # TODO: calculate at temperature 1?
             ff_probs = (
