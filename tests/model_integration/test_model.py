@@ -78,24 +78,31 @@ def test_associativity(selected_model: models.Model):
 
     from copy import deepcopy
     original_get_logits = engine.get_logits
-    prompt_tokens_1 = None
-    prompt_tokens_2 = None
+    prompt_tokens_1_list = []
+    prompt_tokens_2_list = []
 
-    def get_logits_1(token_ids):
-        nonlocal prompt_tokens_1
-        prompt_tokens_1 = deepcopy(token_ids)
-        return original_get_logits(token_ids=token_ids)
+    def get_logits_1(*, token_ids, **kwargs):
+        prompt_tokens_1_list.append(deepcopy(token_ids))
+        return original_get_logits(token_ids=token_ids, **kwargs)
 
-    def get_logits_2(token_ids):
-        nonlocal prompt_tokens_2
-        prompt_tokens_2 = deepcopy(token_ids)
-        return original_get_logits(token_ids=token_ids)
+    def get_logits_2(*, token_ids, **kwargs):
+        prompt_tokens_2_list.append(deepcopy(token_ids))
+        return original_get_logits(token_ids=token_ids, **kwargs)
 
     with patch.object(engine, "get_logits", side_effect=get_logits_1):
-        _ = selected_model + (prompt + grammar)
+        _ = selected_model
+        # Get the index of the prompt tokens after the first call
+        ix_1 = len(prompt_tokens_1_list)
+        _ += (prompt + grammar)
 
     with patch.object(engine, "get_logits", side_effect=get_logits_2):
-        _ = (selected_model + prompt) + grammar
+        _ = (selected_model + prompt)
+        # Get the index of the prompt tokens after the first call
+        ix_2 = len(prompt_tokens_2_list)
+        _ += grammar
+
+    prompt_tokens_1 = prompt_tokens_1_list[ix_1]
+    prompt_tokens_2 = prompt_tokens_2_list[ix_2]
 
     # Main assertion: the prompt tokens should be the same
     assert prompt_tokens_1 == prompt_tokens_2
