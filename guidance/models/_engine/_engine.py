@@ -216,12 +216,12 @@ class Engine(ABC):
                 ff_lat_ms -= logits_lat_ms
 
             # Not the last one -- that's for the *next* token.
-            ff_logits = logits[:-1][-len(ff_tokens):]
+            ff_logits = logits[max(len(logits)-len(ff_tokens)-1, 0):-1]
             # TODO: calculate at temperature 1?
             ff_probs = (
                 softmax(np.array(ff_logits))
                 if ll_response.temperature < 0.0001
-                else softmax(np.array(logits) / ll_response.temperature)
+                else softmax(np.array(ff_logits) / ll_response.temperature)
             )
             if ff_probs.shape[0] != len(ff_tokens):
                 assert ff_probs.shape[0] == len(ff_tokens) - 1
