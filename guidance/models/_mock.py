@@ -145,67 +145,6 @@ class MockEngine(Engine):
 
         return logits
 
-    def get_per_token_topk_probs(
-        self, token_ids: list[int], top_k: int = 5
-    ) -> list[GenTokenExtra]:
-        result_list = []
-        if len(token_ids) == 0:
-            return result_list
-
-        added_bos = False
-        if self.tokenizer.bos_token is not None and token_ids[0] != self.tokenizer.bos_token_id:
-            token_ids = [self.tokenizer.bos_token_id] + token_ids
-            added_bos = True
-
-        # assume the first token has probability 1.0 because it is the input token
-        result_list.append(
-            GenTokenExtra(
-                token_id=token_ids[0],
-                prob=1.0,
-                bytes=self.tokenizer.decode([token_ids[0]]).decode("utf8"),
-                top_k=[
-                    GenToken(
-                        token_id=token_ids[0],
-                        bytes=self.tokenizer.decode([token_ids[0]]).decode("utf8"),
-                    )
-                ],
-            )
-        )
-
-        for i in range(1, len(token_ids)):
-            token_id = token_ids[i]
-            _logits = self.get_logits(token_ids[:i])
-            _probs = softmax(_logits)
-            top_k_indices = np.argsort(_logits)[-top_k:][::-1]
-
-            top_k_indices = top_k_indices.tolist()
-            if token_ids[i] not in top_k_indices:
-                top_k_indices.append(token_id)
-
-            top_k_result = []
-            for token_id in top_k_indices:
-                top_k_result.append(
-                    GenToken(
-                        token_id=token_id,
-                        prob=_probs[token_id],
-                        bytes=self.tokenizer.decode([token_id]).decode("utf8"),
-                    )
-                )
-
-            result_list.append(
-                GenTokenExtra(
-                    token_id=token_id,
-                    prob=_probs[token_id],
-                    bytes=self.tokenizer.decode([token_id]).decode("utf-8"),
-                    top_k=top_k_result,
-                )
-            )
-
-        if added_bos:
-            result_list = result_list[1:]
-
-        return result_list
-
     def _get_next_tokens(self, byte_string):
         special_tokens = [
             (self.tokenizer.bos_token_id, self.tokenizer.bos_token),

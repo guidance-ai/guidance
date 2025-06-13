@@ -4,7 +4,7 @@ import logging
 import time
 import weakref
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Callable, Iterator, Optional, Sequence
+from typing import TYPE_CHECKING, Callable, Iterator, Optional
 
 import numpy as np
 from numpy.typing import NDArray
@@ -450,12 +450,9 @@ class Engine(ABC):
         return output
 
     @abstractmethod
-    def get_logits(self, token_ids: list[int]) -> NDArray: 
+    def get_logits(self, token_ids: list[int], full_sequence: bool = False) -> NDArray:
         pass
 
-    def get_per_token_topk_probs(self, token_ids: list[int], top_k: int = 5) -> list[GenToken]:
-        """Get the top-k probabilities for each token in the sequence."""
-        raise NotImplementedError
 
     def sample_with_temperature(
         self, logits: NDArray, mask: Optional[bytes], temperature: float

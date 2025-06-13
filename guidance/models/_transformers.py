@@ -452,7 +452,7 @@ class TransformersEngine(Engine):
             model = transformers_package.AutoModelForCausalLM.from_pretrained(model, **kwargs)
         return model
 
-    def get_logits(self, token_ids):
+    def get_logits(self, token_ids: list[int], full_sequence: bool = False):
         """Computes the logits for the given token state.
 
         This overrides a method from the LocalEngine class that is used to get
@@ -597,70 +597,15 @@ class TransformersEngine(Engine):
             cache_token_ids.extend(new_token_ids)
             # Need to add special truncating logic here for weird models that have a different output size than tokenizer vocab
             self._cached_logits = (
-                model_out.logits[0, -1, : self.tokenizer._vocab_size].float().cpu().numpy()
+                model_out.logits[0, :, :self.tokenizer._vocab_size].float().cpu().numpy()
             )
             self.metrics.engine_input_tokens += len(new_token_ids)
             self.metrics.engine_output_tokens += 1
 
-        return self._cached_logits
-
-    def get_per_token_topk_probs(
-        self, token_ids: list[int], top_k: int = 5
-    ) -> list[GenTokenExtra]:
-        tokenizer = self._orig_tokenizer
-
-        # NOTE (loc) - assume batch size of 1
-        input_ids = torch.tensor(token_ids).unsqueeze(0).long().to(self.device)
-
-        outputs = self.model_obj(input_ids)
-        probs = torch.softmax(outputs.logits, dim=-1).detach()
-
-        # append "1" to probs to account for the 1st token in the input_ids
-        probs = torch.cat([torch.ones_like(probs[:, :1, :]), probs], dim=1)
-
-        # collect the probability of the generated token
-        probs = probs[:, :-1, :]
-
-        batch = []
-        for input_sentence, input_probs in zip(input_ids, probs):
-            text_sequence = []
-
-            for _token_id, _probs in zip(input_sentence, input_probs):
-                _token = tokenizer.decode(_token_id)
-
-                if len(text_sequence) == 0:
-                    token = GenTokenExtra(
-                        token_id=_token_id.item(),
-                        bytes=tokenizer.decode([_token_id]),
-                        top_k=[
-                            GenToken(token_id=_token_id.item(), bytes=_token),
-                        ],
-                    )
-                    text_sequence.append(token)
-                    continue
-
-                # get the top k indices
-                top_k_indices = torch.topk(_probs, top_k).indices.tolist()
-                if _token_id not in top_k_indices:
-                    top_k_indices.append(_token_id.item())
-
-                top_k_probs = [_probs[i].item() for i in top_k_indices]
-                top_k_list = []
-                for t, p in zip(top_k_indices, top_k_probs):
-                    top_k_list.append(GenToken(token_id=t, prob=p, bytes=tokenizer.decode([t])))
-
-                token = GenTokenExtra(
-                    token_id=_token_id.item(),
-                    prob=_probs[_token_id].item(),
-                    bytes=_token,
-                    top_k=top_k_list,
-                )
-                text_sequence.append(token)
-
-            batch.append(text_sequence)
-
-        return batch[0]
-
+        if full_sequence:
+            return self._cached_logits
+        else:
+            return self._cached_logits[-1, :]
 
 class Transformers(Model):
     def __init__(
