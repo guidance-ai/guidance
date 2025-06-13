@@ -209,7 +209,7 @@ class LlamaCppEngine(Engine):
                 len(token_ids) - num_cached,
                 self._n_vocab,
             ),
-        )
+        ).copy()
 
         if self._cached_logits is None:
             self._cached_logits = logits
