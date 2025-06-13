@@ -181,6 +181,7 @@ class LlamaCppEngine(Engine):
         # clear obsolete parts of kv cache
         llama_cpp.llama_kv_cache_seq_rm(self.model_obj.ctx, -1, num_cached, -1)
 
+        logits_for_each_batch = []
         # eval the model
         n_batch = self.model_obj.n_batch
         batch = self._context.batch
@@ -195,29 +196,27 @@ class LlamaCppEngine(Engine):
                 batch.logits[j] = True
 
             ret = llama_cpp.llama_decode(self.model_obj.ctx, batch)
-            self.metrics.engine_input_tokens += n_tokens
             if ret != 0:
                 raise Exception(f"Call to llama_cpp.llama_decode returned {ret}.")
 
+            # get the logits for *this* batch
+            llama_logits = llama_cpp.llama_get_logits(self.model_obj.ctx)
+            logits = np.ctypeslib.as_array(
+                llama_logits,
+                shape=(n_tokens, self._n_vocab),
+            ).copy()
+            logits_for_each_batch.append(logits)
+            self.metrics.engine_input_tokens += n_tokens
+
         self.metrics.engine_output_tokens += 1
 
-        # get the logits
-        llama_logits = llama_cpp.llama_get_logits(self.model_obj.ctx)
-        logits = np.ctypeslib.as_array(
-            llama_logits,
-            shape=(
-                len(token_ids) - num_cached,
-                self._n_vocab,
-            ),
-        ).copy()
+        if self._cached_logits is not None:
+            logits_for_each_batch = [self._cached_logits] + logits_for_each_batch
 
-        if self._cached_logits is None:
-            self._cached_logits = logits
-        else:
-            self._cached_logits = np.concatenate(
-                (self._cached_logits, logits),
-                axis=0
-            )
+        self._cached_logits = np.concatenate(
+            logits_for_each_batch,
+            axis=0
+        )
 
         if full_sequence:
             return self._cached_logits
