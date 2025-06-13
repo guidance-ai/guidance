@@ -89,7 +89,13 @@ def clear_widget_debug() -> None:
 
 
 def widget_debug_info() -> None:
-    """Print debug information about the current widget renderer setup."""
+    """Print debug information about the current widget renderer setup.
+    
+    This function displays Python-side version info and requests version info
+    from the JavaScript widget if available.
+    """
+    import platform
+    import sys
     from .visual._environment import Environment
     
     renderer = get_renderer()
@@ -98,22 +104,38 @@ def widget_debug_info() -> None:
     print(f"Renderer type: {type(renderer)}")
     print(f"Environment is_notebook(): {env.is_notebook()}")
     print(f"Environment is_terminal(): {env.is_terminal()}")
+    print(f"Python version: {sys.version.split()[0]}")
+    print(f"Platform: {platform.system()} {platform.release()}")
     
-    # Check stitch installation
+    # Check stitch installation (Python side)
     try:
         import stitch
         version = getattr(stitch, '__version__', 'unknown')
-        print(f"Stitch installed: Yes (version {version})")
+        print(f"Stitch (Python): {version}")
     except ImportError:
-        print("Stitch installed: No")
+        print("Stitch (Python): Not installed")
     
-    if isinstance(renderer, AutoRenderer):
+    # Check guidance version
+    try:
+        import guidance
+        guidance_version = getattr(guidance, '__version__', 'unknown')
+        print(f"Guidance version: {guidance_version}")
+    except ImportError:
+        guidance_version = 'unknown'
+        print("Guidance version: unknown")
+    
+    # Try to get widget version info if we have a JupyterWidgetRenderer
+    widget_renderer = None
+    if isinstance(renderer, JupyterWidgetRenderer):
+        widget_renderer = renderer
+        print("Widget debug mode should work!")
+    elif isinstance(renderer, AutoRenderer):
         print(f"AutoRenderer inner type: {type(renderer._renderer)}")
         if hasattr(renderer, '_renderer') and isinstance(renderer._renderer, JupyterWidgetRenderer):
+            widget_renderer = renderer._renderer
             print("Widget debug mode should work!")
         else:
             print("Widget debug mode not available - inner renderer is not JupyterWidgetRenderer")
-    elif isinstance(renderer, JupyterWidgetRenderer):
-        print("Widget debug mode should work!")
     else:
         print("Widget debug mode not available - not using widget renderer")
+    
