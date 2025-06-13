@@ -366,19 +366,41 @@
       const rect = target.getBoundingClientRect();
       tooltipX = rect.left + window.scrollX + rect.width / 2 + positionXOffset;
       tooltipY = rect.bottom + window.scrollY + positionYOffset;
-      tooltip.style.display = "block";
+      
       const indexNum = Number(index);
     //   const node = multimodalNodes[indexNum];
     //   if (node.type === "token") {
       tooltipToken = tokens[indexNum];
-
-      // Adjust if near edge of viewport
-      if (tooltipX + tooltip.offsetWidth > window.innerWidth) {
-        tooltipX = window.innerWidth - tooltip.offsetWidth;
-      }
-      if (tooltipY + tooltip.offsetHeight > window.innerHeight) {
-        tooltipY = window.innerHeight - tooltip.offsetHeight;
-      }
+      
+      // Show tooltip first to get accurate dimensions
+      tooltip.style.display = "block";
+      
+      // Use requestAnimationFrame to ensure dimensions are calculated after render
+      requestAnimationFrame(() => {
+        // Adjust if near edge of viewport
+        const tooltipRect = tooltip.getBoundingClientRect();
+        
+        // Check right edge
+        if (tooltipX + tooltipRect.width > window.innerWidth) {
+          tooltipX = window.innerWidth - tooltipRect.width - 10;
+        }
+        
+        // Check bottom edge - this is the key fix for first hover
+        if (tooltipY + tooltipRect.height > window.innerHeight) {
+          // Position above the element instead of below
+          tooltipY = rect.top + window.scrollY - tooltipRect.height - positionYOffset;
+        }
+        
+        // Ensure tooltip stays within left edge
+        if (tooltipX < 10) {
+          tooltipX = 10;
+        }
+        
+        // Ensure tooltip stays within top edge
+        if (tooltipY < 10) {
+          tooltipY = 10;
+        }
+      });
     }
   };
 
