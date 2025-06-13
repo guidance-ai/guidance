@@ -167,7 +167,6 @@ class Engine(ABC):
         )
 
         engine_output = None
-        logits_lat_ms = 0
         while not parser.done():
             t0 = time.time()
 
@@ -198,18 +197,9 @@ class Engine(ABC):
                 # (model + prompt) + grammar == model + (prompt + grammar)
                 tokens = self.tokenizer.recode(tokens)
 
-            # Note that has_pending_stop implies that the response is a stop response,
-            # but the converse is not true. We can therefore avoid some (but not all)
-            # unnecessary calls to get_logits on the final iteration.
-            has_pending_stop = parser.has_pending_stop()
-
-            if not has_pending_stop:
-                t1 = time.time()
-                logits = self.get_logits(token_ids=tokens)
-                logits_lat_ms = (time.time() - t1) * 1000
-            else:
-                # Avoid calling get_logits if we know we won't use it
-                logits = None
+            t1 = time.time()
+            logits = self.get_logits(token_ids=tokens, full_sequence=True)
+            logits_lat_ms = (time.time() - t1) * 1000
 
             # Important: don't wait on this future until after getting the logits;
             # this allows the mask to be built concurrently with model inference
@@ -222,13 +212,28 @@ class Engine(ABC):
                 # if it exists
                 ff_lat_ms -= logits_lat_ms
 
+            ff_logits = logits[:-1][-len(ff_tokens):]
+            # TODO: calculate at temperature 1?
+            ff_probs = (
+                softmax(np.array(ff_logits))
+                if ll_response.temperature < 0.0001
+                else softmax(np.array(logits) / ll_response.temperature)
+            )
+            if ff_probs.shape[0] != len(ff_tokens):
+                assert ff_probs.shape[0] == len(ff_tokens) - 1
+                # We didn't have a BOS token, so we need to fake the first token prob (say... 1?)
+                ff_probs = np.concatenate(
+                    (np.ones((1, ff_probs.shape[1])), ff_probs), axis=0
+                )
+
             gen_tokens = []
             if engine_output is None:
-                for token_id in ff_tokens:
+                for i, token_id in enumerate(ff_tokens):
                     gen_tokens.append(
                         GenToken(
                             token_id=token_id,
                             bytes=self.tokenizer.decode([token_id]),
+                            prob=ff_probs[i, token_id],
                             # amortize latency
                             latency_ms=ff_lat_ms/len(ff_tokens),
                             is_input=True,
@@ -241,11 +246,12 @@ class Engine(ABC):
                     ff_start_index = 0
                 else:
                     ff_start_index = 1
-                for token_id in ff_tokens[ff_start_index:]:
+                for i, token_id in enumerate(ff_tokens[ff_start_index:], start=ff_start_index):
                     gen_tokens.append(
                         GenToken(
                             token_id=token_id,
                             bytes=self.tokenizer.decode([token_id]),
+                            prob=ff_probs[i, token_id],
                             # amortize latency
                             latency_ms=ff_lat_ms/len(ff_tokens[ff_start_index:]),
                             is_force_forwarded=True,
@@ -273,10 +279,6 @@ class Engine(ABC):
                 # Ensure we break AFTER yielding the final response
                 break
 
-            # If there was a pending stop, we should have broken out of the loop
-            assert not has_pending_stop
-            assert logits is not None
-
             # Help the type checker: assert that everything we need to get the next token is not None
             assert mask is not None
             assert ll_response.temperature is not None
@@ -296,7 +298,7 @@ class Engine(ABC):
                 mask_for_sampling = mask
 
             engine_output = self.get_next_token_with_top_k(
-                logits=logits,
+                logits=logits[-1, :],
                 logits_lat_ms=logits_lat_ms,
                 token_ids=tokens,
                 mask=mask_for_sampling,
