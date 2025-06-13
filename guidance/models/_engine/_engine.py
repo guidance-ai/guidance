@@ -275,6 +275,7 @@ class Engine(ABC):
 
             # If there was a pending stop, we should have broken out of the loop
             assert not has_pending_stop
+            assert logits is not None
 
             # Help the type checker: assert that everything we need to get the next token is not None
             assert mask is not None
@@ -311,8 +312,8 @@ class Engine(ABC):
 
     def get_next_token_with_top_k(
         self,
-        logits: Optional[NDArray],
-        logits_lat_ms: Optional[float],
+        logits: NDArray,
+        logits_lat_ms: float,
         token_ids: list[int],
         mask: Optional[bytes],
         temperature: float,
@@ -346,37 +347,6 @@ class Engine(ABC):
             The output from the model.
         """
 
-        if logits is None:
-            t0 = time.time()
-            try:
-                logits = self.get_logits(token_ids=token_ids)
-            except NotImplementedError:
-                # fallback to orignal get_next_token method
-                _t0 = time.time()
-                token_id = self.get_next_token(
-                    token_ids=token_ids,
-                    mask=mask,
-                    temperature=temperature,
-                )
-                _lat = (time.time() - _t0) * 1000
-
-                _issued_token = GenToken(
-                    token_id=token_id,
-                    prob=1.0,
-                    bytes=self.tokenizer.decode([token_id]),
-                    latency_ms=_lat,
-                    is_generated=True,
-                )
-
-                return EngineOutput(
-                    issued_token=_issued_token,
-                    top_k=[_issued_token],
-                    masked_top_k=[_issued_token] if mask is not None else None,
-                )
-            lat_ms = (time.time() - t0) * 1000
-        else:
-            lat_ms = logits_lat_ms
-
         def get_top_k(_probs: NDArray, _k: int = 5) -> list[GenToken]:
             top_k_indices = np.argsort(_probs)[::-1][:_k]
             top_k_probs = _probs[top_k_indices]
@@ -386,7 +356,7 @@ class Engine(ABC):
                     token_id=token,
                     prob=prob,
                     bytes=self.tokenizer.decode([token]),
-                    latency_ms=lat_ms,
+                    latency_ms=logits_lat_ms,
                     is_generated=True,
                 )
                 for token, prob in zip(top_k_indices, top_k_probs)
@@ -436,7 +406,7 @@ class Engine(ABC):
                 token_id=sampled_index,
                 prob=sampled_prob,
                 bytes=self.tokenizer.decode([sampled_index]),
-                latency_ms=lat_ms,
+                latency_ms=logits_lat_ms,
                 is_generated=True,
             )
 
@@ -452,7 +422,6 @@ class Engine(ABC):
     @abstractmethod
     def get_logits(self, token_ids: list[int], full_sequence: bool = False) -> NDArray:
         pass
-
 
     def sample_with_temperature(
         self, logits: NDArray, mask: Optional[bytes], temperature: float
