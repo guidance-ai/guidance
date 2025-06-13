@@ -280,16 +280,24 @@ class JupyterWidgetRenderer(Renderer):
             return False, -1
         elif trace_messages_len == 1:
             if isinstance(self._messages[0], TraceMessage):
-                last_trace_node = self._trace_handler[self._messages[0].trace_id]
-                if message_trace_node.parent == last_trace_node:
-                    return False, -1
-                else:
+                try:
+                    last_trace_node = self._trace_handler[self._messages[0].trace_id]
+                    if message_trace_node.parent == last_trace_node:
+                        return False, -1
+                    else:
+                        return True, 0
+                except KeyError:
+                    # Trace node was garbage collected, treat as divergence
                     return True, 0
             else:
                 return False, -1
         else:
             last_trace_message = prev_trace_messages[-1]
-            last_trace_node = self._trace_handler[last_trace_message.trace_id]
+            try:
+                last_trace_node = self._trace_handler[last_trace_message.trace_id]
+            except KeyError:
+                # Trace node was garbage collected, treat as divergence
+                return True, 0
 
             if last_trace_node not in message_trace_node.path():
                 logger.debug(f"DIVERGENCE:curr:{message_trace_node}")
@@ -300,9 +308,13 @@ class JupyterWidgetRenderer(Renderer):
                 ancestors = set(message_trace_node.ancestors())
                 for idx, prev_message in enumerate(self._messages):
                     if isinstance(prev_message, TraceMessage):
-                        prev_trace_node = self._trace_handler[prev_message.trace_id]
-                        if prev_trace_node in ancestors:
-                            ancestor_idx = idx
+                        try:
+                            prev_trace_node = self._trace_handler[prev_message.trace_id]
+                            if prev_trace_node in ancestors:
+                                ancestor_idx = idx
+                        except KeyError:
+                            # Trace node was garbage collected, skip it
+                            continue
                 if ancestor_idx == -1:
                     if message_trace_node.parent == last_trace_node.root():  # pragma: no cover
                         ancestor_idx = 0
@@ -375,7 +387,9 @@ class JupyterWidgetRenderer(Renderer):
         # Reset if needed
         if self._new_widget_needed:
             logger.debug("RENDERER:new widget needed")
-
+            # Store existing messages before clearing
+            existing_messages = self._messages[:]
+            
             # Clear messages
             self._messages = []
 
@@ -394,6 +408,13 @@ class JupyterWidgetRenderer(Renderer):
             display(self.stitch_widget)
 
             self._new_widget_needed = False
+            
+            # Replay existing messages to the new widget
+            if existing_messages:
+                logger.debug(f"RENDERER:replaying {len(existing_messages)} existing messages")
+                # Add all existing messages to the outgoing queue
+                out_messages.append(ResetDisplayMessage())
+                out_messages.extend(existing_messages)
 
         # Append current message to outgoing
         out_messages.append(message)
