@@ -4,9 +4,10 @@ import logging
 import time
 import weakref
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Callable, Iterator, Optional
+from typing import TYPE_CHECKING, Callable, Iterator, Optional, Sequence
 
 import numpy as np
+from numpy.typing import NDArray
 
 from ..._parser import TokenParser
 from ..._schema import (
@@ -310,7 +311,7 @@ class Engine(ABC):
 
     def get_next_token_with_top_k(
         self,
-        logits: Optional[np.ndarray],
+        logits: Optional[NDArray],
         logits_lat_ms: Optional[float],
         token_ids: list[int],
         mask: Optional[bytes],
@@ -322,7 +323,7 @@ class Engine(ABC):
 
         Parameters
         -------
-        logits : Optional[np.ndarray]
+        logits : Optional[NDArray]
             The logits for the current token ids in the sequence.
             If None, the model will call get_logits to get the logits.
         logits_lat_ms: Optional[float]
@@ -376,7 +377,7 @@ class Engine(ABC):
         else:
             lat_ms = logits_lat_ms
 
-        def get_top_k(_probs: np.ndarray, _k: int = 5) -> list[GenToken]:
+        def get_top_k(_probs: NDArray, _k: int = 5) -> list[GenToken]:
             top_k_indices = np.argsort(_probs)[::-1][:_k]
             top_k_probs = _probs[top_k_indices]
 
@@ -449,7 +450,7 @@ class Engine(ABC):
         return output
 
     @abstractmethod
-    def get_logits(self, token_ids: list[int]) -> np.ndarray:
+    def get_logits(self, token_ids: list[int]) -> NDArray: 
         pass
 
     def get_per_token_topk_probs(self, token_ids: list[int], top_k: int = 5) -> list[GenToken]:
@@ -457,7 +458,7 @@ class Engine(ABC):
         raise NotImplementedError
 
     def sample_with_temperature(
-        self, logits: np.ndarray, mask: Optional[bytes], temperature: float
+        self, logits: NDArray, mask: Optional[bytes], temperature: float
     ) -> int:
         if mask is not None:
             logits += np.frombuffer(mask, dtype=np.uint8)
