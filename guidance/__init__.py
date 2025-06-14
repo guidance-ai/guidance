@@ -24,3 +24,6 @@ sys.modules[__name__].__class__ = _Guidance
 
 # we expose all the library functions at the top level of the module
 from .library import *
+
+# widget debug utilities
+from .debug import enable_widget_debug, dump_widget_debug, clear_widget_debug, widget_debug_info

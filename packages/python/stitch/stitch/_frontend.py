@@ -9,4 +9,4 @@ Information about the frontend package of the widgets.
 """
 
 module_name = "@guidance-ai/stitch"
-module_version = "^0.1.4"
+module_version = "^0.1.5"

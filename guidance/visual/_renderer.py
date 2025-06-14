@@ -227,6 +227,10 @@ class JupyterWidgetRenderer(Renderer):
         self.stitch_widget_observed = False
         self._stitch_on_clientmsg: Optional[Callable[[], None]] = None
         self.last_cell_session_id: Optional[str] = None
+        
+        # Debug tracking
+        self._debug_enabled = False
+        self._debug_messages: list[GuidanceMessage] = []
 
         # Create queue and wait for instantiation
         self.send_queue: Queue = get_bg_async().run_async_coroutine(_create_queue()).result()
@@ -276,16 +280,24 @@ class JupyterWidgetRenderer(Renderer):
             return False, -1
         elif trace_messages_len == 1:
             if isinstance(self._messages[0], TraceMessage):
-                last_trace_node = self._trace_handler[self._messages[0].trace_id]
-                if message_trace_node.parent == last_trace_node:
-                    return False, -1
-                else:
+                try:
+                    last_trace_node = self._trace_handler[self._messages[0].trace_id]
+                    if message_trace_node.parent == last_trace_node:
+                        return False, -1
+                    else:
+                        return True, 0
+                except KeyError:
+                    # Trace node was garbage collected, treat as divergence
                     return True, 0
             else:
                 return False, -1
         else:
             last_trace_message = prev_trace_messages[-1]
-            last_trace_node = self._trace_handler[last_trace_message.trace_id]
+            try:
+                last_trace_node = self._trace_handler[last_trace_message.trace_id]
+            except KeyError:
+                # Trace node was garbage collected, treat as divergence
+                return True, 0
 
             if last_trace_node not in message_trace_node.path():
                 logger.debug(f"DIVERGENCE:curr:{message_trace_node}")
@@ -296,9 +308,13 @@ class JupyterWidgetRenderer(Renderer):
                 ancestors = set(message_trace_node.ancestors())
                 for idx, prev_message in enumerate(self._messages):
                     if isinstance(prev_message, TraceMessage):
-                        prev_trace_node = self._trace_handler[prev_message.trace_id]
-                        if prev_trace_node in ancestors:
-                            ancestor_idx = idx
+                        try:
+                            prev_trace_node = self._trace_handler[prev_message.trace_id]
+                            if prev_trace_node in ancestors:
+                                ancestor_idx = idx
+                        except KeyError:
+                            # Trace node was garbage collected, skip it
+                            continue
                 if ancestor_idx == -1:
                     if message_trace_node.parent == last_trace_node.root():  # pragma: no cover
                         ancestor_idx = 0
@@ -371,7 +387,9 @@ class JupyterWidgetRenderer(Renderer):
         # Reset if needed
         if self._new_widget_needed:
             logger.debug("RENDERER:new widget needed")
-
+            # Store existing messages before clearing
+            existing_messages = self._messages[:]
+            
             # Clear messages
             self._messages = []
 
@@ -390,6 +408,13 @@ class JupyterWidgetRenderer(Renderer):
             display(self.stitch_widget)
 
             self._new_widget_needed = False
+            
+            # Replay existing messages to the new widget
+            if existing_messages:
+                logger.debug(f"RENDERER:replaying {len(existing_messages)} existing messages")
+                # Add all existing messages to the outgoing queue
+                out_messages.append(ResetDisplayMessage())
+                out_messages.extend(existing_messages)
 
         # Append current message to outgoing
         out_messages.append(message)
@@ -401,7 +426,71 @@ class JupyterWidgetRenderer(Renderer):
                 self.last_trace_id = out_message.trace_id
 
             self._messages.append(out_message)
+            
+            # Track for debug if enabled
+            if self._debug_enabled:
+                self._debug_messages.append(out_message)
+            
             get_bg_async().call_soon_threadsafe(self.send_queue.put_nowait, out_message)
+
+    def enable_debug(self) -> None:
+        """Enable debug mode in the widget to capture message history."""
+        from ..registry import get_bg_async
+        
+        self._debug_enabled = True
+        self._debug_messages = []  # Clear previous messages
+
+    def clear_debug_data(self) -> None:
+        """Clear captured debug messages."""
+        self._debug_messages = []
+        logger.info("Debug messages cleared")
+
+    def get_debug_data(self) -> Optional[str]:
+        """Get debug data as a JSON string.
+        
+        Returns:
+            JSON string containing debug data, or None if no data available
+        """
+        import json
+        import datetime
+        
+        if not self._debug_enabled:
+            logger.warning("Debug mode not enabled - call enable_debug() first")
+            return None
+            
+        if not self._debug_messages:
+            logger.warning("No debug messages captured yet")
+            return None
+        
+        def make_json_serializable(obj):
+            """Convert objects to JSON serializable format."""
+            if isinstance(obj, bytes):
+                # Convert bytes to base64 string for JSON serialization
+                import base64
+                return base64.b64encode(obj).decode('utf-8')
+            elif isinstance(obj, dict):
+                return {k: make_json_serializable(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [make_json_serializable(item) for item in obj]
+            elif hasattr(obj, 'model_dump'):
+                # Pydantic models
+                return make_json_serializable(obj.model_dump())
+            else:
+                return obj
+
+        debug_data = {
+            "timestamp": datetime.datetime.now().isoformat(),
+            "messageCount": len(self._debug_messages),
+            "messages": [
+                make_json_serializable({
+                    "message_id": msg.message_id,
+                    "class_name": msg.class_name,
+                    **msg.model_dump()
+                }) for msg in self._debug_messages
+            ]
+        }
+        
+        return json.dumps(debug_data, indent=2)
 
 
 class DoNothingRenderer(Renderer):

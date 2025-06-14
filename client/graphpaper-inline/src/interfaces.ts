@@ -1,6 +1,6 @@
 // Interfaces used within the client. This is separate to messaging interfaces.
 
-import type {GenToken, RoleOpenerInput} from "./stitch";
+import type { RoleOpenerInput} from "./stitch";
 
 export interface MetricDef {
     name: string,

@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Widget Test Harness</title>
+    <style>
+        body { 
+            margin: 0; 
+            padding: 20px; 
+            font-family: Arial, sans-serif; 
+        }
+        .test-controls {
+            background: #f5f5f5;
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        .widget-container {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            min-height: 400px;
+        }
+        .status {
+            color: #666;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-controls">
+        <h3>Widget Test Harness</h3>
+        <div class="status" id="status">Ready for test data injection</div>
+        <div>Current scenario: <span id="current-scenario">None</span></div>
+        <div>Components loaded: <span id="component-count">0</span></div>
+    </div>
+
+    <div class="widget-container" id="widget-container">
+        <!-- Widget will be injected here -->
+    </div>
+
+    <!-- Load the widget bundle -->
+    <script src="../dist/bundle.js"></script>
+    
+    <script type="module">
+        // Import mock generator (assuming it's built into bundle or available)
+        // For now, we'll include the mock generator logic inline for testing
+        
+        // Test data injection API for Playwright
+        window.testAPI = {
+            // Inject mock data scenario
+            async injectMockData(scenarioName, mockData) {
+                const status = document.getElementById('status');
+                const scenario = document.getElementById('current-scenario');
+                const count = document.getElementById('component-count');
+                
+                status.textContent = `Loading scenario: ${scenarioName}`;
+                scenario.textContent = scenarioName;
+                
+                // Clear existing widget
+                const container = document.getElementById('widget-container');
+                container.innerHTML = '';
+                
+                // Create a new widget instance with mock data
+                // This simulates what the Svelte app would do with injected data
+                const mockAppDiv = document.createElement('div');
+                mockAppDiv.id = 'app';
+                container.appendChild(mockAppDiv);
+                
+                // Store the mock data globally so the widget can access it
+                window.mockTestData = mockData;
+                
+                // Initialize the widget (this would need to be adapted based on how your widget initializes)
+                // For now, we'll create a simple rendering
+                await this.renderMockWidget(mockData);
+                
+                count.textContent = mockData.length;
+                status.textContent = `Loaded: ${scenarioName} (${mockData.length} components)`;
+                
+                return { success: true, componentCount: mockData.length };
+            },
+            
+            // Render mock widget (simplified version)
+            async renderMockWidget(mockData) {
+                const app = document.getElementById('app');
+                
+                // Create a simple token display for testing
+                const tokenGrid = document.createElement('div');
+                tokenGrid.className = 'token-grid';
+                tokenGrid.style.cssText = 'display: flex; flex-wrap: wrap; gap: 2px; padding: 10px;';
+                
+                // Process mock data and render tokens
+                let currentRole = '';
+                
+                mockData.forEach((component, index) => {
+                    if (component.class_name === 'RoleOpenerInput') {
+                        currentRole = component.name || '';
+                        
+                        // Add role indicator
+                        const roleEl = document.createElement('div');
+                        roleEl.className = 'role-indicator';
+                        roleEl.style.cssText = `
+                            width: 100%; 
+                            margin: 10px 0 5px 0; 
+                            padding: 5px; 
+                            background: ${currentRole === 'user' ? '#e3f2fd' : '#f3e5f5'}; 
+                            border-radius: 3px; 
+                            font-weight: bold;
+                            font-size: 12px;
+                        `;
+                        roleEl.textContent = `${currentRole.toUpperCase()}:`;
+                        roleEl.setAttribute('data-role', currentRole);
+                        tokenGrid.appendChild(roleEl);
+                    } else if (component.class_name === 'TextOutput' || component.class_name === 'TokenOutput') {
+                        // Add token element
+                        const tokenEl = document.createElement('span');
+                        tokenEl.className = 'token';
+                        tokenEl.setAttribute('data-token-index', index);
+                        tokenEl.setAttribute('data-role', currentRole);
+                        tokenEl.setAttribute('data-is-input', component.is_input || false);
+                        tokenEl.setAttribute('data-is-generated', component.is_generated || false);
+                        
+                        // Style based on token properties
+                        const prob = component.token?.prob || component.prob || 0.5;
+                        const opacity = 0.3 + (prob * 0.7); // Map probability to opacity
+                        const bgColor = component.is_generated ? '#e8f5e8' : '#f5f5f5';
+                        
+                        tokenEl.style.cssText = `
+                            padding: 2px 4px; 
+                            margin: 1px; 
+                            background: ${bgColor}; 
+                            border: 1px solid #ddd; 
+                            border-radius: 3px; 
+                            font-family: monospace; 
+                            font-size: 14px;
+                            opacity: ${opacity};
+                            cursor: pointer;
+                        `;
+                        
+                        tokenEl.textContent = component.value || component.token?.token || '';
+                        tokenEl.title = `Role: ${currentRole}, Prob: ${prob.toFixed(3)}, Generated: ${component.is_generated}`;
+                        
+                        // Add click handler for testing
+                        tokenEl.addEventListener('click', () => {
+                            console.log('Token clicked:', {
+                                text: tokenEl.textContent,
+                                role: currentRole,
+                                index,
+                                component
+                            });
+                        });
+                        
+                        tokenGrid.appendChild(tokenEl);
+                    } else if (component.class_name === 'Backtrack') {
+                        // Add backtrack indicator
+                        const backtrackEl = document.createElement('div');
+                        backtrackEl.className = 'backtrack-indicator';
+                        backtrackEl.style.cssText = `
+                            width: 100%; 
+                            margin: 5px 0; 
+                            padding: 5px; 
+                            background: #ffebee; 
+                            border: 1px solid #f44336; 
+                            border-radius: 3px; 
+                            font-size: 12px;
+                            color: #d32f2f;
+                        `;
+                        backtrackEl.textContent = `⟲ BACKTRACK (${component.n_tokens} tokens)`;
+                        backtrackEl.setAttribute('data-backtrack-tokens', component.n_tokens);
+                        tokenGrid.appendChild(backtrackEl);
+                    }
+                });
+                
+                app.appendChild(tokenGrid);
+            },
+            
+            // Get current widget state for testing
+            getWidgetState() {
+                const tokens = Array.from(document.querySelectorAll('.token')).map(el => ({
+                    text: el.textContent,
+                    role: el.getAttribute('data-role'),
+                    index: parseInt(el.getAttribute('data-token-index')),
+                    isInput: el.getAttribute('data-is-input') === 'true',
+                    isGenerated: el.getAttribute('data-is-generated') === 'true'
+                }));
+                
+                const roles = Array.from(document.querySelectorAll('.role-indicator')).map(el => ({
+                    role: el.getAttribute('data-role'),
+                    text: el.textContent
+                }));
+                
+                const backtracks = Array.from(document.querySelectorAll('.backtrack-indicator')).map(el => ({
+                    tokens: parseInt(el.getAttribute('data-backtrack-tokens'))
+                }));
+                
+                return { tokens, roles, backtracks };
+            },
+            
+            // Utility to wait for widget to be ready
+            async waitForWidget(timeout = 5000) {
+                const start = Date.now();
+                while (Date.now() - start < timeout) {
+                    if (document.getElementById('app') && document.querySelector('.token-grid')) {
+                        return true;
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+                throw new Error('Widget failed to load within timeout');
+            }
+        };
+        
+        // Signal that test API is ready
+        window.testAPIReady = true;
+        console.log('Test harness ready - window.testAPI available');
+    </script>
+</body>
+</html>

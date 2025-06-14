@@ -11,6 +11,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
     clientmsg,
     type GuidanceMessage,
     isAudioOutput,
+    isBacktrackMessage,
     isClientReadyAckMessage,
     isExecutionCompletedMessage,
     isExecutionStartedMessage,
@@ -20,6 +21,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
     isRoleCloserInput,
     isRoleOpenerInput,
     isTextOutput,
+    isTokenOutput,
     isTraceMessage,
     isVideoOutput,
     kernelmsg,
@@ -43,6 +45,8 @@ For upcoming features, we won't be able to send all details over the wire, and w
     shownMetrics: Array<string>,
     requireFullReplay: boolean,
     currentMessageId: number,
+    backtrackCount: number,
+    resetCount: number,
   }
   let appState: AppState = {
     components: [],
@@ -61,13 +65,16 @@ For upcoming features, we won't be able to send all details over the wire, and w
     },
     requireFullReplay: true,
     currentMessageId: -1,
+    backtrackCount: 0,
+    resetCount: 0,
   };
-  // appState.components = mockNodeAttrs;
 
   let bgField: string = 'Type';
   let underlineField: string = 'Probability';
 
   const handleMessage = (msg: GuidanceMessage): void => {
+      console.log("Received GuidanceMessage:", msg);
+
     // Duplicates can randomly occur from ipywidget layer.
     if (appState.currentMessageId === msg.message_id) {
       console.log(`Duplicate message detected: ${msg.message_id}`)
@@ -77,8 +84,10 @@ For upcoming features, we won't be able to send all details over the wire, and w
     }
 
     if (isTraceMessage(msg)) {
-      if (isTextOutput(msg.node_attr)) {
+      if (isTokenOutput(msg.node_attr)) {
         // console.log(msg.node_attr);
+        appState.components.push(msg.node_attr);
+      } else if (isTextOutput(msg.node_attr)) {
         appState.components.push(msg.node_attr);
       } else if (isRoleOpenerInput(msg.node_attr)) {
         appState.components.push(msg.node_attr);
@@ -90,6 +99,15 @@ For upcoming features, we won't be able to send all details over the wire, and w
         appState.components.push(msg.node_attr);
       } else if (isVideoOutput(msg.node_attr)) {
         appState.components.push(msg.node_attr);
+      } else if (isBacktrackMessage(msg.node_attr)) {
+        let numBacktrack = msg.node_attr.n_tokens;
+        console.log(`Backtracking ${numBacktrack} tokens.`);
+        for (let i = 0; i < numBacktrack; i++) {
+          appState.components.pop();
+        }
+        appState.backtrackCount += 1;
+      } else {
+        console.log("Unknown trace msg node_attr: ", msg)
       }
     } else if (isExecutionStartedMessage(msg)) {
       appState.requireFullReplay = false;
@@ -105,6 +123,8 @@ For upcoming features, we won't be able to send all details over the wire, and w
     } else if (isResetDisplayMessage(msg)) {
       appState.components = [];
       appState.status = appState.status !== Status.Error ? Status.Running : appState.status;
+      appState.backtrackCount = 0;
+      appState.resetCount += 1;
     } else if (isMetricMessage(msg)) {
       const name = msg.name;
       const value = msg.value;
@@ -192,7 +212,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
 
 <StitchHandler />
 <ResizeListener />
-<div class="w-full min-h-72">
+<div class="w-full">
   <nav class="sticky top-0 z-50 opacity-90">
     <section class="">
       <div class="text-sm pt-2 pb-2 flex justify-between border-b border-gray-200">
@@ -214,11 +234,19 @@ For upcoming features, we won't be able to send all details over the wire, and w
     </section>
   </nav>
 
+  {#if appState.components.length > 0}
   <!-- Content pane -->
-  <section class="w-full">
+  <section class="w-full min-h-40">
     <TokenGrid components={appState.components}
                isCompleted={['Done', 'Error'].includes(appState.status)}
                isError={appState.status === Status.Error}
-               bgField={bgField} underlineField={underlineField} requireFullReplay="{appState.requireFullReplay}" />
+               bgField={bgField} underlineField={underlineField} requireFullReplay="{appState.requireFullReplay}"
+               backtrackCount={appState.backtrackCount}
+               resetCount={appState.resetCount} />
   </section>
+  {:else}
+  <div class="flex items-center justify-center py-6">
+    <span class="text-gray-500 text-lg">No tokens to display.</span>
+  </div>
+  {/if}
 </div>

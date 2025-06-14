@@ -1,6 +1,6 @@
 {
   "name": "@guidance-ai/stitch",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Bidirectional comms for Jupyter and JavaScript.",
   "keywords": [
     "jupyter",
