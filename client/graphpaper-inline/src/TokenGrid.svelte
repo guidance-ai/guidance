@@ -2,7 +2,9 @@
 <script lang="ts">
   import {
     isRoleOpenerInput,
+    isRoleCloserInput,
     isTokenOutput,
+    isTextOutput,
     isAudioOutput,
     type NodeAttr,
     type RoleOpenerInput,
@@ -115,8 +117,9 @@
     } else if (x.is_generated) {
       color = "rgba(229, 231, 235, 1)";
     } else {
-      console.log(`ERROR: token ${x.text} does not have emit flags.`);
-      color = "rgba(255, 255, 255, 0)";
+      // console.log(`ERROR: token ${x.text} does not have emit flags.`);
+      // Make slightly off white for error detection without console spam
+      color = "rgba(255, 255, 254, 0)";
     }
     return `background-color: ${color};`;
   };
@@ -172,6 +175,8 @@
   let activeCloserRoleText: Array<string> = [];
   let specialSet: Set<string> = new Set<string>();
   let namedRoleSet: Record<string, string> = {};
+  let displayedRoles: Set<string> = new Set<string>();
+  let roleCounters: Record<string, number> = {};
   let currentTokenIndex: number = 0;
   let statCounter: Record<string, number> = {};
   let lastBacktrackCount: number = 0;
@@ -186,6 +191,8 @@
     activeCloserRoleText = [];  // Reset role tracking
     specialSet.clear();  // Clear special token set
     namedRoleSet = {};  // Clear named role mapping
+    displayedRoles.clear();  // Clear displayed roles tracking
+    roleCounters = {};  // Clear role counters
     lastBacktrackCount = backtrackCount;
   }
   
@@ -198,6 +205,8 @@
     activeCloserRoleText = [];
     specialSet.clear();
     namedRoleSet = {};
+    displayedRoles.clear();
+    roleCounters = {};
     lastResetCount = resetCount;
   }
   
@@ -210,6 +219,8 @@
       activeCloserRoleText = [];
       specialSet.clear();
       namedRoleSet = {};
+      displayedRoles.clear();
+      roleCounters = {};
       currentTokenIndex = 0;
     } else if (currentTokenIndex > components.length) {
       // Handle case where components were removed (e.g., after reset + partial replay)
@@ -239,13 +250,24 @@
       if (isRoleOpenerInput(nodeAttr)) {
         activeOpenerRoles.push(nodeAttr);
         activeCloserRoleText.push(nodeAttr.closer_text || "");
+        
+        // Increment counter for this role type
+        const roleName = nodeAttr.name || "";
+        roleCounters[roleName] = (roleCounters[roleName] || 0) + 1;
+      } else if (isRoleCloserInput(nodeAttr)) {
+        // Close the most recent role
+        if (activeOpenerRoles.length > 0) {
+          activeOpenerRoles.pop();
+          activeCloserRoleText.pop();
+        }
       } else if (isAudioOutput(nodeAttr)) {
         multimodalNodes.push(createMediaNode("audio", nodeAttr));
       } else if (isImageOutput(nodeAttr)) {
         multimodalNodes.push(createMediaNode("image", nodeAttr));
       } else if (isVideoOutput(nodeAttr)) {
         multimodalNodes.push(createMediaNode("video", nodeAttr));
-      } else if (isTokenOutput(nodeAttr)) {
+      } else if (isTokenOutput(nodeAttr) || (isTextOutput(nodeAttr) && !nodeAttr.value.includes("<|im_start|>") && !nodeAttr.value.includes("<|im_end|>"))) {
+        console.log("Processing token:", nodeAttr.value, "Active roles:", activeOpenerRoles.map(r => r.name));
         if (activeOpenerRoles.length === 0) {
           if (
             activeCloserRoleText.length !== 0 &&
@@ -254,7 +276,7 @@
           ) {
             const token: Token = {
               text: nodeAttr.value,
-              prob: nodeAttr.token.prob,
+              prob: isTokenOutput(nodeAttr) ? nodeAttr.token.prob : 0,
               latency_ms: 0,
               role: "",
               special: true,
@@ -270,7 +292,7 @@
           } else {
             const token = {
               text: nodeAttr.value,
-              prob: nodeAttr.token.prob,
+              prob: isTokenOutput(nodeAttr) ? nodeAttr.token.prob : 0,
               latency_ms: 0,
               role: "",
               special: false,
@@ -284,27 +306,38 @@
         } else {
           const activeOpenerRole =
             activeOpenerRoles[activeOpenerRoles.length - 1];
-          if (
-            activeOpenerRole.text &&
-            activeOpenerRole.text !== nodeAttr.value
-          ) {
-            console.log(
-              `Active role text does not match next text output: ${activeOpenerRole.text} - ${nodeAttr.value}`
-            );
+          
+          // Check if this is a role marker token (like "<|im_start|>assistant\n")
+          const isRoleMarker = nodeAttr.value.includes("<|im_start|>") || 
+                              nodeAttr.value.includes("<|im_end|>");
+          
+          if (isRoleMarker) {
+            // Hide role marker tokens - don't add to display
+            specialSet.add(nodeAttr.value);
+          } else {
+            // Check if we've already displayed this role section
+            const roleName = activeOpenerRole.name || "";
+            const roleCount = roleCounters[roleName] || 0;
+            const roleKey = `${roleName}-${roleCount}`;
+            const shouldShowRole = !displayedRoles.has(roleKey);
+            
+            if (shouldShowRole) {
+              displayedRoles.add(roleKey);
+            }
+            
+            const token = {
+              text: nodeAttr.value, 
+              prob: isTokenOutput(nodeAttr) ? nodeAttr.token.prob : 0, 
+              latency_ms: 0, 
+              role: shouldShowRole ? (activeOpenerRole.name || "") : "", 
+              special: false,
+              is_input: nodeAttr.is_input, 
+              is_force_forwarded: nodeAttr.is_force_forwarded,
+              is_generated: nodeAttr.is_generated,
+            };
+            tokens.push(token);
           }
-
-                    const token = {
-                        text: nodeAttr.value, prob: nodeAttr.prob, latency_ms: 0, role: activeOpenerRole.name || "", special: true,
-                        is_input: nodeAttr.is_input, is_force_forwarded: nodeAttr.is_force_forwarded,
-                        is_generated: nodeAttr.is_generated,
-                    };
-                    if (token.role !== "") {
-                        namedRoleSet[nodeAttr.value] = token.role;
-                    }
-                    specialSet.add(token.text);
-                    tokens.push(token);
-                    activeOpenerRoles.pop();
-                }
+        }
             }
         }
         // NOTE(nopdive): Often the closer text is missing at the end of output.
@@ -594,17 +627,13 @@
 
       <!-- Render tokens first -->
       {#each tokens as token, i}
-          {#if token.special === true && token.role !== ""}
-            <!-- Vertical spacing for role -->
-            {#if i === 0}
-              <div class="basis-full h-2"></div>
-            {:else}
-              {#each { length: 2 } as _}
-                <div class="basis-full h-0"></div>
-                <span class="inline-block">&nbsp;</span>
-              {/each}
-              <div class="basis-full h-0"></div>
+          {#if token.role !== ""}
+            <!-- Add spacing before role (except for first) -->
+            {#if i > 0}
+              <div class="basis-full py-3"></div>
             {/if}
+            <!-- Force line break for role header -->
+            <div class="basis-full h-0"></div>
           {/if}
           <TokenGridItem
             token={token}

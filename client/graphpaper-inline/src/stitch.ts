@@ -142,6 +142,11 @@ export function isRoleCloserInput(o: NodeAttr | undefined | null): o is RoleClos
     return o.class_name === "RoleCloserInput";
 }
 
+export function isTextOutput(o: NodeAttr | undefined | null): o is TextOutput {
+    if (o === undefined || o === null) return false;
+    return o.class_name === "TextOutput" || o.class_name === "TokenOutput";
+}
+
 export function isTokenOutput(o: NodeAttr | undefined | null): o is TokenOutput {
     if (o === undefined || o === null) return false;
     return o.class_name === "TokenOutput";
