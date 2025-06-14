@@ -1,0 +1,21 @@
+# Assume Python 3.9 (oldest supported)
+target-version = "py39"
+
+# We have agreed on longer lines
+line-length = 120
+
+# Override ruff's default include
+# Because notebooks are tougher
+include = [ "*.py", "*.pyi", "pyproject.toml" ]
+exclude = [
+    ".eggs",
+    ".git",
+]
+
+[lint]
+extend-select = [
+  "B",        # flake8-bugbear
+  "I",        # isort
+  "ARG",      # flake8-unused-arguments
+  "C4",       # flake8-comprehensions
+]
