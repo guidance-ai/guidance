@@ -38,6 +38,7 @@ jobs:
       os: "Large_Windows"
       python-version: ${{ matrix.python-version }}
       model: ${{ matrix.model }}
+      codeCovPython: ${{ vars.CODECOV_PYTHON }}
     secrets:
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
 
@@ -55,5 +56,6 @@ jobs:
       os: "Large_Windows"
       python-version: ${{ matrix.python-version }}
       model: ${{ matrix.model }}
+      codeCovPython: ${{ vars.CODECOV_PYTHON }}
     secrets:
       HF_TOKEN: ${{ secrets.HF_TOKEN }}

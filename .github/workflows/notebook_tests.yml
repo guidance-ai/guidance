@@ -2,7 +2,7 @@
 # Not part of the regular CI run, since notebook tests seem
 # particularly flaky
 
-name: Notebook Tests
+name: CI Tests - Notebook
 
 on:
   workflow_dispatch:
@@ -65,5 +65,6 @@ jobs:
             ./tests/notebooks
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
+        if: ${{ (vars.CODECOV_PYTHON == matrix.python-version) }}
         with:
           token: ${{ secrets.CODECOV_TOKEN }}

@@ -12,6 +12,10 @@ on:
       model:
         required: true
         type: string
+      codeCovPython:
+        required: true
+        type: string
+        default: "3.12"
     secrets:
       HF_TOKEN:
         required: false
@@ -29,6 +33,10 @@ on:
         required: false
         type: string
         default: "llamacpp_llama2_7b_gpu" # also try "transformers_gpt2_gpu", "transformers_phi2_gpu", etc
+      codeCovPython:
+        required: true
+        type: string
+        default: "3.12"
       commit_id:
         description: 'Branch or Commit ID (optional)'
         required: false
@@ -79,5 +87,6 @@ jobs:
             ./tests/model_integration ./tests/model_specific
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
+        if: ${{ (inputs.codeCovPython == inputs.python-version) }}
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
