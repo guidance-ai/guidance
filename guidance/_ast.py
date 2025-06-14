@@ -353,7 +353,7 @@ class SpecialToken(GrammarNode):
         raise ValueError("SpecialToken must have either text, id, or range set")
 
     @property
-    def is_terminal(self) -> bool:
+    def is_allowed_in_lark_terminal(self) -> bool:
         return False
 
     def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:

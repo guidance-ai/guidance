@@ -279,9 +279,15 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                 if len(content) == 0:
                     continue
                 self.state.apply_text(content)
-                if choice.logprobs is None or choice.logprobs.content is None:
-                    yield TextOutput(value=delta.content, is_generated=True, latency_ms=latency_ms)
-                else:
+                # Rather paranoid check, as we have a few slightly different
+                # apis which are "almost" openai compatible...
+                if (
+                    hasattr(choice, "logprobs")
+                    and choice.logprobs is not None
+                    and hasattr(choice.logprobs, "content")
+                    and choice.logprobs.content is not None
+                    and len(choice.logprobs.content) > 0
+                ):
                     tokens = choice.logprobs.content
                     for token in tokens:
                         yield TokenOutput(
@@ -303,6 +309,8 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                                 for tok in token.top_logprobs
                             ]
                         )
+                else:
+                    yield TextOutput(value=delta.content, is_generated=True, latency_ms=latency_ms)
             elif (delta_audio:=cast(Optional[dict], getattr(delta, "audio", None))) is not None:
                 transcript_chunk: Optional[str] = None
                 if audio is None:
@@ -425,7 +433,7 @@ class OpenAIJSONMixin(BaseOpenAIInterpreter):
                     "schema": node.schema,
                     "strict": True,
                 },
-            },
+            }
         return self._run(
             response_format=response_format,
             **kwargs,
