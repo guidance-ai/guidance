@@ -3,8 +3,6 @@ import pytest
 
 import guidance
 
-from guidance.chat import CHAT_TEMPLATE_CACHE
-
 
 def test_chat_format_smoke(llamacpp_model: guidance.models.LlamaCpp, selected_model_name):
     # Retrieve the template string
@@ -15,9 +13,6 @@ def test_chat_format_smoke(llamacpp_model: guidance.models.LlamaCpp, selected_mo
         model_chat_template = llamacpp_model.engine.model_obj.metadata["tokenizer.chat_template"]
     else:
         pytest.skip("Chat template not available from LlamaCpp object")
-
-    lm = guidance.models.Mock("")
-    lm._interpreter.chat_template = CHAT_TEMPLATE_CACHE[model_chat_template]()
 
     messages = [
         {"role": "user", "content": "Good_day_to_you!"},
@@ -37,6 +32,7 @@ def test_chat_format_smoke(llamacpp_model: guidance.models.LlamaCpp, selected_mo
         eos_token=llamacpp_model.engine.tokenizer.eos_token.decode(),
     )
 
+    lm = llamacpp_model
     with guidance.user():
         lm += "Good_day_to_you!"
     with guidance.assistant():
