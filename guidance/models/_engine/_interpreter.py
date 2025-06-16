@@ -78,7 +78,7 @@ class EngineInterpreter(Interpreter[EngineState]):
         )
         delayed_bytes = b""
         for chunk in engine_gen:
-            new_bytes = parse_special_tokens(self.engine.tokenizer, chunk.new_bytes)
+            new_bytes = recode_special_tokens(self.engine.tokenizer, chunk.new_bytes)
             new_text, delayed_bytes = partial_decode(delayed_bytes + new_bytes)
             self.state.prompt += new_text
 
