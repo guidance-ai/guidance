@@ -577,8 +577,6 @@ class TransformersEngine(Engine):
                         output_attentions=False,
                         output_hidden_states=False,
                     )
-                    if past_length > 0:
-                        breakpoint()
                     # Need to add special truncating logic here for weird models that have a different output size than tokenizer vocab
                     logits_for_each_batch.append(
                         model_out.logits[0, :, :self.tokenizer._vocab_size]
