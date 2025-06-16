@@ -172,7 +172,7 @@ class Llama3ChatTemplate(ChatTemplate):
             raise UnsupportedRoleException(role_name, self)
 
     def get_role_end(self, role_name=None):
-        return "<|eot_id|>\n"
+        return "<|eot_id|>"
 
 
 CHAT_TEMPLATE_CACHE[llama3_template] = Llama3ChatTemplate
