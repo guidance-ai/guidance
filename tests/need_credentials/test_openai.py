@@ -80,6 +80,10 @@ def test_openai_image_smoke(openai_image_model: Model):
     assert len(lm["img_describe"]) > 0
 
 
+def test_openai_chat_json(openai_model: Model):
+    common_chat_testing.json_output_smoke(openai_model)
+
+
 def test_openai_tools_smoke(openai_model: Model):
     lm = openai_model
 

@@ -539,7 +539,7 @@ class OpenAIJSONMixin(BaseOpenAIInterpreter):
                     "schema": node.schema,
                     "strict": True,
                 },
-            },
+            }
         return self._run(
             response_format=response_format,
             **kwargs,
