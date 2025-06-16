@@ -199,10 +199,10 @@ def test_phi3_basic_completion_badtokens(phi3_model: models.Model):
 
     assert len(lm["five"]) > 0
 
-def test_chat_format_smoke(selected_model):
+def test_chat_format_smoke(transformers_model: models.Transformers):
     # Retrieve the template string
-    if isinstance(selected_model.engine.tokenizer._orig_tokenizer.chat_template, str):
-        model_chat_template = selected_model.engine.tokenizer._orig_tokenizer.chat_template
+    if isinstance(transformers_model.engine.tokenizer._orig_tokenizer.chat_template, str):
+        model_chat_template = transformers_model.engine.tokenizer._orig_tokenizer.chat_template
     else:
         pytest.skip("Chat template not available from Transformers object")
 
@@ -220,11 +220,11 @@ def test_chat_format_smoke(selected_model):
     )
     jinja2_render = jinja2_template.render(
         messages=messages,
-        bos_token=selected_model.engine.tokenizer.bos_token.decode(),
-        eos_token=selected_model.engine.tokenizer.eos_token.decode(),
+        bos_token=transformers_model.engine.tokenizer.bos_token.decode(),
+        eos_token=transformers_model.engine.tokenizer.eos_token.decode(),
     )
 
-    lm = selected_model
+    lm = transformers_model
     with user():
         lm += "Good_day_to_you!"
     with assistant():

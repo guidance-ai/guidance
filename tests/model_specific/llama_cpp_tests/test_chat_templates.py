@@ -4,7 +4,7 @@ import pytest
 import guidance
 
 
-def test_chat_format_smoke(llamacpp_model: guidance.models.LlamaCpp, selected_model_name):
+def test_chat_format_smoke(llamacpp_model: guidance.models.LlamaCpp):
     # Retrieve the template string
     if (
         hasattr(llamacpp_model.engine.model_obj, "metadata")
