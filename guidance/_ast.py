@@ -324,30 +324,6 @@ class GrammarNode(Tagged, ASTNode):
     def ll_grammar(self, enforce_max_tokens: bool = True) -> str:
         return LarkSerializer(enforce_max_tokens=enforce_max_tokens).serialize(self.simplify())
 
-@dataclass(frozen=True)
-class SpecialToken(GrammarNode):
-    text: Optional[str] = None
-    id: Optional[int] = None
-    range: Optional[tuple[int, int]] = None
-
-    def __post_init__(self):
-        if [self.text, self.id, self.range].count(None) != 2:
-            raise ValueError("Exactly one of text, id, or range must be set")
-
-    def format(self) -> str:
-        if self.text is not None:
-            return f"<|{self.text}|>"
-        if self.id is not None:
-            return f"<[{self.id}]>"
-        if self.range is not None:
-            return f"<[{self.range[0]}-{self.range[1]}]>"
-
-    @property
-    def is_terminal(self) -> bool:
-        return False
-
-    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
-        return interpreter.special_token(self, **kwargs)
 
 @dataclass(frozen=True)
 class LiteralNode(GrammarNode):
