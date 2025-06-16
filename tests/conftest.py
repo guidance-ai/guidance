@@ -188,14 +188,18 @@ def selected_model(selected_model_name: str) -> models.Model:
 
 
 @pytest.fixture(scope="module")
-def llamacpp_model(selected_model, selected_model_name):
-    if selected_model_name in [
-        "llamacpp_llama2_7b_cpu",
-        "llamacpp_llama2_7b_gpu",
-        "llamacpp_gemma2_9b_cpu",
-        "llamacpp_phi3_mini_4k_instruct_cpu",
-        "llamacpp_mistral_7b_cpu",
-    ]:
+def llamacpp_model(selected_model: models.Model, selected_model_name: str) -> models.LlamaCpp:
+    if isinstance(selected_model, models.LlamaCpp):
         return selected_model
-    else:
-        pytest.skip("Requires Llama-Cpp model")
+    pytest.skip(
+        f"Selected model {selected_model_name} is not a LlamaCpp model, skipping llamacpp_model fixture"
+    )
+
+
+@pytest.fixture(scope="module")
+def transformers_model(selected_model: models.Model, selected_model_name: str) -> models.Transformers:
+    if isinstance(selected_model, models.Transformers):
+        return selected_model
+    pytest.skip(
+        f"Selected model {selected_model_name} is not a Transformers model, skipping transformers_model fixture"
+    )
