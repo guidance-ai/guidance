@@ -197,12 +197,24 @@ class Engine(ABC):
                 # (model + prompt) + grammar == model + (prompt + grammar)
                 tokens = self.tokenizer.recode(tokens)
 
-            # TODO: reintegrate logic to avoid final get_logits call in the case that:
+            # We can avoid a final get_logits call in the case that:
             # 1. The parser has a pending stop
             # 2. There are no ff_tokens (except for our last generated token)
-            t1 = time.time()
-            logits = self.get_logits(token_ids=tokens, full_sequence=True)
-            logits_lat_ms = (time.time() - t1) * 1000
+            if parser.has_pending_stop() and (
+                (not ff_tokens)
+                or (
+                    len(ff_tokens) == 1
+                    and engine_output is not None
+                    and ff_tokens[0] == engine_output.issued_token.token_id
+                )
+            ):
+                logits = None
+                logits_lat_ms = 0.0
+            else:
+                t1 = time.time()
+                logits = self.get_logits(token_ids=tokens, full_sequence=True)
+                logits_lat_ms = (time.time() - t1) * 1000
+
 
             # Important: don't wait on this future until after getting the logits;
             # this allows the mask to be built concurrently with model inference
@@ -215,20 +227,23 @@ class Engine(ABC):
                 # if it exists
                 ff_lat_ms -= logits_lat_ms
 
-            # Not the last one -- that's for the *next* token.
-            ff_logits = logits[max(len(logits)-len(ff_tokens)-1, 0):-1]
-            # TODO: calculate at temperature 1?
-            ff_probs = (
-                softmax(np.array(ff_logits))
-                if ll_response.temperature < 0.0001
-                else softmax(np.array(ff_logits) / ll_response.temperature)
-            )
-            if ff_probs.shape[0] != len(ff_tokens):
-                assert ff_probs.shape[0] == len(ff_tokens) - 1
-                # We didn't have a BOS token, so we need to fake the first token prob (say... 1?)
-                ff_probs = np.concatenate(
-                    (np.ones((1, ff_probs.shape[1])), ff_probs), axis=0
+            if logits is not None:
+                # Not the last one -- that's for the *next* token.
+                ff_logits = logits[max(len(logits)-len(ff_tokens)-1, 0):-1]
+                # TODO: calculate at temperature 1?
+                ff_probs = (
+                    softmax(np.array(ff_logits))
+                    if ll_response.temperature < 0.0001
+                    else softmax(np.array(ff_logits) / ll_response.temperature)
                 )
+                if ff_probs.shape[0] != len(ff_tokens):
+                    assert ff_probs.shape[0] == len(ff_tokens) - 1
+                    # We didn't have a BOS token, so we need to fake the first token prob (say... 1?)
+                    ff_probs = np.concatenate(
+                        (np.ones((1, ff_probs.shape[1])), ff_probs), axis=0
+                    )
+            else:
+                ff_probs = np.empty(shape=())
 
             gen_tokens = []
             if engine_output is None:
@@ -284,6 +299,7 @@ class Engine(ABC):
                 break
 
             # Help the type checker: assert that everything we need to get the next token is not None
+            assert logits is not None
             assert mask is not None
             assert ll_response.temperature is not None
 
