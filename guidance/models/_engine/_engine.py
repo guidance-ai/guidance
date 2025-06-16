@@ -200,6 +200,8 @@ class Engine(ABC):
             # We can avoid a final get_logits call in the case that:
             # 1. The parser has a pending stop
             # 2. There are no ff_tokens (except for our last generated token)
+            # TODO: allow avoiding final forward pass if metrics are disabled
+            # and we have a pending stop
             if parser.has_pending_stop() and (
                 (not ff_tokens)
                 or (
