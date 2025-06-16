@@ -2,6 +2,7 @@ import os
 import re
 import textwrap
 import warnings
+import numpy as np
 from typing import TYPE_CHECKING, Optional, Union, cast
 
 from .._schema import GenToken, GenTokenExtra
@@ -558,6 +559,7 @@ class TransformersEngine(Engine):
         cache_token_ids[past_length:] = []
 
         # call the model
+        logits_for_each_batch = []
         new_token_ids = token_ids[past_length:]
         if len(new_token_ids) > 0:
             with torch.no_grad():
@@ -576,6 +578,15 @@ class TransformersEngine(Engine):
                         return_dict=True,
                         output_attentions=False,
                         output_hidden_states=False,
+                    )
+                    if past_length > 0:
+                        breakpoint()
+                    # Need to add special truncating logic here for weird models that have a different output size than tokenizer vocab
+                    logits_for_each_batch.append(
+                        model_out.logits[0, :, :self.tokenizer._vocab_size]
+                        .float()
+                        .cpu()
+                        .numpy()
                     )
                 except AssertionError:
                     for i, new_token_id in enumerate(new_token_ids):
@@ -597,15 +608,28 @@ class TransformersEngine(Engine):
                         self._past_key_values = model_out.past_key_values
                         past_length += 1
 
+                        # Need to add special truncating logic here for weird models that have a different output size than tokenizer vocab
+                        logits_for_each_batch.append(
+                            model_out.logits[0, :, :self.tokenizer._vocab_size]
+                            .float()
+                            .cpu()
+                            .numpy()
+                        )
+
             # save the results
             self._past_key_values = model_out.past_key_values
             cache_token_ids.extend(new_token_ids)
-            # Need to add special truncating logic here for weird models that have a different output size than tokenizer vocab
-            self._cached_logits = (
-                model_out.logits[0, :, :self.tokenizer._vocab_size].float().cpu().numpy()
-            )
+
             self.metrics.engine_input_tokens += len(new_token_ids)
             self.metrics.engine_output_tokens += 1
+
+        if self._cached_logits is not None:
+            logits_for_each_batch = [self._cached_logits] + logits_for_each_batch
+
+        self._cached_logits = np.concatenate(
+            logits_for_each_batch,
+            axis=0
+        )
 
         if full_sequence:
             return self._cached_logits

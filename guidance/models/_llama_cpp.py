@@ -181,8 +181,8 @@ class LlamaCppEngine(Engine):
         # clear obsolete parts of kv cache
         llama_cpp.llama_kv_cache_seq_rm(self.model_obj.ctx, -1, num_cached, -1)
 
-        logits_for_each_batch = []
         # eval the model
+        logits_for_each_batch = []
         n_batch = self.model_obj.n_batch
         batch = self._context.batch
         for i in range(num_cached, len(token_ids), n_batch):
