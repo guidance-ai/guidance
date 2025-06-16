@@ -4,14 +4,9 @@
     "scripts": {
         "build": "rollup -c",
         "dev": "rollup -c -w",
-        "start": "sirv dist --port 3000",
-        "test": "playwright test",
-        "test:ui": "playwright test --ui",
-        "test:debug": "playwright test --debug",
-        "test:mock-demo": "sirv src/test-utils --port 3001 --dev"
+        "start": "sirv dist --port 3000"
     },
     "devDependencies": {
-        "@playwright/test": "^1.53.0",
         "@rollup/plugin-commonjs": "^26.0.1",
         "@rollup/plugin-node-resolve": "^15.2.3",
         "@rollup/plugin-terser": "^0.4.4",
