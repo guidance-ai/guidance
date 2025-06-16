@@ -627,7 +627,7 @@ class TransformersEngine(Engine):
 
         # save the results
         self._past_key_values = model_out.past_key_values
-        self._cache_token_ids = token_ids.copy()
+        self._cached_token_ids = token_ids.copy()
 
         if self._cached_logits is not None:
             logits_for_each_batch = [self._cached_logits] + logits_for_each_batch
