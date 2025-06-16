@@ -1,6 +1,7 @@
 import json
 import re
 import textwrap
+import copy
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import (
@@ -12,9 +13,14 @@ from typing import (
     Sequence,
     TypeVar,
     Union,
+    TypedDict,
     cast,
 )
+from pydantic import Base64Bytes
 from typing_extensions import assert_never
+from functools import cached_property
+from llguidance import LLMatcher
+import warnings
 
 from ._parser import ByteParser, ByteParserException
 from .trace import OutputAttr
@@ -176,7 +182,7 @@ class RoleEnd(ASTNode):
 
 @dataclass
 class ImageBlob(ASTNode):
-    data: str
+    data: Base64Bytes
 
     def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
         return interpreter.image_blob(self, **kwargs)
@@ -192,7 +198,7 @@ class ImageUrl(ASTNode):
 
 @dataclass
 class AudioBlob(ASTNode):
-    data: str
+    data: Base64Bytes
 
     def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
         return interpreter.audio_blob(self, **kwargs)
@@ -217,21 +223,27 @@ class GrammarNode(Tagged, ASTNode):
         return False
 
     @property
-    def is_terminal(self) -> bool:
+    def is_allowed_in_lark_terminal(self) -> bool:
         """
         If this returns true, then this node will be compiled down to a regular expression.
         It cannot be recursive.
         """
-        return all(child.is_terminal for child in self.children())
+        return all(child.is_allowed_in_lark_terminal for child in self.children())
+
+    @property
+    def is_allowed_in_lark_rule_with_attrs(self) -> bool:
+        """
+        If this returns true, then this node can be used as a Lark rule with attributes.
+        """
+        # Typically, not being allowed in terminal implies that a node is not allowed in a rule with attributes,
+        # however this is notably false for subgrammars
+        return self.is_allowed_in_lark_terminal
 
     def simplify(self) -> "GrammarNode":
         return self
 
     def children(self) -> Sequence["GrammarNode"]:
         return ()
-
-    def __repr__(self) -> str:
-        return self.lark_str()
 
     def __add__(self, other) -> "GrammarNode":
         if not isinstance(other, (str, GrammarNode)):
@@ -319,6 +331,34 @@ class LiteralNode(GrammarNode):
 
     def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
         return interpreter.text(self, **kwargs)
+
+
+@dataclass(frozen=True)
+class SpecialToken(GrammarNode):
+    text: Optional[str] = None
+    id: Optional[int] = None
+    range: Optional[tuple[int, int]] = None
+
+    def __post_init__(self):
+        if [self.text, self.id, self.range].count(None) != 2:
+            raise ValueError("Exactly one of text, id, or range must be set")
+
+    def format(self) -> str:
+        if self.text is not None:
+            return f"<|{self.text}|>"
+        if self.id is not None:
+            return f"<[{self.id}]>"
+        if self.range is not None:
+            return f"<[{self.range[0]}-{self.range[1]}]>"
+        raise ValueError("SpecialToken must have either text, id, or range set")
+
+    @property
+    def is_allowed_in_lark_terminal(self) -> bool:
+        return False
+
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+        # Just use grammar -- I don't think we need a special case for this
+        return interpreter.grammar(self, **kwargs)
 
 
 @dataclass(frozen=True)
@@ -411,7 +451,7 @@ class SubstringNode(GrammarNode):
     chunks: tuple[str, ...]
 
     @property
-    def is_terminal(self) -> bool:
+    def is_allowed_in_lark_terminal(self) -> bool:
         # this can be used as part of bigger regexes
         return True
 
@@ -427,7 +467,7 @@ class SubstringNode(GrammarNode):
 @dataclass(frozen=True)
 class RuleNode(GrammarNode):
     name: str
-    value: Union[GrammarNode, "BaseSubgrammarNode"]
+    value: GrammarNode
     capture: Optional[str] = None
     list_append: bool = False
     temperature: Optional[float] = None
@@ -443,13 +483,13 @@ class RuleNode(GrammarNode):
             or self.stop is not None
             or self.suffix is not None
             or self.stop_capture is not None
-        ) and not (isinstance(self.value, BaseSubgrammarNode) or self.value.is_terminal):
+        ) and not self.value.is_allowed_in_lark_rule_with_attrs:
             raise ValueError(
                 "RuleNode is not terminal, so it cannot have a temperature, max_tokens, or stop condition"
             )
 
     @property
-    def is_terminal(self) -> bool:
+    def is_allowed_in_lark_terminal(self) -> bool:
         return (
             (
                 self.capture is None
@@ -459,11 +499,10 @@ class RuleNode(GrammarNode):
                 and self.suffix is None
                 and self.stop_capture is None
             )
-            and not isinstance(self.value, BaseSubgrammarNode)
-            and self.value.is_terminal
+            and super().is_allowed_in_lark_terminal
         )
 
-    def children(self) -> Sequence["GrammarNode"]:
+    def children(self) -> tuple[GrammarNode]:
         return (self.value,)
 
     def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
@@ -480,7 +519,7 @@ class RuleRefNode(GrammarNode):
         object.__setattr__(self, "target", target)
 
     @property
-    def is_terminal(self) -> bool:
+    def is_allowed_in_lark_terminal(self) -> bool:
         # RuleRefNode should only ever be used to enable recursive rule definitions,
         # so it should never be terminal.
         return False
@@ -490,11 +529,16 @@ class RuleRefNode(GrammarNode):
             raise ValueError("RuleRefNode target not set")
         return interpreter.rule(self.target)
 
-
 @dataclass(frozen=True)
-class BaseSubgrammarNode(ASTNode):
-    pass
-
+class BaseSubgrammarNode(GrammarNode):
+    @property
+    def is_allowed_in_lark_terminal(self) -> bool:
+        return False
+    @property
+    def is_allowed_in_lark_rule_with_attrs(self) -> bool:
+        # Typically, not being allowed in terminal implies that a node is not allowed in a rule with attributes,
+        # however this is notably false for subgrammars
+        return True
 
 @dataclass(frozen=True)
 class SubgrammarNode(BaseSubgrammarNode):
@@ -504,14 +548,55 @@ class SubgrammarNode(BaseSubgrammarNode):
     def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
         return interpreter.subgrammar(self, **kwargs)
 
+class LLGJsonCompileOptions(TypedDict):
+    # defaults to ","
+    item_separator: Optional[str]
+    # defaults to ":"
+    key_separator: Optional[str]
+    # defaults to None - depends on whitespace_flexible
+    whitespace_pattern: Optional[str]
+    # defaults to true (r"[\x20\x0A\x0D\x09]+"); if false, no whitespace is allowed
+    whitespace_flexible: Optional[bool]
+    # defaults to false
+    coerce_one_of: Optional[bool]
+    # ignore unimplemented keywords; defaults to false
+    lenient: Optional[bool]
 
 @dataclass(frozen=True, eq=False)
 class JsonNode(BaseSubgrammarNode):
-    schema: dict[str, Any]
+    schema: Optional[dict[str, Any]] = None
+    llg_options: Optional[LLGJsonCompileOptions] = None
 
     def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
         return interpreter.json(self, **kwargs)
 
+    @cached_property
+    def _llguidance_json(self) -> dict[str, Any]:
+        if self.schema is None:
+            # The user did not pass a schema. Let's assume that they want an object
+            # (this should match the behavior of most remote providers)
+            schema = {"type": "object"}
+        else:
+            # shallow copy is ok
+            schema = copy.copy(self.schema)
+
+        if self.llg_options is not None:
+            # Maybe TODO: let LLGJsonCompileOptions be non-total
+            # and update the schema with any present options
+            # (in case x-guidance was already set with some options)
+            schema["x-guidance"] = self.llg_options
+        return schema
+    
+    def _llguidance_validate(self) -> None:
+        """Validate the JSON schema with `llguidance` and warn about any issues."""
+        grm = LLMatcher.grammar_from_json_schema(self._llguidance_json)
+        is_err, messages = LLMatcher.validate_grammar_with_warnings(grm)
+        if is_err:
+            raise ValueError(messages[0])
+        else:
+            # this will warn about oneOf coercion, and any other unsupported features if lenient is enabled
+            for message in messages:
+                warnings.warn(message)
 
 @dataclass(frozen=True, eq=False)
 class LarkNode(BaseSubgrammarNode):
@@ -525,7 +610,7 @@ class LarkSerializer:
     def __init__(self, enforce_max_tokens: bool = True):
         self.enforce_max_tokens = enforce_max_tokens
         self.rules: dict[str, str] = {}
-        self.names: dict[Union[RuleNode, BaseSubgrammarNode], str] = {}
+        self.names: dict[RuleNode, str] = {}
 
     def serialize(self, node: GrammarNode) -> str:
         if isinstance(node, RuleNode) and node.name == "start":
@@ -555,7 +640,7 @@ class LarkSerializer:
             if node in self.names:
                 return self.names[node]
 
-            name = self.normalize_name(node.name, node.is_terminal)
+            name = self.normalize_name(node.name, node.is_allowed_in_lark_terminal)
             names = set(self.names.values())
             if name in names:
                 i = 1
@@ -589,24 +674,19 @@ class LarkSerializer:
             
             res += ": "
             target = node.value
-            if isinstance(target, GrammarNode):
+            if isinstance(target, JsonNode):
+                res += "%json " + json.dumps(target._llguidance_json, indent=2)
+            elif isinstance(target, LarkNode):
+                # TODO: we can't decide whether or not to enforce max tokens here easily.
+                # We could in principle parse the grammar and/or use a regex?
+                res += f"%lark {{\n{textwrap.indent(target.lark_grammar, '  ').strip()}\n}}"
+            elif isinstance(target, SubgrammarNode):
+                lark_grammar = LarkSerializer(enforce_max_tokens=self.enforce_max_tokens).serialize(target.body)
+                if target.skip_regex:
+                    lark_grammar += f"\n%ignore /{target.skip_regex}/"
+                res += f"%lark {{\n{textwrap.indent(lark_grammar, '  ').strip()}\n}}"
+            elif isinstance(target, GrammarNode):
                 res += self.visit(target.simplify(), top=True)
-            elif isinstance(target, BaseSubgrammarNode):
-                if isinstance(target, JsonNode):
-                    res += "%json " + json.dumps(target.schema, indent=2)
-                elif isinstance(target, LarkNode):
-                    # TODO: we can't decide whether or not to enforce max tokens here easily.
-                    # We could in principle parse the grammar and/or use a regex?
-                    res += f"%lark {{\n{textwrap.indent(target.lark_grammar, '  ').strip()}\n}}"
-                elif isinstance(target, SubgrammarNode):
-                    lark_grammar = LarkSerializer(enforce_max_tokens=self.enforce_max_tokens).serialize(target.body)
-                    if target.skip_regex:
-                        lark_grammar += f"\n%ignore /{target.skip_regex}/"
-                    res += f"%lark {{\n{textwrap.indent(lark_grammar, '  ').strip()}\n}}"
-                else:
-                    if TYPE_CHECKING:
-                        assert_never(target)
-                    raise TypeError(f"Unknown subgrammar type: {target}")
             else:
                 if TYPE_CHECKING:
                     assert_never(target)
@@ -618,6 +698,9 @@ class LarkSerializer:
 
         if isinstance(node, LiteralNode):
             return json.dumps(node.value)
+
+        if isinstance(node, SpecialToken):
+            return node.format()
 
         if isinstance(node, RegexNode):
             rx = node.regex

@@ -1,7 +1,6 @@
-name: pull_request
+name: Pull Request
 
 on:
-  push:
   pull_request:
   workflow_dispatch:
     inputs:
@@ -10,8 +9,8 @@ on:
         required: false
         type: string
   schedule:
-    # Run at 11:00 UTC every day
-    - cron: "00 11 * * *"
+    # Run at 10:00 UTC every day
+    - cron: "00 10 * * *"
 
 jobs:
   unit_tests:
@@ -19,7 +18,7 @@ jobs:
       fail-fast: false # Don't cancel all on first failure
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout repo at ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
@@ -41,15 +40,21 @@ jobs:
         run: |
           python -m pip install -e .[unittest]
       - name: Unit Tests
+        shell: bash
         run: |
-          pytest -vv ./tests/unit
+          pytest -vv --cov=guidance --cov-report=xml --cov-report=term-missing \
+            ./tests/unit
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
 
   cpu_tests:
     strategy:
       fail-fast: false # Don't cancel all on first failure
       matrix:
         os: ["Large_Linux"]  # , "Large_Windows"]
-        python-version: ["3.9", "3.12"]
+        python-version: ["3.9", "3.13"]
         model:
           - "transformers_gpt2_cpu"
           - "llamacpp_phi3_mini_4k_instruct_cpu"

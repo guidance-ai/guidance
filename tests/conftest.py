@@ -3,6 +3,7 @@ import pytest
 
 from guidance import models
 
+
 def pytest_addoption(parser):
     SELECTED_MODEL_ENV_VARIABLE = "GUIDANCE_SELECTED_MODEL"
     default_model = os.getenv(SELECTED_MODEL_ENV_VARIABLE, "transformers_gpt2_cpu")
@@ -159,6 +160,18 @@ def selected_model(selected_model_name: str) -> models.Model:
             device_map="cuda:0",
         )
 
+    # PHI-4
+    if selected_model_name == "transformers_phi4_mini_cpu":
+        return models.Transformers("microsoft/Phi-4-mini-instruct", trust_remote_code=True)
+    if selected_model_name == "transformers_phi4_mini_gpu":
+        from torch import bfloat16
+        return models.Transformers(
+            "microsoft/Phi-4-mini-instruct",
+            trust_remote_code=True,
+            device_map="cuda:0",
+            torch_dtype=bfloat16,
+        )
+
     # QWEN2DOT5
     if selected_model_name == "transformers_qwen2dot5_0dot5b_cpu":
         return models.Transformers("Qwen/Qwen2.5-0.5B")
@@ -175,14 +188,18 @@ def selected_model(selected_model_name: str) -> models.Model:
 
 
 @pytest.fixture(scope="module")
-def llamacpp_model(selected_model, selected_model_name):
-    if selected_model_name in [
-        "llamacpp_llama2_7b_cpu",
-        "llamacpp_llama2_7b_gpu",
-        "llamacpp_gemma2_9b_cpu",
-        "llamacpp_phi3_mini_4k_instruct_cpu",
-        "llamacpp_mistral_7b_cpu",
-    ]:
+def llamacpp_model(selected_model: models.Model, selected_model_name: str) -> models.LlamaCpp:
+    if isinstance(selected_model, models.LlamaCpp):
         return selected_model
-    else:
-        pytest.skip("Requires Llama-Cpp model")
+    pytest.skip(
+        f"Selected model {selected_model_name} is not a LlamaCpp model, skipping llamacpp_model fixture"
+    )
+
+
+@pytest.fixture(scope="module")
+def transformers_model(selected_model: models.Model, selected_model_name: str) -> models.Transformers:
+    if isinstance(selected_model, models.Transformers):
+        return selected_model
+    pytest.skip(
+        f"Selected model {selected_model_name} is not a Transformers model, skipping transformers_model fixture"
+    )

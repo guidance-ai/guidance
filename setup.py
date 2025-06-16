@@ -19,8 +19,8 @@ from setuptools import setup, find_packages
 
 here = os.path.abspath(os.path.dirname(__file__))
 
-llamacpp_requires = ["llama-cpp-python==0.3.7"]
-transformers_requires = ["transformers==4.48.2"]
+llamacpp_requires = ["llama-cpp-python==0.3.9"]
+transformers_requires = ["transformers==4.51.3"]
 
 install_requires = [
     "numpy",
@@ -28,7 +28,7 @@ install_requires = [
     "requests",
     "psutil",
     "guidance-stitch",
-    "llguidance==0.7.19",
+    "llguidance==0.7.26",
 ]
 
 # Our basic list of 'extras'
@@ -41,6 +41,12 @@ extras_requires = {
 all_requires = set()
 for v in extras_requires.values():
     all_requires = all_requires.union(v)
+
+# See
+# https://github.com/guidance-ai/guidance/issues/1222
+sentencepiece_dependency = (
+    "sentencepiece" if sys.version_info.minor != 13 else "dbowring-sentencepiece"
+)
 
 # Required for builds etc.
 doc_requires = [
@@ -73,7 +79,7 @@ test_requires = [
     "papermill",
     "pillow",
     "protobuf",
-    "sentencepiece",
+    sentencepiece_dependency,
     "torch",
     "transformers",
     "tiktoken>=0.3",

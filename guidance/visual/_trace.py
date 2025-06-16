@@ -1,31 +1,29 @@
 """ Visualization related to trace. """
 
-import base64
 import json
 from typing import Optional, Dict
-from .._schema import GenToken
 
-from ..visual._message import TokensMessage
 from ..trace import (
     TextOutput,
+    TokenOutput,
     TraceNode,
     TraceHandler,
     RoleOpenerInput,
     RoleCloserInput,
     ImageOutput,
+    TokenOutput
 )
 import html
 
 
 def trace_node_to_html(
-    node: TraceNode, prettify_roles=False, complete_msg: TokensMessage = None
+    node: TraceNode, prettify_roles=False
 ) -> str:
     """Represents trace path as html string.
 
     Args:
         node: Trace node that designates the end of a trace path for HTML output.
         prettify_roles: Enables prettier formatting for roles.
-        complete_msg: Output message received on completion of engine.
 
     Returns:
         HTML string of trace path as html.
@@ -34,23 +32,14 @@ def trace_node_to_html(
     node_path = list(node.path())
     active_role: Optional[TraceNode] = None
 
-    prob_idx = 0
-    # remaining_text = ""
-    full_text = ""
-    if complete_msg:
-        for token in complete_msg.tokens:
-            full_text += token.text
-
-    for i, node in enumerate(node_path):
+    for node in node_path:
         if isinstance(node.input, RoleOpenerInput):
             active_role = node
         elif isinstance(node.input, RoleCloserInput):
             active_role = node
-
         if isinstance(node.output, TextOutput):
             if active_role is not None:
-                if isinstance(active_role.input, RoleOpenerInput) and prettify_roles:
-                    role_name = active_role.input.name
+                if prettify_roles and isinstance(active_role.input, RoleOpenerInput) and (role_name := active_role.input.name) is not None:
                     fmt = f"<div style='display: flex; border-bottom: 1px solid rgba(127, 127, 127, 0.2);  justify-content: center; align-items: center;'><div style='flex: 0 0 80px; opacity: 0.5;'>{role_name.lower()}</div><div style='flex-grow: 1; padding: 5px; padding-top: 10px; padding-bottom: 10px; margin-top: 0px; white-space: pre-wrap; margin-bottom: 0px;'>"
                     buffer.append(fmt)
                 if not prettify_roles:
@@ -58,93 +47,34 @@ def trace_node_to_html(
 
             if not (active_role and prettify_roles):
                 attr = node.output
+                latency = f"{attr.latency_ms:.2f}"
+                chunk_text = attr.value
 
-                fmt = ""
-                if not complete_msg:
+                if not isinstance(attr, TokenOutput):
                     if attr.is_generated:
-                        # fmt = f"<span style='background-color: rgba({165 * (1 - attr.prob)}, {165 * attr.prob}, 0, 0.15); border-radius: 3ps;' title='{attr.prob}'>{html.escape(attr.value)}</span>"
-                        fmt = f"<span style='background-color: rgba({0}, {255}, {0}, 0.15); border-radius: 3ps;' title='{attr.prob}'>{html.escape(attr.value)}</span>"
+                        fmt = f"<span style='background-color: rgba({0}, {255}, {0}, 0.15); border-radius: 3ps;' title='Chunk: {chunk_text}\nlatency_ms: {latency}'>{html.escape(chunk_text)}</span>"
                     elif attr.is_force_forwarded:
-                        fmt = f"<span style='background-color: rgba({0}, {0}, {255}, 0.15); border-radius: 3ps;' title='{attr.prob}'>{html.escape(attr.value)}</span>"
+                        fmt = f"<span style='background-color: rgba({0}, {0}, {255}, 0.15); border-radius: 3ps;' title='Chunk: {chunk_text}\nlatency_ms: {latency}'>{html.escape(chunk_text)}</span>"
                     else:
-                        # fmt = f"{html.escape(attr.value)}"
-                        fmt += f"<span style='background-color: rgba({255}, {255}, {255}, 0.15); border-radius: 3ps;' title='{attr.prob}'>{html.escape(attr.value)}</span>"
+                        fmt = f"<span style='background-color: rgba({255}, {255}, {255}, 0.15); border-radius: 3ps;' title='Chunk: {chunk_text}\nlatency_ms: {latency}'>{html.escape(chunk_text)}</span>"
                 else:
-                    # switch to token-based
-                    # cell_tokens = attr.tokens
-                    # for token in cell_tokens:
-                    #     # assert token.token == complete_msg.tokens[prob_idx].token, f"Token mismatch {token.token} != {complete_msg.tokens[prob_idx].token}"
-                    #     if token.token_id != complete_msg.tokens[prob_idx].token_id:
-                    #         if remaining_text + token.text != complete_msg.tokens[prob_idx].text:
-                    #             remaining_text += token.text
-                    #             continue
-                    #         else:
-                    #             remaining_text = ""
+                    token = attr.token
+                    token_str = token.token
+                    # assert token_str == chunk_text
 
-                    #     token_str = complete_msg.tokens[prob_idx].text
-                    #     prob = complete_msg.tokens[prob_idx].prob
-                    #     top_k = {}
-                    #     # find the correct token
-                    #     for _item in complete_msg.tokens[prob_idx].top_k:
-                    #         top_k[f"{_item.text}"] = f"{_item.prob} - Masked: {_item.is_masked}"
-                    #     top_k = json.dumps(top_k, indent=2)
+                    prob = token.prob # TODO: what if nan?
+                    top_k: dict[str, str] = {}
+                    # find the correct token
+                    for _token in (attr.top_k or []):
+                        top_k[f"{_token.token}"] = f"{_token.prob} - Masked: {_token.masked}"
+                    top_k_repr = json.dumps(top_k, indent=2)
 
-                    #     latency = f"{complete_msg.tokens[prob_idx].latency_ms:.2f}"
-
-                    #     if complete_msg.tokens[prob_idx].is_generated:
-                    #         fmt += f"<span style='background-color: rgba({0}, {127 + int(127 * prob)}, {0}, 0.15); border-radius: 3ps;' title='Token: \"{token_str}\" : {prob}\nTop-k: {top_k}\nlatency_ms: {latency}'>{html.escape(token_str)}</span>"
-                    #     elif complete_msg.tokens[prob_idx].is_force_forwarded:
-                    #         fmt += f"<span style='background-color: rgba({0}, {0}, {127 + int(127 * prob)}, 0.15); border-radius: 3ps;' title='Token: \"{token_str}\" : {prob}\nTop-k: {top_k}\nlatency_ms: {latency}'>{html.escape(token_str)}</span>"
-                    #     else:
-                    #         fmt += f"<span style='background-color: rgba({255}, {255}, {255}, 0.15); border-radius: 3ps;' title='Token: \"{token_str}\" : {prob}\nTop-k: {top_k}'>{html.escape(token_str)}</span>"
-
-                    #     full_text = full_text[len(token_str) :]
-                    #     prob_idx += 1
-
-                    chunk_text = attr.value
-                    # find tokens in complete message that cover this chunk
-                    tokens: list[GenToken] = []
-                    _idx = prob_idx
-                    tokens_text = ""
-                    while _idx < len(complete_msg.tokens):
-                        _token = complete_msg.tokens[_idx]
-                        tokens_text += _token.text
-                        tokens.append(_token)
-                        if chunk_text in tokens_text:
-                            break
-                        _idx += 1
-
-                    assert (
-                        chunk_text in tokens_text
-                    ), f"Token mismatch {tokens_text} != {chunk_text}"
-
-                    start_idx = tokens_text.index(chunk_text)
-                    remaining_text = tokens_text[start_idx + len(chunk_text) :]
-
-                    if remaining_text:
-                        # remove the last tokens
-                        tokens.pop(-1)
-
-                    # update prob_idx
-                    prob_idx += len(tokens)
-
-                    for token in tokens:
-                        token_str = token.text
-                        prob = token.prob
-                        top_k = {}
-                        # find the correct token
-                        for _item in token.top_k:
-                            top_k[f"{_item.text}"] = f"{_item.prob} - Masked: {_item.is_masked}"
-                        top_k = json.dumps(top_k, indent=2)
-
-                        latency = f"{token.latency_ms:.2f}"
-
-                        if token.is_generated:
-                            fmt += f"<span style='background-color: rgba({0}, {127 + int(127 * prob)}, {0}, 0.15); border-radius: 3ps;' title='Token: \"{token_str}\" : {prob}\nTop-k: {top_k}\nlatency_ms: {latency}'>{html.escape(token_str)}</span>"
-                        elif token.is_force_forwarded:
-                            fmt += f"<span style='background-color: rgba({0}, {0}, {127 + int(127 * prob)}, 0.15); border-radius: 3ps;' title='Token: \"{token_str}\" : {prob}\nTop-k: {top_k}\nlatency_ms: {latency}'>{html.escape(token_str)}</span>"
-                        else:
-                            fmt += f"<span style='background-color: rgba({255}, {255}, {255}, 0.15); border-radius: 3ps;' title='Token: \"{token_str}\" : {prob}\nTop-k: {top_k}'>{html.escape(token_str)}</span>"
+                    if attr.is_generated:
+                        fmt = f"<span style='background-color: rgba({0}, {127 + int(127 * prob)}, {0}, 0.15); border-radius: 3ps;' title='Token: \"{token_str}\" : {prob}\nTop-k: {top_k_repr}\nlatency_ms: {latency}'>{html.escape(token_str)}</span>"
+                    elif attr.is_force_forwarded:
+                        fmt = f"<span style='background-color: rgba({0}, {0}, {127 + int(127 * prob)}, 0.15); border-radius: 3ps;' title='Token: \"{token_str}\" : {prob}\nTop-k: {top_k_repr}\nlatency_ms: {latency}'>{html.escape(token_str)}</span>"
+                    else:
+                        fmt = f"<span style='background-color: rgba({255}, {255}, {255}, 0.15); border-radius: 3ps;' title='Token: \"{token_str}\" : {prob}\nTop-k: {top_k_repr}'>{html.escape(token_str)}</span>"
 
                 buffer.append(fmt)
 
@@ -155,9 +85,8 @@ def trace_node_to_html(
                     buffer.append(f"</div></div>")
                 active_role = None
         elif isinstance(node.output, ImageOutput):
-            encoded = base64.b64encode(node.output.value).decode()
             buffer.append(
-                f'<img src="data:image/png;base64,{encoded}" style="max-width" 400px; vertical-align: middle; margin: 4px;">'
+                f'<img src="data:image/png;base64,{node.output.value.decode()}" style="max-width" 400px; vertical-align: middle; margin: 4px;">'
             )
 
     buffer.insert(
@@ -193,7 +122,7 @@ def display_trace_tree(trace_handler: TraceHandler) -> None:
     Args:
         trace_handler: Trace handler needed to pull user-defined identifiers of trace nodes.
     """
-    from anytree import Node, RenderTree
+    from anytree import Node, RenderTree # type: ignore[import-untyped]
 
     root = trace_handler.root()
     trace_viz_map: Dict[TraceNode, Node] = {}

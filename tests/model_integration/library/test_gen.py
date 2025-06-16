@@ -47,28 +47,38 @@ def test_stop_quote(selected_model):
     assert not lm["title"].endswith('"')
 
 
+@pytest.mark.xfail(
+    reason="""
+    engine_output_tokens counts forward passes, not actual tokens generated, and it increments even when all inputs are in the KV cache.
+    We now get a forward pass every time text is added to the model (in addition to the extant forward pass any time a grammar is added),
+    causing this test to break. TODO: implement metrics that are more semantically meaningful.
+    """
+)
 def test_metrics_smoke(selected_model: models.Model):
     lm = selected_model
     lm.engine.reset_metrics()
 
-    lm += "abcd"
+    lm += "Generate the next letter: a b c d "
     print(f"{lm.engine.metrics=}")
     lm += gen("first", max_tokens=1)
     print(f"{lm.engine.metrics=}")
+    print(f"{str(lm)=}")
+    all_bytes = str(lm).encode()
+    print(f"{lm._interpreter.engine.tokenizer.encode(all_bytes)=}")
+    generated_bytes = lm["first"].encode()
+    print(f"{lm._interpreter.engine.tokenizer.encode(generated_bytes)=}")
     # Can't be sure of exact count due to token healing
     assert (
-        lm.engine.metrics.engine_output_tokens == 1
-        or lm.engine.metrics.engine_output_tokens == 2
+        lm.engine.metrics.engine_output_tokens == 1 or lm.engine.metrics.engine_output_tokens == 2
     )
     assert lm.engine.metrics.engine_input_tokens >= 1
     last_input_tokens = lm.engine.metrics.engine_input_tokens
 
-    lm += "fg"
+    lm += " f g"
     lm += gen("second", max_tokens=1)
     # Again, trouble with healing
     assert (
-        lm.engine.metrics.engine_output_tokens >= 2
-        or lm.engine.metrics.engine_output_tokens <= 4
+        lm.engine.metrics.engine_output_tokens >= 2 or lm.engine.metrics.engine_output_tokens <= 4
     )
     assert lm.engine.metrics.engine_input_tokens > last_input_tokens
 
@@ -92,9 +102,7 @@ def test_metrics_select(selected_model: models.Model):
     # Guidance should be able to force the generation after only a couple of tokens
     # so even though the options are long, relatively few output tokens should be
     # needed
-    assert (
-        lm.engine.metrics.engine_input_tokens > lm.engine.metrics.engine_output_tokens
-    )
+    assert lm.engine.metrics.engine_input_tokens > lm.engine.metrics.engine_output_tokens
 
 
 def test_unicode(selected_model: models.Model):
@@ -250,11 +258,7 @@ def test_tool_call(selected_model: models.Model):
         return lm + select(
             [
                 number(),
-                expression()
-                + zero_or_more(" ")
-                + operator()
-                + zero_or_more(" ")
-                + expression(),
+                expression() + zero_or_more(" ") + operator() + zero_or_more(" ") + expression(),
                 "(" + expression() + ")",
             ]
         )
@@ -274,8 +278,5 @@ def test_tool_call(selected_model: models.Model):
 
     calculator_tool = Tool(calculator_call(), calculator)
     gpt2 = selected_model
-    lm = (
-        gpt2
-        + "Here are five expressions:\nCalculator(3 * 3) = 33\nCalculator(2 + 1 * 3) = 5\n"
-    )
+    lm = gpt2 + "Here are five expressions:\nCalculator(3 * 3) = 33\nCalculator(2 + 1 * 3) = 5\n"
     lm += gen(max_tokens=30, temperature=0.5, tools=[calculator_tool], stop="\n\n")

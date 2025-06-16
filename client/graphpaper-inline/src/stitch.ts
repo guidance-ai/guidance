@@ -2,33 +2,36 @@
 
 import { writable } from 'svelte/store';
 
-export interface GenToken {
-    token_id: number,
-    prob: number,
-    text: string,
-    latency_ms: number,
-    is_masked: boolean,
-    is_generated: boolean,
-    is_force_forwarded: boolean,
-    is_input: boolean,
-}
-
-export interface GenTokenExtra extends GenToken {
-    top_k: Array<GenToken>,
-}
 
 export interface NodeAttr {
     class_name: string
 }
 
 export interface TextOutput extends NodeAttr {
-    class_name: 'TextOutput',
+    class_name: 'TextOutput' | 'TokenOutput',
     value: string,
     is_input: boolean,
     is_generated: boolean,
     is_force_forwarded: boolean,
-    token_count: number,
-    prob: number,
+    latency_ms: number,
+}
+
+export interface TokenOutput extends TextOutput {
+    class_name: 'TokenOutput',
+    token: Token,
+    top_k: Array<Token>,
+}
+
+export interface Token {
+    bytes: string
+    prob: number
+    masked: boolean,
+}
+
+export interface BacktrackMessage extends NodeAttr {
+    class_name: 'BacktrackMessage',
+    n_tokens: number,
+    bytes: string,
 }
 
 export interface ImageOutput extends NodeAttr {
@@ -110,7 +113,7 @@ export interface MetricMessage extends GuidanceMessage {
 }
 
 export interface StitchMessage {
-    type: "resize" | "clientmsg" | "kernelmsg" | "state" | "init_state",
+    type: "resize" | "clientmsg" | "kernelmsg" | "state" | "init_state" | "init_stitch",
     content: any
 }
 

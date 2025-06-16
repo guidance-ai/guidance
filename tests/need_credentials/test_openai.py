@@ -1,105 +1,84 @@
 import pytest
+import requests
 
-_ = pytest.importorskip("openai")
+from guidance import assistant, gen, gen_audio, image, system, user
+from guidance.models import Model, OpenAI
 
-import guidance
-from guidance import assistant, gen, select, system, user
-
-# This is all redundant with the class unification
-# def test_openai_class_detection():
-#     # TODO: expand this with other variants of openAI models
-#     test_models = {
-#         "gpt-3.5-turbo": guidance.models.OpenAIChat,
-#         "gpt-4": guidance.models.OpenAIChat,
-#         "gpt-4-vision-preview": guidance.models.OpenAIChat,
-#         "ft:gpt-3.5-turbo": guidance.models.OpenAIChat,
-#         "ft:gpt-4": guidance.models.OpenAIChat,
-#         "ft:gpt-4-vision-preview": guidance.models.OpenAIChat,
-#         "ft:gpt-3.5-turbo:my-org:custom_suffix:id": guidance.models.OpenAIChat,
-#         "gpt-3.5-turbo-instruct": guidance.models.OpenAICompletion,
-#         "ft:gpt-3.5-turbo-instruct": guidance.models.OpenAICompletion,
-#         "text-curie-001": guidance.models.OpenAICompletion,
-#         "ft:text-curie-001": guidance.models.OpenAICompletion,
-#         "text-davinci-003": guidance.models.OpenAICompletion,
-#     }
-
-#     for model_name, model_class in test_models.items():
-#         # setting random tokenizer and fake API key to allow this test to run without tiktoken detection errors
-#         initialized_model = guidance.models.OpenAI(
-#             model_name,
-#             tokenizer=tiktoken.encoding_for_model("gpt-3.5-turbo"),
-#             api_key="blah",
-#         )
-#         assert isinstance(initialized_model, model_class)
+from ..model_specific import common_chat_testing
+from ..utils import env_or_skip, slowdown
 
 
-def test_openai_basic():
-    try:
-        lm = guidance.models.OpenAI("gpt-3.5-turbo-instruct")
-    except:
-        pytest.skip("Skipping OpenAI test because we can't load the model!")
-    # lm = guidance.models.Transformers("gpt2")
-    lm += "Count to 20: 1,2,3,4,"
-    nl = "\n"
-    lm += f"""\
-5,6,7"""
-    lm += f"""{gen(max_tokens=1, suffix=nl)}aaaaaa"""
-    assert str(lm)[-5:] == "aaaaa"
+@pytest.fixture(scope="function")
+def openai_model() -> Model:
+    slowdown()
+
+    openai_api_key = env_or_skip("OPENAI_API_KEY")
+    model_name = "gpt-4o-mini"
+
+    lm = OpenAI(model_name, api_key=openai_api_key)
+    assert isinstance(lm, Model)
+    print(f"{type(lm._interpreter)=}")
+
+    return lm
 
 
-def test_openai_select():
-    try:
-        lm = guidance.models.OpenAI("gpt-3.5-turbo-instruct")
-    except:
-        pytest.skip("Skipping OpenAI test because we can't load the model!")
-    lm += "Pick a number: "
-    lm += select(
-        ["1", "11", "111", "1111", "11111", "111111", "1111111"], name="the number"
-    )
-    assert str(lm)[-1] in "123"
+@pytest.fixture(scope="function")
+def openai_audio_model() -> Model:
+    slowdown()
+
+    openai_api_key = env_or_skip("OPENAI_API_KEY")
+    model_name = "gpt-4o-mini-audio-preview"
+
+    lm = OpenAI(model_name, api_key=openai_api_key)
+    assert isinstance(lm, Model)
+    print(f"{type(lm._interpreter)=}")
+
+    return lm
 
 
-def test_openai_chat():
-    try:
-        lm = guidance.models.OpenAI("gpt-3.5-turbo")
-    except:
-        pytest.skip("Skipping OpenAI test because we can't load the model!")
+@pytest.fixture(scope="function")
+def openai_image_model() -> Model:
+    slowdown()
+
+    openai_api_key = env_or_skip("OPENAI_API_KEY")
+    model_name = "gpt-4o-mini"
+
+    lm = OpenAI(model_name, api_key=openai_api_key)
+    assert isinstance(lm, Model)
+    print(f"{type(lm._interpreter)=}")
+
+    return lm
+
+
+def test_openai_chat_smoke(openai_model: Model):
+    common_chat_testing.smoke_chat(openai_model)
+
+
+def test_openai_audio_smoke(openai_audio_model: Model):
+    lm = openai_audio_model
     with system():
-        lm += "You are a math wiz."
-
+        lm += "Talk like a pirate."
     with user():
-        lm += "What is 1 + 1?"
-
+        lm += "What is the capital of France?"
     with assistant():
-        lm += gen(max_tokens=10, name="text")
-        lm += "Pick a number: "
-
-    assert len(lm["text"]) > 0
+        lm += gen_audio()
 
 
-def test_openai_chat_without_roles():
-    lm = guidance.models.OpenAI(
-        "gpt-3.5-turbo",
-        api_key="blah",
-    )
-    with pytest.raises(ValueError) as error_info:
-        lm += "You are a math wiz. What is 1+1?" + gen(max_tokens=10, name="text")
+def test_openai_image_smoke(openai_image_model: Model):
+    lm = openai_image_model
+
+    image_bytes = requests.get("https://picsum.photos/300/200").content
+
+    with system():
+        lm += "You are a helpful AI assistant."
+    with user():
+        lm += "Can you describe this image for me?"
+        lm += image(image_bytes)
+    with assistant():
+        lm += gen(name="img_describe")
+    assert "img_describe" in lm
+    assert len(lm["img_describe"]) > 0
 
 
-def test_openai_chat_loop():
-    # tests issue #509
-    try:
-        model = guidance.models.OpenAI("gpt-3.5-turbo", echo=False)
-    except:
-        pytest.skip("Skipping OpenAI test because we can't load the model!")
-
-    for i in range(2):
-
-        with system():
-            lm = model + "You will just return whatever number I give you"
-
-        with user():
-            lm += f"The number is: {i}"
-
-        with assistant():
-            lm += gen(name="answer", max_tokens=2)
+def test_openai_chat_json(openai_model: Model):
+    common_chat_testing.json_output_smoke(openai_model)
