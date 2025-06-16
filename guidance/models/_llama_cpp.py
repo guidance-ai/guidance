@@ -158,27 +158,26 @@ class LlamaCppEngine(Engine):
         if len(token_ids) == 0:
             raise ValueError("token_ids must contain some tokens.")
 
-        # check what we have already cached
-        cache_token_ids = self._cache_token_ids
-        num_cached = sum(takewhile(operator.truth, map(operator.eq, token_ids, cache_token_ids)))
-        if num_cached == len(token_ids):
-            if full_sequence:
-                return self._cached_logits[:num_cached, :]
-            else:
-                return self._cached_logits[num_cached - 1, :]
-
         # make sure we don't run off the end of the model's context
         if self.model_obj.n_ctx() <= len(token_ids):
             raise Exception(
                 f"Attempted to use a context length of {len(token_ids)} tokens, but this LlamaCpp model is only configured to support up to {self.model_obj.n_ctx()}!"
             )
 
-        self._cache_token_ids = token_ids.copy()
-        if self._cached_logits is not None and len(self._cached_logits) > num_cached:
-            self._cached_logits = self._cached_logits[:num_cached, :]
+        # check what we have already cached
+        num_cached = sum(takewhile(operator.truth, map(operator.eq, token_ids, self._cache_token_ids)))
+        if num_cached == len(token_ids):
+            if full_sequence:
+                return self._cached_logits[:num_cached, :]
+            else:
+                return self._cached_logits[num_cached - 1, :]
 
         # clear obsolete parts of kv cache
         llama_cpp.llama_kv_cache_seq_rm(self.model_obj.ctx, -1, num_cached, -1)
+
+        # clear obsolete parts of logit cache
+        if self._cached_logits is not None and len(self._cached_logits) > num_cached:
+            self._cached_logits = self._cached_logits[:num_cached, :]
 
         # eval the model
         logits_for_each_batch = []
@@ -205,9 +204,13 @@ class LlamaCppEngine(Engine):
                 shape=(n_tokens, self._n_vocab),
             ).copy()
             logits_for_each_batch.append(logits)
-            self.metrics.engine_input_tokens += n_tokens
 
+        # update the metrics
         self.metrics.engine_output_tokens += 1
+        self.metrics.engine_input_tokens += len(token_ids) - num_cached
+
+        # save the results
+        self._cache_token_ids = token_ids.copy()
 
         if self._cached_logits is not None:
             logits_for_each_batch = [self._cached_logits] + logits_for_each_batch

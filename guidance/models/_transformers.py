@@ -466,22 +466,24 @@ class TransformersEngine(Engine):
         inference results from the model.
         """
 
-        # make sure we don't run off the end of the model
+        if len(token_ids) == 0:
+            raise ValueError("token_ids must contain some tokens.")
+
+        # make sure we don't run off the end of the model's context
         if len(token_ids) >= getattr(self.model_obj.config, "max_position_embeddings", 1e10):
             raise Exception(
                 f"Attempted to run a transformers model past its maximum context window size of {self.model_obj.config.max_position_embeddings}!"
             )
 
         # check what we have already cached
-        cache_token_ids = self._cached_token_ids
-        num_cached = sum(takewhile(operator.truth, map(operator.eq, token_ids, cache_token_ids)))
+        num_cached = sum(takewhile(operator.truth, map(operator.eq, token_ids, self._cached_token_ids)))
         if num_cached == len(token_ids):
             if full_sequence:
                 return self._cached_logits[:num_cached, :]
             else:
                 return self._cached_logits[num_cached - 1, :]
 
-        # reset the cache length according to that number of positions
+        # check how many tokens are in the kv cache and what the max size of the cache is
         past_key_values = self._past_key_values
         max_cache_shape = None
         if past_key_values is None:
@@ -501,6 +503,7 @@ class TransformersEngine(Engine):
         else:
             raise TypeError(f"Unknown type of past_key_values: {type(past_key_values)}")
 
+        # If the cache is too small, we need to resize it or make a new one.
         if max_cache_shape is not None and len(token_ids) > max_cache_shape:
             # TODO: this seems to get set to the length of the first sequence we pass for models using
             # StaticCache or HybridCache. We need to initialize our own cache with a large enough size
@@ -534,8 +537,10 @@ class TransformersEngine(Engine):
                 )
                 self._past_key_values = None
             past_length = 0
-        elif past_length > num_cached:
-            past_length = max(0, num_cached - 1)
+
+        # clear obsolete parts of kv cache
+        if past_length > num_cached:
+            past_length = num_cached
             if isinstance(past_key_values, tuple):
                 self._past_key_values = tuple(
                     tuple(p[..., :past_length, :] for p in v) for v in past_key_values
@@ -554,29 +559,60 @@ class TransformersEngine(Engine):
                         self._past_key_values = None
                     past_length = 0
 
-        cache_token_ids[past_length:] = []
+        # clear obsolete parts of logit cache
+        if self._cached_logits is not None and len(self._cached_logits) > num_cached:
+            self._cached_logits = self._cached_logits[:num_cached, :]
 
-        # call the model
-        logits_for_each_batch = []
+        # eval the model
+        assert past_length <= num_cached
+        assert num_cached <= len(token_ids)
         new_token_ids = token_ids[past_length:]
-        if len(new_token_ids) > 0:
-            with torch.no_grad():
-                # Not all models support batched tokens for some reason
-                try:
+        assert len(new_token_ids) > 0
+        logits_for_each_batch = []
+        with torch.no_grad():
+            # Not all models support batched tokens for some reason
+            try:
+                model_out = self.model_obj(
+                    input_ids=torch.tensor(new_token_ids).unsqueeze(0).to(self.device),
+                    past_key_values=self._past_key_values,
+                    use_cache=True,
+                    position_ids=torch.arange(past_length, past_length + len(new_token_ids))
+                    .unsqueeze(0)
+                    .to(self.device),
+                    attention_mask=torch.ones(1, past_length + len(new_token_ids)).to(
+                        self.device
+                    ),
+                    return_dict=True,
+                    output_attentions=False,
+                    output_hidden_states=False,
+                )
+                # Need to add special truncating logic here for weird models that have a different output size than tokenizer vocab
+                logits_for_each_batch.append(
+                    model_out.logits[0, :, :self.tokenizer._vocab_size]
+                    .float()
+                    .cpu()
+                    .numpy()
+                )
+            except AssertionError:
+                for i, new_token_id in enumerate(new_token_ids):
+                    input_ids = torch.tensor([new_token_id]).unsqueeze(0).to(self.device)
+
                     model_out = self.model_obj(
-                        input_ids=torch.tensor(new_token_ids).unsqueeze(0).to(self.device),
+                        input_ids=input_ids,
                         past_key_values=self._past_key_values,
                         use_cache=True,
-                        position_ids=torch.arange(past_length, past_length + len(new_token_ids))
+                        position_ids=torch.arange(past_length, past_length + 1)
                         .unsqueeze(0)
                         .to(self.device),
-                        attention_mask=torch.ones(1, past_length + len(new_token_ids)).to(
-                            self.device
-                        ),
+                        attention_mask=torch.ones(1, past_length + 1).to(self.device),
                         return_dict=True,
                         output_attentions=False,
                         output_hidden_states=False,
                     )
+
+                    self._past_key_values = model_out.past_key_values
+                    past_length += 1
+
                     # Need to add special truncating logic here for weird models that have a different output size than tokenizer vocab
                     logits_for_each_batch.append(
                         model_out.logits[0, :, :self.tokenizer._vocab_size]
@@ -584,40 +620,14 @@ class TransformersEngine(Engine):
                         .cpu()
                         .numpy()
                     )
-                except AssertionError:
-                    for i, new_token_id in enumerate(new_token_ids):
-                        input_ids = torch.tensor([new_token_id]).unsqueeze(0).to(self.device)
 
-                        model_out = self.model_obj(
-                            input_ids=input_ids,
-                            past_key_values=self._past_key_values,
-                            use_cache=True,
-                            position_ids=torch.arange(past_length, past_length + 1)
-                            .unsqueeze(0)
-                            .to(self.device),
-                            attention_mask=torch.ones(1, past_length + 1).to(self.device),
-                            return_dict=True,
-                            output_attentions=False,
-                            output_hidden_states=False,
-                        )
+        # update the metrics
+        self.metrics.engine_input_tokens += len(new_token_ids)
+        self.metrics.engine_output_tokens += 1
 
-                        self._past_key_values = model_out.past_key_values
-                        past_length += 1
-
-                        # Need to add special truncating logic here for weird models that have a different output size than tokenizer vocab
-                        logits_for_each_batch.append(
-                            model_out.logits[0, :, :self.tokenizer._vocab_size]
-                            .float()
-                            .cpu()
-                            .numpy()
-                        )
-
-            # save the results
-            self._past_key_values = model_out.past_key_values
-            cache_token_ids.extend(new_token_ids)
-
-            self.metrics.engine_input_tokens += len(new_token_ids)
-            self.metrics.engine_output_tokens += 1
+        # save the results
+        self._past_key_values = model_out.past_key_values
+        self._cache_token_ids = token_ids.copy()
 
         if self._cached_logits is not None:
             logits_for_each_batch = [self._cached_logits] + logits_for_each_batch
